@@ -215,6 +215,11 @@ type WorkTask struct {
 	Due   string `json:"due,omitempty"`
 	Event string `json:"event,omitempty"`
 	Line  string `json:"line,omitempty"`
+	// Done tells a shell that is over from one still running. A shell stays in
+	// the list after its command ends: its output is still readable, and the
+	// screen of the session counts it among the ones it holds.
+	Done   bool   `json:"done,omitempty"`
+	DoneAt string `json:"doneAt,omitempty"`
 }
 
 // WorkAgent is a subagent the session started.
