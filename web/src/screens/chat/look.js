@@ -31,12 +31,22 @@ function fileURL(base, path, offset) {
     return `/api/chat/file?${base}&path=${encodeURIComponent(path)}${at}`;
 }
 
+function saveURL(base, path) {
+    return `/api/chat/file/download?${base}&path=${encodeURIComponent(path)}`;
+}
+
+const SaveIcon = () => html`
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10.5l4 4 4-4M5 19h14" /></svg>
+`;
+
 export function Look({ session, id, look, onBack, quote, onQuote }) {
     const toast = useToast();
     const [state, setState] = useState({ kind: "loading" });
     const [more, setMore] = useState({ busy: false, error: "" });
     const task = look.kind === "task";
     const file = look.kind === "file";
+    const base = `session=${encodeURIComponent(session)}${idParam(id)}`;
 
     useBackClose(Boolean(onBack), onBack);
 
@@ -45,7 +55,6 @@ export function Look({ session, id, look, onBack, quote, onQuote }) {
         setState({ kind: "loading" });
         setMore({ busy: false, error: "" });
         const ask = async () => {
-            const base = `session=${encodeURIComponent(session)}${idParam(id)}`;
             const url = task
                 ? `/api/chat/task?${base}&task=${encodeURIComponent(look.id)}`
                 : file
@@ -71,7 +80,6 @@ export function Look({ session, id, look, onBack, quote, onQuote }) {
     const loadMore = async () => {
         if (!state.next || more.busy) return;
         setMore({ busy: true, error: "" });
-        const base = `session=${encodeURIComponent(session)}${idParam(id)}`;
         try {
             const r = await fetch(fileURL(base, look.path, state.next));
             if (!r.ok) throw new Error((await r.text()).trim() || `response ${r.status}`);
@@ -99,10 +107,20 @@ export function Look({ session, id, look, onBack, quote, onQuote }) {
         </div>
     `;
     const pick = state.kind === "ready" && file ? copy.filePick(state) : null;
-    const tools = pick && html`
-        <button type="button" class="mdcopy filecopy"
-                title="Copy the contents" aria-label="Copy the contents"
-                onClick=${() => copy.fileCopy(state, toast)}>${Icon.copy()}</button>
+    // Every kind of file is saved, an executable and a binary included: the one
+    // the screen has nothing to show with is the one there is a reason to save.
+    const save = state.kind === "ready" && file;
+    const tools = (pick || save) && html`
+        ${pick && html`
+            <button type="button" class="mdcopy filecopy"
+                    title="Copy the contents" aria-label="Copy the contents"
+                    onClick=${() => copy.fileCopy(state, toast)}>${Icon.copy()}</button>
+        `}
+        ${save && html`
+            <a class="mdcopy filecopy" href=${saveURL(base, look.path)}
+               download=${state.name || look.path}
+               title="Save the file" aria-label="Save the file">${SaveIcon()}</a>
+        `}
     `;
     return html`
         ${onBack

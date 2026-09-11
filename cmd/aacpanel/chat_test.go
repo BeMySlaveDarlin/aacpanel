@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,6 +32,12 @@ type fakeAgent struct {
 
 func startAgent(t *testing.T, reply any) *fakeAgent {
 	t.Helper()
+	return startAgentSeq(t, reply)
+}
+
+// startAgentSeq answers the requests in turn; the last answer stays for the rest.
+func startAgentSeq(t *testing.T, replies ...any) *fakeAgent {
+	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "chat.sock")
 	ln, err := net.Listen("unix", path)
@@ -37,6 +47,8 @@ func startAgent(t *testing.T, reply any) *fakeAgent {
 	t.Cleanup(func() { ln.Close() })
 
 	a := &fakeAgent{path: path, got: make(chan chat.Req, 8), raw: make(chan []byte, 8)}
+	var mu sync.Mutex
+	turn := 0
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -50,6 +62,10 @@ func startAgent(t *testing.T, reply any) *fakeAgent {
 				_ = json.Unmarshal(body, &req)
 				a.raw <- body
 				a.got <- req
+				mu.Lock()
+				reply := replies[min(turn, len(replies)-1)]
+				turn++
+				mu.Unlock()
 				out, _ := json.Marshal(reply)
 				_, _ = conn.Write(out)
 			}()
@@ -649,4 +665,226 @@ func TestArchiveAsksByContourIDPG(t *testing.T) {
 			t.Fatalf("response %d, expected 400: %s", w.Code, w.Body.String())
 		}
 	})
+}
+
+func TestDownloadNamesTheFileInAnyAlphabet(t *testing.T) {
+	const name = `résumé "mai".md`
+	agent := startAgent(t, map[string]any{
+		"ok": true, "kind": "raw", "name": name, "size": 2,
+		"data": base64.StdEncoding.EncodeToString([]byte("hi")),
+	})
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+
+	w := httptest.NewRecorder()
+	srv.apiChatDownload(w, httptest.NewRequest(http.MethodGet,
+		"/api/chat/file/download?session=sentinel&path=docs/may.md", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("response %d: %s", w.Code, w.Body.String())
+	}
+
+	head := w.Header().Get("Content-Disposition")
+	kind, params, err := mime.ParseMediaType(head)
+	if err != nil {
+		t.Fatalf("the header did not parse: %v (%q)", err, head)
+	}
+	if kind != "attachment" {
+		t.Errorf("the answer came as %q: the phone opens the file instead of saving it", kind)
+	}
+	if params["filename"] != name {
+		t.Errorf("the file is saved as %q instead of %q", params["filename"], name)
+	}
+
+	plain := quotedName(t, head)
+	for i := 0; i < len(plain); i++ {
+		if c := plain[i]; c < 0x20 || c > 0x7e || c == '"' {
+			t.Fatalf("byte %d of the plain name is %#x: a quote or a letter outside ASCII "+
+				"parts a browser from the header, and with it from the rest of the answer", i, c)
+		}
+	}
+	if !strings.HasSuffix(plain, ".md") {
+		t.Errorf("the plain name %q lost the extension — the phone will not know what opens it", plain)
+	}
+}
+
+func quotedName(t *testing.T, head string) string {
+	t.Helper()
+	const key = `filename="`
+	at := strings.Index(head, key)
+	if at < 0 {
+		t.Fatalf("%q has no plain name — a browser that does not read the encoded one saves "+
+			"the file under the name of the route", head)
+	}
+	rest := head[at+len(key):]
+	end := strings.IndexByte(rest, '"')
+	if end < 0 {
+		t.Fatalf("the plain name is not closed: %q", head)
+	}
+	return rest[:end]
+}
+
+func TestDownloadWalksTheFileToItsEnd(t *testing.T) {
+	agent := startAgentSeq(t,
+		map[string]any{"ok": true, "kind": "raw", "name": "log.txt", "size": 12,
+			"offset": 0, "data": base64.StdEncoding.EncodeToString([]byte("first ")), "next": 6},
+		map[string]any{"ok": true, "kind": "raw", "name": "log.txt", "size": 12,
+			"offset": 6, "data": base64.StdEncoding.EncodeToString([]byte("second"))},
+	)
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+
+	w := httptest.NewRecorder()
+	srv.apiChatDownload(w, httptest.NewRequest(http.MethodGet,
+		"/api/chat/file/download?session=sentinel&path=notes/log.txt", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("response %d: %s", w.Code, w.Body.String())
+	}
+	if body := w.Body.String(); body != "first second" {
+		t.Errorf("%q was saved instead of the whole file — the file arrives cut off at the "+
+			"first range, and nothing on the phone says so", body)
+	}
+	if got := w.Header().Get("Content-Length"); got != "12" {
+		t.Errorf("Content-Length %q against 12 bytes of the file: a download broken off "+
+			"halfway passes for a whole file", got)
+	}
+
+	first, second := <-agent.got, <-agent.got
+	if first.Raw != "notes/log.txt" || second.Raw != "notes/log.txt" {
+		t.Errorf("the path changed on the way: %q, then %q", first.Raw, second.Raw)
+	}
+	if first.File != "" || second.File != "" {
+		t.Errorf("the file was asked for the way the viewer asks (%q) — that reply carries "+
+			"no bytes of a binary at all", first.File)
+	}
+	if first.Offset != 0 || second.Offset != 6 {
+		t.Errorf("the ranges were asked for at %d and %d — the second one repeats the beginning "+
+			"of the file instead of continuing it", first.Offset, second.Offset)
+	}
+}
+
+func TestDownloadHandsOverMediaWhole(t *testing.T) {
+	raw := []byte{0x89, 'P', 'N', 'G', 0x00, 0x01, 0x02}
+	agent := startAgent(t, map[string]any{
+		"ok": true, "kind": "raw", "name": "shot.png", "media": "image/png",
+		"data": base64.StdEncoding.EncodeToString(raw), "size": len(raw),
+	})
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+
+	w := httptest.NewRecorder()
+	srv.apiChatDownload(w, httptest.NewRequest(http.MethodGet,
+		"/api/chat/file/download?session=sentinel&path=shot.png", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("response %d: %s", w.Code, w.Body.String())
+	}
+	if !bytes.Equal(w.Body.Bytes(), raw) {
+		t.Errorf("the bytes of the picture came out as %x instead of %x — base64 reached "+
+			"the phone instead of the file", w.Body.Bytes(), raw)
+	}
+	if got := w.Header().Get("Content-Length"); got != strconv.Itoa(len(raw)) {
+		t.Errorf("Content-Length %q with %d bytes of the file: the download is shown as broken "+
+			"off or hangs waiting for the rest", got, len(raw))
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/png" {
+		t.Errorf("the type of the saved file is %q — the phone opens it with the wrong thing", got)
+	}
+}
+
+func TestDownloadCarriesWhatTheViewerCannotShow(t *testing.T) {
+	cases := []struct {
+		name string
+		body []byte
+		file string
+	}{
+		{"a binary", []byte{0x00, 0x01, 0x02, 0xff}, "core.bin"},
+		{"an executable", []byte("\x7fELF\x02\x01"), "aacpanel-exec"},
+		{"a clip the viewer calls too large", bytes.Repeat([]byte{0x1a}, 64), "clip.mp4"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			agent := startAgent(t, map[string]any{
+				"ok": true, "kind": "raw", "name": c.file, "size": len(c.body),
+				"data": base64.StdEncoding.EncodeToString(c.body),
+			})
+			srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+
+			w := httptest.NewRecorder()
+			srv.apiChatDownload(w, httptest.NewRequest(http.MethodGet,
+				"/api/chat/file/download?session=sentinel&path="+c.file, nil))
+			if w.Code != http.StatusOK {
+				t.Fatalf("response %d: %s", w.Code, w.Body.String())
+			}
+			if !bytes.Equal(w.Body.Bytes(), c.body) {
+				t.Errorf("%x arrived instead of %x — the very file the screen has nothing "+
+					"to show with is the one there is a reason to save", w.Body.Bytes(), c.body)
+			}
+		})
+	}
+}
+
+func TestDownloadStopsAtACollectorThatCannotDoIt(t *testing.T) {
+	// An older collector knows no range mode and answers the feed window instead.
+	agent := startAgent(t, okReply())
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+
+	w := httptest.NewRecorder()
+	srv.apiChatDownload(w, httptest.NewRequest(http.MethodGet,
+		"/api/chat/file/download?session=sentinel&path=core.bin", nil))
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("response %d: %s — an empty file under the name of the one that was asked "+
+			"for lands on the phone, and nothing says the host is behind", w.Code, w.Body.String())
+	}
+	if head := w.Header().Get("Content-Disposition"); head != "" {
+		t.Errorf("the refusal is offered for saving as %q", head)
+	}
+	if !strings.Contains(w.Body.String(), "restarted") {
+		t.Errorf("the refusal does not say what to do about it: %q", w.Body.String())
+	}
+}
+
+func TestDownloadRefusesAFileTooLargeToCross(t *testing.T) {
+	agent := startAgent(t, map[string]any{
+		"ok": true, "kind": "raw", "name": "huge.log", "size": downloadCap + 1,
+		"data": base64.StdEncoding.EncodeToString([]byte("x")),
+	})
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+
+	w := httptest.NewRecorder()
+	srv.apiChatDownload(w, httptest.NewRequest(http.MethodGet,
+		"/api/chat/file/download?session=sentinel&path=huge.log", nil))
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("response %d: %s", w.Code, w.Body.String())
+	}
+	if w.Body.Len() == 0 || !strings.Contains(w.Body.String(), strconv.Itoa(downloadCap+1)) {
+		t.Errorf("the refusal does not say how large the file is: %q", w.Body.String())
+	}
+}
+
+func TestDownloadLeavesThePathCheckToTheCollector(t *testing.T) {
+	const refusal = "the file was not opened: it either does not exist, or lies outside the " +
+		"directory of this conversation"
+	agent := startAgent(t, map[string]any{"ok": false, "error": refusal})
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(agent.path)}
+
+	const climb = "../../../etc/passwd"
+	w := httptest.NewRecorder()
+	srv.apiChatDownload(w, httptest.NewRequest(http.MethodGet,
+		"/api/chat/file/download?session=sentinel&path="+url.QueryEscape(climb), nil))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("response %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), refusal) {
+		t.Errorf("the refusal of the collector did not reach the phone: %q", w.Body.String())
+	}
+	if head := w.Header().Get("Content-Disposition"); head != "" {
+		t.Errorf("a refused file is still offered for saving: %q", head)
+	}
+
+	req := <-agent.got
+	if req.Raw != climb {
+		t.Errorf("the path reached the collector as %q instead of %q: the one that holds it "+
+			"against the directory of the conversation checks something else than what was asked for",
+			req.Raw, climb)
+	}
+	if req.Session != "567f4d24-cd5f-48fa-bdc1-04c89d203494" {
+		t.Errorf("the file was asked for in conversation %q — a path is only inside or outside "+
+			"of one, and with the wrong one the check means nothing", req.Session)
+	}
 }

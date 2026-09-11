@@ -8,7 +8,7 @@ import archive
 import asked
 import sesstate
 
-from .disk import MAX_FILE, read_file, task_output
+from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
 from .locate import subagent_path, transcript_cwd, transcript_path
 from .mail import agent_mail
 from .spots import call, image
@@ -113,6 +113,17 @@ def _answer(request):
             return {"ok": False,
                     "error": "there is no output of this task on disk: it has either written "
                              "nothing yet, or its directory is already gone"}
+        return {"ok": True, "session": session, **found}
+
+    want = request.get("raw")
+    if isinstance(want, str) and want:
+        found = read_raw(want, transcript_cwd(path),
+                         offset=request.get("offset") or 0,
+                         limit=request.get("bytes") or MAX_RAW)
+        if found is None:
+            return {"ok": False,
+                    "error": "the file was not opened: it either does not exist, or lies "
+                             "outside the directory of this conversation"}
         return {"ok": True, "session": session, **found}
 
     want = request.get("file")

@@ -99,3 +99,68 @@ func TestAFinishedShellKeepsItsMarkThroughTheAPI(t *testing.T) {
 		t.Errorf("the mark is lost on the way out: %s", out)
 	}
 }
+
+// The bytes of a file cross the socket by ranges, and the offsets of the next
+// one come back in the same reply. A key the collector puts there and Reply does
+// not declare is dropped between the two without a word — and a download that
+// loses its "next" ends silently at the first range, with half a file saved as
+// the whole of it.
+func TestEveryRawFieldTheCollectorSendsHasAPlace(t *testing.T) {
+	root := filepath.Join("..", "..")
+	raw, err := os.ReadFile(filepath.Join(root, "agent", "chat", "disk.py"))
+	if err != nil {
+		t.Fatalf("the collector source is out of reach: %v", err)
+	}
+	src := string(raw)
+
+	start := strings.Index(src, "def read_raw(")
+	if start < 0 {
+		t.Fatal("the collector has no read_raw where the test looks for it")
+	}
+	body := src[start:]
+	if end := strings.Index(body, "\ndef "); end > 0 {
+		body = body[:end]
+	}
+
+	var sent []string
+	seen := map[string]bool{}
+	for _, re := range []*regexp.Regexp{
+		regexp.MustCompile(`"([a-zA-Z]+)":`),           // inside the literal
+		regexp.MustCompile(`out\["([a-zA-Z]+)"\]\s*=`), // added to it afterwards
+	} {
+		for _, m := range re.FindAllStringSubmatch(body, -1) {
+			if seen[m[1]] {
+				continue
+			}
+			seen[m[1]] = true
+			sent = append(sent, m[1])
+		}
+	}
+	if len(sent) < 5 {
+		t.Fatalf("only %d keys found in read_raw: the test reads the wrong place", len(sent))
+	}
+
+	known := map[string]bool{}
+	typ := reflect.TypeOf(Reply{})
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.Anonymous {
+			for k := 0; k < field.Type.NumField(); k++ {
+				if name := strings.Split(field.Type.Field(k).Tag.Get("json"), ",")[0]; name != "" {
+					known[name] = true
+				}
+			}
+			continue
+		}
+		if name := strings.Split(field.Tag.Get("json"), ",")[0]; name != "" && name != "-" {
+			known[name] = true
+		}
+	}
+
+	for _, key := range sent {
+		if !known[key] {
+			t.Errorf("the collector sends the field %q of a range and Reply has nowhere to put it: "+
+				"the value is dropped between the two, silently", key)
+		}
+	}
+}

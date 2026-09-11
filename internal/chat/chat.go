@@ -295,6 +295,7 @@ type Req struct {
 	Archive  *ArchiveReq `json:"archive,omitempty"`
 	Task     *TaskRef    `json:"task,omitempty"`
 	File     string      `json:"file,omitempty"`
+	Raw      string      `json:"raw,omitempty"`
 	Offset   int64       `json:"offset,omitempty"`
 	Bytes    int         `json:"bytes,omitempty"`
 	Agent    string      `json:"agent,omitempty"`
@@ -433,6 +434,14 @@ func (c *Client) AgentMail(ctx context.Context, session, name string) ([]Letter,
 // FileOf fetches a chunk of a project file by the path from the feed.
 func (c *Client) FileOf(ctx context.Context, t Target, path string, offset int64, size int) (Reply, error) {
 	return c.Feed(ctx, Req{Session: t.Session, Subagent: t.Subagent, File: path,
+		Offset: offset, Bytes: size})
+}
+
+// RawFile fetches a range of the bytes of a project file as they lie on disk.
+// Every kind of file travels this way, an executable and a binary included: it
+// is asked for to save the file on a device, not to show it on a screen.
+func (c *Client) RawFile(ctx context.Context, t Target, path string, offset int64, size int) (Reply, error) {
+	return c.Feed(ctx, Req{Session: t.Session, Subagent: t.Subagent, Raw: path,
 		Offset: offset, Bytes: size})
 }
 

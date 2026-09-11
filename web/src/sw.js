@@ -6,6 +6,12 @@ const DATA_CACHE = "aacpanel-data";
 
 const SHELL_URL = "/app";
 
+// A file on its way to a device goes around the worker: a data request is cut
+// off after five seconds and its answer is kept in DATA_CACHE, and a file is
+// neither short nor wanted twice — it would be saved to the phone through a
+// copy of itself stored on the same phone.
+const DOWNLOAD_URL = "/api/chat/file/download";
+
 let ENDPOINTS = [];
 
 let BASE = "";
@@ -113,6 +119,8 @@ self.addEventListener("fetch", (event) => {
     if (request.method !== "GET") return;
 
     const url = new URL(request.url);
+
+    if (url.pathname === DOWNLOAD_URL) return;
 
     if (request.headers.get("Accept") === "text/event-stream") return;
 

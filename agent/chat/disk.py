@@ -243,6 +243,43 @@ def disk_files(paths, cwd):
     return out
 
 
+MAX_RAW = 1024 * 1024
+
+
+def read_raw(path_in_repo, cwd, offset=0, limit=MAX_RAW):
+    """Returns a range of bytes of a project file, or None when it cannot be read.
+
+    Every kind of file travels this way, an executable and a binary included:
+    the range is asked for to save the file on a device, not to show it, and
+    there the whole point is the bytes as they lie on disk. The cap is on one
+    range, not on the file: the caller walks it by the offsets it gets back.
+    """
+    real = sesstate.inside(path_in_repo, cwd)
+    if not real:
+        return None
+    try:
+        st = os.stat(real)
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        size = st.st_size
+        start = max(0, min(int(offset or 0), size))
+        want = max(1, min(int(limit or MAX_RAW), MAX_RAW))
+        with open(real, "rb") as f:
+            f.seek(start)
+            data = f.read(want)
+    except (OSError, ValueError, TypeError):
+        return None
+    out = {"kind": "raw", "size": size, "name": os.path.basename(real),
+           "offset": start, "data": base64.b64encode(data).decode("ascii")}
+    _, media = as_is(real)
+    if media:
+        out["media"] = media
+    end = start + len(data)
+    if end < size:
+        out["next"] = end
+    return out
+
+
 def trim_utf8(data):
     """Returns the chunk without a character torn in half at its end."""
     for back in range(1, min(4, len(data)) + 1):

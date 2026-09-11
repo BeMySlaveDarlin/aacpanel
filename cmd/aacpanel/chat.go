@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"regexp"
@@ -247,6 +249,137 @@ func (s *Server) apiChatFile(w http.ResponseWriter, r *http.Request) {
 		"kind": reply.Kind, "offset": reply.Offset, "next": reply.Next,
 		"tooBig": reply.TooBig, "media": reply.Media, "data": reply.Data,
 		"mode": reply.Mode})
+}
+
+// downloadChunk is how much of a file the panel asks for at a time: a range
+// travels base64-encoded, and one this size is held in memory while it is
+// written out. The file never is.
+const downloadChunk = 1024 * 1024
+
+// downloadCap is the largest file the panel hands over. A file crosses the
+// socket range by range, and the collector on the other end is carrying the
+// feeds of every session at the same time: past this size the saving stops
+// being a download and becomes a wait. A file over the cap is refused by its
+// size — half a file handed over as the whole of it is worse than a refusal.
+const downloadCap = 128 << 20
+
+func (s *Server) apiChatDownload(w http.ResponseWriter, r *http.Request) {
+	if !s.chat.Available() {
+		http.Error(w, "chat is unavailable: the collector socket is not mounted", http.StatusServiceUnavailable)
+		return
+	}
+	target, err := s.chatTarget(r, r.URL.Query().Get("session"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	want := r.URL.Query().Get("path")
+	if want == "" {
+		http.Error(w, "a file path is required", http.StatusBadRequest)
+		return
+	}
+	// The path is held against the directory of the conversation by the one that
+	// knows it — the same check the viewer goes through. The panel itself never
+	// opens a file: a second way to the disk would be a way around that check.
+	first, err := s.chat.RawFile(r.Context(), target, want, 0, downloadChunk)
+	if err != nil {
+		chatFail(w, err)
+		return
+	}
+	if first.Kind != "raw" {
+		http.Error(w, "the collector on this host does not hand over files by ranges: "+
+			"it is older than the panel and has to be restarted", http.StatusBadGateway)
+		return
+	}
+	if first.Size > downloadCap {
+		http.Error(w, fmt.Sprintf("the file is too large to hand over: %d bytes against the %d "+
+			"the panel carries", first.Size, downloadCap), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	attachHead(w, first.Name, first.Media)
+	w.Header().Set("Content-Length", strconv.FormatInt(first.Size, 10))
+	s.sendRanges(r.Context(), w, target, want, first)
+}
+
+// sendRanges writes the file out range by range, asking the collector for the
+// next one until the file ends. A range that never arrives leaves the answer
+// shorter than the length declared in the header: the browser calls such a
+// download broken, which is what it is — the alternative is a file that looks
+// whole and is not.
+func (s *Server) sendRanges(ctx context.Context, w io.Writer, target chatTarget, want string, reply chat.Reply) {
+	for {
+		raw, err := base64.StdEncoding.DecodeString(reply.Data)
+		if err != nil {
+			log.Printf("file download: %s did not decode at %d bytes: %v", want, reply.Offset, err)
+			return
+		}
+		if _, err := w.Write(raw); err != nil {
+			return
+		}
+		next := reply.Next
+		if next <= 0 {
+			return
+		}
+		found, err := s.chat.RawFile(ctx, target, want, next, downloadChunk)
+		if err != nil {
+			log.Printf("file download: %s broke off at %d bytes: %v", want, next, err)
+			return
+		}
+		if found.Offset != next || found.Data == "" {
+			log.Printf("file download: the collector stopped at %d bytes of %d of %s",
+				next, reply.Size, want)
+			return
+		}
+		reply = found
+	}
+}
+
+// attachHead tells the browser to save the answer instead of showing it. The
+// quoted name keeps ASCII alone — a quote or a letter outside it parts a browser
+// from the whole name — and the real one goes beside it, encoded.
+func attachHead(w http.ResponseWriter, name, media string) {
+	if name == "" {
+		name = "file"
+	}
+	if media == "" {
+		media = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", media)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", asciiName(name), escapeName(name)))
+}
+
+// asciiName is the name for browsers that read the quoted one only.
+func asciiName(name string) string {
+	out := make([]byte, 0, len(name))
+	for i := 0; i < len(name); i++ {
+		if c := name[i]; c >= 0x20 && c < 0x7f && c != '"' && c != '\\' {
+			out = append(out, c)
+			continue
+		}
+		out = append(out, '_')
+	}
+	return string(out)
+}
+
+// escapeName is the name as RFC 5987 asks for it.
+func escapeName(name string) string {
+	const safe = "!#$&+-.^_`|~"
+	var out strings.Builder
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9',
+			strings.IndexByte(safe, c) >= 0:
+			out.WriteByte(c)
+		default:
+			fmt.Fprintf(&out, "%%%02X", c)
+		}
+	}
+	return out.String()
 }
 
 func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {

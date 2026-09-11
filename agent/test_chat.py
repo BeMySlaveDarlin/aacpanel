@@ -1706,6 +1706,151 @@ class ExecutableFile(unittest.TestCase):
         self.assertIn("just a note", got["text"])
 
 
+class RawOverTheSocket(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.root = os.path.realpath(test_barrier.tmp_path(prefix="chat-raw-"))
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.cwd = os.path.join(self.root, "proj")
+        os.makedirs(self.cwd)
+        with open(os.path.join(self.cwd, "core.bin"), "wb") as f:
+            f.write(bytes(range(256)))
+        with open(os.path.join(self.cwd, "note.txt"), "w", encoding="utf-8") as f:
+            f.write("plain words\n")
+
+        projects = os.path.join(self.root, "projects")
+        os.makedirs(os.path.join(projects, "-srv-proj-x"))
+        with open(os.path.join(projects, "-srv-proj-x", f"{UUID}.jsonl"), "w",
+                  encoding="utf-8") as f:
+            f.write(line({"type": "user", "cwd": self.cwd,
+                          "message": {"content": "hello"},
+                          "timestamp": "2026-08-23T10:00:00Z"}))
+        self.old, chat.PROJECTS_DIR = chat.PROJECTS_DIR, projects
+        self.addCleanup(lambda: setattr(chat, "PROJECTS_DIR", self.old))
+
+    def test_the_bytes_of_a_binary_come_back_over_the_socket(self):
+        import base64
+        reply = chat.answer({"session": UUID, "raw": "core.bin"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual(reply["kind"], "raw")
+        self.assertEqual(base64.b64decode(reply["data"]), bytes(range(256)))
+        self.assertEqual(reply["session"], UUID)
+
+    def test_a_path_outside_the_conversation_is_refused_with_a_reason(self):
+        reply = chat.answer({"session": UUID, "raw": "../../etc/passwd"})
+        self.assertFalse(reply["ok"])
+        self.assertIn("outside the directory of this conversation", reply["error"])
+
+    def test_the_range_asked_for_is_the_range_that_comes_back(self):
+        import base64
+        reply = chat.answer({"session": UUID, "raw": "core.bin", "offset": 250, "bytes": 3})
+        self.assertEqual(reply["offset"], 250)
+        self.assertEqual(base64.b64decode(reply["data"]), bytes(range(250, 253)))
+        self.assertEqual(reply["next"], 253)
+
+    def test_reading_for_the_viewer_stayed_as_it_was(self):
+        reply = chat.answer({"session": UUID, "file": "note.txt"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual(reply["kind"], "text")
+        self.assertEqual(reply["text"], "plain words\n")
+        self.assertNotIn("data", reply)
+
+        binary = chat.answer({"session": UUID, "file": "core.bin"})
+        self.assertTrue(binary["binary"])
+        self.assertNotIn("data", binary)
+
+
+class RawRange(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.root = os.path.realpath(test_barrier.tmp_path())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.cwd = os.path.join(self.root, "proj")
+        os.makedirs(os.path.join(self.cwd, "web"))
+        self.body = bytes(range(256)) * 40
+        with open(os.path.join(self.cwd, "core.bin"), "wb") as f:
+            f.write(self.body)
+        with open(os.path.join(self.root, "secret.txt"), "w", encoding="utf-8") as f:
+            f.write("not for the panel")
+
+    def raw(self, name, **kw):
+        import base64
+        got = chat.read_raw(name, self.cwd, **kw)
+        self.assertIsNotNone(got, name)
+        return got, base64.b64decode(got["data"])
+
+    def test_a_binary_file_travels_byte_for_byte(self):
+        got, data = self.raw("core.bin")
+        self.assertEqual(got["kind"], "raw")
+        self.assertEqual(got["name"], "core.bin")
+        self.assertEqual(got["size"], len(self.body))
+        self.assertEqual(data, self.body)
+
+    def test_an_executable_travels_too(self):
+        path = os.path.join(self.cwd, "run.sh")
+        with open(path, "wb") as f:
+            f.write(b"#!/bin/sh\necho hi\n")
+        os.chmod(path, 0o755)
+
+        self.assertEqual(chat.read_file("run.sh", self.cwd)["kind"], "exec")
+        _, data = self.raw("run.sh")
+        self.assertEqual(data, b"#!/bin/sh\necho hi\n")
+
+    def test_stepping_outside_the_directory_is_refused(self):
+        for bad in ("../secret.txt", "/etc/passwd", "~/.ssh/id_rsa",
+                    "web/../../secret.txt", "  ../secret.txt  "):
+            self.assertIsNone(chat.read_raw(bad, self.cwd), bad)
+
+    def test_a_symlink_pointing_outside_does_not_help(self):
+        os.symlink(os.path.join(self.root, "secret.txt"),
+                   os.path.join(self.cwd, "link.txt"))
+        self.assertIsNone(chat.read_raw("link.txt", self.cwd))
+
+    def test_a_neighbouring_directory_with_a_shared_prefix(self):
+        near = self.cwd + "-2"
+        os.makedirs(near)
+        with open(os.path.join(near, "x.txt"), "w", encoding="utf-8") as f:
+            f.write("not ours")
+        self.assertIsNone(chat.read_raw(os.path.join(near, "x.txt"), self.cwd))
+
+    def test_a_directory_does_not_count_as_a_file(self):
+        self.assertIsNone(chat.read_raw("web", self.cwd))
+
+    def test_a_file_is_walked_to_the_end_by_the_offsets_it_gives(self):
+        seen, offset, guard = b"", 0, 0
+        while True:
+            guard += 1
+            self.assertLess(guard, 100, "the ranges never end")
+            got, data = self.raw("core.bin", offset=offset, limit=1000)
+            self.assertEqual(got["offset"], offset)
+            seen += data
+            if not got.get("next"):
+                break
+            self.assertGreater(got["next"], offset)
+            offset = got["next"]
+        self.assertEqual(seen, self.body)
+
+    def test_a_range_behind_the_end_gives_nothing_and_no_next(self):
+        got, data = self.raw("core.bin", offset=len(self.body) + 1000)
+        self.assertEqual(data, b"")
+        self.assertNotIn("next", got)
+        self.assertEqual(got["offset"], len(self.body))
+
+    def test_one_range_is_capped_however_much_is_asked_for(self):
+        path = os.path.join(self.cwd, "big.bin")
+        with open(path, "wb") as f:
+            f.write(b"x" * (chat.MAX_RAW + 5000))
+        got, data = self.raw("big.bin", limit=chat.MAX_RAW * 4)
+        self.assertEqual(len(data), chat.MAX_RAW)
+        self.assertEqual(got["next"], chat.MAX_RAW)
+
+    def test_the_type_of_a_picture_comes_along(self):
+        with open(os.path.join(self.cwd, "shot.png"), "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
+        got, _ = self.raw("shot.png")
+        self.assertEqual(got["media"], "image/png")
+
+
 class NamedFiles(unittest.TestCase):
     def setUp(self):
         import shutil

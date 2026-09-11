@@ -84,15 +84,6 @@ function useBytes(data, media) {
     return url;
 }
 
-function Save({ url, name }) {
-    if (!url) return null;
-    return html`
-        <div class="filemore">
-            <a class="fileget" href=${url} download=${name || "file"}>Save</a>
-        </div>
-    `;
-}
-
 function Picture({ state, name }) {
     const url = useBytes(state.data, state.media || "image/png");
     const [open, setOpen] = useState(false);
@@ -101,7 +92,6 @@ function Picture({ state, name }) {
                 aria-label=${`open ${name} full screen`}>
             ${url && html`<img src=${url} alt=${name} decoding="async" />`}
         </button>
-        <${Save} url=${url} name=${name} />
         ${open && html`<${Photo} url=${url} name=${name} head=${name} onClose=${() => setOpen(false)} />`}
     `;
 }
@@ -116,7 +106,6 @@ function Player({ state, name, sound }) {
                 : html`<video src=${url} controls playsinline preload="metadata"></video>`}
         </div>
         <p class="hint">If it does not play, the phone has no codec for it — save the file.</p>
-        <${Save} url=${url} name=${name} />
     `;
 }
 
@@ -125,7 +114,6 @@ function Paper({ state, name }) {
     if (!url) return html`<p class="hint">Reading…</p>`;
     return html`
         <iframe class="filepdf" src=${url} title=${name}></iframe>
-        <${Save} url=${url} name=${name} />
     `;
 }
 
