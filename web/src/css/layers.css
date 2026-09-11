@@ -148,7 +148,7 @@
 }
 
 .projhead h2 { margin: 0; font-size: 1.3rem; font-weight: 800; letter-spacing: -.02em; }
-.path { font-family: var(--mono); font-size: .72rem; color: var(--ink-faint); word-break: break-all; }
+.path { font-family: var(--mono); font-size: .72rem; color: var(--ink-faint); overflow-wrap: anywhere; }
 .where { font-family: var(--mono); font-size: .72rem; color: var(--ink-dim); }
 
 @media (min-width: 1100px) {

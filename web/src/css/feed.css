@@ -127,14 +127,14 @@
 .mfico { width: 16px; height: 16px; color: var(--accent); }
 .mfico svg { width: 100%; height: 100%; display: block; }
 
+/* Attachments of one message share a long prefix and differ in the tail, so
+   shortening from the right leaves rows that cannot be told apart. */
 .mfname {
     min-width: 0;
     font-size: .84rem;
     font-weight: 600;
     color: var(--ink);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
 .mfsize {

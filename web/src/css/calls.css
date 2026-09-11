@@ -55,7 +55,7 @@
 .cnname {
     font-size: .78rem;
     color: var(--ink);
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 .cnarg {
     font-size: .72rem;
@@ -167,19 +167,6 @@ button.filepic {
 .filehtml { background: #fff; }
 
 .filetabs { display: flex; gap: .35rem; margin-bottom: .5rem; }
-
-.fileget {
-    display: inline-flex;
-    align-items: center;
-    padding: .35rem .7rem;
-    border: var(--hair) solid var(--line);
-    border-radius: var(--r-pill);
-    background: var(--glass);
-    color: var(--accent);
-    font-size: .8rem;
-    font-weight: 600;
-    text-decoration: none;
-}
 
 .filesheet {
     border: var(--hair) solid var(--line);

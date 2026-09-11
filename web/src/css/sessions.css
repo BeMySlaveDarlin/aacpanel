@@ -20,7 +20,9 @@
 .srow .sbody { min-width: 0; display: flex; flex-direction: column; gap: .22rem; }
 
 .srow .r1 { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
-.srow .nm { font-weight: 700; font-size: .92rem; font-family: var(--mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The group is a prefix and the name is the tail, so shortening the line
+   would drop exactly the part that tells one session from another. */
+.srow .nm { font-weight: 700; font-size: .92rem; font-family: var(--mono); min-width: 0; overflow-wrap: anywhere; }
 .srow .nmgroup { font-weight: 500; color: var(--ink-faint); }
 .srow .pct { font-family: var(--mono); font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
 .srow .meta { font-family: var(--mono); font-size: .69rem; color: var(--ink-faint); display: flex; flex-direction: column; gap: .08rem; }

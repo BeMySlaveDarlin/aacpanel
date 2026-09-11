@@ -115,7 +115,7 @@
 
 .logbar:not(.big) .logbody { display: none; }
 
-.ln { white-space: pre-wrap; word-break: break-word; }
+.ln { white-space: pre-wrap; overflow-wrap: anywhere; }
 .ln.er { color: var(--crit); }
 .ln.dim { color: var(--ink-faint); }
 

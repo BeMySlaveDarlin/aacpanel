@@ -101,6 +101,49 @@ func TestWorkerTakesCodeFromNearestPanel(t *testing.T) {
 	}
 }
 
+func TestWorkerLetsAFileOnItsWayToADevicePastIt(t *testing.T) {
+	const origin = "https://panel.example"
+	cases := []struct {
+		world  swWorld
+		asked  []string
+		bodies []string
+	}{
+		{
+			world: swWorld{
+				Name:     "a file being saved is not taken by the worker",
+				Requests: []string{"/api/chat/file/download?session=warden&path=notes/log.txt"},
+			},
+			asked:  []string{},
+			bodies: []string{"past the worker"},
+		},
+		{
+			world: swWorld{
+				Name:     "the rest of the api is taken as before",
+				Requests: []string{"/api/host", "/api/chat/file?session=warden&path=notes/log.txt"},
+			},
+			asked:  []string{origin + "/api/host", origin + "/api/chat/file?session=warden&path=notes/log.txt"},
+			bodies: []string{"code from " + origin, "code from " + origin},
+		},
+	}
+
+	worlds := make([]swWorld, 0, len(cases))
+	for _, c := range cases {
+		worlds = append(worlds, c.world)
+	}
+	got := runWorker(t, worlds)
+	for i, c := range cases {
+		if strings.Join(got[i].Asked, " ") != strings.Join(c.asked, " ") {
+			t.Errorf("%s: requests went to %v, expected %v — a download the worker takes over "+
+				"is cut off after five seconds and kept in the data cache, so the phone saves "+
+				"the file through a copy of it stored on the same phone",
+				c.world.Name, got[i].Asked, c.asked)
+		}
+		if strings.Join(got[i].Bodies, " ") != strings.Join(c.bodies, " ") {
+			t.Errorf("%s: the page got %v, expected %v", c.world.Name, got[i].Bodies, c.bodies)
+		}
+	}
+}
+
 func TestChatImagesTravelAsBytes(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat.js")
 	made := strings.Count(src, "createObjectURL")

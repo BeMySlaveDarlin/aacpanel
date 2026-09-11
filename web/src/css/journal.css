@@ -27,7 +27,7 @@
 .entry-meta .ok { color: var(--ok); }
 .entry-meta .warn { color: var(--warn); }
 .entry-meta .crit { color: var(--crit); }
-.entry-meta.detail { margin-top: .2rem; color: var(--ink-dim); word-break: break-word; }
+.entry-meta.detail { margin-top: .2rem; color: var(--ink-dim); overflow-wrap: anywhere; }
 
 .row-switch {
     display: flex;
