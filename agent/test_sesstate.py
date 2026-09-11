@@ -101,7 +101,8 @@ class Incremental(Transcript):
         self.assertEqual(len(state.snapshot()["tasks"]), 1)
         with open(path, "a", encoding="utf-8") as f:
             f.write(whole[cut:])
-        self.assertEqual(sesstate.read(path, state).snapshot()["tasks"], [])
+        self.assertTrue(sesstate.read(path, state).snapshot()["tasks"][0]["done"],
+                        "the second half of the line was not read: the shell is still open")
 
     def test_a_file_that_got_shorter_is_parsed_from_scratch(self):
         path = os.path.join(self.dir.name, "t.jsonl")

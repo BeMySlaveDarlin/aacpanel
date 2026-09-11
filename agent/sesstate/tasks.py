@@ -2,6 +2,8 @@
 
 import re
 
+from .limits import MAX_ITEMS
+
 NOTIF_BLOCK_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
 NOTIF_USE_RE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>")
 NOTIF_TASK_RE = re.compile(r"<task-id>([^<]+)</task-id>")
@@ -31,8 +33,42 @@ def _task(state, use, task_id, started, text="", kind=TASK_BASH):
     state.task_ids[use] = task_id
     state.tasks[task_id] = {
         "id": task_id, "text": started["text"] or text, "at": started["at"],
-        "kind": kind, "line": _screen_line(started, kind),
+        "kind": kind, "line": _screen_line(started, kind), "done": False,
     }
+    # The snapshot cuts the list by the time work started, so a shell opened last
+    # would fall off the edge while finished ones held their places.
+    _prune_done_tasks(state)
+
+
+def finish(state, task_id, at):
+    """Closes a task: a shell stays in the list, everything else leaves it.
+
+    The session keeps a finished shell around — its output is still readable,
+    and the screen of the session counts it among the ones it has. A watch and
+    an agent sent off to work have nothing to come back to, so they go.
+    """
+    task = state.tasks.get(task_id)
+    if task is None:
+        return
+    if task.get("kind") != TASK_BASH:
+        state.tasks.pop(task_id, None)
+        return
+    task["done"] = True
+    task["doneAt"] = at or task.get("doneAt") or ""
+    _prune_done_tasks(state)
+
+
+def _prune_done_tasks(state):
+    if len(state.tasks) <= MAX_ITEMS:
+        return
+    done = sorted(
+        (t for t in state.tasks.values() if t.get("done")),
+        key=lambda t: t.get("doneAt") or "",
+    )
+    for task in done:
+        if len(state.tasks) <= MAX_ITEMS:
+            break
+        state.tasks.pop(task["id"], None)
 
 
 def _screen_line(started, kind):
@@ -52,7 +88,7 @@ def _notify_tasks(state, body, at):
         for tool_id in NOTIF_USE_RE.findall(body):
             state.task_ids.pop(tool_id, None)
         for task_id in targets:
-            state.tasks.pop(task_id, None)
+            finish(state, task_id, at)
         return
     if not event:
         return

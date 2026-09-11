@@ -74,14 +74,18 @@ class Tasks(Transcript):
         self.assertEqual([(t["id"], t["text"]) for t in got["tasks"]],
                          [("b00000001", "Waiting for CI")])
 
-    def test_a_completion_notification_removes_the_task(self):
+    def test_a_completion_notification_closes_the_shell_without_dropping_it(self):
         got = self.state(background("toolu_1", "b00000001"), notification("toolu_1"))
-        self.assertEqual(got["tasks"], [])
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"],
+                         "a finished shell left the list: the session still holds it "
+                         "and its output is still readable")
+        self.assertTrue(got["tasks"][0]["done"], "the shell is in the list but not marked finished")
 
-    def test_a_manually_stopped_task_is_removed_without_a_notification(self):
+    def test_a_manually_stopped_shell_is_closed_without_a_notification(self):
         got = self.state(background("toolu_1", "b00000001"),
                          call("TaskStop", "toolu_2", task_id="b00000001"))
-        self.assertEqual(got["tasks"], [])
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"])
+        self.assertTrue(got["tasks"][0]["done"], "a stop by hand left the shell open")
 
     def test_a_call_without_a_background_id_does_not_count_as_a_task(self):
         got = self.state(call("Bash", "toolu_1", command="ls", run_in_background=True)
@@ -122,7 +126,7 @@ class Notifications(Transcript):
     def test_a_stopped_status_closes_the_task(self):
         got = self.state(background("toolu_1", "b00000001"),
                          notification("toolu_1", "stopped"))
-        self.assertEqual(got["tasks"], [])
+        self.assertTrue(got["tasks"][0]["done"], "the status stopped left the shell open")
 
     def test_a_monitor_event_is_remembered_by_its_time(self):
         got = self.state(aacpanel("toolu_1", "b00000001"),
@@ -196,21 +200,42 @@ class Kinds(Transcript):
         self.assertEqual([(t["id"], t["text"]) for t in got["tasks"]],
                          [("b00000005", "Catching a flaky check")])
 
-    def test_every_kind_is_removed_by_a_notification(self):
+    def test_a_notification_leaves_only_the_shell(self):
         got = self.state(
             background("toolu_1", "b00000001"), aacpanel("toolu_2", "b00000003"),
             async_agent("toolu_3", "a3333333333333333"),
             notification("toolu_1"), notification("toolu_2"), notification("toolu_3"))
-        self.assertEqual(got["tasks"], [])
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"],
+                         "a watch and an agent have nothing to come back to, they leave; "
+                         "a shell stays")
 
-    def test_every_kind_is_removed_by_a_manual_stop(self):
+    def test_a_running_shell_is_not_marked_finished(self):
+        got = self.state(background("toolu_1", "b00000001"))
+        self.assertFalse(got["tasks"][0]["done"],
+                         "a shell that nobody closed is shown as finished")
+
+    def test_finished_shells_give_way_to_live_ones(self):
+        records = []
+        for n in range(sesstate.MAX_ITEMS + 5):
+            use, task = f"toolu_{n}", f"b{n:08d}"
+            records.append(background(use, task))
+            if n < sesstate.MAX_ITEMS:
+                records.append(notification(use))
+        got = self.state(*records)
+        self.assertLessEqual(len(got["tasks"]), sesstate.MAX_ITEMS,
+                             "the list of shells grows without a ceiling")
+        live = [t["id"] for t in got["tasks"] if not t["done"]]
+        self.assertEqual(len(live), 5,
+                         "a live shell was dropped while finished ones stayed")
+
+    def test_a_manual_stop_leaves_only_the_shell(self):
         got = self.state(
             background("toolu_1", "b00000001"), aacpanel("toolu_2", "b00000003"),
             async_agent("toolu_3", "a3333333333333333"),
             call("TaskStop", "toolu_4", task_id="b00000001"),
             call("TaskStop", "toolu_5", task_id="b00000003"),
             call("TaskStop", "toolu_6", task_id="a3333333333333333"))
-        self.assertEqual(got["tasks"], [])
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"])
 
     def test_the_three_kinds_are_counted_together(self):
         got = self.state(background("toolu_1", "b00000001"),

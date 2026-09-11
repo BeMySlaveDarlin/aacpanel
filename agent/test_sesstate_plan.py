@@ -91,4 +91,4 @@ class PlanFromCalls(Transcript):
             call("TaskStop", "s1", task_id="bg1"),
         )
         self.assertEqual([p["text"] for p in got["plan"]], ["a plan item"])
-        self.assertEqual(got["tasks"], [])
+        self.assertTrue(got["tasks"][0]["done"], "the stop did not close the shell")

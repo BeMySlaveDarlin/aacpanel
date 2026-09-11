@@ -31,8 +31,11 @@ export function Work({ work, onOpen }) {
     return html`
         <div class="wchips">
             ${tasks.length > 0 && html`
-                <button class="wchip" type="button" onClick=${() => onOpen({ kind: "tasks" })}
-                        aria-label=${`background work: ${tasks.length}`}>
+                <button class=${`wchip${running(tasks).length > 0 ? "" : " idle"}`} type="button"
+                        onClick=${() => onOpen({ kind: "tasks" })}
+                        aria-label=${running(tasks).length > 0
+                            ? `background work: ${tasks.length}, ${running(tasks).length} running`
+                            : `background work: ${tasks.length}, none running`}>
                     ${Icon.clock()}<span class="wnum">${tasks.length}</span>
                 </button>
             `}
@@ -79,6 +82,12 @@ const TASK_KINDS = {
     wake: [Icon.alerts, "wake-up"],
 };
 
+// running are the ones the session still has in flight. A shell that is over
+// stays in the list — its output is readable and the session screen counts it.
+function running(tasks) {
+    return tasks.filter((task) => !task.done);
+}
+
 function taskKind(task) {
     return TASK_KINDS[task && task.kind] || TASK_KINDS.bash;
 }
@@ -121,7 +130,10 @@ function openAgent(agent, onAgent, setPick) {
 }
 
 function taskSub(tasks) {
-    const total = `${tasks.length} ${plural(tasks.length, "task", "tasks")}`;
+    const live = running(tasks).length;
+    const total = live < tasks.length
+        ? `${tasks.length} ${plural(tasks.length, "task", "tasks")}, ${live || "none"} running`
+        : `${tasks.length} ${plural(tasks.length, "task", "tasks")}`;
     const seen = [];
     for (const task of tasks) {
         const [, name] = taskKind(task);
@@ -142,11 +154,12 @@ function agentKey(agent) {
 }
 
 function canStopTask(exec, task) {
-    return knows(exec, "task.stop") && Boolean(task && task.line);
+    return knows(exec, "task.stop") && Boolean(task && task.line) && !task.done;
 }
 
 function whyStopTask(exec, task) {
     if (!knows(exec, "task.stop")) return whyNot(exec, "task.stop");
+    if (task && task.done) return "the work is over, there is nothing to stop";
     if (!task || !task.line) {
         return "the panel does not know how this work is named on the session screen — "
             + "there is nothing here to stop it with";
@@ -264,7 +277,9 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
                                 ${task.text}
                                 <span class="wkind">${taskKind(task)[1]}</span>
                                 ${voice(task)}
-                                ${stoppedWork.has(workKey(session, task.id))
+                                ${task.done
+                                    ? html`<span class="wkind gone">over</span>`
+                                    : stoppedWork.has(workKey(session, task.id))
                                     && html`<span class="wkind gone">stopped</span>`}
                                 ${fail[task.id] && html`<span class="wfail">${fail[task.id]}</span>`}
                             </span>

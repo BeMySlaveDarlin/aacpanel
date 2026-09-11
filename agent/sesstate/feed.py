@@ -8,7 +8,7 @@ from .limits import MAX_ITEMS, _short
 from .plan import _plan_of, plan_add, plan_created, plan_number, plan_rows, plan_update
 from .subagents import AGENT_ID_RE, _prune_reported_agents
 from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_AGENT,
-                    TASK_ID_KEYS, TASK_KIND_BY_KEY, _notify_tasks, _task)
+                    TASK_ID_KEYS, TASK_KIND_BY_KEY, _notify_tasks, _task, finish)
 from .wake import WAKE_ID, _wake, is_wakeup
 
 
@@ -85,7 +85,7 @@ def _feed_record(state, record, raw):
             if not isinstance(data, dict):
                 data = {}
             if name in STOPPERS:
-                state.tasks.pop(data.get("task_id") or data.get("shell_id") or "", None)
+                finish(state, data.get("task_id") or data.get("shell_id") or "", at)
                 continue
             if name == "Artifact":
                 _artifact(state, data, block.get("id"), at)
