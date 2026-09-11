@@ -1,0 +1,231 @@
+/* Feed messages, attachments, tool-run chips and the colours of call kinds. */
+
+.msg {
+    font-family: var(--serif);
+    font-size: 1.08rem;
+    line-height: 1.62;
+    letter-spacing: .002em;
+    overflow-wrap: anywhere;
+}
+.mstamp {
+    align-self: flex-end;
+    margin-top: -.28rem;
+    padding-right: .2rem;
+    font-family: var(--mono);
+    font-size: .62rem;
+    color: var(--ink-faint);
+    letter-spacing: .04em;
+}
+
+.msg.me {
+    align-self: flex-end;
+    max-width: 88%;
+    font-size: 1.02rem;
+    background: var(--me-bg);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: var(--r-card);
+    padding: .5rem .7rem;
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.mearlier {
+    align-self: center;
+    font-size: .7rem;
+    color: var(--ink-faint);
+    padding: .35rem 0 .1rem;
+}
+
+.mshots {
+    align-self: flex-end;
+    max-width: 78%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.mshot {
+    display: block;
+    width: 76px;
+    height: 76px;
+    padding: 0;
+    border-radius: var(--r-card);
+    overflow: hidden;
+    border: var(--hair) solid var(--line);
+    background: rgba(150, 170, 255, .05);
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.mshot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+}
+
+.mshotbad {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    color: var(--crit);
+    font-size: .85rem;
+}
+
+.mfiles {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .3rem;
+    margin-top: .5rem;
+}
+
+.mflist {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--r-card);
+    overflow: hidden;
+}
+
+.mflist.mfopen {
+    max-height: max(40dvh, 150px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    width: 0;
+    min-width: 100%;
+}
+.mflist.mfopen::-webkit-scrollbar { display: none; }
+
+.mflist.mfmask {
+    mask-image: linear-gradient(180deg, #000 calc(100% - 26px), rgba(0, 0, 0, .18));
+}
+
+.mfile {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .5rem;
+    padding: .32rem .5rem;
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--glass);
+    box-shadow: var(--hairline);
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+.mfile:active { background: var(--glass-2); }
+.mflist .mfile { border-radius: 0; }
+.mfile + .mfile { box-shadow: var(--hairline), inset 0 var(--hair) 0 var(--line); }
+
+.mfico { width: 16px; height: 16px; color: var(--accent); }
+.mfico svg { width: 100%; height: 100%; display: block; }
+
+.mfname {
+    min-width: 0;
+    font-size: .84rem;
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mfsize {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: .7rem;
+    color: var(--ink-faint);
+    white-space: nowrap;
+}
+
+.mfmore {
+    align-self: flex-start;
+    padding: .25rem .55rem;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: var(--glass);
+    box-shadow: var(--hairline);
+    color: var(--ink-dim);
+    font-size: .74rem;
+    cursor: pointer;
+}
+.mfmore:active { background: var(--glass-2); }
+
+.mtools {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .3rem .55rem .3rem .45rem;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: var(--glass);
+    box-shadow: var(--hairline);
+    color: var(--ink-dim);
+    font-size: .74rem;
+    cursor: pointer;
+}
+.mtools:active { background: var(--glass-2); }
+
+.mrow { display: flex; flex-wrap: wrap; gap: .3rem; align-self: flex-start; }
+.mtools:active { border-color: var(--edge); color: var(--ink); }
+.mticon { display: flex; width: 15px; height: 15px; }
+.mticon svg { width: 100%; height: 100%; }
+
+.mtools.bash .mticon,   .cnmark.bash   { color: var(--accent); }
+.mtools.files .mticon,  .cnmark.files  { color: var(--accent-2); }
+.mtools.web .mticon,    .cnmark.web,
+.mtools.browser .mticon, .cnmark.browser { color: var(--warn); }
+.mtools.agents .mticon, .cnmark.agents,
+.mtools.plan .mticon,   .cnmark.plan,
+.mtools.skill .mticon,  .cnmark.skill  { color: var(--ctx-3); }
+.mtools.ask .mticon,    .cnmark.ask,
+.mtools.artifact .mticon, .cnmark.artifact { color: var(--crit); }
+.mtools.time .mticon,   .cnmark.time,
+.mtools.mcp .mticon,    .cnmark.mcp,
+.mtools.other .mticon,  .cnmark.other  { color: var(--ink-dim); }
+.mtnum {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.mthink { color: var(--ink-faint); }
+.mthink .mtnum { color: var(--ink-dim); font-weight: 600; }
+
+.msg.mmind {
+    align-self: flex-start;
+    position: relative;
+    padding-left: 1.5rem;
+    font-size: .96rem;
+    color: var(--ink-dim);
+}
+.mmind .mmicon {
+    position: absolute;
+    left: 0;
+    top: .3rem;
+    display: flex;
+    width: 14px;
+    height: 14px;
+    color: var(--ink-faint);
+}
+.mmind .mmicon svg { width: 100%; height: 100%; }
+
+.msg.me.failed { box-shadow: var(--hairline), inset 2px 0 0 var(--crit); }
+.mclock { display: inline-flex; width: 11px; height: 11px; vertical-align: -1px; margin-right: .2rem; }
+.mclock svg { width: 100%; height: 100%; }
+
+code.path {
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: .18em;
+    text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+

@@ -1,0 +1,77 @@
+.gate {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: .6rem;
+    padding: calc(2rem + env(safe-area-inset-top)) 1.5rem calc(2rem + env(safe-area-inset-bottom));
+    background: var(--deep);
+    text-align: center;
+}
+
+.gate > * { width: min(100%, 340px); }
+
+.gate-logo {
+    width: 64px;
+    height: 64px;
+    margin-bottom: .4rem;
+    border-radius: var(--r-card);
+}
+
+.gate h1 {
+    margin: 0;
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+}
+
+.gate-sub { margin: 0 0 1.2rem; color: var(--ink-dim); font-size: .9rem; }
+
+.gate .ghost {
+    border: 0;
+    background: none;
+    color: var(--ink-dim);
+    font-size: .85rem;
+    padding: .6rem;
+}
+
+.gate .ghost:active { color: var(--ink); }
+.gate-enroll { text-align: left; }
+
+.gate-notice {
+    margin: 0;
+    padding: .6rem .75rem;
+    border-radius: var(--r-card);
+    background: var(--warn-bg);
+    color: var(--warn);
+    font-size: .85rem;
+}
+
+.gate-error {
+    margin: 0;
+    padding: .6rem .75rem;
+    border-radius: var(--r-card);
+    background: var(--crit-bg);
+    color: var(--crit);
+    font-size: .85rem;
+}
+
+.btn.big { padding: .8rem; font-size: .95rem; }
+
+.gate-enroll {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: .8rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--glass);
+}
+
+.gate-enroll code {
+    font-family: var(--mono);
+    font-size: .95em;
+    color: var(--ink-dim);
+}
+

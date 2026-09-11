@@ -1,0 +1,170 @@
+/* Update banner, the uPlot root and the log panel. */
+
+.shell.has-update .body { padding-bottom: 4.2rem; }
+
+.update {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    z-index: 19;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: .6rem .85rem;
+    border-radius: var(--r-card);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+    font-size: .85rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+}
+
+.update span { flex: 1; }
+
+.update button {
+    border: 0;
+    border-radius: var(--r-small);
+    padding: .35rem .8rem;
+    background: var(--on-accent);
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+    transition: transform .08s ease, opacity .08s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.update button:active {
+    transform: scale(.94);
+    opacity: .8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .update button { transition: none; }
+    .update button:active { transform: none; }
+}
+
+.chart { width: 100%; overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+    .scrim, .sheet, .toast, .chev { transition: none; }
+}
+
+:root { --nav-h: 62px; }
+
+:root { --nav-clear: calc(var(--nav-h) + 10px); }
+
+.logbar {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 4px);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    height: 44px;
+    background: var(--sheet-bg);
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .55);
+    transform: translateY(140%);
+    transition: transform .26s cubic-bezier(.22, 1, .36, 1), height .26s ease;
+}
+
+.logbar.on { transform: translateY(0); }
+.logbar.big { height: min(300px, 45dvh); }
+
+.loghead {
+    flex: none;
+    height: 44px;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: .5rem;
+    padding: 0 .55rem 0 .8rem;
+    cursor: pointer;
+}
+
+.logname {
+    font-size: .83rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.logname small {
+    display: block;
+    font-family: var(--mono);
+    font-weight: 400;
+    font-size: .68rem;
+    color: var(--ink-faint);
+}
+
+.logbody {
+    flex: 1;
+    overflow-y: auto;
+    padding: .5rem .8rem .8rem;
+    font-family: var(--mono);
+    font-size: .68rem;
+    line-height: 1.6;
+    color: var(--ink-dim);
+    border-top: var(--hair) solid var(--line);
+}
+
+.logbar:not(.big) .logbody { display: none; }
+
+.ln { white-space: pre-wrap; word-break: break-word; }
+.ln.er { color: var(--crit); }
+.ln.dim { color: var(--ink-faint); }
+
+.loghead .chev { transition: transform .2s ease; }
+.loghead .chev.down { transform: rotate(90deg); }
+.loghead .chev.up { transform: rotate(-90deg); }
+
+.pulse {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+}
+
+.pulse.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: pulse 1.8s ease-in-out infinite; }
+.pulse.connecting, .pulse.reconnecting { background: var(--warn); animation: pulse 1s ease-in-out infinite; }
+.pulse.failed { background: var(--crit); }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pulse { animation: none; }
+    .logbar { transition: none; }
+}
+
+@media (min-width: 1100px) {
+    :root { --nav-clear: 0px; }
+
+    .logbar {
+        left: auto;
+        right: 14px;
+        bottom: 14px;
+        width: min(440px, 38vw);
+    }
+
+    .logbar.big { height: min(460px, 62dvh); }
+
+    .mgrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .4rem;
+        align-items: stretch;
+    }
+    .mgrid .metrics { display: contents; }
+    .mgrid .card[data-open="1"] { grid-column: 1 / -1; }
+
+    .mgrid > .trouble,
+    .mgrid > .stale-note { grid-column: 1 / -1; }
+}

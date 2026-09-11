@@ -1,0 +1,8 @@
+# Build context: sources only. Local artifacts and secrets stay out of the image.
+.git
+.gitignore
+.claude
+.remember
+.env
+web/dist/*
+!web/dist/.gitkeep

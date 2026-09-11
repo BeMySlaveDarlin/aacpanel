@@ -1,0 +1,54 @@
+# User unit: the executor needs the session bus, XDG_RUNTIME_DIR and the
+# graphical session, which a system unit does not get.
+
+[Unit]
+Description=aacpanel-exec: the executor of aacpanel actions on this machine
+
+# The graphical session is needed for konsole. Not PartOf: restarting the session
+# must not take the executor and its open consoles with it.
+After=graphical-session.target
+
+# Stop after five failures in a minute. These keys belong in [Unit]; in [Service]
+# systemd ignores them silently.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=%h/bin/aacpanel-exec
+
+# The socket lives in %t/aacpanel-exec/sock: the directory is mounted into the
+# container, not the file, so a restart does not break the link.
+Environment=XDG_RUNTIME_DIR=%t
+
+# Fallback display of the graphical session; the host description wins.
+Environment=DISPLAY=:0
+EnvironmentFile=-/var/lib/aacpanel/host.env
+
+Restart=on-failure
+RestartSec=5
+
+# Logs: journalctl --user -u aacpanel-exec
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aacpanel-exec
+
+# The executor needs docker.sock and the graphical session; claude transcripts are
+# read by aacpanel-agent instead.
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+# Transcripts are closed off explicitly. The minus is required: without it systemd
+# refuses to build the namespace on a machine where claude never ran.
+InaccessiblePaths=-%h/.claude/projects
+
+# Session launcher runs konsole through systemd-run, outside this namespace and
+# outside this process tree: otherwise claude would not see ~/.claude/projects and
+# a restart would kill every console.
+# ProtectSystem and ProtectHome are left out: the executor needs desktop
+# directories and docker.sock.
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,1798 @@
+/* Desktop layout: columns, top menu and panels. */
+
+@media (min-width: 1100px) {
+    .deskshell {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--ink);
+
+        --tipbg: #12162a;
+        --colbg: #0a0d18;
+        --ok: #6b9c83;
+        --accent: #7d99bd;
+        --accent-bg: rgba(125, 153, 189, .16);
+        --warn: #cbab7f;
+        --crit: #cb9490;
+        --ctx-1: #6b9c83;
+        --ctx-2: #6b9c83;
+        --ctx-3: #cbab7f;
+        --ctx-4: #cb9490;
+    }
+
+    :root.sky .deskshell {
+        --tipbg: #ffffff;
+        --colbg: #e4eef9;
+        --ok: #3c6b56;
+        --accent: #4a6890;
+        --accent-bg: rgba(74, 104, 144, .14);
+        --warn: #7a6537;
+        --crit: #965855;
+        --ctx-1: #3c6b56;
+        --ctx-2: #3c6b56;
+        --ctx-3: #7a6537;
+        --ctx-4: #965855;
+    }
+
+    :root.sky .dksess { background-image: linear-gradient(90deg, rgba(15, 35, 56, .1) 0 var(--fill, 0%), transparent var(--fill, 0%)); }
+
+    :root.sky .dkcat { background-image: linear-gradient(90deg, rgba(15, 35, 56, .1) 0 var(--fill, 0%), transparent var(--fill, 0%)); }
+
+    .dktop {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        height: 44px;
+        flex: none;
+        padding: 0 .6rem;
+        border-bottom: var(--hair) solid var(--edge);
+        background: var(--top-bg);
+    }
+
+    .dkbrand {
+        display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+        padding: .2rem .3rem;
+        border: 0;
+        border-radius: var(--r-small);
+        background: none;
+        font: 700 13.5px/1 var(--sans);
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+        cursor: pointer;
+    }
+
+    .dklogo {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        margin-right: .2rem;
+        border: 0;
+        border-radius: var(--r-small);
+        background: transparent;
+        color: var(--accent);
+        cursor: pointer;
+    }
+
+    .dklogo svg { width: 22px; height: 22px; }
+
+    .dklogo.on { background: var(--accent-bg); }
+
+    .dkibs { display: flex; align-items: center; gap: .15rem; }
+
+    .dksep { width: var(--hair); height: 22px; background: var(--edge); margin: 0 .3rem; }
+
+    .dktopright { margin-left: auto; display: flex; align-items: center; gap: .3rem; }
+
+    .dkib {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: var(--r-small);
+        background: transparent;
+        color: var(--ink-faint);
+        cursor: pointer;
+    }
+
+    .dkib svg { width: 19px; height: 19px; }
+
+    .dkib.on { color: var(--accent); background: var(--accent-bg); }
+
+    .deskshell [data-tip] { position: relative; }
+
+    .deskshell [data-tip]::after { contain: layout size; }
+
+    .deskshell [data-tip]::after {
+        content: attr(data-tip);
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        padding: .22rem .45rem;
+        border-radius: var(--r-small);
+        background: var(--tipbg);
+        border: var(--hair) solid var(--edge);
+        box-shadow: var(--drop);
+        font-family: var(--sans);
+        font-size: 12.5px;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--ink);
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 30;
+    }
+
+    .deskshell [data-tip][data-tipside="left"]::after {
+        top: 50%;
+        left: auto;
+        right: calc(100% + 6px);
+        transform: translateY(-50%);
+    }
+
+    .dkalert {
+        font: 600 13px/1 var(--sans);
+        color: var(--warn);
+        background: transparent;
+        border: var(--hair) solid var(--warn);
+        border-radius: var(--r-pill);
+        padding: .3rem .5rem;
+        cursor: pointer;
+    }
+
+    .dkroute {
+        font: 600 13px/1 var(--sans);
+        color: var(--ink-dim);
+        background: transparent;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-pill);
+        padding: .3rem .5rem;
+        cursor: pointer;
+    }
+
+    .dkroute.on {
+        color: var(--accent);
+        border-color: var(--accent);
+    }
+
+    .dkbody {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 292px minmax(0, 1fr);
+    }
+
+    .dkbody.withpanel { grid-template-columns: 292px minmax(0, 1fr) 360px; }
+
+    .dkbody.full, .dkbody.full.withpanel { grid-template-columns: minmax(0, 1fr); }
+
+    .dkleft {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-right: var(--hair) solid var(--edge);
+        background: var(--colbg);
+    }
+
+    .dkscroll { flex: 1; min-height: 0; overflow-y: auto; }
+
+    .dkpick { position: relative; flex: none; border-bottom: var(--hair) solid var(--line); }
+
+    .dkpickbtn {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        width: 100%;
+        height: 32px;
+        padding: 0 .55rem;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        cursor: pointer;
+    }
+
+    .dkpicklabel {
+        font-size: 0.6625rem;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+    }
+
+    .dkpickvalue { font-size: 13.5px; color: var(--ink); }
+
+    .dkpickchev { margin-left: auto; display: grid; place-items: center; color: var(--ink-faint); }
+
+    .dkpickchev svg { width: 14px; height: 14px; transform: rotate(90deg); }
+
+    .dkpickchev.open svg { transform: rotate(-90deg); }
+
+    .dkpicklist {
+        position: absolute;
+        left: .3rem;
+        right: .3rem;
+        top: 32px;
+        z-index: 10;
+        padding: .25rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-small);
+        background: var(--tipbg);
+        box-shadow: var(--drop);
+    }
+
+    .dkpickrow {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        width: 100%;
+        height: 26px;
+        padding: 0 .4rem;
+        border: 0;
+        border-radius: var(--r-small);
+        background: transparent;
+        color: var(--ink-dim);
+        font-size: 13.5px;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dkcheck {
+        width: .7rem;
+        height: .7rem;
+        border-radius: 3px;
+        border: var(--hair) solid var(--edge);
+    }
+
+    .dkcheck.on { background: var(--accent); border-color: transparent; }
+
+    .dkcontour {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .3rem .55rem .3rem .5rem;
+        background: var(--glass-2);
+        border-top: var(--hair) solid var(--edge);
+        border-bottom: var(--hair) solid var(--edge);
+        box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    section:first-child > .dkcontour { border-top: 0; }
+
+    .dkcontourname {
+        font-family: var(--mono);
+        font-size: 0.8025rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: var(--ink);
+    }
+
+    .dkcontournum { margin-left: auto; font-size: 0.7625rem; color: var(--ink-dim); }
+
+    .dksess {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0 .45rem;
+        width: 100%;
+        padding: .35rem .55rem .45rem;
+        border: 0;
+        border-bottom: var(--hair) solid var(--line);
+        background-image: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, .085) 0 var(--fill, 0%),
+            transparent var(--fill, 0%)
+        );
+        background-color: transparent;
+        color: var(--ink);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dksess.on { background-color: var(--accent-bg); box-shadow: inset 2px 0 0 var(--accent); }
+
+    .dksessbody { min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
+
+    .dksessmain { display: flex; align-items: center; gap: .4rem; }
+
+    .dksesssub { display: flex; align-items: center; gap: .4rem; }
+
+    .dksessbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 2px;
+        background: transparent;
+    }
+
+    .dksessbar i { display: block; height: 100%; background: var(--ctx-1); }
+
+    .dksessbar.s2 i { background: var(--ctx-2); }
+
+    .dksessbar.s3 i { background: var(--ctx-3); }
+
+    .dksessbar.s4 i { background: var(--ctx-4); }
+
+    .dksegbar { display: flex; gap: 2px; }
+
+    .dksegbar i { flex: 1; opacity: 1; background: var(--ok); }
+
+    .dksegbar i.down { background: var(--line); }
+
+    .dkname {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .dkgroup {
+        flex: none;
+        max-width: 7rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        color: var(--ink-dim);
+    }
+
+    .dkgroup.dkchip {
+        max-width: 8rem;
+        font-size: 11px;
+        line-height: 1.5;
+        color: var(--ink-faint);
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-pill);
+        padding: 0 .35rem;
+    }
+
+    .dklast {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12.5px;
+        color: var(--ink-dim);
+    }
+
+    .dkwait {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        background: var(--warn);
+        color: #06070f;
+        font-family: var(--sans);
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1;
+        padding-bottom: 1px;
+    }
+
+    :root.sky .dkwait { color: #f2f8ff; }
+
+    .dkwait.dkpermit { background: var(--crit); }
+
+    .dknum {
+        flex: none;
+        min-width: 3.1rem;
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-dim);
+    }
+
+    .dksub {
+        flex: none;
+        max-width: 9.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        color: var(--ink-faint);
+    }
+
+    .dkwhen {
+        flex: none;
+        min-width: 2.6rem;
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-faint);
+    }
+
+    .dkhint {
+        flex: none;
+        width: .8rem;
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: transparent;
+    }
+
+    .dktag {
+        flex: none;
+        font-size: 10.5px;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-pill);
+        padding: 0 .25rem;
+    }
+
+    .dkdot {
+        display: block;
+        flex: none;
+        width: .45rem;
+        height: .45rem;
+        border-radius: 50%;
+        background: var(--ink-faint);
+    }
+
+    .dkdot.dkbusy { background: var(--accent); }
+
+    .dkdot.dkwaiting { background: var(--warn); box-shadow: 0 0 .35rem var(--warn); }
+
+    .dkdot.dkidle, .dkdot.dkok { background: var(--ok); }
+
+    .dkdot.dkoff { background: var(--ink-faint); opacity: .5; }
+
+    .dkdot.dkbad { background: var(--crit); box-shadow: 0 0 .35rem var(--crit); }
+
+    .dkempty { padding: .5rem .55rem; font-size: 13px; color: var(--ink-faint); }
+
+    .dklimits {
+        flex: none;
+        padding: .5rem .6rem .6rem;
+        border-top: var(--hair) solid var(--edge);
+        background: var(--glass);
+
+        --dklim-mute: .55;
+    }
+
+    .dklimit {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        padding: .35rem 0;
+        border-top: var(--hair) solid var(--line);
+    }
+
+    .dklimit:first-child { border-top: 0; padding-top: .1rem; }
+
+    .dklimits.dkfocus .dklimit:not(.dkon) { opacity: var(--dklim-mute); }
+
+    .dklimit.dkold { opacity: var(--dklim-mute); }
+
+    .dklimnone {
+        flex: 1;
+        font-size: 12px;
+        color: var(--ink-faint);
+    }
+
+    .dklimname {
+        flex: none;
+        width: 5.6rem;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--ink);
+    }
+
+    .dklimbars { flex: 1; display: flex; flex-direction: column; gap: .25rem; }
+
+    .dklimline { display: flex; align-items: center; gap: .45rem; }
+
+    .dklimlabel {
+        flex: none;
+        width: 1.8rem;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink-dim);
+    }
+
+    .dklimbar {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--line);
+        overflow: hidden;
+    }
+
+    .dklimbar i { display: block; height: 100%; background: var(--ok); }
+
+    .dklimline.dkwarn .dklimbar i { background: var(--warn); }
+
+    .dklimline.dkcrit .dklimbar i { background: var(--crit); }
+
+    .dklimline.dkwarn .dklimlabel, .dklimline.dkcrit .dklimlabel { color: var(--ink-dim); }
+
+    .dklimpct {
+        flex: none;
+        width: 2.6rem;
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 13.5px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
+    }
+
+    .dklimpct.dkwarn { color: var(--warn); }
+
+    .dklimpct.dkcrit { color: var(--crit); }
+
+    .dkpage {
+        min-width: 0;
+        min-height: 0;
+        overflow-y: auto;
+        padding: .8rem 1rem 1.2rem;
+        background: var(--bg);
+    }
+
+    .dkpage > * { max-width: 60rem; margin-inline: auto; }
+
+    .dkcenter {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--bg);
+    }
+
+    .dkchat { padding: 0 0 1rem; gap: .4rem; }
+
+    .dkchat > .chatfeed { flex: 1 1 auto; min-height: 0; }
+
+    .dkhead {
+        flex: none;
+        position: relative;
+        padding: .45rem .8rem .5rem;
+        border-bottom: var(--hair) solid var(--edge);
+        background: var(--colbg);
+    }
+
+    .dkheadtop { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+
+    .dkheadtop .dkheadpath { flex: 1 1 auto; min-width: 0; }
+
+    .dkheadacts { flex: none; }
+
+    .dkheadname { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+
+    .dkheadpath {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--ink-faint);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dkheadbot { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem 1rem; margin-top: .35rem; min-width: 0; }
+
+    .dkfact { display: flex; align-items: baseline; gap: .28rem; }
+
+    .dkfact b { font-size: 14px; font-weight: 700; color: var(--ink); }
+
+    .dkfact span { font-size: 12px; color: var(--ink-faint); }
+
+    .dkfact.right b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+    .dktable { flex: 1; min-height: 0; overflow-y: auto; }
+
+    .dktr {
+        display: grid;
+        grid-template-columns: 1.8rem minmax(0, 1fr) 14rem 5rem 6rem 6rem 4.6rem;
+        align-items: center;
+        gap: .6rem;
+        width: 100%;
+        height: 34px;
+        padding: 0 .8rem;
+        border: 0;
+        border-bottom: var(--hair) solid var(--line);
+        background: transparent;
+        color: var(--ink);
+        text-align: left;
+        cursor: default;
+    }
+
+    .dkth {
+        height: 26px;
+        font-size: 11.5px;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        background: var(--colbg);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .dkstack .dkc-name { font-size: 14.5px; font-weight: 700; }
+
+    .dkcont .dkc-name { padding-left: 1rem; color: var(--ink-dim); }
+
+    .dkc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+
+    .dkc-status {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        color: var(--ink-dim);
+    }
+
+    .dkhp { flex: none; display: flex; gap: 2px; width: 4.4rem; }
+
+    .dkhp i {
+        flex: 1;
+        height: 9px;
+        border-radius: 1px;
+        background: var(--line);
+    }
+
+    .dkhp i.up { background: var(--ok); }
+
+    .dkhp i.down { background: var(--line); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
+
+    .dkhpnum {
+        flex: none;
+        min-width: 2.6rem;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-dim);
+    }
+
+    .dkc-num {
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 13.5px;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-dim);
+    }
+
+    .dkc-acts { display: flex; gap: .3rem; justify-content: flex-end; opacity: 1; }
+
+    .dkc-acts.shown { opacity: 1; }
+
+    .dkcont.on { background: var(--accent-bg); box-shadow: inset 3px 0 0 var(--accent); }
+
+    .dkstate { font-weight: 600; color: var(--ok); }
+
+    .dkstate.off { color: var(--ink-faint); font-weight: 500; }
+
+    .dkstate.bad { color: var(--crit); }
+
+    .dkc-num.dkwarn { color: var(--ink); }
+
+    .dkc-num.dkcrit { color: var(--crit); }
+
+    .dkuptime { color: var(--ink-faint); }
+
+    .dkact {
+        display: grid;
+        place-items: center;
+        width: 1.7rem;
+        height: 1.7rem;
+        color: var(--ink-dim);
+        background: var(--glass);
+        border-radius: var(--r-small);
+        border: var(--hair) solid var(--edge);
+    }
+
+    .dkact svg { width: 15px; height: 15px; }
+
+    .dkdash {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+        padding: .7rem .8rem .9rem;
+    }
+
+    .dktiles { display: flex; flex-wrap: wrap; gap: .7rem; }
+
+    .dkpanes { flex: 1; min-height: 12rem; display: flex; flex-wrap: wrap; gap: .7rem; align-items: stretch; }
+
+    .dkdbar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+
+    .dkdbar i { display: block; height: 100%; background: var(--accent); }
+
+    .dkdbar i.hot { background: var(--crit); }
+
+    .dkgrid {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        grid-auto-rows: minmax(8.5rem, 1fr);
+        gap: .7rem;
+        padding: .8rem;
+    }
+
+    .dkgrid > .w3 { grid-column: span 3; }
+
+    .dkgrid > .w4 { grid-column: span 4; }
+
+    .dkgrid > .w6 { grid-column: span 6; }
+
+    .dkgrid > .w8 { grid-column: span 8; }
+
+    .dkgrid > .h1 { grid-row: span 1; }
+
+    .dkgrid > .h2 { grid-row: span 2; }
+
+    @media (max-width: 1500px) {
+        .dkgrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+        .dkgrid > .w8 { grid-column: span 6; }
+
+        .dkgrid > .w6 { grid-column: span 6; }
+
+        .dkgrid > .w4 { grid-column: span 3; }
+
+        .dkgrid > .w3 { grid-column: span 3; }
+
+    }
+
+    .dkslot {
+        display: grid;
+        place-items: center;
+        border: var(--hair) dashed var(--edge);
+        border-radius: var(--r-card);
+        color: var(--ink-faint);
+        font-size: 13px;
+        min-height: 0;
+    }
+
+    .dkright {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        border-left: var(--hair) solid var(--edge);
+        background: var(--colbg);
+    }
+
+    .dkpanelhead {
+        flex: none;
+        display: flex;
+        align-items: center;
+        height: 32px;
+        padding: 0 .3rem 0 .7rem;
+        border-bottom: var(--hair) solid var(--line);
+    }
+
+    .dkpaneltitle {
+        font-size: 0.7225rem;
+        font-weight: 700;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+    }
+
+    .dkclose {
+        margin-left: auto;
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        color: var(--ink-faint);
+        background: transparent;
+        border: 0;
+        border-radius: var(--r-small);
+        cursor: pointer;
+    }
+
+    .dkclose svg { width: 15px; height: 15px; }
+
+    .dkrow {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        width: 100%;
+        height: 38px;
+        padding: 0 .7rem;
+        border: 0;
+        font: inherit;
+        border-bottom: var(--hair) solid var(--line);
+        background: transparent;
+        color: var(--ink);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dklog.bad .dkname { color: var(--crit); }
+
+    .dkacts { margin-left: auto; display: flex; gap: .25rem; }
+
+    .dkrowacts { flex: none; display: flex; gap: .25rem; margin-left: .1rem; }
+
+    .dkitem .dkname { padding-left: 1.1rem; color: var(--ink-dim); font-size: 13px; }
+
+    .dkpager {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .5rem .6rem;
+        border-top: var(--hair) solid var(--edge);
+    }
+
+    .dkpagebtn {
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-small);
+        background: var(--glass);
+        color: var(--ink-dim);
+        cursor: pointer;
+    }
+
+    .dkpagebtn svg { width: 14px; height: 14px; transform: rotate(180deg); }
+
+    .dkpagebtn.next svg { transform: none; }
+
+    .dkpagebtn:disabled { opacity: .35; cursor: default; }
+
+    .dkpagenum {
+        flex: 1;
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-dim);
+    }
+
+    .dkpagetotal { color: var(--ink-faint); }
+
+    .dkarch .dkname, .dkproj .dkname, .dklog .dkname { font-size: 13.5px; font-weight: 500; }
+
+    .dkarch {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .1rem;
+        padding: .35rem .55rem .4rem;
+        border-bottom: var(--hair) solid var(--line);
+        cursor: pointer;
+    }
+
+    .dkarchtop { display: flex; align-items: center; gap: .45rem; }
+
+    .dkarchsub { display: flex; align-items: center; gap: .35rem; }
+
+    .dkarchmodel {
+        flex: none;
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--ink-faint);
+    }
+
+    .dkarch .dkacts { position: absolute; right: .5rem; top: .35rem; }
+
+    .dkarch .dkarchtop .dkwhen { margin-right: 3.6rem; }
+    .dksplit { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr 1fr; }
+
+    .dkhalf { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+    .dkhalf + .dkhalf { border-top: var(--hair) solid var(--edge); }
+
+    .dklater {
+        display: grid;
+        place-items: center;
+        color: var(--ink-faint);
+        font-size: 13px;
+        background: repeating-linear-gradient(
+            135deg,
+            transparent 0 10px,
+            var(--glass) 10px 11px
+        );
+    }
+
+    .dkheadacts { margin-left: auto; display: flex; gap: .3rem; }
+
+    .dkheadacts .dkact { width: 2rem; height: 2rem; border-color: var(--edge); }
+
+    .dkheadacts .dkact svg { width: 16px; height: 16px; }
+
+    .dkuse {
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+        padding: .25rem 0;
+        border-top: var(--hair) solid var(--line);
+    }
+
+    .dkuse:first-child { border-top: 0; }
+
+    .dkusename {
+        flex: none;
+        width: 6.4rem;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+    }
+
+    .dkusenum {
+        font-family: var(--mono);
+        font-size: 14px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
+    }
+
+    .dkuselabel { margin-left: auto; font-size: 11.5px; color: var(--ink-faint); }
+
+    .dklogs {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: .4rem .5rem .6rem;
+        font-family: var(--code);
+        font-size: 12.5px;
+        line-height: 1.45;
+    }
+
+    .dklogline { display: flex; gap: .45rem; padding: .08rem 0; }
+
+    .dklogmsg { flex: 1; min-width: 0; color: var(--ink-dim); overflow-wrap: anywhere; }
+
+    .dklogtail .dklogmsg { color: var(--ink-faint); font-style: italic; }
+
+    .dkcat {
+        position: relative;
+        display: grid;
+        grid-template-columns: 2rem minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .6rem;
+        width: 100%;
+        padding: .6rem .6rem .7rem;
+        border: 0;
+        border-bottom: var(--hair) solid var(--line);
+        background-image: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, .085) 0 var(--fill, 0%),
+            transparent var(--fill, 0%)
+        );
+        background-color: transparent;
+        color: var(--ink);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dkcat.on { background-color: var(--accent-bg); box-shadow: inset 3px 0 0 var(--accent); }
+
+    .dkcaticon { display: grid; place-items: center; color: var(--ink-dim); }
+
+    .dkcaticon svg { width: 20px; height: 20px; }
+
+    .dkcat.on .dkcaticon { color: var(--accent); }
+
+    .dkcatbody { min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+
+    .dkcatname { font-size: 14.5px; font-weight: 600; }
+
+    .dkcatsub {
+        font-size: 12.5px;
+        color: var(--ink-dim);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dkcatvalue {
+        font-family: var(--mono);
+        font-size: 16px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .dkcatbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 3px;
+    }
+
+    .dkcatbar i { display: block; height: 100%; background: var(--ok); }
+
+    .dkcatbar.dkwarn i { background: var(--warn); }
+
+    .dkcatbar.dkcrit i { background: var(--crit); }
+
+    .dkmbody {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+        padding: .7rem .8rem .9rem;
+    }
+
+    .dkplot {
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        background: var(--glass);
+        padding: .4rem .5rem .2rem;
+    }
+
+    .dkfacts { display: flex; flex-wrap: wrap; gap: .6rem; }
+
+    .dkcard {
+        flex: 1 1 11rem;
+        min-width: 9rem;
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+        padding: .5rem .65rem .6rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        background: var(--glass);
+    }
+
+    .dkcard span {
+        font-size: 0.7025rem;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+    }
+
+    .dkcard b {
+        font-family: var(--mono);
+        font-size: 18px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
+    }
+
+    .dkcard .dkdbar { margin-top: .3rem; }
+
+    .dkmbody .dktable {
+        flex: none;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        background: var(--glass);
+        overflow: hidden;
+    }
+
+    .dkdtr { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 4rem 5rem 6rem 6rem; }
+
+    .dkntr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 6rem 6rem 6rem; }
+
+    .dkttr { grid-template-columns: minmax(0, 1fr) 6rem 6rem; }
+
+    .dkprocs { flex: 1; min-height: 0; overflow: auto; padding: .3rem 0 .5rem; }
+
+    .dkttr { grid-template-columns: 5.4rem minmax(0, 1fr) 6rem 6rem; }
+
+    .dkkind {
+        justify-self: start;
+        font-size: 11px;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-pill);
+        padding: 0 .3rem;
+    }
+
+    .dkttr .dkc-name { display: flex; align-items: center; gap: .35rem; }
+
+    .dkwidget {
+        min-width: 0;
+        min-height: 0;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        background: var(--glass);
+        overflow: hidden;
+    }
+
+    .dkjumps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .dkjump {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        align-content: center;
+        align-items: center;
+        gap: .15rem .7rem;
+        padding: 1rem 1.1rem;
+        border: 0;
+        border-left: var(--hair) solid var(--edge);
+        background: transparent;
+        color: var(--ink);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dkjump:first-child { border-left: 0; }
+
+    .dkjumpicon {
+        grid-row: 1 / span 3;
+        display: grid;
+        place-items: center;
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: var(--r-card);
+        background: var(--accent-bg);
+        color: var(--accent);
+    }
+
+    .dkjumpicon svg { width: 22px; height: 22px; }
+
+    .dkjumpvalue {
+        font-family: var(--mono);
+        font-size: 23px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+    }
+
+    .dkjumplabel { grid-column: 2; font-size: 13.5px; font-weight: 600; color: var(--ink-dim); }
+
+    .dkjumpsub {
+        grid-column: 2;
+        font-size: 12.5px;
+        line-height: 1.35;
+        color: var(--ink-faint);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .dkjump.hot .dkjumpicon { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+
+    .dkjump.hot .dkjumpsub { color: var(--warn); }
+
+    .dkscrim {
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background: rgba(4, 6, 12, .62);
+        backdrop-filter: blur(2px);
+    }
+
+    .dkmodalhead .dkclose { margin-left: auto; }
+
+    .dkmodalfoot {
+        flex: none;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .5rem;
+        padding: .7rem .9rem;
+        border-top: var(--hair) solid var(--edge);
+        background: var(--glass);
+    }
+
+    .dkconseq { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .35rem; }
+
+    .dkopts { display: flex; flex-direction: column; gap: .4rem; }
+
+    .dkc-state { display: flex; align-items: center; justify-content: center; }
+
+    .dkside { align-self: center; }
+
+    .dkact.off {
+        opacity: .38;
+        cursor: default;
+        pointer-events: none;
+    }
+
+    .dktr.wait { opacity: .55; pointer-events: none; }
+
+    .dklogline.err .dklogmsg { color: var(--crit); }
+
+    .dkhp i.bad, .dksegbar i.bad { background: var(--crit); opacity: .75; }
+
+    .dkplotempty {
+        display: grid;
+        place-items: center;
+        min-height: 8rem;
+        font-size: 12.5px;
+        color: var(--ink-faint);
+    }
+
+    .dkdot.dkwarn { background: var(--warn); }
+
+    .dkchev { flex: none; display: grid; place-items: center; color: var(--ink-faint); }
+
+    .dkchev svg { width: 15px; height: 15px; }
+
+    .dkchev.down svg { transform: rotate(90deg); }
+
+    .dkproj .dkname { font-weight: 600; }
+
+    .dkitem .dkname { flex: none; max-width: 16rem; }
+
+    .dkpath {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-faint);
+    }
+
+    .dkmiss {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        background: var(--warn);
+        color: #06070f;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    :root.sky .dkmiss { color: #f2f8ff; }
+
+    .dkgone .dkname { color: var(--warn); }
+
+    .dkadd {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        width: 100%;
+        height: 32px;
+        padding: 0 .7rem;
+        border: 0;
+        border-top: var(--hair) solid var(--edge);
+        background: transparent;
+        color: var(--accent);
+        font: inherit;
+        font-size: 13.5px;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .dkadd svg { width: 14px; height: 14px; }
+
+    .dkloose {
+        margin: .5rem .6rem;
+        width: auto;
+        border: var(--hair) dashed color-mix(in srgb, var(--accent) 35%, transparent);
+        border-radius: var(--r-small);
+        color: var(--ink-dim);
+    }
+
+    .dkloose .dknum { margin-left: auto; color: var(--accent); }
+
+.dkfind {
+        flex: 1;
+        min-width: 8rem;
+        max-width: 18rem;
+        height: 26px;
+        padding: 0 .5rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-small);
+        background: var(--glass);
+        color: var(--ink);
+        font: inherit;
+        font-size: 13px;
+    }
+
+    .dkwarnline { margin: .35rem 0 0; font-size: 12.5px; color: var(--warn); }
+
+    .dkunder { padding-left: 2.4rem; }
+
+    .dkfail { color: var(--crit); }
+
+    .dkcenter > .dkpage { flex: 1; }
+
+.dkmodal {
+        width: min(38rem, 100%);
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        background: var(--tipbg);
+        box-shadow: var(--drop);
+        overflow: hidden;
+    }
+
+    .dkmodalhead {
+        flex: none;
+        display: flex;
+        align-items: baseline;
+        gap: .6rem;
+        padding: .7rem .9rem .6rem;
+        border-bottom: var(--hair) solid var(--edge);
+    }
+
+    .dkmodaltitle { flex: none; font-size: 16px; font-weight: 700; }
+
+    .dkmodalsub {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        color: var(--ink-faint);
+    }
+
+    .dkmodalbody { flex: 1; min-height: 0; overflow-y: auto; padding: .3rem .9rem .9rem; }
+
+    .dkmodal.dkmodalwide {
+        width: min(52rem, 100%);
+        height: 100%;
+    }
+
+.dkmodalbody .btnrow:not(.pfdiskrow) { justify-content: flex-end; }
+
+    .dkmodalbody .btnrow:not(.pfdiskrow) > .btn { flex: none; }
+
+.dklogo:hover { background: var(--glass); }
+    .dkbrand:hover { color: var(--ink); background: var(--glass); }
+    .dkib:hover { color: var(--ink); background: var(--glass); }
+    .deskshell [data-tip]:hover::after { opacity: 1; }
+    .dkpickrow:hover { background: var(--glass); color: var(--ink); }
+    .dksess:hover { background-color: var(--glass); }
+    .dkscroll:hover .dkhint { color: var(--ink-faint); }
+    .dktr:hover .dkc-acts { opacity: 1; }
+    .dkact:hover { color: var(--ink); background: var(--glass-2); border-color: var(--ink-faint); }
+    .dkact.danger:hover { color: var(--crit); border-color: var(--crit); }
+    .dkclose:hover { color: var(--ink); background: var(--glass); }
+    .dkrow:hover { background: var(--glass); }
+    .dkact.danger:hover { color: var(--crit); }
+    .dkpagebtn:not(:disabled):hover { color: var(--ink); background: var(--glass-2); }
+    .dkarch:hover { background: var(--glass); }
+    .dkcat:hover { background-color: var(--glass); }
+    .dkjump:hover { background: var(--glass-2); }
+    .dkact.off:hover { background: var(--glass); border-color: var(--edge); color: var(--ink-dim); }
+    .dkadd:hover { background: var(--glass); }
+
+.deskshell .dkscroll,
+    .deskshell .dktable,
+    .deskshell .dkmbody,
+    .deskshell .dklogs,
+    .deskshell .dkpage,
+    .deskshell .chatfeed {
+        scrollbar-width: thin;
+        scrollbar-color: var(--edge) transparent;
+    }
+
+    .deskshell .dkscroll:hover,
+    .deskshell .dktable:hover,
+    .deskshell .dkmbody:hover,
+    .deskshell .dklogs:hover,
+    .deskshell .dkpage:hover,
+    .deskshell .chatfeed:hover { scrollbar-color: var(--ink-faint) transparent; }
+
+.deskshell .dkscroll::-webkit-scrollbar,
+    .deskshell .dktable::-webkit-scrollbar,
+    .deskshell .dkmbody::-webkit-scrollbar,
+    .deskshell .dklogs::-webkit-scrollbar,
+    .deskshell .dkpage::-webkit-scrollbar { width: 8px; height: 8px; display: block; }
+
+    .deskshell .dkscroll::-webkit-scrollbar-thumb,
+    .deskshell .dktable::-webkit-scrollbar-thumb,
+    .deskshell .dkmbody::-webkit-scrollbar-thumb,
+    .deskshell .dklogs::-webkit-scrollbar-thumb,
+    .deskshell .dkpage::-webkit-scrollbar-thumb {
+        border-radius: 4px;
+        background: var(--edge);
+    }
+
+    .deskshell .dkscroll:hover::-webkit-scrollbar-thumb,
+    .deskshell .dktable:hover::-webkit-scrollbar-thumb,
+    .deskshell .dkmbody:hover::-webkit-scrollbar-thumb,
+    .deskshell .dklogs:hover::-webkit-scrollbar-thumb,
+    .deskshell .dkpage:hover::-webkit-scrollbar-thumb { background: var(--ink-faint); }
+
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .deskshell .dkc-acts { opacity: 0; }
+    .deskshell .dkc-acts.shown { opacity: 1; }
+}
+@media (min-width: 1100px) {
+.dklimreset {
+        flex: none;
+        width: 3.1rem;
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-faint);
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+@media (min-width: 1100px) {
+    .dkentry {
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+        padding: .4rem .55rem .45rem;
+        border-bottom: var(--hair) solid var(--edge);
+    }
+
+    .dkentrytop { display: flex; align-items: center; gap: .4rem; min-width: 0; }
+
+    .dkentrytarget {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-dim);
+    }
+
+    .dkentrydetail { font-size: 12.5px; line-height: 1.4; color: var(--ink-dim); }
+
+    .dkentrymeta { display: flex; gap: .5rem; font-size: 11.5px; color: var(--ink-faint); }
+    .dkentrymeta .ok { color: var(--ok); }
+    .dkentrymeta .warn { color: var(--warn); }
+    .dkentrymeta .crit { color: var(--crit); }
+}
+
+@media (min-width: 1100px) {
+.dkdotcell { flex: none; display: grid; place-items: center; width: .5rem; }
+
+    .dkproj .dkname { font-size: 14px; }
+
+    .dkitem { height: 34px; }
+}
+
+@media (min-width: 1100px) {
+.dklogtime { flex: none; width: 8ch; color: var(--ink-faint); }
+}
+
+@media (min-width: 1100px) {
+.uwg {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        padding: .6rem .7rem;
+    }
+
+.uwg.open { cursor: pointer; }
+    .uwg.open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+    .uwghead {
+        flex: none;
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+        min-width: 0;
+    }
+
+    .uwgtitle { flex: none; font-size: 13px; font-weight: 700; letter-spacing: -.01em; }
+
+    .uwgnote {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: 11.5px;
+        color: var(--ink-faint);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .uwgacts { flex: none; margin-left: auto; display: flex; align-items: center; gap: .3rem; }
+
+    .uwgacts .dkact { width: 1.7rem; height: 1.7rem; border-color: var(--edge); }
+
+    .uwgacts .dkact svg { width: 14px; height: 14px; }
+
+    .uwgacts .dkact.busy { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+    .uwgbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .3rem; }
+
+    .uwgbig {
+        margin: 0;
+        display: flex;
+        align-items: baseline;
+        gap: .4rem;
+        min-width: 0;
+        font-size: 25px;
+        font-weight: 700;
+        letter-spacing: -.02em;
+        line-height: 1.1;
+    }
+
+    .uwgunit {
+        min-width: 0;
+        font-size: 11.5px;
+        font-weight: 500;
+        color: var(--ink-faint);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .uwgsub { margin: 0; font-size: 12px; color: var(--ink-dim); }
+    .uwgsub.crit { color: var(--crit); }
+
+    .uwgblank {
+        margin: auto;
+        padding: 0 .3rem;
+        text-align: center;
+        font-size: 12.5px;
+        color: var(--ink-faint);
+    }
+
+    .uwgblank.crit { color: var(--crit); }
+    .uwgblank.warn { color: var(--warn); }
+
+    .uwgfirst { margin: auto; display: flex; flex-direction: column; align-items: center; gap: .35rem; text-align: center; }
+
+    .uwgfirst .btn { padding: .3rem .7rem; font-size: 12.5px; }
+
+.uwg .chart.spark { --chart-h: 30; flex: none; }
+
+.usharebar {
+        flex: none;
+        height: 8px;
+        border-radius: var(--r-pill);
+        background: rgba(var(--tint), .12);
+        overflow: hidden;
+    }
+
+    .usharebar.empty { opacity: .5; }
+
+    .uleg {
+        margin: .3rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .2rem .8rem;
+        font-size: 11.5px;
+    }
+
+    .uleg li { display: flex; align-items: center; gap: .3rem; min-width: 0; }
+
+    .uleg i, .useglead {
+        flex: none;
+        width: .55rem;
+        height: .55rem;
+        border-radius: 1px;
+        display: inline-block;
+    }
+
+    .ulegname { min-width: 0; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-dim); }
+
+    .ulegval { flex: none; font-weight: 600; }
+
+    .useg { display: flex; flex-direction: column; }
+
+    .useg.wide { max-width: 66rem; }
+
+    .useg + .useg { margin-top: .45rem; }
+
+.ukey { display: inline-flex; align-items: center; gap: .3rem; }
+
+    .ukey i { width: .55rem; height: .55rem; border-radius: 1px; }
+
+.uslist { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+
+    .uslist.wide { max-width: 66rem; }
+
+    .usrow {
+        display: block;
+        width: 100%;
+        padding: .22rem 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+    }
+
+    .usrow.open { cursor: pointer; }
+
+    .usrow.open:hover { background: var(--glass-2); }
+
+    .usrline { display: flex; align-items: baseline; gap: .4rem; min-width: 0; }
+
+    .usrname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+
+    .usrsub { flex: none; font-size: 11px; color: var(--ink-faint); }
+
+    .usrsub .crit { color: var(--crit); }
+
+    .usrval { flex: none; margin-left: auto; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .usrbar {
+        display: block;
+        height: 3px;
+        margin-top: .15rem;
+        border-radius: var(--r-pill);
+        background: rgba(var(--tint), .1);
+        overflow: hidden;
+    }
+
+    .usrbar i { display: block; height: 100%; background: var(--accent); }
+
+    .usrbar i.warn { background: var(--warn); }
+    .usrbar i.crit { background: var(--crit); }
+    .usrbar i.dim { background: var(--ink-faint); }
+
+.uchips { display: flex; gap: .2rem; }
+
+    .uchip {
+        padding: .1rem .4rem;
+        border: var(--hair) solid transparent;
+        border-radius: var(--r-pill);
+        background: none;
+        color: var(--ink-faint);
+        font: inherit;
+        font-size: 11.5px;
+        cursor: pointer;
+    }
+
+    .uchip:hover { color: var(--ink); }
+
+    .uchip.on { border-color: var(--edge); background: var(--glass-2); color: var(--ink); }
+
+    .uslayer {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        background: var(--tipbg);
+        backdrop-filter: var(--blur);
+    }
+
+    .uslayerhead {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        padding: .6rem .8rem;
+        border-bottom: var(--hair) solid var(--edge);
+        min-width: 0;
+    }
+
+    .uslayertitle { flex: none; font-size: 15px; font-weight: 700; }
+
+    .uslayernote { flex: none; font-size: 12px; color: var(--ink-faint); }
+
+    .uslayeracts { margin-left: auto; display: flex; align-items: center; gap: .5rem; }
+
+    .uslayerbody { flex: 1; min-height: 0; overflow-y: auto; padding: .7rem .8rem 1rem; }
+
+    .ustrail { display: flex; align-items: center; gap: .25rem; min-width: 0; font-size: 12px; overflow: hidden; }
+
+    .ustrailsep { color: var(--ink-faint); font-style: normal; }
+
+    .ustrailstep {
+        padding: 0 .1rem;
+        border: 0;
+        background: none;
+        color: var(--accent);
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .ustrailhere { color: var(--ink-dim); max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
+
+    .ustable { width: 100%; max-width: 66rem; border-collapse: collapse; font-size: 13px; }
+
+    .ustable th {
+        padding: .25rem .5rem;
+        border-bottom: var(--hair) solid var(--edge);
+        text-align: left;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--ink-faint);
+    }
+
+    .ustable td { padding: .3rem .5rem; border-bottom: var(--hair) solid var(--line); vertical-align: baseline; }
+
+.ustable th:first-child { width: 22rem; }
+
+    .ustable td:first-child { display: flex; align-items: baseline; gap: .4rem; min-width: 0; }
+
+    .ustable .num { width: 7rem; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    .ustable .share { width: 9rem; }
+
+    .ustable .share .usrbar { display: inline-block; width: 5.5rem; margin: 0 .4rem 0 0; vertical-align: middle; }
+
+    .usrpct { font-size: 11.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+    .ustable tr.open { cursor: pointer; }
+
+    .ustable tr.open:hover { background: var(--glass-2); }
+
+.ustable tr.outside td { color: var(--warn); }
+
+.usscan { display: flex; flex-direction: column; gap: .55rem; max-width: 44rem; }
+
+    .usscanline { margin: 0; font-size: 13.5px; }
+
+    .usscanrows { display: flex; flex-direction: column; gap: .35rem; }
+
+    .usscanrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .6rem; }
+
+    .usscan .btnrow { display: flex; justify-content: flex-start; }
+
+    .usscan .btnrow > .btn { flex: none; padding: .35rem 1rem; }
+
+    .usscanrow .usrbar { grid-column: 1 / -1; }
+}
+
+@media (min-width: 1100px) {
+    .upinned {
+        padding: .1rem .4rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-pill);
+        background: var(--glass-2);
+        font-size: 11.5px;
+        color: var(--ink-dim);
+    }
+
+.uwgchart { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+
+.uwgchart > .chart { flex: 1; min-width: 0; }
+}
+
+@media (min-width: 1100px) {
+    .usprogress { margin-top: .2rem; }
+
+    .usprogress .usrbar { margin-top: .25rem; }
+}

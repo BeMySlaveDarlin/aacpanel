@@ -1,0 +1,282 @@
+/* Call timeline, command output, queued reply and event notes. */
+
+.calltime {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+    overflow-y: auto;
+    padding-bottom: 1rem;
+}
+.calltime > * { flex: 0 0 auto; }
+.calltime::before {
+    content: "";
+    position: absolute;
+    left: 15px;
+    top: 18px;
+    bottom: calc(1rem + 18px);
+    width: 1px;
+    background: var(--surface-3);
+}
+
+.callnode {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: .55rem;
+    width: 100%;
+    padding: .4rem .5rem .4rem 0;
+    border: 0;
+    border-radius: var(--r-card);
+    background: none;
+    text-align: left;
+    cursor: pointer;
+}
+.callnode:active { background: var(--glass); }
+
+.cnmark {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-small);
+    background: var(--glass-2);
+    box-shadow: var(--hairline);
+    color: var(--accent);
+    flex: none;
+}
+.cnmark svg { width: 15px; height: 15px; }
+
+.callnode.still { cursor: default; opacity: .6; }
+.cnmark.think { color: var(--ink-dim); }
+
+.cnbody { min-width: 0; display: flex; flex-direction: column; gap: .05rem; }
+.cnname {
+    font-size: .78rem;
+    color: var(--ink);
+    white-space: nowrap;
+}
+.cnarg {
+    font-size: .72rem;
+    color: var(--ink-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cndone {
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+.cndone.ok { color: var(--ok); }
+.cndone.warn { color: var(--warn); }
+.cndone.crit { color: var(--crit); }
+
+.crgo { display: flex; width: 14px; height: 14px; color: var(--ink-faint); }
+.crgo svg { width: 100%; height: 100%; }
+
+.callbody {
+    overflow-y: auto;
+    padding-bottom: 1.5rem;
+}
+.callcap {
+    margin: .9rem 0 .35rem;
+    font-family: var(--mono);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+.callpre {
+    margin: 0;
+    padding: .6rem .7rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--glass);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: .76rem;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+}
+.callpre.code { font-family: var(--code); }
+
+.cdcm { color: var(--ink-dim); font-style: italic; }
+.cdstr { color: var(--ok); }
+.cdkw { color: var(--accent); }
+.cdnum { color: var(--warn); }
+
+.filepic {
+    display: flex;
+    justify-content: center;
+    padding: .4rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--glass);
+}
+.filepic img { max-width: 100%; height: auto; border-radius: calc(var(--r-card) - 2px); }
+button.filepic {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    cursor: zoom-in;
+}
+
+.fileexec { display: grid; gap: .5rem; }
+.fileface {
+    display: grid;
+    gap: .3rem;
+    margin: 0;
+    padding: .6rem .7rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--glass);
+}
+.fileface > div { display: flex; gap: .6rem; align-items: baseline; }
+.fileface dt {
+    flex: none;
+    width: 3.4rem;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+.fileface dd {
+    margin: 0;
+    min-width: 0;
+    font-family: var(--code);
+    font-size: .8rem;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+.filevideo, .fileaudio, .filepdf, .filehtml {
+    display: block;
+    width: 100%;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--glass);
+}
+.filevideo video { display: block; width: 100%; max-height: 60dvh; border-radius: inherit; }
+.fileaudio { padding: .5rem; }
+.fileaudio audio { display: block; width: 100%; }
+.filepdf, .filehtml { height: 70dvh; }
+.filehtml { background: #fff; }
+
+.filetabs { display: flex; gap: .35rem; margin-bottom: .5rem; }
+
+.fileget {
+    display: inline-flex;
+    align-items: center;
+    padding: .35rem .7rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-pill);
+    background: var(--glass);
+    color: var(--accent);
+    font-size: .8rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.filesheet {
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--glass);
+    overflow: auto;
+    max-height: 70dvh;
+}
+.filesheet table { border-collapse: collapse; font-size: .78rem; }
+.filesheet th, .filesheet td {
+    padding: .32rem .55rem;
+    border-bottom: var(--hair) solid var(--line);
+    text-align: left;
+    white-space: pre;
+    vertical-align: top;
+}
+.filesheet th {
+    position: sticky;
+    top: 0;
+    background: var(--sheet-bg);
+    color: var(--ink-dim);
+    font-weight: 600;
+}
+
+.mdcopy.filecopy {
+    margin-left: auto;
+    width: 34px;
+    height: 34px;
+}
+.mdcopy.filecopy svg { width: 1.05rem; height: 1.05rem; }
+
+.filemore {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin-top: .6rem;
+}
+.filemore .hint { margin: 0; }
+
+.callpre.failed {
+    border-color: rgba(255, 110, 110, .35);
+    color: var(--crit);
+}
+
+.msg.me.queued {
+    opacity: .55;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), color-mix(in srgb, var(--accent) 4%, transparent));
+    border-style: dashed;
+    box-shadow: none;
+}
+
+.mwait {
+    margin: .3rem 0 0;
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .04em;
+    color: var(--ink-faint);
+}
+
+.msg.ai { color: var(--ink); }
+
+.msg p { margin: 0 0 .8rem; }
+.msg p:last-child { margin-bottom: 0; }
+
+.mrun {
+    display: flex;
+    align-items: baseline;
+    gap: .45rem;
+    font-family: var(--mono);
+    font-size: .68rem;
+    color: var(--ink-faint);
+    padding: .1rem .2rem .1rem .6rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.mrun::before {
+    content: "";
+    position: absolute;
+    left: .1rem; top: .3rem; bottom: .3rem;
+    width: 2px;
+    border-radius: var(--r-small);
+    background: rgba(180, 139, 255, .5);
+}
+
+.mrun .mrname { color: var(--warn); flex: 0 0 auto; }
+.mrun .mrarg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mnote {
+    align-self: center;
+    font-size: .68rem;
+    color: var(--ink-faint);
+    letter-spacing: .02em;
+    padding: .1rem .6rem;
+    border-radius: var(--r-pill);
+    border: var(--hair) solid var(--line);
+    background: rgba(150, 170, 255, .05);
+}
+

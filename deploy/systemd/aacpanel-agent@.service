@@ -1,0 +1,38 @@
+# Template unit: the instance name is the user to run the agent as.
+
+[Unit]
+Description=aacpanel: collector of host load and claude sessions
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+
+# Fallback repository path; the host description below wins. Must not be empty:
+# ExecStart would expand ${AACP_REPO} to nothing.
+Environment=AACP_REPO=/opt/aacpanel
+EnvironmentFile=-/var/lib/aacpanel/host.env
+ExecStart=/usr/bin/python3 ${AACP_REPO}/agent/agent.py
+Restart=always
+RestartSec=5
+
+# The agent reads claude transcripts, so the tree stays read-only for it.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+# No PrivateTmp here: the agent reads background task output from the session
+# scratchpad under /tmp.
+# Same directory as AACP_STATE_DIR in the host description; systemd does not
+# expand variables in this directive.
+ReadWritePaths=/var/lib/aacpanel
+# Directory for the claude hook socket, kept out of the state directory that is
+# mounted into the service.
+RuntimeDirectory=aacpanel-agent
+RuntimeDirectoryMode=0700
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

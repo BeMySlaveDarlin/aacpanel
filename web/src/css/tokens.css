@@ -1,0 +1,181 @@
+/* Fonts, the space palette, the sky light theme and every design token. */
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(/static/fonts/jetbrains-mono-400-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+        U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(/static/fonts/jetbrains-mono-400-cyrillic.woff2) format("woff2");
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(/static/fonts/inter-400-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+        U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(/static/fonts/inter-400-cyrillic.woff2) format("woff2");
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 600 800;
+    font-display: swap;
+    src: url(/static/fonts/inter-600-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+        U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 600 800;
+    font-display: swap;
+    src: url(/static/fonts/inter-600-cyrillic.woff2) format("woff2");
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+:root {
+    --void: #06070f;
+    --deep: #080a14;
+    --surface: rgba(var(--tint), .12);
+    --surface-2: rgba(var(--tint), .18);
+    --surface-3: rgba(var(--tint), .24);
+    --line: rgba(var(--tint), .16);
+
+    --tint: 255, 255, 255;
+    --hair: .5px;
+    --glass: linear-gradient(160deg, rgba(var(--tint), .11), rgba(var(--tint), .05) 62%);
+    --glass-2: linear-gradient(160deg, rgba(var(--tint), .16), rgba(var(--tint), .07) 62%);
+    --blur: blur(32px) saturate(200%) brightness(1.04);
+    --edge: rgba(var(--tint), .14);
+    --drop: 0 10px 26px rgba(14, 12, 44, .34);
+    --gloss: inset 0 1px 0 rgba(var(--tint), .16);
+    --glow: 0 0 18px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+    --hairline: inset 0 0 0 var(--hair) rgba(var(--tint), .03);
+
+    --r-card: 3px;
+    --r-small: 3px;
+    --r-pill: 3px;
+
+    --bg: var(--void);
+    --top-bg: linear-gradient(180deg, rgba(6, 7, 15, .78), rgba(6, 7, 15, .4));
+    --chips-bg: linear-gradient(180deg, rgba(6, 7, 15, .86), rgba(6, 7, 15, .66));
+    --nav-bg: linear-gradient(180deg, rgba(var(--tint), .04), rgba(var(--tint), .02));
+    --sheet-bg: linear-gradient(180deg, rgba(26, 30, 56, .97), rgba(10, 12, 26, .99));
+    --on-accent: #060a1a;
+    --me-bg: color-mix(in srgb, var(--accent) 18%, transparent);
+
+    --neb: radial-gradient(74% 32% at 10% -6%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+        radial-gradient(56% 26% at 106% 2%, rgba(143, 157, 255, .24), transparent 72%),
+        radial-gradient(64% 28% at 92% 44%, rgba(90, 110, 220, .18), transparent 74%),
+        radial-gradient(86% 32% at 2% 68%, rgba(127, 227, 212, .12), transparent 74%),
+        radial-gradient(130% 40% at 50% 108%, rgba(99, 168, 255, .16), transparent 72%);
+
+    --ink: #eef1ff;
+    --ink-dim: #bcc4e8;
+    --ink-faint: #8189b3;
+
+    --accent: #63a8ff;
+    --accent-2: #7fe3d4;
+    --accent-bg: linear-gradient(160deg,
+        color-mix(in srgb, var(--accent) 34%, transparent),
+        color-mix(in srgb, var(--accent) 16%, transparent) 62%);
+
+    --ok: #7fe3d4;
+    --warn: #9fc9f0;
+    --crit: #b98cff;
+
+    --ctx-1: #7fe3d4;
+    --ctx-2: #63a8ff;
+    --ctx-3: #8f9dff;
+    --ctx-4: #b98cff;
+    --ok-bg: rgba(127, 227, 212, .14);
+    --warn-bg: rgba(159, 201, 240, .16);
+    --crit-bg: rgba(185, 140, 255, .16);
+
+    --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --serif: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: Inter, ui-monospace, "SF Mono", "Roboto Mono", monospace;
+    --code: "JetBrains Mono", ui-monospace, "SF Mono", "Roboto Mono", monospace;
+
+    color-scheme: dark;
+}
+
+:root.sky {
+    --void: #bcd9f2;
+    --deep: #cfe7fb;
+    --surface: rgba(255, 255, 255, .58);
+    --surface-2: rgba(255, 255, 255, .72);
+    --surface-3: rgba(255, 255, 255, .84);
+    --line: rgba(15, 35, 56, .12);
+
+    --glass: linear-gradient(160deg, rgba(255, 255, 255, .74), rgba(255, 255, 255, .54) 62%);
+    --glass-2: linear-gradient(160deg, rgba(255, 255, 255, .86), rgba(255, 255, 255, .66) 62%);
+    --edge: rgba(255, 255, 255, .7);
+    --drop: 0 4px 12px rgba(24, 60, 100, .09);
+    --gloss: inset 0 1px 0 rgba(255, 255, 255, .7);
+    --hairline: inset 0 0 0 var(--hair) rgba(255, 255, 255, .4);
+    --blur: blur(26px) saturate(170%);
+    --glow: 0 0 14px -8px color-mix(in srgb, var(--accent) 28%, transparent);
+
+    --ink: #0f2338;
+    --ink-dim: #2f4a68;
+    --ink-faint: #3e5063;
+
+    --accent: #14548f;
+    --accent-2: #0f6157;
+    --accent-bg: linear-gradient(160deg, rgba(22, 79, 141, .2), rgba(22, 79, 141, .1) 62%);
+
+    --ok: #0f6157;
+    --warn: #1f5580;
+    --crit: #5b3a9e;
+
+    --ctx-1: #12857a;
+    --ctx-2: #2f7fc8;
+    --ctx-3: #5f6fd8;
+    --ctx-4: #8b5fd8;
+    --ok-bg: rgba(15, 97, 87, .12);
+    --warn-bg: rgba(31, 85, 128, .13);
+    --crit-bg: rgba(91, 58, 158, .13);
+
+    --bg: linear-gradient(180deg, #93c4ea 0%, #aed3f0 45%, #c4dff8 100%);
+    --top-bg: linear-gradient(180deg, rgba(147, 196, 234, .84), rgba(147, 196, 234, .42));
+    --chips-bg: linear-gradient(180deg, rgba(147, 196, 234, .9), rgba(147, 196, 234, .66));
+    --nav-bg: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .18));
+    --sheet-bg: linear-gradient(180deg, rgba(247, 251, 255, .97), rgba(226, 240, 253, .99));
+    --on-accent: #ffffff;
+    --me-bg: rgba(255, 255, 255, .55);
+
+    --neb: radial-gradient(38% 16% at 18% 10%, rgba(255, 255, 255, .9), transparent 72%),
+        radial-gradient(30% 12% at 34% 20%, rgba(255, 255, 255, .85), transparent 70%),
+        radial-gradient(46% 18% at 84% 28%, rgba(255, 255, 255, .75), transparent 74%),
+        radial-gradient(34% 14% at 60% 60%, rgba(255, 255, 255, .7), transparent 72%),
+        radial-gradient(52% 20% at 22% 92%, rgba(255, 255, 255, .55), transparent 76%);
+}
+

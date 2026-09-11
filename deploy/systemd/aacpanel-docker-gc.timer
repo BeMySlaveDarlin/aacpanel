@@ -1,0 +1,14 @@
+# Weekly schedule for the docker build cache cleanup.
+
+[Unit]
+Description=aacpanel: docker build cache cleanup once a week
+
+[Timer]
+OnCalendar=weekly
+# Runs a cleanup missed by a powered-off machine at the next boot.
+Persistent=true
+# Keeps the cleanup away from the start of every other system timer.
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

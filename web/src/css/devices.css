@@ -1,0 +1,72 @@
+.hostmark {
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+}
+
+.hostmark svg { width: 19px; height: 19px; }
+
+.host {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex: none;
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    cursor: pointer;
+}
+
+.caret { color: var(--ink-faint); font-size: .6em; }
+
+.device-name {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    width: 100%;
+    border: 0;
+    padding: 0 0 .4rem;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.device-name small { font-weight: 400; font-size: .7rem; color: var(--ink-faint); }
+.device .btn { margin-top: .6rem; }
+
+.device.gone { opacity: .62; }
+.device-name.plain {
+    padding: 0 0 .4rem;
+    font-weight: 700;
+    cursor: default;
+}
+
+.enroll-code {
+    margin: .4rem 0;
+    font-family: var(--mono);
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    color: var(--accent-2);
+}
+
+.tag {
+    padding: .1rem .4rem;
+    border-radius: var(--r-pill);
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: .65rem;
+    font-weight: 600;
+}
+
+.rename { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .4rem; }
+.rename input { flex: 1 1 100%; }
+

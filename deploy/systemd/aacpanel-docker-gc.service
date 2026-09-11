@@ -1,0 +1,16 @@
+# Prunes the build cache and untagged images docker leaves behind.
+
+[Unit]
+Description=aacpanel: docker build cache cleanup
+Documentation=https://docs.docker.com/reference/cli/docker/builder/prune/
+
+[Service]
+Type=oneshot
+# Build cache older than two weeks: newer layers are still reused by builds.
+ExecStart=/usr/bin/docker builder prune --force --filter until=336h
+ExecStart=/usr/bin/docker image prune --force
+# A failed cleanup is not a failure: docker may be stopped, the leftovers wait
+# for the next run.
+SuccessExitStatus=0 1
+Nice=10
+IOSchedulingClass=idle

@@ -1,0 +1,225 @@
+# aacpanel — containers of the host and claude sessions from a phone.
+#
+# A reverse proxy with TLS exposes the panel: it reaches the published port over a
+# tunnel or over the network. The publishing address is set in `.env`.
+
+# Project name, set explicitly instead of being taken from the directory name:
+# renaming the directory would otherwise start a second stack with an empty
+# database volume, and passkeys live in the database. The volume is named
+# explicitly below for the same reason.
+name: aacpanel
+
+# Log rotation for the containers of this stack. Set here rather than in
+# /etc/docker/daemon.json, because editing that file takes a daemon restart, and a
+# restart stops every container on the machine.
+x-logging: &rotate
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # The service never sees docker.sock: haproxy in front of it cuts everything but
+  # the allowed GETs. POST=0 by default, so nothing can be started or removed.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: aacpanel-socket-proxy
+    environment:
+      CONTAINERS: 1   # /containers/json and /containers/*/logs
+      EVENTS: 1       # change stream, so polling is not needed
+      PING: 1
+      VERSION: 1
+      # On info the proxy writes a line per request, and the panel polls stats
+      # constantly: the journal outgrows the whole database of the panel.
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [aacpanel]
+    restart: unless-stopped
+    logging: *rotate
+
+  # Database of the panel. Its own instance: the monitor must not fall together
+  # with the database of a neighbouring project. No port is published, so
+  # sslmode=disable below is honest — the traffic never leaves the bridge.
+  aacpanel-db:
+    image: postgres:18-alpine
+    container_name: aacpanel-db
+    environment:
+      POSTGRES_DB: ${AACP_DB_NAME:-aacpanel}
+      POSTGRES_USER: ${AACP_DB_USER:-aacpanel}
+      POSTGRES_PASSWORD: ${AACP_DB_PASSWORD:?set AACP_DB_PASSWORD in .env (openssl rand -hex 24)}
+      # Catches a broken page by checksum. Applied at the first initdb only.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      # In postgres:18 the volume is /var/lib/postgresql and the data sits in
+      # 18/docker inside it: the whole directory has to be mounted, or a major
+      # version upgrade runs into a foreign layout.
+      - aacpanel-db:/var/lib/postgresql
+    # The default 64 MB is not enough for parallel workers: batched metric
+    # rollups hit "could not resize shared memory segment".
+    shm_size: 256mb
+    networks: [aacpanel]
+    restart: unless-stopped
+    logging: *rotate
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  aacpanel:
+    build: .
+    container_name: aacpanel
+    # Not service_healthy: the service has to start with the database down as
+    # well, since live data does not depend on it.
+    depends_on: [socket-proxy, aacpanel-db]
+    environment:
+      AACP_ADDR: ":8776"
+      AACP_DOCKER: "http://socket-proxy:2375"
+      AACP_STATE: "/host-state/state.json"
+      # The host description: the same file the agent and the executor read on the
+      # host, visible through the mount below, so only the in-container path.
+      AACP_HOSTCFG: "/host-state/host.env"
+      # Working connection: the application role when it exists. It has neither
+      # DDL nor TRUNCATE, so the action journal cannot be wiped through it.
+      # Without AACP_APP_PASSWORD everything runs as the owner.
+      AACP_DB_DSN: "postgres://${AACP_APP_ROLE:-${AACP_DB_USER:-aacpanel}}:${AACP_APP_PASSWORD:-${AACP_DB_PASSWORD}}@aacpanel-db:5432/${AACP_DB_NAME:-aacpanel}?sslmode=disable"
+      # Maintenance connection: migrations and dropping old partitions are DDL,
+      # done by the schema owner. No user input reaches it.
+      AACP_DB_MIGRATE_DSN: "postgres://${AACP_DB_USER:-aacpanel}:${AACP_DB_PASSWORD}@aacpanel-db:5432/${AACP_DB_NAME:-aacpanel}?sslmode=disable"
+      # Secure flag of the session cookie; 1 by default. The variable has to be
+      # listed here: the service has no env_file, so without the line nothing
+      # reaches the container and the browser silently drops the cookie.
+      AACP_SECURE: ${AACP_SECURE:-1}
+      # Passkey domain and origins: a key is bound to its domain.
+      AACP_RP_ID: ${AACP_RP_ID:-localhost}
+      AACP_RP_ORIGINS: ${AACP_RP_ORIGINS:-http://localhost:8776}
+      AACP_RP_NAME: ${AACP_RP_NAME:-aacpanel}
+      AACP_SECRET: ${AACP_SECRET:?set AACP_SECRET in .env (openssl rand -hex 32)}
+      # Long-lived token for a local deployment. Empty means there is no such way
+      # in and only the passkey remains. At least 24 characters, or the service
+      # refuses to start.
+      AACP_TOKEN: ${AACP_TOKEN:-}
+      # Who to write to when something is wrong with push (RFC 8292). Empty is
+      # harmless, the code defaults to https://<AACP_RP_ID>, but the line is
+      # needed: the service has no env_file.
+      AACP_PUSH_CONTACT: ${AACP_PUSH_CONTACT:-}
+      # Session deadlines, passed explicitly so the values are visible here.
+      # Neither can be turned off; auth.New checks that.
+      AACP_SESSION_IDLE: ${AACP_SESSION_IDLE:-24h}
+      AACP_SESSION_MAX: ${AACP_SESSION_MAX:-720h}
+      # Path to the executor socket inside the container. Empty means no actions.
+      AACP_EXEC_SOCKET: /run/aacpanel-exec/sock
+      # Terminal stream of live sessions: its own socket next to the action one.
+      # Empty means there is no terminal, and the panel learns that from the
+      # server.
+      AACP_TERM_SOCKET: /run/aacpanel-exec/term.sock
+      # Local panel: a second listener for the machine itself, without a login and
+      # with the session terminal. The `${VAR-…}` form without the colon is
+      # deliberate: an empty value in .env turns it off, a missing variable keeps
+      # the default.
+      AACP_LOCAL_ADDR: ${AACP_LOCAL_ADDR-:8777}
+      # Map of panel addresses the client moves to after the login. The domain
+      # defaults to the first passkey origin, the loopback to the local panel
+      # address; the LAN one is always explicit and always with TLS.
+      AACP_PUBLIC_URL: ${AACP_PUBLIC_URL:-}
+      AACP_LAN_URL: ${AACP_LAN_URL:-}
+      AACP_LOCAL_URL: ${AACP_LOCAL_URL:-}
+      AACP_LAN_ADDR: ${AACP_LAN_ADDR:-}
+      AACP_TLS_CERT: ${AACP_TLS_CERT:-}
+      AACP_TLS_KEY: ${AACP_TLS_KEY:-}
+      # Listener for the tailscale container: no TLS, inside the compose network
+      # only; the tailnet address goes into the map above.
+      AACP_TS_ADDR: ${AACP_TS_ADDR:-}
+      AACP_TS_URL: ${AACP_TS_URL:-}
+      # Session terminal on the public listener, off by default: behind these
+      # routes are the screen of a live session and raw input into it, bypassing
+      # the confirmation gate. When on, it goes through the same passkey door as
+      # the rest of the API and journals the fact of a connection, never bytes.
+      AACP_TERM_PUBLIC: ${AACP_TERM_PUBLIC:-0}
+    # The owner's user rather than nonroot from the image: the executor socket is
+    # 0600, so the service itself runs under the uid that may reach it. It writes
+    # nothing to disk. The default 1000 is the first user of the machine; for
+    # everyone else the installer writes the values.
+    user: "${AACP_UID:-1000}:${AACP_GID:-1000}"
+    volumes:
+      # State from the host agent (machine load and claude sessions), read-only.
+      # Claude transcripts never enter the container: the agent gives numbers.
+      # The path is a variable because the state directory is chosen at install
+      # time, and compose does not read the host description.
+      - ${AACP_STATE_DIR:-/var/lib/aacpanel}:/host-state:ro
+      # The directory of the executor socket, not the socket itself: a bind-mount
+      # of a file holds the inode, and restarting aacpanel-exec recreates the
+      # socket. No executor means an empty directory here and buttons that go dark
+      # with an explanation.
+      - ${AACP_EXEC_DIR:-/run/user/1000/aacpanel-exec}:/run/aacpanel-exec:ro
+      # LAN certificate: the directory the ACME client writes to on the host. The
+      # file paths inside are AACP_TLS_CERT/AACP_TLS_KEY.
+      - ${AACP_TLS_DIR:-./deploy/tls}:/tls:ro
+    ports:
+      # The publishing address is a variable, and the default is the address of a
+      # typical machine: a tunnel client runs on the host and goes to 127.0.0.1.
+      # Behind a proxy on another machine it is the docker bridge address instead.
+      # Two publications of the same port are refused by docker.
+      - "${AACP_BIND:-127.0.0.1}:8776:8776"
+      # The local panel is pinned to the loopback and never becomes a variable:
+      # behind it is the keyboard of live sessions.
+      - "127.0.0.1:8777:8777"
+      # LAN listener: TLS from the service itself on the home network address.
+      # Always published (loopback and 8443 by default, where nothing listens),
+      # turned on by AACP_LAN_ADDR/AACP_LAN_URL/AACP_TLS_* in .env.
+      - "${AACP_LAN_BIND:-127.0.0.1}:${AACP_LAN_PORT:-8443}:8443"
+    networks: [aacpanel]
+    restart: unless-stopped
+    logging: *rotate
+    healthcheck:
+      test: ["CMD", "/aacpanel", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Tailnet node: the panel without a domain, or a spare way in when there is one.
+  # `tailscale serve` holds TLS on `<node>.<tailnet>.ts.net` and proxies into the
+  # compose network.
+  #
+  # Does not start until AACP_TAILSCALE is 1: `replicas: 0` rather than a compose
+  # profile, since a profile is not a variable and the installer could not check
+  # it in `.env`. Node state lives in a volume. Userspace mode: neither tun nor
+  # NET_ADMIN is needed for `serve`.
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: aacpanel-tailscale
+    hostname: ${AACP_TS_HOSTNAME:-aacpanel}
+    deploy:
+      replicas: ${AACP_TAILSCALE:-0}
+    environment:
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_HOSTNAME: ${AACP_TS_HOSTNAME:-aacpanel}
+      TS_SERVE_CONFIG: /config/serve.json
+      # The auth key is optional: without it the login link is printed into the
+      # container log and opened once.
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      # The key is asked for once: node state lives in the volume, so `tailscale
+      # up` is not repeated on restart, where a one-time key would fail.
+      TS_AUTH_ONCE: "true"
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+    volumes:
+      - aacpanel-ts-state:/var/lib/tailscale
+      - ${AACP_TS_SERVE:-./deploy/tailscale/serve-main.json}:/config/serve.json:ro
+    depends_on: [aacpanel]
+    networks: [aacpanel]
+    restart: unless-stopped
+    logging: *rotate
+
+networks:
+  aacpanel:
+    driver: bridge
+
+volumes:
+  # The full volume name is `<project>_<volume>`. The volume is not external, so
+  # `docker compose down -v` deletes it together with the database.
+  aacpanel-db:
+  # Tailnet node state: its keys and its name in the tailnet.
+  aacpanel-ts-state:

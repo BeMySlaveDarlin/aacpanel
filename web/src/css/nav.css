@@ -1,0 +1,103 @@
+nav.tabs {
+    flex: none;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: var(--nav-bg);
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border-top: var(--hair) solid rgba(var(--tint), .1);
+    padding: .35rem .35rem calc(.45rem + env(safe-area-inset-bottom));
+}
+
+nav.tabs button {
+    position: relative;
+    border: 0;
+    background: none;
+    color: var(--ink-faint);
+    font: inherit;
+    font-size: .66rem;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .18rem;
+    padding: .2rem 0;
+    cursor: pointer;
+}
+
+nav.tabs button svg { width: 21px; height: 21px; }
+nav.tabs button[aria-current="true"] {
+    color: var(--accent);
+    font-weight: 700;
+}
+nav.tabs .tbadge { top: 0; right: 50%; margin-right: -19px; border-color: var(--deep); }
+
+.homeslot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+nav.tabs .homeslot .homebtn {
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    border: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    background: var(--glass);
+    color: var(--ink-dim);
+    box-shadow: var(--hairline), var(--drop);
+    cursor: pointer;
+}
+
+nav.tabs .homeslot .homebtn svg { width: 24px; height: 24px; }
+
+nav.tabs .homeslot .homebtn.live {
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--accent) 85%, white 10%),
+        color-mix(in srgb, var(--accent) 70%, black 25%));
+    color: var(--on-accent);
+    box-shadow: var(--glow), var(--drop);
+}
+
+nav.tabs .homeslot .homebtn {
+    transition: transform .16s ease, box-shadow .2s ease;
+}
+
+nav.tabs .homeslot .homebtn:active { transform: scale(.9); }
+
+@keyframes homebreathe {
+    0%, 100% { box-shadow: var(--glow), var(--drop); }
+    50% { box-shadow: 0 0 22px -2px color-mix(in srgb, var(--accent) 60%, transparent), var(--drop); }
+}
+
+nav.tabs .homeslot .homebtn.busy {
+    animation: homebreathe 2.4s ease-in-out infinite;
+}
+
+@keyframes homeask {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 55%, transparent), var(--drop); }
+    70% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--warn) 0%, transparent), var(--drop); }
+}
+
+nav.tabs .homeslot .homebtn.waiting {
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--warn) 85%, white 10%),
+        color-mix(in srgb, var(--warn) 70%, black 25%));
+    animation: homeask 1.2s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    nav.tabs .homeslot .homebtn { transition: none; }
+    nav.tabs .homeslot .homebtn.busy,
+    nav.tabs .homeslot .homebtn.waiting { animation: none; }
+    nav.tabs .homeslot .homebtn.busy {
+        box-shadow: 0 0 22px -2px color-mix(in srgb, var(--accent) 60%, transparent), var(--drop);
+    }
+    nav.tabs .homeslot .homebtn.waiting {
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 45%, transparent), var(--drop);
+    }
+}
+

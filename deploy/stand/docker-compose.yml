@@ -1,0 +1,40 @@
+# Level 1 stand. The project name and every name inside carry the `stand`
+# prefix: the production containers of the panel live on the same machine.
+name: stand
+
+services:
+  host:
+    build: .
+    image: aacpanel-stand:u2404
+    container_name: stand-u2404
+    # A host name unlike the development machine: a familiar one in the
+    # description would hide a hardcoded default.
+    hostname: dev-box
+    # Needed by the docker daemon inside: its own cgroups, netns and iptables.
+    privileged: true
+    command: /sbin/init
+    stop_signal: SIGRTMIN+3
+    stop_grace_period: 30s
+    volumes:
+      # /var/lib/docker has to sit on a real filesystem: overlay2 over overlay
+      # does not work and the daemon falls back to vfs.
+      - stand-docker:/var/lib/docker
+      # containerd keeps the images, and on the container overlayfs the panel
+      # image build fails on the first WORKDIR with "invalid argument".
+      - stand-containerd:/var/lib/containerd
+    ports:
+      # The panel inside the stand publishes to its own loopback, so it is not
+      # visible from outside. This port is for looking at it from the host.
+      - "127.0.0.1:18776:8776"
+    networks: [stand]
+
+networks:
+  stand:
+    name: stand
+    driver: bridge
+
+volumes:
+  stand-docker:
+    name: stand-docker
+  stand-containerd:
+    name: stand-containerd

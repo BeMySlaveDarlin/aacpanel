@@ -1,0 +1,20 @@
+{
+  "name": "aacpanel",
+  "short_name": "aacpanel",
+  "description": "Containers, sessions and machine resources",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/app",
+  "scope": "/",
+  "id": "/app",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070c14",
+  "theme_color": "#070c14",
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

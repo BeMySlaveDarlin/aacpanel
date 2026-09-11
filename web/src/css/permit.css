@@ -1,0 +1,89 @@
+/* Session permission card: the "Do you want to proceed?" dialog. */
+
+.permit {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: .6rem .1rem .2rem;
+}
+
+.permithead {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+}
+
+.permittool {
+    font-size: .92rem;
+    font-weight: 700;
+}
+
+.permitwhat {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.permitaction {
+    margin: 0;
+    padding: .5rem .6rem;
+    border-radius: var(--r-small);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    font-family: var(--code);
+    font-size: .8rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow-x: auto;
+    width: 0;
+    min-width: 100%;
+}
+
+.permitopts {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+}
+
+.permitopt {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    padding: .55rem .6rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-small);
+    background: var(--glass);
+    color: inherit;
+    font: inherit;
+    font-size: .86rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.permitopt:active { background: var(--accent-bg); }
+.permitopt:disabled { opacity: .5; cursor: default; }
+
+.permitn {
+    flex: none;
+    width: 1.4rem;
+    text-align: center;
+    font-family: var(--code);
+    font-size: .78rem;
+    color: var(--ink-faint);
+}
+
+.permittext { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+.permitopt.lasting { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+
+.permitlast {
+    flex: none;
+    font-family: var(--mono);
+    font-size: .64rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--warn);
+}

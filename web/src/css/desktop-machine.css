@@ -1,0 +1,97 @@
+/* The Machine section on a wide screen: the top table and the process panel. */
+
+@media (min-width: 1100px) {
+    .dkproc {
+        display: grid;
+        grid-template-columns: 3.5rem minmax(0, 1fr) 2.8rem 3.4rem;
+        align-items: center;
+        gap: .4rem;
+        height: 30px;
+        padding: 0 .6rem;
+        font-size: 12.5px;
+        color: var(--ink-dim);
+    }
+
+    .dkprochead {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        height: 24px;
+        font-size: 11px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        background: var(--glass);
+        border-bottom: var(--hair) solid var(--edge);
+    }
+
+    .dkprocpid {
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-faint);
+    }
+
+    .dkproccmd {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: var(--code);
+        font-size: 12px;
+        color: var(--ink);
+    }
+
+    .dkprocnum {
+        text-align: right;
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-dim);
+    }
+
+    .dkprocfoot {
+        padding: .5rem .6rem 0;
+        font-size: 11.5px;
+        color: var(--ink-faint);
+    }
+
+    .dkprocstale {
+        padding: .35rem .6rem;
+        font-size: 11.5px;
+        color: var(--warn);
+    }
+
+    .dktopnote {
+        padding: .5rem .8rem .2rem;
+        font-size: 11.5px;
+        color: var(--ink-faint);
+    }
+
+    .dkptr {
+        grid-template-columns: 1.2rem minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) 5rem 6rem 6.5rem;
+    }
+
+    .dkprow { border-bottom: var(--hair) solid var(--line); }
+
+    .dkprow .dktr { border-bottom: 0; }
+
+    .dkpwhy {
+        padding: 0 .8rem .45rem 2.6rem;
+        font-size: 12px;
+        line-height: 1.35;
+        color: var(--ink-faint);
+    }
+
+    .dkpanswer {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        color: var(--ink-dim);
+    }
+
+    .dkpanswer.dkbad, .dkpwhy.dkbad { color: var(--crit); }
+
+    .dkpanswer.dkwarn, .dkpwhy.dkwarn { color: var(--warn); }
+
+    .dkpanswer.dkoff { color: var(--ink-faint); }
+}

@@ -1,0 +1,358 @@
+# Architecture
+
+What the panel is made of, who talks to whom, why the parts are split exactly
+this way and what the panel deliberately does not have.
+
+---
+
+## The main constraint
+
+The panel faces the internet and runs the machine. These two things do not live
+in one process:
+
+> **The web service has no rights on the host and will not get any.** It reaches
+> docker through a proxy that passes reads only, and everything
+> that changes the state of the machine it asks a separate process for, from a
+> closed list of actions.
+
+Everything else follows from that. Between the service and `docker.sock` stands
+a socket-proxy with `POST` switched off — starting or removing a container this
+way is physically impossible. The claude transcripts do not reach the container
+at all: another process reads them and hands out only numbers. The service passes
+the executor **a structure, not a string for a shell**, and even full capture of
+the container yields exactly the list of actions written down in
+`internal/action/action.go`.
+
+---
+
+## Three processes
+
+| Process | Where | Rights | Job |
+|---|---|---|---|
+| `aacpanel` | container, distroless, under the owner's uid | nothing on the host; docker read-only | HTTP, API, streams, rules, pushes, database |
+| `aacpanel-agent` | host, system unit | reading only, no graphics and no docker | metrics and claude sessions → snapshot |
+| `aacpanel-exec` | host, user unit | `docker.sock`, the graphical session; transcripts closed off | carrying out actions |
+
+The sets of rights of the collector and the executor are **opposite**, and that
+is the reason there are two of them and not one.
+
+The collector needs claude transcripts — the whole conversation with the model
+is in there, keys, code, everything at once. That is why its unit is cut down:
+`ProtectSystem=strict`, `ProtectHome=read-only`, it may write only into its own
+state directory, and it has no graphics and no docker at all.
+
+The executor needs exactly the opposite: `docker.sock`, the session bus, the
+display — otherwise it will not open a terminal window. Transcripts it does not
+need, and they are closed to it explicitly (`InaccessiblePaths` on the claude
+projects directory). Folding this into one process would mean giving the reader
+of the conversation the right to run programs.
+
+The executor's unit is a user unit and not a system one for the same reason: a
+system unit gets neither the address of the session bus, nor `XDG_RUNTIME_DIR`,
+nor any link to the graphical shell.
+
+---
+
+## Who talks to whom
+
+```
+              ┌──────────────────────────────────────────────┐
+  browser ───►│ aacpanel (container)                         │
+   https      │  · pages and bundle (embed)                  │
+              │  · /api/*, SSE                               │
+              │  · alert rules, pushes, history              │
+              └───┬───────┬──────────┬──────────┬────────────┘
+                  │       │          │          │
+        compose   │       │ volume   │ socket   │ socket
+        network   │       │ :ro      │          │
+                  ▼       ▼          ▼          ▼
+          socket-proxy  snapshot  chat.sock  sock / term.sock
+           (GET-only)  state.json usage.sock
+                  │       ▲          ▲          ▲
+                  ▼       │          │          │
+            docker.sock   └── aacpanel-agent    └── aacpanel-exec
+                                 (host)                (host)
+                                    │                     │
+                            /proc, claude           docker, tmux, claude,
+                            transcripts, ask.sock   the terminal window
+```
+
+**The snapshot.** The collector writes the state of the machine as a file into
+the state directory; that directory is mounted into the service read-only.
+Everything else that only the host knows goes through it as well: the socket of
+the conversation feed, the socket of token usage collection.
+
+**The action socket.** `0600` owned by the session owner — behind it is the
+whole list of actions on the host, and its permissions must not be loosened.
+That is why the service in the container runs under the same uid (`user:` in
+compose). What is mounted is the **directory**, not the socket itself: a
+bind-mount of a file is tied to the inode, and a restart of the executor would
+silently break the link until the container was recreated.
+
+**The question socket.** The claude hook reports a session's question through
+`ask.sock`, and that one lives in the collector's separate runtime directory,
+not in the state directory: the latter is mounted into the service, and "a
+session's question" would become data the panel accepts from whatever sticks out
+into the internet.
+
+---
+
+## The path of an action
+
+Between a tap on the phone and a command on the host there is one road, and no
+button gets around it.
+
+1. **The registry.** The panel knows about every action what it will do, and
+   tells that to the human **before** the tap: the consequence, not "are you
+   sure?".
+2. **The gate.** The single front-end module that can send a command. Not checks
+   inside handlers — the gate precisely, so that a new button cannot be added
+   around it. An action without a confirmation sheet still goes through the
+   gate, and the list of such actions is closed by a test.
+3. **The service.** Checks the shape of the request, fills in what the panel has
+   no right to send (the identifier of a conversation to resume is taken from
+   the database, not from the phone), writes a line into the journal **before**
+   carrying it out, and calls the executor.
+4. **The executor.** Accepts only known kinds of actions; everything else it
+   rejects without trying to parse it. It finds the target itself — in the list
+   docker gives — and from there works with the identifier docker handed out. It
+   duplicates the audit trail into journald as two lines, before and after:
+   actions happen precisely when something is wrong, and the audit trail must
+   not depend on the database being alive.
+5. **The answer.** The executor answers when the job is done — and the screen
+   shows the consequence from that answer. Polling the snapshot stays as a
+   fallback: seconds lie between the action and the next snapshot, and a screen
+   that believes only the snapshot lies to the human with "nothing happened".
+
+The target is never substituted into a command as a string: the name is checked
+against the list docker gives, and from there the identifier docker handed out
+goes into play. The conversation identifier is checked for the shape of a uuid,
+and whether it exists is checked by the one with the transcripts directory under
+its feet.
+
+**The panel's own container is not shut down from here.** Not because of rights:
+there would be nobody to report the result to — the service would die before the
+answer, and the journal would lie.
+
+---
+
+## What the executor can do
+
+Twenty-one actions, and the list is closed.
+
+| Family | Actions |
+|---|---|
+| containers | `container.start`, `container.stop`, `container.restart` |
+| stacks | `stack.up`, `stack.down` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.file`, `session.command`, `session.permit` |
+| windows | `window.open`, `window.close` |
+| background work | `task.stop`, `agent.stop` |
+| disk | `project.create` |
+
+What is deliberately not on the list: removing containers, images and volumes,
+`docker exec`, editing compose, package operations, restarting itself.
+
+**Kinds are split by intent, not by convenience.** Answering a question and
+dismissing a question are different actions, because their consequences differ.
+A file is not a field inside a message but a kind of its own: the panel asks the
+executor what it can do and greys out buttons from the answer, and a field does
+not change that answer — an old executor would accept the request and silently
+throw the file away.
+
+**The list of this machine is shorter than the general one.** The executor says
+what it can do here: with no tmux there are no actions over sessions, and the
+window ones go away with them; with no terminal invocation template only opening
+a window is gone. The button for an action the host does not know greys out and
+explains why.
+
+**A new action does not arrive on the host with a rollout of the panel.** The
+service travels as an image, the executor as a separate binary that is built by
+hand. Until it is rebuilt, the button is there on the phone and the journal says
+"unknown action". The rule works both ways: the mismatch is the same whether an
+action was added or removed.
+
+---
+
+## Data
+
+Postgres in a container of its own, not lodged inside somebody else's: the panel
+must not fall together with a neighbouring project's database, and the other way
+round. The port is not published outwards — only the service reaches it, and
+only over the compose network.
+
+**Metrics are partitioned.** Raw measurements are written in batches, rollups
+count the minute and the hour, retention detaches a whole partition and drops it
+— deleting a file instead of churning through a table. Retention periods live as
+a row in the database and are changed with an `UPDATE`, without rebuilding the
+image.
+
+**The schema travels with the service.** Migrations are applied when the image
+starts. An applied file is untouchable: its checksum is recorded in the
+database, and editing any character — a comment included — parts the file from
+the database, after which the service does not come up. That is why there are no
+comments in migration files at all.
+
+**Two roles.** The service works under the application role: it has neither DDL
+nor `TRUNCATE`, and on the journal table only `INSERT`, `SELECT` and `UPDATE` of
+the outcome columns. The journal is kept immutable by triggers, but triggers do
+not hold the table owner — it will take them off with a single command. That is
+why DDL goes through a second connection under the schema owner, and user input
+never gets in there.
+
+**Grants are issued by the service at startup, not by a migration.** A migration
+is applied once in the life of a database: a role created after the roll-out
+would never have got anything. The grant step comes after the migrations, every
+time, and brings the role's rights to the set declared in the code.
+
+Only the service writes to the database. The executor does not reach it at all.
+
+---
+
+## Collection
+
+The collector reads `/proc` and claude transcripts and writes a snapshot: load,
+disks, network, processes, live sessions with how full their context is, port
+checks.
+
+**A session is recognised by its process, not by the freshness of a file**:
+session names are reused between runs, and yesterday's conversation under the
+same name is a different conversation.
+
+**How full the context is gets counted on the spot** by the same parsing that
+counts it for closed conversations: one and the same session must show one
+number before and after it is closed.
+
+**There is nowhere else to get the subscription limits from.** The 5h/7d
+percentages do not lie on disk and are not handed out by any API — the only one
+claude tells them to is the status line, in the payload on stdin. That is why
+the snapshot is written by a script that the install puts first in the status
+line chain. Hence a consequence visible in the interface: the numbers live only
+while at least one claude session is running, and the header honestly shows the
+age of the snapshot instead of yesterday's percentages.
+
+**The snapshot is parsed block by block, and a failed block is visible.** One
+field handed over as a fraction where an integer is expected does not bring down
+the writing of all the metrics: blocks are parsed apart from each other, a
+half-parsed one is zeroed out whole (half a list of disks lies silently), and
+the failure goes to the panel through its own endpoint and is named to the human
+on a screen.
+
+**Token usage** is collected in a separate round on demand: the service asks the
+collector what lies on disk, compares that with its own scan points and orders
+the parsing of only what is new. There is only ever one round: the parsing runs
+into the processor of the machine the panel is watching.
+
+---
+
+## The front end
+
+**There is no npm in the project.** preact, htm, uPlot and xterm lie as files in
+`web/vendor`, they are built by esbuild, which is pulled in through `go.mod` as
+an ordinary Go library. A `package.json` appearing is a mistake. The built
+bundle goes into the binary through `embed`.
+
+**There are two shells, the screens are shared.** The phone has its own
+navigation, the wide screen has its own; the screens are the same ones. There is
+no full copy of the front end and there will not be: the screens are more than
+half the code, and a second copy of the conversation would part from the first
+silently. What depends on width is the layout around the screens, not the
+screens themselves.
+
+**The terminal emulator loads as a separate file**: it weighs three hundred
+kilobytes and is not always needed — in the common bundle every phone would
+download it, and into the service worker precache on top of that.
+
+**The page has no external domains at all.** The fonts are vendored and lie in
+the precache together with the shell: without them the panel, opened with no
+network, is drawn in a system font — that is, it looks unlike itself exactly
+when there is no time to study it.
+
+The panel installs as a PWA. The service worker goes to the network with a cap
+and falls back to the cache: an address whose packets do not get through but are
+dropped would otherwise hang the app on the logo forever.
+
+---
+
+## Access
+
+**There are no passwords.** A passkey (WebAuthn) is the main door; a long-lived
+token is the second one, for exactly the case where a passkey cannot work at
+all: a browser hands out a key only over https or on localhost.
+
+The passkey domain is baked into the key itself, which is why the default is
+`localhost` and not somebody's production address: changing the domain voids
+every key already enrolled, and a value like that is not hidden in the code.
+
+The session lies entirely in a signed cookie — there is no session database.
+There are two deadlines, idle and absolute, and neither can be turned off,
+including by setting it to zero: a session with no absolute deadline is an
+eternal session with extra code. A token gives a session through a derived
+device number, so changing or removing the token immediately closes the sessions
+it issued and does not touch the passkeys of phones.
+
+### Four listeners
+
+| Listener | Address | Sign-in | Session terminal |
+|---|---|---|---|
+| main | `:8776`, published on the given host address | passkey and token | only when explicitly configured |
+| local panel | `:8777`, published on the loopback and nowhere else | no sign-in — the door was checked earlier | always |
+| local network | its own, TLS held by the service itself; comes up only when configured | passkey and token | by the same setting |
+| tailscale | its own, only inside the compose network; TLS held by `tailscale serve` | passkey and token | by the same setting |
+
+The listeners have **the same routes**, and there are exactly two
+differences, both set by the gate: what guards an endpoint and whether the
+terminal is in the set. A second set of routes would part from the first
+silently.
+
+**The live session terminal does not exist on the main listener by
+default** — not "behind a password", it is not there as a route. Behind it are
+the session screen and raw input into it, that is, a bypass of the confirmation
+gate: somebody else's install must not get that silently along with an update.
+The panel writes the fact of a connection into the journal, but not the bytes —
+passwords get typed in a terminal.
+
+**The local panel lets you in without signing in**, because the door is checked
+at the entrance to the listener: origin, host and `Sec-Fetch-Site`. It is
+published on the machine's loopback and nowhere else, and that address will not
+become a variable: the whole point of the port is that it cannot be reached from
+anywhere but the machine itself.
+
+### The address map
+
+After signing in, the client gets a map of addresses in order of closeness,
+measures them and goes for data to the nearest one that answered, falling back
+to the next one on failure. The page stays where it was opened: what moves is
+not the page but the API address. For a foreign origin the request carries the
+signed session in a header, and CORS is open to exactly the addresses from the
+map.
+
+A single failed request does not cross an address out: a probe is sent to it
+first. If it answered with its own panel, it is alive, one request fell, and it
+stays the base.
+
+---
+
+## What the panel does not have, and why
+
+- **Control of other machines.** Only its own host, now and later. At best
+  metrics collection travels to a remote machine.
+- **`POST` on the socket-proxy.** Never: that is where the point of the split
+  disappears.
+- **Editing settings from the screen.** The list of settings is shown, but
+  read-only: their cost of change differs — from "right away" to "recreate the
+  container" — and one identical button would deceive the human.
+- **Power and the graphics card.** These sources will not be there where the
+  panel travels: the UPS watchdog is the machine's own system housekeeping, and
+  polling the graphics card twice a minute wakes a laptop's discrete card for a
+  chart nobody looks at.
+- **A task registry.** It lives as a claude plugin, not everybody has it, and on
+  somebody else's install the buttons would honestly answer "not found".
+- **Settings for notification delivery.** No quiet hours, no importance
+  threshold: the only setting is whether there is a subscription. One push when
+  a reason appears and one when it is gone, with no reminders; the server
+  collapses them, not the device. The only exception is that a push about a
+  session does not go to the device where that session is on the screen right
+  now.
+- **Safari.** The panel lives in one browser. That removes a class of
+  workarounds, but building into the markup what is known to be dead there is
+  not worth it either.

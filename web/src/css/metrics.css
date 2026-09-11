@@ -1,0 +1,85 @@
+/* Summary tiles, fill bar and alerts. */
+
+.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: .32rem; align-items: stretch; }
+.metrics > .tile { display: flex; flex-direction: column; }
+.metrics > .tile > .bar { margin-top: auto; }
+.metrics > .card[data-open="1"] { grid-column: 1 / -1; }
+
+.tile { padding: .55rem .7rem; }
+.tile .cardhead { width: 100%; display: flex; align-items: center; gap: .3rem; padding: 0; border: 0; background: none; cursor: pointer; }
+.tile .cardhead .tname { flex: 1; min-width: 0; }
+.tile .cardhead .tname > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile[data-open="1"] .cardhead .tname > span { white-space: normal; }
+.tbrief {
+    margin: .15rem 0 0;
+    font-size: .68rem;
+    color: var(--ink-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tname {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .62rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+.tname svg { width: 12px; height: 12px; flex: none; }
+
+.tval {
+    margin-top: .25rem;
+    font-size: 1.55rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+}
+.tval.warn { color: var(--warn); }
+.tval.crit { color: var(--crit); }
+.tval s {
+    text-decoration: none;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+    margin-left: .1rem;
+}
+
+.bar {
+    height: 4px;
+    margin-top: .5rem;
+    border-radius: var(--r-small);
+    background: var(--surface);
+    overflow: hidden;
+}
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+.bar i.warn { background: linear-gradient(90deg, var(--warn), var(--crit)); }
+.bar i.crit { background: var(--crit); }
+
+.alert {
+    background: var(--glass);
+    border: var(--hair) solid var(--line);
+    border-left: 3px solid var(--ink-faint);
+    border-radius: var(--r-card);
+    padding: .7rem .8rem;
+}
+
+.alert.crit { border-left-color: var(--crit); }
+.alert.warn { border-left-color: var(--warn); }
+.alert .t { font-size: .88rem; font-weight: 600; }
+.alert .d { font-size: .8rem; color: var(--ink-dim); }
+
+@media (min-width: 1100px) {
+    .tile[data-open="1"] .chart:not(.spark),
+    .netrow .chart:not(.spark) {
+        --chart-h: 132;
+    }
+
+    .tile .chart.spark,
+    .card > .chart.spark {
+        --chart-h: 60;
+    }
+}
+

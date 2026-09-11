@@ -1,0 +1,108 @@
+/* Live session terminal: the screen itself and its states. */
+
+.termwrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 0.5rem;
+
+    --termbg: #05060b;
+    --termink: #cfd8ee;
+    --term-cursor: #7d99bd;
+    --term-sel: rgba(125, 153, 189, .32);
+
+    --term-black: #1c2333;
+    --term-red: #cb9490;
+    --term-green: #6b9c83;
+    --term-yellow: #cbab7f;
+    --term-blue: #7d99bd;
+    --term-magenta: #a68cc4;
+    --term-cyan: #79a8ad;
+    --term-white: #b6c0d4;
+
+    --term-bright-black: #7c88a0;
+    --term-bright-red: #e3aca7;
+    --term-bright-green: #8bbca2;
+    --term-bright-yellow: #e5c79a;
+    --term-bright-blue: #9ab6da;
+    --term-bright-magenta: #c1a8dd;
+    --term-bright-cyan: #95c4c8;
+    --term-bright-white: #e6ecf8;
+}
+
+:root.sky .termwrap {
+    --termbg: #0d1524;
+    --termink: #d7e2f6;
+}
+
+.termscreen {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0.5rem 0.6rem;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-card);
+    background: var(--termbg);
+    box-shadow: var(--drop);
+    overflow: hidden;
+    touch-action: none;
+}
+
+.termscreen .xterm .xterm-viewport {
+    background: transparent;
+}
+
+.termwrap.off .termscreen {
+    display: none;
+}
+
+.termnote {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.termwrap.off .termnote {
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+}
+
+.termkeys {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: nowrap;
+}
+
+.termkey {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    min-width: 2.7rem;
+    min-height: 40px;
+    padding: 0 .5rem;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-small);
+    background: var(--glass);
+    box-shadow: var(--drop);
+    color: var(--ink-dim);
+    font-family: var(--mono);
+    font-size: .92rem;
+    line-height: 1;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: pointer;
+}
+
+.termkey:active { background: var(--glass-2); color: var(--ink); }
+
+.termkey.danger {
+    margin-right: auto;
+    color: var(--crit);
+}
+
+.termkey.danger:active { background: var(--crit-bg); color: var(--crit); }

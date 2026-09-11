@@ -1,0 +1,22 @@
+/* Panel address table: the ping to each router leg. */
+
+.routetable { display: flex; flex-direction: column; gap: .35rem; margin: .5rem 0; }
+.routerow {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr) 5rem auto;
+    align-items: center;
+    gap: .5rem;
+    padding: .4rem .55rem;
+    background: var(--glass);
+    border-radius: var(--r-card);
+    font-size: .82rem;
+}
+.routerow .routekind { font-family: var(--mono); font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); }
+.routerow .routeurl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); font-size: .76rem; }
+.routerow .routems { text-align: right; font-variant-numeric: tabular-nums; }
+.routerow.ok .routems { color: var(--ok); }
+.routerow.bad .routems { color: var(--crit); }
+.routerow.here { box-shadow: 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent); }
+.routerow.via { box-shadow: 0 0 0 var(--hair) var(--accent); }
+.routerow .routehere { color: var(--accent); font-size: .74rem; text-align: right; }
+.routerow button { justify-self: end; }

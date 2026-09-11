@@ -1,0 +1,71 @@
+/* Groups and the project screen. */
+
+.grouphead {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: .7rem 0 .1rem;
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.grouphead::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+}
+
+.prow {
+    display: flex;
+    align-items: center;
+    border-bottom: var(--hair) solid rgba(255, 255, 255, .035);
+}
+
+.pmain {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .1rem .6rem;
+    padding: .34rem .35rem .34rem .7rem;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.prow:last-child { border-bottom: 0; }
+.pmain:active { background: rgba(255, 255, 255, .03); }
+.pmain .chev { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+.prow > .iconbtn { margin-right: .5rem; }
+
+.pmain { grid-template-columns: minmax(0, 1fr) auto; gap: .22rem .5rem; }
+.pmain .r1 { grid-column: 1; display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.pmain .nm {
+    font-weight: 700;
+    font-size: .92rem;
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pmain .meta {
+    grid-column: 1;
+    font-family: var(--mono);
+    font-size: .69rem;
+    color: var(--ink-faint);
+    display: flex;
+    flex-direction: column;
+    gap: .08rem;
+}
+.pmain .mline { display: flex; flex-wrap: wrap; gap: 0 .7rem; }
+.pmain .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow.live .pmain .mline:last-child span { color: var(--accent-2); }
+

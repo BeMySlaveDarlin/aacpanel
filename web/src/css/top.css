@@ -1,0 +1,51 @@
+/* Top consumers list. */
+
+.toplist { margin-top: .35rem; }
+
+.toprow { padding: .35rem .1rem .45rem; }
+.toprow + .toprow { border-top: var(--hair) solid rgba(255, 255, 255, .035); }
+
+.topline {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    margin-bottom: .3rem;
+}
+.topline .nm {
+    flex: 1;
+    min-width: 0;
+    font-size: .88rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.topval {
+    font-family: var(--mono);
+    font-size: .78rem;
+    color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.topbar {
+    position: relative;
+    height: 10px;
+    border-radius: var(--r-small);
+    background: rgba(255, 255, 255, .05);
+    overflow: hidden;
+}
+.topbar i {
+    position: absolute;
+    left: 0;
+    display: block;
+    border-radius: var(--r-small);
+}
+.topbar .mx { top: 0; height: 10px; background: color-mix(in srgb, var(--accent) 38%, transparent); }
+.topbar .av { top: 2px; height: 6px; background: var(--accent); }
+.topbar.dead .mx { background: rgba(255, 255, 255, .12); }
+.topbar.dead .av { background: var(--ink-faint); }
+
+.toprow .sub { margin: .25rem 0 0; }
+
+.tag.dead { background: var(--crit-bg); color: var(--crit); margin-left: .4rem; }
+

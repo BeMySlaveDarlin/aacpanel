@@ -1,0 +1,335 @@
+/* Profile map: the contour → group → project tree and the edit forms. */
+
+.pfhead {
+    display: flex;
+    align-items: baseline;
+    gap: .45rem;
+    padding: .35rem .1rem .15rem;
+}
+
+.pfhead .dot { align-self: center; }
+
+.pfheadname {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+}
+
+.pfheadsub {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: .7rem;
+    color: var(--ink-faint);
+}
+
+.pfact {
+    flex: none;
+    align-self: center;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-small);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+
+.pfact svg { width: 15px; height: 15px; }
+.pfact:active { background: var(--accent-bg); color: var(--accent); }
+.pfact:disabled { opacity: .4; }
+
+.pfwarn { padding: 0 .1rem; }
+
+.pfsearch { margin: .25rem 0 .1rem; }
+
+.pfgroup {
+    padding: 0;
+    overflow: hidden;
+}
+
+.pfghead {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    padding-right: .4rem;
+}
+
+.pfgtap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .6rem .2rem .6rem .7rem;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pfgtap:active { background: rgba(255, 255, 255, .03); }
+
+.pfgname {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .92rem;
+    font-weight: 600;
+}
+
+.pfproj[data-open="1"] { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.pfproj[data-open="1"] .prow { border-bottom: 0; }
+.pfproj[data-open="1"] .chev { transform: rotate(90deg); }
+
+.pfdetails { padding: .1rem .5rem .6rem; }
+.pfdetails .pfprops { padding: 0 .2rem .2rem; }
+
+.pfproj .prow > .pfact { margin-right: .25rem; }
+
+.pfproj .pmain .nm { font-size: .84rem; font-weight: 600; }
+
+.pfhint { padding: .2rem .8rem .5rem; }
+
+.pfloose {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    margin-top: .5rem;
+    padding: .6rem .7rem;
+    border: var(--hair) dashed color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: var(--r-card);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pfloosetext { flex: 1; font-size: .82rem; color: var(--ink-dim); }
+
+.pffab {
+    position: sticky;
+    bottom: .2rem;
+    z-index: 4;
+    align-self: flex-end;
+    margin-top: auto;
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--accent) 85%, white 10%),
+        color-mix(in srgb, var(--accent) 70%, black 25%));
+    color: var(--on-accent);
+    box-shadow: var(--glow), var(--drop);
+    cursor: pointer;
+}
+
+.pffab svg { width: 20px; height: 20px; }
+.pffab:active { filter: brightness(1.15); }
+
+.pfprops { padding: .35rem .8rem .5rem; }
+.pfprops .kv { gap: .8rem; }
+.pfprops .v.warn { color: var(--warn); white-space: normal; text-align: right; }
+
+.kv .v.pfpath,
+.kv .v.pfcode {
+    font-family: var(--code);
+    font-size: .78rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    text-align: right;
+}
+
+.pfprops .kv.pfline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .1rem;
+}
+
+.pfprops .kv.pfline .v {
+    width: 100%;
+    text-align: left;
+}
+
+.pfnone { color: var(--ink-faint); }
+
+.pffrom {
+    margin-left: .4rem;
+    font-family: var(--mono);
+    font-size: .66rem;
+    letter-spacing: .04em;
+    color: var(--ink-faint);
+}
+
+.pffield {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    margin-top: .65rem;
+}
+
+.pflabel {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.pfhelp { font-size: .74rem; color: var(--ink-faint); }
+.pfhelp.warn { color: var(--warn); }
+
+.pffield input:disabled { opacity: .55; }
+
+.pffield textarea {
+    resize: vertical;
+    font-family: var(--code);
+    font-size: .82rem;
+    line-height: 1.4;
+    width: 0;
+    min-width: 100%;
+}
+
+.pfsub {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: .9rem 0 .1rem;
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.pfsub::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+}
+
+.pfproblem { margin-top: .6rem; }
+
+.pforder {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .4rem;
+}
+
+.pforder .pfhelp { flex: 1; min-width: 0; }
+.pforder .btn { flex: 0 0 auto; padding: .34rem .7rem; }
+
+.pfdanger {
+    margin-top: 1.4rem;
+    padding: .6rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pfdanger:active { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, transparent); }
+
+.pfdiskrow { align-items: center; gap: .6rem; margin-top: .4rem; }
+.pfdiskrow .pfhelp { flex: 1; min-width: 0; }
+
+.pfdisk {
+    display: flex;
+    flex-direction: column;
+    margin-top: .4rem;
+    border-top: var(--hair) solid var(--line);
+}
+
+.pfdiskhead,
+.pfdiskitem {
+    width: 100%;
+    border: 0;
+    border-bottom: var(--hair) solid var(--line);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+.pfdiskhead:active,
+.pfdiskitem:active { background: rgba(255, 255, 255, .03); }
+
+.pfdiskhead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 0;
+}
+
+.pfdiskname {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+}
+.pfdiskfolder[data-open="1"] .pfdiskname { color: var(--accent); }
+
+.pfdiskitem {
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+    padding: .45rem 0 .45rem .8rem;
+}
+.pfdiskrel { font-family: var(--code); font-size: .8rem; overflow-wrap: anywhere; }
+.pfdiskmeta { font-size: .72rem; color: var(--ink-faint); }
+
+.pfproj[data-gone="1"] .pmain .nm { color: var(--ink-dim); }
+.pfproj .mline .warn { color: var(--warn); }
+
+.pfloosepath {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: .5rem .7rem;
+    border-top: var(--hair) solid var(--line);
+}
+
+.pfloosepick { display: flex; align-items: center; gap: .4rem; }
+.pfloosepick .btn { flex: 0 0 auto; padding: .3rem .7rem; }
+
+.pfpick { flex: 1; min-width: 0; padding: .3rem .4rem; font-size: .8rem; }
+
+.pfdiskfolder.card { padding: 0; overflow: hidden; }
+.pfdiskfolder.card .pfdiskhead { padding: .5rem .7rem; }
+.pfdiskfolder.card .pfdiskhead,
+.pfdiskfolder.card .pfloosepath:last-child { border-bottom: 0; }
+
+.pfhide {
+    flex: 0 0 auto;
+    border: 0;
+    background: none;
+    color: var(--ink-faint);
+    font: inherit;
+    font-size: .78rem;
+    padding: .3rem .2rem;
+    cursor: pointer;
+}
+
+.pfhide:active { color: var(--ink-dim); }
+.pfhide:disabled { opacity: .4; }

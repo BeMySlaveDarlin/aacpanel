@@ -1,0 +1,56 @@
+/* Expandable card, archived sessions and interface rows. */
+
+.cardhead {
+    width: 100%;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: 0 0 .1rem;
+    text-align: left;
+    cursor: pointer;
+}
+.cardhead h2 { flex: 1; margin: 0; }
+.card[data-open="1"] > .cardhead .chev { transform: rotate(90deg); }
+
+.subhead {
+    margin: .7rem 0 .1rem;
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.probe-card .entry-meta + .entry-meta { margin-top: .15rem; }
+
+.srow.past {
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+}
+
+.srow.past .pct { color: var(--ink-dim); }
+
+.pctnote {
+    margin-left: .3rem;
+    font-family: var(--mono);
+    font-size: .62rem;
+    font-weight: 500;
+    color: var(--ink-faint);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.notes { display: flex; flex-direction: column; gap: .15rem; margin-bottom: .3rem; }
+.notes .ghost { align-self: flex-start; }
+
+.netrow { padding: .34rem 0; border-bottom: var(--hair) solid rgba(255, 255, 255, .05); }
+.netrow:last-child { border-bottom: 0; }
+.netrow .peak { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-size: .87rem; }
+.netrow .peak .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.netrow .peak .v { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }

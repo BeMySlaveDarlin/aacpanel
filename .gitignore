@@ -1,0 +1,32 @@
+.env
+
+# Frontend bundle: a build result (cmd/webbuild). The .gitkeep stays, or go:embed
+# in web/embed.go does not build.
+web/dist/*
+!web/dist/.gitkeep
+
+# Bytecode python writes on any import of the agent.
+__pycache__/
+*.pyc
+
+# Playwright screenshots from live checks.
+.playwright-mcp/
+
+# Binaries built by `go build` without -o: the package name matches the module
+# name, so they land in the root.
+/aacpanel
+/monitor-exec
+
+# Notes, settings and instructions of one installation: paths, names and habits
+# of a single machine. Listed here and not only in the global ignore, which a
+# clone on another machine does not have.
+.claude/
+.codex/
+.agents/
+.remember/
+CLAUDE.md
+
+# AGENTS.md is the exception: it is about working with this code, not about one
+# installation. The negation is required, since the global ignore hides it by
+# name.
+!AGENTS.md

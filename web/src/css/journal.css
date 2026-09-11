@@ -1,0 +1,40 @@
+.entry { padding: .7rem .85rem; }
+
+.entry-head {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: .3rem;
+}
+
+.entry-what { font-weight: 600; font-size: .92rem; }
+
+.entry-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .15rem .7rem;
+    font-family: var(--mono);
+    font-size: .71rem;
+    color: var(--ink-faint);
+}
+
+.entry-meta > *:not(:first-child)::before {
+    content: "·";
+    color: var(--ink-faint);
+    margin-right: .45rem;
+}
+.entry-meta .ok { color: var(--ok); }
+.entry-meta .warn { color: var(--warn); }
+.entry-meta .crit { color: var(--crit); }
+.entry-meta.detail { margin-top: .2rem; color: var(--ink-dim); word-break: break-word; }
+
+.row-switch {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .87rem;
+}
+
+.row-switch select { flex: 1; padding: .3rem .5rem; }
+

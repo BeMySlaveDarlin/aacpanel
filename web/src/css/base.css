@@ -1,0 +1,33 @@
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font: 15px/1.42 var(--sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    overflow: hidden;
+}
+
+.shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: var(--neb);
+}
+
+.shell > * { position: relative; z-index: 1; }
+
