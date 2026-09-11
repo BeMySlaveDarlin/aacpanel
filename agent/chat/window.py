@@ -60,6 +60,8 @@ def feed(path, limit=DEFAULT_LIMIT, before=None, after=None, sidechain=False):
             call = {"name": item["name"], "arg": item.get("arg", ""), "seq": seq,
                     "at": item.get("at", ""), "pos": item["pos"], "index": item["index"],
                     "use": item.get("use", "")}
+            if item.get("edited"):
+                call["edited"] = item["edited"]
             kind = item.get("kind", "other")
             for group in tail:
                 if group["role"] == "tools" and group["kind"] == kind:

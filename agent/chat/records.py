@@ -6,7 +6,7 @@ from .harness import classify, service, strip_panel_note
 from .mail import peer_name, peer_pid
 from .limits import MAX_TEXT, cut
 from .queue import delivered
-from .tools import tool_arg, tool_kind, tool_label
+from .tools import edited_path, tool_arg, tool_kind, tool_label
 
 
 def service_once(text, at, pos, pending):
@@ -252,11 +252,15 @@ def parse(record, pos, pending=None, asks=None, sidechain=False):
                                     "text": body, "cut": trimmed,
                                     "at": at, "pos": pos})
                         continue
-                out.append({"role": "tool", "name": tool_label(name, block.get("input")),
-                            "kind": tool_kind(name),
-                            "arg": tool_arg(block.get("input")), "at": at,
-                            "use": block.get("id") or "",
-                            "pos": pos, "index": i})
+                call = {"role": "tool", "name": tool_label(name, block.get("input")),
+                        "kind": tool_kind(name),
+                        "arg": tool_arg(block.get("input")), "at": at,
+                        "use": block.get("id") or "",
+                        "pos": pos, "index": i}
+                edited = edited_path(name, block.get("input"))
+                if edited:
+                    call["edited"] = edited
+                out.append(call)
         return out
 
     return []

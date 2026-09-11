@@ -187,16 +187,60 @@ def is_binary(real):
 
 
 def attach_files(items, cwd):
-    """Attaches files named by model answers to the items of a ready feed window."""
+    """Attaches to every answer the files it names and the files it changed.
+
+    A file changed by a call gets in even when the answer says nothing about it:
+    the list is there to show what the turn did, not what it talked about. What
+    a command changes stays out — nobody but git knows that.
+    """
     if not cwd:
         return items
+    edited = []
     for item in items:
+        if item.get("role") == "tools":
+            edited += [c["edited"] for c in item.get("calls", []) if c.get("edited")]
+            continue
         if item.get("role") != "ai":
             continue
-        found = named_files(item.get("text"), cwd)
+        found = named_files(item.get("text"), cwd) + disk_files(edited, cwd)
+        edited = []
         if found:
-            item["files"] = found
+            item["files"] = dedupe_files(found)
     return items
+
+
+def dedupe_files(files):
+    """Returns the list without repeats, keeping the order of the first mention."""
+    out, seen = [], set()
+    for item in files:
+        if item["path"] in seen:
+            continue
+        seen.add(item["path"])
+        out.append(item)
+    return out[:MAX_FILES]
+
+
+def disk_files(paths, cwd):
+    """Returns the ones of the paths that are readable regular files inside cwd."""
+    out = []
+    for raw in paths:
+        real = sesstate.inside(raw, cwd)
+        if not real:
+            continue
+        try:
+            st = os.stat(real)
+        except OSError:
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        item = {"path": raw, "name": os.path.basename(real), "size": st.st_size}
+        media = media_of(real)
+        if media:
+            item["media"] = media
+        elif is_binary(real):
+            continue
+        out.append(item)
+    return out
 
 
 def trim_utf8(data):

@@ -1721,6 +1721,50 @@ class NamedFiles(unittest.TestCase):
         with open(os.path.join(self.root, "secret.txt"), "w", encoding="utf-8") as f:
             f.write("not for the panel")
 
+    def test_a_changed_file_gets_in_without_being_named(self):
+        items = [
+            {"role": "tools", "kind": "files", "calls": [
+                {"name": "Edit", "edited": "web/api.js"},
+                {"name": "Read", "arg": "notes.md"},
+            ]},
+            {"role": "ai", "text": "done"},
+        ]
+        chat.attach_files(items, self.cwd)
+        self.assertEqual([f["path"] for f in items[1].get("files", [])], ["web/api.js"],
+                         "a file the turn changed is missing under the answer, while a file "
+                         "it only read got in")
+
+    def test_a_command_brings_no_files_under_the_answer(self):
+        items = [
+            {"role": "tools", "kind": "bash", "calls": [
+                {"name": "Bash", "arg": "sed -i s/a/b/ web/api.js"},
+            ]},
+            {"role": "ai", "text": "done"},
+        ]
+        chat.attach_files(items, self.cwd)
+        self.assertNotIn("files", items[1],
+                         "a path was guessed out of a command: what a command changes is "
+                         "known to nobody but git")
+
+    def test_a_changed_file_is_not_shown_twice(self):
+        items = [
+            {"role": "tools", "kind": "files", "calls": [{"name": "Edit", "edited": "web/api.js"}]},
+            {"role": "ai", "text": "fixed `web/api.js`"},
+        ]
+        chat.attach_files(items, self.cwd)
+        self.assertEqual([f["path"] for f in items[1]["files"]], ["web/api.js"])
+
+    def test_changes_belong_to_the_answer_that_follows_them(self):
+        items = [
+            {"role": "tools", "kind": "files", "calls": [{"name": "Edit", "edited": "web/api.js"}]},
+            {"role": "ai", "text": "first"},
+            {"role": "ai", "text": "second"},
+        ]
+        chat.attach_files(items, self.cwd)
+        self.assertIn("files", items[1])
+        self.assertNotIn("files", items[2],
+                         "the change leaked into the next answer as well")
+
     def test_a_path_becomes_an_attachment_with_its_size(self):
         got = chat.named_files("edit `web/api.js`, it is all there", self.cwd)
         self.assertEqual(got, [{"path": "web/api.js", "name": "api.js", "size": 12}])
