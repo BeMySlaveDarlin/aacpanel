@@ -115,6 +115,22 @@ class WhoseRows(unittest.TestCase):
         self.assertEqual(usage_link.agents_of(path, [], []), [])
 
 
+def read_to_the_end(client):
+    """Every line the socket gives until it closes.
+
+    A socket is a stream, not a message: the two lines of an answer arrive in one
+    piece almost every time and in two when the scheduler says so. A single recv
+    is green on a fast machine and red on a loaded one.
+    """
+    chunks = []
+    while True:
+        part = client.recv(65536)
+        if not part:
+            break
+        chunks.append(part)
+    return b"".join(chunks).decode("utf-8").splitlines()
+
+
 class Stream(unittest.TestCase):
     def setUp(self):
         self.dir = test_barrier.tmp_dir()
@@ -138,14 +154,9 @@ class Stream(unittest.TestCase):
         client.connect(usage_link.socket_path())
         client.sendall(json.dumps(request).encode("utf-8"))
         client.shutdown(socket.SHUT_WR)
-        chunks = []
-        while True:
-            part = client.recv(65536)
-            if not part:
-                break
-            chunks.append(part)
+        lines = read_to_the_end(client)
         client.close()
-        return [json.loads(x) for x in b"".join(chunks).decode("utf-8").splitlines()]
+        return [json.loads(x) for x in lines]
 
     def test_the_end_of_the_stream_is_named(self):
         reply = self.ask({"op": "ping"})
@@ -170,7 +181,7 @@ class Stream(unittest.TestCase):
         client.connect(usage_link.socket_path())
         client.sendall("this is not json".encode("utf-8"))
         client.shutdown(socket.SHUT_WR)
-        lines = client.recv(65536).decode("utf-8").splitlines()
+        lines = read_to_the_end(client)
         client.close()
         self.assertIn("error", json.loads(lines[0]))
         self.assertTrue(json.loads(lines[-1]).get("end"))

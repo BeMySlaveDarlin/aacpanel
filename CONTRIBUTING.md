@@ -73,6 +73,16 @@ That is everything at once:
 A red `make check` is a reason not to send the change, not a "we will fix it
 later".
 
+**The same checks run on a push and on a pull request**, minus the ones that need
+a live host: the tests of `internal/executor` and `internal/launcher` skip
+themselves without tmux, konsole and a graphical session, and `agent-confined`
+has no user systemd manager to run inside. The workflow counts what it skipped
+and prints the reasons, so a green tick is not read as "everything was checked".
+
+The database is a service container there, and a run where the tests with a
+database quietly skipped is failed on purpose: without `AACP_TEST_DSN` forty of
+them pass by doing nothing, and the run stays green.
+
 Separately, outside `check`, because they need data that not every machine has:
 
 ```bash

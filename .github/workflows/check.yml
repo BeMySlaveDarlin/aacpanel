@@ -1,0 +1,133 @@
+# The checks that a foreign machine can run. Not all of make check fits here: the
+# rest is named out loud in the summary step rather than left for the green tick
+# to cover.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch makes the running check pointless.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: go
+    runs-on: ubuntu-latest
+
+    # The same major version as the delivery runs, so that a difference in
+    # behaviour is a difference in the code and not in the database.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -q -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    env:
+      AACP_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The version comes from go.mod: the project is delivered as one image with
+      # one toolchain, and a matrix here would check what production never sees.
+      #
+      # Its latest patch, though, and not the exact line written there. go.mod
+      # holds a floor, setup-go would take it literally, and govulncheck then
+      # reports every fix the standard library has had since — while the image is
+      # built from the golang:1.26 tag and gets those fixes.
+      - name: which go the module asks for
+        id: goline
+        run: echo "spec=$(sed -n 's/^go \([0-9]\+\.[0-9]\+\).*/\1/p' go.mod).x" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.goline.outputs.spec }}
+          cache: true
+
+      - name: gofmt
+        run: make fmt
+
+      - name: vet
+        run: make vet
+
+      - name: build
+        run: make build
+
+      # The bundle is built as a check: an error in the screen markup is caught by
+      # no test, and there is no npm here either.
+      - name: front
+        run: make front
+
+      - name: tests
+        run: |
+          set -o pipefail
+          make test GOTEST_FLAGS="-v -count=1" 2>&1 | tee /tmp/go-test.log
+
+      # A green run says nothing until it is known what it skipped. The tests that
+      # need a live host skip themselves; the ones that need the database must not.
+      - name: what ran and what was skipped
+        if: always()
+        run: |
+          test -s /tmp/go-test.log || { echo "the tests left no log"; exit 1; }
+          echo "passed:  $(grep -c '^--- PASS' /tmp/go-test.log || true)"
+          echo "skipped: $(grep -c '^--- SKIP' /tmp/go-test.log || true)"
+          echo
+          echo "why the skipped ones were skipped:"
+          grep -B1 '^--- SKIP' /tmp/go-test.log \
+            | grep -oE '[a-z_]+\.go:[0-9]+: .*' \
+            | sed -E 's/^[a-z_]+\.go:[0-9]+: //' \
+            | sort | uniq -c | sort -rn
+          echo
+          if grep -q 'AACP_TEST_DSN is not set' /tmp/go-test.log; then
+            echo "!! the tests with a database did not run: the service was not reached"
+            exit 1
+          fi
+          echo "the tests with a database ran: the database was reachable"
+          echo
+          echo "not in this log at all: agent-confined, which needs a user systemd"
+          echo "manager, and the install from scratch onto a foreign machine."
+
+      - name: govulncheck
+        run: make vuln
+
+  scripts:
+    name: scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The collector is deployed from the working tree, so a module that does not
+      # import is not a broken screen but a service that never starts.
+      - name: the collector imports
+        run: make agent-import
+
+      - name: agent tests
+        run: make agent-test
+
+      - name: delivery tests
+        run: make delivery-test
+
+      # make shellcheck says its absence out loud instead of failing, which on a
+      # foreign machine is right and here would be a silent hole.
+      - name: shellcheck is present
+        run: shellcheck --version
+
+      - name: shellcheck
+        run: make shellcheck

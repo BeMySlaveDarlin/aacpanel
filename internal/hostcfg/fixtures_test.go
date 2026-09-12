@@ -54,6 +54,15 @@ func TestFixturesCarryNoHostPaths(t *testing.T) {
 }
 
 func TestHostIdentityLivesInDescriptionOnly(t *testing.T) {
+	// The name looked for is the one of the user running the tests, so the check
+	// belongs to the machine where the code is written and make check is run
+	// before a commit. On a build runner the user is called something like
+	// runner, which is an ordinary word in this code — the column probes.runner
+	// among others — and every line holding it would be reported as a leak.
+	if os.Getenv("CI") != "" {
+		t.Skip("the owner's name is checked where the code is written, not on a build runner")
+	}
+
 	root := filepath.Join("..", "..")
 	forbidden := []string{defaults().UnixUser, "/home/" + defaults().UnixUser}
 

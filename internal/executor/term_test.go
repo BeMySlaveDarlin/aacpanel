@@ -360,7 +360,11 @@ func ownTmuxServer(t *testing.T) {
 	if err != nil {
 		t.Skip("tmux is not installed — there is nothing to check a live bridge with")
 	}
-	sock := fmt.Sprintf("aacp-term-%d", os.Getpid())
+	// A socket of its own per test, not one per process: the cleanup of a test
+	// kills the server on its socket, and a shared one is killed under whichever
+	// test starts next — it meets a server on its way out and is told the server
+	// exited unexpectedly.
+	sock := fmt.Sprintf("aacp-term-%d-%s", os.Getpid(), strings.ReplaceAll(t.Name(), "/", "-"))
 	wrapper := filepath.Join(t.TempDir(), "tmux")
 	script := fmt.Sprintf("#!/bin/sh\nexec %q -L %s \"$@\"\n", bin, sock)
 	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
