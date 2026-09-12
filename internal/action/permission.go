@@ -24,4 +24,10 @@ type Permission struct {
 	Partial     bool         `json:"partial"`
 	Unknown     bool         `json:"unknown"`
 	Fingerprint string       `json:"fingerprint"`
+
+	// Raw holds the dialog lines as they stand on the screen, and only when the
+	// parse failed: unmarked text still says what is being asked, silence sends the
+	// human to the console. It reaches no further than the dialog itself — above it
+	// runs an ordinary conversation, and there are secrets in it.
+	Raw []string `json:"raw"`
 }

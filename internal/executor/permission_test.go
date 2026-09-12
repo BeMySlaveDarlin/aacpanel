@@ -47,6 +47,112 @@ func TestPermissionParsesLiveDialog(t *testing.T) {
 	}
 }
 
+// permUnparsed is the same dialog with the numbering gone: the parser finds the
+// anchor and no items, which is the shape a changed dialog arrives in.
+var permUnparsed = strings.NewReplacer(
+	"❯ 1. Yes", "❯ Yes",
+	"  2. Yes, and always allow access to /home/u from this project", "  Yes, and always allow access to /home/u from this project",
+	"  3. Yes, and switch to auto mode", "  Yes, and switch to auto mode",
+	"  4. No", "  No",
+).Replace(permScreen)
+
+// permUnparsedFramed puts the same unnumbered dialog in a box under the conversation:
+// there the edge is the frame and not a blank line.
+var permUnparsedFramed = strings.SplitN(permScreen, "\n\n", 2)[0] + "\n" + strings.NewReplacer(
+	"❯ 1. Yes", "❯ Yes   ",
+	"  2. Yes, and always allow", "  Yes, and always allow",
+	"  3. Yes, and switch to auto mode", "  Yes, and switch to auto mode   ",
+	"  4. No", "  No   ",
+).Replace(permFramed)
+
+func TestPermissionShowsTheDialogItCouldNotParse(t *testing.T) {
+	for _, c := range []struct{ name, screen string }{
+		{"the dialog opens after a blank line", permUnparsed},
+		{"the dialog stands in a box", permUnparsedFramed},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if _, ok := parsePermission(c.screen); ok {
+				t.Fatal("the fixture parses — it proves nothing about a dialog the panel does not know")
+			}
+			d := permissionFor(c.screen)
+			if d == nil || !d.Unknown {
+				t.Fatalf("an unparsed dialog went out as %+v", d)
+			}
+			if len(d.Raw) == 0 {
+				t.Fatal("a dialog the panel does not know went out without its lines — " +
+					"the human is sent to the console to find out what is being asked")
+			}
+			if d.Raw[0] != "Bash command" {
+				t.Errorf("the first line is %q: the frame arrived as an indent and takes the "+
+					"width of a phone screen away from the text", d.Raw[0])
+			}
+			body := strings.Join(d.Raw, "\n")
+			for _, want := range []string{
+				"Bash command",
+				"touch ~/permtest-tmux",
+				"Create test file in home directory",
+				permAnchor,
+				"Yes, and always allow access to /home/u from this project",
+				"No",
+			} {
+				if !strings.Contains(body, want) {
+					t.Errorf("the dialog line %q is not shown: the human is told a dialog is open "+
+						"and not a word about what it asks", want)
+				}
+			}
+		})
+	}
+}
+
+func TestRawDialogStopsAtTheDialogEdge(t *testing.T) {
+	for _, c := range []struct{ name, screen string }{
+		{"a blank line above the dialog", permUnparsed},
+		{"a frame above the dialog", permUnparsedFramed},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			lines := rawDialog(c.screen)
+			if len(lines) == 0 {
+				t.Fatal("nothing is shown of a dialog whose edges are both on the screen")
+			}
+			body := strings.Join(lines, "\n")
+			for _, leak := range []string{
+				"hunter2",
+				"a private conversation",
+				"check what is going on with the disk",
+				"Looking now",
+				"that is how the human asked earlier",
+			} {
+				if strings.Contains(body, leak) {
+					t.Errorf("this leaked from the conversation into the shown dialog: %q", leak)
+				}
+			}
+		})
+	}
+}
+
+func TestRawDialogWithoutAnEdgeShowsNothing(t *testing.T) {
+	const talk = `❯ remind me what the panel asks
+  It asks like this:
+Do you want to proceed?
+  and the key it asked about was hunter2`
+
+	noTop := strings.Repeat("  the conversation goes on, and the key is hunter2\n", 9) +
+		"Do you want to proceed?\n❯ Yes\n  No\nEsc to cancel · Tab to amend"
+
+	for _, c := range []struct{ name, screen string }{
+		{"a dialog with no anchor", permHeldScreen},
+		{"the anchor in the conversation, with nothing closing it", talk},
+		{"the conversation runs into the anchor, with nothing opening it", noTop},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if lines := rawDialog(c.screen); lines != nil {
+				t.Errorf("the dialog has no edge on this screen, and %d lines went out anyway: %q",
+					len(lines), lines)
+			}
+		})
+	}
+}
+
 func TestPermissionTellsLastingFromOnce(t *testing.T) {
 	d, ok := parsePermission(permScreen)
 	if !ok {
@@ -243,7 +349,7 @@ func TestPermissionErrorsCarryNoScreen(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{"tool": true, "action": true, "options": true, "partial": true,
-		"fingerprint": true, "unknown": true}
+		"fingerprint": true, "unknown": true, "raw": true}
 	for name := range fields {
 		if !want[name] {
 			t.Errorf("a new field %q appeared in the permission — check that the screen is not put into it", name)
@@ -462,5 +568,85 @@ func TestPermissionForKeepsTheThreeAnswersApart(t *testing.T) {
 	}
 	if got := permissionFor(permIdleScreen); got != nil {
 		t.Errorf("on a screen with no dialog the panel found %+v — it will claim «a dialog is waiting» where there is none", got)
+	}
+}
+
+// The wordings below are the ones the client actually asks with; only the frame
+// around them is written here. The question is not what the dialog is found by, and
+// these are what would break it if it were.
+const permEditScreen = `❯ tighten the rule
+
+Edit file
+  internal/rules/rules.go
+  Replace the threshold with the one the config gives
+Do you want to make this edit to rules.go?
+❯ 1. Yes
+  2. Yes, allow all edits during this session
+  3. No, and tell Claude what to do differently
+Esc to cancel`
+
+const permFetchScreen = `Fetch content
+  https://example.invalid/docs
+Do you want to allow Claude to fetch this content?
+❯ 1. Yes
+  2. Yes, and don't ask again for example.invalid
+  3. No
+esc to cancel`
+
+func TestPermissionReadsTheOtherWordings(t *testing.T) {
+	for _, c := range []struct {
+		name, screen, tool string
+		action             []string
+		options            int
+	}{
+		{
+			name:    "an edit to a named file",
+			screen:  permEditScreen,
+			tool:    "Edit file",
+			action:  []string{"internal/rules/rules.go", "Replace the threshold with the one the config gives"},
+			options: 3,
+		},
+		{
+			name:    "a page to fetch, and a lowercase footer",
+			screen:  permFetchScreen,
+			tool:    "Fetch content",
+			action:  []string{"https://example.invalid/docs"},
+			options: 3,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, ok := parsePermission(c.screen)
+			if !ok {
+				t.Fatal("the dialog was not read: the panel knows one wording and the client has many")
+			}
+			if d.Tool != c.tool {
+				t.Errorf("tool %q, expected %q", d.Tool, c.tool)
+			}
+			if strings.Join(d.Action, "|") != strings.Join(c.action, "|") {
+				t.Errorf("action %q, expected %q — this is the text the human answers by", d.Action, c.action)
+			}
+			if len(d.Options) != c.options {
+				t.Fatalf("%d items, expected %d", len(d.Options), c.options)
+			}
+			if d.Options[0].N != 1 {
+				t.Errorf("the list starts at %d", d.Options[0].N)
+			}
+		})
+	}
+}
+
+func TestANumberedListInTheTalkIsNoDialog(t *testing.T) {
+	const talk = `❯ what is left to do
+  Three things:
+  1. the parser
+  2. the screen
+  3. the tests
+  Tell me which one to take.`
+
+	if d, ok := parsePermission(talk); ok {
+		t.Errorf("a list in an answer was read as a dialog asking %q", d.Tool)
+	}
+	if lines := rawDialog(talk); lines != nil {
+		t.Errorf("an answer was shown as a dialog: %q", lines)
 	}
 }

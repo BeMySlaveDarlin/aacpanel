@@ -78,13 +78,18 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
 
     if (!perm) {
         const canStop = knows(exec, "session.stop");
+        // The panel could not parse the dialog, but the lines it stands on are still an
+        // answer to "what is it asking" — unmarked text beats sending a person to the console.
+        const raw = (shown && shown.raw) || [];
         return html`
             <div class="permit">
                 ${foreign
-                    ? html`<p class="hint warn">there is a dialog on the session screen that the panel does not know —
-                        what it asks cannot be seen from here</p>`
+                    ? html`<p class="hint warn">${raw.length > 0
+                        ? "there is a dialog on the session screen that the panel does not know — here it is as it stands there"
+                        : "there is a dialog on the session screen that the panel does not know — what it asks cannot be seen from here"}</p>`
                     : html`<p class="hint">the session is ${waitText(waitingFor)} — what is there, the panel did
                         not parse</p>`}
+                ${raw.length > 0 && html`<pre class="permitaction">${raw.join("\n")}</pre>`}
                 ${state.escaped
                     ? html`<p class="hint">Esc sent — if there was a dialog, it is closed</p>`
                     : html`<p class="hint">it can only be answered in the console; from here — close the dialog

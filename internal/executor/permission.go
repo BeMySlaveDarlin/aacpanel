@@ -12,9 +12,16 @@ import (
 	"aacpanel/internal/action"
 )
 
+// permAnchor is the question of the commonest dialog, kept as a fallback for a
+// screen whose list of options cannot be found. The question itself is no longer
+// what the dialog is recognised by: the client asks it in a dozen wordings — about
+// an edit to a named file, about fetching a page, about a connection, about
+// carrying on — and a list of them would be one release behind for ever.
 const permAnchor = "Do you want to proceed?"
 
-const permFooter = "Esc to cancel"
+// permFooter closes the dialog. Matched without regard to case: the client writes
+// it both ways.
+const permFooter = "esc to cancel"
 
 var permOptionRe = regexp.MustCompile(`^[❯>*]?\s*(\d{1,2})\.\s+(\S.*)$`)
 
@@ -34,9 +41,91 @@ func permissionFor(screen string) *action.Permission {
 		return &d
 	}
 	if dialogOnScreen(screen) {
-		return &action.Permission{Unknown: true}
+		return &action.Permission{Unknown: true, Raw: rawDialog(screen)}
 	}
 	return nil
+}
+
+// permRawUp and permRawDown bound the window taken around the anchor: the dialog is
+// a couple of lines of subject and a short list, and everything beyond that is the
+// conversation, which is nobody's business here.
+const permRawUp = 8
+
+const permRawDown = 24
+
+// rawDialog returns the dialog lines as they stand on the screen, for a screen the
+// parser did not understand. It walks out from the anchor to the line that opens the
+// dialog and to the one that closes it; with either boundary missing it returns
+// nothing, because a window with no edge takes in the conversation above along with
+// whatever was said there.
+func rawDialog(screen string) []string {
+	rows := strings.Split(screen, "\n")
+	text := make([]string, len(rows))
+	frame := make([]bool, len(rows))
+	for i, raw := range rows {
+		text[i] = strings.TrimRight(strings.Map(unbox, raw), " ")
+		frame[i] = permFrameRe.MatchString(raw) && strings.TrimSpace(raw) != ""
+	}
+
+	trimmed := make([]string, len(text))
+	for i, line := range text {
+		trimmed[i] = strings.TrimSpace(line)
+	}
+	at := questionAt(trimmed)
+	if at < 0 {
+		return nil
+	}
+
+	top := -1
+	for i := at - 1; i >= 0 && at-i <= permRawUp; i-- {
+		if frame[i] || strings.TrimSpace(text[i]) == "" {
+			top = i
+			break
+		}
+	}
+	bottom := -1
+	for i := at + 1; i < len(text) && i-at <= permRawDown; i++ {
+		if frame[i] || hasFooter(text[i]) {
+			bottom = i
+			break
+		}
+	}
+	if top < 0 || bottom < 0 {
+		return nil
+	}
+
+	out := text[top : bottom+1]
+	for len(out) > 0 && strings.TrimSpace(out[0]) == "" {
+		out = out[1:]
+	}
+	for len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+		out = out[:len(out)-1]
+	}
+	if len(out) == 0 {
+		return nil
+	}
+
+	// The frame the box was drawn with has become blank columns on the left, and on a
+	// phone they are width taken away from the text.
+	indent := 0
+	for i, line := range out {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if n := len(line) - len(strings.TrimLeft(line, " ")); i == 0 || n < indent {
+			indent = n
+		}
+	}
+	flush := make([]string, len(out))
+	for i, line := range out {
+		if len(line) < indent {
+			line = ""
+		} else {
+			line = line[indent:]
+		}
+		flush[i] = line
+	}
+	return flush
 }
 
 const permTail = 25
@@ -82,6 +171,55 @@ func dialogOnScreen(screen string) bool {
 	return false
 }
 
+func hasFooter(line string) bool {
+	return strings.Contains(strings.ToLower(line), permFooter)
+}
+
+// questionAt returns the line the dialog asks with, on a screen of trimmed lines.
+//
+// The dialog is found by its shape rather than by its wording: the footer closes
+// it, the numbered list stands above the footer, and the question is the line above
+// the list. That holds whatever the client asks about — an edit, a fetch, a
+// connection — and it steps over a question quoted in the conversation, which has no
+// list under it.
+//
+// With no list to be found it falls back to the commonest wording, so a screen that
+// used to be read still is.
+func questionAt(lines []string) int {
+	const scan = 24
+
+	footer := -1
+	for i, line := range lines {
+		if hasFooter(line) {
+			footer = i
+		}
+	}
+	if footer >= 0 {
+		// The first option, not the nearest one: the options wrap, and a wrapped
+		// line is no option at all.
+		first := -1
+		for i := footer - 1; i >= 0 && footer-i <= scan; i-- {
+			if m := permOptionRe.FindStringSubmatch(lines[i]); m != nil && m[1] == "1" {
+				first = i
+				break
+			}
+		}
+		for i := first - 1; i >= 0; i-- {
+			if lines[i] != "" {
+				return i
+			}
+		}
+	}
+
+	at := -1
+	for i, line := range lines {
+		if line == permAnchor {
+			at = i
+		}
+	}
+	return at
+}
+
 func parsePermission(screen string) (action.Permission, bool) {
 	lines := make([]string, 0, 64)
 	indents := make([]int, 0, 64)
@@ -101,12 +239,7 @@ func parsePermission(screen string) (action.Permission, bool) {
 		}
 	}
 
-	at := -1
-	for i, line := range lines {
-		if line == permAnchor {
-			at = i
-		}
-	}
+	at := questionAt(lines)
 	if at < 0 {
 		return action.Permission{}, false
 	}
@@ -175,7 +308,7 @@ func optionBlock(lines []string, indents, widths []int, width, at int) ([]action
 		if line == "" {
 			continue
 		}
-		if strings.Contains(line, permFooter) {
+		if hasFooter(line) {
 			return out, partial || !contiguous(seen)
 		}
 		if m := permOptionRe.FindStringSubmatch(line); m != nil {
