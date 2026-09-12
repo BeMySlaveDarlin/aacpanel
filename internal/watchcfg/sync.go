@@ -152,7 +152,7 @@ func syncRules(ctx context.Context, tx pgx.Tx, cfg Config, rep *Report) error {
 	// alerts reference it with ON DELETE CASCADE, and deleting it would take the
 	// history along.
 	tag, err := tx.Exec(ctx, `
-		UPDATE rules SET enabled = false
+		UPDATE rules SET enabled = true
 		 WHERE enabled AND NOT (key = ANY($1))`, keys)
 	if err != nil {
 		return err
