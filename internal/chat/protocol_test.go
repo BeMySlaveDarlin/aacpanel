@@ -194,10 +194,6 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 		"session": "567f4d24-cd5f-48fa-bdc1-04c89d203494",
 		"items": [], "total": 0, "moreBefore": false, "first": null, "last": null,
 		"state": {
-			"plan": [
-				{"text": "Writing the name guard", "status": "in_progress"},
-				{"text": "Pinning the alphabet", "status": "completed"}
-			],
 			"tasks": [{"id": "b0g4knhe1", "text": "Waiting for CI", "at": "2026-08-25T10:00:00Z", "kind": "bash", "event": "2026-08-25T10:19:00Z", "line": "gh run watch 4211"},
 			          {"id": "wakeup", "text": "watching CI", "at": "2026-08-25T10:01:00Z", "kind": "wake", "due": "2026-08-25T10:21:00Z"}],
 			"agents": [{"name": "audit-rules", "text": "rules audit", "at": "2026-08-25T10:00:00Z",
@@ -237,7 +233,7 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 	if reply.State == nil {
 		t.Fatal("the session state does not parse at all")
 	}
-	if len(reply.State.Plan) != 2 || len(reply.State.Tasks) != 2 || len(reply.State.Agents) != 2 {
+	if len(reply.State.Tasks) != 2 || len(reply.State.Agents) != 2 {
 		t.Fatalf("the state arrived incomplete: %+v", *reply.State)
 	}
 	if tk := reply.State.Tasks[1]; tk.Kind != "wake" || tk.Due == "" {

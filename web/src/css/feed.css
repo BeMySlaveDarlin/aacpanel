@@ -184,7 +184,6 @@
 .mtools.web .mticon,    .cnmark.web,
 .mtools.browser .mticon, .cnmark.browser { color: var(--warn); }
 .mtools.agents .mticon, .cnmark.agents,
-.mtools.plan .mticon,   .cnmark.plan,
 .mtools.skill .mticon,  .cnmark.skill  { color: var(--ctx-3); }
 .mtools.ask .mticon,    .cnmark.ask,
 .mtools.artifact .mticon, .cnmark.artifact { color: var(--crit); }

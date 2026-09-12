@@ -18,7 +18,7 @@
 }
 .deck > .wchips { flex: 0 1 auto; min-width: 0; }
 
-/* One line, never two: the whole row holds four narrow chips at most, and the
+/* One line, never two: the whole row holds three narrow chips at most, and the
    right-hand group takes the width it needs to the left instead of wrapping. */
 .wchips { display: flex; align-items: center; flex-wrap: nowrap; gap: .35rem; }
 /* The right-hand group takes the width of its own buttons and no more: a width
@@ -75,7 +75,6 @@
     min-width: 1.2ch;
     text-align: center;
 }
-.wchip .wnum.pair { min-width: 4.9ch; }
 .wchip:active { background: rgba(var(--tint), .12); }
 
 .wchip.idle { color: var(--ink-faint); }
@@ -195,21 +194,6 @@
 }
 .wrow .wsub { color: var(--ink-dim); font-size: .8rem; overflow-wrap: anywhere; }
 .wrow .wstate { color: var(--ink-faint); font-size: .78rem; }
-
-.wrow .wmark {
-    flex: 0 0 auto;
-    width: .42rem; height: .42rem;
-    margin-top: .1rem;
-    border-radius: 50%;
-    background: var(--ink-faint);
-}
-
-.wrow.completed .wtext { color: var(--ink-faint); text-decoration: line-through; }
-.wrow.completed .wmark { background: var(--ok); }
-.wrow.in_progress .wtext { color: var(--ink); }
-.wrow.in_progress .wmark { background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
-
-@media (prefers-reduced-motion: reduce) { .wrow.in_progress .wmark { animation: none; } }
 
 .wline { display: flex; align-items: center; gap: .35rem; }
 .wline > .wrow { flex: 1; min-width: 0; }

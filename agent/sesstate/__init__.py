@@ -1,4 +1,4 @@
-"""State of a claude session: plan, background commands, subagents."""
+"""State of a claude session: background commands, subagents, artifacts."""
 
 import json
 import os

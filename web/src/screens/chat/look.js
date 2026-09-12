@@ -15,7 +15,6 @@ import { idParam } from "./api.js";
 import { stampText } from "./labels.js";
 
 export const LOOK_NAMES = {
-    plan: "plan",
     tasks: "background work",
     agents: "subagents",
     arts: "artifacts",
@@ -24,7 +23,7 @@ export const LOOK_NAMES = {
     file: "project file",
 };
 
-export const WORK_LISTS = new Set(["plan", "tasks", "agents", "arts"]);
+export const WORK_LISTS = new Set(["tasks", "agents", "arts"]);
 
 function fileURL(base, path, offset) {
     const at = offset > 0 ? `&offset=${offset}` : "";

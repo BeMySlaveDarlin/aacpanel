@@ -58,20 +58,13 @@ function agentLabel(agents, live) {
     return live.length > 0 ? `subagents: ${live.length} working` : "subagents: none working";
 }
 
-// WorkRefs renders the right half of the row: the plan and the artifacts.
+// WorkRefs renders the right half of the row: the artifacts.
 export function WorkRefs({ work, onOpen }) {
-    const plan = (work && work.plan) || [];
     const arts = (work && work.artifacts) || [];
     const docs = (work && work.docs) || [];
-    const done = plan.filter((p) => p.status === "completed").length;
     const refs = arts.length + docs.length;
 
     return html`
-        <button class=${`wchip${plan.length > 0 ? "" : " idle"}`} type="button"
-                onClick=${() => onOpen({ kind: "plan" })}
-                aria-label=${plan.length > 0 ? `plan: ${done} of ${plan.length}` : "plan: empty"}>
-            ${Icon.list()}<span class="wnum pair">${done}/${plan.length}</span>
-        </button>
         <button class=${`wchip${refs > 0 ? "" : " idle"}`} type="button"
                 onClick=${() => onOpen({ kind: "arts" })}
                 aria-label=${refs > 0 ? `artifacts: ${refs}` : "artifacts: none"}>
@@ -183,7 +176,7 @@ function StopButton({ ready, why, busy, done, onStop, label }) {
     `;
 }
 
-// WorkList renders what stands behind a counter: the plan, the tasks or the subagents.
+// WorkList renders what stands behind a counter: the tasks, the subagents or the artifacts.
 export function WorkList({ session, id, kind, work, exec, onAgent }) {
     const [pick, setPick] = useState(null);
     const run = useAction();
@@ -218,7 +211,6 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
         fail: fail[agentKey(agent)] || "",
         onStop: () => stopAgent(agent),
     });
-    const plan = (work && work.plan) || [];
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
     const arts = (work && work.artifacts) || [];
@@ -231,19 +223,17 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
                              onBack=${() => setPick(null)} />`;
     }
 
-    const sub = kind === "plan"
-        ? `${plan.filter((p) => p.status === "completed").length} of ${plan.length}`
-        : kind === "tasks"
-            ? taskSub(tasks)
-            : kind === "arts"
-                ? [
-                    arts.length > 0 && `${arts.length} published`,
-                    docs.length > 0 && `${docs.length} ${plural(docs.length, "document", "documents")}`,
-                ].filter(Boolean).join(", ") || "empty"
-                : [
-                    live.length > 0 && `${live.length} working`,
-                    said.length > 0 && `${said.length} reported`,
-                ].filter(Boolean).join(", ") || "empty";
+    const sub = kind === "tasks"
+        ? taskSub(tasks)
+        : kind === "arts"
+            ? [
+                arts.length > 0 && `${arts.length} published`,
+                docs.length > 0 && `${docs.length} ${plural(docs.length, "document", "documents")}`,
+            ].filter(Boolean).join(", ") || "empty"
+            : [
+                live.length > 0 && `${live.length} working`,
+                said.length > 0 && `${said.length} reported`,
+            ].filter(Boolean).join(", ") || "empty";
 
     return html`
         <div class="sheethead">
@@ -254,12 +244,6 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
         </div>
 
         <div class="worklist">
-            ${kind === "plan" && plan.map((item, n) => html`
-                <div class=${`wrow ${item.status}`} key=${`p${n}`}>
-                    <span class="wmark"></span>
-                    <span class="wtext">${item.text}</span>
-                </div>
-            `)}
             ${kind === "tasks" && tasks.map((task) => (task.kind === "wake"
                 ? html`
                     <div class="wrow task still" key=${task.id}>
@@ -351,7 +335,6 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
             ${kind === "arts" && docs.length === 0 && html`
                 <p class="hint">The session wrote no documents.</p>
             `}
-            ${kind === "plan" && plan.length === 0 && html`<p class="hint">The plan is empty.</p>`}
             ${kind === "tasks" && tasks.length === 0 && html`<p class="hint">There are no background commands.</p>`}
             ${kind === "agents" && agents.length === 0 && html`<p class="hint">There were no subagents in this conversation.</p>`}
         </div>

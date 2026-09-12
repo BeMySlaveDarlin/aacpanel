@@ -196,7 +196,7 @@ func TestWorkChipsOpenTheirOwnSection(t *testing.T) {
 			"expands in place and pushes the chat off the screen", chatFile)
 	}
 
-	for _, kind := range []string{"plan", "tasks", "agents", "arts"} {
+	for _, kind := range []string{"tasks", "agents", "arts"} {
 		call := `onOpen({ kind: "` + kind + `" })`
 		if n := strings.Count(work, call); n != 1 {
 			t.Errorf("%s: the row under the composer holds %d occurrences of %q — every counter "+

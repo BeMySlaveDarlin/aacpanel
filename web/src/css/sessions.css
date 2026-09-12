@@ -206,7 +206,6 @@
     .srow.live .mline > .compacts,
     .srow.live .mline > .lived,
     .srow.live .mline > .place,
-    .srow.live .mline > .wplan,
     .srow.live .mline > .wtasks { display: none; }
     .srow.live .mline > .working,
     .srow.live .mline > .waits { order: 1; }

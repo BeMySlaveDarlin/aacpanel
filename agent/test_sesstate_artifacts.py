@@ -2,7 +2,7 @@ import os
 import unittest
 
 import test_barrier  # noqa: F401
-from test_sesstate import Transcript, background, line, plan
+from test_sesstate import Transcript, background, line
 
 
 class Artifacts(Transcript):

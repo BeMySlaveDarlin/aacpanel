@@ -552,7 +552,7 @@ class Calls(unittest.TestCase):
         self.assertEqual(chat.tool_kind("Edit"), "files")
         self.assertEqual(chat.tool_kind("WebSearch"), "web")
         self.assertEqual(chat.tool_kind("Task"), "agents")
-        self.assertEqual(chat.tool_kind("TodoWrite"), "plan")
+        self.assertEqual(chat.tool_kind("TodoWrite"), "other")
         self.assertEqual(chat.tool_kind("mcp__claude-in-chrome__navigate"), "browser")
         self.assertEqual(chat.tool_kind("mcp__plugin_toolkit_playwright__browser_click"), "browser")
         self.assertEqual(chat.tool_kind("mcp__docker__docker_exec"), "mcp")

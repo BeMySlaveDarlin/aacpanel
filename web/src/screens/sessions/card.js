@@ -142,7 +142,6 @@ function SessionCard({ name, group, contour, state, live, pct, pctNote, peak, bl
 export function workText(work) {
     if (!work) return [];
     const out = [];
-    if (work.plan > 0) out.push({ kind: "plan", text: `plan ${work.planDone || 0}/${work.plan}` });
     if (work.tasks > 0) {
         out.push({
             kind: "tasks",

@@ -23,8 +23,6 @@ TOOL_KINDS = (
     ("web", ("WebFetch", "WebSearch")),
     ("agents", ("Task", "Agent", "SendMessage", "ListAgents", "Workflow",
                 "TaskOutput", "TaskStop", "TeamCreate", "TeamDelete")),
-    ("plan", ("TodoWrite", "ExitPlanMode", "EnterPlanMode",
-              "TaskCreate", "TaskUpdate", "TaskList", "TaskGet")),
     ("skill", ("Skill",)),
     ("ask", ("AskUserQuestion",)),
     ("artifact", ("Artifact",)),

@@ -444,7 +444,6 @@ func TestLiveSessionNeverTakesNamesakeFromDB(t *testing.T) {
 func TestChatShowsSessionState(t *testing.T) {
 	reply := okReply()
 	reply["state"] = map[string]any{
-		"plan":   []map[string]any{{"text": "Writing the watchdog", "status": "in_progress"}},
 		"tasks":  []map[string]any{{"id": "b0g4knhe1", "text": "Waiting for CI", "at": "2026-08-25T10:00:00Z"}},
 		"agents": []map[string]any{{"name": "audit-rules", "text": "audit", "at": "2026-08-25T10:00:00Z"}},
 	}
@@ -465,7 +464,7 @@ func TestChatShowsSessionState(t *testing.T) {
 	if got.State == nil {
 		t.Fatal("the session state did not reach the panel")
 	}
-	if len(got.State.Plan) != 1 || len(got.State.Tasks) != 1 || len(got.State.Agents) != 1 {
+	if len(got.State.Tasks) != 1 || len(got.State.Agents) != 1 {
 		t.Fatalf("the state arrived incomplete: %+v", *got.State)
 	}
 	if got.State.Tasks[0].ID != "b0g4knhe1" {

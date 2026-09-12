@@ -143,9 +143,8 @@ type Shot struct {
 	Bytes int    `json:"bytes,omitempty"`
 }
 
-// Work is the state of a session: what it planned and what it waits for.
+// Work is the state of a session: what it runs and what it waits for.
 type Work struct {
-	Plan      []WorkItem  `json:"plan"`
 	Tasks     []WorkTask  `json:"tasks"`
 	Agents    []WorkAgent `json:"agents"`
 	Ask       *Ask        `json:"ask,omitempty"`
@@ -198,12 +197,6 @@ type AskOption struct {
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
 	Preview     string `json:"preview,omitempty"`
-}
-
-// WorkItem is one plan entry.
-type WorkItem struct {
-	Text   string `json:"text"`
-	Status string `json:"status"`
 }
 
 // WorkTask is one background job.

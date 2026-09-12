@@ -13,19 +13,6 @@ def line(record):
     return json.dumps(record, ensure_ascii=False) + "\n"
 
 
-def plan(*items):
-    return line({
-        "type": "attachment",
-        "attachment": {
-            "type": "task_reminder",
-            "itemCount": len(items),
-            "content": [{"id": str(n), "subject": subject, "activeForm": active,
-                         "status": status}
-                        for n, (subject, active, status) in enumerate(items, 1)],
-        },
-    })
-
-
 def call(tool, tool_id, at="2026-08-25T10:00:00Z", **data):
     return line({"type": "assistant", "timestamp": at,
                  "message": {"content": [
@@ -76,7 +63,7 @@ class Transcript(unittest.TestCase):
 class Incremental(Transcript):
     def test_the_appended_tail_equals_a_full_pass(self):
         path = os.path.join(self.dir.name, "t.jsonl")
-        head = background("toolu_1", "b1") + plan(("first", "doing it", "in_progress"))
+        head = background("toolu_1", "b1")
         tail = spawn("toolu_2", "alpha") + notification("toolu_1")
         with open(path, "w", encoding="utf-8") as f:
             f.write(head)
@@ -111,10 +98,10 @@ class Incremental(Transcript):
         state = sesstate.read(path)
         self.assertEqual(len(state.snapshot()["tasks"]), 2)
         with open(path, "w", encoding="utf-8") as f:
-            f.write(plan(("a new conversation", "starting", "in_progress")))
+            f.write(background("toolu_3", "b3"))
         fresh = sesstate.read(path, state)
-        self.assertEqual(fresh.snapshot()["tasks"], [])
-        self.assertEqual(len(fresh.snapshot()["plan"]), 1)
+        self.assertEqual([t["id"] for t in fresh.snapshot()["tasks"]], ["b3"],
+                         "the shells of the conversation that was overwritten are still there")
 
 
 class Cache(Transcript):

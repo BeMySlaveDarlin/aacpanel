@@ -5,7 +5,6 @@ import os
 
 from .artifacts import ARTIFACT_URL_RE, DOC_TOOLS, _artifact, _document, result_text
 from .limits import MAX_ITEMS, _short
-from .plan import _plan_of, plan_add, plan_created, plan_number, plan_rows, plan_update
 from .subagents import AGENT_ID_RE, _prune_reported_agents
 from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_AGENT,
                     TASK_ID_KEYS, TASK_KIND_BY_KEY, _notify_tasks, _task, finish)
@@ -16,8 +15,6 @@ class State:
     """State of one transcript, accumulated as it is read."""
 
     def __init__(self):
-        self.plan = []
-        self.plan_items = {}
         self.tasks = {}
         self.agents = {}
         self.pending = {}
@@ -34,9 +31,7 @@ class State:
         agents = sorted(self.agents.values(), key=lambda a: a.get("at") or "")
         arts = sorted(self.arts.values(), key=lambda a: a.get("at") or "", reverse=True)
         docs = sorted(self.docs.values(), key=lambda d: d.get("at") or "", reverse=True)
-        plan = self.plan or plan_rows(self.plan_items)
         return {
-            "plan": plan[:MAX_ITEMS],
             "tasks": tasks[:MAX_ITEMS],
             "agents": agents[:MAX_ITEMS],
             "artifacts": [dict(a, title=a.get("title") or a["file"]) for a in arts[:MAX_ITEMS]],
@@ -51,12 +46,6 @@ def _feed_record(state, record, raw):
         cwd = record.get("cwd")
         if isinstance(cwd, str) and cwd:
             state.cwd = cwd
-
-    if kind == "attachment":
-        att = record.get("attachment") or {}
-        if att.get("type") == "task_reminder":
-            state.plan = _plan_of(att)
-        return
 
     at = record.get("timestamp") or ""
 
@@ -102,12 +91,6 @@ def _feed_record(state, record, raw):
                     "text": _short(data.get("reason") or data.get("prompt") or "wake-up"),
                 }
                 continue
-            if name == "TaskCreate":
-                state.pending[block.get("id")] = dict(plan_created(data), kind="planitem", at=at)
-                continue
-            if name == "TaskUpdate":
-                plan_update(state, data)
-                continue
             label = _short(data.get("description") or data.get("command") or data.get("prompt"))
             if name == "Agent":
                 state.pending[block.get("id")] = {
@@ -136,9 +119,6 @@ def _feed_record(state, record, raw):
             state.answered.append(block["tool_use_id"])
         started = state.pending.pop(block.get("tool_use_id"), None)
         if started is None:
-            continue
-        if started["kind"] == "planitem":
-            plan_add(state, plan_number(result_text(block)), started, started.get("at") or at)
             continue
         if started["kind"] == "art":
             found = ARTIFACT_URL_RE.search(result_text(block))

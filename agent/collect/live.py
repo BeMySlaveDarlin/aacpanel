@@ -167,15 +167,12 @@ def sessions():
                     "at": ask.get("at") or "",
                 }
             if busy:
-                plan = busy["plan"]
                 agents = sum(1 for a in busy["agents"] if a.get("status") != "reported")
                 work = {
-                    "plan": len(plan),
-                    "planDone": sum(1 for p in plan if p["status"] == "completed"),
                     "tasks": len(busy["tasks"]),
                     "agents": agents,
                 }
-                if work["plan"] or work["tasks"] or work["agents"]:
+                if work["tasks"] or work["agents"]:
                     s["work"] = work
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
