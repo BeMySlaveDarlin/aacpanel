@@ -194,9 +194,10 @@ func TestSessionArtifactsOpenTheirOwnWay(t *testing.T) {
 		t.Errorf("%s: the artifact counter does not count both kinds — the number on the chip "+
 			"drifts from the list under it", chatFile)
 	}
-	if !strings.Contains(work, `<span class="wnum">${refs}</span>`) {
-		t.Errorf("%s: the chip shows a number of its own instead of the one counted for it — "+
-			"two numbers for one thing part on the first kind that is added", chatFile)
+	if !strings.Contains(work, "refs > 0 && html`<span class=\"wnum\">${refs}</span>`") {
+		t.Errorf("%s: the chip shows a number of its own instead of the one counted for it, "+
+			"or draws a 0 where the other chips draw nothing — two numbers for one thing part "+
+			"on the first kind that is added", chatFile)
 	}
 
 	list := jsBlock(t, chatFile, body, "function WorkList(")

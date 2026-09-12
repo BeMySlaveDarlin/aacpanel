@@ -25,19 +25,24 @@ export function WorkStatus({ work, busy }) {
 // in the row whatever the session holds: a row that grows and shrinks under the
 // thumb moves the button the thumb was already going for, and a group that
 // disappears when it is empty leaves a hole between the last chip and the edge.
-// An empty chip is dim and still opens its list — the list says out loud that
-// there is nothing, which a button that refuses the tap cannot do.
+// The number on a chip counts only what is live — the shells still running, the
+// agents still working — and a chip with nothing live carries no number at all
+// and goes dim: a 12 over twelve finished shells reads as twelve at work, and a
+// 0 is a number where the eye expects none. The dim chip still opens its list —
+// the list says out loud that there is nothing, which a button that refuses the
+// tap cannot do.
 export function Work({ work, onOpen }) {
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
     const { live } = splitAgents(agents);
+    const liveTasks = running(tasks);
 
     return html`
         <div class="wchips">
-            <button class=${`wchip${running(tasks).length > 0 ? "" : " idle"}`} type="button"
+            <button class=${`wchip${liveTasks.length > 0 ? "" : " idle"}`} type="button"
                     onClick=${() => onOpen({ kind: "tasks" })}
                     aria-label=${taskLabel(tasks)}>
-                ${Icon.clock()}<span class="wnum">${tasks.length}</span>
+                ${Icon.clock()}${liveTasks.length > 0 && html`<span class="wnum">${liveTasks.length}</span>`}
             </button>
             <button class=${`wchip${live.length > 0 ? "" : " idle"}`} type="button"
                     onClick=${() => onOpen({ kind: "agents" })}
@@ -58,7 +63,9 @@ function agentLabel(agents, live) {
     return live.length > 0 ? `subagents: ${live.length} working` : "subagents: none working";
 }
 
-// WorkRefs renders the right half of the row: the artifacts.
+// WorkRefs renders the right half of the row: the artifacts. An artifact has no
+// "over" — what the session made stays made — so the number counts them all
+// and, like the other chips, is absent rather than 0.
 export function WorkRefs({ work, onOpen }) {
     const arts = (work && work.artifacts) || [];
     const docs = (work && work.docs) || [];
@@ -68,7 +75,7 @@ export function WorkRefs({ work, onOpen }) {
         <button class=${`wchip${refs > 0 ? "" : " idle"}`} type="button"
                 onClick=${() => onOpen({ kind: "arts" })}
                 aria-label=${refs > 0 ? `artifacts: ${refs}` : "artifacts: none"}>
-            ${Icon.artifact()}<span class="wnum">${refs}</span>
+            ${Icon.artifact()}${refs > 0 && html`<span class="wnum">${refs}</span>`}
         </button>
     `;
 }
