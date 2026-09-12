@@ -21,35 +21,41 @@ export function WorkStatus({ work, busy }) {
     `;
 }
 
-// Work renders the counters of what the session has in flight.
+// Work renders the counters of what the session has in flight. Every chip stands
+// in the row whatever the session holds: a row that grows and shrinks under the
+// thumb moves the button the thumb was already going for, and a group that
+// disappears when it is empty leaves a hole between the last chip and the edge.
+// An empty chip is dim and still opens its list — the list says out loud that
+// there is nothing, which a button that refuses the tap cannot do.
 export function Work({ work, onOpen }) {
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
     const { live } = splitAgents(agents);
-    if (!tasks.length && !agents.length) return null;
 
     return html`
         <div class="wchips">
-            ${tasks.length > 0 && html`
-                <button class=${`wchip${running(tasks).length > 0 ? "" : " idle"}`} type="button"
-                        onClick=${() => onOpen({ kind: "tasks" })}
-                        aria-label=${running(tasks).length > 0
-                            ? `background work: ${tasks.length}, ${running(tasks).length} running`
-                            : `background work: ${tasks.length}, none running`}>
-                    ${Icon.clock()}<span class="wnum">${tasks.length}</span>
-                </button>
-            `}
-            ${agents.length > 0 && html`
-                <button class=${`wchip${live.length > 0 ? "" : " idle"}`} type="button"
-                        onClick=${() => onOpen({ kind: "agents" })}
-                        aria-label=${live.length > 0
-                            ? `subagents: ${live.length} working`
-                            : "subagents: none working"}>
-                    ${Icon.robot()}${live.length > 0 && html`<span class="wnum">${live.length}</span>`}
-                </button>
-            `}
+            <button class=${`wchip${running(tasks).length > 0 ? "" : " idle"}`} type="button"
+                    onClick=${() => onOpen({ kind: "tasks" })}
+                    aria-label=${taskLabel(tasks)}>
+                ${Icon.clock()}<span class="wnum">${tasks.length}</span>
+            </button>
+            <button class=${`wchip${live.length > 0 ? "" : " idle"}`} type="button"
+                    onClick=${() => onOpen({ kind: "agents" })}
+                    aria-label=${agentLabel(agents, live)}>
+                ${Icon.robot()}${live.length > 0 && html`<span class="wnum">${live.length}</span>`}
+            </button>
         </div>
     `;
+}
+
+function taskLabel(tasks) {
+    if (!tasks.length) return "background work: none";
+    return `background work: ${tasks.length}, ${running(tasks).length || "none"} running`;
+}
+
+function agentLabel(agents, live) {
+    if (!agents.length) return "subagents: none";
+    return live.length > 0 ? `subagents: ${live.length} working` : "subagents: none working";
 }
 
 // WorkRefs renders the right half of the row: the plan and the artifacts.
@@ -58,20 +64,19 @@ export function WorkRefs({ work, onOpen }) {
     const arts = (work && work.artifacts) || [];
     const docs = (work && work.docs) || [];
     const done = plan.filter((p) => p.status === "completed").length;
+    const refs = arts.length + docs.length;
 
     return html`
-        ${plan.length > 0 && html`
-            <button class="wchip" type="button" onClick=${() => onOpen({ kind: "plan" })}
-                    aria-label=${`plan: ${done} of ${plan.length}`}>
-                ${Icon.list()}<span class="wnum pair">${done}/${plan.length}</span>
-            </button>
-        `}
-        ${arts.length + docs.length > 0 && html`
-            <button class="wchip" type="button" onClick=${() => onOpen({ kind: "arts" })}
-                    aria-label=${`artifacts: ${arts.length + docs.length}`}>
-                ${Icon.artifact()}<span class="wnum">${arts.length + docs.length}</span>
-            </button>
-        `}
+        <button class=${`wchip${plan.length > 0 ? "" : " idle"}`} type="button"
+                onClick=${() => onOpen({ kind: "plan" })}
+                aria-label=${plan.length > 0 ? `plan: ${done} of ${plan.length}` : "plan: empty"}>
+            ${Icon.list()}<span class="wnum pair">${done}/${plan.length}</span>
+        </button>
+        <button class=${`wchip${refs > 0 ? "" : " idle"}`} type="button"
+                onClick=${() => onOpen({ kind: "arts" })}
+                aria-label=${refs > 0 ? `artifacts: ${refs}` : "artifacts: none"}>
+            ${Icon.artifact()}<span class="wnum">${refs}</span>
+        </button>
     `;
 }
 

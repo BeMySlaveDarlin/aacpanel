@@ -21,7 +21,10 @@
 /* One line, never two: the whole row holds four narrow chips at most, and the
    right-hand group takes the width it needs to the left instead of wrapping. */
 .wchips { display: flex; align-items: center; flex-wrap: nowrap; gap: .35rem; }
-.deckright { flex: none; display: flex; align-items: center; gap: .35rem; min-width: 34px; }
+/* The right-hand group takes the width of its own buttons and no more: a width
+   held for something that is not there stands between the last chip and the
+   edge as a gap exactly one chip wide. */
+.deckright { flex: none; display: flex; align-items: center; gap: .35rem; }
 
 .workbar {
     flex: 0 0 auto;

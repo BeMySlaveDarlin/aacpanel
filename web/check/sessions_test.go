@@ -190,14 +190,13 @@ func TestSessionArtifactsOpenTheirOwnWay(t *testing.T) {
 	body := screenSrc(t, chatFile)
 
 	work := jsBlock(t, chatFile, body, "function WorkRefs(")
-	if !strings.Contains(work, `<span class="wnum">${arts.length + docs.length}</span>`) {
+	if !strings.Contains(work, "const refs = arts.length + docs.length") {
 		t.Errorf("%s: the artifact counter does not count both kinds — the number on the chip "+
 			"drifts from the list under it", chatFile)
 	}
-	if !strings.Contains(work, "arts.length + docs.length > 0") {
-		t.Errorf("%s: the artifact chip is not hidden behind a check of both kinds — it "+
-			"stands over an empty list and takes room there is none of under the composer",
-			chatFile)
+	if !strings.Contains(work, `<span class="wnum">${refs}</span>`) {
+		t.Errorf("%s: the chip shows a number of its own instead of the one counted for it — "+
+			"two numbers for one thing part on the first kind that is added", chatFile)
 	}
 
 	list := jsBlock(t, chatFile, body, "function WorkList(")

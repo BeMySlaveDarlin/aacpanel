@@ -132,6 +132,88 @@ func TestGapsUnderComposerComeFromOneNumber(t *testing.T) {
 		t.Errorf("%s: the right-hand group still pushes itself off with a margin, which drives "+
 			"the chips back to the left edge: %s", cssFile, right)
 	}
+	if strings.Contains(right, "min-width") {
+		t.Errorf("%s: the right-hand group holds a width of its own — whatever is not a button "+
+			"in it stands between the last chip and the right edge as a gap: %s", cssFile, right)
+	}
+}
+
+// The row under the composer holds the same four buttons whatever the session is
+// doing. A chip that arrives with the first task moves the neighbours out from
+// under a thumb already on its way, and a group that leaves when it is empty
+// takes the row away from the edge it is read from.
+func TestWorkRowKeepsEveryButtonWithNothingToShow(t *testing.T) {
+	const workFile = "src/screens/chat/work.js"
+	src := screenSrc(t, workFile)
+
+	left := jsBlock(t, workFile, src, "export function Work(")
+	if strings.Contains(left, "return null") {
+		t.Errorf("%s: the left-hand group leaves the row when the session holds nothing — half "+
+			"the buttons of the row go with it", workFile)
+	}
+	right := jsBlock(t, workFile, src, "export function WorkRefs(")
+
+	for _, chip := range []struct{ block, kind, what string }{
+		{left, "tasks", "background work"},
+		{left, "agents", "the subagents"},
+		{right, "plan", "the plan"},
+		{right, "arts", "the artifacts"},
+	} {
+		tag := chipTag(t, workFile, chip.block, chip.kind)
+		if gate := chipGate(chip.block, chip.kind); gate != "" {
+			t.Errorf("%s: the button of %s is drawn only when there is something behind it — the "+
+				"row changes its length under the thumb: %s", workFile, chip.what, gate)
+		}
+		if !strings.Contains(tag, "idle") {
+			t.Errorf("%s: the button of %s looks the same full and empty — a row of four live "+
+				"counters says the session holds work it does not: %s", workFile, chip.what, tag)
+		}
+		if strings.Contains(tag, "disabled") {
+			t.Errorf("%s: the button of %s refuses the tap when it is empty — a dead button is "+
+				"read as a broken panel, while the list it opens says out loud there is nothing: %s",
+				workFile, chip.what, tag)
+		}
+	}
+}
+
+// chipTag returns the button of the row that opens the given list.
+func chipTag(t *testing.T, file, block, kind string) string {
+	t.Helper()
+	head := chipHead(block, kind)
+	if head < 0 {
+		t.Fatalf("%s: no button of the row opens %q — the test guards the wrong place", file, kind)
+	}
+	end := strings.Index(block[head:], "</button>")
+	if end < 0 {
+		t.Fatalf("%s: the button that opens %q is not closed", file, kind)
+	}
+	return block[head : head+end]
+}
+
+// chipGate returns what stands between the button before this one and this one:
+// a chip put behind a count is preceded by a condition left open.
+func chipGate(block, kind string) string {
+	head := chipHead(block, kind)
+	if head < 0 {
+		return ""
+	}
+	before := block[:head]
+	if prev := strings.LastIndex(before, "</button>"); prev >= 0 {
+		before = before[prev+len("</button>"):]
+	}
+	if !strings.Contains(before, "&& html") {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(before, " \t\n"), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
+}
+
+func chipHead(block, kind string) int {
+	at := strings.Index(block, `kind: "`+kind+`"`)
+	if at < 0 {
+		return -1
+	}
+	return strings.LastIndex(block[:at], "<button")
 }
 
 func TestKeyboardResizesTheWindowNotTheView(t *testing.T) {

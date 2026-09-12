@@ -95,9 +95,15 @@ func TestAgentCountMatchesAgentList(t *testing.T) {
 	}
 
 	work := jsBlock(t, chatFile, body, "function Work(")
-	if !strings.Contains(work, "agents.length > 0 && html") {
-		t.Errorf("%s: the agent counter disappears together with the working ones — there will be "+
-			"nowhere to open the list of the ones that reported", chatFile)
+	if strings.Contains(work, "agents.length > 0 && html") {
+		t.Errorf("%s: the agent counter is drawn only when the session has had agents — it stands "+
+			"in the row whatever it holds and says by going dim that it holds nothing", chatFile)
+	}
+	label := jsBlock(t, chatFile, body, "function agentLabel(")
+	if !strings.Contains(label, `"subagents: none"`) || !strings.Contains(label, "none working") {
+		t.Errorf("%s: a session that never had an agent and one whose agents have all reported are "+
+			"named by the counter in the same words — the list under it says two different things",
+			chatFile)
 	}
 	if !strings.Contains(work, "live.length > 0 && html") {
 		t.Errorf("%s: the number on the agent counter is not tied to the working ones — a 0 in the row "+
