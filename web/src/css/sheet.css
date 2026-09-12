@@ -183,12 +183,12 @@
     z-index: 20;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, rgba(30, 34, 62, .97), rgba(12, 14, 30, .98));
+    background: var(--toast-bg);
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
     border: var(--hair) solid var(--edge);
     border-radius: var(--r-card);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, .55);
+    box-shadow: var(--toast-drop);
     padding: .6rem .85rem;
     font-size: .84rem;
     opacity: 0;

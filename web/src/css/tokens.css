@@ -88,6 +88,9 @@
     --chips-bg: linear-gradient(180deg, rgba(6, 7, 15, .86), rgba(6, 7, 15, .66));
     --nav-bg: linear-gradient(180deg, rgba(var(--tint), .04), rgba(var(--tint), .02));
     --sheet-bg: linear-gradient(180deg, rgba(26, 30, 56, .97), rgba(10, 12, 26, .99));
+    --toast-bg: linear-gradient(180deg, rgba(30, 34, 62, .97), rgba(12, 14, 30, .98));
+    --toast-drop: 0 14px 34px rgba(0, 0, 0, .55);
+    --code-bg: rgba(0, 0, 0, .35);
     --on-accent: #060a1a;
     --me-bg: color-mix(in srgb, var(--accent) 18%, transparent);
 
@@ -169,6 +172,9 @@
     --chips-bg: linear-gradient(180deg, rgba(147, 196, 234, .9), rgba(147, 196, 234, .66));
     --nav-bg: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .18));
     --sheet-bg: linear-gradient(180deg, rgba(247, 251, 255, .97), rgba(226, 240, 253, .99));
+    --toast-bg: linear-gradient(180deg, rgba(247, 251, 255, .97), rgba(226, 240, 253, .99));
+    --toast-drop: 0 8px 22px rgba(24, 60, 100, .16);
+    --code-bg: rgba(255, 255, 255, .62);
     --on-accent: #ffffff;
     --me-bg: rgba(255, 255, 255, .55);
 

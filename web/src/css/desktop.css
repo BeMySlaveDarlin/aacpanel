@@ -108,16 +108,16 @@
 
     .dkib.on { color: var(--accent); background: var(--accent-bg); }
 
-    .deskshell [data-tip] { position: relative; }
-
-    .deskshell [data-tip]::after { contain: layout size; }
-
-    .deskshell [data-tip]::after {
-        content: attr(data-tip);
-        position: absolute;
-        top: calc(100% + 6px);
-        left: 50%;
-        transform: translateX(-50%);
+    /* The one tooltip node of the shell; the script in desktop/tip.js fills
+       it and moves it. Fixed to the viewport and above every column, so no
+       scrolling column clips it and no dimmed button fades it. */
+    .dktip {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 60;
+        width: max-content;
+        max-width: min(26rem, calc(100vw - 16px));
         padding: .22rem .45rem;
         border-radius: var(--r-small);
         background: var(--tipbg);
@@ -126,21 +126,15 @@
         font-family: var(--sans);
         font-size: 12.5px;
         font-weight: 500;
+        line-height: 1.35;
         letter-spacing: 0;
         text-transform: none;
         color: var(--ink);
-        white-space: nowrap;
-        opacity: 0;
+        visibility: hidden;
         pointer-events: none;
-        z-index: 30;
     }
 
-    .deskshell [data-tip][data-tipside="left"]::after {
-        top: 50%;
-        left: auto;
-        right: calc(100% + 6px);
-        transform: translateY(-50%);
-    }
+    .dktip.on { visibility: visible; }
 
     .dkalert {
         font: 600 13px/1 var(--sans);
@@ -1220,10 +1214,11 @@
 
     .dkside { align-self: center; }
 
+    /* Still hoverable: the tip of a switched-off action is the one saying
+       why it is off, and every handler behind it checks for itself. */
     .dkact.off {
         opacity: .38;
         cursor: default;
-        pointer-events: none;
     }
 
     .dktr.wait { opacity: .55; pointer-events: none; }
@@ -1380,7 +1375,6 @@
 .dklogo:hover { background: var(--glass); }
     .dkbrand:hover { color: var(--ink); background: var(--glass); }
     .dkib:hover { color: var(--ink); background: var(--glass); }
-    .deskshell [data-tip]:hover::after { opacity: 1; }
     .dkpickrow:hover { background: var(--glass); color: var(--ink); }
     .dksess:hover { background-color: var(--glass); }
     .dkscroll:hover .dkhint { color: var(--ink-faint); }

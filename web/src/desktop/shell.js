@@ -1,10 +1,11 @@
 // The desktop shell: the section decides what stands left, centre and right.
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { terminalOnScreen, typing } from "../ui/focus.js";
 import { DeskIcon } from "./icons.js";
+import { attachTips } from "./tip.js";
 import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
 import { ChatEmpty } from "../screens/chat/empty.js";
@@ -61,6 +62,10 @@ export function DesktopShell({
     const [picks, setPicks] = useState([]);
     const [settings, setSettings] = useState(false);
     const [order, setOrder] = useState([]);
+
+    const shellRef = useRef(null);
+    const tipRef = useRef(null);
+    useEffect(() => attachTips(shellRef.current, tipRef.current), []);
 
     const profilesReq = useJSON("/api/profiles");
     const probesReq = useJSON("/api/probes");
@@ -200,7 +205,8 @@ export function DesktopShell({
     const wide = section === "home" || section === "devices";
 
     return html`
-        <div class="deskshell">
+        <div class="deskshell" ref=${shellRef}>
+            <div class="dktip" ref=${tipRef} role="tooltip"></div>
             <header class="dktop">
                 <button
                     class="dkbrand"
