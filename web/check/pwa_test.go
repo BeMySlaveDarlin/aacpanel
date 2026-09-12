@@ -134,14 +134,18 @@ for (const world of worlds) {
         addEventListener() {},
         update: () => Promise.resolve(),
     };
-    globalThis.navigator = { serviceWorker: {
+    // Defined rather than assigned: a newer node already owns some of these names
+    // as getters, and a plain assignment to one of those throws.
+    const define = (name, value) =>
+        Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+    define("navigator", { serviceWorker: {
         controller: world.controller ? {} : null,
         register: () => Promise.resolve(registration),
         addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
-    } };
-    globalThis.location = { reload: () => { reloaded = true; } };
-    globalThis.document = { addEventListener() {} };
-    globalThis.window = { addEventListener() {} };
+    } });
+    define("location", { reload: () => { reloaded = true; } });
+    define("document", { addEventListener() {} });
+    define("window", { addEventListener() {} });
     const timers = [];
     globalThis.setTimeout = (fn) => { timers.push(fn); return 0; };
 

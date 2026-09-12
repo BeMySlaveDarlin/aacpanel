@@ -42,11 +42,11 @@ jobs:
       AACP_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The version comes from go.mod: the project is delivered as one image with
       # one toolchain, and a matrix here would check what production never sees.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The collector is deployed from the working tree, so a module that does not
       # import is not a broken screen but a service that never starts.
