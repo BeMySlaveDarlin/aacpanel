@@ -67,10 +67,13 @@ var containerMetrics = map[string]columns{
 }
 
 var hostMetrics = map[string]columns{
-	"cpu":  {raw: "cpu_pct", avg: "cpu_avg", max: "cpu_max"},
-	"load": {raw: "load1", avg: "load1_avg", max: "load1_max"},
-	"mem":  {raw: "mem_used", avg: "mem_used_avg", max: "mem_used_max"},
-	"swap": {raw: "swap_used", avg: "swap_used_avg", max: "swap_used_max"},
+	"cpu":       {raw: "cpu_pct", avg: "cpu_avg", max: "cpu_max"},
+	"load":      {raw: "load1", avg: "load1_avg", max: "load1_max"},
+	"mem":       {raw: "mem_used", avg: "mem_used_avg", max: "mem_used_max"},
+	"swap":      {raw: "swap_used", avg: "swap_used_avg", max: "swap_used_max"},
+	"cpu_temp":  {raw: "cpu_temp", avg: "cpu_temp_avg", max: "cpu_temp_max"},
+	"mem_temp":  {raw: "mem_temp", avg: "mem_temp_avg", max: "mem_temp_max"},
+	"disk_temp": {raw: "disk_temp", avg: "disk_temp_avg", max: "disk_temp_max"},
 }
 
 // ErrBadRequest is a metric or a resolution that does not exist.

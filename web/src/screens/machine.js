@@ -4,7 +4,7 @@ import { useState } from "preact/hooks";
 import { html } from "../html.js";
 import { BackHead } from "../ui/back.js";
 import { Icon } from "../ui/icons.js";
-import { level } from "../format.js";
+import { level, uptime } from "../format.js";
 import { useProbes } from "../alerts.js";
 import { Resources } from "./resources.js";
 import { Probes, probeState } from "./probes.js";
@@ -43,10 +43,12 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], on
     const seen = probes.probes.map(probeState);
     const watched = seen.filter((state) => state !== "off").length;
     const ok = seen.filter((state) => state === "ok").length;
+    const up = uptime(snapshot && snapshot.host && snapshot.host.uptime);
 
     return html`
         <${BackHead} onBack=${onBack} label="to the containers">
             <h2>Machine</h2>
+            ${up && html`<span class="hint">${up}</span>`}
         <//>
 
         <div class="mgrid">

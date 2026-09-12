@@ -33,6 +33,29 @@ func TestDurationsReadAsWritten(t *testing.T) {
 	}
 }
 
+// The processor temperature is watched out of the box, with a margin under
+// the point where the chip throttles itself: a rule at the throttle point
+// would fire when it is already too late to open a window.
+func TestTheConfigWatchesTheProcessorTemperature(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range cfg.Rules {
+		if r.Subject != "host.cpu_temp" {
+			continue
+		}
+		if r.Op != ">" || r.Threshold < 80 || r.Threshold > 95 {
+			t.Errorf("%s: fires at %s %v °C — a margin of a few degrees under the throttle point was expected", r.Key, r.Op, r.Threshold)
+		}
+		if r.For.std() < 5*time.Minute {
+			t.Errorf("%s: holds for %s — a short burst of heat under a build is not a reason to wake the phone", r.Key, r.For.std())
+		}
+		return
+	}
+	t.Error("no rule watches host.cpu_temp: a cooking processor stays silent")
+}
+
 const oneRule = `
 rules:
   - key: host.cpu

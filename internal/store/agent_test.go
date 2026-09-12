@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -363,6 +364,78 @@ func TestAgentProbeRowFollowsTheAgentPG(t *testing.T) {
 		target, interval, timeout, _ := read(t, "test-catchup foreign")
 		if target != "https://example.invalid" || interval != 120 || timeout != 9 {
 			t.Errorf("a service probe was overwritten by the agent: %s/%ds/%ds", target, interval, timeout)
+		}
+	})
+}
+
+func TestAgentSnapshotTemperaturesPG(t *testing.T) {
+	dsn := testdb.DSN(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	s, err := New(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.Open(ctx); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := s.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const hostName = "AGENT-TEMPS-TEST"
+	hostID, err := s.HostID(ctx, hostName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanup := func() { pool.Exec(ctx, "DELETE FROM metrics_host_raw WHERE host_id = $1", hostID) }
+	cleanup()
+	defer cleanup()
+
+	w := NewWriter(s, hostName)
+	write := func(t *testing.T, at time.Time, host string) {
+		t.Helper()
+		w.AgentSnapshot(fmt.Appendf(nil, `{"at": %d, "host": {%s}}`, at.Unix(), host))
+		if !w.flushOne(ctx) {
+			t.Fatal("the batch with the snapshot was not written")
+		}
+	}
+	read := func(t *testing.T, at time.Time) (cpu, mem, disk *float64) {
+		t.Helper()
+		if err := pool.QueryRow(ctx,
+			"SELECT cpu_temp, mem_temp, disk_temp FROM metrics_host_raw WHERE host_id = $1 AND ts = $2",
+			hostID, at).Scan(&cpu, &mem, &disk); err != nil {
+			t.Fatal(err)
+		}
+		return cpu, mem, disk
+	}
+
+	t.Run("every sensor reaches its column", func(t *testing.T) {
+		at := time.Now().Truncate(time.Second)
+		write(t, at, `"cpuPct": 1, "load": [0.1], "mem": {"total": 2, "used": 1},
+			"cpuTemp": 41.5, "memTemp": 35.8, "diskTemp": 42,
+			"diskTemps": [{"name": "nvme0", "model": "Model A", "temp": 42}, {"name": "nvme1", "model": "Model B", "temp": 36}]`)
+		cpu, mem, disk := read(t, at)
+		if cpu == nil || mem == nil || disk == nil {
+			t.Fatalf("cpu=%v mem=%v disk=%v: a temperature the collector sent was dropped on the way to the history", cpu, mem, disk)
+		}
+		near := func(got, want float64) bool { return math.Abs(got-want) < 0.01 }
+		if !near(*cpu, 41.5) || !near(*mem, 35.8) || !near(*disk, 42) {
+			t.Errorf("cpu=%v mem=%v disk=%v, wanted 41.5/35.8/42", *cpu, *mem, *disk)
+		}
+	})
+
+	t.Run("a machine without sensors keeps nulls, not zeroes", func(t *testing.T) {
+		at := time.Now().Truncate(time.Second).Add(-time.Minute)
+		write(t, at, `"cpuPct": 1, "load": [0.1], "mem": {"total": 2, "used": 1}`)
+		cpu, mem, disk := read(t, at)
+		if cpu != nil || mem != nil || disk != nil {
+			t.Errorf("cpu=%v mem=%v disk=%v: a missing sensor was written as a number, and a chart would draw a zero degree line",
+				cpu, mem, disk)
 		}
 	})
 }

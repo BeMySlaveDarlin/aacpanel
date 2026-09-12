@@ -2,7 +2,7 @@
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { area, Chart } from "../chart.js";
-import { ago, bytes, level, pct, plural, rate } from "../format.js";
+import { ago, bytes, degrees, level, pct, plural, rate, uptime, withDegrees } from "../format.js";
 import { OUTCOME } from "../alerts.js";
 import { every, KIND_TITLE, probeState } from "../screens/probes.js";
 import { PROCS_OK, shortCmd, useProcs } from "./panels/procs.js";
@@ -30,9 +30,9 @@ export function MachineCats({ snapshot, probes: fromDB, current, onPick }) {
         probes: probes.length ? `${ok}/${probes.length}` : "0/0",
     };
     const sub = {
-        cpu: `${h.cpus || "?"} cores · load ${(h.load || [])[0] !== undefined ? h.load[0].toFixed(2) : "—"}`,
-        mem: `${bytes(h.mem && h.mem.used)} of ${bytes(h.mem && h.mem.total)}`,
-        disk: `${disks.length} ${plural(disks.length, "partition", "partitions")}`,
+        cpu: withDegrees(`${h.cpus || "?"} cores · load ${(h.load || [])[0] !== undefined ? h.load[0].toFixed(2) : "—"}`, h.cpuTemp),
+        mem: withDegrees(`${bytes(h.mem && h.mem.used)} of ${bytes(h.mem && h.mem.total)}`, h.memTemp),
+        disk: withDegrees(`${disks.length} ${plural(disks.length, "partition", "partitions")}`, h.diskTemp),
         net: `${nets.length} ${plural(nets.length, "interface", "interfaces")}`,
         probes: probes.length ? `${probes.length - ok} silent` : "no probes",
     };
@@ -46,7 +46,7 @@ export function MachineCats({ snapshot, probes: fromDB, current, onPick }) {
         <aside class="dkleft">
             <div class="dkcontour">
                 <span class="dkcontourname">machine</span>
-                <span class="dkcontournum">uptime ${Math.round((h.uptime || 0) / 86400)} d</span>
+                <span class="dkcontournum">${uptime(h.uptime)}</span>
             </div>
             <div class="dkscroll">
                 ${CATS.map((c) => html`
@@ -193,6 +193,7 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
                         <div class="dkcard"><span>free</span><b>${bytes(m.available)}</b></div>
                         <div class="dkcard"><span>total</span><b>${bytes(m.total)}</b></div>
                         <div class="dkcard"><span>swap</span><b>${bytes(m.swapUsed)} of ${bytes(m.swapTotal)}</b></div>
+                        ${h.memTemp != null && html`<div class="dkcard"><span>temperature</span><b>${degrees(h.memTemp)}</b></div>`}
                     </div>
                     <${TopTable} top=${topMem} procs=${procs} kind="mem" fmt=${bytes} />
                 </div>
@@ -223,6 +224,12 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
                                 <span>${d.mount}</span>
                                 <b>${pct(d.pct)}</b>
                                 <span class="dkdbar"><i class=${(d.pct || 0) > 85 ? "hot" : ""} style=${`width:${Math.min(100, d.pct || 0)}%`}></i></span>
+                            </div>
+                        `)}
+                        ${(h.diskTemps || []).map((d) => html`
+                            <div class="dkcard" key=${`temp/${d.name}`} title=${d.model || d.name}>
+                                <span>${d.name}</span>
+                                <b>${degrees(d.temp)}</b>
                             </div>
                         `)}
                     </div>
@@ -283,6 +290,7 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
                     <div class="dkcard"><span>now</span><b>${pct(h.cpuPct)}</b></div>
                     <div class="dkcard"><span>cores</span><b>${h.cpus || "—"}</b></div>
                     <div class="dkcard"><span>load</span><b>${(h.load || []).map((x) => x.toFixed(2)).join(" · ") || "—"}</b></div>
+                    ${h.cpuTemp != null && html`<div class="dkcard"><span>temperature</span><b>${degrees(h.cpuTemp)}</b></div>`}
                 </div>
                 <${TopTable} top=${topCpu} procs=${procs} kind="cpu" fmt=${pct} />
             </div>
@@ -295,7 +303,7 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
                 <div class="dkheadtop">
                     <span class="dkheadname">${title}</span>
                     <span class="dkheadpath">
-                        ${h.cpus || "—"} cores · memory ${bytes(h.mem && h.mem.total)} · uptime ${Math.round((h.uptime || 0) / 86400)} d
+                        ${h.cpus || "—"} cores · memory ${bytes(h.mem && h.mem.total)}${uptime(h.uptime) && ` · ${uptime(h.uptime)}`}
                     </span>
                 </div>
             </div>

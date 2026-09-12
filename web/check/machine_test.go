@@ -170,3 +170,95 @@ func TestLimitsFooterDimsTheOthers(t *testing.T) {
 			"The contour filter may hide it — and then the whole footer goes dim", footer)
 	}
 }
+
+// A temperature line shows up only where a sensor stands behind it: the
+// formatter takes the value as it is and adds nothing for a missing one, and
+// the screens never spell a degree themselves, so there is no place for a
+// zero or a dash to come from.
+func TestTemperatureIsSaidOnlyWithASensor(t *testing.T) {
+	files := srcFiles(t)
+	const formatter = "src/format.js"
+	format := withoutComments(files[formatter])
+	if format == "" {
+		t.Fatalf("%s not found", formatter)
+	}
+	join := jsUntil(t, formatter, format, "export function withDegrees(", "\n}")
+	if !strings.Contains(join, "temp == null ? text") {
+		t.Errorf("%s: withDegrees does not hand the line back untouched for a missing sensor — "+
+			"a machine without one gets a zero or a dash", formatter)
+	}
+
+	for _, path := range sortedKeys(files) {
+		if path == formatter {
+			continue
+		}
+		body := withoutComments(files[path])
+		if strings.Contains(body, "°C") {
+			t.Errorf("%s spells a temperature by itself — the unit lives in %s, one place", path, formatter)
+		}
+		if regexp.MustCompile(`Temps?\s*\|\|\s*0`).MatchString(body) {
+			t.Errorf("%s turns a missing sensor into a zero", path)
+		}
+	}
+
+	tiles := map[string][]string{
+		"src/screens/resources.js": {
+			"withDegrees(`load ${host.load.map((n) => n.toFixed(2)).join(\" · \")}`, host.cpuTemp)",
+			"withDegrees(`${bytes(host.mem.used)} of ${bytes(host.mem.total)}`, host.memTemp)",
+			"withDegrees(`${bytes(root.free)} free`, hottest)",
+			"devices.map((d) => html`",
+		},
+		"src/desktop/machine.js": {
+			"h.cpuTemp)",
+			"h.memTemp)",
+			"h.diskTemp)",
+			"h.cpuTemp != null && html`",
+			"h.memTemp != null && html`",
+			"(h.diskTemps || []).map((d) => html`",
+		},
+	}
+	for path, need := range tiles {
+		body := withoutComments(files[path])
+		if body == "" {
+			t.Fatalf("%s not found", path)
+		}
+		for _, frag := range need {
+			if !strings.Contains(body, frag) {
+				t.Errorf("%s: no %q — a tile says nothing about its temperature even with a sensor", path, frag)
+			}
+		}
+	}
+}
+
+// The uptime is put into words by one formatter: a second arithmetic on the
+// seconds would give the phone "up 3 days 4 h" and the wide screen "3 d".
+func TestUptimeIsSaidByOneFormatter(t *testing.T) {
+	files := srcFiles(t)
+	const formatter = "src/format.js"
+	format := withoutComments(files[formatter])
+	if !strings.Contains(format, "export function uptime(") {
+		t.Fatalf("%s: uptime is not exported — nobody puts the seconds into words", formatter)
+	}
+
+	for _, path := range sortedKeys(files) {
+		if path == formatter {
+			continue
+		}
+		if regexp.MustCompile(`\buptime\b[^\n]*86400`).MatchString(withoutComments(files[path])) {
+			t.Errorf("%s counts days out of the uptime by itself past %s", path, formatter)
+		}
+	}
+	said := map[string][]string{
+		"src/screens/machine.js": {"const up = uptime(", "<span class=\"hint\">${up}</span>"},
+		"src/desktop/machine.js": {"${uptime(h.uptime)}"},
+		"src/desktop/home.js":    {"uptime(h.uptime)"},
+	}
+	for path, need := range said {
+		body := withoutComments(files[path])
+		for _, frag := range need {
+			if !strings.Contains(body, frag) {
+				t.Errorf("%s: no %q — the screen never says how long the machine has been up", path, frag)
+			}
+		}
+	}
+}

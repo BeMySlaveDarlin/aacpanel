@@ -59,6 +59,7 @@ var queries = map[string]query{
 	"host.mem_pct":    {table: "metrics_host_raw", subject: "'host'", value: "100.0 * mem_used / nullif(mem_total, 0)"},
 	"host.load1":      {table: "metrics_host_raw", subject: "'host'", value: "load1"},
 	"host.swap_bytes": {table: "metrics_host_raw", subject: "'host'", value: "swap_used"},
+	"host.cpu_temp":   {table: "metrics_host_raw", subject: "'host'", value: "cpu_temp"},
 	"disk.used_pct":   {table: "metrics_disk_raw", subject: "mount", value: "100.0 * used / nullif(total, 0)"},
 	"session.pct":     {table: "sessions_raw", subject: "name", value: "pct"},
 	"probe.fail_streak": {

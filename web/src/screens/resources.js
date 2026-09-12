@@ -3,7 +3,7 @@ import { useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { NotRecorded, Stale, Trouble } from "../ui/trouble.js";
-import { bytes, level, pct, plural, rate } from "../format.js";
+import { bytes, degrees, level, pct, plural, rate, withDegrees } from "../format.js";
 import { area, Chart, spanRange } from "../chart.js";
 import { Metric } from "../ui/metric.js";
 import { TopList } from "../ui/toplist.js";
@@ -54,6 +54,8 @@ export function Resources({ snapshot, error, ageSec, filter = "all", history = [
 
     const show = (id) => filter === "all" || filter === id;
     const enough = history.length >= MIN_POINTS;
+    const cpuLine = withDegrees(`load ${host.load.map((n) => n.toFixed(2)).join(" · ")}`, host.cpuTemp);
+    const memLine = withDegrees(`${bytes(host.mem.used)} of ${bytes(host.mem.total)}`, host.memTemp);
 
     return html`
         <${Stale} ageSec=${ageSec} />
@@ -67,14 +69,14 @@ export function Resources({ snapshot, error, ageSec, filter = "all", history = [
                 value=${Math.round(host.cpuPct)}
                 unit="%"
                 kind=${level(host.cpuPct)}
-                brief=${`load ${host.load.map((n) => n.toFixed(2)).join(" · ")}`}
+                brief=${cpuLine}
                 hint=${`${host.cpus} ${plural(host.cpus, "core", "cores")}`}
                 subject="host"
                 metric="cpu"
                 top="cpu"
                 yFormat=${(v) => `${Math.round(v)}%`}
                 summary=${html`
-                    <p class="sub">load ${host.load.map((n) => n.toFixed(2)).join(" · ")}</p>
+                    <p class="sub">${cpuLine}</p>
                 `}
                 format=${(s) => `peak over the period: ${peak(s).toFixed(1)}%`}
                 fallback=${enough && html`
@@ -91,13 +93,13 @@ export function Resources({ snapshot, error, ageSec, filter = "all", history = [
                 value=${Math.round(host.mem.pct)}
                 unit="%"
                 kind=${level(host.mem.pct)}
-                brief=${`${bytes(host.mem.used)} of ${bytes(host.mem.total)}`}
+                brief=${memLine}
                 subject="host"
                 metric="mem"
                 top="mem"
                 yFormat=${(v) => fmtBytes(v)}
                 summary=${html`
-                    <p class="numbers">${bytes(host.mem.used)} of ${bytes(host.mem.total)}</p>
+                    <p class="numbers">${memLine}</p>
                     ${host.mem.swapUsed > 0 && html`<p class="sub">swap ${bytes(host.mem.swapUsed)} of ${bytes(host.mem.swapTotal)}</p>`}
                 `}
                 format=${(s) => `peak over the period: ${fmtBytes(peak(s))}`}
@@ -109,7 +111,7 @@ export function Resources({ snapshot, error, ageSec, filter = "all", history = [
         `}
 
         ${show("disks") && html`
-            <${Disks} disks=${host.disks} />
+            <${Disks} disks=${host.disks} temps=${host.diskTemps} hottest=${host.diskTemp} />
         `}
         </div>
 
@@ -197,11 +199,12 @@ function Traffic() {
 
 const TRAFFIC = [{}, area("--accent", "#63a8ff"), area("--accent-2", "#7fe3d4")];
 
-function Disks({ disks }) {
+function Disks({ disks, temps, hottest }) {
     const [open, setOpen] = useState(false);
     const [period, setPeriod] = useState("1h");
 
     const root = (disks || []).find((d) => d.mount === "/") || (disks || [])[0];
+    const devices = temps || [];
 
     return html`
         <section class="card tile" data-open=${open ? "1" : "0"}>
@@ -211,13 +214,19 @@ function Disks({ disks }) {
             </button>
             ${!open && root && html`
                 <div class=${`tval ${level(root.pct)}`}>${Math.round(root.pct)}<s>%</s></div>
-                <p class="tbrief">${bytes(root.free)} free</p>
+                <p class="tbrief">${withDegrees(`${bytes(root.free)} free`, hottest)}</p>
                 <div class="bar"><i class=${level(root.pct)} style=${`width:${Math.min(100, root.pct)}%`}></i></div>
             `}
             ${open && (disks || []).map((disk) => html`
                 <div class="kv" key=${disk.mount}>
                     <span class="k">${disk.mount}</span>
                     <span class="v ${level(disk.pct)}">${pct(disk.pct)} · ${bytes(disk.free)} free</span>
+                </div>
+            `)}
+            ${open && devices.map((d) => html`
+                <div class="kv" key=${d.name}>
+                    <span class="k">${d.name}${d.model ? ` · ${d.model}` : ""}</span>
+                    <span class="v">${degrees(d.temp)}</span>
                 </div>
             `)}
 

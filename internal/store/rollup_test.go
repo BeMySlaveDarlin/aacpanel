@@ -57,9 +57,59 @@ func TestRollupPG(t *testing.T) {
 	}
 	add(time.Now().UTC(), 50, 3000)
 
+	// The host rows carry a temperature in the first minute and none in the
+	// second: a sensor that appears mid-hour must not drag the hourly average
+	// down through the minutes it was absent from.
+	host := func(ts time.Time, cpu float64, temp *float64) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `INSERT INTO metrics_host_raw
+			(ts, host_id, cpu_pct, mem_used, mem_total, cpu_temp) VALUES ($1, $2, $3, 100, 200, $4)`,
+			ts, hostID, cpu, temp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deg := func(v float64) *float64 { return &v }
+	for i := range 6 {
+		host(base.Add(time.Duration(i)*10*time.Second), 10, deg(40+float64(i)*2))
+	}
+	for i := range 2 {
+		host(base.Add(time.Minute+time.Duration(i)*10*time.Second), 100, nil)
+	}
+
 	if err := s.rollupOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
+
+	t.Run("host temperatures roll up like the load", func(t *testing.T) {
+		var avg, peak *float64
+		if err := pool.QueryRow(ctx, `SELECT cpu_temp_avg, cpu_temp_max FROM metrics_host_1m
+			WHERE host_id = $1 AND bucket = $2`, hostID, base).Scan(&avg, &peak); err != nil {
+			t.Fatalf("the host minute bucket: %v", err)
+		}
+		if avg == nil || peak == nil || *avg != 45 || *peak != 50 {
+			t.Errorf("the first minute: temperature avg %v max %v, 45/50 was expected", avg, peak)
+		}
+		if err := pool.QueryRow(ctx, `SELECT cpu_temp_avg, cpu_temp_max FROM metrics_host_1m
+			WHERE host_id = $1 AND bucket = $2`, hostID, base.Add(time.Minute)).Scan(&avg, &peak); err != nil {
+			t.Fatalf("the second host minute bucket: %v", err)
+		}
+		if avg != nil || peak != nil {
+			t.Errorf("the second minute: temperature avg %v max %v, a null was expected — there was no sensor", avg, peak)
+		}
+		if err := pool.QueryRow(ctx, `SELECT cpu_temp_avg, cpu_temp_max FROM metrics_host_1h
+			WHERE host_id = $1 AND bucket = $2`, hostID, base).Scan(&avg, &peak); err != nil {
+			t.Fatalf("the host hourly bucket: %v", err)
+		}
+		if avg == nil || peak == nil {
+			t.Fatalf("the hour: temperature avg %v max %v, numbers were expected", avg, peak)
+		}
+		if *avg != 45 {
+			t.Errorf("cpu_temp_avg over the hour = %v, 45 was expected; 33.75 would mean the sensorless minute weighed in", *avg)
+		}
+		if *peak != 50 {
+			t.Errorf("cpu_temp_max over the hour = %v, 50 was expected", *peak)
+		}
+	})
 
 	type agg struct {
 		cpuAvg, cpuMax float64

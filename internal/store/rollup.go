@@ -61,13 +61,17 @@ var jobs = []job{
 		sql: `
 			INSERT INTO metrics_host_1m
 				(bucket, host_id, cpu_avg, cpu_max, load1_avg, load1_max,
-				 mem_used_avg, mem_used_max, mem_total, swap_used_avg, swap_used_max, samples)
+				 mem_used_avg, mem_used_max, mem_total, swap_used_avg, swap_used_max, samples,
+				 cpu_temp_avg, cpu_temp_max, mem_temp_avg, mem_temp_max, disk_temp_avg, disk_temp_max)
 			SELECT date_trunc('minute', ts), host_id,
 			       avg(cpu_pct)::real, max(cpu_pct),
 			       avg(load1)::real, max(load1),
 			       avg(mem_used)::bigint, max(mem_used), max(mem_total),
 			       avg(swap_used)::bigint, max(swap_used),
-			       count(cpu_pct)
+			       count(cpu_pct),
+			       avg(cpu_temp)::real, max(cpu_temp),
+			       avg(mem_temp)::real, max(mem_temp),
+			       avg(disk_temp)::real, max(disk_temp)
 			FROM metrics_host_raw
 			WHERE ts >= $1 AND ts < $2
 			GROUP BY 1, 2
@@ -78,7 +82,10 @@ var jobs = []job{
 				mem_used_avg = excluded.mem_used_avg, mem_used_max = excluded.mem_used_max,
 				mem_total = excluded.mem_total,
 				swap_used_avg = excluded.swap_used_avg, swap_used_max = excluded.swap_used_max,
-				samples = excluded.samples`,
+				samples = excluded.samples,
+				cpu_temp_avg = excluded.cpu_temp_avg, cpu_temp_max = excluded.cpu_temp_max,
+				mem_temp_avg = excluded.mem_temp_avg, mem_temp_max = excluded.mem_temp_max,
+				disk_temp_avg = excluded.disk_temp_avg, disk_temp_max = excluded.disk_temp_max`,
 	},
 	{
 		name: "container_1h", bucket: time.Hour, window: 12 * time.Hour,
@@ -112,7 +119,8 @@ var jobs = []job{
 		sql: `
 			INSERT INTO metrics_host_1h
 				(bucket, host_id, cpu_avg, cpu_max, load1_avg, load1_max,
-				 mem_used_avg, mem_used_max, mem_total, swap_used_avg, swap_used_max, samples)
+				 mem_used_avg, mem_used_max, mem_total, swap_used_avg, swap_used_max, samples,
+				 cpu_temp_avg, cpu_temp_max, mem_temp_avg, mem_temp_max, disk_temp_avg, disk_temp_max)
 			SELECT date_trunc('hour', bucket), host_id,
 			       (sum(cpu_avg::double precision * samples) / nullif(sum(samples), 0))::real,
 			       max(cpu_max),
@@ -122,7 +130,16 @@ var jobs = []job{
 			       max(mem_used_max), max(mem_total),
 			       (sum(swap_used_avg::double precision * samples) / nullif(sum(samples), 0))::bigint,
 			       max(swap_used_max),
-			       sum(samples)
+			       sum(samples),
+			       (sum(cpu_temp_avg::double precision * samples)
+			           / nullif(sum(samples) FILTER (WHERE cpu_temp_avg IS NOT NULL), 0))::real,
+			       max(cpu_temp_max),
+			       (sum(mem_temp_avg::double precision * samples)
+			           / nullif(sum(samples) FILTER (WHERE mem_temp_avg IS NOT NULL), 0))::real,
+			       max(mem_temp_max),
+			       (sum(disk_temp_avg::double precision * samples)
+			           / nullif(sum(samples) FILTER (WHERE disk_temp_avg IS NOT NULL), 0))::real,
+			       max(disk_temp_max)
 			FROM metrics_host_1m
 			WHERE bucket >= $1 AND bucket < $2
 			GROUP BY 1, 2
@@ -133,7 +150,10 @@ var jobs = []job{
 				mem_used_avg = excluded.mem_used_avg, mem_used_max = excluded.mem_used_max,
 				mem_total = excluded.mem_total,
 				swap_used_avg = excluded.swap_used_avg, swap_used_max = excluded.swap_used_max,
-				samples = excluded.samples`,
+				samples = excluded.samples,
+				cpu_temp_avg = excluded.cpu_temp_avg, cpu_temp_max = excluded.cpu_temp_max,
+				mem_temp_avg = excluded.mem_temp_avg, mem_temp_max = excluded.mem_temp_max,
+				disk_temp_avg = excluded.disk_temp_avg, disk_temp_max = excluded.disk_temp_max`,
 	},
 	{
 		name: "disk_1m", bucket: time.Minute, window: 30 * time.Minute,

@@ -3,7 +3,7 @@ import { useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
-import { pct, plural } from "../format.js";
+import { pct, plural, uptime } from "../format.js";
 import * as usage from "../data/usage.js";
 import { UsageLayer, nextStep } from "./usage/breakdown.js";
 import { Hours } from "./usage/hours.js";
@@ -56,7 +56,7 @@ export function Home({ snapshot, tree, onSection }) {
             label: "Machine",
             icon: Icon.cpu,
             value: pct(h.cpuPct),
-            sub: `memory ${pct(h.mem && h.mem.pct)} · uptime ${Math.round((h.uptime || 0) / 86400)} d`,
+            sub: `memory ${pct(h.mem && h.mem.pct)}${uptime(h.uptime) && ` · ${uptime(h.uptime)}`}`,
         },
     ];
 

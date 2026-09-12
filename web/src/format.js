@@ -93,6 +93,29 @@ export function plural(n, one, many) {
     return n === 1 ? one : many;
 }
 
+// uptime says how long the machine has been up, in the two largest units
+// that matter for the scale: days and hours, or hours and minutes.
+export function uptime(sec) {
+    if (!sec || sec <= 0) return "";
+    const days = Math.floor(sec / 86400);
+    const hours = Math.floor((sec % 86400) / 3600);
+    const minutes = Math.floor((sec % 3600) / 60);
+    if (days > 0) return `up ${days} ${plural(days, "day", "days")}${hours > 0 ? ` ${hours} h` : ""}`;
+    if (hours > 0) return `up ${hours} h${minutes > 0 ? ` ${minutes} min` : ""}`;
+    return `up ${minutes} min`;
+}
+
+export function degrees(value) {
+    return `${Math.round(value)} °C`;
+}
+
+// withDegrees joins a temperature to a line only when there is a sensor
+// behind it: a machine without one gets neither a zero nor a dash, the line
+// simply says less.
+export function withDegrees(text, temp) {
+    return temp == null ? text : `${text} · ${degrees(temp)}`;
+}
+
 export function span(sec) {
     if (!sec || sec <= 0) return "";
     if (sec < 3600) {

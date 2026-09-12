@@ -69,6 +69,14 @@ rules:
     for: 10m
     severity: info
 
+  - key: host.heat
+    name: Processor is running hot
+    subject: host.cpu_temp
+    op: ">"
+    threshold: 85
+    for: 5m
+    severity: warning
+
   - key: disk.filling
     name: Disk is filling up
     subject: disk.used_pct

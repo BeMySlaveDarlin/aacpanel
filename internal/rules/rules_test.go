@@ -143,3 +143,16 @@ func TestDefaultRulesPG(t *testing.T) {
 		}
 	})
 }
+
+func TestEverySourceHasAQuery(t *testing.T) {
+	for key := range Sources {
+		if _, ok := queries[key]; !ok {
+			t.Errorf("source %q is offered to a rule, and the engine has nothing to measure it with", key)
+		}
+	}
+	for key := range queries {
+		if _, ok := Sources[key]; !ok {
+			t.Errorf("the engine measures %q, and no rule can name it", key)
+		}
+	}
+}

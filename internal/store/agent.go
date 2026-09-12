@@ -32,6 +32,17 @@ type hostCore struct {
 		Used     int64 `json:"used"`
 		SwapUsed int64 `json:"swapUsed"`
 	} `json:"mem"`
+
+	// A temperature is a pointer because its absence is a fact of the machine,
+	// not a zero: the collector leaves the key out where there is no sensor,
+	// and the history keeps a null there. The disks are several, and the
+	// history keeps one number for them, the hottest: a rule and a chart ask
+	// whether any disk is cooking, while the screen names each one from the
+	// live snapshot, so a partitioned family of tables per device would serve
+	// a series nobody draws.
+	CPUTemp  *float64 `json:"cpuTemp"`
+	MemTemp  *float64 `json:"memTemp"`
+	DiskTemp *float64 `json:"diskTemp"`
 }
 
 type diskRow struct {
@@ -246,10 +257,12 @@ func (b *agentBatch) write(ctx context.Context, tx pgx.Tx, hostID int) error {
 			load1 = &s.host.Load[0]
 		}
 		batch.Queue(`
-			INSERT INTO metrics_host_raw (ts, host_id, cpu_pct, load1, mem_used, mem_total, swap_used)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO metrics_host_raw
+				(ts, host_id, cpu_pct, load1, mem_used, mem_total, swap_used, cpu_temp, mem_temp, disk_temp)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT DO NOTHING`,
-			b.ts, hostID, s.host.CPUPct, load1, s.host.Mem.Used, s.host.Mem.Total, s.host.Mem.SwapUsed)
+			b.ts, hostID, s.host.CPUPct, load1, s.host.Mem.Used, s.host.Mem.Total, s.host.Mem.SwapUsed,
+			s.host.CPUTemp, s.host.MemTemp, s.host.DiskTemp)
 	}
 
 	for _, d := range s.disks {

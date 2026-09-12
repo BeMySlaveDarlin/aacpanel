@@ -17,6 +17,7 @@ import agent
 from .limits import limits
 from .metrics import cpu_jiffies, disks, mem_info, net_counters, net_link, read
 from .procs import proc_sample, proc_top
+from .thermal import temperatures
 from .workers import (models_snapshot, models_worker, probe_worker,
                       probes_snapshot, sessions_worker)
 
@@ -106,6 +107,7 @@ def main():
                 "home": os.path.expanduser("~"),
                 "load": [float(load1), float(load5), float(load15)],
                 "uptime": int(float(read("/proc/uptime").split()[0])),
+                **temperatures(),
                 "mem": mem_info(),
                 "disks": disks(),
                 "net": sorted(nets, key=lambda n: -(n["rxRate"] + n["txRate"])),

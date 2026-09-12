@@ -50,6 +50,7 @@ var Sources = map[string]Source{
 	"host.mem_pct":        {Key: "host.mem_pct", Title: "Host memory", Unit: "%"},
 	"host.load1":          {Key: "host.load1", Title: "Load average over a minute"},
 	"host.swap_bytes":     {Key: "host.swap_bytes", Title: "Host swap", Unit: "bytes"},
+	"host.cpu_temp":       {Key: "host.cpu_temp", Title: "Processor temperature", Unit: "°C"},
 	"disk.used_pct":       {Key: "disk.used_pct", Title: "Disk used", Unit: "%", Targeted: true},
 	"session.pct":         {Key: "session.pct", Title: "Claude limit spent", Unit: "%", Targeted: true},
 }
