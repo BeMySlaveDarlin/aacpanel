@@ -19,6 +19,12 @@ vet:
 # The directory is made outside /tmp, which is RAM here, and outside the project,
 # where walking tests would find it. Without AACP_TEST_DSN the tests with a
 # database are skipped silently, hence the reminder.
+#
+# GOTEST_FLAGS is for a run that wants the outcome of every test by name — a CI
+# that counts what was skipped, say. The substitution of the home directory is
+# worth more than the convenience of calling go test by hand, so the flags come
+# through here rather than around.
+GOTEST_FLAGS ?=
 test:
 	@test -n "$$AACP_TEST_DSN" || echo "!! AACP_TEST_DSN is not set: the tests with a database will be skipped"
 	@home=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-testhome.XXXXXX"); \
@@ -30,7 +36,7 @@ test:
 	XDG_CACHE_HOME="$$home/.cache" \
 	GOCACHE="$$(go env GOCACHE)" \
 	GOMODCACHE="$$(go env GOMODCACHE)" \
-	go test ./...
+	go test $(GOTEST_FLAGS) ./...
 
 # The agent is deployed from the working tree, so a restart is a release: a name
 # undefined at module level does not break one screen, it keeps the service from
