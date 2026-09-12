@@ -46,13 +46,18 @@ jobs:
 
       # The version comes from go.mod: the project is delivered as one image with
       # one toolchain, and a matrix here would check what production never sees.
-      # The latest patch of it, though, and not the floor written there — the
-      # image is built from the golang:1.26 tag, which is the latest patch too,
-      # and govulncheck reports the standard library of an older one.
+      #
+      # Its latest patch, though, and not the exact line written there. go.mod
+      # holds a floor, setup-go would take it literally, and govulncheck then
+      # reports every fix the standard library has had since — while the image is
+      # built from the golang:1.26 tag and gets those fixes.
+      - name: which go the module asks for
+        id: goline
+        run: echo "spec=$(sed -n 's/^go \([0-9]\+\.[0-9]\+\).*/\1/p' go.mod).x" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
-          check-latest: true
+          go-version: ${{ steps.goline.outputs.spec }}
           cache: true
 
       - name: gofmt
