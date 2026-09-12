@@ -36,6 +36,10 @@ var ceremonies = map[string]ceremony{
 		paths:   []string{"/api/push/key", "/api/push/subscription"},
 		methods: []string{"POST"},
 	},
+	"src/renewal.js": {
+		paths:   []string{"/api/push/key", "/api/push/subscription"},
+		methods: []string{"POST"},
+	},
 	"src/data/usage.js": {
 		paths:   []string{"/api/usage/"},
 		methods: []string{"POST"},

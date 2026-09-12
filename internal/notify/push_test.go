@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -173,6 +174,8 @@ func TestDeliverDropsDeadSubscription(t *testing.T) {
 			calls++
 			w.WriteHeader(code)
 		})
+		journal := newJournal()
+		s.UseJournal(journal)
 
 		s.deliver(context.Background(), testMessage())
 
@@ -186,6 +189,29 @@ func TestDeliverDropsDeadSubscription(t *testing.T) {
 		if calls != 1 {
 			t.Fatalf("code %d: %d attempts, there is no point retrying a dead subscription", code, calls)
 		}
+
+		note, ok := journal.rows["push:1"]
+		if !ok {
+			t.Fatalf("code %d: the death is not written down — the row is gone and the screen of the device still says \"on\", nothing else says when the device stopped getting pushes: %v", code, journal.rows)
+		}
+		if !strings.Contains(note.Body, strconv.Itoa(code)) {
+			t.Errorf("code %d: the note does not say what the push service answered: %q", code, note.Body)
+		}
+		if note.Domain != domainPush {
+			t.Errorf("code %d: the note is filed under %q — the tracker clears any domain somebody reports on", code, note.Domain)
+		}
+	}
+}
+
+func TestDeliverWithoutJournalStillDropsDeadSubscription(t *testing.T) {
+	s, store, _ := stand(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusGone)
+	})
+
+	s.deliver(context.Background(), testMessage())
+
+	if dropped, _, _ := store.counts(); dropped != 1 {
+		t.Fatal("without a database for the notes the subscription is not removed")
 	}
 }
 

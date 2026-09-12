@@ -287,6 +287,7 @@ func newStandWith(t *testing.T, devices Storage) *stand {
 
 	mux := http.NewServeMux()
 	mux.Handle("POST /api/enroll/code", guarded(pk.IssueCode))
+	mux.Handle("GET /api/push/subscription", guarded(pk.Subscription))
 	mux.Handle("POST /api/push/subscription", guarded(pk.Subscribe))
 	mux.Handle("DELETE /api/push/subscription", guarded(pk.Unsubscribe))
 	mux.HandleFunc("POST /auth/passkey/register/begin", pk.BeginRegister)

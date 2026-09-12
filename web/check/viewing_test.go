@@ -182,18 +182,9 @@ func TestViewingMarkKeepsOneOfflineSnapshot(t *testing.T) {
 	if err != nil {
 		t.Skip("node not found: the cache key is run by the engine, not by reading the source")
 	}
-	path, err := filepath.Abs(filepath.Join(webDir, "src", "sw.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	script := `
-import { readFileSync } from "node:fs";
-
 const ORIGIN = "https://panel.example";
-const src = readFileSync(` + jsString(path) + `, "utf8")
-    .replaceAll("__VERSION__", JSON.stringify("test"))
-    .replaceAll("__ASSETS__", "[]");
-const boot = new Function("self", "caches", "fetch", src);
+const boot = new Function("self", "caches", "fetch", ` + jsString(builtWorker(t)) + `);
 
 const store = new Map();
 const at = (req) => {

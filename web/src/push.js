@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 
-function toKey(base64) {
-    const pad = base64.replace(/-/g, "+").replace(/_/g, "/");
-    const raw = atob(pad + "=".repeat((4 - (pad.length % 4)) % 4));
-    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-}
+import { toKey } from "./pushkey.js";
+
+const KEY_URL = "/api/push/key";
+const SUBSCRIPTION_URL = "/api/push/subscription";
 
 export function supported() {
     return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -27,7 +26,10 @@ export function usePush() {
         }
         navigator.serviceWorker.ready
             .then((reg) => reg.pushManager.getSubscription())
-            .then((sub) => setState(sub ? "on" : "off"))
+            .then((sub) => {
+                setState(sub ? "on" : "off");
+                if (sub) return tellServer(sub);
+            })
             .catch(() => setState("off"));
     }, []);
 
@@ -41,7 +43,7 @@ export function usePush() {
                 return;
             }
 
-            const keyResponse = await fetch("/api/push/key", { credentials: "same-origin" });
+            const keyResponse = await fetch(KEY_URL, { credentials: "same-origin" });
             if (keyResponse.status === 503) {
                 throw new Error("the server is not ready to hand out keys yet, try again in a minute");
             }
@@ -54,12 +56,7 @@ export function usePush() {
                 applicationServerKey: toKey(key),
             });
 
-            const saved = await fetch("/api/push/subscription", {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(subscription),
-            });
+            const saved = await save(subscription);
             if (!saved.ok) throw new Error(await message(saved));
 
             setState("on");
@@ -78,6 +75,39 @@ export function usePush() {
     }, []);
 
     return { state, error, busy, enable, forget };
+}
+
+// tellServer makes sure the server holds the subscription the browser holds.
+// The browser rotates it when the worker is replaced, and the worker's own
+// handler for that can be missed — the worker was stopped, the page was
+// closed — so a subscription the server does not know, or knows under another
+// endpoint, is posted again on every start, quietly: the screen already says
+// "on", and that is true of the browser side. A server that cannot answer,
+// or a session that cannot carry a subscription, leaves things as they are.
+// Returns whether the subscription was posted.
+export async function tellServer(subscription) {
+    try {
+        const known = await fetch(SUBSCRIPTION_URL, { credentials: "same-origin" });
+        if (known.ok) {
+            const { endpoint } = await known.json();
+            if (endpoint === subscription.endpoint) return false;
+        } else if (known.status !== 404) {
+            return false;
+        }
+        const saved = await save(subscription);
+        return saved.ok;
+    } catch (err) {
+        return false;
+    }
+}
+
+function save(subscription) {
+    return fetch(SUBSCRIPTION_URL, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription),
+    });
 }
 
 async function message(response) {

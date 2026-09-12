@@ -89,11 +89,43 @@ func TestSubscribeRejectsBadPayload(t *testing.T) {
 	}
 }
 
+func TestSubscriptionIsToldWithoutSecrets(t *testing.T) {
+	s := newStand(t)
+	c, _ := s.registerFirst(t, newSoftKey(t), "phone")
+
+	if code, body := s.do(t, c, "GET", "/api/push/subscription", nil); code != http.StatusNotFound {
+		t.Fatalf("a device without a subscription was answered %d %s, want 404 — the page reads it as \"post yours\"", code, body)
+	}
+
+	const endpoint = "https://push.example.net/abc"
+	if code, body := s.do(t, c, "POST", "/api/push/subscription", pushBody(t, endpoint)); code != http.StatusNoContent {
+		t.Fatalf("subscribe: %d %s", code, body)
+	}
+
+	code, body := s.do(t, c, "GET", "/api/push/subscription", nil)
+	if code != http.StatusOK {
+		t.Fatalf("the subscription was answered %d %s", code, body)
+	}
+	var told map[string]any
+	if err := json.Unmarshal(body, &told); err != nil {
+		t.Fatalf("the answer did not parse: %v: %s", err, body)
+	}
+	if told["endpoint"] != endpoint {
+		t.Errorf("the endpoint told is %v, want %s", told["endpoint"], endpoint)
+	}
+	if len(told) != 1 {
+		t.Errorf("the answer carries more than the endpoint — the keys stay on the server: %s", body)
+	}
+}
+
 func TestSubscribeNeedsSession(t *testing.T) {
 	s := newStand(t)
 	body := pushBody(t, "https://push.example.net/abc")
 	if code, _ := s.do(t, s.client(t), "POST", "/api/push/subscription", body); code != http.StatusUnauthorized {
 		t.Fatalf("subscribe without a session: %d", code)
+	}
+	if code, _ := s.do(t, s.client(t), "GET", "/api/push/subscription", nil); code != http.StatusUnauthorized {
+		t.Fatalf("asking for the subscription without a session: %d", code)
 	}
 	if code, _ := s.do(t, s.client(t), "DELETE", "/api/push/subscription", nil); code != http.StatusUnauthorized {
 		t.Fatalf("unsubscribe without a session: %d", code)

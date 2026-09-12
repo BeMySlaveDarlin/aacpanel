@@ -197,6 +197,37 @@ func (p *Passkey) Subscribe(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Subscription tells which push subscription the server holds for the current
+// device — the endpoint alone. The page compares it with what the browser
+// holds and posts the subscription again when they part; the keys never leave
+// the server, the browser has its own copy anyway.
+func (p *Passkey) Subscription(w http.ResponseWriter, r *http.Request) {
+	if !p.Enabled() {
+		fail(w, http.StatusServiceUnavailable, "passkey is unavailable: there is no device database")
+		return
+	}
+	device, ok := p.pushDevice(w, r)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := ctxTimeout(r.Context())
+	defer cancel()
+
+	list, err := p.store.Subscriptions(ctx)
+	if err != nil {
+		dbFail(w, err, "the database could not be reached")
+		return
+	}
+	for _, sub := range list {
+		if sub.Device == device {
+			writeJSON(w, http.StatusOK, map[string]string{"endpoint": sub.Endpoint})
+			return
+		}
+	}
+	fail(w, http.StatusNotFound, "this device has no push subscription")
+}
+
 // Unsubscribe drops the push subscription of the current device.
 func (p *Passkey) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 	if !p.Enabled() {

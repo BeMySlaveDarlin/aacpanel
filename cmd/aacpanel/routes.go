@@ -123,6 +123,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("DELETE /api/devices/{id}", g.page(s.passkey.RevokeDevice))
 	mux.Handle("POST /api/enroll/code", g.page(s.passkey.IssueCode))
 	mux.Handle("GET /api/push/key", g.page(s.apiPushKey))
+	mux.Handle("GET /api/push/subscription", g.page(s.passkey.Subscription))
 	mux.Handle("POST /api/push/subscription", g.page(s.passkey.Subscribe))
 	mux.Handle("DELETE /api/push/subscription", g.page(s.passkey.Unsubscribe))
 	mux.Handle("POST /api/push/test", g.page(s.apiPushTest))

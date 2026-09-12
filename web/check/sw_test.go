@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	esbuild "github.com/evanw/esbuild/pkg/api"
+
+	"aacpanel/internal/webbuild"
 )
 
 func TestWorkerTakesCodeFromNearestPanel(t *testing.T) {
@@ -171,24 +175,49 @@ type swRun struct {
 	Cached []string `json:"cached"`
 }
 
+// builtWorker bundles the service worker the way the release does: the worker
+// imports a module of its own, so its source is not a script until esbuild has
+// been over it.
+func builtWorker(t *testing.T) string {
+	t.Helper()
+	root, err := webbuild.FindRoot(".")
+	if err != nil {
+		t.Fatalf("repository root: %v", err)
+	}
+	alias, err := webbuild.Aliases(root)
+	if err != nil {
+		t.Fatalf("map of vendored libraries: %v", err)
+	}
+	entry, err := filepath.Abs(filepath.Join(webDir, "src", "sw.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	built := esbuild.Build(esbuild.BuildOptions{
+		EntryPoints: []string{entry},
+		Bundle:      true,
+		Format:      esbuild.FormatIIFE,
+		Platform:    esbuild.PlatformBrowser,
+		Alias:       alias,
+		Define:      map[string]string{"__VERSION__": `"test"`, "__ASSETS__": "[]"},
+		Write:       false,
+	})
+	if len(built.Errors) > 0 {
+		t.Fatalf("sw.js did not build: %v", built.Errors[0].Text)
+	}
+	return string(built.OutputFiles[0].Contents)
+}
+
 func runWorker(t *testing.T, worlds []swWorld) []swRun {
 	t.Helper()
 	node, err := exec.LookPath("node")
 	if err != nil {
 		t.Skip("node not found: the route of the statics is run by the engine, not by reading the source")
 	}
-	path, err := filepath.Abs(filepath.Join(webDir, "src", "sw.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	script := `
 import { readFileSync } from "node:fs";
 
 const ORIGIN = "https://panel.example";
-const src = readFileSync(` + jsString(path) + `, "utf8")
-    .replaceAll("__VERSION__", JSON.stringify("test"))
-    .replaceAll("__ASSETS__", "[]");
-const boot = new Function("self", "caches", "fetch", src);
+const boot = new Function("self", "caches", "fetch", ` + jsString(builtWorker(t)) + `);
 
 const worlds = JSON.parse(readFileSync(0, "utf8"));
 const at = (req) => {

@@ -303,6 +303,7 @@ func run() error {
 		go rules.NewEngine(db, hostName).Run(ctx)
 		go probes.New(db).Run(ctx)
 		push.UseViews(db.SessionViews())
+		push.UseJournal(db.PushJournal())
 		go push.Run(ctx)
 		srv.watch = newWatcher(srv, db.PushJournal())
 		go srv.watch.Run(ctx)

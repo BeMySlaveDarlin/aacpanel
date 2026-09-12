@@ -112,6 +112,7 @@ type Sender struct {
 	client  *http.Client
 	queue   chan Message
 	views   Views
+	journal Journal
 
 	ready chan struct{}
 	once  sync.Once
@@ -290,6 +291,7 @@ func (s *Sender) deliverTo(ctx context.Context, sub Subscription, m Message, pay
 			if err := s.store.DropSubscription(dropCtx, sub.Device); err != nil {
 				log.Printf("notify: deleting the subscription of %d: %v", sub.Device, err)
 			}
+			s.bury(dropCtx, sub.Device, status)
 			cancel()
 			return
 
@@ -372,6 +374,34 @@ func (s *Sender) post(ctx context.Context, sub Subscription, m Message, payload 
 		}
 	}
 	return resp.StatusCode, retry, nil
+}
+
+const domainPush = "push"
+
+// UseJournal plugs in the memory of reasons: a subscription the push service
+// declared dead is written down there.
+func (s *Sender) UseJournal(j Journal) { s.journal = j }
+
+// bury writes down that the push service declared the subscription dead. The
+// row itself is removed right after, and the screen of the device still says
+// "on" — the browser side is alive — so this note is the only trace of when
+// and why a device stopped getting pushes. It is kept under the key of the
+// device, and the next death of the same device overwrites it; the tracker
+// leaves it alone, as nobody reports on this domain.
+func (s *Sender) bury(ctx context.Context, device int64, status int) {
+	if s.journal == nil {
+		return
+	}
+	e := Event{
+		Key:      "push:" + strconv.FormatInt(device, 10),
+		Domain:   domainPush,
+		Title:    fmt.Sprintf("device %d lost its push subscription", device),
+		Body:     fmt.Sprintf("the push service answered %d, the subscription was removed", status),
+		Severity: Warning,
+	}
+	if err := s.journal.Raise(ctx, e); err != nil {
+		log.Printf("notify: the death of the subscription of %d was not written down: %v", device, err)
+	}
 }
 
 func (s *Sender) note(ctx context.Context, device int64, reason string) {

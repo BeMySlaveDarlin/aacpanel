@@ -1,3 +1,5 @@
+import { renew } from "./renewal.js";
+
 const VERSION = __VERSION__;
 const ASSETS = __ASSETS__;
 
@@ -97,6 +99,15 @@ self.addEventListener("push", (event) => {
         badge: "/static/icons/icon-192.png",
         data: { severity: payload.severity, ts: payload.ts },
     }));
+});
+
+// The browser rotates the push subscription when the worker is replaced, and a
+// new worker travels with every release. Without this handler the server keeps
+// sending to the old endpoint, the push service answers that it is gone, and the
+// server removes the device — while the browser still holds a live subscription
+// and the screen says "on".
+self.addEventListener("pushsubscriptionchange", (event) => {
+    event.waitUntil(renew(self.registration));
 });
 
 self.addEventListener("notificationclick", (event) => {
