@@ -204,6 +204,23 @@ is applied once in the life of a database: a role created after the roll-out
 would never have got anything. The grant step comes after the migrations, every
 time, and brings the role's rights to the set declared in the code.
 
+**What the panel watches is a config, not a seed.** The alert rules and the
+probes the container runs live in `internal/watchcfg/config.yaml`, built into
+the binary beside the migrations. At startup the service brings the database to
+that file: a record is created or updated, and one that has lost its entry there
+is disabled. Changing a threshold or a wording costs a line and a rebuild, where
+a seed in a migration would cost a new migration every time.
+
+Records are matched by a key, not by a name. The name is a label on the screen
+and is free to change; the key is the identity and outlives every rename, which
+is what keeps a rule's alerts attached to it. Nothing outside the file is
+deleted, either: alerts reference their rule with `ON DELETE CASCADE`, so a rule
+that leaves the config is switched off and its history stays.
+
+Probes have a second source and the config does not reach it. The ones the
+collector on the host sends arrive by name, carry no key, and are neither
+updated nor disabled by the synchronisation.
+
 Only the service writes to the database. The executor does not reach it at all.
 
 ---

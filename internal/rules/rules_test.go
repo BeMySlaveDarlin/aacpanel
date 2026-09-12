@@ -113,8 +113,8 @@ func TestDefaultRulesPG(t *testing.T) {
 	}
 
 	t.Run("the schema does not accept a rule with no hold", func(t *testing.T) {
-		_, err := pool.Exec(ctx, `INSERT INTO rules (name, subject, op, threshold, for_sec, severity)
-			VALUES ('no hold', 'host.cpu_pct', '>', 90, 0, 'warning')`)
+		_, err := pool.Exec(ctx, `INSERT INTO rules (key, name, subject, op, threshold, for_sec, severity)
+			VALUES ('test.nohold', 'no hold', 'host.cpu_pct', '>', 90, 0, 'warning')`)
 		if err == nil {
 			pool.Exec(ctx, "DELETE FROM rules WHERE name = 'no hold'")
 			t.Fatal("a rule with a zero hold was written")

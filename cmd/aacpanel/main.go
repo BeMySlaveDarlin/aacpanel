@@ -28,6 +28,7 @@ import (
 	"aacpanel/internal/store"
 	"aacpanel/internal/termlink"
 	"aacpanel/internal/usage"
+	"aacpanel/internal/watchcfg"
 	"aacpanel/web"
 )
 
@@ -298,6 +299,7 @@ func run() error {
 		}()
 		go writer.Run(ctx)
 		go recordHost(ctx, srv.host, writer)
+		go watchcfg.Apply(ctx, db)
 		go rules.NewEngine(db, hostName).Run(ctx)
 		go probes.New(db).Run(ctx)
 		push.UseViews(db.SessionViews())

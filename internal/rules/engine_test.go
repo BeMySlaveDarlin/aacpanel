@@ -43,8 +43,8 @@ func TestEnginePG(t *testing.T) {
 	defer cleanup()
 
 	var ruleID int
-	if err := pool.QueryRow(ctx, `INSERT INTO rules (name, subject, op, threshold, for_sec, severity)
-		VALUES ('test: cpu', 'host.cpu_pct', '>', 90, 60, 'warning') RETURNING id`).Scan(&ruleID); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO rules (key, name, subject, op, threshold, for_sec, severity)
+		VALUES ('test.cpu', 'test: cpu', 'host.cpu_pct', '>', 90, 60, 'warning') RETURNING id`).Scan(&ruleID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -213,8 +213,8 @@ func TestEnginePG(t *testing.T) {
 
 	t.Run("a stack that went down carries a suggested action", func(t *testing.T) {
 		var stackRule int
-		if err := pool.QueryRow(ctx, `INSERT INTO rules (name, subject, op, threshold, for_sec, severity)
-			VALUES ('test: stack', 'stack.running_pct', '=', 0, 60, 'warning') RETURNING id`).Scan(&stackRule); err != nil {
+		if err := pool.QueryRow(ctx, `INSERT INTO rules (key, name, subject, op, threshold, for_sec, severity)
+			VALUES ('test.stack', 'test: stack', 'stack.running_pct', '=', 0, 60, 'warning') RETURNING id`).Scan(&stackRule); err != nil {
 			t.Fatal(err)
 		}
 		now := time.Now()

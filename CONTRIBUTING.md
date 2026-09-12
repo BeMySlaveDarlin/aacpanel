@@ -192,6 +192,16 @@ in a new migration.
 
 The production database is changed only by a migration and only after a backup.
 
+**A rule or a probe is not a migration.** What the panel watches is described in
+`internal/watchcfg/config.yaml`, and the service brings the database to that
+file at every startup. Changing a wording, a threshold, a hold or an interval is
+a change of that file and a rebuild. A migration is for the shape of a table, not
+for what stands in it.
+
+Removing an entry from the file switches the record off; it does not delete it.
+To add one, give it a key that is not taken — the key is the identity and is
+never reused for something else, since a rule's alerts hang off it.
+
 ---
 
 ## Dependencies

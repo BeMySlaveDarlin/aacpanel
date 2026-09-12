@@ -1,0 +1,165 @@
+# What the panel watches out of the box: the alert rules and the probes it runs
+# from the container.
+#
+# This file is the source of truth. On startup the panel brings the database to
+# it by key: a record is created or updated, and one that has lost its entry
+# here is disabled rather than deleted — the alert history hangs off the rule.
+#
+# The key is what identifies a record forever; the name is only a label on the
+# screen and can be rewritten freely. Changing a key orphans the history, so
+# treat it as permanent.
+#
+# The subject of a rule has to be one of rules.Sources, and the hold cannot be
+# shorter than rules.MinForSec: a momentary spike is no reason to wake the phone.
+
+rules:
+  - key: container.cpu
+    name: Container eats CPU
+    subject: container.cpu_pct
+    op: ">"
+    threshold: 90
+    for: 5m
+    severity: warning
+
+  - key: container.memory
+    name: Container hit its RAM limit
+    subject: container.mem_pct
+    op: ">"
+    threshold: 90
+    for: 5m
+    severity: warning
+
+  - key: container.unhealthy
+    name: Container is unhealthy
+    subject: container.unhealthy
+    op: "="
+    threshold: 1
+    for: 2m
+    severity: warning
+
+  - key: host.cpu
+    name: Host CPU is loaded
+    subject: host.cpu_pct
+    op: ">"
+    threshold: 90
+    for: 10m
+    severity: warning
+
+  - key: host.memory
+    name: Host memory is running out
+    subject: host.mem_pct
+    op: ">"
+    threshold: 90
+    for: 10m
+    severity: warning
+
+  - key: host.swap
+    name: Host went into swap
+    subject: host.swap_bytes
+    op: ">"
+    threshold: 1073741824
+    for: 10m
+    severity: warning
+
+  - key: host.load
+    name: CPU run queue
+    subject: host.load1
+    op: ">"
+    threshold: 32
+    for: 10m
+    severity: info
+
+  - key: disk.filling
+    name: Disk is filling up
+    subject: disk.used_pct
+    op: ">"
+    threshold: 85
+    for: 10m
+    severity: warning
+
+  - key: disk.full
+    name: Disk is almost full
+    subject: disk.used_pct
+    op: ">"
+    threshold: 95
+    for: 5m
+    severity: critical
+
+  - key: session.limit
+    name: The claude limit is running out
+    subject: session.pct
+    op: ">"
+    threshold: 85
+    for: 5m
+    severity: warning
+
+  - key: stack.down
+    name: The whole stack is down
+    subject: stack.running_pct
+    op: "="
+    threshold: 0
+    for: 15m
+    severity: warning
+
+  - key: probe.failing
+    name: A probe keeps failing
+    subject: probe.fail_streak
+    op: ">="
+    threshold: 3
+    for: 10s
+    severity: warning
+
+# Only the probes the container runs itself belong here. The ones the collector
+# on the host sends arrive by name, carry no key and are left alone.
+#
+# An http probe is a liveness check, not a login: expectStatus is the answer a
+# healthy endpoint gives to an unauthenticated request, so 401 and 404 are the
+# normal outcome for several of these.
+probes:
+  - key: api.anthropic
+    name: API Anthropic
+    kind: http
+    target: https://api.anthropic.com/v1/models
+    interval: 1m
+    timeout: 5s
+    expectStatus: 401
+
+  - key: api.google
+    name: API Google
+    kind: http
+    target: https://www.googleapis.com/generate_204
+    interval: 1m
+    timeout: 5s
+    expectStatus: 204
+
+  - key: api.telegram
+    name: API Telegram
+    kind: http
+    target: https://api.telegram.org/bot/getMe
+    interval: 1m
+    timeout: 5s
+    expectStatus: 404
+
+  - key: api.openai
+    name: API OpenAI
+    kind: http
+    target: https://api.openai.com/v1/models
+    interval: 1m
+    timeout: 5s
+    expectStatus: 401
+
+  - key: status.anthropic
+    name: Anthropic status
+    kind: status
+    target: https://status.claude.com/api/v2/summary.json
+    interval: 5m
+    timeout: 5s
+    components: Claude API (api.anthropic.com), Claude Code
+
+  - key: status.openai
+    name: OpenAI status
+    kind: status
+    target: https://status.openai.com/api/v2/summary.json
+    interval: 5m
+    timeout: 5s
+    components: Codex API
