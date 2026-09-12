@@ -5,17 +5,23 @@
     padding-bottom: var(--deck-gap);
 }
 
+/* The row fills from the right edge and grows leftwards: the thumb reaches that
+   side, and the composer keeps its own buttons there. The space it leaves on the
+   left is where buttons of its own are to go. */
 .deck {
     flex: 0 0 auto;
     display: flex;
     align-items: flex-start;
+    justify-content: flex-end;
     gap: .4rem;
     margin-top: calc(var(--deck-gap) - var(--body-gap));
 }
-.deck > .wchips { flex: 1 1 auto; min-width: 0; }
+.deck > .wchips { flex: 0 1 auto; min-width: 0; }
 
-.wchips { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; }
-.deckright { flex: none; margin-left: auto; display: flex; align-items: center; gap: .35rem; min-width: 34px; }
+/* One line, never two: the whole row holds four narrow chips at most, and the
+   right-hand group takes the width it needs to the left instead of wrapping. */
+.wchips { display: flex; align-items: center; flex-wrap: nowrap; gap: .35rem; }
+.deckright { flex: none; display: flex; align-items: center; gap: .35rem; min-width: 34px; }
 
 .workbar {
     flex: 0 0 auto;

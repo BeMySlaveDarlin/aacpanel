@@ -106,6 +106,32 @@ func TestGapsUnderComposerComeFromOneNumber(t *testing.T) {
 		t.Errorf("%s: the gap up to the button row does not subtract what the page already gave "+
 			"as the shared gap — the sum is not the number written here: %s", cssFile, deck)
 	}
+
+	if !strings.Contains(deck, "justify-content: flex-end") {
+		t.Errorf("%s: the row under the composer no longer fills from the right edge — the "+
+			"chips end up on the side the thumb does not reach, and the left, which is being "+
+			"kept free for buttons of its own, is taken: %s", cssFile, deck)
+	}
+
+	chips := cssBlock(t, css, ".deck > .wchips")
+	if strings.Contains(chips, "flex: 1") {
+		t.Errorf("%s: the chip group stretches across the width again, which pushes it off "+
+			"the right edge and leaves a gap in the middle of the row: %s", cssFile, chips)
+	}
+
+	// The selector is matched as a substring, and ".wchips" alone finds the rule
+	// scoped to the deck first; the newline pins it to the shared one.
+	all := cssBlock(t, css, "\n.wchips")
+	if !strings.Contains(all, "flex-wrap: nowrap") {
+		t.Errorf("%s: the chips wrap onto a second line instead of the group taking the width "+
+			"it needs to the left, and a wrapped row aligned right comes out ragged: %s", cssFile, all)
+	}
+
+	right := cssBlock(t, css, ".deckright")
+	if strings.Contains(right, "margin-left: auto") {
+		t.Errorf("%s: the right-hand group still pushes itself off with a margin, which drives "+
+			"the chips back to the left edge: %s", cssFile, right)
+	}
 }
 
 func TestKeyboardResizesTheWindowNotTheView(t *testing.T) {
