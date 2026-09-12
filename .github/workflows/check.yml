@@ -46,9 +46,13 @@ jobs:
 
       # The version comes from go.mod: the project is delivered as one image with
       # one toolchain, and a matrix here would check what production never sees.
+      # The latest patch of it, though, and not the floor written there — the
+      # image is built from the golang:1.26 tag, which is the latest patch too,
+      # and govulncheck reports the standard library of an older one.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+          check-latest: true
           cache: true
 
       - name: gofmt
