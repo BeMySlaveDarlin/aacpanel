@@ -160,6 +160,53 @@
 
 .chatfeed > * { flex: 0 0 auto; }
 
+/* The jump to the end of a scrolled-up feed. It is the last child of the feed
+   and sticks to the feed's bottom edge: that edge is what stays above the
+   composer, the chips and whatever else stands under the feed on any screen,
+   so the button never covers them. The negative margin gives back the height
+   and the column gap it would take in flow, so the feed has the same scroll
+   height with the button and without it; scroll anchoring is told to look
+   past it for the same reason. It is drawn only while the feed is away from
+   its end, and the feed at its end is exactly what it was without it. */
+.feedjump {
+    --feedjump-size: 36px;
+    position: sticky;
+    bottom: .5rem;
+    align-self: flex-end;
+    z-index: 2;
+    width: var(--feedjump-size);
+    height: var(--feedjump-size);
+    margin-top: calc(-1 * (var(--feedjump-size) + .5rem));
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-small);
+    background: var(--glass);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    box-shadow: var(--hairline), var(--drop), var(--gloss);
+    color: var(--ink-dim);
+    opacity: .88;
+    display: grid;
+    place-items: center;
+    overflow-anchor: none;
+    cursor: pointer;
+    animation: feedjump-in .18s ease-out;
+}
+.feedjump svg { width: 18px; height: 18px; transform: rotate(90deg); }
+.feedjump:active { background: var(--glass-2); color: var(--ink); }
+
+@keyframes feedjump-in {
+    from { opacity: 0; transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) { .feedjump { animation: none; } }
+
+/* With nothing under the feed on the phone, its edge is the edge of the screen,
+   and the button has to clear the home indicator. */
+.body > .chatfeed:not(:has(~ .composerbox)) .feedjump {
+    bottom: calc(.5rem + env(safe-area-inset-bottom));
+}
+
 .chatnone { display: none; }
 
 @media (min-width: 1100px) {

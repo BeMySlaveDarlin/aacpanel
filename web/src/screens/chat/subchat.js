@@ -6,7 +6,7 @@ import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
 import { rows, runCalls, weld } from "./feed.js";
-import { useFeedWindow } from "./feedwindow.js";
+import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { Row } from "./rows.js";
 import { Calls } from "./calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./look.js";
@@ -29,7 +29,7 @@ export function subFeedId(session, agentId) {
 // SubChat renders the feed of an agent.
 export function SubChat({ session, id, agent, live, onBack }) {
     const toast = useToast();
-    const { state, more, feedRef, topRef, onScroll } = useFeedWindow({ name: session, id, live });
+    const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({ name: session, id, live });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
 
@@ -82,6 +82,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
                 onCalls=${() => setCalls(runCalls(feed, item.run))}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
             />`)}
+            ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>

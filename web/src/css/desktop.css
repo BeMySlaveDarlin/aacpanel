@@ -1388,6 +1388,7 @@
     .dkarch:hover { background: var(--glass); }
     .dkcat:hover { background-color: var(--glass); }
     .dkjump:hover { background: var(--glass-2); }
+    .feedjump:hover { color: var(--ink); background: var(--glass-2); }
     .dkact.off:hover { background: var(--glass); border-color: var(--edge); color: var(--ink-dim); }
     .dkadd:hover { background: var(--glass); }
 

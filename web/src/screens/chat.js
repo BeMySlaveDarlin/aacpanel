@@ -11,7 +11,7 @@ import { Ask } from "./ask.js";
 import { Permit } from "./chat/permit.js";
 import { ago } from "../format.js";
 import { closed, rows, runCalls, sameReply, weld } from "./chat/feed.js";
-import { useFeedWindow } from "./chat/feedwindow.js";
+import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { Row } from "./chat/rows.js";
 import { Calls } from "./chat/calls.js";
@@ -35,7 +35,7 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
-    const { state, more, feedRef, topRef, onScroll } = useFeedWindow({
+    const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({
         name, id, live: live && !sub,
     });
     const [calls, setCalls] = useState(null);
@@ -196,6 +196,7 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
                 onFile=${(file) => setLook({ kind: "file", ...file })}
             />`)}
             ${local.map((row) => html`<${Row} key=${`local-${row.key}`} item=${row} />`)}
+            ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
         `}
         ${live && !hasWork(state.work, live.status === "busy") && live.lastRequestAt && html`

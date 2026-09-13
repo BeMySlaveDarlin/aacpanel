@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { html } from "../../html.js";
+import { Icon } from "../../ui/icons.js";
 import { merge } from "./feed.js";
 import { idParam } from "./api.js";
 
@@ -11,10 +13,35 @@ const FRESH_RETRY_MS = 3000;
 
 const CLOSED = 2;
 
+// The feed counts as being at its end within this many pixels of the bottom: a
+// reader who nudged the last message a line up is still carried along by the
+// next one, and the jump button does not appear for that nudge either.
+const END_SLACK = 120;
+
+// nearEnd reports whether the box is scrolled to its end, with the slack. It
+// is the one rule behind both the stickiness of the feed and the jump button:
+// two rules here would leave a feed that follows new messages while the button
+// says it does not, or the other way round.
+export function nearEnd(box) {
+    return box.scrollHeight - box.scrollTop - box.clientHeight < END_SLACK;
+}
+
 // wakeNeeded reports whether the feed stream should be reopened.
 export function wakeNeeded(visibility, readyState) {
     if (visibility !== "visible") return false;
     return readyState == null || readyState === CLOSED;
+}
+
+// JumpToEnd renders the button that takes a scrolled-up feed to its end. It
+// lives inside the feed as its last child: the feed's own bottom edge is the
+// one place that stays above the composer, the chips and whatever else stands
+// under the feed, on every screen and with nothing under it at all.
+export function JumpToEnd({ onJump }) {
+    return html`
+        <button class="feedjump" type="button" aria-label="to the end of the conversation"
+                data-tip="To the end of the conversation" data-tipside="left"
+                onClick=${onJump}>${Icon.chevron()}</button>
+    `;
 }
 
 // useFeedWindow returns the feed and everything needed to show it.
@@ -27,11 +54,20 @@ export function useFeedWindow({ name, id, live }) {
     const lastRef = useRef(null);
     const firstRef = useRef(null);
     const stickRef = useRef(true);
+    const [atEnd, setAtEnd] = useState(true);
 
     const base = `session=${encodeURIComponent(name)}${idParam(id)}`;
 
+    // settle reads the position of the box once and tells both sides of it.
+    const settle = (box) => {
+        const near = nearEnd(box);
+        stickRef.current = near;
+        setAtEnd(near);
+    };
+
     useEffect(() => {
         stickRef.current = true;
+        setAtEnd(true);
     }, [name, id]);
 
     useEffect(() => {
@@ -131,8 +167,12 @@ export function useFeedWindow({ name, id, live }) {
     useEffect(() => {
         const box = feedRef.current;
         if (!box || typeof ResizeObserver !== "function") return undefined;
+        // A box that grows while the feed is scrolled up may now reach the end
+        // by itself; without a scroll event nobody would notice, and the button
+        // would stay for an end already in view.
         const ro = new ResizeObserver(() => {
             if (stickRef.current) box.scrollTop = box.scrollHeight;
+            else settle(box);
         });
         ro.observe(box);
         return () => ro.disconnect();
@@ -176,10 +216,15 @@ export function useFeedWindow({ name, id, live }) {
         return () => io.disconnect();
     }, [more, state.kind, state.items.length]);
 
-    const onScroll = (event) => {
-        const box = event.currentTarget;
-        stickRef.current = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    const onScroll = (event) => settle(event.currentTarget);
+
+    // toEnd takes the feed to its end and makes it follow new messages again.
+    const toEnd = () => {
+        const box = feedRef.current;
+        if (!box) return;
+        box.scrollTop = box.scrollHeight;
+        settle(box);
     };
 
-    return { state, more, feedRef, topRef, onScroll };
+    return { state, more, feedRef, topRef, onScroll, atEnd, toEnd };
 }
