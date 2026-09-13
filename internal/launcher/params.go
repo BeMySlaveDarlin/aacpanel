@@ -12,6 +12,7 @@ const (
 	keyEffort         = "effort"
 	keyPermissionMode = "permissionMode"
 	keyRemoteControl  = "remoteControl"
+	keyFinalizeAt     = "finalizeAt"
 	keyEnv            = "env"
 	keyArgs           = "args"
 	keyRoom           = "room"
@@ -24,6 +25,7 @@ type Params struct {
 	Effort         string
 	PermissionMode string
 	RemoteControl  *bool
+	FinalizeAt     int
 	Env            map[string]string
 	Args           []string
 	Room           string
@@ -67,6 +69,17 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 				break
 			}
 			p.RemoteControl = &on
+		case keyFinalizeAt:
+			var at int
+			if err := json.Unmarshal(obj[key], &at); err != nil {
+				warns = append(warns, "parameter finalizeAt is not a whole number — skipped")
+				break
+			}
+			if at < 1 || at > 99 {
+				warns = append(warns, fmt.Sprintf("parameter finalizeAt is %d, outside 1–99 — skipped", at))
+				break
+			}
+			p.FinalizeAt = at
 		case keyEnv:
 			if err := json.Unmarshal(obj[key], &p.Env); err != nil {
 				p.Env = nil

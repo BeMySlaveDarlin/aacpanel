@@ -289,7 +289,7 @@ the panel's eyes.
 |---|---|---|
 | `deploy/claude/prompt-stamp.py` | the `UserPromptSubmit` and `PostToolBatch` hooks | the session knows today's date, how much context is left, the limits of its account and the load of the machine |
 | `deploy/claude/cost-snapshot.py` | the `Stop` and `SubagentStop` hooks | a line per turn in `<account>/logs/cost.jsonl`: where the tokens went |
-| `deploy/claude/context-guard.py` | the `Stop` hook | past the threshold a session finalizes and restarts itself; on only in projects that set `AACP_FINALIZE_AT` |
+| `deploy/claude/context-guard.py` | the `Stop` hook | past the threshold a session finalizes and restarts itself; on only where a threshold is set — in the panel's launch parameters or in the project's settings |
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session in place |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
 | `aacpanel-docker-gc.{service,timer}` | `<home>/.config/systemd/user/` | once a week: build cache older than two weeks and untagged images |
@@ -305,15 +305,22 @@ systemctl --user daemon-reload && systemctl --user enable --now aacpanel-docker-
 An addition that a script of your own already does on this machine is not
 installed on top: two hooks on one event give two stamps in every message.
 
-**The context guard.** The hook sits in the account settings, the switch in the
-project: a session finalizes and restarts itself only where the project's
-`.claude/settings.json` (or `settings.local.json`) names the percentage.
+**The context guard.** The hook sits in the account settings, the threshold
+with the project: a session finalizes and restarts itself only where the
+percentage is named. It is named in one of two places — in the panel, in the
+launch parameters of the profile or the project ("finalize when the context
+fills up": the launcher puts `AACP_FINALIZE_AT` into the environment of the
+session it brings up), or in the project's `.claude/settings.json` (or
+`settings.local.json`), for a session started by hand. The panel's field does
+nothing where the hook is not installed.
 
 ```json
 {"hooks": {"Stop": [
   {"hooks": [{"type": "command", "command": "python3 <repo>/deploy/claude/context-guard.py", "timeout": 5}]}
 ]}}
 ```
+
+The same threshold in the project's settings instead of the panel:
 
 ```json
 {"env": {"AACP_FINALIZE_AT": "80"}}

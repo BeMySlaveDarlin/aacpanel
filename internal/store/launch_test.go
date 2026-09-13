@@ -180,3 +180,55 @@ func TestEffectiveLaunchTellsEmptyIntentFromNoIntent(t *testing.T) {
 		})
 	}
 }
+
+func TestEffectiveLaunchCarriesFinalizeAt(t *testing.T) {
+	cases := []struct {
+		name    string
+		profile string
+		project string
+		want    any
+	}{
+		{
+			name:    "the project is silent — the threshold comes from the profile",
+			profile: `{"finalizeAt":80}`,
+			project: `{"model":"opus"}`,
+			want:    float64(80),
+		},
+		{
+			name:    "the project names its own — and that is what wins",
+			profile: `{"finalizeAt":80}`,
+			project: `{"finalizeAt":60}`,
+			want:    float64(60),
+		},
+		{
+			name:    "neither side names it — there is no key",
+			profile: `{"model":"opus"}`,
+			project: `{"effort":"high"}`,
+			want:    nil,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			raw, err := EffectiveLaunch(json.RawMessage(c.profile), json.RawMessage(c.project))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got map[string]any
+			if err := json.Unmarshal(raw, &got); err != nil {
+				t.Fatal(err)
+			}
+			value, ok := got["finalizeAt"]
+			if c.want == nil {
+				if ok {
+					t.Fatalf("a threshold appeared out of nowhere: %s", raw)
+				}
+				return
+			}
+			// A number that came back as a string would slip past the
+			// launcher's check and switch nothing on.
+			if !ok || value != c.want {
+				t.Errorf("the threshold after the merge is %v (%T), %v was expected", value, value, c.want)
+			}
+		})
+	}
+}

@@ -72,6 +72,28 @@ function origin(key, profile, project) {
     return "";
 }
 
+// The percentage the context guard hook works from when nothing else is said.
+export const FINALIZE_DEFAULT = 80;
+
+// guarded says whether the map names a threshold at all: zero and junk count,
+// so that what the human typed is shown back rather than quietly dropped.
+function guarded(launch) {
+    const at = (launch || EMPTY).finalizeAt;
+    return at !== undefined && at !== null;
+}
+
+function inRange(at) {
+    return Number.isInteger(at) && at >= 1 && at <= 99;
+}
+
+// parseFinalizeAt reads the percentage back from the input field: a whole
+// number as typed, and zero for anything else — the launcher refuses zero and
+// says so, which is better than a field that shows one number and saves another.
+export function parseFinalizeAt(text) {
+    const n = Number(String(text || "").trim());
+    return Number.isInteger(n) ? n : 0;
+}
+
 // summary returns the parameters as one line for a collapsed card.
 export function summary(launch) {
     const l = clean(launch);
@@ -82,6 +104,7 @@ export function summary(launch) {
         parts.push(l.permissionMode);
     }
     if (l.remoteControl) parts.push("remote control");
+    if (guarded(l)) parts.push(`finalize at ${l.finalizeAt}%`);
     if (l.intent) parts.push("intent");
     const env = Object.keys(l.env || EMPTY).length;
     if (env > 0) parts.push(`${env} vars`);
@@ -100,6 +123,7 @@ export function LaunchView({ launch, profile }) {
         ["effort", eff.effort, origin("effort", profile, launch)],
         ["permissions", eff.permissionMode, origin("permissionMode", profile, launch)],
         ["remote control", eff.remoteControl ? "on" : "", origin("remoteControl", profile, launch)],
+        ["finalize at", guarded(eff) ? `${eff.finalizeAt}%` : "", origin("finalizeAt", profile, launch)],
     ];
     return html`
         <div class="pfprops">
@@ -172,6 +196,15 @@ function intentHelp(intent, muted, fromProfile) {
     return "not set — the conversation opens empty, as before";
 }
 
+function finalizeHelp(launch, fromProfile) {
+    if (guarded(launch)) {
+        if (!inRange(launch.finalizeAt)) return "outside 1–99: the launcher skips the threshold and says so";
+        return "works only where the account has the context guard hook from the install; without it the field does nothing";
+    }
+    if (fromProfile) return `unchecked — as in the profile: ${fromProfile}%`;
+    return "unchecked — the session is never told to finalize";
+}
+
 // LaunchFields renders the same parameters as form fields.
 export function LaunchFields({ value, onChange, inherited, catalog }) {
     const l = value || EMPTY;
@@ -186,6 +219,7 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
     const intent = l.intent === undefined || l.intent === null ? "" : String(l.intent);
     const muted = l.intent === "";
 
+    const [atDraft, setAtDraft] = useState(() => (guarded(l) ? String(l.finalizeAt) : ""));
     const [envDraft, setEnvDraft] = useState(() => envText(l.env));
     const [argsDraft, setArgsDraft] = useState(() => (l.args || []).join(" "));
 
@@ -228,6 +262,26 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
         </label>
         <span class="pfhelp">
             ${parent.remoteControl ? "unchecked — as in the profile: on" : "unchecked — do not turn it on"}
+        </span>
+
+        <div class="pfguard">
+            <label class="row-switch">
+                <input type="checkbox" checked=${guarded(l)}
+                       onChange=${(e) => {
+                           const at = e.target.checked ? (parent.finalizeAt || FINALIZE_DEFAULT) : undefined;
+                           setAtDraft(at === undefined ? "" : String(at));
+                           set({ finalizeAt: at });
+                       }} />
+                finalize when the context fills up
+            </label>
+            <input class="search pfpct" type="number" inputmode="numeric" min="1" max="99" step="1"
+                   disabled=${!guarded(l)}
+                   value=${guarded(l) ? atDraft : String(parent.finalizeAt || FINALIZE_DEFAULT)}
+                   onInput=${(e) => { setAtDraft(e.target.value); set({ finalizeAt: parseFinalizeAt(e.target.value) }); }} />
+            <span class="pfpctsign">%</span>
+        </div>
+        <span class=${guarded(l) && !inRange(l.finalizeAt) ? "pfhelp warn" : "pfhelp"}>
+            ${finalizeHelp(l, parent.finalizeAt)}
         </span>
 
         <label class="pffield">

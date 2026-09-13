@@ -193,6 +193,29 @@
 
 .pffield input:disabled { opacity: .55; }
 
+/* The threshold sits on the row of its switch; on a narrow screen the field
+   drops under the caption rather than squeezing it. */
+.pfguard {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin-top: .65rem;
+}
+
+.pfguard .row-switch { flex: 1 1 auto; }
+
+.pfguard .pfpct {
+    flex: 0 0 auto;
+    width: 4.4rem;
+    padding: .3rem .5rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.pfguard .pfpct:disabled { opacity: .55; }
+.pfguard .pfpctsign { font-size: .87rem; color: var(--ink-dim); }
+
 .pffield textarea {
     resize: vertical;
     font-family: var(--code);
