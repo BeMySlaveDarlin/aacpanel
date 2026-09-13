@@ -289,6 +289,7 @@ the panel's eyes.
 |---|---|---|
 | `deploy/claude/prompt-stamp.py` | the `UserPromptSubmit` and `PostToolBatch` hooks | the session knows today's date, how much context is left, the limits of its account and the load of the machine |
 | `deploy/claude/cost-snapshot.py` | the `Stop` and `SubagentStop` hooks | a line per turn in `<account>/logs/cost.jsonl`: where the tokens went |
+| `deploy/claude/context-guard.py` | the `Stop` hook | past the threshold a session finalizes and restarts itself; on only in projects that set `AACP_FINALIZE_AT` |
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session in place |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
 | `aacpanel-docker-gc.{service,timer}` | `<home>/.config/systemd/user/` | once a week: build cache older than two weeks and untagged images |
@@ -303,6 +304,28 @@ systemctl --user daemon-reload && systemctl --user enable --now aacpanel-docker-
 
 An addition that a script of your own already does on this machine is not
 installed on top: two hooks on one event give two stamps in every message.
+
+**The context guard.** The hook sits in the account settings, the switch in the
+project: a session finalizes and restarts itself only where the project's
+`.claude/settings.json` (or `settings.local.json`) names the percentage.
+
+```json
+{"hooks": {"Stop": [
+  {"hooks": [{"type": "command", "command": "python3 <repo>/deploy/claude/context-guard.py", "timeout": 5}]}
+]}}
+```
+
+```json
+{"env": {"AACP_FINALIZE_AT": "80"}}
+```
+
+It speaks only at the end of a turn, when the session is free: no question and
+no permission prompt can be open then, and nothing is typed into the session
+from outside. The fill comes from the collector's snapshot, the same one the
+stamp reads, and a model whose window is not known does not trigger it. The
+restart goes through the restart-session skill, so that one is installed too.
+The turn after the block is the finalization itself and is never blocked again;
+a session that ignored it is told again at the end of its next turn.
 
 ---
 
