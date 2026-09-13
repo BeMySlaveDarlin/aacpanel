@@ -3,6 +3,7 @@
 import re
 
 from .limits import MAX_ITEMS
+from .subagents import _stamp
 
 NOTIF_BLOCK_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
 NOTIF_USE_RE = re.compile(r"<tool-use-id>([^<]+)</tool-use-id>")
@@ -56,6 +57,24 @@ def finish(state, task_id, at):
     task["done"] = True
     task["doneAt"] = at or task.get("doneAt") or ""
     _prune_done_tasks(state)
+
+
+def _finish_older_than(state, born):
+    """Closes every open task started before the process was born: none of them outlived it.
+
+    A shell, a watch and an agent sent off to work live in the process that
+    started them, and so does an alarm the session set for itself: the
+    schedule is kept in the memory of the process, and a new one knows
+    nothing of it. The birth is the latest moment any of them could still
+    have been alive, and the only end the transcript gives for them.
+    """
+    if not born:
+        return
+    since = _stamp(born)
+    gone = [task["id"] for task in state.tasks.values()
+            if not task.get("done") and task.get("at") and task["at"][:19] < since[:19]]
+    for task_id in gone:
+        finish(state, task_id, since)
 
 
 def _prune_done_tasks(state):

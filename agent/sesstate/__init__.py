@@ -16,7 +16,8 @@ from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F
 from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, AACP_TIMEOUT,  # noqa: F401
                     NOTIF_BLOCK_RE, NOTIF_EVENT_RE, NOTIF_STATUS_RE,
                     NOTIF_TASK_RE, NOTIF_USE_RE, STOPPERS, TASK_AGENT,
-                    TASK_BASH, TASK_ID_KEYS, TASK_KIND_BY_KEY, TASK_MONITOR)
+                    TASK_BASH, TASK_ID_KEYS, TASK_KIND_BY_KEY, TASK_MONITOR,
+                    _finish_older_than)
 from .wake import TASK_WAKE, WAKE_ID, is_wakeup  # noqa: F401
 
 TEAMS_DIR = os.environ.get("AACP_CLAUDE_TEAMS")
@@ -67,11 +68,18 @@ def team_names(path):
     return names
 
 
+def _let_go_before_birth(state):
+    """Lets go what the previous process of the session took with it."""
+    _lose_older_than(state, state.born)
+    _finish_older_than(state, state.born)
+
+
 def read(path, state=None, size=None, born=None):
     """Returns the state of a transcript, reading a ready state on from its position.
 
     Born is when the process of the session started, in epoch seconds: the
-    subagents spawned before it died with the process that spawned them.
+    subagents spawned and the background work started before it died with
+    the process that ran them.
     """
     if size is None:
         size = os.path.getsize(path)
@@ -80,7 +88,7 @@ def read(path, state=None, size=None, born=None):
     if born:
         state.born = born
     if state.pos == size:
-        _lose_older_than(state, state.born)
+        _let_go_before_birth(state)
         return state
 
     with open(path, encoding="utf-8", errors="replace") as f:
@@ -106,7 +114,7 @@ def read(path, state=None, size=None, born=None):
     if names is not None:
         for gone in [name for name in state.agents if name not in names]:
             del state.agents[gone]
-    _lose_older_than(state, state.born)
+    _let_go_before_birth(state)
 
     meta = agent_meta(path)
     for name, agent in state.agents.items():

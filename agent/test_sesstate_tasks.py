@@ -1,5 +1,7 @@
+import calendar
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -8,6 +10,7 @@ import test_barrier  # noqa: E402,F401
 import sesstate  # noqa: E402
 from test_sesstate import (Transcript, background, call, line,  # noqa: E402
                            notification, result, spawn)
+from test_sesstate_wake import wakeup  # noqa: E402
 
 
 def orphan_summary(*task_ids, status="stopped"):
@@ -292,3 +295,93 @@ class ScreenLine(Transcript):
     def test_background_agent_has_no_line(self):
         got = self.state(async_agent("tool-1", "a1"))["tasks"][0]
         self.assertEqual(got["line"], "")
+
+
+BORN = calendar.timegm(time.strptime("2026-08-25T10:30:00Z", "%Y-%m-%dT%H:%M:%SZ"))
+BEFORE = "2026-08-25T10:00:00Z"
+AFTER = "2026-08-25T11:00:00Z"
+
+
+class Restart(Transcript):
+    """A restart of the process takes the background work of the old one with it."""
+
+    def born(self, born, *chunks):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("".join(chunks))
+        return sesstate.read(path, born=born).snapshot()
+
+    def test_a_shell_started_before_the_process_was_born_is_finished(self):
+        got = self.born(BORN, background("toolu_1", "b00000001", at=BEFORE))
+        self.assertEqual([(t["id"], t["done"], t["doneAt"]) for t in got["tasks"]],
+                         [("b00000001", True, "2026-08-25T10:30:00Z")],
+                         "the shell died with the process, and the chip still counts it running")
+
+    def test_a_watch_and_an_agent_started_before_the_birth_are_gone(self):
+        got = self.born(BORN, aacpanel("toolu_1", "b00000002", at=BEFORE),
+                        async_agent("toolu_2", "a3333333333333333", at=BEFORE))
+        self.assertEqual(got["tasks"], [],
+                         "a watch and an agent have nothing to come back to after a restart")
+
+    def test_work_started_after_the_birth_is_running(self):
+        got = self.born(BORN, background("toolu_1", "b00000001", at=AFTER),
+                        aacpanel("toolu_2", "b00000002", at=AFTER),
+                        async_agent("toolu_3", "a3333333333333333", at=AFTER))
+        self.assertEqual([(t["id"], t.get("done")) for t in got["tasks"]],
+                         [("b00000001", False), ("b00000002", False),
+                          ("a3333333333333333", False)])
+
+    def test_a_shell_closed_before_the_restart_keeps_its_own_end(self):
+        got = self.born(BORN, background("toolu_1", "b00000001", at=BEFORE),
+                        call("TaskStop", "toolu_2", at="2026-08-25T10:10:00Z",
+                             task_id="b00000001"))
+        self.assertEqual([(t["done"], t["doneAt"]) for t in got["tasks"]],
+                         [(True, "2026-08-25T10:10:00Z")],
+                         "the restart rewrote the end of a shell that had ended on its own")
+
+    def test_an_alarm_set_before_the_birth_does_not_ring_in_the_new_process(self):
+        # The schedule lives in the memory of the process that set it, and
+        # nothing is written down for the next one to pick up.
+        got = self.born(BORN, wakeup("toolu_1", at=BEFORE))
+        self.assertEqual(got["tasks"], [])
+
+    def test_an_alarm_set_after_the_birth_is_kept(self):
+        got = self.born(BORN, wakeup("toolu_1", at=AFTER))
+        self.assertEqual([t["kind"] for t in got["tasks"]], [sesstate.TASK_WAKE])
+
+    def test_without_a_birth_nothing_is_finished(self):
+        got = self.born(None, background("toolu_1", "b00000001", at=BEFORE),
+                        wakeup("toolu_2", at=BEFORE))
+        self.assertEqual([(t["id"], t.get("done")) for t in got["tasks"]],
+                         [("b00000001", False), (sesstate.WAKE_ID, None)])
+
+    def test_the_birth_is_remembered_by_a_read_that_does_not_name_it(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        open(path, "w", encoding="utf-8").close()
+        state = sesstate.read(path, born=BORN)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(background("toolu_1", "b00000001", at=BEFORE))
+        got = sesstate.read(path, state).snapshot()
+        self.assertEqual([(t["id"], t["done"]) for t in got["tasks"]], [("b00000001", True)])
+
+    def test_a_birth_told_after_the_reading_finishes_what_was_read_before_it(self):
+        # The birth may reach the state after the transcript was read, and the
+        # file need not grow in between.
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(background("toolu_1", "b00000001", at=BEFORE))
+        state = sesstate.read(path)
+        self.assertFalse(state.snapshot()["tasks"][0]["done"])
+        got = sesstate.read(path, state, born=BORN).snapshot()
+        self.assertTrue(got["tasks"][0]["done"],
+                        "a birth told to a read that found nothing new changed nothing")
+
+    def test_a_shell_finished_by_the_restart_gives_way_like_any_finished_one(self):
+        records = [background(f"toolu_{n}", f"b{n:08d}", at=BEFORE)
+                   for n in range(sesstate.MAX_ITEMS)]
+        records += [background(f"toolu_{n}", f"b{n:08d}", at=AFTER)
+                    for n in range(sesstate.MAX_ITEMS, sesstate.MAX_ITEMS + 5)]
+        got = self.born(BORN, *records)
+        self.assertLessEqual(len(got["tasks"]), sesstate.MAX_ITEMS)
+        self.assertEqual(len([t for t in got["tasks"] if not t["done"]]), 5,
+                         "a live shell was dropped while ones the restart finished stayed")

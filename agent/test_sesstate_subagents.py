@@ -249,6 +249,18 @@ class Restart(Transcript):
         got = sesstate.read(path, state).snapshot()
         self.assertEqual(got["agents"], [])
 
+    def test_a_birth_told_after_the_reading_lets_go_what_was_read_before_it(self):
+        # The birth may reach the state after the transcript was read, and the
+        # file need not grow in between.
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"))
+        state = sesstate.read(path)
+        self.assertEqual([a["status"] for a in state.snapshot()["agents"]], ["active"])
+        got = sesstate.read(path, state, born=BORN).snapshot()
+        self.assertEqual(got["agents"], [],
+                         "a birth told to a read that found nothing new changed nothing")
+
 
 class AgentPruning(Transcript):
     def spawn_and_report(self, n, minute_offset=0):
