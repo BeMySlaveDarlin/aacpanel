@@ -4,11 +4,12 @@ import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
-import { plural, since, until } from "../../format.js";
+import { bytes, plural, since, until } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { taskVoice } from "./voice.js";
 import { ArtifactCard } from "./rows.js";
+import { fileTag } from "./files.js";
 import { Look, LOOK_NAMES } from "./look.js";
 
 // WorkStatus renders what is happening to the session right now.
@@ -64,12 +65,14 @@ function agentLabel(agents, live) {
 }
 
 // WorkRefs renders the right half of the row: the artifacts. An artifact has no
-// "over" — what the session made stays made — so the number counts them all
-// and, like the other chips, is absent rather than 0.
+// "over" — what the session made stays made, and a file it sent stays sent —
+// so the number counts them all and, like the other chips, is absent rather
+// than 0.
 export function WorkRefs({ work, onOpen }) {
     const arts = (work && work.artifacts) || [];
     const docs = (work && work.docs) || [];
-    const refs = arts.length + docs.length;
+    const sent = (work && work.sent) || [];
+    const refs = arts.length + docs.length + sent.length;
 
     return html`
         <button class=${`wchip${refs > 0 ? "" : " idle"}`} type="button"
@@ -222,6 +225,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
     const agents = (work && work.agents) || [];
     const arts = (work && work.artifacts) || [];
     const docs = (work && work.docs) || [];
+    const sent = (work && work.sent) || [];
     const { live, said, faded } = splitAgents(agents);
     const [showFaded, setShowFaded] = useState(false);
 
@@ -236,6 +240,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
             ? [
                 arts.length > 0 && `${arts.length} published`,
                 docs.length > 0 && `${docs.length} ${plural(docs.length, "document", "documents")}`,
+                sent.length > 0 && `${sent.length} sent`,
             ].filter(Boolean).join(", ") || "empty"
             : [
                 live.length > 0 && `${live.length} working`,
@@ -341,6 +346,26 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
             `)}
             ${kind === "arts" && docs.length === 0 && html`
                 <p class="hint">The session wrote no documents.</p>
+            `}
+            ${kind === "arts" && sent.length > 0 && html`<div class="callcap">sent to you</div>`}
+            ${kind === "arts" && sent.map((file) => html`
+                <button class="wrow doc" type="button" key=${file.path}
+                        onClick=${() => setPick({ kind: "file", path: file.path, text: file.path })}>
+                    <span class="wicon">${Icon.file()}</span>
+                    <span class="wcol">
+                        <span class="wname">${file.file}</span>
+                        <span class="wstate">${[
+                            fileTag({ name: file.file, media: file.media }),
+                            file.size > 0 && bytes(file.size),
+                            file.count > 1 && `${file.count} ${plural(file.count, "delivery", "deliveries")}`,
+                            file.at && since(file.at),
+                        ].filter(Boolean).join(" · ")}</span>
+                    </span>
+                    <span class="crgo">${Icon.chevron()}</span>
+                </button>
+            `)}
+            ${kind === "arts" && sent.length === 0 && html`
+                <p class="hint">The session sent no files.</p>
             `}
             ${kind === "tasks" && tasks.length === 0 && html`<p class="hint">There are no background commands.</p>`}
             ${kind === "agents" && agents.length === 0 && html`<p class="hint">There were no subagents in this conversation.</p>`}

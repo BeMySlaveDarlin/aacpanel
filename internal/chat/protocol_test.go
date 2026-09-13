@@ -210,6 +210,8 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 			               "at": "2026-08-25T10:02:00Z", "count": 3}],
 			"docs": [{"path": "/opt/p/docs/tz.md", "file": "tz.md", "dir": "docs",
 			          "at": "2026-08-25T10:05:00Z", "count": 7}],
+			"sent": [{"path": "/opt/p/cv/resume.pdf", "file": "resume.pdf", "size": 89537,
+			          "media": "application/pdf", "at": "2026-08-25T10:06:00Z", "count": 2}],
 			"ask": {
 				"sessionId": "567f4d24-cd5f-48fa-bdc1-04c89d203494",
 				"toolUseId": "toolu_01AaBbCcDdEeFfGgHhJjKkLm",
@@ -256,6 +258,12 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 	}
 	if d := reply.State.Docs[0]; d.Path == "" || d.Dir == "" || d.Count != 7 {
 		t.Errorf("the doc arrived incomplete: %+v", d)
+	}
+	if len(reply.State.Sent) != 1 {
+		t.Fatalf("the sent files are lost: %+v", *reply.State)
+	}
+	if f := reply.State.Sent[0]; f.Path == "" || f.File == "" || f.Size != 89537 || f.Media == "" || f.Count != 2 {
+		t.Errorf("the sent file arrived incomplete: %+v", f)
 	}
 	if reply.State.Ask == nil || len(reply.State.Ask.Questions) != 1 {
 		t.Fatalf("the session question did not make it through: %+v", reply.State.Ask)

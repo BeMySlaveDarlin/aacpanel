@@ -18,6 +18,7 @@ def feed(path, limit=DEFAULT_LIMIT, before=None, after=None, sidechain=False):
     last_pos = None
     pending = Pending()
     asks = {}
+    sent = set()
 
     def place(item):
         for i, was in enumerate(window):
@@ -98,7 +99,7 @@ def feed(path, limit=DEFAULT_LIMIT, before=None, after=None, sidechain=False):
                 continue
             if not cwd and isinstance(record.get("cwd"), str):
                 cwd = record["cwd"]
-            items = parse(record, line_pos, pending, asks, sidechain)
+            items = parse(record, line_pos, pending, asks, sidechain, sent)
             if not items:
                 continue
 

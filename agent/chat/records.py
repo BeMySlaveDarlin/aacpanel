@@ -1,7 +1,7 @@
 """Transcript record to feed items."""
 import sesstate
 
-from .cards import artifact_card, ask_round, wake_item
+from .cards import artifact_card, ask_round, sent_card, wake_item
 from .harness import classify, service, strip_panel_note
 from .mail import peer_name, peer_pid
 from .limits import MAX_TEXT, cut
@@ -22,8 +22,13 @@ def service_once(text, at, pos, pending):
     return items
 
 
-def parse(record, pos, pending=None, asks=None, sidechain=False):
-    """Returns the feed items of one transcript record, from none to many."""
+def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None):
+    """Returns the feed items of one transcript record, from none to many.
+
+    Asks and sent are the calls of their kind still waiting for an answer, by
+    call id: the card for a question round and for a delivery is drawn from
+    the answer, and the answer is another record.
+    """
     if not isinstance(record, dict) or (record.get("isSidechain") and not sidechain):
         return []
 
@@ -89,6 +94,12 @@ def parse(record, pos, pending=None, asks=None, sidechain=False):
                     use = b.get("tool_use_id") or ""
                     if asks is not None and use in asks:
                         card = ask_round(asks.pop(use), record.get("toolUseResult"), use, at, pos)
+                        if card:
+                            links.append(card)
+                        continue
+                    if sent is not None and use in sent:
+                        sent.discard(use)
+                        card = sent_card(record.get("toolUseResult"), use, at, pos)
                         if card:
                             links.append(card)
                         continue
@@ -240,6 +251,10 @@ def parse(record, pos, pending=None, asks=None, sidechain=False):
                     if card:
                         out.append(card)
                         continue
+                if name == sesstate.SENT_TOOL and sent is not None:
+                    # The call stays in the run as a call: whether anything
+                    # reached the human is known only from the answer.
+                    sent.add(block.get("id") or "")
                 if name == "SendMessage":
                     data = block.get("input") or {}
                     said = data.get("message") or data.get("content") or ""

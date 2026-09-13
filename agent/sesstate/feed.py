@@ -3,7 +3,8 @@
 import collections
 import os
 
-from .artifacts import ARTIFACT_URL_RE, DOC_TOOLS, _artifact, _document, result_text
+from .artifacts import (ARTIFACT_URL_RE, DOC_TOOLS, SENT_TOOL, _artifact, _document,
+                        _sent, result_text)
 from .limits import MAX_ITEMS, _short
 from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
 from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_AGENT,
@@ -22,6 +23,7 @@ class State:
         self.answered = collections.deque(maxlen=100)
         self.arts = {}
         self.docs = {}
+        self.sent = {}
         self.cwd = ""
         self.pos = 0
         self.born = None
@@ -32,11 +34,13 @@ class State:
         agents = sorted(self.agents.values(), key=lambda a: a.get("at") or "")
         arts = sorted(self.arts.values(), key=lambda a: a.get("at") or "", reverse=True)
         docs = sorted(self.docs.values(), key=lambda d: d.get("at") or "", reverse=True)
+        sent = sorted(self.sent.values(), key=lambda s: s.get("at") or "", reverse=True)
         return {
             "tasks": tasks[:MAX_ITEMS],
             "agents": agents[:MAX_ITEMS],
             "artifacts": [dict(a, title=a.get("title") or a["file"]) for a in arts[:MAX_ITEMS]],
             "docs": [d for d in docs[:MAX_ITEMS] if os.path.isfile(d["path"])],
+            "sent": [s for s in sent[:MAX_ITEMS] if os.path.isfile(s["path"])],
         }
 
 
@@ -82,6 +86,9 @@ def _feed_record(state, record, raw):
                 continue
             if name in DOC_TOOLS:
                 _document(state, data, at)
+                continue
+            if name == SENT_TOOL:
+                state.pending[block.get("id")] = {"kind": "sent"}
                 continue
             if name == "ScheduleWakeup":
                 if data.get("stop"):
@@ -132,6 +139,9 @@ def _feed_record(state, record, raw):
             _wake(state, started, result, at)
             continue
         if not isinstance(result, dict):
+            continue
+        if started["kind"] == "sent":
+            _sent(state, result, at)
             continue
         if started["kind"] == "mail":
             # The only letter the tool refuses to an agent of this session is one

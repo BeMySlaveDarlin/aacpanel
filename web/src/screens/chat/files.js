@@ -1,9 +1,12 @@
-// A file as an attachment: the row in the feed and in the call details.
+// A file as an attachment: the row in the feed and in the call details, and
+// the card of the files a call delivered to the human.
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { bytes } from "../../format.js";
+import { render } from "../../md.js";
+import { stampText } from "./labels.js";
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i;
 
@@ -31,23 +34,67 @@ export function fileOfCall(args) {
     return null;
 }
 
-// isImage reports whether the file is drawn as a picture.
+// isImage reports whether the file is drawn as a picture. A file that comes
+// with its type is judged by the type: a delivered PDF carries one too, and
+// its presence alone would make a picture of it.
 export function isImage(file) {
-    return Boolean(file && (file.media || IMAGE.test(file.name || file.path || "")));
+    if (!file) return false;
+    if (file.media) return /^image\//.test(file.media);
+    return IMAGE.test(file.name || file.path || "");
 }
 
-// FileCard renders an attachment as one row.
-export function FileCard({ file, onOpen }) {
+const TAG = /^[a-z0-9]{1,5}$/i;
+
+// fileTag returns the type of a file the way the human picks one: by the
+// extension, and by the media type when the name has none.
+export function fileTag(file) {
+    const name = String((file && file.name) || "");
+    const dot = name.lastIndexOf(".");
+    const ext = dot > 0 ? name.slice(dot + 1) : "";
+    if (TAG.test(ext)) return ext.toUpperCase();
+    const sub = String((file && file.media) || "").split("/")[1] || "";
+    return TAG.test(sub) ? sub.toUpperCase() : "FILE";
+}
+
+// FileCard renders an attachment as one row. With a tag the type stands where
+// the icon would: a PDF and a text file are one icon, and the type is what
+// the human tells them apart by.
+export function FileCard({ file, onOpen, tag }) {
     const image = isImage(file);
     return html`
-        <button class="mfile" type="button"
+        <button class=${`mfile${tag ? " tagged" : ""}`} type="button"
                 onClick=${() => onOpen && onOpen(file)}
                 data-path=${file.path}
                 aria-label=${`open ${file.name}`}>
-            <span class="mfico">${image ? Icon.photo() : Icon.file()}</span>
+            ${tag
+                ? html`<span class="mftag">${tag}</span>`
+                : html`<span class="mfico">${image ? Icon.photo() : Icon.file()}</span>`}
             <span class="mfname">${file.name}</span>
             ${file.size > 0 && html`<span class="mfsize">${bytes(file.size)}</span>`}
         </button>
+    `;
+}
+
+// SentCard renders the files a call delivered to the human: the caption the
+// session gave them, then one row per file. Every row opens the file the same
+// way an attachment named in a reply does.
+export function SentCard({ item, onOpen }) {
+    const files = item.files || [];
+    return html`
+        <div class="sent">
+            <div class="senthead">
+                <span class="sentico">${Icon.clip()}</span>
+                <span class="sentlabel">${files.length > 1 ? "files for you" : "file for you"}</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            ${item.text && html`<div class="sentcap">${render(item.text)}</div>`}
+            ${item.cut && html`<p class="hint warn">The caption is longer than shown — cut.</p>`}
+            <div class="mflist">
+                ${files.map((file) => html`
+                    <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} tag=${fileTag(file)} />
+                `)}
+            </div>
+        </div>
     `;
 }
 

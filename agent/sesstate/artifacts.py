@@ -1,4 +1,4 @@
-"""What the session has made: published artifacts and written documents."""
+"""What the session has made: published artifacts, written documents, files sent to the human."""
 
 import os
 import re
@@ -12,6 +12,8 @@ ARTIFACT_URL_RE = re.compile(r"Published\s+\S+\s+at\s+(https://\S+)")
 DOC_TOOLS = ("Write", "Edit", "MultiEdit")
 
 DOC_EXT = (".md", ".markdown", ".txt", ".rst", ".adoc", ".org")
+
+SENT_TOOL = "SendUserFile"
 
 
 def result_text(block):
@@ -101,3 +103,41 @@ def _document(state, data, at):
         "count": int(was.get("count") or 0) + 1,
     }
     _prune(state.docs)
+
+
+def sent_files(result):
+    """Returns the files a delivery handed to the human: path, name, size and type.
+
+    The call names the files it wants sent; only the answer says which ones
+    went. A delivery that failed carries no attachments, and a file it names
+    without a path is nothing to open.
+    """
+    if not isinstance(result, dict) or not isinstance(result.get("attachments"), list):
+        return []
+    out = []
+    for item in result["attachments"]:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        entry = {"path": path, "file": os.path.basename(path)}
+        size = item.get("size")
+        if isinstance(size, int) and not isinstance(size, bool) and size > 0:
+            entry["size"] = size
+        media = " ".join(str(item.get("media_type") or "").split())
+        if media:
+            entry["media"] = media
+        out.append(entry)
+    return out
+
+
+def _sent(state, result, at):
+    for entry in sent_files(result):
+        was = state.sent.get(entry["path"]) or {}
+        state.sent[entry["path"]] = {
+            **entry,
+            "at": at,
+            "count": int(was.get("count") or 0) + 1,
+        }
+    _prune(state.sent)

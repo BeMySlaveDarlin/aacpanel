@@ -164,3 +164,57 @@ func TestEveryRawFieldTheCollectorSendsHasAPlace(t *testing.T) {
 		}
 	}
 }
+
+// A file the session sent to the human is described by the collector: its
+// path, name, size, type. A key the collector puts into that row and Sent does
+// not declare is dropped between the two without a word — and the list under
+// the artifact chip shows a file with no size, or a card that cannot say what
+// kind of file it is.
+func TestEverySentFieldTheCollectorSendsHasAPlace(t *testing.T) {
+	root := filepath.Join("..", "..")
+	raw, err := os.ReadFile(filepath.Join(root, "agent", "sesstate", "artifacts.py"))
+	if err != nil {
+		t.Fatalf("the collector source is out of reach: %v", err)
+	}
+	src := string(raw)
+
+	start := strings.Index(src, "def sent_files(")
+	if start < 0 {
+		t.Fatal("the collector has no sent_files where the test looks for it")
+	}
+	body := src[start:]
+
+	var sent []string
+	seen := map[string]bool{}
+	for _, re := range []*regexp.Regexp{
+		regexp.MustCompile(`"([a-zA-Z]+)":`),             // inside a literal
+		regexp.MustCompile(`entry\["([a-zA-Z]+)"\]\s*=`), // added to the row afterwards
+	} {
+		for _, m := range re.FindAllStringSubmatch(body, -1) {
+			if seen[m[1]] {
+				continue
+			}
+			seen[m[1]] = true
+			sent = append(sent, m[1])
+		}
+	}
+	if len(sent) < 5 {
+		t.Fatalf("only %d keys found in the collector: the test reads the wrong place", len(sent))
+	}
+
+	known := map[string]bool{}
+	typ := reflect.TypeOf(Sent{})
+	for i := 0; i < typ.NumField(); i++ {
+		name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
+		if name != "" && name != "-" {
+			known[name] = true
+		}
+	}
+
+	for _, key := range sent {
+		if !known[key] {
+			t.Errorf("the collector sends the field %q of a sent file and Sent has nowhere to put it: "+
+				"the value is dropped between the two, silently", key)
+		}
+	}
+}

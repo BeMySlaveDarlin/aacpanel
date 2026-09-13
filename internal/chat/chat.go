@@ -150,6 +150,7 @@ type Work struct {
 	Ask       *Ask        `json:"ask,omitempty"`
 	Artifacts []Artifact  `json:"artifacts,omitempty"`
 	Docs      []Doc       `json:"docs,omitempty"`
+	Sent      []Sent      `json:"sent,omitempty"`
 }
 
 // Artifact is a published page.
@@ -171,6 +172,16 @@ type Doc struct {
 	Path  string `json:"path"`
 	File  string `json:"file"`
 	Dir   string `json:"dir,omitempty"`
+	At    string `json:"at,omitempty"`
+	Count int    `json:"count,omitempty"`
+}
+
+// Sent is a file the session delivered to the human.
+type Sent struct {
+	Path  string `json:"path"`
+	File  string `json:"file"`
+	Size  int64  `json:"size,omitempty"`
+	Media string `json:"media,omitempty"`
 	At    string `json:"at,omitempty"`
 	Count int    `json:"count,omitempty"`
 }

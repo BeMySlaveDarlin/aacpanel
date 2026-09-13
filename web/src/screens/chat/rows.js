@@ -7,7 +7,7 @@ import { Icon } from "../../ui/icons.js";
 import { render } from "../../md.js";
 import { plural } from "../../format.js";
 import { idParam } from "./api.js";
-import { FileAtts } from "./files.js";
+import { FileAtts, SentCard } from "./files.js";
 import { Photo, shotName } from "./photo.js";
 import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord } from "./labels.js";
 
@@ -82,6 +82,10 @@ export function Row({ item, session, id, onCalls, onFile }) {
 
     if (item.role === "asked") {
         return html`<${AskedCard} item=${item} />`;
+    }
+
+    if (item.role === "sent") {
+        return html`<${SentCard} item=${item} onOpen=${onFile} />`;
     }
 
     const queued = item.state === "queued";

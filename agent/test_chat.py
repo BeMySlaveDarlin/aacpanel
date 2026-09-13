@@ -652,6 +652,118 @@ class Calls(unittest.TestCase):
         return call["pos"], call["index"]
 
 
+class SentFiles(unittest.TestCase):
+    """A SendUserFile call: the card of what reached the human, and the call itself."""
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+        self.path = os.path.join(self.dir.name, f"{UUID}.jsonl")
+
+    def write(self, *records):
+        with open(self.path, "w", encoding="utf-8") as f:
+            for record in records:
+                f.write(line(record))
+
+    def call(self, tool_id, files, caption="Two pages and the letter"):
+        return {"type": "assistant", "timestamp": "2026-08-23T10:00:00Z",
+                "message": {"content": [{"type": "tool_use", "id": tool_id, "name": "SendUserFile",
+                                         "input": {"files": files, "caption": caption}}]}}
+
+    def receipt(self, tool_id, files, caption="Two pages and the letter"):
+        attachments = [{"path": path, "size": size, "isImage": False, "media_type": media,
+                        "pathValidated": True, "file_uuid": f"u-{n}"}
+                       for n, (path, size, media) in enumerate(files)]
+        return {"type": "user", "timestamp": "2026-08-23T10:00:02Z",
+                "message": {"content": [{"type": "tool_result", "tool_use_id": tool_id,
+                                         "content": f"{len(files)} files delivered to user."}]},
+                "toolUseResult": {"caption": caption, "attachments": attachments}}
+
+    def refusal(self, tool_id):
+        return {"type": "user", "timestamp": "2026-08-23T10:00:02Z",
+                "message": {"content": [{"type": "tool_result", "tool_use_id": tool_id,
+                                         "is_error": True,
+                                         "content": "<tool_use_error>InputValidationError: "
+                                                    "SendUserFile was called with input that "
+                                                    "could not be parsed as JSON.</tool_use_error>"}]},
+                "toolUseResult": "InputValidationError: JSON parse failed (231 bytes)"}
+
+    FILES = [("/srv/proj/cv/resume.pdf", 89537, "application/pdf"),
+             ("/srv/proj/cv/cover-letter.txt", 3097, "text/plain")]
+
+    def test_a_delivery_is_a_card_with_the_caption_and_every_file(self):
+        self.write(self.call("t1", [f for f, _, _ in self.FILES]), self.receipt("t1", self.FILES))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in items], ["tools", "sent"])
+        card = items[1]
+        self.assertEqual(card["text"], "Two pages and the letter")
+        self.assertEqual(card["use"], "t1")
+        self.assertEqual([(f["name"], f["path"], f["size"], f["media"]) for f in card["files"]],
+                         [("resume.pdf", "/srv/proj/cv/resume.pdf", 89537, "application/pdf"),
+                          ("cover-letter.txt", "/srv/proj/cv/cover-letter.txt", 3097, "text/plain")])
+
+    def test_the_call_stays_in_the_run_next_to_its_card(self):
+        self.write(self.call("t1", [f for f, _, _ in self.FILES]), self.receipt("t1", self.FILES))
+        items = chat.feed(self.path)["items"]
+        calls = [(c["name"], c["use"]) for c in items[0]["calls"]]
+        self.assertEqual(calls, [("SendUserFile", "t1")])
+        self.assertEqual(items[0]["kind"], "files")
+
+    def test_the_card_stands_at_the_answer_not_at_the_call(self):
+        self.write(self.call("t1", [f for f, _, _ in self.FILES]), self.receipt("t1", self.FILES))
+        items = chat.feed(self.path)["items"]
+        self.assertGreater(items[1]["pos"], items[0]["pos"],
+                           "the card is drawn from the answer, so it stands where the answer is")
+        self.assertEqual(items[1]["at"], "2026-08-23T10:00:02Z")
+
+    def test_a_refused_call_gives_no_card(self):
+        self.write(self.call("t0", "/srv/proj/cv/resume.pdf"), self.refusal("t0"))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in items], ["tools"],
+                         "a call that sent nothing got a card as if it had")
+        self.assertEqual([c["name"] for c in items[0]["calls"]], ["SendUserFile"])
+        got = chat.call(self.path, items[0]["calls"][0]["pos"], items[0]["calls"][0]["index"])
+        self.assertTrue(got["failed"], "the refusal is readable in the details of the call")
+
+    def test_a_refused_call_does_not_take_the_card_of_the_next_one(self):
+        self.write(self.call("t0", "/srv/proj/cv/resume.pdf"), self.refusal("t0"),
+                   self.call("t1", [f for f, _, _ in self.FILES]), self.receipt("t1", self.FILES))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in items], ["tools", "sent"])
+        self.assertEqual(items[1]["use"], "t1")
+        self.assertEqual(len(items[0]["calls"]), 2, "both calls are in the run, only one went through")
+
+    def test_a_delivery_without_a_caption_is_still_a_card(self):
+        self.write(self.call("t1", [self.FILES[0][0]], caption=""),
+                   self.receipt("t1", self.FILES[:1], caption=""))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual(items[1]["role"], "sent")
+        self.assertNotIn("text", items[1])
+        self.assertEqual([f["name"] for f in items[1]["files"]], ["resume.pdf"])
+
+    def test_a_receipt_with_no_files_gives_no_card(self):
+        self.write(self.call("t1", []), self.receipt("t1", []))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in items], ["tools"])
+
+    def test_the_card_is_not_told_from_the_call_by_shape_alone(self):
+        # An answer with attachments to a call that is not a delivery is that
+        # call's business: only a delivery call is waited on for a receipt.
+        self.write({"type": "assistant", "timestamp": "2026-08-23T10:00:00Z",
+                    "message": {"content": [{"type": "tool_use", "id": "t9", "name": "Read",
+                                             "input": {"file_path": "/srv/proj/cv/resume.pdf"}}]}},
+                   self.receipt("t9", self.FILES[:1]))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in items], ["tools"])
+
+    def test_a_window_after_the_call_still_gets_the_card(self):
+        self.write(self.call("t1", [f for f, _, _ in self.FILES]), self.receipt("t1", self.FILES))
+        whole = chat.feed(self.path)
+        later = chat.feed(self.path, after=whole["items"][0]["pos"])["items"]
+        self.assertEqual([i["role"] for i in later], ["sent"],
+                         "the delivery is tracked over the whole file, not only inside the window")
+
+
 class Feed(unittest.TestCase):
     def setUp(self):
         self.dir = test_barrier.tmp_dir()

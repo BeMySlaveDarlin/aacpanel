@@ -1,4 +1,4 @@
-"""State of a claude session: background commands, subagents, artifacts."""
+"""State of a claude session: background commands, subagents, artifacts, sent files."""
 
 import json
 import os
@@ -7,7 +7,8 @@ import threading
 import contours
 
 from .artifacts import (ARTIFACT_PUBLISH, ARTIFACT_URL_RE, DOC_EXT,  # noqa: F401
-                        DOC_TOOLS, artifact_fields, inside, result_text)
+                        DOC_TOOLS, SENT_TOOL, artifact_fields, inside, result_text,
+                        sent_files)
 from .feed import State, _feed_record
 from .limits import MAX_ITEMS, MAX_TEXT  # noqa: F401
 from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F401

@@ -1,4 +1,4 @@
-"""Feed cards: artifact, answered question round, alarm firing."""
+"""Feed cards: artifact, files sent to the human, answered question round, alarm firing."""
 import sesstate
 
 from .limits import MAX_TEXT, cut
@@ -15,6 +15,27 @@ def artifact_card(data, use, at, pos):
     for field in ("desc", "label", "note", "icon"):
         if fields.get(field):
             card[field] = fields[field]
+    return card
+
+
+def sent_card(result, use, at, pos):
+    """Returns a card for the files a call delivered to the human, or None when none went.
+
+    The card is built from the answer, not from the call: the call names what
+    it wants sent, and only the answer says what reached the human. A call
+    that failed answers with an error and no attachments — it stays a plain
+    call in the run, with the error readable in its details, and gives no card.
+    """
+    files = [{"path": f["path"], "name": f["file"],
+              **{k: f[k] for k in ("size", "media") if k in f}}
+             for f in sesstate.sent_files(result)]
+    if not files:
+        return None
+    body, trimmed = cut(str(result.get("caption") or "").strip(), MAX_TEXT)
+    card = {"role": "sent", "use": use or "", "files": files, "at": at, "pos": pos}
+    if body:
+        card["text"] = body
+        card["cut"] = trimmed
     return card
 
 
