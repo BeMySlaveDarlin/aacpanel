@@ -34,6 +34,13 @@ function saveURL(base, path) {
     return `/api/chat/file/download?${base}&path=${encodeURIComponent(path)}`;
 }
 
+// openURL is the file as the browser shows it rather than saves it: the same
+// route as saving, so the same check of the path against the directory of the
+// conversation, and the service worker lets it past the same way.
+function openURL(base, path) {
+    return `${saveURL(base, path)}&inline=1`;
+}
+
 const SaveIcon = () => html`
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
          stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10.5l4 4 4-4M5 19h14" /></svg>
@@ -135,7 +142,7 @@ export function Look({ session, id, look, onBack, quote, onQuote }) {
                 <pre class="callpre">${state.text || "nothing yet"}</pre>
             `}
             ${state.kind === "ready" && file && html`<${FileBody} state=${state} look=${look}
-                more=${more} onMore=${loadMore} />`}
+                open=${openURL(base, look.path)} more=${more} onMore=${loadMore} />`}
             ${state.kind === "ready" && !task && !file && (letters.length === 0
                 ? html`<p class="hint">The agent is working and has not reported yet.</p>`
                 : letters.map((letter, n) => html`

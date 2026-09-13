@@ -6,11 +6,14 @@ import { html } from "../../html.js";
 import { render } from "../../md.js";
 import { highlight } from "../../code.js";
 import { bytes } from "../../format.js";
+import { useWide } from "../../ui/wide.js";
 import { Photo } from "./photo.js";
 import { frameDoc, pickView, sheet } from "./kinds.js";
 
-// FileBody renders the contents of an open file.
-export function FileBody({ state, look, more, onMore }) {
+// FileBody renders the contents of an open file. open is the address at which
+// the browser shows the file as a document of its own, for the kinds the
+// screen does not draw itself.
+export function FileBody({ state, look, open, more, onMore }) {
     const name = state.name || look.path || "";
     const view = pickView(state, name);
     if (view === "exec") return html`<${ExecPlate} state=${state} name=${name} />`;
@@ -25,7 +28,7 @@ export function FileBody({ state, look, more, onMore }) {
     if (view === "video" || view === "audio") {
         return html`<${Player} state=${state} name=${name} sound=${view === "audio"} />`;
     }
-    if (view === "pdf") return html`<${Paper} state=${state} name=${name} />`;
+    if (view === "pdf") return html`<${Paper} state=${state} name=${name} open=${open} />`;
     if (view === "binary") {
         return html`<p class="hint warn">The file is binary — there is nothing to show it with.</p>`;
     }
@@ -109,11 +112,33 @@ function Player({ state, name, sound }) {
     `;
 }
 
-function Paper({ state, name }) {
+// Paper shows a PDF. The wide screen draws it inside the page; the phone is
+// sent to the viewer it has for the file, the same way the shells are told
+// apart — by width. A phone browser has no viewer for a document embedded in
+// a page: it draws a plate of its own whose "open" leads nowhere from inside
+// the installed app, since the bytes live in a blob the app alone can see. A
+// navigation of the browser's own to the file's address gives the phone a
+// document it can hand over.
+function Paper({ state, name, open }) {
+    const wide = useWide();
+    if (wide) return html`<${PaperFrame} state=${state} name=${name} />`;
+    return html`<${PaperOpen} open=${open} />`;
+}
+
+function PaperFrame({ state, name }) {
     const url = useBytes(state.data, state.media || "application/pdf");
     if (!url) return html`<p class="hint">Reading…</p>`;
     return html`
         <iframe class="filepdf" src=${url} title=${name}></iframe>
+    `;
+}
+
+function PaperOpen({ open }) {
+    return html`
+        <div class="fileopen">
+            <p class="hint">A PDF opens outside the panel, in the viewer the phone has for it.</p>
+            <a class="btn primary" href=${open} target="_blank" rel="noopener">open</a>
+        </div>
     `;
 }
 

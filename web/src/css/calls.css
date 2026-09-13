@@ -166,6 +166,10 @@ button.filepic {
 .filepdf, .filehtml { height: 70dvh; }
 .filehtml { background: #fff; }
 
+.fileopen { display: grid; gap: .6rem; justify-items: start; }
+.fileopen .hint { margin: 0; }
+.fileopen .btn { text-decoration: none; }
+
 .filetabs { display: flex; gap: .35rem; margin-bottom: .5rem; }
 
 .filesheet {

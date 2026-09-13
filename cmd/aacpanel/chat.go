@@ -297,7 +297,11 @@ func (s *Server) apiChatDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attachHead(w, first.Name, first.Media)
+	// The viewer may ask for the file to be shown in place instead of saved,
+	// and it gets that only for a file the browser shows without running
+	// anything in it. Everything else is saved whatever was asked.
+	inline := r.URL.Query().Get("inline") == "1" && shownInPlace(first.Media)
+	fileHead(w, first.Name, first.Media, inline)
 	w.Header().Set("Content-Length", strconv.FormatInt(first.Size, 10))
 	s.sendRanges(r.Context(), w, target, want, first)
 }
@@ -335,21 +339,35 @@ func (s *Server) sendRanges(ctx context.Context, w io.Writer, target chatTarget,
 	}
 }
 
-// attachHead tells the browser to save the answer instead of showing it. The
-// quoted name keeps ASCII alone — a quote or a letter outside it parts a browser
-// from the whole name — and the real one goes beside it, encoded.
-func attachHead(w http.ResponseWriter, name, media string) {
+// shownInPlace reports whether the browser may show the file in place, as a
+// document of the panel's own origin: a PDF and nothing else. A page from a
+// project directory shown that way would run its script with the panel's
+// cookies, and a picture in SVG is a page too. A PDF renders without running
+// anything of the sort, and a phone has a viewer of its own for it.
+func shownInPlace(media string) bool {
+	return media == "application/pdf"
+}
+
+// fileHead tells the browser what the answer is and whether to save it or to
+// show it in place. The quoted name keeps ASCII alone — a quote or a letter
+// outside it parts a browser from the whole name — and the real one goes
+// beside it, encoded.
+func fileHead(w http.ResponseWriter, name, media string, inline bool) {
 	if name == "" {
 		name = "file"
 	}
 	if media == "" {
 		media = "application/octet-stream"
 	}
+	way := "attachment"
+	if inline {
+		way = "inline"
+	}
 	w.Header().Set("Content-Type", media)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition",
-		fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", asciiName(name), escapeName(name)))
+		fmt.Sprintf("%s; filename=%q; filename*=UTF-8''%s", way, asciiName(name), escapeName(name)))
 }
 
 // asciiName is the name for browsers that read the quoted one only.
