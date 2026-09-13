@@ -42,6 +42,30 @@ def _mark_reported(state, record):
     _prune_reported_agents(state)
 
 
+def _lose(state, name):
+    """Lets an agent go that cannot be reached: one that ever wrote keeps its place as reported."""
+    agent = state.agents.get(name)
+    if agent is None:
+        return
+    if not agent.get("reportedAt"):
+        state.agents.pop(name, None)
+        return
+    agent["status"] = "reported"
+    _prune_reported_agents(state)
+
+
+def _lose_older_than(state, born):
+    """Lets go every active agent spawned before the process was born: none of them outlived it."""
+    if not born:
+        return
+    since = _stamp(born)[:19]
+    gone = [name for name, agent in state.agents.items()
+            if agent.get("status") == "active"
+            and agent.get("at") and agent["at"][:19] < since]
+    for name in gone:
+        _lose(state, name)
+
+
 def _prune_reported_agents(state):
     if len(state.agents) <= MAX_ITEMS:
         return

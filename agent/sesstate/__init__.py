@@ -11,7 +11,7 @@ from .artifacts import (ARTIFACT_PUBLISH, ARTIFACT_URL_RE, DOC_EXT,  # noqa: F40
 from .feed import State, _feed_record
 from .limits import MAX_ITEMS, MAX_TEXT  # noqa: F401
 from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F401
-                        _mark_reported, agent_meta, letter_text)
+                        _lose_older_than, _mark_reported, agent_meta, letter_text)
 from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, AACP_TIMEOUT,  # noqa: F401
                     NOTIF_BLOCK_RE, NOTIF_EVENT_RE, NOTIF_STATUS_RE,
                     NOTIF_TASK_RE, NOTIF_USE_RE, STOPPERS, TASK_AGENT,
@@ -66,13 +66,20 @@ def team_names(path):
     return names
 
 
-def read(path, state=None, size=None):
-    """Returns the state of a transcript, reading a ready state on from its position."""
+def read(path, state=None, size=None, born=None):
+    """Returns the state of a transcript, reading a ready state on from its position.
+
+    Born is when the process of the session started, in epoch seconds: the
+    subagents spawned before it died with the process that spawned them.
+    """
     if size is None:
         size = os.path.getsize(path)
     if state is None or state.pos > size:
         state = State()
+    if born:
+        state.born = born
     if state.pos == size:
+        _lose_older_than(state, state.born)
         return state
 
     with open(path, encoding="utf-8", errors="replace") as f:
@@ -98,6 +105,7 @@ def read(path, state=None, size=None):
     if names is not None:
         for gone in [name for name in state.agents if name not in names]:
             del state.agents[gone]
+    _lose_older_than(state, state.born)
 
     meta = agent_meta(path)
     for name, agent in state.agents.items():
@@ -121,13 +129,13 @@ class Cache:
         self._states = {}
         self._lock = threading.Lock()
 
-    def state(self, path):
+    def state(self, path, born=None):
         try:
             size = os.path.getsize(path)
         except OSError:
             return None
         with self._lock:
-            state = read(path, self._states.get(path), size)
+            state = read(path, self._states.get(path), size, born)
             self._states[path] = state
             return state
 

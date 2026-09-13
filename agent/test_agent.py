@@ -162,7 +162,7 @@ class Sessions(unittest.TestCase):
         seen = []
 
         class Cache:
-            def state(self, path):
+            def state(self, path, born=None):
                 seen.append(path)
                 return None
 
@@ -175,6 +175,29 @@ class Sessions(unittest.TestCase):
         self.rows({"session": "aacpanel", "sessionId": UUID_A, "transcript": path})
         agent.sessions()
         self.assertEqual(seen, [path])
+
+    def test_the_birth_of_the_process_reaches_the_session_state(self):
+        seen = []
+
+        class Cache:
+            def state(self, path, born=None):
+                seen.append(born)
+                return None
+
+            def forget(self, alive):
+                pass
+
+        self.addCleanup(setattr, agent, "SESSION_STATE", agent.SESSION_STATE)
+        agent.SESSION_STATE = Cache()
+        pid = os.getpid()
+        with open(os.path.join(agent.CLAUDE_SESSIONS, f"{pid}.json"), "w") as f:
+            json.dump({"pid": pid, "procStart": agent.ctx.proc_start(pid),
+                       "name": "aacpanel", "sessionId": UUID_A}, f)
+        self.rows({"session": "aacpanel", "sessionId": UUID_A,
+                   "transcript": f"/home/x/.claude/projects/-opt-p/{UUID_A}.jsonl"})
+        agent.sessions()
+        self.assertEqual(seen, [agent.ctx.started_at(pid)])
+        self.assertGreater(seen[0], 0)
 
     def test_the_path_to_the_transcript_does_not_leak_outside(self):
         self.rows({"session": "aacpanel", "sessionId": UUID_A,

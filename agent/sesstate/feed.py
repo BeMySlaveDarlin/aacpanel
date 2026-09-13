@@ -5,7 +5,7 @@ import os
 
 from .artifacts import ARTIFACT_URL_RE, DOC_TOOLS, _artifact, _document, result_text
 from .limits import MAX_ITEMS, _short
-from .subagents import AGENT_ID_RE, _prune_reported_agents
+from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
 from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_AGENT,
                     TASK_ID_KEYS, TASK_KIND_BY_KEY, _notify_tasks, _task, finish)
 from .wake import WAKE_ID, _wake, is_wakeup
@@ -24,6 +24,7 @@ class State:
         self.docs = {}
         self.cwd = ""
         self.pos = 0
+        self.born = None
 
     def snapshot(self):
         """Returns what goes outside, ordered by the time work started."""
@@ -109,7 +110,7 @@ def _feed_record(state, record, raw):
                 agent = state.agents.get(data.get("to"))
                 if agent is not None:
                     agent["status"] = "active"
-                    agent["reportedAt"] = ""
+                    state.pending[block.get("id")] = {"kind": "mail", "to": agent["name"]}
             continue
 
         if block.get("type") != "tool_result":
@@ -131,6 +132,12 @@ def _feed_record(state, record, raw):
             _wake(state, started, result, at)
             continue
         if not isinstance(result, dict):
+            continue
+        if started["kind"] == "mail":
+            # The only letter the tool refuses to an agent of this session is one
+            # to an agent that is gone.
+            if result.get("success") is False:
+                _lose(state, started["to"])
             continue
         if started["kind"] == "agent":
             status = result.get("status")

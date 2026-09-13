@@ -56,6 +56,17 @@ def session_profiles():
     return out
 
 
+def session_births():
+    """Maps a sessionId to when the process of the session was born, in epoch seconds."""
+    out = {}
+    for data in live_session_files():
+        sid = data.get("sessionId")
+        born = ctx.started_at(data["pid"]) if sid else None
+        if born:
+            out[sid] = born
+    return out
+
+
 def live_session_files():
     """Returns the parsed files of the sessions whose process is really alive."""
     out = []
@@ -128,6 +139,7 @@ def sessions():
         return {"sessions": [], "notes": [f"the session count did not run: {e}"]}
     home_slug = os.path.expanduser("~").replace("/", "-")
     profiles = session_profiles()
+    births = session_births()
     waits = live_session_waits()
     statuses = live_session_status()
     stamps = live_session_status_at()
@@ -153,7 +165,7 @@ def sessions():
                 s["statusUpdatedAt"] = stamp
         if transcript:
             seen_transcripts.add(transcript)
-            state = agent.SESSION_STATE.state(transcript)
+            state = agent.SESSION_STATE.state(transcript, born=births.get(sid))
             busy = state.snapshot() if state else None
             if state and sid:
                 asked.BOOK.answered(sid, set(state.answered))

@@ -28,7 +28,8 @@ def _oneshot(pid):
     return bool(re.search(r"(^|\s)(-p|--print)(\s|$)", cmdline))
 
 
-def _started_at(pid):
+def started_at(pid):
+    """Returns when a process was born, in epoch seconds, or None when it is gone."""
     try:
         return os.stat(f"/proc/{pid}").st_mtime
     except OSError:
@@ -66,7 +67,7 @@ def live_sessions():
         out.append({
             "name": name, "sessionId": sid, "cwd": cwd,
             "transcript": chat.transcript_path(sid),
-            "procStartedAt": _started_at(pid),
+            "procStartedAt": started_at(pid),
         })
     return out
 

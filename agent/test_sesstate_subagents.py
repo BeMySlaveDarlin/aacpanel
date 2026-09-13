@@ -1,6 +1,8 @@
+import calendar
 import json
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -30,6 +32,15 @@ def letter(name, at="2026-08-25T10:30:00Z"):
                              "Another Claude session sent a message: "
                              f'<teammate-message teammate_id="{name}" color="blue">'
                              "\nfound three of them\n</teammate-message>"}})
+
+
+def mail(tool_id, to, delivered=True, at="2026-08-25T10:40:00Z"):
+    outcome = ({"success": True, "message": f"Message sent to {to}'s inbox"} if delivered
+               else {"success": False,
+                     "message": f"No agent named '{to}' is reachable.\n"
+                                "Use ListAgents to see everyone you can message."})
+    return (call("SendMessage", tool_id, at=at, to=to, message="go on")
+            + result(tool_id, json.dumps(outcome), at=at, **outcome))
 
 
 def terminated(name, at="2026-08-25T11:00:00Z"):
@@ -122,7 +133,36 @@ class Agents(Transcript):
             call("SendMessage", "toolu_2", at="2026-08-25T10:40:00Z", to="alpha"),
         )
         self.assertEqual([(a["name"], a["status"], a["reportedAt"]) for a in got["agents"]],
-                         [("alpha", "active", "")])
+                         [("alpha", "active", "2026-08-25T10:30:00Z")])
+
+    def test_a_delivered_message_keeps_the_agent_active(self):
+        got = self.state(spawn("toolu_1", "alpha"), letter("alpha"),
+                         mail("toolu_2", "alpha"))
+        self.assertEqual([(a["name"], a["status"]) for a in got["agents"]],
+                         [("alpha", "active")])
+
+    def test_a_message_that_found_nobody_returns_the_agent_to_reported(self):
+        got = self.state(spawn("toolu_1", "alpha"), letter("alpha"),
+                         mail("toolu_2", "alpha", delivered=False))
+        self.assertEqual([(a["name"], a["status"], a["reportedAt"]) for a in got["agents"]],
+                         [("alpha", "reported", "2026-08-25T10:30:00Z")])
+
+    def test_a_message_that_found_nobody_forgets_an_agent_that_never_wrote(self):
+        got = self.state(spawn("toolu_1", "alpha"),
+                         mail("toolu_2", "alpha", delivered=False))
+        self.assertEqual(got["agents"], [])
+
+    def test_a_message_with_no_verdict_leaves_the_agent_active(self):
+        got = self.state(spawn("toolu_1", "alpha"), letter("alpha"),
+                         call("SendMessage", "toolu_2", to="alpha")
+                         + result("toolu_2", "Message sent"))
+        self.assertEqual(got["agents"][0]["status"], "active")
+
+    def test_a_refusal_for_another_session_does_not_touch_the_agents(self):
+        got = self.state(spawn("toolu_1", "alpha"), letter("alpha"),
+                         mail("toolu_2", "docs", delivered=False))
+        self.assertEqual([(a["name"], a["status"]) for a in got["agents"]],
+                         [("alpha", "reported")])
 
     def test_a_message_to_another_session_does_not_touch_the_agents(self):
         got = self.state(
@@ -160,6 +200,53 @@ class Agents(Transcript):
     def test_an_agent_launch_that_failed_is_not_shown(self):
         got = self.state(call("Agent", "toolu_1", name="alpha")
                          + result("toolu_1", "no such agent type"))
+        self.assertEqual(got["agents"], [])
+
+
+BORN = calendar.timegm(time.strptime("2026-08-25T10:30:00Z", "%Y-%m-%dT%H:%M:%SZ"))
+
+
+class Restart(Transcript):
+    def born(self, born, *chunks):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("".join(chunks))
+        return sesstate.read(path, born=born).snapshot()
+
+    def test_an_agent_spawned_before_the_process_was_born_did_not_outlive_it(self):
+        got = self.born(BORN, spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"))
+        self.assertEqual(got["agents"], [])
+
+    def test_one_that_wrote_before_the_restart_stays_reported(self):
+        got = self.born(BORN, spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"),
+                        letter("alpha", at="2026-08-25T10:10:00Z"),
+                        call("SendMessage", "toolu_2", at="2026-08-25T10:20:00Z", to="alpha"))
+        self.assertEqual([(a["name"], a["status"], a["reportedAt"]) for a in got["agents"]],
+                         [("alpha", "reported", "2026-08-25T10:10:00Z")])
+
+    def test_an_agent_spawned_after_the_birth_is_working(self):
+        got = self.born(BORN, spawn("toolu_1", "alpha", at="2026-08-25T11:00:00Z"))
+        self.assertEqual([(a["name"], a["status"]) for a in got["agents"]],
+                         [("alpha", "active")])
+
+    def test_a_namesake_spawned_after_the_restart_is_working(self):
+        got = self.born(BORN, spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"),
+                        spawn("toolu_2", "alpha", at="2026-08-25T11:00:00Z"))
+        self.assertEqual([(a["name"], a["at"], a["status"]) for a in got["agents"]],
+                         [("alpha", "2026-08-25T11:00:00Z", "active")])
+
+    def test_without_a_birth_nothing_is_lost(self):
+        got = self.born(None, spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"))
+        self.assertEqual([(a["name"], a["status"]) for a in got["agents"]],
+                         [("alpha", "active")])
+
+    def test_the_birth_is_remembered_by_a_read_that_does_not_name_it(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        open(path, "w", encoding="utf-8").close()
+        state = sesstate.read(path, born=BORN)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"))
+        got = sesstate.read(path, state).snapshot()
         self.assertEqual(got["agents"], [])
 
 
