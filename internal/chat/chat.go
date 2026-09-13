@@ -267,6 +267,7 @@ type Reply struct {
 	Offset  int64        `json:"offset"`
 	Next    int64        `json:"next,omitempty"`
 	TooBig  bool         `json:"tooBig,omitempty"`
+	Mtime   string       `json:"mtime,omitempty"`
 }
 
 // Letter is one message from a subagent.

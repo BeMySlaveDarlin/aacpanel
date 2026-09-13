@@ -1,5 +1,6 @@
 """What is read from disk on request from the feed: task output and project files."""
 import base64
+import datetime
 import glob
 import json
 import os
@@ -270,7 +271,8 @@ def read_raw(path_in_repo, cwd, offset=0, limit=MAX_RAW):
     except (OSError, ValueError, TypeError):
         return None
     out = {"kind": "raw", "size": size, "name": os.path.basename(real),
-           "offset": start, "data": base64.b64encode(data).decode("ascii")}
+           "offset": start, "data": base64.b64encode(data).decode("ascii"),
+           "mtime": changed_at(st)}
     _, media = as_is(real)
     if media:
         out["media"] = media
@@ -278,6 +280,17 @@ def read_raw(path_in_repo, cwd, offset=0, limit=MAX_RAW):
     if end < size:
         out["next"] = end
     return out
+
+
+def changed_at(st):
+    """Returns when the file last changed, in the clock of this host.
+
+    The panel names the copy a device saves by this time, and the name has
+    to say what a directory listing here says: the stamp carries the offset
+    of the host, since the panel may keep a clock of its own.
+    """
+    at = datetime.datetime.fromtimestamp(st.st_mtime).astimezone()
+    return at.isoformat(timespec="seconds")
 
 
 def trim_utf8(data):

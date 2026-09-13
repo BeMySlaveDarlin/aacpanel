@@ -301,7 +301,7 @@ func (s *Server) apiChatDownload(w http.ResponseWriter, r *http.Request) {
 	// and it gets that only for a file the browser shows without running
 	// anything in it. Everything else is saved whatever was asked.
 	inline := r.URL.Query().Get("inline") == "1" && shownInPlace(first.Media)
-	fileHead(w, first.Name, first.Media, inline)
+	fileHead(w, versionedName(first.Name, first.Mtime), first.Media, inline)
 	w.Header().Set("Content-Length", strconv.FormatInt(first.Size, 10))
 	s.sendRanges(r.Context(), w, target, want, first)
 }
@@ -368,6 +368,30 @@ func fileHead(w http.ResponseWriter, name, media string, inline bool) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition",
 		fmt.Sprintf("%s; filename=%q; filename*=UTF-8''%s", way, asciiName(name), escapeName(name)))
+}
+
+// versionedName is the name a file is handed over under: the name it has on
+// disk with the minute of its last change before the extension. A phone keeps
+// its downloads by name, and a file under a name that is already there is not
+// fetched again — the copy on the phone is opened instead, however old. The
+// stamp goes on the saved file as well as on the one shown in place: a copy
+// saved under the bare name would be the one the next "open" stumbles on.
+// Without the time, which an older collector does not send, the name stays
+// as it is.
+func versionedName(name, mtime string) string {
+	if name == "" || mtime == "" {
+		return name
+	}
+	at, err := time.Parse(time.RFC3339, mtime)
+	if err != nil {
+		return name
+	}
+	// A leading dot is not an extension: ".env" is a name with none.
+	ext := ""
+	if dot := strings.LastIndexByte(name, '.'); dot > 0 {
+		ext = name[dot:]
+	}
+	return strings.TrimSuffix(name, ext) + " " + at.Format("2006-01-02 15-04") + ext
 }
 
 // asciiName is the name for browsers that read the quoted one only.
