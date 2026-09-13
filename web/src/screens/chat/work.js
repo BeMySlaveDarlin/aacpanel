@@ -186,7 +186,22 @@ function StopButton({ ready, why, busy, done, onStop, label }) {
     `;
 }
 
-// WorkList renders what stands behind a counter: the tasks, the subagents or the artifacts.
+// sentState is the line under the name of a sent file: its type, size, how
+// many times it went and when.
+function sentState(file) {
+    return [
+        fileTag({ name: file.file, media: file.media }),
+        file.size > 0 && bytes(file.size),
+        file.count > 1 && `${file.count} ${plural(file.count, "delivery", "deliveries")}`,
+        file.at && since(file.at),
+    ].filter(Boolean).join(" · ");
+}
+
+// WorkList renders what stands behind a counter: the tasks, the subagents or
+// the artifacts. A sent file the reader cannot open — one that lies outside
+// the directory of the conversation — is drawn as a row, not a button: the
+// reader holds every file against that directory, and a tap would end in a
+// refusal, so the row says where the file lies instead.
 export function WorkList({ session, id, kind, work, exec, onAgent }) {
     const [pick, setPick] = useState(null);
     const run = useAction();
@@ -348,22 +363,28 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
                 <p class="hint">The session wrote no documents.</p>
             `}
             ${kind === "arts" && sent.length > 0 && html`<div class="callcap">sent to you</div>`}
-            ${kind === "arts" && sent.map((file) => html`
-                <button class="wrow doc" type="button" key=${file.path}
-                        onClick=${() => setPick({ kind: "file", path: file.path, text: file.path })}>
-                    <span class="wicon">${Icon.file()}</span>
-                    <span class="wcol">
-                        <span class="wname">${file.file}</span>
-                        <span class="wstate">${[
-                            fileTag({ name: file.file, media: file.media }),
-                            file.size > 0 && bytes(file.size),
-                            file.count > 1 && `${file.count} ${plural(file.count, "delivery", "deliveries")}`,
-                            file.at && since(file.at),
-                        ].filter(Boolean).join(" · ")}</span>
-                    </span>
-                    <span class="crgo">${Icon.chevron()}</span>
-                </button>
-            `)}
+            ${kind === "arts" && sent.map((file) => (file.outside
+                ? html`
+                    <div class="wrow doc outside" key=${file.path}>
+                        <span class="wicon">${Icon.file()}</span>
+                        <span class="wcol">
+                            <span class="wname">${file.file}</span>
+                            <span class="wstate">${sentState(file)}</span>
+                            <span class="wnote">outside the conversation directory</span>
+                        </span>
+                    </div>
+                `
+                : html`
+                    <button class="wrow doc" type="button" key=${file.path}
+                            onClick=${() => setPick({ kind: "file", path: file.path, text: file.path })}>
+                        <span class="wicon">${Icon.file()}</span>
+                        <span class="wcol">
+                            <span class="wname">${file.file}</span>
+                            <span class="wstate">${sentState(file)}</span>
+                        </span>
+                        <span class="crgo">${Icon.chevron()}</span>
+                    </button>
+                `))}
             ${kind === "arts" && sent.length === 0 && html`
                 <p class="hint">The session sent no files.</p>
             `}

@@ -134,6 +134,11 @@ def sent_files(result):
 
 def _sent(state, result, at):
     for entry in sent_files(result):
+        # The reader opens a file only inside the directory of the conversation,
+        # and a session may send one from anywhere. The row stays, since the
+        # file did reach the human, but it is marked: a tap would end in a refusal.
+        if inside(entry["path"], state.cwd) is None:
+            entry["outside"] = True
         was = state.sent.get(entry["path"]) or {}
         state.sent[entry["path"]] = {
             **entry,

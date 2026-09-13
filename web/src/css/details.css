@@ -12,6 +12,12 @@
 .wrow.task:active, .wrow.agent:active, .wrow.doc:active { background: var(--glass); }
 .wrow.doc { align-items: flex-start; gap: .55rem; }
 .wrow.doc .wicon, .wrow.doc .crgo { margin-top: .12rem; }
+/* A sent file the reader cannot open is a row, not a button: no pointer, no
+   press, and the note under its name says where the file lies. The rows that
+   are buttons take their inset from the browser's default button padding, and
+   this one repeats it, or its icon stands out of the column. */
+.wrow.doc.outside { padding: 1px 6px; cursor: default; }
+.wrow.doc.outside:active { background: none; }
 .worklist .callcap:first-child { margin-top: 0; }
 .wrow.agent { align-items: flex-start; gap: .55rem; }
 .wrow.agent .wicon, .wrow.agent .crgo { margin-top: .12rem; }

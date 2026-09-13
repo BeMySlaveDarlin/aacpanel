@@ -184,6 +184,10 @@ type Sent struct {
 	Media string `json:"media,omitempty"`
 	At    string `json:"at,omitempty"`
 	Count int    `json:"count,omitempty"`
+	// Outside marks a file that lies outside the directory of the
+	// conversation: the reader will refuse it, and the list says so
+	// instead of offering a tap.
+	Outside bool `json:"outside,omitempty"`
 }
 
 // Ask is a pending session question with the options to choose from.

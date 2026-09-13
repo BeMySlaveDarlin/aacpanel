@@ -97,11 +97,13 @@ class Sent(Transcript):
         super().setUp()
         self.cwd = os.path.join(self.dir.name, "proj")
         os.makedirs(self.cwd)
+        self.elsewhere = os.path.join(self.dir.name, "scratch")
+        os.makedirs(self.elsewhere)
         self.pdf = self.touch("out/report.pdf", "%PDF-1.4\n")
         self.txt = self.touch("out/notes.txt", "notes\n")
 
-    def touch(self, rel, text):
-        full = os.path.join(self.cwd, rel)
+    def touch(self, rel, text, root=None):
+        full = os.path.join(root or self.cwd, rel)
         os.makedirs(os.path.dirname(full), exist_ok=True)
         with open(full, "w", encoding="utf-8") as f:
             f.write(text)
@@ -179,6 +181,42 @@ class Sent(Transcript):
     def test_a_delivery_does_not_count_as_a_document(self):
         got = self.state(self.delivered("toolu_1", [(self.txt, 5, "text/plain")]))
         self.assertEqual(got["docs"], [], "sending a text file is not writing one")
+
+    def test_a_file_sent_from_elsewhere_is_marked_outside(self):
+        """The reader opens a file only inside the directory of the conversation:
+        a file sent from anywhere else keeps its row, marked, so the list does
+        not offer a tap that ends in a refusal."""
+        away = self.touch("resume.pdf", "%PDF-1.4\n", root=self.elsewhere)
+        got = self.state(self.delivered("toolu_1", [(self.pdf, 10, "application/pdf"),
+                                                    (away, 10, "application/pdf")]))
+        self.assertEqual([(s["file"], s.get("outside")) for s in got["sent"]],
+                         [("report.pdf", None), ("resume.pdf", True)])
+
+    def test_a_file_inside_the_directory_carries_no_mark(self):
+        got = self.state(self.delivered("toolu_1", [(self.pdf, 10, "application/pdf")]))
+        self.assertNotIn("outside", got["sent"][0], "a file the reader opens is marked as one it cannot")
+
+    def test_a_link_that_leads_outside_is_marked(self):
+        target = self.touch("resume.pdf", "%PDF-1.4\n", root=self.elsewhere)
+        link = os.path.join(self.cwd, "resume.pdf")
+        os.symlink(target, link)
+        got = self.state(self.delivered("toolu_1", [(link, 10, "application/pdf")]))
+        self.assertTrue(got["sent"][0].get("outside"), "a link into another directory passes for a file inside")
+
+    def test_a_neighbour_with_a_shared_prefix_is_outside(self):
+        near = self.cwd + "-2"
+        os.makedirs(near)
+        away = self.touch("resume.pdf", "%PDF-1.4\n", root=near)
+        got = self.state(self.delivered("toolu_1", [(away, 10, "application/pdf")]))
+        self.assertTrue(got["sent"][0].get("outside"), "a neighbour sharing the prefix passes for the directory")
+
+    def test_a_second_delivery_keeps_the_mark(self):
+        away = self.touch("resume.pdf", "%PDF-1.4\n", root=self.elsewhere)
+        got = self.state(
+            self.delivered("toolu_1", [(away, 10, "application/pdf")]),
+            self.delivered("toolu_2", [(away, 12, "application/pdf")], at="2026-08-30T11:00:00Z"),
+        )
+        self.assertEqual([(s["count"], s.get("outside")) for s in got["sent"]], [(2, True)])
 
 
 if __name__ == "__main__":

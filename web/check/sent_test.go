@@ -65,14 +65,18 @@ func TestSentFilesCountOnTheArtifactChip(t *testing.T) {
 			"the list does not show", chatFile)
 	}
 	group := list[strings.Index(list, "sent.map("):]
-	if end := strings.Index(group, "`)}"); end > 0 {
+	if end := strings.Index(group, "sent.length === 0"); end > 0 {
 		group = group[:end]
 	}
 	if !strings.Contains(group, `kind: "file"`) || !strings.Contains(group, "path: file.path") {
 		t.Errorf("%s: a sent file from the list opens by something other than the file handler — "+
 			"then the disk has a second road with a boundary of its own", chatFile)
 	}
-	if !strings.Contains(group, "fileTag({ name: file.file, media: file.media })") {
+	if !strings.Contains(group, "sentState(file)") {
+		t.Errorf("%s: the row of a sent file does not carry the line under its name", chatFile)
+	}
+	state := jsBlock(t, chatFile, body, "function sentState(")
+	if !strings.Contains(state, "fileTag({ name: file.file, media: file.media })") {
 		t.Errorf("%s: the list does not say what kind of file was sent, or asks by a name the "+
 			"row does not carry — a text file is then tagged by its media type, PLAIN", chatFile)
 	}

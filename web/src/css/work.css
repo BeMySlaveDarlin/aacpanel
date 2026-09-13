@@ -141,7 +141,8 @@
     color: var(--ink-faint);
 }
 
-.wnote { color: var(--ink-faint); }
+/* The line under a row that says why it does not open: a note, not a state. */
+.wrow .wnote { display: block; font-size: .7rem; font-weight: 400; color: var(--ink-faint); }
 
 .worklist {
     display: flex;
