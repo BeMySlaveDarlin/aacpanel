@@ -996,7 +996,7 @@ func TestIntentRidesAsPositionalPromptBeforeArgs(t *testing.T) {
 		{
 			name:   "an empty intent is not passed",
 			launch: `{"intent":""}`,
-			want:   []string{"-n", "home", "--remote-control", "home"},
+			want:   []string{"-n", "home"},
 		},
 	}
 	for _, c := range cases {
