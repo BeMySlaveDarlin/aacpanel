@@ -252,8 +252,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None):
                         out.append(card)
                         continue
                 if name == sesstate.SENT_TOOL and sent is not None:
-                    # The call stays in the run as a call: whether anything
-                    # reached the human is known only from the answer.
+                    # The call goes into the run as a call: whether anything
+                    # reached the human is known only from the answer, and
+                    # the window takes the call out once its card is drawn.
                     sent.add(block.get("id") or "")
                 if name == "SendMessage":
                     data = block.get("input") or {}

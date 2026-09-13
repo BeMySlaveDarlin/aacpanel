@@ -212,6 +212,23 @@
     line-height: 1.3;
 }
 
+/* A sent file the reader cannot open lies outside the directory of the
+   conversation: the row says so under the name, gives no press, and its
+   type loses the accent — a live-looking row that answers with a refusal
+   is worse than a plain one. */
+.mfile.outside { cursor: default; }
+.mfile.outside:active { background: var(--glass); }
+.mfile.outside .mftag {
+    background: var(--glass-2);
+    color: var(--ink-faint);
+}
+.mfnote {
+    display: block;
+    font-size: .7rem;
+    font-weight: 400;
+    color: var(--ink-faint);
+}
+
 .mtools {
     align-self: flex-start;
     display: flex;

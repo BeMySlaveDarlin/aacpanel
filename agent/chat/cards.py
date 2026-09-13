@@ -39,6 +39,23 @@ def sent_card(result, use, at, pos):
     return card
 
 
+def mark_outside(items, cwd):
+    """Marks in every card of sent files the ones the reader cannot open.
+
+    The reader opens a file only inside the directory of the conversation,
+    and a session may send one from anywhere — its scratchpad, say. Such a
+    file did reach the human, so its card stays; but a tap on it would end
+    in a refusal, and the row has to say so instead of promising an opening.
+    """
+    for item in items:
+        if item.get("role") != "sent":
+            continue
+        for entry in item.get("files") or []:
+            if sesstate.inside(entry.get("path"), cwd) is None:
+                entry["outside"] = True
+    return items
+
+
 MAX_ASK_QUESTIONS = 8
 MAX_ASK_TEXT = 400
 MAX_ASK_ANSWERS = 12

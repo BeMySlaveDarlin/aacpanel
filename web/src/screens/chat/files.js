@@ -59,16 +59,34 @@ export function fileTag(file) {
 // FileCard renders an attachment as one row. With a tag the type stands where
 // the icon would: a PDF and a text file are one icon, and the type is what
 // the human tells them apart by.
+//
+// A file the reader cannot open — one a session sent from outside the
+// directory of the conversation — is not a button: the reader holds every
+// file against that directory, and a tap would end in a refusal. The row
+// says so under the name instead of promising an opening.
 export function FileCard({ file, onOpen, tag }) {
     const image = isImage(file);
+    const mark = tag
+        ? html`<span class="mftag">${tag}</span>`
+        : html`<span class="mfico">${image ? Icon.photo() : Icon.file()}</span>`;
+    if (file.outside) {
+        return html`
+            <div class=${`mfile${tag ? " tagged" : ""} outside`}>
+                ${mark}
+                <span class="mfname">
+                    ${file.name}
+                    <span class="mfnote">outside the conversation directory</span>
+                </span>
+                ${file.size > 0 && html`<span class="mfsize">${bytes(file.size)}</span>`}
+            </div>
+        `;
+    }
     return html`
         <button class=${`mfile${tag ? " tagged" : ""}`} type="button"
                 onClick=${() => onOpen && onOpen(file)}
                 data-path=${file.path}
                 aria-label=${`open ${file.name}`}>
-            ${tag
-                ? html`<span class="mftag">${tag}</span>`
-                : html`<span class="mfico">${image ? Icon.photo() : Icon.file()}</span>`}
+            ${mark}
             <span class="mfname">${file.name}</span>
             ${file.size > 0 && html`<span class="mfsize">${bytes(file.size)}</span>`}
         </button>

@@ -1,6 +1,7 @@
 """Feed window: one pass over the file, folding calls into badges."""
 import json
 
+from .cards import mark_outside
 from .disk import attach_files
 from .limits import DEFAULT_LIMIT, MAX_LIMIT
 from .queue import Pending
@@ -30,10 +31,33 @@ def feed(path, limit=DEFAULT_LIMIT, before=None, after=None, sidechain=False):
                 return True
         return False
 
+    def drop_call(use):
+        # A delivery is shown once. Whether anything reached the human is
+        # known only from the answer, so the call goes into the run first and
+        # leaves it when its card is drawn; a call that failed gets no card
+        # and stays, with the error readable in its details.
+        nonlocal total
+        if not use:
+            return
+        for i, was in enumerate(window):
+            if was["role"] != "tools":
+                continue
+            calls = [c for c in was["calls"] if c["use"] != use]
+            if len(calls) == len(was["calls"]):
+                continue
+            if calls:
+                was["calls"] = calls
+            else:
+                del window[i]
+                total -= 1
+            return
+
     def keep(item):
         nonlocal total
         if place(item):
             return
+        if item["role"] == "sent":
+            drop_call(item["use"])
         if item["role"] == "taskdone":
             if any(was["role"] == "taskdone" and was["use"] == item["use"] for was in window):
                 return
@@ -129,6 +153,7 @@ def feed(path, limit=DEFAULT_LIMIT, before=None, after=None, sidechain=False):
                 more_before = True
 
     attach_files(window, cwd)
+    mark_outside(window, cwd)
     if after is not None:
         return {"items": window, "moreBefore": False, "total": total, "last": last_pos}
     return {"items": window, "moreBefore": more_before, "total": total, "last": last_pos}
