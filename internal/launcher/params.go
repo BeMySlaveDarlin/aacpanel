@@ -91,7 +91,10 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 
 func claudeArgs(name, resume string, p Params) []string {
 	args := []string{"-n", name}
-	if p.RemoteControl == nil || *p.RemoteControl {
+	// Remote control is on only when the map says so: the screen shows an
+	// unset switch as off, and a launch that quietly turned it on would
+	// contradict what the human just read there.
+	if p.RemoteControl != nil && *p.RemoteControl {
 		args = append(args, "--remote-control", name)
 	}
 	if p.Model != "" {

@@ -65,13 +65,18 @@ func TestClaudeArgsFromLaunchParams(t *testing.T) {
 		want   []string
 	}{
 		{
-			name:   "empty — only the name and the remote control",
+			name:   "empty — only the name, and no remote control unasked",
 			launch: `{}`,
+			want:   []string{"-n", "home"},
+		},
+		{
+			name:   "remote control switched on",
+			launch: `{"remoteControl":true}`,
 			want:   []string{"-n", "home", "--remote-control", "home"},
 		},
 		{
 			name:   "the whole map",
-			launch: `{"model":"opus","effort":"high","permissionMode":"plan","args":["--add-dir","/opt/x"]}`,
+			launch: `{"remoteControl":true,"model":"opus","effort":"high","permissionMode":"plan","args":["--add-dir","/opt/x"]}`,
 			want: []string{"-n", "home", "--remote-control", "home", "--model", "opus",
 				"--effort", "high", "--permission-mode", "plan", "--add-dir", "/opt/x"},
 		},
@@ -84,8 +89,7 @@ func TestClaudeArgsFromLaunchParams(t *testing.T) {
 			name:   "resuming a conversation",
 			launch: `{}`,
 			resume: "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1",
-			want: []string{"-n", "home", "--remote-control", "home",
-				"--resume", "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1"},
+			want:   []string{"-n", "home", "--resume", "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1"},
 		},
 	}
 	for _, c := range cases {
@@ -396,7 +400,7 @@ func TestRunStartsSessionInTmuxAndAttachesWindow(t *testing.T) {
 	dir := t.TempDir()
 	rep, err := Run(context.Background(), Spec{
 		Dir: dir, Session: "aacpanel",
-		Launch: json.RawMessage(`{"room":"work","model":"opus","env":{"FOO":"bar"}}`),
+		Launch: json.RawMessage(`{"room":"work","model":"opus","remoteControl":true,"env":{"FOO":"bar"}}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -974,19 +978,19 @@ func TestIntentRidesAsPositionalPromptBeforeArgs(t *testing.T) {
 		{
 			name:   "intent of a new session",
 			launch: `{"intent":"/rs"}`,
-			want:   []string{"-n", "home", "--remote-control", "home", "/rs"},
+			want:   []string{"-n", "home", "/rs"},
 		},
 		{
 			name:   "intent when resuming",
 			launch: `{"intent":"let's continue"}`,
 			resume: "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1",
-			want: []string{"-n", "home", "--remote-control", "home",
+			want: []string{"-n", "home",
 				"--resume", "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1", "let's continue"},
 		},
 		{
 			name:   "before the arguments from the map",
 			launch: `{"intent":"hello","args":["--add-dir","/opt/x"]}`,
-			want: []string{"-n", "home", "--remote-control", "home",
+			want: []string{"-n", "home",
 				"hello", "--add-dir", "/opt/x"},
 		},
 		{
