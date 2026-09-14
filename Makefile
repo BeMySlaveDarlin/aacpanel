@@ -1,7 +1,7 @@
 GOVULNCHECK_VERSION ?= v1.7.0
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay delivery-test shellcheck skills-diff
+.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay delivery-test shellcheck skills-diff skills-local
 
 # check — everything that runs before a commit. front is here as a check, not for
 # the bundle: an error in the screen markup is caught by no test.
@@ -122,10 +122,36 @@ build:
 skills-diff:
 	@dir="$${CLAUDE_CONFIG_DIR:-$$HOME/.claude}/skills"; \
 	for s in deploy/claude/skills/*/; do n=$$(basename "$$s"); \
-	  if [ ! -f "$$dir/$$n/SKILL.md" ]; then echo "-- $$n: not installed in $$dir"; \
-	  elif cmp -s "$$s/SKILL.md" "$$dir/$$n/SKILL.md"; then echo "ok $$n"; \
-	  else echo "!! $$n: differs from deploy/claude/skills/$$n/SKILL.md"; diff -u "$$s/SKILL.md" "$$dir/$$n/SKILL.md" | head -20; fi; \
+	  mine="$${s%/}/SKILL.md"; there="$$dir/$$n/SKILL.md"; mark="$$dir/$$n/.local"; \
+	  if [ ! -f "$$there" ]; then printf '%-6s %s\n' "--" "$$n: not installed in $$dir"; continue; fi; \
+	  if cmp -s "$$mine" "$$there"; then printf '%-6s %s\n' "ok" "$$n"; continue; fi; \
+	  lines=$$(diff "$$mine" "$$there" | grep -c '^[<>]'); \
+	  if [ -f "$$mark" ]; then \
+	    was=$$(sed -n 's/^against //p' "$$mark"); now=$$(sha256sum "$$mine" | cut -d" " -f1); \
+	    if [ "$$was" = "$$now" ]; then \
+	      printf '%-6s %s\n' "local" "$$n: $$(head -1 "$$mark") ($$lines lines)"; continue; \
+	    fi; \
+	    printf '%-6s %s\n' "!!" "$$n: kept local against an older delivery — the shipped skill has changed since"; \
+	    printf '%-6s %s\n' "" "read it, then: make skills-local SKILL=$$n WHY='...'"; continue; \
+	  fi; \
+	  printf '%-6s %s\n' "!!" "$$n: parted from the delivery, $$lines lines"; \
+	  printf '%-6s %s\n' "" "see:  diff -u $$mine $$there"; \
+	  printf '%-6s %s\n' "" "kept on purpose?  make skills-local SKILL=$$n WHY='why'"; \
 	done
+
+# Marks an installed skill as a variant this machine keeps on purpose, so the
+# check names it instead of printing a diff nobody is going to act on. The mark
+# records which delivery it was taken against: when the shipped skill moves on,
+# the check says so rather than staying quiet for ever.
+skills-local:
+	@test -n "$(SKILL)" || { echo "!! give the skill: make skills-local SKILL=<name> WHY='why'"; exit 1; }
+	@test -n "$(WHY)" || { echo "!! give the reason: it is the only thing the check can show later"; exit 1; }
+	@dir="$${CLAUDE_CONFIG_DIR:-$$HOME/.claude}/skills/$(SKILL)"; \
+	mine="deploy/claude/skills/$(SKILL)/SKILL.md"; \
+	test -f "$$mine" || { echo "!! the delivery has no skill $(SKILL)"; exit 1; }; \
+	test -f "$$dir/SKILL.md" || { echo "!! $(SKILL) is not installed in $$dir"; exit 1; }; \
+	printf '%s\nagainst %s\n' "$(WHY)" "$$(sha256sum "$$mine" | cut -d' ' -f1)" > "$$dir/.local"; \
+	echo "ok $(SKILL): kept local — $(WHY)"
 
 # Builds the bundle with the same toolchain as the service: there is no npm here.
 front:

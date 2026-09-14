@@ -90,6 +90,18 @@ make usage-replay    # incremental usage collection against a straight pass over
 make skills-diff     # whether the shipped skills have parted from the installed ones
 ```
 
+**A skill a machine keeps in a version of its own** is marked rather than
+argued with every time: `make skills-local SKILL=<name> WHY='why'` writes a
+`.local` beside the installed skill, and `skills-diff` then names it instead of
+printing a diff nobody is going to act on. A machine may well want its own: the
+shipped skill has to work anywhere and asks the panel where things are, while a
+local one can go straight to what that machine has.
+
+The mark records which delivery it was taken against. When the shipped skill
+moves on, the check says the mark is older than the delivery and asks for it to
+be made again — an ignore that never expires is an ignore that hides the next
+change too.
+
 ---
 
 ## The boundaries of tests
