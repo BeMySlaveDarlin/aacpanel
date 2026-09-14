@@ -296,6 +296,26 @@
 .composer .pickfile { color: var(--ink-faint); }
 .composer .iconbtn.accent:active, .composer .pickfile:active { background: var(--glass); }
 
+/* The send button is held down to dictate, so it must not answer a long press
+   with a text selection or the system menu of the phone. While it listens it
+   says so plainly: the colour of an alert and a ring that breathes, because a
+   microphone that is open and looks shut is the worst state it can be in. */
+.composer .iconbtn.accent { touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+
+.composer .iconbtn.accent.hearing {
+    color: var(--crit);
+    background: var(--crit-bg);
+    animation: hearing 1.3s ease-in-out infinite;
+}
+
+@keyframes hearing {
+    50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--crit) 14%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .composer .iconbtn.accent.hearing { animation: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--crit) 18%, transparent); }
+}
+
 .composer textarea::placeholder { color: var(--ink-faint); }
 .composer textarea:disabled { color: var(--ink-faint); }
 

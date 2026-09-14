@@ -347,7 +347,7 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 	}
 
 	const composerFile = "src/screens/chat/composer.js"
-	send := withoutComments(jsUntil(t, composerFile, files[composerFile], "const send = async () => {", "\n    };"))
+	send := withoutComments(jsUntil(t, composerFile, files[composerFile], "const send = async (", "\n    };"))
 	holdAt := strings.Index(send, "if (hold) {")
 	deliverAt := strings.Index(send, "await deliver(")
 	if holdAt < 0 || deliverAt < 0 || holdAt > deliverAt {

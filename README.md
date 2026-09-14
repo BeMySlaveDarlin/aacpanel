@@ -23,7 +23,7 @@ the project.
 
 | Screen | What is on it |
 |---|---|
-| **Sessions** | live sessions with the model and how full the context is; the conversation as a feed — messages, thinking, tool calls, subagent messages, attachments; the composer from the phone; the `AskUserQuestion` card — answer with an option, answer in your own words, or dismiss it; an answer to a permission prompt; stopping the turn, a piece of background work or a subagent; slash commands from a closed list; the session terminal; a window on the host desktop; an archive of closed conversations, with resume |
+| **Sessions** | live sessions with the model and how full the context is; the conversation as a feed — messages, thinking, tool calls, subagent messages, attachments; the composer from the phone, typed or dictated; the `AskUserQuestion` card — answer with an option, answer in your own words, or dismiss it; an answer to a permission prompt; stopping the turn, a piece of background work or a subagent; slash commands from a closed list; the session terminal; a window on the host desktop; an archive of closed conversations, with resume |
 | **Containers** | the "stack → containers" tree with processor, memory and size on disk; logs, starting and stopping a container, bringing a whole stack up and down |
 | **Machine** | processor, memory, disks, network, top processes, checks on ports and external services; history with rollups by minute and by hour, charts from half an hour to a month |
 | **Profile map** | "profile → group → project": where sessions may be opened, with what parameters, in which claude account |
@@ -33,6 +33,14 @@ the project.
 
 The panel's own container is not shut down from here, and a push about a
 session does not go to the device where that session is open right now.
+
+**Dictation into the composer** is off until it is switched on for a device, in
+Settings. With nothing to send the button is a switch — one press starts
+listening, the next stops it, and what was heard stays in the field to be read
+over before it goes; with words in it the button sends, and only a press held
+talks. The recognition is the browser's own, which in Chrome means the recording
+goes to Google: it is the one thing here that leaves the machine, and the switch
+says so before it is flipped.
 
 ## How it works
 

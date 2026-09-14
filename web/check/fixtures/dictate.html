@@ -1,0 +1,111 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} #root{padding:8px}</style>
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The composer the panel ships, with dictation switched on for this device and
+// the browser's recognition replaced by a stub the page drives by hand.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Composer } from "/src/screens/chat/composer.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+localStorage.setItem("aacpanel.dictation", "on");
+
+let live = null, starts = 0;
+
+// The stub speaks the way a phone does, which is not the way the API reads.
+// Every event carries the whole list, resultIndex stays at nought, and each
+// finished piece restates the whole sentence heard so far rather than the words
+// added since — which is how a count of five arrives as one, one, one two, one
+// two three four five.
+class Stub {
+    constructor() { this.pieces = []; }
+    start() { live = this; starts++; this.onstart && this.onstart(); }
+    stop() { live = null; this.onend && this.onend(); }
+    put(text, final) {
+        this.pieces.push(Object.assign([{ transcript: text }], { isFinal: final }));
+        this.onresult({ resultIndex: 0, results: this.pieces });
+    }
+    speak(text) { this.put(text, true); }
+    hear(text) {   // one piece still being made out, alongside the finished ones
+        const interim = Object.assign([{ transcript: text }], { isFinal: false });
+        this.onresult({ resultIndex: 0, results: this.pieces.concat([interim]) });
+    }
+}
+window.SpeechRecognition = Stub;
+window.fetch = async () => new Response("", { status: 404 });
+
+const sent = [];
+const exec = { available: true };
+function Page() {
+    return html`<${Composer} name="lab" id="s1" exec=${exec} busy=${false} hold=${false}
+        files=${[]} onLocal=${(row) => sent.push(row.text)} onLocalDone=${() => {}} />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const btn = () => document.querySelector(".composer .iconbtn.accent");
+const area = () => document.querySelector(".composer textarea");
+const press = (el, type, id = 1) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id, button: 0 }));
+const look = () => ({
+    icon: btn().querySelector("svg").innerHTML.slice(0, 40),
+    cls: btn().className, off: btn().disabled, title: btn().title,
+});
+
+window.done = (async () => {
+    await sleep(250);
+    const empty = look();
+
+    // an empty field is a switch: one press starts listening
+    btn().click(); await sleep(120);
+    const started = { live: Boolean(live), starts, cls: btn().className, sent: sent.length };
+
+    live.speak("one");
+    await sleep(80);
+    live.hear("one tw");                 // still being made out — nothing may land yet
+    await sleep(60);
+    const midway = area().value;
+    for (const all of ["one", "one two", "one two three four five"]) { live.speak(all); await sleep(60); }
+    const heard = area().value;
+    const whileLive = look();
+
+    // the next press stops it, and what was heard stays where it is
+    btn().click(); await sleep(150);
+    const stopped = { live: Boolean(live), text: area().value, sent: sent.length, cls: btn().className };
+    const withText = look();
+
+    // with words in the field a short press sends, as it always did
+    press(btn(), "pointerdown"); await sleep(80); press(btn(), "pointerup");
+    btn().click(); await sleep(250);
+    const tapped = { sent: sent.length, last: sent[sent.length - 1] || "", text: area().value, starts };
+
+    // and a held press talks, putting the new words after the old
+    area().value = "written by hand";
+    area().dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(80);
+    press(btn(), "pointerdown"); await sleep(520);
+    const held = { live: Boolean(live), starts };
+    live.speak("and then said");
+    await sleep(80);
+    press(btn(), "pointerup");
+    btn().click();                       // the click the browser sends after a release
+    await sleep(200);
+    const after = { live: Boolean(live), text: area().value, sent: sent.length };
+
+    // an empty field is a switch however long the press: a slow one must leave
+    // it listening rather than start and stop under the finger
+    area().value = "";
+    area().dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(80);
+    press(btn(), "pointerdown"); await sleep(560); press(btn(), "pointerup");
+    btn().click(); await sleep(150);
+    const slow = { live: Boolean(live), starts };
+    if (live) live.stop();
+
+    return { empty, started, midway, heard, whileLive, stopped, withText, tapped, held, after, slow };
+})();
+</script>

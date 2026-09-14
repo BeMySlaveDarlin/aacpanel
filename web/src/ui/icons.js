@@ -75,6 +75,8 @@ export const Icon = {
 
     clip: () => html`<svg ...${stroke}><path d="M20 11.5 12 19.4a5 5 0 0 1-7.1-7L13.6 3.7a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.6a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9" /></svg>`,
 
+    mic: () => html`<svg ...${stroke}><rect x="9" y="2.8" width="6" height="11" rx="3" /><path d="M5.5 11.4a6.5 6.5 0 0 0 13 0M12 17.9V21M9 21h6" /></svg>`,
+
     camera: () => html`<svg ...${stroke}><path d="M3 8.5a2 2 0 0 1 2-2h2.2l1.3-2h6l1.3 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><circle cx="12" cy="13" r="3.4" /></svg>`,
 
     photo: () => html`<svg ...${stroke}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.6" /><path d="m4 17 5-5 4.5 4.5L16.5 13l3.5 3.5" /></svg>`,

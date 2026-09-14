@@ -8,6 +8,7 @@ import { mayFocus, regain } from "../../ui/focus.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
 import { WIDE } from "../../ui/wide.js";
+import { dictation, HOLD_MS, join, listen, speech } from "./dictate.js";
 import { clipName, FILES_MAX, intake, mb, PickFile } from "./tools.js";
 import { withQuote } from "./quote.js";
 
@@ -53,6 +54,102 @@ function useDraft(id) {
     };
 
     return [text, write];
+}
+
+// useDictate hangs dictation off the send button, and no second button appears.
+// An empty field has nothing to send, so the button is a switch there: one press
+// starts listening, the next stops it, and what was heard stays in the field. A
+// field with words in it is the send button it has always been — a press sends,
+// and only a press held past HOLD_MS talks, until the finger comes off. Either
+// way the dictation lands after what is already written.
+function useDictate(text, setText, toast) {
+    const [live, setLive] = useState(false);
+    const on = dictation() && Boolean(speech());
+    const timer = useRef(null);
+    const ear = useRef(null);
+    const how = useRef("");
+    const spoke = useRef(false);
+    const latest = useRef(text);
+    latest.current = text;
+
+    useEffect(() => () => {
+        clearTimeout(timer.current);
+        if (ear.current) ear.current.stop();
+    }, []);
+
+    // start opens the microphone either way it was asked for. What stood in the
+    // field at that moment is kept: the dictation reports the whole of what it
+    // has heard each time, so the field is written anew from that rather than
+    // added to, and the same words arriving twice change nothing. Words already
+    // written stay where they are and the dictation lands after them.
+    const start = (mode) => {
+        timer.current = null;
+        how.current = mode;
+        // Only a held press leaves a click behind to be swallowed: the press
+        // that ends a switched-on dictation is that click.
+        spoke.current = mode === "hold";
+        const base = latest.current;
+        ear.current = listen({
+            onSaid: (heard) => {
+                latest.current = join(base, heard);
+                setText(latest.current);
+            },
+            onEnd: (why) => {
+                ear.current = null;
+                how.current = "";
+                setLive(false);
+                if (why) toast("Dictation", why, true);
+            },
+        });
+        if (ear.current) setLive(true);
+        else spoke.current = false;
+    };
+
+    const stop = () => { if (ear.current) ear.current.stop(); };
+
+    return {
+        on,
+        live,
+        // tap reports whether a press should be answered by the microphone
+        // rather than by sending, and does it. An empty field is a switch: one
+        // press starts, the next stops, and what was heard stays in the field.
+        // A field with words in it is the send button, and only a held press
+        // talks.
+        tap: (empty) => {
+            if (!on) return false;
+            if (ear.current) {
+                // A press held to talk is ended by the release, not by the
+                // click that comes after it.
+                if (how.current === "tap") stop();
+                return true;
+            }
+            if (spoke.current) {
+                spoke.current = false;
+                return true;
+            }
+            if (!empty) return false;
+            start("tap");
+            return true;
+        },
+        down: (e, empty) => {
+            if (!on || ear.current || empty || (e.button !== undefined && e.button > 0)) return;
+            if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => start("hold"), HOLD_MS);
+        },
+        up: () => {
+            clearTimeout(timer.current);
+            timer.current = null;
+            if (!ear.current || how.current !== "hold") return;
+            stop();
+            // The click that follows a release is swallowed by the mark, but a
+            // release does not always bring one — a touch cancelled, a finger
+            // dragged off. Dropping the mark in the next task lets the click
+            // through if it comes and forgets it if it does not, so a dictation
+            // can never swallow the send after it.
+            setTimeout(() => { spoke.current = false; }, 0);
+        },
+    };
 }
 
 function saved(id) {
@@ -122,6 +219,7 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
     // still whole. The latch is taken before anything leaves and dropped only
     // once the screen has been drawn without that draft.
     const taken = useRef(false);
+    const hear = useDictate(text, setText, toast);
     const ready = knows(exec, "session.send");
     const why = whyNot(exec, "session.send");
     const canStop = knows(exec, "session.stop");
@@ -133,7 +231,15 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
     const cmd = canCmd && !pack.length ? parseCommand(text) : null;
     const hints = canCmd && !pack.length && !(cmd && cmd.ready) ? commandHints(text) : [];
-    const cantSend = !ready || sending || (cmd ? !cmd.ready : (pack.length ? !canFile : !text.trim()));
+    // With dictation on, an empty field shows the microphone rather than the
+    // arrow: there is nothing to send yet, and a disabled button takes no press
+    // to hold. The moment there are words it is the send button again. The
+    // emptiness is folded into cantSend rather than kept beside it, so the
+    // button and the key that sends keep asking one question.
+    const canTalk = hear.on && !cmd && !pack.length;
+    const asMic = canTalk && !text.trim();
+    const cantSend = !ready || sending
+        || (cmd ? !cmd.ready : (pack.length ? !canFile : (!text.trim() && !canTalk)));
     const stopping = busy && !text.trim() && !pack.length;
 
     const stop = async () => {
@@ -176,7 +282,8 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
 
     const send = async () => {
         const body = text.trim();
-        if ((!body && !pack.length) || sending || taken.current) return;
+        if (!body && !pack.length) return;
+        if (sending || taken.current) return;
         taken.current = true;
         if (cmd) return sendCommand();
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -258,13 +365,17 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
                 `
                 : html`
                     <button
-                        class="iconbtn accent"
+                        class=${`iconbtn accent${hear.live ? " hearing" : ""}`}
                         type="button"
-                        aria-label=${cmd ? `send a command to session ${name}` : `send to session ${name}`}
-                        title=${hold ? "will go out when the session is free" : sendTitle(ready, why, canFile, fileWhy, pack, cmd)}
+                        aria-label=${micLabel(asMic, hear.live, cmd, name)}
+                        title=${micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd)}
                         disabled=${cantSend}
-                        onClick=${send}
-                    >${Icon.send()}</button>
+                        onClick=${() => { if (!hear.tap(asMic)) send(); }}
+                        onPointerDown=${(e) => hear.down(e, asMic)}
+                        onPointerUp=${hear.up}
+                        onPointerCancel=${hear.up}
+                        onContextMenu=${(e) => hear.on && e.preventDefault()}
+                    >${asMic || hear.live ? Icon.mic() : Icon.send()}</button>
                 `}
         </div>
     `;
@@ -280,6 +391,19 @@ function placeholder(ready, why, name, pack) {
     if (!ready) return why;
     if (!pack.length) return `Write to ${name}`;
     return pack.length > 1 ? "A caption for the files — optional" : "A caption for the file — optional";
+}
+
+function micLabel(asMic, live, cmd, name) {
+    if (live) return `listening to what goes to session ${name} — press again to stop`;
+    if (asMic) return `talk to session ${name}`;
+    return cmd ? `send a command to session ${name}` : `send to session ${name}`;
+}
+
+function micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd) {
+    if (hear.live) return "listening — press again to stop, and the words stay in the field";
+    if (asMic) return "press to talk";
+    const plain = hold ? "will go out when the session is free" : sendTitle(ready, why, canFile, fileWhy, pack, cmd);
+    return hear.on ? `${plain} · hold to talk` : plain;
 }
 
 function sendTitle(ready, why, canFile, fileWhy, pack, cmd) {

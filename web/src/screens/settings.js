@@ -5,7 +5,9 @@ import { html } from "../html.js";
 import { BackHead, useBackClose } from "../ui/back.js";
 import { Icon } from "../ui/icons.js";
 import { Trouble } from "../ui/trouble.js";
+import { useToast } from "../ui/toasts.js";
 import { useWide } from "../ui/wide.js";
+import { askMicrophone, dictation, setDictation, speech } from "./chat/dictate.js";
 import { byGroup, clash, costOf, SOURCE, valueText, valueTone } from "./settings/model.js";
 
 const SETTINGS_URL = "/api/settings";
@@ -76,8 +78,11 @@ export function Settings({ onClose }) {
 
 function List({ state }) {
     return html`
+        <${Device} />
+
+        <div class="grouphead">The host</div>
         <p class="hint sethead">
-            This page only shows. Values are changed on the host — every line says what its change costs.
+            These only show. They are changed on the host — every line says what its change costs.
         </p>
 
         ${state.kind === "loading" && html`<p class="hint">Loading…</p>`}
@@ -96,6 +101,55 @@ function List({ state }) {
             <p class="hint">${group.hint}</p>
             ${items.map((item) => html`<${Row} key=${item.key} item=${item} />`)}
         `)}
+    `;
+}
+
+// Device holds what belongs to this browser rather than to the host. The
+// microphone is the device's, so a phone that dictates and a desk that does not
+// is an ordinary arrangement, and the switch is kept here and nowhere else.
+function Device() {
+    const toast = useToast();
+    const heard = Boolean(speech());
+    const [on, setOn] = useState(() => dictation());
+    const [asking, setAsking] = useState(false);
+
+    const flip = async () => {
+        if (on) {
+            setOn(setDictation(false));
+            return;
+        }
+        setAsking(true);
+        const got = await askMicrophone();
+        setAsking(false);
+        if (!got.ok) {
+            toast("Dictation stays off", got.why, true);
+            return;
+        }
+        setOn(setDictation(true));
+    };
+
+    return html`
+        <div class="grouphead">This device</div>
+        <p class="hint sethead">Kept in this browser. Nothing here reaches the host or the other devices.</p>
+
+        <section class="card setrow">
+            <div class="setline">
+                <span class="setkey">dictation</span>
+                <span class=${`setcost ${on ? "now" : "locked"}`}>${on ? "on" : "off"}</span>
+            </div>
+            <p class="setval">Hold the send button in a conversation and talk; let go and the words land in the field, to read over before they go.</p>
+            <p class="hint warn">
+                The recognition is the browser's own: it sends the recording to Google and needs the
+                network. Nothing else in the panel leaves the machine.
+            </p>
+            ${heard
+                ? html`
+                    <button class="btn" type="button" disabled=${asking} onClick=${flip}>
+                        ${asking ? "asking for the microphone…" : on ? "Turn dictation off" : "Turn dictation on"}
+                    </button>
+                `
+                : html`<p class="hint">This browser has no speech recognition, so there is nothing to turn on.</p>`}
+        </section>
     `;
 }
 
