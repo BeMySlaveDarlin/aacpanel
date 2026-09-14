@@ -58,7 +58,7 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 
 	var cwd string
 	if req.Kind == action.SessionResume {
-		sessionID, dir, err := s.resumeTarget(r, body.Target)
+		sessionID, dir, err := s.resumeTarget(r, body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -293,25 +293,40 @@ func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"available": true, "kinds": kinds})
 }
 
-func (s *Server) resumeTarget(r *http.Request, name string) (sessionID, cwd string, err error) {
+// resumeTarget finds the conversation a resume is about and where it ran. The
+// screen knows which row was pressed and says so by its identifier; the name is
+// the older way in and cannot tell two conversations apart when two contours
+// hold a project of the same name.
+func (s *Server) resumeTarget(r *http.Request, name string, params map[string]any) (sessionID, cwd string, err error) {
 	if s.db == nil {
-		return "", "", errors.New("the session cannot be resumed: history is off, the database is not configured")
+		return "", "", errors.New("the conversation cannot be resumed: the database is not configured")
 	}
 	hostID, err := s.db.HostID(r.Context(), s.hostName)
 	if err != nil {
-		return "", "", fmt.Errorf("the session cannot be resumed: %w", err)
+		return "", "", err
 	}
+
+	if id, _ := params["session"].(string); strings.TrimSpace(id) != "" {
+		id = strings.TrimSpace(id)
+		cwd, err = s.db.SessionResumeAt(r.Context(), hostID, id)
+		if err != nil {
+			return "", "", err
+		}
+		if cwd == "" {
+			return "", "", fmt.Errorf("conversation %q is not in the archive of this machine", id)
+		}
+		return id, cwd, nil
+	}
+
 	sessionID, cwd, err = s.db.SessionResume(r.Context(), hostID, name)
 	if err != nil {
-		return "", "", fmt.Errorf("the session cannot be resumed: %w", err)
+		return "", "", err
 	}
 	if sessionID == "" {
-		return "", "", fmt.Errorf(
-			"session %q was recorded before the panel started remembering the conversation id — "+
-				"there is nothing to resume it with", name)
+		return "", "", fmt.Errorf("there is no conversation of session %q to resume", name)
 	}
 	if cwd == "" {
-		return "", "", fmt.Errorf("no working directory was recorded for session %q — there is nowhere to start the resume", name)
+		return "", "", fmt.Errorf("the directory of session %q is not known — it cannot be resumed", name)
 	}
 	return sessionID, cwd, nil
 }

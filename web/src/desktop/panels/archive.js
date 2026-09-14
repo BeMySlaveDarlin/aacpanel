@@ -85,7 +85,7 @@ export function Archive({ profiles, picks, onOpen, exec }) {
                                         class=${`dkact${knows(exec, "session.resume") ? "" : " off"}`}
                                         data-tip=${knows(exec, "session.resume") ? "Resume the conversation" : whyNot(exec, "session.resume")}
                                         data-tipside="left"
-                                        onClick=${() => knows(exec, "session.resume") && run("session.resume", r.name, {})}
+                                        onClick=${() => knows(exec, "session.resume") && run("session.resume", r.name, { session: r.sessionId })}
                                     ><${Icon.resume} /></i>
                                 `}
                                 ${projectOf(r) && html`

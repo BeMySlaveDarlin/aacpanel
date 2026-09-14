@@ -27,7 +27,9 @@ function ResumeButton({ row, exec }) {
             disabled=${!ready}
             title=${ready ? "resume the conversation" : why}
             onClick=${async () => {
-                await run("session.resume", row.name, {});
+                // The identifier, not the name: two contours may hold a project
+                // of the same name, and a name resumes whichever of them spoke last.
+                await run("session.resume", row.name, { session: row.sessionId });
             }}
         >${Icon.resume()}</button>
     `;

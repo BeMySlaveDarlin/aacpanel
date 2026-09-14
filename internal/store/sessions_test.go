@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -391,6 +392,42 @@ func TestSessionResumeLookupPG(t *testing.T) {
 		}
 		if cwd != "/srv/proj/aacpanel" {
 			t.Errorf("directory %q — there is nowhere to launch the continuation", cwd)
+		}
+	})
+
+	t.Run("a name shared by two places is not enough to resume by", func(t *testing.T) {
+		insert("sessions_1m", base, "ai-platform", "cccccccc-0000-0000-0000-000000000003", "/srv/proj/Lab/ai-platform")
+		insert("sessions_1m", base.Add(time.Hour), "ai-platform", "dddddddd-0000-0000-0000-000000000004", "/srv/proj/Acme/ai-platform")
+
+		_, _, err := s.SessionResume(ctx, hostID, "ai-platform")
+		if err == nil {
+			t.Fatal("the name of a project two contours both hold resumed one of them without asking — the person " +
+				"pressed on one conversation and got somebody else's, in somebody else's tree")
+		}
+		for _, want := range []string{"/srv/proj/Lab/ai-platform", "/srv/proj/Acme/ai-platform"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("the refusal does not name %s: %v", want, err)
+			}
+		}
+	})
+
+	t.Run("an identifier says which of them, and where it ran", func(t *testing.T) {
+		cwd, err := s.SessionResumeAt(ctx, hostID, "cccccccc-0000-0000-0000-000000000003")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "/srv/proj/Lab/ai-platform"; cwd != want {
+			t.Errorf("directory %q, %q was expected — the identifier points at one conversation and only one", cwd, want)
+		}
+	})
+
+	t.Run("an identifier this machine never saw is a refusal, not the freshest one", func(t *testing.T) {
+		cwd, err := s.SessionResumeAt(ctx, hostID, "eeeeeeee-0000-0000-0000-000000000005")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cwd != "" {
+			t.Errorf("directory %q came out of nowhere", cwd)
 		}
 	})
 

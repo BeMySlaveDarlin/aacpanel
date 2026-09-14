@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -212,28 +213,73 @@ func (s *Store) sessionSeries(ctx context.Context, pool *pgxpool.Pool, out *Sess
 }
 
 // SessionResume returns the identifier and directory to resume a session with.
+// SessionResume finds a conversation to resume by the name it ran under, and
+// says so when the name is not enough. Names belong to the directory a session
+// was opened in, and two contours may hold a project of the same name: taking
+// whichever of them spoke last resumes a conversation the person did not point
+// at, in somebody else's tree.
 func (s *Store) SessionResume(ctx context.Context, hostID int, name string) (sessionID, cwd string, err error) {
 	pool, err := s.Pool()
 	if err != nil {
 		return "", "", err
 	}
 	for _, table := range []string{"sessions_1m", "sessions_1h"} {
-		var sid, dir *string
-		q := `SELECT session_id, cwd FROM ` + table + `
-		      WHERE host_id = $1 AND name = $2 AND session_id IS NOT NULL
-		      ORDER BY bucket DESC LIMIT 1`
-		switch err := pool.QueryRow(ctx, q, hostID, name).Scan(&sid, &dir); {
-		case errors.Is(err, pgx.ErrNoRows):
-			continue
-		case err != nil:
+		rows, err := pool.Query(ctx, `
+			SELECT coalesce(cwd, ''),
+			       (array_agg(session_id ORDER BY bucket DESC))[1]
+			FROM `+table+`
+			WHERE host_id = $1 AND name = $2 AND session_id IS NOT NULL
+			GROUP BY cwd
+			ORDER BY 1`, hostID, name)
+		if err != nil {
 			return "", "", Unavailable(err)
 		}
-		if sid != nil && *sid != "" {
-			if dir != nil {
-				cwd = *dir
-			}
-			return *sid, cwd, nil
+		type where struct{ dir, sid string }
+		found, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (where, error) {
+			var w where
+			return w, r.Scan(&w.dir, &w.sid)
+		})
+		if err != nil {
+			return "", "", Unavailable(err)
 		}
+		if len(found) == 0 {
+			continue
+		}
+		if len(found) > 1 {
+			places := make([]string, 0, len(found))
+			for _, one := range found {
+				places = append(places, one.dir)
+			}
+			return "", "", badRequest(
+				"the panel knows %d conversations called %q, in different places (%s) — resume the one you mean from the archive",
+				len(found), name, strings.Join(places, ", "))
+		}
+		return found[0].sid, found[0].dir, nil
 	}
 	return "", "", nil
+}
+
+// SessionResumeAt returns where a conversation ran, found by its own identifier
+// rather than by the name it shared with others.
+func (s *Store) SessionResumeAt(ctx context.Context, hostID int, sessionID string) (cwd string, err error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return "", err
+	}
+	for _, table := range []string{"sessions_1m", "sessions_1h"} {
+		var dir *string
+		q := `SELECT (array_agg(cwd ORDER BY bucket DESC) FILTER (WHERE cwd IS NOT NULL))[1]
+		      FROM ` + table + `
+		      WHERE host_id = $1 AND session_id = $2`
+		if err := pool.QueryRow(ctx, q, hostID, sessionID).Scan(&dir); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+			return "", Unavailable(err)
+		}
+		if dir != nil && *dir != "" {
+			return *dir, nil
+		}
+	}
+	return "", nil
 }
