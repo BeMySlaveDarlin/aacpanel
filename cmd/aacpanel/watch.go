@@ -134,6 +134,10 @@ type snapshot struct {
 			Count  int    `json:"count"`
 			At     string `json:"at"`
 		} `json:"ask"`
+		Note *struct {
+			Text string `json:"text"`
+			At   string `json:"at"`
+		} `json:"note"`
 	} `json:"sessions"`
 	Limits *limitsBlock `json:"limits"`
 }
@@ -175,6 +179,9 @@ func (w *watcher) readSnapshot(cur *notify.World) {
 		}
 		if s.Ask != nil {
 			item.Ask = &notify.Ask{Header: s.Ask.Header, Text: s.Ask.Text, Count: s.Ask.Count, At: s.Ask.At}
+		}
+		if s.Note != nil {
+			item.Note = &notify.Note{Text: s.Note.Text, At: s.Note.At}
 		}
 		cur.Sessions = append(cur.Sessions, item)
 	}

@@ -6,6 +6,7 @@ import archive
 import asked
 import contours
 import ctx
+import notes
 
 import agent
 
@@ -166,6 +167,9 @@ def sessions():
                 s["profile"], config_dir = found
                 if config_dir:
                     s["configDir"] = config_dir
+        note = notes.BOARD.of(sid) if sid else None
+        if note:
+            s["note"] = {"text": note.get("text") or "", "at": note.get("at") or ""}
         wait = waits.get(s.get("session") or "")
         if wait:
             s["waitingFor"] = wait
@@ -196,6 +200,8 @@ def sessions():
                     s["work"] = work
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
-    asked.BOOK.sweep({s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")})
+    alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
+    asked.BOOK.sweep(alive)
+    notes.BOARD.sweep(alive)
 
     return data

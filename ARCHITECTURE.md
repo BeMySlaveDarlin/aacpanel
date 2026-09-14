@@ -95,6 +95,15 @@ not in the state directory: the latter is mounted into the service, and "a
 session's question" would become data the panel accepts from whatever sticks out
 into the internet.
 
+**The call socket.** A session can also call the person to it: one line through
+`notify.sock`, in the same runtime directory and for the same reason, which the
+panel carries to their phone as a push that opens that session. It is not a
+question and not a request for a permission — nothing waits for an answer, and
+the turn goes on. What keeps it from becoming a bell nobody hears is the
+collector, which takes one call a minute from a session and cuts the line to a
+length a phone shows; a call the panel has not carried away within a few minutes
+goes stale, because a call is for now and a log of them is not worth keeping.
+
 ---
 
 ## The path of an action

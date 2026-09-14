@@ -8,6 +8,7 @@ import time
 import asked
 import chat
 import contours
+import notes
 import projects
 import seen
 import usage_link
@@ -55,6 +56,8 @@ def main():
     threading.Thread(target=chat.worker, daemon=True).start()
 
     threading.Thread(target=asked.worker, daemon=True).start()
+
+    threading.Thread(target=notes.worker, daemon=True).start()
 
     threading.Thread(target=seen.worker, daemon=True).start()
 

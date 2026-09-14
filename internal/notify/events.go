@@ -81,6 +81,14 @@ type Session struct {
 	StatusAt   int64
 	WaitingFor string
 	Ask        *Ask
+	Note       *Note
+}
+
+// Note is a session calling for the person: a word it chose to send itself,
+// with nothing to answer and nothing to permit.
+type Note struct {
+	Text string
+	At   string
 }
 
 // Ask is a question asked by a session.
@@ -222,6 +230,11 @@ func sessions(r *Report, prev, cur World) {
 
 	for _, s := range cur.Sessions {
 		before, seen := was[s.key()]
+		// A call stands in the snapshot for minutes so the panel cannot miss it;
+		// what is worth a push is the moment it appeared, not the fact it is there.
+		if s.Note != nil && (!seen || before.Note == nil || before.Note.At != s.Note.At) {
+			r.once(called(s))
+		}
 		switch {
 		case s.Ask != nil:
 			r.raise(asked(s))
@@ -248,6 +261,21 @@ func sessions(r *Report, prev, cur World) {
 			continue
 		}
 		r.once(closed(s))
+	}
+}
+
+func called(s Session) Event {
+	body := s.Note.Text
+	if where := s.where(); where != "" {
+		body += " · " + where
+	}
+	return Event{
+		Key:      "note:" + s.key() + ":" + s.Note.At,
+		Domain:   DomainSession,
+		Session:  s.Name,
+		Title:    s.Name + " is calling",
+		Body:     body,
+		Severity: Critical,
 	}
 }
 
