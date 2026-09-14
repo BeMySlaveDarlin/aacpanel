@@ -112,10 +112,17 @@ func TestColumnDrawsWhatItIsWaitingFor(t *testing.T) {
 
 func runDeskSessionsJS(t *testing.T, fn string, calls [][]any) []any {
 	t.Helper()
+	return runModuleJS(t, "src/desktop/sessions.js", fn, calls)
+}
+
+// runModuleJS bundles one front-end module and calls its export fn with every
+// argument list in calls through node, returning what came back.
+func runModuleJS(t *testing.T, module, fn string, calls [][]any) []any {
+	t.Helper()
 
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("node not found: ghost selection is run through the engine, not read out of the source")
+		t.Skip("node not found: the module is run through the engine, not read out of the source")
 	}
 	root, err := webbuild.FindRoot(".")
 	if err != nil {
@@ -125,7 +132,7 @@ func runDeskSessionsJS(t *testing.T, fn string, calls [][]any) []any {
 	if err != nil {
 		t.Fatalf("map of vendored libraries: %v", err)
 	}
-	entry, err := filepath.Abs(filepath.Join(webDir, "src", "desktop", "sessions.js"))
+	entry, err := filepath.Abs(webPath(module))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +145,7 @@ func runDeskSessionsJS(t *testing.T, fn string, calls [][]any) []any {
 		Write:       false,
 	})
 	if len(built.Errors) > 0 {
-		t.Fatalf("desktop/sessions.js did not build: %v", built.Errors[0].Text)
+		t.Fatalf("%s did not build: %v", module, built.Errors[0].Text)
 	}
 
 	dir := t.TempDir()
@@ -186,6 +193,7 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.open":    "open",
 		"session.resume":  "open",
 		"session.close":   "close",
+		"session.restart": "restart",
 		"session.kill":    "close",
 		"session.send":    "",
 		"session.answer":  "",

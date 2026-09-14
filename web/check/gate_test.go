@@ -621,7 +621,7 @@ func TestSessionActionsWaitForTheSnapshot(t *testing.T) {
 			t.Errorf("the shared wait has no %s", want)
 		}
 	}
-	if !strings.Contains(catch, "if (settled(task, names, at)") {
+	if !strings.Contains(catch, "if (settled(task, names, at, ids)") {
 		t.Error("the wait is cleared by something other than a flag: then it is cleared by timeout, " +
 			"that is, the panel simply waits a minute and shows what was there")
 	}

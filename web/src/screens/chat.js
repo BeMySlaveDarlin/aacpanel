@@ -10,7 +10,7 @@ import { ContextBar } from "../ui/bar.js";
 import { Ask } from "./ask.js";
 import { Permit } from "./chat/permit.js";
 import { ago, tokens } from "../format.js";
-import { closed, rows, runCalls, sameReply, weld } from "./chat/feed.js";
+import { closed, rows, runCalls, sameReply, sameShell, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { Row } from "./chat/rows.js";
@@ -80,8 +80,9 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
     useEffect(() => {
         if (!local.length) return;
         const said = state.items.filter((i) => i.role === "me").map((i) => i.text);
+        const ran = state.items.filter((i) => i.role === "shell").map((i) => i.text);
         const arrived = (l) => l.state !== "failed" && l.state !== "held"
-            && said.some((text) => sameReply(text, l));
+            && (said.some((text) => sameReply(text, l)) || ran.some((cmd) => sameShell(cmd, l)));
         setLocal((was) => (was.some(arrived) ? was.filter((l) => !arrived(l)) : was));
     }, [state.items, local.length]);
 
@@ -240,7 +241,10 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
         ${live && view !== "term" && html`
             <div class="deck">
                 ${live.tokensIn > 0 && html`
-                    <span class="deckuse" title="tokens in and out of this session">${tokens(live.tokensIn)}/${tokens(live.tokensOut)}</span>`}
+                    <span class="deckuse" title="tokens in and out of this session">
+                        <span class="deckin"><i>in</i>${tokens(live.tokensIn)}</span>
+                        <span class="deckout"><i>out</i>${tokens(live.tokensOut)}</span>
+                    </span>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
                     <${WorkRefs} work=${state.work} onOpen=${(what) => setLook(what)} />

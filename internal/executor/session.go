@@ -167,11 +167,10 @@ func projects() ([]project, error) {
 	if err != nil {
 		return nil, fmt.Errorf("home directory: %w", err)
 	}
-	return []project{homeProject(home)}, nil
+	return []project{homeProject(home, homeSessionName())}, nil
 }
 
-func homeProject(home string) project {
-	name := homeSessionName()
+func homeProject(home, name string) project {
 	return project{
 		Name:    "the host's main session",
 		Path:    home,

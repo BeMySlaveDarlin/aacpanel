@@ -104,7 +104,7 @@ EOF
     qemu-system-x86_64 -enable-kvm -m "$MEM" -smp "$CPUS" -cpu host \
         -drive file="$DIR/stand.qcow2",if=virtio,format=qcow2 \
         -drive file="$DIR/seed.iso",if=virtio,format=raw,readonly=on \
-        -netdev user,id=n0,hostfwd=tcp::"$SSH_PORT"-:22,hostfwd=tcp::"$PANEL_PORT"-:8776 \
+        -netdev user,id=n0,hostfwd=tcp:127.0.0.1:"$SSH_PORT"-:22,hostfwd=tcp:127.0.0.1:"$PANEL_PORT"-:8776 \
         -device virtio-net-pci,netdev=n0 \
         -vga virtio -display vnc=127.0.0.1:"$VNC_DISPLAY" \
         -name aacpanel-stand -daemonize

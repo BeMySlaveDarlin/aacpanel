@@ -1,5 +1,5 @@
 // The phone shell: header, tabs and the bottom menu.
-import { useCallback, useMemo, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { useBackClose } from "../ui/back.js";
@@ -34,7 +34,7 @@ function lastTab() {
 export function MobileShell({
     snapshot, tree, treeError, hostError, ageSec, history, faults, alerts, openAlerts,
     exec, onRefresh, wait, conn, theme, onTheme, updateReady, onApplyUpdate, installable, onInstall,
-    status,
+    status, jump, onJumped,
 }) {
     const [tab, setTab] = useState(lastTab);
     const [filters, setFilters] = useState({ containers: "all", sessions: "all" });
@@ -94,6 +94,11 @@ export function MobileShell({
         goTab("sessions");
         setWant({ name, id });
     }, [goTab]);
+    useEffect(() => {
+        if (!jump) return;
+        goHome(jump.name, jump.id);
+        onJumped();
+    }, [jump, goHome, onJumped]);
 
     const chips = useMemo(() => {
         if (layer) return null;

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/action"
 )
 
 const permScreen = `❯ check what is going on with the disk
@@ -349,7 +351,7 @@ func TestPermissionErrorsCarryNoScreen(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{"tool": true, "action": true, "options": true, "partial": true,
-		"fingerprint": true, "unknown": true, "raw": true}
+		"note": true, "cut": true, "fingerprint": true, "unknown": true, "raw": true}
 	for name := range fields {
 		if !want[name] {
 			t.Errorf("a new field %q appeared in the permission — check that the screen is not put into it", name)
@@ -648,5 +650,387 @@ func TestANumberedListInTheTalkIsNoDialog(t *testing.T) {
 	}
 	if lines := rawDialog(talk); lines != nil {
 		t.Errorf("an answer was shown as a dialog: %q", lines)
+	}
+}
+
+// The dialogs below are as tall as the console draws them: a rule across the
+// screen, the heading, the command — barred down the left side inside its box when
+// it runs to several lines — with its description, and, when a hook asks for the
+// confirmation, the hook's words barred at the edge of the dialog under the box.
+// The question stands well below the heading, further than a short dialog puts it.
+const permLongScreen = `❯ collect the ids
+  Looking at the rows now, the token is hunter2 by the way
+  ⎿  $ cat in.json | head -3
+
+───────────────────────────────────────────────────────────────────────────────────────
+ Bash command
+
+   │ python3 - <<'EOF'
+   │ import json, sys
+   │ rows = json.load(open("in.json"))
+   │ out = []
+   │ for r in rows:
+   │     if r.get("ok"):
+   │         out.append(r["id"])
+   │ json.dump(out, sys.stdout)
+   │ EOF
+   Collect the ids of the rows that passed
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and don't ask again for python3 commands in /home/u/work/thing
+   3. No, and tell Claude what to do differently (esc)
+
+ Esc to cancel · Tab to amend`
+
+const permHookScreen = `❯ run the check
+  Running it now, the token is hunter2 by the way
+
+───────────────────────────────────────────────────────────────────────────────────────
+ Bash command
+
+   │ python3 - <<'EOF'
+   │ print("hi")
+   │ EOF
+   Say hi from a script
+
+ │ Hook PreToolUse:Bash requires confirmation for this command:
+ │ Scripts run outside the sandbox here: confirm it, or run it in a scratch
+ │ copy of the tree instead. [settings]
+ settings.json to update hooks
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. No
+
+ Esc to cancel · Tab to amend`
+
+// permHookNote is the note of permHookScreen as the card shows it: the heading says
+// who asks, the tag naming where the hook is configured is gone from the last line,
+// and so is the hint under the note.
+var permHookNote = []string{
+	"Hook PreToolUse:Bash requires confirmation for this command:",
+	"Scripts run outside the sandbox here: confirm it, or run it in a scratch",
+	"copy of the tree instead.",
+}
+
+// permCutScreen is permLongScreen as a shorter screen shows it: the dialog is taller
+// than the screen, and its opening — the rule and the heading — has scrolled off.
+var permCutScreen = permLongScreen[strings.Index(permLongScreen, "   │     if r.get"):]
+
+// permHookCutScreen is permHookScreen with the heading scrolled off the same way.
+var permHookCutScreen = permHookScreen[strings.Index(permHookScreen, "   │ print(\"hi\")"):]
+
+// permWrappedCutScreen is the tail of a command with a line too long for the screen:
+// the console wraps its rest onto a row of its own, in the first column and with no
+// bar, and a blank line of the command stands above it.
+var permWrappedCutScreen = strings.Replace(permCutScreen,
+	"   │     if r.get(\"ok\"):\n",
+	"   │     if r.get(\"ok\"):\n   │\n   │ note = \"the rows that passed the check, and nothing\nelse\"\n", 1)
+
+func TestPermissionReadsATallDialogWhole(t *testing.T) {
+	for _, c := range []struct {
+		name, screen string
+		action, note []string
+		options      []string
+		lasting      []bool
+	}{
+		{
+			name:   "a long command, the heading on the screen",
+			screen: permLongScreen,
+			action: []string{
+				"python3 - <<'EOF'",
+				"import json, sys",
+				"rows = json.load(open(\"in.json\"))",
+				"out = []",
+				"for r in rows:",
+				"if r.get(\"ok\"):",
+				"out.append(r[\"id\"])",
+				"json.dump(out, sys.stdout)",
+				"EOF",
+				"Collect the ids of the rows that passed",
+			},
+			options: []string{
+				"Yes",
+				"Yes, and don't ask again for python3 commands in /home/u/work/thing",
+				"No, and tell Claude what to do differently (esc)",
+			},
+			lasting: []bool{false, true, false},
+		},
+		{
+			name:   "a hook asks under the command",
+			screen: permHookScreen,
+			action: []string{
+				"python3 - <<'EOF'",
+				"print(\"hi\")",
+				"EOF",
+				"Say hi from a script",
+			},
+			note:    permHookNote,
+			options: []string{"Yes", "No"},
+			lasting: []bool{false, false},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, ok := parsePermission(c.screen)
+			if !ok {
+				t.Fatal("the dialog was not found")
+			}
+			if d.Tool != "Bash command" {
+				t.Errorf("tool %q, expected «Bash command»: the heading stands further up than the parser looks", d.Tool)
+			}
+			if strings.Join(d.Action, "|") != strings.Join(c.action, "|") {
+				t.Errorf("action %q,\nexpected %q — the human presses «yes» going by this text", d.Action, c.action)
+			}
+			if strings.Join(d.Note, "|") != strings.Join(c.note, "|") {
+				t.Errorf("note %q,\nexpected %q — without it the human does not know what they confirm", d.Note, c.note)
+			}
+			if got := optionTexts(d.Options); strings.Join(got, "|") != strings.Join(c.options, "|") {
+				t.Errorf("options %q, expected %q", got, c.options)
+			}
+			for i, o := range d.Options {
+				if i < len(c.lasting) && o.Lasting != c.lasting[i] {
+					t.Errorf("item %d (%q): lasting %v, expected %v", o.N, o.Text, o.Lasting, c.lasting[i])
+				}
+			}
+			if d.Partial {
+				t.Error("a whole dialog is declared incomplete")
+			}
+			if d.Cut {
+				t.Error("a dialog whose opening is on the screen is declared cut")
+			}
+			all := d.Tool + "\n" + strings.Join(d.Action, "\n") + "\n" + strings.Join(d.Note, "\n")
+			for _, leak := range []string{"hunter2", "Looking at the rows", "Running it now", "collect the ids", "run the check"} {
+				if strings.Contains(all, leak) {
+					t.Errorf("this leaked from the conversation into the dialog: %q", leak)
+				}
+			}
+		})
+	}
+}
+
+func TestPermissionSaysWhenTheOpeningIsOffTheScreen(t *testing.T) {
+	for _, c := range []struct {
+		name, screen, tool string
+		action, note       []string
+		options            int
+	}{
+		{
+			name:   "the tail of a long command",
+			screen: permCutScreen,
+			action: []string{
+				"if r.get(\"ok\"):",
+				"out.append(r[\"id\"])",
+				"json.dump(out, sys.stdout)",
+				"EOF",
+				"Collect the ids of the rows that passed",
+			},
+			options: 3,
+		},
+		{
+			name:   "the tail of a command with a wrapped row in the first column",
+			screen: permWrappedCutScreen,
+			action: []string{
+				"if r.get(\"ok\"):",
+				"note = \"the rows that passed the check, and nothing",
+				"else\"",
+				"out.append(r[\"id\"])",
+				"json.dump(out, sys.stdout)",
+				"EOF",
+				"Collect the ids of the rows that passed",
+			},
+			options: 3,
+		},
+		{
+			name:   "the tail of a command and the hook under it",
+			screen: permHookCutScreen,
+			tool:   "Bash",
+			action: []string{
+				"print(\"hi\")",
+				"EOF",
+				"Say hi from a script",
+			},
+			note:    permHookNote,
+			options: 2,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, ok := parsePermission(c.screen)
+			if !ok {
+				t.Fatal("the dialog was not found")
+			}
+			if !d.Cut {
+				t.Error("the heading is off the screen and the card is not told so — it draws an empty frame as the whole dialog")
+			}
+			if d.Tool != c.tool {
+				t.Errorf("tool %q, expected %q: with the heading off the screen the tool is what the hook names, and nothing else", d.Tool, c.tool)
+			}
+			if strings.Join(d.Action, "|") != strings.Join(c.action, "|") {
+				t.Errorf("action %q,\nexpected %q — what is on the screen is what the human decides by", d.Action, c.action)
+			}
+			if strings.Join(d.Note, "|") != strings.Join(c.note, "|") {
+				t.Errorf("note %q,\nexpected %q", d.Note, c.note)
+			}
+			if len(d.Options) != c.options {
+				t.Fatalf("%d items, expected %d", len(d.Options), c.options)
+			}
+			if d.Options[0].Text != "Yes" {
+				t.Errorf("the first item is %q", d.Options[0].Text)
+			}
+			last := d.Options[len(d.Options)-1]
+			if !strings.HasPrefix(last.Text, "No") || last.Lasting {
+				t.Errorf("the last item %+v: a refusal, marked as granting something for good", last)
+			}
+			if d.Partial {
+				t.Error("the list is whole and is declared incomplete")
+			}
+		})
+	}
+}
+
+// permNarrowScreen is the same dialog on a screen sixty columns wide: the items wrap,
+// and the wrapped tail carries the mark that tells a lasting grant from a one-off.
+const permNarrowScreen = `────────────────────────────────────────────────────────────
+ Bash command
+
+   │ python3 - <<'EOF'
+   │ print("hi")
+   │ EOF
+   Say hi from a script
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and don't ask again for python3 commands in
+      /home/u/work/thing
+   3. No, and tell Claude what to do differently
+      (esc)
+
+ Esc to cancel · Tab to amend`
+
+func TestPermissionJoinsTheItemsOfANarrowScreen(t *testing.T) {
+	d, ok := parsePermission(permNarrowScreen)
+	if !ok {
+		t.Fatal("the dialog was not found")
+	}
+	want := []string{
+		"Yes",
+		"Yes, and don't ask again for python3 commands in /home/u/work/thing",
+		"No, and tell Claude what to do differently (esc)",
+	}
+	if got := optionTexts(d.Options); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("options %q, expected %q — the wrapped tails were left on the floor", got, want)
+	}
+	lasting := []bool{false, true, false}
+	for i, o := range d.Options {
+		if i < len(lasting) && o.Lasting != lasting[i] {
+			t.Errorf("item %d (%q): lasting %v, expected %v", o.N, o.Text, o.Lasting, lasting[i])
+		}
+	}
+	if d.Partial {
+		t.Error("a wrapped item was taken for a line nobody understood")
+	}
+	if d.Cut {
+		t.Error("a whole dialog is declared cut")
+	}
+}
+
+func TestPermissionDoesNotCutAWholeDialog(t *testing.T) {
+	for _, c := range []struct{ name, screen string }{
+		{"after a blank line", permScreen},
+		{"in a box", permFramed},
+		{"under a rule", permLive},
+		{"with a tip", permTip},
+		{"an edit", permEditScreen},
+		{"a fetch, opening the screen", permFetchScreen},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, ok := parsePermission(c.screen)
+			if !ok {
+				t.Fatal("the dialog was not found")
+			}
+			if d.Cut {
+				t.Error("a dialog whose opening is on the screen is declared cut")
+			}
+			if d.Tool == "" {
+				t.Error("the tool is lost")
+			}
+		})
+	}
+}
+
+func optionTexts(options []action.PermOption) []string {
+	out := make([]string, len(options))
+	for i, o := range options {
+		out[i] = o.Text
+	}
+	return out
+}
+
+// permRuleScreen is the dialog a permission rule asks with: the note is one line
+// and names no hook, and the hint under it points at the rules.
+var permRuleScreen = strings.NewReplacer(
+	" │ Hook PreToolUse:Bash requires confirmation for this command:\n",
+	" │ Permission rule python3:* requires confirmation for this command.\n",
+	" │ Scripts run outside the sandbox here: confirm it, or run it in a scratch\n", "",
+	" │ copy of the tree instead. [settings]\n", "",
+	" settings.json to update hooks\n", " /permissions to update rules\n",
+).Replace(permHookScreen)
+
+func TestPermissionReadsTheNoteOfARule(t *testing.T) {
+	d, ok := parsePermission(permRuleScreen)
+	if !ok {
+		t.Fatal("the dialog was not found")
+	}
+	if d.Tool != "Bash command" {
+		t.Errorf("tool %q, expected «Bash command»", d.Tool)
+	}
+	want := []string{"Permission rule python3:* requires confirmation for this command."}
+	if strings.Join(d.Note, "|") != strings.Join(want, "|") {
+		t.Errorf("note %q, expected %q — the rule's own words are what tells this dialog from a hook's", d.Note, want)
+	}
+	for _, line := range d.Action {
+		if strings.Contains(line, "/permissions") || strings.Contains(line, "to update") {
+			t.Errorf("the hint under the note went into the command: %q", line)
+		}
+	}
+	if d.Cut || d.Partial {
+		t.Errorf("a whole dialog went out as cut=%v partial=%v", d.Cut, d.Partial)
+	}
+}
+
+func TestPermissionFingerprintFollowsTheNote(t *testing.T) {
+	base, ok := parsePermission(permHookScreen)
+	if !ok {
+		t.Fatal("the dialog was not found")
+	}
+	other, ok := parsePermission(strings.Replace(permHookScreen,
+		"Scripts run outside the sandbox here", "The tree is dirty", 1))
+	if !ok {
+		t.Fatal("the dialog was not found")
+	}
+	if base.Fingerprint == other.Fingerprint {
+		t.Error("the note changed and the fingerprint did not — the digit will answer a question the human did not read")
+	}
+	if len(base.Note) == 0 {
+		t.Fatal("the fixture has no note — the check proves nothing")
+	}
+}
+
+func TestPermissionHasNoNoteOnThePlainDialogs(t *testing.T) {
+	for _, c := range []struct{ name, screen string }{
+		{"after a blank line", permScreen},
+		{"in a box", permFramed},
+		{"under a rule", permLive},
+		{"with a tip", permTip},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, ok := parsePermission(c.screen)
+			if !ok {
+				t.Fatal("the dialog was not found")
+			}
+			if len(d.Note) != 0 {
+				t.Errorf("a note appeared on the console's own question: %q", d.Note)
+			}
+		})
 	}
 }

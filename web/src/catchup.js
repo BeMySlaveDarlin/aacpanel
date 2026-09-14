@@ -19,9 +19,16 @@ function waitKey(kind, target) {
     return `${kind}:${target}`;
 }
 
-export function settled(task, names, at = 0) {
+// identity tells one run of a session from the next one under the same name:
+// a restarted session keeps its name, and only the conversation behind it changes.
+function identity(s) {
+    return `${(s && s.sessionId) || ""}|${(s && s.startedAt) || ""}`;
+}
+
+export function settled(task, names, at = 0, ids = {}) {
     if (at && task.seen && at <= task.seen) return false;
     if (task.kind === "close") return !names.includes(task.target);
+    if (task.kind === "restart") return names.includes(task.target) && ids[task.target] !== task.was;
     return names.some((name) => !task.before.includes(name) && ownName(name, task.target));
 }
 
@@ -45,6 +52,7 @@ export function useCatchUp(snapshot, refresh) {
                     since: Date.now(),
                     seen: now.at,
                     before: now.alive.map((s) => s.session),
+                    was: identity(now.alive.find((s) => s.session === target)),
                 },
             }));
             if (now.refresh) now.refresh();
@@ -66,10 +74,11 @@ export function useCatchUp(snapshot, refresh) {
     useEffect(() => {
         setWaits((prev) => {
             const names = alive.map((s) => s.session);
+            const ids = Object.fromEntries(alive.map((s) => [s.session, identity(s)]));
             const next = {};
             let changed = false;
             for (const [key, task] of Object.entries(prev)) {
-                if (settled(task, names, at) || Date.now() - task.since > CATCH_UP_LIMIT) {
+                if (settled(task, names, at, ids) || Date.now() - task.since > CATCH_UP_LIMIT) {
                     changed = true;
                     continue;
                 }

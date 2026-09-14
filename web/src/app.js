@@ -14,7 +14,7 @@ import { RouteSheet, routeChip } from "./ui/route.js";
 import { DesktopShell } from "./desktop/shell.js";
 import { failed, pick } from "./router.js";
 import * as api from "./api.js";
-import { tellEndpoints } from "./pwa.js";
+import { tellEndpoints, watchOpen } from "./pwa.js";
 
 
 const REFRESH_MS = 15000;
@@ -55,6 +55,13 @@ function clock(date) {
 }
 
 const THEME_KEY = "aacpanel.theme";
+
+// wanted reads the session an address asks to open: a tap on a push about a
+// session lands on /app?session=<name>.
+function wanted(search) {
+    const name = new URLSearchParams(search).get("session") || "";
+    return name ? { name, id: null } : null;
+}
 
 export function App({ updateReady, onApplyUpdate, installable, onInstall }) {
     const [tree, setTree] = useState(null);
@@ -200,10 +207,19 @@ export function App({ updateReady, onApplyUpdate, installable, onInstall }) {
     }, [theme]);
     const onTheme = useCallback(() => setTheme((t) => (t === "sky" ? "space" : "sky")), []);
 
+    const [jump, setJump] = useState(() => wanted(location.search));
+    useEffect(() => {
+        watchOpen((url) => setJump(wanted(new URL(url, location.href).search)));
+    }, []);
+    const onJumped = useCallback(() => {
+        setJump(null);
+        if (location.search) history.replaceState(history.state, "", location.pathname);
+    }, []);
+
     const shared = {
         snapshot, tree, treeError, hostError, ageSec, history, faults,
         alerts, openAlerts, exec, onRefresh: refresh, wait, theme, onTheme,
-        updateReady, onApplyUpdate,
+        updateReady, onApplyUpdate, jump, onJumped,
         route: { here, via, why: routeWhy, onRecheck, onOpen: openRoute },
     };
 

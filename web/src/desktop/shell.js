@@ -50,7 +50,7 @@ function IconButton({ item, active, onClick }) {
 
 export function DesktopShell({
     snapshot, tree, treeError, hostError, ageSec, history, faults, alerts, openAlerts,
-    exec, onRefresh, wait, theme, onTheme, updateReady, onApplyUpdate, route,
+    exec, onRefresh, wait, theme, onTheme, updateReady, onApplyUpdate, route, jump, onJumped,
 }) {
     const [section, setSection] = useState("home");
     const [chat, setChat] = useState(null);
@@ -126,6 +126,11 @@ export function DesktopShell({
         setChat(target);
         setSection("sessions");
     }, []);
+    useEffect(() => {
+        if (!jump) return;
+        openChat({ name: jump.name, id: jump.id });
+        onJumped();
+    }, [jump, openChat, onJumped]);
 
     const onOpened = useCallback(() => setPanel(null), []);
 

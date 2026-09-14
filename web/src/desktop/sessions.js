@@ -81,8 +81,12 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
     const status = s.status || "idle";
     const waiting = status === "waiting" || Boolean(s.waitingFor);
     const closing = wait ? wait.of("close", s.session) : null;
+    const restarting = wait ? wait.of("restart", s.session) : null;
+    const busy = closing || restarting;
     const known = knows(exec, "session.close");
     const can = known && !closing;
+    const restartKnown = knows(exec, "session.restart");
+    const canRestart = restartKnown && !restarting;
     const answerable = Boolean(s.ask);
 
     return html`
@@ -92,7 +96,7 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
             style=${`--fill:${Math.min(100, s.pct || 0)}%`}
             onClick=${() => onPick({ name: s.session, id: s.sessionId })}
         >
-            <span class=${`dkdot dk${closing ? "off" : status} dkside`}></span>
+            <span class=${`dkdot dk${busy ? "off" : status} dkside`}></span>
             <span class="dksessbody">
                 <span class="dksessmain">
                     <span class="dkname">${s.session}</span>
@@ -102,8 +106,9 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
                 </span>
                 <span class="dksesssub">
                     ${group && html`<span class="dkgroup dkchip">${group}</span>`}
-                    <span class="dklast">${closing ? `closing · ${held(closing)} s` : last(s)}</span>
-                    ${waiting && !closing && html`
+                    <span class="dklast">${closing ? `closing · ${held(closing)} s`
+                        : restarting ? `restarting · ${held(restarting)} s` : last(s)}</span>
+                    ${waiting && !busy && html`
                         <span
                             class=${`dkwait${answerable ? "" : " dkpermit"}`}
                             data-tip=${answerable ? "Waiting for an answer to a question" : waitTip(s.waitingFor)}
@@ -125,6 +130,19 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
                             await run("session.close", s.session, {});
                         }}
                     ><${Icon.stop} /></i>
+                `}
+                ${s.home && html`
+                    <i
+                        class=${`dkact danger${canRestart ? "" : " off"}`}
+                        data-tip=${restarting
+                            ? "The session is already restarting"
+                            : restartKnown ? "Restart the session from scratch" : whyNot(exec, "session.restart")}
+                        data-tipside="left"
+                        onClick=${async () => {
+                            if (!canRestart) return;
+                            await run("session.restart", s.session, {});
+                        }}
+                    ><${Icon.refresh} /></i>
                 `}
             </span>
             <span class=${`dksessbar ${fill(s.pct || 0)}`}><i style=${`width:${Math.min(100, s.pct || 0)}%`}></i></span>

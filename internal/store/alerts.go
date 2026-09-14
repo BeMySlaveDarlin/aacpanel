@@ -35,7 +35,11 @@ type AlertsReq struct {
 	Before int64
 }
 
-// Alerts reads the alerts: the open ones and the recently closed ones.
+// Alerts reads the alerts by their latest event, the newest first: an alert
+// moves to the top when it is opened, closed or acknowledged, whatever its
+// state. Before is the id of the last alert shown; the page continues below it
+// in the same order, so the open ones are not lost when the closed ones
+// outnumber them.
 func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err error) {
 	defer func() { err = Unavailable(err) }()
 
@@ -48,14 +52,17 @@ func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err err
 		limit = 50
 	}
 
+	// GREATEST skips the NULLs, and opened_at is never NULL.
 	rows, err := pool.Query(ctx, `
 		SELECT a.id, r.name, a.subject, a.severity,
 		       a.opened_at, a.closed_at, a.acknowledged_at, a.last_seen,
 		       a.value, a.worst, a.payload
 		FROM alerts a
 		JOIN rules r ON r.id = a.rule_id
-		WHERE $2 = 0 OR (a.closed_at IS NOT NULL AND a.id < $2)
-		ORDER BY (a.closed_at IS NULL) DESC, a.id DESC
+		WHERE $2 = 0 OR (GREATEST(a.opened_at, a.closed_at, a.acknowledged_at), a.id) < (
+			SELECT GREATEST(c.opened_at, c.closed_at, c.acknowledged_at), c.id
+			FROM alerts c WHERE c.id = $2)
+		ORDER BY GREATEST(a.opened_at, a.closed_at, a.acknowledged_at) DESC, a.id DESC
 		LIMIT $1`, limit, req.Before)
 	if err != nil {
 		return nil, err

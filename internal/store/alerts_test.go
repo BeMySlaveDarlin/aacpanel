@@ -40,11 +40,13 @@ func TestAlertsAndProbesPG(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The closed ones were opened yesterday and closed a minute and two minutes
+	// ago: the latest event of each is the closing.
 	var closedIDs []int64
 	for i, subj := range []string{"old-1", "old-2"} {
 		var id int64
-		if err := pool.QueryRow(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, closed_at, payload)
-			VALUES ($1, $2, 'warning', 1, 2, now() - make_interval(mins => $3), '{}')
+		if err := pool.QueryRow(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, opened_at, closed_at, payload)
+			VALUES ($1, $2, 'warning', 1, 2, now() - interval '1 day', now() - make_interval(mins => $3), '{}')
 			RETURNING id`, ruleID, subj, i+1).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +73,7 @@ func TestAlertsAndProbesPG(t *testing.T) {
 		return out
 	}
 
-	t.Run("the open ones come first", func(t *testing.T) {
+	t.Run("the latest event comes first", func(t *testing.T) {
 		all, err := s.Alerts(ctx, AlertsReq{Limit: 50})
 		if err != nil {
 			t.Fatal(err)
@@ -81,36 +83,33 @@ func TestAlertsAndProbesPG(t *testing.T) {
 			t.Fatalf("%d alerts of our own, 3 were expected", len(list))
 		}
 		if list[0].Subject != "alive" || list[0].ClosedAt != nil {
-			t.Errorf("%q comes first (closed: %v), an open one was expected", list[0].Subject, list[0].ClosedAt != nil)
+			t.Errorf("%q comes first (closed: %v), the one just opened was expected", list[0].Subject, list[0].ClosedAt != nil)
 		}
 		if list[0].Suggested == nil || list[0].Suggested.Kind != "stack.up" {
 			t.Errorf("the suggested action did not parse: %+v", list[0].Suggested)
 		}
-		if list[1].ClosedAt == nil || list[2].ClosedAt == nil {
-			t.Error("the closed ones should come after the open one")
-		}
-		if list[1].ID < list[2].ID {
-			t.Error("the closed ones do not run in descending order of id")
+		if list[1].Subject != "old-1" || list[2].Subject != "old-2" {
+			t.Errorf("the closed ones run %q, %q; the one closed a minute ago was expected before the one closed two minutes ago",
+				list[1].Subject, list[2].Subject)
 		}
 	})
 
-	t.Run("paging serves only the closed ones", func(t *testing.T) {
+	t.Run("a page continues below the cursor and repeats nothing", func(t *testing.T) {
 		all, err := s.Alerts(ctx, AlertsReq{Limit: 50})
 		if err != nil {
 			t.Fatal(err)
 		}
 		first := mine(all)
-		next, err := s.Alerts(ctx, AlertsReq{Limit: 50, Before: first[len(first)-1].ID})
+		cursor := first[1]
+		next, err := s.Alerts(ctx, AlertsReq{Limit: 50, Before: cursor.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, a := range next {
-			if a.ClosedAt == nil {
-				t.Errorf("the open alert %q repeated on the second page", a.Subject)
-			}
-			if a.ID >= first[len(first)-1].ID {
-				t.Errorf("alert %d is not older than the cursor", a.ID)
-			}
+		if len(next) != 1 || next[0].ID != first[2].ID {
+			t.Fatalf("below alert %d came %d alerts, only alert %d was expected", cursor.ID, len(next), first[2].ID)
+		}
+		if next[0].ClosedAt == nil || *next[0].ClosedAt > *cursor.ClosedAt {
+			t.Errorf("alert %d is not older than the cursor by its latest event", next[0].ID)
 		}
 	})
 

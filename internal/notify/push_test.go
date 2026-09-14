@@ -347,3 +347,28 @@ func readAll(r *http.Request) ([]byte, error) {
 		}
 	}
 }
+
+func TestPushAboutASessionCarriesItsScreen(t *testing.T) {
+	var gotBody []byte
+	s, store, uaPrivate := stand(t, func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = readAll(r)
+		w.WriteHeader(http.StatusCreated)
+	})
+
+	s.deliver(context.Background(), Message{
+		Title: "Question · harness rework", Body: "Which way?", Tag: "ask:u-1:1",
+		Severity: Critical, Session: "harness rework",
+	})
+
+	plain, err := decryptAsDevice(t, gotBody, uaPrivate, store.subs[0].Auth)
+	if err != nil {
+		t.Fatalf("the device did not decrypt the push: %v", err)
+	}
+	var payload struct{ URL string }
+	if err := json.Unmarshal(plain, &payload); err != nil {
+		t.Fatalf("the body is not JSON: %v (%s)", err, plain)
+	}
+	if payload.URL != "/app?session=harness+rework" {
+		t.Fatalf("the push points at %q, expected the screen of the session — a tap lands on the home screen otherwise", payload.URL)
+	}
+}

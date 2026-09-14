@@ -138,6 +138,14 @@ export const ACTIONS = {
         escalate: "session.kill",
         escalateLabel: "Kill right now (kill -9)",
     },
+    "session.restart": {
+        watch: "restart",
+        title: (target) => `Restart ${target} from scratch?`,
+        effect: "The conversation ends and a new one starts with an empty context; the old transcript stays in the archive.",
+        done: (target) => `Session ${target} is restarting`,
+        ok: "Restart",
+        danger: true,
+    },
     "session.send": {
         instant: true,
         done: (target) => `Sent to ${target}`,
@@ -497,6 +505,7 @@ const NAMES = {
     "stack.up": "Bring up stack",
     "stack.down": "Bring down stack",
     "session.close": "Close session",
+    "session.restart": "Restart session",
     "session.kill": "Kill session",
     "session.open": "Open console",
     "session.resume": "Resume session",

@@ -19,6 +19,8 @@ type agentProc struct {
 	Agent   int
 	Konsole int
 	Dir     string
+	// Home marks the host's main session: the one running in the home directory.
+	Home bool
 }
 
 func (e *Executor) sessionClose(ctx context.Context, target string) (string, error) {
@@ -26,7 +28,41 @@ func (e *Executor) sessionClose(ctx context.Context, target string) (string, err
 	if err != nil {
 		return "", err
 	}
+	return e.closeAgent(ctx, p)
+}
 
+// sessionRestart ends the host's main session the gentle way and starts a new
+// one in the same directory with an empty context. Only the main session is
+// restarted here: its launch is fixed — the home directory, the same name — while
+// a project session carries launch parameters that live in the profile map, and
+// a restart without them would silently bring it up in another setup, possibly
+// under another account.
+func (e *Executor) sessionRestart(ctx context.Context, target string) (string, error) {
+	p, err := lookupAgent(target)
+	if err != nil {
+		return "", err
+	}
+	if !p.Home {
+		return "", fmt.Errorf(
+			"session %s runs in %s, not in the home directory: a restart from scratch is for the host's "+
+				"main session only. Other sessions are closed here and opened again from the projects map, "+
+				"which carries their launch parameters",
+			p.Session, p.Dir)
+	}
+
+	closed, err := e.closeAgent(ctx, p)
+	if err != nil {
+		return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
+	}
+
+	rep, err := e.runLauncher(ctx, homeProject(p.Dir, p.Session), "")
+	if err != nil {
+		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
+	}
+	return closed + "; " + describeConsole(rep) + " with an empty context", nil
+}
+
+func (e *Executor) closeAgent(ctx context.Context, p agentProc) (string, error) {
 	tmuxName := ""
 	if pane, err := tmuxPaneFor(ctx, p.Agent); err == nil {
 		tmuxName = tmuxSessionOf(pane.Target)
@@ -108,7 +144,23 @@ func (e *Executor) pollEvery() time.Duration {
 	return pollEvery
 }
 
+// findAgent finds a live session by name for the actions that end it. The
+// host's main session is not among them: the panel does not close it, just as
+// it does not stop its own container.
 func findAgent(target string) (agentProc, error) {
+	p, err := lookupAgent(target)
+	if err != nil {
+		return agentProc{}, err
+	}
+	if p.Home {
+		return agentProc{}, fmt.Errorf(
+			"session %s runs in the home directory — it is the host's main session, and it is not closed from here",
+			p.Session)
+	}
+	return p, nil
+}
+
+func lookupAgent(target string) (agentProc, error) {
 	if strings.TrimSpace(target) == "" {
 		return agentProc{}, fmt.Errorf("the session name is empty")
 	}
@@ -131,17 +183,15 @@ func findAgent(target string) (agentProc, error) {
 		}
 
 		dir := procCwd(pid)
-		if home != "" && dir == strings.TrimRight(home, "/") {
-			return agentProc{}, fmt.Errorf(
-				"session %s runs in the home directory — it is the host's main session, and it is not closed from here",
-				name)
-		}
 		if isAncestor(pid) {
 			return agentProc{}, fmt.Errorf(
 				"session %s is the one the executor itself runs in: closing it would leave it unable to report the result",
 				name)
 		}
-		return agentProc{Session: name, Agent: pid, Konsole: konsoleOf(pid), Dir: dir}, nil
+		return agentProc{
+			Session: name, Agent: pid, Konsole: konsoleOf(pid), Dir: dir,
+			Home: home != "" && dir == strings.TrimRight(home, "/"),
+		}, nil
 	}
 
 	if len(known) == 0 {

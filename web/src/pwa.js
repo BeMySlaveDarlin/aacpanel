@@ -86,6 +86,16 @@ export function tellEndpoints(origins) {
     if (worker) worker.postMessage({ type: "ENDPOINTS", origins });
 }
 
+// watchOpen hands the page the screen a tap on a notification asks for, when
+// the worker could not take the window there itself.
+export function watchOpen(onOpen) {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.addEventListener("message", (event) => {
+        const data = event.data || {};
+        if (data.type === "OPEN" && typeof data.url === "string") onOpen(data.url);
+    });
+}
+
 export function clearData() {
     const worker = navigator.serviceWorker && navigator.serviceWorker.controller;
     if (worker) worker.postMessage({ type: "CLEAR_DATA" });

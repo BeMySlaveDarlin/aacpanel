@@ -138,19 +138,30 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Twenty-one actions, and the list is closed.
+Twenty-two actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.file`, `session.command`, `session.permit` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.file`, `session.command`, `session.permit` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
 
 What is deliberately not on the list: removing containers, images and volumes,
 `docker exec`, editing compose, package operations, restarting itself.
+
+**The host's main session is not closed from the panel, but it is restarted.**
+The session living in the home directory is the one the panel itself lives
+next to, and it has no close button, just as the panel's own container has no
+stop. `session.restart` ends it the gentle way — the same wait for the
+transcript — and starts a new one in the same directory under the same name
+with an empty context; the old transcript stays in the archive. Only the main
+session: its launch is fixed by the home directory and its name, while a project
+session carries launch parameters that live in the profile map, and a restart
+without them would silently bring it up in another setup, possibly under another
+account. A project session is closed here and opened again from the map.
 
 **Kinds are split by intent, not by convenience.** Answering a question and
 dismissing a question are different actions, because their consequences differ.

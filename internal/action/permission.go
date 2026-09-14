@@ -25,6 +25,18 @@ type Permission struct {
 	Unknown     bool         `json:"unknown"`
 	Fingerprint string       `json:"fingerprint"`
 
+	// Note holds what the console adds under the command when the question is not
+	// its own: a hook asked for the confirmation, or a permission rule or a classifier
+	// did, and the lines say which and why. Without the note the human does not know
+	// what they are confirming.
+	Note []string `json:"note"`
+
+	// Cut says the opening of the dialog is off the console screen: the dialog is
+	// taller than the screen, and what was scrolled off is the head of the command
+	// and the heading with the tool. Tool is then what the note names, or empty, and
+	// Action is the tail as it stands.
+	Cut bool `json:"cut"`
+
 	// Raw holds the dialog lines as they stand on the screen, and only when the
 	// parse failed: unmarked text still says what is being asked, silence sends the
 	// human to the console. It reaches no further than the dialog itself — above it

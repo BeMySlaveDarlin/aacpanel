@@ -157,6 +157,8 @@ export function workText(work) {
 export function LiveRow({ session, where, notes, exec, wait, onOpen }) {
     const run = useAction();
     const closing = wait ? wait.of("close", session.session) : null;
+    const restarting = wait ? wait.of("restart", session.session) : null;
+    const busy = closing || restarting;
     const work = workText(session.work);
     const dot = session.ask || session.waitingFor ? "waiting" : session.status || "";
     const contour = session.profile || (where && where.profile) || "";
@@ -164,6 +166,8 @@ export function LiveRow({ session, where, notes, exec, wait, onOpen }) {
     const empty = Boolean(session.noRequests);
     const ready = knows(exec, "session.close");
     const why = whyNot(exec, "session.close");
+    const restartKnown = knows(exec, "session.restart");
+    const canRestart = restartKnown && !restarting;
     const place = session.home
         ? html`<span class="place">the main session of the host</span>`
         : where === null && html`<span class="warn">outside the profile map</span>`;
@@ -219,6 +223,20 @@ export function LiveRow({ session, where, notes, exec, wait, onOpen }) {
             }}
         >${Icon.close()}</button>
     `;
+    const restart = session.home && html`
+        <button
+            class="iconbtn danger"
+            type="button"
+            aria-label=${`restart session ${session.session} from scratch`}
+            disabled=${!canRestart}
+            title=${restarting
+                ? "the session is already restarting"
+                : restartKnown ? "restart the session from scratch" : whyNot(exec, "session.restart")}
+            onClick=${async () => {
+                await run("session.restart", session.session, {});
+            }}
+        >${Icon.refresh()}</button>
+    `;
 
     return html`
         <${SessionCard}
@@ -230,9 +248,9 @@ export function LiveRow({ session, where, notes, exec, wait, onOpen }) {
             pct=${session.pct}
             blank=${empty ? "context empty" : null}
             lines=${lines}
-            action=${action}
+            action=${action || restart}
             onOpen=${onOpen && (() => onOpen(session.session, session.sessionId))}
-            waiting=${closing && html`<${Waiting} task=${closing} what="closing" />`}
+            waiting=${busy && html`<${Waiting} task=${busy} what=${closing ? "closing" : "restarting"} />`}
         />
     `;
 }

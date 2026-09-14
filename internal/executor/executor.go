@@ -70,6 +70,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionResume(ctx, req.Target, req.Resume, req.Project)
 	case action.SessionClose:
 		return e.sessionClose(ctx, req.Target)
+	case action.SessionRestart:
+		return e.sessionRestart(ctx, req.Target)
 	case action.SessionSend:
 		return e.sessionSend(ctx, req.Target, req.Text)
 	case action.SessionAnswer:

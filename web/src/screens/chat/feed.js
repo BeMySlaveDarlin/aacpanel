@@ -17,6 +17,14 @@ export function sameReply(text, local) {
     return mine !== "" || theirs !== String(text || "").trim();
 }
 
+// sameShell reports whether a shell command the console ran is the one shown
+// locally: the person typed it with the "!" that runs it, the transcript keeps
+// the command alone.
+export function sameShell(command, local) {
+    const mine = bare(local.sent !== undefined ? local.sent : local.text).replace(/^!\s*/, "");
+    return mine !== "" && mine === String(command || "").trim();
+}
+
 // merge inserts newly arrived items into the feed.
 export function merge(items, incoming) {
     if (!incoming.length) return items;

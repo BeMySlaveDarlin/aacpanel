@@ -86,7 +86,7 @@ func (w *watcher) Expect(kind action.Kind, target string) {
 				w.did["container:"+name] = now
 			}
 		}
-	case action.SessionClose, action.SessionKill:
+	case action.SessionClose, action.SessionKill, action.SessionRestart:
 		w.did["session:"+target] = now
 	}
 }

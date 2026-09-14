@@ -18,18 +18,31 @@
 }
 .deck > .wchips { flex: 0 1 auto; min-width: 0; }
 
-/* What the session has spent so far, in and out: a figure to glance at, not a
-   control, so it is set as a faint caption and pushed to the far left. */
+/* What the session has spent so far, in and out: a chip like the others in
+   the row, but a figure to glance at rather than a control — no press, the
+   words "in" and "out" faint, the numbers a tone up, and pushed to the far left. */
 .deckuse {
     flex: none;
     align-self: center;
     margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    height: 30px;
+    padding: 0 .55rem;
+    border-radius: var(--r-pill);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     font-family: var(--mono);
-    font-size: var(--t-xs);
+    font-size: var(--t-sm);
     font-variant-numeric: tabular-nums;
-    color: var(--ink-faint);
+    color: var(--ink-dim);
     white-space: nowrap;
 }
+.deckuse i { font-style: normal; color: var(--ink-faint); margin-right: .3rem; }
+/* The two figures wear the colours the usage chart gives them: in is the
+   accent, out the second accent. */
+.deckin { color: var(--accent); }
+.deckout { color: var(--accent-2); }
 
 /* One line, never two: the whole row holds three narrow chips at most, and the
    right-hand group takes the width it needs to the left instead of wrapping. */

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,6 +61,16 @@ func (m Message) ttl() time.Duration {
 		return ttlCritical
 	}
 	return ttlNormal
+}
+
+// screen is the panel address a tap on the notification opens: the screen of
+// the session the push is about, and nothing for the rest — those only bring
+// the panel up.
+func (m Message) screen() string {
+	if m.Session == "" {
+		return ""
+	}
+	return "/app?session=" + url.QueryEscape(m.Session)
 }
 
 func (m Message) urgency() string {
@@ -255,13 +266,17 @@ func (s *Sender) deliver(ctx context.Context, m Message) {
 		return
 	}
 
-	payload, err := json.Marshal(map[string]any{
+	fields := map[string]any{
 		"title":    m.Title,
 		"body":     m.Body,
 		"tag":      m.Tag,
 		"severity": string(m.Severity),
 		"ts":       time.Now().Unix(),
-	})
+	}
+	if screen := m.screen(); screen != "" {
+		fields["url"] = screen
+	}
+	payload, err := json.Marshal(fields)
 	if err != nil {
 		log.Printf("notify: assembling the notification: %v", err)
 		return

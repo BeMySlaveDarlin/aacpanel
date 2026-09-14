@@ -44,9 +44,42 @@ func TestPermitShowsTheDialogItCouldNotParse(t *testing.T) {
 	}
 }
 
+func TestPermitSaysWhenTheDialogIsCut(t *testing.T) {
+	got := renderPermitJS(t)
+
+	const cut = "longer than shown"
+	if !strings.Contains(got.Cut, cut) {
+		t.Errorf("the opening of the dialog is off the console screen and the card does not say so:\n%s", got.Cut)
+	}
+	if strings.Contains(got.Whole, cut) {
+		t.Errorf("a whole dialog is announced as cut:\n%s", got.Whole)
+	}
+	for _, want := range []string{"Collect the ids", `<span class="permitn">1</span>`, `<span class="permitn">2</span>`} {
+		if !strings.Contains(got.Cut, want) {
+			t.Errorf("the tail of a cut dialog does not show %q — that is what the human decides by:\n%s", want, got.Cut)
+		}
+	}
+}
+
+func TestPermitShowsTheNote(t *testing.T) {
+	got := renderPermitJS(t)
+
+	for _, want := range []string{`<pre class="permitnote">`, "Hook PreToolUse:Bash requires confirmation", "scratch copy of the tree"} {
+		if !strings.Contains(got.Noted, want) {
+			t.Errorf("the card does not show %q of the note — the human does not know what they confirm:\n%s", want, got.Noted)
+		}
+	}
+	if strings.Contains(got.Whole, "permitnote") {
+		t.Errorf("an empty note stands on a dialog without one:\n%s", got.Whole)
+	}
+}
+
 type renderedPermit struct {
 	WithLines string `json:"withLines"`
 	NoLines   string `json:"noLines"`
+	Cut       string `json:"cut"`
+	Whole     string `json:"whole"`
+	Noted     string `json:"noted"`
 }
 
 func renderPermitJS(t *testing.T) renderedPermit {
@@ -172,9 +205,24 @@ async function draw(permission) {
 }
 
 const lines = ` + string(raw) + `;
+const tail = {
+    tool: "",
+    action: ["json.dump(out, sys.stdout)", "EOF", "Collect the ids of the rows that passed"],
+    options: [{ n: 1, text: "Yes", lasting: false }, { n: 2, text: "No", lasting: false }],
+    partial: false,
+    unknown: false,
+    fingerprint: "f",
+    raw: [],
+};
 process.stdout.write(JSON.stringify({
     withLines: await draw({ unknown: true, raw: lines }),
     noLines: await draw({ unknown: true, raw: [] }),
+    cut: await draw({ ...tail, cut: true }),
+    whole: await draw({ ...tail, tool: "Bash command", cut: false }),
+    noted: await draw({ ...tail, tool: "Bash command", cut: false, note: [
+        "Hook PreToolUse:Bash requires confirmation for this command:",
+        "Run it in a scratch copy of the tree.",
+    ] }),
 }));
 `
 	out, err := exec.Command(node, "--input-type=module", "-e", script).Output()

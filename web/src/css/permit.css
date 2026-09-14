@@ -53,6 +53,20 @@
     overflow-x: auto;
 }
 
+/* The note under the command: a hook, a rule or a classifier asked for the
+   confirmation, and these are its words — the human confirms going by them. */
+.permitnote {
+    margin: 0;
+    padding: .3rem .6rem;
+    border-left: 2px solid var(--warn);
+    font-family: inherit;
+    font-size: var(--t-sm);
+    line-height: 1.45;
+    color: var(--warn);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .permitopts {
     display: flex;
     flex-direction: column;

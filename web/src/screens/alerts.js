@@ -36,7 +36,7 @@ function Engine({ state, onAction }) {
             <p class="empty">There are no open alerts.</p>
         `}
 
-        ${[...(state.alerts || []), ...(state.older || [])].map((alert) => html`
+        ${merged(state.alerts, state.older).map((alert) => html`
             <section
                 class="alert ${SEVERITY[alert.severity] || ""} ${alert.closedAt ? "closed" : ""} ${!alert.closedAt && alert.ackedAt ? "acked" : ""}"
                 key=${alert.id}
@@ -90,6 +90,13 @@ function Engine({ state, onAction }) {
             <button class="ghost wide" type="button" onClick=${state.more}>show more</button>
         `}
     `;
+}
+
+// The first page is reloaded while the older pages stay. An alert loaded below
+// the cursor comes back on top once it gets a new event, and is drawn once.
+function merged(alerts, older) {
+    const shown = new Set((alerts || []).map((alert) => alert.id));
+    return [...(alerts || []), ...(older || []).filter((alert) => !shown.has(alert.id))];
 }
 
 function rule(payload) {

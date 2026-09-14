@@ -34,7 +34,23 @@ func unbox(r rune) rune {
 
 var permFrameRe = regexp.MustCompile(`^[\s─━│┃╭╮╰╯┌┐└┘┏┓┗┛═╔╗╚╝╌╍┄┅]*$`)
 
+// permRuleRe is a rule across the screen: a frame line with no edge and no corner,
+// which is how the console opens a dialog.
+var permRuleRe = regexp.MustCompile(`^[\s─━═╌╍┄┅]*$`)
+
+// permEdges are the runes an edge of a box or a rule is drawn with. A bar standing
+// alone is not among them: that is a blank line of a barred command.
+const permEdges = "─━═╌╍┄┅╭╮╰╯┌┐└┘┏┓┗┛╔╗╚╝"
+
 var permLasting = []string{"always", "switch to", "don't ask", "do not ask"}
+
+// permHookRe is the heading of a note a hook wrote: the console names the hook
+// as event:tool, and the tool is what the dialog is about.
+var permHookRe = regexp.MustCompile(`^Hook (\S+) requires confirmation for this \S+`)
+
+// permSourceTagRe is the tag the console hangs on the last line of a hook's note,
+// naming where the hook is configured.
+var permSourceTagRe = regexp.MustCompile(`\s*\[[^\]]+\]$`)
 
 func permissionFor(screen string) *action.Permission {
 	if d, ok := parsePermission(screen); ok {
@@ -224,10 +240,15 @@ func parsePermission(screen string) (action.Permission, bool) {
 	lines := make([]string, 0, 64)
 	indents := make([]int, 0, 64)
 	frames := make([]bool, 0, 64)
+	rules := make([]bool, 0, 64)
+	bars := make([]int, 0, 64)
 	widths := make([]int, 0, 64)
 	for _, raw := range strings.Split(screen, "\n") {
 		spaced := strings.Map(unbox, raw)
-		frames = append(frames, permFrameRe.MatchString(raw) && strings.TrimSpace(raw) != "")
+		drawn := strings.TrimSpace(raw) != ""
+		frames = append(frames, drawn && permFrameRe.MatchString(raw) && strings.ContainsAny(raw, permEdges))
+		rules = append(rules, drawn && permRuleRe.MatchString(raw))
+		bars = append(bars, barColumn(raw))
 		lines = append(lines, strings.TrimSpace(spaced))
 		indents = append(indents, len(spaced)-len(strings.TrimLeft(spaced, " ")))
 		widths = append(widths, len([]rune(raw)))
@@ -244,10 +265,8 @@ func parsePermission(screen string) (action.Permission, bool) {
 		return action.Permission{}, false
 	}
 
-	d := action.Permission{Action: actionBlock(lines, indents, frames, at)}
-	if len(d.Action) > 0 {
-		d.Tool, d.Action = d.Action[0], d.Action[1:]
-	}
+	d := action.Permission{}
+	d.Tool, d.Action, d.Note, d.Cut = actionBlock(lines, indents, frames, rules, bars, at)
 	d.Options, d.Partial = optionBlock(lines, indents, widths, width, at)
 	if len(d.Options) == 0 {
 		return action.Permission{}, false
@@ -256,28 +275,78 @@ func parsePermission(screen string) (action.Permission, bool) {
 	return d, true
 }
 
-func actionBlock(lines []string, indents []int, frames []bool, at int) []string {
-	const maxAction = 8
-
-	top := -1
-	for i := at - 1; i >= 0 && at-i <= maxAction; i-- {
+// dialogTop returns the line the dialog opens with, and whether the opening is off
+// the screen altogether.
+//
+// The console opens a dialog with a rule across the screen, and the rule is looked
+// for first, anywhere above the question: a dialog is as tall as the command it asks
+// about, and a hook's words under the command make it taller still. A box edge is
+// taken next, for a dialog drawn inside a box. With neither on the screen the dialog
+// is unframed, and it opens after a blank line, at a line standing in the column of
+// the question — the heading and the question share the edge of the dialog, and
+// everything between them stands deeper, so a blank line between two parts of the
+// dialog is not taken for its edge. A row the console wrapped out of a long line
+// stands in the first column and is no edge either, which is why the column is the
+// question's and not the first. With no edge at all the dialog is taller than the
+// screen: its opening has scrolled off, and every line on the screen belongs to it.
+func dialogTop(lines []string, indents []int, frames, rules []bool, at int) (top int, cut bool) {
+	for i := at - 1; i >= 0; i-- {
+		if rules[i] {
+			return i, false
+		}
+	}
+	for i := at - 1; i >= 0; i-- {
 		if frames[i] {
-			top = i
-			break
+			return i, false
 		}
 	}
-	if top < 0 {
-		for i := at - 1; i >= 0 && at-i <= maxAction; i-- {
-			if lines[i] == "" {
-				top = i
-				break
-			}
+	edge := indents[at]
+	for i := at - 2; i >= 0; i-- {
+		if lines[i] == "" && lines[i+1] != "" && indents[i+1] == edge {
+			return i, false
 		}
 	}
+	if len(lines) > 1 && lines[0] != "" && indents[0] == edge && lines[1] != "" && indents[1] > edge {
+		return -1, false
+	}
+	return -1, true
+}
 
-	out := []string{}
+// barColumn returns the column a line's bar stands in, for a line barred down its
+// left side, and -1 for any other line. A line with an edge on both sides is a box,
+// not a bar.
+func barColumn(raw string) int {
+	line := strings.TrimSpace(raw)
+	if !strings.HasPrefix(line, "│") || strings.HasSuffix(line, "│") {
+		return -1
+	}
+	return len([]rune(raw)) - len([]rune(strings.TrimLeft(raw, " ")))
+}
+
+// actionBlock returns the tool the dialog asks about, the lines under it up to the
+// question — the command and its description — and the note the console put between
+// them and the question, when the question is not the console's own.
+//
+// The console bars two things down the left side, and the column tells them apart:
+// a command of several lines is barred inside its box, deeper than the question,
+// and the note stands at the edge of the dialog, in the column of the question. The
+// hint under the note, saying where to change the rule or the hook, is not shown: it
+// is not what the human decides by. On a screen the opening has scrolled off, the
+// first line is a line of the command and not the tool, and the tool is what the
+// note names, or empty.
+func actionBlock(lines []string, indents []int, frames, rules []bool, bars []int, at int) (tool string, out, note []string, cut bool) {
+	top, cut := dialogTop(lines, indents, frames, rules, at)
+
+	out = []string{}
 	for i := top + 1; i < at; i++ {
 		if lines[i] == "" {
+			continue
+		}
+		if bars[i] >= 0 && bars[i] <= indents[at] {
+			note = append(note, lines[i])
+			continue
+		}
+		if len(note) > 0 {
 			continue
 		}
 		if strings.HasPrefix(lines[i], "Tip:") {
@@ -291,10 +360,33 @@ func actionBlock(lines []string, indents []int, frames []bool, at int) []string 
 		}
 		out = append(out, lines[i])
 	}
-	if len(out) > maxAction {
-		out = out[len(out)-maxAction:]
+	if len(note) > 0 {
+		note[len(note)-1] = permSourceTagRe.ReplaceAllString(note[len(note)-1], "")
 	}
-	return out
+	if cut {
+		return hookTool(note), out, note, true
+	}
+	if len(out) > 0 {
+		tool, out = out[0], out[1:]
+	}
+	return tool, out, note, false
+}
+
+// hookTool returns the tool a hook's note names, for a screen with the heading
+// scrolled off: the console names the hook as event:tool.
+func hookTool(note []string) string {
+	if len(note) == 0 {
+		return ""
+	}
+	m := permHookRe.FindStringSubmatch(note[0])
+	if m == nil {
+		return ""
+	}
+	name := m[1]
+	if i := strings.LastIndex(name, ":"); i >= 0 {
+		name = name[i+1:]
+	}
+	return name
 }
 
 func optionBlock(lines []string, indents, widths []int, width, at int) ([]action.PermOption, bool) {
@@ -347,6 +439,9 @@ func contiguous(seen map[int]bool) bool {
 	return true
 }
 
+// lasting tells whether an item grants something for good. An unfamiliar item is
+// taken for a lasting one: that is the reading which grants nothing by mistake. A
+// refusal grants nothing whatever it goes on to say.
 func lasting(text string) bool {
 	low := strings.ToLower(strings.TrimRight(text, ". "))
 	if low == "yes" || low == "no" {
@@ -357,6 +452,10 @@ func lasting(text string) bool {
 			return true
 		}
 	}
+	first, _, _ := strings.Cut(low, ",")
+	if first == "no" || first == "deny" {
+		return false
+	}
 	return true
 }
 
@@ -364,6 +463,10 @@ func permFingerprint(d action.Permission) string {
 	var b strings.Builder
 	b.WriteString(flatten(d.Tool))
 	for _, line := range d.Action {
+		b.WriteString("\n")
+		b.WriteString(flatten(line))
+	}
+	for _, line := range d.Note {
 		b.WriteString("\n")
 		b.WriteString(flatten(line))
 	}

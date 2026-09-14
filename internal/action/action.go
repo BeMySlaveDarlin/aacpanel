@@ -15,8 +15,11 @@ const (
 	SessionOpen      Kind = "session.open"
 	SessionResume    Kind = "session.resume"
 	SessionClose     Kind = "session.close"
-	SessionKill      Kind = "session.kill"
-	SessionSend      Kind = "session.send"
+	// SessionRestart closes the host's main session and starts it again in the
+	// same directory with an empty context.
+	SessionRestart Kind = "session.restart"
+	SessionKill    Kind = "session.kill"
+	SessionSend    Kind = "session.send"
 	// SessionAnswer answers the question a session is currently standing on.
 	SessionAnswer Kind = "session.answer"
 	// SessionDismiss drops the question and returns the session to an ordinary conversation.
@@ -48,7 +51,7 @@ const (
 // Kinds is the full list of what the executor can do.
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
-	SessionOpen, SessionResume, SessionClose, SessionKill, SessionSend,
+	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
 	SessionAnswer, SessionDismiss, SessionStop, SessionFile, SessionCommand,
 	SessionPermit, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,

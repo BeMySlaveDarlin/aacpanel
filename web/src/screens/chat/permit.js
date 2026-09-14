@@ -122,6 +122,15 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
 
             <pre class="permitaction">${(perm.action || []).join("\n")}</pre>
 
+            ${(perm.note || []).length > 0 && html`
+                <pre class="permitnote">${perm.note.join("\n")}</pre>
+            `}
+
+            ${perm.cut && html`
+                <p class="hint warn">the command is longer than shown — its beginning is above the console
+                    screen and cut off. Read the tail before pressing anything</p>
+            `}
+
             ${perm.partial && html`
                 <p class="hint warn">not everything is visible: one of the dialog lines was not parsed by the panel.
                     If the item you need is not here — answer in the console</p>

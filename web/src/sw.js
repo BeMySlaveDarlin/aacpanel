@@ -97,9 +97,17 @@ self.addEventListener("push", (event) => {
         requireInteraction: critical,
         icon: "/static/icons/icon-192.png",
         badge: "/static/icons/icon-192.png",
-        data: { severity: payload.severity, ts: payload.ts },
+        data: { severity: payload.severity, ts: payload.ts, url: screenOf(payload) },
     }));
 });
+
+// screenOf is the panel screen a tap on the notification opens — a path of
+// the panel and nothing else.
+function screenOf(payload) {
+    const url = payload.url;
+    if (typeof url !== "string" || !url.startsWith("/") || url.startsWith("//")) return "";
+    return url;
+}
 
 // The browser rotates the push subscription when the worker is replaced, and a
 // new worker travels with every release. Without this handler the server keeps
@@ -112,18 +120,33 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
     event.notification.close();
+    const url = (event.notification.data && event.notification.data.url) || "";
 
     event.waitUntil((async () => {
         const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
         for (const client of clients) {
-            if (client.url.includes(self.location.origin)) {
-                await client.focus();
-                return;
-            }
+            if (!client.url.includes(self.location.origin)) continue;
+            await client.focus();
+            if (url) await show(client, url);
+            return;
         }
-        await self.clients.openWindow("/app");
+        await self.clients.openWindow(url || SHELL_URL);
     })());
 });
+
+// show takes an open window of the panel to the screen: by driving the window
+// where the browser lets the worker do that, by telling the page otherwise —
+// a window the worker does not control refuses the navigation.
+async function show(client, url) {
+    if (typeof client.navigate === "function") {
+        try {
+            await client.navigate(url);
+            return;
+        } catch (err) {
+        }
+    }
+    client.postMessage({ type: "OPEN", url });
+}
 
 self.addEventListener("fetch", (event) => {
     const request = event.request;
