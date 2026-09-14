@@ -41,11 +41,6 @@ function openURL(base, path) {
     return `${saveURL(base, path)}&inline=1`;
 }
 
-const SaveIcon = () => html`
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-         stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10M8 10.5l4 4 4-4M5 19h14" /></svg>
-`;
-
 export function Look({ session, id, look, onBack, quote, onQuote }) {
     const toast = useToast();
     const [state, setState] = useState({ kind: "loading" });
@@ -125,7 +120,7 @@ export function Look({ session, id, look, onBack, quote, onQuote }) {
         ${save && html`
             <a class="mdcopy filecopy" href=${saveURL(base, look.path)}
                download=${state.name || look.path}
-               title="Save the file" aria-label="Save the file">${SaveIcon()}</a>
+               title="Save the file" aria-label="Save the file">${Icon.download()}</a>
         `}
     `;
     return html`

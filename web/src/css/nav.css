@@ -5,7 +5,7 @@ nav.tabs {
     background: var(--nav-bg);
     backdrop-filter: blur(22px) saturate(160%);
     -webkit-backdrop-filter: blur(22px) saturate(160%);
-    border-top: var(--hair) solid rgba(var(--tint), .1);
+    border-top: var(--hair) solid var(--line);
     padding: .35rem .35rem calc(.45rem + env(safe-area-inset-bottom));
 }
 
@@ -15,8 +15,8 @@ nav.tabs button {
     background: none;
     color: var(--ink-faint);
     font: inherit;
-    font-size: .66rem;
-    font-weight: 600;
+    font-size: var(--t-xs);
+    font-weight: 500;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -25,10 +25,10 @@ nav.tabs button {
     cursor: pointer;
 }
 
-nav.tabs button svg { width: 21px; height: 21px; }
+nav.tabs button svg { width: var(--i-lg); height: var(--i-lg); }
 nav.tabs button[aria-current="true"] {
     color: var(--accent);
-    font-weight: 700;
+    font-weight: 600;
 }
 nav.tabs .tbadge { top: 0; right: 50%; margin-right: -19px; border-color: var(--deep); }
 
@@ -46,20 +46,20 @@ nav.tabs .homeslot .homebtn {
     padding: 0;
     display: grid;
     place-items: center;
-    background: var(--glass);
+    background: none;
     color: var(--ink-dim);
-    box-shadow: var(--hairline), var(--drop);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     cursor: pointer;
 }
 
-nav.tabs .homeslot .homebtn svg { width: 24px; height: 24px; }
+nav.tabs .homeslot .homebtn svg { width: var(--i-lg); height: var(--i-lg); }
 
+/* The home session is the one filled thing on the bar; its glow says it is
+   working, and the pulse in the colour of waiting says it waits for a person. */
 nav.tabs .homeslot .homebtn.live {
-    background: linear-gradient(160deg,
-        color-mix(in srgb, var(--accent) 85%, white 10%),
-        color-mix(in srgb, var(--accent) 70%, black 25%));
-    color: var(--on-accent);
-    box-shadow: var(--glow), var(--drop);
+    background: var(--accent-bg);
+    color: var(--accent);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 nav.tabs .homeslot .homebtn {
@@ -69,8 +69,8 @@ nav.tabs .homeslot .homebtn {
 nav.tabs .homeslot .homebtn:active { transform: scale(.9); }
 
 @keyframes homebreathe {
-    0%, 100% { box-shadow: var(--glow), var(--drop); }
-    50% { box-shadow: 0 0 22px -2px color-mix(in srgb, var(--accent) 60%, transparent), var(--drop); }
+    0%, 100% { box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent), var(--glow); }
+    50% { box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent), 0 0 22px -2px color-mix(in srgb, var(--accent) 60%, transparent); }
 }
 
 nav.tabs .homeslot .homebtn.busy {
@@ -78,14 +78,13 @@ nav.tabs .homeslot .homebtn.busy {
 }
 
 @keyframes homeask {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 55%, transparent), var(--drop); }
-    70% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--warn) 0%, transparent), var(--drop); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 55%, transparent); }
+    70% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--warn) 0%, transparent); }
 }
 
 nav.tabs .homeslot .homebtn.waiting {
-    background: linear-gradient(160deg,
-        color-mix(in srgb, var(--warn) 85%, white 10%),
-        color-mix(in srgb, var(--warn) 70%, black 25%));
+    background: color-mix(in srgb, var(--warn) 28%, transparent);
+    color: var(--warn);
     animation: homeask 1.2s ease-out infinite;
 }
 
@@ -94,10 +93,10 @@ nav.tabs .homeslot .homebtn.waiting {
     nav.tabs .homeslot .homebtn.busy,
     nav.tabs .homeslot .homebtn.waiting { animation: none; }
     nav.tabs .homeslot .homebtn.busy {
-        box-shadow: 0 0 22px -2px color-mix(in srgb, var(--accent) 60%, transparent), var(--drop);
+        box-shadow: 0 0 22px -2px color-mix(in srgb, var(--accent) 60%, transparent);
     }
     nav.tabs .homeslot .homebtn.waiting {
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 45%, transparent), var(--drop);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 45%, transparent);
     }
 }
 

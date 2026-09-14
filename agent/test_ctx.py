@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 import os
 import shutil
@@ -20,6 +21,9 @@ def setUpModule():
 UUID_A = "11111111-1111-4111-8111-111111111111"
 UUID_B = "22222222-2222-4222-8222-222222222222"
 
+REQUEST_AT = "2026-08-24T10:00:00Z"
+REQUEST_EPOCH = int(dt.datetime(2026, 8, 24, 10, tzinfo=dt.timezone.utc).timestamp())
+
 
 def line(record):
     return json.dumps(record, ensure_ascii=False) + "\n"
@@ -34,6 +38,9 @@ class Row(unittest.TestCase):
     def setUp(self):
         self.dir = test_barrier.tmp_path(prefix="ctx-row-")
         self.addCleanup(shutil.rmtree, self.dir, True)
+        self.models = os.path.join(self.dir, "session-models")
+        self.addCleanup(setattr, ctx, "SESSION_MODELS", ctx.SESSION_MODELS)
+        ctx.SESSION_MODELS = self.models
 
     def write(self, uuid, *records):
         path = os.path.join(self.dir, f"{uuid}.jsonl")
@@ -72,6 +79,27 @@ class Row(unittest.TestCase):
         row = ctx._row(self.live(path))
         self.assertTrue(row["noRequests"])
         self.assertEqual(row["tokens"], 0)
+
+    def test_the_totals_of_the_conversation_travel_in_the_row(self):
+        path = self.write(UUID_A,
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:00Z",
+             "message": {"model": "claude-opus-5",
+                         "usage": {"input_tokens": 1_000, "cache_creation_input_tokens": 4_000,
+                                   "cache_read_input_tokens": 95_000, "output_tokens": 800}}},
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:01Z",
+             "message": {"model": "claude-opus-5",
+                         "usage": {"input_tokens": 500, "cache_creation_input_tokens": 0,
+                                   "cache_read_input_tokens": 100_000, "output_tokens": 1_200}}})
+        row = ctx._row(self.live(path))
+        self.assertEqual(row["tokensIn"], 200_500)
+        self.assertEqual(row["tokensOut"], 2_000)
+
+    def test_before_the_first_request_the_totals_are_zero(self):
+        path = self.write(UUID_A, {"type": "user", "timestamp": "2026-08-24T10:00:00Z",
+                                    "message": {"content": "hello"}})
+        row = ctx._row(self.live(path))
+        self.assertEqual(row["tokensIn"], 0)
+        self.assertEqual(row["tokensOut"], 0)
 
     def test_the_transcript_path_travels_in_the_row(self):
         path = self.write(UUID_A, {"type": "assistant", "timestamp": "2026-09-01T10:00:00Z",
@@ -123,6 +151,85 @@ class Row(unittest.TestCase):
         self.assertNotIn("modeAt", row)
 
 
+
+class StatusLineSnapshot(Row):
+    """What the status line saw for the session against what the transcript says."""
+
+    def snapshot(self, at, model="claude-haiku-4-5", effort="xhigh", sid=UUID_A, raw=None):
+        os.makedirs(self.models, exist_ok=True)
+        with open(os.path.join(self.models, sid + ".json"), "w", encoding="utf-8") as f:
+            if raw is not None:
+                f.write(raw)
+            else:
+                json.dump({"at": at, "sessionId": sid,
+                           "model": {"id": model, "displayName": "Haiku"},
+                           "effort": effort}, f)
+
+    def transcript(self, effort="high"):
+        return self.write(UUID_A,
+            {"type": "assistant", "timestamp": REQUEST_AT, "effort": effort,
+             "message": {"model": "claude-opus-5", "usage": usage(100_000)}})
+
+    def test_a_snapshot_fresher_than_the_last_request_overrides_the_transcript(self):
+        self.snapshot(at=REQUEST_EPOCH + 300)
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["model"], "claude-haiku-4-5")
+        self.assertEqual(row["effort"], "xhigh")
+
+    def test_the_limit_follows_the_model_of_the_snapshot(self):
+        self.snapshot(at=REQUEST_EPOCH + 300)
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["limit"], 200_000)
+        self.assertTrue(row["limitKnown"])
+        self.assertEqual(row["pct"], 50.0)
+
+    def test_a_snapshot_older_than_the_last_request_does_not_override(self):
+        self.snapshot(at=REQUEST_EPOCH - 300)
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["model"], "claude-opus-5")
+        self.assertEqual(row["effort"], "high")
+        self.assertEqual(row["limit"], 1_000_000)
+
+    def test_a_snapshot_of_the_same_second_as_the_request_does_not_override(self):
+        self.snapshot(at=REQUEST_EPOCH)
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["model"], "claude-opus-5")
+
+    def test_without_a_snapshot_the_transcript_stays(self):
+        self.snapshot(at=REQUEST_EPOCH + 300, sid=UUID_B)
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["model"], "claude-opus-5")
+        self.assertEqual(row["effort"], "high")
+
+    def test_before_the_first_request_the_snapshot_names_the_model(self):
+        path = self.write(UUID_A, {"type": "user", "timestamp": REQUEST_AT,
+                                    "message": {"content": "hello"}})
+        self.snapshot(at=REQUEST_EPOCH - 3600)
+        row = ctx._row(self.live(path))
+        self.assertTrue(row["noRequests"])
+        self.assertEqual(row["model"], "claude-haiku-4-5")
+        self.assertEqual(row["effort"], "xhigh")
+        self.assertEqual(row["limit"], 200_000)
+
+    def test_a_fresh_snapshot_without_effort_clears_the_effort(self):
+        self.snapshot(at=REQUEST_EPOCH + 300, effort=None)
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["effort"], "")
+
+    def test_a_snapshot_without_a_model_keeps_the_model_of_the_transcript(self):
+        self.snapshot(at=REQUEST_EPOCH + 300, model="")
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["model"], "claude-opus-5")
+
+    def test_a_broken_snapshot_is_ignored(self):
+        self.snapshot(at=0, raw="{half of")
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["model"], "claude-opus-5")
+
+    def test_a_snapshot_without_a_time_is_ignored(self):
+        self.snapshot(at=0, raw=json.dumps({"model": {"id": "claude-haiku-4-5"}}))
+        row = ctx._row(self.live(self.transcript()))
+        self.assertEqual(row["model"], "claude-opus-5")
 
 class LiveSessions(unittest.TestCase):
     def setUp(self):

@@ -323,3 +323,81 @@ class AgentMeta(Transcript):
         self.meta("aalpha-2222222222222222", "alpha", 1_700_009_000)
         got = self.state(spawn("toolu_1", "alpha"))
         self.assertEqual(got["agents"][0]["id"], "aalpha-2222222222222222")
+
+    def talk(self, agent_id, *chunks, when=1_700_000_000):
+        path = os.path.join(self.dir.name, "t", "subagents", f"agent-{agent_id}.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("".join(chunks))
+        os.utime(path, (when, when))
+        return path
+
+    def test_the_context_is_the_input_of_the_last_request(self):
+        self.meta("aalpha-0123456789abcdef", "alpha", 1_700_000_000)
+        self.talk("aalpha-0123456789abcdef",
+                  request(100_000, at="2026-08-25T10:20:00Z"),
+                  request(175_424, at="2026-08-25T10:30:00Z"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual([(a["tokens"], a["limit"], a["limitKnown"]) for a in got["agents"]],
+                         [(175_424, 1_000_000, True)])
+
+    def test_an_agent_that_has_not_asked_yet_has_no_context(self):
+        self.meta("aalpha-0123456789abcdef", "alpha", 1_700_000_000)
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["agents"][0]["tokens"], 0)
+
+    def test_the_window_follows_the_model_of_the_transcript_not_the_alias(self):
+        # The meta file names the alias the launch asked for; the transcript
+        # names the model that answered, and the window is that model's.
+        self.meta("aalpha-0123456789abcdef", "alpha", 1_700_000_000)
+        self.talk("aalpha-0123456789abcdef",
+                  request(50_000, model="claude-haiku-4-5-20251001"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual((got["agents"][0]["limit"], got["agents"][0]["limitKnown"]),
+                         (200_000, True))
+
+    def test_a_synthetic_record_does_not_stand_for_a_request(self):
+        self.meta("aalpha-0123456789abcdef", "alpha", 1_700_000_000)
+        self.talk("aalpha-0123456789abcdef",
+                  request(120_000),
+                  request(7, model="<synthetic>"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["agents"][0]["tokens"], 120_000)
+
+    def test_a_request_behind_a_long_tool_result_is_still_found(self):
+        self.meta("aalpha-0123456789abcdef", "alpha", 1_700_000_000)
+        self.talk("aalpha-0123456789abcdef",
+                  request(120_000),
+                  tool_output("x" * (5 * sesstate.subagents.CONTEXT_TAIL)))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["agents"][0]["tokens"], 120_000)
+
+    def test_a_request_cut_by_the_first_read_is_read_whole(self):
+        # The tail read starts in the middle of the last record; the piece it
+        # holds is not a line, and the record is taken from a wider read.
+        self.meta("aalpha-0123456789abcdef", "alpha", 1_700_000_000)
+        self.talk("aalpha-0123456789abcdef",
+                  request(90_000, padding="y" * (2 * sesstate.subagents.CONTEXT_TAIL)))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["agents"][0]["tokens"], 90_000)
+
+    def test_a_request_after_the_reading_moves_the_number(self):
+        self.meta("aalpha-0123456789abcdef", "alpha", 1_700_000_000)
+        path = self.talk("aalpha-0123456789abcdef", request(60_000))
+        self.assertEqual(self.state(spawn("toolu_1", "alpha"))["agents"][0]["tokens"], 60_000)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(request(61_000))
+        os.utime(path, (1_700_000_100, 1_700_000_100))
+        self.assertEqual(self.state(spawn("toolu_1", "alpha"))["agents"][0]["tokens"], 61_000)
+
+
+def request(tokens, model="claude-opus-5", at="2026-08-25T10:30:00Z", padding=""):
+    """A record of a request: the context is what the model read, cached or not."""
+    content = [{"type": "text", "text": "on it"}]
+    if padding:
+        content.append({"type": "text", "text": padding})
+    return line({"type": "assistant", "timestamp": at,
+                 "message": {"model": model, "content": content,
+                             "usage": {"input_tokens": 24,
+                                       "cache_creation_input_tokens": 1_000,
+                                       "cache_read_input_tokens": tokens - 1_024,
+                                       "output_tokens": 300}}})

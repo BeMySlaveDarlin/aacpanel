@@ -16,8 +16,8 @@
     background: var(--accent);
     color: var(--on-accent);
     font-weight: 600;
-    font-size: .85rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+    font-size: var(--t-sm);
+    box-shadow: var(--drop);
 }
 
 .update span { flex: 1; }
@@ -64,10 +64,10 @@
     flex-direction: column;
     height: 44px;
     background: var(--sheet-bg);
-    border: var(--hair) solid var(--line);
+    border: 0;
     border-radius: var(--r-card);
     overflow: hidden;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .55);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--toast-drop);
     transform: translateY(140%);
     transition: transform .26s cubic-bezier(.22, 1, .36, 1), height .26s ease;
 }
@@ -87,7 +87,7 @@
 }
 
 .logname {
-    font-size: .83rem;
+    font-size: var(--t-sm);
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -98,7 +98,7 @@
     display: block;
     font-family: var(--mono);
     font-weight: 400;
-    font-size: .68rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 
@@ -107,7 +107,7 @@
     overflow-y: auto;
     padding: .5rem .8rem .8rem;
     font-family: var(--mono);
-    font-size: .68rem;
+    font-size: var(--t-xs);
     line-height: 1.6;
     color: var(--ink-dim);
     border-top: var(--hair) solid var(--line);

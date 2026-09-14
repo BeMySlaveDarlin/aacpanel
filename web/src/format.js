@@ -18,7 +18,7 @@ export function rate(bytesPerSec) {
 const COUNT = [
     [1e12, "tn"],
     [1e9, "bn"],
-    [1e6, "M"],
+    [1e6, "m"],
     [1e3, "k"],
 ];
 
@@ -27,7 +27,7 @@ export function tokens(value) {
     for (const [step, word] of COUNT) {
         if (Math.abs(n) >= step) {
             const scaled = n / step;
-            return `${Math.abs(scaled) < 100 ? Math.round(scaled * 10) / 10 : Math.round(scaled)} ${word}`;
+            return `${Math.abs(scaled) < 100 ? Math.round(scaled * 10) / 10 : Math.round(scaled)}${word}`;
         }
     }
     return `${Math.round(n)}`;

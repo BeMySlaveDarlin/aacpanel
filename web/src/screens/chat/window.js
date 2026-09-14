@@ -3,17 +3,10 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { hostLabel } from "../../actions/registry.js";
-
-const MonitorIcon = () => html`
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-         stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2.5" y="4.5" width="19" height="12" rx="2" />
-        <path d="M12 16.5V19M8.5 19h7" />
-    </svg>
-`;
 
 const asking = { kind: "unknown", reason: "asking the host about the window" };
 
@@ -64,6 +57,6 @@ export function WindowToggle({ name, exec }) {
                 title=${off ? why : undefined}
                 aria-label=${off ? why : say} aria-pressed=${open}
                 disabled=${off}
-                onClick=${press}><${MonitorIcon} /></button>
+                onClick=${press}><${Icon.monitor} /></button>
     `;
 }

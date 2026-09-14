@@ -8,6 +8,9 @@ import re
 
 import archive
 import chat
+import contours
+
+SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
 
 
 def proc_start(pid):
@@ -72,6 +75,52 @@ def live_sessions():
     return out
 
 
+def session_model_dirs():
+    """Returns the directories of the status line snapshots of every contour."""
+    return contours.dirs("session-models", SESSION_MODELS)
+
+
+def status_line(sid):
+    """Returns the model and the effort the status line last saw for the session, or None."""
+    for d in session_model_dirs():
+        try:
+            with open(os.path.join(d, f"{sid}.json"), encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and isinstance(data.get("at"), (int, float)):
+            return data
+    return None
+
+
+def _epoch(stamp):
+    try:
+        return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except (AttributeError, ValueError):
+        return None
+
+
+def _model_and_effort(found, sid):
+    """Returns the model and the effort of a live session.
+
+    The transcript learns of a change of model or effort only with the next
+    request; the status line snapshot knows at once. The snapshot wins while it
+    is fresher than the last request, after that the transcript is the truth.
+    """
+    model, effort = found.get("model") or "", found.get("effort") or ""
+    seen = status_line(sid)
+    if not seen:
+        return model, effort
+    last = _epoch(found.get("lastRequestAt") or "")
+    if last is not None and seen["at"] <= last:
+        return model, effort
+    picked = seen.get("model")
+    picked = picked.get("id") if isinstance(picked, dict) else ""
+    if "effort" in seen:
+        effort = str(seen["effort"] or "")
+    return picked or model, effort
+
+
 def _mode(found):
     mode = found.get("mode") or ""
     if not mode:
@@ -82,7 +131,7 @@ def _mode(found):
 def _row(live):
     transcript = live["transcript"]
     found = archive.scan(transcript) if transcript else {}
-    model = found.get("model") or ""
+    model, effort = _model_and_effort(found, live["sessionId"])
     limit, known = archive.limit_for(model)
     started = found.get("startedAt") or _iso(live["procStartedAt"])
 
@@ -91,8 +140,9 @@ def _row(live):
             "session": live["name"], "sessionId": live["sessionId"], "cwd": live["cwd"],
             "transcript": transcript,
             "tokens": 0, "limit": limit, "pct": 0.0, "limitKnown": known,
+            "tokensIn": 0, "tokensOut": 0,
             "stale": False, "noRequests": True, "model": model,
-            "effort": found.get("effort") or "", "messages": found.get("messages") or 0,
+            "effort": effort, "messages": found.get("messages") or 0,
             "compacts": found.get("compacts") or 0, "startedAt": started,
             "lastRequestAt": None,
             **_mode(found),
@@ -106,8 +156,9 @@ def _row(live):
         "session": live["name"], "sessionId": live["sessionId"], "cwd": live["cwd"],
         "transcript": transcript,
         "tokens": total, "limit": limit, "pct": pct, "limitKnown": known,
+        "tokensIn": found.get("tokensIn") or 0, "tokensOut": found.get("tokensOut") or 0,
         "stale": bool(found.get("stale")), "model": model,
-        "effort": found.get("effort") or "", "messages": found.get("messages") or 0,
+        "effort": effort, "messages": found.get("messages") or 0,
         "compacts": found.get("compacts") or 0, "startedAt": started,
         "lastRequestAt": found.get("lastRequestAt"),
         **_mode(found),

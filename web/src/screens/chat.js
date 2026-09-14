@@ -9,7 +9,7 @@ import * as codecopy from "./chat/copy.js";
 import { ContextBar } from "../ui/bar.js";
 import { Ask } from "./ask.js";
 import { Permit } from "./chat/permit.js";
-import { ago } from "../format.js";
+import { ago, tokens } from "../format.js";
 import { closed, rows, runCalls, sameReply, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
@@ -18,7 +18,7 @@ import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
 import { Composer, deliver, outcome } from "./chat/composer.js";
-import { ANSWER_LAG_MS, answered, hidesAsk, lagging, settle } from "./chat/answered.js";
+import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
 import { useAction } from "../actions/gate.js";
 import { QuoteBar, useSelectionQuote } from "./chat/quotebar.js";
 import { Marquee, short } from "./chat/head.js";
@@ -41,7 +41,12 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
     const [local, setLocal] = useState([]);
-    const [answer, setAnswer] = useState(null);
+    const [, redraw] = useState(0);
+    const answer = recall(name);
+    const mark = (next) => {
+        remember(name, next);
+        redraw((n) => n + 1);
+    };
     const run = useAction();
     const [files, setFiles] = useState([]);
     const [asking, setAsking] = useState(false);
@@ -64,7 +69,6 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
         setSub(null);
         setLocal([]);
         setFiles([]);
-        setAnswer(null);
         setCalls(null);
         setLook(null);
         setInsert(null);
@@ -85,13 +89,14 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
     const liveWait = (live && live.waitingFor) || "";
     const liveStatusAt = (live && live.statusUpdatedAt) || 0;
     useEffect(() => {
-        setAnswer((mark) => settle(mark, live));
-    }, [liveStatus, liveWait, liveStatusAt]);
+        const next = settle(answer, live);
+        if (next !== answer) mark(next);
+    }, [name, liveStatus, liveWait, liveStatusAt]);
 
     useEffect(() => {
         if (!answer) return undefined;
         const left = answer.at + ANSWER_LAG_MS - Date.now();
-        const timer = setTimeout(() => setAnswer(null), Math.max(left, 0));
+        const timer = setTimeout(() => mark(null), Math.max(left, 0));
         return () => clearTimeout(timer);
     }, [answer]);
 
@@ -120,7 +125,8 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
     };
 
     if (sub) {
-        return html`<${SubChat} session=${name} id=${sub.feedId} agent=${sub}
+        const fresh = ((state.work && state.work.agents) || []).find((a) => a.id === sub.id);
+        return html`<${SubChat} session=${name} id=${sub.feedId} agent=${fresh ? { ...sub, ...fresh } : sub}
                                 live=${Boolean(live)} onBack=${() => setSub(null)} />`;
     }
 
@@ -209,10 +215,10 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
                 ${state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
                     && !hidesAsk(answer, state.work.ask.toolUseId)
                     ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec}
-                                   onAnswered=${(use) => setAnswer(answered(live, use))} />`
+                                   onAnswered=${(use) => mark(answered(live, use))} />`
                     : live.status === "waiting" && !holding
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor}
-                                      onAnswered=${() => setAnswer(answered(live, ""))} />`
+                                      onAnswered=${() => mark(answered(live, ""))} />`
                     : html`
                         <${QuoteBar} quote=${quote} onQuote=${takeQuote} />
                         <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"}
@@ -233,6 +239,8 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
 
         ${live && view !== "term" && html`
             <div class="deck">
+                ${live.tokensIn > 0 && html`
+                    <span class="deckuse" title="tokens in and out of this session">${tokens(live.tokensIn)}/${tokens(live.tokensOut)}</span>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
                     <${WorkRefs} work=${state.work} onOpen=${(what) => setLook(what)} />

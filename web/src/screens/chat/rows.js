@@ -88,6 +88,23 @@ export function Row({ item, session, id, onCalls, onFile }) {
         return html`<${SentCard} item=${item} onOpen=${onFile} />`;
     }
 
+    if (item.role === "shell") {
+        return html`
+            <div class="mshell">
+                <span class="mshellmark" role="img" aria-label="shell command">!</span>
+                <code class="mshellcmd">${item.text}</code>
+            </div>
+        `;
+    }
+    if (item.role === "shellout") {
+        if (!item.text && !item.err) return null;
+        return html`
+            ${item.text && html`<pre class="mshellout">${item.text}</pre>`}
+            ${item.err && html`<pre class="mshellerr">${item.err}</pre>`}
+            ${item.cut && html`<p class="hint warn">The output is longer than shown — cut.</p>`}
+        `;
+    }
+
     const queued = item.state === "queued";
     const sending = item.state === "sending";
     const failed = item.state === "failed";

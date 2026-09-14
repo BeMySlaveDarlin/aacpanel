@@ -40,7 +40,9 @@ func TestReplyKeepsEveryFieldAgentSends(t *testing.T) {
 			           {"text": "Wait for the children?", "header": "Children"}]},
 			{"role": "asked", "use": "toolu_01Ask2", "status": "afk", "at": "2026-08-24T10:00:11Z", "pos": 120,
 			 "asked": [{"text": "Do we deploy?", "header": "Deploy"}]},
-			{"role": "wake", "text": "Keep the loop going", "at": "2026-08-24T10:00:12Z", "pos": 130, "fixes": "me"}
+			{"role": "wake", "text": "Keep the loop going", "at": "2026-08-24T10:00:12Z", "pos": 130, "fixes": "me"},
+			{"role": "shell", "text": "make check", "at": "2026-08-24T10:00:13Z", "pos": 140},
+			{"role": "shellout", "text": "ok", "err": "warning: the base is not up", "cut": true, "at": "2026-08-24T10:00:14Z", "pos": 141}
 		],
 		"total": 14, "moreBefore": true, "first": 10, "last": 100, "size": 4096,
 		"text": "the tail of the command output", "cut": true,
@@ -199,7 +201,8 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 			"agents": [{"name": "audit-rules", "text": "rules audit", "at": "2026-08-25T10:00:00Z",
 			              "status": "active", "model": "opus[1m]", "color": "cyan",
 			              "last": "2026-08-25T10:04:00Z",
-			              "id": "aaudit-rules-0123456789abcdef", "kind": "subagent"},
+			              "id": "aaudit-rules-0123456789abcdef", "kind": "subagent",
+			              "tokens": 175424, "limit": 1000000, "limitKnown": true},
 			             {"name": "audit-docs", "text": "docs audit", "at": "2026-08-25T10:01:00Z",
 			              "status": "reported", "reportedAt": "2026-08-25T10:03:00Z",
 			              "model": "sonnet", "color": "pink", "last": "2026-08-25T10:03:00Z",
@@ -243,6 +246,9 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 	}
 	if tk := reply.State.Tasks[0]; tk.Event == "" {
 		t.Errorf("the task arrived without the time of its last event: %+v", tk)
+	}
+	if a := reply.State.Agents[0]; a.Tokens != 175424 || a.Limit != 1000000 || !a.LimitKnown {
+		t.Errorf("the context of the agent did not survive the decoding: %+v", a)
 	}
 	if a := reply.State.Agents[0]; a.Model == "" || a.Color == "" || a.Last == "" {
 		t.Errorf("the agent arrived without its harness data: %+v", a)

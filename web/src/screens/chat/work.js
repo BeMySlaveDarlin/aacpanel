@@ -4,7 +4,7 @@ import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
-import { bytes, plural, since, until } from "../../format.js";
+import { bytes, plural, since, tokens, until } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { taskVoice } from "./voice.js";
@@ -131,7 +131,8 @@ function splitAgents(agents, now = Date.now()) {
 function openAgent(agent, onAgent, setPick) {
     if (agent.id && onAgent) {
         onAgent({ id: agent.id, name: agent.name, kind: agent.kind, text: agent.text,
-                  model: agent.model, color: agent.color });
+                  model: agent.model, color: agent.color, tokens: agent.tokens,
+                  limit: agent.limit, limitKnown: agent.limitKnown });
         return;
     }
     setPick({ kind: "agent", name: agent.name, text: agent.text });
@@ -413,7 +414,8 @@ function AgentRow({ agent, reported, stop, onOpen }) {
                         ? (agent.last || agent.reportedAt
                             ? `silent for ${since(agent.last || agent.reportedAt)}`
                             : "reported, time unknown")
-                        : `working for ${since(agent.at)}`}</span>
+                        : `working for ${since(agent.at)}`}${agent.tokens > 0
+                    && ` · ${contextSay(agent)}`}</span>
                 ${stop && stop.fail && html`<span class="wfail">${stop.fail}</span>`}
             </span>
             <span class="crgo">${Icon.chevron()}</span>
@@ -425,6 +427,14 @@ function AgentRow({ agent, reported, stop, onOpen }) {
         `}
       </div>
     `;
+}
+
+// contextSay names the context of an agent against the window of its model.
+// The window is a guess for a model the catalog does not know, and a guess
+// is marked as one.
+export function contextSay(agent) {
+    if (!agent.limit) return `${tokens(agent.tokens)} of context`;
+    return `${tokens(agent.tokens)} of ${agent.limitKnown ? "" : "~"}${tokens(agent.limit)}`;
 }
 
 // hasWork reports whether there is anything to put above the composer.

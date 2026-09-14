@@ -11,6 +11,7 @@ import { Row } from "./rows.js";
 import { Calls } from "./calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./look.js";
 import { Marquee } from "./head.js";
+import { contextSay } from "./work.js";
 import { useToast } from "../../ui/toasts.js";
 import * as codecopy from "./copy.js";
 
@@ -47,6 +48,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
                 <div class="chatsub">
                     <span>${kind}</span>
                     ${agent.model && html`<span class="sep">·</span><span>${agent.model}</span>`}
+                    ${agent.tokens > 0 && html`<span class="sep">·</span><span>${contextSay(agent)}</span>`}
                 </div>
                 ${agent.text && html`<div class="chatsub"><span>${agent.text}</span></div>`}
             </div>

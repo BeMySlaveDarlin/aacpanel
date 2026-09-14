@@ -3,7 +3,6 @@ import { useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
-import { DeskIcon } from "./icons.js";
 import { bytes, pct } from "../format.js";
 import { knows, whyNot } from "../exec.js";
 import { useAction } from "../actions/gate.js";
@@ -80,7 +79,7 @@ export function StackColumn({ tree, current, onPick, exec, onDone }) {
                                             const done = await run("stack.down", st.name, {});
                                             if (done && done.ok && onDone) onDone();
                                         }}
-                                    ><${DeskIcon.power} /></i>
+                                    ><${Icon.stop} /></i>
                                 </span>
                             </span>
                             <span class="dksesssub">
@@ -157,7 +156,7 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                     <span class="dkheadpath">${st ? `${st.running} of ${st.total} running` : ""}</span>
                     <span class="dkheadacts">
                         ${stackBtn("stack.up", "Bring up the stack", html`<${Icon.play} />`, false)}
-                        ${stackBtn("stack.down", "Bring down the stack", html`<${DeskIcon.power} />`, true)}
+                        ${stackBtn("stack.down", "Bring down the stack", html`<${Icon.stop} />`, true)}
                     </span>
                 </div>
                 ${st && html`
@@ -218,7 +217,7 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                                         data-tip=${c.state === "running" ? "Stop" : "Start"}
                                         data-tipside="left"
                                         onClick=${() => act(c.state === "running" ? "container.stop" : "container.start", c.name)}
-                                    ><${DeskIcon.power} /></i>
+                                    ><${Icon.stop} /></i>
                                 </span>
                             </button>
                         `)}

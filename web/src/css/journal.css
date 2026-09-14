@@ -7,7 +7,7 @@
     margin-bottom: .3rem;
 }
 
-.entry-what { font-weight: 600; font-size: .92rem; }
+.entry-what { font-weight: 600; font-size: var(--t-md); overflow-wrap: anywhere; }
 
 .entry-meta {
     display: flex;
@@ -15,7 +15,7 @@
     align-items: center;
     gap: .15rem .7rem;
     font-family: var(--mono);
-    font-size: .71rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 
@@ -33,7 +33,7 @@
     display: flex;
     align-items: center;
     gap: .5rem;
-    font-size: .87rem;
+    font-size: var(--t-sm);
 }
 
 .row-switch select { flex: 1; padding: .3rem .5rem; }

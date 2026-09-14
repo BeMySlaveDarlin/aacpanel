@@ -15,6 +15,7 @@ import (
 type Item struct {
 	Role    string      `json:"role"`
 	Text    string      `json:"text,omitempty"`
+	Err     string      `json:"err,omitempty"`
 	Name    string      `json:"name,omitempty"`
 	Arg     string      `json:"arg,omitempty"`
 	Cut     bool        `json:"cut,omitempty"`
@@ -242,6 +243,11 @@ type WorkAgent struct {
 	Last       string `json:"last,omitempty"`
 	ID         string `json:"id,omitempty"`
 	Kind       string `json:"kind,omitempty"`
+	// Tokens is the context of the agent: the input of its last request.
+	// Limit is the window of its model, guessed when LimitKnown is false.
+	Tokens     int64 `json:"tokens,omitempty"`
+	Limit      int64 `json:"limit,omitempty"`
+	LimitKnown bool  `json:"limitKnown,omitempty"`
 }
 
 // Reply is a window of the feed and its bounds.

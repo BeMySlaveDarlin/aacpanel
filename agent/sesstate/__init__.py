@@ -126,6 +126,9 @@ def read(path, state=None, size=None, born=None):
         agent["last"] = known["last"]
         agent["id"] = known["id"]
         agent["kind"] = known["kind"]
+        agent["tokens"] = known["tokens"]
+        agent["limit"] = known["limit"]
+        agent["limitKnown"] = known["limitKnown"]
         if known["text"]:
             agent["text"] = known["text"]
     return state

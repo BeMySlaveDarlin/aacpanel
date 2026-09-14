@@ -117,7 +117,7 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
         <div class="permit">
             <div class="permithead">
                 <span class="permittool">${perm.tool || "permission"}</span>
-                <span class="permitwhat">the session asks for permission</span>
+                <span class="permitwhat">the console asks for permission</span>
             </div>
 
             <pre class="permitaction">${(perm.action || []).join("\n")}</pre>
@@ -131,7 +131,7 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
                 ${(perm.options || []).map((o) => html`
                     <button
                         key=${o.n}
-                        class=${`permitopt${o.lasting ? " lasting" : ""}`}
+                        class=${`permitopt${o.lasting ? " lasting" : ""}${sending === o.n ? " on" : ""}`}
                         type="button"
                         disabled=${sending > 0 || !ready}
                         title=${ready ? "" : whyNot(exec, "session.permit")}

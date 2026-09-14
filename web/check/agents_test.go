@@ -39,10 +39,26 @@ func TestAgentListShowsWhatHarnessKnows(t *testing.T) {
 		t.Error("there is no display threshold at all — the list becomes a sheet over the whole day again")
 	}
 	row := funcBody(t, src, "function AgentRow(")
-	for _, want := range []string{"agent.model", "agent.color"} {
+	for _, want := range []string{"agent.model", "agent.color", "agent.tokens"} {
 		if !strings.Contains(row, want) {
 			t.Errorf("the agent row does not show %s — that is harness data, not a guess by the panel", want)
 		}
+	}
+}
+
+func TestAgentContextReachesTheFeedHeader(t *testing.T) {
+	src := screenSrc(t, "src/screens/chat.js")
+	open := funcBody(t, src, "function openAgent(")
+	if !strings.Contains(open, "tokens: agent.tokens") {
+		t.Error("opening an agent drops its context — the feed header has nothing to show")
+	}
+	files := srcFiles(t)
+	if !strings.Contains(files["src/screens/chat/subchat.js"], "contextSay(agent)") {
+		t.Error("the feed header does not name the context of the agent")
+	}
+	if !strings.Contains(src, "{ ...sub, ...fresh }") {
+		t.Error("the open agent is a snapshot from the moment of the tap: " +
+			"its context in the header stands still while the agent works")
 	}
 }
 
@@ -264,8 +280,8 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`onAnswered=${(use) => setAnswer(answered(live, use))}`,
-		`onAnswered=${() => setAnswer(answered(live, ""))}`,
+		`onAnswered=${(use) => mark(answered(live, use))}`,
+		`onAnswered=${() => mark(answered(live, ""))}`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("%s: no %s — one of the two answers sets no mark, and its snapshot "+
@@ -291,21 +307,26 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(body, "setAnswer((mark) => settle(mark, live))") {
+	if !regexp.MustCompile(`const next = settle\(answer, live\);\s*if \(next !== answer\) mark\(next\);`).MatchString(body) {
 		t.Errorf("%s: the snapshot is not checked against the mark (settle) — after busy a new dialog "+
 			"with the same reason stays hidden until the ceiling", chatFile)
 	}
-	if !regexp.MustCompile(`\[liveStatus, liveWait, liveStatusAt\]`).MatchString(body) ||
+	if !regexp.MustCompile(`\[name, liveStatus, liveWait, liveStatusAt\]`).MatchString(body) ||
 		!strings.Contains(body, "live.statusUpdatedAt") {
-		t.Errorf("%s: checking the snapshot against the mark does not depend on statusUpdatedAt — "+
+		t.Errorf("%s: checking the snapshot against the mark does not depend on the session and statusUpdatedAt — "+
 			"a new dialog with the same reason stays hidden until the ceiling", chatFile)
 	}
-	if !strings.Contains(body, "setTimeout(() => setAnswer(null)") {
+	if !strings.Contains(body, "setTimeout(() => mark(null)") {
 		t.Errorf("%s: there is no ceiling — an answer that never arrived hides the dialog forever", chatFile)
 	}
-	if !strings.Contains(body, "setAnswer(null);") {
-		t.Errorf("%s: the mark is not reset on a session switch — the mark of the previous one "+
-			"would hide the dialog of the new one", chatFile)
+	if !strings.Contains(body, "const answer = recall(name)") || !strings.Contains(body, "remember(name, next)") {
+		t.Errorf("%s: the mark is not kept in the store of answered.js by session — it dies with the screen "+
+			"on navigation, and on return the composer locks and the answered card comes back "+
+			"until the snapshot catches up", chatFile)
+	}
+	if strings.Contains(body, "setAnswer") {
+		t.Errorf("%s: the mark is held in screen state past the store — a second copy drifts from "+
+			"the first on the first edit, and on a session switch one of them is stale", chatFile)
 	}
 
 	if !strings.Contains(body, "hold=${holding}") {

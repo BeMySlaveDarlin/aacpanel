@@ -7,7 +7,7 @@
 
 /* The row fills from the right edge and grows leftwards: the thumb reaches that
    side, and the composer keeps its own buttons there. The space it leaves on the
-   left is where buttons of its own are to go. */
+   left holds the spend of the session. */
 .deck {
     flex: 0 0 auto;
     display: flex;
@@ -17,6 +17,19 @@
     margin-top: calc(var(--deck-gap) - var(--body-gap));
 }
 .deck > .wchips { flex: 0 1 auto; min-width: 0; }
+
+/* What the session has spent so far, in and out: a figure to glance at, not a
+   control, so it is set as a faint caption and pushed to the far left. */
+.deckuse {
+    flex: none;
+    align-self: center;
+    margin-right: auto;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-faint);
+    white-space: nowrap;
+}
 
 /* One line, never two: the whole row holds three narrow chips at most, and the
    right-hand group takes the width it needs to the left instead of wrapping. */
@@ -49,29 +62,32 @@
     border: 0;
     color: var(--ink-dim);
     font: inherit;
-    font-size: .86rem;
+    font-size: var(--t-sm);
     text-align: left;
 }
 
+/* A chip is a hairline with a number; the number is the accent, the icon is the word. */
 .wchip {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     gap: .3rem;
-    height: 34px;
-    padding: 0 .55rem;
+    height: 30px;
+    padding: 0 .5rem;
     border: 0;
     border-radius: var(--r-small);
-    background: var(--glass);
-    box-shadow: var(--hairline);
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     color: var(--ink-dim);
     font: inherit;
-    font-size: .82rem;
+    font-size: var(--t-sm);
     cursor: pointer;
 }
-.wchip svg { width: 17px; height: 17px; opacity: .85; }
+.wchip svg { width: var(--i-sm); height: var(--i-sm); opacity: .8; }
 .wchip .wnum {
     font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--accent);
     min-width: 1.2ch;
     text-align: center;
 }
@@ -106,7 +122,7 @@
 }
 .workbar.status .workhead {
     padding: .28rem .7rem;
-    font-size: .72rem;
+    font-size: var(--t-xs);
 }
 .workbar.status + .workbar.status {
     margin-top: 0;
@@ -122,13 +138,13 @@
     padding: .34rem .7rem;
     border: 0;
     font: inherit;
-    font-size: .76rem;
+    font-size: var(--t-xs);
     color: var(--ink-dim);
     text-align: left;
     cursor: pointer;
 }
 .quotebar .quoteico { flex: 0 0 auto; display: inline-flex; color: var(--accent); }
-.quotebar .quoteico svg { width: .95rem; height: .95rem; }
+.quotebar .quoteico svg { width: var(--i-sm); height: var(--i-sm); }
 .quotebar .quotelabel { flex: 0 0 auto; color: var(--accent); font-weight: 600; }
 .quotebar .quotepeek {
     flex: 1;
@@ -142,7 +158,7 @@
 }
 
 /* The line under a row that says why it does not open: a note, not a state. */
-.wrow .wnote { display: block; font-size: .7rem; font-weight: 400; color: var(--ink-faint); }
+.wrow .wnote { display: block; font-size: var(--t-xs); font-weight: 400; color: var(--ink-faint); }
 
 .worklist {
     display: flex;
@@ -151,17 +167,17 @@
     padding-bottom: 1.5rem;
 }
 
-.wrow { display: flex; align-items: baseline; gap: .5rem; font-size: .84rem; line-height: 1.45; color: var(--ink-dim); }
+.wrow { display: flex; align-items: baseline; gap: .5rem; font-size: var(--t-sm); line-height: 1.45; color: var(--ink-dim); }
 .wrow .wtext { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .wrow .wage { flex: 0 0 auto; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .wrow .wicon { flex: 0 0 auto; display: inline-flex; color: var(--ink-faint); }
-.wrow .wicon svg { width: .95rem; height: .95rem; }
+.wrow .wicon svg { width: var(--i-sm); height: var(--i-sm); }
 
 .wrow .wcol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
 .wrow .wname { color: var(--ink); overflow-wrap: anywhere; }
 .wrow .wmodel {
     margin-left: .35rem;
-    font-size: .72rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     letter-spacing: .01em;
     white-space: nowrap;
@@ -169,7 +185,7 @@
 
 .wrow .wkind {
     margin-left: .35rem;
-    font-size: .72rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     letter-spacing: .01em;
     white-space: nowrap;
@@ -177,7 +193,7 @@
 
 .wrow .wvoice {
     margin-left: .35rem;
-    font-size: .72rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     letter-spacing: .01em;
     white-space: nowrap;
@@ -193,8 +209,8 @@
     --tm-yellow: #d9c27e;
     --tm-orange: #e0a06f;
 }
-.wrow .wsub { color: var(--ink-dim); font-size: .8rem; overflow-wrap: anywhere; }
-.wrow .wstate { color: var(--ink-faint); font-size: .78rem; }
+.wrow .wsub { color: var(--ink-dim); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.wrow .wstate { color: var(--ink-faint); font-size: var(--t-xs); }
 
 .wline { display: flex; align-items: center; gap: .35rem; }
 .wline > .wrow { flex: 1; min-width: 0; }
@@ -215,29 +231,32 @@
     color: var(--ink-dim);
     cursor: pointer;
 }
-.wstop svg { width: .8rem; height: .8rem; }
+.wstop svg { width: var(--i-sm); height: var(--i-sm); }
 .wstop.off { color: var(--ink-faint); background: none; box-shadow: none; opacity: .55; cursor: default; }
 .wstop.done { background: none; box-shadow: none; }
 
 .wrow .wkind.gone { color: var(--ink-faint); }
-.wrow .wfail { display: block; margin-top: .1rem; font-size: .74rem; color: var(--crit); }
+.wrow .wfail { display: block; margin-top: .1rem; font-size: var(--t-xs); color: var(--crit); }
 
-.whint { margin: .25rem 0 0; font-size: .78rem; color: var(--ink-faint); }
+.whint { margin: .25rem 0 0; font-size: var(--t-xs); color: var(--ink-faint); }
 
+/* One field. The buttons live inside it without boxes of their own: the field
+   is the thing, the paperclip and the arrow are marks on it. */
 .composer {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: .4rem;
+    gap: .15rem;
     margin-top: .5rem;
-    padding: .35rem .45rem .35rem .6rem;
-    background: var(--glass);
+    padding: .25rem .3rem .25rem .75rem;
+    background: rgba(var(--tint), .06);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
     border: 0;
     border-radius: var(--r-card);
-    box-shadow: var(--hairline), var(--drop), var(--gloss);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
 }
+.composer:focus-within { box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent), var(--gloss), var(--glow); }
 
 .composer textarea {
     flex: 1;
@@ -247,11 +266,17 @@
     background: none;
     color: var(--ink);
     font: inherit;
-    font-size: .9rem;
-    line-height: 1.4;
-    padding: .25rem 0;
+    font-size: var(--t-base);
+    line-height: 1.45;
+    padding: .45rem 0;
     outline: none;
+    caret-color: var(--accent);
 }
+
+.composer .iconbtn { width: 38px; height: 38px; background: none; box-shadow: none; }
+.composer .iconbtn svg { width: var(--i-md); height: var(--i-md); }
+.composer .pickfile { color: var(--ink-faint); }
+.composer .iconbtn.accent:active, .composer .pickfile:active { background: var(--glass); }
 
 .composer textarea::placeholder { color: var(--ink-faint); }
 .composer textarea:disabled { color: var(--ink-faint); }
@@ -287,11 +312,11 @@
 .addctxtile input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .addctxicon { display: flex; color: var(--accent); }
-.addctxicon svg { width: 26px; height: 26px; }
+.addctxicon svg { width: var(--i-lg); height: var(--i-lg); }
 
 .addctxname {
     font-family: var(--mono);
-    font-size: .78rem;
+    font-size: var(--t-xs);
     color: var(--ink-dim);
 }
 
@@ -305,9 +330,9 @@
     min-width: 0;
     padding: .25rem .3rem .3rem;
     color: var(--ink-dim);
-    font-size: .78rem;
+    font-size: var(--t-xs);
 }
-.clipped svg { width: 15px; height: 15px; flex: none; }
+.clipped svg { width: var(--i-sm); height: var(--i-sm); flex: none; }
 .clipname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .clipsize { flex: none; color: var(--ink-faint); }
 .clipoff {
@@ -317,7 +342,7 @@
     padding: 0; border: 0; border-radius: var(--r-small);
     background: none; color: var(--ink-faint); cursor: pointer;
 }
-.clipoff svg { width: 13px; height: 13px; }
+.clipoff svg { width: var(--i-sm); height: var(--i-sm); }
 .clipoff:active { background: var(--glass-2); }
 .clipoff:disabled { opacity: .4; cursor: default; }
 
@@ -341,7 +366,7 @@
     background: none;
     color: var(--ink);
     font: inherit;
-    font-size: .84rem;
+    font-size: var(--t-sm);
     text-align: left;
     cursor: pointer;
 }
@@ -354,5 +379,5 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--ink-faint);
-    font-size: .78rem;
+    font-size: var(--t-xs);
 }

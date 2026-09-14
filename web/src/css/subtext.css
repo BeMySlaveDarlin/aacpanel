@@ -5,7 +5,7 @@
 .card .sub {
     margin: .12rem 0 0;
     font-family: var(--mono);
-    font-size: .72rem;
+    font-size: var(--t-xs);
     color: var(--ink-dim);
 }
 

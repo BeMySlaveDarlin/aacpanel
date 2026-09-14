@@ -178,6 +178,110 @@ class Parse(unittest.TestCase):
         self.assertFalse(self.items(user("short"))[0]["cut"])
 
 
+class ShellCommands(unittest.TestCase):
+    """A command the human runs from the console with the ! prefix."""
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+        self.path = os.path.join(self.dir.name, f"{UUID}.jsonl")
+
+    def items(self, raw):
+        return chat.parse(json.loads(raw), 0)
+
+    def write(self, *raws):
+        with open(self.path, "w", encoding="utf-8") as f:
+            for raw in raws:
+                f.write(raw)
+
+    def call(self, tool_id, command):
+        return assistant({"type": "tool_use", "id": tool_id, "name": "Bash",
+                          "input": {"command": command}})
+
+    def answer(self, tool_id, body):
+        return line({"type": "user", "timestamp": "2026-08-23T10:00:02Z",
+                     "message": {"content": [{"type": "tool_result", "tool_use_id": tool_id,
+                                              "content": body}]}})
+
+    def test_the_command_is_not_a_prompt(self):
+        got = self.items(user("<bash-input>stand/creds-push.sh</bash-input>"))
+        self.assertEqual([(i["role"], i["text"]) for i in got],
+                         [("shell", "stand/creds-push.sh")])
+
+    def test_the_command_loses_the_space_around_it(self):
+        got = self.items(user("<bash-input>  ls -la  </bash-input>"))
+        self.assertEqual(got[0]["text"], "ls -la")
+
+    def test_a_multiline_command_keeps_its_lines(self):
+        got = self.items(user("<bash-input>for f in a b; do\n  echo $f\ndone</bash-input>"))
+        self.assertEqual(got[0]["text"], "for f in a b; do\n  echo $f\ndone")
+
+    def test_the_output_comes_apart_from_the_command(self):
+        got = self.items(user("<bash-stdout>pushed 3 files</bash-stdout>"
+                              "<bash-stderr>warning: slow link</bash-stderr>"))
+        self.assertEqual([(i["role"], i["text"], i["err"]) for i in got],
+                         [("shellout", "pushed 3 files", "warning: slow link")])
+
+    def test_an_empty_error_stream_leaves_no_trace(self):
+        got = self.items(user("<bash-stdout>pushed 3 files</bash-stdout><bash-stderr></bash-stderr>"))
+        self.assertEqual(len(got), 1)
+        self.assertNotIn("err", got[0])
+        self.assertEqual(got[0]["text"], "pushed 3 files")
+
+    def test_an_error_with_no_output_still_arrives(self):
+        got = self.items(user("<bash-stdout></bash-stdout><bash-stderr>no such file</bash-stderr>"))
+        self.assertEqual([(i["role"], i["text"], i["err"]) for i in got],
+                         [("shellout", "", "no such file")])
+
+    def test_a_silent_command_gives_an_empty_output_row(self):
+        got = self.items(user("<bash-stdout></bash-stdout><bash-stderr></bash-stderr>"))
+        self.assertEqual([(i["role"], i["text"]) for i in got], [("shellout", "")])
+
+    def test_the_output_is_read_back_from_its_escaping(self):
+        got = self.items(user("<bash-stdout>a &gt; b &amp;&amp; c &lt; d</bash-stdout>"
+                              "<bash-stderr>2&gt;&amp;1</bash-stderr>"))
+        self.assertEqual((got[0]["text"], got[0]["err"]), ("a > b && c < d", "2>&1"))
+
+    def test_the_output_keeps_its_own_line_breaks(self):
+        got = self.items(user("<bash-stdout>one\ntwo\n  three</bash-stdout><bash-stderr></bash-stderr>"))
+        self.assertEqual(got[0]["text"], "one\ntwo\n  three")
+
+    def test_a_long_output_is_trimmed_and_says_so(self):
+        got = self.items(user("<bash-stdout>" + "x" * 40000 + "</bash-stdout><bash-stderr></bash-stderr>"))
+        self.assertLess(len(got[0]["text"]), 40000)
+        self.assertTrue(got[0]["cut"])
+
+    def test_a_short_output_is_not_marked_trimmed(self):
+        got = self.items(user("<bash-stdout>ok</bash-stdout><bash-stderr></bash-stderr>"))
+        self.assertFalse(got[0]["cut"])
+
+    def test_the_rows_carry_their_time_and_place(self):
+        got = self.items(user("<bash-input>ls</bash-input>"))
+        self.assertEqual((got[0]["at"], got[0]["pos"]), ("2026-08-23T10:00:00Z", 0))
+
+    def test_a_prompt_that_mentions_the_tag_stays_a_prompt(self):
+        got = self.items(user("what does <bash-input> mean in the transcript?"))
+        self.assertEqual([(i["role"], i["text"]) for i in got],
+                         [("me", "what does <bash-input> mean in the transcript?")])
+
+    def test_a_plain_prompt_is_untouched(self):
+        got = self.items(user("task status in detail"))
+        self.assertEqual([(i["role"], i["text"]) for i in got], [("me", "task status in detail")])
+
+    def test_the_command_does_not_enter_the_queue(self):
+        pending = chat.Pending()
+        chat.parse(json.loads(user("<bash-input>ls</bash-input>")), 0, pending)
+        self.assertFalse(pending.seen("ls"))
+
+    def test_the_command_breaks_a_run_of_calls(self):
+        self.write(self.call("t1", "ls"), self.answer("t1", "one"),
+                   user("<bash-input>make check</bash-input>"),
+                   user("<bash-stdout>ok</bash-stdout><bash-stderr></bash-stderr>"),
+                   self.call("t2", "pwd"), self.answer("t2", "two"))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in items], ["tools", "shell", "shellout", "tools"])
+
+
 class Queue(unittest.TestCase):
     def items(self, raw, pending=None):
         return chat.parse(json.loads(raw), 0, pending)

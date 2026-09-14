@@ -55,6 +55,35 @@ class Scan(unittest.TestCase):
         self.assertEqual(got["cwd"], "/opt/x")
         self.assertEqual(got["model"], "claude-opus-5")
 
+    def test_sums_the_input_and_the_output_over_the_conversation(self):
+        path = self.write(
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:01Z",
+             "message": {"model": "claude-opus-5",
+                         "usage": {"input_tokens": 1_000, "cache_creation_input_tokens": 20_000,
+                                   "cache_read_input_tokens": 300_000, "output_tokens": 700}}},
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:02Z",
+             "message": {"model": "claude-opus-5",
+                         "usage": {"input_tokens": 2_000, "cache_creation_input_tokens": 0,
+                                   "cache_read_input_tokens": 320_000, "output_tokens": 1_300}}},
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:03Z",
+             "message": {"model": "<synthetic>",
+                         "usage": {"input_tokens": 9_999, "output_tokens": 9_999},
+                         "content": [{"type": "text", "text": "API Error: 529 Overloaded."}]}},
+        )
+        got = archive.scan(path)
+        self.assertEqual(got["tokensIn"], 643_000,
+                         "the input is every request's fresh, written and read tokens, added up")
+        self.assertEqual(got["tokensOut"], 2_000, "the output is added up the same way")
+
+    def test_a_request_without_output_still_counts_its_input(self):
+        path = self.write(
+            {"type": "assistant", "timestamp": "2026-08-24T10:00:01Z",
+             "message": {"model": "claude-opus-5", "usage": usage(400)}},
+        )
+        got = archive.scan(path)
+        self.assertEqual(got["tokensIn"], 400)
+        self.assertEqual(got["tokensOut"], 0)
+
     def test_a_service_record_does_not_zero_the_context(self):
         path = self.write(
             {"type": "assistant", "timestamp": "2026-08-24T10:00:00Z",

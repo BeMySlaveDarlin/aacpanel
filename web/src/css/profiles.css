@@ -1,5 +1,8 @@
 /* Profile map: the contour → group → project tree and the edit forms. */
 
+/* An action beside a name is a mark, not a button: the faint ink until it is
+   pressed, the accent under the finger, no box around it. */
+
 .pfhead {
     display: flex;
     align-items: baseline;
@@ -10,9 +13,8 @@
 .pfhead .dot { align-self: center; }
 
 .pfheadname {
-    font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: -.01em;
+    font-size: var(--t-base);
+    font-weight: 600;
 }
 
 .pfheadsub {
@@ -21,27 +23,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-family: var(--mono);
-    font-size: .7rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 
 .pfact {
     flex: none;
     align-self: center;
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     display: grid;
     place-items: center;
-    border: var(--hair) solid var(--line);
+    border: 0;
     border-radius: var(--r-small);
     background: none;
-    color: var(--ink-dim);
+    color: var(--ink-faint);
     cursor: pointer;
 }
 
-.pfact svg { width: 15px; height: 15px; }
-.pfact:active { background: var(--accent-bg); color: var(--accent); }
+.pfact svg { width: var(--i-sm); height: var(--i-sm); }
+.pfact:active { color: var(--accent); }
 .pfact:disabled { opacity: .4; }
 
 .pfwarn { padding: 0 .1rem; }
@@ -75,17 +76,17 @@
     cursor: pointer;
 }
 
-.pfgtap:active { background: rgba(255, 255, 255, .03); }
+.pfgtap:active { background: var(--glass); }
 
 .pfgname {
     flex: 1;
     min-width: 0;
     overflow-wrap: anywhere;
-    font-size: .92rem;
+    font-size: var(--t-md);
     font-weight: 600;
 }
 
-.pfproj[data-open="1"] { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.pfproj[data-open="1"] { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
 .pfproj[data-open="1"] .prow { border-bottom: 0; }
 .pfproj[data-open="1"] .chev { transform: rotate(90deg); }
 
@@ -94,7 +95,7 @@
 
 .pfproj .prow > .pfact { margin-right: .25rem; }
 
-.pfproj .pmain .nm { font-size: .84rem; font-weight: 600; }
+.pfproj .pmain .nm { font-size: var(--t-sm); font-weight: 600; }
 
 .pfhint { padding: .2rem .8rem .5rem; }
 
@@ -105,7 +106,7 @@
     width: 100%;
     margin-top: .5rem;
     padding: .6rem .7rem;
-    border: var(--hair) dashed color-mix(in srgb, var(--accent) 35%, transparent);
+    border: var(--hair) dashed var(--edge);
     border-radius: var(--r-card);
     background: none;
     color: inherit;
@@ -114,7 +115,7 @@
     cursor: pointer;
 }
 
-.pfloosetext { flex: 1; font-size: .82rem; color: var(--ink-dim); }
+.pfloosetext { flex: 1; font-size: var(--t-sm); color: var(--ink-dim); }
 
 .pffab {
     position: sticky;
@@ -128,15 +129,13 @@
     place-items: center;
     border: 0;
     border-radius: 999px;
-    background: linear-gradient(160deg,
-        color-mix(in srgb, var(--accent) 85%, white 10%),
-        color-mix(in srgb, var(--accent) 70%, black 25%));
+    background: var(--accent);
     color: var(--on-accent);
-    box-shadow: var(--glow), var(--drop);
+    box-shadow: var(--drop);
     cursor: pointer;
 }
 
-.pffab svg { width: 20px; height: 20px; }
+.pffab svg { width: var(--i-md); height: var(--i-md); }
 .pffab:active { filter: brightness(1.15); }
 
 .pfprops { padding: .35rem .8rem .5rem; }
@@ -146,7 +145,7 @@
 .kv .v.pfpath,
 .kv .v.pfcode {
     font-family: var(--code);
-    font-size: .78rem;
+    font-size: var(--t-xs);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     text-align: right;
@@ -167,9 +166,7 @@
 
 .pffrom {
     margin-left: .4rem;
-    font-family: var(--mono);
-    font-size: .66rem;
-    letter-spacing: .04em;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 
@@ -181,14 +178,12 @@
 }
 
 .pflabel {
-    font-family: var(--mono);
-    font-size: .68rem;
-    letter-spacing: .09em;
-    text-transform: uppercase;
+    font-size: var(--t-xs);
+    font-weight: 500;
     color: var(--ink-faint);
 }
 
-.pfhelp { font-size: .74rem; color: var(--ink-faint); }
+.pfhelp { font-size: var(--t-xs); color: var(--ink-faint); }
 .pfhelp.warn { color: var(--warn); }
 
 .pffield input:disabled { opacity: .55; }
@@ -214,12 +209,12 @@
 }
 
 .pfguard .pfpct:disabled { opacity: .55; }
-.pfguard .pfpctsign { font-size: .87rem; color: var(--ink-dim); }
+.pfguard .pfpctsign { font-size: var(--t-sm); color: var(--ink-dim); }
 
 .pffield textarea {
     resize: vertical;
     font-family: var(--code);
-    font-size: .82rem;
+    font-size: var(--t-sm);
     line-height: 1.4;
     width: 0;
     min-width: 100%;
@@ -230,17 +225,15 @@
     align-items: center;
     gap: .5rem;
     margin: .9rem 0 .1rem;
-    font-family: var(--mono);
-    font-size: .68rem;
-    letter-spacing: .09em;
-    text-transform: uppercase;
+    font-size: var(--t-sm);
+    font-weight: 600;
     color: var(--ink-faint);
 }
 
 .pfsub::after {
     content: "";
     flex: 1;
-    height: 1px;
+    height: var(--hair);
     background: var(--line);
 }
 
@@ -259,17 +252,18 @@
 .pfdanger {
     margin-top: 1.4rem;
     padding: .6rem;
-    border: var(--hair) solid var(--line);
+    border: 0;
     border-radius: var(--r-card);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     background: none;
     color: var(--ink-dim);
     font: inherit;
-    font-size: .82rem;
-    font-weight: 600;
+    font-size: var(--t-sm);
+    font-weight: 500;
     cursor: pointer;
 }
 
-.pfdanger:active { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, transparent); }
+.pfdanger:active { color: var(--crit); box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--crit) 40%, transparent); }
 
 .pfdiskrow { align-items: center; gap: .6rem; margin-top: .4rem; }
 .pfdiskrow .pfhelp { flex: 1; min-width: 0; }
@@ -292,7 +286,7 @@
     text-align: left;
 }
 .pfdiskhead:active,
-.pfdiskitem:active { background: rgba(255, 255, 255, .03); }
+.pfdiskitem:active { background: var(--glass); }
 
 .pfdiskhead {
     display: grid;
@@ -303,10 +297,8 @@
 }
 
 .pfdiskname {
-    font-family: var(--mono);
-    font-size: .72rem;
-    letter-spacing: .09em;
-    text-transform: uppercase;
+    font-size: var(--t-sm);
+    font-weight: 500;
     color: var(--ink-dim);
 }
 .pfdiskfolder[data-open="1"] .pfdiskname { color: var(--accent); }
@@ -317,8 +309,8 @@
     gap: .1rem;
     padding: .45rem 0 .45rem .8rem;
 }
-.pfdiskrel { font-family: var(--code); font-size: .8rem; overflow-wrap: anywhere; }
-.pfdiskmeta { font-size: .72rem; color: var(--ink-faint); }
+.pfdiskrel { font-family: var(--code); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.pfdiskmeta { font-size: var(--t-xs); color: var(--ink-faint); }
 
 .pfproj[data-gone="1"] .pmain .nm { color: var(--ink-dim); }
 .pfproj .mline .warn { color: var(--warn); }
@@ -334,7 +326,7 @@
 .pfloosepick { display: flex; align-items: center; gap: .4rem; }
 .pfloosepick .btn { flex: 0 0 auto; padding: .3rem .7rem; }
 
-.pfpick { flex: 1; min-width: 0; padding: .3rem .4rem; font-size: .8rem; }
+.pfpick { flex: 1; min-width: 0; padding: .3rem .4rem; font-size: var(--t-sm); }
 
 .pfdiskfolder.card { padding: 0; overflow: hidden; }
 .pfdiskfolder.card .pfdiskhead { padding: .5rem .7rem; }
@@ -347,7 +339,7 @@
     background: none;
     color: var(--ink-faint);
     font: inherit;
-    font-size: .78rem;
+    font-size: var(--t-xs);
     padding: .3rem .2rem;
     cursor: pointer;
 }

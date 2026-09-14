@@ -24,8 +24,7 @@
     flex-wrap: wrap;
     gap: .2rem .5rem;
     font-family: var(--mono);
-    font-size: .62rem;
-    letter-spacing: .03em;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     white-space: nowrap;
 }
@@ -53,14 +52,15 @@
     background: none;
     font: inherit;
     color: var(--ink-faint);
-    border: var(--hair) solid var(--line);
+    border: 0;
     border-radius: var(--r-pill);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     cursor: pointer;
 }
 
 .statusbar .route.on {
     color: var(--accent);
-    border-color: var(--accent);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .titlerow {
@@ -71,13 +71,15 @@
 }
 
 .host {
-    font-size: 1.3rem;
-    font-weight: 800;
+    font-size: var(--t-xl);
+    font-weight: 600;
     letter-spacing: -.01em;
 }
 
 .icons { display: flex; gap: .35rem; }
 
+/* A button of the header is a square with a hairline and nothing inside it
+   but the mark; only the one that is on carries a fill. */
 .iconbtn {
     position: relative;
     flex: 0 0 auto;
@@ -85,25 +87,29 @@
     height: 42px;
     border: 0;
     border-radius: var(--r-small);
-    background: var(--glass);
-    box-shadow: var(--hairline);
-    color: var(--ink);
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink-dim);
     display: grid;
     place-items: center;
     cursor: pointer;
 }
 
-.iconbtn:active { background: rgba(var(--tint), .12); }
+.iconbtn:active { background: var(--glass); color: var(--ink); }
 .iconbtn:disabled { opacity: .4; }
-.iconbtn.on { background: var(--accent-bg); color: var(--accent); }
-.iconbtn svg { width: 22px; height: 22px; }
+.iconbtn.on {
+    background: var(--accent-bg);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--accent);
+}
+.iconbtn svg { width: var(--i-lg); height: var(--i-lg); }
 .iconbtn.danger { color: var(--crit); }
 .iconbtn.danger:active { background: var(--crit-bg); }
 .iconbtn.accent { color: var(--accent); }
 .iconbtn.accent:active { background: var(--accent-bg); }
 
 .icons .iconbtn { width: 38px; height: 38px; }
-.icons .iconbtn svg { width: 19px; height: 19px; }
+.icons .iconbtn svg { width: var(--i-md); height: var(--i-md); }
 
 .badge, .tbadge {
     position: absolute;
@@ -113,8 +119,7 @@
     background: var(--crit);
     color: #14061a;
     font-family: var(--mono);
-    font-size: .63rem;
-    font-weight: 600;
+    font-size: var(--t-xs);
     display: grid;
     place-items: center;
     padding: 0 4px;
@@ -125,19 +130,25 @@
 
 .search {
     width: 100%;
-    border: var(--hair) solid var(--line);
+    border: 0;
     border-radius: var(--r-card);
-    background: var(--void);
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     color: var(--ink);
     font: inherit;
     padding: .45rem .7rem;
 }
 
+.search::placeholder { color: var(--ink-faint); }
+
 .limits { display: flex; gap: .5rem; }
 
+/* A limit is a caption over a thin bar, the share on the right of the line;
+   the bar is the accent as it fills, and the colour of the window's state
+   when it is nearly spent. */
 .limit {
     flex: 1;
-    background: rgba(255, 255, 255, .04);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     border-radius: var(--r-card);
     padding: .45rem .6rem;
     display: flex;
@@ -146,16 +157,16 @@
 }
 
 .lrow { display: flex; justify-content: space-between; align-items: baseline; }
-.lname { font-family: var(--mono); font-size: .68rem; color: var(--ink-faint); letter-spacing: .05em; text-transform: uppercase; }
-.lval { font-family: var(--mono); font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.lsub { font-family: var(--mono); font-size: .63rem; color: var(--ink-faint); }
-.track { height: 3px; border-radius: var(--r-small); background: rgba(255, 255, 255, .09); overflow: hidden; }
-.track .fill { height: 100%; border-radius: var(--r-small); background: var(--ok); }
+.lname { font-size: var(--t-xs); color: var(--ink-faint); }
+.lval { font-family: var(--mono); font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
+.lsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
+.track { height: 3px; border-radius: var(--r-small); background: var(--line); overflow: hidden; }
+.track .fill { height: 100%; border-radius: var(--r-small); background: var(--accent); }
 
 .ok { color: var(--ok); }
 .warn { color: var(--warn); }
 .crit { color: var(--crit); }
-.fill.ok { background: var(--ok); }
+.fill.ok { background: var(--accent); }
 .fill.warn { background: var(--warn); }
 .fill.crit { background: var(--crit); }
 
@@ -180,17 +191,14 @@
 }
 
 .hstat-title {
-    font-family: var(--mono);
-    font-size: .62rem;
-    letter-spacing: .1em;
-    text-transform: uppercase;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 
 .hstat-value {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: -.02em;
+    font-size: var(--t-lg);
+    font-weight: 600;
+    letter-spacing: -.01em;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
@@ -207,17 +215,18 @@
     align-items: center;
     gap: .2rem;
     padding: .3rem .5rem;
-    border: var(--hair) solid var(--line);
+    border: 0;
     border-radius: var(--r-small);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     background: none;
     color: var(--ink-dim);
     font: inherit;
-    font-size: .72rem;
+    font-size: var(--t-xs);
     cursor: pointer;
 }
 
 .hdetails .chev { display: inline-flex; }
-.hdetails svg { width: 14px; height: 14px; }
+.hdetails svg { width: var(--i-sm); height: var(--i-sm); }
 
 .status {
     display: flex;
@@ -235,17 +244,18 @@
 .grow { flex: 1; }
 
 .ghost {
-    border: var(--hair) solid var(--line);
+    border: 0;
     border-radius: var(--r-small);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     background: transparent;
     color: var(--ink-dim);
     font: inherit;
-    font-size: .75rem;
+    font-size: var(--t-xs);
     padding: 3px 8px;
     cursor: pointer;
 }
 
-.ghost.accent { border-color: var(--accent); color: var(--accent); }
+.ghost.accent { color: var(--accent); box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent); }
 
 .chips {
     flex: none;
@@ -283,16 +293,18 @@
 
 .chips::-webkit-scrollbar { display: none; }
 
+/* A chip is a hairline with a word in it; the chosen one is the only chip
+   with a fill, and its count rides along in the same colour. */
 .chip {
     flex: none;
     border: 0;
     border-radius: var(--r-pill);
-    padding: .36rem .85rem;
+    padding: .36rem .8rem;
     font: inherit;
-    font-size: .83rem;
-    font-weight: 600;
-    background: var(--glass);
-    box-shadow: var(--hairline);
+    font-size: var(--t-sm);
+    font-weight: 500;
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     color: var(--ink-dim);
     white-space: nowrap;
     cursor: pointer;
@@ -303,5 +315,4 @@
     color: var(--accent);
     box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.chip .n { font-size: .78em; opacity: .6; margin-left: .3em; }
-
+.chip .n { font-size: .82em; opacity: .65; margin-left: .3em; }

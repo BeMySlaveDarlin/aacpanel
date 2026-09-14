@@ -176,7 +176,7 @@ export function Ask({ ask, name, exec, onAnswered }) {
         <${Sheet} open=${open} onClose=${() => setOpen(false)} label="session question" inner>
             <div class="askhead">
                 <span class="asklabel">
-                    ${review ? "almost done" : (questions[shown[0]].header || "the session is asking")}
+                    ${review ? "almost done" : (questions[shown[0]].header || `${name} asks`)}
                 </span>
                 ${!ready && html`<span class="askwhy">${why}</span>`}
             </div>

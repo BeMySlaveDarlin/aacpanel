@@ -31,7 +31,7 @@
 }
 
 .sheetclose:active { background: rgba(255, 255, 255, .08); }
-.sheetclose svg { width: 18px; height: 18px; }
+.sheetclose svg { width: var(--i-md); height: var(--i-md); }
 
 .sheet .shead { padding-right: 2.2rem; }
 
@@ -44,9 +44,9 @@
     background: var(--sheet-bg);
     backdrop-filter: blur(26px) saturate(160%);
     -webkit-backdrop-filter: blur(26px) saturate(160%);
-    border-top: var(--hair) solid var(--edge);
-    border-radius: var(--r-card) var(--r-card) 0 0;
-    box-shadow: none;
+    border-top: 0;
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    box-shadow: var(--gloss);
     padding: .6rem .9rem calc(1.4rem + env(safe-area-inset-bottom));
     transform: translateY(100%);
     transition: transform .28s cubic-bezier(.22, 1, .36, 1);
@@ -110,24 +110,25 @@
     margin-bottom: .3rem;
 }
 
-.sheethead h2 { margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -.01em; }
+.sheethead h2 { margin: 0; font-size: var(--t-lg); font-weight: 800; letter-spacing: -.01em; }
 
 .sheet.on { transform: translateY(0); }
 
 .grip {
-    width: 40px;
-    height: 4px;
-    border-radius: var(--r-small);
-    background: var(--surface-3);
+    width: 36px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--ink-faint);
+    opacity: .6;
     margin: 0 auto;
 }
 
 .shead { display: flex; align-items: center; gap: .55rem; margin-bottom: .7rem; }
-.stitle { font-weight: 700; font-size: 1rem; }
-.ssub { font-size: .72rem; color: var(--ink-dim); }
+.stitle { font-weight: 700; font-size: var(--t-base); }
+.ssub { font-size: var(--t-xs); color: var(--ink-dim); }
 
 .warnline {
-    font-size: .85rem;
+    font-size: var(--t-sm);
     color: var(--warn);
     background: var(--warn-bg);
     border-radius: var(--r-small);
@@ -145,7 +146,7 @@
     color: var(--ink);
     font: inherit;
     font-weight: 600;
-    font-size: .85rem;
+    font-size: var(--t-sm);
     cursor: pointer;
 }
 
@@ -153,7 +154,7 @@
 .btn.primary {
     background: var(--accent-bg);
     border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-    color: var(--accent);
+    color: var(--ink);
     box-shadow: var(--gloss), var(--glow);
 }
 .btn.danger { color: var(--crit); border-color: rgba(255, 111, 92, .3); }
@@ -190,7 +191,7 @@
     border-radius: var(--r-card);
     box-shadow: var(--toast-drop);
     padding: .6rem .85rem;
-    font-size: .84rem;
+    font-size: var(--t-sm);
     opacity: 0;
     transform: translateY(8px);
     pointer-events: none;
@@ -199,12 +200,12 @@
 
 .toast.on { opacity: 1; transform: translateY(0); }
 .toast.bad { border-color: rgba(255, 111, 92, .45); }
-.tsub { font-family: var(--mono); font-size: .78rem; color: var(--ink-dim); }
+.tsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
 
 .picklist { display: flex; flex-direction: column; }
 .picklist .item { display: flex; align-items: baseline; gap: .5rem; margin-top: .25rem; }
 .picklabel { font-family: var(--code); }
-.pickhint { color: var(--ink-faint); font-size: .8rem; }
+.pickhint { color: var(--ink-faint); font-size: var(--t-sm); }
 .picklist .item.on { color: var(--accent); background: var(--accent-bg); }
 
 @media (min-width: 1100px) {

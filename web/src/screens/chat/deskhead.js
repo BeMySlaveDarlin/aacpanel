@@ -3,16 +3,11 @@
 import { html } from "../../html.js";
 import { ContextBar } from "../../ui/bar.js";
 import { Icon } from "../../ui/icons.js";
-import { ago, plural, share, since } from "../../format.js";
-import { exact, Marquee, modelName } from "./head.js";
+import { ago, plural, share, since, tokens } from "../../format.js";
+import { Marquee, modelName } from "./head.js";
 import { modeInfo } from "./tools.js";
 import { waitText } from "../../ui/waits.js";
 import { WindowToggle } from "./window.js";
-
-const FeedIcon = () => html`
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-         stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16v9H9l-5 4z" /></svg>
-`;
 
 function dot(live) {
     if (!live) return { kind: "dkoff", say: "the conversation is gone" };
@@ -36,7 +31,7 @@ function ctxFact(row, pct, say) {
 
 function limitSay(row) {
     if (!row.limit) return "tokens";
-    return row.limitKnown ? `of ${exact(row.limit)}` : `of ${exact(row.limit)} · limit guessed`;
+    return row.limitKnown ? `of ${tokens(row.limit)}` : `of ${tokens(row.limit)} · limit guessed`;
 }
 
 function liveFacts(live, pct) {
@@ -56,7 +51,7 @@ function liveFacts(live, pct) {
             ? html`<span class="dkfact right"><b>—</b><span>no requests yet</span></span>`
             : html`
                 <span class="dkfact right">
-                    <b>${exact(live.tokens)}</b>
+                    <b>${tokens(live.tokens)}</b>
                     <span class=${live.limitKnown ? "" : "dkchatguess"}>${limitSay(live)}</span>
                 </span>
             `}
@@ -76,7 +71,7 @@ function pastFacts(row, pct) {
         <span class="dkchatgrow"></span>
         ${row.tokensMax > 0 && html`
             <span class="dkfact right">
-                <b>${exact(row.tokensMax)}</b>
+                <b>${tokens(row.tokensMax)}</b>
                 <span class=${row.limitKnown ? "" : "dkchatguess"}>${limitSay(row)}</span>
             </span>
         `}
@@ -113,7 +108,7 @@ export function ViewToggle({ view, onView }) {
                     onClick=${() => onView("term")}><${Icon.terminal} /></button>
             <button class=${`viewbtn${view === "feed" ? " on" : ""}`} type="button" data-tip="Feed" data-tipside="left"
                     aria-label="feed" aria-pressed=${view === "feed"}
-                    onClick=${() => onView("feed")}><${FeedIcon} /></button>
+                    onClick=${() => onView("feed")}><${Icon.feed} /></button>
         </span>
     `;
 }

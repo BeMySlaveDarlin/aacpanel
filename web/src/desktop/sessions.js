@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
-import { DeskIcon } from "./icons.js";
 import { fill, pct, plural } from "../format.js";
 import { knows, whyNot } from "../exec.js";
 import { waitText, waitTip } from "../ui/waits.js";
@@ -114,17 +113,19 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
                 </span>
             </span>
             <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
-                <i
-                    class=${`dkact danger${can ? "" : " off"}`}
-                    data-tip=${closing
-                        ? "The session is already closing"
-                        : known ? "Close the session" : whyNot(exec, "session.close")}
-                    data-tipside="left"
-                    onClick=${async () => {
-                        if (!can) return;
-                        await run("session.close", s.session, {});
-                    }}
-                ><${DeskIcon.power} /></i>
+                ${!s.home && html`
+                    <i
+                        class=${`dkact danger${can ? "" : " off"}`}
+                        data-tip=${closing
+                            ? "The session is already closing"
+                            : known ? "Close the session" : whyNot(exec, "session.close")}
+                        data-tipside="left"
+                        onClick=${async () => {
+                            if (!can) return;
+                            await run("session.close", s.session, {});
+                        }}
+                    ><${Icon.stop} /></i>
+                `}
             </span>
             <span class=${`dksessbar ${fill(s.pct || 0)}`}><i style=${`width:${Math.min(100, s.pct || 0)}%`}></i></span>
         </button>

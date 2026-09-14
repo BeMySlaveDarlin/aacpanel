@@ -1,4 +1,7 @@
 """Transcript record to feed items."""
+import html
+import re
+
 import sesstate
 
 from .cards import artifact_card, ask_round, sent_card, wake_item
@@ -20,6 +23,33 @@ def service_once(text, at, pos, pending):
         return []
     pending.service_remember(text)
     return items
+
+
+SHELL_IN_RE = re.compile(r"\A<bash-input>(.*)</bash-input>\Z", re.S)
+SHELL_OUT_RE = re.compile(
+    r"\A<bash-stdout>(.*)</bash-stdout>\s*<bash-stderr>(.*)</bash-stderr>\Z", re.S)
+
+
+def shell(text, at, pos):
+    """Returns the item for a command the human ran from the console, or None.
+
+    The console writes the command and what it printed as two prompts of the
+    human: the command as typed, the streams escaped for markup.
+    """
+    found = SHELL_IN_RE.match(text)
+    if found:
+        body, trimmed = cut(found.group(1).strip(), MAX_TEXT)
+        return {"role": "shell", "text": body, "cut": trimmed, "at": at, "pos": pos}
+    found = SHELL_OUT_RE.match(text)
+    if not found:
+        return None
+    body, trimmed = cut(html.unescape(found.group(1)).strip(), MAX_TEXT)
+    err, err_trimmed = cut(html.unescape(found.group(2)).strip(), MAX_TEXT)
+    item = {"role": "shellout", "text": body, "cut": trimmed or err_trimmed,
+            "at": at, "pos": pos}
+    if err:
+        item["err"] = err
+    return item
 
 
 def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None):
@@ -124,6 +154,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None):
         text = text.strip()
         if not text or "system-reminder" in text[:200]:
             return out
+        ran = shell(text, at, pos)
+        if ran:
+            return out + [ran]
         if sesstate.is_wakeup(record):
             if pending is not None and pending.shown_as_wake(text):
                 return out

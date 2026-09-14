@@ -1,36 +1,41 @@
 /* Feed messages, attachments, tool-run chips and the colours of call kinds. */
 
+/* The reply reads at body size and a tone down from the ink: what the person
+   wrote is the bright thing in the feed, and the reply's own emphasis is where
+   the ink comes back. */
 .msg {
     font-family: var(--serif);
-    font-size: 1.08rem;
-    line-height: 1.62;
+    font-size: var(--t-base);
+    line-height: 1.55;
     letter-spacing: .002em;
+    color: var(--ink-dim);
     overflow-wrap: anywhere;
 }
+.msg.ai b, .msg.ai strong { color: var(--ink); }
 .mstamp {
     align-self: flex-end;
     margin-top: -.28rem;
     padding-right: .2rem;
     font-family: var(--mono);
-    font-size: .62rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     letter-spacing: .04em;
 }
 
 .msg.me {
     align-self: flex-end;
-    max-width: 88%;
-    font-size: 1.02rem;
-    background: var(--me-bg);
-    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-    border-radius: var(--r-card);
-    padding: .5rem .7rem;
-    box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 10%, transparent);
+    max-width: 84%;
+    font-size: var(--t-base);
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+    border: 0;
+    border-radius: var(--r-bubble) var(--r-bubble) var(--r-small) var(--r-bubble);
+    padding: .5rem .75rem;
 }
 
 .mearlier {
     align-self: center;
-    font-size: .7rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     padding: .35rem 0 .1rem;
 }
@@ -72,7 +77,7 @@
     width: 100%;
     height: 100%;
     color: var(--crit);
-    font-size: .85rem;
+    font-size: var(--t-sm);
 }
 
 .mfiles {
@@ -131,7 +136,7 @@
    shortening from the right leaves rows that cannot be told apart. */
 .mfname {
     min-width: 0;
-    font-size: .84rem;
+    font-size: var(--t-sm);
     font-weight: 600;
     color: var(--ink);
     overflow-wrap: anywhere;
@@ -140,7 +145,7 @@
 .mfsize {
     font-family: var(--mono);
     font-variant-numeric: tabular-nums;
-    font-size: .7rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     white-space: nowrap;
 }
@@ -153,7 +158,7 @@
     background: var(--glass);
     box-shadow: var(--hairline);
     color: var(--ink-dim);
-    font-size: .74rem;
+    font-size: var(--t-xs);
     cursor: pointer;
 }
 .mfmore:active { background: var(--glass-2); }
@@ -177,21 +182,21 @@
     display: flex;
     align-items: center;
     gap: .4rem;
-    font-size: .74rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 .sentico { display: flex; width: 15px; height: 15px; color: var(--accent); flex: none; }
 .sentico svg { width: 100%; height: 100%; }
 .sentlabel {
     font-family: var(--mono);
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ink-dim);
     flex: none;
 }
-.sentat { margin-left: auto; font-size: .72rem; flex: none; }
-.sentcap { font-size: .9rem; line-height: 1.45; color: var(--ink); }
+.sentat { margin-left: auto; font-size: var(--t-xs); flex: none; }
+.sentcap { font-size: var(--t-md); line-height: 1.45; color: var(--ink); }
 .sentcap p { margin: 0 0 .5rem; }
 .sentcap p:last-child { margin-bottom: 0; }
 .sent .mflist { background: var(--glass-2); }
@@ -206,8 +211,8 @@
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     color: var(--accent);
     font-family: var(--mono);
-    font-size: .62rem;
-    font-weight: 700;
+    font-size: var(--t-xs);
+    font-weight: 500;
     letter-spacing: .06em;
     line-height: 1.3;
 }
@@ -224,47 +229,48 @@
 }
 .mfnote {
     display: block;
-    font-size: .7rem;
+    font-size: var(--t-xs);
     font-weight: 400;
     color: var(--ink-faint);
 }
 
+/* A chip of calls is a hairline in the colour of its kind: the icon is the
+   word, the number is the count, and neither is louder than the reply. */
 .mtools {
     align-self: flex-start;
     display: flex;
     align-items: center;
-    gap: .35rem;
-    padding: .3rem .55rem .3rem .45rem;
+    gap: .3rem;
+    padding: .2rem .5rem .2rem .4rem;
     border: 0;
     border-radius: var(--r-pill);
-    background: var(--glass);
-    box-shadow: var(--hairline);
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     color: var(--ink-dim);
-    font-size: .74rem;
+    font-size: var(--t-xs);
     cursor: pointer;
 }
-.mtools:active { background: var(--glass-2); }
+.mtools:active { background: var(--glass); }
 
 .mrow { display: flex; flex-wrap: wrap; gap: .3rem; align-self: flex-start; }
 .mtools:active { border-color: var(--edge); color: var(--ink); }
 .mticon { display: flex; width: 15px; height: 15px; }
 .mticon svg { width: 100%; height: 100%; }
 
-.mtools.bash .mticon,   .cnmark.bash   { color: var(--accent); }
-.mtools.files .mticon,  .cnmark.files  { color: var(--accent-2); }
-.mtools.web .mticon,    .cnmark.web,
-.mtools.browser .mticon, .cnmark.browser { color: var(--warn); }
-.mtools.agents .mticon, .cnmark.agents,
-.mtools.skill .mticon,  .cnmark.skill  { color: var(--ctx-3); }
-.mtools.ask .mticon,    .cnmark.ask,
-.mtools.artifact .mticon, .cnmark.artifact { color: var(--crit); }
-.mtools.time .mticon,   .cnmark.time,
-.mtools.mcp .mticon,    .cnmark.mcp,
-.mtools.other .mticon,  .cnmark.other  { color: var(--ink-dim); }
+.mtools.bash,    .cnmark.bash    { color: var(--accent); }
+.mtools.files,   .cnmark.files   { color: var(--accent-2); }
+.mtools.web,     .cnmark.web,
+.mtools.browser, .cnmark.browser { color: var(--warn); }
+.mtools.agents,  .cnmark.agents,
+.mtools.skill,   .cnmark.skill   { color: var(--ctx-3); }
+.mtools.ask,     .cnmark.ask,
+.mtools.artifact, .cnmark.artifact { color: var(--crit); }
+.mtools.time,    .cnmark.time,
+.mtools.mcp,     .cnmark.mcp,
+.mtools.other,   .cnmark.other   { color: var(--ink-dim); }
 .mtnum {
     font-variant-numeric: tabular-nums;
-    font-weight: 700;
-    color: var(--ink);
+    font-weight: 600;
 }
 
 .mthink { color: var(--ink-faint); }
@@ -274,7 +280,7 @@
     align-self: flex-start;
     position: relative;
     padding-left: 1.5rem;
-    font-size: .96rem;
+    font-size: var(--t-base);
     color: var(--ink-dim);
 }
 .mmind .mmicon {
@@ -299,3 +305,39 @@ code.path {
     text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
+
+/* A shell command the person ran from the console with "!", and what it
+   printed: the command is a line in the code face with the mark in front of
+   it, the output a block under it, stderr in the critical colour. */
+.mshell {
+    align-self: stretch;
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .45rem .7rem;
+    border-radius: var(--r-card);
+    background: rgba(var(--tint), .04);
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 65%, transparent);
+    font-family: var(--code);
+    font-size: var(--t-sm);
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+.mshellmark { flex: none; color: var(--accent); font-weight: 600; }
+.mshellcmd { min-width: 0; white-space: pre-wrap; }
+.mshellout, .mshellerr {
+    align-self: stretch;
+    margin: -.25rem 0 0;
+    padding: .5rem .7rem;
+    border-radius: var(--r-card);
+    background: var(--code-bg);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    color: var(--ink-dim);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.mshellerr { color: var(--crit); background: var(--crit-bg); }
+.mshellout + .mshellerr { margin-top: .15rem; }

@@ -101,9 +101,9 @@ const plot = {
 const size = typeof options.axes[1].size === "function" ? options.axes[1].size : () => -1;
 out({
     kind: typeof options.axes[1].size,
-    wide: size(plot, ["5 M", format.tokens(75.128e9)], 1, 0),
+    wide: size(plot, ["5M", format.tokens(75.128e9)], 1, 0),
     narrow: size(plot, ["15%"], 1, 0),
-    settle: size(plot, ["5 M"], 1, 2),
+    settle: size(plot, ["5M"], 1, 2),
     grow: size(plot, [format.tokens(75.128e9)], 1, 2),
     right: typeof options.axes[2].size,
 });
@@ -112,8 +112,8 @@ out({
 	if got.Kind != "function" {
 		t.Fatalf("the axis width is given as %s — that is a number, and token labels get cut off", got.Kind)
 	}
-	if got.Wide != 65 {
-		t.Errorf("the axis for 75.1 bn is %v wide instead of 65 — the longest label was not the one measured", got.Wide)
+	if got.Wide != 57 {
+		t.Errorf("the axis for 75.1bn is %v wide instead of 57 — the longest label was not the one measured", got.Wide)
 	}
 	if got.Narrow >= got.Wide {
 		t.Errorf("the axis for 15%% (%v) is no narrower than the one for tokens (%v) — the width "+
@@ -123,8 +123,8 @@ out({
 		t.Errorf("on the third pass the axis returned %v instead of the previous 40 — the axis "+
 			"width changes the chart width, and that changes the axis width again, and the chart loops", got.Settle)
 	}
-	if got.Grow != 65 {
-		t.Errorf("on the second pass with the label 75.1 bn the axis stayed %v instead of 65 — "+
+	if got.Grow != 57 {
+		t.Errorf("on the second pass with the label 75.1bn the axis stayed %v instead of 57 — "+
 			"the width froze on the previous set of ticks and cuts the new one", got.Grow)
 	}
 	if got.Right != "function" {
@@ -306,15 +306,15 @@ func TestTokensReadShort(t *testing.T) {
 	}{
 		{0, "0"},
 		{842, "842"},
-		{1000, "1 k"},
-		{1024, "1 k"},
-		{1e9, "1 bn"},
-		{75_128_000_000, "75.1 bn"},
-		{260_138_999, "260 M"},
-		{20_000_000_000, "20 bn"},
-		{3_667_308_938, "3.7 bn"},
-		{1.5e12, "1.5 tn"},
-		{-2_500_000, "-2.5 M"},
+		{1000, "1k"},
+		{1024, "1k"},
+		{1e9, "1bn"},
+		{75_128_000_000, "75.1bn"},
+		{260_138_999, "260m"},
+		{20_000_000_000, "20bn"},
+		{3_667_308_938, "3.7bn"},
+		{1.5e12, "1.5tn"},
+		{-2_500_000, "-2.5m"},
 	}
 	values := make([]float64, len(cases))
 	for i, c := range cases {

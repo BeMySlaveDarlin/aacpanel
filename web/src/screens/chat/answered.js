@@ -3,6 +3,29 @@
 // ANSWER_LAG_MS is the ceiling after which the snapshot is trusted unconditionally.
 export const ANSWER_LAG_MS = 30000;
 
+// marks keeps the last mark per session for as long as the page lives: the chat screen
+// unmounts on navigation, and a mark that died with it would lock the composer again
+// on return until the snapshot caught up. A page reload loses them, and by then the
+// snapshot has long caught up.
+const marks = new Map();
+
+// remember stores the session's mark and returns it; null forgets the session.
+export function remember(name, mark) {
+    if (mark) marks.set(name, mark);
+    else marks.delete(name);
+    return mark;
+}
+
+// recall returns the session's mark while it is fresh; an expired one is dropped.
+export function recall(name, now = Date.now()) {
+    const mark = marks.get(name) || null;
+    if (mark && !fresh(mark, now)) {
+        marks.delete(name);
+        return null;
+    }
+    return mark;
+}
+
 // answered returns the mark: when the answer went out, to what and on what waiting.
 export function answered(live, use, now = Date.now()) {
     return {

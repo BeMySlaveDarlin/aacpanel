@@ -64,28 +64,9 @@ UUID_RE = re.compile(r"^[0-9a-fA-F-]{36}$")
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 
-MODEL_LIMITS = (
-    ("[1m]", 1_000_000),
-    ("claude-opus-5", 1_000_000),
-    ("claude-fable-5", 1_000_000),
-    ("claude-sonnet-5", 1_000_000),
-    ("claude-haiku-4-5", 200_000),
-    ("claude-opus-4-5", 200_000),
-)
-DEFAULT_LIMIT_TOKENS = 1_000_000
-
-
-def limit_for(model):
-    """Returns the context limit of a model and whether the model is known."""
-    if not model:
-        return DEFAULT_LIMIT_TOKENS, False
-    window = models.window_for(model)
-    if window:
-        return window, True
-    for key, value in MODEL_LIMITS:
-        if key in model:
-            return value, True
-    return DEFAULT_LIMIT_TOKENS, False
+MODEL_LIMITS = models.MODEL_LIMITS
+DEFAULT_LIMIT_TOKENS = models.DEFAULT_LIMIT_TOKENS
+limit_for = models.limit_for
 
 
 class Index:
@@ -214,7 +195,8 @@ def scan(path):
     out = {
         "cwd": "", "model": "", "effort": "", "mode": "",
         "startedAt": "", "lastAt": "", "lastRequestAt": "",
-        "tokens": 0, "tokensMax": 0, "messages": 0, "compacts": 0,
+        "tokens": 0, "tokensMax": 0, "tokensIn": 0, "tokensOut": 0,
+        "messages": 0, "compacts": 0,
         "stale": False,
     }
     with open(path, encoding="utf-8", errors="replace") as f:
@@ -249,6 +231,8 @@ def scan(path):
                      + usage.get("cache_read_input_tokens", 0))
             out["tokens"] = total
             out["tokensMax"] = max(out["tokensMax"], total)
+            out["tokensIn"] += total
+            out["tokensOut"] += usage.get("output_tokens", 0)
             out["lastRequestAt"] = stamp or out["lastRequestAt"]
             out["model"] = message.get("model") or out["model"]
             out["stale"] = False

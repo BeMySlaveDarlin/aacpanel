@@ -67,6 +67,50 @@ func TestAnsweredMarkAgainstSnapshot(t *testing.T) {
 	}
 }
 
+// TestAnsweredMarkOutlivesTheScreen checks the module store: the chat screen unmounts on
+// navigation, and a mark kept only in its state dies with it — the composer locks again
+// and the answered card comes back until the snapshot catches up.
+func TestAnsweredMarkOutlivesTheScreen(t *testing.T) {
+	const (
+		asked  = `answered({ status: "waiting", waitingFor: "input needed" }, "toolu_1", 1000)`
+		permit = `answered({ status: "waiting", waitingFor: "dialog open" }, "", 1000)`
+		same   = `{ status: "waiting", waitingFor: "input needed" }`
+	)
+	cases := []struct {
+		name string
+		expr string
+		want bool
+	}{
+		{"the mark is read back after the screen is gone", `(() => { const m = remember("s1", ` + asked + `); return recall("s1", 5000) === m; })()`, true},
+		{"a second read still sees it", `(() => { remember("s2", ` + asked + `); recall("s2", 5000); return recall("s2", 5000) !== null; })()`, true},
+		{"the answered question stays hidden on return", `(() => { remember("s3", ` + asked + `); return hidesAsk(recall("s3", 5000), "toolu_1", 5000); })()`, true},
+		{"an old waiting still lags on return", `(() => { remember("s4", ` + asked + `); return lagging(recall("s4", 5000), ` + same + `, 5000); })()`, true},
+		{"a mark settled before leaving stays settled", `(() => { remember("s5", ` + asked + `); remember("s5", settle(recall("s5", 5000), { status: "busy" })); return lagging(recall("s5", 5000), ` + same + `, 5000); })()`, false},
+
+		{"the ceiling has expired — the mark is gone", `(() => { remember("s6", ` + asked + `); return recall("s6", 1000 + ANSWER_LAG_MS) === null; })()`, true},
+		{"a moment before the ceiling it is still there", `(() => { remember("s7", ` + asked + `); return recall("s7", 999 + ANSWER_LAG_MS) !== null; })()`, true},
+		{"forgetting clears the mark", `(() => { remember("s8", ` + asked + `); remember("s8", null); return recall("s8", 5000) === null; })()`, true},
+		{"a session never answered has no mark", `recall("never", 5000) === null`, true},
+
+		{"another session does not see the mark", `(() => { remember("s9", ` + asked + `); return recall("s10", 5000) === null; })()`, true},
+		{"the mark of one session hides nothing in another", `(() => { remember("s11", ` + asked + `); return hidesAsk(recall("s12", 5000), "toolu_1", 5000); })()`, false},
+		{"the mark hides only its own question", `(() => { remember("s13", ` + asked + `); return hidesAsk(recall("s13", 5000), "toolu_2", 5000); })()`, false},
+		{"a new answer replaces the old one", `(() => { remember("s14", ` + asked + `); const m = remember("s14", ` + permit + `); return recall("s14", 5000) === m; })()`, true},
+		{"after a new answer the old question is shown", `(() => { remember("s15", ` + asked + `); remember("s15", ` + permit + `); return hidesAsk(recall("s15", 5000), "toolu_1", 5000); })()`, false},
+	}
+
+	exprs := make([]string, 0, len(cases))
+	for _, c := range cases {
+		exprs = append(exprs, c.expr)
+	}
+	got := runAnsweredJS(t, exprs)
+	for i, c := range cases {
+		if got[i] != c.want {
+			t.Errorf("%s: %s = %v, expected %v", c.name, c.expr, got[i], c.want)
+		}
+	}
+}
+
 func runAnsweredJS(t *testing.T, exprs []string) []bool {
 	t.Helper()
 	node, err := exec.LookPath("node")

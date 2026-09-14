@@ -79,15 +79,18 @@
     --glow: 0 0 18px -8px color-mix(in srgb, var(--accent) 45%, transparent);
     --hairline: inset 0 0 0 var(--hair) rgba(var(--tint), .03);
 
-    --r-card: 3px;
+    /* Radii by what the corner belongs to: a mark, a chip, a card. */
+    --r-card: 6px;
     --r-small: 3px;
-    --r-pill: 3px;
+    --r-pill: 4px;
+    --r-sheet: 16px;
+    --r-bubble: 10px;
 
     --bg: var(--void);
     --top-bg: linear-gradient(180deg, rgba(6, 7, 15, .78), rgba(6, 7, 15, .4));
     --chips-bg: linear-gradient(180deg, rgba(6, 7, 15, .86), rgba(6, 7, 15, .66));
     --nav-bg: linear-gradient(180deg, rgba(var(--tint), .04), rgba(var(--tint), .02));
-    --sheet-bg: linear-gradient(180deg, rgba(26, 30, 56, .97), rgba(10, 12, 26, .99));
+    --sheet-bg: linear-gradient(180deg, rgba(34, 38, 66, .92), rgba(10, 12, 26, .97));
     --toast-bg: linear-gradient(180deg, rgba(30, 34, 62, .97), rgba(12, 14, 30, .98));
     --toast-drop: 0 14px 34px rgba(0, 0, 0, .55);
     --code-bg: rgba(0, 0, 0, .35);
@@ -122,9 +125,26 @@
     --warn-bg: rgba(159, 201, 240, .16);
     --crit-bg: rgba(185, 140, 255, .16);
 
+    /* The type scale. Every font-size in the app is one of these eight steps, so
+       two labels that mean the same thing are never a pixel apart. The root is
+       15px, and the body reads at --t-base. Pixels: 11 · 12.5 · 14 · 15 · 17 · 19 · 23 · 30. */
+    --t-xs: .74rem;
+    --t-sm: .84rem;
+    --t-md: .92rem;
+    --t-base: 1rem;
+    --t-lg: 1.13rem;
+    --t-xl: 1.27rem;
+    --t-2xl: 1.53rem;
+    --t-3xl: 2rem;
+
+    /* Icon sizes, by where the icon sits: inside text, on a row, on a tile. */
+    --i-sm: 15px;
+    --i-md: 18px;
+    --i-lg: 22px;
+
     --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --serif: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --mono: Inter, ui-monospace, "SF Mono", "Roboto Mono", monospace;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Roboto Mono", monospace;
     --code: "JetBrains Mono", ui-monospace, "SF Mono", "Roboto Mono", monospace;
 
     color-scheme: dark;

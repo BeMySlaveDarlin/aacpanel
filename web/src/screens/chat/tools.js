@@ -17,7 +17,7 @@ export const FILES_MAX = 16;
 
 const MODES = {
     plan: ["plan", false, "planning: the session looks and reasons, but does not act"],
-    default: ["by hand", false, "the session asks permission for every action"],
+    default: ["manual", false, "the session asks permission for every action"],
     acceptEdits: ["edits", false, "edits to files go without a question, everything else is asked"],
     auto: ["auto", false, "the classifier decides: part of the actions go without a question"],
     bypassPermissions: ["bypass", true, "the session asks about nothing — neither writes nor commands"],

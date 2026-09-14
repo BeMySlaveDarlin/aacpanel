@@ -4,7 +4,7 @@
     color: var(--accent);
 }
 
-.hostmark svg { width: 19px; height: 19px; }
+.hostmark svg { width: var(--i-md); height: var(--i-md); }
 
 .host {
     display: flex;
@@ -16,8 +16,8 @@
     background: none;
     color: var(--ink);
     font: inherit;
-    font-size: 1.3rem;
-    font-weight: 800;
+    font-size: var(--t-xl);
+    font-weight: 600;
     letter-spacing: -.01em;
     cursor: pointer;
 }
@@ -34,37 +34,37 @@
     background: none;
     color: var(--ink);
     font: inherit;
-    font-weight: 700;
+    font-weight: 600;
     text-align: left;
     cursor: pointer;
 }
 
-.device-name small { font-weight: 400; font-size: .7rem; color: var(--ink-faint); }
+.device-name small { font-weight: 400; font-size: var(--t-xs); color: var(--ink-faint); }
 .device .btn { margin-top: .6rem; }
 
 .device.gone { opacity: .62; }
 .device-name.plain {
     padding: 0 0 .4rem;
-    font-weight: 700;
+    font-weight: 600;
     cursor: default;
 }
 
 .enroll-code {
     margin: .4rem 0;
     font-family: var(--mono);
-    font-size: 1.6rem;
-    font-weight: 600;
-    letter-spacing: .08em;
-    color: var(--accent-2);
+    font-size: var(--t-2xl);
+    letter-spacing: .06em;
+    color: var(--accent);
 }
 
+/* A tag is a hairline chip in the colour of its kind. */
 .tag {
     padding: .1rem .4rem;
     border-radius: var(--r-pill);
-    background: var(--accent-bg);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, currentColor 45%, transparent);
     color: var(--accent);
-    font-size: .65rem;
-    font-weight: 600;
+    font-size: var(--t-xs);
+    font-weight: 500;
 }
 
 .rename { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .4rem; }

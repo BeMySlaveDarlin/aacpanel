@@ -1,13 +1,14 @@
 /* Session card in the list: name, context, states and row buttons. */
 
+/* A session is a row of the page inside a hairline: the name in the ink, the
+   figures in the code face a tone down, and no fill — the bar of the context
+   along the top edge is what tells the rows apart. */
 .srow {
-    background: var(--glass);
-    backdrop-filter: var(--blur);
-    -webkit-backdrop-filter: var(--blur);
+    background: none;
     border: 0;
     border-radius: var(--r-card);
-    box-shadow: var(--hairline), var(--drop), var(--gloss);
-    padding: .5rem .5rem .42rem;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    padding: .55rem .6rem .45rem;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: .3rem;
@@ -22,18 +23,18 @@
 .srow .r1 { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
 /* The group is a prefix and the name is the tail, so shortening the line
    would drop exactly the part that tells one session from another. */
-.srow .nm { font-weight: 700; font-size: .92rem; font-family: var(--mono); min-width: 0; overflow-wrap: anywhere; }
-.srow .nmgroup { font-weight: 500; color: var(--ink-faint); }
-.srow .pct { font-family: var(--mono); font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
-.srow .meta { font-family: var(--mono); font-size: .69rem; color: var(--ink-faint); display: flex; flex-direction: column; gap: .08rem; }
+.srow .nm { font-weight: 500; font-size: var(--t-md); color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.srow .nmgroup { font-weight: 400; color: var(--ink-faint); }
+.srow .pct { font-family: var(--mono); font-size: var(--t-sm); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.srow .meta { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); display: flex; flex-direction: column; gap: .08rem; }
 
 .srow .mline { display: flex; flex-wrap: wrap; gap: 0 .7rem; }
 
-.srow .pct.blank { font-weight: 500; color: var(--ink-faint); font-size: .78rem; }
+.srow .pct.blank { color: var(--ink-faint); font-size: var(--t-xs); }
 
-.srow .waits { color: var(--warn); font-weight: 600; }
+.srow .waits { color: var(--warn); }
 
-.srow .working { color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; gap: .3rem; }
+.srow .working { color: var(--accent); display: inline-flex; align-items: center; gap: .3rem; }
 .srow .working::before {
     content: "";
     width: .38rem; height: .38rem;
@@ -52,9 +53,25 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: .3rem;
-    min-width: calc(42px * 2 + .3rem);
+    gap: .1rem;
+    min-width: calc(38px * 2 + .1rem);
 }
+
+/* An action in a row is a mark: the faint ink, the colour of what it does
+   under the finger, no box. */
+.rowacts .iconbtn,
+.prow > .iconbtn {
+    width: 38px;
+    height: 38px;
+    background: none;
+    box-shadow: none;
+    color: var(--ink-faint);
+}
+.rowacts .iconbtn.danger, .prow > .iconbtn.danger { color: var(--ink-faint); }
+.rowacts .iconbtn.accent, .prow > .iconbtn.accent { color: var(--ink-faint); }
+.rowacts .iconbtn.danger:active, .prow > .iconbtn.danger:active { background: none; color: var(--crit); }
+.rowacts .iconbtn.accent:active, .prow > .iconbtn.accent:active { background: none; color: var(--accent); }
+.rowacts .iconbtn:active { background: none; color: var(--ink); }
 
 .srow.acts > .sopen, .srow.acts > .sbody { grid-area: 1 / 1 / 2 / 2; }
 .srow.acts .rowacts { align-self: center; }
@@ -76,6 +93,8 @@
     overflow-x: auto;
 }
 
+/* The names of the contours are words on a line, the current one in the
+   accent with a rule under it. */
 .pftab {
     position: relative;
     flex: none;
@@ -85,11 +104,8 @@
     display: inline-flex;
     align-items: center;
     gap: .3rem;
-    font-family: var(--mono);
-    font-size: .72rem;
-    font-weight: 600;
-    letter-spacing: .05em;
-    text-transform: uppercase;
+    font-size: var(--t-sm);
+    font-weight: 500;
     white-space: nowrap;
     color: var(--ink-faint);
     cursor: pointer;
@@ -106,10 +122,9 @@
     height: 2px;
     border-radius: var(--r-small);
     background: var(--accent);
-    box-shadow: var(--glow);
 }
 
-.pftab .n { font-size: .82em; font-weight: 500; opacity: .65; }
+.pftab .n { font-size: .82em; font-weight: 400; opacity: .65; }
 
 .pfpages {
     flex: 1 1 auto;
@@ -147,11 +162,11 @@
 
 .pflimits.none {
     padding: .45rem .6rem;
-    background: rgba(255, 255, 255, .04);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     border-radius: var(--r-card);
 }
 
-.limitnone { font-size: .78rem; color: var(--ink-dim); }
+.limitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 
 .srow .sdot, .srow .cmark { display: none; }
 
@@ -180,15 +195,11 @@
         display: inline-flex;
         flex: none;
         align-items: center;
-        padding: .1rem .25rem;
+        padding: .1rem .3rem;
         border-radius: var(--r-pill);
-        background: var(--accent-bg);
-        color: var(--accent);
-        font-family: var(--mono);
-        font-size: .58rem;
-        font-weight: 600;
-        letter-spacing: .06em;
-        text-transform: uppercase;
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
+        color: var(--ink-faint);
+        font-size: var(--t-xs);
     }
 
     .srow.live .meta {
@@ -233,19 +244,16 @@
     }
     .pfstack:first-child .pfstackname { margin-top: 0; border-top: 0; }
     .pfstacktitle {
-        font-family: var(--mono);
-        font-size: .66rem;
-        font-weight: 700;
-        letter-spacing: .09em;
-        text-transform: uppercase;
+        font-size: var(--t-sm);
+        font-weight: 600;
         color: var(--ink);
     }
-    .pfstacklive { font-size: .66rem; color: var(--ink-faint); margin-left: auto; }
+    .pfstacklive { font-size: var(--t-xs); color: var(--ink-faint); margin-left: auto; }
 
     .pfstack > .empty {
         padding: .15rem .3rem .3rem;
         text-align: left;
-        font-size: .72rem;
+        font-size: var(--t-xs);
     }
 
     .pfsel {
@@ -257,11 +265,7 @@
     }
     .pfsellabel {
         flex: none;
-        font-family: var(--mono);
-        font-size: .62rem;
-        font-weight: 600;
-        letter-spacing: .09em;
-        text-transform: uppercase;
+        font-size: var(--t-xs);
         color: var(--ink-faint);
     }
     .pfdrop { position: relative; flex: 1; min-width: 0; }
@@ -273,11 +277,10 @@
         padding: .3rem .45rem;
         border: 0;
         border-radius: var(--r-small);
-        background: var(--glass);
-        box-shadow: var(--hairline), inset 0 0 0 var(--hair) var(--edge);
+        background: none;
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
         color: var(--ink);
-        font-family: var(--mono);
-        font-size: .74rem;
+        font-size: var(--t-xs);
         cursor: pointer;
     }
     .pfselname {
@@ -315,8 +318,7 @@
         border-radius: var(--r-small);
         background: none;
         color: var(--ink-dim);
-        font-family: var(--mono);
-        font-size: .74rem;
+        font-size: var(--t-xs);
         text-align: left;
         cursor: pointer;
     }
@@ -333,13 +335,13 @@
         flex: none;
         width: .8rem;
         height: .8rem;
-        border-radius: 2px;
-        background: var(--surface);
+        border-radius: var(--r-small);
+        background: none;
         box-shadow: inset 0 0 0 var(--hair) var(--edge);
     }
     .pfcheck.on {
         background: var(--accent);
-        box-shadow: inset 0 0 0 2px var(--void);
+        box-shadow: none;
     }
 
 }

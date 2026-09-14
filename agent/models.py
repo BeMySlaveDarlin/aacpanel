@@ -199,3 +199,29 @@ def window_for(model):
         return known[model]
     base = model.split("[", 1)[0]
     return known.get(base)
+
+
+# The windows of the models the catalog may not name: a substring of the id
+# and its window, tried in order. The catalog wins when it knows the model.
+MODEL_LIMITS = (
+    ("[1m]", 1_000_000),
+    ("claude-opus-5", 1_000_000),
+    ("claude-fable-5", 1_000_000),
+    ("claude-sonnet-5", 1_000_000),
+    ("claude-haiku-4-5", 200_000),
+    ("claude-opus-4-5", 200_000),
+)
+DEFAULT_LIMIT_TOKENS = 1_000_000
+
+
+def limit_for(model):
+    """Returns the context limit of a model and whether the model is known."""
+    if not model:
+        return DEFAULT_LIMIT_TOKENS, False
+    window = window_for(model)
+    if window:
+        return window, True
+    for key, value in MODEL_LIMITS:
+        if key in model:
+            return value, True
+    return DEFAULT_LIMIT_TOKENS, False

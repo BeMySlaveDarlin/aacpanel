@@ -46,26 +46,26 @@
     color: var(--accent);
     flex: none;
 }
-.cnmark svg { width: 15px; height: 15px; }
+.cnmark svg { width: var(--i-sm); height: var(--i-sm); }
 
 .callnode.still { cursor: default; opacity: .6; }
 .cnmark.think { color: var(--ink-dim); }
 
 .cnbody { min-width: 0; display: flex; flex-direction: column; gap: .05rem; }
 .cnname {
-    font-size: .78rem;
+    font-size: var(--t-xs);
     color: var(--ink);
     overflow-wrap: anywhere;
 }
 .cnarg {
-    font-size: .72rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 .cndone {
-    font-size: .68rem;
+    font-size: var(--t-xs);
     font-weight: 600;
     letter-spacing: .01em;
 }
@@ -83,8 +83,8 @@
 .callcap {
     margin: .9rem 0 .35rem;
     font-family: var(--mono);
-    font-size: .7rem;
-    font-weight: 600;
+    font-size: var(--t-xs);
+    font-weight: 500;
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ink-faint);
@@ -97,7 +97,7 @@
     background: var(--glass);
     color: var(--ink);
     font-family: var(--mono);
-    font-size: .76rem;
+    font-size: var(--t-xs);
     line-height: 1.5;
     white-space: pre;
     overflow-x: auto;
@@ -139,7 +139,7 @@ button.filepic {
 .fileface dt {
     flex: none;
     width: 3.4rem;
-    font-size: .7rem;
+    font-size: var(--t-xs);
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ink-faint);
@@ -148,7 +148,7 @@ button.filepic {
     margin: 0;
     min-width: 0;
     font-family: var(--code);
-    font-size: .8rem;
+    font-size: var(--t-sm);
     color: var(--ink);
     overflow-wrap: anywhere;
 }
@@ -179,7 +179,7 @@ button.filepic {
     overflow: auto;
     max-height: 70dvh;
 }
-.filesheet table { border-collapse: collapse; font-size: .78rem; }
+.filesheet table { border-collapse: collapse; font-size: var(--t-xs); }
 .filesheet th, .filesheet td {
     padding: .32rem .55rem;
     border-bottom: var(--hair) solid var(--line);
@@ -200,7 +200,7 @@ button.filepic {
     width: 34px;
     height: 34px;
 }
-.mdcopy.filecopy svg { width: 1.05rem; height: 1.05rem; }
+.mdcopy.filecopy svg { width: var(--i-sm); height: var(--i-sm); }
 
 .filemore {
     display: flex;
@@ -226,7 +226,7 @@ button.filepic {
 .mwait {
     margin: .3rem 0 0;
     font-family: var(--mono);
-    font-size: .68rem;
+    font-size: var(--t-xs);
     letter-spacing: .04em;
     color: var(--ink-faint);
 }
@@ -241,7 +241,7 @@ button.filepic {
     align-items: baseline;
     gap: .45rem;
     font-family: var(--mono);
-    font-size: .68rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     padding: .1rem .2rem .1rem .6rem;
     position: relative;
@@ -262,7 +262,7 @@ button.filepic {
 
 .mnote {
     align-self: center;
-    font-size: .68rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     letter-spacing: .02em;
     padding: .1rem .6rem;

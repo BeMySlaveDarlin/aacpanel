@@ -1,44 +1,56 @@
-/* Session permission card: the "Do you want to proceed?" dialog. */
+/* Session permission: the console asks, the card answers with a keypress. */
 
+/* The card stands where the sheet of the reference does, and is drawn in its
+   material: glass, soft top corners, the grip. */
 .permit {
     display: flex;
     flex-direction: column;
-    gap: .5rem;
-    padding: .6rem .1rem .2rem;
+    gap: .45rem;
+    padding: .5rem .75rem .8rem;
+    background: var(--glass);
+    border-radius: var(--r-sheet) var(--r-sheet) var(--r-card) var(--r-card);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
 }
 
+
+/* The quiet line says who asks; the tool comes under it as a plate. */
 .permithead {
     display: flex;
-    align-items: baseline;
-    gap: .5rem;
-}
-
-.permittool {
-    font-size: .92rem;
-    font-weight: 700;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .3rem;
 }
 
 .permitwhat {
-    font-family: var(--mono);
-    font-size: .7rem;
-    letter-spacing: .06em;
-    text-transform: uppercase;
+    order: -1;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
+}
+
+.permittool {
+    padding: .1rem .4rem;
+    border-radius: var(--r-small);
+    background: color-mix(in srgb, var(--accent-2) 12%, transparent);
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    color: var(--accent-2);
 }
 
 .permitaction {
     margin: 0;
-    padding: .5rem .6rem;
+    padding: .45rem .6rem;
+    width: 0;
+    min-width: 100%;
     border-radius: var(--r-small);
-    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    background: var(--code-bg);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
     font-family: var(--code);
-    font-size: .8rem;
+    font-size: var(--t-sm);
     line-height: 1.45;
+    color: var(--ink);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     overflow-x: auto;
-    width: 0;
-    min-width: 100%;
 }
 
 .permitopts {
@@ -47,43 +59,49 @@
     gap: .35rem;
 }
 
+/* An answer is a hairline whose number is the accent; the one being sent is the
+   one filled thing. */
 .permitopt {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: .5rem;
     width: 100%;
-    padding: .55rem .6rem;
+    min-height: 44px;
+    padding: .55rem .65rem;
     border: var(--hair) solid var(--line);
-    border-radius: var(--r-small);
-    background: var(--glass);
-    color: inherit;
+    border-radius: var(--r-card);
+    background: none;
+    color: var(--ink);
     font: inherit;
-    font-size: .86rem;
+    font-size: var(--t-md);
+    line-height: 1.3;
     text-align: left;
     cursor: pointer;
 }
 
-.permitopt:active { background: var(--accent-bg); }
-.permitopt:disabled { opacity: .5; cursor: default; }
+.permitopt:active { background: var(--glass); }
+.permitopt.on {
+    background: var(--accent-bg);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.permitopt:disabled { cursor: default; }
+.permitopt:disabled:not(.on) { opacity: .5; }
 
 .permitn {
     flex: none;
-    width: 1.4rem;
-    text-align: center;
     font-family: var(--code);
-    font-size: .78rem;
-    color: var(--ink-faint);
+    color: var(--accent);
 }
+
+.permitn svg { width: var(--i-sm); height: var(--i-sm); vertical-align: -.2em; }
 
 .permittext { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
-.permitopt.lasting { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
-
+/* The mark of a lasting answer: small, to the right, the second colour. */
 .permitlast {
     flex: none;
-    font-family: var(--mono);
-    font-size: .64rem;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--warn);
+    margin-left: auto;
+    font-size: var(--t-xs);
+    color: var(--accent-2);
+    white-space: nowrap;
 }

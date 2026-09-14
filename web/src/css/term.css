@@ -40,10 +40,10 @@
     flex: 1 1 auto;
     min-height: 0;
     padding: 0.5rem 0.6rem;
-    border: var(--hair) solid var(--edge);
+    border: 0;
     border-radius: var(--r-card);
     background: var(--termbg);
-    box-shadow: var(--drop);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     overflow: hidden;
     touch-action: none;
 }
@@ -84,13 +84,13 @@
     min-width: 2.7rem;
     min-height: 40px;
     padding: 0 .5rem;
-    border: var(--hair) solid var(--edge);
+    border: 0;
     border-radius: var(--r-small);
-    background: var(--glass);
-    box-shadow: var(--drop);
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     color: var(--ink-dim);
     font-family: var(--mono);
-    font-size: .92rem;
+    font-size: var(--t-md);
     line-height: 1;
     touch-action: manipulation;
     user-select: none;
@@ -98,7 +98,7 @@
     cursor: pointer;
 }
 
-.termkey:active { background: var(--glass-2); color: var(--ink); }
+.termkey:active { background: var(--glass); color: var(--ink); }
 
 .termkey.danger {
     margin-right: auto;

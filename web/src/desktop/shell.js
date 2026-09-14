@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { terminalOnScreen, typing } from "../ui/focus.js";
-import { DeskIcon } from "./icons.js";
 import { attachTips } from "./tip.js";
 import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
@@ -266,7 +265,7 @@ export function DesktopShell({
                         active=${false}
                         onClick=${onTheme}
                     />
-                    <${IconButton} item=${{ label: "Sign out", icon: DeskIcon.exit }} active=${false} onClick=${logout} />
+                    <${IconButton} item=${{ label: "Sign out", icon: Icon.exit }} active=${false} onClick=${logout} />
                 </div>
             </header>
 

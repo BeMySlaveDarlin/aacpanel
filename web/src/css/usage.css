@@ -1,11 +1,11 @@
 /* Usage screen on the phone: filters, three numbers, share lists, rescan. */
 
 .ufilters .chips + .chips { padding-top: 0; }
-.uproject { margin-top: .1rem; font-size: .85rem; }
+.uproject { margin-top: .1rem; font-size: var(--t-sm); }
 
 .uthree { display: grid; grid-template-columns: repeat(3, 1fr); gap: .1rem .5rem; }
 .utotal { min-width: 0; }
-.uthree .tval { font-size: 1.2rem; margin-top: .1rem; }
+.uthree .tval { font-size: var(--t-xl); margin-top: .1rem; }
 
 .usub { grid-column: 1 / -1; margin-top: .35rem; }
 
@@ -20,7 +20,7 @@
     text-align: left;
 }
 .uslices button.urow { cursor: pointer; }
-.urow + .urow { border-top: var(--hair) solid rgba(255, 255, 255, .035); }
+.urow + .urow { border-top: var(--hair) solid var(--line); }
 
 .uline {
     display: flex;
@@ -31,7 +31,7 @@
 .uline .nm {
     flex: 1;
     min-width: 0;
-    font-size: .88rem;
+    font-size: var(--t-md);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -40,11 +40,11 @@
 .uwhere {
     margin-left: .35rem;
     font-family: var(--mono);
-    font-size: .72rem;
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 
-.topbar.outside .mx { background: rgba(255, 255, 255, .12); }
+.topbar.outside .mx { background: var(--surface); }
 
 .uscan { display: flex; flex-direction: column; gap: .35rem; }
 .uscango { width: 100%; }

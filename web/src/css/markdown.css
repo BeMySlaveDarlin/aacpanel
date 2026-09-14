@@ -1,8 +1,8 @@
 /* Markdown of model answers: quotes, code, headings, tables. */
 
 .msg code {
-    font-family: var(--mono);
-    font-size: .78em;
+    font-family: var(--code);
+    font-size: .82em;
     color: var(--accent-2);
     background: rgba(150, 170, 255, .10);
     border-radius: var(--r-small);
@@ -12,12 +12,12 @@
 
 .mdcode code { background: none; padding: 0; border-radius: 0; }
 
-.msg b { font-weight: 800; }
+.msg b { font-weight: 700; }
 
-.mdh { font-family: var(--sans); font-weight: 800; margin: .9rem 0 .45rem; line-height: 1.3; }
-.mdh1 { font-size: 1.06rem; }
-.mdh2 { font-size: 1rem; }
-.mdh3 { font-size: .95rem; color: var(--ink-dim); }
+.mdh { font-family: var(--sans); font-weight: 700; color: var(--ink); margin: .9rem 0 .45rem; line-height: 1.3; }
+.mdh1 { font-size: var(--t-lg); }
+.mdh2 { font-size: var(--t-base); }
+.mdh3 { font-size: var(--t-md); color: var(--ink-dim); }
 
 .mdlist { margin: .2rem 0 .8rem; padding-left: 1.3rem; }
 .mdlist li { margin-bottom: .45rem; }
@@ -51,10 +51,8 @@
 }
 
 .mdlang {
-    font-family: var(--mono);
-    font-size: .6rem;
-    letter-spacing: .05em;
-    text-transform: uppercase;
+    font-family: var(--code);
+    font-size: var(--t-xs);
     color: var(--ink-faint);
 }
 
@@ -74,12 +72,12 @@
     cursor: pointer;
 }
 
-.mdcopy svg { width: .95rem; height: .95rem; }
+.mdcopy svg { width: var(--i-sm); height: var(--i-sm); }
 .mdcopy:active { background: rgba(var(--tint), .12); color: var(--ink); }
-.mdcode code { font-size: .72rem; line-height: 1.45; color: var(--ink-dim); white-space: pre; }
+.mdcode code { font-size: var(--t-sm); line-height: 1.5; color: var(--ink-dim); white-space: pre; }
 
 .mdtable { overflow-x: auto; margin: .35rem 0 .5rem; }
-.mdtable table { border-collapse: collapse; font-size: .98rem; line-height: 1.42; }
+.mdtable table { border-collapse: collapse; font-size: var(--t-base); line-height: 1.42; }
 .mdtable th, .mdtable td {
     border: var(--hair) solid var(--line);
     padding: .34rem .55rem;

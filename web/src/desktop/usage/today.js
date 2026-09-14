@@ -4,7 +4,7 @@ import { area, Chart } from "../../chart.js";
 import { ago, pct, tokens } from "../../format.js";
 import { ContextBar } from "../../ui/bar.js";
 import * as usage from "../../data/usage.js";
-import { DeskIcon } from "../icons.js";
+import { Icon } from "../../ui/icons.js";
 import { Blank, Widget, stop, troubleOf } from "./parts.js";
 
 const SPARK = [{}, area("--accent", "#63a8ff")];
@@ -116,7 +116,7 @@ function ScanButton({ scan, onScan }) {
             type="button"
             data-tip=${scan.running ? "Collection is running" : "Collect usage again"}
             onClick=${onScan}
-        ><${DeskIcon.scan} /></button>
+        ><${Icon.refresh} /></button>
     `;
 }
 

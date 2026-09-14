@@ -11,7 +11,6 @@
         color: var(--ink);
 
         --tipbg: #12162a;
-        --colbg: #0a0d18;
         --ok: #6b9c83;
         --accent: #7d99bd;
         --accent-bg: rgba(125, 153, 189, .16);
@@ -25,7 +24,6 @@
 
     :root.sky .deskshell {
         --tipbg: #ffffff;
-        --colbg: #e4eef9;
         --ok: #3c6b56;
         --accent: #4a6890;
         --accent-bg: rgba(74, 104, 144, .14);
@@ -37,10 +35,6 @@
         --ctx-4: #965855;
     }
 
-    :root.sky .dksess { background-image: linear-gradient(90deg, rgba(15, 35, 56, .1) 0 var(--fill, 0%), transparent var(--fill, 0%)); }
-
-    :root.sky .dkcat { background-image: linear-gradient(90deg, rgba(15, 35, 56, .1) 0 var(--fill, 0%), transparent var(--fill, 0%)); }
-
     .dktop {
         display: flex;
         align-items: center;
@@ -48,7 +42,7 @@
         height: 44px;
         flex: none;
         padding: 0 .6rem;
-        border-bottom: var(--hair) solid var(--edge);
+        border-bottom: var(--hair) solid var(--line);
         background: var(--top-bg);
     }
 
@@ -60,7 +54,7 @@
         border: 0;
         border-radius: var(--r-small);
         background: none;
-        font: 700 13.5px/1 var(--sans);
+        font: 700 var(--t-md)/1 var(--sans);
         letter-spacing: .1em;
         text-transform: uppercase;
         color: var(--ink-dim);
@@ -81,13 +75,13 @@
         cursor: pointer;
     }
 
-    .dklogo svg { width: 22px; height: 22px; }
+    .dklogo svg { width: var(--i-lg); height: var(--i-lg); }
 
     .dklogo.on { background: var(--accent-bg); }
 
     .dkibs { display: flex; align-items: center; gap: .15rem; }
 
-    .dksep { width: var(--hair); height: 22px; background: var(--edge); margin: 0 .3rem; }
+    .dksep { width: var(--hair); height: 22px; background: var(--line); margin: 0 .3rem; }
 
     .dktopright { margin-left: auto; display: flex; align-items: center; gap: .3rem; }
 
@@ -104,7 +98,7 @@
         cursor: pointer;
     }
 
-    .dkib svg { width: 19px; height: 19px; }
+    .dkib svg { width: var(--i-md); height: var(--i-md); }
 
     .dkib.on { color: var(--accent); background: var(--accent-bg); }
 
@@ -124,7 +118,7 @@
         border: var(--hair) solid var(--edge);
         box-shadow: var(--drop);
         font-family: var(--sans);
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         font-weight: 500;
         line-height: 1.35;
         letter-spacing: 0;
@@ -137,7 +131,7 @@
     .dktip.on { visibility: visible; }
 
     .dkalert {
-        font: 600 13px/1 var(--sans);
+        font: 600 var(--t-sm)/1 var(--sans);
         color: var(--warn);
         background: transparent;
         border: var(--hair) solid var(--warn);
@@ -147,7 +141,7 @@
     }
 
     .dkroute {
-        font: 600 13px/1 var(--sans);
+        font: 600 var(--t-sm)/1 var(--sans);
         color: var(--ink-dim);
         background: transparent;
         border: var(--hair) solid var(--edge);
@@ -172,12 +166,13 @@
 
     .dkbody.full, .dkbody.full.withpanel { grid-template-columns: minmax(0, 1fr); }
 
+    /* The columns are parted by hairlines and sit on the page: no column has a
+       ground or a shadow of its own. */
     .dkleft {
         display: flex;
         flex-direction: column;
         min-height: 0;
-        border-right: var(--hair) solid var(--edge);
-        background: var(--colbg);
+        border-right: var(--hair) solid var(--line);
     }
 
     .dkscroll { flex: 1; min-height: 0; overflow-y: auto; }
@@ -197,18 +192,13 @@
         cursor: pointer;
     }
 
-    .dkpicklabel {
-        font-size: 0.6625rem;
-        letter-spacing: .09em;
-        text-transform: uppercase;
-        color: var(--ink-faint);
-    }
+    .dkpicklabel { font-size: var(--t-xs); color: var(--ink-faint); }
 
-    .dkpickvalue { font-size: 13.5px; color: var(--ink); }
+    .dkpickvalue { font-size: var(--t-md); color: var(--ink); }
 
     .dkpickchev { margin-left: auto; display: grid; place-items: center; color: var(--ink-faint); }
 
-    .dkpickchev svg { width: 14px; height: 14px; transform: rotate(90deg); }
+    .dkpickchev svg { width: var(--i-sm); height: var(--i-sm); transform: rotate(90deg); }
 
     .dkpickchev.open svg { transform: rotate(-90deg); }
 
@@ -236,7 +226,7 @@
         border-radius: var(--r-small);
         background: transparent;
         color: var(--ink-dim);
-        font-size: 13.5px;
+        font-size: var(--t-md);
         text-align: left;
         cursor: pointer;
     }
@@ -244,12 +234,14 @@
     .dkcheck {
         width: .7rem;
         height: .7rem;
-        border-radius: 3px;
+        border-radius: var(--r-small);
         border: var(--hair) solid var(--edge);
     }
 
     .dkcheck.on { background: var(--accent); border-color: transparent; }
 
+    /* The heading of a group in a column: a name in the ink, a count in the
+       faint ink, on the ground of the page so the rows scroll under it. */
     .dkcontour {
         position: sticky;
         top: 0;
@@ -257,26 +249,28 @@
         display: flex;
         align-items: center;
         gap: .45rem;
-        padding: .3rem .55rem .3rem .5rem;
+        padding: .35rem .55rem .3rem;
+        background: var(--bg);
+        border-top: var(--hair) solid var(--line);
+        border-bottom: var(--hair) solid var(--line);
+    }
+
+    /* The sky ground is a gradient, and a sticky heading cut from it would
+       show as a band: there the heading is frosted glass over the rows. */
+    :root.sky .deskshell :is(.dkcontour, .dkth, .dkprochead) {
         background: var(--glass-2);
-        border-top: var(--hair) solid var(--edge);
-        border-bottom: var(--hair) solid var(--edge);
-        box-shadow: inset 3px 0 0 var(--accent);
+        backdrop-filter: var(--blur);
     }
 
     section:first-child > .dkcontour { border-top: 0; }
 
-    .dkcontourname {
-        font-family: var(--mono);
-        font-size: 0.8025rem;
-        font-weight: 700;
-        letter-spacing: .1em;
-        text-transform: uppercase;
-        color: var(--ink);
-    }
+    .dkcontourname { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
 
-    .dkcontournum { margin-left: auto; font-size: 0.7625rem; color: var(--ink-dim); }
+    .dkcontournum { margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); }
 
+    /* A row of the column: the hotkey, the name and a mark of waiting, over a
+       thin bar of the context. The open row is the one row with a fill; the
+       rest sit on the page. */
     .dksess {
         position: relative;
         display: grid;
@@ -284,21 +278,16 @@
         align-items: center;
         gap: 0 .45rem;
         width: 100%;
-        padding: .35rem .55rem .45rem;
+        padding: .4rem .55rem .45rem;
         border: 0;
         border-bottom: var(--hair) solid var(--line);
-        background-image: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, .085) 0 var(--fill, 0%),
-            transparent var(--fill, 0%)
-        );
-        background-color: transparent;
+        background: none;
         color: var(--ink);
         text-align: left;
         cursor: pointer;
     }
 
-    .dksess.on { background-color: var(--accent-bg); box-shadow: inset 2px 0 0 var(--accent); }
+    .dksess.on { background: var(--accent-bg); }
 
     .dksessbody { min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
 
@@ -306,21 +295,23 @@
 
     .dksesssub { display: flex; align-items: center; gap: .4rem; }
 
+    /* The bar of the context under the row: the accent as it fills, the colour
+       of waiting when a person is being waited for, the critical colour when
+       the context is nearly spent. */
     .dksessbar {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        height: 2px;
-        background: transparent;
+        grid-column: 2 / -1;
+        height: 3px;
+        margin-top: .3rem;
+        border-radius: var(--r-small);
+        background: var(--line);
+        overflow: hidden;
     }
 
+    /* The fill of the bar is the fill of the context, in the four steps the
+       phone uses too: what colour a session is tells how full it is. */
     .dksessbar i { display: block; height: 100%; background: var(--ctx-1); }
-
     .dksessbar.s2 i { background: var(--ctx-2); }
-
     .dksessbar.s3 i { background: var(--ctx-3); }
-
     .dksessbar.s4 i { background: var(--ctx-4); }
 
     .dksegbar { display: flex; gap: 2px; }
@@ -335,8 +326,8 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 14px;
-        font-weight: 600;
+        font-size: var(--t-md);
+        font-weight: 400;
     }
 
     .dkgroup {
@@ -345,13 +336,13 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 12px;
+        font-size: var(--t-sm);
         color: var(--ink-dim);
     }
 
     .dkgroup.dkchip {
         max-width: 8rem;
-        font-size: 11px;
+        font-size: var(--t-xs);
         line-height: 1.5;
         color: var(--ink-faint);
         border: var(--hair) solid var(--edge);
@@ -365,38 +356,28 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         color: var(--ink-dim);
     }
 
+    /* The mark of a row that waits for a person: a glyph in the code face in
+       the colour of waiting, with nothing drawn around it. */
     .dkwait {
         flex: none;
-        display: grid;
-        place-items: center;
-        width: 1rem;
-        height: 1rem;
-        border-radius: 50%;
-        background: var(--warn);
-        color: #06070f;
-        font-family: var(--sans);
-        font-size: 13px;
-        font-weight: 800;
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: var(--t-sm);
         line-height: 1;
-        padding-bottom: 1px;
+        color: var(--warn);
     }
-
-    :root.sky .dkwait { color: #f2f8ff; }
-
-    .dkwait.dkpermit { background: var(--crit); }
 
     .dknum {
         flex: none;
         min-width: 3.1rem;
         text-align: right;
-        font-family: var(--mono);
-        font-size: 13px;
+        font-size: var(--t-xs);
         font-variant-numeric: tabular-nums;
-        color: var(--ink-dim);
+        color: var(--ink-faint);
     }
 
     .dksub {
@@ -405,7 +386,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 12px;
+        font-size: var(--t-sm);
         color: var(--ink-faint);
     }
 
@@ -413,25 +394,24 @@
         flex: none;
         min-width: 2.6rem;
         text-align: right;
-        font-family: var(--mono);
-        font-size: 12px;
+        font-size: var(--t-xs);
+        font-variant-numeric: tabular-nums;
         color: var(--ink-faint);
     }
 
+    /* The hotkey of the row stands first, in the code face and the faint ink. */
     .dkhint {
         flex: none;
-        width: .8rem;
-        text-align: right;
+        order: -1;
+        min-width: .8rem;
         font-family: var(--mono);
-        font-size: 11px;
-        color: transparent;
+        font-size: var(--t-xs);
+        color: var(--ink-faint);
     }
 
     .dktag {
         flex: none;
-        font-size: 10.5px;
-        letter-spacing: .05em;
-        text-transform: uppercase;
+        font-size: var(--t-xs);
         color: var(--ink-faint);
         border: var(--hair) solid var(--edge);
         border-radius: var(--r-pill);
@@ -457,22 +437,23 @@
 
     .dkdot.dkbad { background: var(--crit); box-shadow: 0 0 .35rem var(--crit); }
 
-    .dkempty { padding: .5rem .55rem; font-size: 13px; color: var(--ink-faint); }
+    .dkempty { padding: .5rem .55rem; font-size: var(--t-sm); color: var(--ink-faint); }
 
+    /* The limits under the column: a caption in the faint ink over a bar as
+       thin as the bar of the context, one pair per window. */
     .dklimits {
         flex: none;
         padding: .5rem .6rem .6rem;
-        border-top: var(--hair) solid var(--edge);
-        background: var(--glass);
+        border-top: var(--hair) solid var(--line);
 
         --dklim-mute: .55;
     }
 
     .dklimit {
         display: flex;
-        align-items: center;
-        gap: .6rem;
-        padding: .35rem 0;
+        flex-direction: column;
+        gap: .3rem;
+        padding: .4rem 0;
         border-top: var(--hair) solid var(--line);
     }
 
@@ -482,60 +463,35 @@
 
     .dklimit.dkold { opacity: var(--dklim-mute); }
 
-    .dklimnone {
-        flex: 1;
-        font-size: 12px;
-        color: var(--ink-faint);
-    }
+    .dklimnone { font-size: var(--t-xs); color: var(--ink-faint); }
 
-    .dklimname {
-        flex: none;
-        width: 5.6rem;
-        font-family: var(--mono);
-        font-size: 12.5px;
-        font-weight: 700;
-        letter-spacing: .06em;
-        text-transform: uppercase;
-        color: var(--ink);
-    }
+    .dklimname { font-size: var(--t-xs); color: var(--ink-dim); }
 
-    .dklimbars { flex: 1; display: flex; flex-direction: column; gap: .25rem; }
+    .dklimbars { display: flex; flex-direction: column; gap: .3rem; }
 
-    .dklimline { display: flex; align-items: center; gap: .45rem; }
+    .dklimline { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .4rem; }
 
-    .dklimlabel {
-        flex: none;
-        width: 1.8rem;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--ink-dim);
-    }
+    .dklimlabel { font-size: var(--t-xs); color: var(--ink-faint); }
 
     .dklimbar {
-        flex: 1;
-        height: 6px;
-        border-radius: 3px;
+        flex: 1 0 100%;
+        order: 1;
+        height: 3px;
+        border-radius: var(--r-small);
         background: var(--line);
         overflow: hidden;
     }
 
-    .dklimbar i { display: block; height: 100%; background: var(--ok); }
+    .dklimbar i { display: block; height: 100%; background: var(--accent); }
 
     .dklimline.dkwarn .dklimbar i { background: var(--warn); }
 
     .dklimline.dkcrit .dklimbar i { background: var(--crit); }
 
-    .dklimline.dkwarn .dklimlabel, .dklimline.dkcrit .dklimlabel { color: var(--ink-dim); }
-
     .dklimpct {
-        flex: none;
-        width: 2.6rem;
-        text-align: right;
-        font-family: var(--mono);
-        font-size: 13.5px;
-        font-weight: 700;
+        font-size: var(--t-xs);
         font-variant-numeric: tabular-nums;
-        color: var(--ink);
+        color: var(--ink-faint);
     }
 
     .dklimpct.dkwarn { color: var(--warn); }
@@ -568,8 +524,7 @@
         flex: none;
         position: relative;
         padding: .45rem .8rem .5rem;
-        border-bottom: var(--hair) solid var(--edge);
-        background: var(--colbg);
+        border-bottom: var(--hair) solid var(--line);
     }
 
     .dkheadtop { display: flex; align-items: center; gap: .5rem; min-width: 0; }
@@ -578,11 +533,11 @@
 
     .dkheadacts { flex: none; }
 
-    .dkheadname { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+    .dkheadname { font-size: var(--t-base); font-weight: 600; }
 
     .dkheadpath {
         font-family: var(--mono);
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         color: var(--ink-faint);
         overflow: hidden;
         text-overflow: ellipsis;
@@ -591,13 +546,15 @@
 
     .dkheadbot { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem 1rem; margin-top: .35rem; min-width: 0; }
 
+    /* A fact of the head is a value in the ink and a caption in the faint ink,
+       parted from the next fact by space alone. */
     .dkfact { display: flex; align-items: baseline; gap: .28rem; }
 
-    .dkfact b { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .dkfact b { font-size: var(--t-md); font-weight: 600; color: var(--ink); }
 
-    .dkfact span { font-size: 12px; color: var(--ink-faint); }
+    .dkfact span { font-size: var(--t-sm); color: var(--ink-faint); }
 
-    .dkfact.right b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .dkfact.right b { font-variant-numeric: tabular-nums; }
 
     .dktable { flex: 1; min-height: 0; overflow-y: auto; }
 
@@ -619,21 +576,17 @@
 
     .dkth {
         height: 26px;
-        font-size: 11.5px;
-        letter-spacing: .08em;
-        text-transform: uppercase;
+        font-size: var(--t-xs);
         color: var(--ink-faint);
-        background: var(--colbg);
+        background: var(--bg);
         position: sticky;
         top: 0;
         z-index: 1;
     }
 
-    .dkstack .dkc-name { font-size: 14.5px; font-weight: 700; }
-
     .dkcont .dkc-name { padding-left: 1rem; color: var(--ink-dim); }
 
-    .dkc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+    .dkc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-md); }
 
     .dkc-status {
         display: flex;
@@ -642,7 +595,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 13px;
+        font-size: var(--t-sm);
         color: var(--ink-dim);
     }
 
@@ -662,16 +615,14 @@
     .dkhpnum {
         flex: none;
         min-width: 2.6rem;
-        font-family: var(--mono);
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         font-variant-numeric: tabular-nums;
         color: var(--ink-dim);
     }
 
     .dkc-num {
         text-align: right;
-        font-family: var(--mono);
-        font-size: 13.5px;
+        font-size: var(--t-md);
         font-variant-numeric: tabular-nums;
         color: var(--ink-dim);
     }
@@ -680,11 +631,11 @@
 
     .dkc-acts.shown { opacity: 1; }
 
-    .dkcont.on { background: var(--accent-bg); box-shadow: inset 3px 0 0 var(--accent); }
+    .dkcont.on { background: var(--accent-bg); }
 
-    .dkstate { font-weight: 600; color: var(--ok); }
+    .dkstate { color: var(--ok); }
 
-    .dkstate.off { color: var(--ink-faint); font-weight: 500; }
+    .dkstate.off { color: var(--ink-faint); }
 
     .dkstate.bad { color: var(--crit); }
 
@@ -694,18 +645,22 @@
 
     .dkuptime { color: var(--ink-faint); }
 
+    /* An action is a mark, not a button: the faint ink until the pointer is on
+       it, the ink itself under the pointer, and no box around it. */
     .dkact {
         display: grid;
         place-items: center;
         width: 1.7rem;
         height: 1.7rem;
-        color: var(--ink-dim);
-        background: var(--glass);
+        padding: 0;
+        color: var(--ink-faint);
+        background: none;
+        border: 0;
         border-radius: var(--r-small);
-        border: var(--hair) solid var(--edge);
+        cursor: pointer;
     }
 
-    .dkact svg { width: 15px; height: 15px; }
+    .dkact svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dkdash {
         flex: 1;
@@ -721,7 +676,7 @@
 
     .dkpanes { flex: 1; min-height: 12rem; display: flex; flex-wrap: wrap; gap: .7rem; align-items: stretch; }
 
-    .dkdbar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+    .dkdbar { height: 3px; border-radius: var(--r-small); background: var(--line); overflow: hidden; }
 
     .dkdbar i { display: block; height: 100%; background: var(--accent); }
 
@@ -769,7 +724,7 @@
         border: var(--hair) dashed var(--edge);
         border-radius: var(--r-card);
         color: var(--ink-faint);
-        font-size: 13px;
+        font-size: var(--t-sm);
         min-height: 0;
     }
 
@@ -778,8 +733,7 @@
         flex-direction: column;
         min-width: 0;
         min-height: 0;
-        border-left: var(--hair) solid var(--edge);
-        background: var(--colbg);
+        border-left: var(--hair) solid var(--line);
     }
 
     .dkpanelhead {
@@ -791,13 +745,7 @@
         border-bottom: var(--hair) solid var(--line);
     }
 
-    .dkpaneltitle {
-        font-size: 0.7225rem;
-        font-weight: 700;
-        letter-spacing: .09em;
-        text-transform: uppercase;
-        color: var(--ink-dim);
-    }
+    .dkpaneltitle { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
 
     .dkclose {
         margin-left: auto;
@@ -812,7 +760,7 @@
         cursor: pointer;
     }
 
-    .dkclose svg { width: 15px; height: 15px; }
+    .dkclose svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dkrow {
         display: flex;
@@ -836,14 +784,14 @@
 
     .dkrowacts { flex: none; display: flex; gap: .25rem; margin-left: .1rem; }
 
-    .dkitem .dkname { padding-left: 1.1rem; color: var(--ink-dim); font-size: 13px; }
+    .dkitem .dkname { padding-left: 1.1rem; color: var(--ink-dim); font-size: var(--t-sm); }
 
     .dkpager {
         display: flex;
         align-items: center;
         gap: .5rem;
         padding: .5rem .6rem;
-        border-top: var(--hair) solid var(--edge);
+        border-top: var(--hair) solid var(--line);
     }
 
     .dkpagebtn {
@@ -851,14 +799,15 @@
         place-items: center;
         width: 26px;
         height: 26px;
-        border: var(--hair) solid var(--edge);
+        padding: 0;
+        border: 0;
         border-radius: var(--r-small);
-        background: var(--glass);
-        color: var(--ink-dim);
+        background: none;
+        color: var(--ink-faint);
         cursor: pointer;
     }
 
-    .dkpagebtn svg { width: 14px; height: 14px; transform: rotate(180deg); }
+    .dkpagebtn svg { width: var(--i-sm); height: var(--i-sm); transform: rotate(180deg); }
 
     .dkpagebtn.next svg { transform: none; }
 
@@ -867,15 +816,14 @@
     .dkpagenum {
         flex: 1;
         text-align: center;
-        font-family: var(--mono);
-        font-size: 12.5px;
+        font-size: var(--t-xs);
         font-variant-numeric: tabular-nums;
         color: var(--ink-dim);
     }
 
     .dkpagetotal { color: var(--ink-faint); }
 
-    .dkarch .dkname, .dkproj .dkname, .dklog .dkname { font-size: 13.5px; font-weight: 500; }
+    .dkarch .dkname, .dkproj .dkname, .dklog .dkname { font-size: var(--t-md); font-weight: 400; }
 
     .dkarch {
         position: relative;
@@ -887,15 +835,18 @@
         cursor: pointer;
     }
 
+    /* A row of the archive: the name, then the time in the faint ink; the line
+       under it is where the conversation lived, quieter still. */
     .dkarchtop { display: flex; align-items: center; gap: .45rem; }
 
     .dkarchsub { display: flex; align-items: center; gap: .35rem; }
 
+    .dkarchsub .dkgroup, .dkarchsub .dklast { font-size: var(--t-xs); color: var(--ink-faint); }
+
     .dkarchmodel {
         flex: none;
         margin-left: auto;
-        font-family: var(--mono);
-        font-size: 11.5px;
+        font-size: var(--t-xs);
         color: var(--ink-faint);
     }
 
@@ -906,13 +857,13 @@
 
     .dkhalf { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
-    .dkhalf + .dkhalf { border-top: var(--hair) solid var(--edge); }
+    .dkhalf + .dkhalf { border-top: var(--hair) solid var(--line); }
 
     .dklater {
         display: grid;
         place-items: center;
         color: var(--ink-faint);
-        font-size: 13px;
+        font-size: var(--t-sm);
         background: repeating-linear-gradient(
             135deg,
             transparent 0 10px,
@@ -922,9 +873,9 @@
 
     .dkheadacts { margin-left: auto; display: flex; gap: .3rem; }
 
-    .dkheadacts .dkact { width: 2rem; height: 2rem; border-color: var(--edge); }
+    .dkheadacts .dkact { width: 2rem; height: 2rem; }
 
-    .dkheadacts .dkact svg { width: 16px; height: 16px; }
+    .dkheadacts .dkact svg { width: var(--i-md); height: var(--i-md); }
 
     .dkuse {
         display: flex;
@@ -938,23 +889,19 @@
 
     .dkusename {
         flex: none;
-        width: 6.4rem;
-        font-family: var(--mono);
-        font-size: 11.5px;
-        letter-spacing: .06em;
-        text-transform: uppercase;
-        color: var(--ink-dim);
+        width: 4.4rem;
+        font-size: var(--t-xs);
+        color: var(--ink-faint);
     }
 
     .dkusenum {
-        font-family: var(--mono);
-        font-size: 14px;
-        font-weight: 700;
+        font-size: var(--t-sm);
+        font-weight: 600;
         font-variant-numeric: tabular-nums;
         color: var(--ink);
     }
 
-    .dkuselabel { margin-left: auto; font-size: 11.5px; color: var(--ink-faint); }
+    .dkuselabel { margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); }
 
     .dklogs {
         flex: 1;
@@ -962,7 +909,7 @@
         overflow: auto;
         padding: .4rem .5rem .6rem;
         font-family: var(--code);
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         line-height: 1.45;
     }
 
@@ -977,36 +924,31 @@
         display: grid;
         grid-template-columns: 2rem minmax(0, 1fr) auto;
         align-items: center;
-        gap: .6rem;
+        gap: 0 .6rem;
         width: 100%;
-        padding: .6rem .6rem .7rem;
+        padding: .55rem .6rem .6rem;
         border: 0;
         border-bottom: var(--hair) solid var(--line);
-        background-image: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, .085) 0 var(--fill, 0%),
-            transparent var(--fill, 0%)
-        );
-        background-color: transparent;
+        background: none;
         color: var(--ink);
         text-align: left;
         cursor: pointer;
     }
 
-    .dkcat.on { background-color: var(--accent-bg); box-shadow: inset 3px 0 0 var(--accent); }
+    .dkcat.on { background: var(--accent-bg); }
 
-    .dkcaticon { display: grid; place-items: center; color: var(--ink-dim); }
+    .dkcaticon { display: grid; place-items: center; color: var(--ink-faint); }
 
-    .dkcaticon svg { width: 20px; height: 20px; }
+    .dkcaticon svg { width: var(--i-md); height: var(--i-md); }
 
     .dkcat.on .dkcaticon { color: var(--accent); }
 
     .dkcatbody { min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
 
-    .dkcatname { font-size: 14.5px; font-weight: 600; }
+    .dkcatname { font-size: var(--t-md); }
 
     .dkcatsub {
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         color: var(--ink-dim);
         overflow: hidden;
         text-overflow: ellipsis;
@@ -1014,21 +956,21 @@
     }
 
     .dkcatvalue {
-        font-family: var(--mono);
-        font-size: 16px;
-        font-weight: 700;
+        font-size: var(--t-md);
+        font-weight: 600;
         font-variant-numeric: tabular-nums;
     }
 
     .dkcatbar {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        grid-column: 2 / -1;
         height: 3px;
+        margin-top: .3rem;
+        border-radius: var(--r-small);
+        background: var(--line);
+        overflow: hidden;
     }
 
-    .dkcatbar i { display: block; height: 100%; background: var(--ok); }
+    .dkcatbar i { display: block; height: 100%; background: var(--accent); }
 
     .dkcatbar.dkwarn i { background: var(--warn); }
 
@@ -1044,10 +986,11 @@
         padding: .7rem .8rem .9rem;
     }
 
+    /* A plot, a card of facts and a table of the machine are cut out of the
+       page by a hairline edge, with no ground of their own. */
     .dkplot {
-        border: var(--hair) solid var(--edge);
         border-radius: var(--r-card);
-        background: var(--glass);
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
         padding: .4rem .5rem .2rem;
     }
 
@@ -1060,22 +1003,15 @@
         flex-direction: column;
         gap: .15rem;
         padding: .5rem .65rem .6rem;
-        border: var(--hair) solid var(--edge);
         border-radius: var(--r-card);
-        background: var(--glass);
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
     }
 
-    .dkcard span {
-        font-size: 0.7025rem;
-        letter-spacing: .09em;
-        text-transform: uppercase;
-        color: var(--ink-faint);
-    }
+    .dkcard span { font-size: var(--t-xs); color: var(--ink-faint); }
 
     .dkcard b {
-        font-family: var(--mono);
-        font-size: 18px;
-        font-weight: 700;
+        font-size: var(--t-xl);
+        font-weight: 600;
         font-variant-numeric: tabular-nums;
         color: var(--ink);
     }
@@ -1084,9 +1020,8 @@
 
     .dkmbody .dktable {
         flex: none;
-        border: var(--hair) solid var(--edge);
         border-radius: var(--r-card);
-        background: var(--glass);
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
         overflow: hidden;
     }
 
@@ -1102,9 +1037,7 @@
 
     .dkkind {
         justify-self: start;
-        font-size: 11px;
-        letter-spacing: .04em;
-        text-transform: uppercase;
+        font-size: var(--t-xs);
         color: var(--ink-faint);
         border: var(--hair) solid var(--edge);
         border-radius: var(--r-pill);
@@ -1113,12 +1046,13 @@
 
     .dkttr .dkc-name { display: flex; align-items: center; gap: .35rem; }
 
+    /* A tile of the home screen is a hairline edge on the page, not a pane of
+       glass with a shadow. */
     .dkwidget {
         min-width: 0;
         min-height: 0;
-        border: var(--hair) solid var(--edge);
         border-radius: var(--r-card);
-        background: var(--glass);
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
         overflow: hidden;
     }
 
@@ -1134,7 +1068,7 @@
         gap: .15rem .7rem;
         padding: 1rem 1.1rem;
         border: 0;
-        border-left: var(--hair) solid var(--edge);
+        border-left: var(--hair) solid var(--line);
         background: transparent;
         color: var(--ink);
         text-align: left;
@@ -1149,26 +1083,23 @@
         place-items: center;
         width: 2.4rem;
         height: 2.4rem;
-        border-radius: var(--r-card);
-        background: var(--accent-bg);
-        color: var(--accent);
+        color: var(--ink-faint);
     }
 
-    .dkjumpicon svg { width: 22px; height: 22px; }
+    .dkjumpicon svg { width: var(--i-lg); height: var(--i-lg); }
 
     .dkjumpvalue {
-        font-family: var(--mono);
-        font-size: 23px;
-        font-weight: 700;
+        font-size: var(--t-2xl);
+        font-weight: 600;
         font-variant-numeric: tabular-nums;
         line-height: 1.1;
     }
 
-    .dkjumplabel { grid-column: 2; font-size: 13.5px; font-weight: 600; color: var(--ink-dim); }
+    .dkjumplabel { grid-column: 2; font-size: var(--t-md); color: var(--ink-dim); }
 
     .dkjumpsub {
         grid-column: 2;
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         line-height: 1.35;
         color: var(--ink-faint);
         display: -webkit-box;
@@ -1177,7 +1108,7 @@
         overflow: hidden;
     }
 
-    .dkjump.hot .dkjumpicon { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+    .dkjump.hot .dkjumpicon { color: var(--warn); }
 
     .dkjump.hot .dkjumpsub { color: var(--warn); }
 
@@ -1231,7 +1162,7 @@
         display: grid;
         place-items: center;
         min-height: 8rem;
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         color: var(--ink-faint);
     }
 
@@ -1239,11 +1170,11 @@
 
     .dkchev { flex: none; display: grid; place-items: center; color: var(--ink-faint); }
 
-    .dkchev svg { width: 15px; height: 15px; }
+    .dkchev svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dkchev.down svg { transform: rotate(90deg); }
 
-    .dkproj .dkname { font-weight: 600; }
+    .dkproj .dkname { font-weight: 500; }
 
     .dkitem .dkname { flex: none; max-width: 16rem; }
 
@@ -1254,25 +1185,17 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         font-family: var(--mono);
-        font-size: 12px;
+        font-size: var(--t-sm);
         color: var(--ink-faint);
     }
 
     .dkmiss {
         flex: none;
-        display: grid;
-        place-items: center;
-        width: 1rem;
-        height: 1rem;
-        border-radius: 50%;
-        background: var(--warn);
-        color: #06070f;
-        font-size: 12px;
-        font-weight: 800;
+        font-family: var(--mono);
+        font-size: var(--t-sm);
         line-height: 1;
+        color: var(--warn);
     }
-
-    :root.sky .dkmiss { color: #f2f8ff; }
 
     .dkgone .dkname { color: var(--warn); }
 
@@ -1285,16 +1208,16 @@
         height: 32px;
         padding: 0 .7rem;
         border: 0;
-        border-top: var(--hair) solid var(--edge);
+        border-top: var(--hair) solid var(--line);
         background: transparent;
         color: var(--accent);
         font: inherit;
-        font-size: 13.5px;
+        font-size: var(--t-md);
         text-align: left;
         cursor: pointer;
     }
 
-    .dkadd svg { width: 14px; height: 14px; }
+    .dkadd svg { width: var(--i-sm); height: var(--i-sm); }
 
     .dkloose {
         margin: .5rem .6rem;
@@ -1312,15 +1235,16 @@
         max-width: 18rem;
         height: 26px;
         padding: 0 .5rem;
-        border: var(--hair) solid var(--edge);
+        border: 0;
         border-radius: var(--r-small);
-        background: var(--glass);
+        background: none;
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
         color: var(--ink);
         font: inherit;
-        font-size: 13px;
+        font-size: var(--t-sm);
     }
 
-    .dkwarnline { margin: .35rem 0 0; font-size: 12.5px; color: var(--warn); }
+    .dkwarnline { margin: .35rem 0 0; font-size: var(--t-sm); color: var(--warn); }
 
     .dkunder { padding-left: 2.4rem; }
 
@@ -1349,7 +1273,7 @@
         border-bottom: var(--hair) solid var(--edge);
     }
 
-    .dkmodaltitle { flex: none; font-size: 16px; font-weight: 700; }
+    .dkmodaltitle { flex: none; font-size: var(--t-lg); font-weight: 600; }
 
     .dkmodalsub {
         flex: 1;
@@ -1357,7 +1281,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 13px;
+        font-size: var(--t-sm);
         color: var(--ink-faint);
     }
 
@@ -1376,20 +1300,18 @@
     .dkbrand:hover { color: var(--ink); background: var(--glass); }
     .dkib:hover { color: var(--ink); background: var(--glass); }
     .dkpickrow:hover { background: var(--glass); color: var(--ink); }
-    .dksess:hover { background-color: var(--glass); }
-    .dkscroll:hover .dkhint { color: var(--ink-faint); }
+    .dksess:not(.on):hover { background: var(--glass); }
     .dktr:hover .dkc-acts { opacity: 1; }
-    .dkact:hover { color: var(--ink); background: var(--glass-2); border-color: var(--ink-faint); }
-    .dkact.danger:hover { color: var(--crit); border-color: var(--crit); }
+    .dkact:hover { color: var(--ink); }
+    .dkact.danger:hover { color: var(--crit); }
     .dkclose:hover { color: var(--ink); background: var(--glass); }
     .dkrow:hover { background: var(--glass); }
-    .dkact.danger:hover { color: var(--crit); }
-    .dkpagebtn:not(:disabled):hover { color: var(--ink); background: var(--glass-2); }
+    .dkpagebtn:not(:disabled):hover { color: var(--ink); }
     .dkarch:hover { background: var(--glass); }
-    .dkcat:hover { background-color: var(--glass); }
-    .dkjump:hover { background: var(--glass-2); }
+    .dkcat:not(.on):hover { background: var(--glass); }
+    .dkjump:hover { background: var(--glass); }
     .feedjump:hover { color: var(--ink); background: var(--glass-2); }
-    .dkact.off:hover { background: var(--glass); border-color: var(--edge); color: var(--ink-dim); }
+    .dkact.off:hover { color: var(--ink-faint); }
     .dkadd:hover { background: var(--glass); }
 
 .deskshell .dkscroll,
@@ -1435,14 +1357,13 @@
 @media (hover: hover) and (pointer: fine) {
     .deskshell .dkc-acts { opacity: 0; }
     .deskshell .dkc-acts.shown { opacity: 1; }
+    .deskshell .dkarch .dkacts { opacity: 0; }
+    .deskshell .dkarch:hover .dkacts { opacity: 1; }
 }
 @media (min-width: 1100px) {
 .dklimreset {
-        flex: none;
-        width: 3.1rem;
-        text-align: right;
-        font-family: var(--mono);
-        font-size: 11px;
+        margin-left: auto;
+        font-size: var(--t-xs);
         color: var(--ink-faint);
         font-variant-numeric: tabular-nums;
     }
@@ -1454,7 +1375,7 @@
         flex-direction: column;
         gap: .15rem;
         padding: .4rem .55rem .45rem;
-        border-bottom: var(--hair) solid var(--edge);
+        border-bottom: var(--hair) solid var(--line);
     }
 
     .dkentrytop { display: flex; align-items: center; gap: .4rem; min-width: 0; }
@@ -1466,13 +1387,13 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         font-family: var(--mono);
-        font-size: 12px;
+        font-size: var(--t-sm);
         color: var(--ink-dim);
     }
 
-    .dkentrydetail { font-size: 12.5px; line-height: 1.4; color: var(--ink-dim); }
+    .dkentrydetail { font-size: var(--t-sm); line-height: 1.4; color: var(--ink-dim); }
 
-    .dkentrymeta { display: flex; gap: .5rem; font-size: 11.5px; color: var(--ink-faint); }
+    .dkentrymeta { display: flex; gap: .5rem; font-size: var(--t-xs); color: var(--ink-faint); }
     .dkentrymeta .ok { color: var(--ok); }
     .dkentrymeta .warn { color: var(--warn); }
     .dkentrymeta .crit { color: var(--crit); }
@@ -1481,7 +1402,7 @@
 @media (min-width: 1100px) {
 .dkdotcell { flex: none; display: grid; place-items: center; width: .5rem; }
 
-    .dkproj .dkname { font-size: 14px; }
+    .dkproj .dkname { font-size: var(--t-md); }
 
     .dkitem { height: 34px; }
 }
@@ -1510,7 +1431,7 @@
         min-width: 0;
     }
 
-    .uwgtitle { flex: none; font-size: 13px; font-weight: 700; letter-spacing: -.01em; }
+    .uwgtitle { flex: none; font-size: var(--t-sm); font-weight: 600; }
 
     .uwgnote {
         flex: 1 1 auto;
@@ -1518,7 +1439,7 @@
         display: flex;
         align-items: center;
         gap: .5rem;
-        font-size: 11.5px;
+        font-size: var(--t-xs);
         color: var(--ink-faint);
         white-space: nowrap;
         overflow: hidden;
@@ -1527,11 +1448,11 @@
 
     .uwgacts { flex: none; margin-left: auto; display: flex; align-items: center; gap: .3rem; }
 
-    .uwgacts .dkact { width: 1.7rem; height: 1.7rem; border-color: var(--edge); }
+    .uwgacts .dkact { width: 1.7rem; height: 1.7rem; }
 
-    .uwgacts .dkact svg { width: 14px; height: 14px; }
+    .uwgacts .dkact svg { width: var(--i-sm); height: var(--i-sm); }
 
-    .uwgacts .dkact.busy { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+    .uwgacts .dkact.busy { color: var(--accent); }
 
     .uwgbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .3rem; }
 
@@ -1541,15 +1462,14 @@
         align-items: baseline;
         gap: .4rem;
         min-width: 0;
-        font-size: 25px;
-        font-weight: 700;
-        letter-spacing: -.02em;
+        font-size: var(--t-2xl);
+        font-weight: 600;
         line-height: 1.1;
     }
 
     .uwgunit {
         min-width: 0;
-        font-size: 11.5px;
+        font-size: var(--t-xs);
         font-weight: 500;
         color: var(--ink-faint);
         overflow: hidden;
@@ -1557,14 +1477,14 @@
         white-space: nowrap;
     }
 
-    .uwgsub { margin: 0; font-size: 12px; color: var(--ink-dim); }
+    .uwgsub { margin: 0; font-size: var(--t-sm); color: var(--ink-dim); }
     .uwgsub.crit { color: var(--crit); }
 
     .uwgblank {
         margin: auto;
         padding: 0 .3rem;
         text-align: center;
-        font-size: 12.5px;
+        font-size: var(--t-sm);
         color: var(--ink-faint);
     }
 
@@ -1573,7 +1493,7 @@
 
     .uwgfirst { margin: auto; display: flex; flex-direction: column; align-items: center; gap: .35rem; text-align: center; }
 
-    .uwgfirst .btn { padding: .3rem .7rem; font-size: 12.5px; }
+    .uwgfirst .btn { padding: .3rem .7rem; font-size: var(--t-sm); }
 
 .uwg .chart.spark { --chart-h: 30; flex: none; }
 
@@ -1594,7 +1514,7 @@
         display: flex;
         flex-wrap: wrap;
         gap: .2rem .8rem;
-        font-size: 11.5px;
+        font-size: var(--t-xs);
     }
 
     .uleg li { display: flex; align-items: center; gap: .3rem; min-width: 0; }
@@ -1638,17 +1558,17 @@
 
     .usrow.open { cursor: pointer; }
 
-    .usrow.open:hover { background: var(--glass-2); }
+    .usrow.open:hover { background: var(--glass); }
 
     .usrline { display: flex; align-items: baseline; gap: .4rem; min-width: 0; }
 
-    .usrname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .usrname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); }
 
-    .usrsub { flex: none; font-size: 11px; color: var(--ink-faint); }
+    .usrsub { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 
     .usrsub .crit { color: var(--crit); }
 
-    .usrval { flex: none; margin-left: auto; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .usrval { flex: none; margin-left: auto; font-size: var(--t-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
 
     .usrbar {
         display: block;
@@ -1674,13 +1594,13 @@
         background: none;
         color: var(--ink-faint);
         font: inherit;
-        font-size: 11.5px;
+        font-size: var(--t-xs);
         cursor: pointer;
     }
 
     .uchip:hover { color: var(--ink); }
 
-    .uchip.on { border-color: var(--edge); background: var(--glass-2); color: var(--ink); }
+    .uchip.on { border-color: var(--edge); color: var(--ink); }
 
     .uslayer {
         position: absolute;
@@ -1702,15 +1622,15 @@
         min-width: 0;
     }
 
-    .uslayertitle { flex: none; font-size: 15px; font-weight: 700; }
+    .uslayertitle { flex: none; font-size: var(--t-base); font-weight: 600; }
 
-    .uslayernote { flex: none; font-size: 12px; color: var(--ink-faint); }
+    .uslayernote { flex: none; font-size: var(--t-sm); color: var(--ink-faint); }
 
     .uslayeracts { margin-left: auto; display: flex; align-items: center; gap: .5rem; }
 
     .uslayerbody { flex: 1; min-height: 0; overflow-y: auto; padding: .7rem .8rem 1rem; }
 
-    .ustrail { display: flex; align-items: center; gap: .25rem; min-width: 0; font-size: 12px; overflow: hidden; }
+    .ustrail { display: flex; align-items: center; gap: .25rem; min-width: 0; font-size: var(--t-sm); overflow: hidden; }
 
     .ustrailsep { color: var(--ink-faint); font-style: normal; }
 
@@ -1725,13 +1645,13 @@
 
     .ustrailhere { color: var(--ink-dim); max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 
-    .ustable { width: 100%; max-width: 66rem; border-collapse: collapse; font-size: 13px; }
+    .ustable { width: 100%; max-width: 66rem; border-collapse: collapse; font-size: var(--t-sm); }
 
     .ustable th {
         padding: .25rem .5rem;
         border-bottom: var(--hair) solid var(--edge);
         text-align: left;
-        font-size: 11.5px;
+        font-size: var(--t-xs);
         font-weight: 600;
         color: var(--ink-faint);
     }
@@ -1748,17 +1668,17 @@
 
     .ustable .share .usrbar { display: inline-block; width: 5.5rem; margin: 0 .4rem 0 0; vertical-align: middle; }
 
-    .usrpct { font-size: 11.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+    .usrpct { font-size: var(--t-xs); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 
     .ustable tr.open { cursor: pointer; }
 
-    .ustable tr.open:hover { background: var(--glass-2); }
+    .ustable tr.open:hover { background: var(--glass); }
 
 .ustable tr.outside td { color: var(--warn); }
 
 .usscan { display: flex; flex-direction: column; gap: .55rem; max-width: 44rem; }
 
-    .usscanline { margin: 0; font-size: 13.5px; }
+    .usscanline { margin: 0; font-size: var(--t-md); }
 
     .usscanrows { display: flex; flex-direction: column; gap: .35rem; }
 
@@ -1776,8 +1696,7 @@
         padding: .1rem .4rem;
         border: var(--hair) solid var(--edge);
         border-radius: var(--r-pill);
-        background: var(--glass-2);
-        font-size: 11.5px;
+        font-size: var(--t-xs);
         color: var(--ink-dim);
     }
 

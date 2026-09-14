@@ -5,7 +5,7 @@
     width: 100%;
     margin-top: .5rem;
     padding: .6rem .65rem;
-    font: inherit; font-size: .8rem; text-align: left;
+    font: inherit; font-size: var(--t-sm); text-align: left;
     color: var(--ink);
     background: var(--glass-2);
     backdrop-filter: var(--blur);
@@ -17,7 +17,7 @@
 }
 .askdot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
 .waittext { min-width: 0; }
-.waitgo { margin-left: auto; color: var(--ink-faint); font-size: .74rem; }
+.waitgo { margin-left: auto; color: var(--ink-faint); font-size: var(--t-xs); }
 
 .waitbar.sent {
     box-shadow: var(--hairline), var(--drop),
@@ -31,11 +31,8 @@
 .waitbar.bad .askdot { background: var(--crit); }
 
 .askhead { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .5rem; }
-.asklabel {
-    color: var(--warn); font-size: .68rem; font-weight: 700;
-    letter-spacing: .1em; text-transform: uppercase;
-}
-.askwhy { color: var(--ink-faint); font-size: .72rem; }
+.asklabel { color: var(--ink-faint); font-size: var(--t-xs); font-weight: 500; }
+.askwhy { color: var(--ink-faint); font-size: var(--t-xs); }
 
 .asksteps { display: flex; gap: 4px; margin-bottom: .7rem; }
 .asksteps i { flex: 1; height: 3px; border-radius: 2px; background: rgba(var(--tint), .12); }
@@ -45,31 +42,32 @@
 .askone + .askone { margin-top: .8rem; padding-top: .7rem; border-top: var(--hair) solid var(--edge); }
 .asktext {
     margin: 0 0 .1rem;
-    font-size: 1.08rem; font-weight: 700; line-height: 1.25; letter-spacing: -.015em;
-    text-wrap: balance;
+    font-size: var(--t-lg); font-weight: 600; line-height: 1.35; letter-spacing: -.01em;
+    text-wrap: pretty;
 }
-.askhint { margin: .3rem 0 0; color: var(--ink-faint); font-size: .76rem; }
+.askhint { margin: .3rem 0 0; color: var(--ink-faint); font-size: var(--t-xs); }
 
-.askopts { display: flex; flex-direction: column; gap: .4rem; margin-top: .7rem; }
+.askopts { display: flex; flex-direction: column; gap: .35rem; margin-top: .7rem; }
 
+/* An option is a hairline until it is picked; the pick is the one filled thing. */
 .askopt {
     display: flex; align-items: stretch;
-    background: var(--glass);
+    background: none;
     border: var(--hair) solid var(--line);
     border-radius: var(--r-card);
     transition: background .14s, border-color .14s;
 }
-.askopt:hover { background: var(--glass-2); }
+.askopt:hover { background: var(--glass); }
 .askopt.on {
     background: var(--accent-bg);
-    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .askopt.off { opacity: .55; }
 
 .askpick {
     display: flex; align-items: flex-start; gap: .6rem;
-    flex: 1; min-width: 0; min-height: 48px;
-    padding: .7rem .75rem;
+    flex: 1; min-width: 0; min-height: 44px;
+    padding: .55rem .65rem;
     font: inherit; text-align: left;
     color: var(--ink-dim); background: none; border: 0;
     border-radius: var(--r-card);
@@ -78,16 +76,16 @@
 .askpick:disabled { cursor: default; }
 .asktick {
     flex: 0 0 auto;
-    width: 18px; height: 18px; margin-top: 1px;
+    width: 16px; height: 16px; margin-top: 2px;
     display: grid; place-items: center;
-    font-size: .62rem; color: var(--on-accent);
-    border: 1.5px solid rgba(var(--tint), .25); border-radius: 50%;
+    font-size: var(--t-xs); color: var(--on-accent);
+    border: 1px solid color-mix(in srgb, var(--ink-faint) 70%, transparent); border-radius: 50%;
 }
 .askopt.on .asktick { background: var(--accent); border-color: var(--accent); }
 .askopt.on .asktick::after { content: "✓"; font-weight: 800; }
 .askbody { min-width: 0; }
-.askname { display: block; font-size: .92rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
-.askdesc { display: block; margin-top: .12rem; color: var(--ink-faint); font-size: .76rem; line-height: 1.35; }
+.askname { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.3; }
+.askdesc { display: block; margin-top: .1rem; color: var(--ink-faint); font-size: var(--t-sm); line-height: 1.35; }
 
 .askinfo {
     flex: 0 0 auto;
@@ -98,7 +96,7 @@
     cursor: pointer;
 }
 .askinfo:hover { color: var(--ink); background: var(--glass-2); }
-.askinfo svg { width: 17px; height: 17px; }
+.askinfo svg { width: var(--i-md); height: var(--i-md); }
 
 .askfoot { display: flex; gap: .4rem; margin-top: .8rem; }
 .askfoot .btn { padding-block: .7rem; }
@@ -111,10 +109,10 @@
     padding: .55rem .6rem;
     background: var(--glass); border-radius: var(--r-card);
 }
-.askrowq { flex: 1; min-width: 0; color: var(--ink-faint); font-size: .74rem; }
-.askrowa { font-size: .84rem; font-weight: 600; color: var(--ink); }
+.askrowq { flex: 1; min-width: 0; color: var(--ink-faint); font-size: var(--t-xs); }
+.askrowa { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
 .askrowa.skip { color: var(--ink-faint); font-weight: 400; }
-.askedit { color: var(--accent); background: none; border: 0; font: inherit; font-size: .74rem; cursor: pointer; }
+.askedit { color: var(--accent); background: none; border: 0; font: inherit; font-size: var(--t-xs); cursor: pointer; }
 
 .askover .sheet { z-index: 21; }
 .askover .scrim { z-index: 20; }
@@ -126,13 +124,15 @@
     box-sizing: border-box;
     overflow: auto;
     font-family: var(--code);
-    font-size: .68rem; line-height: 1.4;
+    font-size: var(--t-xs); line-height: 1.4;
     white-space: pre;
     color: var(--ink-dim);
     background: rgba(0, 0, 0, .3);
     border: var(--hair) solid var(--line); border-radius: var(--r-card);
 }
 
+/* Free words are an answer of another kind: no edge, a dashed circle. */
+.askown { border-color: transparent; background: rgba(var(--tint), .04); }
 .askown .asktick { border-style: dashed; }
 .askown.on .asktick { border-style: solid; }
 
@@ -142,7 +142,7 @@
     box-sizing: border-box;
     max-height: 40vh;
     padding: .7rem .75rem;
-    font: inherit; font-size: .92rem; line-height: 1.4;
+    font: inherit; font-size: var(--t-md); line-height: 1.4;
     color: var(--ink);
     background: var(--glass);
     border: var(--hair) solid color-mix(in srgb, var(--accent) 45%, transparent);
@@ -153,26 +153,27 @@
 .askinput:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
 .askinput:disabled { opacity: .55; }
 
+/* Dismissing is a line of text, not a third kind of box. */
 .askdrop {
     display: flex; flex-direction: column; gap: .1rem;
     width: 100%; min-height: 44px;
-    margin-top: .7rem;
-    padding: .55rem .75rem;
+    margin-top: .6rem;
+    padding: .5rem 0;
     font: inherit; text-align: left;
     color: var(--ink-dim); background: none;
-    border: var(--hair) dashed var(--line);
+    border: 0;
     border-radius: var(--r-card);
     cursor: pointer;
 }
-.askdrop:hover { background: var(--glass); }
+.askdrop:hover .askdropname { color: var(--ink); }
 .askdrop:disabled { opacity: .5; cursor: default; }
-.askdropname { font-size: .86rem; font-weight: 600; }
-.askdropwhy { color: var(--ink-faint); font-size: .74rem; line-height: 1.3; }
+.askdropname { font-size: var(--t-sm); font-weight: 600; }
+.askdropwhy { color: var(--ink-faint); font-size: var(--t-xs); line-height: 1.3; }
 
 .askfail {
     margin: .6rem 0 0;
     padding: .5rem .6rem;
-    color: var(--ink); font-size: .8rem; line-height: 1.35;
+    color: var(--ink); font-size: var(--t-sm); line-height: 1.35;
     background: var(--crit-bg);
     border-radius: var(--r-card);
     overflow-wrap: anywhere;
