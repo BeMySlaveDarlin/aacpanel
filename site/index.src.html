@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>aacpanel — Atlas Agents Control Panel</title>
+<meta name="description" content="Answer your agents from your phone. aacpanel runs one Linux machine and the Claude Code sessions on it.">
+<meta name="theme-color" content="#06070f">
+<meta property="og:title" content="aacpanel — Atlas Agents Control Panel">
+<meta property="og:description" content="Answer your agents from your phone: see what one is doing, answer what it is stuck on, restart the container that went unhealthy.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://aacpanel.bemyslavedarlin.ru/">
+<meta property="og:image" content="https://aacpanel.bemyslavedarlin.ru/shots/d2-desk.webp">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-3 -3 30 30'%3E%3Crect x='-3' y='-3' width='30' height='30' rx='7' fill='%2306070f'/%3E%3Cg fill='none' stroke='%2363a8ff' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='5.2'/%3E%3Cellipse cx='12' cy='12' rx='10' ry='4.2' transform='rotate(-24 12 12)'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="scenes.css">
+<link rel="stylesheet" href="object.css">
+</head>
+<body>
+
+<!-- One sky for the whole page: two gradient layers that cross-fade as the
+     chapter changes, and the canvas the object is drawn on, under everything. -->
+<div class="sky" aria-hidden="true"><i class="on start"></i><i></i><canvas id="object"></canvas></div>
+
+<div class="wrap">
+
+<div class="topline">
+    <a class="logo" href="#top"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg><span>aacpanel</span></a>
+    <span class="expand">Atlas Agents Control Panel</span>
+</div>
+
+<main>
+
+<section class="chapter hero live" data-chapter="hero" id="top">
+    <svg class="orbit-bg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg>
+    <h1>Answer your agents from your phone.</h1>
+    <p class="lede">aacpanel runs one Linux machine and the <strong>Claude Code</strong> sessions
+        on it: see what an agent is doing, and answer what it is stuck on.</p>
+    <div class="cta">
+        <a class="go primary" href="#see">See it</a>
+        <a target="_blank" rel="noopener" class="go" href="https://github.com/BeMySlaveDarlin/aacpanel"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg> The code</a>
+    </div>
+    <div class="price">
+        <p class="pricesay"><strong>Free</strong>. Honestly, honestly, all of it free.</p>
+        <p class="pricefine">no&nbsp;account · no&nbsp;plan · no&nbsp;server&nbsp;of&nbsp;ours · at&nbsp;your&nbsp;own&nbsp;risk</p>
+        <p class="priceterms">Self-hosted under MIT. One Go binary and Postgres.</p>
+    </div>
+
+</section>
+
+<section class="chapter see" data-chapter="see" id="see">
+    <h2>The same panel in a hand and on a desk</h2>
+    <p class="say">On a desk the sessions stand beside the conversation; in a hand the list is the
+        first screen, and each session opens into its own.</p>
+    <div class="both">
+        <div class="desk"><div class="screen">{{scene:desk}}</div></div>
+        <div class="phone quiet"><div class="screen">{{scene:sessions}}</div></div>
+    </div>
+</section>
+
+<section class="chapter session" data-chapter="session" id="session">
+    <h2>A session is a conversation</h2>
+    <p class="say">The feed shows it as it happens, with the composer under the thumb; a team of
+        agents reads as one thread, each of them named.</p>
+    <div class="duo">
+        <figure class="card"><div class="phone"><div class="screen">{{scene:feed}}</div></div><figcaption>The feed, and the composer under it</figcaption></figure>
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:feed-team}}</div></div><figcaption>A team of agents in one feed</figcaption></figure>
+    </div>
+</section>
+
+<section class="chapter sheets" data-chapter="sheets" id="sheets">
+    <h2>The sheets: a question to answer, the calls behind an answer</h2>
+    <p class="say">A question from the session opens as a sheet and is answered with one tap; the
+        tool calls behind a message open the same way, each with its result.</p>
+    <div class="duo">
+        <figure class="card"><div class="phone"><div class="screen">{{scene:ask}}</div></div><figcaption>The question is a sheet. The answer is a tap.</figcaption></figure>
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:calls}}</div></div><figcaption>The tool calls behind an answer</figcaption></figure>
+    </div>
+</section>
+
+<section class="chapter cards" data-chapter="cards" id="cards">
+    <h2>The cards in the feed: a permission to grant, a letter to read</h2>
+    <p class="say">When Claude Code asks whether it may run a command, the same three answers come
+        to the page — numbered, with “from now on” where it offers to remember. A subagent's
+        letter lands in the same feed, and unfolds.</p>
+    <div class="duo">
+        <figure class="card"><div class="phone"><div class="screen">{{scene:permit}}</div></div><figcaption>The console's three answers, on the page</figcaption></figure>
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:feed-mail}}</div></div><figcaption>A letter from a subagent</figcaption></figure>
+    </div>
+</section>
+
+<section class="chapter more" data-chapter="more" id="more">
+    <h2>Subagents, and the archive</h2>
+    <p class="say">Every subagent has a page of its own, with the report it returned; a closed
+        conversation keeps its thread and comes back with one tap.</p>
+    <div class="duo">
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:subagents}}</div></div><figcaption>Subagents, and what each returned</figcaption></figure>
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:archive}}</div></div><figcaption>The archive, with resume</figcaption></figure>
+    </div>
+</section>
+
+<section class="chapter gate" data-chapter="gate" id="gate">
+    <h2>Before anything runs, the panel names the consequence</h2>
+    <p class="say">Containers stand by stack. Each action says what it will cost first, and the
+        journal keeps who pressed it and how it ended.</p>
+    <div class="duo">
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:containers}}</div></div><figcaption>Containers by stack</figcaption></figure>
+        <figure class="card"><div class="phone"><div class="screen">{{scene:container}}</div></div><figcaption>One container, and what an action will cost</figcaption></figure>
+    </div>
+</section>
+
+<section class="chapter terminal" data-chapter="terminal" id="terminal">
+    <h2>The session's own terminal</h2>
+    <p class="say">The same tmux the session runs in, typed into from the page, one tab further
+        than the feed.</p>
+    <div class="duo one">
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:terminal}}</div></div><figcaption>The session's own terminal</figcaption></figure>
+    </div>
+</section>
+
+<section class="chapter machine" data-chapter="machine" id="machine">
+    <h2>The load of the host, and the usage broken down</h2>
+    <p class="say">Processor, memory, disks and the top processes on one screen; the transcripts
+        summed by day, model, tool and account on the next.</p>
+    <div class="duo">
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:machine}}</div></div><figcaption>The load of the host</figcaption></figure>
+        <figure class="card"><div class="phone quiet"><div class="screen">{{scene:usage}}</div></div><figcaption>Usage, broken down</figcaption></figure>
+    </div>
+</section>
+
+<section class="chapter built" data-chapter="built" id="built">
+    <h2>Three processes, and the line between them is the point</h2>
+    <p class="say">The panel asks; something else decides. That line is why it can be opened
+        from outside at all.</p>
+    <p class="say after">The service in its container asks; the executor on the host carries out
+        one of twenty-two named actions; the collector only reads.
+        <a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a>
+        holds the boundaries.</p>
+    <p id="object-caption"></p>
+</section>
+
+<section class="chapter install" data-chapter="install" id="install">
+    <h2>About half an hour on a fresh machine</h2>
+    <p class="say">What it needs first: a Linux machine with systemd and docker, Go, tmux and
+        python3, and a claude you have already signed in to. Docker brings up the service and its
+        Postgres; the executor you build yourself, so the one piece allowed to touch the machine
+        arrives as your own binary.</p>
+    <div class="cmds" aria-hidden="true">
+        <div class="line"><span class="typed t1"><span>docker compose up -d</span></span></div>
+        <div class="line"><span class="typed t2"><span>go build ./cmd/aacpanel-exec</span></span></div>
+        <div class="line"><span class="typed t3"><span>systemctl --user start aacpanel-exec</span></span></div>
+    </div>
+    <p class="say after">Three lines are the shape of it, not the whole: it is eighteen steps, and
+        the order is the point — the machine description is read at startup by all three processes,
+        the database comes before the role that uses it.
+        <a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/INSTALL.md">INSTALL.md</a>
+        is written to be followed from the top down.</p>
+    <p class="say after">The way in is a code the binary prints on the machine itself, and there is
+        no other one. It lives five minutes, which is time enough to put a passkey on the phone you
+        will actually use; after that the phone is the key. Name a profile, a group and a project
+        on the first screen, and the sessions of that machine are yours to answer.</p>
+</section>
+
+<section class="chapter status" data-chapter="status" id="status">
+    <h2>One person, one machine, used there every day</h2>
+    <p class="say">Chrome and Chromium browsers, on Android and on the desk. Issues are welcome.</p>
+    <p class="say after">There is no price list, because there is nothing to sell: no account, no
+        plan, no server of ours between you and your machine. The panel runs on your hardware, the
+        licence is MIT, and that is the whole of it.</p>
+    <footer>
+        <div class="ring">
+            <svg class="orbit-big" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="5.2"/>
+                <g transform="rotate(-24 12 12)"><ellipse cx="12" cy="12" rx="10" ry="4.2"/><circle class="sat" r=".32"/></g>
+            </svg>
+        </div>
+        <p class="sign">aacpanel <span>— Atlas Agents Control Panel</span></p>
+        <p class="links"><a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel">GitHub</a><a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/LICENSE">MIT</a><a target="_blank" rel="noopener" href="https://claude.com/claude-code">Claude Code</a></p>
+        <p class="fine">22 named actions</p>
+    </footer>
+</section>
+
+</main>
+</div>
+
+<!-- The object first, so it is listening before the page says which chapter it is on;
+     both are modules, so they run in this order once the page is parsed. -->
+<script type="module" src="object.js"></script>
+<script type="module">
+/* The page's own moving parts: which chapter is on screen, and the sky that
+   follows it. Everything else is CSS. */
+(() => {
+    const root = document.documentElement;
+    const sky = [...document.querySelectorAll(".sky i")];
+    const chapters = [...document.querySelectorAll(".chapter")];
+    let front = 0, here = "";
+
+    // Two skies over one another: the one coming in is painted from the chapter's
+    // own gradients, then fades over the one standing.
+    const paint = (name) => {
+        const back = sky[1 - front];
+        back.style.backgroundImage = `var(--neb-${name})`;
+        back.classList.add("on");
+        sky[front].classList.remove("on");
+        front = 1 - front;
+    };
+
+    // The chapter is the one crossing the middle of the screen. The object under
+    // the page listens for the same event and turns with it.
+    const enter = (name) => {
+        if (name === here) return;
+        here = root.dataset.chapter = name;
+        paint(name);
+        chapters.forEach((s) => s.classList.toggle("live", s.dataset.chapter === name));
+        document.dispatchEvent(new CustomEvent("chapterchange", { detail: { chapter: name } }));
+    };
+
+    const watch = new IntersectionObserver((hits) => {
+        for (const hit of hits) if (hit.isIntersecting) enter(hit.target.dataset.chapter);
+    }, { rootMargin: "-45% 0px -45% 0px" });
+    chapters.forEach((s) => watch.observe(s));
+    enter(chapters[0].dataset.chapter);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>object — states</title>
+<link rel="stylesheet" href="object.css">
+<style>
+    html, body { margin: 0; height: 100%; background: #06070f; color: #eef1ff;
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    #object { width: 100%; height: 100%; display: block; }
+    .bar { position: fixed; z-index: 5; left: 8px; top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .bar button { font: inherit; font-size: 12px; padding: 4px 9px; border-radius: 999px; cursor: pointer;
+        color: #cfd8f5; background: rgba(18, 22, 40, .75); border: 1px solid rgba(143, 157, 255, .3); }
+    .bar button[aria-current="true"] { color: #06070f; background: #63a8ff; border-color: #63a8ff; }
+    #object-caption { position: fixed; z-index: 4; left: 0; right: 0; bottom: 18px; margin: 0 auto; max-width: 46rem;
+        padding: 0 16px; text-align: center; font-size: 13px; color: #9fb0d8; min-height: 2.4em; }
+    #object-caption b { color: #eef1ff; font-weight: 600; }
+</style>
+
+<div class="layer"><canvas id="object"></canvas></div>
+<nav class="bar"></nav>
+<pre id="err" style="position:fixed;z-index:9;left:8px;bottom:60px;color:#ff9a9a;font-size:11px;white-space:pre-wrap"></pre>
+<p id="object-caption"></p>
+
+<script>
+    const err = () => document.getElementById("err");
+    addEventListener("error", (e) => { err().textContent += "ERR " + (e.message || e) + " @" + (e.filename||"") + ":" + (e.lineno||"") + "\n"; });
+    addEventListener("unhandledrejection", (e) => { err().textContent += "REJ " + e.reason + "\n"; });
+</script>
+<script>
+    if (new URL(location).searchParams.has("perf")) {           // measure the object's own frame callback
+        const raf0 = requestAnimationFrame.bind(window);
+        window.__t = [];
+        window.requestAnimationFrame = (cb) => raf0((ts) => { const a = performance.now(); cb(ts); window.__t.push(performance.now() - a); });
+    }
+</script>
+<script type="module">
+    const CH = ["hero", "see", "does", "gate", "console", "built", "install", "status"];
+    const bar = document.querySelector(".bar");
+    const set = (c) => {
+        document.documentElement.dataset.chapter = c;
+        document.dispatchEvent(new CustomEvent("chapterchange", { detail: { chapter: c } }));
+        for (const b of bar.children) b.setAttribute("aria-current", String(b.textContent === c));
+    };
+    for (const c of CH) { const b = document.createElement("button"); b.textContent = c; b.onclick = () => set(c); bar.appendChild(b); }
+    document.documentElement.dataset.chapter = new URL(location).searchParams.get("c") || "hero";
+    await import("./object.js");
+    set(document.documentElement.dataset.chapter);
+    err().textContent += "rm=" + matchMedia("(prefers-reduced-motion: reduce)").matches + " dpr=" + devicePixelRatio + " hc=" + navigator.hardwareConcurrency + "\n";
+    addEventListener("keydown", (e) => { const i = +e.key; if (i >= 1 && i <= 8) set(CH[i - 1]); });
+</script>

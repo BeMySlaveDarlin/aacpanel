@@ -1,0 +1,560 @@
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(fonts/inter-400-latin.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 600 800;
+    font-display: swap;
+    src: url(fonts/inter-600-latin.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(fonts/jetbrains-mono-400-latin.woff2) format("woff2");
+}
+
+/* The tokens the panel itself is drawn with, so the site and the thing it shows
+   read as one piece rather than two. */
+:root {
+    --void: #06070f;
+    --tint: 255, 255, 255;
+    --hair: .5px;
+
+    --ink: #eef1ff;
+    --ink-dim: #bcc4e8;
+    --ink-faint: #8189b3;
+
+    --accent: #63a8ff;
+    --accent-2: #7fe3d4;
+    --ctx-3: #8f9dff;
+
+    --glass: linear-gradient(160deg, rgba(var(--tint), .11), rgba(var(--tint), .05) 62%);
+    --edge: rgba(var(--tint), .14);
+    --line: rgba(var(--tint), .16);
+    --gloss: inset 0 1px 0 rgba(var(--tint), .16);
+    --drop: 0 10px 26px rgba(14, 12, 44, .34);
+
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --r: 3px;
+    --gut: clamp(1rem, 4vw, 2.5rem);
+}
+
+/* A sky per chapter, out of the same three lights. The page moves through them
+   rather than sitting on one wallpaper. */
+:root {
+    --neb-hero:
+        radial-gradient(74% 34% at 8% -8%, rgba(99, 168, 255, .26), transparent 70%),
+        radial-gradient(58% 28% at 104% 2%, rgba(143, 157, 255, .24), transparent 72%),
+        radial-gradient(86% 34% at 0% 72%, rgba(127, 227, 212, .12), transparent 74%),
+        radial-gradient(130% 42% at 50% 110%, rgba(99, 168, 255, .16), transparent 72%);
+    --neb-see:
+        radial-gradient(66% 40% at -6% 18%, rgba(143, 157, 255, .26), transparent 72%),
+        radial-gradient(60% 34% at 108% 46%, rgba(99, 168, 255, .22), transparent 72%),
+        radial-gradient(90% 36% at 70% 108%, rgba(127, 227, 212, .14), transparent 74%);
+    --neb-session:
+        radial-gradient(58% 32% at 104% 8%, rgba(127, 227, 212, .22), transparent 72%),
+        radial-gradient(70% 38% at -8% 44%, rgba(99, 168, 255, .24), transparent 72%),
+        radial-gradient(120% 40% at 50% 112%, rgba(143, 157, 255, .18), transparent 72%);
+    --neb-sheets:
+        radial-gradient(64% 36% at -4% 10%, rgba(99, 168, 255, .24), transparent 72%),
+        radial-gradient(56% 30% at 106% 60%, rgba(127, 227, 212, .18), transparent 72%),
+        radial-gradient(110% 40% at 50% 112%, rgba(143, 157, 255, .16), transparent 72%);
+    --neb-cards:
+        radial-gradient(60% 34% at 102% 0%, rgba(143, 157, 255, .26), transparent 72%),
+        radial-gradient(70% 36% at -6% 58%, rgba(127, 227, 212, .16), transparent 72%),
+        radial-gradient(120% 40% at 50% 110%, rgba(99, 168, 255, .18), transparent 72%);
+    --neb-more:
+        radial-gradient(60% 34% at -4% 0%, rgba(143, 157, 255, .22), transparent 72%),
+        radial-gradient(64% 34% at 106% 48%, rgba(99, 168, 255, .20), transparent 72%),
+        radial-gradient(120% 40% at 50% 112%, rgba(127, 227, 212, .12), transparent 72%);
+    --neb-machine:
+        radial-gradient(62% 34% at -4% 6%, rgba(127, 227, 212, .20), transparent 72%),
+        radial-gradient(60% 34% at 104% 50%, rgba(143, 157, 255, .22), transparent 72%),
+        radial-gradient(120% 40% at 50% 112%, rgba(99, 168, 255, .16), transparent 72%);
+    --neb-gate:
+        radial-gradient(50% 34% at 50% 32%, rgba(99, 168, 255, .30), transparent 70%),
+        radial-gradient(80% 44% at 4% 98%, rgba(143, 157, 255, .20), transparent 72%),
+        radial-gradient(70% 36% at 102% 0%, rgba(143, 157, 255, .16), transparent 72%);
+    --neb-terminal:
+        radial-gradient(64% 34% at 52% -10%, rgba(143, 157, 255, .26), transparent 72%),
+        radial-gradient(64% 36% at -6% 70%, rgba(99, 168, 255, .24), transparent 72%),
+        radial-gradient(46% 26% at 106% 34%, rgba(127, 227, 212, .14), transparent 72%);
+    --neb-built:
+        radial-gradient(56% 40% at 50% 46%, rgba(143, 157, 255, .22), transparent 72%),
+        radial-gradient(90% 40% at 50% -12%, rgba(99, 168, 255, .14), transparent 72%),
+        radial-gradient(90% 36% at 50% 112%, rgba(127, 227, 212, .10), transparent 74%);
+    --neb-install:
+        radial-gradient(66% 38% at -4% 88%, rgba(127, 227, 212, .20), transparent 74%),
+        radial-gradient(60% 32% at 96% 6%, rgba(99, 168, 255, .18), transparent 72%),
+        radial-gradient(110% 40% at 50% 50%, rgba(143, 157, 255, .10), transparent 74%);
+    --neb-status:
+        radial-gradient(70% 40% at 50% 8%, rgba(99, 168, 255, .16), transparent 72%),
+        radial-gradient(80% 40% at 50% 104%, rgba(143, 157, 255, .14), transparent 74%);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+
+.chapter > :is(h1, h2, h3) { line-height: 1.2; letter-spacing: -.02em; margin: 0; }
+.chapter > :is(h1, h2), .lede { text-wrap: balance; }
+
+::selection { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r); }
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ── the sky, and the object drawn on it ─────────────────────────────────── */
+
+/* One fixed layer under the whole page: two gradient skies that cross-fade
+   when the chapter changes, and the canvas the object lives on. */
+/* The sky is as tall as the largest viewport: a phone's address bar coming and
+   going then leaves the canvas its size, rather than clearing and rebuilding it. */
+.sky { position: fixed; top: 0; left: 0; width: 100%; height: 100lvh; z-index: 0; pointer-events: none; }
+.sky i { position: absolute; inset: 0; opacity: 0; transition: opacity .6s ease; }
+.sky i.on { opacity: 1; }
+.sky i.start { background-image: var(--neb-hero); }
+#object { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
+
+.wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1060px;
+    margin: 0 auto;
+    padding-inline: var(--gut);
+}
+
+/* ── the bar ─────────────────────────────────────────────────────────────── */
+
+.topline {
+    display: flex;
+    align-items: baseline;
+    gap: .7rem;
+    padding-top: clamp(1.4rem, 6vh, 3.4rem);
+}
+
+.logo {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -.02em;
+}
+
+.logo svg {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.7;
+    stroke-linecap: round;
+}
+
+.expand { color: var(--ink-faint); font-size: .86rem; }
+
+/* ── chapters ────────────────────────────────────────────────────────────── */
+
+/* The panel marks an alert with a bar down its left edge. Here the same bar
+   stands by every heading, and how much it glows follows how much the chapter
+   has to say about danger: brightest where an action is about to run. */
+.chapter {
+    --v: .4;
+    --vein: color-mix(in srgb, var(--accent) calc(var(--v) * 100%), rgba(var(--tint), .3));
+    --vein-glow: 0 0 calc(4px + 16px * var(--v)) color-mix(in srgb, var(--accent) calc(var(--v) * 85%), transparent);
+    position: relative;
+    padding-block: clamp(3rem, 11vh, 6.5rem);
+}
+
+.chapter + .chapter { border-top: var(--hair) solid rgba(var(--tint), .07); }
+.hero { padding-top: clamp(2rem, 7vh, 4rem); }
+
+[data-chapter="hero"] { --v: .3; }
+[data-chapter="see"] { --v: .4; }
+[data-chapter="session"] { --v: .45; }
+[data-chapter="sheets"] { --v: .5; }
+[data-chapter="cards"] { --v: .55; }
+[data-chapter="more"] { --v: .4; }
+[data-chapter="terminal"] { --v: .5; }
+[data-chapter="machine"] { --v: .45; }
+[data-chapter="gate"] { --v: 1; }
+[data-chapter="console"] { --v: .75; }
+[data-chapter="built"] { --v: .55; }
+[data-chapter="install"] { --v: .45; }
+[data-chapter="status"] { --v: .3; }
+
+.chapter > h1 {
+    font-size: clamp(2.3rem, 8vw, 4.4rem);
+    font-weight: 800;
+    margin-bottom: 1.1rem;
+}
+
+.lede {
+    font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+    color: var(--ink-dim);
+    max-width: 46ch;
+    margin: 0;
+    text-wrap: pretty;
+}
+
+.lede strong { color: var(--ink); font-weight: 600; white-space: nowrap; }
+
+.chapter > h2 {
+    position: relative;
+    padding-left: 1rem;
+    font-size: clamp(1.45rem, 4vw, 2.1rem);
+    font-weight: 700;
+    margin-bottom: 1rem;
+    max-width: 22ch;
+}
+
+.chapter > h2::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .12em;
+    bottom: .12em;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--vein);
+    box-shadow: var(--vein-glow);
+    animation: breathe 4.5s ease-in-out infinite;
+    animation-delay: calc(var(--v) * -3s);
+}
+
+.say {
+    font-size: 1rem;
+    color: var(--ink-dim);
+    max-width: 52ch;
+    margin: 0;
+    text-wrap: pretty;
+}
+
+.say + .say { margin-top: .9rem; }
+.say.after { margin-top: 1.6rem; }
+.say strong { color: var(--ink); font-weight: 600; }
+
+/* The orbit, large and nearly not there, behind the first words. */
+.orbit-bg {
+    position: absolute;
+    z-index: -1;
+    right: -4%;
+    top: 0;
+    width: 76%;
+    pointer-events: none;
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: .35;
+    stroke-linecap: round;
+    opacity: .07;
+}
+
+.cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-top: clamp(1.6rem, 5vh, 3rem);
+}
+
+.go {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .7rem 1.15rem;
+    border-radius: var(--r);
+    text-decoration: none;
+    font-size: .92rem;
+    font-weight: 600;
+    background: var(--glass);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
+    color: var(--ink);
+    transition: background .18s ease, transform .18s ease;
+}
+
+.go:hover { background: linear-gradient(160deg, rgba(var(--tint), .16), rgba(var(--tint), .07) 62%); }
+.go:active { transform: translateY(1px); }
+
+.go.primary {
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--accent) 34%, transparent),
+        color-mix(in srgb, var(--accent) 16%, transparent) 62%);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.go svg { width: 17px; height: 17px; }
+
+/* What it costs, pulled out of the fine print. A visitor scanning for a price
+   finds the answer where a price would have stood, and the bar down its left is
+   the one the headings wear, so it belongs to the page rather than sitting on
+   it. */
+.price {
+    position: relative;
+    margin: clamp(1.5rem, 5vh, 2.4rem) 0 0;
+    padding: clamp(.9rem, 1.5vw, 1.25rem) clamp(1.15rem, 2vw, 1.6rem);
+    max-width: 32rem;
+    border-radius: var(--r);
+    background: var(--glass);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
+}
+
+.price::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: clamp(.75rem, 1.3vw, 1.05rem);
+    bottom: clamp(.75rem, 1.3vw, 1.05rem);
+    width: 2px;
+    border-radius: 1px;
+    background: var(--vein);
+    box-shadow: var(--vein-glow);
+}
+
+.pricesay {
+    margin: 0;
+    font-size: clamp(1.06rem, 1.5vw, 1.22rem);
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--ink);
+}
+.pricesay strong { color: var(--accent); font-weight: 800; }
+
+.pricefine {
+    margin: .6rem 0 0;
+    font-family: var(--mono);
+    font-size: .72rem;
+    line-height: 1.6;
+    color: var(--accent-2);
+    opacity: .82;
+}
+
+.priceterms { margin: .45rem 0 0; font-size: .82rem; line-height: 1.6; color: var(--ink-faint); }
+
+/* ── the frames, and the contract with the scenes ────────────────────────── */
+
+/* A frame is a container: the scene inside it is laid out in em, and the frame
+   sets what an em is worth, so one scene fits any size of frame. Its size is its
+   own — the minimum of nothing inside it may push it, or a scene mid-build takes
+   the page with it. */
+.phone, .desk { min-width: 0; min-height: 0; }
+
+.phone {
+    width: 100%; max-width: 300px; aspect-ratio: 393 / 852;
+    border-radius: 30px; padding: 8px;
+    container-type: inline-size;
+    background: var(--glass);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss),
+        0 30px 70px -28px rgba(4, 5, 12, .9),
+        0 0 110px -50px color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+.phone.quiet { box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss), 0 30px 70px -28px rgba(4, 5, 12, .9); }
+
+.desk {
+    width: 100%;
+    border-radius: 10px;
+    padding: 6px;
+    container-type: inline-size;
+    background: var(--glass);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss), var(--drop);
+}
+
+.screen {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0a0c18;
+    color: var(--ink-dim);
+    text-align: left;
+    line-height: 1.4;
+}
+
+.phone > .screen { height: 100%; border-radius: 22px; font-size: 4.26cqw; }
+.desk > .screen { aspect-ratio: 1600 / 1000; border-radius: 6px; font-size: 1cqw; }
+
+/* Whatever the scene's own root is called, it takes the screen and no more. */
+.screen > * { flex: 1 1 auto; min-height: 0; }
+
+/* A scene that has no file yet says so, rather than leaving a black rectangle. */
+.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 3.6cqw;
+    color: var(--ink-faint);
+    background: repeating-linear-gradient(135deg, rgba(var(--tint), .03) 0 8px, transparent 8px 16px), #0a0c18;
+    box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.placeholder.broken { color: #ff7ba8; box-shadow: inset 0 0 0 1px color-mix(in srgb, #ff7ba8 60%, transparent); }
+
+/* The object under the page has stars of its own to point at, and the page lies
+   over it edge to edge. So the page itself takes no pointer: only the things in
+   a chapter do, and the space between them belongs to what is underneath. */
+.wrap, main, .chapter { pointer-events: none; }
+.chapter > *, .topline > * { pointer-events: auto; }
+
+/* A scene runs while its chapter is the one on screen. */
+.chapter:not(.live) .screen * { animation-play-state: paused; }
+
+/* The panel's glass is blur over whatever moves behind it. In a frame this small
+   it cannot be seen, and over a canvas that redraws it is paid for on every frame. */
+.screen * { backdrop-filter: none !important; }
+
+.cmds .typed { display: inline-block; width: 9.6em; white-space: pre; vertical-align: bottom; }
+.cmds .typed > span { display: inline-block; }
+
+/* ── how the frames are laid out in a chapter ────────────────────────────── */
+
+.duo > .card { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .8rem; width: 100%; }
+.duo figcaption { font-size: .82rem; color: var(--ink-faint); text-align: center; max-width: 34ch; text-wrap: pretty; }
+
+/* The desk and the hand, the same page twice. */
+.both { display: grid; gap: 1.6rem; justify-items: center; margin-top: 2rem; }
+.both .phone { max-width: 270px; }
+
+/* One frame with the words beside it. */
+/* Two screens to a chapter: under one another in a hand, side by side on a desk.
+   The page scrolls one way only; a second axis fights the thumb. */
+.duo { display: grid; gap: 2.2rem; justify-items: center; margin-top: 2rem; }
+.duo .phone { max-width: 270px; }
+
+/* ── the drawn pieces: the shell and the orbit ───────────────────────────── */
+
+/* The chapter keeps the height the galaxy needs, and holds its words in the
+   middle of it. The three processes are the galaxy's own core, not a second
+   drawing of the same three names. */
+.built { min-height: min(84vh, 720px); display: grid; align-content: start; justify-items: start; }
+#object-caption { margin: 1.4rem 0 0; min-height: 1.5em; font-size: .8rem; line-height: 1.5; color: var(--ink-faint); text-wrap: pretty; }
+#object-caption b { color: var(--ink-dim); font-weight: 600; }
+
+/* Three lines typed one after another: what the install comes down to. */
+.cmds {
+    margin: 1.6rem 0 0;
+    padding: 1rem 1.2rem;
+    width: fit-content;
+    max-width: 100%;
+    border-radius: var(--r);
+    background: rgba(4, 5, 12, .6);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    font-family: var(--mono);
+    font-size: .82rem;
+    line-height: 1.9;
+    color: var(--ink-dim);
+    overflow: hidden;
+}
+
+.cmds .line::before { content: "$ "; color: var(--ink-faint); }
+.cmds .typed { vertical-align: top; }
+.cmds .t1 { width: 12em; }
+.cmds .t2 { width: 16.8em; }
+.cmds .t3 { width: 21.6em; }
+
+/* The end of the page is the mark it opened with: the orbit, large and quiet,
+   the point still going round it, and the names of the pieces set along the
+   ring where it leans. The hairline holds at any size, so the mark can grow. */
+.orbit-big { display: block; fill: none; stroke: var(--accent); opacity: .6; }
+
+/* The hairline is measured on the screen, not in the drawing, so the mark keeps
+   the same thin line whatever size it is given. It is set on the shapes: this
+   one does not inherit. */
+.orbit-big :is(circle, ellipse) { stroke-width: 1.2; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+
+.orbit-big .sat {
+    fill: var(--accent-2);
+    stroke: none;
+    filter: drop-shadow(0 0 2.5px var(--accent-2));
+    offset-path: path("M 2 12 A 10 4.2 0 1 1 22 12 A 10 4.2 0 1 1 2 12");
+    offset-rotate: 0deg;
+    animation: sat 14s linear infinite;
+}
+
+.status > footer { margin-top: clamp(2.5rem, 9vh, 5rem); padding-bottom: clamp(2.5rem, 8vh, 4.5rem); }
+
+.ring { position: relative; width: 100%; max-width: 420px; margin: 0 auto; aspect-ratio: 3 / 2; }
+.ring .orbit-big { position: absolute; left: 50%; top: 50%; width: min(280px, 62%); height: auto; transform: translate(-50%, -50%); }
+
+/* With motion off the point does not travel, so it is parked part way round
+   rather than at the start of its path. */
+@media (prefers-reduced-motion: reduce) {
+    .orbit-big .sat { offset-distance: 62%; }
+}
+
+.links { margin: .8rem 0 0; display: flex; justify-content: center; gap: 1.4rem; font-family: var(--mono); font-size: .72rem; }
+.links a { color: var(--ink-faint); text-decoration: none; transition: color .2s ease; }
+.links a:hover { color: var(--accent); }
+
+.sign { margin: .4rem 0 0; text-align: center; font-size: .92rem; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+.sign span { font-weight: 400; color: var(--ink-faint); }
+.fine { margin: .45rem 0 0; text-align: center; font-family: var(--mono); font-size: .7rem; color: var(--ink-faint); opacity: .75; }
+
+/* ── motion ──────────────────────────────────────────────────────────────── */
+
+/* The typed lines start clipped and are only revealed by their animation, so
+   with motion off they must start whole instead: the base state lives here. */
+@media (prefers-reduced-motion: no-preference) {
+    .cmds .typed > span { clip-path: inset(0 100% 0 0); }
+
+
+    [data-chapter="install"] .cmds .t1 > span { animation: type 1s steps(20, end) .4s both; }
+    [data-chapter="install"] .cmds .t2 > span { animation: type 1.3s steps(28, end) 1.8s both; }
+    [data-chapter="install"] .cmds .t3 > span { animation: type 1.6s steps(36, end) 3.5s both; }
+}
+
+@keyframes type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -1% 0 0); } }
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes breathe { 50% { box-shadow: 0 0 calc(10px + 26px * var(--v)) color-mix(in srgb, var(--accent) calc(var(--v) * 100%), transparent); } }
+@keyframes sat { to { offset-distance: 100%; } }
+
+/* ── wider ───────────────────────────────────────────────────────────────── */
+
+@media (min-width: 720px) {
+    .orbit-bg { right: 0; top: -14%; width: 44%; }
+    .say { font-size: 1.05rem; }
+    .cmds { font-size: .85rem; }
+}
+
+@media (min-width: 720px) {
+    .duo { grid-template-columns: repeat(2, minmax(0, 270px)); justify-content: center; gap: clamp(1.6rem, 4vw, 3rem); align-items: end; }
+    .duo.one { grid-template-columns: minmax(0, 270px); }
+}
+
+@media (min-width: 900px) {
+    /* The phone stands as tall as the desk beside it: its width follows from the
+       two aspect ratios, so the pair reads as one height rather than two. */
+    .both { grid-template-columns: minmax(0, 1fr) 21.5%; align-items: end; gap: clamp(1.6rem, 4vw, 3rem); }
+    .both .phone { max-width: none; }
+    .both .desk { justify-self: stretch; }
+
+    /* Wide enough for the words to stand beside the galaxy's core rather than
+       under it: the chapter holds them in the middle of its height. */
+    .built { align-content: center; }
+}

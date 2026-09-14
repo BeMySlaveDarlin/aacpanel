@@ -1,0 +1,892 @@
+/* The panel screens as living scenes: the rules are the panel's own, kept only
+   where a scene uses them, with every length tied to --r so a scene scales with
+   the frame around it. The frame gives .screen its width; the scene takes its
+   own scale from that width, so 393 css px of screen render the phone exactly
+   as the panel does at a 15px root. */
+
+@property --r { syntax: "<length>"; inherits: true; initial-value: 15px; }
+
+.screen {
+    position: relative;
+    overflow: hidden;
+    contain: paint;
+    container-type: inline-size;
+}
+
+.screen > .shell { font-size: 3.8168cqw; }
+.screen > .deskshell { font-size: .9375cqw; }
+
+.screen > .shell, .screen > .deskshell {
+    --r: 1em;
+    position: relative;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--sans);
+    line-height: 1.42;
+    color: var(--ink);
+    background: var(--void);
+    -webkit-font-smoothing: antialiased;
+    box-sizing: border-box;
+    text-align: left;
+}
+
+.screen > .shell, .screen > .deskshell{--void: #06070f;--deep: #080a14;--surface: rgba(var(--tint), .12);--surface-2: rgba(var(--tint), .18);--surface-3: rgba(var(--tint), .24);--line: rgba(var(--tint), .16);--tint: 255, 255, 255;--hair: .5px;--glass: linear-gradient(160deg, rgba(var(--tint), .11), rgba(var(--tint), .05) 62%);--glass-2: linear-gradient(160deg, rgba(var(--tint), .16), rgba(var(--tint), .07) 62%);--blur: blur(calc(32 * var(--r) / 15)) saturate(200%) brightness(1.04);--edge: rgba(var(--tint), .14);--drop: 0 calc(10 * var(--r) / 15) calc(26 * var(--r) / 15) rgba(14, 12, 44, .34);--gloss: inset 0 calc(1 * var(--r) / 15) 0 rgba(var(--tint), .16);--glow: 0 0 calc(18 * var(--r) / 15) calc(-8 * var(--r) / 15) color-mix(in srgb, var(--accent) 45%, transparent);--hairline: inset 0 0 0 var(--hair) rgba(var(--tint), .03);--r-card: calc(6 * var(--r) / 15);--r-small: calc(3 * var(--r) / 15);--r-pill: calc(4 * var(--r) / 15);--r-sheet: calc(16 * var(--r) / 15);--r-bubble: calc(10 * var(--r) / 15);--bg: var(--void);--top-bg: linear-gradient(180deg, rgba(6, 7, 15, .78), rgba(6, 7, 15, .4));--chips-bg: linear-gradient(180deg, rgba(6, 7, 15, .86), rgba(6, 7, 15, .66));--nav-bg: linear-gradient(180deg, rgba(var(--tint), .04), rgba(var(--tint), .02));--sheet-bg: linear-gradient(180deg, rgba(34, 38, 66, .92), rgba(10, 12, 26, .97));--toast-bg: linear-gradient(180deg, rgba(30, 34, 62, .97), rgba(12, 14, 30, .98));--toast-drop: 0 calc(14 * var(--r) / 15) calc(34 * var(--r) / 15) rgba(0, 0, 0, .55);--code-bg: rgba(0, 0, 0, .35);--on-accent: #060a1a;--me-bg: color-mix(in srgb, var(--accent) 18%, transparent);--neb: radial-gradient(74% 32% at 10% -6%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+        radial-gradient(56% 26% at 106% 2%, rgba(143, 157, 255, .24), transparent 72%),
+        radial-gradient(64% 28% at 92% 44%, rgba(90, 110, 220, .18), transparent 74%),
+        radial-gradient(86% 32% at 2% 68%, rgba(127, 227, 212, .12), transparent 74%),
+        radial-gradient(130% 40% at 50% 108%, rgba(99, 168, 255, .16), transparent 72%);--ink: #eef1ff;--ink-dim: #bcc4e8;--ink-faint: #8189b3;--accent: #63a8ff;--accent-2: #7fe3d4;--accent-bg: linear-gradient(160deg,
+        color-mix(in srgb, var(--accent) 34%, transparent),
+        color-mix(in srgb, var(--accent) 16%, transparent) 62%);--ok: #7fe3d4;--warn: #9fc9f0;--crit: #b98cff;--ctx-1: #7fe3d4;--ctx-2: #63a8ff;--ctx-3: #8f9dff;--ctx-4: #b98cff;--ok-bg: rgba(127, 227, 212, .14);--warn-bg: rgba(159, 201, 240, .16);--crit-bg: rgba(185, 140, 255, .16);--t-xs: calc(.74 * var(--r));--t-sm: calc(.84 * var(--r));--t-md: calc(.92 * var(--r));--t-base: calc(1 * var(--r));--t-lg: calc(1.13 * var(--r));--t-xl: calc(1.27 * var(--r));--t-2xl: calc(1.53 * var(--r));--t-3xl: calc(2 * var(--r));--i-sm: calc(15 * var(--r) / 15);--i-md: calc(18 * var(--r) / 15);--i-lg: calc(22 * var(--r) / 15);--sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;--serif: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;--mono: "JetBrains Mono", ui-monospace, "SF Mono", "Roboto Mono", monospace;--code: "JetBrains Mono", ui-monospace, "SF Mono", "Roboto Mono", monospace;color-scheme: dark}
+:is(.screen,.desk) *{box-sizing: border-box;-webkit-tap-highlight-color: transparent}
+:is(.screen,.desk) .shell{position: fixed;inset: calc(0 * var(--r) / 15);display: flex;flex-direction: column;background: var(--bg);padding-left: calc(0 * var(--r) / 15);padding-right: calc(0 * var(--r) / 15);overflow: hidden}
+:is(.screen,.desk) .shell::before{content: "";position: absolute;inset: calc(0 * var(--r) / 15);pointer-events: none;z-index: 0;background: var(--neb)}
+:is(.screen,.desk) .shell > *{position: relative;z-index: 1}
+:is(.screen,.desk) .top{flex: 0 0 auto;display: flex;flex-direction: column;padding: calc(calc(0 * var(--r) / 15) + calc(0.35 * var(--r))) calc(1 * var(--r)) calc(0.8 * var(--r));background: var(--top-bg);backdrop-filter: blur(calc(18 * var(--r) / 15)) saturate(140%);mask-image: linear-gradient(rgb(0, 0, 0) 76%, transparent);gap: calc(0.35 * var(--r))}
+:is(.screen,.desk) .statusbar{flex: 0 1 auto;min-width: calc(0 * var(--r) / 15);display: flex;align-items: center;justify-content: flex-end;flex-wrap: wrap;gap: calc(0.2 * var(--r)) calc(0.5 * var(--r));font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint);white-space: nowrap}
+:is(.screen,.desk) .statusbar .age{min-width: calc(0 * var(--r) / 15);overflow: hidden;text-overflow: ellipsis}
+:is(.screen,.desk) .titlerow .statusbar{margin-left: auto}
+:is(.screen,.desk) .titlerow{display: flex;align-items: center;justify-content: space-between;gap: calc(0.75 * var(--r))}
+:is(.screen,.desk) .host{font-size: var(--t-xl);font-weight: 600;letter-spacing: -0.01em}
+:is(.screen,.desk) .icons{display: flex;gap: calc(0.35 * var(--r))}
+:is(.screen,.desk) .iconbtn{position: relative;flex: 0 0 auto;width: calc(42 * var(--r) / 15);height: calc(42 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: none;box-shadow: inset 0 0 0 var(--hair) var(--edge);color: var(--ink-dim);display: grid;place-items: center;cursor: pointer}
+:is(.screen,.desk) .iconbtn svg{width: var(--i-lg);height: var(--i-lg)}
+:is(.screen,.desk) .iconbtn.danger{color: var(--crit)}
+:is(.screen,.desk) .iconbtn.accent{color: var(--accent)}
+:is(.screen,.desk) .icons .iconbtn{width: calc(38 * var(--r) / 15);height: calc(38 * var(--r) / 15)}
+:is(.screen,.desk) .icons .iconbtn svg{width: var(--i-md);height: var(--i-md)}
+:is(.screen,.desk) .badge{position: absolute;min-width: calc(17 * var(--r) / 15);height: calc(17 * var(--r) / 15);border-radius: var(--r-small);background: var(--crit);color: rgb(20, 6, 26);font-family: var(--mono);font-size: var(--t-xs);display: grid;place-items: center;padding: calc(0 * var(--r) / 15) calc(4 * var(--r) / 15);border: calc(2 * var(--r) / 15) solid var(--surface)}
+:is(.screen,.desk) .badge{top: calc(3 * var(--r) / 15);right: calc(3 * var(--r) / 15)}
+:is(.screen,.desk) .search{width: 100%;border: calc(0 * var(--r) / 15);border-radius: var(--r-card);background: none;box-shadow: inset 0 0 0 var(--hair) var(--edge);color: var(--ink);font: inherit;padding: calc(0.45 * var(--r)) calc(0.7 * var(--r))}
+:is(.screen,.desk) .search::placeholder{color: var(--ink-faint)}
+:is(.screen,.desk) .limits{display: flex;gap: calc(0.5 * var(--r))}
+:is(.screen,.desk) .limit{flex: 1 1 0%;box-shadow: inset 0 0 0 var(--hair) var(--edge);border-radius: var(--r-card);padding: calc(0.45 * var(--r)) calc(0.6 * var(--r));display: flex;flex-direction: column;gap: calc(0.3 * var(--r))}
+:is(.screen,.desk) .lrow{display: flex;justify-content: space-between;align-items: baseline}
+:is(.screen,.desk) .lname{font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .lval{font-family: var(--mono);font-size: var(--t-xs);font-variant-numeric: tabular-nums}
+:is(.screen,.desk) .lsub{font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .track{height: calc(3 * var(--r) / 15);border-radius: var(--r-small);background: var(--line);overflow: hidden}
+:is(.screen,.desk) .track .fill{height: 100%;border-radius: var(--r-small);background: var(--accent)}
+:is(.screen,.desk) .ok{color: var(--ok)}
+:is(.screen,.desk) .warn{color: var(--warn)}
+:is(.screen,.desk) .crit{color: var(--crit)}
+:is(.screen,.desk) .fill.ok{background: var(--accent)}
+:is(.screen,.desk) .fill.warn{background: var(--warn)}
+:is(.screen,.desk) .hostbar{display: flex;align-items: flex-start;gap: calc(0.6 * var(--r))}
+:is(.screen,.desk) .hstats{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);display: grid;grid-template-columns: repeat(3, 1fr);gap: calc(0.7 * var(--r))}
+:is(.screen,.desk) .hstat{min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column}
+:is(.screen,.desk) .hstat-title{font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .hstat-value{font-size: var(--t-lg);font-weight: 600;letter-spacing: -0.01em;font-variant-numeric: tabular-nums;white-space: nowrap}
+:is(.screen,.desk) .hstat .bar{margin-top: calc(0.3 * var(--r))}
+:is(.screen,.desk) .bar.blank{background: none}
+:is(.screen,.desk) .hstat .bar{flex: 0 0 auto}
+:is(.screen,.desk) .hdetails{flex: 0 0 auto;align-self: flex-start;display: inline-flex;align-items: center;gap: calc(0.2 * var(--r));padding: calc(0.3 * var(--r)) calc(0.5 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-small);box-shadow: inset 0 0 0 var(--hair) var(--edge);background: none;color: var(--ink-dim);font-style: inherit;font-variant: inherit;font-weight: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-xs);cursor: pointer}
+:is(.screen,.desk) .hdetails .chev{display: inline-flex}
+:is(.screen,.desk) .hdetails svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .status{display: flex;align-items: center;gap: calc(0.5 * var(--r));min-width: calc(0 * var(--r) / 15);text-align: right;color: var(--ink-dim)}
+:is(.screen,.desk) .chips{flex: 0 0 auto;display: flex;gap: calc(0.4 * var(--r));overflow-x: auto;scrollbar-width: none;padding: calc(0.35 * var(--r)) calc(1 * var(--r));background: var(--chips-bg);backdrop-filter: blur(calc(16 * var(--r) / 15)) saturate(140%);border-bottom: var(--hair) solid var(--line)}
+:is(.screen,.desk) .card .chips{background: none;backdrop-filter: none;border-bottom: calc(0 * var(--r) / 15);padding: calc(0 * var(--r) / 15) calc(0 * var(--r) / 15) calc(0.45 * var(--r))}
+:is(.screen,.desk) .chips::-webkit-scrollbar{display: none}
+:is(.screen,.desk) .chip{flex: 0 0 auto;border: calc(0 * var(--r) / 15);border-radius: var(--r-pill);padding: calc(0.36 * var(--r)) calc(0.8 * var(--r));font-style: inherit;font-variant: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-sm);font-weight: 500;background: none;box-shadow: inset 0 0 0 var(--hair) var(--edge);color: var(--ink-dim);white-space: nowrap;cursor: pointer}
+:is(.screen,.desk) .chip[aria-pressed="true"]{background: var(--accent-bg);color: var(--accent);box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent)}
+:is(.screen,.desk) .chip .n{font-size: 0.82em;opacity: 0.65;margin-left: 0.3em}
+:is(.screen,.desk) .body{flex: 1 1 0%;overflow-y: auto;overscroll-behavior: contain;scrollbar-width: none;padding: calc(0.4 * var(--r)) calc(1.1 * var(--r)) calc(1.6 * var(--r));display: flex;flex-direction: column;--body-gap: calc(.32 * var(--r));gap: var(--body-gap)}
+:is(.screen,.desk) .body::-webkit-scrollbar{display: none}
+:is(.screen,.desk) *{scrollbar-width: none}
+:is(.screen,.desk) ::-webkit-scrollbar{width: calc(0 * var(--r) / 15);height: calc(0 * var(--r) / 15);display: none}
+:is(.screen,.desk) .body > *{flex: 0 0 auto}
+:is(.screen,.desk) .hint{color: var(--ink-faint);font-size: var(--t-xs);margin: calc(0.15 * var(--r)) calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .card{background: none;border: calc(0 * var(--r) / 15);border-radius: var(--r-card);box-shadow: inset 0 0 0 var(--hair) var(--edge);padding: calc(0.6 * var(--r)) calc(0.8 * var(--r))}
+:is(.screen,.desk) .card h2{margin: calc(0 * var(--r) / 15) calc(0 * var(--r) / 15) calc(0.25 * var(--r));font-size: var(--t-sm);font-weight: 600;color: var(--ink-faint)}
+:is(.screen,.desk) .stack{position: relative;background: none;border: calc(0 * var(--r) / 15);border-radius: var(--r-card);box-shadow: inset 0 0 0 var(--hair) var(--edge);overflow: hidden;transition: box-shadow 0.18s}
+:is(.screen,.desk) .stack[data-open="1"]{box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent)}
+:is(.screen,.desk) .stack[data-open="1"] .stackname{color: var(--ink)}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) .stack{transition: none}}
+:is(.screen,.desk) .stackhead{display: flex;align-items: center;gap: calc(0.2 * var(--r));padding-right: calc(0.35 * var(--r))}
+:is(.screen,.desk) .stackacts{flex: 0 0 auto;display: flex;justify-content: flex-end;gap: calc(0.2 * var(--r));min-width: calc(72 * var(--r) / 15)}
+:is(.screen,.desk) .stackhead .iconbtn{width: calc(34 * var(--r) / 15);height: calc(34 * var(--r) / 15);border-radius: var(--r-small)}
+:is(.screen,.desk) .stackhead .iconbtn svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .stackhead .iconbtn{background: none;box-shadow: none;color: var(--ink-faint)}
+:is(.screen,.desk) .stacktoggle{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);background: none;color: inherit;font: inherit;display: grid;grid-template-columns: auto minmax(calc(0 * var(--r) / 15), 1fr) auto;align-items: center;gap: calc(0.5 * var(--r));padding: calc(0.55 * var(--r)) calc(0.7 * var(--r)) calc(0.45 * var(--r));text-align: left;cursor: pointer}
+:is(.screen,.desk) .stackcol{min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column;gap: calc(0.08 * var(--r))}
+:is(.screen,.desk) .stackname{font-weight: 600;font-size: var(--t-md)}
+:is(.screen,.desk) .stackuse{font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint);font-variant-numeric: tabular-nums;overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .chev{color: var(--ink-faint);display: grid;place-items: center;transition: transform 0.18s}
+:is(.screen,.desk) .chev svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .stacktoggle .chev{display: none}
+:is(.screen,.desk) .rows{display: none;border-top: var(--hair) solid var(--line)}
+:is(.screen,.desk) .stack[data-open="1"] .rows{display: block}
+:is(.screen,.desk) .crow{display: grid;grid-template-columns: auto minmax(calc(0 * var(--r) / 15), 1fr);align-items: center;gap: calc(0.1 * var(--r)) calc(0.6 * var(--r));width: 100%;padding: calc(0.5 * var(--r)) calc(0.7 * var(--r)) calc(0.5 * var(--r)) calc(0.85 * var(--r));font: inherit;color: inherit;text-align: left;background: none;border-top: calc(0 * var(--r) / 15);border-right: calc(0 * var(--r) / 15);border-left: calc(0 * var(--r) / 15);border-image: none;border-bottom: var(--hair) solid var(--line);cursor: pointer}
+:is(.screen,.desk) .crow:last-child{border-bottom: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .crow > .dot{grid-area: 1 / 1 / 3}
+:is(.screen,.desk) .crow .cname{grid-column: 2;font-size: var(--t-md);overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .crow .cmeta{grid-column: 2;font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint);font-variant-numeric: tabular-nums;overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .kebab{width: calc(30 * var(--r) / 15);height: calc(30 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: 50%;background: none;color: var(--ink-faint);display: grid;place-items: center;cursor: pointer}
+:is(.screen,.desk) .kebab svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .dot{width: calc(8 * var(--r) / 15);height: calc(8 * var(--r) / 15);border-radius: 50%;flex: 0 0 auto}
+:is(.screen,.desk) .dot.ok{background: var(--ok);box-shadow: 0 0 calc(8 * var(--r) / 15) var(--ok)}
+:is(.screen,.desk) .dot.warn{background: var(--warn);box-shadow: 0 0 calc(8 * var(--r) / 15) var(--warn)}
+:is(.screen,.desk) .dot.crit{background: var(--crit);box-shadow: 0 0 calc(8 * var(--r) / 15) var(--crit)}
+:is(.screen,.desk) .dot.off{background: var(--ink-faint)}
+:is(.screen,.desk) .tile{background: none;border: calc(0 * var(--r) / 15);box-shadow: inset 0 0 0 var(--hair) var(--edge);border-radius: var(--r-card);padding: calc(0.55 * var(--r)) calc(0.75 * var(--r));display: flex;flex-direction: column;gap: calc(0.2 * var(--r))}
+:is(.screen,.desk) .kv{display: flex;justify-content: space-between;gap: calc(1 * var(--r));padding: calc(0.26 * var(--r)) calc(0 * var(--r) / 15);border-bottom: var(--hair) solid var(--line);font-size: var(--t-sm)}
+:is(.screen,.desk) .kv .k{color: var(--ink-dim);overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .kv .v{font-family: var(--mono);font-variant-numeric: tabular-nums;white-space: nowrap}
+:is(.screen,.desk) .srow{background: none;border: calc(0 * var(--r) / 15);border-radius: var(--r-card);box-shadow: inset 0 0 0 var(--hair) var(--edge);padding: calc(0.55 * var(--r)) calc(0.6 * var(--r)) calc(0.45 * var(--r));display: grid;grid-template-columns: minmax(calc(0 * var(--r) / 15), 1fr) auto;gap: calc(0.3 * var(--r));overflow: hidden}
+:is(.screen,.desk) .srow{position: relative}
+:is(.screen,.desk) .srow > .sopen{grid-area: 1 / 1 / 2 / 3;min-width: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .srow .sbody{min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column;gap: calc(0.22 * var(--r))}
+:is(.screen,.desk) .srow .r1{display: flex;align-items: center;justify-content: space-between;gap: calc(0.6 * var(--r))}
+:is(.screen,.desk) .srow .nm{font-weight: 500;font-size: var(--t-md);color: var(--ink);min-width: calc(0 * var(--r) / 15);overflow-wrap: anywhere}
+:is(.screen,.desk) .srow .nmgroup{font-weight: 400;color: var(--ink-faint)}
+:is(.screen,.desk) .srow .pct{font-family: var(--mono);font-size: var(--t-sm);font-variant-numeric: tabular-nums;color: var(--ink-dim)}
+:is(.screen,.desk) .srow .meta{font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint);display: flex;flex-direction: column;gap: calc(0.08 * var(--r))}
+:is(.screen,.desk) .srow .mline{display: flex;flex-wrap: wrap;gap: calc(0 * var(--r) / 15) calc(0.7 * var(--r))}
+:is(.screen,.desk) .srow .waits{color: var(--warn)}
+:is(.screen,.desk) .srow .working{color: var(--accent);display: inline-flex;align-items: center;gap: calc(0.3 * var(--r))}
+:is(.screen,.desk) .srow .working::before{content: "";width: calc(0.38 * var(--r));height: calc(0.38 * var(--r));border-radius: 50%;background: currentcolor;animation: 1.6s ease-in-out 0s infinite normal none running pulse}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) .srow .working::before{animation: auto ease 0s 1 normal none running none}}
+:is(.screen,.desk) .rowacts{grid-area: 1 / 2 / 2 / 3;align-self: end;display: flex;align-items: center;justify-content: flex-end;gap: calc(0.1 * var(--r));min-width: calc(calc(76 * var(--r) / 15) + calc(0.1 * var(--r)))}
+:is(.screen,.desk) .rowacts .iconbtn{width: calc(38 * var(--r) / 15);height: calc(38 * var(--r) / 15);background: none;box-shadow: none;color: var(--ink-faint)}
+:is(.screen,.desk) .rowacts .iconbtn.danger{color: var(--ink-faint)}
+:is(.screen,.desk) .rowacts .iconbtn.accent{color: var(--ink-faint)}
+:is(.screen,.desk) .srow.acts > .sopen{grid-area: 1 / 1 / 2 / 2}
+:is(.screen,.desk) .srow.acts .rowacts{align-self: center}
+:is(.screen,.desk) .pfpager{display: flex;flex-direction: column;min-height: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .pftabs{flex: 0 0 auto;display: flex;gap: calc(1 * var(--r));padding: calc(0.1 * var(--r)) calc(0.1 * var(--r)) calc(0.4 * var(--r));border-bottom: var(--hair) solid var(--line);overflow-x: auto}
+:is(.screen,.desk) .pftab{position: relative;flex: 0 0 auto;border: calc(0 * var(--r) / 15);background: none;padding: calc(0 * var(--r) / 15);display: inline-flex;align-items: center;gap: calc(0.3 * var(--r));font-size: var(--t-sm);font-weight: 500;white-space: nowrap;color: var(--ink-faint);cursor: pointer}
+:is(.screen,.desk) .pftab.on{color: var(--accent)}
+:is(.screen,.desk) .pftab.on::after{content: "";position: absolute;left: calc(0 * var(--r) / 15);right: calc(0 * var(--r) / 15);bottom: calc(calc(-.4 * var(--r)) - var(--hair));height: calc(2 * var(--r) / 15);border-radius: var(--r-small);background: var(--accent)}
+:is(.screen,.desk) .pftab .n{font-size: 0.82em;font-weight: 400;opacity: 0.65}
+:is(.screen,.desk) .pfpages{flex: 1 1 auto;min-height: calc(0 * var(--r) / 15);display: flex;gap: calc(1.1 * var(--r));width: calc(0 * var(--r) / 15);min-width: 100%;overflow-x: auto;overscroll-behavior-x: contain;scroll-snap-type: x mandatory;padding-top: calc(0.35 * var(--r))}
+:is(.screen,.desk) .pfpage{flex: 0 0 100%;min-width: calc(0 * var(--r) / 15);scroll-snap-align: start;overflow-y: auto;overscroll-behavior-y: contain}
+:is(.screen,.desk) .pfcol{display: flex;flex-direction: column;gap: calc(0.32 * var(--r));padding-bottom: calc(1 * var(--r))}
+:is(.screen,.desk) .pflimits{display: flex;flex-direction: column;gap: calc(0.3 * var(--r))}
+:is(.screen,.desk) .srow .sdot, :is(.screen,.desk) .srow .cmark{display: none}
+.screen:has(> .deskshell) .srow.live .r1{justify-content: flex-start;gap: calc(0.4 * var(--r))}
+.screen:has(> .deskshell) .srow.live .nm{flex: 0 1 auto}
+.screen:has(> .deskshell) .srow.live .pct{margin-left: auto}
+.screen:has(> .deskshell) .srow.live > .sopen{grid-area: 1 / 1 / 2 / 2}
+.screen:has(> .deskshell) .srow.live .rowacts{align-self: center}
+.screen:has(> .deskshell) .srow.live .sdot{display: block;flex: 0 0 auto;width: calc(0.42 * var(--r));height: calc(0.42 * var(--r));border-radius: 50%;background: var(--ink-faint)}
+.screen:has(> .deskshell) .srow.live .sdot.busy{background: var(--accent);box-shadow: 0 0 calc(.4 * var(--r)) var(--accent)}
+.screen:has(> .deskshell) .srow.live .sdot.waiting{background: var(--warn);box-shadow: 0 0 calc(.4 * var(--r)) var(--warn)}
+.screen:has(> .deskshell) .srow.live .sdot.idle{background: var(--ok)}
+.screen:has(> .deskshell) .srow.live .cmark{display: inline-flex;flex: 0 0 auto;align-items: center;padding: calc(0.1 * var(--r)) calc(0.3 * var(--r));border-radius: var(--r-pill);box-shadow: inset 0 0 0 var(--hair) var(--edge);color: var(--ink-faint);font-size: var(--t-xs)}
+.screen:has(> .deskshell) .srow.live .meta{flex-flow: wrap;align-items: baseline;gap: calc(0.05 * var(--r)) calc(0.55 * var(--r))}
+.screen:has(> .deskshell) .srow.live .mline{display: contents}
+.screen:has(> .deskshell) .srow.live .mline > span{order: 5}
+.screen:has(> .deskshell) .srow.live .mline > .tok, .screen:has(> .deskshell) .srow.live .mline > .model, .screen:has(> .deskshell) .srow.live .mline > .msgs, .screen:has(> .deskshell) .srow.live .mline > .compacts, .screen:has(> .deskshell) .srow.live .mline > .lived, .screen:has(> .deskshell) .srow.live .mline > .place, .screen:has(> .deskshell) .srow.live .mline > .wtasks{display: none}
+.screen:has(> .deskshell) .srow.live .mline > .working, .screen:has(> .deskshell) .srow.live .mline > .waits{order: 1}
+.screen:has(> .deskshell) .srow.live .mline > .wagents{order: 2}
+.screen:has(> .deskshell) .srow.live .mline > .reqago{order: 3}
+:is(.screen,.desk) .sidescroll{display: contents}
+:is(.screen,.desk) .metrics{display: grid;grid-template-columns: 1fr 1fr;gap: calc(0.32 * var(--r));align-items: stretch}
+:is(.screen,.desk) .metrics > .tile{display: flex;flex-direction: column}
+:is(.screen,.desk) .tile{padding: calc(0.55 * var(--r)) calc(0.7 * var(--r))}
+:is(.screen,.desk) .tile .cardhead{width: 100%;display: flex;align-items: center;gap: calc(0.3 * var(--r));padding: calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);background: none;cursor: pointer}
+:is(.screen,.desk) .tile .cardhead .tname{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .tile .cardhead .tname > span{overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .tbrief{margin: calc(0.15 * var(--r)) calc(0 * var(--r) / 15) calc(0 * var(--r) / 15);font-size: var(--t-xs);color: var(--ink-faint);overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .tname{display: flex;align-items: center;gap: calc(0.3 * var(--r));font-size: var(--t-sm);font-weight: 500;color: var(--ink-faint)}
+:is(.screen,.desk) .tname svg{width: var(--i-sm);height: var(--i-sm);flex: 0 0 auto}
+:is(.screen,.desk) .tval{margin-top: calc(0.25 * var(--r));font-size: var(--t-2xl);font-weight: 600;font-variant-numeric: tabular-nums;letter-spacing: -0.01em;line-height: 1.1}
+:is(.screen,.desk) .tval.ok{color: var(--ink)}
+:is(.screen,.desk) .tval s{text-decoration: none;font-size: var(--t-sm);font-weight: 500;color: var(--ink-faint);margin-left: calc(0.1 * var(--r))}
+:is(.screen,.desk) .tval.net{display: flex;flex-wrap: wrap;align-items: baseline;column-gap: calc(0.45 * var(--r))}
+:is(.screen,.desk) .tval.net > *{white-space: nowrap}
+:is(.screen,.desk) .tval.net s{margin-left: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .bar{height: calc(3 * var(--r) / 15);margin-top: calc(0.5 * var(--r));border-radius: var(--r-small);background: var(--line);overflow: hidden}
+:is(.screen,.desk) .bar i{display: block;height: 100%;background: var(--accent)}
+.screen:has(> .deskshell) .tile .chart.spark, .screen:has(> .deskshell) .card > .chart.spark{--chart-h: 60}
+:is(.screen,.desk) nav.tabs{flex: 0 0 auto;display: grid;grid-template-columns: repeat(5, 1fr);background: var(--nav-bg);backdrop-filter: blur(calc(22 * var(--r) / 15)) saturate(160%);border-top: var(--hair) solid var(--line);padding: calc(0.35 * var(--r)) calc(0.35 * var(--r)) calc(calc(0 * var(--r) / 15) + calc(0.45 * var(--r)))}
+:is(.screen,.desk) nav.tabs button{position: relative;border: calc(0 * var(--r) / 15);background: none;color: var(--ink-faint);font-style: inherit;font-variant: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-xs);font-weight: 500;display: flex;flex-direction: column;align-items: center;gap: calc(0.18 * var(--r));padding: calc(0.2 * var(--r)) calc(0 * var(--r) / 15);cursor: pointer}
+:is(.screen,.desk) nav.tabs button svg{width: var(--i-lg);height: var(--i-lg)}
+:is(.screen,.desk) nav.tabs button[aria-current="true"]{color: var(--accent);font-weight: 600}
+:is(.screen,.desk) .homeslot{display: flex;align-items: center;justify-content: center}
+:is(.screen,.desk) nav.tabs .homeslot .homebtn{width: calc(46 * var(--r) / 15);height: calc(46 * var(--r) / 15);border-radius: calc(999 * var(--r) / 15);border: calc(0 * var(--r) / 15);padding: calc(0 * var(--r) / 15);display: grid;place-items: center;background: none;color: var(--ink-dim);box-shadow: inset 0 0 0 var(--hair) var(--edge);cursor: pointer}
+:is(.screen,.desk) nav.tabs .homeslot .homebtn svg{width: var(--i-lg);height: var(--i-lg)}
+:is(.screen,.desk) nav.tabs .homeslot .homebtn{transition: transform 0.16s, box-shadow 0.2s}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) nav.tabs .homeslot .homebtn{transition: none}}
+:is(.screen,.desk) .scrim{position: fixed;inset: calc(0 * var(--r) / 15);z-index: 10;background: rgba(3, 4, 10, 0.72);backdrop-filter: blur(calc(4 * var(--r) / 15));opacity: 0;pointer-events: none;transition: opacity 0.2s}
+:is(.screen,.desk) .scrim.on{opacity: 1;pointer-events: auto}
+:is(.screen,.desk) .sheetclose{position: absolute;top: calc(0.45 * var(--r));right: calc(0.5 * var(--r));width: calc(34 * var(--r) / 15);height: calc(34 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: 50%;background: none;color: var(--ink-faint);display: grid;place-items: center;cursor: pointer;z-index: 1}
+:is(.screen,.desk) .sheetclose svg{width: var(--i-md);height: var(--i-md)}
+:is(.screen,.desk) .sheet .shead{padding-right: calc(2.2 * var(--r))}
+:is(.screen,.desk) .sheet{position: fixed;left: calc(0 * var(--r) / 15);right: calc(0 * var(--r) / 15);bottom: calc(0 * var(--r) / 15);z-index: 11;background: var(--sheet-bg);backdrop-filter: blur(calc(26 * var(--r) / 15)) saturate(160%);border-top: calc(0 * var(--r) / 15);border-radius: var(--r-sheet) var(--r-sheet) 0 0;box-shadow: var(--gloss);padding: calc(0.6 * var(--r)) calc(0.9 * var(--r)) calc(calc(0 * var(--r) / 15) + calc(1.4 * var(--r)));transform: translateY(100%);transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);display: flex;flex-direction: column;max-height: 88%}
+:is(.screen,.desk) .sheetbody{overflow-y: auto;overscroll-behavior: contain;scrollbar-width: none;min-height: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .sheetbody::-webkit-scrollbar{display: none}
+:is(.screen,.desk) .sheet.inner{bottom: calc(var(--nav-clear) + calc(0 * var(--r) / 15));max-height: calc(88% - var(--nav-clear));padding-bottom: calc(0.8 * var(--r));border-radius: var(--r-card)}
+:is(.screen,.desk) .scrim.inner{bottom: calc(var(--nav-clear) + calc(0 * var(--r) / 15))}
+:is(.screen,.desk) .shell:has(.sheet.on) .body{z-index: 3}
+:is(.screen,.desk) .sheet.draggable{height: auto;max-height: 54%}
+:is(.screen,.desk) .sheet.draggable.inner{max-height: calc(54% - var(--nav-clear) / 2)}
+:is(.screen,.desk) .sheet .grab{flex: 0 0 auto;padding: calc(20 * var(--r) / 15) calc(0 * var(--r) / 15);margin: calc(-10 * var(--r) / 15) calc(0 * var(--r) / 15) calc(-2 * var(--r) / 15);cursor: grab}
+:is(.screen,.desk) .sheet.draggable{touch-action: none}
+:is(.screen,.desk) .sheet.draggable .sheetbody{touch-action: pan-y}
+:is(.screen,.desk) .shell.no-nav .sheet.inner{bottom: calc(0 * var(--r) / 15);max-height: 88%;padding-bottom: calc(calc(0 * var(--r) / 15) + calc(0.8 * var(--r)))}
+:is(.screen,.desk) .shell.no-nav .scrim.inner{bottom: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .sheethead{display: flex;align-items: flex-start;gap: calc(0.7 * var(--r));padding: calc(0.1 * var(--r)) calc(2.2 * var(--r)) calc(0.5 * var(--r)) calc(0 * var(--r) / 15);margin-bottom: calc(0.3 * var(--r))}
+:is(.screen,.desk) .sheethead h2{margin: calc(0 * var(--r) / 15);font-size: var(--t-lg);font-weight: 800;letter-spacing: -0.01em}
+:is(.screen,.desk) .sheet.on{transform: translateY(calc(0 * var(--r) / 15))}
+:is(.screen,.desk) .grip{width: calc(36 * var(--r) / 15);height: calc(3 * var(--r) / 15);border-radius: calc(2 * var(--r) / 15);background: var(--ink-faint);opacity: 0.6;margin: calc(0 * var(--r) / 15) auto}
+:is(.screen,.desk) .shead{display: flex;align-items: center;gap: calc(0.55 * var(--r));margin-bottom: calc(0.7 * var(--r))}
+:is(.screen,.desk) .stitle{font-weight: 700;font-size: var(--t-base)}
+:is(.screen,.desk) .ssub{font-size: var(--t-xs);color: var(--ink-dim)}
+:is(.screen,.desk) .warnline{font-size: var(--t-sm);color: var(--warn);background: var(--warn-bg);border-radius: var(--r-small);padding: calc(0.55 * var(--r)) calc(0.7 * var(--r))}
+:is(.screen,.desk) .btnrow{display: flex;gap: calc(0.4 * var(--r));margin-top: calc(0.8 * var(--r))}
+:is(.screen,.desk) .btnrow > .btn{flex: 1 1 0%}
+:is(.screen,.desk) .btn{border: var(--hair) solid var(--line);border-radius: var(--r-small);padding: calc(0.5 * var(--r)) calc(0.7 * var(--r));background: var(--glass-2);color: var(--ink);font-style: inherit;font-variant: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-weight: 600;font-size: var(--t-sm);cursor: pointer}
+:is(.screen,.desk) .btn:disabled{opacity: 0.55}
+:is(.screen,.desk) .btn.primary{background: var(--accent-bg);border-color: color-mix(in srgb, var(--accent) 45%, transparent);color: var(--ink);box-shadow: var(--gloss), var(--glow)}
+:is(.screen,.desk) .btn.danger{color: var(--crit);border-color: rgba(255, 111, 92, 0.3)}
+:is(.screen,.desk) .sheet .item{width: 100%;margin-top: calc(0.5 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-card);background: none;color: var(--ink);font-style: inherit;font-variant: inherit;font-stretch: inherit;font-size: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-weight: 500;text-align: left;padding: calc(0.7 * var(--r)) calc(0.5 * var(--r));cursor: pointer}
+:is(.screen,.desk) .toast{position: fixed;left: calc(12 * var(--r) / 15);right: calc(12 * var(--r) / 15);bottom: calc(calc(78 * var(--r) / 15));z-index: 20;display: flex;flex-direction: column;background: var(--toast-bg);backdrop-filter: blur(calc(20 * var(--r) / 15)) saturate(150%);border: var(--hair) solid var(--edge);border-radius: var(--r-card);box-shadow: var(--toast-drop);padding: calc(0.6 * var(--r)) calc(0.85 * var(--r));font-size: var(--t-sm);opacity: 0;transform: translateY(calc(8 * var(--r) / 15));pointer-events: none;transition: opacity 0.2s, transform 0.2s}
+.screen:has(> .deskshell) .scrim.side.on{background: transparent;backdrop-filter: none}
+.screen:has(> .deskshell) .toast{left: auto;right: calc(16 * var(--r) / 15);bottom: calc(16 * var(--r) / 15);max-width: calc(26 * var(--r))}
+:is(.screen,.desk) .chart{width: 100%;overflow: hidden}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) .scrim, :is(.screen,.desk) .sheet, :is(.screen,.desk) .toast, :is(.screen,.desk) .chev{transition: none}}
+.screen > .shell, .screen > .deskshell{--nav-h: calc(62 * var(--r) / 15)}
+.screen > .shell, .screen > .deskshell{--nav-clear: calc(var(--nav-h) + calc(10 * var(--r) / 15))}
+:is(.screen,.desk) .logbar{position: fixed;left: calc(8 * var(--r) / 15);right: calc(8 * var(--r) / 15);bottom: calc(var(--nav-h) + calc(0 * var(--r) / 15) + calc(4 * var(--r) / 15));z-index: 5;display: flex;flex-direction: column;height: calc(44 * var(--r) / 15);background: var(--sheet-bg);border: calc(0 * var(--r) / 15);border-radius: var(--r-card);overflow: hidden;box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--toast-drop);transform: translateY(140%);transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), height 0.26s}
+:is(.screen,.desk) .logbar.on{transform: translateY(calc(0 * var(--r) / 15))}
+:is(.screen,.desk) .logbar.big{height: min(calc(300 * var(--r) / 15), 45%)}
+:is(.screen,.desk) .loghead{flex: 0 0 auto;height: calc(44 * var(--r) / 15);display: grid;grid-template-columns: auto 1fr auto auto;align-items: center;gap: calc(0.5 * var(--r));padding: calc(0 * var(--r) / 15) calc(0.55 * var(--r)) calc(0 * var(--r) / 15) calc(0.8 * var(--r));cursor: pointer}
+:is(.screen,.desk) .logname{font-size: var(--t-sm);font-weight: 600;overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .logname small{display: block;font-family: var(--mono);font-weight: 400;font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .logbody{flex: 1 1 0%;overflow-y: auto;padding: calc(0.5 * var(--r)) calc(0.8 * var(--r)) calc(0.8 * var(--r));font-family: var(--mono);font-size: var(--t-xs);line-height: 1.6;color: var(--ink-dim);border-top: var(--hair) solid var(--line)}
+:is(.screen,.desk) .ln{white-space: pre-wrap;overflow-wrap: anywhere}
+:is(.screen,.desk) .ln.er{color: var(--crit)}
+:is(.screen,.desk) .loghead .chev{transition: transform 0.2s}
+:is(.screen,.desk) .loghead .chev.down{transform: rotate(90deg)}
+:is(.screen,.desk) .pulse{width: calc(7 * var(--r) / 15);height: calc(7 * var(--r) / 15);border-radius: 50%;background: var(--ink-faint)}
+:is(.screen,.desk) .pulse.live{background: var(--ok);box-shadow: 0 0 calc(8 * var(--r) / 15) var(--ok);animation: 1.8s ease-in-out 0s infinite normal none running pulse}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) .pulse{animation: auto ease 0s 1 normal none running none}}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) .logbar{transition: none}}
+.screen > .shell, .screen > .deskshell{--nav-clear: calc(0 * var(--r) / 15)}
+.screen:has(> .deskshell) .logbar{left: auto;right: calc(14 * var(--r) / 15);bottom: calc(14 * var(--r) / 15);width: min(calc(440 * var(--r) / 15), 38%)}
+.screen:has(> .deskshell) .logbar.big{height: min(calc(460 * var(--r) / 15), 62%)}
+.screen:has(> .deskshell) .mgrid{display: grid;grid-template-columns: repeat(2, minmax(calc(0 * var(--r) / 15), 1fr));gap: calc(0.4 * var(--r));align-items: stretch}
+.screen:has(> .deskshell) .mgrid .metrics{display: contents}
+:is(.screen,.desk) .permit{display: flex;flex-direction: column;gap: calc(0.45 * var(--r));padding: calc(0.5 * var(--r)) calc(0.75 * var(--r)) calc(0.8 * var(--r));background: var(--glass);border-radius: var(--r-sheet) var(--r-sheet) var(--r-card) var(--r-card);box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss)}
+:is(.screen,.desk) .permithead{display: flex;flex-direction: column;align-items: flex-start;gap: calc(0.3 * var(--r))}
+:is(.screen,.desk) .permitwhat{order: -1;font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .permittool{padding: calc(0.1 * var(--r)) calc(0.4 * var(--r));border-radius: var(--r-small);background: color-mix(in srgb, var(--accent-2) 12%, transparent);font-family: var(--code);font-size: var(--t-xs);color: var(--accent-2)}
+:is(.screen,.desk) .permitaction{margin: calc(0 * var(--r) / 15);padding: calc(0.45 * var(--r)) calc(0.6 * var(--r));width: calc(0 * var(--r) / 15);min-width: 100%;border-radius: var(--r-small);background: var(--code-bg);box-shadow: inset 0 0 0 var(--hair) var(--line);font-family: var(--code);font-size: var(--t-sm);line-height: 1.45;color: var(--ink);white-space: pre-wrap;overflow-wrap: anywhere;overflow-x: auto}
+:is(.screen,.desk) .permitnote{margin: calc(0 * var(--r) / 15);padding: calc(0.3 * var(--r)) calc(0.6 * var(--r));border-left: calc(2 * var(--r) / 15) solid var(--warn);font-family: inherit;font-size: var(--t-sm);line-height: 1.45;color: var(--warn);white-space: pre-wrap;overflow-wrap: anywhere}
+:is(.screen,.desk) .permitopts{display: flex;flex-direction: column;gap: calc(0.35 * var(--r))}
+:is(.screen,.desk) .permitopt{display: flex;align-items: baseline;gap: calc(0.5 * var(--r));width: 100%;min-height: calc(44 * var(--r) / 15);padding: calc(0.55 * var(--r)) calc(0.65 * var(--r));border: var(--hair) solid var(--line);border-radius: var(--r-card);background: none;color: var(--ink);font-style: inherit;font-variant: inherit;font-weight: inherit;font-stretch: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-md);line-height: 1.3;text-align: left;cursor: pointer}
+:is(.screen,.desk) .permitn{flex: 0 0 auto;font-family: var(--code);color: var(--accent)}
+:is(.screen,.desk) .permittext{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);overflow-wrap: anywhere}
+:is(.screen,.desk) .permitlast{flex: 0 0 auto;margin-left: auto;font-size: var(--t-xs);color: var(--accent-2);white-space: nowrap}
+:is(.screen,.desk) .grouphead{display: flex;align-items: center;gap: calc(0.5 * var(--r));margin: calc(0.7 * var(--r)) calc(0 * var(--r) / 15) calc(0.1 * var(--r));font-size: var(--t-sm);font-weight: 600;color: var(--ink-faint)}
+:is(.screen,.desk) .grouphead::after{content: "";flex: 1 1 0%;height: var(--hair);background: var(--line)}
+:is(.screen,.desk) .sopen{flex: 1 1 auto;min-width: calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);background: none;padding: calc(0 * var(--r) / 15);font: inherit;color: inherit;text-align: left;cursor: pointer}
+:is(.screen,.desk) .chathead{flex: 0 0 auto;padding: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .chathead h2{display: flex;align-items: center;gap: calc(0.45 * var(--r));margin: calc(0 * var(--r) / 15);font-size: var(--t-lg);font-weight: 800;letter-spacing: -0.01em;line-height: 1.15;overflow-wrap: anywhere}
+:is(.screen,.desk) .chathead .livedot{flex: 0 0 auto;width: calc(7 * var(--r) / 15);height: calc(7 * var(--r) / 15);border-radius: 50%;background: var(--ok);box-shadow: 0 0 calc(9 * var(--r) / 15) var(--ok)}
+:is(.screen,.desk) .chatsub{display: flex;align-items: baseline;flex-wrap: wrap;gap: calc(0 * var(--r) / 15) calc(0.5 * var(--r));margin-top: calc(0 * var(--r) / 15);line-height: 1.2;font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .chatvol{font-variant-numeric: tabular-nums}
+:is(.screen,.desk) .chatmeta{display: flex;align-items: baseline;line-height: 1.2;font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .chatmeta > span{white-space: nowrap}
+:is(.screen,.desk) .chatmeta > span + span::before{content: "·";margin: calc(0 * var(--r) / 15) calc(0.35 * var(--r));color: rgba(150, 170, 255, 0.3)}
+:is(.screen,.desk) .chatpct{font-size: var(--t-md);font-weight: 700;font-variant-numeric: tabular-nums}
+:is(.screen,.desk) .chatpct .u{font-size: 0.78em;font-weight: 600;margin-left: 0.05em}
+:is(.screen,.desk) .ctxbar{flex: 0 0 auto;height: calc(3 * var(--r) / 15);background: rgba(var(--tint), .12);overflow: hidden}
+:is(.screen,.desk) .ctxbar.edge{position: absolute;left: calc(0 * var(--r) / 15);right: calc(0 * var(--r) / 15);top: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .ctxbar.head{margin-top: calc(0.25 * var(--r));border-radius: calc(2 * var(--r) / 15)}
+:is(.screen,.desk) .ctxbar i{display: block;height: 100%;border-radius: calc(2 * var(--r) / 15);background: var(--ctx-1);box-shadow: 0 0 calc(10 * var(--r) / 15) color-mix(in srgb, var(--ctx-1) 60%, transparent);transition: width 0.4s, background 0.4s}
+:is(.screen,.desk) .ctxbar.s2 i{background: var(--ctx-2);box-shadow: 0 0 calc(10 * var(--r) / 15) color-mix(in srgb, var(--ctx-2) 60%, transparent)}
+:is(.screen,.desk) .ctxbar.s4 i{background: var(--ctx-4);box-shadow: 0 0 calc(12 * var(--r) / 15) color-mix(in srgb, var(--ctx-4) 70%, transparent)}
+:is(.screen,.desk) .ctxbar.peak{background: var(--line)}
+:is(.screen,.desk) .ctxbar.peak i{background: none;box-shadow: none;border-right: calc(3 * var(--r) / 15) solid var(--ink-dim)}
+:is(.screen,.desk) .segbar{position: absolute;left: calc(0 * var(--r) / 15);right: calc(0 * var(--r) / 15);top: calc(0 * var(--r) / 15);height: calc(3 * var(--r) / 15);background: rgba(var(--tint), .12);--seg-w: calc(100% / var(--seg, 1));--seg-gap: clamp(calc(1 * var(--r) / 15), calc(var(--seg-w) * .16), calc(2 * var(--r) / 15));mask-image: repeating-linear-gradient(90deg, #000 0,
+        #000 calc(var(--seg-w) - var(--seg-gap)),
+        transparent calc(var(--seg-w) - var(--seg-gap)),
+        transparent var(--seg-w))}
+:is(.screen,.desk) .segbar i{display: block;height: 100%;background: color-mix(in srgb, var(--ok) 50%, transparent);box-shadow: 0 0 calc(10 * var(--r) / 15) color-mix(in srgb, var(--ok) 30%, transparent);transition: width 0.4s, background 0.4s}
+:is(.screen,.desk) .segbar.warn i{background: color-mix(in srgb, var(--warn) 50%, transparent);box-shadow: 0 0 calc(10 * var(--r) / 15) color-mix(in srgb, var(--warn) 30%, transparent)}
+:is(.screen,.desk) .segbar.crit i{background: color-mix(in srgb, var(--crit) 50%, transparent);box-shadow: 0 0 calc(12 * var(--r) / 15) color-mix(in srgb, var(--crit) 35%, transparent)}
+:is(.screen,.desk) .chatpct .u{font-family: var(--sans);font-size: var(--t-xs);color: var(--ink-faint);margin-left: calc(0.1 * var(--r))}
+:is(.screen,.desk) .chatfeed{display: flex;flex-direction: column;gap: calc(0.5 * var(--r));overflow: hidden auto;overflow-anchor: auto;flex: 1 1 auto;min-height: calc(0 * var(--r) / 15);padding-bottom: calc(0.5 * var(--r))}
+:is(.screen,.desk) .chatfeed > *{flex: 0 0 auto}
+.screen:has(> .deskshell) :is(.chatfeed, .composerbox, .deck){--chat-measure: calc(1.25 * var(--r));padding-inline: var(--chat-measure)}
+.screen:has(> .deskshell) .dkchatname{min-width: calc(0 * var(--r) / 15)}
+.screen:has(> .deskshell) .dkchatgrow{flex: 1 1 auto}
+.screen:has(> .deskshell) .dkhead .ctxbar.head{position: absolute;left: calc(0 * var(--r) / 15);right: calc(0 * var(--r) / 15);bottom: calc(-1 * var(--r) / 15);height: calc(2 * var(--r) / 15);margin-top: calc(0 * var(--r) / 15);border-radius: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .viewsw{margin-left: auto;display: flex;gap: calc(0.1 * var(--r));padding: calc(0.12 * var(--r));border-radius: var(--r-small);background: var(--glass);border: var(--hair) solid var(--edge)}
+:is(.screen,.desk) .viewbtn{display: grid;place-items: center;width: calc(1.7 * var(--r));height: calc(1.55 * var(--r));padding: calc(0 * var(--r) / 15);color: var(--ink-faint);background: none;border: calc(0 * var(--r) / 15);border-radius: calc(var(--r-small) - calc(1 * var(--r) / 15));cursor: pointer}
+:is(.screen,.desk) .viewbtn svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .viewbtn.on{color: var(--ink);background: var(--glass-2)}
+:is(.screen,.desk) .winbtn{margin-left: auto;display: grid;place-items: center;width: calc(1.7 * var(--r));height: calc(1.55 * var(--r));padding: calc(0 * var(--r) / 15);color: var(--ink-faint);background: none;border: var(--hair) solid transparent;border-radius: var(--r-small);cursor: pointer}
+:is(.screen,.desk) .viewsw + .winbtn{margin-left: calc(0.3 * var(--r))}
+:is(.screen,.desk) .winbtn svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .winbtn.off{opacity: 0.35;cursor: default}
+:is(.screen,.desk) .askhead{display: flex;align-items: baseline;gap: calc(0.5 * var(--r));margin-bottom: calc(0.5 * var(--r))}
+:is(.screen,.desk) .asklabel{color: var(--ink-faint);font-size: var(--t-xs);font-weight: 500}
+:is(.screen,.desk) .asktext{margin: calc(0 * var(--r) / 15) calc(0 * var(--r) / 15) calc(0.1 * var(--r));font-size: var(--t-lg);font-weight: 600;line-height: 1.35;letter-spacing: -0.01em;text-wrap: pretty}
+:is(.screen,.desk) .askopts{display: flex;flex-direction: column;gap: calc(0.35 * var(--r));margin-top: calc(0.7 * var(--r))}
+:is(.screen,.desk) .askopt{display: flex;align-items: stretch;background: none;border: var(--hair) solid var(--line);border-radius: var(--r-card);transition: background 0.14s, border-color 0.14s}
+:is(.screen,.desk) .askopt.on{background: var(--accent-bg);border-color: color-mix(in srgb, var(--accent) 50%, transparent)}
+:is(.screen,.desk) .askpick{display: flex;align-items: flex-start;gap: calc(0.6 * var(--r));flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);min-height: calc(44 * var(--r) / 15);padding: calc(0.55 * var(--r)) calc(0.65 * var(--r));font: inherit;text-align: left;color: var(--ink-dim);background: none;border: calc(0 * var(--r) / 15);border-radius: var(--r-card);cursor: pointer}
+:is(.screen,.desk) .asktick{flex: 0 0 auto;width: calc(16 * var(--r) / 15);height: calc(16 * var(--r) / 15);margin-top: calc(2 * var(--r) / 15);display: grid;place-items: center;font-size: var(--t-xs);color: var(--on-accent);border: calc(1 * var(--r) / 15) solid color-mix(in srgb, var(--ink-faint) 70%, transparent);border-radius: 50%}
+:is(.screen,.desk) .askopt.on .asktick{background: var(--accent);border-color: var(--accent)}
+:is(.screen,.desk) .askopt.on .asktick::after{content: "✓";font-weight: 800}
+:is(.screen,.desk) .askbody{min-width: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .askname{display: block;font-size: var(--t-base);font-weight: 600;color: var(--ink);line-height: 1.3}
+:is(.screen,.desk) .askdesc{display: block;margin-top: calc(0.1 * var(--r));color: var(--ink-faint);font-size: var(--t-sm);line-height: 1.35}
+:is(.screen,.desk) .askown{border-color: transparent;background: rgba(var(--tint), .04)}
+:is(.screen,.desk) .askown .asktick{border-style: dashed}
+:is(.screen,.desk) .askdrop{display: flex;flex-direction: column;gap: calc(0.1 * var(--r));width: 100%;min-height: calc(44 * var(--r) / 15);margin-top: calc(0.6 * var(--r));padding: calc(0.5 * var(--r)) calc(0 * var(--r) / 15);font: inherit;text-align: left;color: var(--ink-dim);background: none;border: calc(0 * var(--r) / 15);border-radius: var(--r-card);cursor: pointer}
+:is(.screen,.desk) .askdropname{font-size: var(--t-sm);font-weight: 600}
+:is(.screen,.desk) .askdropwhy{color: var(--ink-faint);font-size: var(--t-xs);line-height: 1.3}
+:is(.screen,.desk) .body:has(> .deck){--deck-gap: calc(.8 * var(--r));padding-bottom: var(--deck-gap)}
+:is(.screen,.desk) .deck{flex: 0 0 auto;display: flex;align-items: flex-start;justify-content: flex-end;gap: calc(0.4 * var(--r));margin-top: calc(var(--deck-gap) - var(--body-gap))}
+:is(.screen,.desk) .deck > .wchips{flex: 0 1 auto;min-width: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .deckuse{flex: 0 0 auto;align-self: center;margin-right: auto;border: calc(0 * var(--r) / 15);background: none;font-style: inherit;font-variant-ligatures: inherit;font-variant-caps: inherit;font-variant-east-asian: inherit;font-variant-alternates: inherit;font-variant-position: inherit;font-variant-emoji: inherit;font-weight: inherit;font-stretch: inherit;line-height: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;cursor: pointer;display: inline-flex;align-items: center;gap: calc(0.55 * var(--r));height: calc(30 * var(--r) / 15);padding: calc(0 * var(--r) / 15) calc(0.55 * var(--r));border-radius: var(--r-pill);box-shadow: inset 0 0 0 var(--hair) var(--edge);font-family: var(--mono);font-size: var(--t-sm);font-variant-numeric: tabular-nums;color: var(--ink-dim);white-space: nowrap}
+:is(.screen,.desk) .deckuse i{font-style: normal;color: var(--ink-faint);margin-right: calc(0.3 * var(--r))}
+:is(.screen,.desk) .deckin{color: var(--accent)}
+:is(.screen,.desk) .deckout{color: var(--accent-2)}
+:is(.screen,.desk) .wchips{display: flex;align-items: center;flex-wrap: nowrap;gap: calc(0.35 * var(--r))}
+:is(.screen,.desk) .deckright{flex: 0 0 auto;display: flex;align-items: center;gap: calc(0.35 * var(--r))}
+:is(.screen,.desk) .workbar{flex: 0 0 auto;margin-top: calc(0.5 * var(--r));margin-bottom: calc(0 * var(--r) / 15);background: var(--glass);backdrop-filter: var(--blur);border-radius: var(--r-card);box-shadow: var(--hairline), var(--drop), var(--gloss);overflow: hidden}
+:is(.screen,.desk) .workhead{width: 100%;display: flex;align-items: center;flex-wrap: wrap;gap: calc(0 * var(--r) / 15) calc(0.7 * var(--r));padding: calc(0.6 * var(--r)) calc(0.7 * var(--r));background: none;border: calc(0 * var(--r) / 15);color: var(--ink-dim);font-style: inherit;font-variant: inherit;font-weight: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-sm);text-align: left}
+:is(.screen,.desk) .wchip{flex: 0 0 auto;display: inline-flex;align-items: center;gap: calc(0.3 * var(--r));height: calc(30 * var(--r) / 15);padding: calc(0 * var(--r) / 15) calc(0.5 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: none;box-shadow: inset 0 0 0 var(--hair) var(--edge);color: var(--ink-dim);font-style: inherit;font-variant: inherit;font-weight: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-sm);cursor: pointer}
+:is(.screen,.desk) .wchip svg{width: var(--i-sm);height: var(--i-sm);opacity: 0.8}
+:is(.screen,.desk) .wchip .wnum{font-variant-numeric: tabular-nums;font-weight: 600;color: var(--accent);min-width: 1.2ch;text-align: center}
+:is(.screen,.desk) .workhead .working{color: var(--accent);font-weight: 600;display: inline-flex;align-items: center;gap: calc(0.3 * var(--r))}
+:is(.screen,.desk) .workhead .working::before{content: "";width: calc(0.38 * var(--r));height: calc(0.38 * var(--r));border-radius: 50%;background: currentcolor;animation: 1.6s ease-in-out 0s infinite normal none running pulse}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) .workhead .working::before{animation: auto ease 0s 1 normal none running none}}
+:is(.screen,.desk) .composerbox{flex: 0 0 auto;display: flex;flex-direction: column}
+:is(.screen,.desk) .workbar.status{margin-top: calc(0 * var(--r) / 15);margin-bottom: calc(0 * var(--r) / 15);border-bottom-left-radius: calc(0 * var(--r) / 15);border-bottom-right-radius: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .workbar.status + .composer{margin-top: calc(0 * var(--r) / 15);border-top-left-radius: calc(0 * var(--r) / 15);border-top-right-radius: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .workbar.status .workhead{padding: calc(0.28 * var(--r)) calc(0.7 * var(--r));font-size: var(--t-xs)}
+:is(.screen,.desk) .worklist{display: flex;flex-direction: column;gap: calc(0.5 * var(--r));padding-bottom: calc(1.5 * var(--r))}
+:is(.screen,.desk) .wrow{display: flex;align-items: baseline;gap: calc(0.5 * var(--r));font-size: var(--t-sm);line-height: 1.45;color: var(--ink-dim)}
+:is(.screen,.desk) .wrow .wicon{flex: 0 0 auto;display: inline-flex;color: var(--ink-faint)}
+:is(.screen,.desk) .wrow .wicon svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .wrow .wcol{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column;gap: calc(0.1 * var(--r))}
+:is(.screen,.desk) .wrow .wname{color: var(--ink);overflow-wrap: anywhere}
+:is(.screen,.desk) .wrow .wmodel{margin-left: calc(0.35 * var(--r));font-size: var(--t-xs);color: var(--ink-faint);letter-spacing: 0.01em;white-space: nowrap}
+.screen > .shell, .screen > .deskshell{--tm-blue: #63a8ff;--tm-green: #57d9c0;--tm-cyan: #59c8e8;--tm-purple: #b48bff;--tm-pink: #e07bd8;--tm-red: #ff7ba8;--tm-yellow: #d9c27e;--tm-orange: #e0a06f}
+:is(.screen,.desk) .wrow .wsub{color: var(--ink-dim);font-size: var(--t-sm);overflow-wrap: anywhere}
+:is(.screen,.desk) .wrow .wstate{color: var(--ink-faint);font-size: var(--t-xs)}
+:is(.screen,.desk) .wline{display: flex;align-items: center;gap: calc(0.35 * var(--r))}
+:is(.screen,.desk) .wline > .wrow{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .wline.tall{align-items: flex-start}
+:is(.screen,.desk) .wline.tall > .wstop{margin-top: calc(0.1 * var(--r))}
+:is(.screen,.desk) .wstop{flex: 0 0 auto;width: calc(34 * var(--r) / 15);height: calc(34 * var(--r) / 15);display: inline-flex;align-items: center;justify-content: center;padding: calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: var(--glass);box-shadow: var(--hairline);color: var(--ink-dim);cursor: pointer}
+:is(.screen,.desk) .wstop svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .whint{margin: calc(0.25 * var(--r)) calc(0 * var(--r) / 15) calc(0 * var(--r) / 15);font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .composer{flex: 0 0 auto;display: flex;align-items: center;gap: calc(0.15 * var(--r));margin-top: calc(0.5 * var(--r));padding: calc(0.25 * var(--r)) calc(0.3 * var(--r)) calc(0.25 * var(--r)) calc(0.75 * var(--r));background: rgba(var(--tint), .06);backdrop-filter: var(--blur);border: calc(0 * var(--r) / 15);border-radius: var(--r-card);box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss)}
+:is(.screen,.desk) .composer textarea{flex: 1 1 0%;max-height: calc(7 * var(--r));resize: none;border: calc(0 * var(--r) / 15);background: none;color: var(--ink);font-style: inherit;font-variant: inherit;font-weight: inherit;font-stretch: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-base);line-height: 1.45;padding: calc(0.45 * var(--r)) calc(0 * var(--r) / 15);outline: none;caret-color: var(--accent)}
+:is(.screen,.desk) .composer .iconbtn{width: calc(38 * var(--r) / 15);height: calc(38 * var(--r) / 15);background: none;box-shadow: none}
+:is(.screen,.desk) .composer .iconbtn svg{width: var(--i-md);height: var(--i-md)}
+:is(.screen,.desk) .composer .pickfile{color: var(--ink-faint)}
+:is(.screen,.desk) .composer textarea::placeholder{color: var(--ink-faint)}
+:is(.screen,.desk) .pickfile{cursor: pointer}
+:is(.screen,.desk) .composer{flex-wrap: wrap}
+:is(.screen,.desk) .msg{font-family: var(--serif);font-size: var(--t-base);line-height: 1.55;letter-spacing: 0.002em;color: var(--ink-dim);overflow-wrap: anywhere}
+:is(.screen,.desk) .msg.ai b{color: var(--ink)}
+:is(.screen,.desk) .mstamp{align-self: flex-end;margin-top: calc(-0.28 * var(--r));padding-right: calc(0.2 * var(--r));font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint);letter-spacing: 0.04em}
+:is(.screen,.desk) .msg.me{align-self: flex-end;max-width: 84%;font-size: var(--t-base);color: var(--ink);background: color-mix(in srgb, var(--accent) 24%, transparent);border: calc(0 * var(--r) / 15);border-radius: var(--r-bubble) var(--r-bubble) var(--r-small) var(--r-bubble);padding: calc(0.5 * var(--r)) calc(0.75 * var(--r))}
+:is(.screen,.desk) .mflist{width: 100%;display: flex;flex-direction: column;border-radius: var(--r-card);overflow: hidden}
+:is(.screen,.desk) .mfile{display: grid;grid-template-columns: calc(16 * var(--r) / 15) minmax(calc(0 * var(--r) / 15), 1fr) auto;align-items: center;gap: calc(0.5 * var(--r));padding: calc(0.32 * var(--r)) calc(0.5 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-card);background: var(--glass);box-shadow: var(--hairline);color: inherit;text-align: left;font: inherit;cursor: pointer}
+:is(.screen,.desk) .mflist .mfile{border-radius: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .mfile + .mfile{box-shadow: var(--hairline), inset 0 var(--hair) 0 var(--line)}
+:is(.screen,.desk) .mfname{min-width: calc(0 * var(--r) / 15);font-size: var(--t-sm);font-weight: 600;color: var(--ink);overflow-wrap: anywhere}
+:is(.screen,.desk) .mfsize{font-family: var(--mono);font-variant-numeric: tabular-nums;font-size: var(--t-xs);color: var(--ink-faint);white-space: nowrap}
+:is(.screen,.desk) .sent{align-self: stretch;display: flex;flex-direction: column;gap: calc(0.4 * var(--r));padding: calc(0.6 * var(--r)) calc(0.8 * var(--r)) calc(0.65 * var(--r)) calc(0.7 * var(--r));border-radius: var(--r-card);background: var(--glass);box-shadow: var(--hairline);overflow-wrap: anywhere}
+:is(.screen,.desk) .senthead{display: flex;align-items: center;gap: calc(0.4 * var(--r));font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .sentico{display: flex;width: calc(15 * var(--r) / 15);height: calc(15 * var(--r) / 15);color: var(--accent);flex: 0 0 auto}
+:is(.screen,.desk) .sentico svg{width: 100%;height: 100%}
+:is(.screen,.desk) .sentlabel{font-family: var(--mono);font-weight: 500;letter-spacing: 0.06em;text-transform: uppercase;color: var(--ink-dim);flex: 0 0 auto}
+:is(.screen,.desk) .sentat{margin-left: auto;font-size: var(--t-xs);flex: 0 0 auto}
+:is(.screen,.desk) .sentcap{font-size: var(--t-md);line-height: 1.45;color: var(--ink)}
+:is(.screen,.desk) .sentcap p{margin: calc(0 * var(--r) / 15) calc(0 * var(--r) / 15) calc(0.5 * var(--r))}
+:is(.screen,.desk) .sentcap p:last-child{margin-bottom: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .sent .mflist{background: var(--glass-2)}
+:is(.screen,.desk) .mfile.tagged{grid-template-columns: auto minmax(calc(0 * var(--r) / 15), 1fr) auto;padding: calc(0.45 * var(--r)) calc(0.55 * var(--r))}
+:is(.screen,.desk) .mftag{padding: calc(0.1 * var(--r)) calc(0.35 * var(--r));border-radius: var(--r-small);background: color-mix(in srgb, var(--accent) 18%, transparent);color: var(--accent);font-family: var(--mono);font-size: var(--t-xs);font-weight: 500;letter-spacing: 0.06em;line-height: 1.3}
+:is(.screen,.desk) .mtools{align-self: flex-start;display: flex;align-items: center;gap: calc(0.3 * var(--r));padding: calc(0.2 * var(--r)) calc(0.5 * var(--r)) calc(0.2 * var(--r)) calc(0.4 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-pill);background: none;box-shadow: inset 0 0 0 var(--hair) var(--edge);color: var(--ink-dim);font-size: var(--t-xs);cursor: pointer}
+:is(.screen,.desk) .mrow{display: flex;flex-wrap: wrap;gap: calc(0.3 * var(--r));align-self: flex-start}
+:is(.screen,.desk) .mticon{display: flex;width: calc(15 * var(--r) / 15);height: calc(15 * var(--r) / 15)}
+:is(.screen,.desk) .mticon svg{width: 100%;height: 100%}
+:is(.screen,.desk) .mtools.bash, :is(.screen,.desk) .cnmark.bash{color: var(--accent)}
+:is(.screen,.desk) .mtools.files, :is(.screen,.desk) .cnmark.files{color: var(--accent-2)}
+:is(.screen,.desk) .mtools.agents, :is(.screen,.desk) .cnmark.agents{color: var(--ctx-3)}
+:is(.screen,.desk) .mtnum{font-variant-numeric: tabular-nums;font-weight: 600}
+:is(.screen,.desk) .mthink{color: var(--ink-faint)}
+:is(.screen,.desk) .mthink .mtnum{color: var(--ink-dim);font-weight: 600}
+:is(.screen,.desk) .msg.mmind{align-self: flex-start;position: relative;padding-left: calc(1.5 * var(--r));font-size: var(--t-base);color: var(--ink-dim)}
+:is(.screen,.desk) .mmind .mmicon{position: absolute;left: calc(0 * var(--r) / 15);top: calc(0.3 * var(--r));display: flex;width: calc(14 * var(--r) / 15);height: calc(14 * var(--r) / 15);color: var(--ink-faint)}
+:is(.screen,.desk) .mmind .mmicon svg{width: 100%;height: 100%}
+:is(.screen,.desk) .wrow.agent{width: 100%;border: calc(0 * var(--r) / 15);background: none;color: inherit;font: inherit;text-align: left;cursor: pointer}
+:is(.screen,.desk) .wrow.agent{align-items: flex-start;gap: calc(0.55 * var(--r))}
+:is(.screen,.desk) .wrow.agent .wicon, :is(.screen,.desk) .wrow.agent .crgo{margin-top: calc(0.12 * var(--r))}
+:is(.screen,.desk) .wrow.agent.reported{opacity: 0.6}
+:is(.screen,.desk) .wrow.agent.reported .wname{color: var(--ink-dim)}
+:is(.screen,.desk) .artifact{align-self: stretch;display: flex;align-items: center;gap: calc(0.6 * var(--r));padding: calc(0.6 * var(--r)) calc(0.8 * var(--r));border-radius: var(--r-card);background: var(--glass);box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);color: inherit;text-decoration: none;overflow-wrap: anywhere}
+:is(.screen,.desk) .arico{font-size: var(--t-xl);line-height: 1;flex: 0 0 auto}
+:is(.screen,.desk) .arbody{min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column;gap: calc(0.1 * var(--r));flex: 1 1 auto}
+:is(.screen,.desk) .artitle{font-weight: 600;font-size: var(--t-md);color: var(--ink)}
+:is(.screen,.desk) .ardesc{font-size: var(--t-sm);color: var(--ink-dim)}
+:is(.screen,.desk) .armeta{display: flex;align-items: center;gap: calc(0.4 * var(--r));font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .asked{align-self: stretch;display: flex;flex-direction: column;gap: calc(0.35 * var(--r));padding: calc(0.6 * var(--r)) calc(0.8 * var(--r)) calc(0.65 * var(--r)) calc(0.7 * var(--r));border-radius: var(--r-card);background: none;box-shadow: inset 0 0 0 var(--hair) var(--edge);overflow-wrap: anywhere}
+:is(.screen,.desk) .askedhead{display: flex;align-items: center;gap: calc(0.4 * var(--r));font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .askedico{display: flex;width: calc(15 * var(--r) / 15);height: calc(15 * var(--r) / 15);color: var(--accent);flex: 0 0 auto}
+:is(.screen,.desk) .askedico svg{width: 100%;height: 100%}
+:is(.screen,.desk) .askedlabel{font-weight: 500;color: var(--ink-faint);flex: 0 0 auto}
+:is(.screen,.desk) .askedat{margin-left: auto;font-size: var(--t-xs);flex: 0 0 auto}
+:is(.screen,.desk) .askedrow{display: flex;flex-direction: column;gap: calc(0.1 * var(--r));min-width: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .askedtop{font-family: var(--mono);font-size: var(--t-xs);letter-spacing: 0.06em;text-transform: uppercase;color: var(--ink-faint)}
+:is(.screen,.desk) .askedq{font-size: var(--t-sm);color: var(--ink-dim);line-height: 1.4}
+:is(.screen,.desk) .askeda{font-size: var(--t-md);font-weight: 600;color: var(--ink);line-height: 1.35}
+:is(.screen,.desk) .mmail{align-self: stretch;display: flex;flex-direction: column;border-radius: var(--r-card);background: rgba(var(--tint), .04);box-shadow: inset calc(2 * var(--r) / 15) 0 0 color-mix(in srgb, var(--accent-2) 70%, transparent);overflow-wrap: anywhere}
+:is(.screen,.desk) .mmhead{display: flex;flex-wrap: wrap;align-items: baseline;gap: calc(0.1 * var(--r)) calc(0.4 * var(--r));width: 100%;padding: calc(0.5 * var(--r)) calc(0.8 * var(--r)) calc(0.5 * var(--r)) calc(0.75 * var(--r));border: calc(0 * var(--r) / 15);background: none;color: var(--ink-dim);font-style: inherit;font-variant: inherit;font-weight: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-sm);text-align: left;cursor: pointer}
+:is(.screen,.desk) .mmail.open .mmhead{padding-bottom: calc(0.3 * var(--r))}
+:is(.screen,.desk) .mmico{display: flex;width: calc(15 * var(--r) / 15);height: calc(15 * var(--r) / 15);color: var(--accent);flex: 0 0 auto;align-self: center}
+:is(.screen,.desk) .mmico svg{width: 100%;height: 100%}
+:is(.screen,.desk) .mmdir{color: var(--ink-faint);font-weight: 500;font-size: var(--t-xs);flex: 0 0 auto}
+:is(.screen,.desk) .mmfrom{font-weight: 600;color: var(--ink);flex: 0 0 auto}
+:is(.screen,.desk) .mmkind{color: var(--ink-faint);font-size: var(--t-xs);flex: 0 0 auto}
+:is(.screen,.desk) .mmpeek{flex: 1 0 100%;min-width: calc(0 * var(--r) / 15);overflow: hidden;text-overflow: ellipsis;white-space: nowrap;color: var(--ink-faint)}
+:is(.screen,.desk) .mmat{margin-left: auto;color: var(--ink-faint);font-size: var(--t-xs);flex: 0 0 auto}
+:is(.screen,.desk) .mmail.out .mmico{color: var(--ink-dim)}
+:is(.screen,.desk) .mmail.out{box-shadow: inset calc(2 * var(--r) / 15) 0 0 color-mix(in srgb, var(--accent) 65%, transparent)}
+:is(.screen,.desk) .mmbody{font-size: var(--t-md);line-height: 1.5;padding: calc(0 * var(--r) / 15) calc(0.9 * var(--r)) calc(0.7 * var(--r)) calc(0.7 * var(--r))}
+:is(.screen,.desk) .mmbody > :first-child{margin-top: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .mmbody > :last-child{margin-bottom: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .calltime{position: relative;display: flex;flex-direction: column;gap: calc(0.1 * var(--r));overflow-y: auto;padding-bottom: calc(1 * var(--r))}
+:is(.screen,.desk) .calltime > *{flex: 0 0 auto}
+:is(.screen,.desk) .calltime::before{content: "";position: absolute;left: calc(15 * var(--r) / 15);top: calc(18 * var(--r) / 15);bottom: calc(calc(18 * var(--r) / 15) + calc(1 * var(--r)));width: calc(1 * var(--r) / 15);background: var(--surface-3)}
+:is(.screen,.desk) .callnode{position: relative;display: grid;grid-template-columns: auto 1fr auto;align-items: center;gap: calc(0.55 * var(--r));width: 100%;padding: calc(0.4 * var(--r)) calc(0.5 * var(--r)) calc(0.4 * var(--r)) calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: var(--r-card);background: none;text-align: left;cursor: pointer}
+:is(.screen,.desk) .cnmark{width: calc(30 * var(--r) / 15);height: calc(30 * var(--r) / 15);display: grid;place-items: center;border-radius: var(--r-small);background: var(--glass-2);box-shadow: var(--hairline);color: var(--accent);flex: 0 0 auto}
+:is(.screen,.desk) .cnmark svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .callnode.still{cursor: default;opacity: 0.6}
+:is(.screen,.desk) .cnmark.think{color: var(--ink-dim)}
+:is(.screen,.desk) .cnbody{min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column;gap: calc(0.05 * var(--r))}
+:is(.screen,.desk) .cnname{font-size: var(--t-xs);color: var(--ink);overflow-wrap: anywhere}
+:is(.screen,.desk) .cnarg{font-size: var(--t-xs);color: var(--ink-faint);overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .cndone{font-size: var(--t-xs);font-weight: 600;letter-spacing: 0.01em}
+:is(.screen,.desk) .cndone.ok{color: var(--ok)}
+:is(.screen,.desk) .cndone.crit{color: var(--crit)}
+:is(.screen,.desk) .crgo{display: flex;width: calc(14 * var(--r) / 15);height: calc(14 * var(--r) / 15);color: var(--ink-faint)}
+:is(.screen,.desk) .crgo svg{width: 100%;height: 100%}
+:is(.screen,.desk) .msg.ai{color: var(--ink)}
+:is(.screen,.desk) .msg p{margin: calc(0 * var(--r) / 15) calc(0 * var(--r) / 15) calc(0.8 * var(--r))}
+:is(.screen,.desk) .msg p:last-child{margin-bottom: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .msg code{font-family: var(--code);font-size: 0.82em;color: var(--accent-2);background: rgba(150, 170, 255, 0.1);border-radius: var(--r-small);padding: 0.06em 0.3em;overflow-wrap: anywhere}
+:is(.screen,.desk) .mdcode code{background: none;padding: calc(0 * var(--r) / 15);border-radius: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .msg b{font-weight: 700}
+:is(.screen,.desk) .mdcode{background: var(--code-bg);border: var(--hair) solid var(--line);border-radius: var(--r-card);margin: calc(0.35 * var(--r)) calc(0 * var(--r) / 15) calc(0.5 * var(--r));overflow: hidden}
+:is(.screen,.desk) .mdbar{display: flex;align-items: center;justify-content: space-between;gap: calc(0.5 * var(--r));padding: calc(0.1 * var(--r)) calc(0.25 * var(--r)) calc(0.1 * var(--r)) calc(0.55 * var(--r));border-bottom: var(--hair) solid var(--line);min-height: calc(1.6 * var(--r))}
+:is(.screen,.desk) .mdlang{font-family: var(--code);font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .mdcode pre{margin: calc(0 * var(--r) / 15);padding: calc(0.5 * var(--r)) calc(0.55 * var(--r));overflow-x: auto}
+:is(.screen,.desk) .mdcopy{flex: 0 0 auto;width: calc(1.9 * var(--r));height: calc(1.4 * var(--r));padding: calc(0 * var(--r) / 15);display: grid;place-items: center;border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: none;color: var(--ink-faint);cursor: pointer}
+:is(.screen,.desk) .mdcopy svg{width: var(--i-sm);height: var(--i-sm)}
+:is(.screen,.desk) .mdcode code{font-size: var(--t-sm);line-height: 1.5;color: var(--ink-dim);white-space: pre}
+:is(.screen,.desk) .busy{position: absolute;inset: calc(0 * var(--r) / 15);border-radius: var(--r-card);background: color-mix(in srgb, var(--void) 88%, transparent);display: flex;align-items: center;justify-content: center;gap: calc(0.5 * var(--r));font-family: var(--mono);font-size: var(--t-sm);color: var(--ink);font-variant-numeric: tabular-nums}
+:is(.screen,.desk) .crumb{display: flex;align-items: center;gap: calc(0.45 * var(--r));padding: calc(0.1 * var(--r)) calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);background: none;color: var(--accent);font-style: inherit;font-variant: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-sm);font-weight: 500;cursor: pointer}
+:is(.screen,.desk) .chev.back{transform: rotate(180deg)}
+:is(.screen,.desk) .crumb.wide{width: 100%;justify-content: space-between;padding: calc(0.7 * var(--r)) calc(0.9 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-card);box-shadow: inset 0 0 0 var(--hair) var(--edge);background: none;text-align: left}
+:is(.screen,.desk) .pager{display: flex;align-items: center;justify-content: space-between;gap: calc(0.6 * var(--r));margin-top: calc(0.7 * var(--r))}
+:is(.screen,.desk) .pager .btn{display: flex;align-items: center;gap: calc(0.35 * var(--r));padding: calc(0.45 * var(--r)) calc(0.7 * var(--r))}
+:is(.screen,.desk) .pager .btn:disabled{opacity: 0.35}
+:is(.screen,.desk) .pager .btn:first-child .chev{transform: rotate(180deg)}
+:is(.screen,.desk) .phead{display: grid;grid-template-columns: auto minmax(calc(0 * var(--r) / 15), 1fr) auto;align-items: stretch;gap: calc(0 * var(--r) / 15) calc(0.5 * var(--r));margin: calc(0.3 * var(--r)) calc(0 * var(--r) / 15) calc(0.4 * var(--r))}
+:is(.screen,.desk) .pback{grid-row: 1;align-self: stretch;min-height: calc(34 * var(--r) / 15);width: calc(34 * var(--r) / 15);display: grid;place-items: center;padding: calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: var(--r-card);background: var(--glass);box-shadow: var(--hairline);color: var(--accent);cursor: pointer}
+:is(.screen,.desk) .pback .chev{width: calc(16 * var(--r) / 15);height: calc(16 * var(--r) / 15);color: inherit}
+:is(.screen,.desk) .pheadbody{grid-row: 1;min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column;gap: calc(0.2 * var(--r));justify-content: center}
+:is(.screen,.desk) .pheadbody h2{margin: calc(0 * var(--r) / 15);font-size: var(--t-xl);font-weight: 600;letter-spacing: -0.01em}
+:is(.screen,.desk) .pheadtools{grid-row: 1;display: flex;align-items: center;justify-content: flex-end;gap: calc(0.3 * var(--r));min-width: calc(4.4 * var(--r))}
+:is(.screen,.desk) .phead > .ctxbar{grid-column: 1 / -1}
+:is(.screen,.desk) .marq{display: block;min-width: calc(0 * var(--r) / 15);overflow: hidden;white-space: nowrap}
+:is(.screen,.desk) .marq .marqin{display: inline-block}
+@media (prefers-reduced-motion: reduce){:is(.screen,.desk) .marq{text-overflow: ellipsis}}
+:is(.screen,.desk) .where{font-size: var(--t-xs);color: var(--ink-faint)}
+.screen:has(> .deskshell) .pback{background: none;box-shadow: none;color: var(--ink-faint)}
+:is(.screen,.desk) .chart.spark{margin-top: calc(0.3 * var(--r))}
+:is(.screen,.desk) .card .sub{margin: calc(0.12 * var(--r)) calc(0 * var(--r) / 15) calc(0 * var(--r) / 15);font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-dim)}
+:is(.screen,.desk) .host{display: flex;align-items: center;gap: calc(0.35 * var(--r));flex: 0 0 auto;border: calc(0 * var(--r) / 15);padding: calc(0 * var(--r) / 15);background: none;color: var(--ink);font-style: inherit;font-variant: inherit;font-stretch: inherit;line-height: inherit;font-family: inherit;font-optical-sizing: inherit;font-size-adjust: inherit;font-kerning: inherit;font-feature-settings: inherit;font-variation-settings: inherit;font-language-override: inherit;font-size: var(--t-xl);font-weight: 600;letter-spacing: -0.01em;cursor: pointer}
+:is(.screen,.desk) .caret{color: var(--ink-faint);font-size: 0.6em}
+:is(.screen,.desk) .srow .meta .model{color: var(--ink-dim)}
+:is(.screen,.desk) .topval{font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-dim);font-variant-numeric: tabular-nums;white-space: nowrap}
+:is(.screen,.desk) .topbar{position: relative;height: calc(10 * var(--r) / 15);border-radius: var(--r-small);background: var(--line);overflow: hidden}
+:is(.screen,.desk) .topbar i{position: absolute;left: calc(0 * var(--r) / 15);display: block;border-radius: var(--r-small)}
+:is(.screen,.desk) .topbar .mx{top: calc(0 * var(--r) / 15);height: calc(10 * var(--r) / 15);background: color-mix(in srgb, var(--accent) 38%, transparent)}
+:is(.screen,.desk) .cardhead{width: 100%;border: calc(0 * var(--r) / 15);background: none;color: inherit;font: inherit;display: flex;align-items: center;gap: calc(0.5 * var(--r));padding: calc(0 * var(--r) / 15) calc(0 * var(--r) / 15) calc(0.1 * var(--r));text-align: left;cursor: pointer}
+:is(.screen,.desk) .srow.past{background: none;backdrop-filter: none;box-shadow: none}
+:is(.screen,.desk) .srow.past .nm{color: var(--ink-dim)}
+:is(.screen,.desk) .srow.past .pct{color: var(--ink-faint)}
+:is(.screen,.desk) .pctnote{margin-left: calc(0.3 * var(--r));font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .netrow{padding: calc(0.34 * var(--r)) calc(0 * var(--r) / 15);border-bottom: var(--hair) solid var(--line)}
+:is(.screen,.desk) .netrow .peak{display: flex;justify-content: space-between;align-items: baseline;gap: calc(1 * var(--r));font-size: var(--t-sm)}
+:is(.screen,.desk) .netrow .peak .nm{overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .netrow .peak .v{font-family: var(--mono);font-variant-numeric: tabular-nums;white-space: nowrap}
+:is(.screen,.desk) .ufilters .chips + .chips{padding-top: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .uproject{margin-top: calc(0.1 * var(--r));font-size: var(--t-sm)}
+:is(.screen,.desk) .uthree{display: grid;grid-template-columns: repeat(3, 1fr);gap: calc(0.1 * var(--r)) calc(0.5 * var(--r))}
+:is(.screen,.desk) .utotal{min-width: calc(0 * var(--r) / 15)}
+:is(.screen,.desk) .uthree .tval{font-size: var(--t-xl);margin-top: calc(0.1 * var(--r))}
+:is(.screen,.desk) .usub{grid-column: 1 / -1;margin-top: calc(0.35 * var(--r))}
+:is(.screen,.desk) .uslices .urow{display: block;width: 100%;padding: calc(0.35 * var(--r)) calc(0.1 * var(--r)) calc(0.45 * var(--r));border: calc(0 * var(--r) / 15);background: none;color: inherit;font: inherit;text-align: left}
+:is(.screen,.desk) .uslices button.urow{cursor: pointer}
+:is(.screen,.desk) .urow + .urow{border-top: var(--hair) solid var(--line)}
+:is(.screen,.desk) .uline{display: flex;align-items: baseline;gap: calc(0.5 * var(--r));margin-bottom: calc(0.3 * var(--r))}
+:is(.screen,.desk) .uline .nm{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);font-size: var(--t-md);overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+:is(.screen,.desk) .uwhere{margin-left: calc(0.35 * var(--r));font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint)}
+:is(.screen,.desk) .uscan{display: flex;flex-direction: column;gap: calc(0.35 * var(--r))}
+:is(.screen,.desk) .uscango{width: 100%}
+.screen:has(> .deskshell) .deskshell{position: fixed;inset: calc(0 * var(--r) / 15);display: flex;flex-direction: column;overflow: hidden;background: var(--bg);color: var(--ink);--tipbg: #12162a;--ok: #6b9c83;--accent: #7d99bd;--accent-bg: rgba(125, 153, 189, .16);--warn: #cbab7f;--crit: #cb9490;--ctx-1: #6b9c83;--ctx-2: #6b9c83;--ctx-3: #cbab7f;--ctx-4: #cb9490}
+.screen:has(> .deskshell) .dktop{display: flex;align-items: center;gap: calc(0.5 * var(--r));height: calc(44 * var(--r) / 15);flex: 0 0 auto;padding: calc(0 * var(--r) / 15) calc(0.6 * var(--r));border-bottom: var(--hair) solid var(--line);background: var(--top-bg)}
+.screen:has(> .deskshell) .dkbrand{display: inline-flex;align-items: center;gap: calc(0.2 * var(--r));padding: calc(0.2 * var(--r)) calc(0.3 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: none;font: 700 var(--t-md)/1 var(--sans);letter-spacing: 0.1em;text-transform: uppercase;color: var(--ink-dim);cursor: pointer}
+.screen:has(> .deskshell) .dklogo{position: relative;display: grid;place-items: center;width: calc(30 * var(--r) / 15);height: calc(30 * var(--r) / 15);margin-right: calc(0.2 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: transparent;color: var(--accent);cursor: pointer}
+.screen:has(> .deskshell) .dklogo svg{width: var(--i-lg);height: var(--i-lg)}
+.screen:has(> .deskshell) .dkibs{display: flex;align-items: center;gap: calc(0.15 * var(--r))}
+.screen:has(> .deskshell) .dksep{width: var(--hair);height: calc(22 * var(--r) / 15);background: var(--line);margin: calc(0 * var(--r) / 15) calc(0.3 * var(--r))}
+.screen:has(> .deskshell) .dktopright{margin-left: auto;display: flex;align-items: center;gap: calc(0.3 * var(--r))}
+.screen:has(> .deskshell) .dkib{position: relative;display: grid;place-items: center;width: calc(32 * var(--r) / 15);height: calc(32 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: transparent;color: var(--ink-faint);cursor: pointer}
+.screen:has(> .deskshell) .dkib svg{width: var(--i-md);height: var(--i-md)}
+.screen:has(> .deskshell) .dkib.on{color: var(--accent);background: var(--accent-bg)}
+.screen:has(> .deskshell) .dkalert{font: 600 var(--t-sm)/1 var(--sans);color: var(--warn);background: transparent;border: var(--hair) solid var(--warn);border-radius: var(--r-pill);padding: calc(0.3 * var(--r)) calc(0.5 * var(--r));cursor: pointer}
+.screen:has(> .deskshell) .dkbody{flex: 1 1 0%;min-height: calc(0 * var(--r) / 15);display: grid;grid-template-columns: calc(292 * var(--r) / 15) minmax(calc(0 * var(--r) / 15), 1fr)}
+.screen:has(> .deskshell) .dkbody.withpanel{grid-template-columns: calc(292 * var(--r) / 15) minmax(calc(0 * var(--r) / 15), 1fr) calc(360 * var(--r) / 15)}
+.screen:has(> .deskshell) .dkleft{display: flex;flex-direction: column;min-height: calc(0 * var(--r) / 15);border-right: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dkscroll{flex: 1 1 0%;min-height: calc(0 * var(--r) / 15);overflow-y: auto}
+.screen:has(> .deskshell) .dkpick{position: relative;flex: 0 0 auto;border-bottom: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dkpickbtn{display: flex;align-items: center;gap: calc(0.4 * var(--r));width: 100%;height: calc(32 * var(--r) / 15);padding: calc(0 * var(--r) / 15) calc(0.55 * var(--r));border: calc(0 * var(--r) / 15);background: transparent;color: var(--ink);cursor: pointer}
+.screen:has(> .deskshell) .dkpicklabel{font-size: var(--t-xs);color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkpickvalue{font-size: var(--t-md);color: var(--ink)}
+.screen:has(> .deskshell) .dkpickchev{margin-left: auto;display: grid;place-items: center;color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkpickchev svg{width: var(--i-sm);height: var(--i-sm);transform: rotate(90deg)}
+.screen:has(> .deskshell) .dkcontour{position: sticky;top: calc(0 * var(--r) / 15);z-index: 2;display: flex;align-items: center;gap: calc(0.45 * var(--r));padding: calc(0.35 * var(--r)) calc(0.55 * var(--r)) calc(0.3 * var(--r));background: var(--bg);border-top: var(--hair) solid var(--line);border-bottom: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dkprochead){background: var(--glass-2);backdrop-filter: var(--blur)}
+.screen:has(> .deskshell) section:first-child > .dkcontour{border-top: calc(0 * var(--r) / 15)}
+.screen:has(> .deskshell) .dkcontourname{font-size: var(--t-sm);font-weight: 600;color: var(--ink)}
+.screen:has(> .deskshell) .dkcontournum{margin-left: auto;font-size: var(--t-xs);color: var(--ink-faint)}
+.screen:has(> .deskshell) .dksess{position: relative;display: grid;grid-template-columns: auto minmax(calc(0 * var(--r) / 15), 1fr) auto;align-items: center;gap: calc(0 * var(--r) / 15) calc(0.45 * var(--r));width: 100%;padding: calc(0.4 * var(--r)) calc(0.55 * var(--r)) calc(0.45 * var(--r));border-top: calc(0 * var(--r) / 15);border-right: calc(0 * var(--r) / 15);border-left: calc(0 * var(--r) / 15);border-image: none;border-bottom: var(--hair) solid var(--line);background: none;color: var(--ink);text-align: left;cursor: pointer}
+.screen:has(> .deskshell) .dksess.on{background: var(--accent-bg)}
+.screen:has(> .deskshell) .dksessbody{min-width: calc(0 * var(--r) / 15);display: flex;flex-direction: column;gap: calc(0.12 * var(--r))}
+.screen:has(> .deskshell) .dksessmain{display: flex;align-items: center;gap: calc(0.4 * var(--r))}
+.screen:has(> .deskshell) .dksesssub{display: flex;align-items: center;gap: calc(0.4 * var(--r))}
+.screen:has(> .deskshell) .dksessbar{grid-column: 2 / -1;height: calc(3 * var(--r) / 15);margin-top: calc(0.3 * var(--r));border-radius: var(--r-small);background: var(--line);overflow: hidden}
+.screen:has(> .deskshell) .dksessbar i{display: block;height: 100%;background: var(--ctx-1)}
+.screen:has(> .deskshell) .dksessbar.s2 i{background: var(--ctx-2)}
+.screen:has(> .deskshell) .dksessbar.s4 i{background: var(--ctx-4)}
+.screen:has(> .deskshell) .dkname{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);overflow: hidden;text-overflow: ellipsis;white-space: nowrap;font-size: var(--t-md);font-weight: 400}
+.screen:has(> .deskshell) .dkgroup{flex: 0 0 auto;max-width: calc(7 * var(--r));overflow: hidden;text-overflow: ellipsis;white-space: nowrap;font-size: var(--t-sm);color: var(--ink-dim)}
+.screen:has(> .deskshell) .dklast{flex: 1 1 0%;min-width: calc(0 * var(--r) / 15);overflow: hidden;text-overflow: ellipsis;white-space: nowrap;font-size: var(--t-sm);color: var(--ink-dim)}
+.screen:has(> .deskshell) .dkwait{flex: 0 0 auto;margin-left: auto;font-family: var(--mono);font-size: var(--t-sm);line-height: 1;color: var(--warn)}
+.screen:has(> .deskshell) .dknum{flex: 0 0 auto;min-width: calc(3.1 * var(--r));text-align: right;font-size: var(--t-xs);font-variant-numeric: tabular-nums;color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkwhen{flex: 0 0 auto;min-width: calc(2.6 * var(--r));text-align: right;font-size: var(--t-xs);font-variant-numeric: tabular-nums;color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkhint{flex: 0 0 auto;order: -1;min-width: calc(0.8 * var(--r));font-family: var(--mono);font-size: var(--t-xs);color: var(--ink-faint)}
+.screen:has(> .deskshell) .dktag{flex: 0 0 auto;font-size: var(--t-xs);color: var(--ink-faint);border: var(--hair) solid var(--edge);border-radius: var(--r-pill);padding: calc(0 * var(--r) / 15) calc(0.25 * var(--r))}
+.screen:has(> .deskshell) .dkdot{display: block;flex: 0 0 auto;width: calc(0.45 * var(--r));height: calc(0.45 * var(--r));border-radius: 50%;background: var(--ink-faint)}
+.screen:has(> .deskshell) .dkdot.dkbusy{background: var(--accent)}
+.screen:has(> .deskshell) .dkdot.dkwaiting{background: var(--warn);box-shadow: 0 0 calc(.35 * var(--r)) var(--warn)}
+.screen:has(> .deskshell) .dkdot.dkidle{background: var(--ok)}
+.screen:has(> .deskshell) .dklimits{flex: 0 0 auto;padding: calc(0.5 * var(--r)) calc(0.6 * var(--r)) calc(0.6 * var(--r));border-top: var(--hair) solid var(--line);--dklim-mute: .55}
+.screen:has(> .deskshell) .dklimit{display: flex;flex-direction: column;gap: calc(0.3 * var(--r));padding: calc(0.4 * var(--r)) calc(0 * var(--r) / 15);border-top: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dklimit:first-child{border-top: calc(0 * var(--r) / 15);padding-top: calc(0.1 * var(--r))}
+.screen:has(> .deskshell) .dklimits.dkfocus .dklimit:not(.dkon){opacity: var(--dklim-mute)}
+.screen:has(> .deskshell) .dklimname{font-size: var(--t-xs);color: var(--ink-dim)}
+.screen:has(> .deskshell) .dklimbars{display: flex;flex-direction: column;gap: calc(0.3 * var(--r))}
+.screen:has(> .deskshell) .dklimline{display: flex;flex-wrap: wrap;align-items: center;gap: calc(0.15 * var(--r)) calc(0.4 * var(--r))}
+.screen:has(> .deskshell) .dklimlabel{font-size: var(--t-xs);color: var(--ink-faint)}
+.screen:has(> .deskshell) .dklimbar{flex: 1 0 100%;order: 1;height: calc(3 * var(--r) / 15);border-radius: var(--r-small);background: var(--line);overflow: hidden}
+.screen:has(> .deskshell) .dklimbar i{display: block;height: 100%;background: var(--accent)}
+.screen:has(> .deskshell) .dklimline.dkwarn .dklimbar i{background: var(--warn)}
+.screen:has(> .deskshell) .dklimpct{font-size: var(--t-xs);font-variant-numeric: tabular-nums;color: var(--ink-faint)}
+.screen:has(> .deskshell) .dklimpct.dkwarn{color: var(--warn)}
+.screen:has(> .deskshell) .dkcenter{display: flex;flex-direction: column;min-width: calc(0 * var(--r) / 15);min-height: calc(0 * var(--r) / 15);background: var(--bg)}
+.screen:has(> .deskshell) .dkchat{padding: calc(0 * var(--r) / 15) calc(0 * var(--r) / 15) calc(1 * var(--r));gap: calc(0.4 * var(--r))}
+.screen:has(> .deskshell) .dkchat > .chatfeed{flex: 1 1 auto;min-height: calc(0 * var(--r) / 15)}
+.screen:has(> .deskshell) .dkhead{flex: 0 0 auto;position: relative;padding: calc(0.45 * var(--r)) calc(0.8 * var(--r)) calc(0.5 * var(--r));border-bottom: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dkheadtop{display: flex;align-items: center;gap: calc(0.5 * var(--r));min-width: calc(0 * var(--r) / 15)}
+.screen:has(> .deskshell) .dkheadtop .dkheadpath{flex: 1 1 auto;min-width: calc(0 * var(--r) / 15)}
+.screen:has(> .deskshell) .dkheadname{font-size: var(--t-base);font-weight: 600}
+.screen:has(> .deskshell) .dkheadpath{font-family: var(--mono);font-size: var(--t-sm);color: var(--ink-faint);overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+.screen:has(> .deskshell) .dkheadbot{display: flex;align-items: center;flex-wrap: wrap;gap: calc(0.4 * var(--r)) calc(1 * var(--r));margin-top: calc(0.35 * var(--r));min-width: calc(0 * var(--r) / 15)}
+.screen:has(> .deskshell) .dkfact{display: flex;align-items: baseline;gap: calc(0.28 * var(--r))}
+.screen:has(> .deskshell) .dkfact b{font-size: var(--t-md);font-weight: 600;color: var(--ink)}
+.screen:has(> .deskshell) .dkfact span{font-size: var(--t-sm);color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkfact.right b{font-variant-numeric: tabular-nums}
+.screen:has(> .deskshell) .dkact{display: grid;place-items: center;width: calc(1.7 * var(--r));height: calc(1.7 * var(--r));padding: calc(0 * var(--r) / 15);color: var(--ink-faint);background: none;border: calc(0 * var(--r) / 15);border-radius: var(--r-small);cursor: pointer}
+.screen:has(> .deskshell) .dkact svg{width: var(--i-sm);height: var(--i-sm)}
+.screen:has(> .deskshell) .dkright{display: flex;flex-direction: column;min-width: calc(0 * var(--r) / 15);min-height: calc(0 * var(--r) / 15);border-left: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dkpanelhead{flex: 0 0 auto;display: flex;align-items: center;height: calc(32 * var(--r) / 15);padding: calc(0 * var(--r) / 15) calc(0.3 * var(--r)) calc(0 * var(--r) / 15) calc(0.7 * var(--r));border-bottom: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dkpaneltitle{font-size: var(--t-sm);font-weight: 600;color: var(--ink)}
+.screen:has(> .deskshell) .dkclose{margin-left: auto;display: grid;place-items: center;width: calc(26 * var(--r) / 15);height: calc(26 * var(--r) / 15);color: var(--ink-faint);background: transparent;border: calc(0 * var(--r) / 15);border-radius: var(--r-small);cursor: pointer}
+.screen:has(> .deskshell) .dkclose svg{width: var(--i-sm);height: var(--i-sm)}
+.screen:has(> .deskshell) .dkacts{margin-left: auto;display: flex;gap: calc(0.25 * var(--r))}
+.screen:has(> .deskshell) .dkrowacts{flex: 0 0 auto;display: flex;gap: calc(0.25 * var(--r));margin-left: calc(0.1 * var(--r))}
+.screen:has(> .deskshell) .dkpager{display: flex;align-items: center;gap: calc(0.5 * var(--r));padding: calc(0.5 * var(--r)) calc(0.6 * var(--r));border-top: var(--hair) solid var(--line)}
+.screen:has(> .deskshell) .dkpagebtn{display: grid;place-items: center;width: calc(26 * var(--r) / 15);height: calc(26 * var(--r) / 15);padding: calc(0 * var(--r) / 15);border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: none;color: var(--ink-faint);cursor: pointer}
+.screen:has(> .deskshell) .dkpagebtn svg{width: var(--i-sm);height: var(--i-sm);transform: rotate(180deg)}
+.screen:has(> .deskshell) .dkpagebtn.next svg{transform: none}
+.screen:has(> .deskshell) .dkpagebtn:disabled{opacity: 0.35;cursor: default}
+.screen:has(> .deskshell) .dkpagenum{flex: 1 1 0%;text-align: center;font-size: var(--t-xs);font-variant-numeric: tabular-nums;color: var(--ink-dim)}
+.screen:has(> .deskshell) .dkpagetotal{color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkarch .dkname{font-size: var(--t-md);font-weight: 400}
+.screen:has(> .deskshell) .dkarch{position: relative;display: flex;flex-direction: column;gap: calc(0.1 * var(--r));padding: calc(0.35 * var(--r)) calc(0.55 * var(--r)) calc(0.4 * var(--r));border-bottom: var(--hair) solid var(--line);cursor: pointer}
+.screen:has(> .deskshell) .dkarchtop{display: flex;align-items: center;gap: calc(0.45 * var(--r))}
+.screen:has(> .deskshell) .dkarchsub{display: flex;align-items: center;gap: calc(0.35 * var(--r))}
+.screen:has(> .deskshell) .dkarchsub .dkgroup, .screen:has(> .deskshell) .dkarchsub .dklast{font-size: var(--t-xs);color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkarchmodel{flex: 0 0 auto;margin-left: auto;font-size: var(--t-xs);color: var(--ink-faint)}
+.screen:has(> .deskshell) .dkarch .dkacts{position: absolute;right: calc(0.5 * var(--r));top: calc(0.35 * var(--r))}
+.screen:has(> .deskshell) .dkarch .dkarchtop .dkwhen{margin-right: calc(3.6 * var(--r))}
+.screen:has(> .deskshell) .dkside{align-self: center}
+.screen:has(> .deskshell) .deskshell .dkscroll, .screen:has(> .deskshell) .deskshell .chatfeed{scrollbar-width: thin;scrollbar-color: var(--edge) transparent}
+.screen:has(> .deskshell) .deskshell .dkscroll::-webkit-scrollbar{width: calc(8 * var(--r) / 15);height: calc(8 * var(--r) / 15);display: block}
+.screen:has(> .deskshell) .deskshell .dkscroll::-webkit-scrollbar-thumb{border-radius: calc(4 * var(--r) / 15);background: var(--edge)}
+@media (hover: hover) and (pointer: fine){:is(.screen,.desk) .deskshell .dkarch .dkacts{opacity: 0}}
+.screen:has(> .deskshell) .dklimreset{margin-left: auto;font-size: var(--t-xs);color: var(--ink-faint);font-variant-numeric: tabular-nums}
+:is(.screen,.desk) .termwrap{display: flex;flex-direction: column;flex: 1 1 auto;min-height: calc(0 * var(--r) / 15);gap: calc(0.5 * var(--r));--termbg: #05060b;--termink: #cfd8ee;--term-cursor: #7d99bd;--term-sel: rgba(125, 153, 189, .32);--term-black: #1c2333;--term-red: #cb9490;--term-green: #6b9c83;--term-yellow: #cbab7f;--term-blue: #7d99bd;--term-magenta: #a68cc4;--term-cyan: #79a8ad;--term-white: #b6c0d4;--term-bright-black: #7c88a0;--term-bright-red: #e3aca7;--term-bright-green: #8bbca2;--term-bright-yellow: #e5c79a;--term-bright-blue: #9ab6da;--term-bright-magenta: #c1a8dd;--term-bright-cyan: #95c4c8;--term-bright-white: #e6ecf8}
+:is(.screen,.desk) .termscreen{flex: 1 1 auto;min-height: calc(0 * var(--r) / 15);padding: calc(0.5 * var(--r)) calc(0.6 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-card);background: var(--termbg);box-shadow: inset 0 0 0 var(--hair) var(--edge);overflow: hidden;touch-action: none}
+:is(.screen,.desk) .termkeys{flex: 0 0 auto;display: flex;align-items: center;gap: calc(0.35 * var(--r));flex-wrap: nowrap}
+:is(.screen,.desk) .termkey{flex: 0 0 auto;display: grid;place-items: center;min-width: calc(2.7 * var(--r));min-height: calc(40 * var(--r) / 15);padding: calc(0 * var(--r) / 15) calc(0.5 * var(--r));border: calc(0 * var(--r) / 15);border-radius: var(--r-small);background: none;box-shadow: inset 0 0 0 var(--hair) var(--edge);color: var(--ink-dim);font-family: var(--mono);font-size: var(--t-md);line-height: 1;touch-action: manipulation;user-select: none;cursor: pointer}
+:is(.screen,.desk) .termkey.danger{margin-right: auto;color: var(--crit)}
+
+@keyframes pulse { 
+  0%, 100% {opacity: 1}
+  50% {opacity: 0.25}
+}
+/* ---- the scenes themselves: what moves, and when ---- */
+/* One timeline per scene, ten seconds long: every moving part is placed on it by
+   percentage, so nothing has to be timed against anything else. The base styles
+   are the end of the loop, which is also what a still scene shows. */
+
+.screen [class*="sa-"], .desk [class*="sa-"],
+.sa-tick::after, .sa-draw .scline, .sa-draw .scfill, .sa-draw .scmax {
+    animation-duration: var(--cyc, 10s);
+    animation-iteration-count: infinite;
+    animation-timing-function: cubic-bezier(.22, .61, .36, 1);
+    animation-delay: calc(var(--i, 0) * .18s);
+    animation-play-state: paused;
+}
+
+/* A scene waits until the page says it is being looked at: the chapter it stands
+   in goes live, or the frame is marked seen. Until then every loop holds still. */
+.seen [class*="sa-"], .seen .sa-tick::after,
+.seen .sa-draw .scline, .seen .sa-draw .scfill, .seen .sa-draw .scmax,
+.chapter.live [class*="sa-"], .chapter.live .sa-tick::after,
+.chapter.live .sa-draw .scline, .chapter.live .sa-draw .scfill, .chapter.live .sa-draw .scmax {
+    animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .screen [class*="sa-"], .desk [class*="sa-"],
+    .sa-tick::after, .sa-draw .scline, .sa-draw .scfill, .sa-draw .scmax {
+        animation: none !important;
+    }
+}
+
+/* what arrives */
+.sa-in, .sa-card { animation-name: scIn; }
+.sa-answer { animation-name: scAnswer; }
+
+@keyframes scIn {
+    0% { opacity: 0; transform: translateY(.7em); }
+    8%, 100% { opacity: 1; transform: none; }
+}
+
+@keyframes scAnswer {
+    0%, 76% { opacity: 0; transform: translateY(.6em); }
+    86%, 100% { opacity: 1; transform: none; }
+}
+
+/* the sheet and the scrim under it */
+.sa-sheet { animation-name: scSheet; }
+.sa-scrim { animation-name: scScrim; }
+
+@keyframes scSheet {
+    0%, 3% { transform: translateY(103%); }
+    12%, 78% { transform: none; }
+    88%, 100% { transform: translateY(103%); }
+}
+
+@keyframes scScrim {
+    0%, 3% { opacity: 0; }
+    12%, 78% { opacity: 1; }
+    88%, 100% { opacity: 0; }
+}
+
+/* the second sheet: the gate that names the consequence */
+/* the gate opens inside the loop and is closed again at the end of it, so a
+   still scene shows the sheet it stands over */
+.sa-gate { animation-name: scGate; }
+.sa-gatescrim { animation-name: scGateScrim; }
+.sheet.on.sa-gate { transform: translateY(103%); }
+.scrim.on.sa-gatescrim { opacity: 0; }
+
+@keyframes scGate {
+    0%, 44% { transform: translateY(103%); }
+    54%, 92% { transform: none; }
+    100% { transform: translateY(103%); }
+}
+
+@keyframes scGateScrim {
+    0%, 44% { opacity: 0; }
+    54%, 92% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* the option that lights up, and its tick */
+.sa-pick { animation-name: scPick; }
+.sa-tick { animation-name: scTick; }
+.sa-tick::after { animation-name: scTickMark; }
+.sa-press2 { animation-name: scPick2; }
+
+@keyframes scPick {
+    0%, 34% { background: none; border-color: var(--line); }
+    40%, 100% { background: var(--accent-bg);
+                border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+}
+
+@keyframes scPick2 {
+    0%, 40% { background: none; border-color: var(--line); }
+    44% { background: var(--accent-bg); transform: scale(.985); }
+    50%, 100% { background: var(--accent-bg); transform: none;
+                border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+}
+
+@keyframes scTick {
+    0%, 34% { background: transparent;
+              border-color: color-mix(in srgb, var(--ink-faint) 70%, transparent); }
+    40%, 100% { background: var(--accent); border-color: var(--accent); }
+}
+
+@keyframes scTickMark {
+    0%, 34% { opacity: 0; transform: scale(.4); }
+    42%, 100% { opacity: 1; transform: none; }
+}
+
+/* a tap */
+.sa-press { animation-name: scPress; }
+.sa-send { animation-name: scSend; }
+
+@keyframes scPress {
+    0%, 35% { transform: none; }
+    37% { transform: scale(.96); }
+    44%, 100% { transform: none; }
+}
+
+@keyframes scSend {
+    0%, 52% { transform: none; }
+    55% { transform: scale(.92); }
+    62%, 100% { transform: none; }
+}
+
+/* bars and charts */
+.sa-grow { animation-name: scGrow; transform-origin: left center; }
+.sa-draw .scline, .sa-draw .scmax { stroke-dasharray: 620; animation-name: scDraw; }
+.sa-draw .scfill { animation-name: scFill; }
+
+@keyframes scGrow {
+    0%, 4% { transform: scaleX(0); }
+    30%, 100% { transform: none; }
+}
+
+@keyframes scDraw {
+    0%, 4% { stroke-dashoffset: 620; }
+    38%, 100% { stroke-dashoffset: 0; }
+}
+
+@keyframes scFill {
+    0%, 10% { opacity: 0; }
+    40%, 100% { opacity: 1; }
+}
+
+/* a stack unrolls */
+.sa-rows { overflow: hidden; animation-name: scRows; }
+
+@keyframes scRows {
+    0%, 16% { max-height: 0; }
+    38%, 100% { max-height: 40em; }
+}
+
+/* the log slides in over the list */
+.sa-logbar { animation-name: scLog; }
+
+@keyframes scLog {
+    0%, 46% { transform: translateY(112%); }
+    58%, 94% { transform: none; }
+    100% { transform: translateY(112%); }
+}
+
+/* the terminal: the caret blinks, a key is pressed */
+.sa-caret { animation-name: scBlink; animation-duration: 1.06s;
+            animation-timing-function: steps(1, end); animation-delay: 0s; }
+.sa-key { animation-name: scKey; }
+.sa-keyhit { animation-name: scKeyHit; }
+
+@keyframes scBlink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+
+@keyframes scKey {
+    0%, 62% { background: none; color: var(--ink-dim); }
+    64% { background: var(--glass); color: var(--ink); }
+    70%, 100% { background: none; color: var(--ink-dim); }
+}
+
+@keyframes scKeyHit {
+    0%, 70% { background: none; color: var(--ink-dim); }
+    73% { background: var(--glass); color: var(--ink); transform: scale(.96); }
+    80%, 100% { background: none; color: var(--ink-dim); transform: none; }
+}
+
+/* what the scenes draw instead of a canvas: the same shapes, as vectors */
+/* width 0 with a full-width minimum keeps the drawing from setting the width of
+   the box it lies in, the way the panel keeps its own wide boxes in line */
+.sc-spark, .sc-graph, .sc-peaks { display: block; width: 0; min-width: 100%; }
+.sc-spark { height: calc(38 * var(--r) / 15); }
+.sc-graph { height: calc(116 * var(--r) / 15); }
+.sc-peaks { height: calc(78 * var(--r) / 15); }
+.sctick { fill: var(--ink-faint); font-family: var(--mono);
+          font-size: calc(9 * var(--r) / 15); text-anchor: middle; }
+.sctick.first { text-anchor: start; }
+.sctick.last { text-anchor: end; }
+
+/* the session terminal: xterm paints its rows into a canvas, a scene writes them */
+.scterm { font-family: var(--code); font-size: calc(13 * var(--r) / 15); line-height: 1.32;
+          color: var(--termink); white-space: pre; }
+.scterm .tdim { color: var(--term-bright-black); }
+.scterm .tsay { color: var(--term-green); }
+.scterm .tink { color: var(--term-bright-black); }
+.scterm .tink2 { color: var(--termink); }
+/* the console draws its input box out of box-drawing glyphs; a page that ships a
+   latin font subset draws the same box with a border instead */
+.scterm .tframe { margin: calc(.2 * var(--r)) 0; padding: calc(.22 * var(--r)) calc(.4 * var(--r));
+                  border: 1px solid var(--term-bright-black); border-radius: calc(6 * var(--r) / 15);
+                  white-space: pre-wrap; }
+.scterm .tframe .tink { color: var(--term-bright-black); }
+.scterm .tcaret { color: var(--term-blue); }
+.scterm .tstatus { color: var(--term-bright-black); }
+
+/* ── what the snapshots did not carry ────────────────────────────────────── */
+
+/* The home session on the bar, as the panel draws it: filled while it works,
+   breathing while it is busy. */
+:is(.screen,.desk) nav.tabs .homeslot .homebtn.live {
+    background: var(--accent-bg);
+    color: var(--accent);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent);
+}
+@keyframes scHomeBreathe {
+    0%, 100% { box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent), var(--glow); }
+    50% { box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent), 0 0 calc(22 * var(--r) / 15) calc(-2 * var(--r) / 15) color-mix(in srgb, var(--accent) 70%, transparent); }
+}
+:is(.screen,.desk) nav.tabs .homeslot .homebtn.busy { animation: scHomeBreathe 2.4s ease-in-out infinite; }
+
+/* A letter arrives closed and unfolds on the timeline. */
+:is(.screen,.desk) .mmbody.sa-unfold { overflow: hidden; }
+.sa-unfold { animation-name: scUnfold; }
+@keyframes scUnfold {
+    0%, 14% { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; }
+    26%, 100% { max-height: 14em; opacity: 1; }
+}
+
+/* The terminal sits on its status line, as a terminal does. */
+:is(.screen,.desk) .termscreen { display: flex; flex-direction: column; }
+:is(.screen,.desk) .termscreen > .scterm { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; }
