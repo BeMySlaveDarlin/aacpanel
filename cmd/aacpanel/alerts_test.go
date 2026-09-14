@@ -44,12 +44,21 @@ func TestAlertsProbesPG(t *testing.T) {
 		}
 		var body struct {
 			Alerts []store.Alert `json:"alerts"`
+			Open   *int          `json:"open"`
+			Unread *int          `json:"unread"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
 		}
 		if body.Alerts == nil {
 			t.Error("an empty list came as null, not as []")
+		}
+		// The badge reads these instead of counting the page it was given.
+		if body.Open == nil || body.Unread == nil {
+			t.Fatalf("the answer carries no counters: %s", w.Body)
+		}
+		if *body.Unread > *body.Open {
+			t.Errorf("%d alerts are unseen out of %d open ones", *body.Unread, *body.Open)
 		}
 	})
 

@@ -1,0 +1,93 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// The chat screen the panel ships, over a fake host: the feed comes from a
+// canned answer, the stream is a stub the page feeds by hand, and a send is
+// answered after a moment.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const N = 14;
+const items = [];
+for (let i = 1; i <= N; i++) {
+    items.push({ role: "me", pos: i * 20, text: `question number ${i} about the build`, at: new Date(Date.now() - (N - i) * 60000).toISOString() });
+    items.push({ role: "ai", pos: i * 20 + 10, text: `Answer ${i}: the build is green, the check ran in nine seconds and nothing changed in the bundle.`, at: new Date(Date.now() - (N - i) * 60000 + 5000).toISOString() });
+}
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+let stream = null;
+let pos = 400;
+const sent = [];
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: items[0].pos, last: items[items.length - 1].pos, total: items.length, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u === "/api/actions") { sent.push(u); await new Promise((r) => setTimeout(r, 250)); return json({ logged: true }); }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; this.listeners = {}; stream = this; }
+    addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
+    close() { this.readyState = 2; }
+    emit(type, data) { for (const fn of this.listeners[type] || []) fn({ data: JSON.stringify(data) }); }
+};
+const arrive = (text) => {
+    pos += 10;
+    stream.emit("chat", { items: [{ role: "me", pos, text, at: new Date().toISOString() }], total: items.length + 1 });
+};
+
+const exec = { available: true };
+const live = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, tokensIn: 124000, tokensOut: 8000, lastRequestAt: new Date(Date.now() - 120000).toISOString() };
+function Page() { return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`; }
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const round = (n) => Math.round(n * 100) / 100;
+const state = () => {
+    const box = document.querySelector(".chatfeed");
+    const me = Array.from(document.querySelectorAll(".chatfeed .msg.me"));
+    const last = me[me.length - 1];
+    const r = last ? last.getBoundingClientRect() : null;
+    const texts = me.map((b) => b.textContent.trim());
+    const stamp = last && last.nextElementSibling && last.nextElementSibling.classList.contains("mstamp")
+        ? last.nextElementSibling.textContent.trim() : "";
+    return {
+        count: me.length, unique: new Set(texts).size, top: r && round(r.top), height: r && round(r.height),
+        cls: last ? last.className : "", stamp, wait: last && last.querySelector(".mwait") ? last.querySelector(".mwait").textContent : "",
+        scrollTop: box.scrollTop, scrollHeight: box.scrollHeight, clientHeight: box.clientHeight,
+    };
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 50 && !document.querySelector(".composer textarea"); i++) await sleep(100);
+    await sleep(300);
+    const before = state();
+    const text = "hello there, run the checks again";
+    const area = document.querySelector(".composer textarea");
+    area.value = text;
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(50);
+    const button = document.querySelector(".composer .iconbtn.accent");
+    const debug = { areaDisabled: area.disabled, areaValue: area.value, button: Boolean(button), buttonDisabled: button && button.disabled, title: button && button.title };
+    button.click();
+    await sleep(600);
+    const queued = state();
+    debug.sent = sent;
+    const frames = [];
+    let recording = true;
+    const tick = () => { if (!recording) return; frames.push(state()); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    arrive(text);
+    await sleep(700);
+    recording = false;
+    const settled = state();
+    return { before, queued, frames, settled, debug };
+})();
+</script>

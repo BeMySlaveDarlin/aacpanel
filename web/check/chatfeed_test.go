@@ -134,7 +134,7 @@ func TestLocalReplyMatchesThroughAttachmentChip(t *testing.T) {
 		t.Errorf("%s: sameReply() cleans one side out of two — what arrived and what was sent are compared as they are", chatFile)
 	}
 
-	if !strings.Contains(screen, "sameReply(text, l)") {
+	if !strings.Contains(screen, "sameReply(item.text, local)") {
 		t.Errorf("%s: the shown copy is cleared by something other than the shared parsing — the harness note will again disagree with what was typed", chatFile)
 	}
 	for _, was := range []string{"text === l.text", "text.includes(l.file)"} {
@@ -241,7 +241,7 @@ func TestChatFeedStaysAtBottomWhenItShrinks(t *testing.T) {
 			"keyboard push the last entry under the edge again", chatFile)
 	}
 	tail := src[at:]
-	end := strings.Index(tail, "}, []);")
+	end := strings.Index(tail, "\n    });")
 	if end < 0 {
 		t.Fatalf("%s: the end of the effect around the feed height observer is not visible — "+
 			"there is nothing to check", chatFile)
@@ -262,7 +262,11 @@ func TestChatFeedStaysAtBottomWhenItShrinks(t *testing.T) {
 	if !strings.Contains(effect, "ro.observe(box)") {
 		t.Errorf("%s: the height observer is created but attached to nothing", chatFile)
 	}
-	if !strings.Contains(effect, "ro.disconnect()") {
+	if !strings.Contains(src, "watchRef.current.disconnect()") {
+		t.Errorf("%s: the observer of the previous box is never let go — it watches a node "+
+			"nobody can see any more, while the box on the screen is watched by nobody", chatFile)
+	}
+	if !strings.Contains(src, "if (watchRef.current) watchRef.current.disconnect();\n    }, []);") {
 		t.Errorf("%s: the feed observer is never disconnected — it outlives its screen", chatFile)
 	}
 }

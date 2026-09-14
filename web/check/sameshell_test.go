@@ -25,7 +25,7 @@ func TestASentShellCommandSettlesItsQueuedRow(t *testing.T) {
 	}
 
 	screen := screenSrc(t, "src/screens/chat.js")
-	settle := jsBlock(t, "src/screens/chat.js", screen, "const arrived = (l) =>")
+	settle := jsBlock(t, "src/screens/chat/feed.js", screen, "export function arrived(items, local)")
 	if !strings.Contains(settle, "sameShell(") {
 		t.Error("the screen settles a queued row only against messages — a shell command the console ran leaves its row queued")
 	}

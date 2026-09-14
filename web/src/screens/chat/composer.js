@@ -116,6 +116,12 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
         wasSending.current = sending;
         if (back) regain(area.current);
     }, [sending]);
+    // Two presses can land in the same frame — a phone answers one touch with a
+    // click of its own — and both run the closure of the draw they were made in,
+    // where the flag that disables the button is still off and the draft is
+    // still whole. The latch is taken before anything leaves and dropped only
+    // once the screen has been drawn without that draft.
+    const taken = useRef(false);
     const ready = knows(exec, "session.send");
     const why = whyNot(exec, "session.send");
     const canStop = knows(exec, "session.stop");
@@ -124,13 +130,15 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
     const fileWhy = whyNot(exec, "session.file");
     const canCmd = knows(exec, "session.command");
     const pack = files || [];
+    useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
     const cmd = canCmd && !pack.length ? parseCommand(text) : null;
     const hints = canCmd && !pack.length && !(cmd && cmd.ready) ? commandHints(text) : [];
     const cantSend = !ready || sending || (cmd ? !cmd.ready : (pack.length ? !canFile : !text.trim()));
     const stopping = busy && !text.trim() && !pack.length;
 
     const stop = async () => {
-        if (sending) return;
+        if (sending || taken.current) return;
+        taken.current = true;
         setSending(true);
         await run("session.stop", name, {});
         setSending(false);
@@ -168,7 +176,8 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
 
     const send = async () => {
         const body = text.trim();
-        if ((!body && !pack.length) || sending) return;
+        if ((!body && !pack.length) || sending || taken.current) return;
+        taken.current = true;
         if (cmd) return sendCommand();
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");

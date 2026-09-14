@@ -14,6 +14,7 @@ import { SessionColumn } from "./sessions.js";
 import { StackColumn, ContainersCenter } from "./containers.js";
 import { MachineCats, MachineCenter } from "./machine.js";
 import { routeChip } from "../ui/route.js";
+import { useToastHide } from "../ui/toasts.js";
 import { Home } from "./home.js";
 import { PANELS, RightPanel } from "./panels.js";
 
@@ -58,6 +59,10 @@ export function DesktopShell({
     const [cont, setCont] = useState(null);
     const [cat, setCat] = useState("cpu");
     const [panel, setPanel] = useState(null);
+
+    // The note about an action belongs to the section and the conversation it was taken in.
+    const hideToast = useToastHide();
+    useEffect(() => { hideToast(); }, [section, chat, hideToast]);
     const [picks, setPicks] = useState([]);
     const [settings, setSettings] = useState(false);
     const [order, setOrder] = useState([]);

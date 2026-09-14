@@ -340,7 +340,8 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 	if strings.Contains(body, `run("session.`) {
 		t.Errorf("%s: the chat screen sends the session action itself, past deliver() from the composer", chatFile)
 	}
-	if !strings.Contains(body, `l.state !== "held"`) {
+	arrived := jsBlock(t, "src/screens/chat/feed.js", screenSrc(t, chatFile), "export function arrived(items, local)")
+	if !strings.Contains(arrived, `local.state === "held"`) {
 		t.Errorf("%s: a reply waiting to be sent is cleared by a text match with someone else's — "+
 			"what was typed is lost", chatFile)
 	}

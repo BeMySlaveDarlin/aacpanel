@@ -131,6 +131,18 @@ def _by_name(value_of):
     return out
 
 
+# Both counts are of what is still going on. A shell that is over stays in the
+# state so its output can be read, and an agent that has reported may never be
+# heard from again; the card of a session says what it is doing now, not what
+# it did.
+def work_of(busy):
+    """Returns how much of the session's work is still going on."""
+    return {
+        "tasks": sum(1 for t in busy["tasks"] if not t.get("done")),
+        "agents": sum(1 for a in busy["agents"] if a.get("status") != "reported"),
+    }
+
+
 def sessions():
     """Returns the live sessions for the snapshot."""
     try:
@@ -179,11 +191,7 @@ def sessions():
                     "at": ask.get("at") or "",
                 }
             if busy:
-                agents = sum(1 for a in busy["agents"] if a.get("status") != "reported")
-                work = {
-                    "tasks": len(busy["tasks"]),
-                    "agents": agents,
-                }
+                work = work_of(busy)
                 if work["tasks"] or work["agents"]:
                     s["work"] = work
         s.pop("transcript", None)

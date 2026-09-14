@@ -105,23 +105,29 @@ export function Row({ item, session, id, onCalls, onFile }) {
         `;
     }
 
-    const queued = item.state === "queued";
-    const sending = item.state === "sending";
     const failed = item.state === "failed";
-    const held = item.state === "held";
     const mine = item.role === "me";
+    // A message on its way says so where its stamp will be: the bubble keeps
+    // its height when the transcript echoes it, and only the line under it
+    // changes from the state to the time.
+    const wait = onTheWay(item.state);
     return html`
-        <div class=${`msg ${mine ? "me" : "ai"}${queued || sending || held ? " queued" : ""}${failed ? " failed" : ""}`}>
+        <div class=${`msg ${mine ? "me" : "ai"}${wait ? " queued" : ""}${failed ? " failed" : ""}`}>
             ${render(item.text, { breaks: mine })}
             ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} />`}
             ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
-            ${sending && html`<p class="mwait"><span class="mclock">${Icon.clock()}</span> going out</p>`}
-            ${queued && html`<p class="mwait">queued</p>`}
-            ${held && html`<p class="mwait">will go out when the session is free</p>`}
             ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}
         </div>
-        ${mine && item.at && html`<div class="mstamp">${stampText(item.at)}</div>`}
+        ${mine && (wait || item.at) && html`<div class="mstamp">${wait || stampText(item.at)}</div>`}
     `;
+}
+
+// onTheWay names the state of a message that has not reached the transcript yet.
+function onTheWay(state) {
+    if (state === "sending") return html`<span class="mclock">${Icon.clock()}</span> going out`;
+    if (state === "queued") return "queued";
+    if (state === "held") return "will go out when the session is free";
+    return null;
 }
 
 function Shot({ src, name }) {

@@ -1,6 +1,6 @@
 // The feed window: the first read, paging upwards and the stream of new items.
 
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -24,6 +24,30 @@ const END_SLACK = 120;
 // says it does not, or the other way round.
 export function nearEnd(box) {
     return box.scrollHeight - box.scrollTop - box.clientHeight < END_SLACK;
+}
+
+// left keeps where every feed was last seen, for as long as the page lives. The box
+// of the feed is thrown away whenever the screen shows the terminal or an agent
+// instead, and built anew on the way back: a position kept inside it would die with
+// it, and the reader would come back to the top of the conversation every time.
+const left = new Map();
+
+// feedKey names a feed: the conversation, and for an agent its own feed inside it.
+export function feedKey(name, id) {
+    return `${name}\u0000${id || ""}`;
+}
+
+// keepAt writes down where the box stands: at the end of the feed, or at this offset.
+// Following the end is kept as an answer of its own, not as the offset it happened to
+// have: messages arrive while the feed is away, and the end moves with them.
+export function keepAt(key, box) {
+    if (!box) return;
+    left.set(key, { end: nearEnd(box), top: box.scrollTop });
+}
+
+// leftAt returns where the feed was left, or null for a feed never seen scrolled.
+export function leftAt(key) {
+    return left.get(key) || null;
 }
 
 // wakeNeeded reports whether the feed stream should be reopened.
@@ -54,19 +78,48 @@ export function useFeedWindow({ name, id, live }) {
     const lastRef = useRef(null);
     const firstRef = useRef(null);
     const stickRef = useRef(true);
+    const seenRef = useRef(null);
+    const putRef = useRef(null);
+    const watchRef = useRef(null);
     const [atEnd, setAtEnd] = useState(true);
 
     const base = `session=${encodeURIComponent(name)}${idParam(id)}`;
 
-    // settle reads the position of the box once and tells both sides of it.
+    // The key of the feed is read out of a ref: an observer or a listener made for one
+    // box outlives the render that made it, and would go on writing the position of a
+    // feed the reader has already left.
+    const keyRef = useRef("");
+    keyRef.current = feedKey(name, id);
+
+    // settle reads the position of the box once and tells both sides of it, and the
+    // feed is written down where it stands — every scroll of the box comes through
+    // here, the reader's own and the ones the feed makes for itself.
     const settle = (box) => {
         const near = nearEnd(box);
         stickRef.current = near;
         setAtEnd(near);
+        keepAt(keyRef.current, box);
+    };
+
+    // put returns a box to where the feed was left: to the end if the feed was
+    // following new messages there — the end as it is now, not as it was on leaving —
+    // and to the same offset if it was scrolled up. A feed nobody has scrolled counts
+    // as being at its end, which is where a feed opens. A box with nothing in it yet
+    // cannot be scrolled anywhere, and the arriving items try again.
+    const put = (box) => {
+        if (box.scrollHeight <= box.clientHeight) return;
+        const at = leftAt(keyRef.current);
+        putRef.current = box;
+        box.scrollTop = !at || at.end ? box.scrollHeight : at.top;
+        settle(box);
     };
 
     useEffect(() => {
-        stickRef.current = true;
+        const at = leftAt(feedKey(name, id));
+        stickRef.current = !at || at.end;
+        putRef.current = null;
+        // A feed left scrolled up gets its button back from the reading of the box it
+        // is put into, not before: until then there is nothing to jump away from.
         setAtEnd(true);
     }, [name, id]);
 
@@ -164,18 +217,36 @@ export function useFeedWindow({ name, id, live }) {
         box.scrollTop = box.scrollHeight;
     }, [state.items, state.kind]);
 
-    useEffect(() => {
+    // The box of the feed comes and goes under a window that stays: the screen builds
+    // it anew every time it returns from the terminal or from an agent. A new box
+    // starts at the top of the conversation, and an observer left on the old one
+    // watches a node nobody can see — so every render looks for the box, and a box
+    // that is new is watched and put back where the reader left the feed.
+    useLayoutEffect(() => {
         const box = feedRef.current;
-        if (!box || typeof ResizeObserver !== "function") return undefined;
-        // A box that grows while the feed is scrolled up may now reach the end
-        // by itself; without a scroll event nobody would notice, and the button
-        // would stay for an end already in view.
-        const ro = new ResizeObserver(() => {
-            if (stickRef.current) box.scrollTop = box.scrollHeight;
-            else settle(box);
-        });
-        ro.observe(box);
-        return () => ro.disconnect();
+        if (box !== seenRef.current) {
+            seenRef.current = box;
+            if (watchRef.current) {
+                watchRef.current.disconnect();
+                watchRef.current = null;
+            }
+            // A box that grows while the feed is scrolled up may now reach the end
+            // by itself; without a scroll event nobody would notice, and the button
+            // would stay for an end already in view.
+            if (box && typeof ResizeObserver === "function") {
+                const ro = new ResizeObserver(() => {
+                    if (stickRef.current) box.scrollTop = box.scrollHeight;
+                    else settle(box);
+                });
+                ro.observe(box);
+                watchRef.current = ro;
+            }
+        }
+        if (box && putRef.current !== box) put(box);
+    });
+
+    useEffect(() => () => {
+        if (watchRef.current) watchRef.current.disconnect();
     }, []);
 
     const loadUp = async () => {

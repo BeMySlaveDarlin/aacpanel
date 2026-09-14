@@ -220,3 +220,24 @@ func TestNoSessionHasNoDeadlineField(t *testing.T) {
 		t.Fatalf("the no-session answer got a limit: %+v", body)
 	}
 }
+
+func TestProtectKeepsTheQueryInNext(t *testing.T) {
+	s := testServer(t, auth.SessionTTL{Idle: time.Nanosecond, Absolute: time.Hour})
+	h := s.protect(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("the handler ran with an expired session")
+	})
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, withSession(t, s, "GET", "/app?session=nightly"))
+	if loc := w.Header().Get("Location"); loc != "/login?reason=idle&next=%2Fapp%3Fsession%3Dnightly" {
+		t.Fatalf("the session named in the address was lost on the way to the login: %q", loc)
+	}
+
+	for _, path := range []string{"//evil.example/app", "http://evil.example/app"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if loc := w.Header().Get("Location"); loc != "/login?reason=none&next=%2Fapp" {
+			t.Errorf("a visit to %q led the login elsewhere: %q", path, loc)
+		}
+	}
+}

@@ -27,7 +27,12 @@ export function useAlerts() {
                 return;
             }
             const body = await response.json();
-            setState({ kind: "ready", alerts: body.alerts || [] });
+            setState({
+                kind: "ready",
+                alerts: body.alerts || [],
+                open: count(body.open),
+                unread: count(body.unread),
+            });
         } catch (err) {
             setState({ kind: "failed", alerts: [], error: "the network is unavailable" });
         }
@@ -87,6 +92,12 @@ export function useProbes() {
     return state;
 }
 
+// count takes a counter the server sent, and null when it sent none: a server
+// that knows no counters leaves the screen to count the page itself.
+function count(value) {
+    return typeof value === "number" ? value : null;
+}
+
 export function open(alerts) {
     return (alerts || []).filter((a) => !a.closedAt);
 }
@@ -95,3 +106,10 @@ export function unread(alerts) {
     return open(alerts).filter((a) => !a.ackedAt);
 }
 
+// openCount is the number for the badge: how many open alerts nobody has
+// acknowledged. The server counts them all, and only without its count does the
+// screen count the page it holds — a page misses an alert buried under fresher
+// events.
+export function openCount(state) {
+    return typeof state.unread === "number" ? state.unread : unread(state.alerts).length;
+}

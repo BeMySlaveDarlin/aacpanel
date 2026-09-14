@@ -37,7 +37,10 @@ func (s *Server) gate(h http.HandlerFunc, refresh bool) http.Handler {
 				json.NewEncoder(w).Encode(body)
 				return
 			}
-			http.Redirect(w, r, "/login?reason="+reason+"&next="+url.QueryEscape(r.URL.Path), http.StatusSeeOther)
+			// The query is part of the address to come back to: a push about a
+			// question leads to a named session, not to the panel at large.
+			back := safeNext(r.URL.RequestURI())
+			http.Redirect(w, r, "/login?reason="+reason+"&next="+url.QueryEscape(back), http.StatusSeeOther)
 			return
 		}
 

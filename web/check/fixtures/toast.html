@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The toast host as the panel mounts it, over a screen that re-renders the
+// way the application does, with a fake host behind the gate.
+import { h, render } from "preact";
+import { useEffect, useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { GateHost, useAction } from "/src/actions/gate.js";
+import { LIFETIME, ToastHost, useToast } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => (String(url) === "/api/actions"
+    ? json({ logged: true, detail: "session harness-rework started" })
+    : new Response("", { status: 404 }));
+
+const fx = { renders: 0 };
+function Screen() {
+    const [n, setN] = useState(0);
+    useEffect(() => { const t = setInterval(() => setN((k) => k + 1), 100); return () => clearInterval(t); }, []);
+    fx.renders++;
+    fx.show = useToast();
+    fx.run = useAction();
+    return html`<p>tick ${n}</p>`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Screen))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const on = () => document.querySelector(".toast").classList.contains("on");
+const confirm = () => {
+    const button = Array.from(document.querySelectorAll(".sheet .btnrow .btn")).find((b) => b.textContent.trim() === "Open");
+    if (!button) throw new Error("the gate shows no confirmation");
+    button.click();
+};
+
+window.done = (async () => {
+    await sleep(200);
+    const t0 = performance.now();
+    const series = [];
+    const sample = () => series.push([Math.round(performance.now() - t0), on()]);
+    // A show, then another one a second before the first would go: the
+    // second gets its full time.
+    fx.show("first", "a");
+    await sleep(50);
+    const second = LIFETIME - 1000;
+    let shown = false;
+    while (performance.now() - t0 < second + LIFETIME + 1200) {
+        if (!shown && performance.now() - t0 >= second) {
+            shown = true;
+            fx.show("second", "b");
+            await sleep(50);
+            series.push([Math.round(performance.now() - t0), on(), "second"]);
+        }
+        sample();
+        await sleep(200);
+    }
+    // Through the gate: the note of a confirmed action.
+    fx.run("session.open", "harness-rework");
+    await sleep(100);
+    confirm();
+    await sleep(300);
+    const gate = { on: on(), text: document.querySelector(".toast").textContent.trim() };
+    await sleep(LIFETIME + 600);
+    gate.later = on();
+    // The page put away takes the toast down.
+    fx.show("third", "c");
+    await sleep(100);
+    const wasOn = on();
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await sleep(100);
+    return { lifetime: LIFETIME, series, gate, hidden: { before: wasOn, after: on() }, renders: fx.renders };
+})();
+</script>

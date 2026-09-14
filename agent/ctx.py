@@ -31,11 +31,33 @@ def _oneshot(pid):
     return bool(re.search(r"(^|\s)(-p|--print)(\s|$)", cmdline))
 
 
-def started_at(pid):
-    """Returns when a process was born, in epoch seconds, or None when it is gone."""
+def _boot_time():
+    """Returns when the machine was booted, in epoch seconds, or None when it is not told."""
     try:
-        return os.stat(f"/proc/{pid}").st_mtime
-    except OSError:
+        with open("/proc/stat") as f:
+            for row in f:
+                if row.startswith("btime "):
+                    return float(row.split()[1])
+    except (OSError, IndexError, ValueError):
+        return None
+    return None
+
+
+def started_at(pid):
+    """Returns when a process was born, in epoch seconds, or None when it is gone.
+
+    The birth is counted from the ticks of /proc/<pid>/stat against the boot
+    time, and never from the directory of the process: procfs stamps that
+    directory when it builds the inode, at the first look, so a long living
+    process nobody has looked at until now would pass for a newborn. Sessions
+    lose their background tasks and their agents to such a birth.
+    """
+    ticks, boot = proc_start(pid), _boot_time()
+    if ticks is None or boot is None:
+        return None
+    try:
+        return boot + int(ticks) / os.sysconf("SC_CLK_TCK")
+    except (TypeError, ValueError, ZeroDivisionError):
         return None
 
 

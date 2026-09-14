@@ -8,7 +8,7 @@ import { useCatchUp } from "./catchup.js";
 import { useFaults } from "./faults.js";
 import { useExec, useTreeStream } from "./exec.js";
 import { useWide } from "./ui/wide.js";
-import { unread, useAlerts } from "./alerts.js";
+import { openCount, useAlerts } from "./alerts.js";
 import { MobileShell } from "./mobile/shell.js";
 import { RouteSheet, routeChip } from "./ui/route.js";
 import { DesktopShell } from "./desktop/shell.js";
@@ -25,7 +25,7 @@ const PICK_MS = 5 * 60 * 1000;
 
 
 function toLogin(err) {
-    const params = new URLSearchParams({ next: location.pathname });
+    const params = new URLSearchParams({ next: location.pathname + location.search });
     if (err.reason) params.set("reason", err.reason);
     if (err.afterSec) params.set("after", String(err.afterSec));
     location.href = `/login?${params}`;
@@ -189,7 +189,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
 
 
     const alerts = useAlerts();
-    const openAlerts = unread(alerts.alerts).length;
+    const openAlerts = openCount(alerts);
 
     const [theme, setTheme] = useState(() => {
         try {

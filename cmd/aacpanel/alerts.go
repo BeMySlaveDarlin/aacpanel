@@ -21,7 +21,12 @@ func (s *Server) apiAlerts(w http.ResponseWriter, r *http.Request) {
 		historyError(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"alerts": list})
+	counts, err := s.db.AlertCounts(r.Context())
+	if err != nil {
+		historyError(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"alerts": list, "open": counts.Open, "unread": counts.Unread})
 }
 
 func (s *Server) apiAlertAck(w http.ResponseWriter, r *http.Request) {

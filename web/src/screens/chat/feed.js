@@ -25,6 +25,22 @@ export function sameShell(command, local) {
     return mine !== "" && mine === String(command || "").trim();
 }
 
+// arrived reports whether the feed already carries a row shown locally: the
+// transcript echoes a message as it was sent, and a shell command as the
+// command alone. A row that failed or is held has not gone anywhere yet.
+export function arrived(items, local) {
+    if (local.state === "failed" || local.state === "held") return false;
+    return items.some((item) => (item.role === "me" && sameReply(item.text, local))
+        || (item.role === "shell" && sameShell(item.text, local)));
+}
+
+// unarrived returns the local rows the feed has not echoed yet, in the order
+// they were sent: these are the ones drawn after the feed. It is read at
+// render time, so the echo and the local row never share a frame.
+export function unarrived(local, items) {
+    return local.filter((row) => !arrived(items, row));
+}
+
 // merge inserts newly arrived items into the feed.
 export function merge(items, incoming) {
     if (!incoming.length) return items;

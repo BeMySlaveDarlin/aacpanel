@@ -1,16 +1,7 @@
-import { useEffect } from "preact/hooks";
-
 import { html } from "../html.js";
 
-const LIFETIME = 3600;
-
-export function Toast({ toast, onHide }) {
-    useEffect(() => {
-        if (!toast) return undefined;
-        const timer = setTimeout(onHide, LIFETIME);
-        return () => clearTimeout(timer);
-    }, [toast && toast.at, onHide]);
-
+// Toast draws the note the host holds; when and how long it shows is the host's call.
+export function Toast({ toast }) {
     return html`
         <div class="toast ${toast ? "on" : ""} ${toast && toast.bad ? "bad" : ""}" role="status" aria-live="polite">
             ${toast && html`

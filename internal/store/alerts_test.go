@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -288,4 +289,76 @@ func TestAlertsAndProbesPG(t *testing.T) {
 			}
 		}
 	})
+}
+
+// The badge counts every open alert, not the ones that fit on a page: alerts
+// come back sorted by their latest event, so an open alert with enough fresher
+// events above it is off the first page while it still stands open.
+func TestAlertCountsIgnorePagesPG(t *testing.T) {
+	dsn := testdb.DSN(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	s, err := New(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.Open(ctx); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := s.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cleanup := func() { pool.Exec(ctx, "DELETE FROM alerts") }
+	cleanup()
+	defer cleanup()
+
+	var ruleID int
+	if err := pool.QueryRow(ctx,
+		"SELECT id FROM rules WHERE subject = 'stack.running_pct' LIMIT 1").Scan(&ruleID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Opened a day ago and never touched since: every later event outranks it.
+	if _, err := pool.Exec(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, opened_at, payload)
+		VALUES ($1, 'buried', 'critical', 1, 2, now() - interval '1 day', '{}')`, ruleID); err != nil {
+		t.Fatal(err)
+	}
+	// Open but already seen: it belongs to the open ones and not to the badge.
+	if _, err := pool.Exec(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, opened_at, acknowledged_at, payload)
+		VALUES ($1, 'seen', 'warning', 1, 2, now() - interval '1 day', now() - interval '1 minute', '{}')`, ruleID); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 3 {
+		if _, err := pool.Exec(ctx, `INSERT INTO alerts (rule_id, subject, severity, value, worst, opened_at, closed_at, payload)
+			VALUES ($1, $2, 'info', 1, 2, now() - interval '1 day', now() - make_interval(secs => $3), '{}')`,
+			ruleID, "closed-"+strconv.Itoa(i), i); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	page, err := s.Alerts(ctx, AlertsReq{Limit: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range page {
+		if a.Subject == "buried" {
+			t.Fatal("the buried alert is on the first page — the test proves nothing about the count")
+		}
+	}
+
+	counts, err := s.AlertCounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counts.Open != 2 {
+		t.Errorf("%d alerts stand open, 2 were expected (the buried one and the seen one)", counts.Open)
+	}
+	if counts.Unread != 1 {
+		t.Errorf("the badge would show %d, 1 was expected: the buried alert alone is open and unseen", counts.Unread)
+	}
 }

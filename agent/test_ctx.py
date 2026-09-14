@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +14,8 @@ import archive  # noqa: E402
 import chat  # noqa: E402
 import ctx  # noqa: E402
 import models  # noqa: E402
+import sesstate  # noqa: E402
+from test_sesstate import spawn  # noqa: E402
 
 def setUpModule():
     models.CACHE_PATH = None
@@ -230,6 +233,74 @@ class StatusLineSnapshot(Row):
         self.snapshot(at=0, raw=json.dumps({"model": {"id": "claude-haiku-4-5"}}))
         row = ctx._row(self.live(self.transcript()))
         self.assertEqual(row["model"], "claude-opus-5")
+
+GAP = 2.1
+
+
+def stamp(ts):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
+
+
+class Birth(unittest.TestCase):
+    """When a process was born.
+
+    The pair is started apart and looked at in /proc only here, in the tests:
+    procfs stamps the directory of a process when it builds the inode, at the
+    first look, so an elder nobody has looked at passes for a newborn. A birth
+    counted that late takes away from the session everything it began earlier.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.procs = []
+        cls.elder_at = time.time()
+        cls.elder = cls.spawn()
+        time.sleep(GAP)
+        cls.younger = cls.spawn()
+
+    @classmethod
+    def spawn(cls):
+        proc = subprocess.Popen(["sleep", "60"])
+        cls.procs.append(proc)
+        return proc.pid
+
+    @classmethod
+    def tearDownClass(cls):
+        for proc in cls.procs:
+            proc.terminate()
+            proc.wait()
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_path(prefix="ctx-birth-")
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def test_the_birth_is_the_moment_the_process_started(self):
+        born = ctx.started_at(self.elder)
+        self.assertIsNotNone(born)
+        self.assertAlmostEqual(born, self.elder_at, delta=1.5)
+
+    def test_the_elder_of_two_is_older_although_both_are_looked_at_at_once(self):
+        gap = ctx.started_at(self.younger) - ctx.started_at(self.elder)
+        self.assertAlmostEqual(gap, GAP, delta=1.0,
+                               msg="the two are of one age: the birth came from the look, not the start")
+
+    def test_an_agent_spawned_after_the_birth_of_a_process_looked_at_late_stays_active(self):
+        path = os.path.join(self.dir, "agents.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(spawn("toolu_1", "alpha", at=stamp(self.elder_at + 1)))
+        got = sesstate.read(path, born=ctx.started_at(self.elder)).snapshot()
+        self.assertEqual([(a["name"], a["status"]) for a in got["agents"]], [("alpha", "active")])
+
+    def test_a_process_that_is_gone_has_no_birth(self):
+        proc = subprocess.Popen(["true"])
+        proc.wait()
+        self.assertIsNone(ctx.started_at(proc.pid))
+
+    def test_without_a_boot_time_the_birth_is_unknown(self):
+        self.addCleanup(setattr, ctx, "_boot_time", ctx._boot_time)
+        ctx._boot_time = lambda: None
+        self.assertIsNone(ctx.started_at(os.getpid()))
+
 
 class LiveSessions(unittest.TestCase):
     def setUp(self):

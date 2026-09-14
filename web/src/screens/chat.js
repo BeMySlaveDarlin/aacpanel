@@ -10,7 +10,7 @@ import { ContextBar } from "../ui/bar.js";
 import { Ask } from "./ask.js";
 import { Permit } from "./chat/permit.js";
 import { ago, tokens } from "../format.js";
-import { closed, rows, runCalls, sameReply, sameShell, weld } from "./chat/feed.js";
+import { closed, rows, runCalls, unarrived, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { Row } from "./chat/rows.js";
@@ -77,14 +77,22 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage }) {
     useBackClose(true, onBack);
 
 
+    // The rows still on their way are what the feed draws after its items;
+    // the ones the transcript has echoed leave the state afterwards, and the
+    // screen never shows a message twice in between.
+    const pending = unarrived(local, state.items);
     useEffect(() => {
-        if (!local.length) return;
-        const said = state.items.filter((i) => i.role === "me").map((i) => i.text);
-        const ran = state.items.filter((i) => i.role === "shell").map((i) => i.text);
-        const arrived = (l) => l.state !== "failed" && l.state !== "held"
-            && (said.some((text) => sameReply(text, l)) || ran.some((cmd) => sameShell(cmd, l)));
-        setLocal((was) => (was.some(arrived) ? was.filter((l) => !arrived(l)) : was));
-    }, [state.items, local.length]);
+        if (pending.length === local.length) return;
+        setLocal((was) => unarrived(was, state.items));
+    }, [state.items, local]);
+
+    // A row just sent grows the feed the way a new item does, and a feed at
+    // its end follows it the same way — or the message stands under the edge
+    // until the echo comes and the feed jumps to it.
+    useEffect(() => {
+        const box = feedRef.current;
+        if (box && atEnd) box.scrollTop = box.scrollHeight;
+    }, [pending.length]);
 
     const liveStatus = live ? live.status : "";
     const liveWait = (live && live.waitingFor) || "";
@@ -202,7 +210,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage }) {
                 onCalls=${() => setCalls(runCalls(feed, item.run))}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
             />`)}
-            ${local.map((row) => html`<${Row} key=${`local-${row.key}`} item=${row} />`)}
+            ${pending.map((row) => html`<${Row} key=${`local-${row.key}`} item=${row} />`)}
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
         `}

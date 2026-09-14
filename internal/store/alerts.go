@@ -97,6 +97,32 @@ func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err err
 	return list, nil
 }
 
+// AlertCount is how many alerts stand open, over all of them at once.
+type AlertCount struct {
+	Open   int `json:"open"`
+	Unread int `json:"unread"`
+}
+
+// AlertCounts counts the open alerts and the ones among them nobody has
+// acknowledged. The badge asks for the count instead of counting a page of
+// alerts: an alert buried under fresher events falls off the page, and it must
+// not fall out of the badge with it.
+func (s *Store) AlertCounts(ctx context.Context) (out AlertCount, err error) {
+	defer func() { err = Unavailable(err) }()
+
+	pool, err := s.Pool()
+	if err != nil {
+		return AlertCount{}, err
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE closed_at IS NULL),
+		       count(*) FILTER (WHERE closed_at IS NULL AND acknowledged_at IS NULL)
+		FROM alerts`).Scan(&out.Open, &out.Unread); err != nil {
+		return AlertCount{}, err
+	}
+	return out, nil
+}
+
 func suggestionFrom(payload json.RawMessage) *Suggestion {
 	if len(payload) == 0 {
 		return nil

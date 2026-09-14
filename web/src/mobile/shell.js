@@ -9,6 +9,7 @@ import { Nav, PAGES, TABS } from "../ui/nav.js";
 import { HomeButton } from "../ui/home.js";
 import { LogBar } from "../ui/logbar.js";
 import { Sheet } from "../ui/sheet.js";
+import { useToastHide } from "../ui/toasts.js";
 import { logout } from "../auth.js";
 import { Alerts } from "../screens/alerts.js";
 import { Containers, filterChips } from "../screens/containers.js";
@@ -50,6 +51,10 @@ export function MobileShell({
     const [layer, setLayer] = useState(false);
 
     useBackClose(Boolean(page), () => setPage(null));
+
+    // The note about an action belongs to the screen it was taken on.
+    const hideToast = useToastHide();
+    useEffect(() => { hideToast(); }, [tab, page, hideToast]);
 
     const toggleStack = useCallback((name) => {
         setOpen((prev) => {
