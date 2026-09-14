@@ -51,6 +51,13 @@
     margin-left: .1rem;
 }
 
+/* The network tile carries two rates: the download is the value, the upload
+   is the quiet part beside it, and it drops under the value where the tile
+   is too narrow for both on one line. */
+.tval.net { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .45rem; }
+.tval.net > * { white-space: nowrap; }
+.tval.net s { margin-left: 0; }
+
 /* The bar is the accent as it fills, and the colour of the state when the
    value is where it should not be. */
 .bar {

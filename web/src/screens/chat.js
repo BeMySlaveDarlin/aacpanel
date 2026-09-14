@@ -31,7 +31,7 @@ import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 
 
-export function Chat({ name, id, live, archive, exec, onBack }) {
+export function Chat({ name, id, live, archive, exec, onBack, onUsage }) {
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
@@ -241,10 +241,11 @@ export function Chat({ name, id, live, archive, exec, onBack }) {
         ${live && view !== "term" && html`
             <div class="deck">
                 ${live.tokensIn > 0 && html`
-                    <span class="deckuse" title="tokens in and out of this session">
+                    <button class="deckuse" type="button" title="tokens in and out of this session — open usage"
+                            aria-label="tokens in and out of this session, open usage" onClick=${onUsage}>
                         <span class="deckin"><i>in</i>${tokens(live.tokensIn)}</span>
                         <span class="deckout"><i>out</i>${tokens(live.tokensOut)}</span>
-                    </span>`}
+                    </button>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
                     <${WorkRefs} work=${state.work} onOpen=${(what) => setLook(what)} />

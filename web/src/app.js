@@ -63,7 +63,7 @@ function wanted(search) {
     return name ? { name, id: null } : null;
 }
 
-export function App({ updateReady, onApplyUpdate, installable, onInstall }) {
+export function App({ updateReady, updating, onApplyUpdate, installable, onInstall }) {
     const [tree, setTree] = useState(null);
     const [snapshot, setSnapshot] = useState(null);
     const [treeError, setTreeError] = useState(null);
@@ -219,7 +219,7 @@ export function App({ updateReady, onApplyUpdate, installable, onInstall }) {
     const shared = {
         snapshot, tree, treeError, hostError, ageSec, history, faults,
         alerts, openAlerts, exec, onRefresh: refresh, wait, theme, onTheme,
-        updateReady, onApplyUpdate, jump, onJumped,
+        updateReady, updating, onApplyUpdate, jump, onJumped,
         route: { here, via, why: routeWhy, onRecheck, onOpen: openRoute },
     };
 

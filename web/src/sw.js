@@ -218,13 +218,22 @@ async function data(request) {
     const key = dataKey(request);
     try {
         const response = await fetchWithin(request);
-        if (response.ok) await cache.put(key, await stamp(response.clone()));
+        if (response.ok) keep(cache, key, response.clone());
         return response;
     } catch (err) {
         const hit = await cache.match(key);
         if (hit) return mark(hit);
         throw err;
     }
+}
+
+// keep stores a copy of the answer for the time without a connection. The
+// fetch event ends with the answer, not with the copy: the browser holds a
+// new worker back for as long as the old one has an event in flight, and a
+// body that stalls halfway would keep the event open — the update the page
+// asked for would then wait for a connection nobody is going to close.
+function keep(cache, key, response) {
+    stamp(response).then((copy) => cache.put(key, copy)).catch(() => {});
 }
 
 const NEAR_MS = 2000;

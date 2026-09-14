@@ -33,6 +33,7 @@ function safeNext(next) {
 
 function Shell() {
     const [updateReady, setUpdateReady] = useState(false);
+    const [updating, setUpdating] = useState(false);
     const [installable, setInstallable] = useState(false);
 
     useEffect(() => {
@@ -40,12 +41,18 @@ function Shell() {
         pwa.register(() => setUpdateReady(true));
     }, []);
 
+    const applyUpdate = () => {
+        setUpdating(true);
+        pwa.apply();
+    };
+
     return html`
         <${ToastHost}>
         <${GateHost}>
             <${App}
                 updateReady=${updateReady}
-                onApplyUpdate=${pwa.apply}
+                updating=${updating}
+                onApplyUpdate=${applyUpdate}
                 installable=${installable}
                 onInstall=${pwa.install}
             />

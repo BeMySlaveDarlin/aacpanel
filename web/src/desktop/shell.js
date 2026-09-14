@@ -50,7 +50,7 @@ function IconButton({ item, active, onClick }) {
 
 export function DesktopShell({
     snapshot, tree, treeError, hostError, ageSec, history, faults, alerts, openAlerts,
-    exec, onRefresh, wait, theme, onTheme, updateReady, onApplyUpdate, route, jump, onJumped,
+    exec, onRefresh, wait, theme, onTheme, updateReady, updating, onApplyUpdate, route, jump, onJumped,
 }) {
     const [section, setSection] = useState("home");
     const [chat, setChat] = useState(null);
@@ -191,6 +191,7 @@ export function DesktopShell({
                 exec=${exec}
                 archive=${chat.archived ? chat.row : null}
                 onBack=${() => setChat(null)}
+                onUsage=${() => { setChat(null); goSection("home"); }}
             />
         </section>`;
     };
@@ -296,8 +297,8 @@ export function DesktopShell({
 
             ${updateReady && html`
                 <div class="update" role="status">
-                    <span>A new version is ready</span>
-                    <button type="button" onClick=${onApplyUpdate}>update</button>
+                    <span>${updating ? "Updating…" : "A new version is ready"}</span>
+                    <button type="button" disabled=${updating} onClick=${onApplyUpdate}>update</button>
                 </div>
             `}
         </div>

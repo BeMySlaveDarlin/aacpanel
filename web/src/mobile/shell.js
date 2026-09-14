@@ -33,7 +33,7 @@ function lastTab() {
 
 export function MobileShell({
     snapshot, tree, treeError, hostError, ageSec, history, faults, alerts, openAlerts,
-    exec, onRefresh, wait, conn, theme, onTheme, updateReady, onApplyUpdate, installable, onInstall,
+    exec, onRefresh, wait, conn, theme, onTheme, updateReady, updating, onApplyUpdate, installable, onInstall,
     status, jump, onJumped,
 }) {
     const [tab, setTab] = useState(lastTab);
@@ -168,7 +168,7 @@ export function MobileShell({
                     onLayer=${setLayer}
                     want=${want}
                     onWanted=${() => setWant(null)}
-                />`}
+                onUsage=${() => setPage("usage")} />`}
             </main>
 
             <${Sheet} open=${menu} onClose=${() => setMenu(false)} label="menu">
@@ -198,8 +198,8 @@ export function MobileShell({
 
             ${updateReady && html`
                 <div class="update" role="status">
-                    <span>A new version is ready</span>
-                    <button type="button" onClick=${onApplyUpdate}>update</button>
+                    <span>${updating ? "Updating…" : "A new version is ready"}</span>
+                    <button type="button" disabled=${updating} onClick=${onApplyUpdate}>update</button>
                 </div>
             `}
 
@@ -221,11 +221,11 @@ export function MobileShell({
     `;
 }
 
-function Screen({ tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults, onLayer, want, onWanted }) {
+function Screen({ tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults, onLayer, want, onWanted, onUsage }) {
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
             exec=${exec} wait=${wait} faults=${faults} onLayer=${onLayer}
-            want=${want} onWanted=${onWanted} />`;
+            want=${want} onWanted=${onWanted} onUsage=${onUsage} />`;
     }
     return html`<${Containers} tree=${tree} error=${treeError} filter=${filter} query=${query} open=${open}
         onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec} />`;

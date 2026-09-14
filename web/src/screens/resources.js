@@ -1,5 +1,5 @@
 // The “Resources” tab: cpu, memory, disks, network.
-import { useMemo, useState } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { NotRecorded, Stale, Trouble } from "../ui/trouble.js";
@@ -38,6 +38,7 @@ export function Resources({ snapshot, error, ageSec, filter = "all", history = [
     const cpuData = useSeries(history, "cpu");
     const memData = useSeries(history, "mem");
     const rxData = useSeries(history, "rx");
+    const netCard = useRef(null);
 
     if (error || !host) {
         return html`
@@ -113,10 +114,14 @@ export function Resources({ snapshot, error, ageSec, filter = "all", history = [
         ${show("disks") && html`
             <${Disks} disks=${host.disks} temps=${host.diskTemps} hottest=${host.diskTemp} />
         `}
+
+        ${show("net") && html`
+            <${NetTile} main=${host.net[0]} data=${enough ? rxData : null} onOpen=${() => showCard(netCard.current)} />
+        `}
         </div>
 
         ${show("net") && html`
-            <section class="card">
+            <section class="card" ref=${netCard}>
                 <h2>Network</h2>
                 ${host.net.map((n) => html`
                     <div class="netrow" key=${n.name}>
@@ -136,6 +141,36 @@ export function Resources({ snapshot, error, ageSec, filter = "all", history = [
         `}
 
     `;
+}
+
+// NetTile is the network in the grid of tiles: the download of the busiest
+// interface is the value, the upload is the quiet part beside it. The tile
+// opens nothing of its own — a tap brings the rows of every interface below
+// into view, the way the chevron of the other tiles opens their detail.
+function NetTile({ main, data, onOpen }) {
+    return html`
+        <section class="card tile" data-open="0">
+            <button class="cardhead" type="button" onClick=${onOpen}>
+                <span class="tname">${Icon.globe()}<span>Network</span></span>
+                <span class="chev">${Icon.chevron()}</span>
+            </button>
+            ${main
+                ? html`
+                    <div class="tval net"><span>↓ ${rate(main.rxRate)}</span><s>↑ ${rate(main.txRate)}</s></div>
+                    <p class="tbrief">${main.name}${main.addr ? ` · ${main.addr}` : ""}</p>
+                `
+                : html`<p class="tbrief">no interfaces</p>`}
+            ${data && html`<${Chart} data=${data} series=${SPARK} height=${38} compact range=${NET_RANGE} />`}
+        </section>
+    `;
+}
+
+// showCard scrolls a card into view, with a glide unless the reader has asked
+// the system for still motion.
+function showCard(el) {
+    if (!el) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
 }
 
 const LINK = {

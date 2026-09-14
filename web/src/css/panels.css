@@ -39,6 +39,11 @@
     opacity: .8;
 }
 
+.update button:disabled {
+    opacity: .55;
+    transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .update button { transition: none; }
     .update button:active { transform: none; }

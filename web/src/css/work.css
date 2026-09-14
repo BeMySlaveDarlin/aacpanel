@@ -25,6 +25,10 @@
     flex: none;
     align-self: center;
     margin-right: auto;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: .55rem;
@@ -38,6 +42,7 @@
     color: var(--ink-dim);
     white-space: nowrap;
 }
+.deckuse:active { background: var(--glass); }
 .deckuse i { font-style: normal; color: var(--ink-faint); margin-right: .3rem; }
 /* The two figures wear the colours the usage chart gives them: in is the
    accent, out the second accent. */
