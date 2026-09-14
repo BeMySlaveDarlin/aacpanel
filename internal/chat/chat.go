@@ -328,7 +328,6 @@ type ArchiveReq struct {
 	Limit    int      `json:"limit,omitempty"`
 	Offset   int      `json:"offset,omitempty"`
 	Skip     []string `json:"skip,omitempty"`
-	Started  bool     `json:"started,omitempty"`
 	Profile  string   `json:"profile,omitempty"`
 	Profiles []string `json:"profiles,omitempty"`
 }

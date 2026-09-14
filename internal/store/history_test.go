@@ -65,9 +65,6 @@ func TestHistoryPG(t *testing.T) {
 	to := time.Now().Truncate(time.Minute)
 	from := to.Add(-time.Hour)
 	peakAt := from.Add(30 * time.Minute)
-	for _, table := range []string{"metrics_container_raw", "metrics_container_1m", "metrics_container_1h"} {
-		testdb.PartitionsBack(t, ctx, pool, table, 3*time.Hour)
-	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO metrics_container_raw (ts, host_id, container, cpu_pct, mem_bytes, state)
 		SELECT g, $1, 'hist', CASE WHEN g = $2 THEN 99 ELSE 5 END, 1000, 'running'

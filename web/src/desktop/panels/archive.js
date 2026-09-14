@@ -16,12 +16,33 @@ function projectOf(row) {
     return parts.length ? parts[parts.length - 1] : "";
 }
 
+// contourQuery asks for the picked contours the way the archive understands them.
+//
+// A pick is a label of the map, and the map is free to call a contour anything: the
+// collector knows it by the directory it lives in, so the label goes out as the id of
+// its map entry. A contour the map does not know keeps its own name — that name came
+// from the collector in the first place.
+function contourQuery(picks, profiles) {
+    const byName = new Map(((profiles && profiles.profiles) || []).map((p) => [p.name || p.profile, p.id]));
+    return picks
+        .map((name) => (byName.has(name)
+            ? `&contour=${encodeURIComponent(byName.get(name))}`
+            : `&profile=${encodeURIComponent(name)}`))
+        .join("");
+}
+
+// freshest returns when the top conversation of a contour last spoke.
+function freshest(list) {
+    const at = list.length ? Date.parse(list[0].lastAt) : NaN;
+    return Number.isNaN(at) ? 0 : at;
+}
+
 // Archive lists conversations by page, split by contour.
-export function Archive({ picks, onOpen, exec }) {
+export function Archive({ profiles, picks, onOpen, exec }) {
     const run = useAction();
     const [page, setPage] = useState(0);
     const want = [...picks].sort();
-    const query = want.map((name) => `&profile=${encodeURIComponent(name)}`).join("");
+    const query = contourQuery(want, profiles);
     useEffect(() => setPage(0), [want.join("\n")]);
     const { data, error } = useJSON(`/api/sessions/archive?limit=${PAGE}&offset=${page * PAGE}${query}`);
     const rows = (data && data.rows) || [];
@@ -33,7 +54,7 @@ export function Archive({ picks, onOpen, exec }) {
             if (!map.has(name)) map.set(name, []);
             map.get(name).push(r);
         }
-        return [...map].sort((a, b) => b[1].length - a[1].length);
+        return [...map].sort((a, b) => freshest(b[1]) - freshest(a[1]));
     }, [rows]);
 
     if (error) return html`<p class="dkempty">the archive is unavailable: ${error}</p>`;

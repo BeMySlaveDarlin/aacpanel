@@ -438,10 +438,9 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := chat.ArchiveReq{
-		Limit:   limit,
-		Offset:  offset,
-		Skip:    skip,
-		Started: q.Get("started") == "1",
+		Limit:  limit,
+		Offset: offset,
+		Skip:   skip,
 	}
 	var picks []string
 	for _, name := range q["profile"] {

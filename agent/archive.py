@@ -1,5 +1,6 @@
 """Archive of claude sessions: the list of conversations straight from the transcripts."""
 
+import datetime
 import glob
 import json
 import os
@@ -69,6 +70,42 @@ DEFAULT_LIMIT_TOKENS = models.DEFAULT_LIMIT_TOKENS
 limit_for = models.limit_for
 
 
+# How far back to look for the last stamp before reading the whole transcript.
+TAIL_STEPS = (64 * 1024, 1024 * 1024)
+
+
+def tail_stamp(path, size):
+    """Returns the last stamp of a transcript, reading no more of its tail than it takes."""
+    for back in TAIL_STEPS + (size,):
+        start = max(0, size - back)
+        out = ""
+        try:
+            with open(path, "rb") as f:
+                f.seek(start)
+                for line in f:
+                    try:
+                        record = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(record, dict) and record.get("timestamp"):
+                        out = record["timestamp"]
+        except OSError:
+            return ""
+        if out or start == 0:
+            return out
+    return ""
+
+
+def seconds(stamp):
+    """Returns the stamp in seconds, or None when it cannot be read."""
+    if not isinstance(stamp, str) or not stamp:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
 class Index:
     """Transcript parsing with memory: what is counted is not counted again."""
 
@@ -76,6 +113,7 @@ class Index:
         self.path = path
         self.scanned = {}
         self.names = {}
+        self.stamps = {}
         self.dirty = False
         self.load()
 
@@ -89,10 +127,13 @@ class Index:
             return
         scanned = saved.get("scanned")
         names = saved.get("names")
+        stamps = saved.get("stamps")
         if isinstance(scanned, dict):
             self.scanned = {k: v for k, v in scanned.items() if isinstance(v, dict)}
         if isinstance(names, dict):
             self.names = {k: v for k, v in names.items() if isinstance(v, str)}
+        if isinstance(stamps, dict):
+            self.stamps = {k: v for k, v in stamps.items() if isinstance(v, dict)}
 
     def save(self):
         """Writes the index atomically."""
@@ -102,7 +143,8 @@ class Index:
         try:
             os.makedirs(os.path.dirname(self.path), exist_ok=True)
             with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({"scanned": self.scanned, "names": self.names}, f)
+                json.dump({"scanned": self.scanned, "names": self.names,
+                           "stamps": self.stamps}, f)
             os.replace(tmp, self.path)
             self.dirty = False
         except OSError:
@@ -148,11 +190,31 @@ class Index:
         found.update({"sessionId": sid, "size": size, "mtime": mtime, "profile": profile,
                       "slug": os.path.basename(os.path.dirname(path))})
         self.scanned[sid] = found
+        self.stamps.pop(sid, None)
         self.dirty = True
         return found
 
-    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), started=False, profile=None,
-             profiles=None):
+    def when(self, sid, path, size, mtime):
+        """Returns when the conversation last spoke: the stamp the card shows, in seconds.
+
+        The time a file was touched is not it: claude appends a title or a mode to an old
+        transcript long after the talk ended, and sorting by that throws a conversation of
+        last spring over today's.
+        """
+        was = self.scanned.get(sid)
+        if was and was.get("size") == size and was.get("mtime") == mtime:
+            at = seconds(was.get("lastAt"))
+            return mtime if at is None else at
+
+        seen = self.stamps.get(sid)
+        if not seen or seen.get("size") != size or seen.get("mtime") != mtime:
+            seen = {"size": size, "mtime": mtime, "lastAt": tail_stamp(path, size)}
+            self.stamps[sid] = seen
+            self.dirty = True
+        at = seconds(seen.get("lastAt"))
+        return mtime if at is None else at
+
+    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None):
         """Returns a page of the archive for the named profiles, the freshest first."""
         limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
         offset = max(0, int(offset or 0))
@@ -175,15 +237,14 @@ class Index:
                     continue
                 if st.st_size < 2:
                     continue
-                files.append((st.st_mtime, st.st_size, path, contour))
-        files.sort(reverse=True)
+                sid = name[:-len(".jsonl")]
+                files.append((self.when(sid, path, st.st_size, st.st_mtime),
+                              st.st_mtime, st.st_size, path, contour))
+        files.sort(key=lambda f: (f[0], f[1], f[3]), reverse=True)
 
         rows = []
-        for mtime, size, path, contour in files[offset:]:
-            found = self.entry(path, size, mtime, contour)
-            if started and not found.get("messages"):
-                continue
-            rows.append(present(found, self.names))
+        for _, mtime, size, path, contour in files[offset:]:
+            rows.append(present(self.entry(path, size, mtime, contour), self.names))
             if len(rows) >= limit:
                 break
         self.save()
@@ -207,6 +268,8 @@ def scan(path):
             try:
                 record = json.loads(line)
             except ValueError:
+                continue
+            if not isinstance(record, dict):
                 continue
             stamp = record.get("timestamp")
             if stamp:

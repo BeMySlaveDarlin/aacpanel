@@ -18,6 +18,11 @@ def setUpModule():
 UUID_A = "11111111-1111-4111-8111-111111111111"
 UUID_B = "22222222-2222-4222-8222-222222222222"
 
+# A transcript claude appended a title to months after the talk, and one whose
+# file was closed right after its last message.
+TOUCHED = archive.seconds("2026-09-14T10:00:00Z")
+SPOKE = archive.seconds("2026-08-24T10:00:05Z")
+
 
 def line(record):
     return json.dumps(record, ensure_ascii=False) + "\n"
@@ -149,6 +154,58 @@ class Page(unittest.TestCase):
              "message": {"model": "claude-opus-5", "usage": usage(tokens)}},
         ]
 
+    def talk_at(self, stamp, tokens=100_000, cwd="/opt/x"):
+        return [
+            {"type": "user", "timestamp": stamp, "cwd": cwd, "message": {"content": "hello"}},
+            {"type": "assistant", "timestamp": stamp,
+             "message": {"model": "claude-opus-5", "usage": usage(tokens)}},
+        ]
+
+    def test_a_line_written_later_does_not_lift_an_old_conversation(self):
+        old = self.put(UUID_A, self.talk_at("2026-03-01T10:00:00Z"))
+        with open(old, "a", encoding="utf-8") as f:
+            f.write(line({"type": "ai-title", "title": "a talk of the spring"}))
+        os.utime(old, (TOUCHED, TOUCHED))
+        self.put(UUID_B, self.talk_at("2026-08-24T10:00:00Z"), mtime=SPOKE)
+
+        rows = self.index.page(limit=10)["rows"]
+        self.assertEqual([r["sessionId"] for r in rows], [UUID_B, UUID_A],
+                         "the archive stands by when the file was touched: claude appends a title or a mode "
+                         "to a transcript months after the talk ended, and that conversation jumps over a fresh one")
+        self.assertEqual([r["lastAt"] for r in rows],
+                         ["2026-08-24T10:00:00Z", "2026-03-01T10:00:00Z"],
+                         "the order and the time on the card are not the same reading")
+
+    def test_a_long_tail_without_a_stamp_is_read_through(self):
+        old = self.put(UUID_A, self.talk_at("2026-03-01T10:00:00Z"))
+        with open(old, "a", encoding="utf-8") as f:
+            for i in range(400):
+                f.write(line({"type": "file-history-snapshot", "n": i, "blob": "x" * 400}))
+        os.utime(old, (TOUCHED, TOUCHED))
+        self.put(UUID_B, self.talk_at("2026-08-24T10:00:00Z"), mtime=SPOKE)
+
+        self.assertGreater(os.path.getsize(old), 64 * 1024,
+                           "the tail of the fixture is shorter than the first window and proves nothing")
+        rows = self.index.page(limit=10)["rows"]
+        self.assertEqual([r["sessionId"] for r in rows], [UUID_B, UUID_A],
+                         "the stamp lies further back than the first window of the tail and was not looked for")
+
+    def test_a_conversation_that_spoke_again_moves_up(self):
+        self.put(UUID_A, self.talk_at("2026-03-01T10:00:00Z"), mtime=TOUCHED)
+        self.put(UUID_B, self.talk_at("2026-08-24T10:00:00Z"), mtime=SPOKE)
+        self.assertEqual([r["sessionId"] for r in self.index.page(limit=10)["rows"]], [UUID_B, UUID_A])
+
+        self.put(UUID_A, self.talk_at("2026-09-14T10:00:00Z"), mtime=TOUCHED + 1)
+        self.assertEqual([r["sessionId"] for r in self.index.page(limit=10)["rows"]], [UUID_A, UUID_B],
+                         "the remembered stamp outlived the transcript it was read from")
+
+    def test_a_transcript_that_names_no_time_falls_back_to_its_file(self):
+        self.put(UUID_A, [{"type": "summary", "summary": "nothing was said"}], mtime=TOUCHED)
+        self.put(UUID_B, self.talk_at("2026-08-24T10:00:00Z"), mtime=SPOKE)
+        rows = self.index.page(limit=10)["rows"]
+        self.assertEqual([r["sessionId"] for r in rows], [UUID_A, UUID_B],
+                         "a transcript that names no time has nothing left but its file")
+
     def test_the_freshest_come_first(self):
         self.put(UUID_A, self.talk(100_000), mtime=1000)
         self.put(UUID_B, self.talk(200_000), mtime=2000)
@@ -204,14 +261,34 @@ class Page(unittest.TestCase):
         self.assertEqual(len(page["rows"]), 5)
         self.assertEqual(page["total"], 5)
 
-    def test_the_top_up_takes_only_the_started_ones(self):
+    def test_the_count_and_the_rows_answer_one_question(self):
         for i in range(3):
             self.put(f"4444444{i}-4444-4444-8444-444444444444",
                      [{"type": "file-history-snapshot", "timestamp": "2026-08-24T10:00:00Z"}],
                      mtime=3000 + i)
         self.put(UUID_A, self.talk(100_000), mtime=1000)
-        rows = self.index.page(limit=5, started=True)["rows"]
-        self.assertEqual([r["sessionId"] for r in rows], [UUID_A])
+        page = self.index.page(limit=10)
+        self.assertEqual(len(page["rows"]), page["total"],
+                         "the archive counts one set of conversations and hands over another: "
+                         "the pager promises pages that are not there")
+        self.assertEqual(page["total"], 4)
+        self.assertEqual([r["messages"] for r in page["rows"]], [2, 0, 0, 0],
+                         "the row does not say how much was said in it, and the screen has "
+                         "nothing to tell an empty conversation by")
+
+    def test_a_line_that_is_not_a_record_does_not_sink_the_page(self):
+        # json.dumps writes these two as a bare string and a bare number: valid
+        # json, and not the object every reader of a transcript expects.
+        self.put(UUID_A, self.talk(100_000) + ["a line that parses into a string", 42],
+                 mtime=1000)
+        self.put(UUID_B, self.talk(200_000), mtime=2000)
+
+        page = self.index.page(limit=10)
+        self.assertEqual([r["sessionId"] for r in page["rows"]], [UUID_B, UUID_A],
+                         "one malformed line in one transcript takes the whole archive down "
+                         "with it instead of costing its own row")
+        self.assertEqual([r["messages"] for r in page["rows"]], [2, 2],
+                         "the rest of the transcript was not read past the broken line")
 
     def test_live_conversations_are_skipped(self):
         self.put(UUID_A, self.talk(100_000), mtime=1000)

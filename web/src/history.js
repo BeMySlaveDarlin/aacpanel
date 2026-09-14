@@ -80,12 +80,11 @@ export function useSessionsHistory(period, page = {}) {
     return state.kind === "ready" ? { kind: "ready", sessions: state.data } : state;
 }
 
-export function useSessionsArchive({ limit, offset, skip, started, profile, contour } = {}) {
+export function useSessionsArchive({ limit, offset, skip, profile, contour } = {}) {
     const query = new URLSearchParams();
     if (limit) query.set("limit", limit);
     if (offset) query.set("offset", offset);
     if (skip && skip.length) query.set("skip", skip.join(","));
-    if (started) query.set("started", "1");
     if (contour) query.set("contour", contour);
     else if (profile) query.set("profile", profile);
     const state = useEndpoint(`/api/sessions/archive?${query}`, "the session archive");

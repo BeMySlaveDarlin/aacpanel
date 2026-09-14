@@ -507,7 +507,7 @@ func TestArchiveAsksForOneProfile(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		srv.apiSessionsArchive(w, httptest.NewRequest(http.MethodGet,
-			"/api/sessions/archive?limit=5&started=1&profile=work", nil))
+			"/api/sessions/archive?limit=5&profile=work", nil))
 		if w.Code != http.StatusOK {
 			t.Fatalf("response %d: %s", w.Code, w.Body.String())
 		}
@@ -519,7 +519,7 @@ func TestArchiveAsksForOneProfile(t *testing.T) {
 		if req.Archive.Profile != "work" {
 			t.Errorf("the contour went out as %q: the profile page will show conversations of another", req.Archive.Profile)
 		}
-		if !req.Archive.Started || req.Archive.Limit != 5 {
+		if req.Archive.Limit != 5 {
 			t.Errorf("the other fields of the request drifted apart: %+v", *req.Archive)
 		}
 		if raw := string(<-agent.raw); !strings.Contains(raw, `"profile":"work"`) {

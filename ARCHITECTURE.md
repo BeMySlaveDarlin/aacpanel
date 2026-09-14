@@ -246,6 +246,14 @@ checks.
 session names are reused between runs, and yesterday's conversation under the
 same name is a different conversation.
 
+**The archive is ordered by when a conversation last spoke, not by when its
+file was last written to.** Claude appends a title, a mode or a snapshot of file
+history to a transcript long after the talk ended, and the file goes fresh with
+nothing fresh in it: ordered by that, a conversation of the spring stands above
+yesterday's while its own card says spring. The order is the stamp the card
+shows, read from the tail of the transcript and remembered beside the parse; a
+transcript that names no time has nothing left but its file.
+
 **How full the context is gets counted on the spot** by the same parsing that
 counts it for closed conversations: one and the same session must show one
 number before and after it is closed.
@@ -285,6 +293,14 @@ no full copy of the front end and there will not be: the screens are more than
 half the code, and a second copy of the conversation would part from the first
 silently. What depends on width is the layout around the screens, not the
 screens themselves.
+
+**A contour is asked for by the id of its map entry, never by the name on the
+screen.** The map labels a contour however its owner likes, and the collector
+knows contours by the directory they live in: a label sent as a name matches
+nothing on the other side, and the answer quietly holds another contour's
+conversations or none at all. The service turns an id into a directory. A
+contour the map does not know keeps the name the collector gave it, which is
+the only thing naming it.
 
 **The terminal emulator loads as a separate file**: it weighs three hundred
 kilobytes and is not always needed — in the common bundle every phone would

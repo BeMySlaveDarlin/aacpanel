@@ -41,11 +41,6 @@ func TestRollupRestPG(t *testing.T) {
 	}
 
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Hour)
-	for _, table := range []string{"metrics_disk_raw", "metrics_disk_1m", "metrics_disk_1h",
-		"sessions_raw", "sessions_1m", "sessions_1h",
-		"metrics_container_raw", "metrics_container_1m", "metrics_container_1h"} {
-		testdb.PartitionsBack(t, ctx, pool, table, 4*time.Hour)
-	}
 
 	for i := range 300 {
 		at := base.Add(time.Duration(i) * 10 * time.Second)

@@ -42,6 +42,10 @@ export function sessionChips() {
 
 const MIN_CARDS = 5;
 
+// The strip shows MIN_CARDS of them and drops the conversations that said
+// nothing, so it asks the archive for more than it shows.
+const RECENT_ASK = MIN_CARDS * 4;
+
 // Sessions renders the sessions tab.
 export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage }) {
     const [project, setProject] = useState(null);
@@ -74,8 +78,8 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
         if (onLayer) onLayer(layer);
     }, [layer, onLayer]);
 
-    const recentState = useSessionsArchive({ limit: MIN_CARDS + 3, started: true, profile, contour });
-    const recent = recentState.kind === "ready" ? recentState.archive.rows || [] : [];
+    const recentState = useSessionsArchive({ limit: RECENT_ASK, profile, contour });
+    const recent = recentState.kind === "ready" ? spoken(recentState.archive.rows) : [];
 
     if (chat) {
         const live = ((snapshot && snapshot.sessions) || []).find((s) => s.session === chat.name);
@@ -259,6 +263,14 @@ function PastButton({ onOpen }) {
 }
 
 // fillTo returns what to fill the list up to the wanted length with.
+// spoken drops the conversations that never said a word. A transcript can hold
+// nothing but a snapshot of file history or a summary, and a card for one names
+// a talk that never happened. The archive counts and pages every conversation
+// it has; which of them are worth a card is the screen's question.
+export function spoken(rows) {
+    return (rows || []).filter((row) => (row.messages || 0) > 0);
+}
+
 export function fillTo(archive, live, opening, want) {
     const rising = opening || [];
     const need = want - live.length - rising.length;

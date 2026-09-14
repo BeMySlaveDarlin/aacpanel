@@ -55,7 +55,6 @@ def _answer(request):
                 limit=want_archive.get("limit"),
                 offset=want_archive.get("offset"),
                 skip=want_archive.get("skip") or (),
-                started=bool(want_archive.get("started")),
                 profile=want_archive.get("profile"),
                 profiles=[p for p in (want_archive.get("profiles") or ())
                           if isinstance(p, str) and p],
