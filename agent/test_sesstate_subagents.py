@@ -324,6 +324,17 @@ class AgentMeta(Transcript):
         got = self.state(spawn("toolu_1", "alpha"))
         self.assertEqual(got["agents"][0]["id"], "aalpha-2222222222222222")
 
+    def test_the_transcript_of_an_agent_counts_as_its_last_word(self):
+        # alpha reported before beta, but its transcript moved after beta's letter.
+        self.meta("aalpha-0123456789abcdef", "alpha",
+                  calendar.timegm((2026, 8, 25, 11, 0, 0)))
+        got = self.state(spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"),
+                         spawn("toolu_2", "beta", at="2026-08-25T10:05:00Z"),
+                         letter("alpha", at="2026-08-25T10:30:00Z"),
+                         letter("beta", at="2026-08-25T10:40:00Z"))
+        self.assertEqual([a["name"] for a in got["agents"]], ["alpha", "beta"],
+                         "an agent that kept writing after its report is ordered by the report")
+
     def talk(self, agent_id, *chunks, when=1_700_000_000):
         path = os.path.join(self.dir.name, "t", "subagents", f"agent-{agent_id}.jsonl")
         with open(path, "w", encoding="utf-8") as f:
@@ -401,3 +412,26 @@ def request(tokens, model="claude-opus-5", at="2026-08-25T10:30:00Z", padding=""
                                        "cache_creation_input_tokens": 1_000,
                                        "cache_read_input_tokens": tokens - 1_024,
                                        "output_tokens": 300}}})
+
+
+class Order(Transcript):
+    def test_a_working_agent_stands_above_a_reported_one_spawned_earlier(self):
+        got = self.state(spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"),
+                         letter("alpha", at="2026-08-25T10:30:00Z"),
+                         spawn("toolu_2", "beta", at="2026-08-25T10:05:00Z"))
+        self.assertEqual([(a["name"], a["status"]) for a in got["agents"]],
+                         [("beta", "active"), ("alpha", "reported")],
+                         "an agent still working stands under one that has reported")
+
+    def test_among_the_working_the_one_spawned_last_stands_first(self):
+        got = self.state(spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"),
+                         spawn("toolu_2", "beta", at="2026-08-25T10:05:00Z"))
+        self.assertEqual([a["name"] for a in got["agents"]], ["beta", "alpha"])
+
+    def test_among_the_reported_the_one_heard_last_stands_first(self):
+        got = self.state(spawn("toolu_1", "alpha", at="2026-08-25T10:00:00Z"),
+                         spawn("toolu_2", "beta", at="2026-08-25T10:05:00Z"),
+                         letter("beta", at="2026-08-25T10:30:00Z"),
+                         letter("alpha", at="2026-08-25T10:40:00Z"))
+        self.assertEqual([a["name"] for a in got["agents"]], ["alpha", "beta"],
+                         "the order goes by the spawn, not by the last letter")

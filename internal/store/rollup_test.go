@@ -41,6 +41,13 @@ func TestRollupPG(t *testing.T) {
 	}
 
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Hour)
+	// A fresh database has partitions from the start of today (raw, by day) and
+	// of this week (the minute rollup) on; two hours ago crosses both lines at
+	// the start of a day, and a Monday.
+	for _, table := range []string{"metrics_container_raw", "metrics_container_1m", "metrics_container_1h",
+		"metrics_host_raw", "metrics_host_1m", "metrics_host_1h"} {
+		testdb.PartitionsBack(t, ctx, pool, table, 4*time.Hour)
+	}
 	add := func(ts time.Time, cpu float64, mem int64) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `INSERT INTO metrics_container_raw

@@ -237,6 +237,7 @@ func TestAlertsAndProbesPG(t *testing.T) {
 			VALUES ('reading: with history', 'tcp', 'z:443', 60, 5) RETURNING id`).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
+		testdb.PartitionsBack(t, ctx, pool, "probe_results", 2*time.Hour)
 		if _, err := pool.Exec(ctx, `INSERT INTO probe_results (ts, probe_id, ok, latency_ms, outcome)
 			VALUES (now() - interval '30 min', $1, true, 12, 'ok')`, id); err != nil {
 			t.Fatal(err)

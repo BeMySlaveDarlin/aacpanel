@@ -10,6 +10,15 @@ class Pending:
         self.wake = set()
         self.service_texts = set()
 
+    def clone(self):
+        """Returns a copy of the queue that a throwaway read may spoil."""
+        twin = Pending()
+        twin.waiting = list(self.waiting)
+        twin.texts = dict(self.texts)
+        twin.wake = set(self.wake)
+        twin.service_texts = set(self.service_texts)
+        return twin
+
     def seen(self, text):
         return text in self.texts
 

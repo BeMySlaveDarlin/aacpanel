@@ -29,9 +29,10 @@ class State:
         self.born = None
 
     def snapshot(self):
-        """Returns what goes outside, ordered by the time work started."""
-        tasks = sorted(self.tasks.values(), key=lambda t: t.get("at") or "")
-        agents = sorted(self.agents.values(), key=lambda a: a.get("at") or "")
+        """Returns what goes outside: the live first, then the finished, each newest first."""
+        tasks = _live_first(self.tasks.values(), lambda t: not t.get("done"), _task_seen)
+        agents = _live_first(self.agents.values(),
+                             lambda a: a.get("status") != "reported", _agent_seen)
         arts = sorted(self.arts.values(), key=lambda a: a.get("at") or "", reverse=True)
         docs = sorted(self.docs.values(), key=lambda d: d.get("at") or "", reverse=True)
         sent = sorted(self.sent.values(), key=lambda s: s.get("at") or "", reverse=True)
@@ -42,6 +43,25 @@ class State:
             "docs": [d for d in docs[:MAX_ITEMS] if os.path.isfile(d["path"])],
             "sent": [s for s in sent[:MAX_ITEMS] if os.path.isfile(s["path"])],
         }
+
+
+# A list goes out with what is still running on top and, within each half,
+# the freshest first: the row the eye is after is the one still at work, and
+# among the finished ones the one that ended last is the one just asked about.
+# The cut at MAX_ITEMS then takes the finished ones nobody has looked at for
+# the longest. Fresh is the last thing known about an item — its start, its
+# last event, its end — whichever came last.
+def _live_first(items, live, seen):
+    newest = sorted(items, key=seen, reverse=True)
+    return sorted(newest, key=lambda item: not live(item))
+
+
+def _task_seen(task):
+    return max(task.get("at") or "", task.get("event") or "", task.get("doneAt") or "")
+
+
+def _agent_seen(agent):
+    return max(agent.get("at") or "", agent.get("reportedAt") or "", agent.get("last") or "")
 
 
 def _feed_record(state, record, raw):

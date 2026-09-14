@@ -27,5 +27,7 @@ from .records import parse  # noqa: E402,F401
 from .server import (MAX_REQUEST, answer, archive_index, handle, listen,  # noqa: E402,F401
                      observe_names, serve, worker)
 from .spots import blocks_of, call, image, tool_result  # noqa: E402,F401
+from .tail import (FIRST_SPAN, KEEP_SPANS, MAX_PIECES, OVERLAP, PIECES,  # noqa: E402,F401
+                   SPAN_STEP, STAMP, Cache, Piece, Stream, View)
 from .tools import ARG_KEYS, TOOL_KINDS, one_line, tool_arg, tool_kind, tool_label  # noqa: E402,F401
 from .window import feed  # noqa: E402,F401

@@ -385,3 +385,43 @@ class Restart(Transcript):
         self.assertLessEqual(len(got["tasks"]), sesstate.MAX_ITEMS)
         self.assertEqual(len([t for t in got["tasks"] if not t["done"]]), 5,
                          "a live shell was dropped while ones the restart finished stayed")
+
+
+class Order(Transcript):
+    def stop(self, tool_id, task_id, at):
+        return call("TaskStop", tool_id, at=at, task_id=task_id)
+
+    def test_a_running_shell_stands_above_a_finished_one_that_started_earlier(self):
+        got = self.state(background("toolu_1", "b00000001", at="2026-08-25T10:00:00Z"),
+                         background("toolu_2", "b00000002", at="2026-08-25T10:05:00Z"),
+                         self.stop("toolu_3", "b00000001", "2026-08-25T10:10:00Z"))
+        self.assertEqual([(t["id"], t["done"]) for t in got["tasks"]],
+                         [("b00000002", False), ("b00000001", True)],
+                         "a shell still running stands under one that is over")
+
+    def test_among_the_running_the_one_started_last_stands_first(self):
+        got = self.state(background("toolu_1", "b00000001", at="2026-08-25T10:00:00Z"),
+                         background("toolu_2", "b00000002", at="2026-08-25T10:05:00Z"))
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000002", "b00000001"])
+
+    def test_an_event_lifts_a_running_shell_above_one_started_later(self):
+        got = self.state(background("toolu_1", "b00000001", at="2026-08-25T10:00:00Z"),
+                         background("toolu_2", "b00000002", at="2026-08-25T10:05:00Z"),
+                         monitor_event("b00000001", "build passed", at="2026-08-25T10:20:00Z"))
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001", "b00000002"],
+                         "the order goes by the start, not by the last thing heard")
+
+    def test_among_the_finished_the_one_that_ended_last_stands_first(self):
+        got = self.state(background("toolu_1", "b00000001", at="2026-08-25T10:00:00Z"),
+                         background("toolu_2", "b00000002", at="2026-08-25T10:05:00Z"),
+                         self.stop("toolu_3", "b00000001", "2026-08-25T10:10:00Z"),
+                         self.stop("toolu_4", "b00000002", "2026-08-25T10:30:00Z"))
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000002", "b00000001"])
+
+    def test_the_cut_takes_the_finished_ones_not_the_running(self):
+        records = [background(f"toolu_{n}", f"b{n:08d}", at=f"2026-08-25T10:{n:02d}:00Z")
+                   for n in range(sesstate.MAX_ITEMS + 5)]
+        got = self.state(*records)
+        self.assertEqual(len(got["tasks"]), sesstate.MAX_ITEMS)
+        self.assertEqual(got["tasks"][0]["id"], f"b{sesstate.MAX_ITEMS + 4:08d}",
+                         "the shell opened last fell off the edge")

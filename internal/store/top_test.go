@@ -36,6 +36,9 @@ func TestTopPG(t *testing.T) {
 
 	to := time.Now().Truncate(time.Minute)
 	from := to.Add(-time.Hour)
+	// A fresh database has partitions from the start of today (UTC) on; the hour
+	// before now lies in yesterday for the first hour of every day.
+	testdb.PartitionsBack(t, ctx, pool, "metrics_container_raw", 3*time.Hour)
 
 	add := func(container string, at time.Time, cpu float64, mem int64, state string, disk *int64) {
 		t.Helper()

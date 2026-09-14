@@ -402,6 +402,9 @@ func TestLiveSessionNeverTakesNamesakeFromDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	const yesterday = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	// The minute rollup is partitioned by week from the start of this one: an
+	// hour ago is last week for the first hour of a Monday.
+	testdb.PartitionsBack(t, t.Context(), pool, "sessions_1m", 3*time.Hour)
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO sessions_1m (bucket, host_id, name, tokens_max, pct_avg, pct_max, messages_max, samples, session_id, cwd)
 		VALUES ($1, $2, 'sentinel', 1000, 10, 20, 5, 6, $3, '/opt/x'),

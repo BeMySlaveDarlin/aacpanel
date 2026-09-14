@@ -36,8 +36,8 @@ def _task(state, use, task_id, started, text="", kind=TASK_BASH):
         "id": task_id, "text": started["text"] or text, "at": started["at"],
         "kind": kind, "line": _screen_line(started, kind), "done": False,
     }
-    # The snapshot cuts the list by the time work started, so a shell opened last
-    # would fall off the edge while finished ones held their places.
+    # The state holds no more than the list that goes out: over the limit the
+    # shells that finished first give way, the same ones the snapshot cuts.
     _prune_done_tasks(state)
 
 

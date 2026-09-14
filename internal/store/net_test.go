@@ -36,6 +36,9 @@ func TestNetHistoryPG(t *testing.T) {
 
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Minute)
 	half := base.Add(30 * time.Minute)
+	for _, table := range []string{"metrics_net_raw", "metrics_net_1m", "metrics_net_1h"} {
+		testdb.PartitionsBack(t, ctx, pool, table, 3*time.Hour)
+	}
 	const ethStep = 10000
 	for i := range 360 {
 		at := base.Add(time.Duration(i) * 10 * time.Second)
@@ -176,6 +179,9 @@ func TestNetRollupPG(t *testing.T) {
 	defer cleanup()
 
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Hour)
+	for _, table := range []string{"metrics_net_raw", "metrics_net_1m", "metrics_net_1h"} {
+		testdb.PartitionsBack(t, ctx, pool, table, 4*time.Hour)
+	}
 
 	const step = 100000
 	const samples = 60
