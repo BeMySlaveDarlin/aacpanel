@@ -311,6 +311,13 @@ conversations or none at all. The service turns an id into a directory. A
 contour the map does not know keeps the name the collector gave it, which is
 the only thing naming it.
 
+**The archive is asked for one contour at a time.** A page of it comes back
+sorted by the time of the last message, so a single page over every contour is
+filled by whichever contour is being worked in, and the quieter ones start
+several pages down — on the screen they are simply absent. The panel gives each
+contour a page of its own, and a request that names no contour at all is
+answered with the personal one alone.
+
 **The size of the desktop is the person's to set.** Every size in the styles is
 written in rem, so the root font size is the single number the whole interface
 hangs off: the two buttons in the header move it and the columns, the rows, the
