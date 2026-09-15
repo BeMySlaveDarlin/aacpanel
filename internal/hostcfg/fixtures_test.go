@@ -243,6 +243,7 @@ var (
 		"deploy/claude/skills/restart-session/SKILL.md":       {"description:"},
 		"deploy/claude/skills/cross-profile-message/SKILL.md": {"description:"},
 		"deploy/claude/skills/notify/SKILL.md":                {"description:"},
+		"deploy/claude/skills/brief/SKILL.md":                 {"description:"},
 
 		// The rows of the table above: the check names what it allows, so the
 		// allowed spelling is written out here in full.
