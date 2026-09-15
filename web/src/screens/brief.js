@@ -286,7 +286,7 @@ export function Brief({ id, snapshot, exec, onBack }) {
                             class="bbtn go"
                             disabled=${!canSend || !done || sending}
                             onClick=${send}
-                        >${sending ? "Sending…" : sentAt ? "Send again" : "Send to the session"}</button>
+                        >${sending ? "Sending…" : sentAt ? "Send again" : "Send answers"}</button>
                     </div>
                 ` : null}
             </div>
