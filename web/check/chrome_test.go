@@ -36,8 +36,10 @@ func chromeBinary() string {
 const chromeDriver = `
 import { spawn } from "node:child_process";
 const chrome = process.env.AACP_FIXTURE_CHROME, url = process.env.AACP_FIXTURE_URL, profile = process.env.AACP_FIXTURE_PROFILE;
+const screen = JSON.parse(process.env.AACP_FIXTURE_SCREEN);
 const proc = spawn(chrome, ["--headless=new", "--remote-debugging-pipe", "--user-data-dir=" + profile, "--password-store=basic",
-    "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--disable-background-networking", "--hide-scrollbars", "about:blank"],
+    "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--disable-background-networking", "--hide-scrollbars",
+    "--blink-settings=" + process.env.AACP_FIXTURE_POINTER, "about:blank"],
     { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] });
 let stderr = ""; proc.stderr.on("data", (d) => { stderr += d; });
 const out = proc.stdio[3], inp = proc.stdio[4];
@@ -62,7 +64,7 @@ try {
     const { targetId } = await send("Target.createTarget", { url: "about:blank" });
     const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
     await send("Runtime.enable", {}, sessionId);
-    await send("Emulation.setDeviceMetricsOverride", { width: 393, height: 852, deviceScaleFactor: 2, mobile: true }, sessionId);
+    await send("Emulation.setDeviceMetricsOverride", screen, sessionId);
     await send("Page.navigate", { url }, sessionId);
     let result;
     for (;;) {
@@ -80,12 +82,40 @@ try {
 }
 `
 
+// phoneScreen and deskScreen are the two screens a fixture is run on. The
+// width decides which half of the styles applies: the desktop rules live
+// behind a media query, and a desktop panel measured on a phone screen is
+// measured without a single rule that shapes it.
+var (
+	phoneScreen = `{"width":393,"height":852,"deviceScaleFactor":2,"mobile":true}`
+	deskScreen  = `{"width":1440,"height":900,"deviceScaleFactor":1,"mobile":false}`
+
+	// What kind of pointer the page is told it has. Headless has none of its
+	// own, and Emulation.setEmulatedMedia does not answer for hover or pointer:
+	// a rule behind (hover: hover) is then switched off, and a fixture that
+	// measures one of them measures nothing while reporting a pass. Blink is
+	// told at startup instead — 1 is none, 2 is coarse or hover, 4 is fine.
+	phonePointer = "primaryHoverType=1,availableHoverTypes=1,primaryPointerType=2,availablePointerTypes=2"
+	deskPointer  = "primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4"
+)
+
 // runFixture serves the frontend tree with the fixture page on top of it,
 // opens the page in a headless Chrome and returns what its window.done
 // resolved to. Without node or Chrome the test is skipped: the fixture runs
 // the real components in a real engine, and there is no reading them out of
 // the source instead.
 func runFixture(t *testing.T, fixture string, into any) {
+	t.Helper()
+	runFixtureOn(t, fixture, phoneScreen, phonePointer, into)
+}
+
+// runWideFixture is runFixture on a screen wide enough for the desktop shell.
+func runWideFixture(t *testing.T, fixture string, into any) {
+	t.Helper()
+	runFixtureOn(t, fixture, deskScreen, deskPointer, into)
+}
+
+func runFixtureOn(t *testing.T, fixture, screen, pointer string, into any) {
 	t.Helper()
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -113,6 +143,8 @@ func runFixture(t *testing.T, fixture string, into any) {
 		"AACP_FIXTURE_CHROME="+chrome,
 		"AACP_FIXTURE_URL="+server.URL+"/fixture.html",
 		"AACP_FIXTURE_PROFILE="+t.TempDir(),
+		"AACP_FIXTURE_SCREEN="+screen,
+		"AACP_FIXTURE_POINTER="+pointer,
 	)
 	started := time.Now()
 	out, err := cmd.Output()

@@ -103,10 +103,10 @@ export function DeskHead({ name, live, archive, pct, view, canTerm, exec, onView
 export function ViewToggle({ view, onView }) {
     return html`
         <span class="viewsw" role="group" aria-label="how to watch the session">
-            <button class=${`viewbtn${view === "term" ? " on" : ""}`} type="button" data-tip="Terminal" data-tipside="left"
+            <button class=${`viewbtn${view === "term" ? " on" : ""}`} type="button" aria-label="Terminal"
                     aria-label="terminal" aria-pressed=${view === "term"}
                     onClick=${() => onView("term")}><${Icon.terminal} /></button>
-            <button class=${`viewbtn${view === "feed" ? " on" : ""}`} type="button" data-tip="Feed" data-tipside="left"
+            <button class=${`viewbtn${view === "feed" ? " on" : ""}`} type="button" aria-label="Feed"
                     aria-label="feed" aria-pressed=${view === "feed"}
                     onClick=${() => onView("feed")}><${Icon.feed} /></button>
         </span>

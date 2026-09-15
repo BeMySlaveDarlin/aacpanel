@@ -56,14 +56,10 @@ function ContourColumn({ profiles, current, onPick, onForm }) {
                                     <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
                                         <i
                                             class="dkact"
-                                            data-tip="New group"
-                                            data-tipside="left"
                                             onClick=${() => onForm({ kind: "group", mode: "add", profile })}
                                         ><${Icon.plus} /></i>
                                         <i
                                             class="dkact"
-                                            data-tip="Edit contour"
-                                            data-tipside="left"
                                             onClick=${() => onForm({ kind: "profile", mode: "edit", profile })}
                                         ><${Icon.pencil} /></i>
                                     </span>
@@ -96,7 +92,7 @@ function ProjectRow({ project, profile, group, gone, exec, onForm, onRemove, onO
             <span class="dkacts">
                 <i
                     class=${`dkact${can ? "" : " off"}`}
-                    data-tip=${can ? `Start a session in ${project.name}` : whyNot(exec, "session.open")}
+                    data-tip=${can ? undefined : whyNot(exec, "session.open")}
                     data-tipside="left"
                     onClick=${async () => {
                         if (!can) return;
@@ -107,14 +103,10 @@ function ProjectRow({ project, profile, group, gone, exec, onForm, onRemove, onO
                 ><${Icon.play} /></i>
                 <i
                     class="dkact"
-                    data-tip="Edit project"
-                    data-tipside="left"
                     onClick=${() => onForm({ kind: "project", mode: "edit", profile, group, project })}
                 ><${Icon.pencil} /></i>
                 <i
                     class="dkact danger"
-                    data-tip="Take off the map"
-                    data-tipside="left"
                     onClick=${() => onRemove({ kind: "project", profile, group, project })}
                 ><${Icon.close} /></i>
             </span>
@@ -137,20 +129,14 @@ export function GroupRow({ profile, group, expanded, onToggle, onForm, onRemove,
                 <span class="dkacts" onClick=${(e) => e.stopPropagation()}>
                     <i
                         class="dkact"
-                        data-tip="New project"
-                        data-tipside="left"
                         onClick=${() => onForm({ kind: "project", mode: "add", profile, group })}
                     ><${Icon.plus} /></i>
                     <i
                         class="dkact"
-                        data-tip="Edit group"
-                        data-tipside="left"
                         onClick=${() => onForm({ kind: "group", mode: "edit", profile, group })}
                     ><${Icon.pencil} /></i>
                     <i
                         class="dkact danger"
-                        data-tip="Delete group"
-                        data-tipside="left"
                         onClick=${() => onRemove({ kind: "group", profile, group })}
                     ><${Icon.close} /></i>
                 </span>

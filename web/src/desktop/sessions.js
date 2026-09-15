@@ -123,7 +123,7 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
                         class=${`dkact danger${can ? "" : " off"}`}
                         data-tip=${closing
                             ? "The session is already closing"
-                            : known ? "Close the session" : whyNot(exec, "session.close")}
+                            : known ? undefined : whyNot(exec, "session.close")}
                         data-tipside="left"
                         onClick=${async () => {
                             if (!can) return;
@@ -136,7 +136,7 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
                         class=${`dkact danger${canRestart ? "" : " off"}`}
                         data-tip=${restarting
                             ? "The session is already restarting"
-                            : restartKnown ? "Restart the session from scratch" : whyNot(exec, "session.restart")}
+                            : restartKnown ? undefined : whyNot(exec, "session.restart")}
                         data-tipside="left"
                         onClick=${async () => {
                             if (!canRestart) return;

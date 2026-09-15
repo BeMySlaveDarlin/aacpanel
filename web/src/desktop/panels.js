@@ -7,14 +7,21 @@ import { Logs } from "./panels/logs.js";
 import { Procs } from "./panels/procs.js";
 import { Projects } from "./panels/projects.js";
 
-export function RightPanel({ tab, title, profiles, picks, container, exec, onOpen, onClose, onOpened }) {
+export function RightPanel({ tab, title, profiles, picks, names, archPicks, setArchPicks, container, exec, onOpen, onClose, onOpened }) {
     return html`
         <aside class="dkright">
             <div class="dkpanelhead">
                 <span class="dkpaneltitle">${title}</span>
                 <button class="dkclose" type="button" onClick=${onClose}><${Icon.close} /></button>
             </div>
-            ${tab === "archive" && html`<${Archive} profiles=${profiles} picks=${picks} onOpen=${onOpen} exec=${exec} />`}
+            ${tab === "archive" && html`<${Archive}
+                profiles=${profiles}
+                names=${names}
+                picks=${archPicks}
+                setPicks=${setArchPicks}
+                onOpen=${onOpen}
+                exec=${exec}
+            />`}
             ${tab === "journal" && html`<${Journal} />`}
             ${tab === "logs" && html`<${Logs} container=${container} />`}
             ${tab === "procs" && html`<${Procs} />`}

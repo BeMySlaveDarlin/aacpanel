@@ -63,7 +63,6 @@ export function wakeNeeded(visibility, readyState) {
 export function JumpToEnd({ onJump }) {
     return html`
         <button class="feedjump" type="button" aria-label="to the end of the conversation"
-                data-tip="To the end of the conversation" data-tipside="left"
                 onClick=${onJump}>${Icon.chevron()}</button>
     `;
 }

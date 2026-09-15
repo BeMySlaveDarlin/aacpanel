@@ -39,7 +39,7 @@
         display: flex;
         align-items: center;
         gap: .5rem;
-        height: 44px;
+        height: 2.9rem;
         flex: none;
         padding: 0 .6rem;
         border-bottom: var(--hair) solid var(--line);
@@ -65,8 +65,8 @@
         position: relative;
         display: grid;
         place-items: center;
-        width: 30px;
-        height: 30px;
+        width: 2rem;
+        height: 2rem;
         margin-right: .2rem;
         border: 0;
         border-radius: var(--r-small);
@@ -81,7 +81,7 @@
 
     .dkibs { display: flex; align-items: center; gap: .15rem; }
 
-    .dksep { width: var(--hair); height: 22px; background: var(--line); margin: 0 .3rem; }
+    .dksep { width: var(--hair); height: 1.5rem; background: var(--line); margin: 0 .3rem; }
 
     .dktopright { margin-left: auto; display: flex; align-items: center; gap: .3rem; }
 
@@ -89,8 +89,8 @@
         position: relative;
         display: grid;
         place-items: center;
-        width: 32px;
-        height: 32px;
+        width: 2.2rem;
+        height: 2.2rem;
         border: 0;
         border-radius: var(--r-small);
         background: transparent;
@@ -155,14 +155,49 @@
         border-color: var(--accent);
     }
 
+    /* The scale of the shell: two presses and the number they move, read as
+       one control rather than two buttons that happen to stand together. */
+    .dkzoom {
+        display: flex;
+        align-items: center;
+        gap: .1rem;
+        padding: 0 .15rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-pill);
+    }
+
+    .dkzoombtn {
+        display: grid;
+        place-items: center;
+        width: 1.6rem;
+        height: 1.6rem;
+        padding: 0;
+        border: 0;
+        border-radius: var(--r-small);
+        background: none;
+        color: var(--ink-dim);
+        font: 600 var(--t-md)/1 var(--sans);
+        cursor: pointer;
+    }
+
+    .dkzoombtn:disabled { opacity: .35; cursor: default; }
+
+    .dkzoomnum {
+        min-width: 2.7rem;
+        text-align: center;
+        font-size: var(--t-xs);
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-faint);
+    }
+
     .dkbody {
         flex: 1;
         min-height: 0;
         display: grid;
-        grid-template-columns: 292px minmax(0, 1fr);
+        grid-template-columns: 19.5rem minmax(0, 1fr);
     }
 
-    .dkbody.withpanel { grid-template-columns: 292px minmax(0, 1fr) 360px; }
+    .dkbody.withpanel { grid-template-columns: 19.5rem minmax(0, 1fr) 24rem; }
 
     .dkbody.full, .dkbody.full.withpanel { grid-template-columns: minmax(0, 1fr); }
 
@@ -184,7 +219,7 @@
         align-items: center;
         gap: .4rem;
         width: 100%;
-        height: 32px;
+        height: 2.2rem;
         padding: 0 .55rem;
         border: 0;
         background: transparent;
@@ -206,7 +241,7 @@
         position: absolute;
         left: .3rem;
         right: .3rem;
-        top: 32px;
+        top: 2.2rem;
         z-index: 10;
         padding: .25rem;
         border: var(--hair) solid var(--edge);
@@ -220,7 +255,7 @@
         align-items: center;
         gap: .4rem;
         width: 100%;
-        height: 26px;
+        height: 1.9rem;
         padding: 0 .4rem;
         border: 0;
         border-radius: var(--r-small);
@@ -564,7 +599,7 @@
         align-items: center;
         gap: .6rem;
         width: 100%;
-        height: 34px;
+        height: 2.3rem;
         padding: 0 .8rem;
         border: 0;
         border-bottom: var(--hair) solid var(--line);
@@ -575,7 +610,7 @@
     }
 
     .dkth {
-        height: 26px;
+        height: 1.8rem;
         font-size: var(--t-xs);
         color: var(--ink-faint);
         background: var(--bg);
@@ -650,8 +685,8 @@
     .dkact {
         display: grid;
         place-items: center;
-        width: 1.7rem;
-        height: 1.7rem;
+        width: 2rem;
+        height: 2rem;
         padding: 0;
         color: var(--ink-faint);
         background: none;
@@ -660,7 +695,7 @@
         cursor: pointer;
     }
 
-    .dkact svg { width: var(--i-sm); height: var(--i-sm); }
+    .dkact svg { width: var(--i-md); height: var(--i-md); }
 
     .dkdash {
         flex: 1;
@@ -740,7 +775,7 @@
         flex: none;
         display: flex;
         align-items: center;
-        height: 32px;
+        height: 2.2rem;
         padding: 0 .3rem 0 .7rem;
         border-bottom: var(--hair) solid var(--line);
     }
@@ -751,8 +786,8 @@
         margin-left: auto;
         display: grid;
         place-items: center;
-        width: 26px;
-        height: 26px;
+        width: 1.9rem;
+        height: 1.9rem;
         color: var(--ink-faint);
         background: transparent;
         border: 0;
@@ -767,7 +802,7 @@
         align-items: center;
         gap: .45rem;
         width: 100%;
-        height: 38px;
+        height: 2.6rem;
         padding: 0 .7rem;
         border: 0;
         font: inherit;
@@ -797,8 +832,8 @@
     .dkpagebtn {
         display: grid;
         place-items: center;
-        width: 26px;
-        height: 26px;
+        width: 1.9rem;
+        height: 1.9rem;
         padding: 0;
         border: 0;
         border-radius: var(--r-small);
@@ -823,13 +858,21 @@
 
     .dkpagetotal { color: var(--ink-faint); }
 
+    .dkarchive {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
     .dkarch .dkname, .dkproj .dkname, .dklog .dkname { font-size: var(--t-md); font-weight: 400; }
 
     .dkarch {
         position: relative;
-        display: flex;
-        flex-direction: column;
-        gap: .1rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .1rem .4rem;
         padding: .35rem .55rem .4rem;
         border-bottom: var(--hair) solid var(--line);
         cursor: pointer;
@@ -837,9 +880,9 @@
 
     /* A row of the archive: the name, then the time in the faint ink; the line
        under it is where the conversation lived, quieter still. */
-    .dkarchtop { display: flex; align-items: center; gap: .45rem; }
+    .dkarchtop { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: .45rem; }
 
-    .dkarchsub { display: flex; align-items: center; gap: .35rem; }
+    .dkarchsub { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: .35rem; }
 
     .dkarchsub .dkgroup, .dkarchsub .dklast { font-size: var(--t-xs); color: var(--ink-faint); }
 
@@ -850,9 +893,7 @@
         color: var(--ink-faint);
     }
 
-    .dkarch .dkacts { position: absolute; right: .5rem; top: .35rem; }
-
-    .dkarch .dkarchtop .dkwhen { margin-right: 3.6rem; }
+    .dkarch .dkacts { grid-column: 2; grid-row: 1 / span 2; margin-left: 0; }
     .dksplit { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr 1fr; }
 
     .dkhalf { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -873,9 +914,9 @@
 
     .dkheadacts { margin-left: auto; display: flex; gap: .3rem; }
 
-    .dkheadacts .dkact { width: 2rem; height: 2rem; }
+    .dkheadacts .dkact { width: 2.3rem; height: 2.3rem; }
 
-    .dkheadacts .dkact svg { width: var(--i-md); height: var(--i-md); }
+    .dkheadacts .dkact svg { width: var(--i-lg); height: var(--i-lg); }
 
     .dkuse {
         display: flex;
@@ -1205,7 +1246,7 @@
         align-items: center;
         gap: .4rem;
         width: 100%;
-        height: 32px;
+        height: 2.2rem;
         padding: 0 .7rem;
         border: 0;
         border-top: var(--hair) solid var(--line);
@@ -1233,7 +1274,7 @@
         flex: 1;
         min-width: 8rem;
         max-width: 18rem;
-        height: 26px;
+        height: 1.9rem;
         padding: 0 .5rem;
         border: 0;
         border-radius: var(--r-small);
@@ -1354,11 +1395,13 @@
 
 }
 
+/* The buttons of an archive row are drawn where they stand, not summoned by
+   the pointer: they hold a column of their own either way, and a row that
+   only shows what it can do once it is touched says nothing from across the
+   desk. */
 @media (hover: hover) and (pointer: fine) {
     .deskshell .dkc-acts { opacity: 0; }
     .deskshell .dkc-acts.shown { opacity: 1; }
-    .deskshell .dkarch .dkacts { opacity: 0; }
-    .deskshell .dkarch:hover .dkacts { opacity: 1; }
 }
 @media (min-width: 1100px) {
 .dklimreset {
@@ -1404,7 +1447,7 @@
 
     .dkproj .dkname { font-size: var(--t-md); }
 
-    .dkitem { height: 34px; }
+    .dkitem { height: 2.3rem; }
 }
 
 @media (min-width: 1100px) {

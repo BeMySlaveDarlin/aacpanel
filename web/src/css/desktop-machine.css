@@ -6,7 +6,7 @@
         grid-template-columns: 3.5rem minmax(0, 1fr) 2.8rem 3.4rem;
         align-items: center;
         gap: .4rem;
-        height: 30px;
+        height: 2rem;
         padding: 0 .6rem;
         font-size: var(--t-sm);
         color: var(--ink-dim);
@@ -16,7 +16,7 @@
         position: sticky;
         top: 0;
         z-index: 1;
-        height: 24px;
+        height: 1.6rem;
         font-size: var(--t-xs);
         color: var(--ink-faint);
         background: var(--bg);

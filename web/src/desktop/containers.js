@@ -72,7 +72,7 @@ export function StackColumn({ tree, current, onPick, exec, onDone }) {
                                 <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
                                     <i
                                         class=${`dkact danger${can && st.running > 0 ? "" : " off"}`}
-                                        data-tip=${can ? "Bring down the stack" : whyNot(exec, "stack.down")}
+                                        data-tip=${can ? undefined : whyNot(exec, "stack.down")}
                                         data-tipside="left"
                                         onClick=${async () => {
                                             if (!can || st.running === 0) return;
@@ -138,10 +138,10 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
         if (done && done.ok && onDone) onDone();
     };
 
-    const stackBtn = (kind, tip, icon, danger) => html`
+    const stackBtn = (kind, icon, danger) => html`
         <i
             class=${`dkact${danger ? " danger" : ""}${knows(exec, kind) ? "" : " off"}`}
-            data-tip=${knows(exec, kind) ? tip : whyNot(exec, kind)}
+            data-tip=${knows(exec, kind) ? undefined : whyNot(exec, kind)}
             data-tipside="left"
             onClick=${() => st && act(kind, st.name)}
         >${icon}</i>
@@ -155,8 +155,8 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                     <span class="dkheadname">${st ? st.name : "no stack picked"}</span>
                     <span class="dkheadpath">${st ? `${st.running} of ${st.total} running` : ""}</span>
                     <span class="dkheadacts">
-                        ${stackBtn("stack.up", "Bring up the stack", html`<${Icon.play} />`, false)}
-                        ${stackBtn("stack.down", "Bring down the stack", html`<${Icon.stop} />`, true)}
+                        ${stackBtn("stack.up", html`<${Icon.play} />`, false)}
+                        ${stackBtn("stack.down", html`<${Icon.stop} />`, true)}
                     </span>
                 </div>
                 ${st && html`
@@ -202,19 +202,19 @@ export function ContainersCenter({ tree, stack, current, onPick, exec, onDone, o
                                 <span class="dkc-acts shown" onClick=${(e) => e.stopPropagation()}>
                                     <i
                                         class=${`dkact${knows(exec, "container.restart") ? "" : " off"}`}
-                                        data-tip=${knows(exec, "container.restart") ? "Restart" : whyNot(exec, "container.restart")}
+                                        data-tip=${knows(exec, "container.restart") ? undefined : whyNot(exec, "container.restart")}
                                         data-tipside="left"
                                         onClick=${() => act("container.restart", c.name)}
                                     ><${Icon.resume} /></i>
                                     <i
                                         class="dkact"
-                                        data-tip="Logs"
-                                        data-tipside="left"
                                         onClick=${() => onLogs && onLogs(c)}
                                     ><${Icon.list} /></i>
                                     <i
                                         class=${`dkact danger${knows(exec, c.state === "running" ? "container.stop" : "container.start") ? "" : " off"}`}
-                                        data-tip=${c.state === "running" ? "Stop" : "Start"}
+                                        data-tip=${knows(exec, c.state === "running" ? "container.stop" : "container.start")
+                                            ? undefined
+                                            : whyNot(exec, c.state === "running" ? "container.stop" : "container.start")}
                                         data-tipside="left"
                                         onClick=${() => act(c.state === "running" ? "container.stop" : "container.start", c.name)}
                                     ><${Icon.stop} /></i>

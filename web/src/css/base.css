@@ -1,11 +1,16 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* The root pixel the whole scale is measured in. Sizes are written in rem —
+   type, icons, rows, columns — so --ui-scale in front of it moves the entire
+   interface at once, and a screen read from further away needs one number
+   rather than a pass over every rule. The desktop shell sets it while it is
+   mounted; on the phone nothing sets it and the size is the drawn one. */
 html, body {
     font-variant-numeric: tabular-nums;
     margin: 0;
     background: var(--void);
     color: var(--ink);
-    font: 15px/1.42 var(--sans);
+    font: calc(15px * var(--ui-scale, 1))/1.42 var(--sans);
     -webkit-font-smoothing: antialiased;
 }
 

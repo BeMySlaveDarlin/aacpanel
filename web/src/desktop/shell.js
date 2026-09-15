@@ -17,6 +17,7 @@ import { routeChip } from "../ui/route.js";
 import { useToastHide } from "../ui/toasts.js";
 import { Home } from "./home.js";
 import { PANELS, RightPanel } from "./panels.js";
+import { MAX, MIN, useScale } from "./scale.js";
 
 export const SECTIONS = [
     { id: "sessions", label: "Sessions", icon: Icon.sessions },
@@ -38,12 +39,39 @@ function useJSON(url) {
     return state;
 }
 
+// Zoom is the pair of buttons that sets how large the shell is drawn, with
+// the scale in force between them so a press has something to read against.
+function Zoom({ scale, onSmaller, onBigger }) {
+    return html`
+        <div class="dkzoom">
+            <button
+                class="dkzoombtn"
+                type="button"
+                aria-label="Draw the interface smaller"
+                disabled=${scale <= MIN}
+                onClick=${onSmaller}
+            >−</button>
+            <span class="dkzoomnum">${Math.round(scale * 100)}%</span>
+            <button
+                class="dkzoombtn"
+                type="button"
+                aria-label="Draw the interface larger"
+                disabled=${scale >= MAX}
+                onClick=${onBigger}
+            >+</button>
+        </div>
+    `;
+}
+
+// A button of the header is its icon and nothing else: the name of what it
+// opens reaches a screen reader through aria-label, and a pointer reads the
+// section that lights up after the press.
 function IconButton({ item, active, onClick }) {
     return html`
         <button
             class=${`dkib${active ? " on" : ""}`}
             type="button"
-            data-tip=${item.label}
+            aria-label=${item.label}
             onClick=${onClick}
         ><${item.icon} /></button>
     `;
@@ -64,8 +92,15 @@ export function DesktopShell({
     const hideToast = useToastHide();
     useEffect(() => { hideToast(); }, [section, chat, hideToast]);
     const [picks, setPicks] = useState([]);
+    const [names, setNames] = useState([]);
+    // The archive filters by contour on its own: the panel stands beside the
+    // column, and a pick made in one list that quietly moved the other read as
+    // the archive having no filter at all.
+    const [archPicks, setArchPicks] = useState([]);
     const [settings, setSettings] = useState(false);
     const [order, setOrder] = useState([]);
+
+    const zoom = useScale();
 
     const shellRef = useRef(null);
     const tipRef = useRef(null);
@@ -154,6 +189,7 @@ export function DesktopShell({
             onPick=${setChat}
             picks=${picks}
             setPicks=${setPicks}
+            onNames=${setNames}
             onOrder=${setOrder}
             exec=${exec}
             wait=${wait}
@@ -221,13 +257,13 @@ export function DesktopShell({
                 <button
                     class="dkbrand"
                     type="button"
-                    data-tip="Settings"
+                    aria-label="Settings"
                     onClick=${() => setSettings(true)}
                 >${(snapshot && snapshot.hostName) || "host"}<span class="caret">▾</span></button>
                 <button
                     class=${`dklogo${section === "home" ? " on" : ""}`}
                     type="button"
-                    data-tip="Home"
+                    aria-label="Home"
                     onClick=${() => goSection("home")}
                 ><${Icon.orbit} /></button>
                 <nav class="dkibs">
@@ -271,6 +307,7 @@ export function DesktopShell({
                             onClick=${route.onOpen}
                         >${chip.text}</button>
                     `}
+                    <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
                     <${IconButton}
                         item=${{ label: theme === "sky" ? "Dark theme" : "Light theme", icon: theme === "sky" ? Icon.moon : Icon.sun }}
                         active=${false}
@@ -289,6 +326,9 @@ export function DesktopShell({
                         title=${panelTitle}
                         profiles=${profiles}
                         picks=${picks}
+                        names=${names}
+                        archPicks=${archPicks}
+                        setArchPicks=${setArchPicks}
                         container=${container}
                         exec=${exec}
                         onOpen=${openChat}

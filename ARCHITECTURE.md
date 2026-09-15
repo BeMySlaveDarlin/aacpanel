@@ -311,6 +311,23 @@ conversations or none at all. The service turns an id into a directory. A
 contour the map does not know keeps the name the collector gave it, which is
 the only thing naming it.
 
+**The size of the desktop is the person's to set.** Every size in the styles is
+written in rem, so the root font size is the single number the whole interface
+hangs off: the two buttons in the header move it and the columns, the rows, the
+icons and the type follow at once. The scale sits on the root element while the
+desktop shell is mounted and is taken off with it — left there, it would follow
+the same browser to the phone, where no control can undo it. The starting point
+is larger than the drawing calls for: a panel at a desk is read from further
+away than one in the hand, and every row of it puts a small mark next to a
+destructive one.
+
+**A button explains itself only when it cannot work.** The tooltip of a button
+that does its job repeats what the icon already says, and it covers the row the
+pointer is aiming at — on a row where the neighbouring mark closes a session.
+What an icon cannot say is why it does nothing: an executor that has never heard
+of the action, a session already closing. That text stays; the rest is the icon
+and the name a screen reader is given.
+
 **The terminal emulator loads as a separate file**: it weighs three hundred
 kilobytes and is not always needed — in the common bundle every phone would
 download it, and into the service worker precache on top of that.

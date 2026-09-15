@@ -137,10 +137,12 @@
     --t-2xl: 1.53rem;
     --t-3xl: 2rem;
 
-    /* Icon sizes, by where the icon sits: inside text, on a row, on a tile. */
-    --i-sm: 15px;
-    --i-md: 18px;
-    --i-lg: 22px;
+    /* Icon sizes, by where the icon sits: inside text, on a row, on a tile.
+       In rem, so an icon grows with the text it stands beside: a mark left in
+       pixels shrinks against its own label as the scale goes up. */
+    --i-sm: 1rem;
+    --i-md: 1.2rem;
+    --i-lg: 1.47rem;
 
     --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --serif: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

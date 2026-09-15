@@ -62,14 +62,10 @@ export function Projects({ picks, exec, onOpened }) {
                             <span class="dkacts">
                                 <i
                                     class="dkact"
-                                    data-tip="New group"
-                                    data-tipside="left"
                                     onClick=${() => setForm({ kind: "group", mode: "add", profile })}
                                 ><${Icon.plus} /></i>
                                 <i
                                     class="dkact"
-                                    data-tip="Edit contour"
-                                    data-tipside="left"
                                     onClick=${() => setForm({ kind: "profile", mode: "edit", profile })}
                                 ><${Icon.pencil} /></i>
                             </span>

@@ -114,7 +114,7 @@ function ScanButton({ scan, onScan }) {
         <button
             class=${`dkact${scan.running ? " busy" : ""}`}
             type="button"
-            data-tip=${scan.running ? "Collection is running" : "Collect usage again"}
+            data-tip=${scan.running ? "Collection is running" : undefined}
             onClick=${onScan}
         ><${Icon.refresh} /></button>
     `;
