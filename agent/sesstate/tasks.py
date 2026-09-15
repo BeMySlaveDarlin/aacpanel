@@ -13,7 +13,15 @@ NOTIF_EVENT_RE = re.compile(r"<event>(.*?)</event>", re.S)
 
 DONE_STATUSES = ("completed", "failed", "killed", "cancelled", "stopped")
 
-AACP_TIMEOUT = "[Monitor timed out"
+# The end of a watch arrives as an ordinary event: the notification of a
+# monitor carries no status, and its closing line is the only sign the watch
+# is over. The wording of that line belongs to the harness and has moved
+# before, so the end is read by the shape of the line — a bracketed word from
+# the monitor that either names the end or asks for a re-arm. Miss it and the
+# watch never leaves the list: a session that re-arms every half hour shows
+# dozens of live watches over two.
+MONITOR_OVER_RE = re.compile(
+    r"\[Monitor\b[^]]*?(?:\btimed out\b|\bexpired\b|\bre-arm\b)", re.I)
 
 MAYBE_BACKGROUND = ("Bash", "Monitor")
 
@@ -103,7 +111,7 @@ def _notify_tasks(state, body, at):
     event = " ".join(NOTIF_EVENT_RE.findall(body))
     targets = [state.task_ids.get(t, t) for t in NOTIF_USE_RE.findall(body)]
     targets += NOTIF_TASK_RE.findall(body)
-    if any(s in DONE_STATUSES for s in status) or AACP_TIMEOUT in event:
+    if any(s in DONE_STATUSES for s in status) or MONITOR_OVER_RE.search(event):
         for tool_id in NOTIF_USE_RE.findall(body):
             state.task_ids.pop(tool_id, None)
         for task_id in targets:

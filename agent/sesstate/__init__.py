@@ -13,7 +13,7 @@ from .feed import State, _feed_record
 from .limits import MAX_ITEMS, MAX_TEXT  # noqa: F401
 from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F401
                         _lose_older_than, _mark_reported, agent_meta, letter_text)
-from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, AACP_TIMEOUT,  # noqa: F401
+from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, MONITOR_OVER_RE,  # noqa: F401
                     NOTIF_BLOCK_RE, NOTIF_EVENT_RE, NOTIF_STATUS_RE,
                     NOTIF_TASK_RE, NOTIF_USE_RE, STOPPERS, TASK_AGENT,
                     TASK_BASH, TASK_ID_KEYS, TASK_KIND_BY_KEY, TASK_MONITOR,

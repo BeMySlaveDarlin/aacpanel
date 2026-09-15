@@ -121,6 +121,37 @@ class Notifications(Transcript):
                          monitor_event("b00000002", "[Monitor timed out — re-arm if needed.]"))
         self.assertEqual(got["tasks"], [])
 
+    def test_an_expired_monitor_leaves_the_list(self):
+        got = self.state(aacpanel("toolu_1", "b00000002"),
+                         monitor_event("b00000002",
+                                       "[Monitor expired after 30m with no events delivered. "
+                                       "Re-arm it if you still need the watch — and widen the "
+                                       "filter if silence was unexpected.]"))
+        self.assertEqual(got["tasks"], [])
+
+    def test_a_monitor_that_delivered_and_then_expired_leaves_the_list(self):
+        got = self.state(aacpanel("toolu_1", "b00000002"),
+                         monitor_event("b00000002", "CI=running threads=0"),
+                         monitor_event("b00000002",
+                                       "[Monitor expired after 30m with 1 event delivered. "
+                                       "Re-arm it if you still need the watch.]",
+                                       at="2026-08-25T10:50:00Z"))
+        self.assertEqual(got["tasks"], [])
+
+    def test_a_watch_re_armed_every_half_hour_keeps_one_live_row(self):
+        marks = []
+        for n in range(1, 6):
+            at = "2026-08-25T%02d:00:00Z" % (9 + n)
+            over = "2026-08-25T%02d:30:00Z" % (9 + n)
+            marks.append(aacpanel("toolu_%d" % n, "b0000000%d" % n, at=at))
+            if n < 5:
+                marks.append(monitor_event("b0000000%d" % n,
+                                           "[Monitor expired after 30m with no events "
+                                           "delivered. Re-arm it if you still need the "
+                                           "watch.]", at=over))
+        got = self.state(*marks)
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000005"])
+
     def test_a_monitor_event_does_not_remove_the_task(self):
         got = self.state(aacpanel("toolu_1", "b00000001"),
                          monitor_event("b00000001", "ordered=5 bought=6 percent=120"))
