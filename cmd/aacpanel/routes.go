@@ -77,6 +77,10 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/chat/file", g.page(s.apiChatFile))
 	mux.Handle("GET /api/chat/file/download", g.page(s.apiChatDownload))
 	mux.Handle("GET /api/sessions/archive", g.page(s.apiSessionsArchive))
+	mux.Handle("GET /api/briefs", g.page(s.apiBriefs))
+	mux.Handle("GET /api/briefs/{id}", g.page(s.apiBrief))
+	mux.Handle("PUT /api/briefs/{id}", g.page(s.apiBriefDraft))
+	mux.Handle("POST /api/briefs/{id}/sent", g.page(s.apiBriefSent))
 
 	mux.Handle("GET /api/usage/summary", g.page(s.apiUsageSummary))
 	mux.Handle("GET /api/usage/series", g.page(s.apiUsageSeries))

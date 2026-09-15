@@ -76,12 +76,13 @@ agent-import:
 
 # Agent tests run with a substituted state directory — the same barrier as the
 # home directory above, since the question book lives by absolute path.
-# AACP_ASK_STORE is unset: inherited, it would lead the run into the real book.
+# AACP_ASK_STORE and the brief store are unset: inherited, they would lead the
+# run into the real book and the real shelf.
 agent-test:
 	@state=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-teststate.XXXXXX"); \
 	tmp=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-testtmp.XXXXXX"); \
 	trap 'rm -rf "$$state" "$$tmp"' EXIT; \
-	env -u AACP_ASK_STORE AACP_STATE_DIR="$$state" AACP_TEST_TMPDIR="$$tmp" \
+	env -u AACP_ASK_STORE -u AACP_BRIEF_STORE -u AACP_BRIEF_DIR AACP_STATE_DIR="$$state" AACP_TEST_TMPDIR="$$tmp" \
 	python3 -m unittest discover -s agent -t agent -p 'test_*.py'
 
 # The same agent tests under the restrictions of the production unit: a read-only

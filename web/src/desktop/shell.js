@@ -8,6 +8,7 @@ import { attachTips } from "./tip.js";
 import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
 import { ChatEmpty } from "../screens/chat/empty.js";
+import { Briefs } from "../screens/briefs.js";
 import { Devices } from "../screens/devices.js";
 import { Settings } from "../screens/settings.js";
 import { SessionColumn } from "./sessions.js";
@@ -24,6 +25,7 @@ export const SECTIONS = [
     { id: "containers", label: "Containers", icon: Icon.containers },
     { id: "machine", label: "Machine", icon: Icon.cpu },
     { id: "devices", label: "Devices", icon: Icon.skill },
+    { id: "briefs", label: "Briefs", icon: Icon.quote },
 ];
 
 function useJSON(url) {
@@ -220,6 +222,10 @@ export function DesktopShell({
             />`;
         }
         if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${() => goSection("sessions")} /></div>`;
+        if (section === "briefs") {
+            return html`<div class="dkpage"><${Briefs} snapshot=${snapshot} exec=${exec}
+                onBack=${() => goSection("sessions")} /></div>`;
+        }
         if (!chat) return html`<${ChatEmpty} />`;
         const live = chat.archived
             ? null

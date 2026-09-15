@@ -1,0 +1,524 @@
+/* A brief is a document, and it is drawn as one: a reading column, sources in
+   their own margin, a serif for the headings. The rest of the panel is an
+   instrument panel, and a piece read for forty minutes is not.
+
+   The palette lives on .brief and nowhere else, so a document does not tint
+   the screens around it. Both themes are here because the brief follows the
+   panel's theme rather than carrying a switch of its own. */
+
+.brief {
+    --paper: #151d1b;
+    --paper-2: #1e2826;
+    --paper-ink: #e2e9e6;
+    --paper-ink-2: #a2afaa;
+    --paper-ink-3: #77857f;
+    --paper-rule: #26312e;
+    --paper-rule-2: #38443f;
+    --paper-accent: #52bca8;
+    --paper-accent-ink: #7fd3c2;
+    --paper-accent-soft: #11302b;
+    --paper-lost: #e38670;
+    --paper-lost-soft: #32201b;
+    --paper-wait: #d7a64f;
+    --paper-wait-soft: #2c2417;
+    --paper-done: #6cbf95;
+    --serif: Literata, Georgia, "Times New Roman", serif;
+
+    color: var(--paper-ink);
+    font-size: var(--t-base);
+    line-height: 1.6;
+    /* A document lies on paper of its own. Without this the panel's own ground
+       shows through the margins, and in the light theme a brief is read off the
+       sky. */
+    background: var(--paper);
+    min-height: 100%;
+}
+
+:root.sky .brief {
+    --paper: #fafcfb;
+    --paper-2: #e4e9e6;
+    --paper-ink: #141c1b;
+    --paper-ink-2: #47544f;
+    --paper-ink-3: #77837e;
+    --paper-rule: #d2d9d5;
+    --paper-rule-2: #bcc5c0;
+    --paper-accent: #0a6558;
+    --paper-accent-ink: #064a40;
+    --paper-accent-soft: #dce9e5;
+    --paper-lost: #9c3524;
+    --paper-lost-soft: #f1dfda;
+    --paper-wait: #8a5a06;
+    --paper-wait-soft: #f0e6d3;
+    --paper-done: #2a6349;
+}
+
+/* Literata is loaded only where a brief is open. It is the one thing the paper
+   look cannot borrow from the panel, and 268 KB on every install for a screen
+   opened now and then is a bad trade — hence its own directory, which the
+   service worker's precache does not walk into. */
+@font-face {
+    font-family: Literata;
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(/static/fonts/brief/literata-600-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+        U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: Literata;
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(/static/fonts/brief/literata-600-cyrillic.woff2) format("woff2");
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+    font-family: Literata;
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url(/static/fonts/brief/literata-700-latin.woff2) format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+        U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+        U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: Literata;
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url(/static/fonts/brief/literata-700-cyrillic.woff2) format("woff2");
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+.brief-page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 0 16px 120px;
+}
+
+.brief h1,
+.brief h2,
+.brief h3 {
+    font-family: var(--serif);
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0;
+}
+
+.brief code {
+    font-family: var(--mono);
+    font-size: .9em;
+    background: var(--paper-2);
+    padding: 1px 4px;
+    border-radius: 2px;
+}
+
+.beyebrow {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--paper-ink-3);
+}
+
+.bmast {
+    padding: 22px 0;
+    border-bottom: 2px solid var(--paper-ink);
+}
+
+.bmast .beyebrow { margin-bottom: 14px; }
+
+.bmast h1 {
+    font-size: 2.4em;
+    line-height: 1.06;
+    letter-spacing: -.015em;
+    font-weight: 700;
+}
+
+.blede {
+    margin-top: 16px;
+    max-width: 63ch;
+    font-size: var(--t-lg);
+    line-height: 1.6;
+    color: var(--paper-ink-2);
+}
+
+.blin {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    line-height: 1.5;
+    color: var(--paper-ink-2);
+}
+
+.blin .bfrom { color: var(--paper-ink-3); }
+.blin .barrow { color: var(--paper-rule-2); }
+.blin b { color: var(--paper-ink); font-weight: 500; }
+
+.bsum {
+    padding: 18px 0;
+    border-bottom: 1px solid var(--paper-rule);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    gap: 12px;
+}
+
+.bsum-n {
+    display: block;
+    font-family: var(--serif);
+    font-size: 1.7em;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--paper-done);
+}
+
+.bsum div:first-child .bsum-n { color: var(--paper-lost); }
+.bsum div:nth-child(2) .bsum-n { color: var(--paper-wait); }
+
+.bsum-l {
+    display: block;
+    margin-top: 3px;
+    font-family: var(--mono);
+    font-size: .64em;
+    letter-spacing: .07em;
+    line-height: 1.3;
+    text-transform: uppercase;
+    color: var(--paper-ink-3);
+}
+
+.bsection {
+    padding: 22px 0;
+    border-bottom: 1px solid var(--paper-rule);
+    max-width: 66ch;
+}
+
+.bsection p { margin: 0; font-size: var(--t-md); line-height: 1.6; color: var(--paper-ink-2); }
+.bsection p + p { margin-top: 8px; }
+
+.bq {
+    padding: 28px 0 32px;
+    border-top: 1px solid var(--paper-rule-2);
+}
+
+.bq:first-of-type { border-top: 0; }
+
+.bq-n {
+    font-family: var(--serif);
+    font-size: 1.4em;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .04em;
+    color: var(--paper-rule-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.bq.is-done .bq-n { color: var(--paper-done); }
+
+.bchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+
+.bchip {
+    font-family: var(--mono);
+    font-size: .7em;
+    letter-spacing: .06em;
+    padding: 3px 7px;
+    border: 1px solid var(--paper-rule-2);
+    color: var(--paper-ink-3);
+    text-transform: uppercase;
+}
+
+.bchip.stuck { border-color: var(--paper-lost); color: var(--paper-lost); background: var(--paper-lost-soft); }
+.bchip.born { border-color: var(--paper-wait); color: var(--paper-wait); background: var(--paper-wait-soft); }
+.bchip.scope { border-color: var(--paper-accent); color: var(--paper-accent-ink); text-transform: none; }
+
+.bq h3 { font-size: 1.4em; line-height: 1.2; letter-spacing: -.008em; }
+
+.bask {
+    margin-top: 10px;
+    font-size: var(--t-base);
+    line-height: 1.5;
+    color: var(--paper-ink-2);
+    max-width: 58ch;
+}
+
+.bask b { color: var(--paper-ink); font-weight: 600; }
+
+.bblk { margin-top: 20px; }
+
+.bblk-h {
+    font-family: var(--mono);
+    font-size: .7em;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--paper-ink-3);
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--paper-rule);
+    margin-bottom: 12px;
+}
+
+.bfacts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+
+.bfacts li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px 16px;
+    align-items: baseline;
+    font-size: var(--t-md);
+    line-height: 1.5;
+}
+
+.bfacts .bsrc {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--paper-ink-3);
+}
+
+.bfacts .bflag { color: var(--paper-lost); font-weight: 600; }
+
+.bopts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; background: var(--paper-rule); }
+
+.bopt {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 13px;
+    align-items: start;
+    width: 100%;
+    text-align: left;
+    background: var(--paper);
+    border: 0;
+    padding: 13px 14px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.bopt:hover { background: var(--paper-2); }
+.bopt[aria-pressed="true"] { background: var(--paper-accent-soft); }
+.bopt[aria-pressed="true"]:hover { background: var(--paper-accent-soft); }
+
+.bopt-k {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    font-weight: 500;
+    color: var(--paper-ink-3);
+    border: 1px solid var(--paper-rule-2);
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+}
+
+.bopt[aria-pressed="true"] .bopt-k {
+    border-color: var(--paper-accent);
+    color: var(--paper-accent-ink);
+}
+
+.bopt-l { display: block; font-size: var(--t-md); font-weight: 600; line-height: 1.35; }
+.bopt[aria-pressed="true"] .bopt-l { color: var(--paper-accent-ink); }
+
+.bopt-c { display: block; font-size: .9em; color: var(--paper-ink-2); margin-top: 3px; line-height: 1.48; }
+.bopt-c em { font-style: normal; color: var(--paper-lost); }
+
+.bread {
+    margin-top: 20px;
+    border-left: 2px solid var(--paper-accent);
+    padding: 2px 0 2px 16px;
+}
+
+.bread-h {
+    font-family: var(--mono);
+    font-size: .7em;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--paper-accent-ink);
+    margin-bottom: 7px;
+}
+
+.bread p { margin: 0; font-size: var(--t-md); line-height: 1.58; max-width: 61ch; }
+.bread p + p { margin-top: 8px; }
+
+.bcap {
+    margin-top: 20px;
+    background: var(--paper);
+    border: 1px solid var(--paper-rule);
+    padding: 14px 16px 16px;
+}
+
+.bq.is-done .bcap { border-color: var(--paper-done); }
+
+.bcap-h { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: space-between; }
+
+.bcap-l {
+    font-family: var(--mono);
+    font-size: .7em;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--paper-ink-3);
+}
+
+.bcap-s { font-family: var(--mono); font-size: var(--t-xs); color: var(--paper-done); }
+
+.bcap textarea {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    min-height: 56px;
+    resize: vertical;
+    font: inherit;
+    font-size: var(--t-md);
+    line-height: 1.5;
+    color: var(--paper-ink);
+    background: transparent;
+    border: 1px solid var(--paper-rule);
+    padding: 9px 11px;
+}
+
+.bcap textarea::placeholder { color: var(--paper-ink-3); }
+
+.bcap-act { margin-top: 9px; display: flex; gap: 14px; }
+
+.blnk {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--paper-ink-3);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.blnk:hover { color: var(--paper-lost); }
+
+.bclose {
+    padding: 26px 0 8px;
+    border-top: 2px solid var(--paper-ink);
+    margin-top: 24px;
+    max-width: 66ch;
+}
+
+.bclose p { margin: 0; font-size: var(--t-md); line-height: 1.6; color: var(--paper-ink-2); }
+.bclose p + p { margin-top: 10px; }
+.bclose b { color: var(--paper-ink); }
+
+/* The dock carries the only two acts a brief has. It stays put: someone who has
+   answered four of seven and scrolled into the fifth must not hunt for it. */
+.bdock {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -16px;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--paper);
+    border-top: 1px solid var(--paper-rule);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.bdock-say {
+    flex: 1 1 100%;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.4;
+    color: var(--paper-ink-3);
+}
+
+.bdock-say b { color: var(--paper-ink-2); font-weight: 500; }
+
+.bbtn {
+    flex: 1;
+    font-size: var(--t-md);
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 3px;
+    border: 1px solid var(--paper-rule-2);
+    background: var(--paper);
+    color: var(--paper-ink-2);
+    cursor: pointer;
+}
+
+.bbtn:hover { background: var(--paper-2); color: var(--paper-ink); }
+
+.bbtn.go {
+    border-color: var(--paper-accent);
+    background: var(--paper-accent);
+    color: var(--paper);
+}
+
+.bbtn.go[disabled] {
+    background: var(--paper-2);
+    border-color: var(--paper-rule);
+    color: var(--paper-ink-3);
+    cursor: default;
+}
+
+.breply {
+    margin: 0;
+    padding: 14px;
+    max-height: 50vh;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--paper-ink-2);
+    background: var(--paper);
+    border: 1px solid var(--paper-rule);
+}
+
+/* The shelf: what is waiting and how far each one has got. */
+.bcards { display: flex; flex-direction: column; gap: 1px; background: var(--line); }
+
+.bcard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 14px;
+    align-items: center;
+    width: 100%;
+    text-align: left;
+    background: var(--surface);
+    border: 0;
+    padding: 14px 16px;
+    font: inherit;
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.bcard:hover { background: var(--surface-2); }
+.bcard-t { font-size: var(--t-md); font-weight: 600; }
+.bcard-s { grid-column: 1; font-size: var(--t-sm); color: var(--ink-faint); }
+
+.bcard-n {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.bcard.is-sent .bcard-n { color: var(--ok); }
+
+@media (min-width: 900px) {
+    .brief-page { padding-bottom: 40px; }
+    .bmast { padding: 34px 0 26px; }
+    .bq-n { font-size: 2.3em; }
+    .bq h3 { font-size: var(--t-2xl); }
+    .bfacts li { grid-template-columns: minmax(0, 1fr) auto; }
+    .bfacts .bsrc { white-space: nowrap; }
+    .blin { grid-template-columns: auto 1fr; gap: 0 18px; }
+    .bdock-say { flex: 1; }
+    .bbtn { flex: none; }
+}

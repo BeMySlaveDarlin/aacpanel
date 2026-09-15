@@ -95,6 +95,36 @@ not in the state directory: the latter is mounted into the service, and "a
 session's question" would become data the panel accepts from whatever sticks out
 into the internet.
 
+**The brief socket.** A session can publish a brief: a long piece with
+questions the person walks through, kept whole on the host beside the question
+book. It takes the same road as a question and for the same reason — data from
+a session is taken by the host, never by the service that faces the internet —
+but it is a different kind of thing, and the differences are what shape it.
+
+A question stops the turn and is answered in seconds; a brief is read for as
+long as it takes and **outlives the conversation that wrote it**. So it is swept
+by age and by count, never by whether its session is still alive: a sweep on a
+dead session would take the document out from under the person reading it. It
+is kept one file per brief, because a brief runs to tens of kilobytes and the
+screen opens one at a time.
+
+**The document never enters the database.** What the panel keeps is the part a
+person typed into it — the picks, the notes, the mark that it was sent. The
+brief itself carries whatever the session was talking about, and that belongs
+on the host with the transcripts, not in the store of a service exposed to the
+internet.
+
+**The answers travel back as an ordinary message.** The text is built by the
+service, so that what the person reads before sending and what the session
+receives are one text; it goes into the session through `session.send`, the
+action that already exists. No new right, no new kind of action, and a brief
+answered after its session was restarted still reaches it.
+
+**Nothing the session writes is markup.** Every field of the document is text
+carrying inline markdown at most, and the panel turns that into nodes on its
+own side. A brief is written by a model and read in an application that runs
+the machine; html from there would be a hole with an author.
+
 **The call socket.** A session can also call the person to it: one line through
 `notify.sock`, in the same runtime directory and for the same reason, which the
 panel carries to their phone as a push that opens that session. It is not a

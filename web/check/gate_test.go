@@ -44,6 +44,10 @@ var ceremonies = map[string]ceremony{
 		paths:   []string{"/api/usage/"},
 		methods: []string{"POST"},
 	},
+	"src/data/briefs.js": {
+		paths:   []string{"/api/briefs"},
+		methods: []string{"PUT", "POST"},
+	},
 }
 
 type ceremony struct {

@@ -6,6 +6,7 @@ import threading
 
 import archive
 import asked
+import briefs
 import sesstate
 
 from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
@@ -48,6 +49,22 @@ def answer(request):
 
 
 def _answer(request):
+    # Briefs are read here and written nowhere near here: publishing has a
+    # socket of its own, which the service cannot reach at all.
+    want_briefs = request.get("briefs")
+    if isinstance(want_briefs, dict):
+        session = want_briefs.get("session")
+        return {"ok": True,
+                "briefs": briefs.SHELF.cards(session=session if isinstance(session, str) and session else None)}
+
+    want_brief = request.get("brief")
+    if isinstance(want_brief, str) and want_brief:
+        doc = briefs.SHELF.of(want_brief)
+        if doc is None:
+            return {"ok": False,
+                    "error": "there is no brief under this name: it was either never published or has been swept"}
+        return {"ok": True, "brief": doc}
+
     want_archive = request.get("archive")
     if isinstance(want_archive, dict):
         try:

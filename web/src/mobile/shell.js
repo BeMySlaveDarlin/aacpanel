@@ -19,6 +19,7 @@ import { Devices } from "../screens/devices.js";
 import { Usage } from "../screens/usage.js";
 import { Profiles } from "../screens/profiles.js";
 import { Journal } from "../screens/journal.js";
+import { Briefs } from "../screens/briefs.js";
 import { Settings } from "../screens/settings.js";
 
 const TAB_KEY = "aacpanel.tab";
@@ -152,6 +153,8 @@ export function MobileShell({
                     ? html`<${Profiles} />`
                     : page === "journal"
                     ? html`<${Journal} />`
+                    : page === "briefs"
+                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec} onBack=${() => setPage(null)} />`
                     : page === "alerts"
                     ? html`<${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => setPage(null)} />`
                     : html`<${Screen}
@@ -185,6 +188,9 @@ export function MobileShell({
                 </button>
                 <button class="item" type="button" onClick=${() => { setMenu(false); setPage("devices"); }}>
                     Devices
+                </button>
+                <button class="item" type="button" onClick=${() => { setMenu(false); setPage("briefs"); }}>
+                    Briefs
                 </button>
                 <button class="item" type="button" onClick=${() => { setMenu(false); setPage("usage"); }}>
                     Usage

@@ -266,6 +266,8 @@ type Reply struct {
 	Data       string `json:"data,omitempty"`
 	Call
 	Archive *ArchivePage `json:"archive,omitempty"`
+	Briefs  []BriefCard  `json:"briefs,omitempty"`
+	Brief   *Brief       `json:"brief,omitempty"`
 	State   *Work        `json:"state,omitempty"`
 	Text    string       `json:"text,omitempty"`
 	Cut     bool         `json:"cut,omitempty"`
@@ -308,6 +310,8 @@ type Req struct {
 	Image    *ImageRef   `json:"image,omitempty"`
 	CallRef  *ImageRef   `json:"call,omitempty"`
 	Archive  *ArchiveReq `json:"archive,omitempty"`
+	Briefs   *BriefsReq  `json:"briefs,omitempty"`
+	Brief    string      `json:"brief,omitempty"`
 	Task     *TaskRef    `json:"task,omitempty"`
 	File     string      `json:"file,omitempty"`
 	Raw      string      `json:"raw,omitempty"`

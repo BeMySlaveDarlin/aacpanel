@@ -1,0 +1,150 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The brief screen the panel ships, over a fake service: one document with the
+// shapes a brief can carry, and a live session to send the answers to.
+import { h, render } from "preact";
+import { Brief } from "/src/screens/brief.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const doc = {
+    id: "seven-after-twelve",
+    sessionId: "11111111-1111-4111-8111-111111111111",
+    cwd: "/srv/proj",
+    title: "Seven questions after twelve",
+    eyebrow: "15.09.2026 · after twelve answers",
+    at: "2026-09-15T15:26:37Z",
+    lede: "Ten of twelve **closed**. Two were left without a choice, and four new questions came out of the answers themselves.",
+    summary: [
+        { n: "3", label: "still open" },
+        { n: "4", label: "born of answers" },
+        { n: "4", label: "settled here" },
+    ],
+    lineage: [
+        { from: "did not close", to: "**07** the configuration directory · **11** the pause" },
+        { from: "out of answer 08", to: "**free text of a person on the bus**" },
+    ],
+    sections: [{ title: "where this came from", body: ["The tail of yesterday, not a new round."] }],
+    questions: [
+        {
+            id: "r1", n: "01", title: "The configuration directory", kind: "pick",
+            chips: [{ tone: "stuck", text: "did not close · decision 07" }],
+            ask: "You picked one directory, a role inside it. **The CLI may not offer that.**",
+            facts: [
+                { text: "`--setting-sources user` reads the directory whole", src: "stack 5" },
+                { text: "`--restricted` ignores user settings", src: "help 2.1.270", flag: true },
+                { text: "The directory has to be writable: the CLI writes into it", src: "stack 5" },
+            ],
+            options: [
+                { key: "A", label: "Curate through `--settings`", note: "argv carries the role, not the directory" },
+                { key: "B", label: "A directory per role", note: "a copy of the subscription token in each" },
+                { key: "C", label: "Drop curation by role", note: "every role sees one set of skills" },
+            ],
+            read: [
+                "Option A is what you described, with argv as the carrier. Write it down **now**: if the trial says no and there is no fallback, this comes back open exactly when someone sits down to write the runner.",
+            ],
+            capture: { note: { placeholder: "The fallback" } },
+        },
+        {
+            id: "r2", n: "02", title: "Does the human pause expire", kind: "pick",
+            chips: [{ tone: "born", text: "out of answer 02" }],
+            ask: "Your own autonomy is an argument **for** expiry, not against it.",
+            facts: [{ text: "The admin one expires in four hours", src: "admin-role.md:61" }],
+            options: [
+                { key: "A", label: "It does not, as now", note: "predictable and absolute" },
+                { key: "B", label: "Four hours with an explicit renewal", note: "symmetric to the admin one" },
+            ],
+            answered: { picks: ["B"], at: "2026-09-15" },
+            capture: { note: { placeholder: "A term, if not four hours" } },
+        },
+        { id: "r3", n: "03", title: "What the analysis rests on", kind: "none" },
+    ],
+    closing: ["Everything marked as a reading is a proposal, not a finding."],
+};
+
+let saved = null;
+let sentMark = false;
+const asked = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    const method = (init && init.method) || "GET";
+    asked.push(`${method} ${u}`);
+    if (u === "/api/briefs/seven-after-twelve" && method === "GET") {
+        return new Response(JSON.stringify({
+            brief: doc,
+            draft: { answers: { r2: { picks: ["B"] } }, updatedAt: "2026-09-15T15:30:00Z" },
+            reply: 'Brief "Seven questions after twelve" · seven-after-twelve\nAnswered 1 of 2\n',
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/briefs/seven-after-twelve" && method === "PUT") {
+        saved = JSON.parse(init.body).answers;
+        const done = Object.keys(saved).length;
+        return new Response(JSON.stringify({
+            draft: { answers: saved },
+            reply: `Brief "Seven questions after twelve" · seven-after-twelve\nAnswered ${done} of 2\n`,
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u.endsWith("/sent")) {
+        sentMark = true;
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/actions") {
+        return new Response(JSON.stringify({ ok: true, detail: "typed into lab" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const snapshot = { sessions: [{ session: "lab", sessionId: doc.sessionId, cwd: "/srv/proj" }] };
+const exec = { available: true, kinds: ["session.send"] };
+
+render(
+    h(ToastHost, null, h(GateHost, null,
+        h(Brief, { id: "seven-after-twelve", snapshot, exec, onBack: () => {} }))),
+    document.getElementById("root"));
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 250));
+    const before = {
+        title: (document.querySelector(".bmast h1") || {}).textContent || "",
+        questions: text(".bq h3"),
+        facts: document.querySelectorAll(".bfacts li").length,
+        flagged: document.querySelectorAll(".bfacts .bflag").length,
+        sources: text(".bfacts .bsrc"),
+        options: text(".bopt-l"),
+        costs: document.querySelectorAll(".bopt-c").length,
+        reading: document.querySelectorAll(".bread p").length,
+        chips: text(".bchip"),
+        summary: text(".bsum-n"),
+        lineage: document.querySelectorAll(".blin span").length,
+        closing: document.querySelectorAll(".bclose p").length,
+        // The block that asks nothing carries no field to answer it with.
+        captures: document.querySelectorAll(".bcap").length,
+        pressed: text('.bopt[aria-pressed="true"] .bopt-k'),
+        say: (document.querySelector(".bdock-say") || {}).textContent || "",
+        sendDisabled: Boolean(document.querySelector(".bbtn.go") && document.querySelector(".bbtn.go").disabled),
+    };
+
+    document.querySelectorAll(".bq")[0].querySelectorAll(".bopt")[0].click();
+    await new Promise((r) => setTimeout(r, 1200));
+
+    const after = {
+        pressed: text('.bopt[aria-pressed="true"] .bopt-k'),
+        saved,
+        say: (document.querySelector(".bdock-say") || {}).textContent || "",
+        sendDisabled: Boolean(document.querySelector(".bbtn.go") && document.querySelector(".bbtn.go").disabled),
+    };
+
+    document.querySelector(".bbtn.go").click();
+    await new Promise((r) => setTimeout(r, 400));
+
+    window.done = { before, after, asked, sentMark,
+        reply: (document.querySelector(".breply") || {}).textContent || "" };
+})();
+</script>

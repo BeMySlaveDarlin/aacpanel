@@ -1,0 +1,94 @@
+{
+ "id": "lab-two-questions",
+ "sessionId": "11111111-1111-4111-8111-111111111111",
+ "cwd": "/srv/proj",
+ "title": "Two questions before the rollout",
+ "at": "2026-09-15T15:26:37Z",
+ "questions": [
+  {
+   "id": "order",
+   "title": "The order of the two",
+   "kind": "pick",
+   "n": "01",
+   "chips": [
+    {
+     "tone": "stuck",
+     "text": "did not close · decision 07"
+    }
+   ],
+   "ask": "Which one goes first, and what does the other wait for?",
+   "facts": [
+    {
+     "text": "`make check` runs both in one pass",
+     "src": "Makefile"
+    },
+    {
+     "text": "The second one needs the first applied",
+     "src": "follows from",
+     "flag": true
+    }
+   ],
+   "options": [
+    {
+     "key": "A",
+     "label": "The migration first",
+     "note": "the code waits a rebuild"
+    },
+    {
+     "key": "B",
+     "label": "The code first",
+     "note": "the panel stays down until the migration lands"
+    }
+   ],
+   "read": [
+    "A, and not because it is safer. B leaves the panel down for as long as the rebuild takes."
+   ],
+   "capture": {
+    "note": {
+     "placeholder": "Anything the order depends on"
+    }
+   },
+   "answered": {
+    "picks": [
+     "A"
+    ],
+    "note": "decided in the lab",
+    "at": "2026-09-15"
+   }
+  },
+  {
+   "id": "rest",
+   "title": "What this rests on",
+   "kind": "none",
+   "n": "02",
+   "capture": {
+    "note": {}
+   }
+  }
+ ],
+ "eyebrow": "from the lab",
+ "lede": "Both close today. The second one **blocks the first**.",
+ "summary": [
+  {
+   "n": "2",
+   "label": "still open"
+  }
+ ],
+ "closing": [
+  "Where the analysis ends and a guess begins."
+ ],
+ "lineage": [
+  {
+   "from": "did not close",
+   "to": "**07** the configuration directory"
+  }
+ ],
+ "sections": [
+  {
+   "title": "Where this came from",
+   "body": [
+    "The tail of yesterday."
+   ]
+  }
+ ]
+}

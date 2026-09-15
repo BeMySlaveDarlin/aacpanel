@@ -293,6 +293,7 @@ the panel's eyes.
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session in place |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
 | `deploy/claude/skills/notify/` | `<account>/skills/` | `/notify`: the session calls the person to it, and the line arrives on their phone |
+| `deploy/claude/skills/brief/` | `<account>/skills/` | `/brief`: the session publishes a long piece the person walks through in the panel, and the answers come back as a message |
 | `aacpanel-docker-gc.{service,timer}` | `<home>/.config/systemd/user/` | once a week: build cache older than two weeks and untagged images |
 
 Cleaning the cache:
