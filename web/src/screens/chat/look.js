@@ -3,7 +3,6 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { QuoteBar } from "./quotebar.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
@@ -41,7 +40,7 @@ function openURL(base, path) {
     return `${saveURL(base, path)}&inline=1`;
 }
 
-export function Look({ session, id, look, onBack, quote, onQuote }) {
+export function Look({ session, id, look, onBack }) {
     const toast = useToast();
     const [state, setState] = useState({ kind: "loading" });
     const [more, setMore] = useState({ busy: false, error: "" });
@@ -128,7 +127,6 @@ export function Look({ session, id, look, onBack, quote, onQuote }) {
             ? html`<${BackHead} onBack=${onBack} label="to the list" tools=${tools}>${who}<//>`
             : html`<div class="sheethead">${who}${tools}</div>`}
 
-        ${onQuote && html`<${QuoteBar} quote=${quote} onQuote=${onQuote} />`}
         <div class="callbody" onClick=${(event) => copy.fromClick(event, toast)}>
             ${state.kind === "loading" && html`<p class="hint">Reading…</p>`}
             ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}

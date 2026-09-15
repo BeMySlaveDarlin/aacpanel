@@ -134,10 +134,18 @@ func TestChatQuoteReplyIsWired(t *testing.T) {
 	const chatFile = "src/screens/chat.js"
 	screen := screenSrc(t, chatFile)
 	if !strings.Contains(screen, `addEventListener("selectionchange"`) {
-		t.Errorf("%s: nobody listens to a selection in the feed — the quote-reply bar has nothing to appear on", chatFile)
+		t.Errorf("%s: nobody listens to a selection in the feed — the quote button has nothing to appear on", chatFile)
 	}
-	if strings.Count(screen, "<${QuoteBar}") < 2 {
-		t.Errorf("%s: the quote bar belongs both above the composer and in the output sheet — people quote from both", chatFile)
+	if !strings.Contains(screen, `addEventListener("scroll"`) {
+		t.Errorf("%s: the quote button does not follow the feed as it scrolls — it stays where the text no longer is", chatFile)
+	}
+	if n := strings.Count(screen, "<${QuoteTip}"); n != 1 {
+		t.Errorf("%s: the quote button is mounted %d times — one screen, one button: the sheet of an output lies "+
+			"over the same feed, and a second copy stands on top of the first", chatFile, n)
+	}
+	if strings.Contains(screen, "QuoteBar") {
+		t.Errorf("%s: the strip above the composer is back — it is held on screen for something that happens rarely, "+
+			"and it moves the feed under the thumb at the moment of the tap", chatFile)
 	}
 	composer := jsBlock(t, chatFile, screen, "export function Composer(")
 	if !strings.Contains(composer, "insert.text") || !strings.Contains(composer, "withQuote(") {

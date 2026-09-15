@@ -88,6 +88,44 @@ window.done = (async () => {
     await sleep(700);
     recording = false;
     const settled = state();
-    return { before, queued, frames, settled, debug };
+
+    // Quoting, the way a person does it: select a piece of an answer and press
+    // the button that comes up beside it.
+    // The piece to quote is one a person can see: a selection scrolled out of
+    // the feed has nowhere on screen for its button to stand.
+    const feedBox = document.querySelector(".chatfeed").getBoundingClientRect();
+    const bubble = Array.from(document.querySelectorAll(".chatfeed .msg:not(.me)")).reverse()
+        .find((b) => {
+            const r = b.getBoundingClientRect();
+            return r.top > feedBox.top + 40 && r.bottom < feedBox.bottom;
+        });
+    const node = bubble.firstChild.nodeType === 3 ? bubble.firstChild : bubble;
+    const range = document.createRange();
+    if (node.nodeType === 3) range.setStart(node, 0), range.setEnd(node, Math.min(24, node.textContent.length));
+    else range.selectNodeContents(node);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+    await sleep(120);
+
+    const tip = document.querySelector(".quotetip");
+    const box = range.getBoundingClientRect();
+    const quote = { shown: Boolean(tip && tip.classList.contains("on")) };
+    if (tip) {
+        const at = tip.getBoundingClientRect();
+        quote.gapAbove = round(box.top - at.bottom);
+        quote.offCentre = round(Math.abs((at.left + at.width / 2) - (box.left + box.width / 2)));
+        quote.inWindow = at.left >= 0 && at.top >= 0 && at.right <= window.innerWidth && at.bottom <= window.innerHeight;
+        quote.overComposer = at.bottom > document.querySelector(".composer").getBoundingClientRect().top;
+        tip.click();
+        await sleep(200);
+    }
+    quote.composer = document.querySelector(".composer textarea").value;
+    quote.stillShown = Boolean(document.querySelector(".quotetip"));
+    quote.feedTop = round(document.querySelector(".chatfeed").getBoundingClientRect().top);
+    quote.feedTopBefore = settled.feedTop === undefined ? null : settled.feedTop;
+
+    return { before, queued, frames, settled, debug, quote };
 })();
 </script>

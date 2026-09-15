@@ -148,33 +148,6 @@
     border-top-right-radius: 0;
 }
 
-.quotebar {
-    display: flex;
-    align-items: center;
-    gap: .45rem;
-    width: 100%;
-    padding: .34rem .7rem;
-    border: 0;
-    font: inherit;
-    font-size: var(--t-xs);
-    color: var(--ink-dim);
-    text-align: left;
-    cursor: pointer;
-}
-.quotebar .quoteico { flex: 0 0 auto; display: inline-flex; color: var(--accent); }
-.quotebar .quoteico svg { width: var(--i-sm); height: var(--i-sm); }
-.quotebar .quotelabel { flex: 0 0 auto; color: var(--accent); font-weight: 600; }
-.quotebar .quotepeek {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--serif);
-    font-style: italic;
-    color: var(--ink-faint);
-}
-
 /* The line under a row that says why it does not open: a note, not a state. */
 .wrow .wnote { display: block; font-size: var(--t-xs); font-weight: 400; color: var(--ink-faint); }
 

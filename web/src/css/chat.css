@@ -299,3 +299,29 @@
 .winbtn.on { color: var(--accent); background: var(--accent-bg); border-color: var(--edge); }
 
 .winbtn.off { opacity: .35; cursor: default; }
+
+/* The quote button beside the selection: a small slab over the feed, placed by
+   script and hidden until it has been measured — un-placed, it would flash at
+   the corner of the window before landing where the text is. */
+.quotetip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 50;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .3rem .55rem;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-pill);
+    background: var(--toast-bg);
+    box-shadow: var(--toast-drop);
+    font: 600 var(--t-sm)/1 var(--sans);
+    color: var(--accent);
+    cursor: pointer;
+    visibility: hidden;
+}
+
+.quotetip.on { visibility: visible; }
+
+.quotetip svg { width: var(--i-sm); height: var(--i-sm); }

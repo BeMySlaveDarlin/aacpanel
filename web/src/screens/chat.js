@@ -20,7 +20,7 @@ import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
 import { Composer, deliver, outcome } from "./chat/composer.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
 import { useAction } from "../actions/gate.js";
-import { QuoteBar, useSelectionQuote } from "./chat/quotebar.js";
+import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
 import { Marquee, short } from "./chat/head.js";
 import { AttachSheet, HeadTools } from "./chat/tools.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
@@ -229,7 +229,6 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage }) {
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor}
                                       onAnswered=${() => mark(answered(live, ""))} />`
                     : html`
-                        <${QuoteBar} quote=${quote} onQuote=${takeQuote} />
                         <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"}
                                      hold=${holding}
                                      files=${files}
@@ -279,7 +278,9 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage }) {
             ${look && (WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
                                     exec=${exec} onAgent=${openAgent} />`
-                : html`<${Look} session=${name} id=${id} look=${look} quote=${quote} onQuote=${takeQuote} />`)}
+                : html`<${Look} session=${name} id=${id} look=${look} />`)}
         <//>
+
+        <${QuoteTip} quote=${quote} onQuote=${takeQuote} />
     `;
 }
