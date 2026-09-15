@@ -297,10 +297,13 @@ class Contours(unittest.TestCase):
         self.transcript(self.home, "-home-u", UUID_A)
         self.transcript(work, "-srv-proj-Labs-site", UUID_B)
         index = archive.Index(os.path.join(self.root, "index.json"))
-        personal_ids = {row["sessionId"] for row in index.page(limit=10)["rows"]}
+        personal_ids = {row["sessionId"] for row in index.page(limit=10, profile="personal")["rows"]}
         work_ids = {row["sessionId"] for row in index.page(limit=10, profile="work")["rows"]}
+        every_id = {row["sessionId"] for row in index.page(limit=10)["rows"]}
         self.assertEqual(personal_ids, {UUID_A})
         self.assertEqual(work_ids, {UUID_B})
+        self.assertEqual(every_id, {UUID_A, UUID_B},
+                         "a request that names no contour asks for the archive of the machine")
 
     def test_the_name_of_a_live_session_of_a_work_contour_is_remembered(self):
         work = self.contour()

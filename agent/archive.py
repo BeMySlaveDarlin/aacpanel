@@ -5,6 +5,7 @@ import glob
 import json
 import os
 import re
+import threading
 
 import contours
 import models
@@ -22,12 +23,21 @@ def profile_dirs():
 
 
 def resolve_profiles(profiles):
-    """Returns profile and directory pairs for the requested contours, in registry order."""
+    """Returns profile and directory pairs for the requested contours, in registry order.
+
+    Asked for nothing in particular, the archive answers for every contour of the
+    machine. The panel names the contour it wants — a page per contour, so that a
+    busy one does not push a quiet one off the screen — and what is left asking
+    for nothing is a caller with no map of contours at all, which is exactly the
+    caller that wants to see everything there is. The price is the size of the
+    answer: a page over every contour is sorted by the time of the last message,
+    so it is dominated by whichever contour was worked in last.
+    """
     pairs = profile_dirs()
     if not pairs:
         return []
     if not profiles:
-        return [pairs[0]]
+        return pairs
     wanted = {_named(p) for p in profiles}
     return [(name, d) for name, d in pairs if name in wanted]
 
@@ -107,7 +117,16 @@ def seconds(stamp):
 
 
 class Index:
-    """Transcript parsing with memory: what is counted is not counted again."""
+    """Transcript parsing with memory: what is counted is not counted again.
+
+    One index serves every request, and the requests arrive in threads of their
+    own: the panel asks for each contour separately, so three pages are being
+    built while a fourth is being written to disk. json.dump walks the very
+    dictionaries the other threads are adding to, and a dictionary that changes
+    size mid-walk raises — the answer is then lost and the panel shows that
+    contour as unavailable. Everything that touches the three dictionaries holds
+    the lock; reading a transcript, which is the slow part, does not.
+    """
 
     def __init__(self, path=INDEX_PATH):
         self.path = path
@@ -115,6 +134,7 @@ class Index:
         self.names = {}
         self.stamps = {}
         self.dirty = False
+        self.lock = threading.RLock()
         self.load()
 
     def load(self):
@@ -136,19 +156,20 @@ class Index:
             self.stamps = {k: v for k, v in stamps.items() if isinstance(v, dict)}
 
     def save(self):
-        """Writes the index atomically."""
-        if not self.dirty:
-            return
-        tmp = self.path + ".tmp"
-        try:
-            os.makedirs(os.path.dirname(self.path), exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({"scanned": self.scanned, "names": self.names,
-                           "stamps": self.stamps}, f)
-            os.replace(tmp, self.path)
-            self.dirty = False
-        except OSError:
-            pass
+        """Writes the index atomically, with nothing changing under the writer."""
+        with self.lock:
+            if not self.dirty:
+                return
+            tmp = self.path + ".tmp"
+            try:
+                os.makedirs(os.path.dirname(self.path), exist_ok=True)
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump({"scanned": self.scanned, "names": self.names,
+                               "stamps": self.stamps}, f)
+                os.replace(tmp, self.path)
+                self.dirty = False
+            except OSError:
+                pass
 
     def live_files(self):
         """Returns the live session files of every contour."""
@@ -172,26 +193,31 @@ class Index:
                 continue
             if background(data):
                 continue
-            if self.names.get(sid) != name:
-                self.names[sid] = name
-                self.dirty = True
+            with self.lock:
+                if self.names.get(sid) != name:
+                    self.names[sid] = name
+                    self.dirty = True
         self.save()
 
     def entry(self, path, size, mtime, profile):
         """Returns the parse of one transcript, from memory or from disk."""
         sid = os.path.basename(path)[:-len(".jsonl")]
-        was = self.scanned.get(sid)
-        if was and was.get("size") == size and was.get("mtime") == mtime:
-            if was.get("profile") != profile:
-                was["profile"] = profile
-                self.dirty = True
-            return was
+        with self.lock:
+            was = self.scanned.get(sid)
+            if was and was.get("size") == size and was.get("mtime") == mtime:
+                if was.get("profile") != profile:
+                    was["profile"] = profile
+                    self.dirty = True
+                return was
+        # The transcript is read without the lock: it is the slow part, and two
+        # threads reading the same one cost a repeated read, not a wrong answer.
         found = scan(path)
         found.update({"sessionId": sid, "size": size, "mtime": mtime, "profile": profile,
                       "slug": os.path.basename(os.path.dirname(path))})
-        self.scanned[sid] = found
-        self.stamps.pop(sid, None)
-        self.dirty = True
+        with self.lock:
+            self.scanned[sid] = found
+            self.stamps.pop(sid, None)
+            self.dirty = True
         return found
 
     def when(self, sid, path, size, mtime):
@@ -201,16 +227,21 @@ class Index:
         transcript long after the talk ended, and sorting by that throws a conversation of
         last spring over today's.
         """
-        was = self.scanned.get(sid)
-        if was and was.get("size") == size and was.get("mtime") == mtime:
-            at = seconds(was.get("lastAt"))
-            return mtime if at is None else at
+        with self.lock:
+            was = self.scanned.get(sid)
+            if was and was.get("size") == size and was.get("mtime") == mtime:
+                at = seconds(was.get("lastAt"))
+                return mtime if at is None else at
+            seen = self.stamps.get(sid)
+            fresh = bool(seen) and seen.get("size") == size and seen.get("mtime") == mtime
 
-        seen = self.stamps.get(sid)
-        if not seen or seen.get("size") != size or seen.get("mtime") != mtime:
+        if not fresh:
+            # Reading the tail of a transcript is disk work, so it happens with
+            # the lock down, the same way a full parse does.
             seen = {"size": size, "mtime": mtime, "lastAt": tail_stamp(path, size)}
-            self.stamps[sid] = seen
-            self.dirty = True
+            with self.lock:
+                self.stamps[sid] = seen
+                self.dirty = True
         at = seconds(seen.get("lastAt"))
         return mtime if at is None else at
 

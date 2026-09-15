@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import sys
+import threading
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -360,12 +361,14 @@ class Profile(unittest.TestCase):
                 f.write(line(record))
         return path
 
-    def test_without_a_profile_the_personal_one_is_returned(self):
+    def test_without_a_profile_every_contour_is_returned(self):
         work = self.work()
         self.put(os.path.join(self.home, "projects"), UUID_A, 100_000)
         self.put(work, UUID_B, 200_000)
         rows = self.index.page(limit=10)["rows"]
-        self.assertEqual([r["sessionId"] for r in rows], [UUID_A])
+        self.assertEqual({r["sessionId"] for r in rows}, {UUID_A, UUID_B},
+                         "asked for no contour in particular, the archive is the archive of the machine: "
+                         "a caller that names none has no map of contours to name them by")
 
     def test_an_explicit_profile_returns_only_its_own(self):
         work = self.work()
@@ -374,11 +377,13 @@ class Profile(unittest.TestCase):
         rows = self.index.page(limit=10, profile="work")["rows"]
         self.assertEqual([r["sessionId"] for r in rows], [UUID_B])
 
-    def test_another_profile_is_not_visible_in_the_personal_one(self):
+    def test_another_contour_is_not_visible_when_the_personal_one_is_asked_for(self):
         work = self.work()
         self.put(work, UUID_B, 200_000)
-        rows = self.index.page(limit=10)["rows"]
-        self.assertEqual(rows, [], "a work conversation must not show up in the personal archive")
+        self.put(os.path.join(self.home, "projects"), UUID_A, 100_000)
+        rows = self.index.page(limit=10, profile="personal")["rows"]
+        self.assertEqual([r["sessionId"] for r in rows], [UUID_A],
+                         "a work conversation must not show up in the archive of the personal contour")
 
     def test_an_unknown_profile_returns_an_empty_page(self):
         self.put(os.path.join(self.home, "projects"), UUID_A, 100_000)
@@ -398,7 +403,8 @@ class Profile(unittest.TestCase):
         self.put(work, UUID_B, 200_000)
         rows = self.index.page(limit=10, profile="work")["rows"]
         self.assertEqual([r["profile"] for r in rows], ["work"])
-        self.assertEqual([r["profile"] for r in self.index.page(limit=10)["rows"]], ["personal"])
+        self.assertEqual({r["profile"] for r in self.index.page(limit=10)["rows"]},
+                         {"personal", "work"})
 
     def test_several_contours_at_once(self):
         work = self.work()
@@ -548,3 +554,77 @@ class Mode(unittest.TestCase):
             {"type": "user", "timestamp": "2026-09-01T10:00:00Z", "message": {"content": "hello"}},
         )
         self.assertEqual(archive.scan(path)["mode"], "")
+
+
+class Threads(unittest.TestCase):
+    """The index under the panel's own load: a page per contour, all at once."""
+
+    def setUp(self):
+        self.root = test_barrier.tmp_dir()
+        self.addCleanup(self.root.cleanup)
+        self.projects = os.path.join(self.root.name, "projects")
+        os.makedirs(os.path.join(self.projects, "-opt-x"))
+        self.old = archive.PROJECTS
+        archive.PROJECTS = self.projects
+        self.addCleanup(lambda: setattr(archive, "PROJECTS", self.old))
+        self.index = archive.Index(os.path.join(self.root.name, "index.json"))
+
+    def transcript(self, n):
+        uuid = f"{n:08d}-1111-4111-8111-111111111111"
+        path = os.path.join(self.projects, "-opt-x", f"{uuid}.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(line({"type": "user", "timestamp": "2026-08-24T10:00:00Z", "cwd": "/opt/x",
+                          "message": {"content": "hello"}}))
+            f.write(line({"type": "assistant", "timestamp": "2026-08-24T10:00:01Z",
+                          "message": {"model": "claude-opus-5", "usage": usage(1000)}}))
+        return path
+
+    def test_the_index_survives_being_written_while_it_is_being_filled(self):
+        """A save that walks the index while another request adds to it used to raise.
+
+        json.dump walks the very dictionaries a parallel request is adding to, and
+        a dictionary that changes size mid-walk ends the whole answer: the panel
+        shows that contour as unavailable and the page is simply lost. It takes
+        two threads to see it, so it takes two threads to hold it.
+        """
+        paths = [self.transcript(n) for n in range(60)]
+        for n in range(4000):
+            self.index.scanned[f"old-{n}"] = {"sessionId": f"old-{n}", "size": n, "mtime": n,
+                                              "profile": "personal", "slug": "-opt-x"}
+        self.index.dirty = True
+
+        failures = []
+        stop = threading.Event()
+
+        def fill():
+            round_ = 0
+            while not stop.is_set():
+                round_ += 1
+                for path in paths:
+                    st = os.stat(path)
+                    try:
+                        self.index.entry(path, st.st_size, st.st_mtime + round_, "personal")
+                        self.index.when(os.path.basename(path)[:-len(".jsonl")],
+                                        path, st.st_size, st.st_mtime + round_)
+                    except Exception as err:  # noqa: BLE001 — the point is what reaches the panel
+                        failures.append(f"filling the index: {err!r}")
+                        return
+
+        worker = threading.Thread(target=fill, daemon=True)
+        worker.start()
+        try:
+            for _ in range(60):
+                try:
+                    self.index.dirty = True
+                    self.index.save()
+                except Exception as err:  # noqa: BLE001
+                    failures.append(f"saving the index: {err!r}")
+                    break
+        finally:
+            stop.set()
+            worker.join(10)
+
+        self.assertEqual(failures, [], "the index broke under two threads — that is the answer the panel loses")
+        with open(self.index.path, encoding="utf-8") as f:
+            saved = json.load(f)
+        self.assertGreaterEqual(len(saved["scanned"]), 4000, "the written index lost what it had")
