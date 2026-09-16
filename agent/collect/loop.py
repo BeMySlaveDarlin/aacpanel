@@ -7,6 +7,7 @@ import time
 
 import asked
 import briefs
+import pages
 import chat
 import contours
 import notes
@@ -61,6 +62,8 @@ def main():
     threading.Thread(target=notes.worker, daemon=True).start()
 
     threading.Thread(target=briefs.worker, daemon=True).start()
+
+    threading.Thread(target=pages.worker, daemon=True).start()
 
     threading.Thread(target=seen.worker, daemon=True).start()
 

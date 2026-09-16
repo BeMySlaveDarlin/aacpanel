@@ -289,6 +289,7 @@ the panel's eyes.
 |---|---|---|
 | `deploy/claude/prompt-stamp.py` | the `UserPromptSubmit` and `PostToolBatch` hooks | the session knows today's date, how much context is left, the limits of its account and the load of the machine |
 | `deploy/claude/cost-snapshot.py` | the `Stop` and `SubagentStop` hooks | a line per turn in `<account>/logs/cost.jsonl`: where the tokens went |
+| `deploy/claude/artifact-copy.py` | the `PostToolUse` hook on `Artifact` | the panel keeps a copy of every page a session publishes and shows it without the account it went out under; without the hook the card has only its link |
 | `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
 | `deploy/claude/context-guard.py` | the `Stop` hook | past the threshold a session finalizes and restarts itself; on only where a threshold is set — in the panel's launch parameters or in the project's settings |
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session in place |
@@ -307,6 +308,21 @@ systemctl --user daemon-reload && systemctl --user enable --now aacpanel-docker-
 
 An addition that a script of your own already does on this machine is not
 installed on top: two hooks on one event give two stamps in every message.
+
+**Copies of published pages.** The hook goes into the account settings of every
+account whose sessions publish artifacts, and it is the same line everywhere:
+
+```json
+{"hooks": {"PostToolUse": [
+  {"matcher": "Artifact",
+   "hooks": [{"type": "command", "command": "python3 <repo>/deploy/claude/artifact-copy.py", "timeout": 10}]}
+]}}
+```
+
+Without it the panel still shows the card and its link; with it the card opens
+the page itself, for anyone who can see the panel. The copies are swept by age,
+by count and by the room they take together, and the hook says nothing on a
+machine where the panel is not installed.
 
 **The context guard.** The hook sits in the account settings, the threshold
 with the project: a session finalizes and restarts itself only where the

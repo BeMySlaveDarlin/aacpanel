@@ -166,6 +166,41 @@ button.filepic {
 .filepdf, .filehtml { height: 70dvh; }
 .filehtml { background: #fff; }
 
+/* A published page, drawn from the panel's copy of it. It is taller than a file
+   preview because it is the thing being read, not a look at one, and it keeps
+   its own background: the page brought one, and the ground of the panel behind
+   a transparent page would put the panel's palette inside somebody else's
+   document. */
+.artpage { display: grid; gap: .5rem; }
+
+.artframe {
+    display: block;
+    width: 100%;
+    height: 78dvh;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: #fff;
+}
+
+.artsub {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+
+.artout { margin: 0; font-size: var(--t-sm); display: grid; gap: .15rem; }
+.artout a { color: var(--accent); }
+.artoutwhy { color: var(--ink-faint); font-size: var(--t-xs); }
+
+/* A card that opens the copy is a button, not a link out. */
+.artifact.arhere {
+    width: 100%;
+    border: 0;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
 .fileopen { display: grid; gap: .6rem; justify-items: start; }
 .fileopen .hint { margin: 0; }
 .fileopen .btn { text-decoration: none; }

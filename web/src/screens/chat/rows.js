@@ -12,7 +12,7 @@ import { Photo, shotName } from "./photo.js";
 import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord } from "./labels.js";
 
 // Row renders one row of the feed.
-export function Row({ item, session, id, onCalls, onFile, onBrief }) {
+export function Row({ item, session, id, onCalls, onFile, onBrief, copies, onPage }) {
     if (item.role === "shots") {
         const shots = item.shots || [];
         if (!shots.length) return null;
@@ -77,7 +77,7 @@ export function Row({ item, session, id, onCalls, onFile, onBrief }) {
     }
 
     if (item.role === "artifact") {
-        return html`<${ArtifactCard} item=${item} />`;
+        return html`<${ArtifactCard} item=${item} copy=${copies && copies.of(item)} onOpen=${onPage} />`;
     }
 
     if (item.role === "brief") {
@@ -257,7 +257,12 @@ function AskedCard({ item }) {
 }
 
 // ArtifactCard renders a published artifact as a card.
-export function ArtifactCard({ item }) {
+//
+// A page goes out into the account its session works under, and the reader of
+// the panel is signed into one account at a time. Where the panel kept a copy
+// the card opens that, here, for anyone who can see the panel; the address it
+// was published at stays available to whoever matches the account.
+export function ArtifactCard({ item, copy, onOpen }) {
     const body = html`
         <span class="arico">${item.icon || "📄"}</span>
         <span class="arbody">
@@ -273,8 +278,13 @@ export function ArtifactCard({ item }) {
                 `}
             </span>
         </span>
-        ${item.url && html`<span class="crgo">${Icon.chevron()}</span>`}
+        ${(copy || item.url) && html`<span class="crgo">${Icon.chevron()}</span>`}
     `;
+    if (copy && onOpen) {
+        return html`
+            <button type="button" class="artifact arhere" onClick=${() => onOpen(copy)}>${body}</button>
+        `;
+    }
     if (!item.url) return html`<div class="artifact dead">${body}</div>`;
     return html`
         <a class="artifact" href=${item.url} target="_blank" rel="noopener noreferrer">${body}</a>

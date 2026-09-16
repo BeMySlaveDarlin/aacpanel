@@ -125,6 +125,28 @@ carrying inline markdown at most, and the panel turns that into nodes on its
 own side. A brief is written by a model and read in an application that runs
 the machine; html from there would be a hole with an author.
 
+**The page socket.** A session publishes an artifact into the account it works
+under. The person reading the panel is signed into one account at a time, and a
+machine that serves several contours publishes under several: the address on
+the card then opens for whoever happens to match and refuses everyone else. So
+the page is copied as it goes out, on a socket of its own beside the brief, and
+the panel shows the copy.
+
+The copy is the page and nothing else. Its supporting files and its uploaded
+assets stay where they were published: a page built from several files shows
+here without them. It is swept by age, by count and by the room the copies take
+together, and it never enters the database — it is somebody's document, and it
+belongs on the host with the transcripts.
+
+**A kept page is foreign code, and it runs.** A page that draws nothing is not
+the page anybody published, so the frame it opens in may run scripts. What it
+may not have is the origin of the panel: without that the cookie is not the
+page's to read, and the route serving the copy repeats the sandbox in a header
+of its own, so the rule holds even when the address is opened outside any
+frame. This is the one place in the panel where foreign markup runs at all.
+A file of the project, inlined into a frame with the document itself, inherits
+the origin of the page it sits in and therefore stays without scripts.
+
 **The call socket.** A session can also call the person to it: one line through
 `notify.sock`, in the same runtime directory and for the same reason, which the
 panel carries to their phone as a push that opens that session. It is not a

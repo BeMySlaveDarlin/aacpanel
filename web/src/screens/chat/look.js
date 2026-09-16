@@ -20,6 +20,7 @@ export const LOOK_NAMES = {
     task: "command output",
     agent: "agent letters",
     file: "project file",
+    artifact: "published page",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts"]);

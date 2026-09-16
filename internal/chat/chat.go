@@ -272,6 +272,8 @@ type Reply struct {
 	Archive *ArchivePage `json:"archive,omitempty"`
 	Briefs  []BriefCard  `json:"briefs,omitempty"`
 	Brief   *Brief       `json:"brief,omitempty"`
+	Pages   []PageCard   `json:"pages,omitempty"`
+	Page    *Page        `json:"page,omitempty"`
 	State   *Work        `json:"state,omitempty"`
 	Text    string       `json:"text,omitempty"`
 	Cut     bool         `json:"cut,omitempty"`
@@ -316,6 +318,8 @@ type Req struct {
 	Archive  *ArchiveReq `json:"archive,omitempty"`
 	Briefs   *BriefsReq  `json:"briefs,omitempty"`
 	Brief    string      `json:"brief,omitempty"`
+	Pages    *PagesReq   `json:"pages,omitempty"`
+	Page     string      `json:"page,omitempty"`
 	Task     *TaskRef    `json:"task,omitempty"`
 	File     string      `json:"file,omitempty"`
 	Raw      string      `json:"raw,omitempty"`

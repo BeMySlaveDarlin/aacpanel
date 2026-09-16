@@ -16,6 +16,8 @@ import { SubChat, subFeedId } from "./chat/subchat.js";
 import { Row } from "./chat/rows.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
+import { ArtifactPage } from "./artifact.js";
+import { index, shelf as pageShelf } from "../data/artifacts.js";
 import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
 import { Composer, deliver, outcome } from "./chat/composer.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
@@ -40,6 +42,10 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
     });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
+    // The pages this conversation published and the panel kept a copy of. The
+    // shelf is asked for once: a card looks itself up in it rather than asking
+    // per artifact.
+    const [copies, setCopies] = useState(null);
     const [local, setLocal] = useState([]);
     const [, redraw] = useState(0);
     const answer = recall(name);
@@ -64,6 +70,24 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
         if (sel) sel.removeAllRanges();
         if (look) setLook(null);
     };
+
+    // The shelf of copies is read once per conversation. A page that arrives
+    // while the screen is open is opened by its link until the next visit:
+    // publishing is rare, and polling for it would cost every reader a request
+    // a second for something that happens twice a day.
+    useEffect(() => {
+        if (!id) {
+            setCopies(null);
+            return undefined;
+        }
+        let alive = true;
+        pageShelf(id)
+            .then((cards) => alive && setCopies(index(cards)))
+            // A collector without the copies, or one that is down, leaves the
+            // cards exactly as they were: a link out and nothing broken.
+            .catch(() => alive && setCopies(null));
+        return () => { alive = false; };
+    }, [id]);
 
     useEffect(() => {
         setSub(null);
@@ -207,6 +231,8 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                 item=${item}
                 session=${name}
                 id=${id}
+                copies=${copies}
+                onPage=${(card) => setLook({ kind: "artifact", card })}
                 onCalls=${() => setCalls(runCalls(feed, item.run))}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
                 onBrief=${onBrief}
@@ -276,9 +302,12 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
 
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
                   label=${look ? LOOK_NAMES[look.kind] : ""} inner>
-            ${look && (WORK_LISTS.has(look.kind)
+            ${look && (look.kind === "artifact"
+                ? html`<${ArtifactPage} card=${look.card} />`
+                : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
-                                    exec=${exec} onAgent=${openAgent} />`
+                                    exec=${exec} onAgent=${openAgent}
+                                    copies=${copies} onPage=${(card) => setLook({ kind: "artifact", card })} />`
                 : html`<${Look} session=${name} id=${id} look=${look} />`)}
         <//>
 

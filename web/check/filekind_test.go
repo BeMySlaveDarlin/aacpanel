@@ -137,32 +137,57 @@ func TestFramedPageCannotReachTheNetwork(t *testing.T) {
 
 var iframeTag = regexp.MustCompile(`(?s)<iframe\b[^>]*>`)
 
+// Foreign markup runs in one of two frames, and they are not the same frame.
+//
+// A file of the project is inlined with srcdoc, and a document written inline
+// inherits the origin of the page it sits in: scripts there would run with the
+// rights of whoever opened the panel, so that frame stays empty of everything.
+//
+// A page the session published is loaded by address instead. Without
+// allow-same-origin the frame gets an origin of its own, the cookie of the
+// panel is not the page's to read, and the route serving it repeats the sandbox
+// in a header of its own, so the rule holds even when the address is opened
+// outside any frame. That frame may run scripts, because a published page that
+// draws nothing is not the page anybody published.
 func TestForeignMarkupOnlyInsideTheSandbox(t *testing.T) {
-	forbidden := []string{"allow-scripts", "allow-same-origin", "allow-top-navigation",
-		"allow-popups", "allow-modals"}
+	// Never, in either frame: each of these hands back the isolation the
+	// sandbox stands there to keep.
+	never := []string{"allow-same-origin", "allow-top-navigation"}
 
-	frames := 0
+	inlined, addressed := 0, 0
 	for path, body := range srcFiles(t) {
 		code := stripComments(body)
-		for _, bad := range forbidden {
+		for _, bad := range never {
 			if strings.Contains(code, bad) {
 				t.Errorf("%s contains %q: the sandbox is handed back the very thing "+
 					"it stands there to withhold", path, bad)
 			}
 		}
 		for _, tag := range iframeTag.FindAllString(code, -1) {
-			if !strings.Contains(tag, "srcdoc") {
-				continue
-			}
-			frames++
-			if !strings.Contains(tag, `sandbox=""`) {
-				t.Errorf("%s: foreign markup goes into a frame without an empty sandbox — "+
-					"that is foreign code running with the rights of whoever opened the panel:\n%s", path, tag)
+			switch {
+			case strings.Contains(tag, "srcdoc"):
+				inlined++
+				if !strings.Contains(tag, `sandbox=""`) {
+					t.Errorf("%s: foreign markup goes into a frame without an empty sandbox — "+
+						"that is foreign code running with the rights of whoever opened the panel:\n%s", path, tag)
+				}
+			case strings.Contains(tag, "allow-scripts"):
+				addressed++
+				if strings.Contains(tag, "srcdoc") || !strings.Contains(tag, "src=") {
+					t.Errorf("%s: scripts are allowed in a frame that is not loaded by address:\n%s", path, tag)
+				}
+				if !strings.Contains(tag, "pageURL(") {
+					t.Errorf("%s: scripts are allowed in a frame that is not a kept copy of a published "+
+						"page — only that route sandboxes its own answer:\n%s", path, tag)
+				}
 			}
 		}
 	}
-	if frames == 0 {
+	if inlined == 0 {
 		t.Fatal("no frame with srcdoc found in the frontend — the test is useless, check the path")
+	}
+	if addressed == 0 {
+		t.Fatal("no frame loading a page by address found — the test is useless, check the path")
 	}
 }
 

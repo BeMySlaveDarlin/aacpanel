@@ -7,6 +7,7 @@ import threading
 import archive
 import asked
 import briefs
+import pages
 import sesstate
 
 from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
@@ -64,6 +65,22 @@ def _answer(request):
             return {"ok": False,
                     "error": "there is no brief under this name: it was either never published or has been swept"}
         return {"ok": True, "brief": doc}
+
+    # A published page is read here for the same reason a brief is: the copy
+    # arrives on a socket of its own, which the service cannot reach at all.
+    want_pages = request.get("pages")
+    if isinstance(want_pages, dict):
+        session = want_pages.get("session")
+        return {"ok": True,
+                "pages": pages.SHELF.cards(session=session if isinstance(session, str) and session else None)}
+
+    want_page = request.get("page")
+    if isinstance(want_page, str) and want_page:
+        doc = pages.SHELF.of(want_page)
+        if doc is None:
+            return {"ok": False,
+                    "error": "there is no copy of this page: it was published before the panel kept them, or has been swept"}
+        return {"ok": True, "page": doc}
 
     want_archive = request.get("archive")
     if isinstance(want_archive, dict):

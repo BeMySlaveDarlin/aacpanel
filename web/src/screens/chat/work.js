@@ -203,7 +203,7 @@ function sentState(file) {
 // the directory of the conversation — is drawn as a row, not a button: the
 // reader holds every file against that directory, and a tap would end in a
 // refusal, so the row says where the file lies instead.
-export function WorkList({ session, id, kind, work, exec, onAgent }) {
+export function WorkList({ session, id, kind, work, exec, onAgent, copies, onPage }) {
     const [pick, setPick] = useState(null);
     const run = useAction();
     const [busy, setBusy] = useState("");
@@ -338,7 +338,8 @@ export function WorkList({ session, id, kind, work, exec, onAgent }) {
             `}
             ${kind === "arts" && arts.length > 0 && html`<div class="callcap">published</div>`}
             ${kind === "arts" && arts.map((art) => html`
-                <${ArtifactCard} key=${art.path || art.title} item=${art} />
+                <${ArtifactCard} key=${art.path || art.title} item=${art}
+                                 copy=${copies && copies.of(art)} onOpen=${onPage} />
             `)}
             ${kind === "arts" && arts.length === 0 && html`
                 <p class="hint">No artifacts were published in this conversation.</p>
