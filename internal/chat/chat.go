@@ -42,9 +42,13 @@ type Item struct {
 	Status  string      `json:"status,omitempty"`
 	Summary string      `json:"summary,omitempty"`
 	Use     string      `json:"use,omitempty"`
-	Asked   []Asked     `json:"asked,omitempty"`
-	Files   []FileRef   `json:"files,omitempty"`
-	Pos     int64       `json:"pos"`
+	// A brief card: which document it is and how much of it asks something.
+	BriefID   string    `json:"id,omitempty"`
+	Eyebrow   string    `json:"eyebrow,omitempty"`
+	Questions int       `json:"questions,omitempty"`
+	Asked     []Asked   `json:"asked,omitempty"`
+	Files     []FileRef `json:"files,omitempty"`
+	Pos       int64     `json:"pos"`
 }
 
 // FileRef is a file attachment named in a reply.
