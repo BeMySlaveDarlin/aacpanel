@@ -148,6 +148,15 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         captures: document.querySelectorAll(".bcap").length,
         pressed: text('.bopt[aria-pressed="true"] .bopt-k'),
         say: (document.querySelector(".bdock-say") || {}).textContent || "",
+        // The dock is a row of the panel's own buttons: one line, one height,
+        // the panel's face, and a label that can be read on the fill it sits on.
+        dock: Array.from(document.querySelectorAll(".bbtn")).map((n) => {
+            const b = n.getBoundingClientRect(), cs = getComputedStyle(n);
+            return { label: n.textContent.trim(), top: Math.round(b.top), height: Math.round(b.height),
+                     font: cs.fontFamily, color: cs.color, disabled: n.disabled };
+        }),
+        panelFont: getComputedStyle(document.body).fontFamily,
+        onAccent: getComputedStyle(document.documentElement).getPropertyValue("--on-accent").trim(),
         again: (document.querySelector(".bagain") || {}).textContent || "",
         sendDisabled: Boolean(document.querySelector(".bbtn.go") && document.querySelector(".bbtn.go").disabled),
     };

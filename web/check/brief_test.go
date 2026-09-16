@@ -30,6 +30,16 @@ type briefShot struct {
 		Ground       string   `json:"ground"`
 		Ink          string   `json:"ink"`
 		PanelInk     string   `json:"panelInk"`
+		Dock         []struct {
+			Label    string `json:"label"`
+			Top      int    `json:"top"`
+			Height   int    `json:"height"`
+			Font     string `json:"font"`
+			Color    string `json:"color"`
+			Disabled bool   `json:"disabled"`
+		} `json:"dock"`
+		PanelFont string `json:"panelFont"`
+		OnAccent  string `json:"onAccent"`
 	} `json:"before"`
 	After struct {
 		Pressed      []string                  `json:"pressed"`
@@ -390,5 +400,43 @@ func TestRemovingABriefAsksFirst(t *testing.T) {
 	}
 	if got.Removing.Left != 1 {
 		t.Errorf("after the document was removed the screen stayed on it (%d exits)", got.Removing.Left)
+	}
+}
+
+// The dock is the one row of buttons a brief has, and it is read at a glance
+// before it is pressed: one line, one height, the panel's own face, and a
+// label legible on the fill under it. A button coloured in the paper it stands
+// on is a blank rectangle, and a label wrapped in one button and not in the
+// next makes three buttons of three heights.
+func TestTheDockIsOneRowOfButtons(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+
+	if len(got.Before.Dock) != 3 {
+		t.Fatalf("the dock carries %d buttons", len(got.Before.Dock))
+	}
+	first := got.Before.Dock[0]
+	for _, b := range got.Before.Dock[1:] {
+		if b.Top != first.Top || b.Height != first.Height {
+			t.Errorf("%q stands at %d and is %d high, while %q stands at %d and is %d high",
+				b.Label, b.Top, b.Height, first.Label, first.Top, first.Height)
+		}
+	}
+	if got.Before.PanelFont == "" {
+		t.Fatal("the panel names no face of its own")
+	}
+	for _, b := range got.Before.Dock {
+		if b.Font != got.Before.PanelFont {
+			t.Errorf("%q is written in %q while the panel writes in %q", b.Label, b.Font, got.Before.PanelFont)
+		}
+	}
+
+	send := got.Before.Dock[len(got.Before.Dock)-1]
+	if send.Disabled {
+		t.Fatalf("the fixture answers one question of two and %q is still dead", send.Label)
+	}
+	if !sameColour(send.Color, got.Before.OnAccent) {
+		t.Errorf("%q is written in %q over the accent, where the panel writes %q",
+			send.Label, send.Color, got.Before.OnAccent)
 	}
 }

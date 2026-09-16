@@ -23,6 +23,7 @@
     --paper-rule-2: var(--edge);
     --paper-accent: var(--accent);
     --paper-accent-ink: var(--accent);
+    --paper-accent-on: var(--on-accent);
     --paper-accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
     --paper-lost: var(--crit);
     --paper-lost-soft: color-mix(in srgb, var(--crit) 16%, transparent);
@@ -446,7 +447,7 @@
     border-top: 1px solid var(--paper-rule);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
@@ -472,11 +473,18 @@
     max-width: 22ch;
 }
 
+/* The buttons of the dock are the panel's, not the document's: they take the
+   panel's face, they stand on one line each, and they are as wide as what they
+   say. A button sized by its share of the row wraps its own label at some
+   widths and not others, and three buttons of three heights read as three
+   different things. */
 .bbtn {
-    flex: 1;
+    flex: 0 1 auto;
+    font: inherit;
     font-size: var(--t-md);
     font-weight: 600;
-    padding: 10px 16px;
+    white-space: nowrap;
+    padding: 10px 14px;
     border-radius: 3px;
     border: 1px solid var(--paper-rule-2);
     background: var(--paper);
@@ -489,7 +497,7 @@
 .bbtn.go {
     border-color: var(--paper-accent);
     background: var(--paper-accent);
-    color: var(--paper);
+    color: var(--paper-accent-on);
 }
 
 .bbtn.go[disabled] {
@@ -682,7 +690,6 @@
     .bfacts .bsrc { white-space: nowrap; }
     .blin { grid-template-columns: auto 1fr; gap: 0 18px; }
     .bdock-say { flex: 1; }
-    .bbtn { flex: none; }
 }
 
 /* Prose inside a brief is markdown the session wrote, and markdown carries
