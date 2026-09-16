@@ -48,7 +48,6 @@ export function MobileShell({
     // Where the reader came from, when a document was opened out of a
     // conversation: closing it puts them back there rather than on the shelf.
     const [briefFrom, setBriefFrom] = useState(null);
-    const [briefOpen, setBriefOpen] = useState(false);
     const [menu, setMenu] = useState(false);
 
     const [logs, setLogs] = useState(null);
@@ -56,7 +55,13 @@ export function MobileShell({
 
     const [layer, setLayer] = useState(false);
 
-    useBackClose(Boolean(page) && !briefOpen, () => setPage(null));
+    useBackClose(Boolean(page), () => {
+        if (page === "briefs" && openBrief) {
+            leaveBrief();
+            return;
+        }
+        setPage(null);
+    });
 
     // The note about an action belongs to the screen it was taken on.
     const hideToast = useToastHide();
@@ -111,6 +116,13 @@ export function MobileShell({
         onJumped();
     }, [jump, goHome, onJumped]);
 
+    const leaveBrief = useCallback(() => {
+        const from = briefFrom;
+        setOpenBrief(null);
+        setBriefFrom(null);
+        if (from) goHome(from.name, from.id);
+    }, [briefFrom, goHome]);
+
     const chips = useMemo(() => {
         if (layer) return null;
         if (tab === "containers") return filterChips(tree);
@@ -159,10 +171,10 @@ export function MobileShell({
                     : page === "journal"
                     ? html`<${Journal} onBack=${() => setPage(null)} />`
                     : page === "briefs"
-                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec} openId=${openBrief}
-                        onLeave=${briefFrom ? () => { setOpenBrief(null); goHome(briefFrom.name, briefFrom.id); } : null}
-                        onOpenChange=${setBriefOpen}
-                        onSession=${(name) => { setOpenBrief(null); goHome(name, null); }} />`
+                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec}
+                        open=${openBrief} onOpen=${setOpenBrief}
+                        onLeave=${briefFrom ? leaveBrief : null}
+                        onSession=${(name) => { setOpenBrief(null); setBriefFrom(null); goHome(name, null); }} />`
                     : page === "alerts"
                     ? html`<${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => setPage(null)} />`
                     : html`<${Screen}

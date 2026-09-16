@@ -30,10 +30,14 @@ type workShelfShot struct {
 		Pages  []string `json:"pages"`
 		Briefs []string `json:"briefs"`
 	} `json:"opened"`
+	AfterOpening struct {
+		Pages string `json:"pages"`
+	} `json:"afterOpening"`
 	Button struct {
-		Num   string `json:"num"`
-		Wants bool   `json:"wants"`
-		Said  string `json:"said"`
+		Pages  string   `json:"pages"`
+		Briefs string   `json:"briefs"`
+		Wants  bool     `json:"wants"`
+		Said   []string `json:"said"`
 	} `json:"button"`
 }
 
@@ -74,18 +78,12 @@ func TestTheShelfShowsAPageAtATime(t *testing.T) {
 	}
 }
 
-// The briefs of a conversation are read where everything else it made is read,
-// and they open the document rather than a copy of a page.
+// The briefs of a conversation have a shelf of their own, and they open the
+// document rather than a copy of a page.
 func TestTheShelfCarriesTheBriefsOfTheConversation(t *testing.T) {
 	var got workShelfShot
 	runFixture(t, "workshelf.html", &got)
 
-	if len(got.First.Tabs) != 2 {
-		t.Fatalf("tabs: %v", got.First.Tabs)
-	}
-	if !strings.Contains(got.First.Tabs[0], "published") || !strings.Contains(got.First.Tabs[1], "briefs") {
-		t.Errorf("the tabs read %v", got.First.Tabs)
-	}
 	if got.OnBriefs.Rows != 3 || got.OnBriefs.Kept != 3 {
 		t.Errorf("the tab of briefs holds %d rows, %d of them briefs", got.OnBriefs.Rows, got.OnBriefs.Kept)
 	}
@@ -109,23 +107,28 @@ func countOf(more string) int {
 	return n
 }
 
-// The chip over the deck counts what the conversation made, and a brief is part
-// of that. It also says, without opening anything, that some of it is waiting
-// for the person: a number alone cannot tell twelve finished rows from twelve
-// rows one of which wants an answer.
-func TestTheChipCountsTheBriefsAndSaysWhenOneWaits(t *testing.T) {
+// Two chips over the deck, because the two things behind them are not the same
+// kind. A page is made and stays made, so its number counts what this device
+// has not opened yet and goes down as they are read. A brief asks, so its
+// number counts the ones still waiting for an answer: one already sent is done
+// with, and counting it would leave a number that never goes down.
+func TestTheChipsCountPagesUnopenedAndBriefsWaiting(t *testing.T) {
 	var got workShelfShot
 	runFixture(t, "workshelf.html", &got)
 
-	// Three artifacts in the feed and three briefs.
-	if got.Button.Num != "6" {
-		t.Errorf("the chip counts %q of six things the conversation made", got.Button.Num)
+	// Twenty-eight pages, none of them opened on this device yet.
+	if got.Button.Pages != "28" {
+		t.Errorf("the chip of pages counts %q of twenty-eight unopened", got.Button.Pages)
+	}
+	// Two of the three briefs are still unsent; the one already sent is done.
+	if got.Button.Briefs != "2" {
+		t.Errorf("the chip of briefs counts %q, and a brief already sent is not among them", got.Button.Briefs)
 	}
 	if !got.Button.Wants {
-		t.Error("two briefs are unsent and the chip says nothing is waiting")
+		t.Error("two briefs are unsent and the chip does not mark that anything waits")
 	}
-	if !strings.Contains(got.Button.Said, "waiting") {
-		t.Errorf("the chip tells a screen reader %q", got.Button.Said)
+	if len(got.Button.Said) != 2 || !strings.Contains(got.Button.Said[1], "waiting") {
+		t.Errorf("the chips tell a screen reader %q", got.Button.Said)
 	}
 }
 
@@ -183,5 +186,19 @@ func TestTheRowsOfTheShelfAreRows(t *testing.T) {
 		t.Errorf("a row of the shelf is %d tall against %d for the same card outside it: "+
 			"the shelf is a list to scan, and the card is one to read",
 			got.First.Height, got.First.FeedHeight)
+	}
+}
+
+// The chip counts what is still unread, so opening a page takes it off the
+// count. A number that only grows says nothing after the first week.
+func TestOpeningAPageTakesItOffTheCount(t *testing.T) {
+	var got workShelfShot
+	runFixture(t, "workshelf.html", &got)
+
+	if got.Button.Pages != "28" {
+		t.Fatalf("the chip started at %q", got.Button.Pages)
+	}
+	if got.AfterOpening.Pages != "27" {
+		t.Errorf("after one page was opened the chip shows %q of twenty-seven left", got.AfterOpening.Pages)
 	}
 }

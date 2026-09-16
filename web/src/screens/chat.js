@@ -313,7 +313,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                     </button>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
-                    <${WorkRefs} work=${state.work} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
+                    <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
                 </div>
             </div>
         `}

@@ -189,20 +189,32 @@ func TestSessionArtifactsOpenTheirOwnWay(t *testing.T) {
 	const chatFile = "src/screens/chat.js"
 	body := screenSrc(t, chatFile)
 
+	// The chip of pages counts what this device has not opened, and the chip of
+	// briefs counts what still waits for an answer. Each number is counted once
+	// and drawn once: two numbers for one thing part on the first kind added.
 	work := jsBlock(t, chatFile, body, "function WorkRefs(")
-	if !strings.Contains(work, "const refs = arts.length + docs.length + sent.length") {
-		t.Errorf("%s: the artifact counter does not count every kind the list shows — the number "+
-			"on the chip drifts from the list under it", chatFile)
+	for _, count := range []string{"const fresh = unopened(", "const wants = waiting("} {
+		if !strings.Contains(work, count) {
+			t.Errorf("%s: the row under the composer has no %q — a chip that counts for itself "+
+				"drifts from the list under it", chatFile, count)
+		}
 	}
-	if !strings.Contains(work, "refs > 0 && html`<span class=\"wnum\">${refs}</span>`") {
-		t.Errorf("%s: the chip shows a number of its own instead of the one counted for it, "+
-			"or draws a 0 where the other chips draw nothing — two numbers for one thing part "+
-			"on the first kind that is added", chatFile)
+	for _, drawn := range []string{
+		"fresh > 0 && html`<span class=\"wnum\">${fresh}</span>`",
+		"wants > 0 && html`<span class=\"wnum\">${wants}</span>`",
+	} {
+		if !strings.Contains(work, drawn) {
+			t.Errorf("%s: a chip draws a number of its own instead of the one counted for it, "+
+				"or draws a 0 where the other chips draw nothing", chatFile)
+		}
 	}
 
-	list := jsBlock(t, chatFile, body, "function WorkList(")
-	if !strings.Contains(list, `kind: "file"`) {
-		t.Errorf("%s: a document from the artifact list opens by something other than the file handler — "+
+	// A document of the project is tapped in the run — on the path in a tool
+	// call, or on a file a delivery carried — and it opens by the file handler
+	// wherever that happens, so the boundary of the conversation directory
+	// stands in one place.
+	if !strings.Contains(body, `kind: "file"`) {
+		t.Errorf("%s: a document opens by something other than the file handler — "+
 			"then the disk has a second road with a boundary of its own", chatFile)
 	}
 	if n := strings.Count(body, "/api/chat/file?"); n != 1 {
@@ -210,14 +222,15 @@ func TestSessionArtifactsOpenTheirOwnWay(t *testing.T) {
 			"directory stands behind it, and a second address would go around it", chatFile, n)
 	}
 
+	list := jsBlock(t, chatFile, body, "function WorkList(")
 	if !strings.Contains(list, "<${ArtifactCard}") {
-		t.Errorf("%s: the list draws a published artifact with a card other than the one "+
-			"the feed uses — one and the same thing will look like two", chatFile)
+		t.Errorf("%s: the shelf draws a published page with a card other than the one "+
+			"the run uses — one and the same thing will look like two", chatFile)
 	}
 	card := jsBlock(t, chatFile, body, "function ArtifactCard(")
 	if !strings.Contains(card, `target="_blank"`) {
-		t.Errorf("%s: the artifact opens by something other than the browser — the panel does not "+
-			"have its content and never will", chatFile)
+		t.Errorf("%s: a page the panel kept no copy of opens by something other than the browser — "+
+			"without a copy the panel does not have its content", chatFile)
 	}
 	if strings.Contains(card, "/api/chat/file") {
 		t.Errorf("%s: the artifact card reaches for it on the host disk — what lies there is "+

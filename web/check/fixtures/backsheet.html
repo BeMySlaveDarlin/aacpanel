@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The way a brief is opened out of a conversation: a sheet is open over the
+// chat, a tap inside it closes the sheet and opens a page with a document on
+// it, all in one turn. Three claims on the back gesture come and go at once,
+// and the question is which one the gesture finds on top.
+import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { useBackClose } from "/src/ui/back.js";
+
+const closed = [];
+
+// The conversation is a layer too, and it goes away in the same turn: its
+// cleanup collapses the history entry it pushed.
+function Chat({ onBack, children }) {
+    useBackClose(true, onBack);
+    return html`<div id="chat">a conversation${children}</div>`;
+}
+
+function Sheet({ open, onClose }) {
+    useBackClose(open, onClose);
+    return open ? html`<div id="sheet">a sheet</div>` : null;
+}
+
+function Document() {
+    return html`<div id="doc">a document</div>`;
+}
+
+function Page({ hasDoc, onCloseDoc, onClose, children }) {
+    useBackClose(true, () => (hasDoc ? onCloseDoc() : onClose()));
+    return html`<div id="page">${children}</div>`;
+}
+
+function App() {
+    const [sheet, setSheet] = useState(true);
+    const [page, setPage] = useState(false);
+    const [doc, setDoc] = useState(false);
+
+
+    // What the tap inside the sheet does, in one turn.
+    window.openDoc = () => {
+        setSheet(false);
+        setPage(true);
+        setDoc(true);
+    };
+
+    return html`
+        ${!page && html`
+            <${Chat} onBack=${() => { closed.push("chat"); }}>
+                <${Sheet} open=${sheet} onClose=${() => { closed.push("sheet"); setSheet(false); }} />
+            <//>
+        `}
+        ${page && html`
+            <${Page} hasDoc=${doc}
+                     onCloseDoc=${() => { closed.push("doc"); setDoc(false); }}
+                     onClose=${() => { closed.push("page"); setPage(false); }}>
+                ${doc && html`<${Document} />`}
+            <//>
+        `}
+    `;
+}
+
+render(html`<${App} />`, document.getElementById("root"));
+
+(async () => {
+    // Room to go back into: the fixture itself is the first entry of this
+    // history, and a gesture that walks past it leaves the page rather than
+    // closing a layer, which would end the run instead of failing it.
+    history.pushState({ pad: 1 }, "", location.href);
+    history.pushState({ pad: 2 }, "", location.href);
+
+    await new Promise((r) => setTimeout(r, 150));
+    window.openDoc();
+    await new Promise((r) => setTimeout(r, 300));
+    const before = {
+        sheet: Boolean(document.getElementById("sheet")),
+        page: Boolean(document.getElementById("page")),
+        doc: Boolean(document.getElementById("doc")),
+    };
+
+    history.back();
+    await new Promise((r) => setTimeout(r, 350));
+    const after = {
+        sheet: Boolean(document.getElementById("sheet")),
+        page: Boolean(document.getElementById("page")),
+        doc: Boolean(document.getElementById("doc")),
+    };
+
+    window.done = { before, after, closed };
+})();
+</script>

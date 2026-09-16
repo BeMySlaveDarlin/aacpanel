@@ -191,12 +191,21 @@ func TestWorkChipsOpenTheirOwnSection(t *testing.T) {
 	work := jsBlock(t, chatFile, body, "function Work(") +
 		jsBlock(t, chatFile, body, "function WorkRefs(")
 
-	if strings.Contains(work, ".map(") {
-		t.Errorf("%s: the row under the composer draws the list inside itself again — it "+
-			"expands in place and pushes the chat off the screen", chatFile)
+	// What the row draws is what matters here; counting over a list to put a
+	// number on a chip is the row doing its job. So the markup is what is
+	// looked at, not the arithmetic above it.
+	for _, name := range []string{"function Work(", "function WorkRefs("} {
+		block := jsBlock(t, chatFile, body, name)
+		if at := strings.Index(block, "return html"); at >= 0 {
+			block = block[at:]
+		}
+		if strings.Contains(block, ".map(") {
+			t.Errorf("%s: the row under the composer draws the list inside itself again — it "+
+				"expands in place and pushes the chat off the screen", chatFile)
+		}
 	}
 
-	for _, kind := range []string{"tasks", "agents", "arts"} {
+	for _, kind := range []string{"tasks", "agents", "arts", "briefs"} {
 		call := `onOpen({ kind: "` + kind + `" })`
 		if n := strings.Count(work, call); n != 1 {
 			t.Errorf("%s: the row under the composer holds %d occurrences of %q — every counter "+

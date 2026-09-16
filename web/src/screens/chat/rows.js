@@ -262,7 +262,7 @@ function AskedCard({ item }) {
 // the panel is signed into one account at a time. Where the panel kept a copy
 // the card opens that, here, for anyone who can see the panel; the address it
 // was published at stays available to whoever matches the account.
-export function ArtifactCard({ item, copy, onOpen }) {
+export function ArtifactCard({ item, copy, onOpen, onSeen }) {
     const body = html`
         <span class="arico">${item.icon || "📄"}</span>
         <span class="arbody">
@@ -280,14 +280,20 @@ export function ArtifactCard({ item, copy, onOpen }) {
         </span>
         ${(copy || item.url) && html`<span class="crgo">${Icon.chevron()}</span>`}
     `;
+    // Opened is opened, whether the page was read here or followed out to the
+    // account it was published into: the count is of what the reader has not
+    // looked at, not of what they looked at in one particular way.
+    const seen = () => { if (onSeen) onSeen(); };
     if (copy && onOpen) {
         return html`
-            <button type="button" class="artifact arhere" onClick=${() => onOpen(copy)}>${body}</button>
+            <button type="button" class="artifact arhere"
+                    onClick=${() => { seen(); onOpen(copy); }}>${body}</button>
         `;
     }
     if (!item.url) return html`<div class="artifact dead">${body}</div>`;
     return html`
-        <a class="artifact" href=${item.url} target="_blank" rel="noopener noreferrer">${body}</a>
+        <a class="artifact" href=${item.url} target="_blank" rel="noopener noreferrer"
+           onClick=${seen}>${body}</a>
     `;
 }
 

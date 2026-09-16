@@ -5,7 +5,7 @@ import { html } from "../html.js";
 import { inline, render } from "../md.js";
 import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
-import { BackHead, useBackClose } from "../ui/back.js";
+import { BackHead } from "../ui/back.js";
 import { Sheet } from "../ui/sheet.js";
 import { markSent, one, saveDraft } from "../data/briefs.js";
 
@@ -158,10 +158,6 @@ function Question({ q, answer, onAnswer, locked }) {
 }
 
 export function Brief({ id, snapshot, exec, onBack, onSession }) {
-    // A document is a layer over the shelf: the back gesture of the phone puts
-    // it down, instead of closing the application from under the reader.
-    useBackClose(true, onBack);
-
     const run = useAction();
     const [doc, setDoc] = useState(null);
     const [answers, setAnswers] = useState({});

@@ -11,8 +11,9 @@ import { taskVoice } from "./voice.js";
 import { ArtifactCard, BriefCard } from "./rows.js";
 import { fileTag } from "./files.js";
 import { Look, LOOK_NAMES } from "./look.js";
-import { merge } from "../../data/artifacts.js";
 import { state as briefState, waiting } from "../../data/briefs.js";
+import { key as pageKey, merge } from "../../data/artifacts.js";
+import { markOpened, unopened } from "../../data/opened.js";
 
 // WorkStatus renders what is happening to the session right now.
 export function WorkStatus({ work, busy }) {
@@ -84,26 +85,30 @@ function agentLabel(agents, live) {
 // "over" — what the session made stays made, and a file it sent stays sent —
 // so the number counts them all and, like the other chips, is absent rather
 // than 0.
-export function WorkRefs({ work, briefs, onOpen }) {
-    const arts = (work && work.artifacts) || [];
-    const docs = (work && work.docs) || [];
-    const sent = (work && work.sent) || [];
-    const papers = briefs || [];
-    const refs = arts.length + docs.length + sent.length + papers.length;
-    // A brief that nobody has sent is the one thing in here that wants
-    // something back. The number says how much is on the shelf; the dot says
-    // that some of it is waiting for the person rather than sitting there.
-    const wants = waiting(papers);
-
-    const said = refs > 0
-        ? `what this conversation made: ${refs}${wants > 0 ? `, ${wants} of them briefs waiting for you` : ""}`
-        : "what this conversation made: nothing yet";
+// WorkRefs renders the right half of the row: two chips, because the two things
+// behind them are not the same kind of thing. A page is made and stays made,
+// and its number counts the ones this device has not opened yet — it goes down
+// as they are read. A brief asks, and its number counts the ones still waiting
+// for an answer.
+export function WorkRefs({ work, pages, briefs, onOpen }) {
+    const made = merge((work && work.artifacts) || [], pages || []);
+    const fresh = unopened(made.map(pageKey));
+    const wants = waiting(briefs || []);
 
     return html`
-        <button class=${`wchip${refs > 0 ? "" : " idle"}${wants > 0 ? " wants" : ""}`} type="button"
+        <button class=${`wchip${fresh > 0 ? "" : " idle"}`} type="button"
                 onClick=${() => onOpen({ kind: "arts" })}
-                aria-label=${said}>
-            ${Icon.artifact()}${refs > 0 && html`<span class="wnum">${refs}</span>`}
+                aria-label=${fresh > 0
+                    ? `pages this conversation published and you have not opened: ${fresh}`
+                    : "pages this conversation published: all opened"}>
+            ${Icon.artifact()}${fresh > 0 && html`<span class="wnum">${fresh}</span>`}
+        </button>
+        <button class=${`wchip${wants > 0 ? " wants" : " idle"}`} type="button"
+                onClick=${() => onOpen({ kind: "briefs" })}
+                aria-label=${wants > 0
+                    ? `briefs waiting for your answer: ${wants}`
+                    : "briefs of this conversation: none waiting"}>
+            ${Icon.ask()}${wants > 0 && html`<span class="wnum">${wants}</span>`}
         </button>
     `;
 }
@@ -265,16 +270,12 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
     // What the conversation made comes from two places at once: the window of
     // the feed, and the shelf of copies which keeps what fell out of it.
     const made = kind === "arts" ? merge((work && work.artifacts) || [], pages || []) : [];
-    const [tab, setTab] = useState("made");
     const [shown, setShown] = useState(PAGE);
-    const at = kind === "arts" && tab === "briefs" ? (briefs || []) : made;
+    const at = kind === "briefs" ? (briefs || []) : made;
     const visible = at.slice(0, shown);
 
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
-    const arts = (work && work.artifacts) || [];
-    const docs = (work && work.docs) || [];
-    const sent = (work && work.sent) || [];
     const { live, said, faded } = splitAgents(agents);
     const [showFaded, setShowFaded] = useState(false);
 
@@ -283,13 +284,15 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                              onBack=${() => setPick(null)} />`;
     }
 
+    const asking = (briefs || []).filter((c) => c && !c.sent).length;
     const sub = kind === "tasks"
         ? taskSub(tasks)
         : kind === "arts"
+            ? (made.length > 0 ? `${made.length} published` : "empty")
+            : kind === "briefs"
             ? [
-                arts.length > 0 && `${arts.length} published`,
-                docs.length > 0 && `${docs.length} ${plural(docs.length, "document", "documents")}`,
-                sent.length > 0 && `${sent.length} sent`,
+                asking > 0 && `${asking} waiting`,
+                (briefs || []).length > asking && `${(briefs || []).length - asking} sent`,
             ].filter(Boolean).join(", ") || "empty"
             : [
                 live.length > 0 && `${live.length} working`,
@@ -369,81 +372,24 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                 <p class="whint">Reported means it sent a letter. Whether it has finished
                     for good, the session does not say.</p>
             `}
-            ${kind === "arts" && html`
-                <div class="worktabs">
-                    <button type="button" class="chip" aria-pressed=${tab === "made" ? "true" : "false"}
-                            onClick=${() => { setTab("made"); setShown(PAGE); }}>
-                        published${made.length > 0 ? ` · ${made.length}` : ""}
-                    </button>
-                    <button type="button" class="chip" aria-pressed=${tab === "briefs" ? "true" : "false"}
-                            onClick=${() => { setTab("briefs"); setShown(PAGE); }}>
-                        briefs${(briefs || []).length > 0 ? ` · ${briefs.length}` : ""}
-                    </button>
-                </div>
-            `}
-            ${kind === "arts" && tab === "made" && visible.map((art) => html`
+            ${kind === "arts" && visible.map((art) => html`
                 <${ArtifactCard} key=${art.url || art.file || art.title} item=${art}
-                                 copy=${art.kept} onOpen=${onPage} />
+                                 copy=${art.kept} onOpen=${onPage}
+                                 onSeen=${() => { markOpened(pageKey(art)); redraw((n) => n + 1); }} />
             `)}
-            ${kind === "arts" && tab === "made" && made.length === 0 && html`
+            ${kind === "arts" && made.length === 0 && html`
                 <p class="hint">No artifacts were published in this conversation.</p>
             `}
-            ${kind === "arts" && tab === "briefs" && visible.map((card) => html`
+            ${kind === "briefs" && visible.map((card) => html`
                 <${BriefCard} key=${card.id} item=${briefRow(card)} onOpen=${onBrief} />
             `)}
-            ${kind === "arts" && tab === "briefs" && (briefs || []).length === 0 && html`
+            ${kind === "briefs" && (briefs || []).length === 0 && html`
                 <p class="hint">This conversation published no briefs.</p>
             `}
-            ${kind === "arts" && at.length > shown && html`
+            ${(kind === "arts" || kind === "briefs") && at.length > shown && html`
                 <button type="button" class="wmore" onClick=${() => setShown((n) => n + PAGE)}>
                     ${at.length - shown} more
                 </button>
-            `}
-            ${kind === "arts" && tab === "made" && docs.length > 0 && html`<div class="callcap">documents</div>`}
-            ${kind === "arts" && tab === "made" && docs.map((doc) => html`
-                <button class="wrow doc" type="button" key=${doc.path}
-                        onClick=${() => setPick({ kind: "file", path: doc.path,
-                                                  text: doc.dir ? `${doc.dir}/${doc.file}` : doc.file })}>
-                    <span class="wicon">${Icon.file()}</span>
-                    <span class="wcol">
-                        <span class="wname">${doc.file}</span>
-                        <span class="wstate">${[
-                            doc.dir,
-                            `${doc.count} ${plural(doc.count, "edit", "edits")}`,
-                            doc.at && since(doc.at),
-                        ].filter(Boolean).join(" · ")}</span>
-                    </span>
-                    <span class="crgo">${Icon.chevron()}</span>
-                </button>
-            `)}
-            ${kind === "arts" && tab === "made" && docs.length === 0 && html`
-                <p class="hint">The session wrote no documents.</p>
-            `}
-            ${kind === "arts" && tab === "made" && sent.length > 0 && html`<div class="callcap">sent to you</div>`}
-            ${kind === "arts" && tab === "made" && sent.map((file) => (file.outside
-                ? html`
-                    <div class="wrow doc outside" key=${file.path}>
-                        <span class="wicon">${Icon.file()}</span>
-                        <span class="wcol">
-                            <span class="wname">${file.file}</span>
-                            <span class="wstate">${sentState(file)}</span>
-                            <span class="wnote">outside the conversation directory</span>
-                        </span>
-                    </div>
-                `
-                : html`
-                    <button class="wrow doc" type="button" key=${file.path}
-                            onClick=${() => setPick({ kind: "file", path: file.path, text: file.path })}>
-                        <span class="wicon">${Icon.file()}</span>
-                        <span class="wcol">
-                            <span class="wname">${file.file}</span>
-                            <span class="wstate">${sentState(file)}</span>
-                        </span>
-                        <span class="crgo">${Icon.chevron()}</span>
-                    </button>
-                `))}
-            ${kind === "arts" && tab === "made" && sent.length === 0 && html`
-                <p class="hint">The session sent no files.</p>
             `}
             ${kind === "tasks" && tasks.length === 0 && html`<p class="hint">There are no background commands.</p>`}
             ${kind === "agents" && agents.length === 0 && html`<p class="hint">There were no subagents in this conversation.</p>`}

@@ -16,14 +16,15 @@ import { stampText } from "./labels.js";
 export const LOOK_NAMES = {
     tasks: "background work",
     agents: "subagents",
-    arts: "artifacts",
+    arts: "published pages",
+    briefs: "briefs",
     task: "command output",
     agent: "agent letters",
     file: "project file",
     artifact: "published page",
 };
 
-export const WORK_LISTS = new Set(["tasks", "agents", "arts"]);
+export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs"]);
 
 function fileURL(base, path, offset) {
     const at = offset > 0 ? `&offset=${offset}` : "";

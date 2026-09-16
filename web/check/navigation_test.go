@@ -122,6 +122,14 @@ func TestEveryBackCrumbHasBackHandler(t *testing.T) {
 		if strings.Contains(app, `page === "`+name+`"`) {
 			covered++
 		}
+		// A document opened on a page of its own shelf — a brief on the shelf of
+		// briefs — is covered by that page and must not claim the gesture
+		// itself. Two claims made in one turn race each other over the history,
+		// and the swipe takes off the page instead of the document on it.
+		open := "open" + strings.ToUpper(name[:1]) + name[1:]
+		if strings.Contains(app, `page === "`+name+`s"`) && strings.Contains(app, open) {
+			covered++
+		}
 		if covered >= crumbs {
 			continue
 		}

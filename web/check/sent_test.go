@@ -52,41 +52,33 @@ func TestSentFilesAreACardInTheFeed(t *testing.T) {
 	}
 }
 
-// The chip under the composer counts a sent file among the artifacts, and the
-// list behind it shows the files as a group of their own, opened by the same
-// file handler as a document.
-func TestSentFilesCountOnTheArtifactChip(t *testing.T) {
+// A file the session sent is read where it was sent: in the run itself. The
+// shelf under the composer carries the pages a conversation published and the
+// briefs it wrote, and a file is neither — it was handed over at a point in the
+// conversation, and that point is where it stays.
+func TestSentFilesAreReadInTheRun(t *testing.T) {
+	const rowsFile = "src/screens/chat/rows.js"
+	rows := screenSrc(t, rowsFile)
+	if !strings.Contains(rows, `item.role === "sent"`) {
+		t.Fatalf("%s: the run draws no card for a delivery", rowsFile)
+	}
+
+	const filesFile = "src/screens/chat/files.js"
+	files := screenSrc(t, filesFile)
+	card := jsBlock(t, filesFile, files, "export function SentCard(")
+	if !strings.Contains(card, "tag=${fileTag(file)}") {
+		t.Errorf("%s: the card does not say what kind of file was sent — a PDF and a text file "+
+			"under one icon are told apart by nothing", filesFile)
+	}
+	if !strings.Contains(card, "onOpen=${onOpen}") {
+		t.Errorf("%s: a sent file opens by something other than the file handler of the run — "+
+			"then the disk has a second road with a boundary of its own", filesFile)
+	}
+
 	const chatFile = "src/screens/chat.js"
 	body := screenSrc(t, chatFile)
-
-	list := jsBlock(t, chatFile, body, "export function WorkList(")
-	if !strings.Contains(list, "sent.map(") {
-		t.Fatalf("%s: the artifact list does not show the sent files — the chip counts what "+
-			"the list does not show", chatFile)
-	}
-	group := list[strings.Index(list, "sent.map("):]
-	if end := strings.Index(group, "sent.length === 0"); end > 0 {
-		group = group[:end]
-	}
-	if !strings.Contains(group, `kind: "file"`) || !strings.Contains(group, "path: file.path") {
-		t.Errorf("%s: a sent file from the list opens by something other than the file handler — "+
-			"then the disk has a second road with a boundary of its own", chatFile)
-	}
-	if !strings.Contains(group, "sentState(file)") {
-		t.Errorf("%s: the row of a sent file does not carry the line under its name", chatFile)
-	}
-	state := jsBlock(t, chatFile, body, "function sentState(")
-	if !strings.Contains(state, "fileTag({ name: file.file, media: file.media })") {
-		t.Errorf("%s: the list does not say what kind of file was sent, or asks by a name the "+
-			"row does not carry — a text file is then tagged by its media type, PLAIN", chatFile)
-	}
-	if !strings.Contains(list, `<div class="callcap">sent to you</div>`) {
-		t.Errorf("%s: the sent files are not a group of their own in the list — they are read "+
-			"as documents the session wrote", chatFile)
-	}
-	if !strings.Contains(list, "The session sent no files.") {
-		t.Errorf("%s: an empty group says nothing — a list that skips a group looks as if the "+
-			"panel does not know sent files at all", chatFile)
+	if !strings.Contains(body, `setLook({ kind: "file", ...file })`) {
+		t.Errorf("%s: the run opens a sent file by something other than the file viewer", chatFile)
 	}
 }
 

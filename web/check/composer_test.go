@@ -138,7 +138,7 @@ func TestGapsUnderComposerComeFromOneNumber(t *testing.T) {
 	}
 }
 
-// The row under the composer holds the same three buttons whatever the session is
+// The row under the composer holds the same four buttons whatever the session is
 // doing. A chip that arrives with the first task moves the neighbours out from
 // under a thumb already on its way, and a group that leaves when it is empty
 // takes the row away from the edge it is read from.
@@ -156,8 +156,8 @@ func TestWorkRowKeepsEveryButtonWithNothingToShow(t *testing.T) {
 	// Every chip has to have a list of its own behind it, and a list that would
 	// always be empty is a counter with nothing to count: the client ships no
 	// tool that fills it.
-	if n := strings.Count(left, "<button") + strings.Count(right, "<button"); n != 3 {
-		t.Errorf("%s: the row under the composer holds %d buttons instead of three — a chip "+
+	if n := strings.Count(left, "<button") + strings.Count(right, "<button"); n != 4 {
+		t.Errorf("%s: the row under the composer holds %d buttons instead of four — a chip "+
 			"that is not in the list below is either a counter nobody guards or one that "+
 			"nothing feeds", workFile, n)
 	}
@@ -165,7 +165,8 @@ func TestWorkRowKeepsEveryButtonWithNothingToShow(t *testing.T) {
 	for _, chip := range []struct{ block, kind, what string }{
 		{left, "tasks", "background work"},
 		{left, "agents", "the subagents"},
-		{right, "arts", "the artifacts"},
+		{right, "arts", "the published pages"},
+		{right, "briefs", "the briefs"},
 	} {
 		tag := chipTag(t, workFile, chip.block, chip.kind)
 		if gate := chipGate(chip.block, chip.kind); gate != "" {
@@ -173,7 +174,7 @@ func TestWorkRowKeepsEveryButtonWithNothingToShow(t *testing.T) {
 				"row changes its length under the thumb: %s", workFile, chip.what, gate)
 		}
 		if !strings.Contains(tag, "idle") {
-			t.Errorf("%s: the button of %s looks the same full and empty — a row of three live "+
+			t.Errorf("%s: the button of %s looks the same full and empty — a row of live "+
 				"counters says the session holds work it does not: %s", workFile, chip.what, tag)
 		}
 		if strings.Contains(tag, "disabled") {

@@ -50,75 +50,96 @@ const briefs = [
 const work = { artifacts: inFeed, docs: [], sent: [], tasks: [], agents: [] };
 const opened = { pages: [], briefs: [] };
 
-render(html`
+// Drawn through a function, so the fixture can draw it again after something
+// has been opened and see the chip count anew.
+const draw = () => render(html`
     <${ToastHost}><${GateHost}>
-        <div id="chip"><${WorkRefs} work=${work} briefs=${briefs} onOpen=${() => {}} /></div>
+        <div id="chip"><${WorkRefs} work=${work} pages=${onShelf} briefs=${briefs} onOpen=${() => {}} /></div>
         <!-- The same card in the same box, only outside the shelf: the
              difference between the two heights is the shelf's own doing and
              nothing else. -->
         <div id="feedish" style="display:flex;flex-direction:column;gap:.5rem">
             <${ArtifactCard} item=${inFeed[0]} />
         </div>
-        <${WorkList} session="lab" id="1" kind="arts" work=${work} exec=${{ available: true, kinds: [] }}
-                     pages=${onShelf} briefs=${briefs}
-                     onPage=${(card) => opened.pages.push(card.id)}
-                     onBrief=${(id) => opened.briefs.push(id)} />
+        <div id="pages">
+            <${WorkList} session="lab" id="1" kind="arts" work=${work} exec=${{ available: true, kinds: [] }}
+                         pages=${onShelf} briefs=${briefs}
+                         onPage=${(card) => opened.pages.push(card.id)}
+                         onBrief=${(id) => opened.briefs.push(id)} />
+        </div>
+        <div id="papers">
+            <${WorkList} session="lab" id="1" kind="briefs" work=${work} exec=${{ available: true, kinds: [] }}
+                         pages=${onShelf} briefs=${briefs}
+                         onPage=${(card) => opened.pages.push(card.id)}
+                         onBrief=${(id) => opened.briefs.push(id)} />
+        </div>
     <//><//>
 `, document.getElementById("root"));
+
+draw();
 
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 
 (async () => {
     await new Promise((r) => setTimeout(r, 200));
-    const chip = document.querySelector("#chip .wchip");
+    const chips = Array.from(document.querySelectorAll("#chip .wchip"));
     const button = {
-        // The number counts everything the conversation made, the briefs with
-        // the rest; the dot says some of it waits for an answer.
-        num: (chip.querySelector(".wnum") || {}).textContent || "",
-        wants: chip.classList.contains("wants"),
-        said: chip.getAttribute("aria-label") || "",
+        // Two chips: the pages this device has not opened, and the briefs that
+        // are still waiting for an answer.
+        pages: (chips[0].querySelector(".wnum") || {}).textContent || "",
+        briefs: (chips[1].querySelector(".wnum") || {}).textContent || "",
+        wants: chips[1].classList.contains("wants"),
+        said: chips.map((c) => c.getAttribute("aria-label") || ""),
     };
 
-    const tabs = Array.from(document.querySelectorAll(".worktabs .chip"));
-    const rowsNow = Array.from(document.querySelectorAll(".worklist .artifact"));
+    const rowsNow = Array.from(document.querySelectorAll("#pages .worklist .artifact"));
     const first = {
         // A row of the shelf is scanned, not read: its height is what decides
         // how many of a dozen fit on a phone at once.
         height: rowsNow.length ? Math.round(rowsNow[0].getBoundingClientRect().height) : 0,
         feedHeight: Math.round((document.querySelector("#feedish .artifact") || { getBoundingClientRect: () => ({ height: 0 }) })
             .getBoundingClientRect().height),
-        tabs: tabs.map((t) => t.textContent.trim()),
-        rows: document.querySelectorAll(".worklist .artifact").length,
+        
+        rows: document.querySelectorAll("#pages .worklist .artifact").length,
         more: (document.querySelector(".wmore") || {}).textContent || "",
-        titles: text(".worklist .artifact .artitle").slice(0, 3),
+        titles: text("#pages .worklist .artifact .artitle").slice(0, 3),
     };
 
     // A shelf that lost its rows has no button to press, and the shot has to
     // say that rather than end here: the count is the finding.
-    const more = document.querySelector(".wmore");
+    const more = document.querySelector("#pages .wmore");
     if (more) more.click();
     await new Promise((r) => setTimeout(r, 120));
     const after = {
-        rows: document.querySelectorAll(".worklist .artifact").length,
+        rows: document.querySelectorAll("#pages .worklist .artifact").length,
         more: (document.querySelector(".wmore") || {}).textContent || "",
     };
 
-    tabs[1].click();
-    await new Promise((r) => setTimeout(r, 120));
     const onBriefs = {
-        rows: document.querySelectorAll(".worklist .artifact").length,
-        order: text(".worklist .artifact.arbrief .artitle"),
-        titles: text(".worklist .artifact .artitle"),
-        kept: document.querySelectorAll(".worklist .artifact.arbrief").length,
+        rows: document.querySelectorAll("#papers .worklist .artifact").length,
+        order: text("#papers .artifact.arbrief .artitle"),
+        titles: text("#papers .worklist .artifact .artitle"),
+        kept: document.querySelectorAll("#papers .artifact.arbrief").length,
         // Where each brief stands, in the words of the shelf.
-        states: text(".worklist .artifact.arbrief .brstate"),
-        tones: Array.from(document.querySelectorAll(".worklist .artifact.arbrief .brstate"))
+        states: text("#papers .artifact.arbrief .brstate"),
+        tones: Array.from(document.querySelectorAll("#papers .artifact.arbrief .brstate"))
             .map((n) => n.className.replace("brstate ", "")),
     };
-    const brief = document.querySelector(".worklist .artifact.arbrief");
+    const brief = document.querySelector("#papers .artifact.arbrief");
     if (brief) brief.click();
     await new Promise((r) => setTimeout(r, 120));
 
-    window.done = { first, after, onBriefs, opened, button };
+    // Opening a page is what takes it off the count: the chip shows what is
+    // still unread on this device, so it goes down as pages are read.
+    const firstCard = document.querySelector("#pages .worklist .artifact");
+    if (firstCard) firstCard.click();
+    await new Promise((r) => setTimeout(r, 150));
+    draw();
+    await new Promise((r) => setTimeout(r, 200));
+    const afterOpening = {
+        pages: (document.querySelector("#chip .wchip .wnum") || {}).textContent || "",
+    };
+
+    window.done = { first, after, onBriefs, opened, button, afterOpening };
 })();
 </script>

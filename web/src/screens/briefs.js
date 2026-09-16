@@ -47,23 +47,17 @@ function Card({ card, snapshot, onOpen }) {
     `;
 }
 
-export function Briefs({ snapshot, exec, onSession, openId, onLeave, onOpenChange }) {
+export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave }) {
     const [cards, setCards] = useState(null);
     const [error, setError] = useState("");
-    const [open, setOpen] = useState(openId || null);
+
 
     // A card in the feed of a session opens the document it names. Coming back
     // from that document leaves the shelf, which is where the person would
     // have been had they walked in through the menu.
-    useEffect(() => {
-        if (openId) setOpen(openId);
-    }, [openId]);
-
-    // The shell needs to know whether a document is open: while one is, the
-    // back gesture belongs to it and not to the page under it.
-    useEffect(() => {
-        if (onOpenChange) onOpenChange(Boolean(open));
-    }, [open, onOpenChange]);
+    // Which document is open lives in the shell, not here: the back gesture is
+    // claimed once, by the page, and the page has to know what is on it to
+    // decide what the gesture takes off.
 
     useEffect(() => {
         if (open) return undefined;
@@ -89,7 +83,7 @@ export function Briefs({ snapshot, exec, onSession, openId, onLeave, onOpenChang
 
     if (open) {
         return html`<${Brief} id=${open} snapshot=${snapshot} exec=${exec}
-            onBack=${open === openId && onLeave ? onLeave : () => setOpen(null)}
+            onBack=${onLeave || (() => onOpen(null))}
             onSession=${onSession} />`;
     }
 
@@ -125,7 +119,7 @@ export function Briefs({ snapshot, exec, onSession, openId, onLeave, onOpenChang
             ${cards && cards.length > 0 && html`
                 <div class="bcards">
                     ${cards.map((card) => html`
-                        <${Card} key=${card.id} card=${card} snapshot=${snapshot} onOpen=${setOpen} />
+                        <${Card} key=${card.id} card=${card} snapshot=${snapshot} onOpen=${onOpen} />
                     `)}
                 </div>
             `}

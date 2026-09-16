@@ -15,14 +15,15 @@ import { useBackClose } from "/src/ui/back.js";
 
 const closed = [];
 
-function Document({ onBack }) {
-    useBackClose(true, onBack);
+function Document() {
     return html`<div id="doc">a document</div>`;
 }
 
-function Page({ hasDoc, onClose, children }) {
-    // The page holds the gesture only while nothing is open above it.
-    useBackClose(!hasDoc, onClose);
+// The page claims the gesture once and decides what it takes off: the document
+// on it, or the page itself when nothing is open. Two claims in one turn race
+// each other over the history, and the reader loses the whole page.
+function Page({ hasDoc, onCloseDoc, onClose, children }) {
+    useBackClose(true, () => (hasDoc ? onCloseDoc() : onClose()));
     return html`<div id="page">${children}</div>`;
 }
 
@@ -31,8 +32,10 @@ function App() {
     const [doc, setDoc] = useState(true);
     return html`
         ${page && html`
-            <${Page} hasDoc=${doc} onClose=${() => { closed.push("page"); setPage(false); }}>
-                ${doc && html`<${Document} onBack=${() => { closed.push("doc"); setDoc(false); }} />`}
+            <${Page} hasDoc=${doc}
+                     onCloseDoc=${() => { closed.push("doc"); setDoc(false); }}
+                     onClose=${() => { closed.push("page"); setPage(false); }}>
+                ${doc && html`<${Document} />`}
             <//>
         `}
     `;
@@ -41,6 +44,12 @@ function App() {
 render(html`<${App} />`, document.getElementById("root"));
 
 (async () => {
+    // Room to go back into: the fixture itself is the first entry of this
+    // history, and a gesture that walks past it leaves the page rather than
+    // closing a layer, which would end the run instead of failing it.
+    history.pushState({ pad: 1 }, "", location.href);
+    history.pushState({ pad: 2 }, "", location.href);
+
     await new Promise((r) => setTimeout(r, 150));
     const before = { doc: Boolean(document.getElementById("doc")), page: Boolean(document.getElementById("page")) };
 
