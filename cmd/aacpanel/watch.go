@@ -112,6 +112,7 @@ func (w *watcher) look(ctx context.Context) notify.World {
 
 	w.readSnapshot(&cur)
 	w.readDocker(ctx, &cur)
+	w.readBriefs(ctx, &cur)
 	w.readStore(ctx, &cur)
 	cur.PanelDid = w.panelDid(now)
 	return cur
@@ -233,6 +234,47 @@ func (w *watcher) readDocker(ctx context.Context, cur *notify.World) {
 	w.mu.Lock()
 	w.stackOf = stackOf
 	w.mu.Unlock()
+}
+
+// readBriefs reads the shelf of the host. A collector that does not know
+// briefs, or one that cannot be reached, leaves the shelf unseen rather than
+// empty: an empty shelf and an unreadable one look the same from here, and one
+// of them would announce every standing document as new the moment it answers.
+func (w *watcher) readBriefs(ctx context.Context, cur *notify.World) {
+	cards, err := w.srv.chat.Briefs(ctx, "")
+	if err != nil {
+		return
+	}
+	cur.BriefsSeen = true
+	live := w.sessionNames()
+	for _, card := range cards {
+		cur.Briefs = append(cur.Briefs, notify.Brief{
+			ID: card.ID, Title: card.Title, At: card.At,
+			Questions: card.Questions, Session: live[card.SessionID],
+		})
+	}
+}
+
+// sessionNames maps a session by its id to the name it goes by right now.
+func (w *watcher) sessionNames() map[string]string {
+	out := map[string]string{}
+	payload, err := w.srv.host.JSON()
+	if err != nil {
+		return out
+	}
+	var snap struct {
+		Sessions []struct {
+			Name string `json:"session"`
+			ID   string `json:"sessionId"`
+		} `json:"sessions"`
+	}
+	if err := json.Unmarshal(payload, &snap); err != nil {
+		return out
+	}
+	for _, s := range snap.Sessions {
+		out[s.ID] = s.Name
+	}
+	return out
 }
 
 func (w *watcher) readStore(ctx context.Context, cur *notify.World) {

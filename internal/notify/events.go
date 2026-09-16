@@ -63,6 +63,9 @@ type World struct {
 	Stacks     []Stack
 	DockerErr  string
 
+	Briefs     []Brief
+	BriefsSeen bool
+
 	Alerts []Alert
 	Probes []Probe
 	DBOff  bool
@@ -89,6 +92,17 @@ type Session struct {
 type Note struct {
 	Text string
 	At   string
+}
+
+// Brief is a document a session published for the person to walk through.
+type Brief struct {
+	ID        string
+	Title     string
+	Session   string
+	At        string
+	Questions int
+	Answered  int
+	Sent      bool
 }
 
 // Ask is a question asked by a session.
@@ -201,6 +215,9 @@ func Look(prev, cur World) Report {
 	if !agentBlind && cur.LimitsSeen {
 		limits(&r, cur)
 	}
+	if cur.BriefsSeen {
+		briefs(&r, prev, cur)
+	}
 	if cur.DockerErr == "" {
 		r.Seen = append(r.Seen, DomainContainer)
 		containers(&r, prev, cur)
@@ -297,6 +314,60 @@ func asked(s Session) Event {
 		Title:    "Question · " + s.Name,
 		Body:     body,
 		Severity: Critical,
+	}
+}
+
+// briefs pushes once for a document that has just appeared on the shelf.
+//
+// Once and not held: a brief waits for hours by design, and a reason that
+// stands raises again on every round until it is cleared. What is worth the
+// person's phone is that a document arrived, not that it is still unanswered —
+// the shelf says the latter whenever they care to look.
+//
+// A shelf that has never been read tells nothing about what is new, so the
+// first round after the panel starts only remembers what is there. The price
+// is a brief published while the panel was down: it waits on the shelf
+// unannounced, which beats a handful of pushes about documents from last week
+// every time the service restarts.
+func briefs(r *Report, prev, cur World) {
+	if !prev.BriefsSeen {
+		return
+	}
+	was := map[string]string{}
+	for _, b := range prev.Briefs {
+		was[b.ID] = b.At
+	}
+	for _, b := range cur.Briefs {
+		at, seen := was[b.ID]
+		if seen && at == b.At {
+			continue
+		}
+		r.once(published(b, seen))
+	}
+}
+
+func published(b Brief, again bool) Event {
+	title := "Brief · " + b.Title
+	if again {
+		title = "Brief again · " + b.Title
+	}
+	body := "nothing to answer — a piece to read"
+	switch {
+	case b.Questions == 1:
+		body = "one question to answer"
+	case b.Questions > 1:
+		body = fmt.Sprintf("%d questions to answer", b.Questions)
+	}
+	if b.Session != "" {
+		body += " · from " + b.Session
+	}
+	return Event{
+		Key:      "brief:" + b.ID + ":" + b.At,
+		Domain:   DomainSession,
+		Session:  b.Session,
+		Title:    title,
+		Body:     body,
+		Severity: Warning,
 	}
 }
 

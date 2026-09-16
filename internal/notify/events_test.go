@@ -475,3 +475,85 @@ func TestUnitFromAnOlderAlertStillPrints(t *testing.T) {
 		})
 	}
 }
+
+func shelf(items ...Brief) World {
+	w := snapshotWorld()
+	w.BriefsSeen = true
+	w.Briefs = items
+	return w
+}
+
+var doc = Brief{
+	ID: "seven-after-twelve", Title: "Seven questions after twelve",
+	Session: "aacpanel", At: "2026-09-08T02:59:00Z", Questions: 7,
+}
+
+// A brief is published while the person is away from the screen: it is the one
+// moment worth their phone, because from then on the document simply waits.
+func TestANewBriefIsPushedOnce(t *testing.T) {
+	prev := shelf()
+	cur := shelf(doc)
+
+	report := Look(prev, cur)
+	if len(report.Raise) != 1 {
+		t.Fatalf("events raised: %+v", report.Raise)
+	}
+	got := report.Raise[0]
+	if !strings.Contains(got.Title, "Seven questions after twelve") {
+		t.Errorf("the push does not name the document: %q", got.Title)
+	}
+	if !strings.Contains(got.Body, "7 questions") || !strings.Contains(got.Body, "aacpanel") {
+		t.Errorf("the push does not say what it asks or who asked: %q", got.Body)
+	}
+	// Held reasons raise again every round; a brief waits for hours by design.
+	for _, key := range report.Hold {
+		if strings.HasPrefix(key, "brief:") {
+			t.Errorf("the brief is held open and will push again every round: %q", key)
+		}
+	}
+
+	// The same shelf a round later is not news.
+	again := Look(cur, shelf(doc))
+	if len(again.Raise) != 0 {
+		t.Errorf("a brief that was already announced pushed again: %+v", again.Raise)
+	}
+}
+
+// A shelf nobody has read yet says nothing about what is new. Without this the
+// panel would announce every standing document each time the service restarts.
+func TestTheFirstSightOfTheShelfIsSilent(t *testing.T) {
+	report := Look(snapshotWorld(), shelf(doc))
+	if len(report.Raise) != 0 {
+		t.Errorf("the first look at the shelf pushed: %+v", report.Raise)
+	}
+}
+
+// A document republished under the same name is a different document: the
+// answers stay, the text does not.
+func TestARepublishedBriefIsNewsAgain(t *testing.T) {
+	second := doc
+	second.At = "2026-09-08T03:00:00Z"
+
+	report := Look(shelf(doc), shelf(second))
+	if len(report.Raise) != 1 {
+		t.Fatalf("events raised: %+v", report.Raise)
+	}
+	if !strings.Contains(report.Raise[0].Title, "again") {
+		t.Errorf("a republished document reads like a new one: %q", report.Raise[0].Title)
+	}
+}
+
+// A brief with no questions is a piece to read, and saying it asks nothing is
+// the difference between "when you have a minute" and "this is waiting on you".
+func TestABriefThatAsksNothingSaysSo(t *testing.T) {
+	reading := doc
+	reading.ID, reading.Questions = "what-the-scan-found", 0
+
+	report := Look(shelf(), shelf(reading))
+	if len(report.Raise) != 1 {
+		t.Fatalf("events raised: %+v", report.Raise)
+	}
+	if !strings.Contains(report.Raise[0].Body, "nothing to answer") {
+		t.Errorf("a piece to read promises questions: %q", report.Raise[0].Body)
+	}
+}
