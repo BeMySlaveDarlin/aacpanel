@@ -34,6 +34,12 @@ type briefShot struct {
 	Asked    []string `json:"asked"`
 	SentMark bool     `json:"sentMark"`
 	Reply    string   `json:"reply"`
+	Exit     struct {
+		There    bool   `json:"there"`
+		Stuck    string `json:"stuck"`
+		OnScreen bool   `json:"onScreen"`
+		Left     int    `json:"left"`
+	} `json:"exit"`
 }
 
 // The half of a brief that is not questions is the half that earns it: the
@@ -237,5 +243,27 @@ func TestAReissuedBriefSaysSoAboveTheAnswers(t *testing.T) {
 	}
 	if !strings.Contains(got.Before.Again, "answers are where you left them") {
 		t.Errorf("the mark leaves the person guessing what happened to their answers: %q", got.Before.Again)
+	}
+}
+
+// A brief is read for as long as it takes, and putting it down is part of
+// reading it. The way out rides with the page: a document of a dozen screens
+// whose only exit is at the top is a document the reader scrolls back through
+// to leave.
+func TestABriefCanBePutDown(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+
+	if !got.Exit.There {
+		t.Fatal("the document has no way out of it")
+	}
+	if got.Exit.Stuck != "sticky" {
+		t.Errorf("the way out is %q and scrolls away with the text", got.Exit.Stuck)
+	}
+	if !got.Exit.OnScreen {
+		t.Error("the way out is off the screen in the middle of the document")
+	}
+	if got.Exit.Left != 1 {
+		t.Errorf("pressing it left the reader on the page %d times out of one", got.Exit.Left)
 	}
 }

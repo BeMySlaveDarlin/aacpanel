@@ -102,6 +102,40 @@
     padding: 0 16px 120px;
 }
 
+/* The way out of a document. A brief runs for screens, so an exit drawn once at
+   the top is an exit found by scrolling back to it: this one rides along. It
+   takes the paper's own colours, because the panel's would be a strip of another
+   screen lying over the page. */
+.brief > .phead {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: .4rem 16px;
+    background: var(--paper);
+    box-shadow: 0 1px 0 var(--paper-rule);
+}
+
+.brief > .phead .pback {
+    background: var(--paper-2);
+    box-shadow: inset 0 0 0 1px var(--paper-rule-2);
+    color: var(--paper-accent-ink);
+}
+
+.brief > .phead .pback:active { background: var(--paper-rule); }
+
+/* The title beside the arrow says which document is being left, and never grows
+   the strip: a long one is cut. */
+.bway {
+    font-family: var(--sans);
+    font-size: var(--t-sm);
+    color: var(--paper-ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .brief h1,
 .brief h2,
 .brief h3 {

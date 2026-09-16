@@ -5,6 +5,7 @@ import { html } from "../html.js";
 import { inline } from "../md.js";
 import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
+import { BackHead, useBackClose } from "../ui/back.js";
 import { Sheet } from "../ui/sheet.js";
 import { markSent, one, saveDraft } from "../data/briefs.js";
 
@@ -151,6 +152,10 @@ function Question({ q, answer, onAnswer }) {
 }
 
 export function Brief({ id, snapshot, exec, onBack, onSession }) {
+    // A document is a layer over the shelf: the back gesture of the phone puts
+    // it down, instead of closing the application from under the reader.
+    useBackClose(true, onBack);
+
     const run = useAction();
     const [doc, setDoc] = useState(null);
     const [answers, setAnswers] = useState({});
@@ -228,20 +233,34 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
         if (onSession) onSession(name);
     };
 
+    // The screen is one layer in every state it has, so its way out is drawn
+    // once and put at the top of whichever of them is showing.
+    const head = (title) => html`
+        <${BackHead} onBack=${onBack} label="back to the briefs">
+            ${title ? html`<div class="bway">${title}</div>` : null}
+        <//>
+    `;
+
     if (error) {
         return html`
             <div class="brief">
-                <div class="brief-page">
-                    <p class="bask">${error}</p>
-                    <button type="button" class="bbtn" onClick=${onBack}>back</button>
-                </div>
+                ${head("")}
+                <div class="brief-page"><p class="bask">${error}</p></div>
             </div>
         `;
     }
-    if (!doc) return html`<div class="brief"><div class="brief-page"><p class="bask">opening…</p></div></div>`;
+    if (!doc) {
+        return html`
+            <div class="brief">
+                ${head("")}
+                <div class="brief-page"><p class="bask">opening…</p></div>
+            </div>
+        `;
+    }
 
     return html`
         <div class="brief">
+            ${head(doc.title)}
             <div class="brief-page">
                 <header class="bmast">
                     ${doc.eyebrow && html`<div class="beyebrow">${doc.eyebrow}</div>`}

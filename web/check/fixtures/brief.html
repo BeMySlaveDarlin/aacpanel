@@ -104,9 +104,11 @@ window.fetch = async (url, init) => {
 const snapshot = { sessions: [{ session: "lab", sessionId: doc.sessionId, cwd: "/srv/proj" }] };
 const exec = { available: true, kinds: ["session.send"] };
 
+const left = [];
+
 render(
     h(ToastHost, null, h(GateHost, null,
-        h(Brief, { id: "seven-after-twelve", snapshot, exec, onBack: () => {} }))),
+        h(Brief, { id: "seven-after-twelve", snapshot, exec, onBack: () => left.push("back") }))),
     document.getElementById("root"));
 
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
@@ -147,7 +149,22 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     document.querySelector(".bbtn.go").click();
     await new Promise((r) => setTimeout(r, 400));
 
-    window.done = { before, after, asked, sentMark,
+    // A document runs for screens: the way out has to be reachable from the
+    // middle of it, not only from the top.
+    const out = document.querySelector(".brief .pback");
+    scrollTo(0, Math.round(document.documentElement.scrollHeight / 2));
+    await new Promise((r) => setTimeout(r, 200));
+    const box = out ? out.getBoundingClientRect() : null;
+    const exit = {
+        there: Boolean(out),
+        stuck: out ? getComputedStyle(out.closest(".phead")).position : "",
+        onScreen: Boolean(box && box.top >= 0 && box.bottom <= innerHeight && box.width > 0),
+    };
+    if (out) out.click();
+    await new Promise((r) => setTimeout(r, 120));
+    exit.left = left.length;
+
+    window.done = { before, after, asked, sentMark, exit,
         reply: (document.querySelector(".breply") || {}).textContent || "" };
 })();
 </script>
