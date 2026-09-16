@@ -18,6 +18,7 @@ import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
 import { index, shelf as pageShelf } from "../data/artifacts.js";
+import { shelf as briefShelf } from "../data/briefs.js";
 import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
 import { Composer, deliver, outcome } from "./chat/composer.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
@@ -46,6 +47,8 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
     // shelf is asked for once: a card looks itself up in it rather than asking
     // per artifact.
     const [copies, setCopies] = useState(null);
+    const [pages, setPages] = useState([]);
+    const [briefs, setBriefs] = useState([]);
     const [local, setLocal] = useState([]);
     const [, redraw] = useState(0);
     const answer = recall(name);
@@ -82,10 +85,21 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
         }
         let alive = true;
         pageShelf(id)
-            .then((cards) => alive && setCopies(index(cards)))
+            .then((cards) => {
+                if (!alive) return;
+                setCopies(index(cards));
+                setPages(cards);
+            })
             // A collector without the copies, or one that is down, leaves the
             // cards exactly as they were: a link out and nothing broken.
-            .catch(() => alive && setCopies(null));
+            .catch(() => {
+                if (!alive) return;
+                setCopies(null);
+                setPages([]);
+            });
+        briefShelf(id)
+            .then((cards) => alive && setBriefs(cards))
+            .catch(() => alive && setBriefs([]));
         return () => { alive = false; };
     }, [id]);
 
@@ -307,7 +321,8 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
                                     exec=${exec} onAgent=${openAgent}
-                                    copies=${copies} onPage=${(card) => setLook({ kind: "artifact", card })} />`
+                                    pages=${pages} briefs=${briefs} onBrief=${onBrief}
+                                    onPage=${(card) => setLook({ kind: "artifact", card })} />`
                 : html`<${Look} session=${name} id=${id} look=${look} />`)}
         <//>
 

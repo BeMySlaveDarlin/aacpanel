@@ -9,9 +9,11 @@ async function body(r, what) {
     return r.json();
 }
 
-// shelf returns the card of every brief on the host, newest first.
-export async function shelf() {
-    const r = await fetch("/api/briefs");
+// shelf returns the card of every brief on the host, newest first, or of one
+// conversation when it is named.
+export async function shelf(session) {
+    const url = session ? `/api/briefs?session=${encodeURIComponent(session)}` : "/api/briefs";
+    const r = await fetch(url);
     const got = await body(r, "the shelf did not open");
     return got.briefs || [];
 }

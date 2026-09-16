@@ -1,0 +1,92 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The shelf of a conversation that published more than fits one page, plus the
+// briefs it wrote. The feed remembers only the last few artifacts; the shelf of
+// copies remembers the rest.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { WorkList } from "/src/screens/chat/work.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const inFeed = [];
+for (let i = 0; i < 3; i++) {
+    inFeed.push({
+        title: `Recent page ${i}`, file: `recent-${i}.html`,
+        url: `https://claude.ai/x/recent-${i}`, count: 1,
+        at: `2026-09-16T12:0${i}:00Z`,
+    });
+}
+
+const onShelf = [];
+for (let i = 0; i < 25; i++) {
+    onShelf.push({
+        id: `kept-${i}`, title: `Kept page ${i}`, file: `kept-${i}.html`,
+        url: `https://claude.ai/x/kept-${i}`, bytes: 2048, versions: 1,
+        at: `2026-09-16T11:${String(i).padStart(2, "0")}:00Z`,
+    });
+}
+// One of them is also in the feed: the same page must not be listed twice.
+onShelf.push({
+    id: "recent-0", title: "Recent page 0", file: "recent-0.html",
+    url: "https://claude.ai/x/recent-0", bytes: 1024, versions: 2,
+    at: "2026-09-16T12:00:00Z",
+});
+
+const briefs = [
+    { id: "seven-after-twelve", title: "Seven questions after twelve", questions: 7 },
+    { id: "what-is-open", title: "What is still open", questions: 5, sent: true },
+];
+
+const work = { artifacts: inFeed, docs: [], sent: [], tasks: [], agents: [] };
+const opened = { pages: [], briefs: [] };
+
+render(html`
+    <${ToastHost}><${GateHost}>
+        <${WorkList} session="lab" id="1" kind="arts" work=${work} exec=${{ available: true, kinds: [] }}
+                     pages=${onShelf} briefs=${briefs}
+                     onPage=${(card) => opened.pages.push(card.id)}
+                     onBrief=${(id) => opened.briefs.push(id)} />
+    <//><//>
+`, document.getElementById("root"));
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const tabs = Array.from(document.querySelectorAll(".worktabs .chip"));
+    const first = {
+        tabs: tabs.map((t) => t.textContent.trim()),
+        rows: document.querySelectorAll(".artifact").length,
+        more: (document.querySelector(".wmore") || {}).textContent || "",
+        titles: text(".artifact .artitle").slice(0, 3),
+    };
+
+    // A shelf that lost its rows has no button to press, and the shot has to
+    // say that rather than end here: the count is the finding.
+    const more = document.querySelector(".wmore");
+    if (more) more.click();
+    await new Promise((r) => setTimeout(r, 120));
+    const after = {
+        rows: document.querySelectorAll(".artifact").length,
+        more: (document.querySelector(".wmore") || {}).textContent || "",
+    };
+
+    tabs[1].click();
+    await new Promise((r) => setTimeout(r, 120));
+    const onBriefs = {
+        rows: document.querySelectorAll(".artifact").length,
+        titles: text(".artifact .artitle"),
+        kept: document.querySelectorAll(".artifact.arbrief").length,
+    };
+    const brief = document.querySelector(".artifact.arbrief");
+    if (brief) brief.click();
+    await new Promise((r) => setTimeout(r, 120));
+
+    window.done = { first, after, onBriefs, opened };
+})();
+</script>

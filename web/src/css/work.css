@@ -392,3 +392,22 @@
     color: var(--ink-faint);
     font-size: var(--t-xs);
 }
+
+/* The shelf of what a conversation made takes two tabs, and each shows a page
+   of rows at a time: a conversation that published thirty documents is a list
+   that ends rather than one that keeps going under the thumb. */
+.worktabs { display: flex; gap: .35rem; margin-bottom: .2rem; }
+
+.wmore {
+    align-self: stretch;
+    padding: .5rem;
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--glass);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: var(--t-sm);
+    cursor: pointer;
+}
+.wmore:active { background: var(--glass-2); }

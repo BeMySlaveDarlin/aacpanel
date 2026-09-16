@@ -8,9 +8,10 @@ import { bytes, plural, since, tokens, until } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { taskVoice } from "./voice.js";
-import { ArtifactCard } from "./rows.js";
+import { ArtifactCard, BriefCard } from "./rows.js";
 import { fileTag } from "./files.js";
 import { Look, LOOK_NAMES } from "./look.js";
+import { merge } from "../../data/artifacts.js";
 
 // WorkStatus renders what is happening to the session right now.
 export function WorkStatus({ work, busy }) {
@@ -32,6 +33,19 @@ export function WorkStatus({ work, busy }) {
 // 0 is a number where the eye expects none. The dim chip still opens its list —
 // the list says out loud that there is nothing, which a button that refuses the
 // tap cannot do.
+const PAGE = 20;
+
+// briefRow turns a card of the shelf into what the row of a feed draws: the
+// same component, so a brief looks the same wherever it is listed.
+function briefRow(card) {
+    return {
+        id: card.id,
+        title: card.title,
+        eyebrow: card.eyebrow || (card.sent ? "answered and sent" : ""),
+        questions: card.questions || 0,
+    };
+}
+
 export function Work({ work, onOpen }) {
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
@@ -203,7 +217,7 @@ function sentState(file) {
 // the directory of the conversation — is drawn as a row, not a button: the
 // reader holds every file against that directory, and a tap would end in a
 // refusal, so the row says where the file lies instead.
-export function WorkList({ session, id, kind, work, exec, onAgent, copies, onPage }) {
+export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs, onPage, onBrief }) {
     const [pick, setPick] = useState(null);
     const run = useAction();
     const [busy, setBusy] = useState("");
@@ -237,6 +251,14 @@ export function WorkList({ session, id, kind, work, exec, onAgent, copies, onPag
         fail: fail[agentKey(agent)] || "",
         onStop: () => stopAgent(agent),
     });
+    // What the conversation made comes from two places at once: the window of
+    // the feed, and the shelf of copies which keeps what fell out of it.
+    const made = kind === "arts" ? merge((work && work.artifacts) || [], pages || []) : [];
+    const [tab, setTab] = useState("made");
+    const [shown, setShown] = useState(PAGE);
+    const at = kind === "arts" && tab === "briefs" ? (briefs || []) : made;
+    const visible = at.slice(0, shown);
+
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
     const arts = (work && work.artifacts) || [];
@@ -336,16 +358,38 @@ export function WorkList({ session, id, kind, work, exec, onAgent, copies, onPag
                 <p class="whint">Reported means it sent a letter. Whether it has finished
                     for good, the session does not say.</p>
             `}
-            ${kind === "arts" && arts.length > 0 && html`<div class="callcap">published</div>`}
-            ${kind === "arts" && arts.map((art) => html`
-                <${ArtifactCard} key=${art.path || art.title} item=${art}
-                                 copy=${copies && copies.of(art)} onOpen=${onPage} />
+            ${kind === "arts" && html`
+                <div class="worktabs">
+                    <button type="button" class="chip" aria-pressed=${tab === "made" ? "true" : "false"}
+                            onClick=${() => { setTab("made"); setShown(PAGE); }}>
+                        published${made.length > 0 ? ` · ${made.length}` : ""}
+                    </button>
+                    <button type="button" class="chip" aria-pressed=${tab === "briefs" ? "true" : "false"}
+                            onClick=${() => { setTab("briefs"); setShown(PAGE); }}>
+                        briefs${(briefs || []).length > 0 ? ` · ${briefs.length}` : ""}
+                    </button>
+                </div>
+            `}
+            ${kind === "arts" && tab === "made" && visible.map((art) => html`
+                <${ArtifactCard} key=${art.url || art.file || art.title} item=${art}
+                                 copy=${art.kept} onOpen=${onPage} />
             `)}
-            ${kind === "arts" && arts.length === 0 && html`
+            ${kind === "arts" && tab === "made" && made.length === 0 && html`
                 <p class="hint">No artifacts were published in this conversation.</p>
             `}
-            ${kind === "arts" && docs.length > 0 && html`<div class="callcap">documents</div>`}
-            ${kind === "arts" && docs.map((doc) => html`
+            ${kind === "arts" && tab === "briefs" && visible.map((card) => html`
+                <${BriefCard} key=${card.id} item=${briefRow(card)} onOpen=${onBrief} />
+            `)}
+            ${kind === "arts" && tab === "briefs" && (briefs || []).length === 0 && html`
+                <p class="hint">This conversation published no briefs.</p>
+            `}
+            ${kind === "arts" && at.length > shown && html`
+                <button type="button" class="wmore" onClick=${() => setShown((n) => n + PAGE)}>
+                    ${at.length - shown} more
+                </button>
+            `}
+            ${kind === "arts" && tab === "made" && docs.length > 0 && html`<div class="callcap">documents</div>`}
+            ${kind === "arts" && tab === "made" && docs.map((doc) => html`
                 <button class="wrow doc" type="button" key=${doc.path}
                         onClick=${() => setPick({ kind: "file", path: doc.path,
                                                   text: doc.dir ? `${doc.dir}/${doc.file}` : doc.file })}>
@@ -361,11 +405,11 @@ export function WorkList({ session, id, kind, work, exec, onAgent, copies, onPag
                     <span class="crgo">${Icon.chevron()}</span>
                 </button>
             `)}
-            ${kind === "arts" && docs.length === 0 && html`
+            ${kind === "arts" && tab === "made" && docs.length === 0 && html`
                 <p class="hint">The session wrote no documents.</p>
             `}
-            ${kind === "arts" && sent.length > 0 && html`<div class="callcap">sent to you</div>`}
-            ${kind === "arts" && sent.map((file) => (file.outside
+            ${kind === "arts" && tab === "made" && sent.length > 0 && html`<div class="callcap">sent to you</div>`}
+            ${kind === "arts" && tab === "made" && sent.map((file) => (file.outside
                 ? html`
                     <div class="wrow doc outside" key=${file.path}>
                         <span class="wicon">${Icon.file()}</span>
@@ -387,7 +431,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent, copies, onPag
                         <span class="crgo">${Icon.chevron()}</span>
                     </button>
                 `))}
-            ${kind === "arts" && sent.length === 0 && html`
+            ${kind === "arts" && tab === "made" && sent.length === 0 && html`
                 <p class="hint">The session sent no files.</p>
             `}
             ${kind === "tasks" && tasks.length === 0 && html`<p class="hint">There are no background commands.</p>`}
