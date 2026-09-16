@@ -155,6 +155,12 @@ by which a shipped skill recognises a request said in Russian are not text for a
 reader either. And an applied migration is untouchable down to a single
 character, so whatever it says stays as it was written.
 
+**This check walks the list git keeps, not the working tree.** A new file
+enters it only once it is added, so a skill whose description carries the
+Russian phrases it is recognised by passes the whole of `make check` while it
+is untracked and fails on the next run. Adding an exception is a line beside
+the other skills, and the run after `git add` is the one that counts.
+
 **The text of a refusal does not promise an environment the reader may not
 have.** A refusal names tmux, and a specific terminal comes second and as a
 particular case: otherwise an install without one sends the human off to install
