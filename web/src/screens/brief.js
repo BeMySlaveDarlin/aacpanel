@@ -5,7 +5,7 @@ import { html } from "../html.js";
 import { inline, render } from "../md.js";
 import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
-import { BackHead } from "../ui/back.js";
+import { BackHead, useBackClose } from "../ui/back.js";
 import { Sheet } from "../ui/sheet.js";
 import { drop, markSent, one, saveDraft } from "../data/briefs.js";
 import { useToast } from "../ui/toasts.js";
@@ -159,6 +159,11 @@ function Question({ q, answer, onAnswer, locked }) {
 }
 
 export function Brief({ id, snapshot, exec, onBack, onSession }) {
+    // A layer of its own when it is opened over a conversation: the gesture
+    // puts the document down and leaves the run behind it. On the shelf, where
+    // the page itself holds the gesture, there is no onBack of this kind.
+    useBackClose(Boolean(onBack), onBack);
+
     const run = useAction();
     const [doc, setDoc] = useState(null);
     const [answers, setAnswers] = useState({});

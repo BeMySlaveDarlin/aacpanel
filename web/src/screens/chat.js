@@ -17,6 +17,7 @@ import { Row } from "./chat/rows.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
+import { Brief } from "./brief.js";
 import { index, shelf as pageShelf } from "../data/artifacts.js";
 import { shelf as briefShelf } from "../data/briefs.js";
 import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
@@ -34,12 +35,12 @@ import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 
 
-export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }) {
-    // A document opened out of a conversation says which conversation, so
-    // closing it comes back here instead of landing on the shelf of the host.
-    const openBrief = useCallback((briefId) => {
-        if (onBrief) onBrief(briefId, { name, id });
-    }, [onBrief, name, id]);
+export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage, onBrief }) {
+    // A brief opens over the conversation, the way a subagent's letters do: a
+    // layer above the run, put down by the same gesture and leaving the run
+    // where it was. Sending the reader to a page of their own instead costs
+    // them the conversation and the gesture both.
+    const openBrief = useCallback((briefId) => setLook({ kind: "brief", id: briefId }), []);
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
@@ -333,7 +334,11 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
 
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
                   label=${look ? LOOK_NAMES[look.kind] : ""} inner>
-            ${look && (look.kind === "artifact"
+            ${look && (look.kind === "brief"
+                ? html`<${Brief} id=${look.id} snapshot=${snapshot} exec=${exec}
+                                 onBack=${() => setLook(null)}
+                                 onSession=${() => setLook(null)} />`
+                : look.kind === "artifact"
                 ? html`<${ArtifactPage} card=${look.card} />`
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}

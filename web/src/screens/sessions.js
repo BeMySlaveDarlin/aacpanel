@@ -86,6 +86,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
         return html`<${Chat}
             name=${chat.name}
             id=${chat.id}
+            snapshot=${snapshot}
             live=${live || null}
             exec=${exec}
             archive=${recent.find((r) => r.sessionId === chat.id) || null}
