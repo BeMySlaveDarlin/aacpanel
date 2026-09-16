@@ -289,6 +289,7 @@ export function DesktopShell({
                         />
                     `)}
                 </nav>
+                <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
                 <div class="dktopright">
                     ${snapshot && snapshot.cookieInsecure && html`
                         <span class="dkalert" data-tip="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well" data-tipside="left">
@@ -321,7 +322,6 @@ export function DesktopShell({
                         onClick=${onTheme}
                     />
                     <${IconButton} item=${{ label: "Sign out", icon: Icon.exit }} active=${false} onClick=${logout} />
-                    <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
                 </div>
             </header>
 

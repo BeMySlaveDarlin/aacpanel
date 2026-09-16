@@ -83,15 +83,17 @@
 
     .dksep { width: var(--hair); height: 1.5rem; background: var(--line); margin: 0 .3rem; }
 
-    .dktopright { margin-left: auto; display: flex; align-items: center; gap: .3rem; }
+    .dktopright { display: flex; align-items: center; gap: .3rem; }
 
     /* The load of the host, at the end of the bar: three gauges that never move,
        so a glance at the same spot always answers the same question. */
     .dkload {
         display: flex;
         align-items: center;
-        gap: .7rem;
-        margin-left: .4rem;
+        gap: 1.05rem;
+        /* Between the icons and the controls, in the middle of what is left:
+           the gauges are read, not pressed, and the bar reads left to right. */
+        margin-inline: auto;
         padding: .25rem .5rem;
         border: 0;
         border-radius: var(--r-small);
@@ -103,7 +105,7 @@
 
     .dkload:hover { background: var(--surface-2); }
 
-    .dkgauge { display: flex; align-items: center; gap: .35rem; }
+    .dkgauge { display: flex; align-items: center; gap: .3rem; }
 
     .dkgauge-n { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
 
@@ -122,7 +124,7 @@
     .dkgauge-bar.crit i { background: var(--crit); }
 
     .dkgauge-v {
-        min-width: 2.5rem;
+        min-width: 2.3rem;
         font-family: var(--mono);
         font-size: var(--t-xs);
         color: var(--ink-dim);
