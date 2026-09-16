@@ -11,6 +11,7 @@ type loadShot struct {
 		Values []string `json:"values"`
 		Tones  []string `json:"tones"`
 		Fills  []int    `json:"fills"`
+		Bars   int      `json:"bars"`
 		Rows   int      `json:"rows"`
 		Tips   []string `json:"tips"`
 	} `json:"before"`
@@ -59,9 +60,12 @@ func TestTheDiskGaugeShowsTheFullestMount(t *testing.T) {
 	if got.Before.Tones[0] != "warn" {
 		t.Errorf("a processor at 74%% is drawn as %q", got.Before.Tones[0])
 	}
-	// The bar is the number in another form: a fifth full looks a fifth full.
+	// The chip is the number in another form: a fifth used looks a fifth filled.
 	if got.Before.Fills[1] < 18 || got.Before.Fills[1] > 28 {
-		t.Errorf("the bars do not follow the numbers: %v", got.Before.Fills)
+		t.Errorf("the fill does not follow the numbers: %v", got.Before.Fills)
+	}
+	if got.Before.Bars != 0 {
+		t.Errorf("%d gauges still carry a bar of their own beside the number", got.Before.Bars)
 	}
 }
 

@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<div class="deskshell"><header class="dktop"><div class="dktopright"><div id="root"></div></div></header></div>
+<div class="deskshell"><header class="dktop"><div class="dktopright"><div id="root"></div><div id="blank"></div></div></header></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // The load gauges of the top bar over a host with a busy processor, room in
@@ -29,15 +29,14 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
 
 (async () => {
     await new Promise((r) => setTimeout(r, 200));
-    const bars = Array.from(document.querySelectorAll(".dkgauge-bar"));
+    const chips = Array.from(document.querySelectorAll(".dkgauge"));
     const before = {
         names: text(".dkgauge-n"),
         values: text(".dkgauge-v"),
-        tones: bars.map((b) => b.className.replace("dkgauge-bar", "").trim()),
-        fills: bars.map((b) => {
-            const i = b.querySelector("i");
-            return Math.round(i.getBoundingClientRect().width / b.getBoundingClientRect().width * 100);
-        }),
+        tones: chips.map((c) => c.className.replace("dkgauge", "").trim()),
+        // The reading is the fill of the chip itself, not a bar beside it.
+        fills: chips.map((c) => Math.round(parseFloat(c.style.getPropertyValue("--fill")) || 0)),
+        bars: document.querySelectorAll(".dkgauge-bar").length,
         // The row must stay on one line whatever the numbers are.
         rows: new Set(Array.from(document.querySelectorAll(".dkgauge")).map((g) => Math.round(g.getBoundingClientRect().top))).size,
         tips: Array.from(document.querySelectorAll(".dkgauge")).map((g) => g.getAttribute("data-tip")),
@@ -47,9 +46,12 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     await new Promise((r) => setTimeout(r, 100));
 
     // A host the agent has not reported on yet draws nothing rather than zeros.
-    render(h(HeadLoad, { snapshot: {}, onOpen: () => {} }), document.getElementById("root"));
+    // It is drawn beside the first, not over it: a fixture is also the picture
+    // of the thing, and a picture of an empty bar shows nothing.
+    render(h(HeadLoad, { snapshot: {}, onOpen: () => {} }), document.getElementById("blank"));
     await new Promise((r) => setTimeout(r, 120));
 
-    window.done = { before, opened, blank: document.querySelectorAll(".dkgauge").length };
+    window.done = { before, opened,
+        blank: document.querySelectorAll("#blank .dkgauge").length };
 })();
 </script>

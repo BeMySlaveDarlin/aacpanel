@@ -105,36 +105,32 @@
 
     .dkload:hover { background: var(--surface-2); }
 
-    .dkgauge { display: flex; align-items: center; gap: .3rem; }
-
-    .dkgauge-n { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
-
-    .dkgauge-bar {
-        width: 2.4rem;
-        height: 3px;
-        border-radius: 2px;
-        background: var(--line);
-        overflow: hidden;
-    }
-
-    .dkgauge-bar i { display: block; height: 100%; background: var(--accent); }
-
-    .dkgauge-bar.warn i { background: var(--warn); }
-
-    .dkgauge-bar.crit i { background: var(--crit); }
-
-    .dkgauge-v {
-        min-width: 2.3rem;
+    /* The chip is its own gauge: what is used fills it from the left, the rest
+       stays the ground of the bar. */
+    .dkgauge {
+        display: flex;
+        align-items: baseline;
+        gap: .4rem;
+        padding: .16rem .45rem;
+        border-radius: var(--r-small);
+        background:
+            linear-gradient(90deg,
+                var(--gauge-ink) 0 var(--fill, 0%),
+                var(--surface-2) var(--fill, 0%) 100%);
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
+        --gauge-ink: color-mix(in srgb, var(--accent) 62%, var(--bg));
         font-family: var(--mono);
-        font-size: var(--t-xs);
-        color: var(--ink-dim);
-        font-variant-numeric: tabular-nums;
-        text-align: right;
+        font-size: var(--t-sm);
+        line-height: 1.35;
     }
 
-    .dkgauge-v.warn { color: var(--warn); }
+    .dkgauge.warn { --gauge-ink: color-mix(in srgb, var(--warn) 66%, var(--bg)); }
 
-    .dkgauge-v.crit { color: var(--crit); }
+    .dkgauge.crit { --gauge-ink: color-mix(in srgb, var(--crit) 70%, var(--bg)); }
+
+    .dkgauge-n { color: var(--ink-dim); }
+
+    .dkgauge-v { color: var(--ink); font-variant-numeric: tabular-nums; }
 
     .dkib {
         position: relative;

@@ -27,13 +27,19 @@ export function headLoad(snapshot) {
 
 function Gauge({ name, value, tip }) {
     if (value === null || value === undefined) return null;
+    const share = Math.min(100, Math.max(0, value));
+    // The reading is the fill of the chip itself rather than a bar beside it:
+    // three numbers and three bars are six things to read in a bar that has
+    // room for a glance.
     return html`
-        <span class="dkgauge" data-tip=${tip} data-tipside="left">
+        <span
+            class=${`dkgauge ${level(value)}`}
+            style=${`--fill:${share}%`}
+            data-tip=${tip}
+            data-tipside="left"
+        >
             <span class="dkgauge-n">${name}</span>
-            <span class=${`dkgauge-bar ${level(value)}`}>
-                <i style=${`width:${Math.min(100, Math.max(0, value))}%`}></i>
-            </span>
-            <span class=${`dkgauge-v ${level(value)}`}>${pct(value)}</span>
+            <span class="dkgauge-v">${pct(value)}</span>
         </span>
     `;
 }
