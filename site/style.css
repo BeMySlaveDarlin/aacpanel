@@ -180,6 +180,24 @@ a { color: var(--accent); }
 
 .expand { color: var(--ink-faint); font-size: .86rem; }
 
+/* The way to the documentation sits at the end of the top line, away from the
+   calls to action: someone reading how to live with the panel is not being
+   sold it. On a narrow screen the long name of the panel goes first, because
+   the link is the thing you came back for. */
+.topdoc {
+    margin-left: auto;
+    color: var(--accent);
+    font-size: .86rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.topdoc:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+    .expand { display: none; }
+}
+
 /* ── chapters ────────────────────────────────────────────────────────────── */
 
 /* The panel marks an alert with a bar down its left edge. Here the same bar

@@ -28,6 +28,7 @@
 <div class="topline">
     <a class="logo" href="#top"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg><span>aacpanel</span></a>
     <span class="expand">Atlas Agents Control Panel</span>
+    <a class="topdoc" href="docs.html">Using the panel</a>
 </div>
 
 <main>
@@ -138,6 +139,50 @@
         <a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a>
         holds the boundaries.</p>
     <p id="object-caption"></p>
+    <!-- What each node is: real markup, not canvas data, so a screen reader
+         reaches it without the pointer. The hover caption above quotes the
+         same text by id; visually hidden here to avoid saying it twice. -->
+    <dl id="legend" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;padding:0;margin:-1px">
+<dt>the service</dt><dd id="w-service">the container: HTTP, API, streams, rules, pushes, the database</dd>
+<dt>the executor</dt><dd id="w-exec">on the host: the only thing that acts — twenty-two named actions, and the list is closed</dd>
+<dt>the collector</dt><dd id="w-agent">on the host: reads /proc and the transcripts, writes the snapshot, never writes anything else</dd>
+<dt>Postgres</dt><dd id="w-pg">the panel's database: history, the journal, rules, devices</dd>
+<dt>docker socket proxy</dt><dd id="w-proxy">docker for the service, GET only — starting or removing a container this way is impossible</dd>
+<dt>the edge</dt><dd id="w-edge">nginx and WireGuard on a VPS, in front of the container</dd>
+<dt>the phone</dt><dd id="w-phone">the PWA: one column, the composer under the thumb</dd>
+<dt>the desktop</dt><dd id="w-desk">the same page: sessions, the feed and the archive side by side</dd>
+<dt>Web Push</dt><dd id="w-push">VAPID pushes to the devices that signed in</dd>
+<dt>passkeys</dt><dd id="w-passkeys">sign-in: a passkey enrolled with a one-time code from the machine</dd>
+<dt>docker</dt><dd id="w-docker">containers and stacks on the host, reached through docker.sock</dd>
+<dt>tmux + claude</dt><dd id="w-tmux">the sessions themselves, each in its own tmux window</dd>
+<dt>named actions</dt><dd id="w-actions">the closed list the service may ask for, over a unix socket</dd>
+<dt>transcripts</dt><dd id="w-transcripts">the conversations on disk — read on the host, never mounted into the container</dd>
+<dt>the snapshot</dt><dd id="w-snapshot">state.json: the machine and its sessions, mounted into the service read-only</dd>
+<dt>history and charts</dt><dd id="w-hist">rollups by minute and by hour; charts from half an hour to a month</dd>
+<dt>alerts and rules</dt><dd id="w-alerts">thresholds on the numbers; acknowledged from the screen</dd>
+<dt>devices</dt><dd id="w-devices">the browsers that signed in, and where the pushes go</dd>
+<dt>settings</dt><dd id="w-settings">shown, not edited</dd>
+<dt>the profile map</dt><dd id="w-map">profile → group → project: where sessions may open, with what, in which account</dd>
+<dt>contours</dt><dd id="w-contours">one claude account per group of projects</dd>
+<dt>containers by stack</dt><dd id="w-stacks">the stack → containers tree with processor, memory and size on disk</dd>
+<dt>logs</dt><dd id="w-logs">a container's log, right there</dd>
+<dt>bring up / down</dt><dd id="w-updown">start, stop, restart a container; a whole stack up and down</dd>
+<dt>the window</dt><dd id="w-window">a window on the host desktop, opened for a session</dd>
+<dt>stop</dt><dd id="w-stop">stop the turn, a piece of background work, or a subagent</dd>
+<dt>the composer</dt><dd id="w-composer">a message from the phone into the session</dd>
+<dt>files both ways</dt><dd id="w-files">a photo or a document into a session, what it produced back out</dd>
+<dt>the terminal</dt><dd id="w-term">the session's own tmux, typed into from the page</dd>
+<dt>slash commands</dt><dd id="w-slash">from a closed list</dd>
+<dt>permission prompts</dt><dd id="w-permit">the console's three answers, on the page, with “from now on”</dd>
+<dt>questions</dt><dd id="w-ask">the AskUserQuestion card: an option, your own words, or dismiss</dd>
+<dt>the journal</dt><dd id="w-journal">everything done on the host: who, when, from which device, how it ended</dd>
+<dt>sessions</dt><dd id="w-sessions">the live sessions, and how full each context is</dd>
+<dt>the feed</dt><dd id="w-feed">the conversation as it happens: messages, thinking, tool calls, subagents</dd>
+<dt>session archive</dt><dd id="w-archive">closed conversations, with resume</dd>
+<dt>the machine</dt><dd id="w-machine">processor, memory, disks, network, top processes</dd>
+<dt>probes</dt><dd id="w-probes">checks on ports and external services</dd>
+<dt>usage</dt><dd id="w-usage">the transcripts broken down: by day, model, tool, account, session</dd>
+    </dl>
 </section>
 
 <section class="chapter install" data-chapter="install" id="install">
@@ -188,39 +233,24 @@
      both are modules, so they run in this order once the page is parsed. -->
 <script type="module" src="object.js"></script>
 <script type="module">
-/* The page's own moving parts: which chapter is on screen, and the sky that
-   follows it. Everything else is CSS. */
+// The page's own moving part: which chapter is on screen, and the sky that follows it. Everything else here is CSS.
 (() => {
-    const root = document.documentElement;
-    const sky = [...document.querySelectorAll(".sky i")];
-    const chapters = [...document.querySelectorAll(".chapter")];
+    const root = document.documentElement, sky = [...document.querySelectorAll(".sky i")], chapters = [...document.querySelectorAll(".chapter")];
     let front = 0, here = "";
-
-    // Two skies over one another: the one coming in is painted from the chapter's
-    // own gradients, then fades over the one standing.
+    // Two skies cross-fade: the one coming in is painted from the chapter's own gradients, then covers the one standing.
     const paint = (name) => {
         const back = sky[1 - front];
-        back.style.backgroundImage = `var(--neb-${name})`;
-        back.classList.add("on");
-        sky[front].classList.remove("on");
-        front = 1 - front;
+        back.style.backgroundImage = `var(--neb-${name})`; back.classList.add("on"); sky[front].classList.remove("on"); front = 1 - front;
     };
-
-    // The chapter is the one crossing the middle of the screen. The object under
-    // the page listens for the same event and turns with it.
+    // The chapter is the one crossing the middle of the screen; the object under the page listens for the same event.
     const enter = (name) => {
         if (name === here) return;
-        here = root.dataset.chapter = name;
-        paint(name);
+        here = root.dataset.chapter = name; paint(name);
         chapters.forEach((s) => s.classList.toggle("live", s.dataset.chapter === name));
         document.dispatchEvent(new CustomEvent("chapterchange", { detail: { chapter: name } }));
     };
-
-    const watch = new IntersectionObserver((hits) => {
-        for (const hit of hits) if (hit.isIntersecting) enter(hit.target.dataset.chapter);
-    }, { rootMargin: "-45% 0px -45% 0px" });
-    chapters.forEach((s) => watch.observe(s));
-    enter(chapters[0].dataset.chapter);
+    const watch = new IntersectionObserver((hits) => { for (const hit of hits) if (hit.isIntersecting) enter(hit.target.dataset.chapter); }, { rootMargin: "-45% 0px -45% 0px" });
+    chapters.forEach((s) => watch.observe(s)); enter(chapters[0].dataset.chapter);
 })();
 </script>
 </body>
