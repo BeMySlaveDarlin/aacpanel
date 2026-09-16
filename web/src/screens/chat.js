@@ -35,6 +35,11 @@ import { useWide } from "../ui/wide.js";
 
 
 export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }) {
+    // A document opened out of a conversation says which conversation, so
+    // closing it comes back here instead of landing on the shelf of the host.
+    const openBrief = useCallback((briefId) => {
+        if (onBrief) onBrief(briefId, { name, id });
+    }, [onBrief, name, id]);
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
@@ -261,7 +266,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                 onPage=${(card) => setLook({ kind: "artifact", card })}
                 onCalls=${() => setCalls(runCalls(feed, item.run))}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
-                onBrief=${onBrief}
+                onBrief=${openBrief}
             />`)}
             ${pending.map((row) => html`<${Row} key=${`local-${row.key}`} item=${row} />`)}
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
@@ -333,7 +338,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
                                     exec=${exec} onAgent=${openAgent}
-                                    pages=${myPages} briefs=${myBriefs} onBrief=${onBrief}
+                                    pages=${myPages} briefs=${myBriefs} onBrief=${openBrief}
                                     onPage=${(card) => setLook({ kind: "artifact", card })} />`
                 : html`<${Look} session=${name} id=${id} look=${look} />`)}
         <//>

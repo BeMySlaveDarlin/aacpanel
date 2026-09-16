@@ -45,6 +45,10 @@ export function MobileShell({
 
     const [page, setPage] = useState(null);
     const [openBrief, setOpenBrief] = useState(null);
+    // Where the reader came from, when a document was opened out of a
+    // conversation: closing it puts them back there rather than on the shelf.
+    const [briefFrom, setBriefFrom] = useState(null);
+    const [briefOpen, setBriefOpen] = useState(false);
     const [menu, setMenu] = useState(false);
 
     const [logs, setLogs] = useState(null);
@@ -52,7 +56,7 @@ export function MobileShell({
 
     const [layer, setLayer] = useState(false);
 
-    useBackClose(Boolean(page), () => setPage(null));
+    useBackClose(Boolean(page) && !briefOpen, () => setPage(null));
 
     // The note about an action belongs to the screen it was taken on.
     const hideToast = useToastHide();
@@ -156,7 +160,9 @@ export function MobileShell({
                     ? html`<${Journal} onBack=${() => setPage(null)} />`
                     : page === "briefs"
                     ? html`<${Briefs} snapshot=${snapshot} exec=${exec} openId=${openBrief}
-                        onSession=${(name) => goHome(name, null)} />`
+                        onLeave=${briefFrom ? () => { setOpenBrief(null); goHome(briefFrom.name, briefFrom.id); } : null}
+                        onOpenChange=${setBriefOpen}
+                        onSession=${(name) => { setOpenBrief(null); goHome(name, null); }} />`
                     : page === "alerts"
                     ? html`<${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => setPage(null)} />`
                     : html`<${Screen}
@@ -179,7 +185,11 @@ export function MobileShell({
                     want=${want}
                     onWanted=${() => setWant(null)}
                 onUsage=${() => setPage("usage")}
-                onBrief=${(briefId) => { setOpenBrief(briefId); setPage("briefs"); }} />`}
+                onBrief=${(briefId, from) => {
+                    setOpenBrief(briefId);
+                    setBriefFrom(from || null);
+                    setPage("briefs");
+                }} />`}
             </main>
 
             <${Sheet} open=${menu} onClose=${() => setMenu(false)} label="menu">

@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A page and a document opened inside it in the same breath, which is what a
+// brief opened out of a conversation does. Effects run child first, so the two
+// register their claim on the back gesture in the reverse of the order a reader
+// sees them in.
+import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { useBackClose } from "/src/ui/back.js";
+
+const closed = [];
+
+function Document({ onBack }) {
+    useBackClose(true, onBack);
+    return html`<div id="doc">a document</div>`;
+}
+
+function Page({ hasDoc, onClose, children }) {
+    // The page holds the gesture only while nothing is open above it.
+    useBackClose(!hasDoc, onClose);
+    return html`<div id="page">${children}</div>`;
+}
+
+function App() {
+    const [page, setPage] = useState(true);
+    const [doc, setDoc] = useState(true);
+    return html`
+        ${page && html`
+            <${Page} hasDoc=${doc} onClose=${() => { closed.push("page"); setPage(false); }}>
+                ${doc && html`<${Document} onBack=${() => { closed.push("doc"); setDoc(false); }} />`}
+            <//>
+        `}
+    `;
+}
+
+render(html`<${App} />`, document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 150));
+    const before = { doc: Boolean(document.getElementById("doc")), page: Boolean(document.getElementById("page")) };
+
+    // One gesture is the whole question: what comes off first. A second would
+    // walk out of the fixture itself and leave nothing to report.
+    history.back();
+    await new Promise((r) => setTimeout(r, 250));
+    const afterOne = { doc: Boolean(document.getElementById("doc")), page: Boolean(document.getElementById("page")) };
+
+    window.done = { before, afterOne, closed };
+})();
+</script>

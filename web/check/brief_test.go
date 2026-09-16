@@ -1,6 +1,7 @@
 package check
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -24,6 +25,11 @@ type briefShot struct {
 		Say          string   `json:"say"`
 		Again        string   `json:"again"`
 		SendDisabled bool     `json:"sendDisabled"`
+		Tables       int      `json:"tables"`
+		Cells        []string `json:"cells"`
+		Ground       string   `json:"ground"`
+		Ink          string   `json:"ink"`
+		PanelInk     string   `json:"panelInk"`
 	} `json:"before"`
 	After struct {
 		Pressed      []string                  `json:"pressed"`
@@ -303,4 +309,54 @@ func TestASentBriefIsReadAndNotAnsweredAgain(t *testing.T) {
 	if got.Locked.SavesAfter != 0 {
 		t.Errorf("%d drafts were saved after the answers had gone", got.Locked.SavesAfter)
 	}
+}
+
+// A brief is prose, and prose carries tables. Drawn inline they arrive as rows
+// of text with pipes in them, which is the source of a table and not a table.
+func TestATableInABriefIsATable(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+
+	if got.Before.Tables != 1 {
+		t.Fatalf("%d tables were drawn in the prose of the brief", got.Before.Tables)
+	}
+	want := []string{"the directory", "stack 5", "the pause", "help 2.1.270"}
+	if len(got.Before.Cells) != len(want) {
+		t.Fatalf("the cells are %v", got.Before.Cells)
+	}
+	for i, w := range want {
+		if got.Before.Cells[i] != w {
+			t.Errorf("cell %d is %q, expected %q", i+1, got.Before.Cells[i], w)
+		}
+	}
+}
+
+// The document is read inside the panel, not in an application of its own: a
+// palette that is not the panel's reads as something else opened on top.
+func TestABriefIsDrawnInTheColoursOfThePanel(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+
+	if got.Before.Ground != "rgba(0, 0, 0, 0)" {
+		t.Errorf("the document lays its own ground under the panel's: %q", got.Before.Ground)
+	}
+	if got.Before.PanelInk == "" {
+		t.Fatal("the panel names no ink of its own")
+	}
+	if !sameColour(got.Before.Ink, got.Before.PanelInk) {
+		t.Errorf("the text of a brief is %q while the panel writes in %q", got.Before.Ink, got.Before.PanelInk)
+	}
+}
+
+// sameColour compares a computed rgb() against the hex a token carries.
+func sameColour(computed, hex string) bool {
+	hex = strings.TrimPrefix(strings.TrimSpace(hex), "#")
+	if len(hex) != 6 {
+		return false
+	}
+	var r, g, b int
+	if _, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b); err != nil {
+		return false
+	}
+	return computed == fmt.Sprintf("rgb(%d, %d, %d)", r, g, b)
 }

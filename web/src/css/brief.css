@@ -7,49 +7,35 @@
    panel's theme rather than carrying a switch of its own. */
 
 .brief {
-    --paper: #151d1b;
-    --paper-2: #1e2826;
-    --paper-ink: #e2e9e6;
-    --paper-ink-2: #a2afaa;
-    --paper-ink-3: #77857f;
-    --paper-rule: #26312e;
-    --paper-rule-2: #38443f;
-    --paper-accent: #52bca8;
-    --paper-accent-ink: #7fd3c2;
-    --paper-accent-soft: #11302b;
-    --paper-lost: #e38670;
-    --paper-lost-soft: #32201b;
-    --paper-wait: #d7a64f;
-    --paper-wait-soft: #2c2417;
-    --paper-done: #6cbf95;
+    /* A brief is read inside the panel, so it is drawn in the panel's colours:
+       a document in a palette of its own reads as another application opened
+       on top. What stays of the document is its shape — a reading column, a
+       serif for the headings, room around the text — and the names below are
+       kept so the rest of this file needs no rewriting. */
+    --paper: transparent;
+    /* What sits over the scrolling text: the sheet of the panel, opaque. */
+    --paper-over: var(--sheet-bg);
+    --paper-2: var(--glass);
+    --paper-ink: var(--ink);
+    --paper-ink-2: var(--ink-dim);
+    --paper-ink-3: var(--ink-faint);
+    --paper-rule: var(--line);
+    --paper-rule-2: var(--edge);
+    --paper-accent: var(--accent);
+    --paper-accent-ink: var(--accent);
+    --paper-accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+    --paper-lost: var(--crit);
+    --paper-lost-soft: color-mix(in srgb, var(--crit) 16%, transparent);
+    --paper-wait: var(--warn);
+    --paper-wait-soft: color-mix(in srgb, var(--warn) 16%, transparent);
+    --paper-done: var(--ok);
     --serif: Literata, Georgia, "Times New Roman", serif;
 
-    color: var(--paper-ink);
+    color: var(--ink);
     font-size: var(--t-base);
     line-height: 1.6;
-    /* A document lies on paper of its own. Without this the panel's own ground
-       shows through the margins, and in the light theme a brief is read off the
-       sky. */
-    background: var(--paper);
+    background: transparent;
     min-height: 100%;
-}
-
-:root.sky .brief {
-    --paper: #fafcfb;
-    --paper-2: #e4e9e6;
-    --paper-ink: #141c1b;
-    --paper-ink-2: #47544f;
-    --paper-ink-3: #77837e;
-    --paper-rule: #d2d9d5;
-    --paper-rule-2: #bcc5c0;
-    --paper-accent: #0a6558;
-    --paper-accent-ink: #064a40;
-    --paper-accent-soft: #dce9e5;
-    --paper-lost: #9c3524;
-    --paper-lost-soft: #f1dfda;
-    --paper-wait: #8a5a06;
-    --paper-wait-soft: #f0e6d3;
-    --paper-done: #2a6349;
 }
 
 /* Literata is loaded only where a brief is open. It is the one thing the paper
@@ -113,7 +99,9 @@
     max-width: 880px;
     margin: 0 auto;
     padding: .4rem 16px;
-    background: var(--paper);
+    background: var(--paper-over);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
     box-shadow: 0 1px 0 var(--paper-rule);
 }
 
@@ -452,7 +440,9 @@
     bottom: 0;
     margin: 0 -16px;
     padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    background: var(--paper);
+    background: var(--paper-over);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
     border-top: 1px solid var(--paper-rule);
     display: flex;
     align-items: center;
@@ -694,3 +684,11 @@
     .bdock-say { flex: 1; }
     .bbtn { flex: none; }
 }
+
+/* Prose inside a brief is markdown the session wrote, and markdown carries
+   lists and tables. They are drawn by the panel's own renderer, so they look
+   the way they look everywhere else and a table is a table rather than rows of
+   text with pipes in them. */
+.bprose > :first-child { margin-top: 0; }
+.bprose > :last-child { margin-bottom: 0; }
+.bprose p { margin: 0 0 .6rem; }

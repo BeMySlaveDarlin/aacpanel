@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../html.js";
-import { inline } from "../md.js";
+import { inline, render } from "../md.js";
 import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
 import { BackHead, useBackClose } from "../ui/back.js";
@@ -115,7 +115,7 @@ function Question({ q, answer, onAnswer, locked }) {
                 </div>
             ` : null}
             <h3>${inline(q.title)}</h3>
-            ${q.ask && paras(q.ask).map((p, i) => html`<p key=${i} class="bask">${inline(p)}</p>`)}
+            ${q.ask && html`<div class="bask bprose">${render(q.ask)}</div>`}
 
             <${Facts} items=${q.facts} />
             <${Options} q=${q} picks=${picks} onPick=${pick} />
@@ -310,7 +310,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                 ${(doc.sections || []).map((s, i) => html`
                     <section key=${i} class="bsection">
                         ${s.title && html`<div class="bblk-h">${s.title}</div>`}
-                        ${(s.body || []).map((p, n) => html`<p key=${n}>${inline(p)}</p>`)}
+                        ${(s.body || []).map((p, n) => html`<div key=${n} class="bprose">${render(p)}</div>`)}
                     </section>
                 `)}
 
@@ -328,7 +328,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
 
                 ${doc.closing && doc.closing.length ? html`
                     <div class="bclose">
-                        ${doc.closing.map((p, i) => html`<p key=${i}>${inline(p)}</p>`)}
+                        ${doc.closing.map((p, i) => html`<div key=${i} class="bprose">${render(p)}</div>`)}
                     </div>
                 ` : null}
 

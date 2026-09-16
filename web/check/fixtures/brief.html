@@ -30,7 +30,10 @@ const doc = {
         { from: "did not close", to: "**07** the configuration directory · **11** the pause" },
         { from: "out of answer 08", to: "**free text of a person on the bus**" },
     ],
-    sections: [{ title: "where this came from", body: ["The tail of yesterday, not a new round."] }],
+    sections: [{ title: "where this came from", body: [
+        "The tail of yesterday, not a new round.",
+        "| what | where |\n|---|---|\n| the directory | stack 5 |\n| the pause | help 2.1.270 |",
+    ] }],
     questions: [
         {
             id: "r1", n: "01", title: "The configuration directory", kind: "pick",
@@ -117,6 +120,13 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     await new Promise((r) => setTimeout(r, 250));
     const before = {
         title: (document.querySelector(".bmast h1") || {}).textContent || "",
+        // A table written in the prose of a brief is drawn as a table.
+        tables: document.querySelectorAll(".bsection table").length,
+        cells: Array.from(document.querySelectorAll(".bsection td")).map((n) => n.textContent.trim()),
+        // The document is drawn in the colours of the panel around it.
+        ground: getComputedStyle(document.querySelector(".brief")).backgroundColor,
+        ink: getComputedStyle(document.querySelector(".brief")).color,
+        panelInk: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim(),
         questions: text(".bq h3"),
         facts: document.querySelectorAll(".bfacts li").length,
         flagged: document.querySelectorAll(".bfacts .bflag").length,

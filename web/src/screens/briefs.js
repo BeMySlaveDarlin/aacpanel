@@ -47,7 +47,7 @@ function Card({ card, snapshot, onOpen }) {
     `;
 }
 
-export function Briefs({ snapshot, exec, onSession, openId }) {
+export function Briefs({ snapshot, exec, onSession, openId, onLeave, onOpenChange }) {
     const [cards, setCards] = useState(null);
     const [error, setError] = useState("");
     const [open, setOpen] = useState(openId || null);
@@ -58,6 +58,12 @@ export function Briefs({ snapshot, exec, onSession, openId }) {
     useEffect(() => {
         if (openId) setOpen(openId);
     }, [openId]);
+
+    // The shell needs to know whether a document is open: while one is, the
+    // back gesture belongs to it and not to the page under it.
+    useEffect(() => {
+        if (onOpenChange) onOpenChange(Boolean(open));
+    }, [open, onOpenChange]);
 
     useEffect(() => {
         if (open) return undefined;
@@ -83,7 +89,8 @@ export function Briefs({ snapshot, exec, onSession, openId }) {
 
     if (open) {
         return html`<${Brief} id=${open} snapshot=${snapshot} exec=${exec}
-            onBack=${() => setOpen(null)} onSession=${onSession} />`;
+            onBack=${open === openId && onLeave ? onLeave : () => setOpen(null)}
+            onSession=${onSession} />`;
     }
 
     const say = !cards
