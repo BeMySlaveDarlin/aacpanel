@@ -7,6 +7,7 @@ type backSheetShot struct {
 		Sheet bool `json:"sheet"`
 		Page  bool `json:"page"`
 		Doc   bool `json:"doc"`
+		Mine  bool `json:"mine"`
 	} `json:"before"`
 	After struct {
 		Sheet bool `json:"sheet"`
@@ -27,6 +28,10 @@ func TestTheGestureAfterASheetHandsOverToTheDocument(t *testing.T) {
 
 	if got.Before.Sheet || !got.Before.Page || !got.Before.Doc {
 		t.Fatalf("the fixture did not get to the document: %+v", got.Before)
+	}
+	if !got.Before.Mine {
+		t.Fatal("the layers changed hands and the entry of the open one went with them: " +
+			"the next gesture walks past the application instead of closing the document")
 	}
 	if got.After.Doc {
 		t.Error("the gesture left the document open")

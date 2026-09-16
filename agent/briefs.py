@@ -28,10 +28,16 @@ STORE = os.environ.get("AACP_BRIEF_STORE", paths.state("briefs"))
 
 # A brief is written once and read many times, so the ceilings are generous
 # where the reader gains by it and tight where a runaway document would cost
-# the phone its scroll. The sample this was measured against carries seven
-# questions, five facts each and thirty kilobytes of json.
-MAX_REQUEST = 256 * 1024
-MAX_QUESTIONS = 24
+# the phone its scroll.
+#
+# The count of questions is the owner's number: a hundred is more than anyone
+# answers in one sitting, and a document that asks more than that is two
+# documents. The size of the request follows from it rather than standing on
+# its own — a hundred questions with their facts and options fit inside it with
+# room to spare, and the ceiling is there so a runaway document is refused
+# rather than read into memory whole.
+MAX_REQUEST = 4 * 1024 * 1024
+MAX_QUESTIONS = 100
 MAX_OPTIONS = 8
 MAX_FACTS = 16
 MAX_READ = 6

@@ -81,6 +81,9 @@ render(html`<${App} />`, document.getElementById("root"));
         sheet: Boolean(document.getElementById("sheet")),
         page: Boolean(document.getElementById("page")),
         doc: Boolean(document.getElementById("doc")),
+        // The layer now open has to stand on an entry of its own. Without one
+        // the next gesture walks past the application instead of closing it.
+        mine: Boolean(history.state && history.state.overlay),
     };
 
     history.back();

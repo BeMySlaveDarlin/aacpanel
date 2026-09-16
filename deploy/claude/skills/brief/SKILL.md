@@ -96,7 +96,7 @@ The half that is not questions is the half that earns it:
 - **The id names the document, not the conversation.** Publishing the same id
   from the same project updates it and keeps the answers already given.
   From another project it is refused rather than overwritten.
-- **Ceilings**: 24 questions, 8 options and 16 facts each, 256 KB for the whole
+- **Ceilings**: 100 questions, 8 options and 16 facts each, 4 MB for the whole
   document. Long text is cut rather than refused; a broken structure is refused
   with the reason.
 - **A brief outlives its session.** It is kept for a month, and the answers
