@@ -34,7 +34,12 @@ def load(path):
             raise ValueError(
                 "this machine has no pyyaml, so a yaml document cannot be read here: "
                 "write the same document as .json") from None
-        doc = yaml.safe_load(raw)
+        try:
+            doc = yaml.safe_load(raw)
+        except yaml.YAMLError as e:
+            # A colon inside an unquoted title is the usual one, and a parser
+            # traceback is a poor way to say "put quotes around the title".
+            raise ValueError(f"the document is not valid yaml: {e}") from None
     else:
         doc = json.loads(raw)
     if not isinstance(doc, dict):

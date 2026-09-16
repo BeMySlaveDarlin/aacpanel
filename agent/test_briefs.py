@@ -208,6 +208,16 @@ class ShelfStore(unittest.TestCase):
         self.assertEqual(card["sessionId"], "s-1")
         self.assertNotIn("lede", card)
 
+    def test_a_card_counts_only_what_asks_something(self):
+        """A block of kind "none" is a section with a number on it. Counting it
+        promises an answer on the card, on the phone and in the progress."""
+        self.shelf.put(briefs.clean(published(questions=[
+            {"id": "r1", "title": "The directory", "kind": "pick",
+             "options": [{"key": "A", "label": "one"}, {"key": "B", "label": "two"}]},
+            {"id": "r2", "title": "What this rests on", "kind": "none"},
+        ])))
+        self.assertEqual(self.shelf.cards()[0]["questions"], 1)
+
     def test_cards_can_be_asked_for_one_session(self):
         self.put()
         self.assertEqual(len(self.shelf.cards(session="s-1")), 1)

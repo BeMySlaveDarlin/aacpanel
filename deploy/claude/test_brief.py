@@ -182,6 +182,19 @@ class Publish(unittest.TestCase):
         c.thread.join(5)
         self.assertEqual(c.got["doc"]["title"], "Two questions before the rollout")
 
+    def test_broken_yaml_is_named_and_not_thrown(self):
+        """A colon in an unquoted title is the usual mistake, and a traceback
+        is a poor way of saying "put quotes around it"."""
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("this machine has no pyyaml")
+        body = "id: tails\ntitle: Tails of a brief: the card and the push\nquestions: []\n"
+        code, out = self.run_cli([self.doc_file(name="brief.yaml", body=body)])
+        self.assertEqual(code, 2)
+        self.assertIn("not valid yaml", out)
+        self.assertNotIn("Traceback", out)
+
     def test_a_document_over_the_ceiling_is_refused_before_the_socket(self):
         c = self.collector({"ok": True})
         big = dict(DOC, lede="x" * (brief.MAX_BYTES + 1024))

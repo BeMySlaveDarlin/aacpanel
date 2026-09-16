@@ -424,7 +424,16 @@ class Shelf:
                     continue
                 if session and doc.get("sessionId") != session:
                     continue
-                questions = doc.get("questions") or []
+                # Only the questions that ask something are counted: a block
+                # of kind "none" is a section with a number on it, and a shelf
+                # that counts it promises an answer the document has no room
+                # for — on the card, on the phone and in the progress it shows.
+                # Only the questions that ask something are counted: a block
+                # of kind "none" is a section with a number on it, and a shelf
+                # that counts it promises an answer the document has no room
+                # for — on the card, on the phone and in the progress it shows.
+                questions = [q for q in doc.get("questions") or []
+                             if isinstance(q, dict) and q.get("kind", "pick") != "none"]
                 out.append({
                     "id": doc.get("id") or "",
                     "sessionId": doc.get("sessionId") or "",
