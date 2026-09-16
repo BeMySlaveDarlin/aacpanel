@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Two artifacts in a feed: one the panel kept a copy of, one it did not.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { index } from "/src/data/artifacts.js";
+
+const kept = {
+    role: "artifact", pos: 100, use: "toolu_1",
+    title: "The roadmap of the contour", desc: "what is done and what follows what",
+    file: "roadmap.html", icon: "🗺", url: "https://claude.ai/public/artifacts/ab12cd34",
+    count: 2, at: "2026-09-16T10:00:00Z",
+};
+const gone = {
+    role: "artifact", pos: 200, use: "toolu_2",
+    title: "An older page", file: "older.html",
+    url: "https://claude.ai/public/artifacts/zz99", at: "2026-09-16T10:05:00Z",
+};
+
+// The shelf knows the first one and nothing about the second.
+const copies = index([
+    { id: "ab12cd34", title: "The roadmap of the contour", file: "roadmap.html",
+      url: "https://claude.ai/public/artifacts/ab12cd34", bytes: 4096, versions: 2 },
+]);
+
+const opened = [];
+
+render(html`
+    <div class="chatfeed" style="height: 400px">
+        <${Row} item=${kept} session="lab" id="1" copies=${copies} onPage=${(card) => opened.push(card.id)} />
+        <${Row} item=${gone} session="lab" id="1" copies=${copies} onPage=${(card) => opened.push(card.id)} />
+    </div>
+`, document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const cards = Array.from(document.querySelectorAll(".artifact"));
+    const shot = {
+        tags: cards.map((c) => c.tagName),
+        // A card that leaves the panel says where it goes; a card that opens
+        // the copy has nowhere to send the browser.
+        hrefs: cards.map((c) => c.getAttribute("href") || ""),
+        titles: cards.map((c) => (c.querySelector(".artitle") || {}).textContent || ""),
+    };
+
+    cards[0].click();
+    await new Promise((r) => setTimeout(r, 120));
+
+    window.done = { shot, opened };
+})();
+</script>
