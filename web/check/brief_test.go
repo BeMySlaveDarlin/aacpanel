@@ -22,6 +22,7 @@ type briefShot struct {
 		Captures     int      `json:"captures"`
 		Pressed      []string `json:"pressed"`
 		Say          string   `json:"say"`
+		Again        string   `json:"again"`
 		SendDisabled bool     `json:"sendDisabled"`
 	} `json:"before"`
 	After struct {
@@ -215,5 +216,26 @@ func TestBriefLetsThePersonPickAmongTheSessionsInTheDirectory(t *testing.T) {
 	}
 	if got.Sent[1].Target != "also-here" {
 		t.Errorf("the pick was ignored: the answers went to %q", got.Sent[1].Target)
+	}
+}
+
+// A document published a second time under the same name replaces the text the
+// person already answered. They are owed the fact and the time; what changed in
+// the text, only they can judge.
+func TestAReissuedBriefSaysSoAboveTheAnswers(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+
+	if got.Before.Again == "" {
+		t.Fatal("the document was republished under the given answers and the head says nothing")
+	}
+	if !strings.Contains(got.Before.Again, "republished") {
+		t.Errorf("the mark does not say what happened: %q", got.Before.Again)
+	}
+	if !strings.Contains(got.Before.Again, "first published") {
+		t.Errorf("the mark does not say when the document first went out: %q", got.Before.Again)
+	}
+	if !strings.Contains(got.Before.Again, "answers are where you left them") {
+		t.Errorf("the mark leaves the person guessing what happened to their answers: %q", got.Before.Again)
 	}
 }

@@ -380,9 +380,18 @@ class Shelf:
         return doc if isinstance(doc, dict) else None
 
     def put(self, brief):
-        """Writes the brief, or says why it was not written."""
+        """Writes the brief, or says why it was not written.
+
+        A document published a second time under the same name keeps the
+        answers already given and says so in its head: the person comes back to
+        a text that has changed under what they already decided, and a silent
+        replacement is the one thing they cannot check.
+        """
         with self._lock:
             standing = self._read(brief["id"])
+            if standing:
+                brief["firstAt"] = standing.get("firstAt") or standing.get("at") or brief.get("at")
+                brief["reissuedAt"] = brief.get("at")
             # The id names the document, not the conversation. Two projects
             # reaching for the same name is a mistake worth saying out loud:
             # the alternative is one of them silently overwriting the other.

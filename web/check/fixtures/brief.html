@@ -18,6 +18,8 @@ const doc = {
     title: "Seven questions after twelve",
     eyebrow: "15.09.2026 · after twelve answers",
     at: "2026-09-15T15:26:37Z",
+    reissuedAt: "2026-09-15T15:26:37Z",
+    firstAt: "2026-09-14T09:10:00Z",
     lede: "Ten of twelve **closed**. Two were left without a choice, and four new questions came out of the answers themselves.",
     summary: [
         { n: "3", label: "still open" },
@@ -128,6 +130,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         captures: document.querySelectorAll(".bcap").length,
         pressed: text('.bopt[aria-pressed="true"] .bopt-k'),
         say: (document.querySelector(".bdock-say") || {}).textContent || "",
+        again: (document.querySelector(".bagain") || {}).textContent || "",
         sendDisabled: Boolean(document.querySelector(".bbtn.go") && document.querySelector(".bbtn.go").disabled),
     };
 

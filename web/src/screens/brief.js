@@ -17,6 +17,16 @@ function paras(text) {
     return String(text || "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
 }
 
+// stamp says when, in the words a person uses about today and about a week ago.
+function stamp(at) {
+    if (!at) return "";
+    const t = new Date(at);
+    if (Number.isNaN(t.getTime())) return "";
+    const clock = t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    if (t.toDateString() === new Date().toDateString()) return clock;
+    return `${t.toLocaleDateString(undefined, { day: "2-digit", month: "short" })}, ${clock}`;
+}
+
 function answered(a) {
     return Boolean(a && (a.skip || (a.picks && a.picks.length) || (a.note || "").trim()));
 }
@@ -237,6 +247,13 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                     ${doc.eyebrow && html`<div class="beyebrow">${doc.eyebrow}</div>`}
                     <h1>${doc.title}</h1>
                     ${doc.lede && paras(doc.lede).map((p, i) => html`<p key=${i} class="blede">${inline(p)}</p>`)}
+                    ${doc.reissuedAt && html`
+                        <p class="bagain">
+                            This document was republished ${stamp(doc.reissuedAt)}
+                            ${doc.firstAt ? html` · first published ${stamp(doc.firstAt)}` : null}
+                            <span>Your answers are where you left them; the text around them may have changed.</span>
+                        </p>
+                    `}
                     ${doc.lineage && doc.lineage.length ? html`
                         <div class="blin">
                             ${doc.lineage.map((row, i) => html`

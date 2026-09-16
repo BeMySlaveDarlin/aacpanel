@@ -94,18 +94,22 @@ type BriefQuestion struct {
 
 // Brief is the whole document as the session published it.
 type Brief struct {
-	ID        string          `json:"id"`
-	SessionID string          `json:"sessionId"`
-	CWD       string          `json:"cwd,omitempty"`
-	Title     string          `json:"title"`
-	Eyebrow   string          `json:"eyebrow,omitempty"`
-	At        string          `json:"at,omitempty"`
-	Lede      string          `json:"lede,omitempty"`
-	Summary   []BriefCount    `json:"summary,omitempty"`
-	Lineage   []BriefLink     `json:"lineage,omitempty"`
-	Sections  []BriefSection  `json:"sections,omitempty"`
-	Questions []BriefQuestion `json:"questions"`
-	Closing   []string        `json:"closing,omitempty"`
+	ID        string `json:"id"`
+	SessionID string `json:"sessionId"`
+	CWD       string `json:"cwd,omitempty"`
+	Title     string `json:"title"`
+	Eyebrow   string `json:"eyebrow,omitempty"`
+	At        string `json:"at,omitempty"`
+	// A document published a second time under the same name: when it was
+	// first published and when it was replaced.
+	FirstAt    string          `json:"firstAt,omitempty"`
+	ReissuedAt string          `json:"reissuedAt,omitempty"`
+	Lede       string          `json:"lede,omitempty"`
+	Summary    []BriefCount    `json:"summary,omitempty"`
+	Lineage    []BriefLink     `json:"lineage,omitempty"`
+	Sections   []BriefSection  `json:"sections,omitempty"`
+	Questions  []BriefQuestion `json:"questions"`
+	Closing    []string        `json:"closing,omitempty"`
 }
 
 // BriefsReq asks for the shelf, of one session or of the machine.

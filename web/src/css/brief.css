@@ -493,6 +493,21 @@
 /* The shelf: what is waiting and how far each one has got. A card says three
    things — what the brief is about, who asked, and what it wants from you — and
    the bar along its foot says how much of it is answered. */
+/* A document republished under the answers already given. The person is owed
+   the fact and the time; what changed in the text, only they can judge. */
+.bagain {
+    margin: 14px 0 0;
+    padding: 8px 12px;
+    border-left: 2px solid var(--paper-accent);
+    background: var(--paper-2);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    color: var(--paper-ink-2);
+}
+
+.bagain span { display: block; color: var(--paper-ink-3); }
+
 .bshelf { display: flex; flex-direction: column; gap: .9rem; padding: 1rem; }
 
 .bshelf-h {

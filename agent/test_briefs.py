@@ -229,6 +229,25 @@ class ShelfStore(unittest.TestCase):
         self.assertEqual(len(self.shelf.cards()), 1)
         self.assertEqual(self.shelf.of("seven-after-twelve")["title"], "Seven questions, second pass")
 
+    def test_a_reissue_is_marked_and_keeps_when_it_first_went_out(self):
+        """The person comes back to a text that changed under what they decided.
+        A silent replacement is the one thing they cannot check."""
+        self.put()
+        first = self.shelf.of("seven-after-twelve")
+        self.assertNotIn("reissuedAt", first)
+
+        self.put(title="Seven questions, second pass")
+        again = self.shelf.of("seven-after-twelve")
+        self.assertEqual(again["firstAt"], first["at"])
+        self.assertEqual(again["reissuedAt"], again["at"])
+
+    def test_a_third_pass_still_points_at_the_first_publication(self):
+        self.put()
+        first = self.shelf.of("seven-after-twelve")["at"]
+        self.put(title="second")
+        self.put(title="third")
+        self.assertEqual(self.shelf.of("seven-after-twelve")["firstAt"], first)
+
     def test_the_same_id_from_another_project_is_refused_rather_than_overwritten(self):
         self.put()
         other = briefs.clean({"sessionId": "s-2", "cwd": "/srv/other", "doc": DOC})
