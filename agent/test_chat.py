@@ -1225,12 +1225,27 @@ class Briefs(unittest.TestCase):
     def test_reading_a_document_is_not_publishing_it(self):
         waiting = set()
         self.parse(self.call("deploy/claude/brief.py --check briefs/seven.yaml"), waiting)
-        self.assertEqual(waiting, set())
+        got = self.parse(self.answer("OK Seven questions: 2 questions, 1 of them ask something\n"
+                                     ".. nothing was published; drop --check to send it"), waiting)
+        self.assertEqual([i["role"] for i in got], [])
 
-    def test_another_script_of_the_same_name_is_not_a_brief(self):
+    def test_a_check_and_a_publish_in_one_command_still_give_a_card(self):
+        """This is how a session actually publishes: check first, then send, one line."""
         waiting = set()
-        self.parse(self.call("python3 tools/debrief.py run.log"), waiting)
-        self.assertEqual(waiting, set())
+        self.parse(self.call("S=/tmp/s && python3 deploy/claude/brief.py --check $S/doc.yaml && "
+                             "python3 deploy/claude/brief.py $S/doc.yaml"), waiting)
+        got = self.parse(self.answer(
+            "OK Seven questions: 5 questions, 5 of them ask something\n"
+            ".. nothing was published; drop --check to send it\n"
+            "OK published as seven: the person sees it in the panel\n"
+            ".. the answers arrive in this session as a message when they send them"), waiting)
+        self.assertEqual([(i["role"], i["id"]) for i in got], [("brief", "seven")])
+
+    def test_a_shell_call_that_published_nothing_stays_a_plain_call(self):
+        waiting = set()
+        self.parse(self.call("ls -la"), waiting)
+        got = self.parse(self.answer("total 8\ndrwxr-xr-x 2 u u 4096 Sep 16 21:00 ."), waiting)
+        self.assertEqual([i["role"] for i in got], [])
 
 
 if __name__ == "__main__":

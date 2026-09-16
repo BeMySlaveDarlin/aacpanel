@@ -54,19 +54,9 @@ def shell(text, at, pos):
 
 # A brief is published by running a script, not by a tool of its own: the
 # document is a file of tens of kilobytes, and that does not go on a command
-# line. The call is recognised by the script it runs.
-BRIEF_CALL_RE = re.compile(r"(?:^|[\s/])brief\.py(?:\s|$)")
-
-
-def briefing(data):
-    """Says whether this shell call publishes a brief rather than reads one."""
-    if not isinstance(data, dict):
-        return False
-    command = str(data.get("command") or "")
-    if not BRIEF_CALL_RE.search(command):
-        return False
-    # --check reads the document and publishes nothing.
-    return "--check" not in command
+# line. Which shell call did it is read from what the call printed and never
+# from the command, because one command does several things — a session checks
+# the document and publishes it in the same line, and both are shell.
 
 
 def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
@@ -158,7 +148,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                         card = brief_card(sesstate.result_text(b), shelf, use, at, pos)
                         if card:
                             links.append(card)
-                        continue
+                            continue
                     found = sesstate.ARTIFACT_URL_RE.search(sesstate.result_text(b))
                     if found:
                         links.append({"role": "artifactlink", "use": b.get("tool_use_id") or "",
@@ -310,7 +300,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     if card:
                         out.append(card)
                         continue
-                if name == "Bash" and briefs is not None and briefing(block.get("input")):
+                if name == "Bash" and briefs is not None:
                     # The call stays in the run as a call: whether a document
                     # reached the shelf is known only from what it printed.
                     briefs.add(block.get("id") or "")
