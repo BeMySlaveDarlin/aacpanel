@@ -20,6 +20,26 @@ from .queue import Pending
 from .records import parse
 
 
+# The shelf of briefs, read lazily and once: a feed is folded on every request,
+# and a conversation that never published one must not pay for the store. The
+# reader is the one function the cards need — a brief by its name — so a feed
+# built in a test, or on a host where briefs were never set up, simply has no
+# titles to draw and says so by naming the brief instead.
+_shelf = None
+
+
+def shelf_of():
+    """Returns a reader of published briefs, or None when there is no store."""
+    global _shelf
+    if _shelf is None:
+        try:
+            import briefs
+            _shelf = briefs.SHELF.of
+        except Exception:
+            _shelf = False
+    return _shelf or None
+
+
 FIRST_SPAN = 2 * 1024 * 1024
 
 SPAN_STEP = 4
@@ -84,7 +104,7 @@ class Stream:
         self.cwd = ""
 
     def __iter__(self):
-        pending, asks, sent = Pending(), {}, set()
+        pending, asks, sent, briefs = Pending(), {}, set(), set()
         with open(self.path, "rb") as f:
             pos = self.start
             if pos:
@@ -100,7 +120,8 @@ class Stream:
                     continue
                 if not self.cwd and isinstance(record.get("cwd"), str):
                     self.cwd = record["cwd"]
-                items = parse(record, line_pos, pending, asks, self.sidechain, sent)
+                items = parse(record, line_pos, pending, asks, self.sidechain, sent,
+                              briefs, shelf_of())
                 if items:
                     yield line_pos, items
 
@@ -129,6 +150,7 @@ class Piece:
         self.pending = Pending()
         self.asks = {}
         self.sent = set()
+        self.briefs = set()
 
     @classmethod
     def of(cls, path, size, span, sidechain=False):
@@ -175,7 +197,7 @@ class Piece:
                 if not self.cwd and isinstance(record.get("cwd"), str):
                     self.cwd = record["cwd"]
                 items = parse(record, line_pos, self.pending, self.asks,
-                              self.sidechain, self.sent)
+                              self.sidechain, self.sent, self.briefs, shelf_of())
                 if items:
                     self.rows.append((line_pos, items))
             if len(self.stamp) < STAMP:
@@ -200,7 +222,7 @@ class Piece:
         if record is None:
             return []
         items = parse(record, self.pos, self.pending.clone(), dict(self.asks),
-                      self.sidechain, set(self.sent))
+                      self.sidechain, set(self.sent), set(self.briefs), shelf_of())
         return [(self.pos, items)] if items else []
 
     def trim(self):

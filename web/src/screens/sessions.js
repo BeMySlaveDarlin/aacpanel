@@ -47,7 +47,7 @@ const MIN_CARDS = 5;
 const RECENT_ASK = MIN_CARDS * 4;
 
 // Sessions renders the sessions tab.
-export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage }) {
+export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage, onBrief }) {
     const [project, setProject] = useState(null);
 
     const profiles = (snapshot && snapshot.profileMap) || [];
@@ -91,6 +91,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             archive=${recent.find((r) => r.sessionId === chat.id) || null}
             onBack=${() => setChat(null)}
             onUsage=${onUsage}
+            onBrief=${onBrief}
         />`;
     }
 

@@ -1,4 +1,6 @@
-"""Feed cards: artifact, files sent to the human, answered question round, alarm firing."""
+"""Feed cards: artifact, brief, files sent to the human, answered question round, alarm firing."""
+import re
+
 import sesstate
 
 from .limits import MAX_TEXT, cut
@@ -36,6 +38,39 @@ def sent_card(result, use, at, pos):
     if body:
         card["text"] = body
         card["cut"] = trimmed
+    return card
+
+
+# What a brief published from the session leaves in the run.
+BRIEF_PUBLISHED_RE = re.compile(r"^OK published as ([A-Za-z0-9][A-Za-z0-9._-]{0,63}):", re.M)
+
+
+def brief_card(text, shelf, use, at, pos):
+    """Returns a card for a brief the session published, or None when none went.
+
+    The card is built from the answer of the script, not from the command that
+    ran it: a call that did not reach the collector prints why and publishes
+    nothing, and a card for it would send the reader to a document that is not
+    there. What the document is about comes from the shelf, which is where the
+    collector just put it; without the shelf the card still points at the brief
+    by its name.
+    """
+    found = BRIEF_PUBLISHED_RE.search(text or "")
+    if not found:
+        return None
+    brief_id = found.group(1)
+    card = {"role": "brief", "use": use or "", "id": brief_id, "at": at, "pos": pos}
+    doc = shelf(brief_id) if shelf else None
+    if isinstance(doc, dict):
+        card["title"] = doc.get("title") or brief_id
+        if doc.get("eyebrow"):
+            card["eyebrow"] = doc["eyebrow"]
+        asking = [q for q in doc.get("questions") or []
+                  if isinstance(q, dict) and q.get("kind", "pick") != "none"]
+        card["questions"] = len(asking)
+    else:
+        card["title"] = brief_id
+        card["questions"] = 0
     return card
 
 

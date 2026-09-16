@@ -1183,6 +1183,56 @@ class Socket(unittest.TestCase):
         self.assertTrue(reply["error"])
 
 
+class Briefs(unittest.TestCase):
+    """A brief published from a session leaves a card in the run."""
+
+    def parse(self, raw, briefs, shelf=None):
+        return chat.parse(json.loads(raw), 0, briefs=briefs, shelf=shelf)
+
+    def call(self, command, use="toolu_brief"):
+        return line({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Bash", "id": use, "input": {"command": command}},
+        ]}, "timestamp": "2026-09-16T10:00:00Z"})
+
+    def answer(self, text, use="toolu_brief"):
+        return line({"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": use, "content": text},
+        ]}, "timestamp": "2026-09-16T10:00:04Z"})
+
+    def test_publishing_gives_a_card_with_what_the_document_is(self):
+        shelf = {"seven": {"title": "Seven questions after twelve", "eyebrow": "after the review",
+                           "questions": [{"kind": "pick"}, {"kind": "pick"}, {"kind": "none"}]}}
+        waiting = set()
+        self.parse(self.call("deploy/claude/brief.py briefs/seven.yaml"), waiting)
+        got = self.parse(self.answer("OK published as seven: the person sees it in the panel"),
+                         waiting, shelf.get)
+        self.assertEqual([(i["role"], i["id"], i["title"], i["eyebrow"], i["questions"]) for i in got],
+                         [("brief", "seven", "Seven questions after twelve", "after the review", 2)])
+
+    def test_a_brief_the_shelf_does_not_know_is_still_a_card(self):
+        waiting = set()
+        self.parse(self.call("./brief.py doc.json"), waiting)
+        got = self.parse(self.answer("OK published as doc: the person sees it in the panel"), waiting)
+        self.assertEqual([(i["role"], i["id"], i["title"]) for i in got], [("brief", "doc", "doc")])
+
+    def test_a_call_that_published_nothing_gives_no_card(self):
+        waiting = set()
+        self.parse(self.call("deploy/claude/brief.py briefs/seven.yaml"), waiting)
+        got = self.parse(self.answer("STOP the panel's collector is not listening on /run/x.sock"),
+                         waiting)
+        self.assertEqual([i["role"] for i in got], [])
+
+    def test_reading_a_document_is_not_publishing_it(self):
+        waiting = set()
+        self.parse(self.call("deploy/claude/brief.py --check briefs/seven.yaml"), waiting)
+        self.assertEqual(waiting, set())
+
+    def test_another_script_of_the_same_name_is_not_a_brief(self):
+        waiting = set()
+        self.parse(self.call("python3 tools/debrief.py run.log"), waiting)
+        self.assertEqual(waiting, set())
+
+
 if __name__ == "__main__":
     unittest.main()
 

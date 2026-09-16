@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Two rows of a feed: a brief that asks something and one that only reads.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+
+const asking = {
+    role: "brief", pos: 100, use: "toolu_1", id: "seven-after-twelve",
+    title: "Seven questions after twelve", eyebrow: "after the review", questions: 7,
+    at: "2026-09-16T10:00:00Z",
+};
+const reading = {
+    role: "brief", pos: 200, use: "toolu_2", id: "what-the-scan-found",
+    title: "What the scan found", questions: 0, at: "2026-09-16T10:05:00Z",
+};
+
+const opened = [];
+
+render(html`
+    <div>
+        <${Row} item=${asking} session="lab" id="1" onBrief=${(id) => opened.push(id)} />
+        <${Row} item=${reading} session="lab" id="1" onBrief=${(id) => opened.push(id)} />
+    </div>
+`, document.getElementById("root"));
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const cards = Array.from(document.querySelectorAll(".artifact.brief"));
+    const before = {
+        titles: text(".artifact.brief .artitle"),
+        descs: text(".artifact.brief .ardesc"),
+        metas: text(".artifact.brief .armeta"),
+        // A card that opens something is pressable, not a line of text.
+        tags: cards.map((c) => c.tagName),
+        icons: document.querySelectorAll(".artifact.brief .brico svg").length,
+    };
+
+    cards[0].click();
+    await new Promise((r) => setTimeout(r, 120));
+
+    // With nowhere to go the same card is still drawn, and says so by being flat.
+    render(html`<${Row} item=${asking} session="lab" id="1" />`, document.getElementById("root"));
+    await new Promise((r) => setTimeout(r, 120));
+    const alone = document.querySelector(".artifact.brief");
+
+    window.done = { before, opened,
+        nowhere: { tag: alone ? alone.tagName : "", dead: alone ? alone.classList.contains("dead") : false } };
+})();
+</script>

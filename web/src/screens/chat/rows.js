@@ -12,7 +12,7 @@ import { Photo, shotName } from "./photo.js";
 import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord } from "./labels.js";
 
 // Row renders one row of the feed.
-export function Row({ item, session, id, onCalls, onFile }) {
+export function Row({ item, session, id, onCalls, onFile, onBrief }) {
     if (item.role === "shots") {
         const shots = item.shots || [];
         if (!shots.length) return null;
@@ -78,6 +78,10 @@ export function Row({ item, session, id, onCalls, onFile }) {
 
     if (item.role === "artifact") {
         return html`<${ArtifactCard} item=${item} />`;
+    }
+
+    if (item.role === "brief") {
+        return html`<${BriefCard} item=${item} onOpen=${onBrief} />`;
     }
 
     if (item.role === "asked") {
@@ -274,6 +278,30 @@ export function ArtifactCard({ item }) {
     if (!item.url) return html`<div class="artifact dead">${body}</div>`;
     return html`
         <a class="artifact" href=${item.url} target="_blank" rel="noopener noreferrer">${body}</a>
+    `;
+}
+
+// BriefCard renders a brief the session published: a document that waits for
+// the person rather than a message they read in passing.
+export function BriefCard({ item, onOpen }) {
+    const asks = item.questions > 0;
+    const body = html`
+        <span class="brico">${Icon.file()}</span>
+        <span class="arbody">
+            <span class="artitle">${item.title}</span>
+            ${item.eyebrow && html`<span class="ardesc">${item.eyebrow}</span>`}
+            <span class="armeta">
+                <span class="arnew">brief</span>
+                <span>${asks
+                    ? `${item.questions} ${plural(item.questions, "question", "questions")}`
+                    : "nothing to answer"}</span>
+            </span>
+        </span>
+        ${onOpen && html`<span class="crgo">${Icon.chevron()}</span>`}
+    `;
+    if (!onOpen) return html`<div class="artifact brief dead">${body}</div>`;
+    return html`
+        <button type="button" class="artifact brief" onClick=${() => onOpen(item.id)}>${body}</button>
     `;
 }
 

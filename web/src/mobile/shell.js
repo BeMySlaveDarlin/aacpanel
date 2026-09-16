@@ -44,6 +44,7 @@ export function MobileShell({
     const [open, setOpen] = useState(() => new Set());
 
     const [page, setPage] = useState(null);
+    const [openBrief, setOpenBrief] = useState(null);
     const [menu, setMenu] = useState(false);
 
     const [logs, setLogs] = useState(null);
@@ -154,7 +155,7 @@ export function MobileShell({
                     : page === "journal"
                     ? html`<${Journal} onBack=${() => setPage(null)} />`
                     : page === "briefs"
-                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec}
+                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec} openId=${openBrief}
                         onSession=${(name) => goHome(name, null)} />`
                     : page === "alerts"
                     ? html`<${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => setPage(null)} />`
@@ -177,7 +178,8 @@ export function MobileShell({
                     onLayer=${setLayer}
                     want=${want}
                     onWanted=${() => setWant(null)}
-                onUsage=${() => setPage("usage")} />`}
+                onUsage=${() => setPage("usage")}
+                onBrief=${(briefId) => { setOpenBrief(briefId); setPage("briefs"); }} />`}
             </main>
 
             <${Sheet} open=${menu} onClose=${() => setMenu(false)} label="menu">
@@ -233,11 +235,11 @@ export function MobileShell({
     `;
 }
 
-function Screen({ tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults, onLayer, want, onWanted, onUsage }) {
+function Screen({ tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults, onLayer, want, onWanted, onUsage, onBrief }) {
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
             exec=${exec} wait=${wait} faults=${faults} onLayer=${onLayer}
-            want=${want} onWanted=${onWanted} onUsage=${onUsage} />`;
+            want=${want} onWanted=${onWanted} onUsage=${onUsage} onBrief=${onBrief} />`;
     }
     return html`<${Containers} tree=${tree} error=${treeError} filter=${filter} query=${query} open=${open}
         onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec} />`;

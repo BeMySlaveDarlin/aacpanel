@@ -31,7 +31,7 @@ import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 
 
-export function Chat({ name, id, live, archive, exec, onBack, onUsage }) {
+export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }) {
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
@@ -209,6 +209,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage }) {
                 id=${id}
                 onCalls=${() => setCalls(runCalls(feed, item.run))}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
+                onBrief=${onBrief}
             />`)}
             ${pending.map((row) => html`<${Row} key=${`local-${row.key}`} item=${row} />`)}
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}

@@ -86,6 +86,7 @@ export function DesktopShell({
 }) {
     const [section, setSection] = useState("home");
     const [chat, setChat] = useState(null);
+    const [openBrief, setOpenBrief] = useState(null);
     const [stack, setStack] = useState(null);
     const [cont, setCont] = useState(null);
     const [cat, setCat] = useState("cpu");
@@ -225,6 +226,7 @@ export function DesktopShell({
         if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${() => goSection("sessions")} /></div>`;
         if (section === "briefs") {
             return html`<div class="dkpage"><${Briefs} snapshot=${snapshot} exec=${exec}
+                openId=${openBrief}
                 onSession=${(name) => openChat({ name, id: null })} /></div>`;
         }
         if (!chat) return html`<${ChatEmpty} />`;
@@ -240,6 +242,7 @@ export function DesktopShell({
                 archive=${chat.archived ? chat.row : null}
                 onBack=${() => setChat(null)}
                 onUsage=${() => { setChat(null); goSection("home"); }}
+                onBrief=${(briefId) => { setOpenBrief(briefId); goSection("briefs"); }}
             />
         </section>`;
     };

@@ -59,10 +59,17 @@ function Card({ card, snapshot, onOpen }) {
     `;
 }
 
-export function Briefs({ snapshot, exec, onSession }) {
+export function Briefs({ snapshot, exec, onSession, openId }) {
     const [cards, setCards] = useState(null);
     const [error, setError] = useState("");
-    const [open, setOpen] = useState(null);
+    const [open, setOpen] = useState(openId || null);
+
+    // A card in the feed of a session opens the document it names. Coming back
+    // from that document leaves the shelf, which is where the person would
+    // have been had they walked in through the menu.
+    useEffect(() => {
+        if (openId) setOpen(openId);
+    }, [openId]);
 
     useEffect(() => {
         if (open) return undefined;

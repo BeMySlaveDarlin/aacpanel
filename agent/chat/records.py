@@ -4,7 +4,7 @@ import re
 
 import sesstate
 
-from .cards import artifact_card, ask_round, sent_card, wake_item
+from .cards import artifact_card, ask_round, brief_card, sent_card, wake_item
 from .harness import classify, service, strip_panel_note
 from .mail import peer_name, peer_pid
 from .limits import MAX_TEXT, cut
@@ -52,12 +52,32 @@ def shell(text, at, pos):
     return item
 
 
-def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None):
+# A brief is published by running a script, not by a tool of its own: the
+# document is a file of tens of kilobytes, and that does not go on a command
+# line. The call is recognised by the script it runs.
+BRIEF_CALL_RE = re.compile(r"(?:^|[\s/])brief\.py(?:\s|$)")
+
+
+def briefing(data):
+    """Says whether this shell call publishes a brief rather than reads one."""
+    if not isinstance(data, dict):
+        return False
+    command = str(data.get("command") or "")
+    if not BRIEF_CALL_RE.search(command):
+        return False
+    # --check reads the document and publishes nothing.
+    return "--check" not in command
+
+
+def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
+          briefs=None, shelf=None):
     """Returns the feed items of one transcript record, from none to many.
 
-    Asks and sent are the calls of their kind still waiting for an answer, by
-    call id: the card for a question round and for a delivery is drawn from
-    the answer, and the answer is another record.
+    Asks, sent and briefs are the calls of their kind still waiting for an
+    answer, by call id: the card for a question round, for a delivery and for
+    a published brief is drawn from the answer, and the answer is another
+    record. Shelf reads a published brief by its name, for what the card says
+    about it.
     """
     if not isinstance(record, dict) or (record.get("isSidechain") and not sidechain):
         return []
@@ -130,6 +150,12 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None):
                     if sent is not None and use in sent:
                         sent.discard(use)
                         card = sent_card(record.get("toolUseResult"), use, at, pos)
+                        if card:
+                            links.append(card)
+                        continue
+                    if briefs is not None and use in briefs:
+                        briefs.discard(use)
+                        card = brief_card(sesstate.result_text(b), shelf, use, at, pos)
                         if card:
                             links.append(card)
                         continue
@@ -284,6 +310,10 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None):
                     if card:
                         out.append(card)
                         continue
+                if name == "Bash" and briefs is not None and briefing(block.get("input")):
+                    # The call stays in the run as a call: whether a document
+                    # reached the shelf is known only from what it printed.
+                    briefs.add(block.get("id") or "")
                 if name == sesstate.SENT_TOOL and sent is not None:
                     # The call goes into the run as a call: whether anything
                     # reached the human is known only from the answer, and
