@@ -139,3 +139,65 @@ func TestBriefSendsThroughTheGateAndRemembersGoing(t *testing.T) {
 		t.Error("a brief that went into the session does not remember going")
 	}
 }
+
+type standInShot struct {
+	First struct {
+		Say          string   `json:"say"`
+		SendDisabled bool     `json:"sendDisabled"`
+		Offered      []string `json:"offered"`
+		Elsewhere    bool     `json:"elsewhere"`
+	} `json:"first"`
+	Sent []struct {
+		Kind   string `json:"kind"`
+		Target string `json:"target"`
+		Params struct {
+			Text string `json:"text"`
+		} `json:"params"`
+	} `json:"sent"`
+	After string `json:"after"`
+}
+
+// A brief is read over hours and answered days later, by which time the session
+// that wrote it is usually gone. The answers go to a session still working in
+// the same directory, because that is who carries the work the brief asks
+// about — a dead author must not turn an answered document into a dead end.
+func TestBriefAnswersReachASessionStandingInForTheAuthor(t *testing.T) {
+	var got standInShot
+	runFixture(t, "briefstandin.html", &got)
+
+	if got.First.SendDisabled {
+		t.Error("the author is gone and the send button is dead, so the answers have nowhere to go")
+	}
+	if len(got.Sent) == 0 {
+		t.Fatalf("nothing was sent: %+v", got)
+	}
+	if got.Sent[0].Target != "carrying-on" {
+		t.Errorf("the answers went to %q, not to a session in the directory of the brief", got.Sent[0].Target)
+	}
+	if !strings.Contains(got.Sent[0].Params.Text, "The ceilings") {
+		t.Errorf("what went is not the answers: %q", got.Sent[0].Params.Text)
+	}
+	if !strings.Contains(got.First.Say, "carrying-on") {
+		t.Errorf("the screen does not say where the answers go: %q", got.First.Say)
+	}
+}
+
+// Where the answers go is the person's to change: a directory can hold more
+// than one session, and only the person knows which one is theirs.
+func TestBriefLetsThePersonPickAmongTheSessionsInTheDirectory(t *testing.T) {
+	var got standInShot
+	runFixture(t, "briefstandin.html", &got)
+
+	if len(got.First.Offered) != 2 {
+		t.Errorf("sessions offered: %v", got.First.Offered)
+	}
+	if got.First.Elsewhere {
+		t.Error("a session working in another directory is offered the answers of this brief")
+	}
+	if len(got.Sent) < 2 {
+		t.Fatalf("the second send never happened: %+v", got.Sent)
+	}
+	if got.Sent[1].Target != "also-here" {
+		t.Errorf("the pick was ignored: the answers went to %q", got.Sent[1].Target)
+	}
+}

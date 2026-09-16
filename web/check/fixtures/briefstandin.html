@@ -1,0 +1,93 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The brief screen over a host where the session that wrote the document is
+// gone: two sessions are working in its directory and one elsewhere.
+import { h, render } from "preact";
+import { Brief } from "/src/screens/brief.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const doc = {
+    id: "what-is-left",
+    sessionId: "22222222-2222-4222-8222-222222222222",
+    cwd: "/srv/proj",
+    title: "What is left to decide",
+    questions: [
+        {
+            id: "r1", n: "01", title: "The ceilings", kind: "pick",
+            options: [
+                { key: "A", label: "Leave them" },
+                { key: "B", label: "Raise them" },
+            ],
+        },
+    ],
+};
+
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    const method = (init && init.method) || "GET";
+    if (u === "/api/briefs/what-is-left" && method === "GET") {
+        return new Response(JSON.stringify({
+            brief: doc,
+            draft: { answers: { r1: { picks: ["A"] } }, updatedAt: "2026-09-16T10:00:00Z" },
+            reply: 'Brief "What is left to decide" · what-is-left\n01 The ceilings: A\n',
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ ok: true, detail: "typed in" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+};
+
+const snapshot = {
+    sessions: [
+        { session: "elsewhere", sessionId: "33333333-3333-4333-8333-333333333333", cwd: "/srv/other" },
+        { session: "carrying-on", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/srv/proj" },
+        { session: "also-here", sessionId: "55555555-5555-4555-8555-555555555555", cwd: "/srv/proj" },
+    ],
+};
+const exec = { available: true, kinds: ["session.send"] };
+
+render(
+    h(ToastHost, null, h(GateHost, null,
+        h(Brief, { id: "what-is-left", snapshot, exec, onBack: () => {} }))),
+    document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 250));
+    const select = document.querySelector(".bwho");
+    const first = {
+        say: (document.querySelector(".bdock-say") || {}).textContent || "",
+        sendDisabled: Boolean(document.querySelector(".bbtn.go") && document.querySelector(".bbtn.go").disabled),
+        offered: select ? Array.from(select.options).map((o) => o.value) : [],
+        // A session in another directory is never offered the answers.
+        elsewhere: (select ? Array.from(select.options).map((o) => o.value) : []).includes("elsewhere"),
+    };
+
+    const go = () => {
+        const btn = document.querySelector(".bbtn.go");
+        if (btn && !btn.disabled) btn.click();
+    };
+
+    go();
+    await new Promise((r) => setTimeout(r, 300));
+
+    // The person sends to the other session working in the same directory.
+    if (select) {
+        select.value = "also-here";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 120));
+    }
+    go();
+    await new Promise((r) => setTimeout(r, 300));
+
+    window.done = { first, sent, after: (document.querySelector(".bdock-say") || {}).textContent || "" };
+})();
+</script>

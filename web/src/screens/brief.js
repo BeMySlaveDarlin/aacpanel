@@ -21,13 +21,17 @@ function answered(a) {
     return Boolean(a && (a.skip || (a.picks && a.picks.length) || (a.note || "").trim()));
 }
 
-// liveName finds what the session that wrote this brief is called right now.
-// The answer travels to a name, and a brief outlives the conversation that
-// wrote it: there may be nothing to send to at all.
-function liveName(snapshot, sessionId) {
+// routes finds where the answers can go. The answer travels to a name, and a
+// brief outlives the conversation that wrote it: by the time it is answered the
+// author is usually gone. A session sitting in the same directory is the one
+// carrying that work on, so it stands in; a session elsewhere never does, the
+// answers belong to their project.
+function routes(snapshot, doc) {
     const list = (snapshot && snapshot.sessions) || [];
-    const found = list.find((s) => s && s.sessionId === sessionId);
-    return found ? found.session : "";
+    const author = list.find((s) => s && s.sessionId === (doc && doc.sessionId));
+    const cwd = (doc && doc.cwd) || "";
+    const near = cwd ? list.filter((s) => s && s.cwd === cwd && s !== author) : [];
+    return { author: author ? author.session : "", near: near.map((s) => s.session) };
 }
 
 function Facts({ items }) {
@@ -145,6 +149,7 @@ export function Brief({ id, snapshot, exec, onBack }) {
     const [error, setError] = useState("");
     const [peek, setPeek] = useState(false);
     const [sending, setSending] = useState(false);
+    const [picked, setPicked] = useState("");
     const timer = useRef(null);
 
     useEffect(() => {
@@ -191,10 +196,12 @@ export function Brief({ id, snapshot, exec, onBack }) {
     const asking = questions.filter((q) => q.kind !== "none");
     const done = asking.filter((q) => answered(answers[q.id])).length;
 
-    const name = useMemo(() => liveName(snapshot, doc && doc.sessionId), [snapshot, doc]);
+    const route = useMemo(() => routes(snapshot, doc), [snapshot, doc]);
+    const name = route.author || (route.near.includes(picked) ? picked : route.near[0] || "");
+    const standIn = Boolean(!route.author && name);
     const canSend = Boolean(name) && knows(exec, "session.send");
     const why = !name
-        ? "the session that wrote this brief is not running: the answers wait here until it is back"
+        ? "the session that wrote this brief is not running, and nothing else is working in its directory: the answers wait here until one is"
         : whyNot(exec, "session.send");
 
     const send = async () => {
@@ -279,6 +286,18 @@ export function Brief({ id, snapshot, exec, onBack }) {
                                 ? html`answered <b>${done}</b> of <b>${asking.length}</b> · the rest may stay empty`
                                 : html`all <b>${asking.length}</b> answered`}
                             ${!canSend && why ? html`<br />${why}` : null}
+                            ${standIn ? html`
+                                <br />the session that wrote this is gone · the answers go into
+                                ${route.near.length > 1 ? html`
+                                    <select
+                                        class="bwho"
+                                        value=${name}
+                                        onChange=${(e) => setPicked(e.target.value)}
+                                    >
+                                        ${route.near.map((s) => html`<option key=${s} value=${s}>${s}</option>`)}
+                                    </select>
+                                ` : html` <b>${name}</b>`}, working in the same directory
+                            ` : null}
                         </div>
                         <button type="button" class="bbtn" onClick=${() => setPeek(true)}>What goes</button>
                         <button

@@ -436,6 +436,18 @@
 
 .bdock-say b { color: var(--paper-ink-2); font-weight: 500; }
 
+/* Which session the answers go into, when the one that wrote the brief is gone
+   and more than one is working in its directory. */
+.bwho {
+    font: inherit;
+    color: var(--paper-ink-2);
+    background: var(--paper);
+    border: 1px solid var(--paper-rule-2);
+    border-radius: 3px;
+    padding: 1px 4px;
+    max-width: 22ch;
+}
+
 .bbtn {
     flex: 1;
     font-size: var(--t-md);
