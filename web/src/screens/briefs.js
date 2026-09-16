@@ -1,5 +1,5 @@
 // The shelf: briefs the sessions have published, newest first.
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Brief } from "./brief.js";
@@ -9,17 +9,52 @@ function when(at) {
     if (!at) return "";
     const t = new Date(at);
     if (Number.isNaN(t.getTime())) return "";
-    return t.toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const today = new Date();
+    const sameDay = t.toDateString() === today.toDateString();
+    return sameDay
+        ? t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+        : t.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
-function Card({ card, onOpen }) {
-    const asks = card.questions > 0;
-    const mark = card.sent ? "sent" : asks ? `${card.answered}/${card.questions}` : "read";
+// from says who wrote the document: the session by name while it is running,
+// and the directory it worked in once it is gone. A brief is answered days
+// later, so the second case is the usual one.
+function from(card, snapshot) {
+    const list = (snapshot && snapshot.sessions) || [];
+    const live = list.find((s) => s && s.sessionId === card.sessionId);
+    if (live) return { name: live.session, live: true };
+    const cwd = card.cwd || "";
+    const tail = cwd.split("/").filter(Boolean).pop();
+    return { name: tail || "a session that has ended", live: false };
+}
+
+// state is the one thing a card has to say: what this brief wants from you.
+// Everything that is still open counts on one scale, so a glance down the shelf
+// compares like with like and no card takes a line of its title to say it.
+function state(card) {
+    if (card.sent) return { word: "sent", tone: "sent", share: 1 };
+    if (!card.questions) return { word: "to read", tone: "read", share: 0 };
+    const of = `${card.answered} of ${card.questions}`;
+    if (card.answered >= card.questions) return { word: of, tone: "ready", share: 1 };
+    if (card.answered > 0) return { word: of, tone: "part", share: card.answered / card.questions };
+    return { word: of, tone: "fresh", share: 0 };
+}
+
+function Card({ card, snapshot, onOpen }) {
+    const mark = state(card);
+    const who = from(card, snapshot);
     return html`
-        <button type="button" class=${`bcard${card.sent ? " is-sent" : ""}`} onClick=${() => onOpen(card.id)}>
+        <button type="button" class=${`bcard is-${mark.tone}`} onClick=${() => onOpen(card.id)}>
             <span class="bcard-t">${card.title}</span>
-            <span class="bcard-s">${[when(card.at), card.eyebrow].filter(Boolean).join(" · ")}</span>
-            <span class="bcard-n">${mark}</span>
+            ${card.eyebrow && html`<span class="bcard-s">${card.eyebrow}</span>`}
+            <span class="bcard-meta">
+                <span class=${who.live ? "bcard-live" : ""}>${who.name}</span>
+                ${when(card.at) && html`<span class="bcard-at">${when(card.at)}</span>`}
+            </span>
+            <span class="bcard-state">${mark.word}</span>
+            <span class="bcard-bar" aria-hidden="true">
+                <i style=${`width:${Math.round(mark.share * 100)}%`}></i>
+            </span>
         </button>
     `;
 }
@@ -38,27 +73,60 @@ export function Briefs({ snapshot, exec, onSession }) {
         return () => { gone = true; };
     }, [open]);
 
+    // What the shelf is asking of the person, counted once for the head.
+    const sums = useMemo(() => {
+        const rows = cards || [];
+        let waiting = 0;
+        let ready = 0;
+        for (const card of rows) {
+            if (card.sent) continue;
+            if (card.questions && card.answered >= card.questions) ready++;
+            else waiting++;
+        }
+        return { all: rows.length, waiting, ready };
+    }, [cards]);
+
     if (open) {
         return html`<${Brief} id=${open} snapshot=${snapshot} exec=${exec}
             onBack=${() => setOpen(null)} onSession=${onSession} />`;
     }
 
-    if (error) return html`<div class="pad"><p class="dim">${error}</p></div>`;
-    if (!cards) return html`<div class="pad"><p class="dim">opening…</p></div>`;
-    if (!cards.length) {
-        return html`
-            <div class="pad">
-                <p class="dim">
-                    No briefs. A session publishes one when what it has to ask does not
-                    fit a question in the console.
-                </p>
-            </div>
-        `;
-    }
+    const say = !cards
+        ? "opening…"
+        : error
+        ? error
+        : sums.ready && sums.waiting
+        ? `${sums.ready} ready to send · ${sums.waiting} still open`
+        : sums.ready
+        ? `${sums.ready} ready to send`
+        : sums.waiting
+        ? `${sums.waiting} waiting for an answer`
+        : sums.all
+        ? "all answered and sent"
+        : "nothing waiting";
 
     return html`
-        <div class="bcards">
-            ${cards.map((card) => html`<${Card} key=${card.id} card=${card} onOpen=${setOpen} />`)}
+        <div class="bshelf">
+            <header class="bshelf-h">
+                <h2>Briefs</h2>
+                <span class=${`bshelf-s${error ? " crit" : ""}`}>${say}</span>
+            </header>
+
+            ${cards && !cards.length && !error && html`
+                <p class="bshelf-none">
+                    A session publishes one when what it has to ask does not fit a
+                    question in the console: several questions at once, or an option
+                    that takes a paragraph to explain.
+                </p>
+            `}
+
+            ${cards && cards.length > 0 && html`
+                <div class="bcards">
+                    ${cards.map((card) => html`
+                        <${Card} key=${card.id} card=${card} snapshot=${snapshot} onOpen=${setOpen} />
+                    `)}
+                </div>
+            `}
         </div>
     `;
 }

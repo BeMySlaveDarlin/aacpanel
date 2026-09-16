@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="dkpage"><div id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The shelf over a host with four briefs: one sent, one answered and waiting to
+// go, one half done and one nobody has opened.
+import { h, render } from "preact";
+import { Briefs } from "/src/screens/briefs.js";
+
+const now = Date.now();
+const iso = (minutes) => new Date(now - minutes * 60000).toISOString();
+
+const briefs = [
+    { id: "teleport", sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/opt/Projects/Evirma/evirma",
+      title: "Teleport адаптером, а не фундаментом", eyebrow: "схема доступа · 16.09.2026",
+      at: iso(20), questions: 5, answered: 0, sent: false },
+    { id: "twelve", sessionId: "22222222-2222-4222-8222-222222222222", cwd: "/opt/Projects/Evirma/harness-rework",
+      title: "Двенадцать развилок обвязки", eyebrow: "16 сентября, после разбора заказчика",
+      at: iso(28), questions: 12, answered: 12, sent: true },
+    { id: "what-is-left", sessionId: "33333333-3333-4333-8333-333333333333", cwd: "/opt/Projects/Pets/service/aacpanel",
+      title: "Что осталось решить по брифу", eyebrow: "первый настоящий бриф",
+      at: iso(1020), questions: 5, answered: 5, sent: false },
+    { id: "cmux", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/opt/Projects/Pets/service/aacpanel",
+      title: "cmux рядом с tmux: что панель теряет и что получает", eyebrow: "разбор перед выбором",
+      at: iso(2600), questions: 7, answered: 3, sent: false },
+];
+
+window.fetch = async (url) => {
+    if (String(url) === "/api/briefs") {
+        return new Response(JSON.stringify({ briefs }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const snapshot = {
+    sessions: [
+        { session: "harness-rework", sessionId: "22222222-2222-4222-8222-222222222222", cwd: "/opt/Projects/Evirma/harness-rework" },
+        { session: "aacpanel", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/opt/Projects/Pets/service/aacpanel" },
+    ],
+};
+
+render(h(Briefs, { snapshot, exec: { available: true, kinds: ["session.send"] }, onSession: () => {} }),
+    document.getElementById("root"));
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 250));
+    const cards = Array.from(document.querySelectorAll(".bcard"));
+    window.done = {
+        head: (document.querySelector(".bshelf-h") || {}).textContent || "",
+        titles: text(".bcard-t"),
+        states: text(".bcard-state"),
+        live: text(".bcard-live"),
+        meta: text(".bcard-meta"),
+        // Where each card sits, to see whether the shelf is a column or a grid.
+        tops: cards.map((c) => Math.round(c.getBoundingClientRect().top)),
+        widths: cards.map((c) => Math.round(c.getBoundingClientRect().width)),
+        bars: cards.map((c) => {
+            const fill = c.querySelector(".bcard-bar i");
+            return fill ? Math.round(fill.getBoundingClientRect().width / c.getBoundingClientRect().width * 100) : -1;
+        }),
+    };
+})();
+</script>

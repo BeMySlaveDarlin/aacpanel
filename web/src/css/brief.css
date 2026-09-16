@@ -490,38 +490,149 @@
     border: 1px solid var(--paper-rule);
 }
 
-/* The shelf: what is waiting and how far each one has got. */
-.bcards { display: flex; flex-direction: column; gap: 1px; background: var(--line); }
+/* The shelf: what is waiting and how far each one has got. A card says three
+   things — what the brief is about, who asked, and what it wants from you — and
+   the bar along its foot says how much of it is answered. */
+.bshelf { display: flex; flex-direction: column; gap: .9rem; padding: 1rem; }
+
+.bshelf-h {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.bshelf-h h2 { margin: 0; font-size: var(--t-xl); font-weight: 600; letter-spacing: -.01em; }
+
+.bshelf-s { font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-faint); }
+
+.bshelf-s.crit { color: var(--crit); }
+
+.bshelf-none {
+    margin: 0;
+    max-width: 44ch;
+    font-size: var(--t-md);
+    line-height: 1.6;
+    color: var(--ink-faint);
+}
+
+.bcards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+    gap: .7rem;
+    align-items: stretch;
+}
 
 .bcard {
+    position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px 14px;
-    align-items: center;
+    grid-template-rows: auto auto 1fr;
+    gap: .25rem .8rem;
     width: 100%;
+    min-width: 0;
     text-align: left;
-    background: var(--surface);
+    padding: 1.05rem 1.15rem 1.2rem;
     border: 0;
-    padding: 14px 16px;
-    font: inherit;
+    border-radius: var(--r-card);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
     color: var(--ink);
+    font: inherit;
     cursor: pointer;
+    overflow: hidden;
 }
 
 .bcard:hover { background: var(--surface-2); }
-.bcard-t { font-size: var(--t-md); font-weight: 600; }
-.bcard-s { grid-column: 1; font-size: var(--t-sm); color: var(--ink-faint); }
 
-.bcard-n {
-    grid-row: 1 / span 2;
-    grid-column: 2;
-    font-family: var(--mono);
+.bcard-t {
+    grid-column: 1;
+    font-size: var(--t-lg);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -.01em;
+}
+
+.bcard-s {
+    grid-column: 1 / -1;
+    margin-top: .1rem;
     font-size: var(--t-sm);
+    line-height: 1.5;
+    color: var(--ink-dim);
+}
+
+.bcard-meta {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-end;
+    gap: .5rem;
+    margin-top: .7rem;
+    align-self: end;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+
+.bcard-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The session is still running: its name is a place the answers can go. */
+.bcard-live { color: var(--ink-dim); }
+
+.bcard-live::before {
+    content: "";
+    display: inline-block;
+    width: .32rem;
+    height: .32rem;
+    margin-right: .35rem;
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: middle;
+}
+
+.bcard-at { margin-left: auto; flex: none; }
+
+.bcard-state {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    margin-top: .15rem;
+    flex: none;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
     color: var(--ink-faint);
     font-variant-numeric: tabular-nums;
 }
 
-.bcard.is-sent .bcard-n { color: var(--ok); }
+.bcard.is-fresh .bcard-state, .bcard.is-part .bcard-state { color: var(--ink-dim); }
+
+.bcard.is-ready .bcard-state { color: var(--accent); }
+
+.bcard.is-sent .bcard-state { color: var(--ok); }
+
+/* The foot of the card is the answering itself: nothing under a fresh brief,
+   a full line under one that is ready to go. */
+.bcard-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--line);
+}
+
+.bcard-bar i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transition: width .2s ease;
+}
+
+.bcard.is-sent .bcard-bar i { background: var(--ok); }
+
+.bcard.is-fresh .bcard-bar, .bcard.is-read .bcard-bar { background: transparent; }
 
 @media (min-width: 900px) {
     .brief-page { padding-bottom: 40px; }
