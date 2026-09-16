@@ -13,17 +13,17 @@ const now = Date.now();
 const iso = (minutes) => new Date(now - minutes * 60000).toISOString();
 
 const briefs = [
-    { id: "teleport", sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/opt/Projects/Evirma/evirma",
-      title: "Teleport адаптером, а не фундаментом", eyebrow: "схема доступа · 16.09.2026",
+    { id: "teleport", sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/srv/gateway",
+      title: "Teleport as an adapter, not a foundation", eyebrow: "the access scheme",
       at: iso(20), questions: 5, answered: 0, sent: false },
-    { id: "twelve", sessionId: "22222222-2222-4222-8222-222222222222", cwd: "/opt/Projects/Evirma/harness-rework",
-      title: "Двенадцать развилок обвязки", eyebrow: "16 сентября, после разбора заказчика",
+    { id: "twelve", sessionId: "22222222-2222-4222-8222-222222222222", cwd: "/srv/harness",
+      title: "Twelve forks in the harness", eyebrow: "after the review",
       at: iso(28), questions: 12, answered: 12, sent: true },
-    { id: "what-is-left", sessionId: "33333333-3333-4333-8333-333333333333", cwd: "/opt/Projects/Pets/service/aacpanel",
-      title: "Что осталось решить по брифу", eyebrow: "первый настоящий бриф",
+    { id: "what-is-left", sessionId: "33333333-3333-4333-8333-333333333333", cwd: "/srv/proj",
+      title: "What is left to decide", eyebrow: "the first real brief",
       at: iso(1020), questions: 5, answered: 5, sent: false },
-    { id: "cmux", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/opt/Projects/Pets/service/aacpanel",
-      title: "cmux рядом с tmux: что панель теряет и что получает", eyebrow: "разбор перед выбором",
+    { id: "cmux", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/srv/proj",
+      title: "cmux beside tmux: what the panel loses and what it gains", eyebrow: "a look before the choice",
       at: iso(2600), questions: 7, answered: 3, sent: false },
 ];
 
@@ -36,8 +36,8 @@ window.fetch = async (url) => {
 
 const snapshot = {
     sessions: [
-        { session: "harness-rework", sessionId: "22222222-2222-4222-8222-222222222222", cwd: "/opt/Projects/Evirma/harness-rework" },
-        { session: "aacpanel", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/opt/Projects/Pets/service/aacpanel" },
+        { session: "harness", sessionId: "22222222-2222-4222-8222-222222222222", cwd: "/srv/harness" },
+        { session: "lab", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/srv/proj" },
     ],
 };
 

@@ -85,6 +85,55 @@
 
     .dktopright { margin-left: auto; display: flex; align-items: center; gap: .3rem; }
 
+    /* The load of the host, at the end of the bar: three gauges that never move,
+       so a glance at the same spot always answers the same question. */
+    .dkload {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        margin-left: .4rem;
+        padding: .25rem .5rem;
+        border: 0;
+        border-radius: var(--r-small);
+        background: transparent;
+        color: var(--ink-faint);
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .dkload:hover { background: var(--surface-2); }
+
+    .dkgauge { display: flex; align-items: center; gap: .35rem; }
+
+    .dkgauge-n { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
+
+    .dkgauge-bar {
+        width: 2.4rem;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--line);
+        overflow: hidden;
+    }
+
+    .dkgauge-bar i { display: block; height: 100%; background: var(--accent); }
+
+    .dkgauge-bar.warn i { background: var(--warn); }
+
+    .dkgauge-bar.crit i { background: var(--crit); }
+
+    .dkgauge-v {
+        min-width: 2.5rem;
+        font-family: var(--mono);
+        font-size: var(--t-xs);
+        color: var(--ink-dim);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
+
+    .dkgauge-v.warn { color: var(--warn); }
+
+    .dkgauge-v.crit { color: var(--crit); }
+
     .dkib {
         position: relative;
         display: grid;

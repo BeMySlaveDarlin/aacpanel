@@ -9,6 +9,7 @@ import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
 import { ChatEmpty } from "../screens/chat/empty.js";
 import { Briefs } from "../screens/briefs.js";
+import { HeadLoad } from "./load.js";
 import { Devices } from "../screens/devices.js";
 import { Settings } from "../screens/settings.js";
 import { SessionColumn } from "./sessions.js";
@@ -320,6 +321,7 @@ export function DesktopShell({
                         onClick=${onTheme}
                     />
                     <${IconButton} item=${{ label: "Sign out", icon: Icon.exit }} active=${false} onClick=${logout} />
+                    <${HeadLoad} snapshot=${snapshot} onOpen=${() => goSection("machine")} />
                 </div>
             </header>
 

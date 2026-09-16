@@ -54,7 +54,7 @@ func TestShelfNamesWhoIsStillThere(t *testing.T) {
 	if len(got.Live) != 2 {
 		t.Errorf("sessions marked as running: %v", got.Live)
 	}
-	if len(got.Meta) < 1 || !strings.Contains(got.Meta[0], "evirma") {
+	if len(got.Meta) < 1 || !strings.Contains(got.Meta[0], "gateway") {
 		t.Errorf("a brief whose session has ended does not name its directory: %v", got.Meta)
 	}
 }

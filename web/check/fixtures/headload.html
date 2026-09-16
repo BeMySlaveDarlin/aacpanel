@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="deskshell"><header class="dktop"><div class="dktopright"><div id="root"></div></div></header></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The load gauges of the top bar over a host with a busy processor, room in
+// memory and one disk nearly full among four.
+import { h, render } from "preact";
+import { HeadLoad } from "/src/desktop/load.js";
+
+const snapshot = {
+    host: {
+        cpuPct: 74.4,
+        mem: { pct: 23.1 },
+        disks: [
+            { mount: "/", pct: 19.2 },
+            { mount: "/boot/efi", pct: 0.9 },
+            { mount: "/mnt/data", pct: 11.2 },
+            { mount: "/mnt/storage", pct: 93.6 },
+        ],
+    },
+};
+
+let opened = 0;
+render(h(HeadLoad, { snapshot, onOpen: () => { opened++; } }), document.getElementById("root"));
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const bars = Array.from(document.querySelectorAll(".dkgauge-bar"));
+    const before = {
+        names: text(".dkgauge-n"),
+        values: text(".dkgauge-v"),
+        tones: bars.map((b) => b.className.replace("dkgauge-bar", "").trim()),
+        fills: bars.map((b) => {
+            const i = b.querySelector("i");
+            return Math.round(i.getBoundingClientRect().width / b.getBoundingClientRect().width * 100);
+        }),
+        // The row must stay on one line whatever the numbers are.
+        rows: new Set(Array.from(document.querySelectorAll(".dkgauge")).map((g) => Math.round(g.getBoundingClientRect().top))).size,
+        tips: Array.from(document.querySelectorAll(".dkgauge")).map((g) => g.getAttribute("data-tip")),
+    };
+
+    document.querySelector(".dkload").click();
+    await new Promise((r) => setTimeout(r, 100));
+
+    // A host the agent has not reported on yet draws nothing rather than zeros.
+    render(h(HeadLoad, { snapshot: {}, onOpen: () => {} }), document.getElementById("root"));
+    await new Promise((r) => setTimeout(r, 120));
+
+    window.done = { before, opened, blank: document.querySelectorAll(".dkgauge").length };
+})();
+</script>
