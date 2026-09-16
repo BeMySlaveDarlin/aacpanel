@@ -702,3 +702,25 @@
     background: var(--paper-lost-soft);
     border-color: var(--paper-lost);
 }
+
+/* The shelf: the card opens the document and the cross beside it puts the
+   document away. The cross is outside the card because a button inside a button
+   is a tap that lands on whichever of the two the browser prefers. */
+.bcard-row { display: flex; align-items: stretch; gap: .4rem; }
+.bcard-row .bcard { flex: 1 1 auto; min-width: 0; }
+
+.bcard-x {
+    flex: none;
+    align-self: center;
+    min-width: 34px;
+    padding: .35rem .5rem;
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--glass);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink-faint);
+    font: inherit;
+    font-size: var(--t-sm);
+    cursor: pointer;
+}
+.bcard-x.asking { color: var(--crit); box-shadow: inset 0 0 0 1px var(--crit); }

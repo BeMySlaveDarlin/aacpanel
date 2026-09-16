@@ -7,6 +7,7 @@
 // The shelf over a host with four briefs: one sent, one answered and waiting to
 // go, one half done and one nobody has opened.
 import { h, render } from "preact";
+import { ToastHost } from "/src/ui/toasts.js";
 import { Briefs } from "/src/screens/briefs.js";
 
 const now = Date.now();
@@ -27,9 +28,20 @@ const briefs = [
       at: iso(2600), questions: 7, answered: 3, sent: false },
 ];
 
-window.fetch = async (url) => {
-    if (String(url) === "/api/briefs") {
+const dropped = [];
+window.fetch = async (url, init) => {
+    const method = (init && init.method) || "GET";
+    if (String(url) === "/api/briefs" && method === "GET") {
         return new Response(JSON.stringify({ briefs }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (method === "DELETE") {
+        dropped.push(String(url));
+        // The shelf of the host loses it too, so a list read again does not
+        // bring the document back.
+        const id = String(url).split("/").pop();
+        const at = briefs.findIndex((c) => c.id === id);
+        if (at >= 0) briefs.splice(at, 1);
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
 };
@@ -41,7 +53,8 @@ const snapshot = {
     ],
 };
 
-render(h(Briefs, { snapshot, exec: { available: true, kinds: ["session.send"] }, onSession: () => {} }),
+render(h(ToastHost, null,
+    h(Briefs, { snapshot, exec: { available: true, kinds: ["session.send"] }, onSession: () => {} })),
     document.getElementById("root"));
 
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
@@ -49,7 +62,9 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
 (async () => {
     await new Promise((r) => setTimeout(r, 250));
     const cards = Array.from(document.querySelectorAll(".bcard"));
-    window.done = {
+
+
+    const shot = {
         head: (document.querySelector(".bshelf-h") || {}).textContent || "",
         titles: text(".bcard-t"),
         states: text(".bcard-state"),
@@ -63,5 +78,23 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
             return fill ? Math.round(fill.getBoundingClientRect().width / c.getBoundingClientRect().width * 100) : -1;
         }),
     };
+
+    // The cross beside a card asks once, then removes.
+    const x = document.querySelector(".bcard-x");
+    const removing = { there: Boolean(x), first: "", gone: 0, before: document.querySelectorAll(".bcard").length };
+    if (x) {
+        x.click();
+        await new Promise((r) => setTimeout(r, 120));
+        removing.first = (document.querySelector(".bcard-x.asking") || {}).textContent || "";
+        const again = document.querySelector(".bcard-x.asking");
+        if (again) again.click();
+        await new Promise((r) => setTimeout(r, 250));
+        removing.gone = document.querySelectorAll(".bcard").length;
+        removing.titles = Array.from(document.querySelectorAll(".bcard-t")).map((n) => n.textContent.trim());
+        removing.stillAsking = document.querySelectorAll(".bcard-x.asking").length;
+        removing.asked = dropped.slice();
+    }
+
+    window.done = { ...shot, removing };
 })();
 </script>

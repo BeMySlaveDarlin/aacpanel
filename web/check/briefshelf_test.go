@@ -93,3 +93,43 @@ func TestShelfIsOneColumnOnAPhone(t *testing.T) {
 		t.Errorf("the phone shelf put two cards in a row: tops %v, widths %v", got.Tops, got.Widths)
 	}
 }
+
+// The shelf is where a stack of old briefs is put away, so removal lives on it
+// and not only inside the document: opening a dozen to close a dozen is not
+// putting them away, it is reading them again. It asks once before each.
+func TestTheShelfPutsABriefAway(t *testing.T) {
+	var got struct {
+		Removing struct {
+			There       bool     `json:"there"`
+			First       string   `json:"first"`
+			Gone        int      `json:"gone"`
+			Asked       []string `json:"asked"`
+			Titles      []string `json:"titles"`
+			StillAsking int      `json:"stillAsking"`
+			Before      int      `json:"before"`
+		} `json:"removing"`
+	}
+	runFixture(t, "briefshelf.html", &got)
+
+	if !got.Removing.There {
+		t.Fatal("the shelf offers no way to put a brief away")
+	}
+	if !strings.Contains(got.Removing.First, "remove") {
+		t.Errorf("the first press says %q instead of asking", got.Removing.First)
+	}
+	if len(got.Removing.Asked) != 1 {
+		t.Fatalf("what was asked of the service: %v", got.Removing.Asked)
+	}
+	if !strings.Contains(got.Removing.Asked[0], "/api/briefs/") {
+		t.Errorf("the removal went to %q", got.Removing.Asked[0])
+	}
+	if got.Removing.Before == 0 {
+		t.Fatal("the shelf drew no cards at all")
+	}
+	if got.Removing.Gone != got.Removing.Before-1 {
+		t.Errorf("%d cards left of %d after one was removed", got.Removing.Gone, got.Removing.Before)
+	}
+	if got.Removing.StillAsking != 0 {
+		t.Error("the question stayed on the screen after it was answered")
+	}
+}

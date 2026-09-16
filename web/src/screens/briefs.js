@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Brief } from "./brief.js";
-import { shelf, state } from "../data/briefs.js";
+import { drop, shelf, state } from "../data/briefs.js";
+import { useToast } from "../ui/toasts.js";
 
 function when(at) {
     if (!at) return "";
@@ -28,10 +29,15 @@ function from(card, snapshot) {
     return { name: tail || "a session that has ended", live: false };
 }
 
-function Card({ card, snapshot, onOpen }) {
+// A card is a button that opens the document, so the way to remove one sits
+// beside it rather than inside it: a button within a button is a tap that lands
+// on whichever the browser feels like. It asks before it does anything — the
+// first press turns it into the question.
+function Card({ card, snapshot, onOpen, onDrop, asking, onAsk }) {
     const mark = state(card);
     const who = from(card, snapshot);
     return html`
+      <div class="bcard-row">
         <button type="button" class=${`bcard is-${mark.tone}`} onClick=${() => onOpen(card.id)}>
             <span class="bcard-t">${card.title}</span>
             ${card.eyebrow && html`<span class="bcard-s">${card.eyebrow}</span>`}
@@ -44,11 +50,21 @@ function Card({ card, snapshot, onOpen }) {
                 <i style=${`width:${Math.round(mark.share * 100)}%`}></i>
             </span>
         </button>
+        <button
+            type="button"
+            class=${`bcard-x${asking ? " asking" : ""}`}
+            aria-label=${asking ? `remove ${card.title}?` : `remove ${card.title}`}
+            onClick=${() => (asking ? onDrop(card.id) : onAsk(card.id))}
+        >${asking ? "remove?" : "×"}</button>
+      </div>
     `;
 }
 
 export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave }) {
     const [cards, setCards] = useState(null);
+    // Which card is being asked about, so only one question stands at a time.
+    const [asking, setAsking] = useState("");
+    const toast = useToast();
     const [error, setError] = useState("");
 
 
@@ -119,7 +135,18 @@ export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave }) {
             ${cards && cards.length > 0 && html`
                 <div class="bcards">
                     ${cards.map((card) => html`
-                        <${Card} key=${card.id} card=${card} snapshot=${snapshot} onOpen=${onOpen} />
+                        <${Card} key=${card.id} card=${card} snapshot=${snapshot} onOpen=${onOpen}
+                                 asking=${asking === card.id} onAsk=${setAsking}
+                                 onDrop=${async (id) => {
+                                     setAsking("");
+                                     try {
+                                         await drop(id);
+                                     } catch (e) {
+                                         toast(String((e && e.message) || e));
+                                         return;
+                                     }
+                                     setCards((was) => (was || []).filter((c) => c.id !== id));
+                                 }} />
                     `)}
                 </div>
             `}
