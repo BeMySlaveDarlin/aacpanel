@@ -25,7 +25,7 @@ export const SECTIONS = [
     { id: "containers", label: "Containers", icon: Icon.containers },
     { id: "machine", label: "Machine", icon: Icon.cpu },
     { id: "devices", label: "Devices", icon: Icon.skill },
-    { id: "briefs", label: "Briefs", icon: Icon.quote },
+    { id: "briefs", label: "Briefs", icon: Icon.file },
 ];
 
 function useJSON(url) {
