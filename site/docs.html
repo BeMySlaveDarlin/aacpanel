@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>aacpanel — using the panel</title>
+<meta name="description" content="What comes after the install: the map sessions are opened from, what the panel adds to claude, and how to read what it shows.">
+<meta name="theme-color" content="#06070f">
+<meta property="og:title" content="aacpanel — using the panel">
+<meta property="og:description" content="The map sessions are opened from, the skills and hooks a session gets, the ways in, the usage breakdown and the pushes.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://aacpanel.bemyslavedarlin.ru/docs.html">
+<meta property="og:image" content="https://aacpanel.bemyslavedarlin.ru/shots/d2-desk.webp">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-3 -3 30 30'%3E%3Crect x='-3' y='-3' width='30' height='30' rx='7' fill='%2306070f'/%3E%3Cg fill='none' stroke='%2363a8ff' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='5.2'/%3E%3Cellipse cx='12' cy='12' rx='10' ry='4.2' transform='rotate(-24 12 12)'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body class="docs">
+
+<!-- One sky, standing still: this page has no chapters to cross-fade between
+     and no script to fade them with. -->
+<div class="sky" aria-hidden="true"><i class="on start"></i></div>
+
+<div class="wrap">
+
+<div class="topline">
+    <a class="logo" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg><span>aacpanel</span></a>
+    <span class="expand">Using the panel</span>
+</div>
+
+<main>
+
+<section class="chapter hero" data-chapter="top" id="top">
+    <h1>Using the panel</h1>
+    <p class="lede">Putting it on a machine is one thing and living with it is another.
+        This page is the second one.</p>
+    <p class="say">The install is eighteen steps and is written down on its own; here is what
+        comes after it — the map sessions are opened from, what the panel adds to a session, the
+        four ways in, and how to read what the screens show.</p>
+    <nav class="toc" aria-label="On this page">
+        <a href="#map">The map</a>
+        <a href="#launch">Launch parameters</a>
+        <a href="#modes">Permission modes</a>
+        <a href="#guard">Restarting itself</a>
+        <a href="#skills">Skills</a>
+        <a href="#hooks">Scripts and hooks</a>
+        <a href="#usage">Usage</a>
+        <a href="#doors">The ways in</a>
+        <a href="#voice">Dictation</a>
+        <a href="#pushes">Pushes</a>
+    </nav>
+</section>
+
+<section class="chapter" data-chapter="map" id="map">
+    <h2>The map: contour, group, project</h2>
+    <p class="say">A session is opened from a map of three levels. A <strong>contour</strong> is one
+        claude account with a config directory of its own; a <strong>group</strong> is a shelf
+        inside it; a <strong>project</strong> is a directory on disk, a session name and the
+        parameters to start with. With a single account there is one contour, called
+        <code>personal</code>, and nothing else has to be arranged.</p>
+    <p class="say">A contour carries the path prefix its projects live under. Directories the panel
+        finds by walking the disk are offered to the contour whose prefix matches longest; which
+        shelf they go on is yours to say. What is not wanted is hidden from the findings rather
+        than argued with every time.</p>
+    <p class="say">The card of a contour says how it is authorized — built-in, a token of its own,
+        or a token that was not found — and warns when its settings have drifted from the personal
+        ones: questions from its sessions may not be reaching the panel at all.</p>
+    <figure class="shot">
+        <img src="shots/d2-desk.webp" width="1600" height="1000" alt="The desktop panel: contours and their live sessions down the left, a conversation in the middle, the session archive on the right.">
+        <figcaption>Two contours, their live sessions, and the archive of each kept apart.</figcaption>
+    </figure>
+    <p class="say"><strong>Two projects of the same name in different contours want different
+        session names.</strong> A session name is the machine's, not the contour's: tmux keeps one
+        namespace for all of them. A session started while a namesake is alive comes up as
+        <code>name-2</code>, and the conversation you were looking for is the other one.</p>
+    <p class="say">Renaming a contour is safe. The panel asks for one by the identity of its map
+        entry and never by the label on the screen, so the conversations stay where they were.</p>
+</section>
+
+<section class="chapter" data-chapter="launch" id="launch">
+    <h2>What a launch carries</h2>
+    <p class="say">A contour and a project each hold the parameters the panel passes claude. The
+        project's are laid over the contour's field by field, and every row on the card says which
+        of the two it came from.</p>
+    <dl class="rows">
+        <div class="row"><dt>model, effort</dt><dd>what the session thinks with; left empty, claude
+            decides. The list is the panel's own, and beside each alias stands the model behind it
+            with the size of its window.</dd></div>
+        <div class="row"><dt>permission mode</dt><dd>what the session asks about — below.</dd></div>
+        <div class="row"><dt>remote control</dt><dd>claude's own remote control, on only where the
+            map says so: a switch shown as off must not turn itself on at the launch.</dd></div>
+        <div class="row"><dt>finalize at</dt><dd>a percentage of the context window. On its own it
+            does nothing: it needs the guard hook in the account.</dd></div>
+        <div class="row"><dt>environment, arguments</dt><dd>variables for the session's own
+            environment and extra arguments for claude.</dd></div>
+        <div class="row"><dt>opening message</dt><dd>goes out as the first message right after the
+            launch, to a new session and to a resumed one alike.</dd></div>
+    </dl>
+    <p class="say">An opening message set on a contour reaches every project under it. A project
+        that should open into an empty conversation cancels it with an empty one of its own, and
+        the card says the profile intent is cancelled rather than showing nothing.</p>
+    <p class="say">One case drops it: a session started outside the route its contour holds. The
+        first message would then start work in another account, so it is not sent and the launch
+        report says why.</p>
+</section>
+
+<section class="chapter" data-chapter="modes" id="modes">
+    <h2>Permission modes, and the prompt on the phone</h2>
+    <p class="say">The mode a session starts in is a launch parameter, and the panel checks it
+        before the launch: claude is asked whether it takes that mode at all, and one it refuses
+        stops the launch with the answer quoted. A mode that only fails at the first turn would be
+        a session that dies out of sight.</p>
+    <dl class="rows">
+        <div class="row"><dt>manual</dt><dd>the session asks permission for every action.</dd></div>
+        <div class="row"><dt>edits</dt><dd>edits to files go without a question, everything else is
+            asked.</dd></div>
+        <div class="row"><dt>auto</dt><dd>the classifier decides: part of the actions go without a
+            question.</dd></div>
+        <div class="row"><dt>plan</dt><dd>the session looks and reasons, but does not act.</dd></div>
+        <div class="row"><dt>bypass, no asking</dt><dd>the session asks about nothing. Neither is
+            offered in the map, and a session running in one wears the badge in alarm
+            colours.</dd></div>
+    </dl>
+    <p class="say">The badge in the conversation header is what the session itself last said, with
+        how long ago it said it. A mode the panel does not know is shown as unknown rather than
+        guessed at.</p>
+    <figure class="shot phoneshot">
+        <img src="shots/m8-permit.webp" loading="lazy" width="786" height="1704" alt="A conversation on a phone: the console's permission prompt as a card with three numbered answers.">
+        <figcaption>The console's three answers, on the page — with “from now on” where the console
+            offers to remember.</figcaption>
+    </figure>
+    <p class="say">When the console asks whether it may run something, the same prompt arrives in
+        the feed as a card: the command in full, the three answers numbered as they are numbered on
+        the machine, and the reach of the second one spelled out. Answering here is answering in
+        the console; nothing else is typed into the session on your behalf.</p>
+</section>
+
+<section class="chapter" data-chapter="guard" id="guard">
+    <h2>When a session restarts itself</h2>
+    <p class="say">The panel never types into a session by itself, not even to save it from a full
+        context. A watchdog outside would have to guess whether the session can take a keystroke
+        right now, and a guess that lands in an open dialog is an answer given blind.</p>
+    <p class="say">So the guard lives inside the session as a <code>Stop</code> hook and speaks at
+        the end of a turn, when nothing can be open: past the threshold the session finalizes what
+        it was doing and restarts itself through the restart skill. The turn after the block is the
+        finalization and is never blocked again; a session that ignored it is told again at the end
+        of its next turn.</p>
+    <p class="say">The threshold is named in one of two places — in the launch parameters of the
+        contour or the project, which put <code>AACP_FINALIZE_AT</code> into the session's
+        environment, or in the project's own claude settings, for a session started by hand. Where
+        the hook is not installed the field does nothing at all.</p>
+    <p class="say">A restart keeps the name and the directory and comes back with an empty context;
+        the old conversation stays in the archive and opens from there. <strong>The machine's home
+        session is restarted and never closed</strong> — it is the one the panel lives beside, and
+        its launch is fixed by its directory and its name. A project session is closed here and
+        opened again from the map instead, because its launch parameters live there: a restart
+        without them would quietly bring it up in another setup, possibly under another
+        account.</p>
+</section>
+
+<section class="chapter" data-chapter="skills" id="skills">
+    <h2>What a session gains: the skills</h2>
+    <p class="say">Four skills ship with the panel and are copied into the skills directory of every
+        claude account that should have them. A contour without them is not broken — the session
+        simply does not have the command.</p>
+    <dl class="rows">
+        <div class="row"><dt>/restart-session</dt><dd>restarts the session in place, in the same
+            directory and under the same name.</dd></div>
+        <div class="row"><dt>/notify</dt><dd>the session calls the person to it: one line arrives on
+            the phone as a push that opens that very session. It is not a question — nothing waits
+            for an answer and the turn goes on.</dd></div>
+        <div class="row"><dt>/brief</dt><dd>the session publishes a long piece with questions in it,
+            which is read in the panel at whatever length it takes; the answers come back to the
+            session as an ordinary message.</dd></div>
+        <div class="row"><dt>/cross-profile-message</dt><dd>a message to a session living in another
+            contour. Needed only where there are several accounts.</dd></div>
+    </dl>
+    <p class="say">A brief outlives the conversation that wrote it. It is kept on the host beside
+        the transcripts and swept by age and by count, never by whether its session is still alive:
+        a sweep on a dead session would take the document out from under the person reading it.</p>
+</section>
+
+<section class="chapter" data-chapter="hooks" id="hooks">
+    <h2>What a session gains: the hooks</h2>
+    <p class="say">Two additions to claude are not optional. Without the first the panel is blind to
+        questions, without the second to the subscription.</p>
+    <dl class="rows">
+        <div class="row"><dt>the question hook</dt><dd>a session reports a question only through it:
+            the record of the call reaches the transcript after the answer, so without the hook the
+            card never arrives.</dd></div>
+        <div class="row"><dt>the status line</dt><dd>the only place the 5h and 7d percentages are
+            ever said; the script goes first in the chain and passes the payload on to whatever
+            status line was there. The numbers live only while a session is running, and the header
+            shows the age of what it has rather than yesterday's figures.</dd></div>
+    </dl>
+    <p class="say">The rest is convenience for sessions, not the panel's eyes, and each is installed
+        on its own.</p>
+    <dl class="rows">
+        <div class="row"><dt>the prompt stamp</dt><dd>every prompt arrives with today's date, how
+            much context is left, the limits of the account and the load of the machine.</dd></div>
+        <div class="row"><dt>the cost snapshot</dt><dd>a line per turn into the account's own log:
+            where the tokens went.</dd></div>
+        <div class="row"><dt>the context guard</dt><dd>the restart above.</dd></div>
+        <div class="row"><dt>the brief reminder</dt><dd>a session starting in a project where a
+            brief is answered and unsent hears about it, since the session that asked is usually
+            gone by then.</dd></div>
+    </dl>
+    <p class="say">An addition that a script of your own already does is not installed on top: two
+        hooks on one event give two stamps in every message.</p>
+</section>
+
+<section class="chapter" data-chapter="usage" id="usage">
+    <h2>Usage: where the tokens went</h2>
+    <p class="say">The numbers are not asked of an API. The panel reads the transcripts on the host
+        and sums them, which is why collection happens on demand and one round at a time: the
+        parsing runs into the processor of the machine being watched. The screen says when it last
+        ran and lets you ask for another round.</p>
+    <p class="say">In a hand the page reads top down: a contour, a period and a project narrow
+        everything under them; then the three totals — in, out and what the answers came to, with
+        the share the subagents took of each; then one chart by hour or by day; then projects and
+        the busiest conversations. A conversation opens into its own feed from that list.</p>
+    <p class="say">At a desk the same numbers stand as widgets — by hour, today, cache efficiency,
+        top projects, models and subagents, tools — and a click opens the breakdown behind one.
+        That breakdown drills: contours, then groups, then projects, then conversations, then the
+        directories underneath. A directory that is on no map is not hidden; it is counted apart,
+        as outside the map.</p>
+    <p class="say">Two of the cuts answer questions the rest cannot. <strong>Models and
+        subagents</strong> separates what the main conversation spent from what it handed out, so
+        an expensive model reached for by a subagent shows up as that and not as the session.
+        <strong>Tools</strong> counts calls and the errors among them, which is where a loop shows
+        itself long before the bill does.</p>
+</section>
+
+<section class="chapter" data-chapter="doors" id="doors">
+    <h2>Four ways in, and how one is chosen</h2>
+    <p class="say">The panel answers on up to four listeners at once. They carry the same routes;
+        what differs is what guards the door and whether the live session terminal is in the
+        set.</p>
+    <dl class="rows">
+        <div class="row"><dt>the main listener</dt><dd>the address published to the world, usually
+            through a reverse proxy on a domain. Passkey or token.</dd></div>
+        <div class="row"><dt>the local panel</dt><dd>on the machine's loopback and nowhere else, so
+            it lets you in without signing in: the door is checked at the entrance to the listener
+            — origin, host and <code>Sec-Fetch-Site</code>.</dd></div>
+        <div class="row"><dt>the local network</dt><dd>its own address with a real certificate held
+            by the service itself. Passkeys and installing the app work there, which they cannot do
+            over plain http.</dd></div>
+        <div class="row"><dt>tailscale</dt><dd>a node inside the tailnet, https without a domain and
+            without a public address. The phone needs the Tailscale app: the node runs in userspace
+            mode inside its own container and is invisible from outside.</dd></div>
+    </dl>
+    <p class="say">After signing in, the client is handed the addresses in order of closeness,
+        measures them and goes for data to the nearest one that answered. The page stays where it
+        was opened — what moves is the address the data comes from. A single failed request does
+        not cross an address out: a probe is sent first, and an address that answers with its own
+        panel stays the base.</p>
+    <p class="say"><strong>Two things stay off unless they are asked for.</strong> Tailscale's
+        funnel is never turned on: it would put the session terminal on the open internet. And the
+        terminal itself is not a route on the main listener by default — not "behind a password",
+        simply absent, because behind it is raw input into a live session, that is, a way around
+        the confirmation gate. The panel journals that a terminal was connected to, never the bytes
+        typed in it.</p>
+</section>
+
+<section class="chapter" data-chapter="voice" id="voice">
+    <h2>Dictation into the composer</h2>
+    <p class="say">It is off until it is turned on for the device, in settings. The microphone
+        belongs to a browser and not to an account, so a phone that dictates and a desk that does
+        not is an ordinary arrangement. The switch asks for the microphone once, at the moment it
+        goes on, rather than in the middle of the first press.</p>
+    <p class="say">There is no second button for it. With nothing to send, the send button is a
+        switch: one press starts listening, the next stops it, and what was heard stays in the
+        field to be read over before it goes. With words already in the field it is the send button
+        it has always been — a press sends, and only a press held talks, until the finger comes
+        off. Either way what is heard lands after what is already written.</p>
+    <p class="say"><strong>The recognition is the browser's own, and in Chrome that means the
+        recording goes to Google.</strong> It is the one thing here that leaves the machine, the
+        switch says so before it is flipped, and nothing turns it on for you.</p>
+</section>
+
+<section class="chapter" data-chapter="pushes" id="pushes">
+    <h2>Pushes: what arrives, and what does not</h2>
+    <p class="say">A push is a subscription of one browser, made on the device and revoked with it.
+        It needs a secure context, so an address without a certificate has no pushes at all.</p>
+    <p class="say">What raises one: a session asking a question, calling you to it, publishing a
+        brief, waiting longer than it should, finishing a turn that ran long, or ending; a
+        container that fell or went unhealthy, a whole stack gone dark, a check that stopped
+        answering, a rule tripping its threshold, a subscription burning past its own.</p>
+    <p class="say">One push when a reason appears and one when it is gone, with no reminders in
+        between. There are no quiet hours and no importance threshold: the only setting is whether
+        the device is subscribed, and repeats are collapsed by the server rather than by the
+        phone.</p>
+    <p class="say"><strong>A push about a session does not go to the device where that session is
+        open right now.</strong> The screen marks that it is being watched and the mark goes stale
+        in under a minute, so a phone put down still gets the next one.</p>
+    <p class="say">The rules themselves travel with the panel and are brought to the database at
+        every start, matched by key rather than by name: a rule renamed keeps the alerts that are
+        already attached to it, and one that leaves is switched off with its history intact. The
+        screen shows them and takes the acknowledgement; changing a threshold is a change to the
+        panel, not a field to edit while the alarm is going.</p>
+</section>
+
+<section class="chapter" data-chapter="end" id="end">
+    <h2>Where the rest is written</h2>
+    <p class="say">This page is how the panel is used. How it is built, and what it deliberately
+        does not have, is one document; how it is put on a machine is another.</p>
+    <p class="links docslinks">
+        <a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/README.md">README</a>
+        <a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/ARCHITECTURE.md">ARCHITECTURE</a>
+        <a target="_blank" rel="noopener" href="https://github.com/BeMySlaveDarlin/aacpanel/blob/main/INSTALL.md">INSTALL</a>
+        <a href="index.html">The panel itself</a>
+    </p>
+</section>
+
+</main>
+</div>
+
+</body>
+</html>

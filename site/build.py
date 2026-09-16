@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds index.html out of index.src.html: {{scene:name}} -> scenes/name.html.
+"""Builds every page: name.src.html -> name.html, {{scene:x}} -> scenes/x.html.
 
 A scene is pasted raw, so a scene with one closing tag too many climbs out of
 its frame and eats the rest of the page. Every scene is checked before it is
@@ -45,14 +45,18 @@ class Balance(HTMLParser):
         return self.faults
 
 
+SUFFIX = ".src.html"
+
 here = pathlib.Path(__file__).parent
-src = (here / "index.src.html").read_text(encoding="utf-8")
 used, missing, broken = set(), set(), {}
+slots = 0
 
 
 def stamp(m):
+    global slots
     name = m.group(1)
     used.add(name)
+    slots += 1
     scene = here / "scenes" / f"{name}.html"
     if not scene.is_file():
         missing.add(name)
@@ -67,11 +71,19 @@ def stamp(m):
     return text
 
 
-out = re.sub(r"\{\{scene:([\w-]+)\}\}", stamp, src)
-(here / "index.html").write_text(out, encoding="utf-8")
+pages = sorted(here.glob("*" + SUFFIX))
+if not pages:
+    print("no page source to build", file=sys.stderr)
+    sys.exit(1)
+
+for page in pages:
+    slots = 0
+    out = re.sub(r"\{\{scene:([\w-]+)\}\}", stamp, page.read_text(encoding="utf-8"))
+    name = page.name[: -len(SUFFIX)] + ".html"
+    (here / name).write_text(out, encoding="utf-8")
+    print(f"built {name} — {len(out)} bytes, {slots} slots")
 
 have = {p.stem for p in (here / "scenes").glob("*.html")}
-print(f"built index.html — {len(out)} bytes, {len(used)} slots")
 if missing:
     print("no file yet:", " ".join(sorted(missing)))
 if have - used:
