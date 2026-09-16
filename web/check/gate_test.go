@@ -44,9 +44,14 @@ var ceremonies = map[string]ceremony{
 		paths:   []string{"/api/usage/"},
 		methods: []string{"POST"},
 	},
+	// A brief belongs to the person, not to the host: saving what they typed,
+	// marking that it went and putting the document away are all done to the
+	// panel's own shelf, and none of them runs anything on the machine. The
+	// gate stands in front of execution, and removal asks on the screen
+	// instead — the button turns into the question before it does anything.
 	"src/data/briefs.js": {
 		paths:   []string{"/api/briefs"},
-		methods: []string{"PUT", "POST"},
+		methods: []string{"PUT", "POST", "DELETE"},
 	},
 }
 

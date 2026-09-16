@@ -68,6 +68,21 @@ def _answer(request):
 
     # A published page is read here for the same reason a brief is: the copy
     # arrives on a socket of its own, which the service cannot reach at all.
+    # Removing a brief is asked for here, by the panel on behalf of the person
+    # and by the publisher on behalf of a session. The rule differs between
+    # them: a session names the directory it works in and may remove only the
+    # documents of that directory, while the panel names none and removes what
+    # the person is looking at.
+    drop_brief = request.get("dropBrief")
+    if isinstance(drop_brief, dict):
+        brief_id = drop_brief.get("id")
+        cwd = drop_brief.get("cwd")
+        ok, why = briefs.SHELF.drop(
+            brief_id if isinstance(brief_id, str) else "",
+            cwd if isinstance(cwd, str) and cwd else None,
+        )
+        return {"ok": True, "dropped": brief_id} if ok else {"ok": False, "error": why}
+
     want_pages = request.get("pages")
     if isinstance(want_pages, dict):
         session = want_pages.get("session")

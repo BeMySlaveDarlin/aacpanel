@@ -274,6 +274,7 @@ type Reply struct {
 	Brief   *Brief       `json:"brief,omitempty"`
 	Pages   []PageCard   `json:"pages,omitempty"`
 	Page    *Page        `json:"page,omitempty"`
+	Dropped string       `json:"dropped,omitempty"`
 	State   *Work        `json:"state,omitempty"`
 	Text    string       `json:"text,omitempty"`
 	Cut     bool         `json:"cut,omitempty"`
@@ -309,25 +310,26 @@ type Call struct {
 
 // Req is what is asked of the agent.
 type Req struct {
-	Session  string      `json:"session"`
-	Limit    int         `json:"limit,omitempty"`
-	Before   *int64      `json:"before,omitempty"`
-	After    *int64      `json:"after,omitempty"`
-	Image    *ImageRef   `json:"image,omitempty"`
-	CallRef  *ImageRef   `json:"call,omitempty"`
-	Archive  *ArchiveReq `json:"archive,omitempty"`
-	Briefs   *BriefsReq  `json:"briefs,omitempty"`
-	Brief    string      `json:"brief,omitempty"`
-	Pages    *PagesReq   `json:"pages,omitempty"`
-	Page     string      `json:"page,omitempty"`
-	Task     *TaskRef    `json:"task,omitempty"`
-	File     string      `json:"file,omitempty"`
-	Raw      string      `json:"raw,omitempty"`
-	Offset   int64       `json:"offset,omitempty"`
-	Bytes    int         `json:"bytes,omitempty"`
-	Agent    string      `json:"agent,omitempty"`
-	State    bool        `json:"state,omitempty"`
-	Subagent string      `json:"subagent,omitempty"`
+	Session   string      `json:"session"`
+	Limit     int         `json:"limit,omitempty"`
+	Before    *int64      `json:"before,omitempty"`
+	After     *int64      `json:"after,omitempty"`
+	Image     *ImageRef   `json:"image,omitempty"`
+	CallRef   *ImageRef   `json:"call,omitempty"`
+	Archive   *ArchiveReq `json:"archive,omitempty"`
+	Briefs    *BriefsReq  `json:"briefs,omitempty"`
+	Brief     string      `json:"brief,omitempty"`
+	Pages     *PagesReq   `json:"pages,omitempty"`
+	Page      string      `json:"page,omitempty"`
+	DropBrief *DropBrief  `json:"dropBrief,omitempty"`
+	Task      *TaskRef    `json:"task,omitempty"`
+	File      string      `json:"file,omitempty"`
+	Raw       string      `json:"raw,omitempty"`
+	Offset    int64       `json:"offset,omitempty"`
+	Bytes     int         `json:"bytes,omitempty"`
+	Agent     string      `json:"agent,omitempty"`
+	State     bool        `json:"state,omitempty"`
+	Subagent  string      `json:"subagent,omitempty"`
 }
 
 // TaskRef says which background task is wanted.

@@ -692,3 +692,13 @@
 .bprose > :first-child { margin-top: 0; }
 .bprose > :last-child { margin-bottom: 0; }
 .bprose p { margin: 0 0 .6rem; }
+
+/* Removing asks before it does anything: the first press turns the button into
+   the question. A document read for an hour is not put down by a thumb passing
+   over the dock. */
+.bbtn.drop { color: var(--paper-ink-3); }
+.bbtn.drop.asking {
+    color: var(--paper-lost);
+    background: var(--paper-lost-soft);
+    border-color: var(--paper-lost);
+}

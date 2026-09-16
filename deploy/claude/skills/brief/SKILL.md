@@ -104,6 +104,20 @@ The half that is not questions is the half that earns it:
 - **Nothing you write is markup.** Inline markdown is turned into nodes by the
   panel; html in a field arrives as the characters you typed.
 
+## Taking one off the shelf
+
+```sh
+<repo>/deploy/claude/brief.py --delete seven-questions
+```
+
+A session removes only the briefs of the directory it works in: the document
+belongs to the work it was written for, and the conversation carrying that work
+on is the one that may put it down. A brief from elsewhere is refused with the
+directory it belongs to. The answers to the document go with it.
+
+Remove one when the person asks. A brief nobody answered is swept on its own
+after a month.
+
 ## What comes back
 
 `OK` with the id means the panel has it. `STOP` with a reason means nothing was

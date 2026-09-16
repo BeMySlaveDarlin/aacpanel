@@ -16,7 +16,10 @@ SOCKET = os.environ.get("AACP_BRIEF_SOCKET", "/run/aacpanel-agent/brief.sock")
 
 TIMEOUT = 10.0
 
-MAX_BYTES = 256 * 1024
+# The same ceiling the collector keeps, so a document is refused in one place
+# and for one reason. A client that stops short of the shelf refuses what the
+# shelf would have taken, and the session is told a number nobody set.
+MAX_BYTES = 4 * 1024 * 1024
 
 
 def say(mark, text):
@@ -51,7 +54,7 @@ def publish(doc, session, cwd, path=SOCKET, timeout=TIMEOUT):
     """Hands the brief to the collector and returns what it answered."""
     payload = json.dumps({"sessionId": session, "cwd": cwd, "doc": doc}, ensure_ascii=False)
     if len(payload.encode("utf-8")) > MAX_BYTES:
-        raise ValueError(f"the document is longer than {MAX_BYTES // 1024} KB")
+        raise ValueError(f"the document is longer than {MAX_BYTES // (1024 * 1024)} MB")
     conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     conn.settimeout(timeout)
     try:
@@ -72,14 +75,53 @@ def publish(doc, session, cwd, path=SOCKET, timeout=TIMEOUT):
     return reply
 
 
+def drop(brief_id, path=SOCKET):
+    """Takes a brief of this directory off the shelf.
+
+    The directory travels with the request and the shelf holds the removal to
+    it: a session puts down the documents of the work it is carrying on, and a
+    brief written elsewhere is somebody else's to remove.
+    """
+    try:
+        conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn.settimeout(TIMEOUT)
+        conn.connect(path)
+        conn.sendall(json.dumps({"drop": brief_id, "cwd": os.getcwd()}, ensure_ascii=False).encode("utf-8"))
+        conn.shutdown(socket.SHUT_WR)
+        raw = conn.recv(64 * 1024)
+        conn.close()
+        reply = json.loads(raw.decode("utf-8"))
+    except FileNotFoundError:
+        say("STOP", f"the panel's collector is not listening on {path}")
+        return 1
+    except (OSError, ValueError) as e:
+        say("STOP", f"the removal did not go through: {e}")
+        return 1
+
+    if not reply.get("ok"):
+        say("STOP", reply.get("error") or "the collector refused to remove the brief")
+        return 1
+    say("OK", f"{reply.get('dropped')} is off the shelf: the document and the answers to it are gone")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Publishes a brief to the panel for the person to walk through.")
-    parser.add_argument("path", help="the document, .yaml or .json")
+    parser.add_argument("path", nargs="?", help="the document, .yaml or .json")
+    parser.add_argument("--delete", metavar="ID",
+                        help="take a brief of this directory off the shelf, by its id")
     parser.add_argument("--socket", default=SOCKET, help="the collector's socket")
     parser.add_argument("--check", action="store_true",
                         help="read the document and say what is in it, publishing nothing")
     args = parser.parse_args(argv)
+
+    if args.delete:
+        return drop(args.delete, args.socket)
+
+    if not args.path:
+        say("STOP", "name the document to publish, or --delete <id> to take one off the shelf")
+        return 2
 
     try:
         doc = load(args.path)

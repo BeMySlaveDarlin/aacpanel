@@ -146,3 +146,27 @@ func (c *Client) BriefOf(ctx context.Context, id string) (*Brief, error) {
 	}
 	return reply.Brief, nil
 }
+
+// DropBrief asks for a brief to be taken off the shelf. A directory means the
+// asking is done on behalf of a session, which removes only the documents of
+// the directory it works in; without one the person is asking, and every brief
+// on the machine is theirs.
+type DropBrief struct {
+	ID  string `json:"id"`
+	CWD string `json:"cwd,omitempty"`
+}
+
+// DropBriefOf removes one brief and returns the error the collector gave, if any.
+func (c *Client) DropBriefOf(ctx context.Context, id, cwd string) error {
+	reply, err := c.Feed(ctx, Req{DropBrief: &DropBrief{ID: id, CWD: cwd}})
+	if err != nil {
+		return err
+	}
+	if reply.Dropped == "" {
+		// A collector that predates removal answers the request as a feed and
+		// says nothing about a brief: reporting that would leave the person
+		// with a document they think is gone.
+		return ErrNoBriefs
+	}
+	return nil
+}

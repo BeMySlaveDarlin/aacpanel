@@ -384,3 +384,42 @@ class Handles(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Removing(unittest.TestCase):
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.shelf = briefs.Shelf(self.dir.name)
+        self.shelf.put(briefs.clean(published()))
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_a_brief_is_taken_off_the_shelf(self):
+        ok, why = self.shelf.drop(DOC["id"])
+        self.assertTrue(ok, why)
+        self.assertIsNone(self.shelf.of(DOC["id"]))
+
+    def test_a_session_removes_only_the_documents_of_its_own_directory(self):
+        # A brief belongs to the work it was written for, and a session
+        # carrying on other work is not the one to put it down.
+        ok, why = self.shelf.drop(DOC["id"], "/srv/elsewhere")
+        self.assertFalse(ok)
+        self.assertIn("/srv/proj", why)
+        self.assertIsNotNone(self.shelf.of(DOC["id"]))
+
+    def test_a_session_of_the_same_directory_removes_it(self):
+        ok, why = self.shelf.drop(DOC["id"], "/srv/proj")
+        self.assertTrue(ok, why)
+
+    def test_a_name_that_is_not_a_name_removes_nothing(self):
+        for bad in ("../secret", "", "NOT-A-NAME"):
+            ok, why = self.shelf.drop(bad)
+            self.assertFalse(ok, bad)
+        self.assertIsNotNone(self.shelf.of(DOC["id"]))
+
+    def test_removing_what_is_already_gone_says_so(self):
+        self.shelf.drop(DOC["id"])
+        ok, why = self.shelf.drop(DOC["id"])
+        self.assertFalse(ok)
+        self.assertIn("no brief", why)

@@ -379,3 +379,71 @@ func TestASentBriefTakesNoMoreAnswersPG(t *testing.T) {
 		t.Errorf("the answers the session was sent were changed afterwards: %+v", draft.Answers)
 	}
 }
+
+// Removing a brief from the panel takes the document off the shelf of the host
+// and the answers to it out of the database: answers to a brief nobody can open
+// are a record with nothing behind it.
+func TestRemovingABriefTakesTheAnswersWithItPG(t *testing.T) {
+	dsn := testdb.DSN(t)
+	db, err := store.New(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	agent := startAgent(t, map[string]any{"ok": true, "dropped": "brief-to-remove"})
+	srv := &Server{db: db, chat: chat.New(agent.path)}
+
+	if err := db.SaveBriefDraft(t.Context(), "brief-to-remove",
+		map[string]store.BriefAnswer{"r1": {Picks: []string{"A"}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodDelete, "/api/briefs/brief-to-remove", nil)
+	r.SetPathValue("id", "brief-to-remove")
+	srv.apiBriefDrop(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+
+	// The panel asks for the whole of it: no directory, because the person
+	// reading it removes what they are looking at.
+	req := <-agent.got
+	if req.DropBrief == nil || req.DropBrief.ID != "brief-to-remove" {
+		t.Fatalf("what went to the collector: %+v", req.DropBrief)
+	}
+	if req.DropBrief.CWD != "" {
+		t.Errorf("the panel named a directory (%q) and would be refused its own brief", req.DropBrief.CWD)
+	}
+
+	draft, err := db.BriefDraftOf(t.Context(), "brief-to-remove")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(draft.Answers) != 0 {
+		t.Errorf("the answers outlived the document: %+v", draft.Answers)
+	}
+}
+
+// A name the route would refuse never reaches the collector.
+func TestABriefIsNotRemovedUnderANameThatIsNotOne(t *testing.T) {
+	agent := startAgent(t, map[string]any{"ok": true, "dropped": "x"})
+	srv := &Server{chat: chat.New(agent.path)}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodDelete, "/api/briefs/x", nil)
+	r.SetPathValue("id", "../secret")
+	srv.apiBriefDrop(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	select {
+	case req := <-agent.got:
+		t.Errorf("the collector was asked anyway: %+v", req.DropBrief)
+	default:
+	}
+}

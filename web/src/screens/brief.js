@@ -7,7 +7,8 @@ import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
 import { BackHead } from "../ui/back.js";
 import { Sheet } from "../ui/sheet.js";
-import { markSent, one, saveDraft } from "../data/briefs.js";
+import { drop, markSent, one, saveDraft } from "../data/briefs.js";
+import { useToast } from "../ui/toasts.js";
 
 // How long after the last keystroke the draft goes to the panel. Short enough
 // that a phone put down mid-sentence keeps the sentence, long enough not to
@@ -169,6 +170,11 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     const [error, setError] = useState("");
     const [peek, setPeek] = useState(false);
     const [sending, setSending] = useState(false);
+    // Removing is asked twice: the first press turns the button into the
+    // question, the second answers it. A document read for an hour is not put
+    // down by a thumb passing over the dock.
+    const [dropping, setDropping] = useState("");
+    const toast = useToast();
     const [picked, setPicked] = useState("");
     const timer = useRef(null);
 
@@ -228,6 +234,25 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     const why = !name
         ? "the session that wrote this brief is not running, and nothing else is working in its directory: the answers wait here until one is"
         : whyNot(exec, "session.send");
+
+    // The document goes off the shelf of the host, and the answers to it with
+    // it: what is left otherwise is a record with nothing to open behind it.
+    const remove = async () => {
+        if (dropping === "going") return;
+        if (dropping !== "asking") {
+            setDropping("asking");
+            return;
+        }
+        setDropping("going");
+        try {
+            await drop(id);
+        } catch (e) {
+            setDropping("");
+            toast(String((e && e.message) || e));
+            return;
+        }
+        onBack();
+    };
 
     const send = async () => {
         if (sentAt || !canSend || sending || !done) return;
@@ -353,6 +378,12 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                             ` : null}
                         </div>
                         <button type="button" class="bbtn" onClick=${() => setPeek(true)}>What goes</button>
+                        <button
+                            type="button"
+                            class=${`bbtn drop${dropping === "asking" ? " asking" : ""}`}
+                            disabled=${dropping === "going"}
+                            onClick=${remove}
+                        >${dropping === "going" ? "Removing…" : dropping === "asking" ? "Remove it?" : "Remove"}</button>
                         <button
                             type="button"
                             class="bbtn go"

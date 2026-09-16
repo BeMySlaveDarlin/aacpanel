@@ -275,3 +275,32 @@ func briefOptionLabel(q chat.BriefQuestion, key string) string {
 	// wrote the document and can look up what the key meant.
 	return "(an option the document no longer offers)"
 }
+
+// apiBriefDrop takes a brief off the shelf of the host and the answers with it.
+//
+// The person reading the panel removes what they are looking at; a session asks
+// through the publisher and names the directory it works in, which is where the
+// rule about its own documents is kept.
+func (s *Server) apiBriefDrop(w http.ResponseWriter, r *http.Request) {
+	if !s.chat.Available() {
+		http.Error(w, "briefs are unavailable: the collector socket is not mounted", http.StatusServiceUnavailable)
+		return
+	}
+	id := r.PathValue("id")
+	if !briefIDRE.MatchString(id) {
+		http.Error(w, "the name of a brief is lowercase letters, digits and dashes", http.StatusBadRequest)
+		return
+	}
+	if err := s.chat.DropBriefOf(r.Context(), id, ""); err != nil {
+		briefFail(w, err)
+		return
+	}
+	// The document is gone; the answers to it go too, and a database that is
+	// down does not make the removal a failure — the brief is off the shelf.
+	if s.db != nil {
+		if err := s.db.DropBriefDraft(r.Context(), id); err != nil {
+			log.Printf("the brief %s is removed, its draft is not: %v", id, err)
+		}
+	}
+	writeJSON(w, map[string]any{"ok": true, "dropped": id})
+}

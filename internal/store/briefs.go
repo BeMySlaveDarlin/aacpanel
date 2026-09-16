@@ -170,3 +170,17 @@ func (s *Store) MarkBriefSent(ctx context.Context, id string) (err error) {
 		 ON CONFLICT (brief_id) DO UPDATE SET sent_at = now()`, id)
 	return err
 }
+
+// DropBriefDraft removes what a person typed into a brief. It follows the
+// document off the shelf: answers to a brief nobody can open are a record with
+// nothing behind it.
+func (s *Store) DropBriefDraft(ctx context.Context, id string) (err error) {
+	defer func() { err = Unavailable(err) }()
+
+	pool, err := s.Pool()
+	if err != nil {
+		return err
+	}
+	_, err = pool.Exec(ctx, `DELETE FROM brief_draft WHERE brief_id = $1`, id)
+	return err
+}

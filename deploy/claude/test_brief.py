@@ -207,3 +207,49 @@ class Publish(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Removing(unittest.TestCase):
+    def test_a_removal_names_the_directory_it_is_asked_from(self):
+        # The shelf holds a session to its own work, and the directory is how it
+        # knows: a brief written for another project is somebody else's.
+        here, there = socket.socketpair()
+        seen = {}
+
+        def collector():
+            with there:
+                chunks = []
+                while True:
+                    chunk = there.recv(64 * 1024)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                seen["got"] = json.loads(b"".join(chunks).decode("utf-8"))
+                there.sendall(json.dumps({"ok": True, "dropped": "seven-after-twelve"}).encode("utf-8"))
+
+        thread = threading.Thread(target=collector)
+        thread.start()
+        payload = {"drop": "seven-after-twelve", "cwd": os.getcwd()}
+        here.sendall(json.dumps(payload).encode("utf-8"))
+        here.shutdown(socket.SHUT_WR)
+        answer = here.recv(64 * 1024)
+        here.close()
+        thread.join(5)
+
+        self.assertEqual(seen["got"]["drop"], "seven-after-twelve")
+        self.assertEqual(seen["got"]["cwd"], os.getcwd())
+        self.assertTrue(json.loads(answer.decode("utf-8"))["ok"])
+
+    def test_without_a_panel_the_removal_says_so(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = brief.drop("seven-after-twelve", "/run/nothing-here.sock")
+        self.assertEqual(code, 1)
+        self.assertIn("not listening", out.getvalue())
+
+    def test_neither_a_document_nor_a_removal_is_refused(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = brief.main([])
+        self.assertEqual(code, 2)
+        self.assertIn("--delete", out.getvalue())

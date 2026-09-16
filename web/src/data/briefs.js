@@ -42,6 +42,12 @@ export async function markSent(id) {
     return body(r, "the mark was not saved");
 }
 
+// drop takes a brief off the shelf of the host, and the answers with it.
+export async function drop(id) {
+    const r = await fetch(`/api/briefs/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return body(r, "the brief was not removed");
+}
+
 // state is the one thing a card of a brief has to say: what this document wants
 // from you. It lives here and not in a screen because the shelf and the shelf
 // of a conversation both draw it, and two wordings of "3 of 5" would be two

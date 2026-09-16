@@ -423,6 +423,36 @@ class Shelf:
         with self._lock:
             return self._read(brief_id)
 
+    def drop(self, brief_id, cwd=None):
+        """Takes a brief off the shelf, and says what happened.
+
+        A brief belongs to the directory it was written in, and that is what
+        "your own" means for a session asking to remove one: the conversation
+        carrying the work on is the one that may put down its own documents.
+        A person reading the panel asks without a directory and removes what
+        they are looking at — every brief on the machine is theirs.
+        """
+        try:
+            name = _slug(brief_id, "the name of a brief")
+        except Refused as e:
+            return False, str(e)
+        if name != str(brief_id):
+            return False, "this is not the name of a brief"
+        with self._lock:
+            doc = self._read(name)
+            if not doc:
+                return False, "there is no brief under this name: it was never published, or it is already gone"
+            if cwd and doc.get("cwd") and doc["cwd"] != cwd:
+                return False, (f"this brief was written in {doc['cwd']}, and a session removes only "
+                               "the documents of the directory it works in")
+            try:
+                os.unlink(self._file(name))
+            except FileNotFoundError:
+                return False, "the brief is already gone"
+            except OSError as e:
+                return False, f"the brief was not removed: {e}"
+        return True, ""
+
     def cards(self, session=None):
         """Returns the short card of every brief, newest first."""
         out = []
@@ -519,6 +549,14 @@ def handle(conn, shelf=None):
         try:
             conn.settimeout(10)
             payload = json.loads(_recv(conn).decode("utf-8"))
+            # The same socket takes away what it brought. A removal names the
+            # directory it is asked from, and the shelf holds it to that: a
+            # session puts down the documents of its own work and nothing else.
+            if isinstance(payload, dict) and payload.get("drop"):
+                ok, why = shelf.drop(payload.get("drop"), payload.get("cwd") or None)
+                reply = {"ok": True, "dropped": payload.get("drop")} if ok else {"ok": False, "error": why}
+                conn.sendall(json.dumps(reply, ensure_ascii=False).encode("utf-8"))
+                return
             brief = clean(payload)
             ok, why = shelf.put(brief)
             if ok:

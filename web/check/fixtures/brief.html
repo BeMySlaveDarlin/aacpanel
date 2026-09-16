@@ -73,6 +73,7 @@ const doc = {
 
 let saved = null;
 let sentMark = false;
+let removed = false;
 const asked = [];
 window.fetch = async (url, init) => {
     const u = String(url);
@@ -92,6 +93,11 @@ window.fetch = async (url, init) => {
             draft: { answers: saved },
             reply: `Brief "Seven questions after twelve" · seven-after-twelve\nAnswered ${done} of 2\n`,
         }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/briefs/seven-after-twelve" && method === "DELETE") {
+        removed = true;
+        return new Response(JSON.stringify({ ok: true, dropped: "seven-after-twelve" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
     }
     if (u.endsWith("/sent")) {
         sentMark = true;
@@ -197,7 +203,22 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     await new Promise((r) => setTimeout(r, 120));
     exit.left = left.length;
 
-    window.done = { before, after, asked, sentMark, exit, locked,
+    // Removing asks once before it does anything, and the second press is what
+    // sends the request.
+    const leftBefore = left.length;
+    const dropBtn = document.querySelector(".bbtn.drop");
+    const removing = { there: Boolean(dropBtn), label: dropBtn ? dropBtn.textContent.trim() : "" };
+    if (dropBtn) dropBtn.click();
+    await new Promise((r) => setTimeout(r, 150));
+    removing.asking = (document.querySelector(".bbtn.drop") || {}).textContent || "";
+    removing.afterFirst = removed;
+    const again = document.querySelector(".bbtn.drop");
+    if (again) again.click();
+    await new Promise((r) => setTimeout(r, 300));
+    removing.afterSecond = removed;
+    removing.left = left.length - leftBefore;
+
+    window.done = { before, after, asked, sentMark, exit, locked, removing,
         reply: (document.querySelector(".breply") || {}).textContent || "" };
 })();
 </script>

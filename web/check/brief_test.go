@@ -48,6 +48,14 @@ type briefShot struct {
 		SavesAfter int      `json:"savesAfter"`
 		Picks      []string `json:"picks"`
 	} `json:"locked"`
+	Removing struct {
+		There       bool   `json:"there"`
+		Label       string `json:"label"`
+		Asking      string `json:"asking"`
+		AfterFirst  bool   `json:"afterFirst"`
+		AfterSecond bool   `json:"afterSecond"`
+		Left        int    `json:"left"`
+	} `json:"removing"`
 	Exit struct {
 		There    bool   `json:"there"`
 		Stuck    string `json:"stuck"`
@@ -359,4 +367,28 @@ func sameColour(computed, hex string) bool {
 		return false
 	}
 	return computed == fmt.Sprintf("rgb(%d, %d, %d)", r, g, b)
+}
+
+// A brief can be put away for good, and the panel asks before it does it: the
+// first press turns the button into the question, the second answers it. A
+// document read for an hour is not removed by a thumb passing over the dock.
+func TestRemovingABriefAsksFirst(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+
+	if !got.Removing.There {
+		t.Fatal("there is no way to remove a brief from the document")
+	}
+	if got.Removing.AfterFirst {
+		t.Error("the first press removed the document without asking")
+	}
+	if !strings.Contains(strings.ToLower(got.Removing.Asking), "remove it") {
+		t.Errorf("the first press says %q instead of asking", got.Removing.Asking)
+	}
+	if !got.Removing.AfterSecond {
+		t.Error("the second press did not remove the document")
+	}
+	if got.Removing.Left != 1 {
+		t.Errorf("after the document was removed the screen stayed on it (%d exits)", got.Removing.Left)
+	}
 }
