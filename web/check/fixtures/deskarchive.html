@@ -23,6 +23,9 @@ const names = ["Acme Labs", "The Workshop", "personal", "off-the-map"];
 
 const row = (id, profile, at) => ({
     sessionId: id, name: `talk ${id}`, cwd: "/srv/proj/lab", profile,
+    // The collector's row comes back placed on the map: two contours may hold a
+    // project called the same, and only the entry tells them apart.
+    project: { id: 42, name: "lab", path: "/srv/proj/lab", group: "Labs" },
     model: "claude-opus-5", pct: 12, pctMax: 40, tokens: 400000, tokensMax: 400000,
     limit: 1000000, messages: 4, lastAt: at, startedAt: at, lastRequestAt: at,
 });
@@ -33,8 +36,14 @@ const rows = [
 ];
 
 const asked = [];
-window.fetch = async (url) => {
+const sent = [];
+window.fetch = async (url, init) => {
     const u = String(url);
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ ok: true, detail: "up" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
     if (u.startsWith("/api/sessions/archive")) {
         asked.push(new URL(u, location.origin).search);
         return new Response(JSON.stringify({ rows, total: rows.length, limit: 20, offset: 0 }),
@@ -71,6 +80,19 @@ window.done = (async () => {
     await settle();
     const unknown = [...asked];
 
-    return { all, labelled, unknown, sections };
+    // A new session from a card is opened in the entry of the map the card
+    // stands on, not in whatever project carries that name.
+    show([]);
+    await settle();
+    const plus = document.querySelector(".dkacts .dkact:last-child");
+    if (plus) {
+        plus.click();
+        await sleep(150);
+        const ok = document.querySelector(".btnrow .btn.primary");
+        if (ok) ok.click();
+        await sleep(250);
+    }
+
+    return { all, labelled, unknown, sections, sent };
 })();
 </script>

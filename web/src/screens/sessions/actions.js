@@ -46,7 +46,7 @@ function OpenButton({ row, exec }) {
     const run = useAction();
     const ready = knows(exec, "session.open");
     const why = whyNot(exec, "session.open");
-    const project = projectOf(row);
+    const project = (row.project && row.project.name) || projectOf(row);
     if (!project) return null;
     return html`
         <button
@@ -56,7 +56,10 @@ function OpenButton({ row, exec }) {
             disabled=${!ready}
             title=${ready ? `new session in project ${project}` : why}
             onClick=${async () => {
-                await run("session.open", project, {});
+                // The row carries the entry of the map it ran in, and the entry
+                // is what a new session is opened by: a name is not an address
+                // when two contours hold a project called the same.
+                await run("session.open", project, row.project ? { project: row.project.id } : {});
             }}
         >${Icon.plus()}</button>
     `;

@@ -60,12 +60,14 @@ function Row({ r, exec, onOpen, run }) {
                         onClick=${() => knows(exec, "session.resume") && run("session.resume", r.name, { session: r.sessionId })}
                     ><${Icon.resume} /></i>
                 `}
-                ${projectOf(r) && html`
+                ${(r.project || projectOf(r)) && html`
                     <i
                         class=${`dkact${knows(exec, "session.open") ? "" : " off"}`}
                         data-tip=${knows(exec, "session.open") ? undefined : whyNot(exec, "session.open")}
                         data-tipside="left"
-                        onClick=${() => knows(exec, "session.open") && run("session.open", projectOf(r), {})}
+                        onClick=${() => knows(exec, "session.open") && run("session.open",
+                            (r.project && r.project.name) || projectOf(r),
+                            r.project ? { project: r.project.id } : {})}
                     ><${Icon.plus} /></i>
                 `}
             </span>

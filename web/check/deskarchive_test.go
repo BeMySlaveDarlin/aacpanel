@@ -21,6 +21,11 @@ func TestDesktopArchiveAsksEachContourByTheIDOfItsMapEntry(t *testing.T) {
 		Labelled []string `json:"labelled"`
 		Unknown  []string `json:"unknown"`
 		Sections []string `json:"sections"`
+		Sent     []struct {
+			Kind   string         `json:"kind"`
+			Target string         `json:"target"`
+			Params map[string]any `json:"params"`
+		} `json:"sent"`
 	}
 	runFixture(t, "deskarchive.html", &got)
 
@@ -48,6 +53,14 @@ func TestDesktopArchiveAsksEachContourByTheIDOfItsMapEntry(t *testing.T) {
 	if len(got.Unknown) != 1 || !strings.Contains(got.Unknown[0], "profile=off-the-map") {
 		t.Errorf("a contour the map does not know went out as %v — its name came from the collector itself and is the only "+
 			"thing that names it", got.Unknown)
+	}
+
+	if len(got.Sent) != 1 {
+		t.Fatalf("pressing the plus of a card sent %d requests: %+v", len(got.Sent), got.Sent)
+	}
+	if id, ok := got.Sent[0].Params["project"].(float64); !ok || int(id) != 42 {
+		t.Errorf("a card opened a new session by %+v — a project is addressed by the id of its map entry, "+
+			"because a name belongs to as many contours as have a directory of that name", got.Sent[0].Params)
 	}
 
 	if want := []string{"Acme Labs", "The Workshop", "personal", "off-the-map"}; !equalStrings(got.Sections, want) {
