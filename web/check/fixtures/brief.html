@@ -149,6 +149,29 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     document.querySelector(".bbtn.go").click();
     await new Promise((r) => setTimeout(r, 400));
 
+    // Once the answers have gone, the document is read and not answered: the
+    // session already holds the text, and a second send would arrive as a
+    // second set of answers to questions that were settled.
+    const savesBefore = asked.filter((a) => a.startsWith("PUT ")).length;
+    const opt = document.querySelectorAll(".bq")[0].querySelectorAll(".bopt")[1];
+    if (opt) opt.click();
+    const note = document.querySelector(".bq textarea");
+    if (note) {
+        note.value = "typed after the send";
+        note.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    await new Promise((r) => setTimeout(r, 1200));
+    const go = document.querySelector(".bbtn.go");
+    const locked = {
+        button: go ? go.textContent.trim() : "",
+        disabled: Boolean(go && go.disabled),
+        readonly: Boolean(note && note.readOnly),
+        // No clear and no skip while it is read.
+        acts: document.querySelectorAll(".bq .bcap-act").length,
+        savesAfter: asked.filter((a) => a.startsWith("PUT ")).length - savesBefore,
+        picks: Array.from(document.querySelectorAll('.bq .bopt[aria-pressed="true"] .bopt-k')).map((n) => n.textContent),
+    };
+
     // A document runs for screens: the way out has to be reachable from the
     // middle of it, not only from the top.
     const out = document.querySelector(".brief .pback");
@@ -164,7 +187,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     await new Promise((r) => setTimeout(r, 120));
     exit.left = left.length;
 
-    window.done = { before, after, asked, sentMark, exit,
+    window.done = { before, after, asked, sentMark, exit, locked,
         reply: (document.querySelector(".breply") || {}).textContent || "" };
 })();
 </script>

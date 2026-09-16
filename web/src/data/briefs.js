@@ -41,3 +41,28 @@ export async function markSent(id) {
     const r = await fetch(`/api/briefs/${encodeURIComponent(id)}/sent`, { method: "POST" });
     return body(r, "the mark was not saved");
 }
+
+// state is the one thing a card of a brief has to say: what this document wants
+// from you. It lives here and not in a screen because the shelf and the shelf
+// of a conversation both draw it, and two wordings of "3 of 5" would be two
+// answers to the same question.
+export function state(card) {
+    if (!card) return { word: "", tone: "", share: 0 };
+    if (card.sent) return { word: "sent", tone: "sent", share: 1 };
+    if (!card.questions) return { word: "to read", tone: "read", share: 0 };
+    const of = `${card.answered || 0} of ${card.questions}`;
+    if ((card.answered || 0) >= card.questions) return { word: of, tone: "ready", share: 1 };
+    if ((card.answered || 0) > 0) return { word: of, tone: "part", share: (card.answered || 0) / card.questions };
+    return { word: of, tone: "fresh", share: 0 };
+}
+
+// waiting counts the briefs that want something: answered and unsent, or not
+// answered at all. It is what a chip outside the shelf shows a number for.
+export function waiting(cards) {
+    let n = 0;
+    for (const card of cards || []) {
+        if (!card || card.sent) continue;
+        n += 1;
+    }
+    return n;
+}

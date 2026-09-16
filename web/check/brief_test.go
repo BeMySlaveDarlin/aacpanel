@@ -34,7 +34,15 @@ type briefShot struct {
 	Asked    []string `json:"asked"`
 	SentMark bool     `json:"sentMark"`
 	Reply    string   `json:"reply"`
-	Exit     struct {
+	Locked   struct {
+		Button     string   `json:"button"`
+		Disabled   bool     `json:"disabled"`
+		Readonly   bool     `json:"readonly"`
+		Acts       int      `json:"acts"`
+		SavesAfter int      `json:"savesAfter"`
+		Picks      []string `json:"picks"`
+	} `json:"locked"`
+	Exit struct {
 		There    bool   `json:"there"`
 		Stuck    string `json:"stuck"`
 		OnScreen bool   `json:"onScreen"`
@@ -148,7 +156,8 @@ func TestBriefSendsThroughTheGateAndRemembersGoing(t *testing.T) {
 }
 
 type standInShot struct {
-	First struct {
+	Picked string `json:"picked"`
+	First  struct {
 		Say          string   `json:"say"`
 		SendDisabled bool     `json:"sendDisabled"`
 		Offered      []string `json:"offered"`
@@ -206,7 +215,8 @@ func TestBriefAnswersReachASessionStandingInForTheAuthor(t *testing.T) {
 }
 
 // Where the answers go is the person's to change: a directory can hold more
-// than one session, and only the person knows which one is theirs.
+// than one session, and only the person knows which one is theirs. The choice
+// is made before the send, because the send happens once.
 func TestBriefLetsThePersonPickAmongTheSessionsInTheDirectory(t *testing.T) {
 	var got standInShot
 	runFixture(t, "briefstandin.html", &got)
@@ -217,11 +227,11 @@ func TestBriefLetsThePersonPickAmongTheSessionsInTheDirectory(t *testing.T) {
 	if got.First.Elsewhere {
 		t.Error("a session working in another directory is offered the answers of this brief")
 	}
-	if len(got.Sent) < 2 {
-		t.Fatalf("the second send never happened: %+v", got.Sent)
+	if !strings.Contains(got.Picked, "also-here") {
+		t.Errorf("the screen does not follow the pick: it says %q", got.Picked)
 	}
-	if got.Sent[1].Target != "also-here" {
-		t.Errorf("the pick was ignored: the answers went to %q", got.Sent[1].Target)
+	if len(got.Sent) != 1 {
+		t.Fatalf("the answers went %d times: %+v", len(got.Sent), got.Sent)
 	}
 }
 
@@ -265,5 +275,32 @@ func TestABriefCanBePutDown(t *testing.T) {
 	}
 	if got.Exit.Left != 1 {
 		t.Errorf("pressing it left the reader on the page %d times out of one", got.Exit.Left)
+	}
+}
+
+// A brief whose answers have gone into a session is settled. The panel would
+// otherwise show one set of answers while the session holds another, and a
+// second send would arrive as a second answer to questions already decided.
+func TestASentBriefIsReadAndNotAnsweredAgain(t *testing.T) {
+	var got briefShot
+	runFixture(t, "brief.html", &got)
+
+	if !got.SentMark {
+		t.Fatal("the fixture never got as far as sending")
+	}
+	if got.Locked.Button != "Sent" {
+		t.Errorf("the button offers %q after the answers have gone", got.Locked.Button)
+	}
+	if !got.Locked.Disabled {
+		t.Error("the send button is still live: the answers can go a second time")
+	}
+	if !got.Locked.Readonly {
+		t.Error("the note can still be typed into after the send")
+	}
+	if got.Locked.Acts != 0 {
+		t.Errorf("%d questions still offer clear and skip after the send", got.Locked.Acts)
+	}
+	if got.Locked.SavesAfter != 0 {
+		t.Errorf("%d drafts were saved after the answers had gone", got.Locked.SavesAfter)
 	}
 }

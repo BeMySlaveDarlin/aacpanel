@@ -150,6 +150,15 @@ func (s *Server) apiBriefDraft(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the draft cannot be saved: the database is not configured", http.StatusServiceUnavailable)
 		return
 	}
+	// A brief whose answers have gone into a session is settled. Saving over it
+	// would leave the panel showing one set of answers while the session holds
+	// another, and the screen that locks the fields is not where that is
+	// decided: a request does not have to come from that screen.
+	if was, err := s.db.BriefDraftOf(r.Context(), doc.ID); err == nil && was.SentAt != nil {
+		http.Error(w, "the answers of this brief have already gone into the session: it is read from here on",
+			http.StatusConflict)
+		return
+	}
 	if err := s.db.SaveBriefDraft(r.Context(), doc.ID, answers); err != nil {
 		http.Error(w, "the draft was not saved: "+err.Error(), http.StatusServiceUnavailable)
 		return
@@ -169,6 +178,10 @@ func (s *Server) apiBriefSent(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.db == nil {
 		http.Error(w, "the mark cannot be saved: the database is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if was, err := s.db.BriefDraftOf(r.Context(), id); err == nil && was.SentAt != nil {
+		http.Error(w, "this brief was already sent", http.StatusConflict)
 		return
 	}
 	if err := s.db.MarkBriefSent(r.Context(), id); err != nil {

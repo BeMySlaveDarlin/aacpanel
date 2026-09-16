@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Brief } from "./brief.js";
-import { shelf } from "../data/briefs.js";
+import { shelf, state } from "../data/briefs.js";
 
 function when(at) {
     if (!at) return "";
@@ -26,18 +26,6 @@ function from(card, snapshot) {
     const cwd = card.cwd || "";
     const tail = cwd.split("/").filter(Boolean).pop();
     return { name: tail || "a session that has ended", live: false };
-}
-
-// state is the one thing a card has to say: what this brief wants from you.
-// Everything that is still open counts on one scale, so a glance down the shelf
-// compares like with like and no card takes a line of its title to say it.
-function state(card) {
-    if (card.sent) return { word: "sent", tone: "sent", share: 1 };
-    if (!card.questions) return { word: "to read", tone: "read", share: 0 };
-    const of = `${card.answered} of ${card.questions}`;
-    if (card.answered >= card.questions) return { word: of, tone: "ready", share: 1 };
-    if (card.answered > 0) return { word: of, tone: "part", share: card.answered / card.questions };
-    return { word: of, tone: "fresh", share: 0 };
 }
 
 function Card({ card, snapshot, onOpen }) {

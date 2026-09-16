@@ -82,19 +82,28 @@ render(
         if (btn && !btn.disabled) btn.click();
     };
 
-    go();
-    await new Promise((r) => setTimeout(r, 300));
-
-    // The person sends to the other session working in the same directory.
+    // The pick is made before the send, and the screen says where the answers
+    // will go as soon as it is made: the send happens once, so the choosing
+    // happens first.
+    let picked = "";
     if (select) {
         select.value = "also-here";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 120));
+        picked = (document.querySelector(".bdock-say") || {}).textContent || "";
+        select.value = "carrying-on";
         select.dispatchEvent(new Event("change", { bubbles: true }));
         await new Promise((r) => setTimeout(r, 120));
     }
     go();
     await new Promise((r) => setTimeout(r, 300));
 
-    window.done = { first, sent, jumped,
+    // A second press after the answers have gone sends nothing: the document
+    // is settled, and the session already holds the text.
+    go();
+    await new Promise((r) => setTimeout(r, 300));
+
+    window.done = { first, sent, jumped, picked,
         after: (document.querySelector(".bdock-say") || {}).textContent || "" };
 })();
 </script>

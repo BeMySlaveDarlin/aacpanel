@@ -89,12 +89,13 @@ function Options({ q, picks, onPick }) {
     `;
 }
 
-function Question({ q, answer, onAnswer }) {
+function Question({ q, answer, onAnswer, locked }) {
     const picks = (answer && answer.picks) || [];
     const note = (answer && answer.note) || "";
     const skip = Boolean(answer && answer.skip);
 
     const pick = (key) => {
+        if (locked) return;
         if (q.kind === "multi") {
             const next = picks.includes(key) ? picks.filter((k) => k !== key) : [...picks, key];
             onAnswer({ ...answer, picks: next, skip: false });
@@ -106,7 +107,7 @@ function Question({ q, answer, onAnswer }) {
     const said = skip ? "skipped" : picks.length ? picks.join(", ") : "";
 
     return html`
-        <article class=${`bq${answered(answer) ? " is-done" : ""}`} id=${`bq-${q.id}`}>
+        <article class=${`bq${answered(answer) ? " is-done" : ""}${locked ? " is-locked" : ""}`} id=${`bq-${q.id}`}>
             <div class="bq-n">${q.n}</div>
             ${q.chips && q.chips.length ? html`
                 <div class="bchips">
@@ -134,17 +135,22 @@ function Question({ q, answer, onAnswer }) {
                     </div>
                     <textarea
                         value=${note}
-                        placeholder=${(q.capture && q.capture.note && q.capture.note.placeholder) || "A note, if there is more to say"}
+                        readonly=${locked}
+                        placeholder=${locked
+                            ? "nothing was written here"
+                            : (q.capture && q.capture.note && q.capture.note.placeholder) || "A note, if there is more to say"}
                         onInput=${(e) => onAnswer({ ...answer, note: e.target.value })}
                     ></textarea>
-                    <div class="bcap-act">
-                        <button type="button" class="blnk" onClick=${() => onAnswer({})}>clear</button>
-                        <button
-                            type="button"
-                            class="blnk"
-                            onClick=${() => onAnswer(skip ? { ...answer, skip: false } : { note, skip: true, picks: [] })}
-                        >${skip ? "unskip" : "skip"}</button>
-                    </div>
+                    ${!locked && html`
+                        <div class="bcap-act">
+                            <button type="button" class="blnk" onClick=${() => onAnswer({})}>clear</button>
+                            <button
+                                type="button"
+                                class="blnk"
+                                onClick=${() => onAnswer(skip ? { ...answer, skip: false } : { note, skip: true, picks: [] })}
+                            >${skip ? "unskip" : "skip"}</button>
+                        </div>
+                    `}
                 </div>
             `}
         </article>
@@ -161,6 +167,9 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     const [answers, setAnswers] = useState({});
     const [reply, setReply] = useState("");
     const [sentAt, setSentAt] = useState(null);
+    // The guard the save path reads: a callback made before the send would
+    // otherwise close over the old value and let one more draft through.
+    const sentRef = useRef(null);
     const [error, setError] = useState("");
     const [peek, setPeek] = useState(false);
     const [sending, setSending] = useState(false);
@@ -178,6 +187,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                 setAnswers((body.draft && body.draft.answers) || {});
                 setReply(body.reply || "");
                 setSentAt((body.draft && body.draft.sentAt) || null);
+                sentRef.current = (body.draft && body.draft.sentAt) || null;
             })
             .catch((e) => { if (!gone) setError(String(e.message || e)); });
         return () => { gone = true; if (timer.current) clearTimeout(timer.current); };
@@ -195,6 +205,10 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     }, [id]);
 
     const answer = useCallback((qid, value) => {
+        // A sent brief is settled. The guard is here and not only on the
+        // controls: a draft saved after the send would contradict the text the
+        // session already has.
+        if (sentRef.current) return;
         setAnswers((prev) => {
             const next = { ...prev };
             if (value && (value.skip || (value.picks && value.picks.length) || (value.note || "").trim())) {
@@ -220,13 +234,15 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
         : whyNot(exec, "session.send");
 
     const send = async () => {
-        if (!canSend || sending || !done) return;
+        if (sentAt || !canSend || sending || !done) return;
         setSending(true);
         const result = await run("session.send", name, { text: reply });
         setSending(false);
         if (!result.ok) return;
         markSent(id).catch(() => { /* the mark is a label on the screen, not the send */ });
-        setSentAt(new Date().toISOString());
+        const at = new Date().toISOString();
+        setSentAt(at);
+        sentRef.current = at;
         // The answers are a message to a session, and a message is the start of
         // a conversation: the screen follows them in rather than leaving the
         // person on a document that has nothing left to do.
@@ -304,6 +320,7 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                             key=${q.id}
                             q=${q}
                             answer=${answers[q.id]}
+                            locked=${Boolean(sentAt)}
                             onAnswer=${(value) => answer(q.id, value)}
                         />
                     `)}
@@ -343,9 +360,9 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                         <button
                             type="button"
                             class="bbtn go"
-                            disabled=${!canSend || !done || sending}
+                            disabled=${Boolean(sentAt) || !canSend || !done || sending}
                             onClick=${send}
-                        >${sending ? "Sending…" : sentAt ? "Send again" : "Send answers"}</button>
+                        >${sending ? "Sending…" : sentAt ? "Sent" : "Send answers"}</button>
                     </div>
                 ` : null}
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { BackHead, useBackClose } from "../ui/back.js";
@@ -65,6 +65,18 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
     const canTerm = term.ok && Boolean(live);
     const [view, pickView] = useViewPick(canTerm, wide);
 
+    // Everything a conversation made is filtered by the directory it worked in.
+    // A session that has ended leaves its pages and its briefs to the next one
+    // in the same place, which is the session that carries the work on.
+    const here = (live && live.cwd) || (archive && archive.cwd) || "";
+    // Without a directory there is nothing to match on, and showing everything
+    // would put the documents of other projects into this conversation.
+    const mine = useCallback((cards) => (here
+        ? (cards || []).filter((c) => c.cwd === here)
+        : []), [here]);
+    const myPages = useMemo(() => mine(pages), [mine, pages]);
+    const myBriefs = useMemo(() => mine(briefs), [mine, briefs]);
+
     const quote = useSelectionQuote();
     const [insert, setInsert] = useState(null);
     const takeQuote = (text) => {
@@ -74,17 +86,17 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
         if (look) setLook(null);
     };
 
-    // The shelf of copies is read once per conversation. A page that arrives
-    // while the screen is open is opened by its link until the next visit:
-    // publishing is rare, and polling for it would cost every reader a request
-    // a second for something that happens twice a day.
+    // The shelves are read once per conversation, and they are read whole: a
+    // brief and a page outlive the session that made them, and the work in a
+    // directory is carried on by whoever sits there next. What belongs to this
+    // conversation is decided below, by the directory rather than by the id.
     useEffect(() => {
         if (!id) {
             setCopies(null);
             return undefined;
         }
         let alive = true;
-        pageShelf(id)
+        pageShelf()
             .then((cards) => {
                 if (!alive) return;
                 setCopies(index(cards));
@@ -97,7 +109,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                 setCopies(null);
                 setPages([]);
             });
-        briefShelf(id)
+        briefShelf()
             .then((cards) => alive && setBriefs(cards))
             .catch(() => alive && setBriefs([]));
         return () => { alive = false; };
@@ -296,7 +308,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                     </button>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
-                    <${WorkRefs} work=${state.work} onOpen=${(what) => setLook(what)} />
+                    <${WorkRefs} work=${state.work} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
                 </div>
             </div>
         `}
@@ -321,7 +333,7 @@ export function Chat({ name, id, live, archive, exec, onBack, onUsage, onBrief }
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
                                     exec=${exec} onAgent=${openAgent}
-                                    pages=${pages} briefs=${briefs} onBrief=${onBrief}
+                                    pages=${myPages} briefs=${myBriefs} onBrief=${onBrief}
                                     onPage=${(card) => setLook({ kind: "artifact", card })} />`
                 : html`<${Look} session=${name} id=${id} look=${look} />`)}
         <//>

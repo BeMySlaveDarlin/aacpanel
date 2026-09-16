@@ -12,6 +12,7 @@ import { ArtifactCard, BriefCard } from "./rows.js";
 import { fileTag } from "./files.js";
 import { Look, LOOK_NAMES } from "./look.js";
 import { merge } from "../../data/artifacts.js";
+import { state as briefState, waiting } from "../../data/briefs.js";
 
 // WorkStatus renders what is happening to the session right now.
 export function WorkStatus({ work, busy }) {
@@ -41,8 +42,9 @@ function briefRow(card) {
     return {
         id: card.id,
         title: card.title,
-        eyebrow: card.eyebrow || (card.sent ? "answered and sent" : ""),
+        eyebrow: card.eyebrow || "",
         questions: card.questions || 0,
+        mark: briefState(card),
     };
 }
 
@@ -82,16 +84,25 @@ function agentLabel(agents, live) {
 // "over" — what the session made stays made, and a file it sent stays sent —
 // so the number counts them all and, like the other chips, is absent rather
 // than 0.
-export function WorkRefs({ work, onOpen }) {
+export function WorkRefs({ work, briefs, onOpen }) {
     const arts = (work && work.artifacts) || [];
     const docs = (work && work.docs) || [];
     const sent = (work && work.sent) || [];
-    const refs = arts.length + docs.length + sent.length;
+    const papers = briefs || [];
+    const refs = arts.length + docs.length + sent.length + papers.length;
+    // A brief that nobody has sent is the one thing in here that wants
+    // something back. The number says how much is on the shelf; the dot says
+    // that some of it is waiting for the person rather than sitting there.
+    const wants = waiting(papers);
+
+    const said = refs > 0
+        ? `what this conversation made: ${refs}${wants > 0 ? `, ${wants} of them briefs waiting for you` : ""}`
+        : "what this conversation made: nothing yet";
 
     return html`
-        <button class=${`wchip${refs > 0 ? "" : " idle"}`} type="button"
+        <button class=${`wchip${refs > 0 ? "" : " idle"}${wants > 0 ? " wants" : ""}`} type="button"
                 onClick=${() => onOpen({ kind: "arts" })}
-                aria-label=${refs > 0 ? `artifacts: ${refs}` : "artifacts: none"}>
+                aria-label=${said}>
             ${Icon.artifact()}${refs > 0 && html`<span class="wnum">${refs}</span>`}
         </button>
     `;

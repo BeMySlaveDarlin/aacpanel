@@ -411,3 +411,46 @@
     cursor: pointer;
 }
 .wmore:active { background: var(--glass-2); }
+
+/* The chip counts everything the conversation made, briefs included. A brief
+   nobody has sent is the only thing in there that waits for the person, so the
+   chip carries a dot for it: the number alone cannot say that one of twelve
+   rows wants an answer. */
+.wchip.wants { position: relative; }
+
+.wchip.wants::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* Where a brief stands, said in the row of the shelf in the same words the
+   shelf of the machine uses. */
+.brstate { font-weight: 600; }
+.brstate.is-ready { color: var(--accent); }
+.brstate.is-sent { color: var(--ok); }
+.brstate.is-fresh, .brstate.is-part, .brstate.is-read { color: var(--ink-dim); }
+
+/* Inside the shelf a card is a row of a list, not a card in a feed: the reader
+   is scanning a dozen of them for the one they want. The padding and the
+   description tighten, and the description itself is held to one line — a
+   three-line summary here pushes the next row off the screen without saying
+   more than its first line did. */
+.worklist .artifact { padding: .4rem .6rem; gap: .5rem; }
+.worklist .artitle { font-size: var(--t-sm); }
+.worklist .ardesc {
+    font-size: var(--t-xs);
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.worklist .armeta { font-size: var(--t-xs); gap: .3rem; }
+.worklist .arico { font-size: var(--t-md); }
+.worklist .brico { width: 16px; height: 16px; }

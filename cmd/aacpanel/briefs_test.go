@@ -319,3 +319,63 @@ func TestBriefAndItsDraftPG(t *testing.T) {
 		t.Errorf("the mark took the answers with it: %+v", draft.Answers)
 	}
 }
+
+// A brief whose answers have gone into a session is settled, and the service is
+// where that holds. The screen locks its fields, but a request does not have to
+// come from that screen: a draft saved afterwards would leave the panel showing
+// one set of answers while the session holds another.
+func TestASentBriefTakesNoMoreAnswersPG(t *testing.T) {
+	dsn := testdb.DSN(t)
+	db, err := store.New(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	doc := sampleBrief()
+	doc.ID = "settled-after-sending"
+	agent := startAgent(t, map[string]any{"ok": true, "brief": doc})
+	srv := &Server{db: db, chat: chat.New(agent.path)}
+
+	save := func(pick string) int {
+		t.Helper()
+		body := `{"answers":{"r1":{"picks":["` + pick + `"]}}}`
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/api/briefs/settled-after-sending", strings.NewReader(body))
+		r.SetPathValue("id", "settled-after-sending")
+		srv.apiBriefDraft(w, r)
+		return w.Code
+	}
+	mark := func() int {
+		t.Helper()
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/briefs/settled-after-sending/sent", nil)
+		r.SetPathValue("id", "settled-after-sending")
+		srv.apiBriefSent(w, r)
+		return w.Code
+	}
+
+	if code := save("A"); code != http.StatusOK {
+		t.Fatalf("the first draft gave %d", code)
+	}
+	if code := mark(); code != http.StatusOK {
+		t.Fatalf("the mark gave %d", code)
+	}
+	if code := save("B"); code != http.StatusConflict {
+		t.Errorf("a draft after the send gave %d, expected 409", code)
+	}
+	if code := mark(); code != http.StatusConflict {
+		t.Errorf("a second send gave %d, expected 409", code)
+	}
+
+	draft, err := db.BriefDraftOf(t.Context(), "settled-after-sending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if picks := draft.Answers["r1"].Picks; len(picks) != 1 || picks[0] != "A" {
+		t.Errorf("the answers the session was sent were changed afterwards: %+v", draft.Answers)
+	}
+}

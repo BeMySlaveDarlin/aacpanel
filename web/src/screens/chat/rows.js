@@ -295,6 +295,10 @@ export function ArtifactCard({ item, copy, onOpen }) {
 // the person rather than a message they read in passing.
 export function BriefCard({ item, onOpen }) {
     const asks = item.questions > 0;
+    // A card listed after the document was answered says where it stands, not
+    // only how much it asked: "5 of 5" and "sent" are different states, and a
+    // row that says neither sends the reader in to find out.
+    const mark = item.mark;
     const body = html`
         <span class="brico">${Icon.file()}</span>
         <span class="arbody">
@@ -305,6 +309,9 @@ export function BriefCard({ item, onOpen }) {
                 <span>${asks
                     ? `${item.questions} ${plural(item.questions, "question", "questions")}`
                     : "nothing to answer"}</span>
+                ${mark && mark.word && html`
+                    <span class=${`brstate is-${mark.tone}`}>${mark.word}</span>
+                `}
             </span>
         </span>
         ${onOpen && html`<span class="crgo">${Icon.chevron()}</span>`}

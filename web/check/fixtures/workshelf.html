@@ -9,7 +9,8 @@
 // copies remembers the rest.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
-import { WorkList } from "/src/screens/chat/work.js";
+import { WorkList, WorkRefs } from "/src/screens/chat/work.js";
+import { ArtifactCard } from "/src/screens/chat/rows.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
@@ -38,8 +39,12 @@ onShelf.push({
 });
 
 const briefs = [
-    { id: "seven-after-twelve", title: "Seven questions after twelve", questions: 7 },
-    { id: "what-is-open", title: "What is still open", questions: 5, sent: true },
+    { id: "seven-after-twelve", title: "Seven questions after twelve", questions: 7, answered: 0,
+      at: "2026-09-16T12:30:00Z", cwd: "/srv/proj" },
+    { id: "what-is-open", title: "What is still open", questions: 5, answered: 5, sent: true,
+      at: "2026-09-16T11:00:00Z", cwd: "/srv/proj" },
+    { id: "half-done", title: "Half answered", questions: 4, answered: 2,
+      at: "2026-09-16T09:00:00Z", cwd: "/srv/proj" },
 ];
 
 const work = { artifacts: inFeed, docs: [], sent: [], tasks: [], agents: [] };
@@ -47,6 +52,13 @@ const opened = { pages: [], briefs: [] };
 
 render(html`
     <${ToastHost}><${GateHost}>
+        <div id="chip"><${WorkRefs} work=${work} briefs=${briefs} onOpen=${() => {}} /></div>
+        <!-- The same card in the same box, only outside the shelf: the
+             difference between the two heights is the shelf's own doing and
+             nothing else. -->
+        <div id="feedish" style="display:flex;flex-direction:column;gap:.5rem">
+            <${ArtifactCard} item=${inFeed[0]} />
+        </div>
         <${WorkList} session="lab" id="1" kind="arts" work=${work} exec=${{ available: true, kinds: [] }}
                      pages=${onShelf} briefs=${briefs}
                      onPage=${(card) => opened.pages.push(card.id)}
@@ -58,12 +70,27 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
 
 (async () => {
     await new Promise((r) => setTimeout(r, 200));
+    const chip = document.querySelector("#chip .wchip");
+    const button = {
+        // The number counts everything the conversation made, the briefs with
+        // the rest; the dot says some of it waits for an answer.
+        num: (chip.querySelector(".wnum") || {}).textContent || "",
+        wants: chip.classList.contains("wants"),
+        said: chip.getAttribute("aria-label") || "",
+    };
+
     const tabs = Array.from(document.querySelectorAll(".worktabs .chip"));
+    const rowsNow = Array.from(document.querySelectorAll(".worklist .artifact"));
     const first = {
+        // A row of the shelf is scanned, not read: its height is what decides
+        // how many of a dozen fit on a phone at once.
+        height: rowsNow.length ? Math.round(rowsNow[0].getBoundingClientRect().height) : 0,
+        feedHeight: Math.round((document.querySelector("#feedish .artifact") || { getBoundingClientRect: () => ({ height: 0 }) })
+            .getBoundingClientRect().height),
         tabs: tabs.map((t) => t.textContent.trim()),
-        rows: document.querySelectorAll(".artifact").length,
+        rows: document.querySelectorAll(".worklist .artifact").length,
         more: (document.querySelector(".wmore") || {}).textContent || "",
-        titles: text(".artifact .artitle").slice(0, 3),
+        titles: text(".worklist .artifact .artitle").slice(0, 3),
     };
 
     // A shelf that lost its rows has no button to press, and the shot has to
@@ -72,21 +99,26 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     if (more) more.click();
     await new Promise((r) => setTimeout(r, 120));
     const after = {
-        rows: document.querySelectorAll(".artifact").length,
+        rows: document.querySelectorAll(".worklist .artifact").length,
         more: (document.querySelector(".wmore") || {}).textContent || "",
     };
 
     tabs[1].click();
     await new Promise((r) => setTimeout(r, 120));
     const onBriefs = {
-        rows: document.querySelectorAll(".artifact").length,
-        titles: text(".artifact .artitle"),
-        kept: document.querySelectorAll(".artifact.arbrief").length,
+        rows: document.querySelectorAll(".worklist .artifact").length,
+        order: text(".worklist .artifact.arbrief .artitle"),
+        titles: text(".worklist .artifact .artitle"),
+        kept: document.querySelectorAll(".worklist .artifact.arbrief").length,
+        // Where each brief stands, in the words of the shelf.
+        states: text(".worklist .artifact.arbrief .brstate"),
+        tones: Array.from(document.querySelectorAll(".worklist .artifact.arbrief .brstate"))
+            .map((n) => n.className.replace("brstate ", "")),
     };
-    const brief = document.querySelector(".artifact.arbrief");
+    const brief = document.querySelector(".worklist .artifact.arbrief");
     if (brief) brief.click();
     await new Promise((r) => setTimeout(r, 120));
 
-    window.done = { first, after, onBriefs, opened };
+    window.done = { first, after, onBriefs, opened, button };
 })();
 </script>
