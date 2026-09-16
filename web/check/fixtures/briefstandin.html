@@ -55,9 +55,15 @@ const snapshot = {
 };
 const exec = { available: true, kinds: ["session.send"] };
 
+const jumped = [];
+
 render(
     h(ToastHost, null, h(GateHost, null,
-        h(Brief, { id: "what-is-left", snapshot, exec, onBack: () => {} }))),
+        h(Brief, {
+            id: "what-is-left", snapshot, exec,
+            onBack: () => {},
+            onSession: (name) => jumped.push(name),
+        }))),
     document.getElementById("root"));
 
 (async () => {
@@ -88,6 +94,7 @@ render(
     go();
     await new Promise((r) => setTimeout(r, 300));
 
-    window.done = { first, sent, after: (document.querySelector(".bdock-say") || {}).textContent || "" };
+    window.done = { first, sent, jumped,
+        after: (document.querySelector(".bdock-say") || {}).textContent || "" };
 })();
 </script>

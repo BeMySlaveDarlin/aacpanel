@@ -152,9 +152,10 @@ export function MobileShell({
                     : page === "profiles"
                     ? html`<${Profiles} />`
                     : page === "journal"
-                    ? html`<${Journal} />`
+                    ? html`<${Journal} onBack=${() => setPage(null)} />`
                     : page === "briefs"
-                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec} onBack=${() => setPage(null)} />`
+                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec}
+                        onSession=${(name) => goHome(name, null)} />`
                     : page === "alerts"
                     ? html`<${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => setPage(null)} />`
                     : html`<${Screen}
@@ -189,8 +190,8 @@ export function MobileShell({
                 <button class="item" type="button" onClick=${() => { setMenu(false); setPage("devices"); }}>
                     Devices
                 </button>
-                <button class="item" type="button" onClick=${() => { setMenu(false); setPage("briefs"); }}>
-                    Briefs
+                <button class="item" type="button" onClick=${() => { setMenu(false); setPage("journal"); }}>
+                    Journal
                 </button>
                 <button class="item" type="button" onClick=${() => { setMenu(false); setPage("usage"); }}>
                     Usage

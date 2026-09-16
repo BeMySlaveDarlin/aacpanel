@@ -24,7 +24,7 @@ function Card({ card, onOpen }) {
     `;
 }
 
-export function Briefs({ snapshot, exec, onBack }) {
+export function Briefs({ snapshot, exec, onSession }) {
     const [cards, setCards] = useState(null);
     const [error, setError] = useState("");
     const [open, setOpen] = useState(null);
@@ -39,7 +39,8 @@ export function Briefs({ snapshot, exec, onBack }) {
     }, [open]);
 
     if (open) {
-        return html`<${Brief} id=${open} snapshot=${snapshot} exec=${exec} onBack=${() => setOpen(null)} />`;
+        return html`<${Brief} id=${open} snapshot=${snapshot} exec=${exec}
+            onBack=${() => setOpen(null)} onSession=${onSession} />`;
     }
 
     if (error) return html`<div class="pad"><p class="dim">${error}</p></div>`;

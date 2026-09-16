@@ -140,7 +140,7 @@ function Question({ q, answer, onAnswer }) {
     `;
 }
 
-export function Brief({ id, snapshot, exec, onBack }) {
+export function Brief({ id, snapshot, exec, onBack, onSession }) {
     const run = useAction();
     const [doc, setDoc] = useState(null);
     const [answers, setAnswers] = useState({});
@@ -212,6 +212,10 @@ export function Brief({ id, snapshot, exec, onBack }) {
         if (!result.ok) return;
         markSent(id).catch(() => { /* the mark is a label on the screen, not the send */ });
         setSentAt(new Date().toISOString());
+        // The answers are a message to a session, and a message is the start of
+        // a conversation: the screen follows them in rather than leaving the
+        // person on a document that has nothing left to do.
+        if (onSession) onSession(name);
     };
 
     if (error) {

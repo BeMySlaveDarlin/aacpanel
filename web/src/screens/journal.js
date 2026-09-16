@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 
 import { html } from "../html.js";
+import { BackHead } from "../ui/back.js";
 import { Chips } from "../ui/chips.js";
 import { ago } from "../format.js";
 import { actionName } from "../actions/registry.js";
-import { Icon } from "../ui/icons.js";
 
 const RESULT = {
     ok: { word: "done", kind: "ok" },
@@ -22,7 +22,7 @@ const FILTERS = [
 ];
 
 // Journal renders the action journal.
-export function Journal() {
+export function Journal({ onBack }) {
     const [state, setState] = useState({ kind: "loading", actions: [] });
     const [older, setOlder] = useState([]);
     const [filter, setFilter] = useState("");
@@ -69,6 +69,12 @@ export function Journal() {
     const rows = [...state.actions, ...older];
 
     return html`
+        ${onBack && html`
+            <${BackHead} onBack=${onBack} label="back">
+                <h2>Journal</h2>
+            <//>
+        `}
+
         <${Chips} items=${FILTERS} current=${filter} onSelect=${setFilter} />
 
         ${state.kind === "loading" && html`<p class="hint">Loading…</p>`}

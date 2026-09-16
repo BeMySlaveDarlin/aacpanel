@@ -154,7 +154,23 @@ type standInShot struct {
 			Text string `json:"text"`
 		} `json:"params"`
 	} `json:"sent"`
-	After string `json:"after"`
+	Jumped []string `json:"jumped"`
+	After  string   `json:"after"`
+}
+
+// The answers are a message, and a message starts a conversation: the screen
+// follows them into the session instead of leaving the person on a document
+// that has nothing left to do.
+func TestBriefFollowsTheAnswersIntoTheSession(t *testing.T) {
+	var got standInShot
+	runFixture(t, "briefstandin.html", &got)
+
+	if len(got.Jumped) == 0 {
+		t.Fatalf("the answers went and the screen stayed on the document: %+v", got)
+	}
+	if got.Jumped[0] != "carrying-on" {
+		t.Errorf("the screen went into %q, not into the session the answers went to", got.Jumped[0])
+	}
 }
 
 // A brief is read over hours and answered days later, by which time the session

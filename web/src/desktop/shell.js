@@ -224,7 +224,7 @@ export function DesktopShell({
         if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${() => goSection("sessions")} /></div>`;
         if (section === "briefs") {
             return html`<div class="dkpage"><${Briefs} snapshot=${snapshot} exec=${exec}
-                onBack=${() => goSection("sessions")} /></div>`;
+                onSession=${(name) => openChat({ name, id: null })} /></div>`;
         }
         if (!chat) return html`<${ChatEmpty} />`;
         const live = chat.archived
