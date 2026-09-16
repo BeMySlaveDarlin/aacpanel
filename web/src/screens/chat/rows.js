@@ -299,9 +299,9 @@ export function BriefCard({ item, onOpen }) {
         </span>
         ${onOpen && html`<span class="crgo">${Icon.chevron()}</span>`}
     `;
-    if (!onOpen) return html`<div class="artifact brief dead">${body}</div>`;
+    if (!onOpen) return html`<div class="artifact arbrief dead">${body}</div>`;
     return html`
-        <button type="button" class="artifact brief" onClick=${() => onOpen(item.id)}>${body}</button>
+        <button type="button" class="artifact arbrief" onClick=${() => onOpen(item.id)}>${body}</button>
     `;
 }
 

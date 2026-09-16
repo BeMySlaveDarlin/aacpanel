@@ -66,8 +66,11 @@
 }
 
 /* A brief is a card of the same build as an artifact, with the difference that
-   matters: it opens inside the panel, so it is a button and not a link out. */
-.artifact.brief {
+   matters: it opens inside the panel, so it is a button and not a link out.
+   The name is not "brief": that class carries the palette and the page height
+   of the document itself, and a card wearing it is a row of text on a sheet of
+   paper the size of the screen. */
+.artifact.arbrief {
     width: 100%;
     border: 0;
     font: inherit;

@@ -21,8 +21,10 @@ const reading = {
 
 const opened = [];
 
+// The feed is the real one, with a height of its own: a card that takes the
+// palette or the height of the document it points at only shows it here.
 render(html`
-    <div>
+    <div class="chatfeed" style="height: 400px">
         <${Row} item=${asking} session="lab" id="1" onBrief=${(id) => opened.push(id)} />
         <${Row} item=${reading} session="lab" id="1" onBrief=${(id) => opened.push(id)} />
     </div>
@@ -32,14 +34,19 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
 
 (async () => {
     await new Promise((r) => setTimeout(r, 200));
-    const cards = Array.from(document.querySelectorAll(".artifact.brief"));
+    const cards = Array.from(document.querySelectorAll(".artifact.arbrief"));
     const before = {
-        titles: text(".artifact.brief .artitle"),
-        descs: text(".artifact.brief .ardesc"),
-        metas: text(".artifact.brief .armeta"),
+        titles: text(".artifact.arbrief .artitle"),
+        descs: text(".artifact.arbrief .ardesc"),
+        metas: text(".artifact.arbrief .armeta"),
         // A card that opens something is pressable, not a line of text.
         tags: cards.map((c) => c.tagName),
-        icons: document.querySelectorAll(".artifact.brief .brico svg").length,
+        icons: document.querySelectorAll(".artifact.arbrief .brico svg").length,
+        // A row of the feed, not a page: the height is the content's, and the
+        // paper of the document stays in the document.
+        heights: cards.map((c) => Math.round(c.getBoundingClientRect().height)),
+        feed: Math.round(document.querySelector(".chatfeed").getBoundingClientRect().height),
+        paper: cards.map((c) => getComputedStyle(c).getPropertyValue("--paper").trim()),
     };
 
     cards[0].click();
@@ -48,7 +55,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     // With nowhere to go the same card is still drawn, and says so by being flat.
     render(html`<${Row} item=${asking} session="lab" id="1" />`, document.getElementById("root"));
     await new Promise((r) => setTimeout(r, 120));
-    const alone = document.querySelector(".artifact.brief");
+    const alone = document.querySelector(".artifact.arbrief");
 
     window.done = { before, opened,
         nowhere: { tag: alone ? alone.tagName : "", dead: alone ? alone.classList.contains("dead") : false } };

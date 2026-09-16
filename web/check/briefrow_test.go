@@ -7,11 +7,14 @@ import (
 
 type briefRowShot struct {
 	Before struct {
-		Titles []string `json:"titles"`
-		Descs  []string `json:"descs"`
-		Metas  []string `json:"metas"`
-		Tags   []string `json:"tags"`
-		Icons  int      `json:"icons"`
+		Titles  []string `json:"titles"`
+		Descs   []string `json:"descs"`
+		Metas   []string `json:"metas"`
+		Tags    []string `json:"tags"`
+		Icons   int      `json:"icons"`
+		Heights []int    `json:"heights"`
+		Feed    int      `json:"feed"`
+		Paper   []string `json:"paper"`
 	} `json:"before"`
 	Opened  []string `json:"opened"`
 	Nowhere struct {
@@ -63,5 +66,25 @@ func TestTheBriefCardOpensTheDocument(t *testing.T) {
 	}
 	if got.Nowhere.Tag == "BUTTON" || !got.Nowhere.Dead {
 		t.Errorf("with nowhere to go the card still looks pressable: %+v", got.Nowhere)
+	}
+}
+
+// The card points at a document; it is not one. A brief page carries a palette
+// and a page's height under a class of its own, and a card that answered to the
+// same name took both: the feed showed one row of text on a sheet of paper the
+// size of the screen.
+func TestTheBriefCardIsARowAndNotThePage(t *testing.T) {
+	var got briefRowShot
+	runFixture(t, "briefrow.html", &got)
+
+	for i, h := range got.Before.Heights {
+		if h > got.Before.Feed/3 {
+			t.Errorf("card %d is %d tall in a feed of %d: it stretched to the page", i+1, h, got.Before.Feed)
+		}
+	}
+	for i, paper := range got.Before.Paper {
+		if paper != "" {
+			t.Errorf("card %d took the paper of the document: %q", i+1, paper)
+		}
 	}
 }
