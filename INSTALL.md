@@ -289,6 +289,7 @@ the panel's eyes.
 |---|---|---|
 | `deploy/claude/prompt-stamp.py` | the `UserPromptSubmit` and `PostToolBatch` hooks | the session knows today's date, how much context is left, the limits of its account and the load of the machine |
 | `deploy/claude/cost-snapshot.py` | the `Stop` and `SubagentStop` hooks | a line per turn in `<account>/logs/cost.jsonl`: where the tokens went |
+| `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
 | `deploy/claude/context-guard.py` | the `Stop` hook | past the threshold a session finalizes and restarts itself; on only where a threshold is set — in the panel's launch parameters or in the project's settings |
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session in place |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
