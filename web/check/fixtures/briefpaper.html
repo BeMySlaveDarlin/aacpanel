@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// What the controls of a brief stand on. The document is drawn on the panel's
+// own ground, so a control with no ground of its own is a control the reader
+// cannot tell from the page behind it. Both themes are read: the ground of one
+// is dark and of the other light, and a control can disappear into either.
+import { h, render } from "preact";
+import { Brief } from "/src/screens/brief.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const doc = {
+    id: "what-stands-on-what",
+    sessionId: "22222222-2222-4222-8222-222222222222",
+    cwd: "/srv/proj",
+    title: "What stands on what",
+    questions: [
+        {
+            id: "r1", n: "01", title: "The ceilings", kind: "pick",
+            options: [
+                { key: "A", label: "Leave them" },
+                { key: "B", label: "Raise them" },
+                { key: "C", label: "Count them again" },
+            ],
+            capture: { note: { placeholder: "why" } },
+        },
+    ],
+};
+
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u === "/api/briefs/what-stands-on-what" && ((init && init.method) || "GET") === "GET") {
+        return new Response(JSON.stringify({
+            brief: doc,
+            draft: { answers: { r1: { picks: ["A"] } }, updatedAt: "2026-09-16T10:00:00Z" },
+            reply: 'Brief "What stands on what"\n01 The ceilings: A\n',
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+};
+
+const snapshot = {
+    sessions: [
+        { session: "carrying-on", sessionId: "44444444-4444-4444-8444-444444444444", cwd: "/srv/proj" },
+        { session: "also-here", sessionId: "55555555-5555-4555-8555-555555555555", cwd: "/srv/proj" },
+    ],
+};
+
+render(
+    h(ToastHost, null, h(GateHost, null,
+        h(Brief, { id: "what-stands-on-what", snapshot, exec: { available: true, kinds: ["session.send"] },
+            onBack: () => {}, onSession: () => {} }))),
+    document.getElementById("root"));
+
+// A node stands on the first ancestor that paints anything. What that ancestor
+// paints is what shows through a node with no ground of its own.
+const ground = (el) => {
+    for (let up = el.parentElement; up; up = up.parentElement) {
+        const cs = getComputedStyle(up);
+        if (cs.backgroundImage !== "none") return { what: cs.backgroundImage, from: up.className };
+        if (cs.backgroundColor !== "rgba(0, 0, 0, 0)") return { what: cs.backgroundColor, from: up.className };
+    }
+    return { what: "", from: "" };
+};
+
+const read = (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const cs = getComputedStyle(el);
+    return {
+        bg: cs.backgroundColor,
+        bgImage: cs.backgroundImage,
+        borderTop: parseFloat(cs.borderTopWidth) || 0,
+        borderColor: cs.borderTopColor,
+        standsOn: ground(el).what,
+    };
+};
+
+const survey = () => ({
+    opts: read(".bopts"),
+    optIdle: read(".bopt[aria-pressed='false']"),
+    optPicked: read(".bopt[aria-pressed='true']"),
+    optRule: read(".bopts li + li"),
+    capture: read(".bcap"),
+    who: read(".bwho"),
+    button: read(".bbtn"),
+    reply: read(".breply"),
+});
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 250));
+    // The text of the answers lives behind a sheet, and the sheet opens on a press.
+    for (const btn of document.querySelectorAll(".bbtn")) {
+        if (btn.textContent.includes("What goes")) btn.click();
+    }
+    await new Promise((r) => setTimeout(r, 250));
+
+    const root = document.documentElement;
+    root.classList.remove("sky");
+    const space = survey();
+    root.classList.add("sky");
+    await new Promise((r) => setTimeout(r, 60));
+    const sky = survey();
+    root.classList.remove("sky");
+
+    window.done = { space, sky };
+})();
+</script>

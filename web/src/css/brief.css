@@ -16,6 +16,8 @@
     /* What sits over the scrolling text: the sheet of the panel, opaque. */
     --paper-over: var(--sheet-bg);
     --paper-2: var(--glass);
+    /* A shade above --paper-2, for a control under the finger. */
+    --paper-3: var(--glass-2);
     --paper-ink: var(--ink);
     --paper-ink-2: var(--ink-dim);
     --paper-ink-3: var(--ink-faint);
@@ -307,7 +309,12 @@
 
 .bfacts .bflag { color: var(--paper-lost); font-weight: 600; }
 
-.bopts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; background: var(--paper-rule); }
+/* The rules between the options are borders. A background behind a column of
+   transparent children and a 1px gap draws the same lines only while the
+   children are opaque, and they are not: the document stands on the panel's
+   ground. What it drew instead was one slab the colour of a rule, with no
+   telling one option from the next. */
+.bopts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 
 .bopt {
     display: grid;
@@ -323,6 +330,8 @@
     color: inherit;
     cursor: pointer;
 }
+
+.bopts li + li { border-top: 1px solid var(--paper-rule); }
 
 .bopt:hover { background: var(--paper-2); }
 .bopt[aria-pressed="true"] { background: var(--paper-accent-soft); }
@@ -371,7 +380,7 @@
 
 .bcap {
     margin-top: 20px;
-    background: var(--paper);
+    background: var(--paper-2);
     border: 1px solid var(--paper-rule);
     padding: 14px 16px 16px;
 }
@@ -466,8 +475,8 @@
 .bwho {
     font: inherit;
     color: var(--paper-ink-2);
-    background: var(--paper);
-    border: 1px solid var(--paper-rule-2);
+    background: var(--paper-2);
+    border: 1px solid var(--paper-rule);
     border-radius: 3px;
     padding: 1px 4px;
     max-width: 22ch;
@@ -486,13 +495,13 @@
     white-space: nowrap;
     padding: 10px 14px;
     border-radius: 3px;
-    border: 1px solid var(--paper-rule-2);
-    background: var(--paper);
+    border: 1px solid var(--paper-rule);
+    background: var(--paper-2);
     color: var(--paper-ink-2);
     cursor: pointer;
 }
 
-.bbtn:hover { background: var(--paper-2); color: var(--paper-ink); }
+.bbtn:hover { background: var(--paper-3); color: var(--paper-ink); }
 
 .bbtn.go {
     border-color: var(--paper-accent);
@@ -518,7 +527,7 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     color: var(--paper-ink-2);
-    background: var(--paper);
+    background: var(--paper-2);
     border: 1px solid var(--paper-rule);
 }
 
