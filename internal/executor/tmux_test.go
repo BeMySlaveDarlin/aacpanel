@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"aacpanel/internal/action"
 )
@@ -325,4 +326,82 @@ func TestKindsDropWindowOpenWithoutTerminal(t *testing.T) {
 	if got := e.Kinds(); !hasKind(got, action.WindowOpen) {
 		t.Error("the template is set, yet window.open did not come back — the answer was remembered, not recomputed")
 	}
+}
+
+// A brief of seventy answers is more text than tmux takes in one command: the
+// send comes back "command too long" and not a character is typed. The text
+// goes over in pieces, and a piece ends neither inside a rune nor inside an
+// escape sequence — the first gives the terminal half a character, the second
+// gives it the rest of the paste to read as commands.
+func TestTmuxPiecesFitWhatTmuxTakes(t *testing.T) {
+	var body strings.Builder
+	for i := 0; i < 400; i++ {
+		fmt.Fprintf(&body, "%02d a question about delivery · ünïcödé in the title\n   A · take it as it stands\n   note: the rule lives in two places\n", i)
+	}
+	text := clearLine + pasteStart + body.String() + pasteEnd + enterKey
+
+	pieces := tmuxPieces(text)
+	if len(pieces) < 2 {
+		t.Fatalf("a text of %d bytes went over in %d piece — tmux refuses it whole", len(text), len(pieces))
+	}
+	if strings.Join(pieces, "") != text {
+		t.Error("the pieces do not add up to the text that was sent")
+	}
+	for i, piece := range pieces {
+		if len(piece) > tmuxMaxInput {
+			t.Errorf("piece %d is %d bytes, over the %d tmux takes", i, len(piece), tmuxMaxInput)
+		}
+		if !utf8.ValidString(piece) {
+			t.Errorf("piece %d ends inside a rune", i)
+		}
+		if esc := strings.LastIndexByte(piece, escByte); esc >= 0 && !wholeEscape(piece[esc:]) {
+			t.Errorf("piece %d ends inside an escape sequence: %q", i, piece[esc:])
+		}
+	}
+}
+
+// The pieces reach tmux as they are: one send-keys each, in order, with the
+// text behind the -- so that a reply beginning with a dash is a reply and not
+// a flag.
+func TestTmuxSendHandsALongTextOverInPieces(t *testing.T) {
+	log := fakeTmux(t, nil, "")
+	pane := tmuxPane{Target: "aacpanel:0.0"}
+
+	text := "-" + strings.Repeat("a reply too long for one command ", 300)
+	if err := pane.send(t.Context(), text); err != nil {
+		t.Fatalf("the input did not go out: %v", err)
+	}
+
+	var got strings.Builder
+	calls := 0
+	for _, line := range tmuxArgv(t, log) {
+		switch line {
+		case "send-keys", "-t", "aacpanel:0.0", "-l":
+			continue
+		case "--":
+			calls++
+			continue
+		}
+		got.WriteString(line)
+	}
+	// Every call carries its own "--" flag and the stub writes one more after
+	// the call, so a piece stands between two of them.
+	if calls < 4 {
+		t.Errorf("a text of %d bytes went out in %d markers — it was not cut at all", len(text), calls)
+	}
+	if got.String() != text {
+		t.Errorf("tmux was handed %d bytes of the %d that were sent", got.Len(), len(text))
+	}
+}
+
+// wholeEscape says whether a sequence that begins with ESC ends within s: a
+// CSI runs until a byte between @ and ~, and a piece cut before that byte
+// leaves the terminal waiting for the rest of it inside the text.
+func wholeEscape(s string) bool {
+	for i := 1; i < len(s); i++ {
+		if s[i] >= 0x40 && s[i] <= 0x7e {
+			return true
+		}
+	}
+	return false
 }
