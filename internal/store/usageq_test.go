@@ -508,7 +508,7 @@ func contourFilter(contours ...string) UsageFilter {
 // thirds of this host used to end up.
 func TestUsagePlacesASessionWhoseContourIsNotTheProfileNamePG(t *testing.T) {
 	ctx, s, pool := vitrina(t)
-	seedProfile(t, ctx, pool, "Алго", "/home/probe/.claude-profiles/algo", "/opt/algo",
+	seedProfile(t, ctx, pool, "Schoolwork", "/home/probe/.claude-profiles/algo", "/opt/algo",
 		"Backend", map[string]string{"lms": "/opt/algo/lms"})
 	seedSession(t, ctx, pool, vitrinaID(1), "algo", "/opt/algo/lms", 100, 10)
 	seedSession(t, ctx, pool, vitrinaID(2), "algo", "/tmp/worktree", 40, 4)
@@ -533,9 +533,9 @@ func TestUsagePlacesASessionWhoseContourIsNotTheProfileNamePG(t *testing.T) {
 // keyed by name they would be added up into one row belonging to neither.
 func TestUsageKeepsTwoGroupsOfTheSameNameApartPG(t *testing.T) {
 	ctx, s, pool := vitrina(t)
-	algo := seedProfile(t, ctx, pool, "Алго", "/home/probe/.claude-profiles/algo", "/opt/algo",
+	algo := seedProfile(t, ctx, pool, "Schoolwork", "/home/probe/.claude-profiles/algo", "/opt/algo",
 		"Common", map[string]string{"ai-platform": "/opt/algo/ai-platform"})
-	evirma := seedProfile(t, ctx, pool, "Evirma", "/home/probe/.claude-profiles/evirma", "/opt/evirma",
+	evirma := seedProfile(t, ctx, pool, "The client", "/home/probe/.claude-profiles/evirma", "/opt/evirma",
 		"Common", map[string]string{"ai-platform": "/opt/evirma/ai-platform"})
 	seedSession(t, ctx, pool, vitrinaID(3), "algo", "/opt/algo/ai-platform", 100, 10)
 	seedSession(t, ctx, pool, vitrinaID(4), "evirma", "/opt/evirma/ai-platform", 200, 20)
@@ -566,6 +566,6 @@ func TestUsageKeepsTwoGroupsOfTheSameNameApartPG(t *testing.T) {
 		t.Fatalf("the breakdown inside a group: %v", err)
 	}
 	if len(one) != 2 || one[0].Label != "ai-platform" || one[0].Input != 200 {
-		t.Errorf("inside the group of Evirma: %+v, wanted its ai-platform alone", one)
+		t.Errorf("inside the group of the client: %+v, wanted its ai-platform alone", one)
 	}
 }

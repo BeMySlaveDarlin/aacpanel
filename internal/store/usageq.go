@@ -36,9 +36,9 @@ func (f UsageFilter) zone() (string, error) {
 // A session is placed on the map by its directory. The contour it carries is
 // the name the machine gives the account — the directory of its configuration,
 // as the wrapper registry spells it — while a profile of the map carries the
-// name a person gave it, and the two are the same word only by chance: an
-// account named "algo" on disk is "Алго" on the screen. Matching them by name
-// put everything but the personal contour outside the map.
+// name a person gave it, and the two are the same word only by chance: the
+// account in the directory named "algo" is called "Schoolwork" on the screen.
+// Matching them by name put everything but the personal contour outside the map.
 //
 // A group is keyed by its id, not by its name: two profiles may both have a
 // group called Common, and they are two groups.
