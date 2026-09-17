@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"aacpanel/internal/action"
 )
@@ -272,6 +274,7 @@ func parsePermission(screen string) (action.Permission, bool) {
 		return action.Permission{}, false
 	}
 	d.Fingerprint = permFingerprint(d)
+	d.Tail = permSaid(d)
 	return d, true
 }
 
@@ -459,22 +462,66 @@ func lasting(text string) bool {
 	return true
 }
 
+// permFingerprint says which dialog was read, so that a keypress lands in the
+// dialog the person was looking at and not in whatever replaced it.
+//
+// It survives the screen being redrawn, because the screen is redrawn without
+// the dialog changing at all: the terminal of the panel attaches to the same
+// tmux window and sizes it to the phone, so the same question wraps one way
+// while it is read in the conversation and another way while it is read in the
+// terminal. A dialog taller than the screen shows a different part of itself at
+// every width on top of that.
+//
+// So the lines are joined back into one run of words — a wrap is not a change —
+// and of that run only the tail is taken: the end of a dialog is what stays on
+// the screen whatever the width, while the head of a long command is the first
+// thing to scroll away. What the tail leaves out is the beginning of a command
+// the console itself says is cut off.
+const permTailChars = 400
+
 func permFingerprint(d action.Permission) string {
 	var b strings.Builder
-	b.WriteString(flatten(d.Tool))
-	for _, line := range d.Action {
-		b.WriteString("\n")
-		b.WriteString(flatten(line))
-	}
-	for _, line := range d.Note {
-		b.WriteString("\n")
-		b.WriteString(flatten(line))
-	}
+	b.WriteString(squash(d.Tool))
+	b.WriteString("\n")
+	b.WriteString(permSaid(d))
 	for _, o := range d.Options {
-		b.WriteString(fmt.Sprintf("\n%d. %s", o.N, flatten(o.Text)))
+		b.WriteString(fmt.Sprintf("\n%d.%s", o.N, squash(o.Text)))
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])
+}
+
+// squash drops every space from the text.
+//
+// The console wraps a line wherever the window ends, inside a word as readily
+// as between two: a hook named mcp__atlassian__jira_add_comment comes back as
+// "jira_add_c omment" at one width and whole at another. Spaces are therefore
+// not part of what is compared — what is compared is the run of characters the
+// person read.
+func squash(s string) string {
+	return strings.Join(strings.FieldsFunc(s, unicode.IsSpace), "")
+}
+
+// permSaid is everything the dialog says under its heading, spaces dropped and
+// cut to what is worth carrying back with a keypress.
+func permSaid(d action.Permission) string {
+	said := make([]string, 0, len(d.Action)+len(d.Note))
+	said = append(said, d.Action...)
+	said = append(said, d.Note...)
+	return runeTail(squash(strings.Join(said, " ")), permTailChars)
+}
+
+// runeTail is the last n bytes of the text, cut on a rune: half a character is
+// not a character.
+func runeTail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	s = s[len(s)-n:]
+	for len(s) > 0 && !utf8.RuneStart(s[0]) {
+		s = s[1:]
+	}
+	return s
 }
 
 func flatten(s string) string {
@@ -496,6 +543,26 @@ func permSession(target string) (liveSession, error) {
 		return liveSession{}, fmt.Errorf("there are two sessions named %s right now — it is unclear whose dialog to press in", target)
 	}
 	return found[0], nil
+}
+
+// permSame says whether the keypress belongs to the dialog now on the screen.
+//
+// The whole dialog is what is compared, and its end alone is enough only when
+// the console says the head is off the screen: there the person is answering
+// what they can see, and how much of a long command is above the screen changes
+// with the width of a window the panel resizes itself every time the terminal
+// is opened.
+func permSame(d *action.Permission, p *action.Permit) bool {
+	if d.Fingerprint == p.Fingerprint {
+		return true
+	}
+	if !d.Cut || p.Tail == "" || d.Tail == "" {
+		return false
+	}
+	// One reading shows more of the command than the other, and neither shows
+	// its beginning: what they share is an end, and an end they do not share is
+	// another dialog.
+	return strings.HasSuffix(d.Tail, p.Tail) || strings.HasSuffix(p.Tail, d.Tail)
 }
 
 // Permission answers the permission question for the named session.
@@ -533,7 +600,7 @@ func (e *Executor) sessionPermit(ctx context.Context, target string, p *action.P
 	if d.Unknown {
 		return "", fmt.Errorf("the screen of session %s holds a dialog the panel does not know — nothing is pressed in it blindly", target)
 	}
-	if d.Fingerprint != p.Fingerprint {
+	if !permSame(d, p) {
 		return "", fmt.Errorf("the dialog of session %s changed while you were looking — look again", target)
 	}
 	chosen := -1

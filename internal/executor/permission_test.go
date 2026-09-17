@@ -351,7 +351,7 @@ func TestPermissionErrorsCarryNoScreen(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{"tool": true, "action": true, "options": true, "partial": true,
-		"note": true, "cut": true, "fingerprint": true, "unknown": true, "raw": true}
+		"note": true, "cut": true, "fingerprint": true, "tail": true, "unknown": true, "raw": true}
 	for name := range fields {
 		if !want[name] {
 			t.Errorf("a new field %q appeared in the permission — check that the screen is not put into it", name)
@@ -1030,6 +1030,115 @@ func TestPermissionHasNoNoteOnThePlainDialogs(t *testing.T) {
 			}
 			if len(d.Note) != 0 {
 				t.Errorf("a note appeared on the console's own question: %q", d.Note)
+			}
+		})
+	}
+}
+
+// A long dialog read from a phone. The terminal of the panel attaches to the
+// same tmux window and sizes it to the phone, so the question wraps one way
+// while it is read in the conversation and another way while it is read in the
+// terminal, and a dialog taller than the screen shows a different part of
+// itself at every width. None of that is the dialog changing, and a keypress
+// refused over it is a permission the person cannot give from the phone at all.
+func permLongDialog(wrap int, head bool) string {
+	body := []string{
+		"   │ curl -sS -X POST https://jira.example.test/rest/api/3/issue/LMS-13562/comment \\",
+		"   │   -H 'Content-Type: application/json' \\",
+		"   │   -d '{\"body\": \"the copy endpoint takes five requests a minute, the key is counted",
+		"   │        by route and by address, and clients behind one address share the counter\"}'",
+		"   Comment on the issue from the console",
+	}
+
+	note := []string{
+		" │ Hook PreToolUse:mcp__atlassian__jira_add_comment requires confirmation for this tool:",
+		" │ Jira, a comment on LMS-13562: the person allows this one at a time. [settings]",
+		" settings.json to update hooks",
+	}
+	if wrap > 0 {
+		// The console breaks a line wherever the window ends, inside a word as
+		// readily as between two — that is how mcp__atlassian__jira_add_comment
+		// comes back as "jira_add_c omment" on a phone.
+		var rewrapped []string
+		for _, line := range note {
+			for len(line) > wrap {
+				rewrapped = append(rewrapped, line[:wrap])
+				line = " │ " + line[wrap:]
+			}
+			rewrapped = append(rewrapped, line)
+		}
+		note = rewrapped
+	}
+	screen := []string{"❯ comment on the issue", ""}
+	if head {
+		screen = append(screen,
+			"───────────────────────────────────────────────────────────────────────────────────────",
+			" Add Comment Tool", "")
+	} else {
+		// The dialog is taller than the screen: the rule, the heading and the
+		// first lines of the command have scrolled off the top of it.
+		screen = screen[:0]
+		body = body[2:]
+	}
+	screen = append(screen, body...)
+	screen = append(screen, "")
+	screen = append(screen, note...)
+	screen = append(screen, "", " Do you want to proceed?", " ❯ 1. Yes", "   2. No", "",
+		" Esc to cancel · Tab to amend")
+	return strings.Join(screen, "\n")
+}
+
+func TestPermissionFingerprintSurvivesTheWidthOfThePhone(t *testing.T) {
+	base, ok := parsePermission(permLongDialog(0, true))
+	if !ok {
+		t.Fatal("the dialog was not found")
+	}
+
+	same := []struct {
+		name   string
+		screen string
+	}{
+		{"the note wrapped at a narrower window", permLongDialog(60, true)},
+		{"a word of the note broke in two", strings.Replace(permLongDialog(0, true),
+			"the person allows this one at a time", "the person all\n │ ows this one at a time", 1)},
+		{"the head of the command scrolled off the screen", permLongDialog(0, false)},
+		{"both at once, as it happens on a phone", permLongDialog(60, false)},
+	}
+	for _, c := range same {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := parsePermission(c.screen)
+			if !ok {
+				t.Fatal("the dialog was not found")
+			}
+			held := &action.Permit{Option: 1, Fingerprint: base.Fingerprint, Tail: base.Tail}
+			if !permSame(&got, held) {
+				t.Errorf("the keypress was refused though the dialog did not change: the person is told to "+
+					"look again at the same screen\nbase: %v %v\nnow:  %v %v",
+					base.Action, base.Note, got.Action, got.Note)
+			}
+		})
+	}
+
+	// What the tail carries still has to be the dialog on the screen.
+	other := []struct {
+		name   string
+		screen string
+	}{
+		{"the comment changed", strings.Replace(permLongDialog(0, true),
+			"share the counter", "are counted apart", 1)},
+		{"the hook changed its mind", strings.Replace(permLongDialog(0, true),
+			"the person allows this one at a time", "anything goes here", 1)},
+		{"an item changed", strings.Replace(permLongDialog(0, true), "2. No", "2. Never", 1)},
+	}
+	for _, c := range other {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := parsePermission(c.screen)
+			if !ok {
+				t.Fatal("the dialog was not found")
+			}
+			held := &action.Permit{Option: 1, Fingerprint: base.Fingerprint, Tail: base.Tail}
+			if permSame(&got, held) {
+				t.Error("a different dialog was taken for the one that was read — the digit goes into a question nobody saw")
 			}
 		})
 	}

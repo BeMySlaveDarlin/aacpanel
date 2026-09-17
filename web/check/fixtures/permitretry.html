@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The permission card over a console whose dialog moved on while it was read.
+import { h, render } from "preact";
+import { Permit } from "/src/screens/chat/permit.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const first = {
+    tool: "Add Comment Tool",
+    action: ["curl -X POST .../issue/LMS-13562/comment", "Comment on the issue from the console"],
+    note: ["Hook PreToolUse:mcp__atlassian__jira_add_comment requires confirmation for this tool:"],
+    options: [{ n: 1, text: "Yes" }, { n: 2, text: "No" }],
+    cut: true,
+    fingerprint: "aaaa1111",
+    tail: "commentontheissuefromtheconsole",
+};
+// The console moved on to the next question while the person was reading.
+const second = {
+    ...first,
+    action: ["rm -rf ./build", "Clear the build directory"],
+    note: ["Hook PreToolUse:Bash requires confirmation for this command:"],
+    fingerprint: "bbbb2222",
+    tail: "clearthebuilddirectory",
+};
+
+let now = first;
+const asked = [];
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/session/permission")) {
+        asked.push(now.fingerprint);
+        return new Response(JSON.stringify({ state: "ok", permission: now }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/actions") {
+        const body = JSON.parse(init.body);
+        sent.push(body);
+        // The executor compares against the dialog on the screen now, and the
+        // first press carries the one that was read a minute ago.
+        if (body.params.dialog !== second.fingerprint) {
+            now = second;
+            return new Response("the dialog of session lab changed while you were looking — look again",
+                { status: 409 });
+        }
+        return new Response(JSON.stringify({ ok: true, detail: "item 1 pressed in session lab" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const exec = { available: true, kinds: ["session.permit", "session.stop"] };
+render(
+    h(ToastHost, null, h(GateHost, null, h(Permit, { name: "lab", exec, waitingFor: "dialog open" }))),
+    document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const yes = () => Array.from(document.querySelectorAll(".permitopt"))
+    .find((b) => (b.querySelector(".permitn") || {}).textContent === "1");
+
+window.done = (async () => {
+    for (let i = 0; i < 50 && !yes(); i++) await sleep(50);
+    const read = document.querySelector(".permit").textContent;
+
+    yes().click();
+    await sleep(400);
+    // The card now has to hold what the console is asking now, not what it was
+    // asking when the person opened it.
+    const afterFail = document.querySelector(".permit").textContent;
+
+    yes().click();
+    await sleep(400);
+
+    const card = document.querySelector(".permit");
+    return { asked, sent, read, afterFail, done: !card || !/crit/.test(card.innerHTML) };
+})();
+</script>

@@ -61,7 +61,8 @@ func permitFromParams(params map[string]any) (*action.Permit, error) {
 	if print == "" {
 		return nil, fmt.Errorf("a keypress without a dialog fingerprint: there would be nothing to check it against")
 	}
-	return &action.Permit{Option: int(num), Fingerprint: print}, nil
+	tail, _ := params["tail"].(string)
+	return &action.Permit{Option: int(num), Fingerprint: print, Tail: tail}, nil
 }
 
 func answerFromParams(params map[string]any) (*action.Answer, error) {

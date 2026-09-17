@@ -7,6 +7,12 @@ const PermitFingerprintMax = 128
 type Permit struct {
 	Option      int    `json:"option"`
 	Fingerprint string `json:"fingerprint"`
+
+	// Tail is the end of the dialog as it was read, spaces dropped. It is what
+	// a dialog taller than the console screen is recognised by: the head of a
+	// long command scrolls away, and how much of it is off the screen changes
+	// with the width of the window, so what the two readings share is an end.
+	Tail string `json:"tail"`
 }
 
 // PermOption is one option of a prompt.
@@ -24,6 +30,11 @@ type Permission struct {
 	Partial     bool         `json:"partial"`
 	Unknown     bool         `json:"unknown"`
 	Fingerprint string       `json:"fingerprint"`
+
+	// Tail is the end of the dialog, spaces dropped, and it comes back with the
+	// keypress: a dialog whose head is off the screen is recognised by an end
+	// the two readings share.
+	Tail string `json:"tail"`
 
 	// Note holds what the console adds under the command when the question is not
 	// its own: a hook asked for the confirmation, or a permission rule or a classifier

@@ -1,5 +1,5 @@
 // A session permission: the “Do you want to proceed?” dialog from the phone.
-import { useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -14,21 +14,26 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
     const [fail, setFail] = useState("");
     const run = useAction();
 
+    // Reading what the session is asking. It is read again after a keypress the
+    // executor refused: the dialog it compares against is the one on the screen
+    // now, and telling a person to look again is worth nothing while the card
+    // in front of them still shows what was there a minute ago.
+    const look = useCallback(async () => {
+        try {
+            const r = await fetch(`/api/session/permission?name=${encodeURIComponent(name)}`,
+                { credentials: "same-origin" });
+            return await r.json();
+        } catch (err) {
+            return { state: "unknown", reason: err.message };
+        }
+    }, [name]);
+
     useEffect(() => {
         let alive = true;
         setState({ state: "load" });
-        (async () => {
-            try {
-                const r = await fetch(`/api/session/permission?name=${encodeURIComponent(name)}`,
-                    { credentials: "same-origin" });
-                const body = await r.json();
-                if (alive) setState(body);
-            } catch (err) {
-                if (alive) setState({ state: "unknown", reason: err.message });
-            }
-        })();
+        look().then((body) => { if (alive) setState(body); });
         return () => { alive = false; };
-    }, [name]);
+    }, [name, look]);
 
     const shown = state.state === "ok" ? state.permission : null;
     const foreign = !!(shown && shown.unknown);
@@ -41,10 +46,12 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
         const result = await run("session.permit", name, {
             option,
             dialog: perm.fingerprint,
+            tail: perm.tail,
         });
         setSending(0);
         if (!result.ok) {
             setFail(result.error || "the keypress did not go through");
+            setState(await look());
             return;
         }
         setState({ state: "none" });
