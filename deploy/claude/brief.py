@@ -76,17 +76,23 @@ def publish(doc, session, cwd, path=SOCKET, timeout=TIMEOUT):
 
 
 def drop(brief_id, path=SOCKET):
-    """Takes a brief of this directory off the shelf.
+    """Takes a brief of this session's directory off the shelf.
 
-    The directory travels with the request and the shelf holds the removal to
-    it: a session puts down the documents of the work it is carrying on, and a
-    brief written elsewhere is somebody else's to remove.
+    The session travels with the request and the shelf holds the removal to
+    the directory that session works in: a session puts down the documents of
+    the work it is carrying on, and a brief written elsewhere is somebody
+    else's to remove. The directory of the process goes along as a fallback,
+    for a session the shelf cannot find among the live ones.
     """
     try:
         conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         conn.settimeout(TIMEOUT)
         conn.connect(path)
-        conn.sendall(json.dumps({"drop": brief_id, "cwd": os.getcwd()}, ensure_ascii=False).encode("utf-8"))
+        conn.sendall(json.dumps({
+            "drop": brief_id,
+            "sessionId": os.environ.get("CLAUDE_CODE_SESSION_ID", ""),
+            "cwd": os.getcwd(),
+        }, ensure_ascii=False).encode("utf-8"))
         conn.shutdown(socket.SHUT_WR)
         raw = conn.recv(64 * 1024)
         conn.close()
@@ -146,6 +152,9 @@ def main(argv=None):
         say("..", "nothing was published: the answer has nowhere to come back to")
         return 2
 
+    # The directory of this process is a fallback: the shelf asks the registry
+    # of live sessions where the session itself works, because a script run
+    # after a cd knows only where the shell stands.
     try:
         reply = publish(doc, session, os.getcwd(), args.socket)
     except FileNotFoundError:

@@ -99,6 +99,11 @@ The half that is not questions is the half that earns it:
 - **Ceilings**: 100 questions, 8 options and 16 facts each, 4 MB for the whole
   document. Long text is cut rather than refused; a broken structure is refused
   with the reason.
+- **A brief belongs to the directory of the session, not of the shell.** The
+  shelf asks where the session itself works, so a `cd` before the script — into
+  this repository, say — changes nothing: the document still shows up in the
+  conversation of the project the session is working on, and only that session
+  may take it off the shelf.
 - **A brief outlives its session.** It is kept for a month, and the answers
   reach the session even after it has been restarted.
 - **Nothing you write is markup.** Inline markdown is turned into nodes by the

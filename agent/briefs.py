@@ -19,6 +19,7 @@ import socket
 import threading
 import time
 
+import ctx
 import paths
 
 SOCKET_DIR = os.environ.get("AACP_BRIEF_DIR", "/run/aacpanel-agent")
@@ -299,6 +300,24 @@ def _lineage(raw):
     return out
 
 
+def session_cwd(session_id):
+    """Returns the directory of a live session, or "" when it is not among them.
+
+    The directory a brief belongs to is the directory of the session, and that
+    is not the directory the publishing script was started in: a session that
+    runs it after a cd hands over the directory of the shell, and the document
+    then lands in the conversation of whatever repository the script lives in.
+    The registry of live sessions knows where each session itself works, and
+    every contour of the machine is read, not only the personal one.
+    """
+    if not session_id:
+        return ""
+    for live in ctx.live_sessions():
+        if live.get("sessionId") == session_id:
+            return live.get("cwd") or ""
+    return ""
+
+
 def clean(payload):
     """Returns the brief in the form the panel gets, or raises Refused."""
     if not isinstance(payload, dict):
@@ -326,10 +345,12 @@ def clean(payload):
     seen = set()
     questions = [_question(q, i + 1, seen) for i, q in enumerate(raw_questions)]
 
+    # What the session says about its own directory is a fallback, not the
+    # answer: it is the directory of the process that ran the script.
     out = {
         "id": brief_id,
         "sessionId": session,
-        "cwd": _line(payload.get("cwd"), 400),
+        "cwd": session_cwd(session) or _line(payload.get("cwd"), 400),
         "title": title,
         "at": time.strftime(STAMP, time.gmtime()),
         "questions": questions,
@@ -549,11 +570,13 @@ def handle(conn, shelf=None):
         try:
             conn.settimeout(10)
             payload = json.loads(_recv(conn).decode("utf-8"))
-            # The same socket takes away what it brought. A removal names the
-            # directory it is asked from, and the shelf holds it to that: a
-            # session puts down the documents of its own work and nothing else.
+            # The same socket takes away what it brought. A removal is held to
+            # the directory of the session asking for it: a session puts down
+            # the documents of its own work and nothing else.
             if isinstance(payload, dict) and payload.get("drop"):
-                ok, why = shelf.drop(payload.get("drop"), payload.get("cwd") or None)
+                asking = _line(payload.get("sessionId"), 80)
+                where = session_cwd(asking) or payload.get("cwd") or None
+                ok, why = shelf.drop(payload.get("drop"), where)
                 reply = {"ok": True, "dropped": payload.get("drop")} if ok else {"ok": False, "error": why}
                 conn.sendall(json.dumps(reply, ensure_ascii=False).encode("utf-8"))
                 return

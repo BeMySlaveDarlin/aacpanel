@@ -15,6 +15,18 @@ import briefs  # noqa: E402
 
 
 @contextlib.contextmanager
+def live(*rows):
+    """Stands in for the registry of live sessions the shelf reads."""
+    import ctx
+    standing = ctx.live_sessions
+    ctx.live_sessions = lambda: [dict(r) for r in rows]
+    try:
+        yield
+    finally:
+        ctx.live_sessions = standing
+
+
+@contextlib.contextmanager
 def muted():
     said = io.StringIO()
     with contextlib.redirect_stdout(said):
@@ -77,6 +89,19 @@ class Clean(unittest.TestCase):
         self.assertEqual(got["lineage"][0]["from"], "did not close")
         self.assertEqual(got["sections"][0]["body"], ["The tail of yesterday."])
         self.assertEqual(got["closing"], ["Ten of twelve closed for good."])
+
+    def test_the_directory_is_the_session_s_own_not_the_caller_s(self):
+        # The script is run from wherever the agent last cd'd to, and that is
+        # usually the repository the script lives in rather than the project
+        # the conversation is about.
+        with live({"sessionId": "s-1", "cwd": "/srv/real-work"}):
+            got = briefs.clean(published())
+        self.assertEqual(got["cwd"], "/srv/real-work")
+
+    def test_a_session_the_registry_does_not_know_keeps_what_it_sent(self):
+        with live({"sessionId": "someone-else", "cwd": "/srv/elsewhere"}):
+            got = briefs.clean(published())
+        self.assertEqual(got["cwd"], "/srv/proj")
 
     def test_a_question_keeps_its_facts_options_and_reading(self):
         q = briefs.clean(published())["questions"][0]
@@ -331,6 +356,23 @@ class Socket(unittest.TestCase):
         reply = self.serve(payload)
         self.assertFalse(reply["ok"])
         self.assertIn("longer than", reply["error"])
+
+    def test_a_removal_is_held_to_the_directory_of_the_session_asking(self):
+        with live({"sessionId": "s-1", "cwd": "/srv/proj"}):
+            self.serve(published())
+            # The shell stands in the repository of the panel, the session
+            # works in /srv/proj, and the brief is the session's to remove.
+            reply = self.serve({"drop": "seven-after-twelve", "sessionId": "s-1", "cwd": "/opt/panel"})
+        self.assertTrue(reply["ok"], reply)
+        self.assertIsNone(self.shelf.of("seven-after-twelve"))
+
+    def test_a_session_working_elsewhere_removes_nothing(self):
+        with live({"sessionId": "s-1", "cwd": "/srv/proj"}, {"sessionId": "s-2", "cwd": "/srv/other"}):
+            self.serve(published())
+            reply = self.serve({"drop": "seven-after-twelve", "sessionId": "s-2", "cwd": "/srv/proj"})
+        self.assertFalse(reply["ok"])
+        self.assertIn("/srv/proj", reply["error"])
+        self.assertIsNotNone(self.shelf.of("seven-after-twelve"))
 
     def test_what_is_not_json_is_refused_without_bringing_the_thread_down(self):
         left, right = socket.socketpair()
