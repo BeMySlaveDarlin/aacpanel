@@ -54,6 +54,9 @@ var promptMarks = []string{"❯", ">"}
 
 var listHints = []string{"to select", "enter to view"}
 
+// What a row of a list carries after the prompt mark.
+var listMarks = []string{"◯", "●", "○", "◉"}
+
 var attachChips = []string{"[Image#", "[Pastedtext#"}
 
 func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail) (bool, error) {
@@ -175,20 +178,62 @@ func composerMark(text string) string {
 }
 
 func composerText(screen string) (string, bool) {
+	body, _, ok := composerAt(screen)
+	return body, ok
+}
+
+// composerAt finds the composer and says where it sits.
+//
+// Normally it is boxed: a rule above it, a rule below it, the chips of the
+// session under that. But the screen is only as tall as the window, and what
+// stands above the composer — a long answer, a dialog of the session — pushes
+// the lower rule off the bottom. Then the composer is the last thing on the
+// screen: a rule, and the prompt under it. Reading only the boxed shape made a
+// session on a phone-sized window look like a session showing a screen of its
+// own, and nothing could be typed into it at all.
+//
+// The second return says the composer runs to the bottom of the screen, which
+// is what tells the caller there is nothing below it to check.
+func composerAt(screen string) (string, bool, bool) {
 	lines := strings.Split(screen, "\n")
 	end := lastRule(lines, len(lines)-1)
-	if end < 1 {
-		return "", false
+	if end < 0 {
+		return "", false, false
 	}
-	start := lastRule(lines, end-1)
-	if start < 0 {
-		return "", false
+	if start := lastRule(lines, end-1); start >= 0 {
+		if body := lines[start+1 : end]; promptStarts(body) {
+			return strings.Join(body, "\n"), false, true
+		}
 	}
-	body := lines[start+1 : end]
-	if !promptStarts(body) {
-		return "", false
+	tail := lines[end+1:]
+	if promptStarts(tail) && !listRow(tail) {
+		return strings.Join(tail, "\n"), true, true
 	}
-	return strings.Join(body, "\n"), true
+	return "", false, false
+}
+
+// listRow reports that the prompt mark belongs to a row of a list rather than
+// to the composer: a subagent tray marks the row under the cursor with the same
+// character the composer starts with, and the circle after it is the telling
+// part.
+func listRow(lines []string) bool {
+	for _, line := range lines {
+		rest := strings.TrimSpace(line)
+		if rest == "" {
+			continue
+		}
+		for _, mark := range promptMarks {
+			rest = strings.TrimPrefix(rest, mark)
+		}
+		rest = strings.TrimSpace(rest)
+		for _, mark := range listMarks {
+			if strings.HasPrefix(rest, mark) {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 func promptStarts(body []string) bool {
@@ -216,8 +261,14 @@ func cursorAt(line string) string {
 }
 
 func composerReady(screen string) (string, bool) {
-	if _, ok := composerText(screen); !ok {
+	_, toBottom, ok := composerAt(screen)
+	if !ok {
 		return "the session is showing a screen of its own, not its composer", false
+	}
+	if toBottom {
+		// The composer is the last thing on the screen: there is no room under
+		// it for a list to have taken the keyboard.
+		return "", true
 	}
 	lines := strings.Split(screen, "\n")
 	for _, line := range lines[lastRule(lines, len(lines)-1)+1:] {

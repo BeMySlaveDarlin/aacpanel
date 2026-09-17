@@ -132,6 +132,29 @@ const transcriptScreen = `● ok
   Showing detailed transcript · ctrl+o to toggle · ↑↓ scroll · v to open in vi · ? for shortcuts
 `
 
+// What the screen of a session looks like on a phone-sized window when a dialog
+// of the session stands above the composer: the lower rule of the composer and
+// the chips under it are pushed off the bottom, and the prompt is the last line
+// there is.
+const cutComposerScreen = `╭──────────────────────────────────────╮
+│ ✻ Bug report drafted: the router was stopped                                 │
+│ │ - What happened: in a prod security check the model listed four actions    │
+│ 1 to review · 2 to send · 0 to dismiss                                       │
+╰──────────────────────────────────────╯
+
+
+────────────────────────────────────────
+❯ `
+
+// The same cut screen, but the prompt at the bottom marks a row of the subagent
+// tray rather than the composer.
+const cutListScreen = `● Started.
+
+✻ Baked for 7m 0s · done 16:19
+
+────────────────────────────────────────
+❯ ◯ general-purpose  Monitoring background sleep 600            41s · ↓ 58.2k tokens`
+
 func TestComposerReadyOnRealScreens(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -144,6 +167,8 @@ func TestComposerReadyOnRealScreens(t *testing.T) {
 		{name: "the session is busy, a turn is running", screen: busyScreen, ready: true},
 		{name: "the background task screen is open", screen: tasksScreen, ready: false},
 		{name: "the detailed transcript is open", screen: transcriptScreen, ready: false},
+		{name: "a dialog pushed the lower rule of the composer off the screen", screen: cutComposerScreen, ready: true},
+		{name: "the cut screen ends on a row of the tray, not on the composer", screen: cutListScreen, ready: false},
 	}
 
 	for _, c := range cases {
@@ -159,6 +184,28 @@ func TestComposerReadyOnRealScreens(t *testing.T) {
 				t.Error("a refusal without a reason: the person on the phone has nothing to press")
 			}
 		})
+	}
+}
+
+// A composer that runs to the bottom of the screen is still a composer: the
+// window of a phone is short, and what stands above it decides how much of it
+// is drawn. Reading only the boxed shape left a session unable to receive
+// anything at all, and the refusal said the session was showing a screen of
+// its own — which it was not.
+func TestTheComposerIsFoundWhenTheScreenCutItsLowerRule(t *testing.T) {
+	body, toBottom, ok := composerAt(cutComposerScreen)
+	if !ok {
+		t.Fatal("the composer was not found on a screen that ends with one")
+	}
+	if !toBottom {
+		t.Error("the composer runs to the bottom of the screen, and it was not read as one")
+	}
+	if strings.Contains(body, "to review") {
+		t.Errorf("the dialog above the composer was taken for its text: %q", body)
+	}
+
+	if _, _, ok := composerAt(cutListScreen); ok {
+		t.Error("a row of the tray at the bottom of the screen was taken for the composer")
 	}
 }
 
