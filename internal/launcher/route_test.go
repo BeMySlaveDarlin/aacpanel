@@ -21,7 +21,7 @@ func contourHome(t *testing.T) string {
 }
 
 func TestRunPutsContourConfigIntoSession(t *testing.T) {
-	proc := fakeProc(t, fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10"}})
+	proc := fakeProc(t, fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10", "DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}})
 	tmuxLog := fakeTmuxLauncher(t, proc, "aacpanel", 200, 4242)
 	fakeWindow(t)
 	t.Setenv("DISPLAY", ":10")

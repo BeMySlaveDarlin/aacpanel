@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +50,28 @@ func fakeProc(t *testing.T, procs ...fproc) string {
 	}
 	t.Setenv(procEnv, root)
 	return root
+}
+
+// liveBus is an address a session bus really answers at. The graphical session
+// hands its address down to the child, and a start that got only a dead path
+// says so in the report — so a test that expects no complaints has to give the
+// session a socket that is really there.
+func liveBus(t *testing.T) string {
+	t.Helper()
+	// Not t.TempDir(): a directory named after the test function puts the
+	// socket path over the length AF_UNIX takes.
+	dir, err := os.MkdirTemp("", "bus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	path := filepath.Join(dir, "socket")
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	return "unix:path=" + path
 }
 
 func contourDirs(t *testing.T, dirs ...string) {
@@ -187,6 +210,37 @@ func TestLeaksIgnoreProfileRoute(t *testing.T) {
 	got := leaks(200)
 	if strings.Join(got, ",") != "CLAUDECODE,CLAUDE_CODE_SESSION_ID" {
 		t.Errorf("the real leak was not found, or not named in full: %v", got)
+	}
+}
+
+func TestBusWarningLooksBehindTheAddress(t *testing.T) {
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "not-a-socket")
+	if err := os.WriteFile(plain, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name  string
+		addr  string
+		quiet bool
+	}{
+		{name: "a socket is really there", addr: liveBus(t), quiet: true},
+		{name: "the guid follows the path", addr: liveBus(t) + ",guid=ca2eaaa9b2173bf54d49ed506aa5ebe5", quiet: true},
+		{name: "no bus is named at all", addr: "", quiet: true},
+		{name: "an address that is not a path", addr: "unix:abstract=/tmp/dbus-3T9CkQ", quiet: true},
+		{name: "the path the address names is gone", addr: "unix:path=" + filepath.Join(dir, "gone")},
+		{name: "the path leads to a file, not a socket", addr: "unix:path=" + plain},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			warn := checkBus(c.addr)
+			if c.quiet && warn != "" {
+				t.Errorf("a bus that answers drew a complaint: %s", warn)
+			}
+			if !c.quiet && warn == "" {
+				t.Errorf("nothing was said about %s — a session on such a bus hangs where it looks like it works", c.addr)
+			}
+		})
 	}
 }
 
@@ -389,7 +443,7 @@ func fakeWindow(t *testing.T) (string, string) {
 
 func TestRunStartsSessionInTmuxAndAttachesWindow(t *testing.T) {
 	proc := fakeProc(t,
-		fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10", "KDE_FULL_SESSION=true"}},
+		fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10", "KDE_FULL_SESSION=true", "DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}},
 		fproc{pid: 100, comm: "konsole", args: []string{"konsole"}},
 	)
 	tmuxLog := fakeTmuxLauncher(t, proc, "aacpanel", 200, 4242)
@@ -663,7 +717,7 @@ func TestChildEnvCarriesTerminalBasics(t *testing.T) {
 
 func TestRunTakesClaudeFromContourMap(t *testing.T) {
 	proc := fakeProc(t,
-		fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10", "KDE_FULL_SESSION=true"}},
+		fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10", "KDE_FULL_SESSION=true", "DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}},
 	)
 	tmuxLog := fakeTmuxLauncher(t, proc, "aacpanel", 200, 4242)
 	fakeWindow(t)
@@ -842,7 +896,7 @@ func TestTerminalAutoDefaultsToOpening(t *testing.T) {
 
 func TestTerminalAutoOffLeavesSessionWithoutWindow(t *testing.T) {
 	proc := fakeProc(t,
-		fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10"}},
+		fproc{pid: 10, comm: "plasmashell", env: []string{"DISPLAY=:10", "DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}},
 	)
 	tmuxLog := fakeTmuxLauncher(t, proc, "aacpanel", 200, 4242)
 	windowLog, _ := fakeWindow(t)
