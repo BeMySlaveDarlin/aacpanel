@@ -273,7 +273,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
         `}
-        ${live && !hasWork(state.work, live.status === "busy") && live.lastRequestAt && html`
+        ${live && view !== "term" && !hasWork(state.work, live.status === "busy") && live.lastRequestAt && html`
             <p class="lastreq">request ${ago(live.lastRequestAt)}</p>
         `}
 

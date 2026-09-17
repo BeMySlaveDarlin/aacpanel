@@ -339,12 +339,64 @@ func TestTerminalKeysSendWhatAKeyboardWouldSend(t *testing.T) {
 		t.Errorf("%s: Esc is not named by color — until it is pressed it is indistinguishable from Tab", cssPath)
 	}
 	key := cssBlockFile(t, cssPath, ".termkey")
-	if !strings.Contains(key, "min-height: 40px") {
-		t.Errorf("%s: the key has no tap target — missing an arrow inside a dialog "+
-			"picks the wrong item", cssPath)
+	// Eight keys stand side by side on a phone, so the row is deliberately a
+	// fifth shorter than a comfortable target. Below this it stops being a
+	// target at all: missing an arrow inside a dialog picks the wrong item.
+	if !strings.Contains(key, "min-height: 32px") {
+		t.Errorf("%s: the key row has lost its height — the keys are hit by a finger, not a pointer", cssPath)
 	}
 	if !strings.Contains(key, "touch-action: manipulation") {
 		t.Errorf("%s: a double tap on a key zooms the screen instead of pressing a second time", cssPath)
+	}
+}
+
+// Ctrl on a phone is a key that sticks for one character: there is no second
+// hand to hold it with, and without it the session cannot be told Ctrl+C at
+// all from a phone.
+func TestTheTerminalRowCarriesAStickyCtrl(t *testing.T) {
+	const jsFile = "src/screens/chat/term.js"
+	src := stripComments(srcFiles(t)[jsFile])
+	if src == "" {
+		t.Fatalf("%s not found", jsFile)
+	}
+	if !strings.Contains(src, `{ id: "ctrl", label: "Ctrl", modifier: true }`) {
+		t.Errorf("%s: the row has no Ctrl — Ctrl+C cannot be typed from a phone", jsFile)
+	}
+	if !strings.Contains(src, "if (key.modifier) {") {
+		t.Errorf("%s: the modifier is sent as bytes like every other key — it has none of its own", jsFile)
+	}
+	if !strings.Contains(src, "ctrlHeld(data)") {
+		t.Errorf("%s: what is typed after Ctrl is not turned into a control code", jsFile)
+	}
+	for _, mark := range []string{"ctrlRef.current = false", "setCtrl(false)"} {
+		if !strings.Contains(src, mark) {
+			t.Errorf("%s: %s is missing — Ctrl never lets go, and every letter after it is a control code",
+				jsFile, mark)
+		}
+	}
+	if !strings.Contains(src, "const ctrlRef = useRef(false)") {
+		t.Errorf("%s: the modifier is read from state inside a handler made once — "+
+			"the handler keeps the value it was born with", jsFile)
+	}
+
+	css := cssBlockFile(t, "src/css/term.css", ".termkey.mod.on")
+	if !strings.Contains(css, "var(--accent)") {
+		t.Errorf("src/css/term.css: a held modifier is not marked — the next letter goes as a control " +
+			"code with nothing on the screen saying so")
+	}
+}
+
+// The line telling when the last request was made belongs under a conversation,
+// not under a terminal: there it stands between the keys and the edge of the
+// screen and says nothing about what is on it.
+func TestTheRequestLineStaysOutOfTheTerminal(t *testing.T) {
+	const jsFile = "src/screens/chat.js"
+	src := stripComments(srcFiles(t)[jsFile])
+	if src == "" {
+		t.Fatalf("%s not found", jsFile)
+	}
+	if !strings.Contains(src, `${live && view !== "term" && !hasWork(`) {
+		t.Errorf("%s: the request line is drawn without asking which view is open", jsFile)
 	}
 }
 

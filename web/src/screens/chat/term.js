@@ -157,6 +157,7 @@ export function capToView(wrap, view) {
 
 const KEYS = [
     { id: "esc", label: "Esc", bytes: "\x1b", danger: true },
+    { id: "ctrl", label: "Ctrl", modifier: true },
     { id: "tab", label: "Tab", bytes: "\t" },
     { id: "left", label: "←", bytes: "\x1b[D", repeat: true },
     { id: "up", label: "↑", bytes: "\x1b[A", repeat: true },
@@ -168,7 +169,19 @@ const KEYS = [
 const REPEAT_AFTER = 400;
 const REPEAT_EVERY = 90;
 
-function TermKeys({ send }) {
+// Ctrl on a phone is a key that sticks for one character, the way shift does
+// on the keyboard of the phone itself: there is no second hand to hold it
+// with. What follows it becomes a control code — Ctrl+C, Ctrl+D, Ctrl+R — and
+// the key lets go by itself.
+function ctrlHeld(data) {
+    const ch = data.charCodeAt(0);
+    if (ch >= 97 && ch <= 122) return String.fromCharCode(ch - 96) + data.slice(1);
+    if (ch >= 64 && ch <= 95) return String.fromCharCode(ch - 64) + data.slice(1);
+    if (ch === 32) return "\x00" + data.slice(1);
+    return data;
+}
+
+function TermKeys({ send, ctrl, onCtrl }) {
     const hold = useRef({ delay: 0, tick: 0 });
     const stop = () => {
         clearTimeout(hold.current.delay);
@@ -179,6 +192,10 @@ function TermKeys({ send }) {
 
     const press = (key) => (event) => {
         event.preventDefault();
+        if (key.modifier) {
+            onCtrl(!ctrl);
+            return;
+        }
         send(key.bytes);
         if (!key.repeat) return;
         stop();
@@ -191,7 +208,8 @@ function TermKeys({ send }) {
         <div class="termkeys">
             ${KEYS.map((key) => html`
                 <button
-                    class=${`termkey${key.danger ? " danger" : ""}`}
+                    class=${`termkey${key.danger ? " danger" : ""}${key.modifier ? " mod" : ""}${key.modifier && ctrl ? " on" : ""}`}
+                    aria-pressed=${key.modifier ? (ctrl ? "true" : "false") : undefined}
                     type="button"
                     key=${key.id}
                     aria-label=${key.id}
@@ -214,6 +232,15 @@ export function Term({ name }) {
     const wide = useWide();
     const [state, setState] = useState({ kind: "loading" });
     const [attempt, setAttempt] = useState(0);
+    // The modifier lives here rather than in the row of keys: what it changes
+    // is the next character typed on the phone's own keyboard, and that goes
+    // straight from the emulator to the session.
+    const [ctrl, setCtrl] = useState(false);
+    const ctrlRef = useRef(false);
+    const holdCtrl = (on) => {
+        ctrlRef.current = on;
+        setCtrl(on);
+    };
 
     useEffect(() => {
         if (!box.current) return undefined;
@@ -289,7 +316,13 @@ export function Term({ name }) {
                 input.open(id);
                 setState({ kind: "live", detail: info.detail || "" });
 
-                term.onData((data) => send(encoder.encode(data)));
+                const typed = (data) => {
+                    if (!ctrlRef.current) return data;
+                    ctrlRef.current = false;
+                    setCtrl(false);
+                    return ctrlHeld(data);
+                };
+                term.onData((data) => send(encoder.encode(typed(data))));
                 sendRef.current = (data) => send(encoder.encode(data));
                 term.onBinary((data) => send(Uint8Array.from(data, (ch) => ch.charCodeAt(0) & 255)));
 
@@ -384,7 +417,8 @@ export function Term({ name }) {
     return html`
         <div class=${`termwrap${state.kind === "live" ? "" : " off"}`} ref=${wrap}>
             <div class="termscreen" ref=${box}></div>
-            ${state.kind === "live" && !wide && html`<${TermKeys} send=${type} />`}
+            ${state.kind === "live" && !wide && html`
+                <${TermKeys} send=${type} ctrl=${ctrl} onCtrl=${holdCtrl} />`}
             ${state.kind === "loading" && html`<p class="hint">Opening the terminal…</p>`}
             ${state.kind === "failed" && html`
                 <div class="termnote">
