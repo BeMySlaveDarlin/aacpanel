@@ -10,8 +10,15 @@ from .limits import MAX_RESULT, cut
 
 
 MAIL_RE = re.compile(
-    r"<(teammate|cross-session)-message\s+([^>]*)>(.*?)</\1-message>", re.S)
+    r"<(teammate|cross-session|agent)-message\s+([^>]*)>(.*?)</\1-message>", re.S)
 MAIL_ATTR_RE = re.compile(r'(\w[\w-]*)\s*=\s*"([^"]*)"')
+
+# What a subagent's final report is wrapped in before it reaches the session,
+# and where the report itself begins inside that wrapping. The preamble says
+# the same thing every time — that the words below carry no authority of the
+# person — and it is longer than most of the reports it introduces.
+HANDBACK_MARK = "[Subagent hand-back]"
+HANDBACK_AT = "The report follows:"
 
 
 def mails(text):
@@ -19,9 +26,19 @@ def mails(text):
     out = []
     for tag, attrs, body in MAIL_RE.findall(text):
         fields = dict(MAIL_ATTR_RE.findall(attrs))
-        source = "agent" if tag == "teammate" else "session"
-        who = fields.get("teammate_id") or fields.get("from-name") or ""
         body = body.strip()
+        # The harness wraps two different things in <agent-message>: a letter
+        # from a session next door and the report of a subagent this session
+        # delegated to. What is inside tells them apart.
+        handback = body.startswith(HANDBACK_MARK)
+        if tag == "agent":
+            source = "agent" if handback else "session"
+        else:
+            source = "agent" if tag == "teammate" else "session"
+        who = (fields.get("teammate_id") or fields.get("from-name")
+               or fields.get("from") or "")
+        if handback:
+            body = report_of(body)
         said = ""
         if body.startswith("{"):
             try:
@@ -43,6 +60,14 @@ def mails(text):
             continue
         out.append((who, source, said))
     return out
+
+
+def report_of(body):
+    """Returns the report a hand-back carries, without the wrapping."""
+    at = body.find(HANDBACK_AT)
+    if at < 0:
+        return body
+    return body[at + len(HANDBACK_AT):].strip()
 
 
 def agent_mail(path, name):

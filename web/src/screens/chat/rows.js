@@ -202,19 +202,27 @@ function Wake({ item }) {
     `;
 }
 
+// What a letter is: a session next door, a subagent of this one, or a hook of
+// the session speaking at the end of a turn. All three arrive among the
+// prompts wrapped in a preamble nobody reads twice, so all three are drawn the
+// same way — a line that says who, and the words themselves under it.
+const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook" };
+
+const MAIL_WHO = { session: "neighbour session", agent: "subagent", hook: "stop hook" };
+
 function Mail({ item }) {
     const [open, setOpen] = useState(false);
-    const peer = item.source === "session";
+    const kind = MAIL_KINDS[item.source] || "agent";
     const out = item.dir === "out";
-    const who = item.from || (peer ? "neighbour session" : "subagent");
+    const who = item.from || MAIL_WHO[kind];
     return html`
-        <div class=${`mmail${open ? " open" : ""}${out ? " out" : ""}`}>
+        <div class=${`mmail ${kind}${open ? " open" : ""}${out ? " out" : ""}`}>
             <button class="mmhead" type="button" onClick=${() => setOpen(!open)}
                     aria-expanded=${open ? "true" : "false"}>
                 <span class="mmico">${Icon.envelope()}</span>
                 <span class="mmdir">${out ? "to:" : "from:"}</span>
                 <span class="mmfrom">${who}</span>
-                ${!out && html`<span class="mmkind">${peer ? "session" : "agent"}</span>`}
+                ${!out && html`<span class="mmkind">${kind}</span>`}
                 ${!open && html`<span class="mmpeek">${peek(item.text)}</span>`}
                 ${item.at && html`<span class="mmat">${stampText(item.at)}</span>`}
             </button>

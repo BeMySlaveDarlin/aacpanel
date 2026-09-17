@@ -73,12 +73,59 @@ def delivery(text):
     return text.replace(DELIVERY_MARK, "").strip()
 
 
+IDLE_MARK = "[Cross-session idle notice]"
+IDLE_NAME_RE = re.compile(r'"([^"]+)"')
+IDLE_SAYS_RE = re.compile(r"Its harness reports:\s*«(.*?)»", re.S)
+
+HOOK_MARK = "Stop hook feedback:"
+HOOK_TAG_RE = re.compile(r"^\[([^\]]+)\]\s*")
+
+
+def idle_notice(text):
+    """Returns a neighbour session going idle as (its name, what its harness said)."""
+    if IDLE_MARK not in text:
+        return None
+    body = text.split(IDLE_MARK, 1)[1]
+    name = IDLE_NAME_RE.search(body)
+    said = IDLE_SAYS_RE.search(body)
+    # The tail of the notice is the same disclaimer every time: that this is an
+    # automated line and not a person speaking. The card says as much by being
+    # a card, so what is kept is the name and the report.
+    return (name.group(1) if name else ""), (said.group(1).strip() if said else "is idle now")
+
+
+def hook_feedback(text):
+    """Returns what a Stop hook told the session as (which hook, what it said)."""
+    if HOOK_MARK not in text:
+        return None
+    said = text.split(HOOK_MARK, 1)[1].strip()
+    tag = HOOK_TAG_RE.match(said)
+    if tag:
+        return tag.group(1), said[tag.end():].strip()
+    return "", said
+
+
 def service(text, at, pos):
     """Returns feed items for a record the human did not write, or None for plain text."""
     said = delivery(text)
     if said:
         return [{"role": "note", "text": said, "at": at, "pos": pos}]
-    if "<teammate-message" in text or "<cross-session-message" in text:
+    idle = idle_notice(text)
+    if idle:
+        who, said = idle
+        body, trimmed = cut(said, MAX_TEXT)
+        return [{"role": "mail", "from": who or "neighbour session", "source": "session",
+                 "text": body, "cut": trimmed, "at": at, "pos": pos}]
+
+    hook = hook_feedback(text)
+    if hook:
+        who, said = hook
+        body, trimmed = cut(said, MAX_TEXT)
+        return [{"role": "mail", "from": who or "stop hook", "source": "hook",
+                 "text": body, "cut": trimmed, "at": at, "pos": pos}]
+
+    if ("<teammate-message" in text or "<cross-session-message" in text
+            or "<agent-message" in text):
         out = []
         for who, source, said in mails(text):
             body, trimmed = cut(said, MAX_TEXT)

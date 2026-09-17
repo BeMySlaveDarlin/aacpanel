@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The three kinds of letter a session gets among the prompts: a neighbour
+// session, a subagent of its own, and a hook of the session speaking at the end
+// of a turn. All three are drawn as letters; what differs is the word on the
+// head, the rail and, for the hook, its colour.
+import { h, render } from "preact";
+import { Row } from "/src/screens/chat/rows.js";
+
+const at = "2026-09-17T20:17:00Z";
+const items = [
+    { role: "mail", from: "harness-rework", source: "session", pos: 10, at,
+      text: "Four sets green; waiting on adapter-contracts." },
+    { role: "mail", from: "aecca89632fbfe14e", source: "agent", pos: 20, at,
+      text: "Both commands went through, nothing skipped." },
+    { role: "mail", from: "router", source: "hook", pos: 30, at,
+      text: "the router did not pass: ask the question first." },
+];
+
+render(h("div", { class: "feed" }, items.map((item) => h(Row, { item, key: item.pos }))),
+    document.getElementById("root"));
+
+(async () => {
+  try {
+    await new Promise((r) => setTimeout(r, 200));
+    const rows = Array.from(document.querySelectorAll(".mmail")).map((el) => {
+        const head = el.querySelector(".mmhead");
+        const rail = getComputedStyle(el).boxShadow;
+        return {
+            cls: el.className,
+            from: (el.querySelector(".mmfrom") || {}).textContent || "",
+            kind: (el.querySelector(".mmkind") || {}).textContent || "",
+            peek: (el.querySelector(".mmpeek") || {}).textContent || "",
+            rail,
+            open: el.classList.contains("open"),
+        };
+    });
+    // A letter opens on a press and shows the words themselves.
+    const first = document.querySelector(".mmail .mmhead");
+    first.click();
+    await new Promise((r) => setTimeout(r, 120));
+    const opened = {
+        open: document.querySelector(".mmail").classList.contains("open"),
+        body: (document.querySelector(".mmail .mmbody") || {}).textContent || "",
+    };
+    window.done = { rows, opened };
+  } catch (err) {
+    window.done = { error: String(err && err.stack || err) };
+  }
+})();
+</script>

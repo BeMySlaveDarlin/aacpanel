@@ -170,6 +170,11 @@
 .mmail.wake .mmico { color: var(--ink-dim); }
 .mmail.wake .mmfrom { color: var(--ink-dim); }
 .mmail.out { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 65%, transparent); }
+/* A hook of the session speaking at the end of a turn is not a correspondent:
+   the rail takes the colour the panel warns in, so a blocked turn is told
+   apart from a letter at a glance. */
+.mmail.hook { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--warn) 70%, transparent); }
+.mmail.hook .mmico { color: var(--warn); }
 .mmbody { font-size: var(--t-md); line-height: 1.5; padding: 0 .9rem .7rem .7rem; }
 .mmbody.doc { padding: 0 0 .7rem; overflow-wrap: anywhere; }
 .mmbody > :first-child { margin-top: 0; }
