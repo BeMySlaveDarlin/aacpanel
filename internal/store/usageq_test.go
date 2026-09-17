@@ -460,3 +460,112 @@ func mustExec(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql string,
 		t.Fatalf("seeding the data: %v", err)
 	}
 }
+
+// seedProfile puts one profile with one group and its projects on the map, and
+// returns the id of the group.
+func seedProfile(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
+	name, configDir, prefix, group string, projects map[string]string) int {
+	t.Helper()
+	var profile, groupID int
+	err := pool.QueryRow(ctx, `
+		INSERT INTO profiles (name, config_dir, prefix) VALUES ($1, $2, $3) RETURNING id`,
+		name, configDir, prefix).Scan(&profile)
+	if err != nil {
+		t.Fatalf("the profile %s: %v", name, err)
+	}
+	err = pool.QueryRow(ctx, `
+		INSERT INTO profile_groups (profile_id, name) VALUES ($1, $2) RETURNING id`,
+		profile, group).Scan(&groupID)
+	if err != nil {
+		t.Fatalf("the group %s: %v", group, err)
+	}
+	for project, path := range projects {
+		mustExec(t, ctx, pool, `
+			INSERT INTO profile_projects (group_id, name, path) VALUES ($1, $2, $3)`,
+			groupID, project, path)
+	}
+	// The database outlives the test: what a test puts on the map it takes off
+	// again, or the next one fails on a name that is already taken.
+	t.Cleanup(func() {
+		clean := context.Background()
+		mustExec(t, clean, pool, `DELETE FROM profile_projects WHERE group_id = $1`, groupID)
+		mustExec(t, clean, pool, `DELETE FROM profile_groups WHERE id = $1`, groupID)
+		mustExec(t, clean, pool, `DELETE FROM profiles WHERE id = $1`, profile)
+	})
+	return groupID
+}
+
+// contourFilter is vitrinaFilter for the contours a test seeds itself.
+func contourFilter(contours ...string) UsageFilter {
+	f := vitrinaFilter()
+	f.Contours = contours
+	return f
+}
+
+// The contour of a session is the name the machine gives the account, and the
+// profile of the map is the name a person gave it. They are different words,
+// and a session placed by name landed outside the map — which is where two
+// thirds of this host used to end up.
+func TestUsagePlacesASessionWhoseContourIsNotTheProfileNamePG(t *testing.T) {
+	ctx, s, pool := vitrina(t)
+	seedProfile(t, ctx, pool, "Алго", "/home/probe/.claude-profiles/algo", "/opt/algo",
+		"Backend", map[string]string{"lms": "/opt/algo/lms"})
+	seedSession(t, ctx, pool, vitrinaID(1), "algo", "/opt/algo/lms", 100, 10)
+	seedSession(t, ctx, pool, vitrinaID(2), "algo", "/tmp/worktree", 40, 4)
+
+	rows, err := s.UsageBreakdownFor(ctx, contourFilter("algo"), UsageByProject, 0)
+	if err != nil {
+		t.Fatalf("the breakdown by project: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("%d rows, wanted the project and the row outside the map: %+v", len(rows), rows)
+	}
+	if rows[0].Label != "lms" || rows[0].Input != 100 {
+		t.Errorf("the first row is %+v, wanted lms with its 100 tokens", rows[0])
+	}
+	if !rows[len(rows)-1].Outside || rows[len(rows)-1].Input != 40 {
+		t.Errorf("outside the map: %+v, wanted the 40 tokens of the worktree and nothing else",
+			rows[len(rows)-1])
+	}
+}
+
+// Two profiles may each have a group called Common, and they are two groups:
+// keyed by name they would be added up into one row belonging to neither.
+func TestUsageKeepsTwoGroupsOfTheSameNameApartPG(t *testing.T) {
+	ctx, s, pool := vitrina(t)
+	algo := seedProfile(t, ctx, pool, "Алго", "/home/probe/.claude-profiles/algo", "/opt/algo",
+		"Common", map[string]string{"ai-platform": "/opt/algo/ai-platform"})
+	evirma := seedProfile(t, ctx, pool, "Evirma", "/home/probe/.claude-profiles/evirma", "/opt/evirma",
+		"Common", map[string]string{"ai-platform": "/opt/evirma/ai-platform"})
+	seedSession(t, ctx, pool, vitrinaID(3), "algo", "/opt/algo/ai-platform", 100, 10)
+	seedSession(t, ctx, pool, vitrinaID(4), "evirma", "/opt/evirma/ai-platform", 200, 20)
+
+	rows, err := s.UsageBreakdownFor(ctx, contourFilter("algo", "evirma"), UsageByGroup, 0)
+	if err != nil {
+		t.Fatalf("the breakdown by group: %v", err)
+	}
+	named := map[string]int64{}
+	for _, r := range rows {
+		if r.Outside {
+			continue
+		}
+		named[r.Key] = r.Input
+	}
+	if len(named) != 2 {
+		t.Fatalf("%d groups, wanted two of the same name apart: %+v", len(named), rows)
+	}
+	if named[fmt.Sprint(algo)] != 100 || named[fmt.Sprint(evirma)] != 200 {
+		t.Errorf("groups %+v — each keeps the usage of its own profile", named)
+	}
+
+	// And the filter of a group reaches one of them, not both.
+	f := contourFilter("algo", "evirma")
+	f.Group = fmt.Sprint(evirma)
+	one, err := s.UsageBreakdownFor(ctx, f, UsageByProject, 0)
+	if err != nil {
+		t.Fatalf("the breakdown inside a group: %v", err)
+	}
+	if len(one) != 2 || one[0].Label != "ai-platform" || one[0].Input != 200 {
+		t.Errorf("inside the group of Evirma: %+v, wanted its ai-platform alone", one)
+	}
+}

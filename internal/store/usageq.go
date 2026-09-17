@@ -33,23 +33,31 @@ func (f UsageFilter) zone() (string, error) {
 	return f.Zone, nil
 }
 
+// A session is placed on the map by its directory. The contour it carries is
+// the name the machine gives the account — the directory of its configuration,
+// as the wrapper registry spells it — while a profile of the map carries the
+// name a person gave it, and the two are the same word only by chance: an
+// account named "algo" on disk is "Алго" on the screen. Matching them by name
+// put everything but the personal contour outside the map.
+//
+// A group is keyed by its id, not by its name: two profiles may both have a
+// group called Common, and they are two groups.
 const sessionCTE = `
 	sess AS (
 		SELECT s.session_id, s.contour, s.cwd, s.started_at, s.ended_at,
-		       m.project, m.grp, m.path
+		       m.project, m.grp, m.grp_id, m.path
 		  FROM usage_sessions s
 		  LEFT JOIN LATERAL (
-		       SELECT p.name AS project, g.name AS grp, p.path AS path
+		       SELECT p.name AS project, g.name AS grp, g.id AS grp_id, p.path AS path
 		         FROM profile_projects p
 		         JOIN profile_groups g ON g.id = p.group_id
 		         JOIN profiles pr ON pr.id = g.profile_id
-		        WHERE pr.name = s.contour
-		          AND (s.cwd = p.path OR s.cwd LIKE p.path || '/%')
-		        ORDER BY length(p.path) DESC
+		        WHERE s.cwd = p.path OR s.cwd LIKE p.path || '/%'
+		        ORDER BY length(p.path) DESC, length(pr.prefix) DESC, pr.sort, p.id
 		        LIMIT 1
 		  ) m ON true
 		 WHERE (cardinality($3::text[]) = 0 OR s.contour = ANY($3))
-		   AND ($4 = '' OR m.grp = $4)
+		   AND ($4 = '' OR m.grp_id::text = $4)
 		   AND ($5 = '' OR m.path = $5)
 		   AND (NOT $6::boolean OR m.project IS NULL)
 		   AND ($7 = '' OR s.session_id::text = $7)
@@ -311,7 +319,7 @@ func (s *Store) UsageBreakdownFor(ctx context.Context, f UsageFilter, by string,
 	case UsageByContour:
 		key, label = "sess.contour", "sess.contour"
 	case UsageByGroup:
-		key, label = "coalesce(sess.grp, '')", "coalesce(sess.grp, '')"
+		key, label = "coalesce(sess.grp_id::text, '')", "coalesce(sess.grp, '')"
 	case UsageByProject:
 		key, label = "coalesce(sess.path, '')", "coalesce(sess.project, '')"
 	case UsageBySession:
