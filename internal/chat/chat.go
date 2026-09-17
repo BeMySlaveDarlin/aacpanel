@@ -233,6 +233,10 @@ type WorkTask struct {
 	// screen of the session counts it among the ones it holds.
 	Done   bool   `json:"done,omitempty"`
 	DoneAt string `json:"doneAt,omitempty"`
+	// Agent names the subagent that started the work. The session holds a
+	// shell of its agent as its own, and the list would otherwise show
+	// several identical waits with no way to tell whose each one is.
+	Agent string `json:"agent,omitempty"`
 }
 
 // WorkAgent is a subagent the session started.

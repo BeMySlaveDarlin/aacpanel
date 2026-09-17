@@ -182,6 +182,14 @@
     white-space: nowrap;
 }
 
+.wrow .wwhose {
+    margin-left: .35rem;
+    font-size: var(--t-xs);
+    color: var(--ink-dim);
+    letter-spacing: .01em;
+    white-space: nowrap;
+}
+
 .wrow .wvoice {
     margin-left: .35rem;
     font-size: var(--t-xs);

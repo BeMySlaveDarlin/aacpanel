@@ -122,6 +122,10 @@ const TASK_KINDS = {
 
 // running are the ones the session still has in flight. A shell that is over
 // stays in the list — its output is readable and the session screen counts it.
+// A shell a subagent sent to the background is in the list too: the session
+// holds it, and the row names the agent it came from, because a wait started
+// by one of five agents is a different thing to stop than a wait of the
+// session itself.
 function running(tasks) {
     return tasks.filter((task) => !task.done);
 }
@@ -329,6 +333,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                             <span class="wtext">
                                 ${task.text}
                                 <span class="wkind">${taskKind(task)[1]}</span>
+                                ${task.agent && html`<span class="wwhose">${task.agent}</span>`}
                                 ${voice(task)}
                                 ${task.done
                                     ? html`<span class="wkind gone">over</span>`

@@ -162,48 +162,78 @@ def _context(talk, stat, fallback_model):
     return {"tokens": tokens, "limit": limit, "limitKnown": known}
 
 
-def agent_meta(path):
-    """Returns the description, model, color, kind, last activity and context of subagents by name."""
+def _meta_files(path):
+    """Yields (id, meta file) of every subagent a session has ever started."""
     base = path[: -len(".jsonl")] if path.endswith(".jsonl") else path
     folder = os.path.join(base, "subagents")
     try:
         names = os.listdir(folder)
     except OSError:
-        return {}
-    out = {}
+        return
     for entry in names:
         if not entry.endswith(".meta.json") or not entry.startswith("agent-"):
             continue
-        agent_id = entry[len("agent-"): -len(".meta.json")]
-        meta_path = os.path.join(folder, entry)
-        try:
-            stat = os.stat(meta_path)
-        except OSError:
+        yield entry[len("agent-"): -len(".meta.json")], os.path.join(folder, entry)
+
+
+def _meta_of(agent_id, meta_path):
+    """Returns what the meta file of a subagent says, or None when it says nothing."""
+    try:
+        stat = os.stat(meta_path)
+    except OSError:
+        return None
+    key = (stat.st_mtime_ns, stat.st_size)
+    with _meta_lock:
+        hit = _meta_cache.get(meta_path)
+    if hit and hit[0] == key:
+        return hit[1]
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or not data.get("name"):
+        return None
+    meta = {
+        "name": str(data["name"]),
+        "text": str(data.get("description") or ""),
+        "model": str(data.get("model") or ""),
+        "color": str(data.get("color") or ""),
+        "id": agent_id,
+        "kind": "teammate" if data.get("taskKind") == "in_process_teammate" else "subagent",
+    }
+    with _meta_lock:
+        _meta_cache[meta_path] = (key, meta)
+    return meta
+
+
+def talks(path):
+    """Returns (name, transcript) of every subagent of a session.
+
+    Namesakes are both returned: two agents called the same are two agents,
+    and the work one of them left running is not the other's.
+    """
+    out = []
+    for agent_id, meta_path in _meta_files(path):
+        meta = _meta_of(agent_id, meta_path)
+        if meta is None:
             continue
-        key = (stat.st_mtime_ns, stat.st_size)
-        with _meta_lock:
-            hit = _meta_cache.get(meta_path)
-        if hit and hit[0] == key:
-            meta = hit[1]
-        else:
-            try:
-                with open(meta_path, encoding="utf-8") as f:
-                    data = json.load(f)
-            except (OSError, ValueError):
-                continue
-            if not isinstance(data, dict) or not data.get("name"):
-                continue
-            meta = {
-                "name": str(data["name"]),
-                "text": str(data.get("description") or ""),
-                "model": str(data.get("model") or ""),
-                "color": str(data.get("color") or ""),
-                "id": agent_id,
-                "kind": "teammate" if data.get("taskKind") == "in_process_teammate" else "subagent",
-            }
-            with _meta_lock:
-                _meta_cache[meta_path] = (key, meta)
-        talk = meta_path[: -len(".meta.json")] + ".jsonl"
+        out.append((meta["name"], _talk_of(meta_path)))
+    return out
+
+
+def _talk_of(meta_path):
+    return meta_path[: -len(".meta.json")] + ".jsonl"
+
+
+def agent_meta(path):
+    """Returns the description, model, color, kind, last activity and context of subagents by name."""
+    out = {}
+    for agent_id, meta_path in _meta_files(path):
+        meta = _meta_of(agent_id, meta_path)
+        if meta is None:
+            continue
+        talk = _talk_of(meta_path)
         try:
             talk_stat = os.stat(talk)
         except OSError:

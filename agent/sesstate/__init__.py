@@ -9,10 +9,11 @@ import contours
 from .artifacts import (ARTIFACT_PUBLISH, ARTIFACT_URL_RE, DOC_EXT,  # noqa: F401
                         DOC_TOOLS, SENT_TOOL, artifact_fields, inside, result_text,
                         sent_files)
-from .feed import State, _feed_record
+from .feed import State, _feed_record, _sub_record
 from .limits import MAX_ITEMS, MAX_TEXT  # noqa: F401
 from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F401
-                        _lose_older_than, _mark_reported, agent_meta, letter_text)
+                        _lose_older_than, _mark_reported, agent_meta, letter_text,
+                        talks)
 from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, MONITOR_OVER_RE,  # noqa: F401
                     NOTIF_BLOCK_RE, NOTIF_EVENT_RE, NOTIF_STATUS_RE,
                     NOTIF_TASK_RE, NOTIF_USE_RE, STOPPERS, TASK_AGENT,
@@ -87,10 +88,18 @@ def read(path, state=None, size=None, born=None):
         state = State()
     if born:
         state.born = born
-    if state.pos == size:
-        _let_go_before_birth(state)
-        return state
+    if state.pos < size:
+        _read_talk(state, path, size)
+    # The transcripts of the subagents are read whether the session's own grew
+    # or not: a session waiting for its agents writes nothing while they start
+    # and finish the work it is waiting for.
+    _read_subs(state, path)
+    _let_go_before_birth(state)
+    return state
 
+
+def _read_talk(state, path, size):
+    """Reads the transcript of the session on from where the last pass stopped."""
     with open(path, encoding="utf-8", errors="replace") as f:
         f.seek(state.pos)
         for line in f:
@@ -114,7 +123,6 @@ def read(path, state=None, size=None, born=None):
     if names is not None:
         for gone in [name for name in state.agents if name not in names]:
             del state.agents[gone]
-    _let_go_before_birth(state)
 
     meta = agent_meta(path)
     for name, agent in state.agents.items():
@@ -131,7 +139,42 @@ def read(path, state=None, size=None, born=None):
         agent["limitKnown"] = known["limitKnown"]
         if known["text"]:
             agent["text"] = known["text"]
-    return state
+
+
+def _read_subs(state, path):
+    """Reads the background work out of the transcripts of the subagents."""
+    for name, talk in talks(path):
+        try:
+            size = os.path.getsize(talk)
+        except OSError:
+            continue
+        pos = state.subs.get(talk, 0)
+        # A transcript that got shorter is another one under the same name.
+        if pos > size:
+            pos = 0
+        if pos == size:
+            continue
+        try:
+            f = open(talk, encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        with f:
+            f.seek(pos)
+            for line in f:
+                if not line.endswith("\n"):
+                    break
+                pos += len(line.encode("utf-8"))
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                try:
+                    _sub_record(state, record, line, name)
+                except (AttributeError, TypeError, ValueError):
+                    continue
+        state.subs[talk] = pos
 
 
 class Cache:

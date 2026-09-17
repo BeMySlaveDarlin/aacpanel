@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The background work of a session that has agents. Two of the three waits
+// were started by agents of the session and one by the session itself; all
+// three say the same thing, so the row has to say whose each one is.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Work, WorkList } from "/src/screens/chat/work.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const wait = (id, at, agent) => ({
+    id, text: "Waiting for the tests", kind: "bash", at,
+    line: "make check", ...(agent ? { agent } : {}),
+});
+
+const work = {
+    artifacts: [], docs: [], sent: [],
+    tasks: [
+        wait("b1", "2026-09-16T12:00:00Z"),
+        wait("b2", "2026-09-16T11:50:00Z", "zone-a"),
+        wait("b3", "2026-09-16T11:40:00Z", "zone-o"),
+    ],
+    agents: [
+        { name: "zone-a", status: "active", at: "2026-09-16T10:00:00Z" },
+        { name: "zone-o", status: "active", at: "2026-09-16T10:00:00Z" },
+    ],
+};
+
+render(html`
+    <${ToastHost}><${GateHost}>
+        <div id="chips"><${Work} work=${work} onOpen=${() => {}} /></div>
+        <div id="list">
+            <${WorkList} session="lab" id="1" kind="tasks" work=${work}
+                         exec=${{ available: true, kinds: ["task.stop"] }} />
+        </div>
+    <//><//>
+`, document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const rows = Array.from(document.querySelectorAll("#list .wrow.task"));
+    window.done = {
+        chip: (document.querySelector("#chips .wchip .wnum") || {}).textContent || "",
+        sub: (document.querySelector(".chatsub span") || {}).textContent || "",
+        whose: rows.map((r) => ((r.querySelector(".wwhose") || {}).textContent || "").trim()),
+        rows: rows.length,
+    };
+})();
+</script>

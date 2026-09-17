@@ -40,9 +40,14 @@ def _task(state, use, task_id, started, text="", kind=TASK_BASH):
     if not task_id:
         return
     state.task_ids[use] = task_id
+    # A shell of a subagent stands in the same list as the session's own: the
+    # screen of the session counts it among the ones it holds. The name of the
+    # agent is what tells them apart — three identical waits with nobody to
+    # attribute them to are one wait shown three times to the reader.
     state.tasks[task_id] = {
         "id": task_id, "text": started["text"] or text, "at": started["at"],
         "kind": kind, "line": _screen_line(started, kind), "done": False,
+        "agent": started.get("agent", ""),
     }
     # The state holds no more than the list that goes out: over the limit the
     # shells that finished first give way, the same ones the snapshot cuts.

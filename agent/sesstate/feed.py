@@ -26,6 +26,7 @@ class State:
         self.sent = {}
         self.cwd = ""
         self.pos = 0
+        self.subs = {}
         self.born = None
 
     def snapshot(self):
@@ -128,11 +129,7 @@ def _feed_record(state, record, raw):
                     "at": at,
                 }
             elif name in MAYBE_BACKGROUND:
-                state.pending[block.get("id")] = {
-                    "kind": "task", "text": label or name, "at": at,
-                    "cmd": _short(data.get("command")),
-                    "desc": _short(data.get("description")),
-                }
+                state.pending[block.get("id")] = _may_go_background(name, data, at)
             elif name == "SendMessage":
                 agent = state.agents.get(data.get("to"))
                 if agent is not None:
@@ -184,6 +181,73 @@ def _feed_record(state, record, raw):
                 "status": "active", "reportedAt": "",
             }
             _prune_reported_agents(state)
+            continue
+        for key in TASK_ID_KEYS:
+            if result.get(key):
+                _task(state, block.get("tool_use_id"), result[key], started,
+                      kind=TASK_KIND_BY_KEY[key])
+                break
+
+
+def _may_go_background(name, data, at, agent=""):
+    """What a call that can end up in the background leaves behind until its result comes."""
+    started = {
+        "kind": "task",
+        "text": _short(data.get("description") or data.get("command")) or name,
+        "at": at,
+        "cmd": _short(data.get("command")),
+        "desc": _short(data.get("description")),
+    }
+    if agent:
+        started["agent"] = agent
+    return started
+
+
+def _sub_record(state, record, raw, agent):
+    """Reads one record of a subagent's transcript: the background work, and nothing else.
+
+    A shell an agent sends to the background belongs to the session — the
+    screen of the session lists it among its own and stops it the same way —
+    but the record of it lands in the transcript of the agent, where the
+    session reader never goes. Everything else an agent does is read on its
+    card, so nothing else is taken from here.
+    """
+    at = record.get("timestamp") or ""
+
+    if "<task-notification>" in raw:
+        content = record.get("content")
+        if not isinstance(content, str):
+            content = raw
+        for body in NOTIF_BLOCK_RE.findall(content):
+            _notify_tasks(state, body, at)
+
+    message = record.get("message") or {}
+    blocks = message.get("content")
+    if not isinstance(blocks, list):
+        return
+
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+
+        if block.get("type") == "tool_use":
+            name = block.get("name") or ""
+            data = block.get("input") or {}
+            if not isinstance(data, dict):
+                data = {}
+            if name in STOPPERS:
+                finish(state, data.get("task_id") or data.get("shell_id") or "", at)
+            elif name in MAYBE_BACKGROUND:
+                state.pending[block.get("id")] = _may_go_background(name, data, at, agent)
+            continue
+
+        if block.get("type") != "tool_result":
+            continue
+        started = state.pending.pop(block.get("tool_use_id"), None)
+        if started is None or started.get("kind") != "task":
+            continue
+        result = record.get("toolUseResult")
+        if not isinstance(result, dict):
             continue
         for key in TASK_ID_KEYS:
             if result.get(key):

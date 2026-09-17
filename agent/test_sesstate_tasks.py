@@ -1,4 +1,5 @@
 import calendar
+import json
 import os
 import sys
 import time
@@ -456,3 +457,98 @@ class Order(Transcript):
         self.assertEqual(len(got["tasks"]), sesstate.MAX_ITEMS)
         self.assertEqual(got["tasks"][0]["id"], f"b{sesstate.MAX_ITEMS + 4:08d}",
                          "the shell opened last fell off the edge")
+
+
+class SubagentShells(Transcript):
+    """The background work an agent of the session started.
+
+    The record of it lands in the transcript of the agent, while the screen of
+    the session lists it among its own: read the session's transcript alone and
+    a session waiting on five agents shows no work at all.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.folder = os.path.join(self.dir.name, "t", "subagents")
+        os.makedirs(self.folder, exist_ok=True)
+
+    def agent(self, name, *chunks, agent_id=None, kind="in_process_teammate"):
+        agent_id = agent_id or f"a{name}-0123456789abcdef"
+        with open(os.path.join(self.folder, f"agent-{agent_id}.meta.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump({"name": name, "description": "a zone", "model": "opus",
+                       "color": "blue", "taskKind": kind}, f)
+        path = os.path.join(self.folder, f"agent-{agent_id}.jsonl")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("".join(chunks))
+        return path
+
+    def test_a_shell_of_an_agent_is_in_the_work_of_the_session(self):
+        self.agent("alpha", background("toolu_9", "b00000009"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual([(t["id"], t["agent"], t["done"]) for t in got["tasks"]],
+                         [("b00000009", "alpha", False)])
+
+    def test_the_session_keeps_its_own_shells_unattributed(self):
+        got = self.state(background("toolu_1", "b00000001"))
+        self.assertEqual(got["tasks"][0]["agent"], "")
+
+    def test_the_shells_of_two_agents_are_told_apart(self):
+        self.agent("alpha", background("toolu_8", "b00000008", at="2026-08-25T10:01:00Z"))
+        self.agent("beta", background("toolu_9", "b00000009", at="2026-08-25T10:02:00Z"))
+        got = self.state(spawn("toolu_1", "alpha"), spawn("toolu_2", "beta"))
+        self.assertEqual({t["id"]: t["agent"] for t in got["tasks"]},
+                         {"b00000008": "alpha", "b00000009": "beta"})
+
+    def test_the_command_travels_so_the_panel_can_stop_it(self):
+        self.agent("alpha", background("toolu_9", "b00000009"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["tasks"][0]["line"], "sleep 600",
+                         "without the command the stop button has nothing to aim at")
+
+    def test_a_shell_that_ended_in_the_agent_is_over_in_the_session(self):
+        self.agent("alpha", background("toolu_9", "b00000009"),
+                   notification("toolu_9"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertTrue(got["tasks"][0]["done"],
+                        "the notification of the end lands in the agent's transcript too")
+
+    def test_the_work_of_an_agent_appears_while_the_session_says_nothing(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(spawn("toolu_1", "alpha"))
+        self.agent("alpha")
+        state = sesstate.read(path)
+        self.assertEqual(state.snapshot()["tasks"], [])
+        self.agent("alpha", background("toolu_9", "b00000009"))
+        self.assertEqual([t["id"] for t in sesstate.read(path, state).snapshot()["tasks"]],
+                         ["b00000009"],
+                         "a session waiting for its agents adds nothing to its own transcript")
+
+    def test_nothing_but_the_background_work_is_taken_from_an_agent(self):
+        self.agent("alpha", call("Artifact", "toolu_7", file_path="/srv/proj/page.html")
+                   + result("toolu_7", "published"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["artifacts"], [],
+                         "what an agent published is read on its card, not in the session")
+
+    def test_a_shell_started_before_the_process_was_born_is_over(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(spawn("toolu_1", "alpha", at="2026-08-25T11:00:00Z"))
+        self.agent("alpha", background("toolu_9", "b00000009", at="2026-08-25T10:00:00Z"))
+        born = calendar.timegm(time.strptime("2026-08-25T10:30:00Z", "%Y-%m-%dT%H:%M:%SZ"))
+        got = sesstate.read(path, born=born).snapshot()
+        self.assertTrue(got["tasks"][0]["done"],
+                        "a shell of an agent died with the process that ran it")
+
+    def test_the_tail_of_an_agent_transcript_is_read_once(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(spawn("toolu_1", "alpha"))
+        self.agent("alpha", background("toolu_9", "b00000009"))
+        state = sesstate.read(path)
+        self.agent("alpha", notification("toolu_9"))
+        grown = sesstate.read(path, state).snapshot()
+        self.assertEqual([(t["id"], t["done"]) for t in grown["tasks"]],
+                         [("b00000009", True)])
