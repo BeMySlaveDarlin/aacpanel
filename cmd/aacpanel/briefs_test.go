@@ -2,8 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -445,5 +450,40 @@ func TestABriefIsNotRemovedUnderANameThatIsNotOne(t *testing.T) {
 	case req := <-agent.got:
 		t.Errorf("the collector was asked anyway: %+v", req.DropBrief)
 	default:
+	}
+}
+
+// The draft holds as many answers as the document holds questions.
+//
+// The two ceilings live in different languages and drifted apart: the collector
+// took documents of a hundred questions while the panel refused a draft from
+// the twenty-fifth answer on. The refusal throws away the whole draft, and the
+// screen goes on collecting answers into a document that stopped saving — so
+// the message that finally reaches the session carries a third of an evening's
+// work and says so in a line nobody reads twice.
+func TestADraftHoldsAnAnswerForEveryQuestionADocumentMayCarry(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "agent", "briefs.py"))
+	if err != nil {
+		t.Fatalf("the ceilings of the collector: %v", err)
+	}
+	found := regexp.MustCompile(`(?m)^MAX_QUESTIONS\s*=\s*(\d+)`).FindSubmatch(raw)
+	if found == nil {
+		t.Fatal("the collector names no ceiling for the questions of a document")
+	}
+	questions, err := strconv.Atoi(string(found[1]))
+	if err != nil {
+		t.Fatalf("the ceiling of the collector is not a number: %v", err)
+	}
+	if briefMaxAnswers < questions {
+		t.Errorf("a document may carry %d questions and a draft holds %d answers: everything after the %dth "+
+			"is refused, and the person answering is not told", questions, briefMaxAnswers, briefMaxAnswers)
+	}
+
+	full := make(map[string]store.BriefAnswer, questions)
+	for i := 0; i < questions; i++ {
+		full[fmt.Sprintf("q%d", i)] = store.BriefAnswer{Picks: []string{"A"}}
+	}
+	if _, err := cleanBriefAnswers(full); err != nil {
+		t.Errorf("a document answered in full was refused: %v", err)
 	}
 }

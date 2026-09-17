@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The brief screen over a panel that refuses to keep the draft, and then over
+// one that keeps it: what the session receives is built from the saved draft,
+// so a save that does not happen decides what the message says.
+import { h, render } from "preact";
+import { Brief } from "/src/screens/brief.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const doc = (id) => ({
+    id, sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/srv/proj",
+    title: "Two questions", at: "2026-09-15T15:26:37Z",
+    questions: [
+        { id: "r1", n: "01", title: "The first", kind: "pick",
+          options: [{ key: "A", label: "One" }, { key: "B", label: "Two" }] },
+        { id: "r2", n: "02", title: "The second", kind: "pick",
+          options: [{ key: "A", label: "One" }, { key: "B", label: "Two" }] },
+    ],
+});
+
+// The panel refuses a draft over its ceiling whole, and the text it builds for
+// the session is built from what it has kept.
+let refuse = false;
+const kept = {};
+const sent = [];
+const said = (id) => {
+    const done = Object.keys(kept[id] || {}).length;
+    return `Brief "Two questions" · ${id}\nAnswered ${done} of 2\n`;
+};
+
+window.fetch = async (url, init) => {
+    const u = String(url);
+    const method = (init && init.method) || "GET";
+    const id = u.split("/").pop();
+    if (u.startsWith("/api/briefs/") && method === "GET") {
+        kept[id] = kept[id] || {};
+        return new Response(JSON.stringify({ brief: doc(id), draft: { answers: {} }, reply: said(id) }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u.startsWith("/api/briefs/") && method === "PUT") {
+        if (refuse) return new Response("a draft holds at most 24 answers", { status: 400 });
+        kept[id] = JSON.parse(init.body).answers;
+        return new Response(JSON.stringify({ draft: { answers: kept[id] }, reply: said(id) }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ ok: true, detail: "typed into lab" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const snapshot = { sessions: [{ session: "lab", sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/srv/proj" }] };
+const exec = { available: true, kinds: ["session.send"] };
+const root = document.getElementById("root");
+const show = (id) => render(
+    h(ToastHost, null, h(GateHost, null, h(Brief, { id, snapshot, exec, onBack: () => {} }))), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const pick = (n, key) => {
+    const q = document.querySelectorAll(".bq")[n];
+    const opt = Array.from(q.querySelectorAll(".bopt")).find((b) => b.querySelector(".bopt-k").textContent === key);
+    opt.click();
+};
+const pressSend = async () => {
+    const go = document.querySelector(".bbtn.go");
+    go.click();
+    await sleep(150);
+    const ok = document.querySelector(".btnrow .btn.primary");
+    if (ok) ok.click();
+    await sleep(300);
+};
+
+window.done = (async () => {
+    // The panel cannot keep the draft. The screen still takes the answer, and
+    // the dock is the only place that can say the answers are going nowhere.
+    refuse = true;
+    show("refused");
+    for (let i = 0; i < 50 && !document.querySelector(".bdock"); i++) await sleep(50);
+    pick(0, "A");
+    await sleep(1400);
+    const barred = {
+        say: document.querySelector(".bdock-say").textContent,
+        disabled: document.querySelector(".bbtn.go").disabled,
+    };
+    await pressSend();
+    barred.sent = sent.length;
+
+    // The panel keeps the draft, and the send comes before the timer behind the
+    // last answer has run out: the message has to carry that answer too.
+    refuse = false;
+    sent.length = 0;
+    show("kept");
+    await sleep(100);
+    render(null, root);
+    show("kept");
+    for (let i = 0; i < 50 && !document.querySelector(".bdock"); i++) await sleep(50);
+    pick(0, "A");
+    await sleep(1400);
+    pick(1, "B");
+    await sleep(80);
+    await pressSend();
+
+    return { barred, sent, kept: Object.keys(kept.kept || {}).length };
+})();
+</script>

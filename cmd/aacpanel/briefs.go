@@ -81,8 +81,13 @@ func (s *Server) apiBriefs(w http.ResponseWriter, r *http.Request) {
 // The ceilings the draft is held to. They match the ones the collector keeps on
 // the document itself: a draft is what a person typed into that document, and a
 // field it has no question for is not a draft but a way into the database.
+//
+// The count is the count of questions a document may carry, because every one
+// of them may be answered. A ceiling below it refuses the whole draft from the
+// answer that crosses it on, and the person goes on answering a document that
+// has stopped saving.
 const (
-	briefMaxAnswers = 24
+	briefMaxAnswers = 100
 	briefMaxPicks   = 8
 	briefMaxNote    = 800
 )

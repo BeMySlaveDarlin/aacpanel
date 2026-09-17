@@ -173,6 +173,10 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     // otherwise close over the old value and let one more draft through.
     const sentRef = useRef(null);
     const [error, setError] = useState("");
+    // The last answer the panel refused to keep, and the answers it was
+    // refused with: both are needed to say why sending is barred.
+    const [unsaved, setUnsaved] = useState("");
+    const pending = useRef(null);
     const [peek, setPeek] = useState(false);
     const [sending, setSending] = useState(false);
     // Removing is asked twice: the first press turns the button into the
@@ -187,6 +191,8 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
         let gone = false;
         setDoc(null);
         setError("");
+        setUnsaved("");
+        pending.current = null;
         one(id)
             .then((body) => {
                 if (gone) return;
@@ -202,14 +208,46 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
 
     // The draft is saved by the panel, not kept in the tab: a brief is answered
     // over hours and from more than one device.
+    //
+    // What the person sees is this tab, and what the session receives is the
+    // text the panel builds from the saved draft. A save that fails quietly
+    // parts the two: the document goes on taking answers, and the message
+    // carries the ones that got through. So a failure is kept, said in the
+    // dock, and stands in the way of sending until a save gets through.
+    const put = useCallback(async (next) => {
+        const body = await saveDraft(id, next);
+        if (body && typeof body.reply === "string") setReply(body.reply);
+        pending.current = null;
+        setUnsaved("");
+        return body;
+    }, [id]);
+
     const save = useCallback((next) => {
+        pending.current = next;
         if (timer.current) clearTimeout(timer.current);
         timer.current = setTimeout(() => {
-            saveDraft(id, next)
-                .then((body) => { if (body && typeof body.reply === "string") setReply(body.reply); })
-                .catch(() => { /* the next keystroke tries again */ });
+            put(next).catch((e) => setUnsaved(String((e && e.message) || e)));
         }, SAVE_MS);
-    }, [id]);
+    }, [put]);
+
+    // What was typed and not yet saved goes now. The send carries the text the
+    // panel builds from the draft, and a draft still sitting behind the timer
+    // is a message without the last answer in it.
+    const flush = useCallback(async () => {
+        if (timer.current) {
+            clearTimeout(timer.current);
+            timer.current = null;
+        }
+        if (!pending.current) return { ok: true };
+        try {
+            const body = await put(pending.current);
+            return { ok: true, reply: body && typeof body.reply === "string" ? body.reply : "" };
+        } catch (e) {
+            const why = String((e && e.message) || e);
+            setUnsaved(why);
+            return { ok: false, why };
+        }
+    }, [put]);
 
     const answer = useCallback((qid, value) => {
         // A sent brief is settled. The guard is here and not only on the
@@ -235,8 +273,10 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     const route = useMemo(() => routes(snapshot, doc), [snapshot, doc]);
     const name = route.author || (route.near.includes(picked) ? picked : route.near[0] || "");
     const standIn = Boolean(!route.author && name);
-    const canSend = Boolean(name) && knows(exec, "session.send");
-    const why = !name
+    const canSend = Boolean(name) && knows(exec, "session.send") && !unsaved;
+    const why = unsaved
+        ? `the answers are not reaching the panel, so nothing is sent from here: ${unsaved}`
+        : !name
         ? "the session that wrote this brief is not running, and nothing else is working in its directory: the answers wait here until one is"
         : whyNot(exec, "session.send");
 
@@ -262,7 +302,13 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
     const send = async () => {
         if (sentAt || !canSend || sending || !done) return;
         setSending(true);
-        const result = await run("session.send", name, { text: reply });
+        const flushed = await flush();
+        if (!flushed.ok) {
+            setSending(false);
+            toast("The answers were not saved", flushed.why, true);
+            return;
+        }
+        const result = await run("session.send", name, { text: flushed.reply || reply });
         setSending(false);
         if (!result.ok) return;
         markSent(id).catch(() => { /* the mark is a label on the screen, not the send */ });
