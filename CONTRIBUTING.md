@@ -174,6 +174,19 @@ stands `TestHostIdentityLivesInDescriptionOnly`: the owner's name and home
 directory are not baked into working code, their place is in the machine
 description.
 
+**A fixture refuses the way the panel refuses.** The action gate reads the
+status of the answer, so a body saying `{"ok": false}` under a 200 is a success
+to it, and the screen goes down the branch that follows a keypress that worked.
+A fixture that means "the executor said no" answers with the status, as the
+service does.
+
+**The verdict of a run is its exit code.** `go test ./...` ends with a line per
+package, so a failure scrolls past and an `ok` from a quiet neighbour stands
+last. A change that does not compile at all prints no failure of its own — the
+build error sits above, and the run reads green to a glance. This matters most
+while checking that a test catches what it was written for: a mutation that
+breaks the build proves nothing and looks like proof.
+
 **A notion is called by one word on both sides of a boundary.** A second word
 for the same notion is not free: a repository is read as a whole, and a person
 told one thing by a screen and another by a protocol field will rightly ask
