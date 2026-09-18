@@ -1800,3 +1800,28 @@
 
     .usprogress .usrbar { margin-top: .25rem; }
 }
+
+@media (min-width: 1100px) {
+    /* A brief is a document, and at a desk it is read as one. The phone gives
+       it a column measured in pixels and the type scale of a screen held in a
+       hand; on a monitor that lands as a strip of small print with the room
+       empty around it. Here the column follows the interface scale like every
+       other width in the shell, and the type steps up once. The measure of the
+       prose is written in ch, so a larger step widens the text with it instead
+       of stretching the line past what an eye tracks. */
+    .brief {
+        --brief-col: 62rem;
+        --t-xs: .84rem;
+        --t-sm: .92rem;
+        --t-md: 1rem;
+        --t-base: 1.13rem;
+        --t-lg: 1.27rem;
+        --t-xl: 1.53rem;
+        --t-2xl: 2rem;
+    }
+
+    /* The page the shelf and the document stand on holds every other screen to
+       a reading width of its own; the document carries one, and two of them
+       leave the text narrower than either asks for. */
+    .dkpage > .brief { max-width: none; }
+}

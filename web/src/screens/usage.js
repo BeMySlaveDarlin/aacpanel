@@ -75,6 +75,7 @@ export function Usage({ snapshot, exec, onBack }) {
             id=${chat.id}
             live=${chat.live}
             archive=${null}
+            snapshot=${snapshot}
             exec=${exec}
             onBack=${() => setChat(null)}
         />`;

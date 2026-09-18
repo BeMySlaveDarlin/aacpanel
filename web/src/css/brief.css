@@ -33,6 +33,9 @@
     --paper-wait-soft: color-mix(in srgb, var(--warn) 16%, transparent);
     --paper-done: var(--ok);
     --serif: Literata, Georgia, "Times New Roman", serif;
+    /* The width of the reading column, in one place: the head that rides along
+       with the text is as wide as the text under it. */
+    --brief-col: 880px;
 
     color: var(--ink);
     font-size: var(--t-base);
@@ -86,7 +89,7 @@
 }
 
 .brief-page {
-    max-width: 880px;
+    max-width: var(--brief-col);
     margin: 0 auto;
     padding: 0 16px 120px;
 }
@@ -99,7 +102,7 @@
     position: sticky;
     top: 0;
     z-index: 3;
-    max-width: 880px;
+    max-width: var(--brief-col);
     margin: 0 auto;
     padding: .4rem 16px;
     background: var(--paper-over);

@@ -226,7 +226,7 @@ export function DesktopShell({
         if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${() => goSection("sessions")} /></div>`;
         if (section === "briefs") {
             return html`<div class="dkpage"><${Briefs} snapshot=${snapshot} exec=${exec}
-                openId=${openBrief}
+                open=${openBrief} onOpen=${setOpenBrief}
                 onSession=${(name) => openChat({ name, id: null })} /></div>`;
         }
         if (!chat) return html`<${ChatEmpty} />`;
@@ -238,6 +238,7 @@ export function DesktopShell({
                 name=${chat.name}
                 id=${chat.id}
                 live=${live}
+                snapshot=${snapshot}
                 exec=${exec}
                 archive=${chat.archived ? chat.row : null}
                 onBack=${() => setChat(null)}
