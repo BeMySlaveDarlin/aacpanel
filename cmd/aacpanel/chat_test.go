@@ -38,8 +38,7 @@ func startAgent(t *testing.T, reply any) *fakeAgent {
 // startAgentSeq answers the requests in turn; the last answer stays for the rest.
 func startAgentSeq(t *testing.T, replies ...any) *fakeAgent {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "chat.sock")
+	path := socketPath(t, "chat.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatalf("the agent socket: %v", err)
@@ -338,7 +337,7 @@ func TestChatFileCarriesImageBytes(t *testing.T) {
 }
 
 func TestChatSeparatesSilenceFromMissing(t *testing.T) {
-	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(filepath.Join(t.TempDir(), "missing.sock"))}
+	srv := &Server{host: hostWith(t, liveSnapshot), chat: chat.New(socketPath(t, "missing.sock"))}
 	w := httptest.NewRecorder()
 	srv.apiChat(w, httptest.NewRequest(http.MethodGet, "/api/chat?session=sentinel", nil))
 	if w.Code != http.StatusServiceUnavailable {

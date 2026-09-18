@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"aacpanel/internal/auth"
@@ -133,13 +131,7 @@ func (o *screenOpener) asked() (string, uint16, uint16) {
 
 func termStand(t *testing.T, opener termlink.Opener) *Server {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "tsrv")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
-
-	path := filepath.Join(dir, "t.sock")
+	path := socketPath(t, "t.sock")
 	srv := termlink.NewServer(path, opener)
 	ln, err := srv.Listen()
 	if err != nil {

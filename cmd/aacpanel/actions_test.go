@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -26,7 +25,7 @@ type fakeExec struct {
 func startFakeExec(t *testing.T, resp action.Response) (*action.Client, *fakeExec) {
 	t.Helper()
 
-	sock := filepath.Join(t.TempDir(), "exec.sock")
+	sock := socketPath(t, "exec.sock")
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +188,7 @@ func TestRunActionReportsFailure(t *testing.T) {
 }
 
 func TestRunActionWhenExecutorIsDown(t *testing.T) {
-	dead := action.NewClient(filepath.Join(t.TempDir(), "missing.sock"), time.Second)
+	dead := action.NewClient(socketPath(t, "missing.sock"), time.Second)
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: dead}
 
 	w := post(t, srv, `{"kind":"container.stop","target":"app"}`)
