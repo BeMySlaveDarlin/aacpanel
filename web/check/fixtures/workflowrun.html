@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A conversation with two workflow runs: one still going, one over. The chip
+// under the composer, the list behind it and the screen of one run.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Work, WorkList } from "/src/screens/chat/work.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const workflows = [
+    {
+        id: "wf_live0001", task: "w7yz", name: "review-changes",
+        text: "Review the diff across five dimensions and verify every finding",
+        at: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+        status: "running", agents: 7,
+        phases: [{ title: "Review", detail: "" }, { title: "Verify", detail: "" }],
+        script: "/home/u/.claude/projects/-srv-proj/567f/workflows/scripts/review-changes.js",
+    },
+    {
+        id: "wf_done0002", task: "w3ab", name: "audit-skills",
+        text: "Audit 29 agents and 31 skills against the database",
+        at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), status: "completed",
+        doneAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        agents: 95, tokens: 4200000, calls: 611, ms: 2523000,
+        phases: [
+            { title: "Audit Agents", detail: "per-agent audit of the dropped references" },
+            { title: "Verify", detail: "adversarial check of every high finding" },
+            { title: "Synthesize", detail: "" },
+        ],
+        logs: [
+            '[stall] agent "agent:fact-checker" stalled (no progress) after 339s — retrying (1/5)',
+            '[stall] agent "agent:fact-checker" stalled (no progress) after 201s — retrying (2/5)',
+        ],
+        result: '{\n "total": 128,\n "confirmed_high": 47,\n "rejected": 0\n}',
+        script: "/home/u/.claude/projects/-srv-proj/567f/workflows/scripts/audit-skills.js",
+    },
+];
+
+const work = { tasks: [], agents: [], workflows, artifacts: [], docs: [], sent: [] };
+
+let look = null;
+const draw = () => render(html`
+    <${ToastHost}><${GateHost}>
+        <div class="deck"><${Work} work=${work} onOpen=${(what) => { look = what; draw(); }} /></div>
+        ${look && html`<${WorkList} session="lab" id="s1" kind=${look.kind} work=${work}
+                                    exec=${{ available: true }} pages=${[]} briefs=${[]} />`}
+    <//><//>
+`, document.getElementById("root"));
+draw();
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.done = (async () => {
+    await sleep(120);
+    // The chip stands in the row of its own, with the number of runs still going.
+    const chips = Array.from(document.querySelectorAll(".wchip"));
+    const chip = chips[chips.length - 1];
+    const before = {
+        chips: chips.length,
+        label: chip.getAttribute("aria-label"),
+        num: (chip.querySelector(".wnum") || {}).textContent || "",
+        icon: Boolean(chip.querySelector("svg")),
+        // The runs are nowhere in the two lists beside them.
+        taskChip: chips[0].getAttribute("aria-label"),
+        agentChip: chips[1].getAttribute("aria-label"),
+    };
+
+    chip.click();
+    await sleep(150);
+    const list = {
+        head: (document.querySelector(".sheethead h2") || {}).textContent || "",
+        sub: (document.querySelector(".chatsub span") || {}).textContent || "",
+        rows: text(".wrow.wflow .wtext").map((t) => t.replace(/\s+/g, " ")),
+        states: text(".wrow.wflow .wkind.live, .wrow.wflow .wkind.done, .wrow.wflow .wkind.bad"),
+    };
+
+    document.querySelectorAll(".wrow.wflow")[1].click();
+    await sleep(150);
+    const run = {
+        title: (document.querySelector(".wfbody") ? document.querySelector("h2").textContent : ""),
+        state: (document.querySelector(".wfstate") || {}).textContent || "",
+        nums: text(".wfnum"),
+        labels: text(".wfnumlabel"),
+        phases: text(".wfphtitle"),
+        details: text(".wfphdetail"),
+        logs: text(".wflogs li"),
+        result: (document.querySelector(".wfresult") || {}).textContent || "",
+        script: (document.querySelector(".wfpath") || {}).textContent || "",
+    };
+
+    document.querySelector(".pback").click();
+    await sleep(150);
+    const back = { rows: document.querySelectorAll(".wrow.wflow").length };
+
+    document.querySelectorAll(".wrow.wflow")[0].click();
+    await sleep(150);
+    const liveRun = {
+        state: (document.querySelector(".wfstate") || {}).textContent || "",
+        phases: text(".wfphtitle"),
+        hint: (document.querySelector(".whint") || {}).textContent || "",
+        nums: text(".wfnum"),
+    };
+
+    return { before, list, run, back, liveRun };
+})();
+</script>

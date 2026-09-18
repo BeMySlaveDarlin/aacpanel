@@ -16,6 +16,8 @@ import { stampText } from "./labels.js";
 export const LOOK_NAMES = {
     tasks: "background work",
     agents: "subagents",
+    workflows: "workflow runs",
+    workflow: "workflow run",
     arts: "published pages",
     briefs: "briefs",
     task: "command output",
@@ -25,7 +27,7 @@ export const LOOK_NAMES = {
     brief: "brief",
 };
 
-export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs"]);
+export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);
 
 function fileURL(base, path, offset) {
     const at = offset > 0 ? `&offset=${offset}` : "";

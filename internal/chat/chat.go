@@ -152,6 +152,7 @@ type Shot struct {
 type Work struct {
 	Tasks     []WorkTask  `json:"tasks"`
 	Agents    []WorkAgent `json:"agents"`
+	Workflows []WorkFlow  `json:"workflows,omitempty"`
 	Ask       *Ask        `json:"ask,omitempty"`
 	Artifacts []Artifact  `json:"artifacts,omitempty"`
 	Docs      []Doc       `json:"docs,omitempty"`
@@ -256,6 +257,40 @@ type WorkAgent struct {
 	Tokens     int64 `json:"tokens,omitempty"`
 	Limit      int64 `json:"limit,omitempty"`
 	LimitKnown bool  `json:"limitKnown,omitempty"`
+}
+
+// WorkFlow is a workflow run: one script, its phases and the agents it drives.
+// It stands apart from both lists beside it — among the subagents a run of
+// ninety would bury them, among the background jobs it would say nothing but
+// that something is running.
+type WorkFlow struct {
+	ID     string `json:"id"`
+	Task   string `json:"task,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Text   string `json:"text,omitempty"`
+	At     string `json:"at,omitempty"`
+	Status string `json:"status"`
+	DoneAt string `json:"doneAt,omitempty"`
+	Event  string `json:"event,omitempty"`
+	Dir    string `json:"dir,omitempty"`
+	Script string `json:"script,omitempty"`
+	// Agents is how many the run has started, Tokens what they have read and
+	// Calls how many tools they have used. MS is how long the run took.
+	Agents int         `json:"agents,omitempty"`
+	Tokens int64       `json:"tokens,omitempty"`
+	Calls  int         `json:"calls,omitempty"`
+	MS     int64       `json:"ms,omitempty"`
+	Phases []WorkPhase `json:"phases,omitempty"`
+	// Logs is what the run said about itself along the way — the agents that
+	// stalled and were retried — and Result what its script returned.
+	Logs   []string `json:"logs,omitempty"`
+	Result string   `json:"result,omitempty"`
+}
+
+// WorkPhase is one phase of a workflow, as the script declares it.
+type WorkPhase struct {
+	Title  string `json:"title"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // Reply is a window of the feed and its bounds.

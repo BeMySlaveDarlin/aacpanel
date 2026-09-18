@@ -9,6 +9,7 @@ import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { taskVoice } from "./voice.js";
 import { ArtifactCard, BriefCard } from "./rows.js";
+import { FlowRow, FlowRun, flowTitle } from "./flow.js";
 import { fileTag } from "./files.js";
 import { Look, LOOK_NAMES } from "./look.js";
 import { state as briefState, waiting } from "../../data/briefs.js";
@@ -52,8 +53,10 @@ function briefRow(card) {
 export function Work({ work, onOpen }) {
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
+    const flows = (work && work.workflows) || [];
     const { live } = splitAgents(agents);
     const liveTasks = running(tasks);
+    const liveFlows = flows.filter((f) => f.status === "running");
 
     return html`
         <div class="wchips">
@@ -67,8 +70,18 @@ export function Work({ work, onOpen }) {
                     aria-label=${agentLabel(agents, live)}>
                 ${Icon.robot()}${live.length > 0 && html`<span class="wnum">${live.length}</span>`}
             </button>
+            <button class=${`wchip${liveFlows.length > 0 ? "" : " idle"}`} type="button"
+                    onClick=${() => onOpen({ kind: "workflows" })}
+                    aria-label=${flowLabel(flows, liveFlows)}>
+                ${Icon.flow()}${liveFlows.length > 0 && html`<span class="wnum">${liveFlows.length}</span>`}
+            </button>
         </div>
     `;
+}
+
+function flowLabel(flows, live) {
+    if (!flows.length) return "workflow runs: none";
+    return `workflow runs: ${flows.length}, ${live.length || "none"} running`;
 }
 
 function taskLabel(tasks) {
@@ -280,16 +293,29 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
 
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
+    const flows = (work && work.workflows) || [];
     const { live, said, faded } = splitAgents(agents);
     const [showFaded, setShowFaded] = useState(false);
 
+    // A run is read out of what the list already holds: everything the panel
+    // knows about it came down with the state, and there is nothing to ask
+    // the host for a second time.
+    if (pick && pick.kind === "workflow") {
+        return html`<${FlowRun} flow=${pick.flow} onBack=${() => setPick(null)} />`;
+    }
     if (pick) {
         return html`<${Look} session=${session} id=${id} look=${pick}
                              onBack=${() => setPick(null)} />`;
     }
 
     const asking = (briefs || []).filter((c) => c && !c.sent).length;
-    const sub = kind === "tasks"
+    const liveFlows = flows.filter((f) => f.status === "running");
+    const sub = kind === "workflows"
+        ? [
+            liveFlows.length > 0 && `${liveFlows.length} running`,
+            flows.length > liveFlows.length && `${flows.length - liveFlows.length} over`,
+        ].filter(Boolean).join(", ") || "empty"
+        : kind === "tasks"
         ? taskSub(tasks)
         : kind === "arts"
             ? (made.length > 0 ? `${made.length} published` : "empty")
@@ -395,6 +421,15 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                 <button type="button" class="wmore" onClick=${() => setShown((n) => n + PAGE)}>
                     ${at.length - shown} more
                 </button>
+            `}
+            ${kind === "workflows" && flows.map((flow) => html`
+                <${FlowRow} key=${flow.id} flow=${flow}
+                            onOpen=${(run) => setPick({ kind: "workflow", flow: run, text: flowTitle(run) })} />
+            `)}
+            ${kind === "workflows" && flows.length === 0 && html`
+                <p class="hint">This conversation launched no workflows. A workflow is a script
+                    that runs agents in a set order — the session starts one when the work is
+                    wide enough to fan out.</p>
             `}
             ${kind === "tasks" && tasks.length === 0 && html`<p class="hint">There are no background commands.</p>`}
             ${kind === "agents" && agents.length === 0 && html`<p class="hint">There were no subagents in this conversation.</p>`}

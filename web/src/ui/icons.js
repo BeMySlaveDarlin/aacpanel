@@ -33,6 +33,10 @@ export const Icon = {
 
     list: () => html`<svg ...${stroke}><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></svg>`,
 
+    // A workflow: one call that fans out into agents working side by side and
+    // gathers them back into one result.
+    flow: () => html`<svg ...${stroke}><rect x="9.2" y="3" width="5.6" height="4.4" rx="1.2" /><rect x="3" y="16.6" width="5.6" height="4.4" rx="1.2" /><rect x="15.4" y="16.6" width="5.6" height="4.4" rx="1.2" /><path d="M12 7.4v3.1M5.8 16.6v-3.2h12.4v3.2M12 10.5v2.9" /></svg>`,
+
     envelope: () => html`<svg ...${stroke}><rect x="3" y="6.5" width="18" height="13" rx="2" /><path d="m3.5 8 8.5 6 8.5-6" /></svg>`,
 
     thinking: () => html`<svg ...${stroke}><path d="M14.6 3.8a5.6 5.6 0 0 0-9 2.5A3.6 3.6 0 0 0 4.2 12a3.6 3.6 0 0 0 3 5.8h1.3" /><path d="M14.6 3.8a6 6 0 0 1 4.9 5.8 5.9 5.9 0 0 1-3.2 5.2v6" /><path d="M10 8.6c1.8.3 3 1.9 2.7 3.6" /></svg>`,

@@ -12,14 +12,15 @@ from .artifacts import (ARTIFACT_PUBLISH, ARTIFACT_URL_RE, DOC_EXT,  # noqa: F40
 from .feed import State, _feed_record, _sub_record
 from .limits import MAX_ITEMS, MAX_TEXT  # noqa: F401
 from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F401
-                        _lose_older_than, _mark_reported, agent_meta, letter_text,
-                        talks)
+                        _lose_older_than, _mark_reported, _stamp, agent_meta,
+                        letter_text, talks)
 from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, MONITOR_OVER_RE,  # noqa: F401
                     NOTIF_BLOCK_RE, NOTIF_EVENT_RE, NOTIF_STATUS_RE,
                     NOTIF_TASK_RE, NOTIF_USE_RE, STOPPERS, TASK_AGENT,
                     TASK_BASH, TASK_ID_KEYS, TASK_KIND_BY_KEY, TASK_MONITOR,
                     _finish_older_than)
 from .wake import TASK_WAKE, WAKE_ID, is_wakeup  # noqa: F401
+from . import workflows  # noqa: F401
 
 TEAMS_DIR = os.environ.get("AACP_CLAUDE_TEAMS")
 
@@ -73,6 +74,7 @@ def _let_go_before_birth(state):
     """Lets go what the previous process of the session took with it."""
     _lose_older_than(state, state.born)
     _finish_older_than(state, state.born)
+    workflows.finish_older_than(state, _stamp(state.born) if state.born else "")
 
 
 def read(path, state=None, size=None, born=None):
@@ -94,6 +96,7 @@ def read(path, state=None, size=None, born=None):
     # or not: a session waiting for its agents writes nothing while they start
     # and finish the work it is waiting for.
     _read_subs(state, path)
+    workflows.fill(state, path)
     _let_go_before_birth(state)
     return state
 

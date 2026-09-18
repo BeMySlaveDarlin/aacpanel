@@ -1825,3 +1825,11 @@
        leave the text narrower than either asks for. */
     .dkpage > .brief { max-width: none; }
 }
+
+@media (min-width: 1100px) {
+    /* The screen of a workflow run is read, not scanned: a log line and a
+       returned object stretched across a monitor are a line the eye loses
+       halfway. The column here is the one the rest of the panel's reading
+       surfaces take. */
+    .wfbody { max-width: 52rem; }
+}

@@ -10,6 +10,7 @@ from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
 from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_AGENT,
                     TASK_ID_KEYS, TASK_KIND_BY_KEY, _notify_tasks, _task, finish)
 from .wake import WAKE_ID, _wake, is_wakeup
+from . import workflows
 
 
 class State:
@@ -21,6 +22,8 @@ class State:
         self.pending = {}
         self.task_ids = {}
         self.answered = collections.deque(maxlen=100)
+        self.flows = {}
+        self.flow_ids = {}
         self.arts = {}
         self.docs = {}
         self.sent = {}
@@ -37,9 +40,12 @@ class State:
         arts = sorted(self.arts.values(), key=lambda a: a.get("at") or "", reverse=True)
         docs = sorted(self.docs.values(), key=lambda d: d.get("at") or "", reverse=True)
         sent = sorted(self.sent.values(), key=lambda s: s.get("at") or "", reverse=True)
+        flows = _live_first(self.flows.values(),
+                            lambda f: f.get("status") == "running", workflows.seen)
         return {
             "tasks": tasks[:MAX_ITEMS],
             "agents": agents[:MAX_ITEMS],
+            "workflows": [workflows.outside(f) for f in flows[:MAX_ITEMS]],
             "artifacts": [dict(a, title=a.get("title") or a["file"]) for a in arts[:MAX_ITEMS]],
             "docs": [d for d in docs[:MAX_ITEMS] if os.path.isfile(d["path"])],
             "sent": [s for s in sent[:MAX_ITEMS] if os.path.isfile(s["path"])],
@@ -84,6 +90,7 @@ def _feed_record(state, record, raw):
             content = raw
         for body in NOTIF_BLOCK_RE.findall(content):
             _notify_tasks(state, body, at)
+            workflows.notified(state, body, at)
 
     message = record.get("message") or {}
     blocks = message.get("content")
@@ -119,6 +126,9 @@ def _feed_record(state, record, raw):
                     "kind": "wake", "at": at,
                     "text": _short(data.get("reason") or data.get("prompt") or "wake-up"),
                 }
+                continue
+            if name == workflows.WORKFLOW_TOOL:
+                state.pending[block.get("id")] = workflows.started_of(data, at)
                 continue
             label = _short(data.get("description") or data.get("command") or data.get("prompt"))
             if name == "Agent":
@@ -165,6 +175,10 @@ def _feed_record(state, record, raw):
             # to an agent that is gone.
             if result.get("success") is False:
                 _lose(state, started["to"])
+            continue
+        if started["kind"] == "flow":
+            if result.get("status") == "async_launched":
+                workflows.launched(state, block.get("tool_use_id"), result, started)
             continue
         if started["kind"] == "agent":
             status = result.get("status")
@@ -220,6 +234,7 @@ def _sub_record(state, record, raw, agent):
             content = raw
         for body in NOTIF_BLOCK_RE.findall(content):
             _notify_tasks(state, body, at)
+            workflows.notified(state, body, at)
 
     message = record.get("message") or {}
     blocks = message.get("content")

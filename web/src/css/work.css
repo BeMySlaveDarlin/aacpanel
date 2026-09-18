@@ -462,3 +462,80 @@
 .worklist .armeta { font-size: var(--t-xs); gap: .3rem; }
 .worklist .arico { font-size: var(--t-md); }
 .worklist .brico { width: 16px; height: 16px; }
+
+/* A workflow run. The list is read like the rest of the work — one row, the
+   name first, the state and the cost after it — and the screen behind the row
+   is the only one here with a shape of its own: a run has phases, a log it
+   wrote to itself and a result, and none of the three fit the lists beside it. */
+.wrow .wkind.live { color: var(--accent); }
+.wrow .wkind.done { color: var(--ok); }
+.wrow .wkind.bad { color: var(--crit); }
+
+.wrow .wflowsum {
+    display: block;
+    margin-top: .1rem;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.wfbody { display: flex; flex-direction: column; gap: .9rem; }
+
+.wfstate { font-weight: 600; }
+.wfstate.live { color: var(--accent); }
+.wfstate.done { color: var(--ok); }
+.wfstate.bad { color: var(--crit); }
+.wfstate.gone { color: var(--ink-faint); }
+
+.wfsum { margin: 0; font-size: var(--t-sm); color: var(--ink-dim); line-height: 1.5; }
+
+/* What the run cost, on one line of figures: the numbers a tone up, what they
+   count under them, the way the shelves of the panel say their counts. */
+.wfnums { display: flex; flex-wrap: wrap; gap: .4rem 1.3rem; }
+.wfnums > div { display: flex; flex-direction: column; gap: .05rem; }
+.wfnum { font-size: var(--t-lg); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.wfnumlabel { font-size: var(--t-xs); color: var(--ink-faint); }
+
+.wfblock { display: flex; flex-direction: column; gap: .35rem; }
+
+.wfhead {
+    font-size: var(--t-xs);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+
+.wfphases { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .3rem; }
+.wfphases li { display: flex; gap: .55rem; align-items: baseline; font-size: var(--t-sm); }
+
+.wfphn {
+    flex: 0 0 auto;
+    min-width: 1.4ch;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.wfphtitle { color: var(--ink); }
+.wfphdetail { display: block; font-size: var(--t-xs); color: var(--ink-faint); line-height: 1.45; }
+
+.wflogs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .25rem; }
+.wflogs li {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    color: var(--ink-dim);
+    overflow-wrap: anywhere;
+}
+
+.wfresult { margin: 0; max-height: 18rem; overflow: auto; }
+
+.wfpath {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    overflow-wrap: anywhere;
+}
