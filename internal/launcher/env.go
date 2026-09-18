@@ -74,7 +74,12 @@ func childEnv(own []string, params Params, display, lang, configDir string) ([]s
 			"no graphical session found on DISPLAY=%s — the environment stayed the one of the caller; "+
 				"if this is a start from a unit, the session gets the systemd bus and Chrome hangs in it", display))
 	}
+	// An address with no socket behind it is worse than no address at all: a
+	// client believes it and hangs on the dead path instead of falling back.
+	// The name leaves the map entirely — an empty value is still a variable,
+	// and a client reads it the same way.
 	if warn := checkBus(env["DBUS_SESSION_BUS_ADDRESS"]); warn != "" {
+		delete(env, "DBUS_SESSION_BUS_ADDRESS")
 		warns = append(warns, warn)
 	}
 
@@ -169,7 +174,8 @@ func checkBus(addr string) string {
 	if info, err := os.Stat(path); err == nil && info.Mode()&os.ModeSocket != 0 {
 		return ""
 	}
-	return "bus " + addr + " is named, but there is no socket at that path"
+	return "bus " + addr + " is named, but there is no socket at that path — the variable is dropped and the session takes the system bus; " +
+		"Chrome started there needs --password-store=basic, the wallet on the system bus stays closed and Chrome hangs waiting for it"
 }
 
 func leaks(pid int) []string {

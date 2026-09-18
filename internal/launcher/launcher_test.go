@@ -245,25 +245,26 @@ func TestBusWarningLooksBehindTheAddress(t *testing.T) {
 }
 
 func TestChildEnvTakesGraphicalSession(t *testing.T) {
+	ours, theirs := liveBus(t), liveBus(t)
 	fakeProc(t,
 		fproc{pid: 10, comm: "plasmashell", env: []string{
-			"DISPLAY=:0", "DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/other",
+			"DISPLAY=:0", "DBUS_SESSION_BUS_ADDRESS=" + theirs,
 		}},
 		fproc{pid: 11, comm: "kwin_x11", env: []string{
 			"DISPLAY=:10.0",
-			"DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/ours",
+			"DBUS_SESSION_BUS_ADDRESS=" + ours,
 			"XAUTHORITY=/home/u/.Xauthority",
 			"KDE_FULL_SESSION=true",
 			"SSH_AUTH_SOCK=/eavesdropped",
 		}},
 	)
-	env, warns := childEnv([]string{"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"}, Params{}, ":10", "", "")
+	env, warns := childEnv([]string{"DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}, Params{}, ":10", "", "")
 	joined := strings.Join(env, " ")
 
-	if !strings.Contains(joined, "DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/ours") {
+	if !strings.Contains(joined, "DBUS_SESSION_BUS_ADDRESS="+ours) {
 		t.Errorf("the bus stayed the caller's — Chrome hangs in such a session: %v", env)
 	}
-	if strings.Contains(joined, "/tmp/other") {
+	if strings.Contains(joined, theirs) {
 		t.Errorf("the environment was taken from a session on another screen: %v", env)
 	}
 	if !strings.Contains(joined, "KDE_FULL_SESSION=true") {
@@ -272,9 +273,46 @@ func TestChildEnvTakesGraphicalSession(t *testing.T) {
 	if strings.Contains(joined, "SSH_AUTH_SOCK=/eavesdropped") {
 		t.Errorf("more than needed was taken from another process: %v", env)
 	}
-	if len(warns) == 0 {
-		t.Error("a bus without a socket was accepted silently")
+	if len(warns) != 0 {
+		t.Errorf("a graphical session whose bus answers drew complaints: %v", warns)
 	}
+}
+
+func TestChildEnvKeepsADeadBusOutOfTheSession(t *testing.T) {
+	dead := "unix:path=" + filepath.Join(t.TempDir(), "gone")
+	named := func(t *testing.T, env []string) {
+		t.Helper()
+		for _, kv := range env {
+			if strings.HasPrefix(kv, "DBUS_SESSION_BUS_ADDRESS=") {
+				t.Errorf("the session was handed %q — clients hang on a path that answers nobody", kv)
+			}
+		}
+	}
+	told := func(t *testing.T, warns []string) {
+		t.Helper()
+		for _, w := range warns {
+			if strings.Contains(w, dead) && strings.Contains(w, "--password-store=basic") {
+				return
+			}
+		}
+		t.Errorf("warnings %v neither name the dead bus nor say what the session now needs", warns)
+	}
+
+	t.Run("the graphical session hands down a path that is gone", func(t *testing.T) {
+		fakeProc(t, fproc{pid: 10, comm: "plasmashell", env: []string{
+			"DISPLAY=:10", "KDE_FULL_SESSION=true", "DBUS_SESSION_BUS_ADDRESS=" + dead,
+		}})
+		env, warns := childEnv([]string{"DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}, Params{}, ":10", "", "")
+		named(t, env)
+		told(t, warns)
+	})
+
+	t.Run("no graphical session was found and the caller's own bus is gone", func(t *testing.T) {
+		fakeProc(t)
+		env, warns := childEnv([]string{"DBUS_SESSION_BUS_ADDRESS=" + dead}, Params{}, ":10", "", "")
+		named(t, env)
+		told(t, warns)
+	})
 }
 
 func TestChildEnvSaysWhenNoGraphicalSession(t *testing.T) {
