@@ -1,0 +1,236 @@
+/* The viewer: a page of code read on a phone and at a desk.
+
+   Two rules carry the rest. The gutter with the numbers stands outside the
+   sideways scroll, because it is both the strip a finger swipes the page by and
+   the handle a line is picked up with. And a line longer than the screen
+   scrolls inside itself: what moves sideways in this panel is the contents of a
+   block, never the screen. */
+
+.cdpage {
+    padding-bottom: 12px;
+}
+
+.cdstrip {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--chips-bg);
+    backdrop-filter: var(--blur);
+    border-bottom: var(--hair) solid var(--line);
+}
+
+.cdbase b { color: var(--ink); font-weight: 500; }
+.cdbasepick { margin-left: auto; }
+
+/* One file of the run: the name and the counts, and its diff once unfolded. */
+.cdfile {
+    border-bottom: var(--hair) solid var(--line);
+}
+
+.cdfilehead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    text-align: left;
+    cursor: pointer;
+}
+
+.cdfilehead:active { background: var(--surface); }
+
+.cdname {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+}
+
+.cdstat { flex: none; font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
+.cdstat .plus { color: var(--ok); }
+.cdstat .minus { color: var(--crit); }
+.cdchev { flex: none; color: var(--ink-faint); }
+
+/* What is in a commit and what is not. Not the colour of a deletion: a file
+   marked with it reads as deleted rather than as unfinished. */
+.cddot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.cddot.wt { background: var(--warn); }
+.cddot.done { background: var(--accent); }
+
+.cdbody { padding-bottom: 8px; }
+
+.cdhunk {
+    margin: 10px 12px;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.cdhead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: var(--hair) solid var(--line);
+    background: var(--glass);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+
+.cdpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cdtag { flex: none; padding: 2px 6px; border-radius: var(--r-pill); white-space: nowrap; }
+.cdtag.wt { background: var(--warn-bg); color: var(--warn); }
+.cdtag.done { background: var(--surface-2); color: var(--ink-dim); }
+
+/* The lines. The browser skips drawing what is off screen on its own — the
+   height of a line is known, so nothing has to be measured or windowed by
+   hand, and a search of the page still finds what is down the file. */
+.cdlines {
+    font-family: var(--code);
+    font-size: var(--t-sm);
+    line-height: 1.7;
+    background: var(--code-bg);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 1200px;
+}
+
+.cdln {
+    display: flex;
+    border-left: 2px solid transparent;
+}
+
+.cdgut {
+    display: flex;
+    gap: 3px;
+    flex: none;
+    width: 3.4em;
+    padding: 0 .4em 0 .2em;
+    border: 0;
+    background: none;
+    color: var(--ink-faint);
+    font: inherit;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    /* The gutter is the strip the page is swiped by: a horizontal drag here
+       belongs to the page, and a vertical one to the run. */
+    touch-action: pan-y;
+    user-select: none;
+}
+
+.cdno { flex: 1; }
+.cdsign { width: .7em; text-align: center; }
+
+.cdsrc {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    padding-right: .8em;
+    white-space: pre;
+    color: var(--ink);
+    scrollbar-width: none;
+    /* A line that runs off the edge keeps the scroll to itself instead of
+       handing it to the page behind it. */
+    overscroll-behavior-x: contain;
+}
+
+.cdsrc::-webkit-scrollbar { display: none; }
+
+.wrap .cdsrc { white-space: pre-wrap; overflow-x: visible; overflow-wrap: anywhere; }
+
+.cdln.add { background: var(--ok-bg); border-left-color: var(--ok); }
+.cdln.add .cdgut { color: var(--ok); }
+.cdln.del { background: var(--crit-bg); border-left-color: var(--crit); }
+.cdln.del .cdgut { color: var(--crit); }
+.cdln.picked { background: var(--accent-bg); }
+.cdln.noted .cdgut::after { content: "\25cf"; color: var(--accent); font-size: .6em; }
+
+.cdcut {
+    margin: 10px 12px;
+    padding: 10px 12px;
+    border: var(--hair) dashed var(--line);
+    border-radius: var(--r-card);
+    color: var(--ink-faint);
+    font-size: var(--t-sm);
+    text-align: center;
+}
+
+.cdcut b { color: var(--ink-dim); font-weight: 600; }
+
+.cdopen {
+    display: block;
+    width: calc(100% - 24px);
+    margin: 0 12px 10px;
+    padding: 9px;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-small);
+    background: var(--glass);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--t-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cdopen:active { background: var(--glass-2); }
+
+/* The tree. One directory at a time, with the crumbs of where it is. */
+.cdcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 8px 12px 4px;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+}
+
+.cdcrumb {
+    border: 0;
+    padding: 2px 4px;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+}
+
+.cdcrumb + .cdcrumb::before { content: "/"; margin-right: 4px; color: var(--ink-faint); }
+
+.cdnode {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 8px 12px;
+    border: 0;
+    border-bottom: var(--hair) solid var(--line);
+    background: none;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    text-align: left;
+    cursor: pointer;
+}
+
+.cdnode:active { background: var(--surface); }
+.cdcaret { width: .8em; flex: none; color: var(--ink-faint); }
+.cdnm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The two classes the service can send that the feed's own highlighter never
+   had: a type and the name of a function. */
+.cdty { color: var(--ctx-1); }
+.cdfn { color: var(--ctx-3); }

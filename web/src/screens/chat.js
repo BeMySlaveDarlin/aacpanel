@@ -12,6 +12,8 @@ import { ago, tokens } from "../format.js";
 import { closed, rows, runCalls, unarrived, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
+import { RepoView } from "./repo/view.js";
+import { Icon } from "../ui/icons.js";
 import { Row } from "./chat/rows.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
@@ -34,6 +36,19 @@ import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 
 
+// RepoButton opens the repository of this conversation. It stands to the left
+// of the pair that says what a session is watched with, in the same set of
+// tools: the code of a project belongs beside its terminal and its run, not on
+// a screen of its own that has to be found.
+function RepoButton({ onOpen }) {
+    return html`
+        <button class="viewbtn" type="button" title="the repository of this project"
+                aria-label="repository" onClick=${onOpen}>
+            ${Icon.code()}
+        </button>
+    `;
+}
+
 export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
@@ -43,6 +58,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
     const toast = useToast();
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
+    const [repo, setRepo] = useState(false);
     const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({
         name, id, live: live && !sub,
     });
@@ -194,6 +210,13 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                 live=${Boolean(live)} onBack=${() => setSub(null)} />`;
     }
 
+    // The repository of this conversation, read as a page of its own. A layer
+    // over the run rather than a screen beside it: the way back is one tap and
+    // the conversation is still underneath when it comes.
+    if (repo) {
+        return html`<${RepoView} cwd=${here} name=${name} onBack=${() => setRepo(false)} />`;
+    }
+
     const feed = weld(state.items);
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
@@ -201,12 +224,14 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
     return html`
         ${wide
             ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct}
-                                view=${view} canTerm=${canTerm} exec=${exec} onView=${pickView} />`
+                                view=${view} canTerm=${canTerm} exec=${exec} onView=${pickView}
+                                onRepo=${here ? () => setRepo(true) : null} />`
             : html`
         <${BackHead} onBack=${onBack} label="to sessions" foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
-                     tools=${live && html`
-                         ${canTerm && html`<${ViewToggle} view=${view} onView=${pickView} />`}
-                         <${WindowToggle} name=${name} exec=${exec} />
+                     tools=${html`
+                         ${here && html`<${RepoButton} onOpen=${() => setRepo(true)} />`}
+                         ${live && canTerm && html`<${ViewToggle} view=${view} onView=${pickView} />`}
+                         ${live && html`<${WindowToggle} name=${name} exec=${exec} />`}
                      `}>
             <div class="chathead">
                 <h2>

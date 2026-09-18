@@ -79,7 +79,7 @@ function pastFacts(row, pct) {
 }
 
 // DeskHead renders the conversation header on the wide screen.
-export function DeskHead({ name, live, archive, pct, view, canTerm, exec, onView }) {
+export function DeskHead({ name, live, archive, pct, view, canTerm, exec, onView, onRepo }) {
     const state = dot(live);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
@@ -88,6 +88,10 @@ export function DeskHead({ name, live, archive, pct, view, canTerm, exec, onView
                 <span class=${`dkdot ${state.kind}`.trim()} title=${state.say}></span>
                 <span class="dkheadname dkchatname"><${Marquee} text=${name} /></span>
                 <span class="dkheadpath" title=${cwd}>${cwd || "the conversation directory is unknown"}</span>
+                ${onRepo && html`
+                    <button class="viewbtn" type="button" title="the repository of this project"
+                            aria-label="repository" onClick=${onRepo}>${Icon.code()}</button>
+                `}
                 ${canTerm && html`<${ViewToggle} view=${view} onView=${onView} />`}
                 ${live && html`<${WindowToggle} name=${name} exec=${exec} />`}
             </div>

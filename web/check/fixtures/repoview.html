@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- The viewer as a phone reads it: the run of changes, a file unfolded inside
+     it, and the gutter that has to stay out of the sideways scroll. -->
+<div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
+  <div id="root" style="flex:1;min-height:0;overflow:auto"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { RepoView } from "/src/screens/repo/view.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const CHANGES = {
+    root: "/srv/proj", branch: "work", base: "main", baseFrom: "project",
+    head: "abc1234", rev: "rev1",
+    files: [
+        { path: "pkg/env.go", layer: "worktree", add: 6, delete: 1, status: "M" },
+        { path: "pkg/env_test.go", layer: "committed", add: 42, delete: 5, status: "M" },
+    ],
+    total: 2, cut: false,
+};
+
+const DIFF = {
+    rev: "rev1", path: "pkg/env.go", base: "main", baseFrom: "project",
+    files: [{
+        path: "pkg/env.go", oldOid: "1111111", newOid: "2222222",
+        hunks: [{
+            header: "@@ -74,7 +74,9 @@ func childEnv", layer: "worktree",
+            lines: [
+                { kind: "ctx", old: 74, new: 74, text: "\tif warn := checkBus(addr); warn != \"\" {", spans: [[3, 2], [0, 32]] },
+                { kind: "del", old: 75, text: "\t\twarns = append(warns, warn)", spans: [[0, 28]] },
+                { kind: "add", new: 75, text: "\t\tdelete(env, \"DBUS_SESSION_BUS_ADDRESS\")", spans: [[6, 8], [0, 5], [2, 26]] },
+                { kind: "add", new: 76, text: "\t\twarns = append(warns, warn)", spans: [[0, 28]] },
+                { kind: "ctx", old: 76, new: 77, text: "\t}", spans: null },
+            ],
+        }],
+    }],
+};
+
+const TREE = {
+    root: "/srv/proj", path: "", total: 3, cut: false,
+    entries: [
+        { name: "pkg", dir: true },
+        { name: "README.md", dir: false },
+        { name: "fresh.txt", dir: false, untracked: true },
+    ],
+};
+
+const FILE = {
+    rev: "rev1", path: "pkg/env.go", oid: "2222222", size: 120, first: 1, total: 3, more: false,
+    lines: ["package pkg", "", "func childEnv() {}"],
+    spans: [[[3, 7], [0, 1], [5, 3]], [], [[3, 4], [0, 1], [6, 9], [0, 6]]],
+};
+
+window.__calls = [];
+window.fetch = async (url) => {
+    const at = String(url);
+    window.__calls.push(at);
+    const body = at.includes("/api/repo/changes") ? CHANGES
+        : at.includes("/api/repo/diff") ? DIFF
+        : at.includes("/api/repo/tree") ? TREE
+        : at.includes("/api/repo/file") ? FILE
+        : { error: "unknown" };
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+};
+
+render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {} })), document.getElementById("root"));
+
+window.done = new Promise((done) => {
+    const wait = () => {
+        const head = document.querySelector(".cdfilehead");
+        if (!head) return setTimeout(wait, 30);
+        head.click();
+        const settle = () => {
+            const line = document.querySelector(".cdln");
+            if (!line) return setTimeout(settle, 30);
+            const gut = line.querySelector(".cdgut");
+            const src = line.querySelector(".cdsrc");
+            const lines = document.querySelector(".cdlines");
+            const box = (el) => (el ? el.getBoundingClientRect() : null);
+            const wide = document.querySelector(".cdln.add .cdsrc");
+            // A line long enough to run off the screen: the block scrolls, the
+            // page does not.
+            const before = document.scrollingElement.scrollLeft;
+            if (wide) wide.scrollLeft = 400;
+            done({
+                gutterInsideScroller: Boolean(src && gut && src.contains(gut)),
+                gutterWidth: Math.round(box(gut).width),
+                srcScrolls: wide ? getComputedStyle(wide).overflowX : "",
+                pageMoved: document.scrollingElement.scrollLeft !== before,
+                contentVisibility: lines ? getComputedStyle(lines).contentVisibility : "",
+                spanClasses: [...document.querySelectorAll(".cdsrc span")].map((s) => s.className).filter(Boolean),
+                addLines: document.querySelectorAll(".cdln.add").length,
+                delLines: document.querySelectorAll(".cdln.del").length,
+                tags: [...document.querySelectorAll(".cdtag")].map((t) => t.textContent.trim()),
+                dots: [...document.querySelectorAll(".cddot")].map((d) => d.className.replace("cddot ", "")),
+                gutterTouchAction: getComputedStyle(gut).touchAction,
+            });
+        };
+        setTimeout(settle, 60);
+    };
+    wait();
+});
+</script>
