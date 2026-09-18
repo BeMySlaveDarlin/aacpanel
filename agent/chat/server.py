@@ -13,6 +13,7 @@ import sesstate
 from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
 from .locate import subagent_path, transcript_cwd, transcript_path
 from .mail import agent_mail
+from .repo import answer as repo_answer
 from .spots import call, image
 from .window import feed
 
@@ -82,6 +83,12 @@ def _answer(request):
             cwd if isinstance(cwd, str) and cwd else None,
         )
         return {"ok": True, "dropped": brief_id} if ok else {"ok": False, "error": why}
+
+    # Reading a repository is reading, and the service in the container has no
+    # rights on the host: git runs here or nowhere.
+    want_repo = request.get("repo")
+    if isinstance(want_repo, dict):
+        return repo_answer(want_repo)
 
     want_pages = request.get("pages")
     if isinstance(want_pages, dict):
