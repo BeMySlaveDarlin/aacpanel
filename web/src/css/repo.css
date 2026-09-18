@@ -381,7 +381,11 @@
         min-height: calc(1.7em);
     }
 
-    .cdsplitpick { margin-left: auto; }
+    /* The chips of a strip stand together. Pushed to the far edge they are
+       the width of the middle away from what they belong to — on a phone that
+       edge is the screen, at a desk it is a gap with nothing in it. */
+    .cdwide .cdbasepick,
+    .cdsplitpick { margin-left: 8px; }
 }
 
 /* Finding a file by name. Outside the breakpoint above on purpose: it is
