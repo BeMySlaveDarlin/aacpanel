@@ -313,3 +313,71 @@ func TestCursorAtTellsThePromptFromTheText(t *testing.T) {
 		}
 	}
 }
+
+// The panel is the keyboard of the person at it, and what goes in that way is
+// their own message. Text handed over between the bracketed paste markers is
+// marked as pasted, and what carries that mark reaches the session as quoted
+// data rather than as words addressed to it — so a single line is typed, not
+// pasted. A text with line breaks is pasted all the same: typed in, every
+// break would be an Enter and the message would leave the composer in pieces.
+func TestOneLineIsTypedAndManyLinesArePasted(t *testing.T) {
+	cases := []struct {
+		name  string
+		text  string
+		paste bool
+	}{
+		{name: "short line", text: "ok", paste: false},
+		{name: "long line", text: strings.Repeat("check the stack logs and say what crashed, ", 8), paste: false},
+		{name: "two lines", text: "check the stack logs\nand say what crashed", paste: true},
+		{name: "break at the end", text: "check the stack logs\n", paste: true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			term := &fakeTerm{screen_: screenWithReply(c.text), known: true}
+			confirmed, err := pasteAndSend(context.Background(), term, c.text, nil)
+			if err != nil {
+				t.Fatalf("the text was not delivered: %v", err)
+			}
+			if !confirmed {
+				t.Error("the text stands in the conversation on the screen, yet the send is unconfirmed")
+			}
+			if len(term.sent) != 1 {
+				t.Fatalf("the text went into the composer in %d sends, expected one: %q", len(term.sent), term.sent)
+			}
+			sent := term.sent[0]
+			if !strings.Contains(sent, c.text) {
+				t.Fatalf("the text itself is missing from what went out: %q", sent)
+			}
+			if !strings.HasPrefix(sent, clearLine) {
+				t.Errorf("the composer was not cleared before the text: %q", sent)
+			}
+			if !strings.HasSuffix(sent, enterKey) {
+				t.Errorf("nothing sent the text: no Enter at the end of %q", sent)
+			}
+			marked := strings.Contains(sent, pasteStart) || strings.Contains(sent, pasteEnd)
+			switch {
+			case marked && !c.paste:
+				t.Errorf("one line went in between the paste markers: the session takes it for quoted "+
+					"data instead of a message of the person at the panel — %q", sent)
+			case !marked && c.paste:
+				t.Errorf("a text of several lines went in without the paste markers: every break sends "+
+					"what stands above it, and the message arrives in pieces — %q", sent)
+			}
+			if c.paste && !strings.HasPrefix(sent, clearLine+pasteStart) {
+				t.Errorf("the paste does not open right after the line was cleared: %q", sent)
+			}
+			if c.paste && !strings.HasSuffix(sent, pasteEnd+enterKey) {
+				t.Errorf("the paste does not close right before Enter — the terminal reads the tail as "+
+					"commands: %q", sent)
+			}
+		})
+	}
+}
+
+// The screen of a session that took the text: it stands in the conversation
+// above an empty composer, which is what confirms the send.
+func screenWithReply(text string) string {
+	rule := strings.Repeat("─", 40)
+	return "❯ " + text + "\n\n" + rule + "\n❯ \n" + rule + "\n"
+}
