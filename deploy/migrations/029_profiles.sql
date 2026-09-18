@@ -29,23 +29,3 @@ CREATE TABLE IF NOT EXISTS profile_projects (
 
 CREATE INDEX IF NOT EXISTS profile_projects_order ON profile_projects (group_id, sort, id);
 
-DO $$
-DECLARE
-    seq text;
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'monitor_app') THEN
-        RAISE NOTICE 'there is no role monitor_app — no rights are issued (see deploy/create-app-role.sh)';
-        RETURN;
-    END IF;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON profiles, profile_groups, profile_projects TO monitor_app;
-    FOREACH seq IN ARRAY ARRAY[
-        pg_get_serial_sequence('profiles', 'id'),
-        pg_get_serial_sequence('profile_groups', 'id'),
-        pg_get_serial_sequence('profile_projects', 'id')
-    ] LOOP
-        IF seq IS NOT NULL THEN
-            EXECUTE 'GRANT USAGE, SELECT ON SEQUENCE ' || seq || ' TO monitor_app';
-        END IF;
-    END LOOP;
-    RAISE NOTICE 'the rights of monitor_app on the profile map are issued';
-END $$;

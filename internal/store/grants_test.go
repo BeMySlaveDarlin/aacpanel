@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"io/fs"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -14,58 +16,40 @@ import (
 	"aacpanel/internal/testdb"
 )
 
-func TestAppGrantsMatchMigrationsPG(t *testing.T) {
-	dsn := testdb.DSN(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	s, err := New(dsn)
+// A migration cannot name the application role. It runs once in the life of a
+// database, and the name it would have to write is not known to it: the role is
+// called whatever AACP_APP_ROLE says, and on a fresh install it is created after
+// the first start, when every migration has already been applied. A GRANT
+// written into one therefore lands on a name nobody connects under — it issues
+// nothing, and nothing goes wrong, because the rights come from grantAppRole at
+// every startup. That silence is the danger: the migration reads as the place
+// the rights are decided while the decision is made elsewhere, and the first
+// person to trim a privilege there trims nothing.
+func TestMigrationsIssueNoPrivileges(t *testing.T) {
+	names, err := fs.Glob(migrations.FS, "*.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
-	if err := s.Open(ctx); err != nil {
-		t.Fatal(err)
+	if len(names) == 0 {
+		t.Fatal("not a single migration is embedded — the check checks nothing")
 	}
-	owner := mustPool(t, s)
+	sort.Strings(names)
 
-	const fromMigrations = "monitor_app"
-	fromStep := "aacp_grant_step_" + testdb.RunTag()
-	makeRole(t, ctx, owner, fromMigrations)
-	makeRole(t, ctx, owner, fromStep)
-	defer func() {
-		dropRole(t, ctx, owner, fromStep)
-		ensureAppRole(t, ctx, owner)
-	}()
-
-	stripRole(t, ctx, owner, fromMigrations)
-	stripRole(t, ctx, owner, fromStep)
-
-	for _, file := range grantFiles(t) {
-		body, err := migrations.FS.ReadFile(file)
+	verb := regexp.MustCompile(`(?i)\b(grant|revoke)\b`)
+	for _, name := range names {
+		body, err := migrations.FS.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := owner.Exec(ctx, string(body)); err != nil {
-			t.Fatalf("issuing privileges from %s: %v", file, err)
+		for i, line := range strings.Split(string(body), "\n") {
+			if !verb.MatchString(line) {
+				continue
+			}
+			t.Errorf("%s:%d hands out privileges: %s\n\t"+
+				"a migration does not know the name of the application role; the rights belong in "+
+				"appPrivs and appTableGrants in grants.go, which reissues them at every startup",
+				name, i+1, strings.TrimSpace(line))
 		}
-	}
-	if err := grantAppRole(ctx, owner, fromStep); err != nil {
-		t.Fatalf("the grant step: %v", err)
-	}
-
-	was := privSnapshot(t, ctx, owner, fromMigrations)
-	now := privSnapshot(t, ctx, owner, fromStep)
-	if len(was) == 0 {
-		t.Fatal("the migrations issued the role no privileges at all — there is nothing to compare against")
-	}
-
-	for _, priv := range diff(was, now) {
-		t.Errorf("the step did not issue a privilege the role had after the migrations: %s", priv)
-	}
-	for _, priv := range diff(now, was) {
-		t.Errorf("the step issued a privilege the migrations never gave: %s", priv)
 	}
 }
 
@@ -298,65 +282,6 @@ func TestAppGrantSQLQuotesNamesAndOrdersRevokes(t *testing.T) {
 	}
 }
 
-func privSnapshot(t *testing.T, ctx context.Context, pool *pgxpool.Pool, role string) map[string]bool {
-	t.Helper()
-
-	const q = `
-WITH me AS (SELECT oid FROM pg_roles WHERE rolname = $1)
-SELECT 'object ' || c.relname || ' ' || a.privilege_type
-  FROM pg_class c
-  JOIN pg_namespace n ON n.oid = c.relnamespace
-  CROSS JOIN LATERAL aclexplode(c.relacl) a
- WHERE n.nspname = 'public' AND a.grantee = (SELECT oid FROM me)
-UNION ALL
-SELECT 'column ' || c.relname || '.' || att.attname || ' ' || a.privilege_type
-  FROM pg_attribute att
-  JOIN pg_class c ON c.oid = att.attrelid
-  JOIN pg_namespace n ON n.oid = c.relnamespace
-  CROSS JOIN LATERAL aclexplode(att.attacl) a
- WHERE n.nspname = 'public' AND a.grantee = (SELECT oid FROM me)
-UNION ALL
-SELECT 'schema ' || n.nspname || ' ' || a.privilege_type
-  FROM pg_namespace n
-  CROSS JOIN LATERAL aclexplode(n.nspacl) a
- WHERE n.nspname = 'public' AND a.grantee = (SELECT oid FROM me)
-UNION ALL
-SELECT 'function ' || p.proname || ' ' || a.privilege_type
-  FROM pg_proc p
-  JOIN pg_namespace n ON n.oid = p.pronamespace
-  CROSS JOIN LATERAL aclexplode(p.proacl) a
- WHERE n.nspname = 'public' AND a.grantee = (SELECT oid FROM me)
-UNION ALL
-SELECT 'database ' || a.privilege_type
-  FROM pg_database d
-  CROSS JOIN LATERAL aclexplode(d.datacl) a
- WHERE d.datname = current_database() AND a.grantee = (SELECT oid FROM me)
-UNION ALL
-SELECT 'default ' || d.defaclobjtype::text || ' ' || a.privilege_type
-  FROM pg_default_acl d
-  CROSS JOIN LATERAL aclexplode(d.defaclacl) a
- WHERE a.grantee = (SELECT oid FROM me)`
-
-	rows, err := pool.Query(ctx, q, role)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-
-	out := map[string]bool{}
-	for rows.Next() {
-		var priv string
-		if err := rows.Scan(&priv); err != nil {
-			t.Fatal(err)
-		}
-		out[priv] = true
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatal(err)
-	}
-	return out
-}
-
 func stripRole(t *testing.T, ctx context.Context, pool *pgxpool.Pool, role string) {
 	t.Helper()
 	if _, err := pool.Exec(ctx, "DROP OWNED BY "+quoteIdent(role)); err != nil {
@@ -375,15 +300,4 @@ func dropRole(t *testing.T, ctx context.Context, pool *pgxpool.Pool, role string
 	if _, err := pool.Exec(ctx, "DROP ROLE IF EXISTS "+quoteIdent(role)); err != nil {
 		t.Errorf("removing role %s: %v", role, err)
 	}
-}
-
-func diff(a, b map[string]bool) []string {
-	var out []string
-	for k := range a {
-		if !b[k] {
-			out = append(out, k)
-		}
-	}
-	sort.Strings(out)
-	return out
 }
