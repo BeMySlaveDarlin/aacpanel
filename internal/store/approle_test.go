@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io/fs"
 	"net/url"
 	"sort"
 	"strings"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"aacpanel/deploy/migrations"
 	"aacpanel/internal/testdb"
 )
 
@@ -144,30 +142,6 @@ func appDSNAs(t *testing.T, dsn, role, password string) string {
 
 func quoteLiteral(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
-}
-
-func grantFiles(t *testing.T) []string {
-	t.Helper()
-	entries, err := fs.Glob(migrations.FS, "*.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sort.Strings(entries)
-
-	var out []string
-	for _, name := range entries {
-		body, err := migrations.FS.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.Contains(string(body), "monitor_app") {
-			out = append(out, name)
-		}
-	}
-	if len(out) == 0 {
-		t.Fatal("not a single migration with monitor_app privileges — the check checks nothing")
-	}
-	return out
 }
 
 func TestActionOutcomeColumnsMatchGrantsPG(t *testing.T) {
