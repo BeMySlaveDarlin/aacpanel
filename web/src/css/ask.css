@@ -117,6 +117,22 @@
 .askover .sheet { z-index: 21; }
 .askover .scrim { z-index: 20; }
 
+/* The drawing an option carries. Its width is not a matter of taste: it was
+   drawn at so many columns, and the box a phone gives it is narrower than most
+   of them. Cut at the right edge a drawing stops being a drawing — the half
+   that says what the option costs is the half that goes. So the box measures
+   itself and fits the type to the columns it has to hold.
+
+   --t-fit is not a step of the type scale and is not a size for text: a drawing
+   is a picture, and a picture is the size its box allows. It never rises above
+   the smallest step, and it stops shrinking where characters stop being
+   characters — a drawing wider than that is scrolled instead. A monospaced
+   character is .6em wide; the .61 is the rounding of the glyph advance. */
+.askshow {
+    container-type: inline-size;
+    --t-fit: clamp(6px, calc((100cqi - 1.4rem) / (var(--cols, 80) * .61)), var(--t-xs));
+}
+
 .askpreview {
     margin: 0;
     padding: .6rem .65rem;
@@ -124,7 +140,8 @@
     box-sizing: border-box;
     overflow: auto;
     font-family: var(--code);
-    font-size: var(--t-xs); line-height: 1.4;
+    font-size: var(--t-fit);
+    line-height: 1.4;
     white-space: pre;
     color: var(--ink-dim);
     background: rgba(0, 0, 0, .3);

@@ -271,7 +271,7 @@ export function Ask({ ask, name, exec, onAnswered }) {
                     <div class="askhead">
                         <span class="asklabel">${questions[preview[0]].options[preview[1]].label}</span>
                     </div>
-                    <pre class="askpreview">${questions[preview[0]].options[preview[1]].preview}</pre>
+                    <${Mockup} text=${questions[preview[0]].options[preview[1]].preview} />
                 <//>
             </div>
         `}
@@ -284,6 +284,28 @@ function label({ sending, stepped, review, step, many, nothing, writing, answere
     if (!stepped || review) return nothing ? "Pick an option" : "Send";
     if (!answered(step)) return "Skip";
     return step === many - 1 ? "To the review" : "Next";
+}
+
+// columns is the width of a drawing: the longest of its lines, in characters.
+function columns(text) {
+    let most = 0;
+    for (const line of String(text || "").split("\n")) {
+        most = Math.max(most, [...line].length);
+    }
+    return most || 1;
+}
+
+// Mockup shows the drawing an option carries. A drawing is made of characters
+// standing in columns and is read whole: a column past the right edge takes the
+// shape with it, and the box it is dropped into is the width of a phone. So the
+// box is told how many columns it has to hold and fits its type to them; only a
+// drawing too wide to stay readable at all is left to be scrolled.
+function Mockup({ text }) {
+    return html`
+        <div class="askshow" style=${`--cols:${columns(text)}`}>
+            <pre class="askpreview">${text}</pre>
+        </div>
+    `;
 }
 
 function Option({ opt, on, disabled, onPick, onPreview }) {
