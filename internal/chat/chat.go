@@ -311,6 +311,7 @@ type Reply struct {
 	Archive *ArchivePage `json:"archive,omitempty"`
 	Briefs  []BriefCard  `json:"briefs,omitempty"`
 	Brief   *Brief       `json:"brief,omitempty"`
+	Repo    *RepoOut     `json:"repo,omitempty"`
 	Pages   []PageCard   `json:"pages,omitempty"`
 	Page    *Page        `json:"page,omitempty"`
 	Dropped string       `json:"dropped,omitempty"`
@@ -368,6 +369,7 @@ type Req struct {
 	Bytes     int         `json:"bytes,omitempty"`
 	Agent     string      `json:"agent,omitempty"`
 	State     bool        `json:"state,omitempty"`
+	Repo      *RepoReq    `json:"repo,omitempty"`
 	Subagent  string      `json:"subagent,omitempty"`
 }
 

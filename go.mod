@@ -3,6 +3,8 @@ module aacpanel
 go 1.26.0
 
 require (
+	github.com/alecthomas/chroma/v2 v2.27.0
+	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/evanw/esbuild v0.28.2
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/jackc/pgx/v5 v5.10.0
@@ -11,6 +13,7 @@ require (
 )
 
 require (
+	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/go-webauthn/x v0.2.6 // indirect

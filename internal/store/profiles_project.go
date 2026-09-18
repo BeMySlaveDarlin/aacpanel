@@ -174,3 +174,20 @@ func (s *Store) DeleteProject(ctx context.Context, id int) (err error) {
 	}
 	return nil
 }
+
+// ProjectBase returns the branch a review of this project is measured against,
+// or an empty string when the map holds no project at that path or no choice
+// for it. The absence is not an error: a directory can be read as a repository
+// without ever appearing on the map.
+func (s *Store) ProjectBase(ctx context.Context, path string) (string, error) {
+	pool, err := s.Pool()
+	if err != nil {
+		return "", Unavailable(err)
+	}
+	var base string
+	err = pool.QueryRow(ctx, `SELECT base_branch FROM profile_projects WHERE path = $1`, path).Scan(&base)
+	if err != nil {
+		return "", Unavailable(err)
+	}
+	return base, nil
+}

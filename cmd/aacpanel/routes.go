@@ -77,6 +77,15 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/chat/file", g.page(s.apiChatFile))
 	mux.Handle("GET /api/chat/file/download", g.page(s.apiChatDownload))
 	mux.Handle("GET /api/sessions/archive", g.page(s.apiSessionsArchive))
+	// The viewer: everything about a repository comes through the agent, and
+	// the diff is cut and coloured here before it goes on the wire.
+	mux.Handle("GET /api/repo/refs", g.page(s.apiRepoRefs))
+	mux.Handle("GET /api/repo/changes", g.page(s.apiRepoChanges))
+	mux.Handle("GET /api/repo/tree", g.page(s.apiRepoTree))
+	mux.Handle("GET /api/repo/file", g.page(s.apiRepoFile))
+	mux.Handle("GET /api/repo/diff", g.page(s.apiRepoDiff))
+	mux.Handle("GET /api/repo/commit", g.page(s.apiRepoCommit))
+
 	mux.Handle("GET /api/briefs", g.page(s.apiBriefs))
 	mux.Handle("GET /api/briefs/{id}", g.page(s.apiBrief))
 	mux.Handle("PUT /api/briefs/{id}", g.page(s.apiBriefDraft))

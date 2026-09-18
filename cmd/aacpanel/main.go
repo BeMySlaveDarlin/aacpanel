@@ -24,6 +24,7 @@ import (
 	"aacpanel/internal/hub"
 	"aacpanel/internal/notify"
 	"aacpanel/internal/probes"
+	"aacpanel/internal/repo"
 	"aacpanel/internal/rules"
 	"aacpanel/internal/store"
 	"aacpanel/internal/termlink"
@@ -44,6 +45,7 @@ type Server struct {
 	exec         *action.Client
 	terms        *terminals
 	chat         *chat.Client
+	paint        *repo.Cache
 	usage        *usage.Scanner
 	push         *notify.Sender
 	watch        *watcher
@@ -279,6 +281,7 @@ func run() error {
 		exec:       execClient,
 		terms:      newTerminals(termlink.NewClient(termSocket)),
 		chat:       chat.New(chatSocket),
+		paint:      repo.NewCache(repo.CacheEntries),
 		usage:      usage.NewScanner(usage.New(usageSocket), db),
 		push:       push,
 		writer:     writer,

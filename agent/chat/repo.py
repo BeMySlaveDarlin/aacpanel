@@ -369,13 +369,23 @@ def blob(cwd, path, rev="", first=1, lines=MAX_LINES):
     if rev and rev != now:
         return {"stale": True, "rev": now}
 
+    # The id of the blob travels with it: it is what a coloured copy is kept
+    # under in the service, and it changes with the content and nothing else.
+    # A name, a size and a timestamp all stay the same across an edit that
+    # changes every line.
+    try:
+        oid_out, _ = _run(top, "hash-object", "--", real)
+        oid = _text(oid_out).strip()
+    except RepoError:
+        oid = ""
+
     size = os.path.getsize(real)
     if size > MAX_BLOB:
-        return {"rev": now, "path": path, "size": size, "tooBig": True}
+        return {"rev": now, "path": path, "size": size, "oid": oid, "tooBig": True}
     with open(real, "rb") as f:
         raw = f.read(MAX_BLOB)
     if b"\0" in raw[:8000]:
-        return {"rev": now, "path": path, "size": size, "binary": True}
+        return {"rev": now, "path": path, "oid": oid, "size": size, "binary": True}
 
     text = raw.decode("utf-8", "replace").split("\n")
     if text and text[-1] == "":
@@ -386,6 +396,7 @@ def blob(cwd, path, rev="", first=1, lines=MAX_LINES):
     return {
         "rev": now,
         "path": path,
+        "oid": oid,
         "size": size,
         "first": start,
         "lines": window,
