@@ -95,6 +95,9 @@ func TestRollupRestPG(t *testing.T) {
 		if _, err := pool.Exec(ctx, "DELETE FROM metrics_container_raw WHERE host_id = $1", hostID); err != nil {
 			t.Fatal(err)
 		}
+		for _, table := range []string{"metrics_container_raw", "metrics_container_1m", "metrics_container_1h"} {
+			testdb.PartitionsBack(t, ctx, pool, table, 48*time.Hour)
+		}
 		for i := range 12 {
 			at := base.Add(time.Duration(i) * 5 * time.Minute)
 			disk := int64(100<<20) + int64(i)*(100<<20)

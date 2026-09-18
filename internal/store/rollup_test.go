@@ -40,6 +40,14 @@ func TestRollupPG(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The rows below are written two hours into the past, and in the first
+	// hours of a UTC day that lands in yesterday — which a fresh database has
+	// no partition for.
+	for _, table := range []string{"metrics_container_raw", "metrics_container_1m", "metrics_container_1h",
+		"metrics_host_raw", "metrics_host_1m", "metrics_host_1h"} {
+		testdb.PartitionsBack(t, ctx, pool, table, 48*time.Hour)
+	}
+
 	base := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Hour)
 	add := func(ts time.Time, cpu float64, mem int64) {
 		t.Helper()
