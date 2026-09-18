@@ -59,12 +59,27 @@ func TestTypeScaleIsTheOnlyFontSize(t *testing.T) {
 	relative := regexp.MustCompile(`^-?\d*\.?\d+em$`)
 	seen := 0
 
+	// A size measured against its box is allowed where the scale is still its
+	// ceiling. A drawing made of characters has to shrink to the columns it
+	// holds — pinned to a step it would be cut instead — but the clamp that
+	// sizes it has to name a step, so the largest it can ever be is a size
+	// somebody declared. A variable computed without one is not this case.
+	fitted := map[string]bool{}
+	fitDecl := regexp.MustCompile(`--([a-z0-9-]+):\s*clamp\(([^;]*)\)`)
+	for _, path := range sortedKeys(files) {
+		for _, m := range fitDecl.FindAllStringSubmatch(files[path], -1) {
+			if strings.Contains(m[2], "var(--t-") {
+				fitted["var(--"+m[1]+")"] = true
+			}
+		}
+	}
+
 	for _, path := range sortedKeys(files) {
 		css := files[path]
 		for _, m := range size.FindAllStringSubmatchIndex(css, -1) {
 			seen++
 			value := strings.TrimSpace(css[m[2]:m[3]])
-			if step.MatchString(value) || value == "inherit" || relative.MatchString(value) {
+			if step.MatchString(value) || fitted[value] || value == "inherit" || relative.MatchString(value) {
 				continue
 			}
 			t.Errorf("%s:%d: font-size %s is not a step of the type scale — a size off the scale puts two labels of one meaning a pixel apart",
