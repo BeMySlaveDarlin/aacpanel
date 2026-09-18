@@ -83,7 +83,29 @@ window.done = (async () => {
     const prose = document.querySelector(".bask");
     const go = document.querySelector(".bbtn.go");
     const root = px(getComputedStyle(document.documentElement).fontSize);
+    // How many characters a line of prose fits: the measure the eye follows,
+    // which is not the width of the column around it.
+    const measure = parseFloat(getComputedStyle(prose).maxWidth);
+    const ch = (() => {
+        const probe = document.createElement("span");
+        probe.textContent = "0";
+        probe.style.font = getComputedStyle(prose).font;
+        probe.style.position = "absolute";
+        probe.style.visibility = "hidden";
+        document.body.appendChild(probe);
+        const one = probe.getBoundingClientRect().width;
+        probe.remove();
+        return one;
+    })();
+    // What the page offers the document: the column can be no wider, and a
+    // narrow screen is not the document being held to somebody else's width.
+    const shelf = document.querySelector(".dkpage");
+    const shelfStyle = getComputedStyle(shelf);
+    const room = Math.round(shelf.getBoundingClientRect().width
+        - parseFloat(shelfStyle.paddingLeft) - parseFloat(shelfStyle.paddingRight));
     const before = {
+        room,
+        line: Math.round(measure / ch),
         root,
         column: Math.round(page.getBoundingClientRect().width),
         prose: px(getComputedStyle(prose).fontSize),

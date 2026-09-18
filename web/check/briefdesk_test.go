@@ -11,6 +11,8 @@ type deskBriefShot struct {
 		Root         float64 `json:"root"`
 		Column       int     `json:"column"`
 		Prose        float64 `json:"prose"`
+		Line         int     `json:"line"`
+		Room         int     `json:"room"`
 		Heading      float64 `json:"heading"`
 		SendDisabled bool    `json:"sendDisabled"`
 		Say          string  `json:"say"`
@@ -32,13 +34,26 @@ func TestBriefAtADeskIsReadAtDeskSize(t *testing.T) {
 	// The desktop page holds every screen on it to a reading width of its own.
 	// A document that takes that width instead of its own is narrower than
 	// either of them was drawn to be.
-	if want := 62.0 * desk.Before.Root; float64(desk.Before.Column) < want-2 {
-		t.Errorf("the reading column is %d px on a %.0f px root — the document is being held to somebody else's width (wanted about %.0f)",
-			desk.Before.Column, desk.Before.Root, want)
+	// The column takes the width the page has for it, up to the measure the
+	// document sets itself. Held to anything narrower — a reading width meant
+	// for another screen — it stands as a strip with the room empty around it.
+	want := 82.0 * desk.Before.Root
+	if room := float64(desk.Before.Room); want > room {
+		want = room
+	}
+	if float64(desk.Before.Column) < want-2 {
+		t.Errorf("the reading column is %d px of the %d px the page offers, on a %.0f px root — the document is being held to somebody else's width (wanted about %.0f)",
+			desk.Before.Column, desk.Before.Room, desk.Before.Root, want)
 	}
 	if desk.Before.Prose <= desk.Before.Root {
 		t.Errorf("the prose is %.2f px on a %.2f px root: at a desk the document reads one step above the panel around it",
 			desk.Before.Prose, desk.Before.Root)
+	}
+	// The column is only half the answer: the line inside it is held to a
+	// measure of its own, and a wide column with a narrow measure reads as the
+	// phone's strip with room wasted around it.
+	if desk.Before.Line < 70 {
+		t.Errorf("a line of prose runs %d characters — at a desk the measure is wider than a hand's", desk.Before.Line)
 	}
 	if desk.Before.Heading <= desk.Before.Prose {
 		t.Errorf("a question heading (%.2f px) does not stand above the prose under it (%.2f px)", desk.Before.Heading, desk.Before.Prose)

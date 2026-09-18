@@ -36,6 +36,10 @@
     /* The width of the reading column, in one place: the head that rides along
        with the text is as wide as the text under it. */
     --brief-col: 880px;
+    /* How long a line of prose is allowed to run. The column holds the
+       document; this holds the text inside it, and the two are not the same
+       number — the tables, the options and the dock take the column whole. */
+    --brief-measure: 66ch;
 
     color: var(--ink);
     font-size: var(--t-base);
@@ -171,7 +175,7 @@
 
 .blede {
     margin-top: 16px;
-    max-width: 63ch;
+    max-width: var(--brief-measure);
     font-size: var(--t-lg);
     line-height: 1.6;
     color: var(--paper-ink-2);
@@ -227,7 +231,7 @@
 .bsection {
     padding: 22px 0;
     border-bottom: 1px solid var(--paper-rule);
-    max-width: 66ch;
+    max-width: var(--brief-measure);
 }
 
 .bsection p { margin: 0; font-size: var(--t-md); line-height: 1.6; color: var(--paper-ink-2); }
@@ -275,7 +279,7 @@
     font-size: var(--t-base);
     line-height: 1.5;
     color: var(--paper-ink-2);
-    max-width: 58ch;
+    max-width: var(--brief-measure);
 }
 
 .bask b { color: var(--paper-ink); font-weight: 600; }
@@ -378,7 +382,7 @@
     margin-bottom: 7px;
 }
 
-.bread p { margin: 0; font-size: var(--t-md); line-height: 1.58; max-width: 61ch; }
+.bread p { margin: 0; font-size: var(--t-md); line-height: 1.58; max-width: var(--brief-measure); }
 .bread p + p { margin-top: 8px; }
 
 .bcap {
@@ -439,7 +443,7 @@
     padding: 26px 0 8px;
     border-top: 2px solid var(--paper-ink);
     margin-top: 24px;
-    max-width: 66ch;
+    max-width: var(--brief-measure);
 }
 
 .bclose p { margin: 0; font-size: var(--t-md); line-height: 1.6; color: var(--paper-ink-2); }

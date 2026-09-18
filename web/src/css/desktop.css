@@ -1829,7 +1829,8 @@
        prose is written in ch, so a larger step widens the text with it instead
        of stretching the line past what an eye tracks. */
     .brief {
-        --brief-col: 62rem;
+        --brief-col: 82rem;
+        --brief-measure: 92ch;
         --t-xs: .84rem;
         --t-sm: .92rem;
         --t-md: 1rem;
