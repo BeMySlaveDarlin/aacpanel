@@ -58,6 +58,7 @@ type ProfileProject struct {
 	Name    string          `json:"name"`
 	Path    string          `json:"path"`
 	Session string          `json:"session"`
+	Base    string          `json:"base"`
 	Sort    int             `json:"sort"`
 	Launch  json.RawMessage `json:"launch"`
 }
@@ -89,6 +90,7 @@ type ProjectEdit struct {
 	Name        *string         `json:"name"`
 	Path        *string         `json:"path"`
 	Session     *string         `json:"session"`
+	Base        *string         `json:"base"`
 	GroupID     *int            `json:"groupId"`
 	Sort        *int            `json:"sort"`
 	MoveProfile bool            `json:"moveProfile"`
@@ -142,7 +144,7 @@ func (s *Store) Profiles(ctx context.Context) (out []Profile, err error) {
 	}
 
 	rows, err = pool.Query(ctx, `
-		SELECT id, group_id, name, path, session_name, sort, launch
+		SELECT id, group_id, name, path, session_name, base_branch, sort, launch
 		FROM profile_projects ORDER BY group_id, sort, id`)
 	if err != nil {
 		return nil, err
@@ -187,7 +189,7 @@ func scanGroup(r pgx.CollectableRow) (ProfileGroup, error) {
 
 func scanProject(r pgx.CollectableRow) (ProfileProject, error) {
 	var p ProfileProject
-	err := r.Scan(&p.ID, &p.GroupID, &p.Name, &p.Path, &p.Session, &p.Sort, &p.Launch)
+	err := r.Scan(&p.ID, &p.GroupID, &p.Name, &p.Path, &p.Session, &p.Base, &p.Sort, &p.Launch)
 	return p, err
 }
 

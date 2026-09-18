@@ -30,16 +30,20 @@ func (s *Store) CreateProject(ctx context.Context, groupID int, e ProjectEdit) (
 	if err != nil {
 		return p, err
 	}
+	base, err := checkBase(e.Base)
+	if err != nil {
+		return p, err
+	}
 	launch, err := checkLaunch(e.Launch)
 	if err != nil {
 		return p, err
 	}
 
 	row := pool.QueryRow(ctx, `
-		INSERT INTO profile_projects (group_id, name, path, session_name, sort, launch)
-		VALUES ($1, $2, $3, COALESCE($4, ''), COALESCE($5, (SELECT COALESCE(MAX(sort), -1) + 1 FROM profile_projects WHERE group_id = $1)), COALESCE($6, '{}'::jsonb))
-		RETURNING id, group_id, name, path, session_name, sort, launch`,
-		groupID, name, path, session, e.Sort, launch)
+		INSERT INTO profile_projects (group_id, name, path, session_name, base_branch, sort, launch)
+		VALUES ($1, $2, $3, COALESCE($4, ''), COALESCE($7, ''), COALESCE($5, (SELECT COALESCE(MAX(sort), -1) + 1 FROM profile_projects WHERE group_id = $1)), COALESCE($6, '{}'::jsonb))
+		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`,
+		groupID, name, path, session, e.Sort, launch, base)
 	p, err = scanProject(rowOnly{row})
 	if err != nil {
 		return p, s.pathTaken(ctx, noParent(err, "there is no group %d", groupID), path)
@@ -75,6 +79,10 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 	if err != nil {
 		return p, err
 	}
+	base, err := checkBase(e.Base)
+	if err != nil {
+		return p, err
+	}
 	launch, err := checkLaunch(e.Launch)
 	if err != nil {
 		return p, err
@@ -97,6 +105,7 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 			name         = COALESCE($2, name),
 			path         = COALESCE($3, path),
 			session_name = COALESCE($4, session_name),
+			base_branch  = COALESCE($8, base_branch),
 			group_id     = COALESCE($7, group_id),
 			sort         = COALESCE($5, CASE
 				WHEN $7::int IS NULL OR $7 = group_id THEN sort
@@ -104,8 +113,8 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 			END),
 			launch       = COALESCE($6, launch)
 		WHERE id = $1
-		RETURNING id, group_id, name, path, session_name, sort, launch`,
-		id, name, path, session, e.Sort, launch, e.GroupID)
+		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`,
+		id, name, path, session, e.Sort, launch, e.GroupID, base)
 	p, err = scanProject(rowOnly{row})
 	if err != nil {
 		pathVal := ""

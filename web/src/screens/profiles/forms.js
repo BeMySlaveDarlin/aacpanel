@@ -335,6 +335,7 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
     const [name, setName] = useState(was.name || "");
     const [path, setPath] = useState(was.path || "");
     const [session, setSession] = useState(was.session || "");
+    const [base, setBase] = useState(was.base || "");
     const [launch, setLaunch] = useState(was.launch || {});
     const [group, setGroup] = useState(String((form.group && form.group.id) || ""));
     const { busy, problem, nameProblem, clearNameProblem, save } = useSave(onClose, onDone);
@@ -359,6 +360,7 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
         name: name.trim(),
         path: path.trim(),
         session: session.trim(),
+        base: base.trim(),
         ...(editing && group ? { groupId: Number(group) } : {}),
         launch: clean(launch),
     };
@@ -415,6 +417,15 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
             <input class="search" spellcheck="false" placeholder="after the directory name"
                    value=${session} onInput=${(e) => setSession(e.target.value)} />
             <span class="pfhelp">empty — the launcher names it after the directory</span>
+        </label>
+
+        <div class="pfsub">git</div>
+        <label class="pffield">
+            <span class="pflabel">Base branch</span>
+            <input class="search" spellcheck="false" placeholder="main"
+                   value=${base} onInput=${(e) => setBase(e.target.value)} />
+            <span class="pfhelp">what a review of this branch is measured against; empty — main,
+                and the screen says so rather than writing it in for you</span>
         </label>
 
         <div class="pfsub">launch parameters</div>

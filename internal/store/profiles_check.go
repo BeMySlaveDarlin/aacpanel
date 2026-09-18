@@ -49,6 +49,48 @@ func checkSession(session *string) (*string, error) {
 	return &v, nil
 }
 
+// The longest branch name the map keeps. Git itself has no limit worth naming;
+// this one is about a field on a screen.
+const baseBranchMax = 200
+
+// checkBase reads the branch a review of the project is measured against. An
+// empty value is kept as such: it is not a choice, it means the screen offers
+// its default instead of repeating an answer nobody gave.
+//
+// What git refuses as a ref name is refused here, with the reason said out
+// loud rather than left to the database: a leading dash reads as a flag, ".."
+// is a range rather than a name, "@{" opens a reflog address, and a name
+// ending in .lock collides with the file git keeps beside the ref.
+func checkBase(base *string) (*string, error) {
+	if base == nil {
+		return nil, nil
+	}
+	v := strings.TrimSpace(*base)
+	if v == "" {
+		empty := ""
+		return &empty, nil
+	}
+	if len(v) > baseBranchMax {
+		return nil, badRequest("the branch name is longer than %d characters", baseBranchMax)
+	}
+	switch {
+	case strings.HasPrefix(v, "-"):
+		return nil, badRequest("the branch name %q starts with a dash — git reads such a name as a flag", v)
+	case strings.Contains(v, ".."):
+		return nil, badRequest("the branch name %q holds \"..\" — that is a range of two names, not one branch", v)
+	case strings.Contains(v, "@{"):
+		return nil, badRequest("the branch name %q holds \"@{\" — that addresses a reflog entry, not a branch", v)
+	case strings.HasSuffix(v, ".lock"):
+		return nil, badRequest("the branch name %q ends in .lock — git keeps a file of that name beside every ref", v)
+	}
+	for _, r := range v {
+		if r < 0x20 || r == 0x7f || strings.ContainsRune(" ~^:?*[\\", r) {
+			return nil, badRequest("the branch name %q holds a character git does not take", v)
+		}
+	}
+	return &v, nil
+}
+
 func checkLaunch(raw json.RawMessage) (json.RawMessage, error) {
 	if len(raw) == 0 {
 		return nil, nil
