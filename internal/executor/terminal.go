@@ -60,7 +60,28 @@ var listHints = []string{"to select", "enter to view"}
 // What a row of a list carries after the prompt mark.
 var listMarks = []string{"◯", "●", "○", "◉"}
 
+// What the composer shows in place of the text it took in: a picture, or a
+// paste it folded up. Either one standing there means the message is in the
+// composer.
 var attachChips = []string{"[Image#", "[Pastedtext#"}
+
+// composerInput is the text on its way into the composer, together with what
+// clears the line before it and what sends it after.
+//
+// One line goes in as keystrokes. Text that arrives between the bracketed
+// paste markers is marked as pasted, and a message carrying that mark reaches
+// the session as quoted data rather than as the words of the person at the
+// panel — the panel is that person's keyboard, so it types.
+//
+// Text with line breaks has no such choice: typed in, every break is an Enter
+// of its own and the message leaves the composer in pieces. It goes in as one
+// paste and wears the mark — that is what arriving whole costs.
+func composerInput(text string) string {
+	if strings.ContainsAny(text, "\n\r") {
+		return clearLine + pasteStart + text + pasteEnd + enterKey
+	}
+	return clearLine + text + enterKey
+}
 
 func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail) (bool, error) {
 	if screen, seen := t.screen(ctx); seen {
@@ -69,7 +90,7 @@ func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail
 				"nothing was typed: %s. Press Esc in the session to get back to its composer, then send again", busy)
 		}
 	}
-	if err := t.send(ctx, clearLine+pasteStart+text+pasteEnd+enterKey); err != nil {
+	if err := t.send(ctx, composerInput(text)); err != nil {
 		return false, err
 	}
 	mark := composerMark(text)

@@ -1783,22 +1783,35 @@ if method == "sendText" and STALL_SEND:
     stall()
 
 def pasted():
+    # What stands in the composer: everything that came in after the line was
+    # cleared or the paste opened, whichever is later, up to the paste closing
+    # or the first Enter. A terminal takes typed characters and a paste alike —
+    # the markers only say which of the two it was.
     try:
         raw = open(LOG, "rb").read().decode("utf-8", "replace")
     except FileNotFoundError:
         return "", 0
-    i = raw.rfind("\x1b[200~")
-    if i < 0:
+    start = 0
+    for mark in ("\x15", "\x1b[200~"):
+        i = raw.rfind(mark)
+        if i >= 0 and i + len(mark) > start:
+            start = i + len(mark)
+    if start == 0:
         return "", 0
-    j = raw.find("\x1b[201~", i)
-    if j < 0:
-        return "", 0
-    text = raw[i + 6:j]
+    rest = raw[start:]
+    j = rest.find("\x1b[201~")
+    if j >= 0:
+        text, enters = rest[:j], rest[j + 6:].count("\r")
+    else:
+        text, sep, _ = rest.partition("\r")
+        if not sep:
+            return "", 0
+        enters = rest.count("\r")
     if ATTACH:
         lines = text.split("\n")
         if lines and lines[-1].startswith("/"):
             text = "[Image #1]" + "\n".join(lines[:-1])
-    return text, raw[j:].count("\r")
+    return text, enters
 
 def looked():
     n = 0
@@ -1873,8 +1886,9 @@ func TestSessionSendTypesIntoKonsole(t *testing.T) {
 	if !strings.Contains(sent, "check the stack logs") {
 		t.Fatalf("the reply text is missing from what went out to konsole: %q", sent)
 	}
-	if !strings.Contains(sent, pasteStart) || !strings.Contains(sent, pasteEnd) {
-		t.Errorf("the text went out as typing, not as a paste: %q", sent)
+	if strings.Contains(sent, pasteStart) || strings.Contains(sent, pasteEnd) {
+		t.Errorf("a reply of one line went out between the paste markers: the session reads it as "+
+			"quoted data and not as the message of the person at the panel — %q", sent)
 	}
 	if !strings.HasPrefix(sent, clearLine) {
 		t.Errorf("the composer was not cleared before the paste: %q", sent)
