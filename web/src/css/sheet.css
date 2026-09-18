@@ -233,6 +233,17 @@
         pointer-events: none;
     }
 
+    /* A document is not a dialog: it takes the room a page of the panel takes,
+       and the space around the text is its own, so the window adds none. */
+    .sheet.win.doc,
+    .shell.no-nav .sheet.win.doc.inner {
+        width: min(84rem, 94vw);
+        max-height: min(92dvh, 1200px);
+        padding: 0 0 .4rem;
+    }
+
+    .sheet.win.doc .sheetbody { padding: 0; }
+
     .sheet.win.side,
     .shell.no-nav .sheet.win.side.inner {
         left: auto;

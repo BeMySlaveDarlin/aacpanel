@@ -332,7 +332,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
         <//>
 
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
-                  label=${look ? LOOK_NAMES[look.kind] : ""} inner>
+                  label=${look ? LOOK_NAMES[look.kind] : ""} inner
+                  doc=${Boolean(look) && look.kind === "brief"}>
             ${look && (look.kind === "brief"
                 ? html`<${Brief} id=${look.id} snapshot=${snapshot} exec=${exec}
                                  onBack=${() => setLook(null)}

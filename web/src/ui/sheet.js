@@ -35,8 +35,11 @@ function scrollsSideways(node, sheet) {
     return false;
 }
 
-// Sheet decides only how to show the content, never what.
-export function Sheet({ open, onClose, children, label, inner = false, side = false }) {
+// Sheet decides only how to show the content, never what. A sheet carrying a
+// document says so: on a wide screen the rest of them are dialogs the width of
+// a question, and a piece read for forty minutes in that window is a column of
+// four words.
+export function Sheet({ open, onClose, children, label, inner = false, side = false, doc = false }) {
     const wide = useWide();
     const [stop, setStop] = useState("half");
     const [dragging, setDragging] = useState(false);
@@ -145,7 +148,7 @@ export function Sheet({ open, onClose, children, label, inner = false, side = fa
              onClick=${closeStack}></div>
         <div
             ref=${sheetRef}
-            class=${`sheet${open ? " on" : ""}${inner ? " inner" : ""} ${wide ? `win${side ? " side" : ""}` : `draggable ${stop}${dragging ? " dragging" : ""}`}`}
+            class=${`sheet${open ? " on" : ""}${inner ? " inner" : ""}${doc ? " doc" : ""} ${wide ? `win${side ? " side" : ""}` : `draggable ${stop}${dragging ? " dragging" : ""}`}`}
             role="dialog"
             aria-modal=${open ? "true" : "false"}
             aria-label=${label || "action"}

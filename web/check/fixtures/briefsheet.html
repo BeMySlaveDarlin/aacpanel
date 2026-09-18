@@ -1,0 +1,98 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- The brief as a desk reads it: the document stands in the page of the
+     desktop shell, which holds every other screen to a reading width of its
+     own, and the shell's scale is in force. -->
+<div class="shell deskshell" style="height:100vh;display:flex;flex-direction:column">
+  <header class="dktop"><button class="dkbrand" type="button">host</button></header>
+  <div class="dkbody">
+    <aside class="dkleft"></aside>
+    <section class="dkcenter dkchat" id="root"></section>
+  </div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { Brief } from "/src/screens/brief.js";
+import { Sheet } from "/src/ui/sheet.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const doc = {
+    id: "at-the-desk",
+    sessionId: "22222222-2222-4222-8222-222222222222",
+    cwd: "/srv/proj",
+    title: "Read at a desk",
+    eyebrow: "18.09.2026 · two questions",
+    lede: "A document is read for forty minutes, and a monitor is not a hand.",
+    sections: [{ title: "where this came from", body: ["The tail of yesterday, not a new round."] }],
+    questions: [
+        {
+            id: "d1", n: "01", title: "The width of the column", kind: "pick",
+            ask: "A column measured in pixels does not follow the scale of the shell.",
+            options: [
+                { key: "A", label: "Follow the scale", note: "the column grows with the type" },
+                { key: "B", label: "Stay at the phone's width", note: "small print in an empty room" },
+            ],
+            capture: { note: { placeholder: "A note, if there is more to say" } },
+        },
+        {
+            id: "d2", n: "02", title: "The size of the type", kind: "pick",
+            ask: "The step that fits a hand is one step short of a desk.",
+            options: [{ key: "A", label: "One step up" }, { key: "B", label: "Leave it" }],
+        },
+    ],
+};
+
+let sent = "";
+window.fetch = async (input, init) => {
+    const u = typeof input === "string" ? input : input.url;
+    const method = (init && init.method) || "GET";
+    if (u === "/api/briefs/at-the-desk" && method === "GET") {
+        return new Response(JSON.stringify({ brief: doc, draft: { answers: {} }, reply: "" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/briefs/at-the-desk" && method === "PUT") {
+        return new Response(JSON.stringify({ ok: true, reply: "01 · A" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (u === "/api/actions") {
+        sent = JSON.parse(init.body).target || "";
+        return new Response(JSON.stringify({ ok: true, detail: "typed into lab" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+// The snapshot is how the document finds the session its answers go into. The
+// panel hands it down through the conversation; a screen that forgets to pass
+// it leaves the send barred with nothing on screen to explain it.
+const snapshot = { sessions: [{ session: "lab", sessionId: doc.sessionId, cwd: doc.cwd }] };
+const exec = { available: true, kinds: ["session.send"] };
+
+render(
+    h(ToastHost, null, h(GateHost, null,
+        h(Sheet, { open: true, onClose: () => {}, label: "brief", inner: true, doc: true },
+            h(Brief, { id: "at-the-desk", snapshot, exec, onBack: () => {} })))),
+    document.getElementById("root"));
+
+const px = (v) => Math.round(parseFloat(v) * 100) / 100;
+
+window.done = (async () => {
+    await new Promise((r) => setTimeout(r, 350));
+    const sheet = document.querySelector(".sheet");
+    const page = document.querySelector(".brief-page");
+    const prose = document.querySelector(".bask");
+    return {
+        window: innerWidth,
+        root: px(getComputedStyle(document.documentElement).fontSize),
+        win: sheet.classList.contains("win"),
+        doc: sheet.classList.contains("doc"),
+        sheet: Math.round(sheet.getBoundingClientRect().width),
+        page: page ? Math.round(page.getBoundingClientRect().width) : 0,
+        prose: prose ? px(getComputedStyle(prose).fontSize) : 0,
+    };
+})();
+</script>
