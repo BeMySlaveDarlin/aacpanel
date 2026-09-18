@@ -27,6 +27,7 @@ the project.
 | **Containers** | the "stack → containers" tree with processor, memory and size on disk; logs, starting and stopping a container, bringing a whole stack up and down |
 | **Machine** | processor, memory, disks, network, top processes, checks on ports and external services; history with rollups by minute and by hour, charts from half an hour to a month |
 | **Profile map** | "profile → group → project": where sessions may be opened, with what parameters, in which claude account |
+| **Repository** | the code of a project, read from the conversation that writes it: the run of what the branch changed, the tree of the working tree, a file in windows, the diff of one file with the two layers told apart — what is already in a commit and what is not |
 | **Usage** | transcripts broken down: what went out over a day, by model, by tool, by account, by session |
 | **Alerts** | rules with thresholds, pushes to devices (Web Push, VAPID), acknowledged from the screen |
 | **Journal** | everything the panel did on the host: who, when, from which device, how it ended |
@@ -108,8 +109,11 @@ The install step by step — [`INSTALL.md`](INSTALL.md).
 
 ## Stack
 
-**The service** — Go, the standard library plus `pgx`, `go-webauthn` and
-`esbuild` as a library. The image is multi-stage and ends at `distroless`;
+**The service** — Go, the standard library plus `pgx`, `go-webauthn`, `esbuild`
+as a library, and two the viewer needs: `go-gitdiff` to cut a diff into hunks and
+`chroma` to colour it. The colouring is done here rather than in the browser —
+it costs about three megabytes of the image and nothing on the wire, where a
+line travels as a run length and a class number. The image is multi-stage and ends at `distroless`;
 `govulncheck` sits inside the build, not in the memory of whoever builds it.
 
 **The front end** — preact and htm, vendored as files; uPlot for charts, xterm

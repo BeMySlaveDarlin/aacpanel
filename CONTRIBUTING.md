@@ -211,6 +211,19 @@ for".
 | `TestDesktopRulesStayInsideMediaQuery` | a desktop rule does not touch the phone |
 | `TestMigrationsHaveUniqueNumbers` | no two migrations take the same number: a duplicate stops the service from coming up |
 | `TestActionTextsPromiseNoSpecificEnvironment` | action texts do not promise somebody else's environment |
+| `TestAnEmptyListTravelsAsAnEmptyList` | a list that is empty is still sent: dropped by `omitempty` it reaches the screen as `undefined`, and a reader counting its length takes the panel down with it |
+
+### A reply keeps its shape
+
+An empty list is an answer — "nothing changed", "the directory is empty" — and
+it travels as an empty list. `omitempty` on a slice drops it from the json
+altogether, and the screen that counts its length finds nothing to count: it
+dies in the middle of a draw, leaves what it had drawn standing, and every
+redraw after it lays another screen on top. This has taken the panel down once,
+with a tab that stopped answering and three copies of one screen on it.
+
+The rule: `omitempty` is for a value that is absent, not for one that is empty.
+A list, a map and a count the screen reads keep their place in the reply.
 
 ---
 

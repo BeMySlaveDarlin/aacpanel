@@ -53,6 +53,47 @@ nor any link to the graphical shell.
 
 ---
 
+## Reading a repository
+
+Git runs in the collector and nowhere else. The service has no rights on the
+host, and that is not suspended for the sake of a diff: reading a repository is
+reading, which is the collector's half of the split above. What comes back is
+raw — the list of changed files, the listing of one directory, one blob, the
+diff of one file, the trailer of one commit. Cutting a diff into hunks and
+colouring it happens in the service, where a mistake costs a redraw rather than
+a shell command on the host.
+
+**One list of changes.** What the commits of a branch did, what the working tree
+has done since, and what git does not know about at all arrive together. The
+tree on a screen and the run of diffs under it are the same set of files:
+counted twice they come apart, and the file a person taps is not the file they
+were shown. A file that is both in a commit and changed again since is marked as
+not yet committed — that is the half still unanswered for.
+
+**A revision travels with every window.** It holds the head, the merge base and
+the ids of the tracked files. A repository under a working session moves between
+two requests, and a window answered from the new state while the list came from
+the old one is a diff nobody can trust: it comes back stale, with the revision
+to ask again under.
+
+**Where a branch came from is named, not guessed.** Git keeps no record of it.
+The order is the project's own setting, then the upstream of the branch, then
+the reflog, then the trunk — and which of them answered is said on the screen,
+because none of them is right every time.
+
+**Colour travels as spans, not as html.** The service colours a file and sends a
+run length and a class number per span: the same file as html is six to ten
+times its own size on the wire. The colouring is keyed by the id of the blob it
+came from — an id changes with the content and with nothing else, so an entry
+never goes stale and nothing is invalidated by hand.
+
+**Git is asked in one language.** Its output is read, not shown: under the
+language of the host the messages arrive translated, and a reply parsed by its
+words comes apart. A directory that is not a repository is a state of the
+screen, not a failure — a project can be a shelf of notes.
+
+---
+
 ## Who talks to whom
 
 ```
