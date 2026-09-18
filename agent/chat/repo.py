@@ -40,11 +40,17 @@ class RepoError(Exception):
 
 def _run(cwd, *args, limit=MAX_DIFF):
     """Runs one git command in cwd and returns its output, or raises RepoError."""
+    # The output of git is read, not shown: under the language of the host its
+    # messages arrive translated, and a reply parsed by its words comes apart.
+    # The panel also speaks one language of its own, and a refusal in another
+    # one on its screen is a refusal from somewhere else.
+    env = dict(os.environ, LC_ALL="C", LANG="C", GIT_PAGER="cat")
     try:
         done = subprocess.run(
             ("git", "-C", cwd, "--no-pager", *args),
             capture_output=True,
             timeout=GIT_TIMEOUT,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         raise RepoError(f"git {args[0]} did not finish in {GIT_TIMEOUT} seconds")
@@ -61,6 +67,19 @@ def _text(raw):
     return raw.decode("utf-8", "replace")
 
 
+class NotARepo(Exception):
+    """A directory that simply is not a repository.
+
+    Not a failure: a project can be a shelf of notes or a stand, and a panel
+    that answers "fatal: not a git repository" to a directory that never
+    claimed to be one is a panel shouting at its own screen.
+    """
+
+    def __init__(self, path):
+        super().__init__(path)
+        self.path = path
+
+
 def _repo_dir(cwd):
     """Returns the working tree cwd belongs to, or raises when it is not one."""
     if not isinstance(cwd, str) or not cwd:
@@ -68,7 +87,10 @@ def _repo_dir(cwd):
     real = os.path.realpath(os.path.expanduser(cwd))
     if not os.path.isdir(real):
         raise RepoError("there is no such directory on the host")
-    top, _ = _run(real, "rev-parse", "--show-toplevel")
+    try:
+        top, _ = _run(real, "rev-parse", "--show-toplevel")
+    except RepoError:
+        raise NotARepo(real)
     return _text(top).strip() or real
 
 
@@ -489,6 +511,8 @@ def answer(request):
             out = commit(cwd, str(request.get("hash") or ""))
         else:
             return {"ok": False, "error": f"there is no such repo operation: {op!r}"}
+    except NotARepo as e:
+        return {"ok": True, "op": op, "repo": {"noRepo": True, "root": e.path}}
     except RepoError as e:
         return {"ok": False, "error": str(e)}
     except (OSError, ValueError) as e:

@@ -184,6 +184,53 @@ class Commits(Repo):
             repo.commit(self.dir, "HEAD; rm -rf /")
 
 
+class NoRepository(unittest.TestCase):
+    def setUp(self):
+        self.dir = test_barrier.tmp_path(prefix="plain")
+        self.addCleanup(subprocess.run, ("rm", "-rf", self.dir))
+        write(self.dir, "notes.md", "a shelf of notes, not a repository\n")
+
+    def test_a_directory_without_a_repository_is_a_state_and_not_a_failure(self):
+        # A project can be a shelf of notes or a stand. Answering it with what
+        # git shouted is the panel shouting at its own screen.
+        out = repo.answer({"op": "changes", "cwd": self.dir})
+        self.assertTrue(out["ok"], f"a plain directory came back as a failure: {out}")
+        self.assertTrue(out["repo"].get("noRepo"), out)
+        self.assertEqual(out["repo"].get("root"), os.path.realpath(self.dir))
+        self.assertNotIn("error", out)
+
+    def test_every_operation_answers_the_same_way(self):
+        for op in ("refs", "tree", "blob", "diff", "commit"):
+            with self.subTest(op=op):
+                out = repo.answer({"op": op, "cwd": self.dir, "path": "notes.md", "hash": "HEAD"})
+                self.assertTrue(out["ok"], f"{op} on a plain directory: {out}")
+                self.assertTrue(out["repo"].get("noRepo"), f"{op}: {out}")
+
+
+class Language(Repo):
+    def test_git_is_read_in_one_language_whatever_the_host_speaks(self):
+        # The output of git is read, not shown. Under the language of the host
+        # its messages arrive translated and a reply parsed by its words comes
+        # apart — and a refusal in another language on an english screen reads
+        # as a refusal from somewhere else.
+        import os as _os
+        was = _os.environ.get("LANG")
+        _os.environ["LANG"] = "ru_RU.UTF-8"
+        _os.environ["LC_ALL"] = "ru_RU.UTF-8"
+        try:
+            out = repo.answer({"op": "commit", "cwd": self.dir, "hash": "definitely-not-a-commit"})
+        finally:
+            _os.environ.pop("LC_ALL", None)
+            if was is None:
+                _os.environ.pop("LANG", None)
+            else:
+                _os.environ["LANG"] = was
+        self.assertFalse(out["ok"])
+        for letter in out["error"]:
+            self.assertLess(ord(letter), 0x400,
+                            f"the refusal came back in the language of the host: {out['error']!r}")
+
+
 class Dispatch(Repo):
     def test_every_reply_says_which_operation_it_answers(self):
         out = repo.answer({"op": "refs", "cwd": self.dir})
@@ -191,10 +238,11 @@ class Dispatch(Repo):
         self.assertEqual(out["op"], "refs")
         self.assertEqual(out["repo"]["branch"], "main")
 
-    def test_a_directory_that_is_not_a_repository_is_refused_with_a_reason(self):
-        plain = test_barrier.tmp_path(prefix="plain")
-        self.addCleanup(subprocess.run, ("rm", "-rf", plain))
-        out = repo.answer({"op": "changes", "cwd": plain})
+    def test_a_directory_that_does_not_exist_is_refused_with_a_reason(self):
+        # A directory that is not a repository is a state, not a failure — that
+        # is the case above. One that is not there at all is a failure, and the
+        # refusal has to say so rather than come back empty.
+        out = repo.answer({"op": "changes", "cwd": os.path.join(self.dir, "nowhere")})
         self.assertFalse(out["ok"])
         self.assertTrue(out["error"], "the refusal is empty, so the screen has nothing to show")
 

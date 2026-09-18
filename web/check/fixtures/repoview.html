@@ -67,13 +67,34 @@ window.fetch = async (url) => {
     return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
 };
 
-render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {} })), document.getElementById("root"));
+// The viewer lives inside a conversation that redraws on its own — a feed
+// arrives, a session ticks. A layer that is fine until something above it
+// redraws is a layer that breaks in use and not in a test, so the fixture
+// redraws it the way the run does.
+import { useEffect, useState } from "preact/hooks";
+function Ticking() {
+    const [n, setN] = useState(0);
+    useEffect(() => {
+        const t = setInterval(() => setN((was) => was + 1), 90);
+        return () => clearInterval(t);
+    }, []);
+    return h(RepoView, { cwd: "/srv/proj", name: "work", tick: n, onBack() {} });
+}
+
+render(h(ToastHost, null, h(Ticking)), document.getElementById("root"));
 
 window.done = new Promise((done) => {
     const wait = () => {
         const head = document.querySelector(".cdfilehead");
         if (!head) return setTimeout(wait, 30);
         head.click();
+        // What a person does on this screen: switch the tab, switch the base.
+        // A layer that is fine on first draw and piles up on the second is a
+        // layer that breaks in the hand and not in a test.
+        const tabs = [...document.querySelectorAll(".cdstrip .chip")];
+        if (tabs[1]) tabs[1].click();
+        if (tabs[0]) tabs[0].click();
+        if (tabs[2]) tabs[2].click();
         const settle = () => {
             const line = document.querySelector(".cdln");
             if (!line) return setTimeout(settle, 30);
@@ -87,6 +108,7 @@ window.done = new Promise((done) => {
             const before = document.scrollingElement.scrollLeft;
             if (wide) wide.scrollLeft = 400;
             done({
+                heads: document.querySelectorAll(".phead").length,
                 gutterInsideScroller: Boolean(src && gut && src.contains(gut)),
                 gutterWidth: Math.round(box(gut).width),
                 srcScrolls: wide ? getComputedStyle(wide).overflowX : "",

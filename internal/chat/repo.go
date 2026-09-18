@@ -63,6 +63,11 @@ type RepoOut struct {
 	Stale bool   `json:"stale,omitempty"`
 	Rev   string `json:"rev,omitempty"`
 
+	// A directory that is not a repository at all. Not a failure: a project
+	// can be a shelf of notes or a stand, and the screen says so plainly
+	// instead of showing it what git shouted.
+	NoRepo bool `json:"noRepo,omitempty"`
+
 	Root      string       `json:"root,omitempty"`
 	Branch    string       `json:"branch,omitempty"`
 	Branches  []RepoBranch `json:"branches,omitempty"`

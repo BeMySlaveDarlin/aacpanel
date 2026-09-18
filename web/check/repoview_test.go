@@ -6,6 +6,7 @@ import (
 )
 
 type repoShot struct {
+	Heads                int      `json:"heads"`
 	GutterInsideScroller bool     `json:"gutterInsideScroller"`
 	GutterWidth          int      `json:"gutterWidth"`
 	SrcScrolls           string   `json:"srcScrolls"`
@@ -17,6 +18,18 @@ type repoShot struct {
 	Tags                 []string `json:"tags"`
 	Dots                 []string `json:"dots"`
 	GutterTouchAction    string   `json:"gutterTouchAction"`
+}
+
+// A page has one way back. Two of them stacked is not a cosmetic slip: the
+// second is a live handler over a dead layer, and a tap on it leaves the
+// viewer without leaving the page it was drawn over.
+func TestThePageKeepsOneHeadWhateverItRedraws(t *testing.T) {
+	var got repoShot
+	runFixture(t, "repoview.html", &got)
+
+	if got.Heads != 1 {
+		t.Errorf("%d heads on one page — a redraw added another instead of replacing the one that was there", got.Heads)
+	}
 }
 
 // The gutter with the numbers is the strip a finger swipes the page by and the

@@ -71,13 +71,18 @@ function ChangesPage({ cwd, name, base, onBase, wrap, onWrap, onFile, onBack }) 
     const [state] = useAsk(() => changesOf(cwd, base), [cwd, base]);
     const data = state.kind === "ready" ? state.data : null;
 
-    const head = html`
+    // One page, one root. A head and a body returned as a fragment are matched
+    // up by position, and any difference in the number of nodes between two
+    // draws lands on the neighbours — a second head under the first, and a way
+    // back that leads nowhere.
+    return html`
+      <div class="cdscreen">
         <${BackHead} onBack=${onBack} label="to the conversation"
                      tools=${html`<${WrapButton} on=${wrap} onClick=${onWrap} />`}>
             <div class="chathead">
-                <h2>${data ? data.branch : name}</h2>
+                <h2>${data && !data.noRepo ? data.branch : name}</h2>
                 <div class="chatsub">
-                    ${data
+                    ${data && !data.noRepo
                         ? html`<span class="cdbase" title=${`the base comes from the ${data.baseFrom}`}>
                                  against <b>${data.base || "nothing"}</b>
                                </span>
@@ -86,12 +91,8 @@ function ChangesPage({ cwd, name, base, onBase, wrap, onWrap, onFile, onBack }) 
                 </div>
             </div>
         <//>
-    `;
-
-    return html`
-        ${head}
         <div class=${`cdpage${wrap ? " wrap" : ""}`}>
-            <div class="cdstrip">
+            <div class="cdstrip" hidden=${Boolean(data && data.noRepo)}>
                 <button class="chip" type="button" aria-pressed=${tab === "feed"}
                         onClick=${() => setTab("feed")}>Changes</button>
                 <button class="chip" type="button" aria-pressed=${tab === "tree"}
@@ -108,9 +109,16 @@ function ChangesPage({ cwd, name, base, onBase, wrap, onWrap, onFile, onBack }) 
             ${state.kind === "loading" && html`<p class="hint">Reading the repository…</p>`}
             ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
 
-            ${data && tab === "tree" && html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`}
-            ${data && tab === "feed" && html`<${ChangeFeed} cwd=${cwd} data=${data} onFile=${onFile} />`}
+            ${data && data.noRepo && html`
+                <p class="hint">
+                    This project keeps no git repository — there is nothing here to compare or review.
+                    <br />The directory itself is at <b>${data.root || cwd}</b>.
+                </p>
+            `}
+            ${data && !data.noRepo && tab === "tree" && html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`}
+            ${data && !data.noRepo && tab === "feed" && html`<${ChangeFeed} cwd=${cwd} data=${data} onFile=${onFile} />`}
         </div>
+      </div>
     `;
 }
 
@@ -235,6 +243,7 @@ function FilePage({ cwd, path, base, wrap, onWrap, onBack }) {
     const cut = diff.kind === "ready" ? diff.data : null;
 
     return html`
+      <div class="cdscreen">
         <${BackHead} onBack=${onBack} label="to the changes"
                      tools=${html`<${WrapButton} on=${wrap} onClick=${onWrap} />`}>
             <div class="chathead">
@@ -281,5 +290,6 @@ function FilePage({ cwd, path, base, wrap, onWrap, onBack }) {
                     f.hunks.map((h, i) => html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`))}
             `}
         </div>
+      </div>
     `;
 }
