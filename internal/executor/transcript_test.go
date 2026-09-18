@@ -46,19 +46,37 @@ type fakeSeen struct {
 	marks []string
 }
 
-func fitsUnixPath(t *testing.T, sock string) {
+const unixPathMax = 108 // the whole address of a unix socket has to fit this
+
+// socketPath lays out a directory of its own for a listening socket and gives
+// the path inside it. t.TempDir() spells the name of the test into the path, so
+// a socket put there grows with the name, and past some length listen refuses —
+// a failure in a place that has nothing to do with what is being checked.
+func socketPath(t *testing.T, name string) string {
 	t.Helper()
-	if len(sock) > 100 {
-		t.Skipf("a socket name %d characters long does not fit into a unix path: set a shorter TMPDIR", len(sock))
+	// TMPDIR can be long enough on its own to eat the whole address; the system
+	// /tmp is then the only short base left.
+	for _, base := range []string{os.TempDir(), "/tmp"} {
+		dir, err := os.MkdirTemp(base, "aacp")
+		if err != nil {
+			continue
+		}
+		if path := filepath.Join(dir, name); len(path) < unixPathMax {
+			t.Cleanup(func() { os.RemoveAll(dir) })
+			return path
+		}
+		os.RemoveAll(dir)
 	}
+	t.Fatalf("nowhere to put the socket %s so that the address fits into %d bytes: TMPDIR=%s",
+		name, unixPathMax, os.TempDir())
+	return ""
 }
 
 func startFakeSeen(t *testing.T) *fakeSeen {
 	t.Helper()
-	dir := t.TempDir()
-	t.Setenv(seenDirEnv, dir)
-	fitsUnixPath(t, filepath.Join(dir, seenSocketName))
-	ln, err := net.Listen("unix", filepath.Join(dir, seenSocketName))
+	sock := socketPath(t, seenSocketName)
+	t.Setenv(seenDirEnv, filepath.Dir(sock))
+	ln, err := net.Listen("unix", sock)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,10 +256,8 @@ func TestInvisibleTalkIsAskedAboutRarely(t *testing.T) {
 }
 
 func TestPositionSurvivesASilentAnswer(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv(seenDirEnv, dir)
-	sock := filepath.Join(dir, seenSocketName)
-	fitsUnixPath(t, sock)
+	sock := socketPath(t, seenSocketName)
+	t.Setenv(seenDirEnv, filepath.Dir(sock))
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
 		t.Fatal(err)
@@ -290,12 +306,9 @@ func agentSeen(t *testing.T, lines ...string) (string, string) {
 		t.Fatal(err)
 	}
 
-	sockDir := filepath.Join(dir, "run")
-	if err := os.MkdirAll(sockDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	sock := socketPath(t, seenSocketName)
+	sockDir := filepath.Dir(sock)
 	t.Setenv(seenDirEnv, sockDir)
-	fitsUnixPath(t, filepath.Join(sockDir, seenSocketName))
 
 	cmd := exec.Command(python, filepath.Join("..", "..", "agent", "seen.py"))
 	cmd.Env = append(os.Environ(),
@@ -312,7 +325,6 @@ func agentSeen(t *testing.T, lines ...string) (string, string) {
 		_ = cmd.Wait()
 	})
 
-	sock := filepath.Join(sockDir, seenSocketName)
 	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); {
 		if _, err := os.Stat(sock); err == nil {
 			return talk, path
