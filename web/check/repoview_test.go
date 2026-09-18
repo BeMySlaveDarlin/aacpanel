@@ -139,3 +139,23 @@ func TestTheTwoLayersAreMarkedApart(t *testing.T) {
 		}
 	}
 }
+
+type layerShot struct {
+	Heads  int `json:"heads"`
+	Strips int `json:"strips"`
+	Pages  int `json:"pages"`
+}
+
+// The viewer lives over a conversation that holds the back gesture itself and
+// redraws while the layer is open. Switching the base there is what a person
+// does first, and a screen that is replaced on its own but stacked in that
+// company is a screen that breaks in the hand and not in a fixture.
+func TestSwitchingTheBaseReplacesTheScreenRatherThanStackingIt(t *testing.T) {
+	var got layerShot
+	runFixture(t, "repolayer.html", &got)
+
+	if got.Heads != 1 || got.Strips != 1 || got.Pages != 1 {
+		t.Errorf("after two switches of the base and one of the tab: %d heads, %d strips, %d pages — "+
+			"each switch left the screen it drew standing", got.Heads, got.Strips, got.Pages)
+	}
+}

@@ -20,34 +20,61 @@ import { FileLines, Hunk } from "./lines.js";
 const WINDOW = 200;
 
 export function RepoView({ cwd, name, onBack }) {
-    // The stack of the viewer. The page at the top is what is drawn, and going
-    // back is dropping it: a conversation left by three taps comes back by
-    // three, and none of them lands anywhere else.
+    // One screen, one head, one claim on the back gesture — whatever is drawn
+    // inside it. Two pages side by side, each with a head of its own, is a
+    // shape that can stack: any redraw that fails to match them up leaves the
+    // old one standing, and the way back then belongs to a screen nobody sees.
+    // The stack lives here as data instead.
     const [stack, setStack] = useState([{ kind: "changes" }]);
     const top = stack[stack.length - 1];
     const push = useCallback((page) => setStack((was) => [...was, page]), []);
-    const pop = useCallback(() => setStack((was) => (was.length > 1 ? was.slice(0, -1) : was)), []);
 
     const back = useCallback(() => {
-        if (stack.length > 1) pop();
-        else onBack();
-    }, [stack.length, pop, onBack]);
+        setStack((was) => {
+            if (was.length > 1) return was.slice(0, -1);
+            onBack();
+            return was;
+        });
+    }, [onBack]);
+    useBackClose(true, back);
 
     // One base for the whole stack: a file opened from a list measured against
     // one branch and then measured against another is two answers to one
     // question.
     const [base, setBase] = useState("");
     const [wrap, setWrap] = useState(false);
+    const [tab, setTab] = useState("feed");
 
-    if (top.kind === "file") {
-        return html`<${FilePage}
-            cwd=${cwd} path=${top.path} base=${base} wrap=${wrap}
-            onWrap=${() => setWrap((w) => !w)} onBack=${back} />`;
-    }
-    return html`<${ChangesPage}
-        cwd=${cwd} name=${name} base=${base} onBase=${setBase} wrap=${wrap}
-        onWrap=${() => setWrap((w) => !w)}
-        onFile=${(path) => push({ kind: "file", path })} onBack=${back} />`;
+    const [changes] = useAsk(() => changesOf(cwd, base), [cwd, base]);
+    const data = changes.kind === "ready" ? changes.data : null;
+    const file = top.kind === "file" ? top.path : "";
+
+    return html`
+        <${BackHead} onBack=${back} label=${file ? "to the changes" : "to the conversation"}
+                     tools=${html`<${WrapButton} on=${wrap} onClick=${() => setWrap((w) => !w)} />`}>
+            <div class="chathead">
+                <h2>${file ? file.split("/").pop() : (data && !data.noRepo ? data.branch : name)}</h2>
+                <div class="chatsub">
+                    ${file
+                        ? html`<span>${file.split("/").slice(0, -1).join("/") || "/"}</span>`
+                        : data && !data.noRepo
+                        ? html`<span class="cdbase" title=${`the base comes from the ${data.baseFrom}`}>
+                                 against <b>${data.base || "nothing"}</b>
+                               </span>
+                               <span>${data.total} ${data.total === 1 ? "file" : "files"}</span>`
+                        : html`<span>${cwd}</span>`}
+                </div>
+            </div>
+        <//>
+        <div class=${`cdpage${wrap ? " wrap" : ""}`}>
+            ${file
+                ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} />`
+                : html`<${ChangesBody}
+                           cwd=${cwd} state=${changes} data=${data} base=${base}
+                           tab=${tab} onTab=${setTab} onBase=${setBase}
+                           onFile=${(path) => push({ kind: "file", path })} />`}
+        </div>
+    `;
 }
 
 // WrapButton switches the wrapping of long lines. Off by default: a wrapped
@@ -62,63 +89,33 @@ function WrapButton({ on, onClick }) {
     `;
 }
 
-function ChangesPage({ cwd, name, base, onBase, wrap, onWrap, onFile, onBack }) {
-    // Each layer with an arrow of its own catches the gesture itself: one
-    // subscription for two layers leaves the second uncovered, and a swipe
-    // there closes the app rather than the page.
-    useBackClose(true, onBack);
-    const [tab, setTab] = useState("feed");
-    const [state] = useAsk(() => changesOf(cwd, base), [cwd, base]);
-    const data = state.kind === "ready" ? state.data : null;
-
-    // One page, one root. A head and a body returned as a fragment are matched
-    // up by position, and any difference in the number of nodes between two
-    // draws lands on the neighbours — a second head under the first, and a way
-    // back that leads nowhere.
+function ChangesBody({ cwd, state, data, base, tab, onTab, onBase, onFile }) {
     return html`
-      <div class="cdscreen">
-        <${BackHead} onBack=${onBack} label="to the conversation"
-                     tools=${html`<${WrapButton} on=${wrap} onClick=${onWrap} />`}>
-            <div class="chathead">
-                <h2>${data && !data.noRepo ? data.branch : name}</h2>
-                <div class="chatsub">
-                    ${data && !data.noRepo
-                        ? html`<span class="cdbase" title=${`the base comes from the ${data.baseFrom}`}>
-                                 against <b>${data.base || "nothing"}</b>
-                               </span>
-                               <span>${data.total} ${data.total === 1 ? "file" : "files"}</span>`
-                        : html`<span>${cwd}</span>`}
-                </div>
-            </div>
-        <//>
-        <div class=${`cdpage${wrap ? " wrap" : ""}`}>
-            <div class="cdstrip" hidden=${Boolean(data && data.noRepo)}>
-                <button class="chip" type="button" aria-pressed=${tab === "feed"}
-                        onClick=${() => setTab("feed")}>Changes</button>
-                <button class="chip" type="button" aria-pressed=${tab === "tree"}
-                        onClick=${() => setTab("tree")}>Files</button>
-                ${data && data.base && html`
-                    <button class="chip cdbasepick" type="button"
-                            onClick=${() => onBase(base ? "" : data.base)}
-                            title="the base of this reading only">
-                        ${base ? "project base" : "this reading"}
-                    </button>
-                `}
-            </div>
-
-            ${state.kind === "loading" && html`<p class="hint">Reading the repository…</p>`}
-            ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
-
-            ${data && data.noRepo && html`
-                <p class="hint">
-                    This project keeps no git repository — there is nothing here to compare or review.
-                    <br />The directory itself is at <b>${data.root || cwd}</b>.
-                </p>
+        <div class="cdstrip" hidden=${Boolean(data && data.noRepo)}>
+            <button class="chip" type="button" aria-pressed=${tab === "feed"}
+                    onClick=${() => onTab("feed")}>Changes</button>
+            <button class="chip" type="button" aria-pressed=${tab === "tree"}
+                    onClick=${() => onTab("tree")}>Files</button>
+            ${data && data.base && html`
+                <button class="chip cdbasepick" type="button"
+                        onClick=${() => onBase(base ? "" : data.base)}
+                        title="the base of this reading only">
+                    ${base ? "project base" : "this reading"}
+                </button>
             `}
-            ${data && !data.noRepo && tab === "tree" && html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`}
-            ${data && !data.noRepo && tab === "feed" && html`<${ChangeFeed} cwd=${cwd} data=${data} onFile=${onFile} />`}
         </div>
-      </div>
+
+        ${state.kind === "loading" && html`<p class="hint">Reading the repository…</p>`}
+        ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
+
+        ${data && data.noRepo && html`
+            <p class="hint">
+                This project keeps no git repository — there is nothing here to compare or review.
+                <br />The directory itself is at <b>${data.root || cwd}</b>.
+            </p>
+        `}
+        ${data && !data.noRepo && tab === "tree" && html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`}
+        ${data && !data.noRepo && tab === "feed" && html`<${ChangeFeed} cwd=${cwd} data=${data} onFile=${onFile} />`}
     `;
 }
 
@@ -228,68 +225,54 @@ function TreePane({ cwd, changes, onFile }) {
     `;
 }
 
-// FilePage is one file, whole: the window a screen reads it by, with the next
+// FileBody is one file, whole: the window a screen reads it by, with the next
 // one a tap away rather than a scroll that never ends.
-function FilePage({ cwd, path, base, wrap, onWrap, onBack }) {
-    useBackClose(true, onBack);
+function FileBody({ cwd, path, base }) {
     const [first, setFirst] = useState(1);
     const [mode, setMode] = useState("file");
     const [file] = useAsk(() => fileOf(cwd, path, "", first, WINDOW), [cwd, path, first], mode === "file");
     const [diff] = useAsk(() => diffOf(cwd, path, base, ""), [cwd, path, base], mode === "diff");
 
-    const name = path.split("/").pop();
-    const dir = path.split("/").slice(0, -1).join("/");
     const data = file.kind === "ready" ? file.data : null;
     const cut = diff.kind === "ready" ? diff.data : null;
 
     return html`
-      <div class="cdscreen">
-        <${BackHead} onBack=${onBack} label="to the changes"
-                     tools=${html`<${WrapButton} on=${wrap} onClick=${onWrap} />`}>
-            <div class="chathead">
-                <h2>${name}</h2>
-                <div class="chatsub"><span>${dir || "/"}</span></div>
-            </div>
-        <//>
-        <div class=${`cdpage${wrap ? " wrap" : ""}`}>
-            <div class="cdstrip">
-                <button class="chip" type="button" aria-pressed=${mode === "file"}
-                        onClick=${() => setMode("file")}>File</button>
-                <button class="chip" type="button" aria-pressed=${mode === "diff"}
-                        onClick=${() => setMode("diff")}>Diff</button>
-            </div>
+        <div class="cdstrip">
+            <button class="chip" type="button" aria-pressed=${mode === "file"}
+                    onClick=${() => setMode("file")}>File</button>
+            <button class="chip" type="button" aria-pressed=${mode === "diff"}
+                    onClick=${() => setMode("diff")}>Diff</button>
+        </div>
 
-            ${mode === "file" && html`
-                ${file.kind === "loading" && html`<p class="hint">Reading the file…</p>`}
-                ${file.kind === "failed" && html`<p class="hint crit">${file.error}</p>`}
-                ${data && data.binary && html`<p class="hint">This file is binary — there is nothing to read here.</p>`}
-                ${data && data.tooBig && html`<p class="hint">This file is ${Math.round(data.size / 1024)} KB, past what the panel reads in one piece.</p>`}
-                ${data && data.lines && html`
-                    <${FileLines} path=${path} first=${data.first} lines=${data.lines} spans=${data.spans}
-                                  head=${`lines ${data.first}–${data.first + data.lines.length - 1} of ${data.total}`} />
-                    ${data.more && html`
-                        <button class="cdopen" type="button"
-                                onClick=${() => setFirst(data.first + data.lines.length)}>
-                            The next ${WINDOW} lines
-                        </button>
-                    `}
-                    ${data.first > 1 && html`
-                        <button class="cdopen" type="button"
-                                onClick=${() => setFirst(Math.max(1, data.first - WINDOW))}>
-                            The ${WINDOW} before
-                        </button>
-                    `}
+        ${mode === "file" && html`
+            ${file.kind === "loading" && html`<p class="hint">Reading the file…</p>`}
+            ${file.kind === "failed" && html`<p class="hint crit">${file.error}</p>`}
+            ${data && data.binary && html`<p class="hint">This file is binary — there is nothing to read here.</p>`}
+            ${data && data.tooBig && html`<p class="hint">This file is ${Math.round(data.size / 1024)} KB, past what the panel reads in one piece.</p>`}
+            ${data && data.lines && html`
+                <${FileLines} path=${path} first=${data.first} lines=${data.lines} spans=${data.spans}
+                              head=${`lines ${data.first}\u2013${data.first + data.lines.length - 1} of ${data.total}`} />
+                ${data.more && html`
+                    <button class="cdopen" type="button"
+                            onClick=${() => setFirst(data.first + data.lines.length)}>
+                        The next ${WINDOW} lines
+                    </button>
+                `}
+                ${data.first > 1 && html`
+                    <button class="cdopen" type="button"
+                            onClick=${() => setFirst(Math.max(1, data.first - WINDOW))}>
+                        The ${WINDOW} before
+                    </button>
                 `}
             `}
+        `}
 
-            ${mode === "diff" && html`
-                ${diff.kind === "loading" && html`<p class="hint">Reading the diff…</p>`}
-                ${diff.kind === "failed" && html`<p class="hint crit">${diff.error}</p>`}
-                ${cut && !cut.files.length && html`<p class="hint">This file has not changed against <b>${cut.base}</b>.</p>`}
-                ${cut && cut.files.map((f) =>
-                    f.hunks.map((h, i) => html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`))}
-            `}
-        </div>
-      </div>
+        ${mode === "diff" && html`
+            ${diff.kind === "loading" && html`<p class="hint">Reading the diff…</p>`}
+            ${diff.kind === "failed" && html`<p class="hint crit">${diff.error}</p>`}
+            ${cut && !cut.files.length && html`<p class="hint">This file has not changed against <b>${cut.base}</b>.</p>`}
+            ${cut && cut.files.map((f) =>
+                f.hunks.map((h, i) => html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`))}
+        `}
     `;
 }

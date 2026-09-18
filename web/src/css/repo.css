@@ -6,10 +6,6 @@
    scrolls inside itself: what moves sideways in this panel is the contents of a
    block, never the screen. */
 
-/* One page, one root: the head and the body of a screen live in it together,
-   so a redraw replaces a screen instead of laying one over another. */
-.cdscreen { display: contents; }
-
 .cdpage {
     padding-bottom: 12px;
 }

@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- The viewer where it actually lives: a layer opened over a conversation
+     that holds the back gesture itself, redraws on its own, and stays mounted
+     underneath. A screen that is fine on its own and piles up here is a screen
+     that breaks in the hand. -->
+<div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
+  <div id="root" style="flex:1;min-height:0;overflow:auto"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { useEffect, useState } from "preact/hooks";
+import { RepoView } from "/src/screens/repo/view.js";
+import { useBackClose } from "/src/ui/back.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const CHANGES = {
+    root: "/srv/proj", branch: "work", base: "main", baseFrom: "project",
+    head: "abc1234", rev: "rev1",
+    files: [{ path: "pkg/env.go", layer: "worktree", add: 6, delete: 1, status: "M" }],
+    total: 1, cut: false,
+};
+const TREE = { root: "/srv/proj", path: "", total: 1, cut: false, entries: [{ name: "pkg", dir: true }] };
+const DIFF = { rev: "rev1", path: "pkg/env.go", base: "main", baseFrom: "project", files: [] };
+
+window.fetch = async (url) => {
+    const at = String(url);
+    const body = at.includes("/changes") ? CHANGES : at.includes("/tree") ? TREE : DIFF;
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+};
+
+// The conversation underneath: it claims the back gesture for itself, the way
+// a run does, and keeps redrawing while the layer over it is open.
+function Run() {
+    const [open, setOpen] = useState(false);
+    const [n, setN] = useState(0);
+    useBackClose(true, () => {});
+    useEffect(() => {
+        const t = setInterval(() => setN((was) => was + 1), 70);
+        return () => clearInterval(t);
+    }, []);
+    if (open) {
+        return h(RepoView, { cwd: "/srv/proj", name: "work", tick: n, onBack: () => setOpen(false) });
+    }
+    return h("button", { id: "open", onClick: () => setOpen(true) }, "open the repository");
+}
+
+render(h(ToastHost, null, h(Run)), document.getElementById("root"));
+
+window.done = new Promise((done) => {
+    const waitFor = (sel, then) => {
+        const el = document.querySelector(sel);
+        if (!el) return setTimeout(() => waitFor(sel, then), 30);
+        then(el);
+    };
+    waitFor("#open", (b) => {
+        b.click();
+        waitFor(".cdbasepick", () => {
+            // What the person did: switch the base, then the tab, then back.
+            const chips = () => [...document.querySelectorAll(".cdstrip .chip")];
+            chips()[2].click();
+            setTimeout(() => {
+                chips()[2].click();
+                setTimeout(() => {
+                    chips()[1].click();
+                    setTimeout(() => {
+                        done({
+                            heads: document.querySelectorAll(".phead").length,
+                            strips: document.querySelectorAll(".cdstrip").length,
+                            pages: document.querySelectorAll(".cdpage").length,
+                        });
+                    }, 200);
+                }, 200);
+            }, 200);
+        });
+    });
+});
+</script>
