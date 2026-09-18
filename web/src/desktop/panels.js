@@ -44,9 +44,6 @@ export const PANELS = {
         { id: "procs", label: "Processes", icon: Icon.tools },
         { id: "journal", label: "Action journal", icon: Icon.list },
     ],
-    profiles: [
-        { id: "journal", label: "Action journal", icon: Icon.list },
-    ],
     devices: [],
     home: [],
 };

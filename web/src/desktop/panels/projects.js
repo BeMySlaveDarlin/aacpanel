@@ -4,9 +4,91 @@ import { useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { plural } from "../../format.js";
+import { knows, whyNot } from "../../exec.js";
+import { useAction } from "../../actions/gate.js";
 import { useProfileMap, orderOf } from "../../screens/profiles/state.js";
 import { EditLayer } from "../../screens/profiles/forms.js";
-import { GroupRow } from "../profiles.js";
+import { dotOf } from "../../screens/profiles/pick.js";
+
+function ProjectRow({ project, profile, group, gone, exec, onForm, onRemove, onOpened }) {
+    const run = useAction();
+    const can = knows(exec, "session.open");
+    return html`
+        <div class=${`dkrow dkitem${gone ? " dkgone" : ""}`}>
+            <span class="dkname">${project.name}</span>
+            <span class="dkpath" title=${project.path}>${project.path}</span>
+            ${gone && html`<span class="dkmiss" data-tip="The directory is not on disk" data-tipside="left">!</span>`}
+            <span class="dkacts">
+                <i
+                    class=${`dkact${can ? "" : " off"}`}
+                    data-tip=${can ? undefined : whyNot(exec, "session.open")}
+                    data-tipside="left"
+                    onClick=${async () => {
+                        if (!can) return;
+                        const target = project.session || project.name;
+                        const done = await run("session.open", target, { project: project.id });
+                        if (done && done.ok && onOpened) onOpened(target);
+                    }}
+                ><${Icon.play} /></i>
+                <i
+                    class="dkact"
+                    onClick=${() => onForm({ kind: "project", mode: "edit", profile, group, project })}
+                ><${Icon.pencil} /></i>
+                <i
+                    class="dkact danger"
+                    onClick=${() => onRemove({ kind: "project", profile, group, project })}
+                ><${Icon.close} /></i>
+            </span>
+        </div>
+    `;
+}
+
+// GroupRow renders a shelf with its projects, expanded by a tap on the row.
+function GroupRow({ profile, group, expanded, onToggle, onForm, onRemove, gone, exec, onOpened }) {
+    const projects = group.projects || [];
+    return html`
+        <div>
+            <button class="dkrow dkproj" type="button" onClick=${onToggle}>
+                <span class=${`dkchev${expanded ? " down" : ""}`}><${Icon.chevron} /></span>
+                <span class="dkdotcell">
+                    ${dotOf(group, gone) !== "ok" && html`<span class=${`dkdot dk${dotOf(group, gone)}`}></span>`}
+                </span>
+                <span class="dkname">${group.name}</span>
+                <span class="dknum">${projects.length}</span>
+                <span class="dkacts" onClick=${(e) => e.stopPropagation()}>
+                    <i
+                        class="dkact"
+                        onClick=${() => onForm({ kind: "project", mode: "add", profile, group })}
+                    ><${Icon.plus} /></i>
+                    <i
+                        class="dkact"
+                        onClick=${() => onForm({ kind: "group", mode: "edit", profile, group })}
+                    ><${Icon.pencil} /></i>
+                    <i
+                        class="dkact danger"
+                        onClick=${() => onRemove({ kind: "group", profile, group })}
+                    ><${Icon.close} /></i>
+                </span>
+            </button>
+            ${expanded && projects.length === 0 && html`
+                <p class="dkempty dkunder">the group has no projects — there is nothing to launch from it</p>
+            `}
+            ${expanded && projects.map((project) => html`
+                <${ProjectRow}
+                    key=${project.id}
+                    project=${project}
+                    profile=${profile}
+                    group=${group}
+                    gone=${Boolean(gone && gone.has(project.id))}
+                    exec=${exec}
+                    onForm=${onForm}
+                    onRemove=${onRemove}
+                    onOpened=${onOpened}
+                />
+            `)}
+        </div>
+    `;
+}
 
 export function Projects({ picks, exec, onOpened }) {
     const {

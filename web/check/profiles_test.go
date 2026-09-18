@@ -149,7 +149,7 @@ func TestLooseScreenSendsOnlyThroughGate(t *testing.T) {
 }
 
 func TestProfileScreenReadsOnlyFieldsTheAPISends(t *testing.T) {
-	const deskFile = "src/desktop/profiles.js"
+	const deskFile = "src/desktop/panels/projects.js"
 	desk := srcFiles(t)[deskFile]
 	if desk == "" {
 		t.Fatalf("%s not found — the desktop layout of the map has moved", deskFile)
