@@ -82,6 +82,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionKill(ctx, req.Target)
 	case action.SessionStop:
 		return e.sessionStop(ctx, req.Target)
+	case action.SessionEscape:
+		return e.sessionEscape(ctx, req.Target)
 	case action.SessionFile:
 		return e.sessionFile(ctx, req.Target, req.Text, req.Files)
 	case action.SessionCommand:

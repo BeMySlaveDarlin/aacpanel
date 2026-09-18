@@ -26,6 +26,10 @@ const (
 	SessionDismiss Kind = "session.dismiss"
 	// SessionStop interrupts what the model is writing right now.
 	SessionStop Kind = "session.stop"
+	// SessionEscape closes a screen the session put up on its own and gives the
+	// composer back, so that what is typed next goes to the conversation and
+	// not into a dialog nobody at the panel has seen.
+	SessionEscape Kind = "session.escape"
 	// SessionFile sends a file or a screenshot from the phone into a session.
 	SessionFile Kind = "session.file"
 	// SessionCommand sends a slash command into a session.
@@ -52,7 +56,7 @@ const (
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
-	SessionAnswer, SessionDismiss, SessionStop, SessionFile, SessionCommand,
+	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
 	SessionPermit, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }

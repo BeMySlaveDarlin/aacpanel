@@ -262,6 +262,9 @@ func TestWorkStopCarriesWhatTheScreenShows(t *testing.T) {
 		{"agent without a name", Request{ID: "1", Kind: AgentStop, Target: "aacpanel", Work: &Work{}}, false},
 		{"work on an action that takes none", Request{ID: "1", Kind: SessionStop, Target: "aacpanel",
 			Work: &Work{ID: "bqjjajuiv", Line: "sleep 400"}}, false},
+		{"Esc into a session", Request{ID: "1", Kind: SessionEscape, Target: "aacpanel"}, true},
+		{"Esc carrying words", Request{ID: "1", Kind: SessionEscape, Target: "aacpanel",
+			Text: "restart the router"}, false},
 	}
 
 	for _, c := range cases {

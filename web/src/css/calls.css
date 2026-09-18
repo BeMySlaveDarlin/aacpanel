@@ -258,6 +258,15 @@ button.filepic {
     box-shadow: none;
 }
 
+.magain {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin-top: .5rem;
+}
+.magain .mwait { margin: 0; }
+
 .mwait {
     margin: .3rem 0 0;
     font-family: var(--mono);

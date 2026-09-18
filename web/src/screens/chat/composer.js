@@ -288,11 +288,20 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
         if (cmd) return sendCommand();
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");
+        // A row that did not go out is drawn among the rows of the feed, and
+        // those are written from the transcript — nothing is handed to them.
+        // So the row carries what a second attempt takes: where the message
+        // goes, what it says, whether it had files, and where to report how the
+        // attempt went. Without that report a message that did arrive the
+        // second time would stand in the feed twice — once as the failed
+        // bubble, once as its echo.
         const row = {
             role: "me", key, at: new Date().toISOString(),
             text: body || named,
             sent: body,
             file: named || undefined,
+            from: { name, text: body, files: pack.length },
+            done: (patch) => { if (onLocalDone) onLocalDone(key, patch); },
         };
         setText("");
         if (pack.length && onDropFiles) onDropFiles();

@@ -1,0 +1,109 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A photo sent from a phone into a session that was showing a dialog of its
+// own: the host typed nothing and said where the file landed. The row offers
+// the second attempt, and the host lets the first Esc fail — a dialog Esc does
+// not close is the case the button must not send a message into.
+import { h, render } from "preact";
+import { Row } from "/src/screens/chat/rows.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const shot = "/home/x/.local/share/aacpanel-exec/files/20260918-101010-ab12cd-1000032475.png";
+const refusal = "session evirma did not accept the input: nothing was typed: the session is showing a "
+    + "screen of its own, not its composer; it ends with: \"1 to review · 2 to send · 0 to dismiss\". "
+    + "Press Esc in the session to get back to its composer, then send again; "
+    + "the file itself was saved to " + shot;
+
+const json = (body, status = 200) => new Response(JSON.stringify(body),
+    { status, headers: { "Content-Type": "application/json" } });
+
+const sent = [];
+let closes = false;
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u === "/api/exec") {
+        return json({ available: true, kinds: ["session.send", "session.file", "session.escape"] });
+    }
+    if (u === "/api/actions") {
+        const body = JSON.parse((init && init.body) || "{}");
+        sent.push({ kind: body.kind, target: body.target, params: body.params || {} });
+        if (body.kind === "session.escape") {
+            // The first Esc lands on a dialog it does not close: the host reads
+            // the screen again and says what is standing there now.
+            if (!closes) {
+                closes = true;
+                return json({ error: "Esc went into session evirma and its composer did not come back: "
+                    + "the session is showing a screen of its own, not its composer; "
+                    + "it ends with: \"Discard the draft? y/n\"" }, 502);
+            }
+            return json({ ok: true, detail: "Esc pressed in evirma: its composer is free" });
+        }
+        return json({ ok: true, detail: "typed into evirma (free), 71 characters" });
+    }
+    return new Response("", { status: 404 });
+};
+
+const root = document.getElementById("root");
+const patches = [];
+let item = {
+    role: "me", key: "k1", state: "failed", error: refusal,
+    at: new Date().toISOString(),
+    text: "1000032475.png", sent: "", file: "1000032475.png",
+    from: { name: "evirma", text: "", files: 1 },
+};
+
+function draw() {
+    render(h(ToastHost, null, h(GateHost, null, h(Row, { item }))), root);
+}
+
+// The chat screen patches the row it keeps and draws the feed again; here that
+// is this line.
+item.done = (patch) => { patches.push(patch); item = { ...item, ...patch }; draw(); };
+draw();
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const button = () => document.querySelector(".magain .btn");
+const bubble = () => document.querySelector(".msg");
+
+window.done = (async () => {
+    for (let i = 0; i < 60 && (!button() || button().disabled); i += 1) await sleep(50);
+    const label = button() ? button().textContent.trim() : "";
+    if (!button()) return { label, sent, patches, failed: "no button under the refusal" };
+
+    // The button lives inside the bubble of the message it belongs to, and a
+    // thumb has to be able to hit it: both are measured before it is pressed.
+    const btn = button().getBoundingClientRect();
+    const box = bubble().getBoundingClientRect();
+    const fits = btn.left >= box.left - 1 && btn.right <= box.right + 1 && btn.height >= 32;
+
+    button().click();
+    await sleep(400);
+    const afterFail = bubble().textContent;
+    const afterOne = sent.length;
+
+    // A second press only if the refusal left one to press: a row that went out
+    // on the first press has no button, and the fixture reports that rather
+    // than falling over.
+    const second = button();
+    if (second) second.click();
+    await sleep(400);
+    const left = bubble();
+
+    return {
+        label,
+        fits,
+        height: btn.height,
+        afterFail,
+        afterOne,
+        sent,
+        patches,
+        cls: left ? left.className : "",
+        gone: !button(),
+    };
+})();
+</script>

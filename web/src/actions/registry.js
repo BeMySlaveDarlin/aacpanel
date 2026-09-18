@@ -186,6 +186,10 @@ export const ACTIONS = {
         instant: true,
         done: (target) => `${target} stopped`,
     },
+    "session.escape": {
+        instant: true,
+        done: (target) => `The composer of ${target} is free`,
+    },
     "session.file": {
         instant: true,
         done: (target, params) => {
@@ -514,6 +518,7 @@ const NAMES = {
     "session.dismiss": "Dismiss the question",
     "session.permit": "Answer the permission request",
     "session.stop": "Stop the work",
+    "session.escape": "Free the composer",
     "task.stop": "Stop background work",
     "agent.stop": "Stop subagent",
     "session.file": "Send file",

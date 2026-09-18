@@ -119,12 +119,18 @@ func TestGateKeepsSendPrivate(t *testing.T) {
 }
 
 var instantActions = map[string]bool{
-	"alert.ack":       true,
-	"session.send":    true,
-	"session.answer":  true,
-	"session.stop":    true,
-	"session.file":    true,
-	"session.permit":  true,
+	"alert.ack":      true,
+	"session.send":   true,
+	"session.answer": true,
+	"session.stop":   true,
+	"session.file":   true,
+	"session.permit": true,
+	// Esc is pressed only into a session that is holding a screen of its own,
+	// and the executor reads the screen before the key: on a free composer it
+	// presses nothing. It takes a session out of a dialog it put up, which is
+	// no more than writing into it — and a second sheet in front of a button
+	// the person pressed to recover from a refusal is a sheet in the way.
+	"session.escape":  true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -138,6 +144,7 @@ var instantExecActions = map[string]bool{
 	"session.stop":   true,
 	"session.permit": true,
 	"session.file":   true,
+	"session.escape": true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

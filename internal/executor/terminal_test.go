@@ -209,6 +209,30 @@ func TestTheComposerIsFoundWhenTheScreenCutItsLowerRule(t *testing.T) {
 	}
 }
 
+// A refusal names the fact — the session is showing a screen of its own — and
+// the fact alone sends the person to a terminal to see which screen that is.
+// The lines it carries are that look, taken from the end of the screen where
+// what holds the keyboard says what it wants.
+func TestARefusalCarriesTheEndOfTheScreen(t *testing.T) {
+	term := &fakeTerm{screen_: draftDialogScreen, known: true}
+	if _, err := pasteAndSend(context.Background(), term, "restart the router", nil); err == nil {
+		t.Fatal("a message into a dialog was passed off as delivered")
+	} else {
+		said := err.Error()
+		for _, want := range []string{"What happened", "1 to review"} {
+			if !strings.Contains(said, want) {
+				t.Errorf("the refusal %q carries no %q — which dialog holds the keyboard is invisible from the panel", said, want)
+			}
+		}
+		if strings.Contains(said, "╰") {
+			t.Errorf("the refusal %q carries the drawing of the box: those lines say nothing and crowd out the ones that do", said)
+		}
+	}
+	if len(term.sent) != 0 {
+		t.Errorf("%d payloads went into the dialog: %q", len(term.sent), term.sent)
+	}
+}
+
 func TestNothingIsTypedIntoAList(t *testing.T) {
 	term := &fakeTerm{screen_: traySelectedScreen, known: true}
 	confirmed, err := pasteAndSend(context.Background(), term, "check the stack logs", nil)

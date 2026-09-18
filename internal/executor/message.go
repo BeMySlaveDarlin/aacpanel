@@ -122,6 +122,50 @@ func (e *Executor) sessionStop(ctx context.Context, target string) (string, erro
 	return fmt.Sprintf("%s: the queue was cleared, there was nothing to interrupt", s.Name), nil
 }
 
+// sessionEscape gives the composer back. A session showing a screen of its own
+// — a dialog it drew, a list it opened — holds the keyboard, and a message
+// typed into that answers a question the person at the panel never saw.
+//
+// The screen is read before the key and again after it. Esc means a different
+// thing to every screen, so a composer that did not come back is said so
+// plainly, together with what stands on the screen now. Nothing is pressed
+// while the composer is free: the same key in an ordinary conversation
+// interrupts the answer being written, and a button that quietly does that is
+// worse than one that does nothing.
+func (e *Executor) sessionEscape(ctx context.Context, target string) (string, error) {
+	s, err := findOneLiveSession(target)
+	if err != nil {
+		return "", err
+	}
+	t, kerr := termFor(ctx, s.PID)
+	if kerr != nil {
+		return "", fmt.Errorf(
+			"session %s takes no Esc: %v — Esc is a key, and a letter cannot carry it", target, kerr)
+	}
+	screen, seen := t.screen(ctx)
+	if !seen {
+		return "", fmt.Errorf(
+			"the screen of session %s cannot be read, and Esc would go in blind: in an ordinary "+
+				"conversation it interrupts the answer instead of closing a dialog", s.Name)
+	}
+	if _, ready := composerReady(screen); ready {
+		return fmt.Sprintf("%s: nothing was pressed, its composer is free as it is", s.Name), nil
+	}
+	if err := t.send(ctx, escKey); err != nil {
+		return "", fmt.Errorf("session %s did not accept the input: %w", target, err)
+	}
+	busy, back := composerFree(ctx, t)
+	switch {
+	case !back:
+		return "", fmt.Errorf(
+			"Esc went into session %s, and its screen can no longer be read: whether the composer "+
+				"came back is unknown", s.Name)
+	case busy != "":
+		return "", fmt.Errorf("Esc went into session %s and its composer did not come back: %s", s.Name, busy)
+	}
+	return fmt.Sprintf("Esc pressed in %s: its composer is free", s.Name), nil
+}
+
 func deliver(ctx context.Context, socket, from, text string) error {
 	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()

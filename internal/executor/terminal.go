@@ -47,7 +47,10 @@ const (
 	pastePoll  = 90 * time.Millisecond
 	arriveWait = 3 * time.Second
 	sendWait   = 5 * time.Second
+	freeWait   = 2 * time.Second
 	markRunes  = 24
+	tailLines  = 3
+	tailRunes  = 64
 )
 
 var promptMarks = []string{"❯", ">"}
@@ -263,7 +266,7 @@ func cursorAt(line string) string {
 func composerReady(screen string) (string, bool) {
 	_, toBottom, ok := composerAt(screen)
 	if !ok {
-		return "the session is showing a screen of its own, not its composer", false
+		return withTail("the session is showing a screen of its own, not its composer", screen), false
 	}
 	if toBottom {
 		// The composer is the last thing on the screen: there is no room under
@@ -287,6 +290,81 @@ func composerReady(screen string) (string, bool) {
 		}
 	}
 	return "", true
+}
+
+// composerFree waits for the composer to come back after a key meant to give it
+// back. The screen is drawn again in its own time, and reading it in the
+// instant the key went in reads the screen that was there before.
+//
+// It reports what holds the keyboard while something does, and whether the
+// screen could be read at all: a screen that cannot be read is not free, it is
+// unknown, and the two are answered differently.
+func composerFree(ctx context.Context, t term) (busy string, seen bool) {
+	deadline := time.Now().Add(freeWait)
+	for {
+		screen, ok := t.screen(ctx)
+		if !ok {
+			return "", false
+		}
+		held, ready := composerReady(screen)
+		if ready {
+			return "", true
+		}
+		if time.Now().After(deadline) {
+			return held, true
+		}
+		select {
+		case <-ctx.Done():
+			return held, true
+		case <-time.After(pastePoll):
+		}
+	}
+}
+
+// withTail adds the end of the session screen to the reason it took no input.
+// The reason names the fact, these lines name the dialog behind it: without
+// them the only way to learn what holds the keyboard is to walk to the machine
+// the session runs on.
+func withTail(reason, screen string) string {
+	tail := screenTail(screen)
+	if tail == "" {
+		return reason
+	}
+	return reason + "; it ends with: " + tail
+}
+
+// screenTail quotes the last lines of the screen that say something. Rules and
+// borders carry no words, and a long line is cut: the reason travels as one
+// line into a phone.
+func screenTail(screen string) string {
+	lines := strings.Split(screen, "\n")
+	var tail []string
+	for i := len(lines) - 1; i >= 0 && len(tail) < tailLines; i-- {
+		line := strings.Trim(lines[i], " \t│┃|")
+		if !speaks(line) {
+			continue
+		}
+		tail = append([]string{fmt.Sprintf("%q", cutRunes(line, tailRunes))}, tail...)
+	}
+	return strings.Join(tail, " / ")
+}
+
+// speaks reports that the line carries words rather than the drawing of a box.
+func speaks(line string) bool {
+	for _, r := range line {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func cutRunes(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "…"
 }
 
 func lastRule(lines []string, from int) int {
