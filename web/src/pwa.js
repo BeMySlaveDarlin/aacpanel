@@ -6,6 +6,7 @@ let reloading = false;
 let applying = null;
 let asked = false;
 let installPrompt = null;
+let stuck = null;
 
 // A worker told to take over usually does so within a second. The browser
 // holds it back for as long as the old worker has an event in flight — an
@@ -18,6 +19,16 @@ let installPrompt = null;
 const takeoverGrace = 15000;
 // controllerchange follows the activation; when it does not, the page reloads itself.
 const changeGrace = 1000;
+// The page leaves itself a note about the reload it just sent for. A reload
+// that changed nothing brings the page back to the same banner over the same
+// worker, and the round after it ends where this one did — so the note is what
+// tells the page it is going in circles. sessionStorage, not localStorage: the
+// note belongs to this tab and goes away with it.
+const markKey = "aacpanel:self-reload";
+// How long the note speaks for the round the page is in: longer than a load,
+// a banner, a tap and the grace put together, short enough that a tap made
+// much later counts as a fresh attempt rather than the same circle.
+const loopWindow = 60000;
 
 export async function register(onUpdate) {
     if (!("serviceWorker" in navigator)) return null;
@@ -29,7 +40,7 @@ export async function register(onUpdate) {
         // changed for the page yet. A takeover the page asked for is reloaded
         // regardless of how the page was loaded.
         if (!hadController && !asked) return;
-        reload();
+        reload("takeover");
     });
 
     let registration;
@@ -48,6 +59,9 @@ export async function register(onUpdate) {
     };
 
     if (registration.waiting && navigator.serviceWorker.controller) announce(registration.waiting);
+    // Nothing is waiting: the page came up on the version it will run, so the
+    // reload that brought it here did its job and is no circle to break.
+    else forget();
 
     registration.addEventListener("updatefound", () => {
         const installing = registration.installing;
@@ -65,9 +79,11 @@ export async function register(onUpdate) {
 }
 
 // apply asks the new worker to take over and settles once the page has been
-// sent for a reload. A second call while the first is under way joins it.
+// sent for a reload. A second call while the first is under way joins it. An
+// attempt that ended without a reload is not kept: the banner is live again
+// and the tap is the person's to repeat.
 export function apply() {
-    if (!applying) applying = takeOver();
+    if (!applying) applying = takeOver().finally(() => { if (!reloading) applying = null; });
     return applying;
 }
 
@@ -79,7 +95,7 @@ async function takeOver() {
         const worker = candidate();
         if (!worker) {
             // Nobody to wait for: the banner is stale, and a reload brings up what is installed.
-            reload();
+            reload("stale");
             return;
         }
         if (worker.state === "installed" && !told.has(worker)) {
@@ -90,7 +106,7 @@ async function takeOver() {
             const left = deadline - Date.now();
             const state = left > 0 ? await nextState(worker, left) : null;
             if (state === null) {
-                reload();
+                reload("grace");
                 return;
             }
             // "installed": the worker finished installing and is told next round.
@@ -98,7 +114,7 @@ async function takeOver() {
             if (state !== "activating" && state !== "activated") continue;
         }
         await after(changeGrace);
-        reload();
+        reload("takeover");
         return;
     }
 }
@@ -133,10 +149,56 @@ function after(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function reload() {
+// reload sends the page for a reload and leaves the reason behind. A page
+// that came back from its own reload over the same reason gains nothing by
+// turning the round again, so it stays where it is and says so instead.
+function reload(why) {
     if (reloading) return;
+    const mark = read();
+    if (mark && mark.why === why && Date.now() - mark.at < loopWindow) {
+        if (stuck) stuck();
+        return;
+    }
+    write({ why, at: Date.now() });
     reloading = true;
     location.reload();
+}
+
+// The storage can be absent altogether — a private window, site data switched
+// off — and then reading it throws instead of answering. The guard is simply
+// not armed in that case, and the page reloads as it would have anyway.
+function read() {
+    try {
+        const raw = sessionStorage.getItem(markKey);
+        const mark = raw ? JSON.parse(raw) : null;
+        if (mark && typeof mark.why === "string" && typeof mark.at === "number") return mark;
+    } catch {
+        // no storage to read, or something else wrote over the note
+    }
+    return null;
+}
+
+function write(mark) {
+    try {
+        sessionStorage.setItem(markKey, JSON.stringify(mark));
+    } catch {
+        // nothing to remember the round by
+    }
+}
+
+function forget() {
+    try {
+        sessionStorage.removeItem(markKey);
+    } catch {
+        // nothing was remembered
+    }
+}
+
+// watchStuck hands the page the news that an update is not installing: the
+// page has already come back from a reload over this one and will not turn
+// the same round again.
+export function watchStuck(onStuck) {
+    stuck = onStuck;
 }
 
 export function watchInstall(onChange) {
