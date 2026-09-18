@@ -330,6 +330,12 @@ func TestOneLineIsTypedAndManyLinesArePasted(t *testing.T) {
 		{name: "long line", text: strings.Repeat("check the stack logs and say what crashed, ", 8), paste: false},
 		{name: "two lines", text: "check the stack logs\nand say what crashed", paste: true},
 		{name: "break at the end", text: "check the stack logs\n", paste: true},
+		// A line the composer would read as a key: typed in, the bang hands the
+		// rest to a shell, the hash files it away as a memory, and the at-sign
+		// opens a list of files that the Enter behind it picks from.
+		{name: "starts with a bang", text: "!!! the deploy is on fire", paste: true},
+		{name: "starts with a hash", text: "#557 is it done", paste: true},
+		{name: "carries an at-sign", text: "ask @pavel about the base", paste: true},
 	}
 
 	for _, c := range cases {

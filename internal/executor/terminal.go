@@ -77,10 +77,23 @@ var attachChips = []string{"[Image#", "[Pastedtext#"}
 // of its own and the message leaves the composer in pieces. It goes in as one
 // paste and wears the mark — that is what arriving whole costs.
 func composerInput(text string) string {
-	if strings.ContainsAny(text, "\n\r") {
+	if strings.ContainsAny(text, "\n\r") || opensAMode(text) {
 		return clearLine + pasteStart + text + pasteEnd + enterKey
 	}
 	return clearLine + text + enterKey
+}
+
+// opensAMode says whether the composer would read the line as a key rather
+// than as text. A leading bang hands the rest to a shell, a leading hash files
+// it away as a memory, and an at-sign anywhere opens a list of files whose
+// first row the Enter behind it picks — so a line typed in is no longer the
+// message that was written. Pasted, the same line is text like any other, and
+// wearing the mark is the smaller loss.
+//
+// A slash is not here: a command has to be read as a command, which is the
+// whole reason it is typed.
+func opensAMode(text string) bool {
+	return strings.HasPrefix(text, "!") || strings.HasPrefix(text, "#") || strings.Contains(text, "@")
 }
 
 func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail) (bool, error) {
