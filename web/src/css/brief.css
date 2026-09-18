@@ -108,11 +108,14 @@
     z-index: 3;
     max-width: var(--brief-col);
     margin: 0 auto;
-    padding: .4rem 16px;
+    /* The same gutter the text below it takes, so the arrow stands over the
+       column rather than over the edge of whatever window the document was
+       opened in. */
+    padding: .5rem 16px;
     background: var(--paper-over);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
-    box-shadow: 0 1px 0 var(--paper-rule);
+    border-bottom: 1px solid var(--paper-rule);
 }
 
 .brief > .phead .pback {
@@ -231,8 +234,12 @@
 .bsection {
     padding: 22px 0;
     border-bottom: 1px solid var(--paper-rule);
-    max-width: var(--brief-measure);
 }
+
+/* The rule under a section runs the width of the document; the measure is for
+   the line of text, not for the line drawn under it — two rules of different
+   lengths down one page read as a page half drawn. */
+.bsection p, .bsection .bprose, .bsection table { max-width: var(--brief-measure); }
 
 .bsection p { margin: 0; font-size: var(--t-md); line-height: 1.6; color: var(--paper-ink-2); }
 .bsection p + p { margin-top: 8px; }
@@ -443,8 +450,9 @@
     padding: 26px 0 8px;
     border-top: 2px solid var(--paper-ink);
     margin-top: 24px;
-    max-width: var(--brief-measure);
 }
+
+.bclose p, .bclose .bprose { max-width: var(--brief-measure); }
 
 .bclose p { margin: 0; font-size: var(--t-md); line-height: 1.6; color: var(--paper-ink-2); }
 .bclose p + p { margin-top: 10px; }

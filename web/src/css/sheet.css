@@ -64,6 +64,28 @@
 
 .sheetbody::-webkit-scrollbar { display: none; }
 
+/* A document opened over a conversation takes the whole screen: it is read,
+   not glanced into, and what it needs is the room and one way back — the one
+   drawn inside it. The run stays underneath, and closing lands on it. */
+.sheet.docfull {
+    top: 0;
+    border-radius: 0;
+    padding: 0;
+    max-height: none;
+    height: 100dvh;
+}
+
+.sheet.docfull.inner {
+    bottom: calc(var(--nav-clear) + env(safe-area-inset-bottom));
+    height: auto;
+    max-height: none;
+    padding-bottom: 0;
+}
+
+.shell.no-nav .sheet.docfull.inner { bottom: 0; }
+
+.sheet.doc .sheetbody { padding: 0; }
+
 .sheet.inner {
     bottom: calc(var(--nav-clear) + env(safe-area-inset-bottom));
     max-height: calc(88dvh - var(--nav-clear));

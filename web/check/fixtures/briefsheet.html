@@ -82,11 +82,17 @@ const px = (v) => Math.round(parseFloat(v) * 100) / 100;
 
 window.done = (async () => {
     await new Promise((r) => setTimeout(r, 350));
-    const sheet = document.querySelector(".sheet");
+    const sheet = document.querySelector(".sheet.doc");
     const page = document.querySelector(".brief-page");
     const prose = document.querySelector(".bask");
     return {
         window: innerWidth,
+        height: innerHeight,
+        // A document carries one way out — the arrow drawn inside it. The
+        // handle and the cross belong to a sheet a person glances into.
+        exits: sheet.querySelectorAll(":scope > .sheetclose, :scope > .grab, :scope > .sheetbody > .brief > .phead .pback").length,
+        exitKinds: Array.from(sheet.querySelectorAll(":scope > .sheetclose, :scope > .grab, :scope > .sheetbody > .brief > .phead .pback")).map((n) => n.className).join(" | "),
+        sheetHeight: Math.round(sheet.getBoundingClientRect().height),
         root: px(getComputedStyle(document.documentElement).fontSize),
         win: sheet.classList.contains("win"),
         doc: sheet.classList.contains("doc"),

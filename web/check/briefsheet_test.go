@@ -7,13 +7,17 @@ import (
 )
 
 type sheetShot struct {
-	Window int     `json:"window"`
-	Root   float64 `json:"root"`
-	Win    bool    `json:"win"`
-	Doc    bool    `json:"doc"`
-	Sheet  int     `json:"sheet"`
-	Page   int     `json:"page"`
-	Prose  float64 `json:"prose"`
+	Window      int     `json:"window"`
+	Height      int     `json:"height"`
+	Exits       int     `json:"exits"`
+	ExitKinds   string  `json:"exitKinds"`
+	SheetHeight int     `json:"sheetHeight"`
+	Root        float64 `json:"root"`
+	Win         bool    `json:"win"`
+	Doc         bool    `json:"doc"`
+	Sheet       int     `json:"sheet"`
+	Page        int     `json:"page"`
+	Prose       float64 `json:"prose"`
 }
 
 // A brief opens as a layer over the conversation, and on a wide screen every
@@ -41,6 +45,25 @@ func TestABriefOverAConversationIsNotDrawnAsADialog(t *testing.T) {
 	}
 	if got.Prose <= got.Root {
 		t.Errorf("the prose reads at %.2f px on a %.2f px root: a document at a desk steps above the panel around it", got.Prose, got.Root)
+	}
+	if got.Exits != 1 {
+		t.Errorf("%d ways out of the document (%s) — a handle, a cross and an arrow stacked at its top read as none", got.Exits, got.ExitKinds)
+	}
+}
+
+// On a phone the document takes the screen. A sheet stopped at half of it
+// leaves six lines of a piece read for the better part of an hour, and the
+// dock lands on the text instead of under it.
+func TestABriefOnAPhoneTakesTheScreen(t *testing.T) {
+	var got sheetShot
+	runFixture(t, "briefsheet.html", &got)
+
+	if got.Exits != 1 {
+		t.Errorf("%d ways out of the document on a phone — one is the arrow it draws itself", got.Exits)
+	}
+	if want := float64(got.Height) * 0.8; float64(got.SheetHeight) < want {
+		t.Errorf("the document is %d px tall on a %d px screen — it opens as a sheet stopped partway (wanted at least %.0f)",
+			got.SheetHeight, got.Height, want)
 	}
 }
 

@@ -143,22 +143,32 @@ export function Sheet({ open, onClose, children, label, inner = false, side = fa
 
     const closeStack = useBackClose(open, onClose);
 
+    // A document takes the screen rather than a share of it, and it carries its
+    // own way out: the handle, the drag between stops and the cross belong to a
+    // sheet a person glances into, not to a piece read for the better part of
+    // an hour. Three exits stacked at its top is a shape nobody reads as one.
+    const shape = doc
+        ? (wide ? "win doc" : "docfull")
+        : (wide ? `win${side ? " side" : ""}` : `draggable ${stop}${dragging ? " dragging" : ""}`);
+
     return html`
-        <div class=${`scrim${open && (wide || stop !== "peek") ? " on" : ""}${inner ? " inner" : ""}${side ? " side" : ""}`}
+        <div class=${`scrim${open && (wide || doc || stop !== "peek") ? " on" : ""}${inner ? " inner" : ""}${side ? " side" : ""}`}
              onClick=${closeStack}></div>
         <div
             ref=${sheetRef}
-            class=${`sheet${open ? " on" : ""}${inner ? " inner" : ""}${doc ? " doc" : ""} ${wide ? `win${side ? " side" : ""}` : `draggable ${stop}${dragging ? " dragging" : ""}`}`}
+            class=${`sheet${open ? " on" : ""}${inner ? " inner" : ""}${doc ? " doc" : ""} ${shape}`}
             role="dialog"
             aria-modal=${open ? "true" : "false"}
             aria-label=${label || "action"}
             aria-hidden=${open ? "false" : "true"}
-            onPointerDown=${onDown}
+            onPointerDown=${doc ? undefined : onDown}
         >
-            ${!wide && html`<div class="grab"><div class="grip"></div></div>`}
-            <button class="sheetclose" type="button" aria-label="close" onClick=${onClose}>
-                ${Icon.close()}
-            </button>
+            ${!wide && !doc && html`<div class="grab"><div class="grip"></div></div>`}
+            ${!doc && html`
+                <button class="sheetclose" type="button" aria-label="close" onClick=${onClose}>
+                    ${Icon.close()}
+                </button>
+            `}
             <div class="sheetbody">${open && children}</div>
         </div>
     `;
