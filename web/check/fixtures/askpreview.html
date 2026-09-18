@@ -43,7 +43,7 @@ const NARROW = [
 const ask = {
     sessionId: "s1",
     toolUseId: "toolu_ask_1",
-    cwd: "/opt/Projects/Pets/service/aacpanel",
+    cwd: "/srv/proj",
     questions: [{
         text: "Where does the menu go on a phone?",
         header: "Menu",
@@ -84,7 +84,7 @@ window.EventSource = class {
 const exec = { available: true, kinds: ["session.answer", "session.dismiss", "session.send"] };
 const live = {
     status: "waiting", pct: 12.4, tokens: 124000, limit: 1000000,
-    tokensIn: 124000, tokensOut: 8000, cwd: "/opt/Projects/Pets/service/aacpanel",
+    tokensIn: 124000, tokensOut: 8000, cwd: "/srv/proj",
 };
 function Page() {
     return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
