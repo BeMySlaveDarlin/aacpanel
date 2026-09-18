@@ -24,7 +24,10 @@ func TestPersonalNameHasOneOwner(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", "node_modules", "dist", "vendor":
+			// The working directory of an agent is not the project: it holds
+			// scratch copies of this very tree, and every rule below would
+			// then be broken by a copy of the file that keeps it.
+			case ".git", ".claude", "node_modules", "dist", "vendor":
 				return filepath.SkipDir
 			}
 			return nil

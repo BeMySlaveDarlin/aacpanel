@@ -78,7 +78,7 @@ func TestProjectRootsHaveOneOwner(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", "node_modules", "vendor", "dist", "__pycache__":
+			case ".git", ".claude", "node_modules", "vendor", "dist", "__pycache__":
 				return filepath.SkipDir
 			}
 			return nil
