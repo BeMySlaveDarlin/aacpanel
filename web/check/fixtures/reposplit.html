@@ -1,0 +1,140 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- Before and after, side by side. The diff is deliberately lopsided — two
+     lines removed where one was added, twice over — because that is what pulls
+     the columns apart when they are laid out by line numbers. -->
+<div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
+  <div id="root" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { RepoView } from "/src/screens/repo/view.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const CHANGES = {
+    root: "/srv/proj", branch: "work", base: "main", baseFrom: "project",
+    head: "abc1234", rev: "rev1",
+    files: [{ path: "pkg/env.go", layer: "worktree", add: 2, delete: 4, status: "M" }],
+    total: 1, cut: false,
+};
+
+const TREE = { root: "/srv/proj", path: "", total: 1, cut: false, entries: [{ name: "pkg", dir: true }] };
+
+const FILE = {
+    rev: "rev1", path: "pkg/env.go", oid: "2", size: 40, first: 1, total: 1, more: false,
+    lines: ["package pkg"], spans: [[]],
+};
+
+const DIFF = {
+    rev: "rev1", path: "pkg/env.go", base: "main", baseFrom: "project",
+    files: [{
+        path: "pkg/env.go", oldOid: "1111111", newOid: "2222222",
+        hunks: [{
+            header: "@@ -70,9 +70,7 @@ func childEnv", layer: "worktree",
+            lines: [
+                { kind: "ctx", old: 70, new: 70, text: "func childEnv() {", spans: null },
+                { kind: "del", old: 71, text: "\tif warn := checkBus(addr); warn != \"\" {", spans: null },
+                { kind: "del", old: 72, text: "\t\twarns = append(warns, warn)", spans: null },
+                { kind: "add", new: 71, text: "\tdelete(env, \"DBUS_SESSION_BUS_ADDRESS\")", spans: null },
+                { kind: "ctx", old: 73, new: 72, text: "\t}", spans: null },
+                { kind: "del", old: 74, text: "\treturn nil", spans: null },
+                { kind: "del", old: 75, text: "\t// unreachable", spans: null },
+                { kind: "add", new: 73, text: "\treturn env", spans: null },
+                { kind: "ctx", old: 76, new: 74, text: "}", spans: null },
+            ],
+        }],
+    }],
+};
+
+window.fetch = async (url) => {
+    const at = String(url);
+    const body = at.includes("/api/repo/changes") ? CHANGES
+        : at.includes("/api/repo/diff") ? DIFF
+        : at.includes("/api/repo/tree") ? TREE
+        : at.includes("/api/repo/file") ? FILE
+        : { error: "unknown" };
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+};
+
+render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {} })), document.getElementById("root"));
+
+const sel = (q) => document.querySelector(q);
+const all = (q) => [...document.querySelectorAll(q)];
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(q, tries = 60) {
+    for (let i = 0; i < tries; i++) {
+        const el = sel(q);
+        if (el) return el;
+        await tick(30);
+    }
+    return null;
+}
+const chip = (text) => all(".chip").find((c) => c.textContent.trim() === text);
+
+window.done = (async () => {
+    const head = await until(".cdfilehead");
+    if (head) head.click();
+    await tick(90);
+    const open = all(".cdopen").find((b) => b.textContent.includes("Open the file"));
+    if (open) open.click();
+    await tick(120);
+
+    const diffChip = chip("Diff");
+    if (diffChip) diffChip.click();
+    await tick(150);
+
+    const unifiedRows = all(".cdln").length;
+    const pick = sel(".cdsplitpick");
+    const pickLabel = pick ? pick.textContent.trim() : "";
+    if (pick) pick.click();
+    await tick(150);
+
+    const rows = all(".cdsprow");
+    const tops = rows.map((r) => {
+        const cells = [...r.children];
+        if (cells.length < 2) return { drift: 999, heights: 999 };
+        const a = cells[0].getBoundingClientRect();
+        const b = cells[1].getBoundingClientRect();
+        return { drift: Math.abs(a.top - b.top), heights: Math.abs(a.height - b.height) };
+    });
+
+    // The last row is the line of context that closes the hunk. After two
+    // lopsided blocks it is the line a column laid out by numbers has carried
+    // two lines away from its own other half.
+    // Every reading below has to survive a broken shape: a fixture that throws
+    // reports "the fixture failed" instead of which rule the code broke.
+    const last = rows.length ? rows[rows.length - 1] : null;
+    const cellOf = (i) => (last && last.children[i] ? last.children[i] : null);
+    const textOf = (i) => {
+        const cell = cellOf(i);
+        return cell ? cell.textContent.replace(/^\d+/, "").trim() : "";
+    };
+    const lastLeft = textOf(0);
+    const lastRight = textOf(1);
+
+    const numbersOf = (i) => {
+        const cell = cellOf(i);
+        const no = cell ? cell.querySelector(".cdno") : null;
+        return no ? no.textContent.trim() : "";
+    };
+
+    return {
+        splitOffered: Boolean(pick),
+        pickLabel,
+        unifiedRows,
+        rows: rows.length,
+        drifted: tops.filter((t) => t.drift > 1).length,
+        unevenHeights: tops.filter((t) => t.heights > 1).length,
+        voids: all(".cdsplit .cdln.void").length,
+        lastLeft,
+        lastRight,
+        lastOldNumber: numbersOf(0),
+        lastNewNumber: numbersOf(1),
+        addOnTheRightOnly: all(".cdsprow").every((r) => !r.children[0].classList.contains("add")),
+        delOnTheLeftOnly: all(".cdsprow").every((r) => !r.children[1].classList.contains("del")),
+    };
+})();
+</script>

@@ -93,6 +93,19 @@ func (s *Server) apiRepoTree(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 
+// apiRepoFind answers with the paths whose names carry what was typed.
+func (s *Server) apiRepoFind(w http.ResponseWriter, r *http.Request) {
+	cwd, _, ok := s.repoProject(w, r)
+	if !ok {
+		return
+	}
+	out, ok := s.repoAsk(w, r, chat.RepoReq{Op: "find", Cwd: cwd, Query: r.URL.Query().Get("q")})
+	if !ok {
+		return
+	}
+	writeJSON(w, out)
+}
+
 // RepoFile is a window of a file with its lines coloured.
 type RepoFile struct {
 	*chat.RepoOut

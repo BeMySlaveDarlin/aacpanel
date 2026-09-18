@@ -1,18 +1,20 @@
-// The repository as a phone reads it: a page opened from the head of a
-// conversation, walked as a stack — the run, its changes, one file — and left
-// one step at a time.
+// The repository as a screen reads it: a page opened from the head of a
+// conversation, and left one step at a time.
 //
-// A stack rather than strips: the viewer is opened from a conversation and has
-// to give it back, and a strip that scrolls sideways under a diff that also
-// scrolls sideways leaves nothing to swipe the page by.
+// One screen, two shapes. On a phone it is a page at a time — the run, then
+// one file — because a strip that scrolls sideways under a diff that also
+// scrolls sideways leaves nothing to swipe the page by. At a desk the same
+// pieces stand side by side: the code in the middle, the directory in a panel
+// beside it, and the open files as tabs above.
 
-import { useCallback, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Icon } from "../../ui/icons.js";
-import { changesOf, diffOf, fileOf, treeOf, useAsk } from "./data.js";
-import { FileLines, Hunk } from "./lines.js";
+import { useWide } from "../../ui/wide.js";
+import { changesOf, diffOf, fileOf, findOf, treeOf, useAsk } from "./data.js";
+import { FileLines, Hunk, SplitHunk } from "./lines.js";
 
 // How much of a file a window carries. The number is the one the service and
 // the agent hold too: three places counting differently is a screen that asks
@@ -20,59 +22,240 @@ import { FileLines, Hunk } from "./lines.js";
 const WINDOW = 200;
 
 export function RepoView({ cwd, name, onBack }) {
-    // One screen, one head, one claim on the back gesture — whatever is drawn
-    // inside it. Two pages side by side, each with a head of its own, is a
-    // shape that can stack: any redraw that fails to match them up leaves the
-    // old one standing, and the way back then belongs to a screen nobody sees.
-    // The stack lives here as data instead.
-    const [stack, setStack] = useState([{ kind: "changes" }]);
-    const top = stack[stack.length - 1];
-    const push = useCallback((page) => setStack((was) => [...was, page]), []);
+    const wide = useWide();
+
+    // What is open and which one is being read. The viewer never went deeper
+    // than "the changes, and then one file", so a list of open files with one
+    // of them in front says everything a stack of pages said — and on a wide
+    // screen that list is also the row of tabs. Both live in one piece of
+    // state: a file closed and a file picked are one move, and two states
+    // moved one after the other draw a frame in between where neither holds.
+    const [tabs, setTabs] = useState({ open: [], active: "" });
+
+    const openFile = useCallback((path) => {
+        setTabs((t) => ({
+            open: t.open.includes(path) ? t.open : [...t.open, path],
+            active: path,
+        }));
+    }, []);
+
+    // Closing the one being read hands the screen to its neighbour rather than
+    // to the changes: the tab beside it is what the eye is already on.
+    const closeFile = useCallback((path) => {
+        setTabs((t) => {
+            const at = t.open.indexOf(path);
+            const open = t.open.filter((p) => p !== path);
+            if (t.active !== path) return { open, active: t.active };
+            return { open, active: open[at] || open[at - 1] || "" };
+        });
+    }, []);
 
     const back = useCallback(() => {
-        setStack((was) => {
-            if (was.length > 1) return was.slice(0, -1);
-            onBack();
-            return was;
-        });
-    }, [onBack]);
+        // On a phone the file is a page over the changes, so the way back goes
+        // through it. At a desk the file is a tab, and the tabs are closed by
+        // their own crosses — the way back belongs to the conversation.
+        if (!wide && tabs.active) {
+            setTabs((t) => ({ ...t, active: "" }));
+            return;
+        }
+        onBack();
+    }, [onBack, wide, tabs.active]);
     useBackClose(true, back);
 
-    // One base for the whole stack: a file opened from a list measured against
-    // one branch and then measured against another is two answers to one
-    // question.
+    // One base for the whole reading: a file opened from a list measured
+    // against one branch and then measured against another is two answers to
+    // one question.
     const [base, setBase] = useState("");
     const [wrap, setWrap] = useState(false);
     const [tab, setTab] = useState("feed");
+    const [pane, setPane] = useState(true);
+
+    // Finding a file by its name. Only where there is a keyboard to press it
+    // on: a phone has no Ctrl and nothing to bind this to.
+    const [finding, setFinding] = useState(false);
+    useEffect(() => {
+        if (!wide) return undefined;
+        const on = (e) => {
+            if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+                e.preventDefault();
+                setFinding((was) => !was);
+                return;
+            }
+            if (e.key === "Escape") setFinding(false);
+        };
+        window.addEventListener("keydown", on);
+        return () => window.removeEventListener("keydown", on);
+    }, [wide]);
 
     const [changes] = useAsk(() => changesOf(cwd, base), [cwd, base]);
     const data = changes.kind === "ready" ? changes.data : null;
-    const file = top.kind === "file" ? top.path : "";
+    const file = tabs.active;
+
+    const head = html`
+        <div class="chathead">
+            <h2>${file && !wide ? file.split("/").pop() : (data && !data.noRepo ? data.branch : name)}</h2>
+            <div class="chatsub">
+                ${file && !wide
+                    ? html`<span>${file.split("/").slice(0, -1).join("/") || "/"}</span>`
+                    : data && !data.noRepo
+                    ? html`<span class="cdbase" title=${`the base comes from the ${data.baseFrom}`}>
+                             against <b>${data.base || "nothing"}</b>
+                           </span>
+                           <span>${data.total} ${data.total === 1 ? "file" : "files"}</span>`
+                    : html`<span>${cwd}</span>`}
+            </div>
+        </div>
+    `;
+
+    const tools = html`
+        ${wide && html`<${PaneButton} on=${pane} onClick=${() => setPane((p) => !p)} />`}
+        <${WrapButton} on=${wrap} onClick=${() => setWrap((w) => !w)} />
+    `;
+
+    const label = file && !wide ? "to the changes" : "to the conversation";
 
     return html`
-        <${BackHead} onBack=${back} label=${file ? "to the changes" : "to the conversation"}
-                     tools=${html`<${WrapButton} on=${wrap} onClick=${() => setWrap((w) => !w)} />`}>
-            <div class="chathead">
-                <h2>${file ? file.split("/").pop() : (data && !data.noRepo ? data.branch : name)}</h2>
-                <div class="chatsub">
+        <${BackHead} onBack=${back} label=${label} tools=${tools}>${head}<//>
+        ${finding && html`
+            <${FileFinder} cwd=${cwd} onClose=${() => setFinding(false)}
+                           onPick=${(path) => { setFinding(false); openFile(path); }} />
+        `}
+        ${wide
+            ? html`<${DeskBody}
+                       cwd=${cwd} base=${base} wrap=${wrap} pane=${pane}
+                       tabs=${tabs} state=${changes} data=${data}
+                       onPick=${(p) => setTabs((t) => ({ ...t, active: p }))}
+                       onClose=${closeFile} onFile=${openFile} onBase=${setBase} />`
+            : html`
+                <div class=${`cdpage${wrap ? " wrap" : ""}`}>
                     ${file
-                        ? html`<span>${file.split("/").slice(0, -1).join("/") || "/"}</span>`
-                        : data && !data.noRepo
-                        ? html`<span class="cdbase" title=${`the base comes from the ${data.baseFrom}`}>
-                                 against <b>${data.base || "nothing"}</b>
-                               </span>
-                               <span>${data.total} ${data.total === 1 ? "file" : "files"}</span>`
-                        : html`<span>${cwd}</span>`}
+                        ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} />`
+                        : html`<${ChangesBody}
+                                   cwd=${cwd} state=${changes} data=${data} base=${base}
+                                   tab=${tab} onTab=${setTab} onBase=${setBase} onFile=${openFile} />`}
+                </div>
+            `}
+    `;
+}
+
+// FileFinder opens a file by its name. A repository is walked by its
+// directories when the shape of it is the question; when the file is already
+// known, walking down to it is four taps spent on something typing answers in
+// one.
+function FileFinder({ cwd, onPick, onClose }) {
+    const [q, setQ] = useState("");
+    const [at, setAt] = useState(0);
+    const box = useRef(null);
+    const [state] = useAsk(() => findOf(cwd, q), [cwd, q], q.trim().length > 0);
+    const data = state.kind === "ready" ? state.data : null;
+    const paths = (data && data.paths) || [];
+
+    useEffect(() => {
+        if (box.current) box.current.focus();
+    }, []);
+
+    const keys = (e) => {
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setAt((i) => Math.min(i + 1, Math.max(paths.length - 1, 0)));
+            return;
+        }
+        if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setAt((i) => Math.max(i - 1, 0));
+            return;
+        }
+        if (e.key === "Enter" && paths[at]) {
+            e.preventDefault();
+            onPick(paths[at]);
+        }
+    };
+
+    return html`
+        <div class="cdfind" onClick=${onClose}>
+            <div class="cdfindbox" onClick=${(e) => e.stopPropagation()}>
+                <input class="cdfindin" ref=${box} type="text" value=${q}
+                       placeholder="a name, or a piece of a path"
+                       aria-label="find a file by name"
+                       onKeyDown=${keys}
+                       onInput=${(e) => { setQ(e.currentTarget.value); setAt(0); }} />
+                <div class="cdfindlist">
+                    ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
+                    ${q.trim() && state.kind === "ready" && !paths.length && html`
+                        <p class="hint">No name here carries that.</p>
+                    `}
+                    ${paths.map((path, i) => html`
+                        <button key=${path} type="button"
+                                class=${`cdfindrow${i === at ? " on" : ""}`}
+                                onMouseEnter=${() => setAt(i)}
+                                onClick=${() => onPick(path)}>
+                            <span class="cdfindname">${path.split("/").pop()}</span>
+                            <span class="cdfinddir">${path.split("/").slice(0, -1).join("/")}</span>
+                        </button>
+                    `)}
+                    ${data && data.cut && html`
+                        <p class="cdcut">Showing <b>${paths.length}</b> of <b>${data.total}</b> — type more of the name.</p>
+                    `}
                 </div>
             </div>
-        <//>
-        <div class=${`cdpage${wrap ? " wrap" : ""}`}>
-            ${file
-                ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} />`
-                : html`<${ChangesBody}
-                           cwd=${cwd} state=${changes} data=${data} base=${base}
-                           tab=${tab} onTab=${setTab} onBase=${setBase}
-                           onFile=${(path) => push({ kind: "file", path })} />`}
+        </div>
+    `;
+}
+
+// DeskBody is the wide shape: the code in the middle under the tabs of what is
+// open, and the directory in a panel that folds away. The panel is one panel
+// with tabs of its own rather than a second column — the notes of a review
+// belong beside the tree, and two narrow columns leave the code nothing.
+function DeskBody({ cwd, base, wrap, pane, tabs, state, data, onPick, onClose, onFile, onBase }) {
+    return html`
+        <div class=${`cdwide${pane ? "" : " solo"}${wrap ? " wrap" : ""}`}>
+            <div class="cdmain">
+                <${TabStrip} tabs=${tabs} onPick=${onPick} onClose=${onClose} />
+                <div class="cdscroll">
+                    ${tabs.active
+                        ? html`<${FileBody} cwd=${cwd} path=${tabs.active} base=${base} wide=${true} />`
+                        : html`<${ChangesBody}
+                                   cwd=${cwd} state=${state} data=${data} base=${base}
+                                   tab="feed" onTab=${null} onBase=${onBase} onFile=${onFile} />`}
+                </div>
+            </div>
+            ${pane && html`
+                <aside class="cdside">
+                    <div class="cdsidetabs">
+                        <button class="chip" type="button" aria-pressed=${true}>Files</button>
+                    </div>
+                    <div class="cdsidebody">
+                        ${data && !data.noRepo
+                            ? html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`
+                            : html`<p class="hint">No repository to walk.</p>`}
+                    </div>
+                </aside>
+            `}
+        </div>
+    `;
+}
+
+// TabStrip is what is open. The changes stay the leftmost tab and cannot be
+// closed: they are where a reading starts, and a viewer with every tab shut is
+// a blank panel nobody asked for.
+function TabStrip({ tabs, onPick, onClose }) {
+    return html`
+        <div class="cdtabs" role="tablist">
+            <button class="cdtab" type="button" role="tab" aria-selected=${!tabs.active}
+                    onClick=${() => onPick("")}>
+                <span class="cdtabname">Changes</span>
+            </button>
+            ${tabs.open.map((path) => html`
+                <span key=${path} class=${`cdtab${tabs.active === path ? " on" : ""}`}>
+                    <button class="cdtabpick" type="button" role="tab"
+                            aria-selected=${tabs.active === path} title=${path}
+                            onClick=${() => onPick(path)}>
+                        <span class="cdtabname">${path.split("/").pop()}</span>
+                    </button>
+                    <button class="cdtabx" type="button" aria-label=${`close ${path}`}
+                            onClick=${() => onClose(path)}>×</button>
+                </span>
+            `)}
         </div>
     `;
 }
@@ -89,13 +272,26 @@ function WrapButton({ on, onClick }) {
     `;
 }
 
+// PaneButton folds the side panel away, for a file whose lines are wider than
+// what is left of the middle.
+function PaneButton({ on, onClick }) {
+    return html`
+        <button class=${`viewbtn${on ? " on" : ""}`} type="button"
+                aria-pressed=${on} title="the panel beside the code" onClick=${onClick}>
+            ▥
+        </button>
+    `;
+}
+
 function ChangesBody({ cwd, state, data, base, tab, onTab, onBase, onFile }) {
     return html`
         <div class="cdstrip" hidden=${Boolean(data && data.noRepo)}>
-            <button class="chip" type="button" aria-pressed=${tab === "feed"}
-                    onClick=${() => onTab("feed")}>Changes</button>
-            <button class="chip" type="button" aria-pressed=${tab === "tree"}
-                    onClick=${() => onTab("tree")}>Files</button>
+            ${onTab && html`
+                <button class="chip" type="button" aria-pressed=${tab === "feed"}
+                        onClick=${() => onTab("feed")}>Changes</button>
+                <button class="chip" type="button" aria-pressed=${tab === "tree"}
+                        onClick=${() => onTab("tree")}>Files</button>
+            `}
             ${data && data.base && html`
                 <button class="chip cdbasepick" type="button"
                         onClick=${() => onBase(base ? "" : data.base)}
@@ -183,7 +379,10 @@ function TreePane({ cwd, changes, onFile }) {
     const [where, setWhere] = useState("");
     const [state] = useAsk(() => treeOf(cwd, where), [cwd, where]);
     const data = state.kind === "ready" ? state.data : null;
-    const counts = new Map((changes.files || []).map((f) => [f.path, f]));
+    const counts = useMemo(
+        () => new Map((changes.files || []).map((f) => [f.path, f])),
+        [changes.files],
+    );
 
     const up = where ? where.split("/").slice(0, -1).join("/") : null;
     return html`
@@ -228,9 +427,12 @@ function TreePane({ cwd, changes, onFile }) {
 
 // FileBody is one file, whole: the window a screen reads it by, with the next
 // one a tap away rather than a scroll that never ends.
-function FileBody({ cwd, path, base }) {
+function FileBody({ cwd, path, base, wide }) {
     const [first, setFirst] = useState(1);
     const [mode, setMode] = useState("file");
+    // Side by side is offered only where there is room for two columns. On a
+    // phone it is two half-width columns of code, which is neither side read.
+    const [split, setSplit] = useState(false);
     const [file] = useAsk(() => fileOf(cwd, path, "", first, WINDOW), [cwd, path, first], mode === "file");
     const [diff] = useAsk(() => diffOf(cwd, path, base, ""), [cwd, path, base], mode === "diff");
 
@@ -243,6 +445,13 @@ function FileBody({ cwd, path, base }) {
                     onClick=${() => setMode("file")}>File</button>
             <button class="chip" type="button" aria-pressed=${mode === "diff"}
                     onClick=${() => setMode("diff")}>Diff</button>
+            ${wide && mode === "diff" && html`
+                <button class="chip cdsplitpick" type="button" aria-pressed=${split}
+                        onClick=${() => setSplit((s) => !s)}
+                        title="before and after, side by side">
+                    ${split ? "Side by side" : "In one column"}
+                </button>
+            `}
         </div>
 
         ${mode === "file" && html`
@@ -252,7 +461,7 @@ function FileBody({ cwd, path, base }) {
             ${data && data.tooBig && html`<p class="hint">This file is ${Math.round(data.size / 1024)} KB, past what the panel reads in one piece.</p>`}
             ${data && data.lines && html`
                 <${FileLines} path=${path} first=${data.first} lines=${data.lines} spans=${data.spans}
-                              head=${`lines ${data.first}\u2013${data.first + data.lines.length - 1} of ${data.total}`} />
+                              head=${`lines ${data.first}–${data.first + data.lines.length - 1} of ${data.total}`} />
                 ${data.more && html`
                     <button class="cdopen" type="button"
                             onClick=${() => setFirst(data.first + data.lines.length)}>
@@ -273,7 +482,9 @@ function FileBody({ cwd, path, base }) {
             ${diff.kind === "failed" && html`<p class="hint crit">${diff.error}</p>`}
             ${cut && !(cut.files || []).length && html`<p class="hint">This file has not changed against <b>${cut.base}</b>.</p>`}
             ${cut && (cut.files || []).map((f) =>
-                f.hunks.map((h, i) => html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`))}
+                f.hunks.map((h, i) => (wide && split
+                    ? html`<${SplitHunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`
+                    : html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`)))}
         `}
     `;
 }

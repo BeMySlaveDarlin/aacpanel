@@ -158,6 +158,49 @@ class Tree(Repo):
         self.assertNotIn(".git", names)
 
 
+class Find(Repo):
+    def test_a_name_finds_the_file_wherever_it_sits(self):
+        # The point of finding by name: the file is known and where it sits is
+        # not. A search that only looks in one directory answers the question
+        # the tree already answers.
+        write(self.dir, "deep/down/here/mod.go", "package here\n")
+        paths = repo.find(self.dir, "mod.go")["paths"]
+        self.assertIn("pkg/mod.go", paths)
+        self.assertIn("deep/down/here/mod.go", paths)
+
+    def test_what_git_does_not_know_about_is_found_too(self):
+        # A file written a minute ago is the most interesting one in a review,
+        # and a search that skips it sends a person walking the tree by hand.
+        write(self.dir, "fresh.txt", "new\n")
+        self.assertIn("fresh.txt", repo.find(self.dir, "fresh")["paths"])
+
+    def test_a_match_in_the_name_comes_before_a_match_in_the_path(self):
+        # What is typed is a name. A directory that happens to carry the same
+        # letters is an answer, but never the first one — and it wins on every
+        # other measure here: its path is the shorter of the two.
+        write(self.dir, "mod/a.go", "package a\n")
+        write(self.dir, "pkg/deep/mod.go", "package deep\n")
+        paths = repo.find(self.dir, "mod")["paths"]
+        self.assertIn("mod/a.go", paths)
+        named = [p for p in paths if os.path.basename(p).startswith("mod")]
+        self.assertEqual(len(named), 2)
+        self.assertLess(max(paths.index(p) for p in named), paths.index("mod/a.go"))
+
+    def test_an_empty_search_answers_with_an_empty_list(self):
+        # Not with everything: an empty box is a box nobody has typed in yet,
+        # and answering it with the whole repository is a list nobody reads.
+        out = repo.find(self.dir, "   ")
+        self.assertEqual(out["paths"], [])
+        self.assertEqual(out["total"], 0)
+
+    def test_the_answer_says_it_is_a_list_even_when_nothing_matched(self):
+        # A screen reads the length of what comes back. A missing list is not
+        # an empty one: it dies in the middle of drawing.
+        out = repo.find(self.dir, "nothing-here-carries-this")
+        self.assertEqual(out["paths"], [])
+        self.assertFalse(out["cut"])
+
+
 class Commits(Repo):
     def test_a_commit_names_the_conversation_it_was_written_in(self):
         # The tie is not a guess: a session leaves its own name in a trailer,

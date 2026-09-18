@@ -234,3 +234,229 @@
    had: a type and the name of a function. */
 .cdty { color: var(--ctx-1); }
 .cdfn { color: var(--ctx-3); }
+
+/* The desk: the code in the middle, the panel beside it. The breakpoint is the
+   one the rest of the panel turns at — a viewer that changed shape at a width
+   of its own would leave the column of sessions beside a page that thinks it
+   is on a phone. */
+@media (min-width: 1100px) {
+    .cdwide {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) clamp(240px, 22vw, 340px);
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .cdwide.solo { grid-template-columns: minmax(0, 1fr); }
+
+    .cdmain {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+    }
+
+    /* The code scrolls, the tabs and the strip above it do not: what is being
+       read is the only thing on the screen that moves. */
+    .cdscroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .cdwide .cdpage { padding-bottom: 0; }
+
+    .cdtabs {
+        display: flex;
+        flex: none;
+        align-items: stretch;
+        gap: 2px;
+        padding: 4px 6px 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+        background: var(--glass);
+        border-bottom: var(--hair) solid var(--line);
+    }
+
+    .cdtabs::-webkit-scrollbar { display: none; }
+
+    .cdtab {
+        display: flex;
+        align-items: center;
+        flex: none;
+        max-width: 14rem;
+        border: var(--hair) solid transparent;
+        border-bottom: 0;
+        border-radius: var(--r-card) var(--r-card) 0 0;
+        background: none;
+        color: var(--ink-dim);
+        font-family: var(--mono);
+        font-size: var(--t-xs);
+        cursor: pointer;
+    }
+
+    .cdtab.on,
+    .cdtab[aria-selected="true"] {
+        background: var(--surface);
+        border-color: var(--line);
+        color: var(--ink);
+    }
+
+    .cdtabpick {
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        padding: 6px 4px 6px 10px;
+        min-width: 0;
+        cursor: pointer;
+    }
+
+    .cdtab > .cdtabname { padding: 6px 10px; }
+
+    .cdtabname {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cdtabx {
+        flex: none;
+        border: 0;
+        padding: 0 8px 0 4px;
+        background: none;
+        color: var(--ink-faint);
+        font-size: var(--t-sm);
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .cdtabx:hover { color: var(--crit); }
+
+    /* The panel: the tree now, the notes of a review beside it later. It keeps
+       its own scroll — walking a directory should not move the code. */
+    .cdside {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-left: var(--hair) solid var(--line);
+        background: var(--surface);
+    }
+
+    .cdsidetabs {
+        display: flex;
+        flex: none;
+        gap: 6px;
+        padding: 8px 10px;
+        border-bottom: var(--hair) solid var(--line);
+        background: var(--glass);
+    }
+
+    .cdsidebody {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .cdside .cdhunk { margin-inline: 8px; }
+
+    /* Before and after. The row is the grid, not the column: two columns laid
+       out separately keep the same order but not the same heights, and one
+       wrapped line on the left then reads against the wrong line on the right. */
+    .cdsplit .cdsprow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .cdsplit .cdsprow > .cdln + .cdln { border-left: var(--hair) solid var(--line); }
+
+    /* The empty place where one side has a line and the other does not. It
+       keeps the height of a line: a gap that collapses takes the rows out of
+       step, which is the one thing this view exists to prevent. */
+    .cdsplit .cdln.void {
+        background: var(--surface-2);
+        min-height: calc(1.7em);
+    }
+
+    .cdsplitpick { margin-left: auto; }
+}
+
+/* Finding a file by name. Outside the breakpoint above on purpose: it is
+   opened from a keyboard, and a keyboard is not what the width says. */
+.cdfind {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 12vh;
+    background: rgba(3, 4, 10, .72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.cdfindbox {
+    width: min(38rem, 92vw);
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+    box-shadow: var(--drop);
+    overflow: hidden;
+}
+
+.cdfindin {
+    flex: none;
+    border: 0;
+    border-bottom: var(--hair) solid var(--line);
+    padding: 12px 14px;
+    background: none;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: var(--t-md);
+}
+
+.cdfindin:focus { outline: none; }
+
+.cdfindlist {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.cdfindrow {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 14px;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    text-align: left;
+    cursor: pointer;
+}
+
+.cdfindrow.on { background: var(--surface-2); }
+
+.cdfindname { flex: none; }
+
+.cdfinddir {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    color: var(--ink-faint);
+    font-size: var(--t-xs);
+}

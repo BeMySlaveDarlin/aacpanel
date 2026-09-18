@@ -19,6 +19,7 @@ async function ask(path, params) {
 
 export const changesOf = (cwd, base) => ask("/api/repo/changes", clean({ cwd, base }));
 export const treeOf = (cwd, path) => ask("/api/repo/tree", clean({ cwd, path }));
+export const findOf = (cwd, q) => ask("/api/repo/find", clean({ cwd, q }));
 export const fileOf = (cwd, path, rev, first, lines) =>
     ask("/api/repo/file", clean({ cwd, path, rev, first, lines }));
 export const diffOf = (cwd, path, base, rev, layer) =>

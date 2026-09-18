@@ -1,0 +1,129 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- Finding a file by name: the keys that open it, what comes back, and the
+     tab it leaves behind. -->
+<div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
+  <div id="root" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { RepoView } from "/src/screens/repo/view.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const CHANGES = {
+    root: "/srv/proj", branch: "work", base: "main", baseFrom: "project",
+    head: "abc1234", rev: "rev1",
+    files: [{ path: "pkg/env.go", layer: "worktree", add: 2, delete: 1, status: "M" }],
+    total: 1, cut: false,
+};
+const TREE = { root: "/srv/proj", path: "", total: 1, cut: false, entries: [{ name: "pkg", dir: true }] };
+const FILE = {
+    rev: "rev1", path: "pkg/env.go", oid: "2", size: 40, first: 1, total: 1, more: false,
+    lines: ["package pkg"], spans: [[]],
+};
+const FOUND = {
+    root: "/srv/proj", query: "env",
+    paths: ["pkg/env.go", "pkg/deep/env_test.go"], total: 2, cut: false,
+};
+const EMPTY = { root: "/srv/proj", query: "zzz", paths: [], total: 0, cut: false };
+
+window.__asked = [];
+window.fetch = async (url) => {
+    const at = String(url);
+    window.__asked.push(at);
+    const body = at.includes("/api/repo/find") ? (at.includes("q=zzz") ? EMPTY : FOUND)
+        : at.includes("/api/repo/changes") ? CHANGES
+        : at.includes("/api/repo/tree") ? TREE
+        : at.includes("/api/repo/file") ? FILE
+        : { error: "unknown" };
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+};
+
+render(h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {} })), document.getElementById("root"));
+
+const sel = (q) => document.querySelector(q);
+const all = (q) => [...document.querySelectorAll(q)];
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(q, tries = 60) {
+    for (let i = 0; i < tries; i++) {
+        const el = sel(q);
+        if (el) return el;
+        await tick(30);
+    }
+    return null;
+}
+const press = (key, on) => (on || window).dispatchEvent(
+    new KeyboardEvent("keydown", { key, ctrlKey: key === "k", bubbles: true, cancelable: true }));
+
+async function type(text) {
+    const box = sel(".cdfindin");
+    if (!box) return;
+    box.value = text;
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick(150);
+}
+
+window.done = (async () => {
+    await until(".cdwide");
+    // The shape is on the screen one turn before it answers keys: preact runs
+    // its effects after the paint, and a fixture that presses on the sight of
+    // the markup presses into a screen that has not bound anything yet.
+    await tick(200);
+
+    const beforeKeys = Boolean(sel(".cdfind"));
+    press("k");
+    await tick(90);
+    const opened = Boolean(await until(".cdfind"));
+    const focused = document.activeElement === sel(".cdfindin");
+
+    // An empty box asks for nothing: the whole repository is not an answer to
+    // a question nobody has typed yet.
+    const askedEmpty = window.__asked.some((u) => u.includes("/api/repo/find"));
+
+    await type("env");
+    const rows = all(".cdfindrow").map((r) => r.textContent.trim());
+    const firstOn = all(".cdfindrow")[0] ? all(".cdfindrow")[0].classList.contains("on") : false;
+
+    // Nothing matched is a sentence, not a blank panel.
+    await type("zzz");
+    const emptySaid = (sel(".cdfindlist") || {}).textContent
+        ? sel(".cdfindlist").textContent.includes("No name here carries that") : false;
+
+    await type("env");
+    press("ArrowDown", sel(".cdfindin"));
+    await tick(60);
+    const secondOn = all(".cdfindrow")[1] ? all(".cdfindrow")[1].classList.contains("on") : false;
+
+    press("Enter", sel(".cdfindin"));
+    await tick(150);
+
+    const closed = !sel(".cdfind");
+    const tabs = all(".cdtab").map((t) => t.textContent.replace("×", "").trim());
+
+    // Escape leaves without opening anything.
+    press("k");
+    await tick(90);
+    const reopened = Boolean(sel(".cdfind"));
+    press("Escape");
+    await tick(90);
+    const escaped = !sel(".cdfind");
+
+    return {
+        beforeKeys,
+        opened,
+        focused,
+        askedEmpty,
+        rows,
+        firstOn,
+        emptySaid,
+        secondOn,
+        closed,
+        tabs,
+        reopened,
+        escaped,
+    };
+})();
+</script>

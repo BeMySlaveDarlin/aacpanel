@@ -112,3 +112,91 @@ export function FileLines({ path, first, lines, spans, notes, picked, onPick, he
         </div>
     `;
 }
+
+// splitRows lays a run of changed lines out as rows of two columns. The columns
+// are matched up by blocks rather than by line numbers: one deletion shifts
+// every line under it, so a column laid out by numbers drifts one line further
+// from its neighbour with every change until the two sides no longer describe
+// the same place. A block of deletions is paired with the block of additions
+// that replaced it, and whichever block is shorter is filled out with nothing.
+export function splitRows(lines) {
+    const rows = [];
+    let dels = [];
+    let adds = [];
+
+    const flush = () => {
+        const n = Math.max(dels.length, adds.length);
+        for (let i = 0; i < n; i++) rows.push({ left: dels[i] || null, right: adds[i] || null });
+        dels = [];
+        adds = [];
+    };
+
+    for (const line of lines) {
+        if (line.kind === "del") {
+            dels.push(line);
+            continue;
+        }
+        if (line.kind === "add") {
+            adds.push(line);
+            continue;
+        }
+        flush();
+        rows.push({ left: line, right: line });
+    }
+    flush();
+    return rows;
+}
+
+// SplitHunk is one run of changed lines read as "before" and "after". The same
+// rows as the unified view, in two columns — what it buys is seeing the line
+// that was replaced next to the line that replaced it.
+export function SplitHunk({ hunk, path, notes, picked, onPick }) {
+    const tag = hunk.layer === "worktree"
+        ? html`<span class="cdtag wt">not in a commit yet</span>`
+        : html`<span class="cdtag done">in a commit</span>`;
+    const rows = splitRows(hunk.lines);
+    return html`
+        <div class="cdhunk">
+            <div class="cdhead">
+                <span class="cdpath">${hunk.header || path}</span>
+                ${tag}
+            </div>
+            <div class="cdlines cdsplit">
+                ${rows.map((row, i) => html`
+                    <div class="cdsprow" key=${i}>
+                        <${Half} line=${row.left} side="old" path=${path}
+                                 notes=${notes} picked=${picked} onPick=${onPick} />
+                        <${Half} line=${row.right} side="new" path=${path}
+                                 notes=${notes} picked=${picked} onPick=${onPick} />
+                    </div>
+                `)}
+            </div>
+        </div>
+    `;
+}
+
+// Half is one side of a row: a line, or the empty place left where the other
+// side has one more. The empty place keeps the height of a line — the two
+// columns are read across, and a gap that collapses takes the rows out of step.
+function Half({ line, side, path, notes, picked, onPick }) {
+    if (!line) return html`<div class="cdln void"><span class="cdgut"></span><span class="cdsrc"></span></div>`;
+    if (side === "old" && line.kind === "add") {
+        return html`<div class="cdln void"><span class="cdgut"></span><span class="cdsrc"></span></div>`;
+    }
+    if (side === "new" && line.kind === "del") {
+        return html`<div class="cdln void"><span class="cdgut"></span><span class="cdsrc"></span></div>`;
+    }
+    const no = side === "old" ? (line.old == null ? line.new : line.old) : (line.new == null ? line.old : line.new);
+    return html`
+        <${CodeLine}
+            kind=${line.kind}
+            no=${no}
+            old=${no}
+            text=${line.text}
+            spans=${line.spans}
+            noted=${noteOn(notes, path, line)}
+            picked=${picked && picked.path === path && picked.line === no}
+            onPick=${onPick ? (n, text) => onPick(path, n, text, line.kind) : null}
+        />
+    `;
+}

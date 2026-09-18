@@ -23,6 +23,7 @@ type RepoReq struct {
 	Hash  string `json:"hash,omitempty"`
 	First int    `json:"first,omitempty"`
 	Lines int    `json:"lines,omitempty"`
+	Query string `json:"query,omitempty"`
 }
 
 // RepoChange is one file this branch changed.
@@ -85,8 +86,14 @@ type RepoOut struct {
 
 	Path    string      `json:"path,omitempty"`
 	Entries []RepoEntry `json:"entries"`
-	Total   int         `json:"total,omitempty"`
-	Cut     bool        `json:"cut,omitempty"`
+
+	// The names a search matched. Never omitted when empty: a screen reading
+	// the length of what is missing dies in the middle of drawing.
+	Query string   `json:"query,omitempty"`
+	Paths []string `json:"paths"`
+
+	Total int  `json:"total,omitempty"`
+	Cut   bool `json:"cut,omitempty"`
 
 	// The id of a blob: what a coloured copy of it is cached under.
 	OID    string   `json:"oid,omitempty"`

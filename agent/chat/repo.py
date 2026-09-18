@@ -25,6 +25,7 @@ MAX_BLOB = 2 * 1024 * 1024
 MAX_DIFF = 2 * 1024 * 1024
 MAX_FILES = 3000
 MAX_ENTRIES = 2000
+MAX_FOUND = 60
 MAX_LINES = 20000
 
 GIT_TIMEOUT = 20
@@ -332,6 +333,33 @@ def changes(cwd, base_named=""):
     }
 
 
+def find(cwd, query):
+    """Returns the paths of the working tree whose names carry what was typed.
+
+    The whole tree by name, where the tree above is one directory at a time: a
+    name is what a person has in their head when they know the file and not
+    where it sits, and walking down to it by hand is the thing this answers
+    instead of.
+    """
+    top = _repo_dir(cwd)
+    want = query.strip().lower()
+    if not want:
+        return {"root": top, "query": "", "paths": [], "total": 0, "cut": False}
+
+    out, _ = _run(top, "ls-files", "-z", limit=8 * 1024 * 1024)
+    paths = [p for p in _text(out).split("\0") if p]
+    out, _ = _run(top, "ls-files", "--others", "--exclude-standard", "-z")
+    paths += [p for p in _text(out).split("\0") if p]
+
+    hits = [p for p in dict.fromkeys(paths) if want in p.lower()]
+    # What was typed is a name, so a file whose own name carries it comes
+    # before one that only matches somewhere up its directories; after that the
+    # shorter path is the likelier answer.
+    hits.sort(key=lambda p: (want not in os.path.basename(p).lower(), len(p), p))
+    return {"root": top, "query": query, "paths": hits[:MAX_FOUND],
+            "total": len(hits), "cut": len(hits) > MAX_FOUND}
+
+
 def tree(cwd, path=""):
     """Returns the entries of one directory of the working tree.
 
@@ -501,6 +529,8 @@ def answer(request):
             out = changes(cwd, str(request.get("base") or ""))
         elif op == "tree":
             out = tree(cwd, str(request.get("path") or ""))
+        elif op == "find":
+            out = find(cwd, str(request.get("query") or ""))
         elif op == "blob":
             out = blob(cwd, str(request.get("path") or ""), str(request.get("rev") or ""),
                        request.get("first") or 1, request.get("lines") or MAX_LINES)
