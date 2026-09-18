@@ -123,17 +123,18 @@ function ChangesBody({ cwd, state, data, base, tab, onTab, onBase, onFile }) {
 // document. The diff of a file is fetched when it is opened rather than all at
 // once — a day here has been seventy-seven files and five thousand lines.
 function ChangeFeed({ cwd, data, onFile }) {
-    if (!data.files.length) {
+    const files = data.files || [];
+    if (!files.length) {
         return html`<p class="hint">Nothing has changed against <b>${data.base || "the base"}</b>.</p>`;
     }
     return html`
         <div class="cdfeed">
-            ${data.files.map((f) => html`
+            ${files.map((f) => html`
                 <${FileCard} key=${f.path} cwd=${cwd} file=${f} rev=${data.rev}
                              base=${data.base} onOpen=${() => onFile(f.path)} />
             `)}
             ${data.cut && html`
-                <p class="cdcut">Showing <b>${data.files.length}</b> of <b>${data.total}</b> files — the rest is a tap away, not quietly dropped.</p>
+                <p class="cdcut">Showing <b>${files.length}</b> of <b>${data.total}</b> files — the rest is a tap away, not quietly dropped.</p>
             `}
         </div>
     `;
@@ -163,9 +164,9 @@ function FileCard({ cwd, file, rev, base, onOpen }) {
                     ${diff && diff.stale && html`
                         <p class="hint">The repository moved while this was being read. Pull the list again.</p>
                     `}
-                    ${diff && !diff.stale && diff.files.map((f) =>
+                    ${diff && !diff.stale && (diff.files || []).map((f) =>
                         f.hunks.map((h, i) => html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`))}
-                    ${diff && !diff.stale && diff.files.some((f) => f.cut) && html`
+                    ${diff && !diff.stale && (diff.files || []).some((f) => f.cut) && html`
                         <p class="cdcut">The diff of this file is longer than one reading — open the file to walk it.</p>
                     `}
                     <button class="cdopen" type="button" onClick=${onOpen}>Open the file</button>
@@ -182,7 +183,7 @@ function TreePane({ cwd, changes, onFile }) {
     const [where, setWhere] = useState("");
     const [state] = useAsk(() => treeOf(cwd, where), [cwd, where]);
     const data = state.kind === "ready" ? state.data : null;
-    const counts = new Map(changes.files.map((f) => [f.path, f]));
+    const counts = new Map((changes.files || []).map((f) => [f.path, f]));
 
     const up = where ? where.split("/").slice(0, -1).join("/") : null;
     return html`
@@ -201,7 +202,7 @@ function TreePane({ cwd, changes, onFile }) {
                     <span class="cdcaret">↑</span><span class="cdnm">..</span>
                 </button>
             `}
-            ${data && data.entries.map((e) => {
+            ${data && (data.entries || []).map((e) => {
                 const full = where ? `${where}/${e.name}` : e.name;
                 const changed = counts.get(full);
                 return html`
@@ -219,7 +220,7 @@ function TreePane({ cwd, changes, onFile }) {
                 `;
             })}
             ${data && data.cut && html`
-                <p class="cdcut">Showing <b>${data.entries.length}</b> of <b>${data.total}</b> names.</p>
+                <p class="cdcut">Showing <b>${(data.entries || []).length}</b> of <b>${data.total}</b> names.</p>
             `}
         </div>
     `;
@@ -270,8 +271,8 @@ function FileBody({ cwd, path, base }) {
         ${mode === "diff" && html`
             ${diff.kind === "loading" && html`<p class="hint">Reading the diff…</p>`}
             ${diff.kind === "failed" && html`<p class="hint crit">${diff.error}</p>`}
-            ${cut && !cut.files.length && html`<p class="hint">This file has not changed against <b>${cut.base}</b>.</p>`}
-            ${cut && cut.files.map((f) =>
+            ${cut && !(cut.files || []).length && html`<p class="hint">This file has not changed against <b>${cut.base}</b>.</p>`}
+            ${cut && (cut.files || []).map((f) =>
                 f.hunks.map((h, i) => html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`))}
         `}
     `;

@@ -56,6 +56,11 @@ type RepoTree struct {
 // RepoOut is every field the agent may answer a repo request with. One shape
 // for all six operations: the alternative is six replies that differ in a
 // field each, and a reader has to know which is which before reading it.
+// A list that is empty is an answer — "nothing changed", "the directory is
+// empty" — and it travels as an empty list. Left to omitempty it does not
+// travel at all, and a reader counting its length finds nothing to count: the
+// screen dies mid-draw, leaves what it had drawn standing, and every redraw
+// after it piles another one on top.
 type RepoOut struct {
 	// A window asked for under a revision the repository has moved past. The
 	// screen asks again under the revision named here rather than drawing a
@@ -70,16 +75,16 @@ type RepoOut struct {
 
 	Root      string       `json:"root,omitempty"`
 	Branch    string       `json:"branch,omitempty"`
-	Branches  []RepoBranch `json:"branches,omitempty"`
-	Worktrees []RepoTree   `json:"worktrees,omitempty"`
+	Branches  []RepoBranch `json:"branches"`
+	Worktrees []RepoTree   `json:"worktrees"`
 
 	Base     string       `json:"base,omitempty"`
 	BaseFrom string       `json:"baseFrom,omitempty"`
 	Head     string       `json:"head,omitempty"`
-	Files    []RepoChange `json:"files,omitempty"`
+	Files    []RepoChange `json:"files"`
 
 	Path    string      `json:"path,omitempty"`
-	Entries []RepoEntry `json:"entries,omitempty"`
+	Entries []RepoEntry `json:"entries"`
 	Total   int         `json:"total,omitempty"`
 	Cut     bool        `json:"cut,omitempty"`
 

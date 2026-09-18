@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/chat"
 )
 
 const goDiff = `diff --git a/pkg/env.go b/pkg/env.go
@@ -268,4 +270,35 @@ func TestTheOldestEntryLeavesWhenTheCacheIsFull(t *testing.T) {
 func hitsOf(c *Cache) int {
 	_, hits, _ := c.Stat()
 	return hits
+}
+
+// A list that is empty is an answer — "nothing changed", "the directory is
+// empty" — and it has to travel as an empty list. Dropped from the reply by
+// omitempty it does not travel at all, and a reader counting its length finds
+// nothing to count: the screen dies mid-draw, leaves what it drew standing,
+// and every redraw after it piles another one on top. That is what took the
+// panel down, so the shape of the reply is held by a test.
+func TestAnEmptyListTravelsAsAnEmptyList(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		out   any
+		wants []string
+	}{
+		{"changes with nothing changed", chat.RepoOut{Rev: "abc", Branch: "main"}, []string{`"files":null`}},
+		{"a directory with nothing in it", chat.RepoOut{Path: "pkg"}, []string{`"entries":null`}},
+		{"a repository with no branches", chat.RepoOut{Root: "/srv"}, []string{`"branches":null`, `"worktrees":null`}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			raw, err := json.Marshal(c.out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range c.wants {
+				if !strings.Contains(string(raw), want) {
+					t.Errorf("the reply does not carry %s — a reader of it gets undefined where it expects a list:\n%s",
+						want, raw)
+				}
+			}
+		})
+	}
 }
