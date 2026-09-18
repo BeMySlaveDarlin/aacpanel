@@ -116,10 +116,19 @@
 .sheet.draggable { touch-action: none; }
 .sheet.draggable .sheetbody { touch-action: pan-y; }
 
-.shell.no-nav .sheet.inner {
+/* A sheet a person glances into keeps a strip of the run visible above it even
+   where the navigation is gone. A document does not: it was opened to be read,
+   and the strip left over its dock reads as the page failing to reach the
+   bottom of the screen. */
+.shell.no-nav .sheet.inner:not(.doc) {
     bottom: 0;
     max-height: 88dvh;
     padding-bottom: calc(.8rem + env(safe-area-inset-bottom));
+}
+
+.shell.no-nav .sheet.docfull.inner {
+    max-height: none;
+    padding-bottom: 0;
 }
 
 .shell.no-nav .scrim.inner { bottom: 0; }

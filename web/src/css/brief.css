@@ -95,7 +95,10 @@
 .brief-page {
     max-width: var(--brief-col);
     margin: 0 auto;
-    padding: 0 16px 120px;
+    /* No tail under the dock: the dock sticks to the bottom of the page, and
+       whatever the page keeps after it shows up as a band of empty paper below
+       the buttons. The air the last question needs is the dock's own padding. */
+    padding: 0 16px 8px;
 }
 
 /* The way out of a document. A brief runs for screens, so an exit drawn once at
@@ -111,11 +114,14 @@
     /* The same gutter the text below it takes, so the arrow stands over the
        column rather than over the edge of whatever window the document was
        opened in. */
-    padding: .5rem 16px;
+    padding: .35rem 16px;
     background: var(--paper-over);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
     border-bottom: 1px solid var(--paper-rule);
+    /* The strip sits at the top of a window with rounded corners: square ones
+       here leave a step in each corner where the paper shows through. */
+    border-radius: var(--r-card) var(--r-card) 0 0;
 }
 
 .brief > .phead .pback {
@@ -464,14 +470,14 @@
     position: sticky;
     bottom: 0;
     margin: 0 -16px;
-    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 16px calc(9px + env(safe-area-inset-bottom, 0px));
     background: var(--paper-over);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
     border-top: 1px solid var(--paper-rule);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px 8px;
     flex-wrap: wrap;
 }
 
@@ -505,10 +511,10 @@
 .bbtn {
     flex: 0 1 auto;
     font: inherit;
-    font-size: var(--t-md);
+    font-size: var(--t-sm);
     font-weight: 600;
     white-space: nowrap;
-    padding: 10px 14px;
+    padding: 7px 12px;
     border-radius: 3px;
     border: 1px solid var(--paper-rule);
     background: var(--paper-2);
@@ -706,14 +712,16 @@
 .bcard.is-fresh .bcard-bar, .bcard.is-read .bcard-bar { background: transparent; }
 
 @media (min-width: 900px) {
-    .brief-page { padding-bottom: 40px; }
+    .brief-page { padding-bottom: 8px; }
     .bmast { padding: 34px 0 26px; }
     .bq-n { font-size: 2.3em; }
     .bq h3 { font-size: var(--t-2xl); }
     .bfacts li { grid-template-columns: minmax(0, 1fr) auto; }
     .bfacts .bsrc { white-space: nowrap; }
     .blin { grid-template-columns: auto 1fr; gap: 0 18px; }
-    .bdock-say { flex: 1; }
+    /* At a desk the acts sit where the eye ends its line; in a hand they stay
+       at the thumb's side of the screen. */
+    .bdock { justify-content: flex-end; }
 }
 
 /* Prose inside a brief is markdown the session wrote, and markdown carries
