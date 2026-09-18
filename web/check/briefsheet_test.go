@@ -1,6 +1,10 @@
 package check
 
-import "testing"
+import (
+	"regexp"
+	"strings"
+	"testing"
+)
 
 type sheetShot struct {
 	Window int     `json:"window"`
@@ -37,5 +41,22 @@ func TestABriefOverAConversationIsNotDrawnAsADialog(t *testing.T) {
 	}
 	if got.Prose <= got.Root {
 		t.Errorf("the prose reads at %.2f px on a %.2f px root: a document at a desk steps above the panel around it", got.Prose, got.Root)
+	}
+}
+
+// The window is only half of it: the conversation has to say that what it puts
+// in the sheet is a document. Without that word the brief is drawn as every
+// other layer of the run — a dialog the width of a question.
+func TestTheConversationCallsABriefADocument(t *testing.T) {
+	src := srcFiles(t)["src/screens/chat.js"]
+	if src == "" {
+		t.Fatal("src/screens/chat.js not found — the test is looking in the wrong place")
+	}
+	if !strings.Contains(src, "doc=") {
+		t.Fatal("the conversation never calls anything a document — a brief opened over it is drawn as a dialog")
+	}
+	doc := regexp.MustCompile(`doc=\$\{[^}]*\}`).FindString(src)
+	if !strings.Contains(doc, "brief") {
+		t.Errorf("the document sheet is tied to %q, not to a brief — either everything opened over the run is drawn as a document or nothing is", doc)
 	}
 }
