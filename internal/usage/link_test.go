@@ -195,13 +195,38 @@ func TestPathOutsideRootsIsRefused(t *testing.T) {
 	}
 }
 
+const unixPathMax = 108 // the whole address of a unix socket has to fit this
+
+// socketPath lays out a directory of its own for a listening socket and gives
+// the path inside it. t.TempDir() spells the name of the test into the path, so
+// a socket put there grows with the name, and past some length listen refuses —
+// a failure in a place that has nothing to do with what is being checked.
+func socketPath(t *testing.T, name string) string {
+	t.Helper()
+	// TMPDIR can be long enough on its own to eat the whole address; the system
+	// /tmp is then the only short base left.
+	for _, base := range []string{os.TempDir(), "/tmp"} {
+		dir, err := os.MkdirTemp(base, "aacp")
+		if err != nil {
+			continue
+		}
+		if path := filepath.Join(dir, name); len(path) < unixPathMax {
+			t.Cleanup(func() { os.RemoveAll(dir) })
+			return path
+		}
+		os.RemoveAll(dir)
+	}
+	t.Fatalf("nowhere to put the socket %s so that the address fits into %d bytes: TMPDIR=%s",
+		name, unixPathMax, os.TempDir())
+	return ""
+}
+
 func fakeAgent(t *testing.T, reply func(net.Conn)) *Client {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "u.sock")
+	path := socketPath(t, "u.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
-		t.Skipf("the socket in %s did not come up: %v", dir, err)
+		t.Fatalf("the socket %s did not come up: %v", path, err)
 	}
 	t.Cleanup(func() { ln.Close() })
 	go func() {
@@ -241,14 +266,8 @@ func agentUsage(t *testing.T) (*Client, string) {
 	}
 	copyTranscript(t, root)
 
-	sockDir := filepath.Join(dir, "run")
-	if err := os.MkdirAll(sockDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	sock := filepath.Join(sockDir, "usage.sock")
-	if len(sock) > 100 {
-		t.Skipf("a socket name %d characters long does not fit into a unix path: set a shorter TMPDIR", len(sock))
-	}
+	sock := socketPath(t, "usage.sock")
+	sockDir := filepath.Dir(sock)
 
 	cmd := exec.Command(python, "-c", "import usage_link; usage_link.worker()")
 	cmd.Env = append(os.Environ(),

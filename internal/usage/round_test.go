@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -158,11 +157,10 @@ func (f *fakeStore) WriteUsageFile(_ context.Context, file store.UsageFile) erro
 
 func scriptedAgent(t *testing.T, reply func(map[string]any) []string) *Client {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "u.sock")
+	path := socketPath(t, "u.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
-		t.Skipf("the socket in %s did not come up: %v", dir, err)
+		t.Fatalf("the socket %s did not come up: %v", path, err)
 	}
 	t.Cleanup(func() { ln.Close() })
 
