@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { BackHead, useBackClose } from "../ui/back.js";
 import { Sheet } from "../ui/sheet.js";
-import { Icon } from "../ui/icons.js";
 import { useToast } from "../ui/toasts.js";
 import * as codecopy from "./chat/copy.js";
 import { ContextBar } from "../ui/bar.js";
@@ -35,7 +34,7 @@ import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 
 
-export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage, onBrief }) {
+export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
     // where it was. Sending the reader to a page of their own instead costs

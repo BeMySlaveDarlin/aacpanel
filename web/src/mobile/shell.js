@@ -45,9 +45,6 @@ export function MobileShell({
 
     const [page, setPage] = useState(null);
     const [openBrief, setOpenBrief] = useState(null);
-    // Where the reader came from, when a document was opened out of a
-    // conversation: closing it puts them back there rather than on the shelf.
-    const [briefFrom, setBriefFrom] = useState(null);
     const [menu, setMenu] = useState(false);
 
     const [logs, setLogs] = useState(null);
@@ -57,7 +54,7 @@ export function MobileShell({
 
     useBackClose(Boolean(page), () => {
         if (page === "briefs" && openBrief) {
-            leaveBrief();
+            setOpenBrief(null);
             return;
         }
         setPage(null);
@@ -116,13 +113,6 @@ export function MobileShell({
         onJumped();
     }, [jump, goHome, onJumped]);
 
-    const leaveBrief = useCallback(() => {
-        const from = briefFrom;
-        setOpenBrief(null);
-        setBriefFrom(null);
-        if (from) goHome(from.name, from.id);
-    }, [briefFrom, goHome]);
-
     const chips = useMemo(() => {
         if (layer) return null;
         if (tab === "containers") return filterChips(tree);
@@ -173,8 +163,7 @@ export function MobileShell({
                     : page === "briefs"
                     ? html`<${Briefs} snapshot=${snapshot} exec=${exec}
                         open=${openBrief} onOpen=${setOpenBrief}
-                        onLeave=${briefFrom ? leaveBrief : null}
-                        onSession=${(name) => { setOpenBrief(null); setBriefFrom(null); goHome(name, null); }} />`
+                        onSession=${(name) => { setOpenBrief(null); goHome(name, null); }} />`
                     : page === "alerts"
                     ? html`<${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => setPage(null)} />`
                     : html`<${Screen}
@@ -196,12 +185,7 @@ export function MobileShell({
                     onLayer=${setLayer}
                     want=${want}
                     onWanted=${() => setWant(null)}
-                onUsage=${() => setPage("usage")}
-                onBrief=${(briefId, from) => {
-                    setOpenBrief(briefId);
-                    setBriefFrom(from || null);
-                    setPage("briefs");
-                }} />`}
+                onUsage=${() => setPage("usage")} />`}
             </main>
 
             <${Sheet} open=${menu} onClose=${() => setMenu(false)} label="menu">
@@ -257,11 +241,11 @@ export function MobileShell({
     `;
 }
 
-function Screen({ tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults, onLayer, want, onWanted, onUsage, onBrief }) {
+function Screen({ tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults, onLayer, want, onWanted, onUsage }) {
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
             exec=${exec} wait=${wait} faults=${faults} onLayer=${onLayer}
-            want=${want} onWanted=${onWanted} onUsage=${onUsage} onBrief=${onBrief} />`;
+            want=${want} onWanted=${onWanted} onUsage=${onUsage} />`;
     }
     return html`<${Containers} tree=${tree} error=${treeError} filter=${filter} query=${query} open=${open}
         onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec} />`;

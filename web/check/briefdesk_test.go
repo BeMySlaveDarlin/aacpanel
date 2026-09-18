@@ -85,6 +85,24 @@ func TestEveryConversationGetsTheSnapshot(t *testing.T) {
 	}
 }
 
+// A conversation opens its own brief as a layer over the run, the way it
+// opens a file or a page: the document sits on top of the feed and the feed
+// is exactly where it was once the sheet closes. There is no case where the
+// reader is meant to leave the conversation for it, so Chat has no prop for a
+// caller to hand a brief through — one that still passes onBrief is feeding
+// a channel nothing on the other end reads.
+func TestNoConversationIsHandedABriefChannel(t *testing.T) {
+	calls := regexp.MustCompile(`(?s)<\$\{Chat\}(.*?)/>`)
+	for _, path := range sortedKeys(srcFiles(t)) {
+		src := srcFiles(t)[path]
+		for _, call := range calls.FindAllStringSubmatch(src, -1) {
+			if strings.Contains(call[1], "onBrief=") {
+				t.Errorf("%s hands the conversation an onBrief prop — a brief opens as a layer over the run and Chat reads no such prop", path)
+			}
+		}
+	}
+}
+
 // The shelf is one screen with two states: the cards, and the document that a
 // card opens. Which one it draws is told from outside, so a shell that names
 // the prop something of its own gets the cards and nothing else — and the card

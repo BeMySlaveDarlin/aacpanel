@@ -243,7 +243,6 @@ export function DesktopShell({
                 archive=${chat.archived ? chat.row : null}
                 onBack=${() => setChat(null)}
                 onUsage=${() => { setChat(null); goSection("home"); }}
-                onBrief=${(briefId) => { setOpenBrief(briefId); goSection("briefs"); }}
             />
         </section>`;
     };
