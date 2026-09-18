@@ -8,6 +8,7 @@ import { attachTips } from "./tip.js";
 import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
 import { ChatEmpty } from "../screens/chat/empty.js";
+import { Alerts } from "../screens/alerts.js";
 import { Briefs } from "../screens/briefs.js";
 import { HeadLoad } from "./load.js";
 import { Devices } from "../screens/devices.js";
@@ -77,6 +78,23 @@ function IconButton({ item, active, onClick }) {
             aria-label=${item.label}
             onClick=${onClick}
         ><${item.icon} /></button>
+    `;
+}
+
+// The alerts bell stays in the header even with nothing open, so there is a
+// way to the screen before anything breaks — the count on it is only how it
+// says something is waiting, not the only door in.
+function AlertsButton({ count, active, onClick }) {
+    return html`
+        <button
+            class=${`dkib${active ? " on" : ""}`}
+            type="button"
+            aria-label=${count > 0 ? `Alerts, ${count} unread` : "Alerts"}
+            onClick=${onClick}
+        >
+            <${Icon.alerts} />
+            ${count > 0 && html`<span class="dkibnum">${count}</span>`}
+        </button>
     `;
 }
 
@@ -229,6 +247,9 @@ export function DesktopShell({
                 open=${openBrief} onOpen=${setOpenBrief}
                 onSession=${(name) => openChat({ name, id: null })} /></div>`;
         }
+        if (section === "alerts") {
+            return html`<div class="dkpage"><${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => goSection("home")} /></div>`;
+        }
         if (!chat) return html`<${ChatEmpty} />`;
         const live = chat.archived
             ? null
@@ -258,7 +279,7 @@ export function DesktopShell({
     const chip = routeChip(route);
     const panels = PANELS[section] || [];
     const panelTitle = (panels.find((p) => p.id === panel) || {}).label || "";
-    const wide = section === "home" || section === "devices";
+    const wide = section === "home" || section === "devices" || section === "alerts";
 
     return html`
         <div class="deskshell" ref=${shellRef}>
@@ -299,11 +320,6 @@ export function DesktopShell({
                             cookie without Secure
                         </span>
                     `}
-                    ${openAlerts > 0 && html`
-                        <button class="dkalert" type="button" onClick=${() => goSection("machine")}>
-                            alerts <b>${openAlerts}</b>
-                        </button>
-                    `}
                     ${troubles.length > 0 && html`
                         <span class="dkalert" data-tip=${troubles.join(" · ")} data-tipside="left">
                             silent <b>${troubles.length}</b>
@@ -319,6 +335,7 @@ export function DesktopShell({
                         >${chip.text}</button>
                     `}
                     <${Zoom} scale=${zoom.scale} onSmaller=${zoom.smaller} onBigger=${zoom.bigger} />
+                    <${AlertsButton} count=${openAlerts} active=${section === "alerts"} onClick=${() => goSection("alerts")} />
                     <${IconButton}
                         item=${{ label: theme === "sky" ? "Dark theme" : "Light theme", icon: theme === "sky" ? Icon.moon : Icon.sun }}
                         active=${false}

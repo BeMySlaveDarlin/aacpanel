@@ -149,6 +149,25 @@
 
     .dkib.on { color: var(--accent); background: var(--accent-bg); }
 
+    /* The count rides on the bell rather than standing beside it: the header
+       row is a line of equal buttons, and one of them grown wider by a number
+       moves every neighbour the pointer was already going for. */
+    .dkibnum {
+        position: absolute;
+        top: 0;
+        right: 0;
+        min-width: 1.15rem;
+        height: 1.15rem;
+        padding: 0 .2rem;
+        border-radius: var(--r-pill);
+        background: var(--warn);
+        color: var(--void);
+        font-size: var(--t-xs);
+        font-weight: 600;
+        line-height: 1.15rem;
+        text-align: center;
+    }
+
     /* The one tooltip node of the shell; the script in desktop/tip.js fills
        it and moves it. Fixed to the viewport and above every column, so no
        scrolling column clips it and no dimmed button fades it. */
