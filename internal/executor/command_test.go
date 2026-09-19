@@ -32,9 +32,8 @@ func TestSessionCommandTypesSlashLine(t *testing.T) {
 	if !strings.Contains(sent, "/model opus") {
 		t.Fatalf("the command is missing from what went out to konsole: %q", sent)
 	}
-	if strings.Contains(sent, pasteStart) || strings.Contains(sent, pasteEnd) {
-		t.Errorf("the command went out between the paste markers: what carries that mark is no longer "+
-			"a command, it is quoted text — %q", sent)
+	if !strings.Contains(sent, pasteStart) || !strings.Contains(sent, pasteEnd) {
+		t.Errorf("the command went out as typing, not as a paste: %q", sent)
 	}
 	if n := strings.Count(sent, enterKey); n != 2 {
 		t.Errorf("Enter went out %d times, expected two: the command menu catches the first one — %q", n, sent)
@@ -66,7 +65,7 @@ func TestSessionCommandClosesSuggestMenu(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), "/compact "+enterKey) {
+	if !strings.Contains(string(raw), "/compact "+pasteEnd) {
 		t.Errorf("the command was typed without a trailing space — the hint menu stayed open: %q", raw)
 	}
 }

@@ -60,36 +60,7 @@ var listHints = []string{"to select", "enter to view"}
 // What a row of a list carries after the prompt mark.
 var listMarks = []string{"◯", "●", "○", "◉"}
 
-// What the composer shows in place of the text it took in: a picture, or a
-// paste it folded up. Either one standing there means the message is in the
-// composer.
 var attachChips = []string{"[Image#", "[Pastedtext#"}
-
-// composerInput is the text on its way into the composer, together with what
-// clears the line before it and the key that sends it after.
-//
-// It goes in between the bracketed paste markers, whatever it is. Typed in as
-// a run of keystrokes instead, it reaches the composer and stays there: the
-// composer takes a fast run for a paste of its own making, and the Enter
-// behind it becomes a line break in the message rather than the end of it.
-// A message that arrives marked as pasted is a smaller loss than a message
-// that does not arrive.
-func composerInput(text string) string {
-	return clearLine + pasteStart + text + pasteEnd + enterKey
-}
-
-// opensAMode says whether the composer would read the line as a key rather
-// than as text. A leading bang hands the rest to a shell, a leading hash files
-// it away as a memory, and an at-sign anywhere opens a list of files whose
-// first row the Enter behind it picks — so a line typed in is no longer the
-// message that was written. Pasted, the same line is text like any other, and
-// wearing the mark is the smaller loss.
-//
-// A slash is not here: a command has to be read as a command, which is the
-// whole reason it is typed.
-func opensAMode(text string) bool {
-	return strings.HasPrefix(text, "!") || strings.HasPrefix(text, "#") || strings.Contains(text, "@")
-}
 
 func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail) (bool, error) {
 	if screen, seen := t.screen(ctx); seen {
@@ -98,7 +69,7 @@ func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail
 				"nothing was typed: %s. Press Esc in the session to get back to its composer, then send again", busy)
 		}
 	}
-	if err := t.send(ctx, composerInput(text)); err != nil {
+	if err := t.send(ctx, clearLine+pasteStart+text+pasteEnd+enterKey); err != nil {
 		return false, err
 	}
 	mark := composerMark(text)
