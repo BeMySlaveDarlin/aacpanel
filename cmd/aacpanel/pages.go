@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"aacpanel/internal/webbuild"
 	"aacpanel/web"
 )
 
@@ -67,6 +68,30 @@ func renameManifest(body []byte, name string) ([]byte, error) {
 	meta["name"] = name
 	meta["short_name"] = name
 	return json.Marshal(meta)
+}
+
+// versionFile answers with the build this panel is serving. It stands at the
+// root rather than under /dist/, and that is the whole point of it: the worker
+// answers for /dist/ out of its own cache, and a device asking which version
+// the server has would be told the version it is already stuck on.
+func versionFile() http.Handler {
+	body, err := web.FS.ReadFile("dist/" + webbuild.VersionFile)
+	version := strings.TrimSpace(string(body))
+	if err != nil || version == "" {
+		log.Printf("the frontend is not built: its version is unavailable (%v); build it with `go run ./cmd/webbuild`", err)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "the frontend is not built", http.StatusServiceUnavailable)
+		})
+	}
+	answer, err := json.Marshal(map[string]string{"version": version})
+	if err != nil {
+		panic(err)
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(answer)
+	})
 }
 
 func embedFile(name, contentType string) http.Handler {

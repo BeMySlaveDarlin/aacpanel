@@ -31,6 +31,10 @@ const (
 	termBundle = "term"
 	swEntry    = "sw.js"
 	swBundle   = "sw"
+
+	// VersionFile holds the build version under DistDir, for the page to read
+	// off the server.
+	VersionFile = "version"
 )
 
 var shellFiles = []string{"web/app.html", "web/manifest.webmanifest"}
@@ -123,6 +127,14 @@ func Build(o Options) ([]string, error) {
 	list, err := json.Marshal(assets)
 	if err != nil {
 		return nil, fmt.Errorf("app shell list: %w", err)
+	}
+
+	// The version as a file of its own. The worker carries it too, but what
+	// the worker carries is minified into a name nobody can grep for, and the
+	// page needs to ask the server which version it is serving without going
+	// through the worker that may be the very thing stuck.
+	if err := os.WriteFile(filepath.Join(dist, VersionFile), []byte(version+"\n"), 0o644); err != nil {
+		return nil, fmt.Errorf("writing the version: %w", err)
 	}
 
 	sw, err := run(o, root, alias, api.BuildOptions{

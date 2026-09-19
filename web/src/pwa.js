@@ -259,17 +259,16 @@ export async function runningVersion() {
     return answer && typeof answer.version === "string" ? answer.version : "";
 }
 
-// The version the server is serving, read out of the worker it hands over.
-// Asked for past every cache there is: the point of asking is to compare it
-// with what is running, and a cached answer would be the same number twice.
-const VERSION_RE = /VERSION\s*=\s*"([0-9a-f]{6,64})"/;
-
+// The version the server is serving. It is asked for at the root rather than
+// under /dist/, because the worker answers for /dist/ out of its own cache:
+// a device stuck on an old build would be told its own version back. Past
+// every other cache too — the point of the question is the comparison.
 export async function servedVersion() {
     try {
-        const answer = await fetch("/sw.js", { cache: "no-store", credentials: "same-origin" });
+        const answer = await fetch("/version", { cache: "no-store", credentials: "same-origin" });
         if (!answer.ok) return "";
-        const found = VERSION_RE.exec(await answer.text());
-        return found ? found[1] : "";
+        const body = await answer.json();
+        return body && typeof body.version === "string" ? body.version : "";
     } catch {
         return "";
     }

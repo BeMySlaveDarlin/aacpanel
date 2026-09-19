@@ -55,6 +55,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /dist/", assets("dist", "/dist/"))
 	mux.Handle("GET /manifest.webmanifest", s.manifestFile())
 	mux.Handle("GET /sw.js", embedFile("dist/sw.js", "text/javascript; charset=utf-8"))
+	mux.Handle("GET /version", g.page(versionFile().ServeHTTP))
 	mux.Handle("GET /{$}", http.RedirectHandler("/app", http.StatusSeeOther))
 	mux.Handle("GET /app", g.page(s.app))
 	mux.Handle("GET /api/tree", g.page(s.apiTree))

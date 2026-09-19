@@ -35,10 +35,10 @@ window.done = (async () => {
 
     const realFetch = window.fetch;
     window.fetch = async (url, init) => {
-        if (String(url) === "/sw.js") {
+        if (String(url) === "/version") {
             out.askedWithCache = (init && init.cache) || "";
-            return new Response('const VERSION = "abc123def456";\nself.addEventListener("install", () => {});',
-                { status: 200, headers: { "Content-Type": "text/javascript" } });
+            return new Response(JSON.stringify({ version: "abc123def456" }),
+                { status: 200, headers: { "Content-Type": "application/json" } });
         }
         return realFetch(url, init);
     };
