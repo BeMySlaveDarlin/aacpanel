@@ -1,0 +1,255 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- A reading at a desk: the notes as the second tab of the panel beside the
+     code, a line of a diff picked up by its number, and the reading handed to
+     the session. The panel behind the screen keeps the reading and marks it
+     gone, the way the service does. -->
+<div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
+  <div id="root" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { RepoView } from "/src/screens/repo/view.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const CHANGES = {
+    root: "/srv/proj", branch: "work", base: "main", baseFrom: "project",
+    head: "abc1234", rev: "rev1",
+    files: [{ path: "pkg/env.go", layer: "worktree", add: 6, delete: 1, status: "M" }],
+    total: 1, cut: false,
+};
+
+const TREE = {
+    root: "/srv/proj", path: "", total: 1, cut: false,
+    entries: [{ name: "pkg", dir: true }],
+};
+
+const FILE = {
+    rev: "rev1", path: "pkg/env.go", oid: "2222222", size: 120, first: 1, total: 3, more: false,
+    lines: ["package pkg", "", "func childEnv() {}"],
+    spans: [null, null, null],
+};
+
+// One line taken out and one put in, both numbered 75. A note pinned by the
+// number alone would land on both of them.
+const GONE = "\t\twarns = append(warns, warn)";
+const CAME = "\t\tdelete(env, \"DBUS_SESSION_BUS_ADDRESS\")";
+
+const DIFF = {
+    rev: "rev1", path: "pkg/env.go", base: "main", baseFrom: "project",
+    files: [{
+        path: "pkg/env.go", oldOid: "1111111", newOid: "2222222",
+        hunks: [{
+            header: "@@ -74,7 +74,9 @@ func childEnv", layer: "worktree",
+            lines: [
+                { kind: "ctx", old: 74, new: 74, text: "\tif warn := checkBus(addr); warn != \"\" {", spans: null },
+                { kind: "del", old: 75, text: GONE, spans: null },
+                { kind: "add", new: 75, text: CAME, spans: null },
+                { kind: "ctx", old: 76, new: 77, text: "\t}", spans: null },
+            ],
+        }],
+    }],
+};
+
+const panel = { readings: {}, calls: [], named: 0 };
+const handed = [];
+
+const answer = (body, status = 200) => ({
+    ok: status < 400,
+    status,
+    json: async () => body,
+    text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
+});
+
+window.fetch = async (url, init = {}) => {
+    const at = String(url);
+    const method = (init.method || "GET").toUpperCase();
+    const sent = init.body ? JSON.parse(init.body) : null;
+    panel.calls.push({ at: at.split("?")[0], method, body: sent });
+
+    const path = at.split("?")[0];
+    if (path === "/api/reviews" || path.startsWith("/api/reviews/")) {
+        const id = path.slice("/api/reviews/".length);
+        if (method === "GET" && path === "/api/reviews") {
+            const list = Object.values(panel.readings).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+            return answer({ reviews: list });
+        }
+        if (method === "POST") {
+            panel.named += 1;
+            const made = {
+                id: `work-2026-${panel.named}`, session: sent.session, cwd: sent.cwd,
+                base: sent.base || "", notes: [], updatedAt: new Date().toISOString(),
+            };
+            panel.readings[made.id] = made;
+            return answer(made);
+        }
+        if (method === "PUT") {
+            const was = panel.readings[id];
+            if (!was) return answer("that is not a reading of this panel", 404);
+            if (was.sentAt) return answer("this reading has already been sent and cannot be changed", 409);
+            for (const n of sent.notes || []) {
+                if (!n.quote || !n.text) return answer("a note stands on a line, and this one quotes none", 400);
+            }
+            was.notes = sent.notes || [];
+            was.updatedAt = new Date().toISOString();
+            return answer(was);
+        }
+        if (method === "DELETE") {
+            delete panel.readings[id];
+            return answer({ dropped: id });
+        }
+        return answer(panel.readings[id] || { id, notes: [] });
+    }
+
+    const body = path === "/api/repo/changes" ? CHANGES
+        : path === "/api/repo/diff" ? DIFF
+        : path === "/api/repo/tree" ? TREE
+        : path === "/api/repo/file" ? FILE
+        : { error: "unknown" };
+    return answer(body);
+};
+
+// The send itself belongs to the conversation, not to this screen: what the
+// screen owes is a reading already in the panel and the name of it.
+async function onSend(reading) {
+    handed.push({
+        id: reading.id,
+        notes: (reading.notes || []).length,
+        puts: panel.calls.filter((c) => c.method === "PUT").length,
+    });
+    const held = panel.readings[reading.id];
+    if (held) {
+        held.sentAt = new Date().toISOString();
+        held.path = "/var/lib/aacpanel/reviews/" + reading.id + ".md";
+    }
+}
+
+render(
+    h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {}, onSend })),
+    document.getElementById("root"),
+);
+
+const sel = (q) => document.querySelector(q);
+const all = (q) => [...document.querySelectorAll(q)];
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+async function until(q, tries = 80) {
+    for (let i = 0; i < tries; i++) {
+        const el = sel(q);
+        if (el) return el;
+        await tick(30);
+    }
+    return null;
+}
+
+function type(el, what) {
+    el.value = what;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+const sideTab = (name) => all(".cdsidetabs .chip").find((c) => c.textContent.includes(name));
+const chip = (name) => all(".cdstrip .chip").find((c) => c.textContent.trim() === name);
+
+window.done = (async () => {
+    await until(".cdwide");
+    await until(".cdsidetabs");
+
+    // The panel has two tabs, and the notes are the second of them.
+    const sideTabs = all(".cdsidetabs .chip").map((c) => text(c));
+
+    // Empty, the reading has nothing to hand over.
+    sideTab("Notes").click();
+    await until(".cdnotes");
+    await tick(120);
+    const sendDisabledEmpty = sel(".cdnsend").disabled;
+    const emptyHint = text(sel(".cdnotes .hint"));
+    const treeGoneOnNotes = !sel(".cdside .cdtree");
+
+    // A line of the diff, picked up by its number. The line taken out and the
+    // line that replaced it wear the same number here.
+    sideTab("Files").click();
+    await tick(60);
+    const head = await until(".cdfilehead");
+    head.click();
+    const open = await until(".cdopen");
+    open.click();
+    await until(".cdtab.on");
+    await tick(150);
+    const diffChip = chip("Diff");
+    diffChip.click();
+    await until(".cdln.del");
+    await tick(200);
+
+    sel(".cdln.del .cdgut").click();
+    await until(".cdnote");
+    await tick(60);
+    const boxInTheCode = Boolean(sel(".cdmain .cdnote"));
+    type(sel(".cdnotein"), "this went out with the line above it, and the warning with it");
+    await tick(60);
+    sel(".cdnotekeep").click();
+    await until(".cdln.noted");
+    await tick(250);
+
+    const notedKinds = all(".cdln.noted").map((l) => (l.classList.contains("del") ? "del"
+        : l.classList.contains("add") ? "add" : "ctx"));
+    const notedCount = all(".cdln.noted").length;
+
+    // The reading, and the button that hands it over.
+    sideTab("Notes").click();
+    await until(".cdnotes");
+    await tick(150);
+    const listed = all(".cdnrow").map((r) => text(r.querySelector(".cdnat")));
+    const tabCounts = text(sideTab("Notes"));
+    const sendReads = text(sel(".cdnsend"));
+    const sendDisabledFull = sel(".cdnsend").disabled;
+
+    const putsBefore = panel.calls.filter((c) => c.method === "PUT").length;
+    sel(".cdnsend").click();
+    await tick(400);
+
+    const sentLabel = text(sel(".cdnsend"));
+    const sentDisabled = sel(".cdnsend").disabled;
+    const crossesAfterSend = all(".cdnx").length;
+    const saidSent = text(sel(".cdnstate"));
+
+    // Writing on a reading that has gone starts the next one rather than
+    // changing what the session was handed.
+    sideTab("Files").click();
+    await tick(60);
+    sel(".cdln.add .cdgut").click();
+    await until(".cdnote");
+    await tick(60);
+    type(sel(".cdnotein"), "and this one belongs to the next reading");
+    await tick(80);
+    sel(".cdnotekeep").click();
+    await tick(400);
+    const readingsNamed = panel.named;
+    const firstStillSent = Object.values(panel.readings).filter((r) => r.sentAt).length;
+
+    return {
+        sideTabs,
+        sendDisabledEmpty,
+        emptyHint,
+        treeGoneOnNotes,
+        boxInTheCode,
+        notedKinds,
+        notedCount,
+        listed,
+        tabCounts,
+        sendReads,
+        sendDisabledFull,
+        handed,
+        putsBefore,
+        sentLabel,
+        sentDisabled,
+        crossesAfterSend,
+        saidSent,
+        readingsNamed,
+        firstStillSent,
+    };
+})();
+</script>

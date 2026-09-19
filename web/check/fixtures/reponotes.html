@@ -1,0 +1,228 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- A reading left on a phone: a line picked by its number, what was written
+     about it, and the list of it on the strip of the run. The panel behind the
+     screen is a real one here — it starts a reading, keeps it and refuses a
+     note without the line it stands on, the way the service does. -->
+<div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
+  <div id="root" style="flex:1;min-height:0;overflow:auto"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { RepoView } from "/src/screens/repo/view.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const CHANGES = {
+    root: "/srv/proj", branch: "work", base: "main", baseFrom: "project",
+    head: "abc1234", rev: "rev1",
+    files: [{ path: "pkg/env.go", layer: "worktree", add: 6, delete: 1, status: "M" }],
+    total: 1, cut: false,
+};
+
+const TREE = {
+    root: "/srv/proj", path: "", total: 1, cut: false,
+    entries: [{ name: "pkg", dir: true }],
+};
+
+const FILE = {
+    rev: "rev1", path: "pkg/env.go", oid: "2222222", size: 120, first: 1, total: 3, more: false,
+    lines: ["package pkg", "", "func childEnv() {}"],
+    spans: [[[3, 7], [0, 1], [5, 3]], [], [[3, 4], [0, 1], [6, 9], [0, 6]]],
+};
+
+const DIFF = {
+    rev: "rev1", path: "pkg/env.go", base: "main", baseFrom: "project",
+    files: [{
+        path: "pkg/env.go", oldOid: "1111111", newOid: "2222222",
+        hunks: [{
+            header: "@@ -74,7 +74,9 @@ func childEnv", layer: "worktree",
+            lines: [
+                { kind: "ctx", old: 74, new: 74, text: "\tif warn := checkBus(addr); warn != \"\" {", spans: null },
+                { kind: "add", new: 75, text: "\t\tdelete(env, \"DBUS\")", spans: null },
+            ],
+        }],
+    }],
+};
+
+// The panel, as far as this screen can tell: readings are named here, kept
+// here, and a note that does not carry the text of its line is refused here —
+// that last one is the whole reason a note carries the line at all.
+const panel = { readings: {}, calls: [], named: 0 };
+
+const answer = (body, status = 200) => ({
+    ok: status < 400,
+    status,
+    json: async () => body,
+    text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
+});
+
+window.fetch = async (url, init = {}) => {
+    const at = String(url);
+    const method = (init.method || "GET").toUpperCase();
+    const sent = init.body ? JSON.parse(init.body) : null;
+    panel.calls.push({ at: at.split("?")[0], method, body: sent });
+
+    const path = at.split("?")[0];
+    if (path === "/api/reviews" || path.startsWith("/api/reviews/")) {
+        const id = path.slice("/api/reviews/".length);
+        if (method === "GET" && path === "/api/reviews") {
+            const list = Object.values(panel.readings).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+            return answer({ reviews: list });
+        }
+        if (method === "POST") {
+            panel.named += 1;
+            const made = {
+                id: `work-2026-${panel.named}`, session: sent.session, cwd: sent.cwd,
+                base: sent.base || "", notes: [], updatedAt: new Date().toISOString(),
+            };
+            panel.readings[made.id] = made;
+            return answer(made);
+        }
+        if (method === "PUT") {
+            const was = panel.readings[id];
+            if (!was) return answer("that is not a reading of this panel", 404);
+            if (was.sentAt) return answer("this reading has already been sent and cannot be changed", 409);
+            for (const n of sent.notes || []) {
+                if (!n.quote || !n.text) return answer("a note stands on a line, and this one quotes none", 400);
+            }
+            was.notes = sent.notes || [];
+            was.base = sent.base || "";
+            was.updatedAt = new Date().toISOString();
+            return answer(was);
+        }
+        if (method === "DELETE") {
+            delete panel.readings[id];
+            return answer({ dropped: id });
+        }
+        return answer(panel.readings[id] || { id, notes: [] });
+    }
+
+    const body = path === "/api/repo/changes" ? CHANGES
+        : path === "/api/repo/diff" ? DIFF
+        : path === "/api/repo/tree" ? TREE
+        : path === "/api/repo/file" ? FILE
+        : { error: "unknown" };
+    return answer(body);
+};
+
+const root = document.getElementById("root");
+const draw = () => render(
+    h(ToastHost, null, h(RepoView, { cwd: "/srv/proj", name: "work", onBack() {}, onSend() {} })),
+    root,
+);
+draw();
+
+const sel = (q) => document.querySelector(q);
+const all = (q) => [...document.querySelectorAll(q)];
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+async function until(q, tries = 80) {
+    for (let i = 0; i < tries; i++) {
+        const el = sel(q);
+        if (el) return el;
+        await tick(30);
+    }
+    return null;
+}
+
+// Typing into the box the way a thumb does: the value, and the event preact
+// listens for. A value set without the event is a value the screen never hears.
+function type(el, what) {
+    el.value = what;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+const rows = () => all(".cdnrow").map((r) => text(r.querySelector(".cdnat")));
+const puts = () => panel.calls.filter((c) => c.method === "PUT");
+
+window.done = (async () => {
+    // Into a file, the way a phone gets there: the run of changes, one file,
+    // its lines.
+    const head = await until(".cdfilehead");
+    head.click();
+    const open = await until(".cdopen");
+    open.click();
+    await until(".cdln");
+    await tick(200);
+
+    // A line is picked up by its number, and the box opens under that line
+    // rather than over the screen.
+    const line = all(".cdln")[2];
+    line.querySelector(".cdgut").click();
+    await until(".cdnote");
+    await tick(60);
+    const picked = sel(".cdln.picked");
+    const boxUnderTheLine = Boolean(picked && picked.nextElementSibling
+        && picked.nextElementSibling.classList.contains("cdnote"));
+    const quotedBack = text(sel(".cdnoteline"));
+    const emptyRefuses = sel(".cdnotekeep").disabled;
+
+    type(sel(".cdnotein"), "this name says nothing about what it reads");
+    await tick(60);
+    sel(".cdnotekeep").click();
+    await until(".cdln.noted");
+    await tick(200);
+
+    const boxClosed = !sel(".cdnote");
+    const notedLines = all(".cdln.noted").map((l) => text(l.querySelector(".cdno")));
+    const kept = puts().length ? puts()[puts().length - 1].body.notes : [];
+    const started = panel.calls.filter((c) => c.method === "POST").length;
+
+    // The list of the reading: on a phone it is a page of the same stack, one
+    // chip along from the changes.
+    sel(".pback").click();
+    const chip = await until(".cdnotetab");
+    const chipReads = text(chip);
+    chip.click();
+    await until(".cdnotes");
+    await tick(120);
+    const listed = rows();
+    const trouble = text(sel(".cdnotes .hint.crit"));
+
+    // A reload: the tab is thrown away and the panel asked again. What was
+    // written has to still be there, and it has to be the same reading rather
+    // than a second one started beside it.
+    render(null, root);
+    await tick(60);
+    draw();
+    await until(".cdstrip");
+    await tick(120);
+    const backChip = await until(".cdnotetab");
+    backChip.click();
+    await until(".cdnotes");
+    await tick(150);
+    const afterReload = rows();
+    const startedAfterReload = panel.calls.filter((c) => c.method === "POST").length;
+
+    // A note taken back, and the reading with it: an empty reading is a name
+    // on a shelf saying a review happened when none did.
+    const cross = sel(".cdnx");
+    if (cross) cross.click();
+    await tick(250);
+    const afterRemove = rows();
+    const dropped = panel.calls.some((c) => c.method === "DELETE");
+    const left = Object.keys(panel.readings).length;
+
+    return {
+        boxUnderTheLine,
+        quotedBack,
+        emptyRefuses,
+        boxClosed,
+        notedLines,
+        kept,
+        started,
+        chipReads,
+        listed,
+        trouble,
+        afterReload,
+        startedAfterReload,
+        afterRemove,
+        dropped,
+        readingsLeft: left,
+    };
+})();
+</script>
