@@ -8,6 +8,7 @@ import { Trouble } from "../ui/trouble.js";
 import { useToast } from "../ui/toasts.js";
 import { useWide } from "../ui/wide.js";
 import { askMicrophone, dictation, setDictation, speech } from "./chat/dictate.js";
+import * as pwa from "../pwa.js";
 import { byGroup, clash, costOf, SOURCE, valueText, valueTone } from "./settings/model.js";
 
 const SETTINGS_URL = "/api/settings";
@@ -149,6 +150,74 @@ function Device() {
                     </button>
                 `
                 : html`<p class="hint">This browser has no speech recognition, so there is nothing to turn on.</p>`}
+        </section>
+
+        <${Installed} />
+    `;
+}
+
+// Installed says which version of the panel this device is actually running
+// and which one the server hands out, and gives the way out when the two will
+// not come together. A worker that refuses to step aside is otherwise
+// unreachable from a phone: there are no developer tools there, and closing
+// the application does not always end it.
+function Installed() {
+    const toast = useToast();
+    const [seen, setSeen] = useState(null);
+    const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+        let alive = true;
+        Promise.all([pwa.runningVersion(), pwa.servedVersion()])
+            .then(([running, served]) => alive && setSeen({ running, served }));
+        return () => {
+            alive = false;
+        };
+    }, []);
+
+    // Three answers, not two: a page no worker controls is neither up to date
+    // nor behind — there is nothing installed on this device to be either.
+    const behind = Boolean(seen && seen.running && seen.served && seen.running !== seen.served);
+    const state = !seen ? "reading…" : !seen.running ? "not installed" : behind ? "behind the server" : "up to date";
+
+    const again = async () => {
+        setBusy(true);
+        try {
+            await pwa.reinstall();
+        } catch (err) {
+            setBusy(false);
+            toast("The panel was not reinstalled", String((err && err.message) || err), true);
+        }
+    };
+
+    return html`
+        <section class="card setrow">
+            <div class="setline">
+                <span class="setkey">installed panel</span>
+                <span class=${`setcost ${behind || (seen && !seen.running) ? "locked" : "now"}`}>${state}</span>
+            </div>
+            <p class="setval">
+                ${!seen
+                    ? "Asking the worker of this device and the server."
+                    : html`
+                        running <b>${seen.running || "no worker"}</b>,
+                        served <b>${seen.served || "unknown"}</b>
+                    `}
+            </p>
+            ${behind && html`
+                <p class="hint warn">
+                    This device is running an older build than the server hands out. It usually
+                    catches up by itself; when it does not, the worker below is what holds it.
+                </p>
+            `}
+            <p class="hint">
+                Reinstalling takes the worker off this device, drops what the panel cached here and
+                loads the page from the server. Nothing on the host is touched, and the session stays
+                open — what goes is a build that got stuck on this phone.
+            </p>
+            <button class="btn" type="button" disabled=${busy} onClick=${again}>
+                ${busy ? "reinstalling…" : "Reinstall the panel"}
+            </button>
         </section>
     `;
 }

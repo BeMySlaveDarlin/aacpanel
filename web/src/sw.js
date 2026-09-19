@@ -41,6 +41,13 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
     const type = event.data && event.data.type;
     if (type === "SKIP_WAITING") self.skipWaiting();
+    // Which version is actually running. A phone has no developer tools, so
+    // this is the only way to tell a worker that stepped aside from one that
+    // says it did.
+    if (type === "VERSION") {
+        const port = event.ports && event.ports[0];
+        if (port) port.postMessage({ version: VERSION });
+    }
     if (type === "CLEAR_DATA") event.waitUntil(caches.delete(DATA_CACHE));
     if (type === "ENDPOINTS" && Array.isArray(event.data.origins)) {
         ENDPOINTS = event.data.origins.filter((o) => typeof o === "string");

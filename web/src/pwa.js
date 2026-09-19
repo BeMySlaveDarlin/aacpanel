@@ -237,6 +237,79 @@ export function watchOpen(onOpen) {
     });
 }
 
+// The version the page is running under, asked of the worker that controls it.
+// Empty when no worker controls the page at all.
+export async function runningVersion() {
+    const worker = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!worker) return "";
+    const answer = await new Promise((resolve) => {
+        const channel = new MessageChannel();
+        const timer = setTimeout(() => resolve(null), 2000);
+        channel.port1.onmessage = (event) => {
+            clearTimeout(timer);
+            resolve(event.data);
+        };
+        try {
+            worker.postMessage({ type: "VERSION" }, [channel.port2]);
+        } catch {
+            clearTimeout(timer);
+            resolve(null);
+        }
+    });
+    return answer && typeof answer.version === "string" ? answer.version : "";
+}
+
+// The version the server is serving, read out of the worker it hands over.
+// Asked for past every cache there is: the point of asking is to compare it
+// with what is running, and a cached answer would be the same number twice.
+const VERSION_RE = /VERSION\s*=\s*"([0-9a-f]{6,64})"/;
+
+export async function servedVersion() {
+    try {
+        const answer = await fetch("/sw.js", { cache: "no-store", credentials: "same-origin" });
+        if (!answer.ok) return "";
+        const found = VERSION_RE.exec(await answer.text());
+        return found ? found[1] : "";
+    } catch {
+        return "";
+    }
+}
+
+// scrub takes the worker off this device: the registrations go, and with them
+// the caches the panel keeps. It is the way out of a worker that will not step
+// aside — on a phone there is nothing else to unregister one with, and closing
+// the application does not always do it.
+export async function scrub() {
+    const gone = { workers: 0, caches: [] };
+    if ("serviceWorker" in navigator) {
+        const found = await navigator.serviceWorker.getRegistrations().catch(() => []);
+        for (const registration of found) {
+            if (await registration.unregister().catch(() => false)) gone.workers += 1;
+        }
+    }
+    if (typeof caches !== "undefined") {
+        const names = await caches.keys().catch(() => []);
+        for (const name of names) {
+            // Only what this panel put there: a browser keeps the caches of
+            // every site in one place, and the rest of them are not ours.
+            if (!name.startsWith("aacpanel-")) continue;
+            if (await caches.delete(name).catch(() => false)) gone.caches.push(name);
+        }
+    }
+    return gone;
+}
+
+// reinstall scrubs the worker and brings the page back from the server. The
+// note about the reload goes with it: this reload is the person's doing, and
+// the guard against going in circles has nothing to guard here.
+export async function reinstall() {
+    const gone = await scrub();
+    forget();
+    reloading = true;
+    location.reload();
+    return gone;
+}
+
 export function clearData() {
     const worker = navigator.serviceWorker && navigator.serviceWorker.controller;
     if (worker) worker.postMessage({ type: "CLEAR_DATA" });

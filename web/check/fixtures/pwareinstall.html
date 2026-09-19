@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// Taking a stuck worker off a device: what the panel put in the caches goes,
+// what belongs to anything else stays, and the two versions are read the way
+// the settings screen reads them.
+import * as pwa from "/src/pwa.js";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.done = (async () => {
+    const out = {};
+
+    // A worker registered here is what scrub has to take off. The one shipped
+    // in /dist is the panel's own, and its scope is the directory it sits in.
+    try {
+        await navigator.serviceWorker.register("/dist/sw.js", { scope: "/dist/" });
+        await sleep(300);
+        out.registered = (await navigator.serviceWorker.getRegistrations()).length;
+    } catch (err) {
+        out.registerError = String(err.message || err);
+        out.registered = 0;
+    }
+
+    for (const name of ["aacpanel-shell-e23511dea1f0", "aacpanel-data", "aacpanel-route", "someone-elses-cache"]) {
+        const cache = await caches.open(name);
+        await cache.put("/kept", new Response("kept"));
+    }
+    out.before = (await caches.keys()).sort();
+
+    // No worker controls this page, so the version it runs under is nobody's.
+    out.runningWithoutWorker = await pwa.runningVersion();
+
+    const realFetch = window.fetch;
+    window.fetch = async (url, init) => {
+        if (String(url) === "/sw.js") {
+            out.askedWithCache = (init && init.cache) || "";
+            return new Response('const VERSION = "abc123def456";\nself.addEventListener("install", () => {});',
+                { status: 200, headers: { "Content-Type": "text/javascript" } });
+        }
+        return realFetch(url, init);
+    };
+    out.served = await pwa.servedVersion();
+    window.fetch = realFetch;
+
+    const gone = await pwa.scrub();
+    out.gone = { workers: gone.workers, caches: gone.caches.sort() };
+    out.after = (await caches.keys()).sort();
+    out.left = (await navigator.serviceWorker.getRegistrations()).length;
+
+    return out;
+})();
+</script>
