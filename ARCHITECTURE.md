@@ -299,6 +299,20 @@ executor what it can do and greys out buttons from the answer, and a field does
 not change that answer — an old executor would accept the request and silently
 throw the file away.
 
+**A message is typed into the session, not handed over as a paste.** A console
+folds a large write into a paste of its own making and marks it in the
+transcript as pasted content: what the person at the panel wrote would then
+reach the session as quoted data rather than as words addressed to it. So the
+executor types — a handful of characters at a time with a pause between the
+writes, line breaks as line breaks, and the key that sends the message only at
+the end. What typing would change goes in as a paste instead: a line beginning
+with a bang, a hash or a slash is a mode or a command, and the palette of a
+command swallows whatever follows it. Such a line arrives wearing the mark, and
+that is the price of it arriving at all. A message ending in an unfinished
+`@name` is typed with a space after it, which closes the list of files the Enter
+would otherwise pick a row from — a space rather than Esc, because Esc reaches a
+session that is working as an interruption of its work.
+
 **The list of this machine is shorter than the general one.** The executor says
 what it can do here: with no tmux there are no actions over sessions, and the
 window ones go away with them; with no terminal invocation template only opening
