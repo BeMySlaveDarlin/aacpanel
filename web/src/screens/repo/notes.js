@@ -36,6 +36,34 @@ async function readings(session) {
     return got.reviews || [];
 }
 
+// onShelf writes the reading out as a file and answers with where it landed.
+// The file is put there before the session hears about it: the signal carries a
+// path, and a path to nothing is worse than no signal at all.
+export async function onShelf(id) {
+    const r = await fetch(`/api/reviews/${encodeURIComponent(id)}/file`, { method: "POST" });
+    return body(r, "the reading was not written out");
+}
+
+// sealed records that the reading has gone. It is the last step rather than
+// part of writing the file: a reading is settled once the session has been
+// told, and until then it is still a draft somebody can add to.
+export async function sealed(id, path) {
+    const r = await fetch(`/api/reviews/${encodeURIComponent(id)}/sent`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path }),
+    });
+    return body(r, "the reading went out and was not written down as sent");
+}
+
+// signal is what the session is told. Short on purpose: the notes are in the
+// file, and a wall of quotes in a composer is what the file exists to avoid.
+export function signal(path, notes) {
+    const count = notes === 1 ? "1 note" : `${notes} notes`;
+    return `A reading of this branch is waiting for you: ${path} — ${count}, `
+        + "each with the line it stands on. Read the file and answer here.";
+}
+
 // start names a reading. The name is the service's to give — it becomes the
 // name of a file on a shelf.
 async function start(session, cwd, base) {
@@ -76,6 +104,72 @@ export function noteAt(notes, path, line, quote) {
     return (notes || []).find(
         (n) => n.path === path && n.line === line && n.quote === quote,
     ) || null;
+}
+
+// How far a note is allowed to have travelled. Three lines is an edit above it;
+// thirty is a different piece of code wearing the same words, and calling that
+// the same place would put a remark on something nobody wrote it about.
+export const DRIFT = 3;
+
+// place matches the notes of a file to the lines in front of them.
+//
+// A branch moves while it is being read. A note pinned to a number alone would
+// slide onto whatever ended up there; a note that demands its old number back
+// would vanish the moment somebody commits a line above it. So the text of the
+// line is what identifies it, the number only says where to look first, and a
+// note whose line is nowhere near is not lost but set aside as outdated.
+//
+// Lines are {kind, old, new, text} — the shape a diff and a window of a file
+// both arrive in. What comes back is which line each note ended up on, by
+// index, and the names of the notes that found no line at all.
+export function place(notes, path, lines, drift = DRIFT) {
+    const byIndex = new Map();
+    const stale = new Set();
+    const mine = (notes || []).filter((n) => n.path === path);
+    if (!mine.length) return { byIndex, stale };
+
+    const numberOf = (line) => (line.kind === "del" ? line.old : line.new);
+    const taken = new Set();
+
+    const put = (note, i) => {
+        byIndex.set(i, note);
+        taken.add(i);
+    };
+
+    // The line that has both the number and the words is the line it was
+    // written on; nothing else can be closer.
+    const left = [];
+    for (const note of mine) {
+        const exact = lines.findIndex(
+            (l, i) => !taken.has(i) && numberOf(l) === note.line && l.text === note.quote,
+        );
+        if (exact >= 0) put(note, exact);
+        else left.push(note);
+    }
+
+    // Then the nearest line that still says the same thing. Nearest rather than
+    // first: the same line of code twice in a file is ordinary, and the one
+    // just above where it used to be is the one that moved.
+    for (const note of left) {
+        let best = -1;
+        // The ceiling lives in this one number: nothing further than it is
+        // considered at all, so a note never lands on a stranger that happens
+        // to read the same.
+        let far = drift + 1;
+        lines.forEach((l, i) => {
+            if (taken.has(i) || l.text !== note.quote) return;
+            const no = numberOf(l);
+            if (no == null) return;
+            const away = Math.abs(no - note.line);
+            if (away < far) {
+                far = away;
+                best = i;
+            }
+        });
+        if (best >= 0) put(note, best);
+        else stale.add(note.id);
+    }
+    return { byIndex, stale };
 }
 
 // useReview holds the reading of this directory and this conversation.
@@ -320,13 +414,19 @@ export function NoteBox({ note, quote, onSave, onRemove, onClose }) {
 // NotesPane is the reading as a list: every note with the line it stands on,
 // and the way back to that line. It is the same list on both screens — a panel
 // beside the code at a desk, a page of the stack on a phone.
-export function NotesPane({ review, onOpen, onSend, wide }) {
+export function NotesPane({ review, onOpen, onSend, wide, stale }) {
     const [sending, setSending] = useState(false);
     // Why the reading did not go. It is kept apart from the trouble of saving
     // one: a note that never reached the panel and a reading the session would
     // not take are two different things to do something about.
     const [unsent, setUnsent] = useState("");
-    const notes = review.notes || [];
+    const all = review.notes || [];
+    // A note whose line the file no longer has is set apart rather than dropped
+    // from the list: it was written about something, and what it says outlives
+    // the line it was pinned to.
+    const adrift = stale || new Set();
+    const notes = all.filter((n) => !adrift.has(n.id));
+    const outdated = all.filter((n) => adrift.has(n.id));
     const sent = Boolean(review.sentAt);
     const canSend = Boolean(onSend) && notes.length > 0 && !sent && !sending;
 
@@ -352,7 +452,7 @@ export function NotesPane({ review, onOpen, onSend, wide }) {
     return html`
         <div class="cdnotes">
             <div class="cdnhead">
-                <span class="cdncount">${notes.length} ${notes.length === 1 ? "note" : "notes"}</span>
+                <span class="cdncount">${all.length} ${all.length === 1 ? "note" : "notes"}</span>
                 ${sent
                     ? html`<span class="cdnstate cdngone">sent ${ago(review.sentAt)}</span>`
                     : review.at && html`<span class="cdnstate">kept ${ago(review.at)}</span>`}
@@ -364,7 +464,7 @@ export function NotesPane({ review, onOpen, onSend, wide }) {
                 <p class="hint">This reading has gone to the session and stands as it was read. A note written now starts the next one.</p>
             `}
 
-            ${!notes.length && !review.loading && html`
+            ${!all.length && !review.loading && html`
                 <p class="hint">
                     Nothing is noted yet. ${wide ? "Click" : "Tap"} the number of a line to say what is wrong with it.
                 </p>
@@ -392,6 +492,34 @@ export function NotesPane({ review, onOpen, onSend, wide }) {
                     </div>
                 `)}
             </div>
+
+            ${outdated.length > 0 && html`
+                <div class="cdnstale">
+                    <p class="cdnstaletitle">
+                        Outdated — the line these were written on is no longer in the file.
+                    </p>
+                    ${outdated.map((n) => html`
+                        <div class="cdnrow" key=${n.id}>
+                            <button class="cdnat" type="button" title=${n.path}
+                                    onClick=${() => onOpen(n.path, n.line, n.quote)}>
+                                <span class="cdnwhere">
+                                    <span class="cdnfile">${n.path.split("/").pop()}</span>
+                                    <span class="cdnline">:${n.line}</span>
+                                </span>
+                                <span class="cdnquote">${(n.quote || "").trim()}</span>
+                                <span class="cdntext">${n.text}</span>
+                            </button>
+                            ${!sent && html`
+                                <button class="cdnx" type="button"
+                                        aria-label=${`remove the note on ${n.path} line ${n.line}`}
+                                        onClick=${() => review.remove(n.id)}>
+                                    ${Icon.close ? Icon.close() : "×"}
+                                </button>
+                            `}
+                        </div>
+                    `)}
+                </div>
+            `}
 
             <div class="cdnfoot">
                 <button class="cdnsend" type="button" disabled=${!canSend} onClick=${send}>

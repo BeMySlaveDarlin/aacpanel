@@ -13,6 +13,7 @@ import { closed, rows, runCalls, unarrived, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { RepoView } from "./repo/view.js";
+import { onShelf, sealed, signal } from "./repo/notes.js";
 import { Icon } from "../ui/icons.js";
 import { Row } from "./chat/rows.js";
 import { Calls } from "./chat/calls.js";
@@ -23,6 +24,7 @@ import { index, shelf as pageShelf } from "../data/artifacts.js";
 import { shelf as briefShelf } from "../data/briefs.js";
 import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
 import { Composer, deliver, outcome } from "./chat/composer.js";
+import { knows, whyNot } from "../exec.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
 import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
@@ -214,7 +216,28 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
     // over the run rather than a screen beside it: the way back is one tap and
     // the conversation is still underneath when it comes.
     if (repo) {
-        return html`<${RepoView} cwd=${here} name=${name} onBack=${() => setRepo(false)} />`;
+        // Sending a reading is three steps in one act: the file is written to
+        // the shelf, the session is told where it is through the same queue any
+        // message goes through, and only then is the reading written down as
+        // gone. Told first and written second, the session would open a path to
+        // nothing; settled before the signal, a reading that never left would
+        // read as delivered.
+        const sendReview = async ({ id, notes }) => {
+            // A host whose executor does not know how to write to a session
+            // would take the reading, put the file on the shelf and tell
+            // nobody. Better to say so before anything is written.
+            if (!knows(exec, "session.send")) {
+                throw new Error(whyNot(exec, "session.send") || "this host cannot write to a session");
+            }
+            const put = await onShelf(id);
+            const result = await deliver(run, name, { text: signal(put.path, put.notes || notes) });
+            if (!result || result.ok === false) {
+                throw new Error(result && result.error ? result.error : "the session did not take the signal");
+            }
+            await sealed(id, put.path);
+        };
+        return html`<${RepoView} cwd=${here} name=${name}
+                                 onBack=${() => setRepo(false)} onSend=${sendReview} />`;
     }
 
     const feed = weld(state.items);

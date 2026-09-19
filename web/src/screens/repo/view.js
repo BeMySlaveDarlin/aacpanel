@@ -15,7 +15,7 @@ import { Icon } from "../../ui/icons.js";
 import { useWide } from "../../ui/wide.js";
 import { changesOf, diffOf, fileOf, findOf, treeOf, useAsk } from "./data.js";
 import { FileLines, Hunk, SplitHunk } from "./lines.js";
-import { NoteBox, NotesPane, noteAt, useReview } from "./notes.js";
+import { NoteBox, NotesPane, noteAt, place, useReview } from "./notes.js";
 
 // How much of a file a window carries. The number is the one the service and
 // the agent hold too: three places counting differently is a screen that asks
@@ -78,6 +78,19 @@ export function RepoView({ cwd, name, onBack, onSend }) {
     const [wrap, setWrap] = useState(false);
     const [tab, setTab] = useState("feed");
     const [pane, setPane] = useState(true);
+
+    // Which notes have lost their line. The windows of files come and go, and
+    // the list of notes is one, so what a window learned is kept here — by
+    // file, so that reopening one says what it says now and nothing older.
+    const [adrift, setAdrift] = useState({});
+    const onStale = useCallback((path, ids) => {
+        setAdrift((was) => {
+            const now = [...ids].sort().join(" ");
+            if ((was[path] || []).join(" ") === now) return was;
+            return { ...was, [path]: [...ids].sort() };
+        });
+    }, []);
+    const stale = useMemo(() => new Set(Object.values(adrift).flat()), [adrift]);
 
     // The reading of this branch, and the line being written on. Both stand
     // here rather than in the bodies below: the same note is drawn in the run
@@ -184,6 +197,7 @@ export function RepoView({ cwd, name, onBack, onSend }) {
                        cwd=${cwd} base=${base} wrap=${wrap} pane=${pane}
                        tabs=${tabs} state=${changes} data=${data}
                        noting=${noting} review=${review} onSend=${onSend} onNote=${openAt}
+                       stale=${stale} onStale=${onStale}
                        jump=${jump && jump.path === file ? jump : null}
                        onPick=${(p) => setTabs((t) => ({ ...t, active: p }))}
                        onClose=${closeFile} onFile=${openFile} onBase=${setBase} />`
@@ -191,9 +205,10 @@ export function RepoView({ cwd, name, onBack, onSend }) {
                 <div class=${`cdpage${wrap ? " wrap" : ""}`}>
                     ${file
                         ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} noting=${noting}
+                                            notes=${review.notes} onStale=${onStale}
                                             jump=${jump && jump.path === file ? jump : null} />`
                         : html`<${ChangesBody}
-                                   cwd=${cwd} state=${changes} data=${data} base=${base}
+                                   cwd=${cwd} state=${changes} data=${data} base=${base} stale=${stale}
                                    noting=${noting} review=${review} onSend=${onSend} onNote=${openAt}
                                    tab=${tab} onTab=${setTab} onBase=${setBase} onFile=${openFile} />`}
                 </div>
@@ -269,7 +284,7 @@ function FileFinder({ cwd, onPick, onClose }) {
 // open, and the directory in a panel that folds away. The panel is one panel
 // with tabs of its own rather than a second column — the notes of a review
 // belong beside the tree, and two narrow columns leave the code nothing.
-function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, jump,
+function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, jump, stale, onStale,
                    onSend, onNote, onPick, onClose, onFile, onBase }) {
     // Which of the two the panel is showing. The tree and the notes are two
     // readings of the same repository, not two places to be — a panel that
@@ -284,9 +299,11 @@ function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, ju
                 <div class="cdscroll">
                     ${tabs.active
                         ? html`<${FileBody} cwd=${cwd} path=${tabs.active} base=${base} wide=${true}
-                                            noting=${noting} jump=${jump} />`
+                                            noting=${noting} notes=${review.notes}
+                                            onStale=${onStale} jump=${jump} />`
                         : html`<${ChangesBody}
                                    cwd=${cwd} state=${state} data=${data} base=${base} noting=${noting}
+                                   stale=${stale} review=${review} onSend=${onSend} onNote=${onNote}
                                    tab="feed" onTab=${null} onBase=${onBase} onFile=${onFile} />`}
                 </div>
             </div>
@@ -302,7 +319,7 @@ function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, ju
                     </div>
                     <div class="cdsidebody">
                         ${side === "notes"
-                            ? html`<${NotesPane} review=${review} wide=${true}
+                            ? html`<${NotesPane} review=${review} wide=${true} stale=${stale}
                                                  onOpen=${onNote} onSend=${onSend} />`
                             : data && !data.noRepo
                             ? html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`
@@ -362,7 +379,7 @@ function PaneButton({ on, onClick }) {
     `;
 }
 
-function ChangesBody({ cwd, state, data, base, noting, review, tab, onTab, onBase, onFile, onNote, onSend }) {
+function ChangesBody({ cwd, state, data, base, noting, review, stale, tab, onTab, onBase, onFile, onNote, onSend }) {
     const notes = (noting && noting.notes) || [];
     return html`
         <div class="cdstrip" hidden=${Boolean(data && data.noRepo)}>
@@ -400,7 +417,7 @@ function ChangesBody({ cwd, state, data, base, noting, review, tab, onTab, onBas
         ${data && !data.noRepo && tab === "feed" && html`
             <${ChangeFeed} cwd=${cwd} data=${data} noting=${noting} onFile=${onFile} />
         `}
-        ${tab === "notes" && html`<${NotesPane} review=${review} onOpen=${onNote} onSend=${onSend} />`}
+        ${tab === "notes" && html`<${NotesPane} review=${review} onOpen=${onNote} onSend=${onSend} stale=${stale} />`}
     `;
 }
 
@@ -520,7 +537,7 @@ function TreePane({ cwd, changes, onFile }) {
 
 // FileBody is one file, whole: the window a screen reads it by, with the next
 // one a tap away rather than a scroll that never ends.
-function FileBody({ cwd, path, base, wide, noting, jump }) {
+function FileBody({ cwd, path, base, wide, noting, jump, notes, onStale }) {
     const [first, setFirst] = useState(() => windowFor(jump && jump.line));
     const [mode, setMode] = useState("file");
     // Side by side is offered only where there is room for two columns. On a
@@ -538,6 +555,18 @@ function FileBody({ cwd, path, base, wide, noting, jump }) {
     const data = file.kind === "ready" ? file.data : null;
     const cut = diff.kind === "ready" ? diff.data : null;
     const marks = noting || {};
+
+    // Which notes of this file found no line in the window in front of us. It
+    // is said once the window is read rather than guessed from the numbers: a
+    // note is outdated because the file no longer says what it said, and only
+    // the file can answer that.
+    useEffect(() => {
+        if (!onStale || !data || !data.lines) return;
+        const rows = data.lines.map((text, i) => ({ kind: "ctx", new: data.first + i, text }));
+        const here = (notes || []).filter((n) => n.path === path
+            && n.line >= data.first && n.line < data.first + data.lines.length);
+        onStale(path, place(here, path, rows).stale);
+    }, [onStale, notes, path, data]);
 
     return html`
         <div class="cdstrip">

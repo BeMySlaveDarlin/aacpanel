@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A branch moves while it is being read. These are the three things that can
+// happen to a note when the file it stands on is opened again: the line is
+// where it was, the line moved a little, the line is gone.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { FileLines } from "/src/screens/repo/lines.js";
+import { place } from "/src/screens/repo/notes.js";
+
+const path = "pkg/env.go";
+
+// The file as it is now. Two lines were inserted at the top, so everything the
+// notes were written on has slid down by two.
+const lines = [
+    "package pkg",                       // 1
+    "",                                  // 2
+    "import \"os\"",                     // 3  — new
+    "",                                  // 4  — new
+    "func childEnv() {",                 // 5  (was 3)
+    "\tif warn != \"\" {",               // 6  (was 4)
+    "\t\treturn nil",                    // 7  (was 5)
+    "}",                                 // 8  (was 6)
+];
+
+const notes = [
+    // Written on line 4, now on line 6: two lines away, still the same line.
+    { id: "moved", path, line: 4, quote: "\tif warn != \"\" {", text: "this reads twice" },
+    // Written on line 5 of a file that no longer has this line at all.
+    { id: "gone", path, line: 5, quote: "\t\twarns = append(warns, warn)", text: "why append here" },
+];
+
+import { NotesPane } from "/src/screens/repo/notes.js";
+
+// The list beside the code: what is still anchored, and what the file no longer
+// has. A note whose line is gone is set apart, not dropped — it was written
+// about something, and that outlives the line it was pinned to.
+const review = { id: "r1", notes, sentAt: null, at: new Date().toISOString(), remove() {}, flush() {}, recheck() {} };
+
+render(html`
+    <div>
+        <${FileLines} path=${path} first=${1} lines=${lines} notes=${notes} />
+        <${NotesPane} review=${review} wide=${true} onOpen=${() => {}}
+                      stale=${new Set(["gone"])} />
+    </div>
+`, document.getElementById("root"));
+
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.done = (async () => {
+    for (let i = 0; i < 60 && !document.querySelector(".cdln"); i++) await tick(30);
+    const rows = [...document.querySelectorAll(".cdln")];
+    const marked = rows
+        .map((row, i) => (row.classList.contains("noted") ? i + 1 : 0))
+        .filter(Boolean);
+
+    const rowsOf = lines.map((text, i) => ({ kind: "ctx", new: i + 1, text }));
+    const put = place(notes, path, rowsOf);
+
+    // The same line twice in a file is ordinary: the note goes to the one
+    // nearest where it used to be, not to the first one from the top.
+    const twice = [
+        { kind: "ctx", new: 1, text: "\treturn nil" },
+        { kind: "ctx", new: 2, text: "x" },
+        { kind: "ctx", new: 3, text: "\treturn nil" },
+    ];
+    const near = place([{ id: "n", path, line: 4, quote: "\treturn nil" }], path, twice);
+
+    // Thirty lines away is a different piece of code wearing the same words.
+    const far = place([{ id: "n", path, line: 40, quote: "package pkg" }], path, rowsOf);
+
+    const outdated = document.querySelector(".cdnstale");
+    const listed = [...document.querySelectorAll(".cdnlist .cdnrow")].length;
+
+    return {
+        marked,
+        outdatedSaid: Boolean(outdated),
+        outdatedRows: outdated ? outdated.querySelectorAll(".cdnrow").length : 0,
+        listedRows: listed,
+        countSaid: (document.querySelector(".cdncount") || {}).textContent || "",
+        placed: [...put.byIndex.keys()].map((i) => i + 1),
+        stale: [...put.stale],
+        nearestLine: [...near.byIndex.keys()].map((i) => i + 1),
+        farStale: [...far.stale],
+    };
+})();
+</script>

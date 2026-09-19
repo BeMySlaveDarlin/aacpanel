@@ -8,6 +8,7 @@
 // never the screen.
 
 import { html } from "../../html.js";
+import { place } from "./notes.js";
 
 // The classes the service numbers its spans with. The order is the one the
 // service sends, and the two lists are one list: a class added on one side and
@@ -59,6 +60,9 @@ export function Hunk({ hunk, path, notes, picked, onPick, composer }) {
     const tag = hunk.layer === "worktree"
         ? html`<span class="cdtag wt">not in a commit yet</span>`
         : html`<span class="cdtag done">in a commit</span>`;
+    // Where the notes of this file stand now: a branch moves while it is being
+    // read, so the lines in front of us decide, not the numbers written down.
+    const { byIndex } = place(notes, path, hunk.lines);
     return html`
         <div class="cdhunk">
             <div class="cdhead">
@@ -75,7 +79,7 @@ export function Hunk({ hunk, path, notes, picked, onPick, composer }) {
                             old=${l.old}
                             text=${l.text}
                             spans=${l.spans}
-                            noted=${noteOn(notes, path, l)}
+                            noted=${byIndex.has(i)}
                             picked=${standsOn(picked, path, l)}
                             onPick=${onPick ? (line, text) => onPick(path, line, text, l.kind) : null}
                         />
@@ -98,14 +102,11 @@ function standsOn(mark, path, line) {
     return no != null && mark.line === no && mark.quote === line.text;
 }
 
-function noteOn(notes, path, line) {
-    if (!notes || !notes.length) return false;
-    return notes.some((n) => standsOn(n, path, line));
-}
-
 // FileLines is a window of a whole file, not a diff: the same rows without the
 // signs and the two layers.
 export function FileLines({ path, first, lines, spans, notes, picked, onPick, composer, head }) {
+    const rows = lines.map((text, i) => ({ kind: "ctx", new: first + i, text }));
+    const { byIndex } = place(notes, path, rows);
     return html`
         <div class="cdhunk">
             <div class="cdhead"><span class="cdpath">${head || path}</span></div>
@@ -120,7 +121,7 @@ export function FileLines({ path, first, lines, spans, notes, picked, onPick, co
                                 no=${first + i}
                                 text=${text}
                                 spans=${spans && spans[i]}
-                                noted=${noteOn(notes, path, line)}
+                                noted=${byIndex.has(i)}
                                 picked=${standsOn(picked, path, line)}
                                 onPick=${onPick ? (no, t) => onPick(path, no, t, "ctx") : null}
                             />
@@ -175,6 +176,11 @@ export function SplitHunk({ hunk, path, notes, picked, onPick, composer }) {
         ? html`<span class="cdtag wt">not in a commit yet</span>`
         : html`<span class="cdtag done">in a commit</span>`;
     const rows = splitRows(hunk.lines);
+    // The notes are placed against the run as a whole and handed to the halves
+    // as the lines they landed on: a half sees one line and cannot tell where a
+    // note that moved should have gone.
+    const { byIndex } = place(notes, path, hunk.lines);
+    const noted = new Set([...byIndex.keys()].map((i) => hunk.lines[i]));
     return html`
         <div class="cdhunk">
             <div class="cdhead">
@@ -186,9 +192,9 @@ export function SplitHunk({ hunk, path, notes, picked, onPick, composer }) {
                     html`
                         <div class="cdsprow" key=${i}>
                             <${Half} line=${row.left} side="old" path=${path}
-                                     notes=${notes} picked=${picked} onPick=${onPick} />
+                                     noted=${noted} picked=${picked} onPick=${onPick} />
                             <${Half} line=${row.right} side="new" path=${path}
-                                     notes=${notes} picked=${picked} onPick=${onPick} />
+                                     noted=${noted} picked=${picked} onPick=${onPick} />
                         </div>
                     `,
                     // The box stands under the whole row rather than in the
@@ -204,7 +210,7 @@ export function SplitHunk({ hunk, path, notes, picked, onPick, composer }) {
 // Half is one side of a row: a line, or the empty place left where the other
 // side has one more. The empty place keeps the height of a line — the two
 // columns are read across, and a gap that collapses takes the rows out of step.
-function Half({ line, side, path, notes, picked, onPick }) {
+function Half({ line, side, path, noted, picked, onPick }) {
     if (!line) return html`<div class="cdln void"><span class="cdgut"></span><span class="cdsrc"></span></div>`;
     if (side === "old" && line.kind === "add") {
         return html`<div class="cdln void"><span class="cdgut"></span><span class="cdsrc"></span></div>`;
@@ -226,7 +232,7 @@ function Half({ line, side, path, notes, picked, onPick }) {
             old=${no}
             text=${line.text}
             spans=${line.spans}
-            noted=${noteOn(notes, path, line)}
+            noted=${Boolean(noted && noted.has(line))}
             picked=${standsOn(picked, path, line)}
             onPick=${onPick ? (n, text) => onPick(path, anchor, text, line.kind) : null}
         />
