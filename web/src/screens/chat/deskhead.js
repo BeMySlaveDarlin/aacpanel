@@ -89,8 +89,8 @@ export function DeskHead({ name, live, archive, pct, view, canTerm, exec, onView
                 <span class="dkheadname dkchatname"><${Marquee} text=${name} /></span>
                 <span class="dkheadpath" title=${cwd}>${cwd || "the conversation directory is unknown"}</span>
                 ${onRepo && html`
-                    <button class="viewbtn" type="button" title="the repository of this project"
-                            aria-label="repository" onClick=${onRepo}>${Icon.code()}</button>
+                    <button class="viewbtn" type="button" title="the files of this project"
+                            aria-label="the files of this project" onClick=${onRepo}>${Icon.files()}</button>
                 `}
                 ${canTerm && html`<${ViewToggle} view=${view} onView=${onView} />`}
                 ${live && html`<${WindowToggle} name=${name} exec=${exec} />`}

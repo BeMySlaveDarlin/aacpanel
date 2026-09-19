@@ -23,8 +23,9 @@ export const Icon = {
 
     disk: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="2.5" /></svg>`,
 
-    // The viewer: the two brackets a file of code is read between.
-    code: () => html`<svg ...${stroke}><path d="M9 5.5 4 12l5 6.5M15 5.5 20 12l-5 6.5" /></svg>`,
+    // The viewer: the files of a project, which is a directory before it is
+    // anything else.
+    files: () => html`<svg ...${stroke}><path d="M3 7.6a2 2 0 0 1 2-2h3.6l1.8 2.2H19a2 2 0 0 1 2 2v7.6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>`,
     // Wrapping long lines, the first thing people ask to be able to turn off.
     wrap: () => html`<svg ...${stroke}><path d="M3 6h18M3 12h13a3.5 3.5 0 0 1 0 7h-3l2-2M13 19l2 2M3 18h5" /></svg>`,
     terminal: () => html`<svg ...${stroke}><rect x="2.5" y="4" width="19" height="16" rx="2" /><path d="m7 9.5 2.5 2.5L7 14.5M13 15h4" /></svg>`,

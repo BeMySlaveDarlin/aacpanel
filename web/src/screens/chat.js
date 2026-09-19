@@ -44,9 +44,9 @@ import { useWide } from "../ui/wide.js";
 // a screen of its own that has to be found.
 function RepoButton({ onOpen }) {
     return html`
-        <button class="viewbtn" type="button" title="the repository of this project"
-                aria-label="repository" onClick=${onOpen}>
-            ${Icon.code()}
+        <button class="viewbtn" type="button" title="the files of this project"
+                aria-label="the files of this project" onClick=${onOpen}>
+            ${Icon.files()}
         </button>
     `;
 }
