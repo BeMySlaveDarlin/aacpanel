@@ -1,0 +1,132 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%} .body{height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// A table in the feed, in the bubble it is actually drawn in. Two of them: one
+// with columns a phone can fit, one with columns no phone can. Neither may
+// push the feed wider than the screen — a table is read by scrolling the table.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { Sheet } from "/src/ui/sheet.js";
+import { render as md } from "/src/md.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const narrow = [
+    "| n | what |",
+    "| --- | --- |",
+    "| 1 | fine |",
+    "| 2 | also fine |",
+].join("\n");
+
+// The everyday case: two columns, and one cell holding a line longer than the
+// screen. This is the table that used to push the page sideways all by itself.
+const longcell = [
+    "| file | what changed |",
+    "| --- | --- |",
+    "| markdown.css | web/src/css/markdown.css:79 the cells of a table now wrap instead of setting the width of the page |",
+    "| sw.js | /home/aziz/.cache/claude-tmp/claude-1000/-opt-Projects-Pets-service-aacpanel/scratchpad/table.png |",
+].join("\n");
+
+const wide = [
+    "| task | what it is about | where it lives | who asked | when |",
+    "| --- | --- | --- | --- | --- |",
+    "| #563 | a wide box inside a sheet does not scroll under a finger | web/src/css/sheet.css | the owner | today |",
+    "| #569 | a table in the feed runs off the edge of the screen | web/src/css/markdown.css | the owner | today |",
+    "| #564 | the service worker will not step aside for a new version | web/src/sw.js | the owner | yesterday |",
+].join("\n");
+
+const items = [
+    { role: "ai", pos: 10, text: `Here is what fits:\n\n${narrow}`, at: new Date(Date.now() - 300000).toISOString() },
+    { role: "ai", pos: 20, text: `And here is what does not:\n\n${wide}`, at: new Date(Date.now() - 200000).toISOString() },
+    { role: "ai", pos: 25, text: `A table of two columns:\n\n${longcell}`, at: new Date(Date.now() - 150000).toISOString() },
+    { role: "me", pos: 30, text: wide, at: new Date(Date.now() - 100000).toISOString() },
+];
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 30, total: items.length, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+const live = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000 };
+function Page() {
+    return html`
+        <${Chat} name="evirma" id="s1" live=${live} exec=${{ available: true }}
+                 onBack=${() => {}} onUsage=${() => {}} />
+        <${Sheet} open=${true} onClose=${() => {}} label="a reading">
+            <div class="msg ai" id="insheet">${md(wide)}</div>
+        <//>
+    `;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const round = (n) => Math.round(n * 100) / 100;
+
+window.done = (async () => {
+    await document.fonts.ready;
+    await new Promise((r) => setTimeout(r, 200));
+    for (let i = 0; i < 50 && !document.querySelector(".chatfeed .mdtable"); i++) await new Promise((r) => setTimeout(r, 100));
+    const feed = document.querySelector(".chatfeed");
+    const bubbles = Array.from(document.querySelectorAll(".chatfeed .msg"));
+    const at = { narrow: bubbles[0], wide: bubbles[1], longcell: bubbles[2], mine: bubbles[bubbles.length - 1] };
+    const of = (id) => {
+        const bubble = at[id];
+        const box = bubble.querySelector(".mdtable");
+        const table = box.querySelector("table");
+        return {
+            bubble: round(bubble.getBoundingClientRect().width),
+            bubbleScroll: bubble.scrollWidth,
+            box: round(box.getBoundingClientRect().width),
+            boxScroll: box.scrollWidth,
+            boxClient: box.clientWidth,
+            table: round(table.getBoundingClientRect().width),
+            rows: table.querySelectorAll("tbody tr").length,
+            firstCell: table.querySelector("tbody td").textContent.trim(),
+            // The cell that holds a sentence: how wide it was allowed to grow,
+            // and whether the sentence in it actually wrapped.
+            sentence: (() => {
+                const cell = table.querySelectorAll("tbody tr td")[1];
+                if (!cell) return null;
+                const r = cell.getBoundingClientRect();
+                const line = parseFloat(getComputedStyle(cell).lineHeight);
+                return { width: round(r.width), lines: Math.round(r.height / line) };
+            })(),
+        };
+    };
+    const sheetBody = document.querySelector(".sheetbody") || document.querySelector(".sheet");
+    const inSheet = document.getElementById("insheet");
+    const sheetBox = inSheet && inSheet.querySelector(".mdtable");
+    return {
+        sheet: sheetBody ? {
+            body: round(sheetBody.getBoundingClientRect().width),
+            bodyScroll: sheetBody.scrollWidth,
+            bodyClient: sheetBody.clientWidth,
+            bubble: round(inSheet.getBoundingClientRect().width),
+            box: round(sheetBox.getBoundingClientRect().width),
+            boxScroll: sheetBox.scrollWidth,
+            boxClient: sheetBox.clientWidth,
+        } : null,
+        screen: window.innerWidth,
+        feed: round(feed.getBoundingClientRect().width),
+        feedScroll: feed.scrollWidth,
+        feedClient: feed.clientWidth,
+        pageScroll: document.documentElement.scrollWidth,
+        body: round(document.querySelector(".body").getBoundingClientRect().width),
+        bodyScroll: document.querySelector(".body").scrollWidth,
+        narrow: of("narrow"),
+        longcell: of("longcell"),
+        wide: of("wide"),
+        mine: of("mine"),
+    };
+})();
+</script>

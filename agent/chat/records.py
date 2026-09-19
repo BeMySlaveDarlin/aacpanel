@@ -5,7 +5,7 @@ import re
 import sesstate
 
 from .cards import artifact_card, ask_round, brief_card, sent_card, wake_item
-from .harness import classify, service, strip_panel_note
+from .harness import classify, service, strip_panel_note, unwrap_pasted
 from .mail import peer_name, peer_pid
 from .limits import MAX_TEXT, cut
 from .queue import delivered
@@ -94,11 +94,11 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         if operation != "enqueue":
             if pending is None:
                 return []
-            text = strip_panel_note((record.get("content") or "").strip())
+            text = strip_panel_note(unwrap_pasted((record.get("content") or "").strip()))
             item = pending.by_text(text) if text else pending.head()
             return [delivered(item)] if item else []
 
-        text = strip_panel_note((record.get("content") or "").strip())
+        text = strip_panel_note(unwrap_pasted((record.get("content") or "").strip()))
         if not text:
             return []
         service_items = service_once(text, at, pos, pending)
@@ -167,7 +167,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                              if isinstance(b, dict) and b.get("type") == "text")
         else:
             text = content if isinstance(content, str) else ""
-        text = text.strip()
+        text = unwrap_pasted(text.strip())
         if not text or "system-reminder" in text[:200]:
             return out
         ran = shell(text, at, pos)
@@ -224,7 +224,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                               if isinstance(b, dict) and b.get("type") == "text")
         else:
             text = prompt if isinstance(prompt, str) else ""
-        text = strip_panel_note(text.strip())
+        text = strip_panel_note(unwrap_pasted(text.strip()))
         if not text and not shots:
             return []
         if shots:

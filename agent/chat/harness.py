@@ -178,3 +178,31 @@ PANEL_NOTE = re.compile(r"^\[владелец[^\]\n]*\]\s*")
 def strip_panel_note(text):
     """Returns the prompt without the service note the panel adds."""
     return PANEL_NOTE.sub("", text, count=1)
+
+
+# The wrapper a console puts around text that arrived between bracketed-paste
+# markers. The panel sends every message that way, so what the person wrote
+# reaches the transcript inside it — and the tags belong to the transport, not
+# to a screen. The pair is matched by its own id rather than by the shape of
+# markup: the closing tag carries an attribute, which no parser of tags would
+# take, and the id repeats across messages, so it says which opening this
+# closing belongs to and nothing more.
+PASTE_RE = re.compile(
+    r'<pasted_content id="([^"\n]*)">\n?(.*?)\n?</pasted_content id="\1">', re.S)
+
+# What may stand before the wrapper and still leave the message a pasted one:
+# the console writes the pictures of a message as chips ahead of its text.
+PASTE_LEAD = re.compile(r'\A\s*(?:\[Image #\d+\]\s*)*<pasted_content id="')
+
+
+def unwrap_pasted(text):
+    """Returns the prompt without the paste wrapper the transport put on it.
+
+    Only a message that begins with the wrapper is unwrapped, and the whole of
+    one is: several pastes arrive as several blocks in a row. A message that
+    merely speaks of the tags — a person quoting this very wrapper — starts
+    with their own words and is left alone.
+    """
+    if not PASTE_LEAD.match(text or ""):
+        return text
+    return PASTE_RE.sub(lambda found: found.group(2), text).strip()

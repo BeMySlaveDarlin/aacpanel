@@ -76,13 +76,32 @@
 .mdcopy:active { background: rgba(var(--tint), .12); color: var(--ink); }
 .mdcode code { font-size: var(--t-sm); line-height: 1.5; color: var(--ink-dim); white-space: pre; }
 
-.mdtable { overflow-x: auto; margin: .35rem 0 .5rem; }
-.mdtable table { border-collapse: collapse; font-size: var(--t-base); line-height: 1.42; }
+/* A table has a width of its own, and it is the one block of an answer that
+   can want more than the screen. Three rules keep it readable. A column has a
+   ceiling, so one long sentence cannot set the width of the table; a cell
+   wraps at that ceiling; and a word is broken only when the word itself — a
+   path, a URL — is wider than its column, which is what used to push the page
+   sideways. What is still wider than the screen scrolls inside its own box,
+   never taking the page along. */
+.mdtable { overflow-x: auto; overscroll-behavior-x: contain; max-width: 100%; margin: .35rem 0 .5rem; }
+.mdtable table {
+    border-collapse: collapse;
+    font-size: var(--t-base);
+    line-height: 1.42;
+    /* By what is in it, not by what is around it: a table left to itself
+       shrinks to its box and rations the width away from whichever column can
+       wrap, so a column of prose beside a column of paths becomes a ladder. */
+    width: max-content;
+}
 .mdtable th, .mdtable td {
     border: var(--hair) solid var(--line);
     padding: .34rem .55rem;
     text-align: left;
-    white-space: nowrap;
+    max-width: 24em;
+    /* Broken only where a word alone is wider than its column. Breaking
+       anywhere instead counts a column as one letter wide when the widths are
+       worked out, and a table of five columns comes out a ladder of letters. */
+    overflow-wrap: break-word;
 }
 .mdtable th { color: var(--ink-faint); font-weight: 600; }
 

@@ -1288,6 +1288,72 @@ class PanelReplies(unittest.TestCase):
         self.assertEqual(items[0]["text"], "[TODO] look at the logs")
 
 
+class PastedWrapper(unittest.TestCase):
+    """What the console wraps a paste in, and what the person actually wrote."""
+
+    def pasted(self, *bodies, ident="8e8d"):
+        return "\n\n" + "\n".join(
+            f'<pasted_content id="{ident}">\n{body}\n</pasted_content id="{ident}">'
+            for body in bodies) + "\n"
+
+    def spoken(self, text, **fields):
+        record = {"type": "user", "timestamp": "2026-08-23T10:00:00Z",
+                  "message": {"content": text}}
+        record.update(fields)
+        return chat.parse(record, 0)
+
+    def test_the_wrapper_of_a_paste_is_not_the_message(self):
+        items = self.spoken(self.pasted("look at the logs"))
+        self.assertEqual([(i["role"], i["text"]) for i in items],
+                         [("me", "look at the logs")],
+                         "the transport wrapper reached the screen instead of the words")
+
+    def test_several_pastes_are_read_one_after_another(self):
+        items = self.spoken(self.pasted("first", "second"))
+        self.assertEqual(items[0]["text"], "first\nsecond")
+
+    def test_a_person_speaking_of_the_wrapper_keeps_their_words(self):
+        said = 'this is what it writes: <pasted_content id="8e8d">\nx\n</pasted_content id="8e8d">'
+        self.assertEqual(self.spoken(said)[0]["text"], said,
+                         "a quotation of the wrapper was unwrapped as if it were one")
+
+    def test_an_unpaired_wrapper_is_left_as_it_stands(self):
+        said = '<pasted_content id="8e8d">\nhalf of it'
+        self.assertEqual(self.spoken(said)[0]["text"], said)
+
+    def test_the_pictures_of_a_message_stay_in_front_of_it(self):
+        items = self.spoken("[Image #1] " + self.pasted("with a picture").strip())
+        self.assertEqual(items[0]["text"], "[Image #1] with a picture")
+
+    def test_a_pasted_prompt_loses_its_queue_mark_like_any_other(self):
+        # The queue matches a prompt against what it remembered of it, so both
+        # sides have to be read the same way: unwrapped on the way in and
+        # unwrapped on the way out, or a message from the panel stays marked
+        # "queued" for as long as the conversation is open.
+        pending = chat.Pending()
+        put = chat.parse({"type": "queue-operation", "operation": "enqueue",
+                          "content": self.pasted("change the scheme")}, 10, pending=pending)
+        self.assertEqual(put[0]["state"], "queued")
+        fixed = chat.parse({"type": "queue-operation", "operation": "remove",
+                            "content": self.pasted("change the scheme")}, 11, pending=pending)
+        self.assertEqual([(i["pos"], "state" in i) for i in fixed], [(10, False)])
+
+    def test_a_pasted_prompt_delivered_gives_no_second_bubble(self):
+        pending = chat.Pending()
+        chat.parse({"type": "queue-operation", "operation": "enqueue",
+                    "content": self.pasted("change the scheme")}, 10, pending=pending)
+        chat.parse({"type": "queue-operation", "operation": "dequeue"}, 11, pending=pending)
+        again = chat.parse({"type": "user", "promptSource": "queued",
+                            "timestamp": "2026-08-23T10:01:00Z",
+                            "message": {"content": self.pasted("change the scheme")}},
+                           99, pending=pending)
+        self.assertEqual(again, [])
+
+    def test_a_command_run_from_the_console_is_still_a_command(self):
+        items = self.spoken(self.pasted("<bash-input>make check</bash-input>"))
+        self.assertEqual([(i["role"], i["text"]) for i in items], [("shell", "make check")])
+
+
 class RepliesWithAttachments(unittest.TestCase):
     def enqueued(self, prompt):
         return {"type": "attachment", "attachment": {"type": "queued_command", "prompt": prompt}}
