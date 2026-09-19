@@ -50,7 +50,7 @@ class Clean(unittest.TestCase):
         # The name becomes the name of a file, and this is the one operation of
         # the viewer that writes: a name is turned away, never repaired into
         # something that would open a neighbouring file.
-        for bad in ("../secret", "a/b", "a.json", "a b", "имя", "", None,
+        for bad in ("../secret", "a/b", "a.json", "a b", "\u0441\u043b\u043e\u0432\u043e", "", None,
                     "x" * (reviews.MAX_ID + 1)):
             with self.assertRaises(reviews.Refused, msg=repr(bad)):
                 reviews.clean(dict(REVIEW, id=bad))
