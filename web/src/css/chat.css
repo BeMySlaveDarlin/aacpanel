@@ -278,17 +278,25 @@
 
 .viewbtn.on { color: var(--ink); background: var(--glass-2); }
 
+/* A button that stands on its own rather than inside the pair that switches
+   the view: the pair carries a frame, and a lone glyph beside it reads as a
+   mark on the header rather than as something to press. It wears the frame of
+   the pair, and the padding of the pair with it, so the row stands level. */
+.viewbtn.solo,
+.winbtn {
+    width: calc(1.7rem + .24rem + 2 * var(--hair));
+    height: calc(1.55rem + .24rem + 2 * var(--hair));
+    background: var(--glass);
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-small);
+}
+
 .winbtn {
     margin-left: auto;
     display: grid;
     place-items: center;
-    width: 1.7rem;
-    height: 1.55rem;
     padding: 0;
     color: var(--ink-faint);
-    background: none;
-    border: var(--hair) solid transparent;
-    border-radius: var(--r-small);
     cursor: pointer;
 }
 

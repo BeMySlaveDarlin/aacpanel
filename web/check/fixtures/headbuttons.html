@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// The tools of the header of a conversation: the files of the project, the
+// pair that switches between the run and the terminal, and the window on the
+// host. Three controls in one row — and the two that stand on their own have
+// to read as controls beside the pair that carries a frame.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: true });
+    if (u.startsWith("/api/session/window")) return json({ state: "closed", reason: "" });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const live = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj/panel" };
+const exec = { available: true, actions: ["window.open", "window.close"] };
+function Page() {
+    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec}
+                         onBack=${() => {}} onUsage=${() => {}} />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const round = (n) => Math.round(n * 100) / 100;
+const opaque = (color) => Boolean(color) && color !== "transparent" && !/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)/.test(color);
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 50 && !document.querySelector(".winbtn"); i++) await sleep(100);
+    await sleep(200);
+
+    const look = (sel) => {
+        const node = document.querySelector(sel);
+        if (!node) return null;
+        const box = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        const painted = opaque(style.backgroundColor) || (style.backgroundImage && style.backgroundImage !== "none");
+        return {
+            height: round(box.height),
+            width: round(box.width),
+            top: round(box.top),
+            background: style.backgroundColor + " / " + style.backgroundImage,
+            hasBackground: painted,
+            border: style.borderTopWidth,
+            hasBorder: parseFloat(style.borderTopWidth) > 0 && opaque(style.borderTopColor),
+        };
+    };
+    return { files: look(".viewbtn.solo"), pair: look(".viewsw"), window: look(".winbtn") };
+})();
+</script>
