@@ -134,8 +134,11 @@ func TestSessionFilePackGoesInOneReply(t *testing.T) {
 		t.Fatalf("nothing went out to konsole: %v", err)
 	}
 	sent := string(raw)
-	if n := strings.Count(sent, pasteStart); n != 1 {
-		t.Errorf("%d pastes into the composer, expected one: %q", n, sent)
+	if n := strings.Count(sent, clearLine); n != 1 {
+		t.Errorf("%d messages went into the composer, expected one: %q", n, sent)
+	}
+	if strings.Contains(sent, pasteStart) {
+		t.Errorf("the pack went in as a paste: a session reads what wears that mark as quoted data — %q", sent)
 	}
 	if !strings.Contains(sent, "look at three at once") {
 		t.Errorf("the caption of the pack got lost: %q", sent)
@@ -145,7 +148,7 @@ func TestSessionFilePackGoesInOneReply(t *testing.T) {
 		if !strings.Contains(sent, path) {
 			t.Errorf("the path %s was not typed into the session: %q", path, sent)
 		}
-		if !strings.Contains(sent, path+"\n") && !strings.Contains(sent, path+pasteEnd) {
+		if !strings.Contains(sent, path+"\n") && !strings.Contains(sent, path+enterKey) {
 			t.Errorf("the path %s is not on a line of its own — the composer will read two paths as one", path)
 		}
 	}

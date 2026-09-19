@@ -45,6 +45,16 @@ const (
 	clearLine  = "\x15"
 	escKey     = "\x1b"
 	pastePoll  = 90 * time.Millisecond
+	// How a message is typed: a run of small writes with a pause between
+	// them. One large write is taken by the console for a paste — it folds
+	// the text into a chip and marks it in the transcript as pasted content,
+	// and the words of a person then reach the session as data rather than as
+	// what they said. These two numbers are what was measured against a live
+	// session: at this size and this pace a message of a thousand characters
+	// over thirteen lines arrives as typed, and one write of the same text
+	// arrives folded.
+	typeChunk  = 80
+	typePause  = 50 * time.Millisecond
 	arriveWait = 3 * time.Second
 	sendWait   = 5 * time.Second
 	freeWait   = 2 * time.Second
@@ -60,7 +70,94 @@ var listHints = []string{"to select", "enter to view"}
 // What a row of a list carries after the prompt mark.
 var listMarks = []string{"◯", "●", "○", "◉"}
 
+// What the composer shows in place of the text it took in: a picture, or a
+// paste it folded up. Either one standing there means the message is in the
+// composer.
 var attachChips = []string{"[Image#", "[Pastedtext#"}
+
+// opensAMode says whether the composer would read the line as a key rather
+// than as text, so that typing it in would change what arrives. A leading bang
+// hands the rest to a shell, a leading hash files it away as a memory, and a
+// leading slash is a command whose palette swallows whatever follows it.
+// Pasted, each of these is text like any other — and a slash command pasted
+// whole is still run as the command it is.
+func opensAMode(text string) bool {
+	body := strings.TrimSpace(text)
+	for _, mark := range []string{"!", "#", "/"} {
+		if strings.HasPrefix(body, mark) {
+			return true
+		}
+	}
+	return false
+}
+
+// leavesAListOpen says whether the message ends in an unfinished @name. Typed
+// in, it leaves the list of files open with its first row under the Enter that
+// was meant to send the message — so a space is typed after it, which closes
+// the list and is trimmed off the message anyway. A space, and not Esc: Esc
+// reaches a session that is working as an interruption of its work.
+func leavesAListOpen(text string) bool {
+	body := strings.TrimRight(text, " \t")
+	last := body
+	if at := strings.LastIndexAny(body, " \t\n"); at >= 0 {
+		last = body[at+1:]
+	}
+	return strings.HasPrefix(last, "@") && len(last) > 1
+}
+
+// keystrokes returns the text as a run of keystrokes: the line breaks a
+// console takes for a send are made the ones it takes for a new line. A
+// carriage return in the middle of a message would end it there and leave the
+// rest standing in the composer as a message of its own.
+func keystrokes(text string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+}
+
+// typeIn writes the message into the composer the way a person would: a
+// handful of characters at a time, with a pause the console reads as typing.
+func typeIn(ctx context.Context, t term, text string) error {
+	runes := []rune(keystrokes(text))
+	for at := 0; at < len(runes); at += typeChunk {
+		end := at + typeChunk
+		if end > len(runes) {
+			end = len(runes)
+		}
+		if err := t.send(ctx, string(runes[at:end])); err != nil {
+			return err
+		}
+		if end == len(runes) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("the message was cut off while it was being typed: %w", ctx.Err())
+		case <-time.After(typePause):
+		}
+	}
+	return nil
+}
+
+// enterInto puts the message in and asks for it to be sent. What goes in
+// between the paste markers is what typing would change: a command, a mode,
+// an unfinished name of a file. Everything else is typed, and arrives as the
+// words of a person rather than as something they pasted.
+func enterInto(ctx context.Context, t term, text string) error {
+	if opensAMode(text) {
+		return t.send(ctx, clearLine+pasteStart+text+pasteEnd+enterKey)
+	}
+	if err := t.send(ctx, clearLine); err != nil {
+		return err
+	}
+	if err := typeIn(ctx, t, text); err != nil {
+		return err
+	}
+	if leavesAListOpen(text) {
+		if err := t.send(ctx, " "); err != nil {
+			return err
+		}
+	}
+	return t.send(ctx, enterKey)
+}
 
 func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail) (bool, error) {
 	if screen, seen := t.screen(ctx); seen {
@@ -69,7 +166,7 @@ func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail
 				"nothing was typed: %s. Press Esc in the session to get back to its composer, then send again", busy)
 		}
 	}
-	if err := t.send(ctx, clearLine+pasteStart+text+pasteEnd+enterKey); err != nil {
+	if err := enterInto(ctx, t, text); err != nil {
 		return false, err
 	}
 	mark := composerMark(text)

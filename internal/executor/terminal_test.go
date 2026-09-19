@@ -313,3 +313,118 @@ func TestCursorAtTellsThePromptFromTheText(t *testing.T) {
 		}
 	}
 }
+
+// The panel is the keyboard of the person at it, and what goes in that way is
+// their own message. Text handed to the console in one write is folded into a
+// paste: the console marks it in the transcript as pasted content, and the
+// words of a person then reach the session as data rather than as what they
+// said. So a message is typed — a handful of characters at a time, at the pace
+// of a hand — and only what typing would change is pasted.
+func TestAMessageIsTypedRatherThanHandedOverAsAPaste(t *testing.T) {
+	cases := []struct {
+		name   string
+		text   string
+		paste  bool
+		closes bool
+	}{
+		{name: "a short line", text: "ok", paste: false},
+		{name: "a long line", text: strings.Repeat("check the stack logs and say what crashed, ", 5), paste: false},
+		{name: "several lines", text: "check the stack logs\nand say what crashed", paste: false},
+		{name: "an at-sign in the middle", text: "ask about @CLAUDE.md and the base", paste: false},
+		// What typing would change into something else.
+		{name: "a slash command", text: "/status", paste: true},
+		{name: "a slash command with an argument", text: "/model haiku", paste: true},
+		{name: "a bang hands the line to a shell", text: "!git status", paste: true},
+		{name: "a hash files it away as a memory", text: "#the base is main", paste: true},
+		{name: "an unfinished name of a file at the end", text: "look at @CLAUDE.md", paste: false, closes: true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			term := &fakeTerm{screen_: screenWithReply(c.text), known: true}
+			confirmed, err := pasteAndSend(context.Background(), term, c.text, nil)
+			if err != nil {
+				t.Fatalf("the text was not delivered: %v", err)
+			}
+			if !confirmed {
+				t.Error("the text stands in the composer on the screen, yet the send is unconfirmed")
+			}
+
+			whole := strings.Join(term.sent, "")
+			if !strings.HasPrefix(whole, clearLine) {
+				t.Errorf("the composer was not cleared before the text: %q", term.sent)
+			}
+			if !strings.HasSuffix(whole, enterKey) {
+				t.Errorf("nothing sent the text: no Enter at the end of %q", term.sent)
+			}
+			marked := strings.Contains(whole, pasteStart) || strings.Contains(whole, pasteEnd)
+			switch {
+			case marked && !c.paste:
+				t.Errorf("the message went in as a paste: the session reads it as quoted data instead of "+
+					"words addressed to it — %q", term.sent)
+			case !marked && c.paste:
+				t.Errorf("a line the composer reads as a key was typed in: what arrives is no longer the "+
+					"message that was written — %q", term.sent)
+			}
+
+			if c.paste {
+				if len(term.sent) != 1 {
+					t.Errorf("a paste went in as %d writes, expected one: %q", len(term.sent), term.sent)
+				}
+				if !strings.Contains(whole, c.text) {
+					t.Errorf("the text itself is missing from what went out: %q", whole)
+				}
+				return
+			}
+
+			// Typed: the text arrives whole, in writes small enough that the
+			// console does not take the run for a paste of its own.
+			body := strings.TrimSuffix(strings.TrimPrefix(whole, clearLine), enterKey)
+			if c.closes {
+				if !strings.HasSuffix(body, " ") {
+					t.Errorf("the list of files is left open under the Enter that sends the message: %q", term.sent)
+				}
+				body = strings.TrimSuffix(body, " ")
+			}
+			if body != c.text {
+				t.Errorf("what was typed is not what was asked for:\n got %q\nwant %q", body, c.text)
+			}
+			for _, write := range term.sent {
+				if write == clearLine || write == enterKey {
+					continue
+				}
+				if n := len([]rune(write)); n > typeChunk {
+					t.Errorf("a write of %d characters went in at once, past the %d a keyboard is read at: %q",
+						n, typeChunk, write)
+				}
+			}
+			if strings.Contains(body, "\r") {
+				t.Errorf("a carriage return went in with the text: it ends the message where it stands "+
+					"and leaves the rest in the composer — %q", body)
+			}
+		})
+	}
+}
+
+// A message written with the line breaks of a text file arrives as one message
+// all the same: what the console sends on is the carriage return, so that is
+// the one thing the panel never types.
+func TestLineBreaksOfAFileDoNotEndTheMessage(t *testing.T) {
+	text := "first line\r\nsecond line\rthird line"
+	term := &fakeTerm{screen_: screenWithReply(text), known: true}
+	if _, err := pasteAndSend(context.Background(), term, text, nil); err != nil {
+		t.Fatalf("the text was not delivered: %v", err)
+	}
+	whole := strings.Join(term.sent, "")
+	body := strings.TrimSuffix(strings.TrimPrefix(whole, clearLine), enterKey)
+	if want := "first line\nsecond line\nthird line"; body != want {
+		t.Errorf("the message was typed as %q, expected %q", body, want)
+	}
+}
+
+// screenWithReply is a session whose composer is empty and whose last message
+// is the one just sent: what the screen looks like once a message has left.
+func screenWithReply(text string) string {
+	rule := strings.Repeat("─", 40)
+	return "❯ " + text + "\n\n" + rule + "\n❯ \n" + rule + "\n"
+}

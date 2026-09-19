@@ -1783,22 +1783,26 @@ if method == "sendText" and STALL_SEND:
     stall()
 
 def pasted():
+    # What stands in the composer: everything written since the line was last
+    # cleared, whether it was handed over as a paste or typed in a run of small
+    # writes. The markers are dropped, so both ways read the same here.
     try:
         raw = open(LOG, "rb").read().decode("utf-8", "replace")
     except FileNotFoundError:
         return "", 0
-    i = raw.rfind("\x1b[200~")
-    if i < 0:
-        return "", 0
-    j = raw.find("\x1b[201~", i)
-    if j < 0:
-        return "", 0
-    text = raw[i + 6:j]
+    # A dialog of the session is answered without clearing a line first, so
+    # what is in the field is everything written since the last clear, if there
+    # was one, and the whole log otherwise.
+    i = raw.rfind("\x15")
+    rest = raw[i + 1:].replace("\x1b[200~", "").replace("\x1b[201~", "")
+    j = rest.find("\r")
+    text = rest if j < 0 else rest[:j]
+    enters = 0 if j < 0 else rest[j:].count("\r")
     if ATTACH:
         lines = text.split("\n")
         if lines and lines[-1].startswith("/"):
             text = "[Image #1]" + "\n".join(lines[:-1])
-    return text, raw[j:].count("\r")
+    return text, enters
 
 def looked():
     n = 0
@@ -1873,11 +1877,12 @@ func TestSessionSendTypesIntoKonsole(t *testing.T) {
 	if !strings.Contains(sent, "check the stack logs") {
 		t.Fatalf("the reply text is missing from what went out to konsole: %q", sent)
 	}
-	if !strings.Contains(sent, pasteStart) || !strings.Contains(sent, pasteEnd) {
-		t.Errorf("the text went out as typing, not as a paste: %q", sent)
+	if strings.Contains(sent, pasteStart) || strings.Contains(sent, pasteEnd) {
+		t.Errorf("the text went out as a paste: a session reads what wears that mark as quoted data "+
+			"rather than as the words of the person at the panel — %q", sent)
 	}
 	if !strings.HasPrefix(sent, clearLine) {
-		t.Errorf("the composer was not cleared before the paste: %q", sent)
+		t.Errorf("the composer was not cleared before the text: %q", sent)
 	}
 	if !strings.HasSuffix(sent, enterKey) {
 		t.Errorf("the reply was not sent — no Enter went out: %q", sent)

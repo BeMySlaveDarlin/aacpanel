@@ -27,6 +27,16 @@ func (f *fakeTerm) send(_ context.Context, payload string) error {
 }
 func (f *fakeTerm) screen(context.Context) (string, bool) { return f.screen_, f.known }
 
+// extraEnters counts the Enter keys the panel added over the one that sends
+// the message: those are the blind presses it makes when it cannot tell
+// whether what it typed has left the composer.
+func (f *fakeTerm) extraEnters() int {
+	if n := f.enters(); n > 0 {
+		return n - 1
+	}
+	return 0
+}
+
 func (f *fakeTerm) enters() int {
 	n := 0
 	for _, s := range f.sent {
@@ -184,8 +194,8 @@ func TestTranscriptAnswersWhenTheScreenCannotBeRead(t *testing.T) {
 	if !confirmed {
 		t.Error("the collector saw the record, yet the send is unconfirmed")
 	}
-	if term.enters() != 0 {
-		t.Errorf("%d extra Enter sent: the reply had already gone out", term.enters())
+	if term.extraEnters() != 0 {
+		t.Errorf("%d extra Enter sent: the reply had already gone out", term.extraEnters())
 	}
 }
 
@@ -200,8 +210,8 @@ func TestUnreadableScreenWithoutTranscriptAnswersAtOnce(t *testing.T) {
 	if confirmed {
 		t.Error("something nobody saw was confirmed")
 	}
-	if term.enters() != 1 {
-		t.Errorf("%d Enter sent blind, while there should be one", term.enters())
+	if term.extraEnters() != 1 {
+		t.Errorf("%d Enter sent blind, while there should be one", term.extraEnters())
 	}
 	if waited := time.Since(start); waited > arriveWait/2 {
 		t.Errorf("waited %s where there is nothing to wait for", waited.Round(time.Millisecond))
