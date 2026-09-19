@@ -15,13 +15,22 @@ import { Icon } from "../../ui/icons.js";
 import { useWide } from "../../ui/wide.js";
 import { changesOf, diffOf, fileOf, findOf, treeOf, useAsk } from "./data.js";
 import { FileLines, Hunk, SplitHunk } from "./lines.js";
+import { NoteBox, NotesPane, noteAt, useReview } from "./notes.js";
 
 // How much of a file a window carries. The number is the one the service and
 // the agent hold too: three places counting differently is a screen that asks
 // for two hundred lines and draws a hundred.
 const WINDOW = 200;
 
-export function RepoView({ cwd, name, onBack }) {
+// The window of a file that holds a line. A note points at a line, and a file
+// opened at its first page with that line four hundred rows further down is a
+// file opened nowhere in particular.
+function windowFor(line) {
+    if (!line || line < 1) return 1;
+    return Math.floor((line - 1) / WINDOW) * WINDOW + 1;
+}
+
+export function RepoView({ cwd, name, onBack, onSend }) {
     const wide = useWide();
 
     // What is open and which one is being read. The viewer never went deeper
@@ -69,6 +78,56 @@ export function RepoView({ cwd, name, onBack }) {
     const [wrap, setWrap] = useState(false);
     const [tab, setTab] = useState("feed");
     const [pane, setPane] = useState(true);
+
+    // The reading of this branch, and the line being written on. Both stand
+    // here rather than in the bodies below: the same note is drawn in the run
+    // of changes, in the file it belongs to and in the list beside them, and
+    // three copies of it would disagree the moment one was written to.
+    const review = useReview(cwd, name, base);
+    const [picked, setPicked] = useState(null);
+    const [jump, setJump] = useState(null);
+
+    // Picking the same line twice puts the box away. A number is the only
+    // handle a line has, and a handle that cannot be let go of is a box that
+    // has to be cancelled to be rid of.
+    const pick = useCallback((path, line, quote) => {
+        setPicked((was) => (was && was.path === path && was.line === line && was.quote === quote
+            ? null
+            : { path, line, quote }));
+    }, []);
+
+    const held = picked && !review.sentAt
+        ? noteAt(review.notes, picked.path, picked.line, picked.quote)
+        : null;
+
+    const composer = picked && html`
+        <${NoteBox}
+            key=${`${picked.path}:${picked.line}`}
+            note=${held}
+            quote=${picked.quote}
+            onSave=${(text) => {
+                review.add(picked.path, picked.line, picked.quote, text);
+                setPicked(null);
+            }}
+            onRemove=${() => {
+                if (held) review.remove(held.id);
+                setPicked(null);
+            }}
+            onClose=${() => setPicked(null)}
+        />
+    `;
+
+    const noting = { notes: review.notes, picked, onPick: pick, composer };
+
+    // A note opened from the list goes back to where it was written: the file,
+    // the window of it that holds the line, and the line itself with the box
+    // under it. A list that only says "env.go:212" is read with a finger on
+    // the screen and the other hand scrolling.
+    const openAt = useCallback((path, line, quote) => {
+        openFile(path);
+        setJump({ path, line, on: Date.now() });
+        setPicked({ path, line, quote });
+    }, [openFile]);
 
     // Finding a file by its name. Only where there is a keyboard to press it
     // on: a phone has no Ctrl and nothing to bind this to.
@@ -124,14 +183,18 @@ export function RepoView({ cwd, name, onBack }) {
             ? html`<${DeskBody}
                        cwd=${cwd} base=${base} wrap=${wrap} pane=${pane}
                        tabs=${tabs} state=${changes} data=${data}
+                       noting=${noting} review=${review} onSend=${onSend} onNote=${openAt}
+                       jump=${jump && jump.path === file ? jump : null}
                        onPick=${(p) => setTabs((t) => ({ ...t, active: p }))}
                        onClose=${closeFile} onFile=${openFile} onBase=${setBase} />`
             : html`
                 <div class=${`cdpage${wrap ? " wrap" : ""}`}>
                     ${file
-                        ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} />`
+                        ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} noting=${noting}
+                                            jump=${jump && jump.path === file ? jump : null} />`
                         : html`<${ChangesBody}
                                    cwd=${cwd} state=${changes} data=${data} base=${base}
+                                   noting=${noting} review=${review} onSend=${onSend} onNote=${openAt}
                                    tab=${tab} onTab=${setTab} onBase=${setBase} onFile=${openFile} />`}
                 </div>
             `}
@@ -206,26 +269,42 @@ function FileFinder({ cwd, onPick, onClose }) {
 // open, and the directory in a panel that folds away. The panel is one panel
 // with tabs of its own rather than a second column — the notes of a review
 // belong beside the tree, and two narrow columns leave the code nothing.
-function DeskBody({ cwd, base, wrap, pane, tabs, state, data, onPick, onClose, onFile, onBase }) {
+function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, jump,
+                   onSend, onNote, onPick, onClose, onFile, onBase }) {
+    // Which of the two the panel is showing. The tree and the notes are two
+    // readings of the same repository, not two places to be — a panel that
+    // remembered one of them per file would send the eye looking for the tab
+    // it was last on.
+    const [side, setSide] = useState("files");
+    const notes = noting.notes || [];
     return html`
         <div class=${`cdwide${pane ? "" : " solo"}${wrap ? " wrap" : ""}`}>
             <div class="cdmain">
                 <${TabStrip} tabs=${tabs} onPick=${onPick} onClose=${onClose} />
                 <div class="cdscroll">
                     ${tabs.active
-                        ? html`<${FileBody} cwd=${cwd} path=${tabs.active} base=${base} wide=${true} />`
+                        ? html`<${FileBody} cwd=${cwd} path=${tabs.active} base=${base} wide=${true}
+                                            noting=${noting} jump=${jump} />`
                         : html`<${ChangesBody}
-                                   cwd=${cwd} state=${state} data=${data} base=${base}
+                                   cwd=${cwd} state=${state} data=${data} base=${base} noting=${noting}
                                    tab="feed" onTab=${null} onBase=${onBase} onFile=${onFile} />`}
                 </div>
             </div>
             ${pane && html`
                 <aside class="cdside">
                     <div class="cdsidetabs">
-                        <button class="chip" type="button" aria-pressed=${true}>Files</button>
+                        <button class="chip" type="button" aria-pressed=${side === "files"}
+                                onClick=${() => setSide("files")}>Files</button>
+                        <button class="chip cdnotetab" type="button" aria-pressed=${side === "notes"}
+                                onClick=${() => setSide("notes")}>
+                            Notes${notes.length ? html` <b>${notes.length}</b>` : null}
+                        </button>
                     </div>
                     <div class="cdsidebody">
-                        ${data && !data.noRepo
+                        ${side === "notes"
+                            ? html`<${NotesPane} review=${review} wide=${true}
+                                                 onOpen=${onNote} onSend=${onSend} />`
+                            : data && !data.noRepo
                             ? html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`
                             : html`<p class="hint">No repository to walk.</p>`}
                     </div>
@@ -283,7 +362,8 @@ function PaneButton({ on, onClick }) {
     `;
 }
 
-function ChangesBody({ cwd, state, data, base, tab, onTab, onBase, onFile }) {
+function ChangesBody({ cwd, state, data, base, noting, review, tab, onTab, onBase, onFile, onNote, onSend }) {
+    const notes = (noting && noting.notes) || [];
     return html`
         <div class="cdstrip" hidden=${Boolean(data && data.noRepo)}>
             ${onTab && html`
@@ -299,6 +379,12 @@ function ChangesBody({ cwd, state, data, base, tab, onTab, onBase, onFile }) {
                     ${base ? "project base" : "this reading"}
                 </button>
             `}
+            ${onTab && html`
+                <button class="chip cdnotetab" type="button" aria-pressed=${tab === "notes"}
+                        onClick=${() => onTab("notes")}>
+                    Notes${notes.length ? html` <b>${notes.length}</b>` : null}
+                </button>
+            `}
         </div>
 
         ${state.kind === "loading" && html`<p class="hint">Reading the repository…</p>`}
@@ -311,14 +397,17 @@ function ChangesBody({ cwd, state, data, base, tab, onTab, onBase, onFile }) {
             </p>
         `}
         ${data && !data.noRepo && tab === "tree" && html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`}
-        ${data && !data.noRepo && tab === "feed" && html`<${ChangeFeed} cwd=${cwd} data=${data} onFile=${onFile} />`}
+        ${data && !data.noRepo && tab === "feed" && html`
+            <${ChangeFeed} cwd=${cwd} data=${data} noting=${noting} onFile=${onFile} />
+        `}
+        ${tab === "notes" && html`<${NotesPane} review=${review} onOpen=${onNote} onSend=${onSend} />`}
     `;
 }
 
 // ChangeFeed is the run of changes: every file this branch touched, in one
 // document. The diff of a file is fetched when it is opened rather than all at
 // once — a day here has been seventy-seven files and five thousand lines.
-function ChangeFeed({ cwd, data, onFile }) {
+function ChangeFeed({ cwd, data, noting, onFile }) {
     const files = data.files || [];
     if (!files.length) {
         return html`<p class="hint">Nothing has changed against <b>${data.base || "the base"}</b>.</p>`;
@@ -326,7 +415,7 @@ function ChangeFeed({ cwd, data, onFile }) {
     return html`
         <div class="cdfeed">
             ${files.map((f) => html`
-                <${FileCard} key=${f.path} cwd=${cwd} file=${f} rev=${data.rev}
+                <${FileCard} key=${f.path} cwd=${cwd} file=${f} rev=${data.rev} noting=${noting}
                              base=${data.base} onOpen=${() => onFile(f.path)} />
             `)}
             ${data.cut && html`
@@ -338,7 +427,7 @@ function ChangeFeed({ cwd, data, onFile }) {
 
 // FileCard is one file of the run: its name and counts, and its diff once it
 // has been unfolded.
-function FileCard({ cwd, file, rev, base, onOpen }) {
+function FileCard({ cwd, file, rev, base, noting, onOpen }) {
     const [open, setOpen] = useState(false);
     const [state] = useAsk(() => diffOf(cwd, file.path, base, rev), [cwd, file.path, base, rev], open);
     const diff = state.kind === "ready" ? state.data : null;
@@ -361,7 +450,11 @@ function FileCard({ cwd, file, rev, base, onOpen }) {
                         <p class="hint">The repository moved while this was being read. Pull the list again.</p>
                     `}
                     ${diff && !diff.stale && (diff.files || []).map((f) =>
-                        f.hunks.map((h, i) => html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`))}
+                        f.hunks.map((h, i) => html`
+                            <${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path}
+                                     notes=${noting.notes} picked=${noting.picked}
+                                     onPick=${noting.onPick} composer=${noting.composer} />
+                        `))}
                     ${diff && !diff.stale && (diff.files || []).some((f) => f.cut) && html`
                         <p class="cdcut">The diff of this file is longer than one reading — open the file to walk it.</p>
                     `}
@@ -427,8 +520,8 @@ function TreePane({ cwd, changes, onFile }) {
 
 // FileBody is one file, whole: the window a screen reads it by, with the next
 // one a tap away rather than a scroll that never ends.
-function FileBody({ cwd, path, base, wide }) {
-    const [first, setFirst] = useState(1);
+function FileBody({ cwd, path, base, wide, noting, jump }) {
+    const [first, setFirst] = useState(() => windowFor(jump && jump.line));
     const [mode, setMode] = useState("file");
     // Side by side is offered only where there is room for two columns. On a
     // phone it is two half-width columns of code, which is neither side read.
@@ -436,8 +529,15 @@ function FileBody({ cwd, path, base, wide }) {
     const [file] = useAsk(() => fileOf(cwd, path, "", first, WINDOW), [cwd, path, first], mode === "file");
     const [diff] = useAsk(() => diffOf(cwd, path, base, ""), [cwd, path, base], mode === "diff");
 
+    // A note opened from the list lands on the window that holds its line
+    // rather than on the first page of the file.
+    useEffect(() => {
+        if (jump) setFirst(windowFor(jump.line));
+    }, [jump]);
+
     const data = file.kind === "ready" ? file.data : null;
     const cut = diff.kind === "ready" ? diff.data : null;
+    const marks = noting || {};
 
     return html`
         <div class="cdstrip">
@@ -461,6 +561,8 @@ function FileBody({ cwd, path, base, wide }) {
             ${data && data.tooBig && html`<p class="hint">This file is ${Math.round(data.size / 1024)} KB, past what the panel reads in one piece.</p>`}
             ${data && data.lines && html`
                 <${FileLines} path=${path} first=${data.first} lines=${data.lines} spans=${data.spans}
+                              notes=${marks.notes} picked=${marks.picked}
+                              onPick=${marks.onPick} composer=${marks.composer}
                               head=${`lines ${data.first}–${data.first + data.lines.length - 1} of ${data.total}`} />
                 ${data.more && html`
                     <button class="cdopen" type="button"
@@ -483,8 +585,16 @@ function FileBody({ cwd, path, base, wide }) {
             ${cut && !(cut.files || []).length && html`<p class="hint">This file has not changed against <b>${cut.base}</b>.</p>`}
             ${cut && (cut.files || []).map((f) =>
                 f.hunks.map((h, i) => (wide && split
-                    ? html`<${SplitHunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`
-                    : html`<${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path} />`)))}
+                    ? html`
+                        <${SplitHunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path}
+                                      notes=${marks.notes} picked=${marks.picked}
+                                      onPick=${marks.onPick} composer=${marks.composer} />
+                    `
+                    : html`
+                        <${Hunk} key=${`${f.path}-${i}`} hunk=${h} path=${f.path}
+                                 notes=${marks.notes} picked=${marks.picked}
+                                 onPick=${marks.onPick} composer=${marks.composer} />
+                    `)))}
         `}
     `;
 }

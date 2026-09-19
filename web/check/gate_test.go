@@ -53,6 +53,14 @@ var ceremonies = map[string]ceremony{
 		paths:   []string{"/api/briefs"},
 		methods: []string{"PUT", "POST", "DELETE"},
 	},
+	// A reading of a branch is kept on the same shelf and for the same reason:
+	// a note written on a line, taken back or put away changes what the panel
+	// holds and runs nothing on the machine. Handing the reading to the
+	// session is execution, and that goes through the gate.
+	"src/screens/repo/notes.js": {
+		paths:   []string{"/api/reviews"},
+		methods: []string{"PUT", "POST", "DELETE"},
+	},
 }
 
 type ceremony struct {

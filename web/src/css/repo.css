@@ -464,3 +464,180 @@
     color: var(--ink-faint);
     font-size: var(--t-xs);
 }
+
+/* A note on a line, and the reading it goes into.
+
+   The box stands under the line it is about, inside the block of code rather
+   than in a sheet over it: a sheet hides the line while it is being written
+   about, and what is written from memory is written about the wrong line. */
+.cdnote {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 6px 8px;
+    padding: 8px;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-card);
+    background: var(--glass);
+    font-family: var(--sans);
+    font-size: var(--t-sm);
+}
+
+.cdnoteline {
+    padding-left: 7px;
+    border-left: 2px solid var(--accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+
+.cdnotein {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    padding: 8px;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-small);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--t-sm);
+    line-height: 1.45;
+}
+
+.cdnotein:focus { outline: none; border-color: var(--accent); }
+
+.cdnoteact { display: flex; align-items: center; gap: 6px; }
+
+.cdnotekeep,
+.cdnotecut,
+.cdnotegone {
+    padding: 6px 10px;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-small);
+    background: var(--glass);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--t-xs);
+    cursor: pointer;
+}
+
+.cdnotekeep {
+    border-color: transparent;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+}
+
+.cdnotekeep:disabled { opacity: .45; cursor: default; }
+.cdnotegone { margin-left: auto; color: var(--crit); }
+
+/* The reading as a list. The same list on both screens: a panel beside the
+   code at a desk, a page of the stack on a phone. */
+.cdnotes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    font-size: var(--t-sm);
+}
+
+.cdnhead { display: flex; align-items: baseline; gap: 8px; }
+.cdncount { color: var(--ink); font-weight: 600; }
+.cdnstate { color: var(--ink-faint); font-size: var(--t-xs); }
+/* "sent" on its own is a class of the run of a conversation, and it paints a
+   card there: a word of a state and the name of a block are two different
+   things wearing one name. */
+.cdnstate.cdngone { color: var(--ok); }
+
+.cdnlist { display: flex; flex-direction: column; gap: 6px; }
+
+.cdnrow {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface);
+}
+
+.cdnat {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px 10px;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cdnwhere { font-family: var(--mono); font-size: var(--t-xs); color: var(--accent); }
+.cdnline { color: var(--ink-faint); }
+
+.cdnquote {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+
+.cdntext { font-size: var(--t-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.cdnx {
+    display: flex;
+    flex: none;
+    padding: 8px;
+    border: 0;
+    background: none;
+    color: var(--ink-faint);
+    cursor: pointer;
+}
+
+.cdnx svg { width: var(--i-sm); height: var(--i-sm); }
+.cdnx:hover { color: var(--crit); }
+
+/* The send button keeps the foot of the list: a reading long enough to scroll
+   would otherwise end with the button somewhere above the last note. */
+.cdnfoot {
+    position: sticky;
+    bottom: 0;
+    padding-top: 6px;
+    background: var(--chips-bg);
+}
+
+.cdnsend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 9px;
+    border: var(--hair) solid transparent;
+    border-radius: var(--r-small);
+    background: var(--accent);
+    color: var(--on-accent);
+    font: inherit;
+    font-size: var(--t-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cdnsend:disabled {
+    background: var(--glass);
+    border-color: var(--edge);
+    color: var(--ink-faint);
+    cursor: default;
+}
+
+.cdnsend svg { width: var(--i-sm); height: var(--i-sm); }
+.cdnotetab b { color: var(--accent); font-weight: 600; }
