@@ -161,6 +161,33 @@ receives are one text; it goes into the session through `session.send`, the
 action that already exists. No new right, no new kind of action, and a brief
 answered after its session was restarted still reaches it.
 
+**The shelf of readings.** A review of a branch travels the other way: the
+person writes notes on lines of code, and the session is handed them. The notes
+are kept in the database while they are being written, the way the answers of a
+brief are, and go out as a file on a shelf of the host — a file can grow a field
+without breaking whoever already reads it, and a session finds a path in its
+composer instead of a wall of quotes.
+
+Writing the file is the one operation of the viewer that writes at all, so the
+directory is fixed in the code and the name of the file is made by the panel
+from the name of the reading; a name that is not a plain one is refused rather
+than repaired into something that lands elsewhere. It has a socket of its own
+because a reading is up to two hundred notes with the lines they stand on, and
+the socket of the conversation feed answers a request that fits in one read.
+
+The session is told the same way a brief is answered — through `session.send`,
+through the queue of a busy composer — and the reading is written down as gone
+only once that has happened. Told before the file exists, a session would open a
+path to nothing; settled before the signal, a reading that never left would read
+as delivered.
+
+Every note carries the text of its line. A branch moves while it is being read,
+so a number alone stops meaning anything the moment somebody commits above it:
+the text identifies the line, the number says where to look first, and three
+lines is as far as it looks. Further than that is different code wearing the
+same words, and such a note is set apart as outdated rather than dropped onto a
+stranger.
+
 **Nothing the session writes is markup.** Every field of the document is text
 carrying inline markdown at most, and the panel turns that into nodes on its
 own side. A brief is written by a model and read in an application that runs
