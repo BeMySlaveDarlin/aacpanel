@@ -45,6 +45,7 @@ type Server struct {
 	exec         *action.Client
 	terms        *terminals
 	chat         *chat.Client
+	shelf        *chat.ReviewShelf
 	paint        *repo.Cache
 	usage        *usage.Scanner
 	push         *notify.Sender
@@ -251,6 +252,16 @@ func run() error {
 		log.Printf("session chat: %s", chatSocket)
 	}
 
+	// The shelf of readings answers on a socket of its own: a reading is up to
+	// two hundred notes, and the chat socket takes a request that fits one read.
+	reviewSocket := env("AACP_REVIEW_SOCKET", "/host-state/reviews/review.sock")
+	if _, err := os.Stat(reviewSocket); err != nil {
+		log.Printf("the shelf of readings is unavailable (%s): %v", reviewSocket, err)
+		reviewSocket = ""
+	} else {
+		log.Printf("shelf of readings: %s", reviewSocket)
+	}
+
 	usageSocket := env("AACP_USAGE_SOCKET", "/host-state/usage/usage.sock")
 	if _, err := os.Stat(usageSocket); err != nil {
 		log.Printf("usage collection is unavailable (%s): %v", usageSocket, err)
@@ -281,6 +292,7 @@ func run() error {
 		exec:       execClient,
 		terms:      newTerminals(termlink.NewClient(termSocket)),
 		chat:       chat.New(chatSocket),
+		shelf:      &chat.ReviewShelf{Socket: reviewSocket},
 		paint:      repo.NewCache(repo.CacheEntries),
 		usage:      usage.NewScanner(usage.New(usageSocket), db),
 		push:       push,

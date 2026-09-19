@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/chat"
 	"aacpanel/internal/store"
 )
 
@@ -173,6 +174,66 @@ func (s *Server) apiReviewDraft(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, review)
 }
 
+// apiReviewFile writes the reading to the shelf and answers with the path of
+// the file. Writing is a step of its own, before the signal: the file has to be
+// there when the session comes to read it, and the session is told about it the
+// way it is told anything else — through the queue of its composer.
+func (s *Server) apiReviewFile(w http.ResponseWriter, r *http.Request) {
+	id, ok := reviewID(w, r)
+	if !ok {
+		return
+	}
+	if s.db == nil {
+		http.Error(w, "readings are not kept: the database is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if !s.shelf.Available() {
+		http.Error(w, chat.ErrNoShelf.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	review, err := s.db.ReviewOf(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if review.Session == "" {
+		http.Error(w, "there is no such reading", http.StatusNotFound)
+		return
+	}
+	if review.SentAt != nil {
+		http.Error(w, store.ErrReviewSent.Error(), http.StatusConflict)
+		return
+	}
+	if len(review.Notes) == 0 {
+		http.Error(w, "a reading with no notes in it has nothing to send", http.StatusBadRequest)
+		return
+	}
+
+	put := chat.ReviewPut{
+		ID: review.ID, Session: review.Session, Cwd: review.Cwd, Base: review.Base,
+		At:    time.Now().UTC().Format(time.RFC3339),
+		Notes: make([]chat.ReviewNote, 0, len(review.Notes)),
+	}
+	for _, n := range review.Notes {
+		put.Notes = append(put.Notes, chat.ReviewNote{
+			ID: n.ID, Path: n.Path, Line: n.Line, Quote: n.Quote, Text: n.Text,
+			At: n.At.UTC().Format(time.RFC3339),
+		})
+	}
+
+	path, err := s.shelf.Put(r.Context(), put)
+	if err != nil {
+		if errors.Is(err, chat.ErrNoShelf) {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]any{"id": review.ID, "path": path, "notes": len(review.Notes)})
+}
+
 // apiReviewSent records that a reading has gone to its session and where the
 // file landed. It is a step of its own rather than part of writing the file:
 // the signal travels to the session the way any message does, through the
@@ -262,9 +323,9 @@ func reviewID(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 // cleanNotes holds the notes to what a screen can draw and a file can carry.
-// A note without a quote is refused: without the text of the line it cannot be
-// found again once the branch moves, and a note that cannot be found is a note
-// that quietly disappears.
+// The quote travels as it came, an empty line included: it is how a note is
+// found again once the branch moves, and trimming it would make a note on an
+// empty line indistinguishable from a note that lost its place.
 func cleanNotes(raw []store.ReviewNote) ([]store.ReviewNote, error) {
 	out := make([]store.ReviewNote, 0, len(raw))
 	if len(raw) > maxNotes {
