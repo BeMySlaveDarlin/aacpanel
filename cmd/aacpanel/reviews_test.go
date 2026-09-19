@@ -80,7 +80,7 @@ func TestTheNameOfAReadingIsMadeHere(t *testing.T) {
 	if got := reviewName("../../etc/passwd", at); strings.ContainsAny(got, "./") {
 		t.Errorf("a path got into the name of a reading: %q", got)
 	}
-	if got := reviewName("Разговор", at); !strings.HasPrefix(got, "reading-") {
+	if got := reviewName("!!! ???", at); !strings.HasPrefix(got, "reading-") {
 		t.Errorf("a name with nothing to keep became %q, expected a plain one", got)
 	}
 }
