@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell" id="root"></div>
+<script type="module">
+// A wide table inside a sheet, and the two gestures that meet over it: the
+// finger going sideways along the table, and the finger pulling the sheet
+// down. The sheet takes the gesture away from the browser to be draggable at
+// all, so the sideways one has to be carried by hand — this is that.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Sheet } from "/src/ui/sheet.js";
+import { render as md } from "/src/md.js";
+
+const wide = [
+    "| task | what it is about | where it lives | who asked | when | how long |",
+    "| --- | --- | --- | --- | --- | --- |",
+    "| one | a wide box inside a sheet does not scroll under a finger | web/src/ui/sheet.js | the owner | today | an hour |",
+    "| two | a table in the feed runs off the edge of the screen | web/src/css/markdown.css | the owner | today | an hour |",
+].join("\n");
+
+const tall = Array.from({ length: 40 }, (_, i) => `Line ${i + 1} of something long enough to scroll.`).join("\n\n");
+
+function Page() {
+    return html`
+        <${Sheet} open=${true} onClose=${() => {}} label="a reading">
+            <div class="msg ai">${md(wide)}</div>
+            <div class="msg ai">${md(tall)}</div>
+        <//>
+    `;
+}
+render(h(Page), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const round = (n) => Math.round(n * 100) / 100;
+
+let ids = 0;
+function at(node, dx = 0, dy = 0) {
+    const r = node.getBoundingClientRect();
+    return { clientX: Math.round(r.left + r.width / 2) + dx, clientY: Math.round(r.top + r.height / 2) + dy };
+}
+function point(type, node, where) {
+    node.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, composed: true,
+        pointerId: ids, pointerType: "touch", isPrimary: true, ...where,
+    }));
+}
+async function swipe(node, steps) {
+    ids += 1;
+    const start = at(node);
+    point("pointerdown", node, start);
+    let last = start;
+    for (const [dx, dy] of steps) {
+        last = { clientX: start.clientX + dx, clientY: start.clientY + dy };
+        point("pointermove", document, last);
+        await sleep(16);
+    }
+    return { start, last };
+}
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 50 && !document.querySelector(".sheet .mdtable"); i++) await sleep(100);
+    await sleep(200);
+
+    const sheet = document.querySelector(".sheet");
+    const box = document.querySelector(".sheet .mdtable");
+    const out = { scrollable: box.scrollWidth - box.clientWidth };
+
+    // Sideways along the table: the table moves, the sheet stays where it is.
+    let done = await swipe(box, [[-20, 0], [-60, 2], [-140, 4], [-180, 6]]);
+    out.sideways = { scrollLeft: box.scrollLeft, sheetTransform: sheet.style.transform || "" };
+    point("pointerup", document, done.last);
+    await sleep(50);
+    out.afterUp = { scrollLeft: box.scrollLeft, sheetTransform: sheet.style.transform || "" };
+
+    // Down along the table: the table stays, and the gesture is not the
+    // sheet's either — the list under the finger is what scrolls.
+    const before = box.scrollLeft;
+    done = await swipe(box, [[0, 20], [2, 60], [4, 120]]);
+    out.downOnTable = { moved: box.scrollLeft - before, sheetTransform: sheet.style.transform || "" };
+    point("pointerup", document, done.last);
+    await sleep(50);
+
+    // Down on the plain text of the sheet: this one is the sheet's.
+    const plain = document.querySelectorAll(".sheet .msg")[1];
+    done = await swipe(plain, [[0, 20], [2, 60], [4, 120]]);
+    out.downOnText = { sheetTransform: sheet.style.transform || "" };
+    point("pointerup", document, done.last);
+    await sleep(50);
+
+    return out;
+})();
+</script>

@@ -23,16 +23,17 @@ export function gestureKind(dx, dy) {
     return sideways > vertical ? "sideways" : "drag";
 }
 
-// Whether the finger landed inside a box that scrolls sideways — a wide table, a row
-// of tabs. Such a box owns the gesture from the first pixel: the sheet following the
-// hand and only then letting go would still have moved under a person reading a table.
+// The box under the finger that scrolls sideways — a wide table, a block of
+// output, a row of tabs — or null when there is none. Such a box owns the
+// gesture from the first pixel: the sheet following the hand and only then
+// letting go would still have moved under a person reading a table.
 function scrollsSideways(node, sheet) {
     for (let el = node; el && el !== sheet; el = el.parentElement) {
         if (!(el.scrollWidth - el.clientWidth > 1)) continue;
         const how = getComputedStyle(el).overflowX;
-        if (how === "auto" || how === "scroll") return true;
+        if (how === "auto" || how === "scroll") return el;
     }
-    return false;
+    return null;
 }
 
 // Sheet decides only how to show the content, never what. A sheet carrying a
@@ -61,21 +62,7 @@ export function Sheet({ open, onClose, children, label, inner = false, side = fa
     };
     useEffect(() => stopTracking, []);
 
-    const onDown = (event) => {
-        if (wide) return;
-        const body = event.target.closest?.(".sheetbody");
-        const scrolls = Boolean(body) && body.scrollHeight - body.clientHeight > 1;
-        if (scrolls && body.scrollTop > 0) return;
-        if (scrollsSideways(event.target, sheetRef.current)) return;
-
-        const onControl = Boolean(
-            event.target.closest?.("button, a, input, textarea, select, label, [role='button']"),
-        );
-        drag.current = {
-            x: event.clientX, y: event.clientY, at: event.timeStamp, dx: 0, dy: 0,
-            guard: scrolls ? body : null, onControl,
-        };
-        setDragging(true);
+    const track = () => {
         stopTracking();
         const move = (e) => onMove(e);
         const up = (e) => {
@@ -88,9 +75,57 @@ export function Sheet({ open, onClose, children, label, inner = false, side = fa
         document.addEventListener("pointercancel", up);
         trackingRef.current = { move, up };
     };
+
+    const onDown = (event) => {
+        if (wide) return;
+        const body = event.target.closest?.(".sheetbody");
+        const scrolls = Boolean(body) && body.scrollHeight - body.clientHeight > 1;
+        if (scrolls && body.scrollTop > 0) return;
+
+        // A sheet that can be dragged takes the gesture away from the browser,
+        // and a box inside it loses its own sideways scroll along with it: the
+        // browser is left with nothing to scroll the table by. So the sideways
+        // travel of the finger is carried over by hand — the box keeps its
+        // scroll, and the sheet does not move while it happens.
+        const sideways = scrollsSideways(event.target, sheetRef.current);
+        if (sideways) {
+            drag.current = { kind: "sideways", box: sideways, x: event.clientX, y: event.clientY,
+                             left: sideways.scrollLeft };
+            track();
+            return;
+        }
+
+        const onControl = Boolean(
+            event.target.closest?.("button, a, input, textarea, select, label, [role='button']"),
+        );
+        drag.current = {
+            x: event.clientX, y: event.clientY, at: event.timeStamp, dx: 0, dy: 0,
+            guard: scrolls ? body : null, onControl,
+        };
+        setDragging(true);
+        track();
+    };
     const onMove = (event) => {
         const state = drag.current;
         if (!state || !sheetRef.current) return;
+        if (state.kind === "sideways") {
+            const across = event.clientX - state.x;
+            const down = event.clientY - state.y;
+            if (!state.taken) {
+                const kind = gestureKind(across, down);
+                // Until the finger has said which way it is going, nothing
+                // moves: a tap is not a scroll, and a gesture that turns out
+                // to be vertical belongs to the list under it.
+                if (kind === "tap") return;
+                if (kind !== "sideways") {
+                    drag.current = null;
+                    return;
+                }
+                state.taken = true;
+            }
+            state.box.scrollLeft = state.left - across;
+            return;
+        }
         if (state.guard && event.clientY < state.y) {
             drag.current = null;
             sheetRef.current.style.transform = "";
@@ -114,6 +149,7 @@ export function Sheet({ open, onClose, children, label, inner = false, side = fa
         const state = drag.current;
         drag.current = null;
         if (!state || !sheetRef.current) return;
+        if (state.kind === "sideways") return;
         sheetRef.current.style.transform = "";
 
         const speed = (Math.abs(state.dy) / Math.max(event.timeStamp - state.at, 1)) * 1000;
