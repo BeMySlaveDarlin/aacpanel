@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// What a row of background work says about time. Work still running is as old
+// as it is; work that is over lasted as long as it lasted, and no longer grows
+// with the night.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { WorkList } from "/src/screens/chat/work.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const minutes = (n) => new Date(Date.now() - n * 60000).toISOString();
+
+const work = {
+    artifacts: [], docs: [], sent: [], agents: [],
+    tasks: [
+        { id: "live", text: "make check", kind: "bash", at: minutes(5) },
+        // Started twelve hours ago, over in twelve minutes: the two numbers a
+        // row could show are far enough apart to tell which one it shows.
+        { id: "over", text: "go test ./internal/store/", kind: "bash", done: true,
+          at: minutes(720), doneAt: minutes(708) },
+        // Over, but the panel never saw it end — there is nothing to measure,
+        // so the row falls back to how long ago it started.
+        { id: "nodone", text: "the run whose end was missed", kind: "bash", done: true,
+          at: minutes(90) },
+    ],
+};
+
+render(h(ToastHost, null, h(GateHost, null, html`
+    <${WorkList} session="lab" id="1" kind="tasks" work=${work}
+                 exec=${{ available: true, kinds: [] }} pages=${[]} briefs=${[]}
+                 onPage=${() => {}} onBrief=${() => {}} />
+`)), document.getElementById("root"));
+
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.done = (async () => {
+    for (let i = 0; i < 60 && !document.querySelector(".wage"); i++) await tick(30);
+    const rows = [...document.querySelectorAll(".wtext")];
+    const ageOf = (text) => {
+        const row = rows.find((r) => r.textContent.includes(text));
+        if (!row) return "";
+        const age = row.parentElement.querySelector(".wage");
+        return age ? age.textContent.trim() : "";
+    };
+    return {
+        live: ageOf("make check"),
+        over: ageOf("go test"),
+        missedTheEnd: ageOf("the run whose end was missed"),
+    };
+})();
+</script>

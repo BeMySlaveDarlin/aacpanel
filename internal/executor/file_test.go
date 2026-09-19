@@ -134,8 +134,14 @@ func TestSessionFilePackGoesInOneReply(t *testing.T) {
 		t.Fatalf("nothing went out to konsole: %v", err)
 	}
 	sent := string(raw)
-	if n := strings.Count(sent, pasteStart); n != 1 {
-		t.Errorf("%d pastes into the composer, expected one: %q", n, sent)
+	// One send, and the caption goes in typed: a message somebody wrote reaches
+	// the session as their words, not as quoted matter, and the files ride the
+	// same line because the composer takes a path wherever it stands.
+	if n := strings.Count(sent, "look at three at once"); n != 1 {
+		t.Errorf("the pack went out in %d messages, expected one: %q", n, sent)
+	}
+	if strings.Contains(sent, pasteStart) {
+		t.Errorf("the pack went in as a paste: %q", sent)
 	}
 	if !strings.Contains(sent, "look at three at once") {
 		t.Errorf("the caption of the pack got lost: %q", sent)
@@ -145,8 +151,8 @@ func TestSessionFilePackGoesInOneReply(t *testing.T) {
 		if !strings.Contains(sent, path) {
 			t.Errorf("the path %s was not typed into the session: %q", path, sent)
 		}
-		if !strings.Contains(sent, path+"\n") && !strings.Contains(sent, path+pasteEnd) {
-			t.Errorf("the path %s is not on a line of its own — the composer will read two paths as one", path)
+		if !strings.Contains(sent, path+" ") && !strings.Contains(sent, path+enterKey) {
+			t.Errorf("the path %s is not set off from what follows it — the composer will read two paths as one", path)
 		}
 	}
 	select {
@@ -480,5 +486,62 @@ func TestSessionFileWithoutCaptionIsConfirmedByChip(t *testing.T) {
 	}
 	if n := strings.Count(string(raw), enterKey); n < 2 {
 		t.Errorf("Enter went out %d times: the first is eaten by the paste parsing, one more is needed", n)
+	}
+}
+
+// A message carrying files is a message somebody wrote, and it has to reach the
+// session as their words. The composer takes a path for an attachment wherever
+// in the line it stands, so caption and paths share one line — and one line is
+// typed instead of pasted, which is what keeps the caption out of quotes.
+func TestACaptionAndItsFilesShareOneLine(t *testing.T) {
+	cases := []struct {
+		name    string
+		caption string
+		paths   []string
+		want    string
+	}{
+		{
+			name:    "one file with a caption",
+			caption: "the header is cut on the right",
+			paths:   []string{"/files/20260919-shot.png"},
+			want:    "the header is cut on the right /files/20260919-shot.png",
+		},
+		{
+			name:  "files with no caption",
+			paths: []string{"/files/one.png", "/files/two.png"},
+			want:  "/files/one.png /files/two.png",
+		},
+		{
+			// Read by spaces, a path with a space in it is two paths and
+			// neither of them exists.
+			name:    "a path with a space keeps its own line",
+			caption: "look",
+			paths:   []string{"/files/a shot.png"},
+			want:    "look\n/files/a shot.png",
+		},
+		{
+			// Nothing is gained by joining a caption that already has breaks.
+			name:    "a caption of several lines stays as written",
+			caption: "first\nsecond",
+			paths:   []string{"/files/one.png"},
+			want:    "first\nsecond\n/files/one.png",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := fileMessage(c.caption, c.paths); got != c.want {
+				t.Errorf("the message is %q, expected %q", got, c.want)
+			}
+		})
+	}
+}
+
+// The single-line form is the one that gets typed: a message with a file should
+// not arrive quoted just because it carries one.
+func TestAMessageWithAFileIsTypedNotPasted(t *testing.T) {
+	text := fileMessage("the header is cut on the right", []string{"/files/shot.png"})
+	if sent := composerInput(text); strings.Contains(sent, pasteStart) {
+		t.Errorf("a caption with one file went in as a paste: %q", sent)
 	}
 }

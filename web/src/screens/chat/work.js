@@ -4,7 +4,7 @@ import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
-import { bytes, plural, since, tokens, until } from "../../format.js";
+import { bytes, lasted, plural, since, tokens, until } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { taskVoice } from "./voice.js";
@@ -367,7 +367,9 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                                     && html`<span class="wkind gone">stopped</span>`}
                                 ${fail[task.id] && html`<span class="wfail">${fail[task.id]}</span>`}
                             </span>
-                            ${task.at && html`<span class="wage">${since(task.at)}</span>`}
+                            ${task.at && html`<span class="wage">
+                                ${task.done && task.doneAt ? lasted(task.at, task.doneAt) : since(task.at)}
+                            </span>`}
                             <span class="crgo">${Icon.chevron()}</span>
                         </button>
                         <${StopButton} ready=${canStopTask(exec, task)}

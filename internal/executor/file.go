@@ -38,15 +38,37 @@ func (e *Executor) sessionFile(ctx context.Context, target, caption string, file
 		paths = append(paths, path)
 	}
 
-	text := strings.Join(paths, "\n")
-	if caption != "" {
-		text = caption + "\n" + text
-	}
-	detail, err := deliverText(ctx, s, senderName, text)
+	detail, err := deliverText(ctx, s, senderName, fileMessage(caption, paths))
 	if err != nil {
 		return "", fmt.Errorf("%w%s", err, landed(paths))
 	}
 	return detail + " · " + describeFiles(files, paths), nil
+}
+
+// fileMessage is the caption and the files as one message for the composer.
+//
+// The composer takes a path for an attachment wherever in the line it stands,
+// so the whole message fits on one line — and one line is typed rather than
+// pasted, which is what keeps the caption the words of the person who wrote it
+// instead of quoted matter. A path carrying a space cannot share a line: read
+// by spaces it is two paths and neither exists, so such a message keeps the
+// breaks and travels as a paste.
+func fileMessage(caption string, paths []string) string {
+	sep := " "
+	for _, path := range paths {
+		if strings.ContainsAny(path, " \t") {
+			sep = "\n"
+			break
+		}
+	}
+	if strings.ContainsAny(caption, "\n\r") {
+		sep = "\n"
+	}
+	text := strings.Join(paths, sep)
+	if caption != "" {
+		text = caption + sep + text
+	}
+	return text
 }
 
 func describeFiles(files []action.File, paths []string) string {

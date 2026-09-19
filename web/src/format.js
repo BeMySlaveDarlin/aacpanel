@@ -84,6 +84,17 @@ export function until(iso) {
     return m ? `in ${h} h ${m} min` : `in ${h} h`;
 }
 
+// lasted says how long something took: the distance between where it started
+// and where it stopped. The age of its beginning is a different number, and for
+// work that is over it is the wrong one — a run of four minutes last night does
+// not become a run of twelve hours by morning.
+export function lasted(from, to) {
+    if (!from || !to) return "";
+    const sec = (new Date(to).getTime() - new Date(from).getTime()) / 1000;
+    if (!Number.isFinite(sec) || sec < 0) return "";
+    return duration(sec);
+}
+
 export function since(iso) {
     if (!iso) return "—";
     return duration(Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000));
