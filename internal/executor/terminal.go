@@ -66,21 +66,16 @@ var listMarks = []string{"◯", "●", "○", "◉"}
 var attachChips = []string{"[Image#", "[Pastedtext#"}
 
 // composerInput is the text on its way into the composer, together with what
-// clears the line before it and what sends it after.
+// clears the line before it and the key that sends it after.
 //
-// One line goes in as keystrokes. Text that arrives between the bracketed
-// paste markers is marked as pasted, and a message carrying that mark reaches
-// the session as quoted data rather than as the words of the person at the
-// panel — the panel is that person's keyboard, so it types.
-//
-// Text with line breaks has no such choice: typed in, every break is an Enter
-// of its own and the message leaves the composer in pieces. It goes in as one
-// paste and wears the mark — that is what arriving whole costs.
+// It goes in between the bracketed paste markers, whatever it is. Typed in as
+// a run of keystrokes instead, it reaches the composer and stays there: the
+// composer takes a fast run for a paste of its own making, and the Enter
+// behind it becomes a line break in the message rather than the end of it.
+// A message that arrives marked as pasted is a smaller loss than a message
+// that does not arrive.
 func composerInput(text string) string {
-	if strings.ContainsAny(text, "\n\r") || opensAMode(text) {
-		return clearLine + pasteStart + text + pasteEnd + enterKey
-	}
-	return clearLine + text + enterKey
+	return clearLine + pasteStart + text + pasteEnd + enterKey
 }
 
 // opensAMode says whether the composer would read the line as a key rather
