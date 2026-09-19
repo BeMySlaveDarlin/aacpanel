@@ -173,6 +173,50 @@ func (s *Server) apiReviewDraft(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, review)
 }
 
+// apiReviewSent records that a reading has gone to its session and where the
+// file landed. It is a step of its own rather than part of writing the file:
+// the signal travels to the session the way any message does, through the
+// queue of a busy composer, and a reading is only settled once that has
+// happened.
+func (s *Server) apiReviewSent(w http.ResponseWriter, r *http.Request) {
+	id, ok := reviewID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&body); err != nil {
+		http.Error(w, "the reply did not parse: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	path := strings.TrimSpace(body.Path)
+	if path == "" {
+		http.Error(w, "a reading that has gone says where its file landed", http.StatusBadRequest)
+		return
+	}
+	if s.db == nil {
+		http.Error(w, "readings are not kept: the database is not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	err := s.db.MarkReviewSent(r.Context(), id, path)
+	if errors.Is(err, store.ErrReviewSent) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	review, err := s.db.ReviewOf(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, review)
+}
+
 // apiReviewDrop removes a draft nobody sent.
 func (s *Server) apiReviewDrop(w http.ResponseWriter, r *http.Request) {
 	id, ok := reviewID(w, r)

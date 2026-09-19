@@ -88,6 +88,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("POST /api/reviews", g.page(s.apiReviewNew))
 	mux.Handle("GET /api/reviews/{id}", g.page(s.apiReview))
 	mux.Handle("PUT /api/reviews/{id}", g.page(s.apiReviewDraft))
+	mux.Handle("POST /api/reviews/{id}/sent", g.page(s.apiReviewSent))
 	mux.Handle("DELETE /api/reviews/{id}", g.page(s.apiReviewDrop))
 	mux.Handle("GET /api/repo/file", g.page(s.apiRepoFile))
 	mux.Handle("GET /api/repo/diff", g.page(s.apiRepoDiff))
