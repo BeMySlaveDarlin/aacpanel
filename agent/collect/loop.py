@@ -12,6 +12,7 @@ import chat
 import contours
 import notes
 import projects
+import reviews
 import seen
 import usage_link
 
@@ -64,6 +65,8 @@ def main():
     threading.Thread(target=briefs.worker, daemon=True).start()
 
     threading.Thread(target=pages.worker, daemon=True).start()
+
+    threading.Thread(target=reviews.worker, daemon=True).start()
 
     threading.Thread(target=seen.worker, daemon=True).start()
 

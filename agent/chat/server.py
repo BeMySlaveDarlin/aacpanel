@@ -8,6 +8,7 @@ import archive
 import asked
 import briefs
 import pages
+import reviews
 import sesstate
 
 from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
@@ -103,6 +104,23 @@ def _answer(request):
             return {"ok": False,
                     "error": "there is no copy of this page: it was published before the panel kept them, or has been swept"}
         return {"ok": True, "page": doc}
+
+    # A reading of a branch is read here and written on a socket of its own,
+    # which is where the panel hands one over: the shelf takes a reading from
+    # one side only, and asking for one is not that side.
+    want_reviews = request.get("reviews")
+    if isinstance(want_reviews, dict):
+        session = want_reviews.get("session")
+        return {"ok": True,
+                "reviews": reviews.SHELF.cards(session=session if isinstance(session, str) and session else None)}
+
+    want_review = request.get("review")
+    if isinstance(want_review, str) and want_review:
+        doc = reviews.SHELF.of(want_review)
+        if doc is None:
+            return {"ok": False,
+                    "error": "there is no reading under this name: it was either never sent or has been swept"}
+        return {"ok": True, "review": doc}
 
     want_archive = request.get("archive")
     if isinstance(want_archive, dict):
