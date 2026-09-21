@@ -340,6 +340,13 @@ count the minute and the hour, retention detaches a whole partition and drops it
 a row in the database and are changed with an `UPDATE`, without rebuilding the
 image.
 
+**The history is written per container, never per process.** A process comes and
+goes in seconds and its command line is a column of its own every time: kept in
+the database it would grow rows nothing ever reads back. So a screen asking who
+is eating the machine holds two kinds of row at once — a container measured over
+the period, a process measured this second, straight from the snapshot — and it
+says which is which, because one of them has no past to show.
+
 **The schema travels with the service.** Migrations are applied when the image
 starts. An applied file is untouchable: its checksum is recorded in the
 database, and editing any character — a comment included — parts the file from
