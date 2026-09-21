@@ -291,15 +291,47 @@ func cssBlockFile(t *testing.T, path, selector string) string {
 		t.Fatalf("%s: %v", path, err)
 	}
 	css := cssWithoutComments(string(raw))
-	at := strings.Index(css, selector+" {")
-	if at < 0 {
-		return ""
+
+	// A selector can carry more than one block: one shared with the kin it is
+	// shaped like, its own beside it. All of them are its rules, and reading
+	// the first alone calls a file incomplete while the rule stands two lines
+	// below.
+	var blocks []string
+	for at := 0; ; {
+		i := strings.Index(css[at:], selector+" {")
+		if i < 0 {
+			break
+		}
+		i += at
+		at = i + len(selector)
+		if !cssRuleOpensAt(css, i) {
+			continue
+		}
+		rest := css[i:]
+		if end := strings.Index(rest, "}"); end > 0 {
+			blocks = append(blocks, rest[:end])
+			continue
+		}
+		blocks = append(blocks, rest)
 	}
-	rest := css[at:]
-	if end := strings.Index(rest, "}"); end > 0 {
-		return rest[:end]
+	return strings.Join(blocks, "\n")
+}
+
+// cssRuleOpensAt says whether the selector found at i opens a rule of its own:
+// the same text inside a longer selector — ".viewsw + .winbtn" for ".winbtn" —
+// belongs to another rule and answers for another element.
+func cssRuleOpensAt(css string, i int) bool {
+	for j := i - 1; j >= 0; j-- {
+		switch css[j] {
+		case ' ', '\t':
+			continue
+		case '\n', ',', '}', '{', ';':
+			return true
+		default:
+			return false
+		}
 	}
-	return rest
+	return true
 }
 
 func jsUntil(t *testing.T, file, body, head, tail string) string {
