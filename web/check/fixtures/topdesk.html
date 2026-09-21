@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<link rel="stylesheet" href="/vendor/uplot.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- The Machine section at a desk: the table under a host metric holds the
+     containers of the history and the processes of the machine together. -->
+<div class="dkshell">
+  <div id="root" class="dkmain"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { MachineCenter } from "/src/desktop/machine.js";
+
+const SNAPSHOT = {
+    host: {
+        cpuPct: 7, cpus: 24, load: [1, 2, 3], uptime: 6000,
+        mem: { used: 1e10, total: 6e10, available: 5e10, pct: 18, swapUsed: 0, swapTotal: 1e10 },
+        disks: [], net: [],
+    },
+};
+const TOP = {
+    sortBy: "avg", resolution: "a minute",
+    rows: [
+        { container: "warden-db", avg: 12.5, max: 40.2, alive: true, coverage: 1 },
+        { container: "monitor", avg: 2.1, max: 6.3, alive: true, coverage: 1 },
+    ],
+};
+const PROCS = {
+    state: "ok", at: 1600000000, total: 851,
+    items: [
+        { pid: 4242, cmd: "/usr/bin/python3 /home/aziz/burn.py", cpuPct: 91.5, rss: 524288000, user: "aziz" },
+    ],
+};
+
+window.fetch = async (url) => {
+    const at = String(url);
+    const body = at.includes("/api/procs") ? PROCS : {};
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+};
+
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.done = (async () => {
+    render(h(MachineCenter, {
+        snapshot: SNAPSHOT, probes: [], history: [], topCpu: TOP, topMem: TOP, cat: "cpu",
+    }), document.getElementById("root"));
+
+    for (let i = 0; i < 60 && !document.querySelector(".dkttr:not(.dkth)"); i++) await tick(30);
+    await tick(250);
+
+    const rows = [...document.querySelectorAll(".dkttr:not(.dkth)")].map((row) => {
+        const cells = [...row.children].map((c) => c.textContent.trim());
+        return { kind: cells[0], name: cells[1], avg: cells[2], peak: cells[3], title: row.getAttribute("title") || "" };
+    });
+    const note = (document.querySelector(".dktopnote") || document.querySelector(".dkempty") || {}).textContent || "";
+
+    return { rows, note };
+})();
+</script>
