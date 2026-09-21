@@ -11,14 +11,23 @@
     gap: .5rem;
     margin-bottom: .3rem;
 }
+/* The name gives way, the tag beside it does not: a mark cut in half says
+   less than no mark at all. */
 .topline .nm {
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
     flex: 1;
     min-width: 0;
     font-size: var(--t-md);
+}
+.topline .who {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.topline .tag { flex: none; }
 .topval {
     font-family: var(--mono);
     font-size: var(--t-xs);
@@ -45,7 +54,12 @@
 .topbar.dead .mx { background: var(--surface); }
 .topbar.dead .av { background: var(--ink-faint); }
 
+/* A process is measured this second, not over the period: its own colour keeps
+   the two kinds of row apart at a glance. */
+.topbar.proc .mx { background: color-mix(in srgb, var(--accent-2) 52%, transparent); }
+
 .toprow .sub { margin: .25rem 0 0; }
 
 .tag.dead { background: var(--crit-bg); color: var(--crit); margin-left: .4rem; }
+.tag.proc { background: var(--ok-bg); color: var(--ok); margin-left: .4rem; }
 

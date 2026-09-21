@@ -5,7 +5,7 @@ import { area, Chart } from "../chart.js";
 import { ago, bytes, degrees, level, pct, plural, rate, uptime, withDegrees } from "../format.js";
 import { OUTCOME } from "../alerts.js";
 import { every, KIND_TITLE, probeState } from "../screens/probes.js";
-import { PROCS_OK, shortCmd, useProcs } from "./panels/procs.js";
+import { mergeTop, PROCS_OK, useProcs } from "../procs.js";
 
 export const CATS = [
     { id: "cpu", label: "cpu", icon: Icon.cpu },
@@ -86,26 +86,8 @@ function Plot({ values, stamps, token, fallback, fmt, height = 190 }) {
     `;
 }
 
-function topRows(top, procs, kind) {
-    const rows = ((top && top.rows) || []).map((r) => ({
-        key: `c/${r.container}`,
-        kind: "container",
-        name: r.container,
-        value: r.avg,
-        peak: r.max,
-    }));
-    const host = ((procs && procs.items) || []).map((p) => ({
-        key: `p/${p.pid}`,
-        kind: "process",
-        name: shortCmd(p.cmd),
-        value: kind === "mem" ? p.rss : p.cpuPct,
-        hint: `pid ${p.pid}${p.user ? ` · ${p.user}` : ""} · ${p.cmd}`,
-    }));
-    return [...rows, ...host].sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 12);
-}
-
 function TopTable({ top, procs, kind, fmt }) {
-    const rows = topRows(top, procs, kind);
+    const rows = mergeTop(top, procs, kind, { field: "avg", limit: 12 });
     if (rows.length === 0) return null;
     const noProcs = !procs || procs.state !== PROCS_OK;
     return html`
@@ -119,7 +101,7 @@ function TopTable({ top, procs, kind, fmt }) {
                     <span class="dkkind">${r.kind}</span>
                     <span class="dkc-name">${r.name}</span>
                     <span class="dkc-num">${fmt(r.value)}</span>
-                    <span class="dkc-num">${r.peak === undefined ? "—" : fmt(r.peak)}</span>
+                    <span class="dkc-num">${r.max === undefined ? "—" : fmt(r.max)}</span>
                 </div>
             `)}
             ${noProcs

@@ -1,0 +1,137 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- “Who is the biggest” under a host metric: containers come from the history,
+     processes come from the machine as it is right now, and the two stand in
+     one list. -->
+<div class="shell no-nav">
+  <section class="card tile" data-open="1">
+    <div id="cpu"></div>
+  </section>
+  <section class="card tile" data-open="1">
+    <div id="disk"></div>
+  </section>
+  <section class="card tile" data-open="1">
+    <div id="broken"></div>
+  </section>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { TopList } from "/src/ui/toplist.js";
+
+const TOP = {
+    sortBy: "max",
+    resolution: "a minute",
+    rows: [
+        { container: "warden-db", avg: 12.5, max: 40.2, alive: true, coverage: 1 },
+        { container: "monitor", avg: 2.1, max: 6.3, alive: false, coverage: 0.5, lastSeen: 1600000000 },
+    ],
+};
+const DISK = {
+    sortBy: "delta",
+    resolution: "an hour",
+    rows: [{ container: "warden-db", delta: 1048576, alive: true, coverage: 1 }],
+};
+const PROCS = {
+    state: "ok",
+    at: 1600000000,
+    total: 835,
+    items: [
+        { pid: 4242, cmd: "/usr/bin/python3 /home/aziz/atlas-scripts/burn.py", cpuPct: 91.5, rss: 524288000, user: "aziz" },
+        { pid: 7, cmd: "[kworker/3:1]", cpuPct: 1.2, rss: 0, user: "root" },
+    ],
+};
+
+window.__asked = [];
+window.__topFails = false;
+window.fetch = async (url) => {
+    const at = String(url);
+    window.__asked.push(at);
+    if (at.includes("/api/procs")) {
+        return { ok: true, status: 200, json: async () => PROCS, text: async () => JSON.stringify(PROCS) };
+    }
+    if (at.includes("/api/history/top")) {
+        if (window.__topFails) return { ok: false, status: 503, json: async () => ({}), text: async () => "no history" };
+        const body = at.includes("metric=disk") ? DISK : TOP;
+        return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+    }
+    return { ok: false, status: 404, json: async () => ({}), text: async () => "unknown" };
+};
+
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+const all = (root, q) => [...root.querySelectorAll(q)];
+
+async function until(root, q, tries = 60) {
+    for (let i = 0; i < tries; i++) {
+        if (root.querySelector(q)) return root.querySelector(q);
+        await tick(30);
+    }
+    return null;
+}
+
+function readRows(root) {
+    return all(root, ".toprow").map((row) => ({
+        name: (row.querySelector(".nm") || {}).textContent.trim().replace(/\s+/g, " "),
+        value: (row.querySelector(".topval") || {}).textContent.trim(),
+        sub: row.querySelector(".sub") ? row.querySelector(".sub").textContent.trim() : "",
+        proc: Boolean(row.querySelector(".tag.proc")),
+        bar: row.querySelector(".topbar") ? row.querySelector(".topbar").className : "",
+        width: row.querySelector(".topbar .mx") ? row.querySelector(".topbar .mx").style.width : "",
+        title: row.getAttribute("title") || "",
+    }));
+}
+
+window.done = (async () => {
+    // A metric written per container only must not ask the host for processes.
+    const disk = document.getElementById("disk");
+    render(h(TopList, { metric: "disk", period: "1h" }), disk);
+    await until(disk, ".toprow");
+    await tick(120);
+    const diskRows = readRows(disk);
+    const diskFoot = (disk.querySelector(".toplist > .hint:last-child") || {}).textContent || "";
+    const askedProcsForDisk = window.__asked.some((u) => u.includes("/api/procs"));
+
+    const cpu = document.getElementById("cpu");
+    render(h(TopList, { metric: "cpu", period: "1h" }), cpu);
+    await until(cpu, ".tag.proc");
+    await tick(150);
+    const cpuRows = readRows(cpu);
+    const cpuFoot = (cpu.querySelector(".toplist > .hint:last-child") || {}).textContent || "";
+    const procTag = cpu.querySelector(".tag.proc");
+    const procTagShown = procTag ? getComputedStyle(procTag).display !== "none" : false;
+
+    // The history falling over does not take the processes with it.
+    window.__topFails = true;
+    const broken = document.getElementById("broken");
+    render(h(TopList, { metric: "mem", period: "24h" }), broken);
+    await until(broken, ".toprow");
+    await tick(150);
+    const brokenRows = readRows(broken);
+    const brokenWarn = (broken.querySelector(".hint.warn") || {}).textContent || "";
+
+    // The long name of a process must not push its mark out of the row.
+    const mark = broken.querySelector(".tag.proc");
+    const markCut = mark ? mark.scrollWidth > mark.clientWidth + 1 : true;
+    const markWidth = mark ? Math.round(mark.getBoundingClientRect().width) : 0;
+    const nameCut = (() => {
+        const who = broken.querySelector(".who");
+        return who ? who.scrollWidth > who.clientWidth + 1 : false;
+    })();
+
+    return {
+        diskRows,
+        diskFoot,
+        askedProcsForDisk,
+        cpuRows,
+        cpuFoot,
+        procTagShown,
+        brokenRows,
+        brokenWarn,
+        markCut,
+        markWidth,
+        nameCut,
+    };
+})();
+</script>

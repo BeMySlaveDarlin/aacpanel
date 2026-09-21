@@ -1,63 +1,7 @@
 // Host processes in the right-hand panel of the Machine section.
-import { useEffect, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { bytes } from "../../format.js";
-
-const EVERY = 5000;
-
-export const PROCS_OK = "ok";
-
-let shared = { procs: null, error: "" };
-const readers = new Set();
-let timer = 0;
-
-function publish(next) {
-    shared = next;
-    readers.forEach((set) => set(shared));
-}
-
-function poll() {
-    fetch("/api/procs", { credentials: "same-origin" })
-        .then((r) => (r.ok
-            ? r.json()
-            : r.text().then((body) => Promise.reject(new Error(body.trim() || `code ${r.status}`)))))
-        .then((data) => publish({ procs: data, error: "" }))
-        .catch((e) => publish({ procs: shared.procs, error: String(e.message || e) }))
-        .finally(() => {
-            if (readers.size > 0) timer = setTimeout(poll, EVERY);
-        });
-}
-
-// useProcs returns host processes, refreshed while the screen is open.
-export function useProcs(enabled = true) {
-    const [state, setState] = useState(shared);
-
-    useEffect(() => {
-        if (!enabled) return undefined;
-        readers.add(setState);
-        setState(shared);
-        if (readers.size === 1) poll();
-
-        return () => {
-            readers.delete(setState);
-            if (readers.size === 0) {
-                clearTimeout(timer);
-                timer = 0;
-            }
-        };
-    }, [enabled]);
-
-    return state;
-}
-
-// shortCmd returns the command without the directory of the executable.
-export function shortCmd(cmd) {
-    const text = String(cmd || "");
-    if (!text.startsWith("/")) return text;
-    const cut = text.indexOf(" ");
-    const head = cut < 0 ? text : text.slice(0, cut);
-    return head.slice(head.lastIndexOf("/") + 1) + (cut < 0 ? "" : text.slice(cut));
-}
+import { PROCS_OK, shortCmd, useProcs } from "../../procs.js";
 
 export function Procs() {
     const { procs, error } = useProcs();
