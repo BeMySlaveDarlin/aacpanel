@@ -35,6 +35,9 @@ func (e *Executor) sessionSend(ctx context.Context, target, text string) (string
 }
 
 func deliverText(ctx context.Context, s liveSession, from, text string) (string, error) {
+	if onStream(s) {
+		return streamSend(ctx, s, text)
+	}
 	where := sessionWhere(s)
 
 	t, kerr := termFor(ctx, s.PID)
@@ -108,6 +111,9 @@ func (e *Executor) sessionStop(ctx context.Context, target string) (string, erro
 	if err != nil {
 		return "", err
 	}
+	if onStream(s) {
+		return streamInterrupt(ctx, s)
+	}
 	t, kerr := termFor(ctx, s.PID)
 	if kerr != nil {
 		return "", fmt.Errorf(
@@ -136,6 +142,9 @@ func (e *Executor) sessionEscape(ctx context.Context, target string) (string, er
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return "", err
+	}
+	if onStream(s) {
+		return streamEscape(ctx, s)
 	}
 	t, kerr := termFor(ctx, s.PID)
 	if kerr != nil {

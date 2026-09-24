@@ -57,6 +57,9 @@ func (e *Executor) sessionAnswer(ctx context.Context, target string, ans *action
 	if ans == nil {
 		return "", fmt.Errorf("answer with no options picked")
 	}
+	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
+		return streamAnswer(ctx, s, ans.AskID, ans.Picks, ans.Texts)
+	}
 	s, ask, err := askingSession(target, ans.AskID)
 	if err != nil {
 		return "", err
@@ -75,6 +78,9 @@ func (e *Executor) sessionAnswer(ctx context.Context, target string, ans *action
 func (e *Executor) sessionDismiss(ctx context.Context, target string, ans *action.Answer) (string, error) {
 	if ans == nil {
 		return "", fmt.Errorf("it is not said which question to dismiss")
+	}
+	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
+		return streamDismiss(ctx, s, ans.AskID)
 	}
 	s, ask, err := askingSession(target, ans.AskID)
 	if err != nil {

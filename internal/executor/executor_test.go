@@ -1009,6 +1009,7 @@ type fakeSession struct {
 	status string
 	cwd    string
 	kind   string
+	sid    string
 }
 
 func sessionFiles(t *testing.T, files ...fakeSession) {
@@ -1027,10 +1028,14 @@ func sessionFiles(t *testing.T, files ...fakeSession) {
 		if kind == "" {
 			kind = "interactive"
 		}
+		sid := f.sid
+		if sid == "" {
+			sid = fmt.Sprintf("s-%d", f.pid)
+		}
 		body := fmt.Sprintf(
-			`{"pid":%d,"sessionId":"s-%d","cwd":%q,"name":%q,"procStart":%q,"kind":%q,`+
+			`{"pid":%d,"sessionId":%q,"cwd":%q,"name":%q,"procStart":%q,"kind":%q,`+
 				`"messagingSocketPath":%q,"status":%q}`,
-			f.pid, f.pid, cwd, f.name, f.start, kind, f.socket, status)
+			f.pid, sid, cwd, f.name, f.start, kind, f.socket, status)
 		if err := os.WriteFile(filepath.Join(root, strconv.Itoa(f.pid)+".json"), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}

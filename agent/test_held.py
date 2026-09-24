@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -91,9 +92,19 @@ class LiveStream(Runtime):
                                       "-p", "--input-format", "stream-json", "--session-id", SID])
         self.addCleanup(self.proc.wait)
         self.addCleanup(self.proc.terminate)
+        # The kernel fills the command line of a new process a moment after
+        # exec returns to its parent; read in that moment it is empty. claude
+        # writes its session file long after, so only a test can land there.
+        deadline = time.monotonic() + 5
+        while b"-p" not in self.cmdline() and time.monotonic() < deadline:
+            time.sleep(0.01)
         with open(os.path.join(self.sessions_dir, f"{self.proc.pid}.json"), "w", encoding="utf-8") as f:
             json.dump({"pid": self.proc.pid, "sessionId": SID, "cwd": "/opt/x", "name": "held",
                        "procStart": ctx.proc_start(self.proc.pid), "kind": "interactive"}, f)
+
+    def cmdline(self):
+        with open(f"/proc/{self.proc.pid}/cmdline", "rb") as f:
+            return f.read()
 
     def test_a_stream_run_nobody_holds_is_not_a_live_session(self):
         self.assertEqual(ctx.live_sessions(), [],

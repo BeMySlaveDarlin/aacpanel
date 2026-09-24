@@ -575,6 +575,9 @@ func (e *Executor) sessionPermission(ctx context.Context, target string) (*actio
 	if err != nil {
 		return nil, err
 	}
+	if onStream(s) {
+		return streamPermission(ctx, s)
+	}
 	t, err := termFor(ctx, s.PID)
 	if err != nil {
 		return nil, fmt.Errorf("the screen of session %s cannot be read: %w", target, err)
@@ -589,6 +592,9 @@ func (e *Executor) sessionPermission(ctx context.Context, target string) (*actio
 func (e *Executor) sessionPermit(ctx context.Context, target string, p *action.Permit) (string, error) {
 	if p == nil {
 		return "", fmt.Errorf("it is not said which item to press")
+	}
+	if s, err := permSession(target); err == nil && onStream(s) {
+		return streamPermit(ctx, s, p)
 	}
 	d, err := e.sessionPermission(ctx, target)
 	if err != nil {
