@@ -9,10 +9,23 @@ export function bare(text) {
     return String(text || "").replace(CHIP, "").trim();
 }
 
+// withoutPaths drops the file paths the host puts after a caption: a message
+// sent with files reaches the session as its words and then one path a line.
+function withoutPaths(text, count) {
+    const lines = String(text || "").split("\n");
+    let n = count;
+    while (n > 0 && lines.length && /^\/\S+$/.test(lines[lines.length - 1].trim())) {
+        lines.pop();
+        n -= 1;
+    }
+    return lines.join("\n");
+}
+
 // sameReply reports whether a transcript message and a locally shown one are the same.
 export function sameReply(text, local) {
     const mine = bare(local.sent !== undefined ? local.sent : local.text);
-    const theirs = bare(text);
+    const files = (local.from && local.from.files) || 0;
+    const theirs = bare(files ? withoutPaths(text, files) : text);
     if (mine !== theirs) return false;
     return mine !== "" || theirs !== String(text || "").trim();
 }

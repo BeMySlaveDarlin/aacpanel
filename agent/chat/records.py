@@ -203,6 +203,11 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             out.append({"role": "note", "text": shown, "at": at, "pos": pos})
             return out
         body, trimmed = cut(shown, MAX_TEXT)
+        # A slash command that went through the queue comes back as a record
+        # of the command, with no mark of the queue on it: it is the prompt the
+        # queue has just handed over, and its bubble is already drawn.
+        if pending is not None and text.startswith("<command-name>") and pending.handed(shown):
+            return out
         # A message that went through the queue comes back as a prompt of its
         # own: marked queued in a terminal, and sdk on the stream, where every
         # message goes through the queue. Its bubble is the one the queue drew.

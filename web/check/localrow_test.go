@@ -10,6 +10,33 @@ import (
 // A message just sent is drawn by the screen until the transcript echoes it.
 // The rows still on their way are read at render time: the echo and the
 // local row never share a frame, and the ones that failed or are held stay.
+// A message sent with files reaches the session as its words and one path a
+// line after them; the local row carries only the words. The echo is still
+// its own, and the row leaves — or it hangs as queued under the delivered one.
+func TestARowSentWithFilesLeavesOnItsEcho(t *testing.T) {
+	local := []any{
+		map[string]any{"key": "a", "text": "look at these", "sent": "look at these", "state": "queued",
+			"from": map[string]any{"files": 2}},
+		map[string]any{"key": "b", "text": "one.png", "sent": "", "state": "queued", "from": map[string]any{"files": 1}},
+		map[string]any{"key": "c", "text": "/opt/x", "sent": "/opt/x", "state": "queued"},
+	}
+	items := []any{
+		map[string]any{"role": "me", "pos": 10, "text": "look at these\n/home/u/.local/share/aacpanel-exec/files/1-a.png\n" +
+			"/home/u/.local/share/aacpanel-exec/files/1-b.png"},
+		map[string]any{"role": "me", "pos": 20, "text": "/home/u/.local/share/aacpanel-exec/files/2-one.png"},
+		map[string]any{"role": "me", "pos": 30, "text": "something else"},
+	}
+	got := runModuleJS(t, "src/screens/chat/feed.js", "unarrived", [][]any{{local, items}})
+	var left []string
+	for _, row := range got[0].([]any) {
+		left = append(left, row.(map[string]any)["key"].(string))
+	}
+	if strings.Join(left, ",") != "c" {
+		t.Errorf("rows left waiting: %v — the ones sent with files did not recognise their echo, "+
+			"or a path the person typed was taken for a file", left)
+	}
+}
+
 func TestUnarrivedRowsAreTheOnesTheFeedHasNotEchoed(t *testing.T) {
 	local := []any{
 		map[string]any{"key": "a", "text": "hello", "sent": "hello", "state": "queued"},

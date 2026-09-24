@@ -393,6 +393,18 @@ class Queue(unittest.TestCase):
                     "message": {"content": "write the numbers"}})
         self.assertEqual(chat.parse(json.loads(raw), 99, pending), [])
 
+    def test_a_slash_command_through_the_queue_gives_no_second_bubble(self):
+        pending = chat.Pending()
+        self.enqueued("/model fable", pending, pos=10)
+        self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
+        command = ("<command-name>/model</command-name>\n            <command-message>model</command-message>\n"
+                   "            <command-args>fable</command-args>")
+        raw = line({"type": "user", "timestamp": "2026-08-23T10:01:00Z", "message": {"content": command}})
+        self.assertEqual(chat.parse(json.loads(raw), 99, pending), [])
+        again = chat.parse(json.loads(raw), 120, pending)
+        self.assertEqual([(i["role"], i["text"]) for i in again], [("me", "/model fable")],
+                         "the same command typed again later is a message of its own")
+
     def test_a_prompt_from_the_terminal_does_not_touch_the_queue(self):
         pending = chat.Pending()
         self.enqueued("yes", pending, pos=10)
