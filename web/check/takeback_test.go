@@ -13,6 +13,7 @@ func TestAQueuedMessageOnTheStreamCanBeTakenBack(t *testing.T) {
 		Tools         int    `json:"tools"`
 		Composer      string `json:"composer"`
 		RowsAfterEdit int    `json:"rowsAfterEdit"`
+		Withdrawn     string `json:"withdrawnStamp"`
 		Fail          string `json:"fail"`
 		RowsAfterRead int    `json:"rowsAfterRead"`
 		Sent          []struct {
@@ -27,6 +28,9 @@ func TestAQueuedMessageOnTheStreamCanBeTakenBack(t *testing.T) {
 	}
 	if got.Composer != "run the e2e suite too" || got.RowsAfterEdit != 0 {
 		t.Errorf("edit left %q in the composer and %d queued rows", got.Composer, got.RowsAfterEdit)
+	}
+	if !strings.Contains(got.Withdrawn, "taken back") {
+		t.Errorf("the message the transcript still carries is not shown as taken back: %q", got.Withdrawn)
 	}
 	if !strings.Contains(got.Fail, "already delivered") || got.RowsAfterRead != 1 {
 		t.Errorf("a message already read: line %q, %d rows left", got.Fail, got.RowsAfterRead)

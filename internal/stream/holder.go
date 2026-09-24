@@ -466,14 +466,46 @@ func cancelled(resp json.RawMessage) bool {
 func (h *Holder) unqueue(id string) {
 	h.mu.Lock()
 	kept := h.state.Queue[:0]
+	var gone []string
 	for _, q := range h.state.Queue {
 		if q.UUID != id {
 			kept = append(kept, q)
+			continue
 		}
+		gone = append(gone, q.Text)
 	}
 	h.state.Queue = kept
 	h.mu.Unlock()
 	h.saveSummary()
+	for _, text := range gone {
+		if err := withdraw(h.spec.SessionID, text); err != nil {
+			h.logf("a message taken back was not marked as such: %v", err)
+		}
+	}
+}
+
+// withdraw adds the fingerprint of a message taken back to the list of its
+// conversation. A message sent twice and taken back once is listed once: the
+// feed marks only as many of its copies as were taken back.
+func withdraw(sessionID, text string) error {
+	path := WithdrawnPath(sessionID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	var list []string
+	if raw, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(raw, &list)
+	}
+	list = append(list, Fingerprint(text))
+	body, err := json.Marshal(list)
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // picked remembers a model or an effort chosen by a message: a slash command

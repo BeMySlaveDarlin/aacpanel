@@ -15,10 +15,13 @@
 package stream
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -37,6 +40,30 @@ func Dir() string {
 		return filepath.Join(base, dirName)
 	}
 	return filepath.Join(os.TempDir(), fmt.Sprintf("%s-%d", dirName, os.Getuid()))
+}
+
+// WithdrawnPath keeps the fingerprints of the messages a person took back from
+// the queue of one conversation. The transcript cannot tell a message taken
+// back from one that was read — claude writes the same record for both — and
+// the feed would show it as sent. It outlives the holder, so the archive of
+// the conversation says the same, and it holds no words: a fingerprint is a
+// hash of the message, not the message.
+func WithdrawnPath(sessionID string) string {
+	base := os.Getenv("XDG_STATE_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = os.TempDir()
+		}
+		base = filepath.Join(home, ".local", "state")
+	}
+	return filepath.Join(base, dirName, "withdrawn", sessionID+".json")
+}
+
+// Fingerprint names a message without keeping its words.
+func Fingerprint(text string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(text)))
+	return hex.EncodeToString(sum[:16])
 }
 
 // SocketPath is the socket of the holder of one conversation.

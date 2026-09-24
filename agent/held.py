@@ -7,6 +7,7 @@ the stream instead of in a terminal. The holder's state file names the
 conversation and the pid of its claude, and says what a person is waited for
 by the names of the tools, never by their text.
 """
+import hashlib
 import json
 import os
 
@@ -52,3 +53,50 @@ def waiting_for(data):
     if not isinstance(tools, list) or not tools:
         return None
     return "input needed" if "AskUserQuestion" in tools else "dialog open"
+
+
+def withdrawn_path(sid):
+    """Returns where the holder keeps the fingerprints of the messages taken back."""
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    return os.path.join(base, "aacpanel-stream", "withdrawn", sid + ".json")
+
+
+def fingerprint(text):
+    """Names a message without its words, the way the holder does."""
+    return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()[:32]
+
+
+def withdrawn(sid):
+    """Returns the fingerprints of the messages taken back from the queue, with repeats."""
+    if not isinstance(sid, str) or not sid or "/" in sid or sid.startswith("."):
+        return []
+    try:
+        with open(withdrawn_path(sid), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return [x for x in data if isinstance(x, str)] if isinstance(data, list) else []
+
+
+def mark_withdrawn(items, sid):
+    """Marks the messages of a person that were taken back before the session read them.
+
+    The transcript writes the same record for a message read and for one taken
+    back, and the feed would show it as sent. A message sent twice and taken
+    back once has only its first copy marked. A message cut for the feed is not
+    matched: its fingerprint is of the whole.
+    """
+    left = {}
+    for mark in withdrawn(sid):
+        left[mark] = left.get(mark, 0) + 1
+    if not left:
+        return items
+    out = []
+    for item in items:
+        if item.get("role") == "me" and not item.get("cut") and isinstance(item.get("text"), str):
+            mark = fingerprint(item["text"])
+            if left.get(mark):
+                left[mark] -= 1
+                item = {**item, "state": "withdrawn"}
+        out.append(item)
+    return out

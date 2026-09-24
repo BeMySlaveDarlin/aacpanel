@@ -278,6 +278,10 @@ button.filepic {
 .mqueue .btn { padding: .2rem .6rem; font-size: var(--t-xs); }
 .mqueuefail { text-align: right; }
 
+/* A message taken back before the session read it stays where it was sent,
+   faded: it was written, and it was not said. */
+.msg.withdrawn { opacity: .45; }
+
 .mwait {
     margin: .3rem 0 0;
     font-family: var(--mono);

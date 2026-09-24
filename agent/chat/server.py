@@ -7,6 +7,7 @@ import threading
 import archive
 import asked
 import briefs
+import held
 import pages
 import reviews
 import sesstate
@@ -229,6 +230,8 @@ def _answer(request):
         return {"ok": False, "error": f"the transcript was not read: {e}"}
 
     items = chunk["items"]
+    if session and not sub:
+        items = held.mark_withdrawn(items, session)
     reply = {
         "ok": True,
         "session": session,

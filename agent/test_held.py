@@ -162,5 +162,42 @@ class OnTheCard(Runtime):
         self.assertNotIn("transport", self.card())
 
 
+class Withdrawn(unittest.TestCase):
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+        self.addCleanup(os.environ.pop, "XDG_STATE_HOME", None)
+        os.environ["XDG_STATE_HOME"] = self.dir.name
+
+    def withdraw(self, *texts):
+        path = held.withdrawn_path(SID)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump([held.fingerprint(t) for t in texts], f)
+
+    def test_a_message_taken_back_is_not_shown_as_sent(self):
+        self.withdraw("drop the table")
+        items = [{"role": "me", "text": "run the tests", "pos": 1},
+                 {"role": "me", "text": "drop the table", "pos": 2},
+                 {"role": "ai", "text": "drop the table", "pos": 3}]
+        got = held.mark_withdrawn(items, SID)
+        self.assertEqual([i.get("state") for i in got], [None, "withdrawn", None])
+        self.assertNotIn("state", items[1], "the items of the tail are changed in place")
+
+    def test_sent_twice_and_taken_back_once_marks_one(self):
+        self.withdraw("again")
+        items = [{"role": "me", "text": "again", "pos": 1}, {"role": "me", "text": "again", "pos": 2}]
+        got = held.mark_withdrawn(items, SID)
+        self.assertEqual([i.get("state") for i in got], ["withdrawn", None])
+
+    def test_the_fingerprint_is_the_holders(self):
+        # The holder writes it in Go; the same constant stands in its test.
+        self.assertEqual(held.fingerprint("  slow  "), "5e0cf7bd1dfa3831788b0cf6dedcdd22")
+
+    def test_nothing_taken_back_changes_nothing(self):
+        items = [{"role": "me", "text": "hi", "pos": 1}]
+        self.assertIs(held.mark_withdrawn(items, SID), items)
+
+
 if __name__ == "__main__":
     unittest.main()

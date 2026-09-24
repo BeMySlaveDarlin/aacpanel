@@ -120,6 +120,7 @@ func start(t *testing.T, mutate func(*Spec)) *rig {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(run) })
 	t.Setenv("XDG_RUNTIME_DIR", run)
+	t.Setenv("XDG_STATE_HOME", run+"/state")
 	t.Setenv("STREAM_FAKE_CLAUDE", "1")
 	logPath := run + "/claude.log"
 	t.Setenv("FAKE_LOG", logPath)
@@ -287,6 +288,10 @@ func TestAMessageTakenBackLeavesTheQueue(t *testing.T) {
 	}
 	if s := r.state(); len(s.Queue) != 0 {
 		t.Errorf("a message claude took back is still in the holder's queue: %+v", s.Queue)
+	}
+	raw, err := os.ReadFile(WithdrawnPath(r.spec.SessionID))
+	if err != nil || !strings.Contains(string(raw), Fingerprint("slow")) || strings.Contains(string(raw), "slow") {
+		t.Errorf("the message taken back is not marked for the feed by its fingerprint alone: %v %s", err, raw)
 	}
 	again := r.ask(Request{Op: OpControl, Subtype: "cancel_async_message", Fields: map[string]any{"message_uuid": id}})
 	if !again.OK || !strings.Contains(string(again.Response), `"cancelled":false`) {
@@ -507,5 +512,13 @@ func TestOnlyALaunchThatFailedKeepsItsLog(t *testing.T) {
 		if got := failedStart(c.code, c.lived); got != c.keeps {
 			t.Errorf("exit %d after %s: failed start %v, want %v", c.code, c.lived, got, c.keeps)
 		}
+	}
+}
+
+// The collector reads the fingerprints in Python: the same constant stands in
+// its test, and a change of the hash on one side only is caught on both.
+func TestTheFingerprintIsTheCollectors(t *testing.T) {
+	if got := Fingerprint("  slow  "); got != "5e0cf7bd1dfa3831788b0cf6dedcdd22" {
+		t.Errorf("Fingerprint = %s", got)
 	}
 }

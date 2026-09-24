@@ -113,6 +113,7 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, copies, onPag
     }
 
     const failed = item.state === "failed";
+    const gone = item.state === "withdrawn";
     const mine = item.role === "me";
     // A message on its way says so where its stamp will be: the bubble keeps
     // its height when the transcript echoes it, and only the line under it
@@ -120,7 +121,7 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, copies, onPag
     const wait = onTheWay(item.state);
     const again = failed ? resend(item.from, item.error) : null;
     return html`
-        <div class=${`msg ${mine ? "me" : "ai"}${wait ? " queued" : ""}${failed ? " failed" : ""}`}>
+        <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}>
             ${render(item.text, { breaks: mine })}
             ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} />`}
             ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
@@ -184,6 +185,7 @@ function onTheWay(state) {
     if (state === "sending") return html`<span class="mclock">${Icon.clock()}</span> going out`;
     if (state === "queued") return "queued";
     if (state === "held") return "will go out when the session is free";
+    if (state === "withdrawn") return "taken back — the session did not read it";
     return null;
 }
 
