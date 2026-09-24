@@ -9,8 +9,9 @@ import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
+import { useToast } from "../../ui/toasts.js";
 import { plural, tokens } from "../../format.js";
-import { modelName } from "./head.js";
+import { copyText } from "./copy.js";
 
 // The colour of a category is its meaning, the same in the card, the sheet and
 // the legend. A category the list does not know is drawn in the neutral one.
@@ -97,7 +98,40 @@ export function CommandSheet({ item }) {
     return html`<${ContextBreakdown} data=${item.data || {}} />`;
 }
 
+// modelTitle names a model the way the client does — "Opus 5.5 · 1M" — and
+// not by its id: the id is for machines, and the window rides on it as "[1m]".
+export function modelTitle(id) {
+    const raw = String(id || "");
+    const found = /^(?:claude-)?([a-z]+)-(\d+)(?:-(\d{1,2}))?(?=-\d{8}|\[|$)/i.exec(raw);
+    if (!found) return raw;
+    const name = found[1][0].toUpperCase() + found[1].slice(1);
+    const version = found[3] ? `${found[2]}.${found[3]}` : found[2];
+    const wide = /\[1m\]/i.test(raw) ? " · 1M" : "";
+    return `${name} ${version}${wide}`;
+}
+
+// plainText is the breakdown as it goes to the clipboard: the table a person
+// pastes into a note or a message, not the picture.
+export function plainText(data) {
+    const max = data.max || 0;
+    const cats = data.categories || [];
+    const lines = [
+        `Context window · ${modelTitle(data.model)}`,
+        `${tokens(data.used)} of ${tokens(max)} tokens (${Math.round(data.percent || 0)}%)`,
+        "",
+        ...cats.filter((c) => c.kind !== "deferred")
+            .map((c) => `${c.name}: ${count(c)} (${share(c.tokens, max)})`),
+    ];
+    const later = cats.filter((c) => c.kind === "deferred");
+    if (later.length) {
+        lines.push("", "Loaded on demand:",
+            ...later.map((c) => `${c.name.replace(/\s*\(deferred\)$/i, "")}: ${count(c)}`));
+    }
+    return lines.join("\n");
+}
+
 function ContextBreakdown({ data }) {
+    const toast = useToast();
     const max = data.max || 0;
     const cats = data.categories || [];
     const inside = cats.filter((c) => c.kind !== "deferred");
@@ -109,36 +143,54 @@ function ContextBreakdown({ data }) {
     const tools = mcp.reduce((n, s) => n + (s.tools || 0), 0);
     return html`
         <div class="cmdsheet">
-            <h3 class="cmdhead">${COMMAND_TITLES.context}</h3>
-            <div class="cmdsub">
-                ${data.model && html`<span class="cmdmodel">${modelName({ model: data.model })}</span>`}
-                <span><b>${tokens(data.used)}</b> of ${tokens(max)} tokens · ${Math.round(data.percent || 0)}%</span>
+            <div class="shead cmdtitle">
+                <span class="cmdhead">${COMMAND_TITLES.context}</span>
+                <button class="cmdcopy" type="button" aria-label="copy the breakdown"
+                        onClick=${() => copyText(plainText(data), toast, "Copied", COMMAND_TITLES.context)}>
+                    ${Icon.copy()}
+                </button>
             </div>
-            <${Bar} data=${data} big />
 
-            <ul class="cmdcats">
-                ${inside.map((c) => html`
-                    <li key=${c.name} class=${`cmdcat t-${tone(c)}`}>
-                        <i class="cmddot"></i>
-                        <span class="cmdname">${c.name}</span>
-                        <span class="cmdtok">${count(c)}</span>
-                        <span class="cmdpct">${share(c.tokens, max)}</span>
-                    </li>
-                `)}
-            </ul>
-
-            ${later.length > 0 && html`
-                <p class="cmdnote">Loaded on demand — not in the window until used:</p>
-                <ul class="cmdcats later">
-                    ${later.map((c) => html`
-                        <li key=${c.name} class="cmdcat">
-                            <span class="cmdname">${c.name.replace(/\s*\(deferred\)$/i, "")}</span>
+            <section class="cmdsec">
+                <div class="cmdsechead">
+                    <span>In the window</span>
+                    ${data.model && html`<span class="cmdaside">${modelTitle(data.model)}</span>`}
+                </div>
+                <div class="cmdmeter">
+                    <span class="cmdsub">${tokens(data.used)} of ${tokens(max)} tokens</span>
+                    <b>${Math.round(data.percent || 0)}%</b>
+                </div>
+                <${Bar} data=${data} big />
+                <ul class="cmdcats">
+                    ${inside.map((c) => html`
+                        <li key=${c.name} class=${`cmdcat t-${tone(c)}`}>
+                            <i class="cmddot"></i>
+                            <span class="cmdname">${c.name}</span>
                             <span class="cmdtok">${count(c)}</span>
+                            <span class="cmdpct">${share(c.tokens, max)}</span>
                         </li>
                     `)}
                 </ul>
+            </section>
+
+            ${later.length > 0 && html`
+                <section class="cmdsec">
+                    <div class="cmdsechead">
+                        <span>Loaded on demand</span>
+                        <span class="cmdaside">not in the window until used</span>
+                    </div>
+                    <ul class="cmdcats later">
+                        ${later.map((c) => html`
+                            <li key=${c.name} class="cmdcat">
+                                <span class="cmdname">${c.name.replace(/\s*\(deferred\)$/i, "")}</span>
+                                <span class="cmdtok">${count(c)}</span>
+                            </li>
+                        `)}
+                    </ul>
+                </section>
             `}
 
+            <div class="cmdparts">
             ${mcp.length > 0 && html`
                 <${Part} title="MCP servers"
                          sum=${`${sized(mcp.length, "server", "servers")} · ${sized(tools, "tool", "tools")}`}
@@ -157,6 +209,7 @@ function ContextBreakdown({ data }) {
                 <${Part} title="Skills" sum=${sized(data.skillsTotal || skills.length, "skill", "skills")}
                          rows=${byTokens(skills).map((s) => ({ key: s.name, name: s.name, note: s.source, tok: count(s) }))} />
             `}
+            </div>
         </div>
     `;
 }
@@ -174,11 +227,11 @@ function byTokens(rows) {
 function Part({ title, sum, rows }) {
     const [open, setOpen] = useState(false);
     return html`
-        <div class=${`cmdpart${open ? " open" : ""}`}>
-            <button class="cmdparthead" type="button" onClick=${() => setOpen(!open)}
+        <section class=${`cmdsec cmdpart${open ? " open" : ""}`}>
+            <button class="cmdsechead cmdparthead" type="button" onClick=${() => setOpen(!open)}
                     aria-expanded=${open ? "true" : "false"}>
                 <span class="cmdname">${title}</span>
-                <span class="cmdsum">${sum}</span>
+                <span class="cmdaside">${sum}</span>
                 <span class="crgo">${Icon.chevron()}</span>
             </button>
             ${open && html`
@@ -192,6 +245,6 @@ function Part({ title, sum, rows }) {
                     `)}
                 </ul>
             `}
-        </div>
+        </section>
     `;
 }

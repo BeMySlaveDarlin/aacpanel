@@ -65,71 +65,106 @@
         var(--ink-faint) 0 1.5px, transparent 1.5px 4px);
 }
 
-.cmdsheet { display: grid; padding-bottom: .6rem; }
-.cmdhead { margin: 0; font-size: var(--t-lg); font-weight: 600; color: var(--ink); }
-.cmdsub {
+/* The sheet speaks the language of the client's own cards: a quiet title with
+   copying beside it, parts under small headings with an aside on the right,
+   and rows where the label is dim and the value is what the eye lands on. */
+.cmdsheet { display: grid; gap: 1.1rem; padding-bottom: .6rem; }
+.cmdtitle { margin-bottom: 0; }
+.cmdhead { flex: 1 1 auto; font-size: var(--t-md); font-weight: 600; color: var(--ink); }
+.cmdcopy {
     display: flex;
-    flex-wrap: wrap;
-    gap: .2rem .8rem;
-    margin-top: .2rem;
-    font-size: var(--t-sm);
-    color: var(--ink-dim);
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: .38rem;
+    border: 0;
+    border-radius: var(--r-small);
+    background: none;
+    color: var(--ink-faint);
+    cursor: pointer;
 }
-.cmdsub b { color: var(--ink); font-weight: 600; }
-.cmdmodel { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); align-self: center; }
+.cmdcopy svg { width: 100%; height: 100%; }
+.cmdcopy:active { background: var(--surface); }
+
+.cmdsec { display: grid; }
+.cmdsechead {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    padding-bottom: .35rem;
+    font-size: var(--t-sm);
+    font-weight: 600;
+    color: var(--ink);
+}
+.cmdsechead > :first-child { flex: 1 1 auto; min-width: 0; }
+.cmdaside {
+    flex: none;
+    font-size: var(--t-sm);
+    font-weight: 400;
+    color: var(--ink-faint);
+}
+.cmdmeter {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    font-size: var(--t-sm);
+}
+.cmdmeter .cmdsub { flex: 1 1 auto; color: var(--ink-dim); }
+.cmdmeter b { font-weight: 600; color: var(--ink); }
+.cmdbar.big { height: 8px; margin: .35rem 0 .45rem; border-radius: 4px; }
 
 .cmdcats, .cmdrows { list-style: none; margin: 0; padding: 0; }
 .cmdcat, .cmdrows li {
     display: flex;
     align-items: baseline;
     gap: .55rem;
-    padding: .28rem 0;
+    padding: .3rem 0;
     font-size: var(--t-sm);
     border-bottom: var(--hair) solid var(--line);
 }
 .cmdcat:last-child, .cmdrows li:last-child { border-bottom: 0; }
 .cmddot {
     flex: none;
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 2px;
     background: var(--cat, var(--line));
     align-self: center;
 }
 .cmdcat.t-free .cmddot { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
-.cmdname { flex: 1 1 auto; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
-.cmdtok, .cmdpct, .cmdsum, .cmdrownote {
+.cmdname { flex: 1 1 auto; min-width: 0; color: var(--ink-dim); overflow-wrap: anywhere; }
+.cmdtok { flex: none; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cmdpct {
     flex: none;
-    font-family: var(--mono);
-    font-size: var(--t-xs);
-    color: var(--ink-dim);
+    width: 3.2rem;
+    text-align: right;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
 }
-.cmdpct { width: 3.4rem; text-align: right; color: var(--ink-faint); }
-.cmdrownote { color: var(--ink-faint); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdrownote {
+    flex: none;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
 
-.cmdnote { margin: .9rem 0 .2rem; font-size: var(--t-xs); color: var(--ink-faint); }
-.cmdcats.later .cmdname { color: var(--ink-dim); }
-
-.cmdpart { border-top: var(--hair) solid var(--line); }
-.cmdcats + .cmdpart { margin-top: .9rem; }
 .cmdparthead {
-    display: flex;
-    align-items: center;
-    gap: .55rem;
     width: 100%;
-    padding: .5rem 0;
+    padding: .55rem 0;
     border: 0;
+    border-top: var(--hair) solid var(--line);
     background: none;
-    font: inherit;
-    font-size: var(--t-sm);
-    font-weight: 600;
+    font-family: inherit;
     text-align: left;
-    color: inherit;
     cursor: pointer;
 }
-.cmdparthead .cmdsum { font-weight: 400; }
-.cmdparthead .crgo { transition: transform .15s; }
+.cmdparthead .cmdname { color: var(--ink); }
+.cmdparthead .crgo { align-self: center; transition: transform .15s; }
 .cmdpart.open .cmdparthead .crgo { transform: rotate(90deg); }
+.cmdparts { display: grid; }
+.cmdparts:empty { display: none; }
 .cmdrows { padding-bottom: .3rem; }
-.cmdrows li { padding: .22rem 0; }
+.cmdrows li { padding: .24rem 0; }
 .cmdrows .cmdname { font-family: var(--mono); font-size: var(--t-xs); }

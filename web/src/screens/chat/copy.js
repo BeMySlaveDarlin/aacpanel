@@ -8,7 +8,7 @@ export function fromClick(event, toast) {
     if (!btn) return false;
 
     if (btn.dataset.md) {
-        copy(btn.dataset.md, toast);
+        copyText(btn.dataset.md, toast);
         return true;
     }
 
@@ -16,7 +16,7 @@ export function fromClick(event, toast) {
     const text = code && code.querySelector("code");
     if (!text) return true;
 
-    copy(text.textContent, toast);
+    copyText(text.textContent, toast);
     return true;
 }
 
@@ -38,10 +38,11 @@ export function filePick(state) {
 export function fileCopy(state, toast) {
     const pick = filePick(state);
     if (!pick) return;
-    copy(pick.text, toast, pick.title, pick.sub);
+    copyText(pick.text, toast, pick.title, pick.sub);
 }
 
-async function copy(text, toast, title = "Copied", sub = lead(text)) {
+// copyText puts any text into the clipboard and says so.
+export async function copyText(text, toast, title = "Copied", sub = lead(text)) {
     try {
         await navigator.clipboard.writeText(text);
         toast(title, sub);

@@ -13,6 +13,7 @@ import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
 import { CommandSheet } from "/src/screens/chat/command.js";
 import { Sheet } from "/src/ui/sheet.js";
+import { ToastHost } from "/src/ui/toasts.js";
 
 const prompt = { role: "me", text: "/context", pos: 1130, at: "2026-09-24T19:34:51.727Z" };
 const answer = {"role": "command", "name": "context", "data": {"model": "claude-opus-5-5[1m]", "used": 259334, "max": 1000000, "percent": 26, "categories": [{"name": "System prompt", "tokens": 3824, "kind": "used"}, {"name": "System tools", "tokens": 14635, "kind": "used"}, {"name": "MCP tools (deferred)", "tokens": 69612, "kind": "deferred"}, {"name": "System tools (deferred)", "tokens": 25830, "kind": "deferred"}, {"name": "Custom agents", "tokens": 3707, "kind": "used"}, {"name": "Memory files", "tokens": 21460, "kind": "used"}, {"name": "Skills", "tokens": 9934, "kind": "used"}, {"name": "Messages", "tokens": 205830, "kind": "used"}, {"name": "Autocompact buffer", "tokens": 33000, "kind": "buffer"}, {"name": "Free space", "tokens": 707610, "kind": "free"}], "mcp": [{"name": "claude_ai_Gmail", "tools": 30, "tokens": 22952}, {"name": "claude-in-chrome", "tools": 22, "tokens": 11077}, {"name": "docker", "tools": 56, "tokens": 9479}, {"name": "claude_ai_Google_Calendar", "tools": 9, "tokens": 8714}, {"name": "claude_ai_Google_Drive", "tools": 11, "tokens": 6028}], "agents": [{"name": "agent-sdk-dev:agent-sdk-verifier-py", "source": "plugin", "tokens": 110}, {"name": "agent-sdk-dev:agent-sdk-verifier-ts", "source": "plugin", "tokens": 117}, {"name": "hookify:conversation-analyzer", "source": "plugin", "tokens": 131}, {"name": "plugin-dev:agent-creator", "source": "plugin", "tokens": 408}, {"name": "plugin-dev:plugin-validator", "source": "plugin", "tokens": 431}, {"name": "plugin-dev:skill-reviewer", "source": "plugin", "tokens": 410}, {"name": "pr-review-toolkit:code-reviewer", "source": "plugin", "tokens": 293}, {"name": "pr-review-toolkit:code-simplifier", "source": "plugin", "tokens": 738}, {"name": "pr-review-toolkit:comment-analyzer", "source": "plugin", "tokens": 173}, {"name": "pr-review-toolkit:pr-test-analyzer", "source": "plugin", "tokens": 181}, {"name": "pr-review-toolkit:silent-failure-hunter", "source": "plugin", "tokens": 525}, {"name": "pr-review-toolkit:type-design-analyzer", "source": "plugin", "tokens": 190}], "memory": [], "skills": [{"name": "brief", "source": "userSettings", "tokens": 262}, {"name": "cross-profile-message", "source": "userSettings", "tokens": 132}, {"name": "notify", "source": "userSettings", "tokens": 206}, {"name": "restart-session", "source": "userSettings", "tokens": 143}, {"name": "agent-sdk-dev:new-sdk-app", "source": "plugin", "tokens": 27}, {"name": "claude-md-management:revise-claude-md", "source": "plugin", "tokens": 30}, {"name": "anthropic-skills:skill-creator", "source": "syncedSkills", "tokens": 11}, {"name": "anthropic-skills:xlsx", "source": "syncedSkills", "tokens": 8}]}, "at": "2026-09-24T19:34:51.741Z", "pos": 1131};
@@ -33,7 +34,7 @@ function Feed() {
     `;
 }
 
-render(html`<${Feed} />`, document.getElementById("root"));
+render(html`<${ToastHost}><${Feed} /><//>`, document.getElementById("root"));
 
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -64,6 +65,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const inside = {
         head: text(".sheet.on .cmdhead")[0] || "",
         sub: text(".sheet.on .cmdsub")[0] || "",
+        // The model by its name, the way the client says it, not by its id.
+        model: text(".sheet.on .cmdsec .cmdaside")[0] || "",
         cats: text(".sheet.on .cmdcats:not(.later) .cmdname"),
         pcts: text(".sheet.on .cmdcats:not(.later) .cmdpct"),
         later: text(".sheet.on .cmdcats.later .cmdname"),

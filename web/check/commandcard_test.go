@@ -3,7 +3,6 @@ package check
 import (
 	"math"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -23,6 +22,7 @@ type commandCardShot struct {
 	Inside struct {
 		Head       string   `json:"head"`
 		Sub        string   `json:"sub"`
+		Model      string   `json:"model"`
 		Cats       []string `json:"cats"`
 		Pcts       []string `json:"pcts"`
 		Later      []string `json:"later"`
@@ -92,9 +92,8 @@ func TestTheContextCardOpensTheBreakdown(t *testing.T) {
 		t.Fatalf("the tap opened %v, sheet found %v", got.Opened, got.Found)
 	}
 	in := got.Inside
-	if in.Head != "Context window" || !strings.Contains(in.Sub, "259k of 1m tokens") ||
-		!strings.Contains(in.Sub, "opus-5-5[1m]") {
-		t.Errorf("the sheet opens as %q / %q", in.Head, in.Sub)
+	if in.Head != "Context window" || in.Sub != "259k of 1m tokens" || in.Model != "Opus 5.5 · 1M" {
+		t.Errorf("the sheet opens as %q / %q / %q", in.Head, in.Sub, in.Model)
 	}
 	cats := []string{"System prompt", "System tools", "Custom agents", "Memory files", "Skills",
 		"Messages", "Autocompact buffer", "Free space"}
