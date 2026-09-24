@@ -136,13 +136,50 @@ func (s *Server) apiRepoFile(w http.ResponseWriter, r *http.Request) {
 	}
 	file := RepoFile{RepoOut: out}
 	if len(out.Lines) > 0 {
-		// The window is coloured as part of the whole file: a lexer handed the
-		// middle of a file starts inside whatever was open there, and the
-		// window is cut out of the result afterwards.
-		painted, name := s.paint.Painted(out.OID, out.Path, strings.Join(out.Lines, "\n"))
-		file.Spans, file.Lexer = painted, name
+		file.Spans, file.Lexer = paintWindow(s.paint, out, func() (*chat.RepoOut, error) {
+			return s.chat.Repo(r.Context(), chat.RepoReq{
+				Op: "blob", Cwd: cwd, Path: out.Path, First: 1, Lines: wholeLines,
+			})
+		})
 	}
 	writeJSON(w, file)
+}
+
+// How many lines a read of a whole file asks for: the ceiling of one window
+// at the agent. A file longer than that is past what is coloured anyway.
+const wholeLines = 20000
+
+// paintWindow colours a window of a file as part of the whole file. A lexer
+// handed the middle of a file starts inside whatever was open there — a
+// comment, a string — so the file is coloured whole, kept under the id of its
+// content, and the window is cut out of that. The whole file is read only
+// when it is not kept yet; a window that is the whole file is coloured as it
+// came. A file past what is coloured at all stays text, whichever window of it
+// is asked for.
+func paintWindow(cache *repo.Cache, out *chat.RepoOut, whole func() (*chat.RepoOut, error)) ([][]repo.Span, string) {
+	if out.Size > repo.MaxPaint {
+		return nil, ""
+	}
+	window := strings.Join(out.Lines, "\n")
+	if out.First <= 1 && !out.More {
+		return cache.Painted(out.OID, out.Path, window)
+	}
+	lines, name, ok := cache.PaintedBy(out.OID, out.Path, func() (string, bool) {
+		full, err := whole()
+		// The file changed between the two reads, or runs past one read: the
+		// colouring of what was read is not the colouring of this id.
+		if err != nil || full == nil || full.Stale || full.More || full.OID != out.OID {
+			return "", false
+		}
+		return strings.Join(full.Lines, "\n"), true
+	})
+	start := out.First - 1
+	if !ok || start < 0 || start >= len(lines) {
+		return nil, ""
+	}
+	// A file ending in empty lines is one line shorter to the lexer than to
+	// the agent; the rows past the colouring are drawn as text.
+	return lines[start:min(start+len(out.Lines), len(lines))], name
 }
 
 // RepoDiff is the diff of one file, cut into hunks and coloured.
