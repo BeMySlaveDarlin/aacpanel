@@ -53,6 +53,20 @@ func TestRestartWaitClearsOnANewRunOfTheSameName(t *testing.T) {
 			false,
 		},
 		{
+			"a switched session under the same conversation, now on the stream — done",
+			[]any{map[string]any{"kind": "switch", "target": "host", "before": []string{"host"}, "seen": 0,
+				"was": "old-id|2025-01-01T10:00:00Z|"},
+				names("host"), 0, map[string]any{"host": "old-id|2025-01-01T10:00:00Z|stream"}},
+			true,
+		},
+		{
+			"a switched session still where it was — not yet",
+			[]any{map[string]any{"kind": "switch", "target": "host", "before": []string{"host"}, "seen": 0,
+				"was": "old-id|2025-01-01T10:00:00Z|"},
+				names("host"), 0, map[string]any{"host": "old-id|2025-01-01T10:00:00Z|"}},
+			false,
+		},
+		{
 			"a close wait is untouched by the identities",
 			[]any{map[string]any{"kind": "close", "target": "host", "before": []string{"host"}, "seen": 0},
 				names("shop"), 0, map[string]any{"host": "new-id|x"}},

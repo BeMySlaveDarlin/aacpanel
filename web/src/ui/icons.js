@@ -109,6 +109,7 @@ export const Icon = {
 
     feed: () => html`<svg ...${stroke}><path d="M3.5 6.5h17v9H9l-5.5 4z" /></svg>`,
 
+    swap: () => html`<svg ...${stroke}><path d="M4 8.5h14.5M15 5l3.5 3.5L15 12M20 15.5H5.5M9 12l-3.5 3.5L9 19" /></svg>`,
     monitor: () => html`<svg ...${stroke}><rect x="2.5" y="4.5" width="19" height="12" rx="2" /><path d="M12 16.5V19M8.5 19h7" /></svg>`,
 
     download: () => html`<svg ...${stroke}><path d="M12 4v10M8 10.5l4 4 4-4M5 19h14" /></svg>`,

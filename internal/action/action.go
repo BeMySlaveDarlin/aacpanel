@@ -38,6 +38,10 @@ const (
 	// SessionPermit answers a permission prompt.
 	SessionPermit Kind = "session.permit"
 
+	// SessionSwitch moves a live session between the console and the feed:
+	// the same conversation is closed on one side and resumed on the other.
+	SessionSwitch Kind = "session.switch"
+
 	// WindowOpen opens a terminal window onto a live session on the host.
 	WindowOpen Kind = "window.open"
 	// TaskStop stops one background job of a session.
@@ -57,7 +61,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
 	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
-	SessionPermit, TaskStop, AgentStop, WindowOpen, WindowClose,
+	SessionPermit, SessionSwitch, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }
 

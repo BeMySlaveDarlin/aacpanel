@@ -32,6 +32,7 @@ import { Marquee, short } from "./chat/head.js";
 import { AttachSheet, HeadTools } from "./chat/tools.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
 import { WindowToggle } from "./chat/window.js";
+import { SwitchToggle } from "./chat/switch.js";
 import { Term, useTermAvailable } from "./chat/term.js";
 import { useViewPick } from "./chat/viewpick.js";
 import { useViewing } from "../viewing.js";
@@ -246,7 +247,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
 
     return html`
         ${wide
-            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct}
+            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} work=${state.work}
                                 view=${view} canTerm=${canTerm} exec=${exec} onView=${pickView}
                                 onRepo=${here ? () => setRepo(true) : null} />`
             : html`
@@ -254,6 +255,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                      tools=${html`
                          ${here && html`<${RepoButton} onOpen=${() => setRepo(true)} />`}
                          ${live && canTerm && html`<${ViewToggle} view=${view} onView=${pickView} />`}
+                         ${live && html`<${SwitchToggle} name=${name} live=${live} work=${state.work} exec=${exec} />`}
                          ${live && html`<${WindowToggle} name=${name} exec=${exec} />`}
                      `}>
             <div class="chathead">

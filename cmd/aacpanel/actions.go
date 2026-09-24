@@ -152,6 +152,25 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Kind == action.SessionSwitch {
+		to, _ := body.Params["to"].(string)
+		force, _ := body.Params["force"].(bool)
+		plan, err := s.switchPlan(r.Context(), body.Target)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if to != plan.To {
+			http.Error(w, fmt.Sprintf("session %s cannot move to %q: %s", body.Target, to, plan.why()), http.StatusBadRequest)
+			return
+		}
+		req.Switch, req.Project = &action.Switch{To: to, Force: force}, plan.Project
+		params = map[string]any{"to": to, "project": plan.ProjectID, "path": plan.Project.Path}
+		if force {
+			params["force"] = true
+		}
+	}
+
 	form := req
 	form.ID = "form"
 	if err := form.Validate(); err != nil {
@@ -273,6 +292,73 @@ func (s *Server) apiSessionWindow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"state": "none"})
+}
+
+// apiSessionSwitch says which way a live session can move between the console
+// and the feed, so the conversation header offers only the way that works.
+func (s *Server) apiSessionSwitch(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "it is not said which session to move", http.StatusBadRequest)
+		return
+	}
+	plan, err := s.switchPlan(r.Context(), name)
+	if err != nil {
+		writeJSON(w, map[string]any{"to": "", "reason": err.Error()})
+		return
+	}
+	writeJSON(w, map[string]any{"to": plan.To})
+}
+
+// switchWay is where a live session can move, and what it is started with there.
+type switchWay struct {
+	To        string
+	Project   *action.Project
+	ProjectID int
+}
+
+func (p switchWay) why() string {
+	if p.To == action.SwitchConsole {
+		return "it is in the feed already"
+	}
+	return "it is in the console already"
+}
+
+// switchPlan finds where a live session can move. A session on the stream can
+// always go to the console. A console goes to the feed only when its project
+// is set to live there: which projects live in the feed is decided in the map,
+// not by a button in one conversation.
+func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error) {
+	if s.host == nil {
+		return switchWay{}, errors.New("the host snapshot is not configured")
+	}
+	live, ok := s.host.LiveSession(name)
+	if !ok {
+		return switchWay{}, fmt.Errorf("there is no live session %q", name)
+	}
+	if live.SessionID == "" || live.CWD == "" {
+		return switchWay{}, fmt.Errorf("session %q has no conversation to carry over yet", name)
+	}
+	want, projectID, err := s.launchProject(ctx, nil, live.CWD, "")
+	if err != nil {
+		return switchWay{}, err
+	}
+	if want == nil {
+		return switchWay{}, fmt.Errorf("session %q runs in %s, which is not a project from the map: "+
+			"the panel does not know how to start it again", name, live.CWD)
+	}
+	want.Session = name
+	if live.Transport == action.SwitchStream {
+		return switchWay{To: action.SwitchConsole, Project: want, ProjectID: projectID}, nil
+	}
+	var launch struct {
+		Transport string `json:"transport"`
+	}
+	_ = json.Unmarshal(want.Launch, &launch)
+	if launch.Transport != action.SwitchStream {
+		return switchWay{}, fmt.Errorf("the project of session %q lives in the console", name)
+	}
+	return switchWay{To: action.SwitchStream, Project: want, ProjectID: projectID}, nil
 }
 
 func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {

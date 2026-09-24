@@ -108,6 +108,9 @@ type LiveSession struct {
 	Name      string `json:"session"`
 	SessionID string `json:"sessionId"`
 	CWD       string `json:"cwd"`
+	// Transport is "stream" for a session its holder keeps on the stream, and
+	// empty for a terminal.
+	Transport string `json:"transport"`
 }
 
 // LiveSession returns a live session by name together with whether it was found.

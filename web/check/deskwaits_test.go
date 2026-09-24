@@ -194,6 +194,9 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.resume":  "open",
 		"session.close":   "close",
 		"session.restart": "restart",
+		// A switch keeps the name and the conversation: the wait clears when the
+		// session under the name lives on the other side.
+		"session.switch":  "switch",
 		"session.kill":    "close",
 		"session.send":    "",
 		"session.answer":  "",

@@ -237,12 +237,25 @@ func (r Request) Validate() error {
 		return badRequest("action %s stops no background work", r.Kind)
 	}
 	if r.Project != nil {
-		if r.Kind != SessionOpen && r.Kind != SessionResume {
+		if r.Kind != SessionOpen && r.Kind != SessionResume && r.Kind != SessionSwitch {
 			return badRequest("action %s takes no project", r.Kind)
 		}
 		if err := r.Project.validate(); err != nil {
 			return err
 		}
+	}
+	if r.Kind == SessionSwitch {
+		if r.Switch == nil {
+			return badRequest("action %s without where to move the session", r.Kind)
+		}
+		if r.Switch.To != SwitchConsole && r.Switch.To != SwitchStream {
+			return badRequest("a session moves to %q or %q, not to %q", SwitchConsole, SwitchStream, r.Switch.To)
+		}
+		if r.Project == nil {
+			return badRequest("action %s without the project: the session is started again with its launch parameters", r.Kind)
+		}
+	} else if r.Switch != nil {
+		return badRequest("action %s moves no session", r.Kind)
 	}
 	if r.Kind == SessionResume && r.Resume == "" {
 		return badRequest("resuming a session without a conversation id")

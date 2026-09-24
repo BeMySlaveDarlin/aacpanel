@@ -482,6 +482,17 @@ export function contextSay(agent) {
 }
 
 // hasWork reports whether there is anything to put above the composer.
+// liveWork is what a session has running inside its process right now: what
+// stops when the process ends, whatever comes back with the conversation.
+export function liveWork(work) {
+    const { live } = splitAgents((work && work.agents) || []);
+    return {
+        tasks: running((work && work.tasks) || []),
+        agents: live,
+        flows: ((work && work.workflows) || []).filter((f) => f.status === "running"),
+    };
+}
+
 export function hasWork(work, busy) {
     return Boolean(busy);
 }

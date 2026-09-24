@@ -31,6 +31,8 @@ type Request struct {
 
 	Work *Work `json:"work,omitempty"`
 
+	Switch *Switch `json:"switch,omitempty"`
+
 	Ask string `json:"ask,omitempty"`
 }
 
@@ -73,6 +75,23 @@ type Work struct {
 	ID string `json:"id"`
 
 	Line string `json:"line,omitempty"`
+}
+
+// Where session.switch moves a session.
+const (
+	// SwitchConsole is a terminal in tmux: every screen of claude is there.
+	SwitchConsole = "console"
+	// SwitchStream is the stream protocol under a holder: the feed answers it with structure.
+	SwitchStream = "stream"
+)
+
+// Switch is where a live session moves. Force says the person was shown the
+// background work that stops on the way and agreed to it: that work lives
+// inside the process, and resuming the conversation does not bring it back.
+type Switch struct {
+	To string `json:"to"`
+
+	Force bool `json:"force,omitempty"`
 }
 
 // Commands is what the panel can send as a slash command, and with which options.

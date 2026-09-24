@@ -8,6 +8,7 @@ import { Marquee, modelName } from "./head.js";
 import { modeInfo } from "./tools.js";
 import { waitText } from "../../ui/waits.js";
 import { WindowToggle } from "./window.js";
+import { SwitchToggle } from "./switch.js";
 
 function dot(live) {
     if (!live) return { kind: "dkoff", say: "the conversation is gone" };
@@ -79,7 +80,7 @@ function pastFacts(row, pct) {
 }
 
 // DeskHead renders the conversation header on the wide screen.
-export function DeskHead({ name, live, archive, pct, view, canTerm, exec, onView, onRepo }) {
+export function DeskHead({ name, live, archive, pct, work, view, canTerm, exec, onView, onRepo }) {
     const state = dot(live);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
@@ -93,6 +94,7 @@ export function DeskHead({ name, live, archive, pct, view, canTerm, exec, onView
                             aria-label="the files of this project" onClick=${onRepo}>${Icon.files()}</button>
                 `}
                 ${canTerm && html`<${ViewToggle} view=${view} onView=${onView} />`}
+                ${live && html`<${SwitchToggle} name=${name} live=${live} work=${work} exec=${exec} />`}
                 ${live && html`<${WindowToggle} name=${name} exec=${exec} />`}
             </div>
             <div class="dkheadbot">

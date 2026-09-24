@@ -90,6 +90,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionCommand(ctx, req.Target, req.Command)
 	case action.SessionPermit:
 		return e.sessionPermit(ctx, req.Target, req.Permit)
+	case action.SessionSwitch:
+		return e.sessionSwitch(ctx, req.Target, req.Switch, req.Project)
 	case action.TaskStop:
 		return e.taskStop(ctx, req.Target, req.Work)
 	case action.AgentStop:

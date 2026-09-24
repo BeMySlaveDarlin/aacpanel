@@ -20,15 +20,19 @@ function waitKey(kind, target) {
 }
 
 // identity tells one run of a session from the next one under the same name:
-// a restarted session keeps its name, and only the conversation behind it changes.
+// a restarted session keeps its name, and only the conversation behind it
+// changes; a switched one keeps its conversation too, and only where it lives
+// changes.
 function identity(s) {
-    return `${(s && s.sessionId) || ""}|${(s && s.startedAt) || ""}`;
+    return `${(s && s.sessionId) || ""}|${(s && s.startedAt) || ""}|${(s && s.transport) || ""}`;
 }
 
 export function settled(task, names, at = 0, ids = {}) {
     if (at && task.seen && at <= task.seen) return false;
     if (task.kind === "close") return !names.includes(task.target);
-    if (task.kind === "restart") return names.includes(task.target) && ids[task.target] !== task.was;
+    if (task.kind === "restart" || task.kind === "switch") {
+        return names.includes(task.target) && ids[task.target] !== task.was;
+    }
     return names.some((name) => !task.before.includes(name) && ownName(name, task.target));
 }
 

@@ -46,6 +46,20 @@ export const COMMANDS = {
     },
 };
 
+// switchEffect tells what a switch keeps and what it ends. The conversation
+// comes up on the other side whole; what ran inside the process does not.
+function switchEffect(params) {
+    const where = params.to === "console"
+        ? "The session comes up in a terminal on " + hostLabel() + ", with every screen claude has there. "
+        : "The console closes and the session comes up in the feed, answered with structure. "
+            + "Remote control and a window on the host do not come along. ";
+    const kept = "The same conversation, the same history, the model, the effort and the permission mode it runs with now. ";
+    const lost = params.stops
+        ? `Stops for good: ${params.stops} — they live inside the process, and resuming does not bring them back. Wait for them if they matter.`
+        : "Background tasks, Monitor and wakeups live inside the process and would stop — none are running now.";
+    return where + kept + lost;
+}
+
 function command(params) {
     return (params && COMMANDS[params.command]) || {};
 }
@@ -145,6 +159,18 @@ export const ACTIONS = {
         done: (target) => `Session ${target} is restarting`,
         ok: "Restart",
         danger: true,
+    },
+    "session.switch": {
+        watch: "switch",
+        title: (target, params) => (params && params.to === "console"
+            ? `Move ${target} to the console?`
+            : `Move ${target} to the feed?`),
+        effect: (params) => switchEffect(params || {}),
+        done: (target, params) => (params && params.to === "console"
+            ? `${target} is moving to the console`
+            : `${target} is moving to the feed`),
+        ok: "Move",
+        danger: (params) => Boolean(params && params.stops),
     },
     "session.send": {
         instant: true,
@@ -513,6 +539,7 @@ const NAMES = {
     "session.kill": "Kill session",
     "session.open": "Open console",
     "session.resume": "Resume session",
+    "session.switch": "Move between console and feed",
     "session.send": "Write to session",
     "session.answer": "Answer the question",
     "session.dismiss": "Dismiss the question",

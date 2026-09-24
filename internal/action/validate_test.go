@@ -279,3 +279,38 @@ func TestWorkStopCarriesWhatTheScreenShows(t *testing.T) {
 		})
 	}
 }
+
+func TestSwitchSaysWhereAndCarriesItsProject(t *testing.T) {
+	project := &Project{Path: "/opt/x", Session: "aacpanel"}
+	cases := []struct {
+		name string
+		req  Request
+		ok   bool
+	}{
+		{"to the console", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel",
+			Switch: &Switch{To: SwitchConsole}, Project: project}, true},
+		{"to the feed, agreeing to what stops", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel",
+			Switch: &Switch{To: SwitchStream, Force: true}, Project: project}, true},
+		{"nowhere", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel", Project: project}, false},
+		{"somewhere unknown", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel",
+			Switch: &Switch{To: "tmux"}, Project: project}, false},
+		{"without its project", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel",
+			Switch: &Switch{To: SwitchConsole}}, false},
+		{"a switch riding another action", Request{ID: "1", Kind: SessionClose, Target: "aacpanel",
+			Switch: &Switch{To: SwitchConsole}}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.req.Validate()
+			if c.ok && err != nil {
+				t.Errorf("a sound request is rejected: %v", err)
+			}
+			if !c.ok && err == nil {
+				t.Error("the request is accepted, though it must not be")
+			}
+		})
+	}
+	if !Valid(SessionSwitch) {
+		t.Fatal("session.switch is missing from Kinds — the executor would reject it as unknown")
+	}
+}

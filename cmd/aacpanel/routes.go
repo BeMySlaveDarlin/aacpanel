@@ -137,6 +137,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/exec", g.page(s.apiExecStatus))
 	mux.Handle("GET /api/session/permission", g.page(s.apiSessionPermission))
 	mux.Handle("GET /api/session/window", g.page(s.apiSessionWindow))
+	mux.Handle("GET /api/session/switch", g.page(s.apiSessionSwitch))
 	mux.Handle("GET /api/faults", g.page(s.apiFaults))
 
 	mux.HandleFunc("POST /auth/passkey/login/begin", s.passkey.BeginLogin)

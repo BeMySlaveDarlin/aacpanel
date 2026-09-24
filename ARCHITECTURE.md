@@ -275,6 +275,26 @@ A holder's state file names the conversation and the pid of its claude, and
 a process that matches none is somebody else's run — seen in the archive, not
 on the list of live sessions.
 
+**A switch moves a live session between the two** (`session.switch`): the
+executor closes the process on one side and resumes the same conversation on
+the other, under the same name. The id and the history stay; the process does
+not, and what lives only inside it goes with it — a turn in progress, an open
+question or permission, messages in the queue, background tasks, Monitor,
+wakeups, agents. So a switch happens only between turns and never under an
+open request: the executor refuses rather than cut anything off. Background
+work is the one loss a person may accept: the conversation header names it
+before the press, and on the stream, where the holder knows the tasks exactly,
+the executor refuses a switch nobody agreed to.
+
+The new process is started with the project's launch parameters and what the
+session changed since its start: the permission mode from the holder, or from
+the transcript of a console; the model and the effort a console shows on its
+status line, which names the model with its context window. The opening
+message of the project is dropped — a resumed conversation would read it as a
+new request. A stream session can always go to the console; a console goes to
+the feed only when its project lives there, because which projects live in the
+feed is decided in the map, not by a button in one conversation.
+
 ---
 
 ## The path of an action
@@ -324,7 +344,7 @@ Twenty-three actions, and the list is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.permit` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.permit`, `session.switch` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
