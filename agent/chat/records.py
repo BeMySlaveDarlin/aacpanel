@@ -195,7 +195,10 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             out.append({"role": "note", "text": shown, "at": at, "pos": pos})
             return out
         body, trimmed = cut(shown, MAX_TEXT)
-        if record.get("promptSource") == "queued" and pending is not None and pending.seen(text):
+        # A message that went through the queue comes back as a prompt of its
+        # own: marked queued in a terminal, and sdk on the stream, where every
+        # message goes through the queue. Its bubble is the one the queue drew.
+        if record.get("promptSource") in ("queued", "sdk") and pending is not None and pending.seen(text):
             item = pending.by_text(text)
             return [delivered(item)] if item else []
         if pending is not None:

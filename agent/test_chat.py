@@ -383,6 +383,16 @@ class Queue(unittest.TestCase):
                     "message": {"content": "change the scheme"}})
         self.assertEqual(chat.parse(json.loads(raw), 99, pending), [])
 
+    def test_a_message_on_the_stream_gives_no_second_bubble(self):
+        # claude -p puts every message through its queue and then writes it as a
+        # prompt of the sdk: one message, one bubble.
+        pending = chat.Pending()
+        self.enqueued("write the numbers", pending, pos=10)
+        self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
+        raw = line({"type": "user", "promptSource": "sdk", "timestamp": "2026-08-23T10:01:00Z",
+                    "message": {"content": "write the numbers"}})
+        self.assertEqual(chat.parse(json.loads(raw), 99, pending), [])
+
     def test_a_prompt_from_the_terminal_does_not_touch_the_queue(self):
         pending = chat.Pending()
         self.enqueued("yes", pending, pos=10)
