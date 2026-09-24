@@ -217,6 +217,22 @@ function finalizeHelp(launch, fromProfile) {
 }
 
 // LaunchFields renders the same parameters as form fields.
+// StreamBlock says what a session on the stream is: what of the launch still
+// holds there, what does not reach it, and where the rest is. A choice that
+// quietly drops half of what the form offers reads as a form that lies.
+function StreamBlock() {
+    return html`
+        <div class="pfstream">
+            <span class="pflabel">On the stream</span>
+            <span class="pfhelp">takes effect at the next start: the session is answered in the feed — there is no terminal and no window on the host</span>
+            <span class="pfhelp">holds here too: the model, the effort, the permission mode, the starting intent, the environment and finalizing</span>
+            <span class="pfhelp">remote control does not reach a session on the stream — claude.ai has no terminal to attach to</span>
+            <span class="pfhelp warn">the extra arguments go to <code>claude -p</code>: one only the terminal knows stops the session at its start</span>
+            <span class="pfhelp">what the feed cannot do yet — /model, the screens of commands — is in the console: the ⇄ button in the conversation header moves the session there and back</span>
+        </div>
+    `;
+}
+
 export function LaunchFields({ value, onChange, inherited, catalog }) {
     const l = value || EMPTY;
     const parent = clean(inherited);
@@ -229,6 +245,7 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
 
     const intent = l.intent === undefined || l.intent === null ? "" : String(l.intent);
     const muted = l.intent === "";
+    const stream = (l.transport || parent.transport) === "stream";
 
     const [atDraft, setAtDraft] = useState(() => (guarded(l) ? String(l.finalizeAt) : ""));
     const [envDraft, setEnvDraft] = useState(() => envText(l.env));
@@ -273,18 +290,18 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
                 <option value="">${none("transport", "a terminal in tmux")}</option>
                 ${TRANSPORTS.map(([id, label]) => html`<option value=${id} key=${id}>${label}</option>`)}
             </select>
-            ${(l.transport || parent.transport) === "stream" && html`
-                <span class="pfhelp">takes effect at the next start; remote control does not reach a session on the stream</span>
-            `}
         </label>
+        ${stream && html`<${StreamBlock} />`}
 
-        <label class="row-switch">
+        <label class=${`row-switch${stream ? " pfconsole" : ""}`}>
             <input type="checkbox" checked=${Boolean(l.remoteControl)}
                    onChange=${(e) => set({ remoteControl: e.target.checked })} />
-            start with remote control
+            start with remote control${stream ? " — in the console only" : ""}
         </label>
         <span class="pfhelp">
-            ${parent.remoteControl ? "unchecked — as in the profile: on" : "unchecked — do not turn it on"}
+            ${stream
+                ? "kept for the console: it is turned on when the session moves there"
+                : parent.remoteControl ? "unchecked — as in the profile: on" : "unchecked — do not turn it on"}
         </span>
 
         <div class="pfguard">

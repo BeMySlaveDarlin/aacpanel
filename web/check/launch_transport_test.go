@@ -15,6 +15,7 @@ func TestWhereTheSessionLivesIsAFieldOfTheLaunch(t *testing.T) {
 		View      string `json:"view"`
 		Summary   string `json:"summary"`
 		Tmux      string `json:"tmux"`
+		Console   string `json:"console"`
 	}
 	launchNode(t, launchBundle(t, true), renderPrelude+`
 import { summary } from BUNDLE;
@@ -24,6 +25,7 @@ process.stdout.write(JSON.stringify({
     view: text(LaunchView({ launch: {}, profile: { transport: "stream" } })),
     summary: summary({ transport: "stream", model: "haiku" }),
     tmux: summary({ transport: "tmux" }),
+    console: text(LaunchFields({ value: { remoteControl: true }, onChange: () => {}, inherited: {} })),
 }));
 `, &got)
 
@@ -31,6 +33,19 @@ process.stdout.write(JSON.stringify({
 		if !strings.Contains(got.Fields, want) {
 			t.Errorf("the field does not say %q:\n%s", want, got.Fields)
 		}
+	}
+	// On the stream the form says what holds there and what does not, and the
+	// switch that holds only in the console says so — both for a project's own
+	// choice and for one it takes from its profile.
+	for name, fields := range map[string]string{"own": got.Fields, "inherited": got.Inherited} {
+		for _, want := range []string{"On the stream", "in the console only", "claude -p", "moves the session there"} {
+			if !strings.Contains(fields, want) {
+				t.Errorf("a project on the stream (%s) does not say %q:\n%s", name, want, fields)
+			}
+		}
+	}
+	if strings.Contains(got.Console, "On the stream") || strings.Contains(got.Console, "console only") {
+		t.Errorf("a console project is told about the stream:\n%s", got.Console)
 	}
 	if !strings.Contains(got.Inherited, "from the profile: stream") {
 		t.Errorf("a project silent on it does not say the profile puts it on the stream:\n%s", got.Inherited)

@@ -188,6 +188,23 @@
 
 .pffield input:disabled { opacity: .55; }
 
+/* What a session on the stream is, right under the choice of it. */
+.pfstream {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    margin-top: .5rem;
+    padding: .6rem .75rem;
+    border: var(--hair) solid var(--line);
+    border-radius: .6rem;
+}
+
+.pfstream code { font-size: .95em; }
+
+/* A setting that holds only in the console stays editable on the stream: it
+   comes back into force when the session moves there. */
+.row-switch.pfconsole { opacity: .6; }
+
 /* The threshold sits on the row of its switch; on a narrow screen the field
    drops under the caption rather than squeezing it. */
 .pfguard {
