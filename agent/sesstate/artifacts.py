@@ -7,7 +7,11 @@ from .limits import _prune, _short
 
 ARTIFACT_PUBLISH = ("", "publish")
 
-ARTIFACT_URL_RE = re.compile(r"Published\s+\S+\s+at\s+(https://\S+)")
+# The answer to a publish names the address in one of three ways, depending on
+# whether the page is new, an update, or a file published to an address of its
+# own; all three end in "at <address>".
+ARTIFACT_URL_RE = re.compile(
+    r"(?:Published\s+\S+|Created a new Artifact|Updated the Artifact)\s+at\s+(https://\S+)")
 
 DOC_TOOLS = ("Write", "Edit", "MultiEdit")
 

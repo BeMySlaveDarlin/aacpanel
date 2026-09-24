@@ -61,7 +61,7 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, co
                     const label = KIND_NAMES[group.kind] || KIND_NAMES.other;
                     const count = group.calls.length;
                     return html`
-                        <button class=${`mtools ${group.kind}`} type="button" key=${group.kind} onClick=${onCalls}
+                        <button class=${`mtools k-${group.kind}`} type="button" key=${group.kind} onClick=${onCalls}
                                 title=${label}
                                 aria-label=${`${label}: ${count} ${callWord(count)}`}>
                             <span class="mticon">${kindIcon(group.kind)}</span>

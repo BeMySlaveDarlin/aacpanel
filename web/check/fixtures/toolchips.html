@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// One row of calls in the feed: shell commands and a published page side by
+// side. The chips are one family and one height, whatever their kind.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+
+const call = (kind) => ({ name: kind, kind, arg: "", use: `u-${kind}` });
+const row = { role: "toolrow", run: 1, pos: 10, groups: [
+    { role: "tools", kind: "bash", run: 1, pos: 10, calls: [call("bash"), call("bash")] },
+    { role: "tools", kind: "artifact", run: 1, pos: 10, calls: [call("artifact")] },
+] };
+render(html`<div class="chatfeed"><${Row} item=${row} session="lab" id="1" onCalls=${() => {}} /></div>`,
+       document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const chips = Array.from(document.querySelectorAll(".mrow .mtools"));
+    window.done = {
+        kinds: chips.map((c) => c.className),
+        heights: chips.map((c) => Math.round(c.getBoundingClientRect().height)),
+        widths: chips.map((c) => Math.round(c.getBoundingClientRect().width)),
+    };
+})();
+</script>

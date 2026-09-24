@@ -48,7 +48,7 @@ export function Calls({ session, id, calls, onFile }) {
             ` : html`
                 <button class="callnode" type="button" key=${`${call.pos}-${call.index}`}
                         onClick=${() => setPick(n)}>
-                    <span class=${`cnmark ${call.kind || "other"}`}>${kindIcon(call.kind)}</span>
+                    <span class=${`cnmark k-${call.kind || "other"}`}>${kindIcon(call.kind)}</span>
                     <span class="cnbody">
                         <span class="cnname">${call.name}</span>
                         ${call.arg && html`<span class="cnarg">${call.arg}</span>`}

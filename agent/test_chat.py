@@ -1797,6 +1797,19 @@ class Artifacts(unittest.TestCase):
         self.assertEqual([(i["role"], i["use"], i["url"]) for i in got],
                          [("artifactlink", "toolu_art", "https://claude.ai/code/artifact/aaaa1111")])
 
+    def test_the_link_is_taken_from_a_new_and_an_updated_page_too(self):
+        # A page made from a type answers "Created a new Artifact at", every
+        # later publish "Updated the Artifact at": without the link the card
+        # in the feed is drawn dead.
+        for said in ("Created a new Artifact at https://claude.ai/artifact/bbbb2222 (version 1) from the type",
+                     "Updated the Artifact at https://claude.ai/artifact/bbbb2222 (Version 3, version id 17)"):
+            raw = line({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "toolu_art", "content": said},
+            ]}, "timestamp": "2026-08-30T10:00:01Z"})
+            got = self.items(raw)
+            self.assertEqual([(i["role"], i["url"]) for i in got],
+                             [("artifactlink", "https://claude.ai/artifact/bbbb2222")], said)
+
     def test_an_ordinary_tool_result_is_still_not_a_prompt(self):
         raw = line({"type": "user", "message": {"content": [
             {"type": "tool_result", "tool_use_id": "toolu_1", "content": "ok"},

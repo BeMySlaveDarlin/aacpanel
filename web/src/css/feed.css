@@ -257,17 +257,20 @@
 .mticon { display: flex; width: 15px; height: 15px; }
 .mticon svg { width: 100%; height: 100%; }
 
-.mtools.bash,    .cnmark.bash    { color: var(--accent); }
-.mtools.files,   .cnmark.files   { color: var(--accent-2); }
-.mtools.web,     .cnmark.web,
-.mtools.browser, .cnmark.browser { color: var(--warn); }
-.mtools.agents,  .cnmark.agents,
-.mtools.skill,   .cnmark.skill   { color: var(--ctx-3); }
-.mtools.ask,     .cnmark.ask,
-.mtools.artifact, .cnmark.artifact { color: var(--crit); }
-.mtools.time,    .cnmark.time,
-.mtools.mcp,     .cnmark.mcp,
-.mtools.other,   .cnmark.other   { color: var(--ink-dim); }
+/* The kind of a call is a class of its own, prefixed: bare, "artifact" is the
+   card of a published page too, and the chip took the card's padding and
+   height. */
+.mtools.k-bash,    .cnmark.k-bash    { color: var(--accent); }
+.mtools.k-files,   .cnmark.k-files   { color: var(--accent-2); }
+.mtools.k-web,     .cnmark.k-web,
+.mtools.k-browser, .cnmark.k-browser { color: var(--warn); }
+.mtools.k-agents,  .cnmark.k-agents,
+.mtools.k-skill,   .cnmark.k-skill   { color: var(--ctx-3); }
+.mtools.k-ask,     .cnmark.k-ask,
+.mtools.k-artifact, .cnmark.k-artifact { color: var(--crit); }
+.mtools.k-time,    .cnmark.k-time,
+.mtools.k-mcp,     .cnmark.k-mcp,
+.mtools.k-other,   .cnmark.k-other   { color: var(--ink-dim); }
 .mtnum {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
