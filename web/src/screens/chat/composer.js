@@ -191,7 +191,7 @@ export function asksSend(e, wide) {
 }
 
 // Composer writes into a live session.
-export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk }) {
+export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -241,7 +241,11 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
     const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
-    const hints = canCmd && !pack.length && !(cmd && cmd.ready) ? commandHints(text, stream) : [];
+    // /model and /effort with nothing after them are a request for the list,
+    // as they are in a terminal: sending them opens it instead.
+    const lists = cmd && !cmd.arg && onPicker && (cmd.command === "model" || cmd.command === "effort")
+        ? cmd.command : "";
+    const hints = canCmd && !pack.length && !(cmd && cmd.ready) && !lists ? commandHints(text, stream) : [];
     // With dictation on, an empty field shows the microphone rather than the
     // arrow: there is nothing to send yet, and a disabled button takes no press
     // to hold. The moment there are words it is the send button again. The
@@ -250,7 +254,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const canTalk = hear.on && !cmd && !pack.length;
     const asMic = canTalk && !text.trim();
     const cantSend = !ready || sending
-        || (cmd ? !cmd.ready : (pack.length ? !canFile : (!text.trim() && !canTalk)));
+        || (cmd ? !(cmd.ready || lists) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
     const stopping = busy && !text.trim() && !pack.length;
 
     const stop = async () => {
@@ -295,6 +299,11 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         const body = text.trim();
         if (!body && !pack.length) return;
         if (sending || taken.current) return;
+        if (lists) {
+            setText("");
+            onPicker(lists);
+            return;
+        }
         taken.current = true;
         if (cmd) return sendCommand();
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;

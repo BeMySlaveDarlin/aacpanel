@@ -1,0 +1,190 @@
+/* Picking the model, the effort and the mode: grouped lists in a sheet on a
+   phone, small menus over the composer on a wide screen. */
+
+/* The header of a conversation names all three; where they can be changed,
+   they are buttons that look like the words they were. */
+.chatmeta.picks > button {
+    padding: .15rem 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: underline dotted color-mix(in srgb, var(--ink-faint) 60%, transparent);
+    text-underline-offset: .2em;
+}
+.chatmeta.picks > button + button::before {
+    content: "·";
+    display: inline-block;
+    margin: 0 .35rem;
+    color: rgba(150, 170, 255, .3);
+    text-decoration: none;
+}
+.chatmeta.picks > button.crit { color: var(--crit); }
+
+/* The sheet keeps room for its cross on the right; the same room on the left
+   puts the title in the middle, where the native client has it. */
+.pkhead { justify-content: center; text-align: center; position: relative; padding-left: 2.2rem; }
+.pktitles { display: grid; gap: .1rem; }
+.pkheadval { color: var(--accent); font-weight: 600; }
+.pkback.iconbtn {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 2.2rem;
+    height: 2.2rem;
+    transform: translateY(-50%);
+    box-shadow: none;
+}
+.pkback .chev { display: flex; width: 16px; height: 16px; }
+.pkback .chev svg { width: 100%; height: 100%; }
+.pknote { margin: 0 0 .6rem; font-size: var(--t-xs); color: var(--ink-faint); }
+
+/* A group is one rounded card; its rows are separated by a hairline gap, the
+   way the native client lays a list out. */
+.pklist {
+    display: grid;
+    gap: 2px;
+    margin-bottom: .7rem;
+    border-radius: var(--r-card);
+    overflow: hidden;
+}
+.pkrow {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    width: 100%;
+    min-height: 3.2rem;
+    padding: .6rem .85rem;
+    border: 0;
+    background: var(--surface);
+    font: inherit;
+    text-align: left;
+    color: var(--ink);
+    cursor: pointer;
+}
+.pkrow:active { background: var(--surface-2); }
+.pkrow:disabled { cursor: default; opacity: .55; }
+.pkrow.on .pkname, .pkrow.on .pkdesc { color: var(--accent); }
+.pkbody { display: grid; gap: .1rem; flex: 1 1 auto; min-width: 0; }
+.pkname { font-size: var(--t-base); }
+.pkdesc { font-size: var(--t-sm); color: var(--ink-dim); }
+.pkval { color: var(--accent); }
+.pkcheck { display: flex; width: 20px; height: 20px; flex: none; color: var(--accent); }
+.pkcheck svg { width: 100%; height: 100%; }
+.pknum { flex: none; width: 1rem; text-align: right; font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
+.pkicon { display: flex; width: 22px; height: 22px; flex: none; color: var(--ink-dim); }
+.pkicon svg { width: 100%; height: 100%; }
+.pkicon.t-edits { color: var(--cat-agents); }
+.pkicon.t-plan { color: var(--cat-mcp); }
+.pkicon.t-auto { color: var(--cat-memory); }
+.pkround {
+    display: flex;
+    width: 2.3rem;
+    height: 2.3rem;
+    flex: none;
+    padding: .5rem;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--ink-dim);
+}
+.pkround svg { width: 100%; height: 100%; }
+.pkgroup { margin: .3rem .2rem .4rem; font-size: var(--t-sm); color: var(--ink-dim); }
+.addmode { margin-top: .2rem; }
+
+/* The effort is a scale from faster to smarter: a stop per level, the level
+   the session runs at under the knob and the track filled up to it. */
+.pkscale { display: grid; gap: .45rem; padding: .2rem 0 .6rem; }
+.pkscalehead { display: flex; justify-content: space-between; font-size: var(--t-xs); color: var(--ink-faint); }
+.pktrack {
+    display: flex;
+    align-items: center;
+    height: 2rem;
+    padding: 0 .2rem;
+    border-radius: 1rem;
+    background: var(--surface-2);
+}
+.pkstop {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}
+.pkstop i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); }
+.pkstop.past i { background: var(--accent); }
+.pkstop.on i {
+    width: 1.3rem;
+    height: 1.3rem;
+    background: var(--ink);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .35), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.pkstop:disabled { cursor: default; }
+
+/* Under the composer on a wide screen: the mode on the left, the model and
+   its effort on the right, each a quiet word until pressed. */
+.pickbar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: .2rem;
+    padding: .2rem .1rem 0;
+}
+.pkgap { flex: 1 1 auto; }
+.pkchip {
+    padding: .2rem .5rem;
+    border: 0;
+    border-radius: var(--r-small);
+    background: none;
+    font: inherit;
+    font-size: var(--t-sm);
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.pkchip:hover, .pkchip.open { background: var(--surface); color: var(--ink); }
+
+.pkmenu {
+    position: absolute;
+    bottom: calc(100% + .35rem);
+    z-index: 20;
+    display: grid;
+    min-width: 15rem;
+    max-width: 22rem;
+    padding: .3rem;
+    border-radius: var(--r-card);
+    background: var(--sheet-bg);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--drop);
+}
+.pkmenu.left { left: 0; }
+.pkmenu.right { right: 0; }
+.pkmenu .pkrow {
+    min-height: 0;
+    padding: .38rem .55rem;
+    border-radius: var(--r-small);
+    background: none;
+    gap: .55rem;
+}
+.pkmenu .pkrow:hover:not(:disabled) { background: var(--surface); }
+.pkmenu .pkname { font-size: var(--t-sm); }
+.pkmenu .pkdesc { font-size: var(--t-xs); color: var(--ink-faint); }
+.pkmenu .pkcheck { width: 16px; height: 16px; }
+.pkmenuhead {
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
+    padding: .25rem .55rem .35rem;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+.pkmenuhead b { font-weight: 600; font-size: var(--t-sm); color: var(--ink); }
+.pkmenusep { height: var(--hair); margin: .25rem .4rem; background: var(--line); }
+.pkmorerow.open { background: var(--surface); }
+/* The older models open beside the menu rather than under it: the list they
+   stand in is the one the eye came from. */
+.pkmenu.pksub { bottom: 0; right: calc(100% + .3rem); min-width: 11rem; }
+.pkmenu.pkeffort { width: 17rem; padding: .4rem .6rem .2rem; }

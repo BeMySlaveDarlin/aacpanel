@@ -1,0 +1,154 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// A live session on a phone: its header names the model, the effort and the
+// mode, and each opens its list. The session on the stream lists its models
+// as claude does; the terminal one takes the catalogue of the account.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const catalog = { state: "ok", models: [
+    { id: "claude-opus-5-5", name: "Claude Opus 5.5" }, { id: "claude-fable-5-1", name: "Claude Fable 5.1" },
+    { id: "claude-opus-5", name: "Claude Opus 5" }, { id: "claude-sonnet-5", name: "Claude Sonnet 5" },
+    { id: "claude-fable-5", name: "Claude Fable 5" }, { id: "claude-opus-4-8", name: "Claude Opus 4.8" },
+    { id: "claude-opus-4-7", name: "Claude Opus 4.7" }, { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+    { id: "claude-opus-4-6", name: "Claude Opus 4.6" }, { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
+] };
+const efforts = ["low", "medium", "high", "xhigh", "max"];
+const listed = [
+    { value: "default", resolved: "claude-opus-5-5[1m]", name: "Default (recommended)", description: "Opus 5.5 with 1M context · Best for everyday, complex tasks", efforts },
+    { value: "opus[1m]", resolved: "claude-opus-5-5[1m]", name: "Opus (1M context)", description: "Opus 5.5 with 1M context · Best for everyday, complex tasks", efforts },
+    { value: "claude-fable-5-1[1m]", resolved: "claude-fable-5-1", name: "Fable", description: "Fable 5.1 · Most capable for your hardest and longest-running tasks", efforts },
+    { value: "sonnet", resolved: "claude-sonnet-5", name: "Sonnet", description: "Sonnet 5 · Efficient for routine tasks", efforts },
+    { value: "haiku", resolved: "claude-haiku-4-5-20251001", name: "Haiku", description: "Haiku 4.5 · Fastest for quick answers" },
+];
+const sent = [];
+let transport = "stream";
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/models")) {
+        const session = transport === "stream"
+            ? { transport, list: listed, mode: "auto", effort: "xhigh", picked: "opus[1m]" }
+            : { transport };
+        return json({ state: "ok", session, catalog });
+    }
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true, detail: "ok" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.send", "session.command", "session.set", "session.stop", "session.file"] };
+const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj",
+    model: "claude-opus-5-5", effort: "xhigh", mode: "auto" };
+const terminal = { ...stream, transport: "" };
+const root = document.getElementById("root");
+const show = (live) => render(h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name="atlas" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+const sheet = () => document.querySelector(".sheet.on");
+const rows = (sel = ".pklist .pkrow") => Array.from(sheet().querySelectorAll(sel));
+const tap = async (el) => { el.click(); await sleep(250); };
+const named = (list, name) => list.find((r) => r.querySelector(".pkname").textContent.trim() === name);
+
+(async () => {
+    show(stream);
+    await sleep(400);
+    const out = {};
+    const head = Array.from(document.querySelectorAll(".chatmeta.picks button"));
+    out.head = head.map((b) => b.textContent.trim());
+
+    await tap(head[0]);
+    await sleep(200);
+    out.modelTitle = text(".sheet.on .stitle")[0] || "";
+    const lists = Array.from(sheet().querySelectorAll(".pklist"));
+    out.main = Array.from(lists[0].querySelectorAll(".pkname")).map((n) => n.textContent.trim());
+    out.mainDesc = Array.from(lists[0].querySelectorAll(".pkdesc")).map((n) => n.textContent.trim());
+    out.checked = text(".sheet.on .pkrow.on .pkname");
+    out.effortRow = text(".sheet.on .pkmore .pkval")[0] || "";
+    out.group = text(".sheet.on .pkgroup");
+    out.other = Array.from(lists[2] ? lists[2].querySelectorAll(".pkname") : []).map((n) => n.textContent.trim());
+
+    await tap(named(rows(), "Sonnet 5"));
+    out.confirmSheet = Boolean(document.querySelector(".sheet.on .btnrow"));
+    out.afterPick = text(".sheet.on .pkrow.on .pkname");
+    await tap(named(rows(), "Opus 4.8"));
+
+    await tap(sheet().querySelector(".pkmore"));
+    out.effortTitle = text(".sheet.on .stitle")[0] || "";
+    out.stops = Array.from(sheet().querySelectorAll(".pkstop")).map((b) => b.getAttribute("aria-label"));
+    out.stopOn = text(".sheet.on .pkheadval")[0] || "";
+    await tap(sheet().querySelector('.pkstop[aria-label="Max"]'));
+    document.querySelector(".sheet.on .sheetclose").click();
+    await sleep(300);
+
+    await tap(document.querySelectorAll(".chatmeta.picks button")[2]);
+    out.modeTitle = text(".sheet.on .stitle")[0] || "";
+    out.modes = rows().map((r) => r.querySelector(".pkname").textContent.trim());
+    out.modeOn = text(".sheet.on .pkrow.on .pkname");
+    out.modeIcons = sheet().querySelectorAll(".pkrow .pkicon svg").length;
+    await tap(named(rows(), "Plan"));
+    document.querySelector(".sheet.on .sheetclose").click();
+    await sleep(300);
+
+    // /model with nothing after it asks for the list, as in a terminal.
+    const area = document.querySelector("textarea");
+    area.value = "/model";
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(150);
+    const button = document.querySelector(".composer .iconbtn.accent");
+    out.sendReady = Boolean(button) && !button.disabled;
+    if (button) await tap(button);
+    await sleep(200);
+    out.fromComposer = text(".sheet.on .stitle")[0] || "";
+    out.composerAfter = document.querySelector("textarea").value;
+    document.querySelector(".sheet.on .sheetclose").click();
+    await sleep(300);
+
+    out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
+
+    // The attach sheet carries the mode too, the way the native client does.
+    await tap(document.querySelector(".pickfile"));
+    out.attachMode = text(".sheet.on .addmode .pkname, .sheet.on .addmode .pkdesc").join(" ");
+    await tap(document.querySelector(".sheet.on .addmode .pkrow"));
+    await sleep(200);
+    out.attachOpens = text(".sheet.on .stitle")[0] || "";
+    document.querySelector(".sheet.on .sheetclose").click();
+    await sleep(300);
+
+    // A terminal: the catalogue names the aliases, and its mode is on its own screen.
+    transport = "console";
+    show(terminal);
+    await sleep(400);
+    await tap(document.querySelectorAll(".chatmeta.picks button")[0]);
+    await sleep(200);
+    out.termMain = Array.from(sheet().querySelectorAll(".pklist")[0].querySelectorAll(".pkname")).map((n) => n.textContent.trim());
+    out.termOn = text(".sheet.on .pkrow.on .pkname");
+    document.querySelector(".sheet.on .sheetclose").click();
+    await sleep(300);
+    await tap(document.querySelectorAll(".chatmeta.picks button")[2]);
+    await sleep(200);
+    out.termModesOff = rows().every((r) => r.disabled);
+    out.termNote = text(".sheet.on .pknote")[0] || "";
+    window.done = out;
+})();
+</script>

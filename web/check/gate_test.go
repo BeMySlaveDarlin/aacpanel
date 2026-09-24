@@ -142,6 +142,12 @@ var instantActions = map[string]bool{
 	// Taking back a message the person sent is no more than not sending it:
 	// the message is the person's own, and it goes back into the composer.
 	"session.unqueue": true,
+	// A model, an effort or a mode picked from the list the session offers:
+	// the list is where the person chose, and a sheet asking "really?" over a
+	// row they have just tapped is a second press for the same thing. What is
+	// dangerous about a mode stays out of the list — the two that stop a
+	// session asking at all are not offered there.
+	"session.set":     true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -157,6 +163,7 @@ var instantExecActions = map[string]bool{
 	"session.file":    true,
 	"session.escape":  true,
 	"session.unqueue": true,
+	"session.set":     true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

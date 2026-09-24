@@ -657,6 +657,14 @@ func (h *Holder) do(req Request) Reply {
 			h.picked("/model " + model)
 			h.saveSummary()
 		}
+		// claude reports a new mode by an event of its own, but a mode the
+		// person has just been told was set is not left to arrive later.
+		if mode, ok := req.Fields["mode"].(string); ok && req.Subtype == "set_permission_mode" {
+			h.mu.Lock()
+			h.state.Mode = mode
+			h.mu.Unlock()
+			h.saveSummary()
+		}
 		if id, ok := req.Fields["message_uuid"].(string); ok && req.Subtype == "cancel_async_message" && cancelled(resp) {
 			h.unqueue(id)
 		}

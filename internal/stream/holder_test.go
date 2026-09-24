@@ -351,6 +351,24 @@ func TestAPickedModelAndEffortAreRemembered(t *testing.T) {
 	}
 }
 
+// A mode set from the panel is in the state the moment claude accepts it: the
+// picker shows the new one without waiting for claude's own event about it.
+func TestAModeSetByTheRequestIsInTheStateAtOnce(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	reply := r.ask(Request{Op: OpControl, Subtype: "set_permission_mode", Fields: map[string]any{"mode": "plan"}})
+	if !reply.OK {
+		t.Fatalf("set_permission_mode: %+v", reply)
+	}
+	if s := r.state(); s.Mode != "plan" {
+		t.Errorf("the mode after the request is %q", s.Mode)
+	}
+	raw, err := os.ReadFile(StatePath(r.spec.SessionID))
+	if err != nil || !strings.Contains(string(raw), `"mode":"plan"`) {
+		t.Errorf("the state file does not carry the mode for the collector: %s", raw)
+	}
+}
+
 // Clearing on the stream starts a conversation under a new id, and the holder
 // keeps its session by the old one: whichever way it comes, it is refused.
 func TestClearingIsRefusedByTheHolder(t *testing.T) {

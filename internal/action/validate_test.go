@@ -369,3 +369,65 @@ func TestAMessageIDNamesASentOrQueuedMessage(t *testing.T) {
 		})
 	}
 }
+
+// The older models of a catalogue have no alias, and /model takes them by id;
+// the id goes to the session as a line of text, so its shape is all it may be.
+func TestAModelIsTakenByAliasOrByItsID(t *testing.T) {
+	req := func(arg string) Request {
+		return Request{ID: "a1", Kind: SessionCommand, Target: "aacpanel", Command: &Command{Name: "model", Arg: arg}}
+	}
+	for _, arg := range []string{"sonnet", "claude-opus-4-8", "claude-fable-5-1[1m]", "claude-haiku-4-5-20251001"} {
+		if err := req(arg).Validate(); err != nil {
+			t.Errorf("/model %s is rejected: %v", arg, err)
+		}
+	}
+	for _, arg := range []string{"claude-", "claude-opus", "opus-4-8", "claude-opus 4-8", "claude-opus-4-8\n/clear",
+		"claude-opus-4-8;rm", "claude-Opus-4-8", "claude-opus-4-8[2m]"} {
+		if err := req(arg).Validate(); err == nil {
+			t.Errorf("/model %q is accepted", arg)
+		}
+	}
+	effort := Request{ID: "a1", Kind: SessionCommand, Target: "aacpanel",
+		Command: &Command{Name: "effort", Arg: "claude-opus-4-8"}}
+	if err := effort.Validate(); err == nil {
+		t.Error("a model id passed for an effort")
+	}
+}
+
+// A pick changes one setting, and a mode is one of four: the two that stop a
+// session asking at all are not a tap away.
+func TestASettingIsOneAtATime(t *testing.T) {
+	req := func(set *Setting) Request {
+		return Request{ID: "a1", Kind: SessionSet, Target: "aacpanel", Setting: set}
+	}
+	for _, set := range []*Setting{{Mode: "default"}, {Mode: "acceptEdits"}, {Mode: "plan"}, {Mode: "auto"},
+		{Model: "sonnet"}, {Model: "claude-opus-4-8"}, {Effort: "xhigh"}} {
+		if err := req(set).Validate(); err != nil {
+			t.Errorf("%+v is rejected: %v", *set, err)
+		}
+	}
+	for name, set := range map[string]*Setting{
+		"nothing":          nil,
+		"an empty setting": {},
+		"two at once":      {Model: "sonnet", Mode: "auto"},
+		"no questions":     {Mode: "bypassPermissions"},
+		"asking nobody":    {Mode: "dontAsk"},
+		"a mode in caps":   {Mode: "Auto"},
+		"an unknown model": {Model: "gpt"},
+		"a model effort":   {Effort: "claude-opus-4-8"},
+	} {
+		if err := req(set).Validate(); err == nil {
+			t.Errorf("%s is accepted", name)
+		}
+	}
+	send := Request{ID: "a1", Kind: SessionSend, Target: "aacpanel", Text: "hi", Setting: &Setting{Mode: "auto"}}
+	if err := send.Validate(); err == nil {
+		t.Error("session.send carried a setting — two actions in one request")
+	}
+	if err := (Request{Ask: AskModels}).Validate(); err == nil {
+		t.Error("a question about models without a session is accepted")
+	}
+	if err := (Request{Ask: AskModels, Target: "aacpanel"}).Validate(); err != nil {
+		t.Errorf("a question about the models of a session is rejected: %v", err)
+	}
+}

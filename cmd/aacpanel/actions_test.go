@@ -861,3 +861,69 @@ func TestRunActionCarriesTheMessageIDToExecutor(t *testing.T) {
 		t.Errorf("taking back no message is accepted: %d", w.Code)
 	}
 }
+
+// The picker asks once and gets both lists: what the session's claude names,
+// and the catalogue of the account for the models it does not.
+func TestSessionModelsCarryTheSessionAndTheCatalogue(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Models: &action.Models{
+		Transport: "stream", Mode: "auto", Effort: "xhigh",
+		List: []action.Model{{Value: "sonnet", Name: "Sonnet", Efforts: []string{"low", "high"}}}}})
+	srv := &Server{exec: client, hostName: "STAND-01"}
+
+	w := httptest.NewRecorder()
+	srv.apiSessionModels(w, httptest.NewRequest(http.MethodGet, "/api/session/models?name=aacpanel", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		State   string         `json:"state"`
+		Session action.Models  `json:"session"`
+		Catalog map[string]any `json:"catalog"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("the response is not json: %s", w.Body.String())
+	}
+	if body.State != "ok" || body.Session.Mode != "auto" || len(body.Session.List) != 1 ||
+		body.Session.List[0].Value != "sonnet" || body.Catalog["state"] == nil {
+		t.Errorf("the answer is %s", w.Body.String())
+	}
+	if got := <-fake.got; got.Ask != action.AskModels || got.Target != "aacpanel" {
+		t.Errorf("the executor was asked %+v", got)
+	}
+
+	failing, _ := startFakeExec(t, action.Response{OK: false, Error: "no live session named aacpanel"})
+	w = httptest.NewRecorder()
+	(&Server{exec: failing}).apiSessionModels(w, httptest.NewRequest(http.MethodGet, "/api/session/models?name=aacpanel", nil))
+	if !strings.Contains(w.Body.String(), `"state":"unknown"`) || !strings.Contains(w.Body.String(), "no live session") ||
+		!strings.Contains(w.Body.String(), `"catalog"`) {
+		t.Errorf("a refusal of the executor reads %s — the catalogue must still come", w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	srv.apiSessionModels(w, httptest.NewRequest(http.MethodGet, "/api/session/models", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("a request without a session name gave %d, expected 400", w.Code)
+	}
+}
+
+func TestRunActionCarriesTheModeToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	if w := post(t, srv, `{"kind":"session.set","target":"aacpanel","params":{"mode":"plan"}}`); w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.Kind != action.SessionSet || got.Setting == nil || got.Setting.Mode != "plan" || got.Setting.Model != "" {
+			t.Errorf("the executor got %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+	if w := post(t, srv, `{"kind":"session.set","target":"aacpanel","params":{"mode":"bypassPermissions"}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("a mode outside the four passed with %d", w.Code)
+	}
+	if w := post(t, srv, `{"kind":"session.set","target":"aacpanel","params":{"model":"sonnet","mode":"auto"}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("two settings at once passed with %d", w.Code)
+	}
+}

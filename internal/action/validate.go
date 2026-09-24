@@ -27,7 +27,7 @@ func (r Request) Validate() error {
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
-		case AskPermission, AskWindow:
+		case AskPermission, AskWindow, AskModels:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -215,12 +215,20 @@ func (r Request) Validate() error {
 		switch {
 		case len(args) == 0 && r.Command.Arg != "":
 			return badRequest("command /%s takes no argument", r.Command.Name)
+		case r.Command.Name == "model" && ModelName(r.Command.Arg):
 		case len(args) > 0 && !slices.Contains(args, r.Command.Arg):
 			return badRequest("command /%s has no option %q; it has %s",
 				r.Command.Name, r.Command.Arg, strings.Join(args, ", "))
 		}
 	} else if r.Command != nil {
 		return badRequest("action %s takes no slash commands", r.Kind)
+	}
+	if r.Kind == SessionSet {
+		if err := r.Setting.validate(); err != nil {
+			return err
+		}
+	} else if r.Setting != nil {
+		return badRequest("action %s changes no settings", r.Kind)
 	}
 	switch {
 	case r.Kind == TaskStop, r.Kind == AgentStop:

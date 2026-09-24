@@ -7,6 +7,7 @@ import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
 import { ago } from "../../format.js";
 import { modelName } from "./head.js";
+import { modeName } from "./picker.js";
 
 const FILE_MAX = 32 * 1024 * 1024;
 
@@ -49,13 +50,27 @@ function whyUnknown(live) {
     return `the mode “${live.mode}” is unknown to the panel`;
 }
 
-// HeadTools renders the model, the effort and the mode in the conversation header.
-export function HeadTools({ live }) {
+// HeadTools renders the model, the effort and the mode in the conversation
+// header. Where the host can change them, each opens its list.
+export function HeadTools({ live, onPick }) {
+    if (!onPick) {
+        return html`
+            <div class="chatmeta">
+                <span title="session model">${modelName(live) || "model"}</span>
+                <span title="effort level">${live.effort || "effort"}</span>
+                <${SessionMode} live=${live} />
+            </div>
+        `;
+    }
+    const { label, danger, title } = modeInfo(live);
     return html`
-        <div class="chatmeta">
-            <span title="session model">${modelName(live) || "model"}</span>
-            <span title="effort level">${live.effort || "effort"}</span>
-            <${SessionMode} live=${live} />
+        <div class="chatmeta picks">
+            <button type="button" aria-label="session model — pick another"
+                    onClick=${() => onPick("model")}>${modelName(live) || "model"}</button>
+            <button type="button" aria-label="effort level — pick another"
+                    onClick=${() => onPick("effort")}>${live.effort || "effort"}</button>
+            <button type="button" class=${danger ? "crit" : ""} title=${title}
+                    aria-label="permission mode — pick another" onClick=${() => onPick("mode")}>${label}</button>
         </div>
     `;
 }
@@ -83,7 +98,7 @@ export function PickFile({ exec, onAsk }) {
 }
 
 // AttachSheet renders the sheet with the attachment targets.
-export function AttachSheet({ open, onClose, exec, files, onFiles }) {
+export function AttachSheet({ open, onClose, exec, files, onFiles, live, onMode }) {
     const toast = useToast();
 
     const canSend = knows(exec, "session.file");
@@ -119,6 +134,18 @@ export function AttachSheet({ open, onClose, exec, files, onFiles }) {
                     </label>
                 `)}
             </div>
+            ${onMode && live && html`
+                <div class="pklist addmode">
+                    <button type="button" class="pkrow pkmore" onClick=${onMode}>
+                        <span class="pkround">${Icon.bolt()}</span>
+                        <span class="pkbody">
+                            <span class="pkname">Permission</span>
+                            <span class="pkdesc">${modeName(live.mode)}</span>
+                        </span>
+                        <span class="crgo">${Icon.chevron()}</span>
+                    </button>
+                </div>
+            `}
         <//>
     `;
 }

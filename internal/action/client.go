@@ -101,6 +101,18 @@ func (c *Client) Window(ctx context.Context, target string) (*Window, error) {
 	return resp.Window, nil
 }
 
+// Models asks what a session can be switched to.
+func (c *Client) Models(ctx context.Context, target string) (*Models, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskModels, Target: target})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Models, nil
+}
+
 // Do sends a request and waits for the answer.
 func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 	if err := req.Validate(); err != nil {

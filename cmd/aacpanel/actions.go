@@ -152,6 +152,19 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 			params["arg"] = arg
 		}
 	}
+	if req.Kind == action.SessionSet {
+		set := &action.Setting{}
+		set.Model, _ = body.Params["model"].(string)
+		set.Effort, _ = body.Params["effort"].(string)
+		set.Mode, _ = body.Params["mode"].(string)
+		req.Setting = set
+		params = map[string]any{}
+		for key, v := range map[string]string{"model": set.Model, "effort": set.Effort, "mode": set.Mode} {
+			if v != "" {
+				params[key] = v
+			}
+		}
+	}
 	if req.Kind == action.SessionOpen || req.Kind == action.SessionResume {
 		want, projectID, err := s.launchProject(r.Context(), body.Params, cwd, req.Target)
 		if err != nil {
@@ -304,6 +317,37 @@ func (s *Server) apiSessionWindow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"state": "none"})
+}
+
+// apiSessionModels says what a live session can be switched to: the models
+// its claude lists and the mode and effort it runs with, beside the catalogue
+// of the account — the models a terminal takes by id, and the older ones a
+// list of aliases leaves out.
+func (s *Server) apiSessionModels(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "it is not said whose models to list", http.StatusBadRequest)
+		return
+	}
+	out := map[string]any{"catalog": s.modelCatalog()}
+	if s.exec == nil {
+		out["state"], out["reason"] = "unknown", "the executor is not configured"
+		writeJSON(w, out)
+		return
+	}
+	models, err := s.exec.Models(r.Context(), name)
+	if err != nil {
+		out["state"], out["reason"] = "unknown", err.Error()
+		writeJSON(w, out)
+		return
+	}
+	if models == nil {
+		out["state"], out["reason"] = "unknown", "the executor did not answer the question about the models"
+		writeJSON(w, out)
+		return
+	}
+	out["state"], out["session"] = "ok", models
+	writeJSON(w, out)
 }
 
 // apiSessionSwitch says which way a live session can move between the console

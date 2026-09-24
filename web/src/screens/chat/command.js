@@ -100,13 +100,13 @@ export function CommandSheet({ item }) {
 
 // modelTitle names a model the way the client does — "Opus 5.5 · 1M" — and
 // not by its id: the id is for machines, and the window rides on it as "[1m]".
-export function modelTitle(id) {
+export function modelTitle(id, { withWindow = true } = {}) {
     const raw = String(id || "");
     const found = /^(?:claude-)?([a-z]+)-(\d+)(?:-(\d{1,2}))?(?=-\d{8}|\[|$)/i.exec(raw);
     if (!found) return raw;
     const name = found[1][0].toUpperCase() + found[1].slice(1);
     const version = found[3] ? `${found[2]}.${found[3]}` : found[2];
-    const wide = /\[1m\]/i.test(raw) ? " · 1M" : "";
+    const wide = withWindow && /\[1m\]/i.test(raw) ? " · 1M" : "";
     return `${name} ${version}${wide}`;
 }
 

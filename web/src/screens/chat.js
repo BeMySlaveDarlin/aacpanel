@@ -31,6 +31,7 @@ import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
 import { Marquee, short } from "./chat/head.js";
 import { AttachSheet, HeadTools } from "./chat/tools.js";
+import { PickBar, PickSheet } from "./chat/picker.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
 import { WindowToggle } from "./chat/window.js";
 import { SwitchToggle } from "./chat/switch.js";
@@ -85,6 +86,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
     const run = useAction();
     const [files, setFiles] = useState([]);
     const [asking, setAsking] = useState(false);
+    // Which list of settings is open: the model, the effort or the mode.
+    const [picking, setPicking] = useState("");
 
     const wide = useWide();
     const term = useTermAvailable();
@@ -275,7 +278,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                         `
                         : html`<span>the conversation is closed</span>`}
                 </div>
-                ${live && html`<${HeadTools} live=${live} />`}
+                ${live && html`<${HeadTools} live=${live}
+                                             onPick=${knows(exec, "session.set") ? setPicking : null} />`}
             </div>
         <//>
         `}
@@ -358,8 +362,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                      onLocalDone=${(key, patch) => setLocal((was) =>
                                          was.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
                                      insert=${insert}
+                                     onPicker=${knows(exec, "session.set") ? setPicking : null}
                                      focus=${`${name}|${id || ""}|${view}`} />
                     `}
+                ${wide && html`<${PickBar} name=${name} live=${live} exec=${exec} />`}
             </div>
         `}
 
@@ -378,9 +384,13 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
             </div>
         `}
 
+        ${live && html`<${PickSheet} what=${picking} onClose=${() => setPicking("")} name=${name} live=${live} exec=${exec} />`}
+
         ${live && html`<${AttachSheet}
             open=${asking}
             onClose=${() => setAsking(false)}
+            live=${live}
+            onMode=${knows(exec, "session.set") ? () => { setAsking(false); setPicking("mode"); } : null}
             exec=${exec}
             files=${files}
             onFiles=${(picked) => setFiles((was) => [...was, ...picked])}

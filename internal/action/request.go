@@ -37,6 +37,9 @@ type Request struct {
 	// be taken back from the queue while it waits there.
 	MessageID string `json:"messageId,omitempty"`
 
+	// Setting is what session.set changes.
+	Setting *Setting `json:"setting,omitempty"`
+
 	Ask string `json:"ask,omitempty"`
 }
 
@@ -129,3 +132,7 @@ const AskPermission = "permission"
 
 // AskWindow asks whether a session has a terminal window open on the host.
 const AskWindow = "window"
+
+// AskModels asks what a session can be switched to: its models as claude
+// lists them, and the mode and the effort it runs with.
+const AskModels = "models"

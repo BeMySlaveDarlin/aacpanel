@@ -56,6 +56,16 @@ export const Icon = {
 
     clock: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 7v5.3l3.4 2" /></svg>`,
 
+    // The four permission modes: a raised hand asks first, a pair of brackets
+    // takes edits on its own, a sheet with lines plans, a bolt decides itself.
+    hand: () => html`<svg ...${stroke}><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4.5a1.5 1.5 0 0 1 3 0V12M14 11.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5A6.5 6.5 0 0 1 4 16.4L2.8 13.8a1.5 1.5 0 0 1 2.6-1.5L8 15" /></svg>`,
+
+    braces: () => html`<svg ...${stroke}><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></svg>`,
+
+    plan: () => html`<svg ...${stroke}><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM8 8h7M8 12h7M8 16h4" /></svg>`,
+
+    bolt: () => html`<svg ...${stroke}><path d="M13 2.5 4.5 13.5H12l-1 8 8.5-11H12Z" /></svg>`,
+
     // A share of a whole: how much of the context window is taken.
     pie: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 3v9h9" /></svg>`,
 

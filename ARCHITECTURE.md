@@ -275,6 +275,17 @@ A holder's state file names the conversation and the pid of its claude, and
 a process that matches none is somebody else's run — seen in the archive, not
 on the list of live sessions.
 
+**A model, an effort and a permission mode are picked from a list, not
+typed.** The list is the session's own where it has one — a session on the
+stream gives the models its claude named at the handshake, with the efforts
+each takes — and the catalogue of the account where it has not: the aliases a
+terminal takes are named after it, and the older models no alias reaches are
+taken by id, which the check holds to the shape of one. A row tapped in the
+list is the choice, so the change goes out without a sheet asking again; the
+two modes that stop a session asking at all are not in the list, because a tap
+on a phone is not how that is decided. A mode on the stream is claude's own
+request; a terminal has only a key that cycles the modes on its screen.
+
 **A slash command is a message on the stream**, as `claude -p` takes one; the
 holder remembers a model and an effort picked that way — the model as it was
 picked, since the id claude resolves it to loses the context window. A clear
@@ -368,13 +379,13 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Twenty-three actions, and the list is closed.
+Twenty-six actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.permit`, `session.switch`, `session.unqueue` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.permit`, `session.switch`, `session.unqueue` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |

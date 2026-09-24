@@ -18,6 +18,8 @@ type Response struct {
 	Permission *Permission `json:"permission,omitempty"`
 
 	Window *Window `json:"window,omitempty"`
+
+	Models *Models `json:"models,omitempty"`
 }
 
 // Failed builds a refusal response.

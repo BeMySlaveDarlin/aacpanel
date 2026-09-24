@@ -422,3 +422,93 @@ func TestAMessageAlreadyReadIsNotTakenBack(t *testing.T) {
 		t.Fatalf("a message already read passed for taken back: %v", err)
 	}
 }
+
+// The models of a session on the stream are the ones claude listed at the
+// handshake, with the efforts each takes: the holder kept them, nothing is
+// asked of claude again.
+func TestTheModelsOfAStreamSessionAreTheOnesClaudeListed(t *testing.T) {
+	f := onTheStream(t, false)
+	f.mu.Lock()
+	f.state.Init = json.RawMessage(`{"models":[` +
+		`{"value":"default","resolvedModel":"claude-opus-5-5[1m]","displayName":"Default (recommended)",` +
+		`"description":"Opus 5.5 with 1M context","supportedEffortLevels":["low","high","max"]},` +
+		`{"value":"haiku","resolvedModel":"claude-haiku-4-5","displayName":"Haiku","description":"Fastest"},` +
+		`{"displayName":"no value"}]}`)
+	f.state.Mode, f.state.Effort, f.state.Picked = "auto", "xhigh", "opus[1m]"
+	f.mu.Unlock()
+	e, _ := newTest(t, "")
+	got, err := e.Models(context.Background(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Transport != action.SwitchStream || got.Mode != "auto" || got.Effort != "xhigh" || got.Picked != "opus[1m]" {
+		t.Errorf("the answer is %+v", got)
+	}
+	if len(got.List) != 2 || got.List[0].Value != "default" || got.List[0].Resolved != "claude-opus-5-5[1m]" ||
+		len(got.List[0].Efforts) != 3 || got.List[1].Name != "Haiku" {
+		t.Errorf("the models read %+v", got.List)
+	}
+	if len(f.asked()) != 0 {
+		t.Errorf("claude was asked for what the holder already had: %+v", f.asked())
+	}
+}
+
+// A model and an effort picked from the list go the way a person types them:
+// the same slash command, which the holder remembers across a switch.
+func TestAModelPickedOnTheStreamIsTheSlashCommand(t *testing.T) {
+	for _, c := range []struct {
+		set  action.Setting
+		line string
+	}{{action.Setting{Model: "claude-opus-4-8"}, "/model claude-opus-4-8"}, {action.Setting{Effort: "max"}, "/effort max"}} {
+		f := onTheStream(t, false)
+		e, _ := newTest(t, "")
+		r := req(action.SessionSet, "demo")
+		set := c.set
+		r.Setting = &set
+		if _, err := e.Execute(context.Background(), r); err != nil {
+			t.Fatal(err)
+		}
+		if got := only(t, f); got.Op != stream.OpSend || got.Text != c.line {
+			t.Errorf("the holder was asked %+v, expected %q", got, c.line)
+		}
+	}
+}
+
+func TestAModeOnTheStreamIsClaudesOwnRequest(t *testing.T) {
+	f := onTheStream(t, false)
+	e, _ := newTest(t, "")
+	r := req(action.SessionSet, "demo")
+	r.Setting = &action.Setting{Mode: "plan"}
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := only(t, f)
+	if got.Op != stream.OpControl || got.Subtype != "set_permission_mode" || got.Fields["mode"] != "plan" {
+		t.Errorf("the holder was asked %+v", got)
+	}
+	if !strings.Contains(detail, "plan mode") {
+		t.Errorf("the report %q does not name the mode", detail)
+	}
+}
+
+// A terminal has no request for a mode, only a key on its screen; the panel
+// says so rather than pressing blind.
+func TestATerminalSessionListsNoModelsAndTakesNoMode(t *testing.T) {
+	procFS(t, fakeProc{pid: 5002, comm: "claude", ppid: 1, cwd: "/opt/x", start: "5556",
+		args: []string{"claude", "-n", "term"}})
+	sessionFiles(t, fakeSession{pid: 5002, name: "term", start: "5556", sid: "s-5002"})
+	e, _ := newTest(t, "")
+	got, err := e.Models(context.Background(), "term")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Transport != action.SwitchConsole || len(got.List) != 0 {
+		t.Errorf("a terminal session answered %+v", got)
+	}
+	r := req(action.SessionSet, "term")
+	r.Setting = &action.Setting{Mode: "auto"}
+	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "shift+tab") {
+		t.Errorf("a mode for a terminal session was not refused with a reason: %v", err)
+	}
+}

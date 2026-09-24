@@ -230,6 +230,11 @@ export const ACTIONS = {
         instant: true,
         done: (target) => `The composer of ${target} is free`,
     },
+    "session.set": {
+        instant: true,
+        effect: "The session takes the new setting with its next request: nothing it has done is undone, and the setting can be picked back the same way.",
+        done: (target) => `${target}: the setting is changed`,
+    },
     "session.file": {
         instant: true,
         done: (target, params) => {
@@ -565,6 +570,7 @@ const NAMES = {
     "agent.stop": "Stop subagent",
     "session.file": "Send file",
     "session.command": "Slash command",
+    "session.set": "Change a setting",
     "window.open": "Open window",
     "window.close": "Close window",
     "device.revoke": "Revoke device",

@@ -39,6 +39,11 @@ type WindowAsker interface {
 	Window(ctx context.Context, target string) (*Window, error)
 }
 
+// ModelsAsker is an executor that knows what a session can be switched to.
+type ModelsAsker interface {
+	Models(ctx context.Context, target string) (*Models, error)
+}
+
 // Capable is an executor that does not do everything listed in Kinds.
 type Capable interface {
 	Kinds() []Kind
@@ -188,6 +193,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 			return Failed(req.ID, err, 0)
 		}
 		return Response{ID: req.ID, OK: true, Window: win}
+	}
+
+	if req.Ask == AskModels {
+		asker, ok := s.exec.(ModelsAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not know the models of a session"), 0)
+		}
+		models, err := asker.Models(ctx, req.Target)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Models: models}
 	}
 
 	s.mu.Lock()

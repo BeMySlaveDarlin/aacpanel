@@ -209,6 +209,8 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.unqueue": "",
 		"session.file":    "",
 		"session.command": "",
+		// A setting changes the session in place: nothing leaves the list or joins it.
+		"session.set": "",
 	}
 
 	for id, body := range sessionActions(t, files[registryFile]) {
