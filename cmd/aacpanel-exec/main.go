@@ -281,6 +281,15 @@ func (a audited) Window(ctx context.Context, target string) (*action.Window, err
 	return asker.Window(ctx, target)
 }
 
+// Models asks the wrapped executor what a session can be switched to.
+func (a audited) Models(ctx context.Context, target string) (*action.Models, error) {
+	asker, ok := a.next.(action.ModelsAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know the models of a session")
+	}
+	return asker.Models(ctx, target)
+}
+
 func (a audited) Execute(ctx context.Context, req action.Request) (string, error) {
 	log.Printf("audit phase=start action=%s target=%s device=%q request=%s",
 		req.Kind, req.Target, req.Device, req.ID)

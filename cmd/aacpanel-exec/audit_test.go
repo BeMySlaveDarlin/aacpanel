@@ -75,3 +75,33 @@ type muteExec struct{}
 func (muteExec) Execute(context.Context, action.Request) (string, error) {
 	return "", errors.New("cannot do it")
 }
+
+// Every question the server asks goes through the wrapper, and the server finds
+// out whether one is answered by what the wrapper implements: a question it
+// forgets to pass on is answered "cannot" on a host whose executor can.
+func TestAuditedPassesOnEveryQuestion(t *testing.T) {
+	var a any = audited{next: modelsExec{}}
+	for name, ok := range map[string]bool{
+		"Asker":       func() bool { _, ok := a.(action.Asker); return ok }(),
+		"WindowAsker": func() bool { _, ok := a.(action.WindowAsker); return ok }(),
+		"ModelsAsker": func() bool { _, ok := a.(action.ModelsAsker); return ok }(),
+		"Capable":     func() bool { _, ok := a.(action.Capable); return ok }(),
+	} {
+		if !ok {
+			t.Errorf("the journal wrapper does not implement action.%s", name)
+		}
+	}
+	got, err := a.(action.ModelsAsker).Models(t.Context(), "aacpanel")
+	if err != nil || got == nil || got.Transport != "stream" {
+		t.Errorf("the question about models came back as %+v, %v", got, err)
+	}
+	if _, err := any(audited{next: muteExec{}}).(action.ModelsAsker).Models(t.Context(), "aacpanel"); err == nil {
+		t.Error("an executor that does not know models said nothing instead of refusing")
+	}
+}
+
+type modelsExec struct{ muteExec }
+
+func (modelsExec) Models(context.Context, string) (*action.Models, error) {
+	return &action.Models{Transport: "stream"}, nil
+}
