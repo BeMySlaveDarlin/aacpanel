@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -63,4 +64,37 @@ func Held(sessionID string, pid int) (Summary, bool) {
 func alive(pid int) bool {
 	_, err := os.Stat(fmt.Sprintf("/proc/%d", pid))
 	return err == nil
+}
+
+// OneShot says whether a claude process is a run of its own rather than a
+// session. A `-p` is a one-off question, an SDK reviewer, a script — unless a
+// holder keeps it: then it is a session of the panel on the stream, and the
+// conversation id among its arguments says which one.
+func OneShot(pid int, args []string) bool {
+	print := false
+	for _, a := range args {
+		if a == "-p" || a == "--print" {
+			print = true
+			break
+		}
+	}
+	if !print {
+		return false
+	}
+	id := ""
+	for i, a := range args {
+		switch {
+		case (a == "--session-id" || a == "--resume") && i+1 < len(args):
+			id = args[i+1]
+		case strings.HasPrefix(a, "--session-id="):
+			id = strings.TrimPrefix(a, "--session-id=")
+		case strings.HasPrefix(a, "--resume="):
+			id = strings.TrimPrefix(a, "--resume=")
+		}
+	}
+	if id == "" {
+		return true
+	}
+	_, held := Held(id, pid)
+	return !held
 }

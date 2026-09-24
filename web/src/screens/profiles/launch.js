@@ -39,6 +39,15 @@ function catalogNote(catalog) {
 
 export const MODES = ["default", "acceptEdits", "auto", "plan"];
 
+// Where a session lives. A terminal in tmux is what a session gets when
+// nothing is said; on the stream it is answered with structure — questions,
+// permissions, the model — and the console is a switch away rather than the
+// place the session is.
+export const TRANSPORTS = [
+    ["tmux", "a terminal in tmux"],
+    ["stream", "the stream — answered by the panel, no terminal"],
+];
+
 const EMPTY = {};
 
 // clean returns what goes into the database: fields with a value and nothing else.
@@ -104,6 +113,7 @@ export function summary(launch) {
         parts.push(l.permissionMode);
     }
     if (l.remoteControl) parts.push("remote control");
+    if (l.transport === "stream") parts.push("on the stream");
     if (guarded(l)) parts.push(`finalize at ${l.finalizeAt}%`);
     if (l.intent) parts.push("intent");
     const env = Object.keys(l.env || EMPTY).length;
@@ -123,6 +133,7 @@ export function LaunchView({ launch, profile }) {
         ["effort", eff.effort, origin("effort", profile, launch)],
         ["permissions", eff.permissionMode, origin("permissionMode", profile, launch)],
         ["remote control", eff.remoteControl ? "on" : "", origin("remoteControl", profile, launch)],
+        ["lives in", eff.transport, origin("transport", profile, launch)],
         ["finalize at", guarded(eff) ? `${eff.finalizeAt}%` : "", origin("finalizeAt", profile, launch)],
     ];
     return html`
@@ -252,6 +263,18 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
             </select>
             ${l.permissionMode === "bypassPermissions" && html`
                 <span class="pfhelp warn">bypassPermissions — the mode is off the list; while it stands, the session asks about nothing</span>
+            `}
+        </label>
+
+        <label class="pffield">
+            <span class="pflabel">Where the session lives</span>
+            <select class="search" value=${l.transport || ""}
+                    onChange=${(e) => set({ transport: e.target.value })}>
+                <option value="">${none("transport", "a terminal in tmux")}</option>
+                ${TRANSPORTS.map(([id, label]) => html`<option value=${id} key=${id}>${label}</option>`)}
+            </select>
+            ${(l.transport || parent.transport) === "stream" && html`
+                <span class="pfhelp">takes effect at the next start; remote control does not reach a session on the stream</span>
             `}
         </label>
 

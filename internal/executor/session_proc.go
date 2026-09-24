@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"aacpanel/internal/stream"
 )
 
 func isAncestor(pid int) bool {
@@ -86,10 +88,8 @@ func sessionName(pid int) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	for _, a := range args {
-		if a == "-p" || a == "--print" {
-			return "", false
-		}
+	if stream.OneShot(pid, args) {
+		return "", false
 	}
 
 	if name, ok := nameFromSessionFile(pid); ok {

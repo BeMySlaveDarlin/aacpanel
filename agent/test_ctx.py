@@ -347,7 +347,7 @@ class LiveSessions(unittest.TestCase):
     def test_a_one_shot_run_does_not_count_as_a_session(self):
         self.put("tmp-8b", UUID_B)
         old = ctx._oneshot
-        ctx._oneshot = lambda pid: True
+        ctx._oneshot = lambda pid, sid=None: True
         self.addCleanup(setattr, ctx, "_oneshot", old)
         self.assertEqual(ctx.live_sessions(), [])
 

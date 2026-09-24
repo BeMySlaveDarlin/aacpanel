@@ -6,6 +6,7 @@ import archive
 import asked
 import contours
 import ctx
+import held
 import notes
 
 import agent
@@ -179,6 +180,17 @@ def sessions():
             stamp = stamps.get(s.get("session") or "")
             if stamp:
                 s["statusUpdatedAt"] = stamp
+        hold = held.summary(sid) if sid else None
+        if hold:
+            # On the stream the holder is who knows a person is waited for:
+            # claude writes busy or idle, and a request sits with the holder.
+            s["transport"] = "stream"
+            wait = held.waiting_for(hold)
+            if wait:
+                s["status"] = "waiting"
+                s["waitingFor"] = wait
+            if isinstance(hold.get("mode"), str) and hold["mode"]:
+                s["mode"] = hold["mode"]
         if transcript:
             seen_transcripts.add(transcript)
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))

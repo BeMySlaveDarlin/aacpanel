@@ -24,27 +24,8 @@ func takenNames() map[string]bool {
 }
 
 // oneShot says whether a claude process is a run of its own rather than a
-// session. A `-p` is a one-off question, an SDK reviewer, a script — unless a
-// holder keeps it: then it is a session of the panel on the stream protocol,
-// and its conversation id says which one.
-func oneShot(pid int, args []string) bool {
-	print := false
-	for _, a := range args {
-		if a == "-p" || a == "--print" {
-			print = true
-			break
-		}
-	}
-	if !print {
-		return false
-	}
-	id, ok := argValue(args, "--session-id", "--resume")
-	if !ok {
-		return true
-	}
-	_, held := stream.Held(id, pid)
-	return !held
-}
+// session; the rule is the stream's, since only a holder knows its sessions.
+func oneShot(pid int, args []string) bool { return stream.OneShot(pid, args) }
 
 func freeName(base string, taken map[string]bool) (string, error) {
 	base = strings.TrimSpace(base)

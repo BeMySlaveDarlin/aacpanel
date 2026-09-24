@@ -9,6 +9,7 @@ import re
 import archive
 import chat
 import contours
+import held
 
 SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
 
@@ -22,13 +23,16 @@ def proc_start(pid):
         return None
 
 
-def _oneshot(pid):
+def _oneshot(pid, sid=None):
+    """Says whether a process is a run of its own: a `-p` that no holder keeps."""
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as f:
             cmdline = f.read().decode("utf-8", "replace").replace("\0", " ")
     except OSError:
         return False
-    return bool(re.search(r"(^|\s)(-p|--print)(\s|$)", cmdline))
+    if not re.search(r"(^|\s)(-p|--print)(\s|$)", cmdline):
+        return False
+    return held.summary(sid, pid) is None
 
 
 def _boot_time():
@@ -86,7 +90,7 @@ def live_sessions():
         start = proc_start(pid)
         if start is None or (data.get("procStart") and str(data["procStart"]) != start):
             continue
-        if _oneshot(pid) or archive.background(data):
+        if _oneshot(pid, sid) or archive.background(data):
             continue
         name = data.get("name") or os.path.basename(cwd.rstrip("/")) or cwd
         out.append({
