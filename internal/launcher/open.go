@@ -25,7 +25,7 @@ func Open() []Console {
 	var out []Console
 	for _, pid := range claudePIDs() {
 		args := procArgs(pid)
-		if oneShot(args) {
+		if oneShot(pid, args) {
 			continue
 		}
 		name, ok := argValue(args, "-n", "--name")

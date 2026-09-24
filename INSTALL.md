@@ -482,13 +482,17 @@ What cannot be checked with a command:
 ```bash
 git pull
 docker compose up -d --build                                     # the service as an image
-systemctl --user stop aacpanel-exec.service
-go build -o ~/bin/aacpanel-exec ./cmd/aacpanel-exec               # the executor as a binary
-systemctl --user start aacpanel-exec.service
+go build -o ~/bin/aacpanel-exec.new ./cmd/aacpanel-exec           # the executor as a binary,
+mv ~/bin/aacpanel-exec.new ~/bin/aacpanel-exec                    #   put in place by a rename
+systemctl --user restart aacpanel-exec.service
 sudo systemctl restart "aacpanel-agent@$USER.service"             # the collector travels from the tree
 ```
 
-Without the `stop` the build answers "text file busy". Compare `.env` with
+The executor is built beside itself and renamed into place: the holders of
+sessions on the stream run from the same file, and building over a file a
+process runs from answers "text file busy". A rename leaves the running
+holders on the old copy until their sessions end, and the executor restarted
+after it is the new one. Compare `.env` with
 `.env.example` — the template's new keys are worth carrying over:
 
 ```bash

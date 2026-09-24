@@ -17,6 +17,15 @@ const (
 	keyArgs           = "args"
 	keyRoom           = "room"
 	keyIntent         = "intent"
+	keyTransport      = "transport"
+)
+
+// How a session is kept. A terminal in tmux is the default; the stream is
+// `claude -p` on stream-json under a holder, answered with structure rather
+// than keystrokes.
+const (
+	TransportTmux   = "tmux"
+	TransportStream = "stream"
 )
 
 // Params is what makes one launch differ from another.
@@ -30,6 +39,7 @@ type Params struct {
 	Args           []string
 	Room           string
 	Intent         string
+	Transport      string
 }
 
 func parseParams(raw json.RawMessage) (Params, []string) {
@@ -62,6 +72,13 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 			str(key, &p.Room)
 		case keyIntent:
 			str(key, &p.Intent)
+		case keyTransport:
+			str(key, &p.Transport)
+			if p.Transport != TransportTmux && p.Transport != TransportStream {
+				warns = append(warns, fmt.Sprintf("parameter transport is %q, neither %q nor %q — the session goes to tmux",
+					p.Transport, TransportTmux, TransportStream))
+				p.Transport = ""
+			}
 		case keyRemoteControl:
 			var on bool
 			if err := json.Unmarshal(obj[key], &on); err != nil {
@@ -100,6 +117,32 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 	}
 	slices.Sort(warns)
 	return p, warns
+}
+
+// streamArgs are the arguments of a session held on the stream protocol. The
+// permission prompt tool pointed at the host is what makes a question or a
+// permission arrive as a request: without it claude refuses whatever would
+// ask, and does not offer the question tool to the model at all. The opening
+// message is not an argument here — the holder sends it once claude has
+// answered the handshake.
+func streamArgs(name, sessionID, resume string, p Params) []string {
+	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+		"--replay-user-messages", "--permission-prompt-tool", "stdio", "-n", name}
+	if p.Model != "" {
+		args = append(args, "--model", p.Model)
+	}
+	if p.Effort != "" {
+		args = append(args, "--effort", p.Effort)
+	}
+	if p.PermissionMode != "" {
+		args = append(args, "--permission-mode", p.PermissionMode)
+	}
+	if resume != "" {
+		args = append(args, "--resume", resume)
+	} else {
+		args = append(args, "--session-id", sessionID)
+	}
+	return append(args, p.Args...)
 }
 
 func claudeArgs(name, resume string, p Params) []string {

@@ -236,6 +236,47 @@ goes stale, because a call is for now and a log of them is not worth keeping.
 
 ---
 
+## Sessions on the stream
+
+A session is kept one of two ways, chosen by the launch parameters of its
+project. In **tmux** it is a terminal: text goes in as keystrokes, and a
+question or a permission is read off the screen and answered with keys. On
+the **stream** it is `claude -p` with stream-json on both pipes: a message is
+a line of JSON, a question and a permission are requests with an id, and an
+answer is a reply to that id — nothing is guessed from what a terminal drew.
+
+The pipes of a stream session need a process that outlives the executor and
+the panel, the way the tmux server does for a terminal. That is the
+**holder**: the executor's own binary in its holding mode, started by the
+launcher in place of `tmux new-session`, in the same transient unit and for
+the same reason — a child of the executor's unit could not write its
+transcript. It is not a fourth set of rights: it runs as the owner, like the
+tmux server, and like the tmux server it holds the whole conversation in
+passing, because it is claude's parent.
+
+What it lets out of that is narrow:
+
+- **Its socket** answers the executor with the state of the session and the
+  requests that wait for a person — the input of a tool asking for
+  permission, the questions of a question: what the executor of a tmux session
+  reads off the screen. It passes on only a closed list of control requests.
+  The socket does not live beside the executor's: that directory is mounted
+  into the service's container, and a holder's socket there would let the
+  service talk to a session past the closed list of actions.
+- **Its state file** is what the collector reads to put the session on the
+  map: busy or free, the mode, the model, the names of the tools that wait,
+  counts. No text of the conversation is in it.
+- **The feed** is still read off the transcript by the collector, as for any
+  session.
+
+**A `claude -p` is a session of the panel only when a holder keeps it.** The
+flags do not say it: an SDK reviewer or a script runs `-p` on the stream too.
+A holder's state file names the conversation and the pid of its claude, and
+a process that matches none is somebody else's run — seen in the archive, not
+on the list of live sessions.
+
+---
+
 ## The path of an action
 
 Between a tap on the phone and a command on the host there is one road, and no

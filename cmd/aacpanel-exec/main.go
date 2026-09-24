@@ -19,6 +19,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/executor"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
 )
 
@@ -43,7 +44,14 @@ func main() {
 		"open a terminal window to a live tmux session from the task on stdin. "+
 			"Like -launch, it is called by the executor through systemd-run: otherwise the window "+
 			"would die with its restart, and the graphical session environment would not be read")
+	hold := flag.Bool("hold", false,
+		"hold a claude session on the stream protocol from the task on stdin, until it ends. "+
+			"Not a panel action: the launcher starts it in place of a tmux server")
 	flag.Parse()
+
+	if *hold {
+		os.Exit(runHold())
+	}
 
 	if *list {
 		kinds := executor.New(executor.NewDocker(*dockerHost), *self).Kinds()
@@ -115,6 +123,28 @@ func defaultSocket() string {
 		return filepath.Join(dir, "aacpanel-exec", "sock")
 	}
 	return filepath.Join(os.TempDir(), fmt.Sprintf("aacpanel-exec-%d", os.Getuid()), "sock")
+}
+
+// runHold keeps one session on the stream protocol. A signal ends it the
+// gentle way: claude's input is closed, it finishes the turn and writes its
+// transcript, and only a claude that does not end is stopped harder.
+func runHold() int {
+	if os.Geteuid() == 0 {
+		fmt.Fprintln(os.Stderr, "aacpanel-exec: holding a session as root is not allowed")
+		return 2
+	}
+	var spec stream.Spec
+	if err := json.NewDecoder(os.Stdin).Decode(&spec); err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: the task for the holder was not parsed: %v\n", err)
+		return 2
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	defer stop()
+	if err := stream.Run(ctx, spec); err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 const launchCeiling = 60 * time.Second

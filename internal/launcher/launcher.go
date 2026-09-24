@@ -2,16 +2,19 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/hostcfg"
+	"aacpanel/internal/stream"
 )
 
 // Spec describes what to launch.
@@ -33,6 +36,10 @@ type Report struct {
 	Leaks    []string `json:"leaks,omitempty"`
 	Warnings []string `json:"warnings,omitempty"`
 	Intent   string   `json:"intent,omitempty"`
+	// How the session is kept: in tmux, or on the stream under a holder.
+	Transport string `json:"transport,omitempty"`
+	// The conversation id of a session on the stream: its holder is found by it.
+	Conversation string `json:"conversation,omitempty"`
 }
 
 const (
@@ -99,30 +106,114 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	defer drop.remove()
 	warns = append(warns, dropWarns...)
 
+	if params.Transport == TransportStream {
+		return runStream(ctx, spec, params, name, choice.Path, drop, warns)
+	}
+
 	windowPID, startWarns, err := start(spec.Dir, name, choice.Path, claudeArgs(name, spec.Resume, params), drop)
 	if err != nil {
 		return Report{}, err
 	}
 	warns = append(warns, startWarns...)
 
-	agent, err := waitAgent(ctx, name)
+	agent, err := waitAgent(ctx, name, nil)
 	if err != nil {
 		return Report{}, err
 	}
 
 	report := Report{
-		Session:  name,
-		Dir:      spec.Dir,
-		Konsole:  konsoleOf(agent),
-		Agent:    agent,
-		Leaks:    leaks(agent),
-		Warnings: warns,
-		Intent:   params.Intent,
+		Session:   name,
+		Dir:       spec.Dir,
+		Konsole:   konsoleOf(agent),
+		Agent:     agent,
+		Leaks:     leaks(agent),
+		Warnings:  warns,
+		Intent:    params.Intent,
+		Transport: TransportTmux,
 	}
 	if report.Konsole == 0 {
 		report.Konsole = windowPID
 	}
 	return report, nil
+}
+
+// runStream starts a session on the stream protocol: claude under a holder
+// instead of a terminal in tmux, and no window — there is no screen to open
+// one to.
+func runStream(ctx context.Context, spec Spec, params Params, name, bin string, env *sessionEnv, warns []string) (Report, error) {
+	if params.RemoteControl != nil && *params.RemoteControl {
+		warns = append(warns, "remote control was not switched on: a session on the stream has no "+
+			"terminal for claude.ai to attach to")
+	}
+	conversation := spec.Resume
+	if conversation == "" {
+		conversation = stream.NewSessionID()
+	}
+	held, err := startHolder(stream.Spec{
+		Name:      name,
+		Dir:       spec.Dir,
+		SessionID: conversation,
+		Argv:      append([]string{"env", "-i", "sh", env.path, bin}, streamArgs(name, conversation, spec.Resume, params)...),
+		Intent:    params.Intent,
+	})
+	if err != nil {
+		return Report{}, err
+	}
+	agent, err := waitAgent(ctx, name, held)
+	if err != nil {
+		return Report{}, err
+	}
+	return Report{
+		Session:      name,
+		Dir:          spec.Dir,
+		Agent:        agent,
+		Leaks:        leaks(agent),
+		Warnings:     warns,
+		Intent:       params.Intent,
+		Transport:    TransportStream,
+		Conversation: conversation,
+	}, nil
+}
+
+// holderCommand is how the holder is started: this very binary in its
+// holding mode. A test puts a program of its own here.
+var holderCommand = func() (string, []string, error) {
+	self, err := os.Executable()
+	if err != nil {
+		return "", nil, fmt.Errorf("the executor does not know its own path: %w", err)
+	}
+	return self, []string{"-hold"}, nil
+}
+
+// startHolder starts the holder of a session and hands it what to hold. It
+// is not waited for: it outlives the launcher the way the tmux server does,
+// in a session of its own. What comes back is a channel that closes if it
+// ends — a holder that dies before claude appears is a launch that failed,
+// and waiting the full minute for a name that will not come says nothing.
+func startHolder(spec stream.Spec) (<-chan string, error) {
+	path, args, err := holderCommand()
+	if err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(path, args...)
+	cmd.Dir = spec.Dir
+	cmd.Stdin = bytes.NewReader(body)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("the holder of session %s did not start: %w", spec.Name, err)
+	}
+	ended := make(chan string, 1)
+	go func() {
+		_ = cmd.Wait()
+		said, _ := os.ReadFile(stream.LogPath(spec.SessionID))
+		ended <- strings.TrimSpace(string(said))
+		close(ended)
+	}()
+	return ended, nil
 }
 
 func tool(env, fallback string) string {
@@ -265,12 +356,23 @@ func executable(path string) error {
 	return nil
 }
 
-func waitAgent(ctx context.Context, name string) (int, error) {
+func waitAgent(ctx context.Context, name string, holder <-chan string) (int, error) {
 	deadline := time.Now().Add(startWait)
 	for {
+		select {
+		case said, ok := <-holder:
+			if ok {
+				if said == "" {
+					said = "it left no word of why"
+				}
+				return 0, fmt.Errorf("session %s did not start: its holder ended before claude appeared — %s", name, said)
+			}
+			holder = nil
+		default:
+		}
 		for _, pid := range claudePIDs() {
 			args := procArgs(pid)
-			if oneShot(args) {
+			if oneShot(pid, args) {
 				continue
 			}
 			if got, ok := argValue(args, "-n", "--name"); ok && got == name {

@@ -3,6 +3,8 @@ package launcher
 import (
 	"fmt"
 	"strings"
+
+	"aacpanel/internal/stream"
 )
 
 const maxOrdinal = 99
@@ -11,7 +13,7 @@ func takenNames() map[string]bool {
 	out := map[string]bool{}
 	for _, pid := range claudePIDs() {
 		args := procArgs(pid)
-		if oneShot(args) {
+		if oneShot(pid, args) {
 			continue
 		}
 		if name, ok := argValue(args, "-n", "--name"); ok && name != "" {
@@ -21,13 +23,27 @@ func takenNames() map[string]bool {
 	return out
 }
 
-func oneShot(args []string) bool {
+// oneShot says whether a claude process is a run of its own rather than a
+// session. A `-p` is a one-off question, an SDK reviewer, a script — unless a
+// holder keeps it: then it is a session of the panel on the stream protocol,
+// and its conversation id says which one.
+func oneShot(pid int, args []string) bool {
+	print := false
 	for _, a := range args {
 		if a == "-p" || a == "--print" {
-			return true
+			print = true
+			break
 		}
 	}
-	return false
+	if !print {
+		return false
+	}
+	id, ok := argValue(args, "--session-id", "--resume")
+	if !ok {
+		return true
+	}
+	_, held := stream.Held(id, pid)
+	return !held
 }
 
 func freeName(base string, taken map[string]bool) (string, error) {
