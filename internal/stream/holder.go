@@ -619,8 +619,9 @@ func (h *Holder) exited(err error) {
 		code = exitErr.ExitCode()
 	}
 	h.logf("claude ended, exit %d", code)
-	h.clean = code == 0
-	if code != 0 && time.Since(h.state.Started) < startGrace {
+	failed := failedStart(code, time.Since(h.state.Started))
+	h.clean = !failed
+	if failed {
 		if said := strings.TrimSpace(h.stderr.String()); said != "" {
 			h.logf("what it said on the way out:\n%s", said)
 		}
@@ -631,6 +632,14 @@ func (h *Holder) exited(err error) {
 		delete(h.waiters, id)
 	}
 	h.mu.Unlock()
+}
+
+// failedStart says whether a session ended as a launch that did not take: an
+// error within its first minute. Anything else is a session that lived — the
+// panel closes one with a signal, and its exit code says so — and leaves no
+// log behind.
+func failedStart(code int, lived time.Duration) bool {
+	return code != 0 && lived < startGrace
 }
 
 func (h *Holder) cleanup(ln net.Listener) {

@@ -416,3 +416,20 @@ func TestASpecThatIsNotASessionIsRefused(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlyALaunchThatFailedKeepsItsLog(t *testing.T) {
+	for _, c := range []struct {
+		code  int
+		lived time.Duration
+		keeps bool
+	}{
+		{0, time.Second, false},
+		{3, time.Second, true},
+		{143, 30 * time.Minute, false},
+		{1, 2 * time.Minute, false},
+	} {
+		if got := failedStart(c.code, c.lived); got != c.keeps {
+			t.Errorf("exit %d after %s: failed start %v, want %v", c.code, c.lived, got, c.keeps)
+		}
+	}
+}
