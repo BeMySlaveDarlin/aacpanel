@@ -331,7 +331,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"} />
                 ${state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
                     && !hidesAsk(answer, state.work.ask.toolUseId)
-                    ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec}
+                    ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${live.transport === "stream"}
                                    onAnswered=${(use) => mark(answered(live, use))} />`
                     : live.status === "waiting" && !holding
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor}

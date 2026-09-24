@@ -10,7 +10,10 @@ import { Icon } from "../ui/icons.js";
 const OWN_MAX = 4000;
 
 // Ask renders the whole bottom of the screen while the session is asking.
-export function Ask({ ask, name, exec, onAnswered }) {
+// On the stream an answer is structure rather than keys, so the limits a
+// terminal dialog puts on a layout do not hold there, and a note can go beside
+// a pick.
+export function Ask({ ask, name, exec, stream, onAnswered }) {
     const run = useAction();
     const [picks, setPicks] = useState([]);
     const [step, setStep] = useState(0);
@@ -19,6 +22,7 @@ export function Ask({ ask, name, exec, onAnswered }) {
     const [open, setOpen] = useState(true);
     const [preview, setPreview] = useState(null);
     const [texts, setTexts] = useState([]);
+    const [notes, setNotes] = useState([]);
     const [writing, setWriting] = useState(-1);
     const [fail, setFail] = useState("");
 
@@ -33,6 +37,7 @@ export function Ask({ ask, name, exec, onAnswered }) {
         setOpen(true);
         setPreview(null);
         setTexts(questions.map(() => ""));
+        setNotes(questions.map(() => ""));
         setWriting(-1);
         setFail("");
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,13 +61,14 @@ export function Ask({ ask, name, exec, onAnswered }) {
 
     const ownReady = ready && dropReady;
 
-    const dropBlocked = (questions[0].options || []).some((o) => o.preview)
+    const dropBlocked = !stream && (questions[0].options || []).some((o) => o.preview)
         ? "the options have previews, and in that layout the “discuss” item is drawn without a number"
         : "";
 
     const chosen = (n) => picks[n] || [];
     const own = (n) => texts[n] || "";
     const ownBlocked = (n) => {
+        if (stream) return ownReady ? "" : dropWhy;
         if (questions[n].multi) {
             return "this one takes several choices, and a free answer in the console is a checkbox, not a field";
         }
@@ -81,6 +87,8 @@ export function Ask({ ask, name, exec, onAnswered }) {
         setOpen(false);
         const params = { ask: id, picks: all };
         if (words.some((text) => text !== "")) params.texts = words;
+        const noted = all.map((list, n) => (stream && list.length ? (notes[n] || "").trim() : ""));
+        if (noted.some((note) => note !== "")) params.notes = noted;
         const result = await run("session.answer", name, params);
         setSending(false);
         if (!result.ok) {
@@ -225,6 +233,17 @@ export function Ask({ ask, name, exec, onAnswered }) {
                                 onText=${(text) => words(n, text)}
                             />
                         </div>
+                        ${stream && !instant && chosen(n).length > 0 && html`
+                            <textarea
+                                class="askinput asknote"
+                                rows="2"
+                                maxLength=${OWN_MAX}
+                                placeholder="a note beside your pick — optional, the session reads it with the answer"
+                                value=${notes[n] || ""}
+                                disabled=${sending}
+                                onInput=${(e) => setNotes(questions.map((_, i) => (i === n ? e.target.value : notes[i] || "")))}
+                            ></textarea>
+                        `}
                     </div>
                 `)}
 

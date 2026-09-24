@@ -23,9 +23,10 @@ const (
 	// What the model reads when a person put a question away to answer it in
 	// the conversation instead.
 	dismissedByPanel = "The person put the question away and will answer in the conversation."
-	// How many lines of a tool's input a permission shows. A command or an
-	// edit longer than that is shown cut, and says so.
-	permLines = 40
+	// How many lines of a tool's input a permission shows. The stream has the
+	// whole input, and a person decides on the whole of it: the ceiling is
+	// only against a runaway, and what passes it is shown cut and says so.
+	permLines = 400
 )
 
 // onStream says whether a live session is held on the stream.
@@ -324,7 +325,7 @@ func askPending(st stream.State, toolUseID string) (stream.Pending, bool) {
 // streamAnswer answers a question with what was picked, by the words of the
 // options rather than by keys: every layout of a question — one or several,
 // with previews or without, own words — is the same answer on the stream.
-func streamAnswer(ctx context.Context, s liveSession, toolUseID string, picks [][]int, texts []string) (string, error) {
+func streamAnswer(ctx context.Context, s liveSession, toolUseID string, picks [][]int, texts, notes []string) (string, error) {
 	st, err := streamState(ctx, s)
 	if err != nil {
 		return "", err
@@ -344,11 +345,27 @@ func streamAnswer(ctx context.Context, s liveSession, toolUseID string, picks []
 	var full map[string]any
 	_ = json.Unmarshal(p.Input, &full)
 	full["answers"] = answers
+	if noted := annotations(in, notes); len(noted) > 0 {
+		full["annotations"] = noted
+		said += fmt.Sprintf(" · %s", plural(len(noted), "note", "notes"))
+	}
 	body, _ := json.Marshal(map[string]any{"behavior": "allow", "updatedInput": full})
 	if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpRespond, RequestID: p.RequestID, Response: body}); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("answer sent to %s: %s", s.Name, said), nil
+}
+
+// annotations are the notes beside the picks, keyed by the question the way
+// the tool reads them.
+func annotations(in askInput, notes []string) map[string]any {
+	out := map[string]any{}
+	for i, q := range in.Questions {
+		if i < len(notes) && strings.TrimSpace(notes[i]) != "" {
+			out[q.Question] = map[string]string{"notes": strings.TrimSpace(notes[i])}
+		}
+	}
+	return out
 }
 
 func answersFor(in askInput, picks [][]int, texts []string) (map[string]string, string, error) {

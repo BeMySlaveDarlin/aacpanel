@@ -152,6 +152,7 @@
 /* Free words are an answer of another kind: no edge, a dashed circle. */
 .askown { border-color: transparent; background: rgba(var(--tint), .04); }
 .askown .asktick { border-style: dashed; }
+.asknote { margin-top: .4rem; }
 .askown.on .asktick { border-style: solid; }
 
 .askinput {

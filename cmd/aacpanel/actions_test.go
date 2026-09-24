@@ -815,3 +815,24 @@ func TestSessionWindowStatesStayApart(t *testing.T) {
 		t.Errorf("a request without a session name gave %d, expected 400", w.Code)
 	}
 }
+
+func TestRunActionCarriesNotesToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "answer sent to aacpanel"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+
+	const note = "but keep the search in it"
+	w := post(t, srv, `{"kind":"session.answer","target":"aacpanel",`+
+		`"params":{"ask":"toolu_42","picks":[[2],[1]],"notes":["`+note+`",""]}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("an answer with a note was rejected: status %d, body %s", w.Code, w.Body.String())
+	}
+	var got action.Request
+	select {
+	case got = <-fake.got:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+	if got.Answer == nil || len(got.Answer.Notes) != 2 || got.Answer.Notes[0] != note || got.Answer.Notes[1] != "" {
+		t.Fatalf("the notes reached the executor as %+v", got.Answer)
+	}
+}

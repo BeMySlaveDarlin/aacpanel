@@ -79,6 +79,9 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		if lens := textLens(answer.Texts); len(lens) > 0 {
 			params["chars"] = lens
 		}
+		if lens := textLens(answer.Notes); len(lens) > 0 {
+			params["noteChars"] = lens
+		}
 	}
 	if req.Kind == action.SessionDismiss {
 		answer, err := dismissFromParams(body.Params)

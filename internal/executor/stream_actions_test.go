@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -239,6 +240,35 @@ func TestAnAnswerOnTheStreamIsTheWordsOfTheOptions(t *testing.T) {
 	}
 }
 
+// A note beside a pick reaches the model with the answer, keyed by the
+// question the way the tool reads it.
+func TestANoteBesideAPickGoesWithTheAnswer(t *testing.T) {
+	f := onTheStream(t, true, question())
+	e, _ := newTest(t, "")
+	r := req(action.SessionAnswer, "demo")
+	r.Answer = &action.Answer{AskID: "toolu_q", Picks: [][]int{{2}, {1}, {}}, Texts: []string{"", "", "later"},
+		Notes: []string{"  but a darker shade  ", "", ""}}
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body struct {
+		UpdatedInput struct {
+			Annotations map[string]map[string]string `json:"annotations"`
+		} `json:"updatedInput"`
+	}
+	if err := json.Unmarshal(only(t, f).Response, &body); err != nil {
+		t.Fatal(err)
+	}
+	notes := body.UpdatedInput.Annotations
+	if len(notes) != 1 || notes["Pick a colour"]["notes"] != "but a darker shade" {
+		t.Errorf("the notes reached claude as %+v", notes)
+	}
+	if !strings.Contains(detail, "1 note") {
+		t.Errorf("the report %q does not say a note went along", detail)
+	}
+}
+
 func TestAnAnswerToAQuestionNoLongerAskedIsRefused(t *testing.T) {
 	f := onTheStream(t, true, question())
 	e, _ := newTest(t, "")
@@ -311,5 +341,27 @@ func TestClearIsNotSentToAStreamSession(t *testing.T) {
 	}
 	if got := f.asked(); len(got) != 0 {
 		t.Errorf("the holder was asked %+v", got)
+	}
+}
+
+// A person decides on the whole of what a tool is about to do: on the stream
+// the whole input is there, and a long command is shown whole; only a runaway
+// is cut, and says so.
+func TestAPermissionOnTheStreamShowsTheWholeInput(t *testing.T) {
+	long := func(n int) stream.Pending {
+		lines := make([]string, n)
+		for i := range lines {
+			lines[i] = fmt.Sprintf("echo line %d", i+1)
+		}
+		body, _ := json.Marshal(map[string]string{"command": strings.Join(lines, "\n")})
+		return stream.Pending{RequestID: "r-long", Tool: "Bash", Input: body}
+	}
+	whole := permissionLines(long(120))
+	if len(whole) != 120 || whole[119] != "echo line 120" {
+		t.Errorf("a 120-line command is shown as %d lines, ending %q", len(whole), whole[len(whole)-1])
+	}
+	cut := permissionLines(long(permLines + 100))
+	if len(cut) != permLines+1 || cut[permLines] != "… 100 more lines" {
+		t.Errorf("a runaway is shown as %d lines, ending %q", len(cut), cut[len(cut)-1])
 	}
 }

@@ -58,11 +58,17 @@ func (e *Executor) sessionAnswer(ctx context.Context, target string, ans *action
 		return "", fmt.Errorf("answer with no options picked")
 	}
 	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
-		return streamAnswer(ctx, s, ans.AskID, ans.Picks, ans.Texts)
+		return streamAnswer(ctx, s, ans.AskID, ans.Picks, ans.Texts, ans.Notes)
 	}
 	s, ask, err := askingSession(target, ans.AskID)
 	if err != nil {
 		return "", err
+	}
+	for _, note := range ans.Notes {
+		if note != "" {
+			return "", fmt.Errorf("session %s runs in a terminal, and its dialog has no field for a note: "+
+				"the answer was not sent — send it without the note, or write it in the conversation", s.Name)
+		}
 	}
 
 	steps, err := answerKeys(ask, ans.Picks, ans.Texts)

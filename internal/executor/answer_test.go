@@ -315,6 +315,28 @@ func TestSessionAnswerPressesKeys(t *testing.T) {
 	}
 }
 
+// A terminal dialog has no field for a note: the answer is refused whole
+// rather than sent with the note lost on the way.
+func TestSessionAnswerWithANoteIsRefusedInATerminal(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 800, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 801, comm: "claude", args: []string{"claude"}, ppid: 800, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 801, name: "aacpanel", start: "77", status: "waiting"})
+	askFile(t, "s-801", "toolu_42", askQ{options: []string{"Alpha", "Beta", "Gamma"}})
+	log := fakeBusctl(t, map[string]int{"/Sessions/2": 801})
+
+	e := &Executor{}
+	_, err := e.sessionAnswer(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42", Picks: [][]int{{2}},
+		Notes: []string{"a darker one"}})
+	if err == nil || !strings.Contains(err.Error(), "no field for a note") {
+		t.Fatalf("an answer with a note went into a terminal: %v", err)
+	}
+	if raw, _ := os.ReadFile(log); len(raw) > 0 {
+		t.Errorf("%q was typed into the dialog", raw)
+	}
+}
+
 func TestKonsoleFindsRightBus(t *testing.T) {
 	socket, _ := listenFake(t)
 	procFS(t,

@@ -51,6 +51,10 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     overflow-x: auto;
+    /* A whole edit can be hundreds of lines: it scrolls in its own box, and the
+       answer under it stays within reach of the thumb. */
+    max-height: 50vh;
+    overflow-y: auto;
 }
 
 /* The note under the command: a hook, a rule or a classifier asked for the

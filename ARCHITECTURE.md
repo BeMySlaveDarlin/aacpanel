@@ -282,6 +282,13 @@ is the exception: it starts a conversation under a new id, the holder keeps
 its session by the old one, and the session would drop off the panel. The
 holder refuses it whichever way it comes, and the composer does not offer it.
 
+**A question on the stream is answered with structure, not with keys**, so the
+limits a terminal dialog puts on a layout do not hold there: a free answer and
+"discuss" are open whatever the layout, a note can go beside a pick, and a
+permission shows the tool's whole input rather than what fits a screen. A note
+sent to a terminal session is refused with the answer: its dialog has no field
+for one, and an answer that silently lost it would say less than the person did.
+
 **A switch moves a live session between the two** (`session.switch`): the
 executor closes the process on one side and resumes the same conversation on
 the other, under the same name. The id and the history stay; the process does

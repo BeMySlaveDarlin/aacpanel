@@ -56,6 +56,11 @@ type Answer struct {
 	Picks [][]int `json:"picks"`
 
 	Texts []string `json:"texts,omitempty"`
+
+	// Notes are a person's words beside a pick, one per question: the model
+	// reads them with the answer. Only a session on the stream takes them — a
+	// terminal dialog has no field for them.
+	Notes []string `json:"notes,omitempty"`
 }
 
 // File is a file sent from the phone.

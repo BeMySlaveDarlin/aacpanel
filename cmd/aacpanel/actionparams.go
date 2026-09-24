@@ -97,6 +97,16 @@ func answerFromParams(params map[string]any) (*action.Answer, error) {
 			answer.Texts = append(answer.Texts, text)
 		}
 	}
+	if notes, ok := params["notes"].([]any); ok {
+		answer.Notes = make([]string, 0, len(notes))
+		for _, item := range notes {
+			note, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("the note did not arrive as a string")
+			}
+			answer.Notes = append(answer.Notes, note)
+		}
+	}
 	return answer, nil
 }
 

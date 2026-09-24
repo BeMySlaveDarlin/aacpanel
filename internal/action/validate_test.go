@@ -204,6 +204,34 @@ func TestAnswerRequestChecksOwnWords(t *testing.T) {
 	}
 }
 
+func TestAnswerNotesStandBesidePicks(t *testing.T) {
+	ask := func(a *Answer) Request {
+		return Request{ID: "a1", Kind: SessionAnswer, Target: "aacpanel", Answer: a}
+	}
+	if err := ask(&Answer{AskID: "toolu_42", Picks: [][]int{{1}, {2}}, Notes: []string{"darker", ""}}).Validate(); err != nil {
+		t.Fatalf("a note beside a pick is rejected: %v", err)
+	}
+	bad := map[string]*Answer{
+		"a note beside nothing":     {AskID: "toolu_42", Picks: [][]int{{}}, Texts: []string{"mine"}, Notes: []string{"why"}},
+		"more notes than questions": {AskID: "toolu_42", Picks: [][]int{{1}}, Notes: []string{"", "extra"}},
+		"nothing but spaces":        {AskID: "toolu_42", Picks: [][]int{{1}}, Notes: []string{"  "}},
+		"control character":         {AskID: "toolu_42", Picks: [][]int{{1}}, Notes: []string{"a \x1b[31mnote"}},
+		"over the ceiling":          {AskID: "toolu_42", Picks: [][]int{{1}}, Notes: []string{strings.Repeat("a", AskTextMax+1)}},
+	}
+	for name, a := range bad {
+		t.Run(name, func(t *testing.T) {
+			if err := ask(a).Validate(); err == nil {
+				t.Error("accepted what must not be accepted")
+			}
+		})
+	}
+	dismiss := Request{ID: "a1", Kind: SessionDismiss, Target: "aacpanel",
+		Answer: &Answer{AskID: "toolu_42", Notes: []string{"why"}}}
+	if err := dismiss.Validate(); err == nil {
+		t.Error("dismissing a question carried a note")
+	}
+}
+
 func TestDismissRequestCarriesOnlyQuestion(t *testing.T) {
 	drop := func(a *Answer) Request {
 		return Request{ID: "a1", Kind: SessionDismiss, Target: "aacpanel", Answer: a}

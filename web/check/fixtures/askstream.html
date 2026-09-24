@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// A question with drawings asked by a session on the stream. A terminal dialog
+// of that layout has no free answer and no numbered "discuss" item, and the card
+// of a terminal session says so; on the stream the answer is structure, so both
+// are there, and a note goes beside the pick.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const ask = {
+    sessionId: "s1",
+    toolUseId: "toolu_ask_s",
+    cwd: "/srv/proj",
+    questions: [{
+        text: "Where does the menu go on a phone?",
+        header: "Menu",
+        multi: false,
+        options: [
+            { label: "Keep the side menu", description: "It folds into a drawer.", preview: "| side |\n| menu |" },
+            { label: "Move it to the top bar", description: "The drawer goes away.", preview: "[ top bar ]" },
+        ],
+    }],
+};
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: { ask } });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.answer", "session.dismiss", "session.send"] };
+const live = { status: "waiting", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj" };
+function Page() {
+    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 80 && !document.querySelector(".askpick"); i += 1) await sleep(50);
+    await sleep(300);
+    const own = document.querySelector(".askown .askpick");
+    const drop = document.querySelector(".askdrop");
+    const result = { own: Boolean(own && !own.disabled), drop: Boolean(drop && !drop.disabled) };
+    document.querySelectorAll(".askopts .askopt:not(.askown) .askpick")[1].click();
+    await sleep(250);
+    const note = document.querySelector(".asknote");
+    result.note = Boolean(note);
+    if (note) {
+        note.value = "but keep the search in it";
+        note.dispatchEvent(new Event("input", { bubbles: true }));
+        await sleep(100);
+    }
+    const go = document.querySelector(".askfoot .btn.primary");
+    if (go) go.click();
+    for (let i = 0; i < 30 && !sent.length; i += 1) await sleep(50);
+    result.sent = sent;
+    return result;
+})();
+</script>

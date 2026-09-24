@@ -92,7 +92,7 @@ func (r Request) Validate() error {
 			return badRequest("the question id is longer than %d characters", idMax)
 		}
 		if r.Kind == SessionDismiss {
-			if len(r.Answer.Picks) > 0 || len(r.Answer.Texts) > 0 {
+			if len(r.Answer.Picks) > 0 || len(r.Answer.Texts) > 0 || len(r.Answer.Notes) > 0 {
 				return badRequest("dismissing a question carries no answer: it interrupts the round instead of answering")
 			}
 			break
@@ -134,6 +134,28 @@ func (r Request) Validate() error {
 				if len(r.Answer.Picks[i]) > 0 {
 					return badRequest(
 						"question %d got both a pick and words of your own — in the dialog these are different items", i+1)
+				}
+			}
+		}
+		if len(r.Answer.Notes) > 0 {
+			if len(r.Answer.Notes) != len(r.Answer.Picks) {
+				return badRequest("%d notes against %d questions in the answer", len(r.Answer.Notes), len(r.Answer.Picks))
+			}
+			for i, note := range r.Answer.Notes {
+				if note == "" {
+					continue
+				}
+				if strings.TrimSpace(note) == "" {
+					return badRequest("the note to question %d is nothing but spaces", i+1)
+				}
+				if len([]rune(note)) > AskTextMax {
+					return badRequest("the note to question %d is longer than %d characters", i+1, AskTextMax)
+				}
+				if err := safeText(note); err != nil {
+					return err
+				}
+				if len(r.Answer.Picks[i]) == 0 {
+					return badRequest("the note to question %d stands beside nothing: no option is picked", i+1)
 				}
 			}
 		}
