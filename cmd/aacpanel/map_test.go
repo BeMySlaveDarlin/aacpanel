@@ -83,7 +83,7 @@ func TestLocateProject(t *testing.T) {
 	list := tree()
 
 	t.Run("by id", func(t *testing.T) {
-		found, err := locateProject(list, 200, "", "")
+		found, err := locateProject(list, 200, "", "", nil, nil)
 		if err != nil || found == nil {
 			t.Fatalf("the project was not found by id: %v", err)
 		}
@@ -93,13 +93,13 @@ func TestLocateProject(t *testing.T) {
 	})
 
 	t.Run("an id absent from the map is a refusal, not a search further", func(t *testing.T) {
-		if _, err := locateProject(list, 999, "", "aacpanel"); err == nil {
+		if _, err := locateProject(list, 999, "", "aacpanel", nil, nil); err == nil {
 			t.Error("an id that does not exist silently led to a search by name")
 		}
 	})
 
 	t.Run("by working directory", func(t *testing.T) {
-		found, err := locateProject(list, 0, "/srv/proj/Labs/aacpanel/", "")
+		found, err := locateProject(list, 0, "/srv/proj/Labs/aacpanel/", "", nil, nil)
 		if err != nil || found == nil {
 			t.Fatalf("the project was not found by directory: %v", err)
 		}
@@ -109,7 +109,7 @@ func TestLocateProject(t *testing.T) {
 	})
 
 	t.Run("by session name", func(t *testing.T) {
-		found, err := locateProject(list, 0, "", "home")
+		found, err := locateProject(list, 0, "", "home", nil, nil)
 		if err != nil || found == nil {
 			t.Fatalf("the project was not found by session name: %v", err)
 		}
@@ -119,7 +119,7 @@ func TestLocateProject(t *testing.T) {
 	})
 
 	t.Run("by directory name", func(t *testing.T) {
-		found, err := locateProject(list, 0, "", "u")
+		found, err := locateProject(list, 0, "", "u", nil, nil)
 		if err != nil || found == nil {
 			t.Fatalf("the project was not found by directory name: %v", err)
 		}
@@ -129,7 +129,7 @@ func TestLocateProject(t *testing.T) {
 	})
 
 	t.Run("an ambiguous name is a refusal with a list", func(t *testing.T) {
-		_, err := locateProject(list, 0, "", "aacpanel")
+		_, err := locateProject(list, 0, "", "aacpanel", nil, nil)
 		if err == nil {
 			t.Fatal("an ambiguous name opened the first project that turned up")
 		}
@@ -140,8 +140,38 @@ func TestLocateProject(t *testing.T) {
 		}
 	})
 
+	roots := []string{"/srv/proj", "/home/u"}
+	worktrees := map[string]string{"/srv/proj/Labs/aacpanel-fix": "/srv/proj/Labs/aacpanel"}
+	owner := []struct {
+		name, cwd string
+		want      int
+	}{
+		{"a worktree kept inside the project", "/srv/proj/Labs/aacpanel/.claude/worktrees/fix", 200},
+		{"a directory inside the project", "/srv/proj/Beta/service/aacpanel/web", 100},
+		{"a git worktree kept beside the repository", "/srv/proj/Labs/aacpanel-fix", 200},
+		{"a directory inside such a worktree", "/srv/proj/Labs/aacpanel-fix/web", 200},
+	}
+	for _, c := range owner {
+		t.Run(c.name+" belongs to its project and is resumed where it ran", func(t *testing.T) {
+			found, err := locateProject(list, 0, c.cwd, "fix", worktrees, roots)
+			if err != nil || found == nil {
+				t.Fatalf("the project of %s was not found: %v", c.cwd, err)
+			}
+			if found.project.ID != c.want || found.at != c.cwd {
+				t.Errorf("project %d at %q, expected %d at %q", found.project.ID, found.at, c.want, c.cwd)
+			}
+		})
+	}
+
+	t.Run("the home directory owns nothing under it", func(t *testing.T) {
+		found, err := locateProject(list, 0, "/home/u/.local/state/bench/worktree", "worktree", worktrees, roots)
+		if err != nil || found != nil {
+			t.Errorf("a directory under home went to %+v (%v) — it would start in the home session's contour", found, err)
+		}
+	})
+
 	t.Run("not found is not a refusal", func(t *testing.T) {
-		found, err := locateProject(list, 0, "", "no-such-name")
+		found, err := locateProject(list, 0, "", "no-such-name", nil, nil)
 		if err != nil || found != nil {
 			t.Errorf("a name that was not found gave %v / %+v — a quiet do not know was expected", err, found)
 		}

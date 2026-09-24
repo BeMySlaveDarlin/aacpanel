@@ -128,6 +128,11 @@ func sessionNameOf(p store.ProfileProject) string {
 type mapProject struct {
 	profile store.Profile
 	project store.ProfileProject
+	// at is where the conversation runs when that is not the project's own
+	// directory: a worktree of it or a directory inside it. The conversation is
+	// resumed there — its transcript is kept by that directory — with the
+	// launch parameters of the project.
+	at string
 }
 
 func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, target string) (*action.Project, int, error) {
@@ -150,7 +155,7 @@ func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, 
 		return nil, 0, nil
 	}
 
-	found, err := locateProject(list, id, cwd, target)
+	found, err := locateProject(list, id, cwd, target, s.worktrees(), s.db.ProjectRoots())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -158,7 +163,11 @@ func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, 
 		return nil, 0, nil
 	}
 
-	dir, err := store.CheckProjectPath(found.project.Path, s.db.ProjectRoots())
+	at := found.project.Path
+	if found.at != "" {
+		at = found.at
+	}
+	dir, err := store.CheckProjectPath(at, s.db.ProjectRoots())
 	if err != nil {
 		return nil, 0, fmt.Errorf("project %q cannot be opened: %w", found.project.Name, err)
 	}
@@ -175,7 +184,46 @@ func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, 
 	}, found.project.ID, nil
 }
 
-func locateProject(list []store.Profile, id int, cwd, target string) (*mapProject, error) {
+func (s *Server) worktrees() map[string]string {
+	if s.host == nil {
+		return nil
+	}
+	return s.host.Worktrees()
+}
+
+// projectOwning finds the project a directory outside the map belongs to:
+// the nearest directory above it that is a project, or the main checkout of
+// the git worktree it is in. Worktrees kept inside a project and directories
+// inside a project are found the first way, worktrees kept beside the
+// repository the second. The climb stops below a root: a project that is a
+// root itself — the home directory — holds the machine's own session, not the
+// projects under it, and taking it for their owner would start them in its
+// contour.
+func projectOwning(list []store.Profile, dir string, worktreeOf map[string]string, roots []string) (mapProject, bool) {
+	for d := dir; belowRoot(d, roots); d = path.Dir(d) {
+		if found, ok := projectByPath(list, d); ok {
+			return found, true
+		}
+		if main := worktreeOf[d]; main != "" && main != dir {
+			if found, ok := projectOwning(list, main, nil, roots); ok {
+				return found, true
+			}
+		}
+	}
+	return mapProject{}, false
+}
+
+func belowRoot(dir string, roots []string) bool {
+	for _, root := range roots {
+		root = strings.TrimRight(root, "/")
+		if root != "" && strings.HasPrefix(dir, root+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func locateProject(list []store.Profile, id int, cwd, target string, worktreeOf map[string]string, roots []string) (*mapProject, error) {
 	if id > 0 {
 		found, ok := projectByID(list, id)
 		if !ok {
@@ -185,6 +233,10 @@ func locateProject(list []store.Profile, id int, cwd, target string) (*mapProjec
 	}
 	if dir := strings.TrimRight(strings.TrimSpace(cwd), "/"); dir != "" {
 		if found, ok := projectByPath(list, dir); ok {
+			return &found, nil
+		}
+		if found, ok := projectOwning(list, path.Clean(dir), worktreeOf, roots); ok {
+			found.at = path.Clean(dir)
 			return &found, nil
 		}
 	}

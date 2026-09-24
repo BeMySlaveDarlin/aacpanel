@@ -65,6 +65,24 @@ class Scan(unittest.TestCase):
         self.assertTrue(rows[site]["claude"])
         self.assertFalse(rows[site]["git"])
 
+    def test_a_git_worktree_names_its_main_checkout(self):
+        main = os.path.dirname(self.mk("Beta", "shop", ".git"))
+        admin = self.mk("Beta", "shop", ".git", "worktrees", "shop-fix")
+        with open(os.path.join(admin, "commondir"), "w", encoding="utf-8") as f:
+            f.write("../..\n")
+        sister = self.mk("Beta", "shop-fix")
+        with open(os.path.join(sister, ".git"), "w", encoding="utf-8") as f:
+            f.write(f"gitdir: {admin}\n")
+        broken = self.mk("Beta", "orphan")
+        with open(os.path.join(broken, ".git"), "w", encoding="utf-8") as f:
+            f.write("gitdir: /nowhere/.git/worktrees/orphan\n")
+
+        rows = {d["path"]: d for d in projects.scan()["dirs"]}
+        self.assertEqual(rows[sister].get("worktreeOf"), main,
+                         "a session in the worktree could not find the project of its repository")
+        self.assertNotIn("worktreeOf", rows[main], "the main checkout is not a worktree of itself")
+        self.assertNotIn("worktreeOf", rows[broken], "a worktree whose repository is gone names nothing")
+
     def test_slug_repeats_the_rule_of_claude(self):
         self.assertEqual(projects.slug("/srv/proj/web-shop.example"), "-srv-proj-web-shop-example")
         self.assertEqual(projects.slug("/home/u/.cache"), "-home-u--cache")

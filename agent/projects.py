@@ -61,6 +61,33 @@ def known_slugs():
     return out
 
 
+def worktree_of(path):
+    """Returns the main checkout of a git worktree, or "" for anything else.
+
+    A worktree keeps a file named .git that points at its own directory inside
+    the main repository; that directory names the repository's git directory in
+    its commondir. A session started in a worktree belongs to the project of
+    the main checkout, which is what the map knows.
+    """
+    try:
+        with open(os.path.join(path, ".git"), encoding="utf-8") as f:
+            line = f.readline().strip()
+    except (OSError, UnicodeDecodeError):
+        return ""
+    if not line.startswith("gitdir:"):
+        return ""
+    gitdir = os.path.normpath(os.path.join(path, line[len("gitdir:"):].strip()))
+    try:
+        with open(os.path.join(gitdir, "commondir"), encoding="utf-8") as f:
+            common = os.path.normpath(os.path.join(gitdir, f.readline().strip()))
+    except (OSError, UnicodeDecodeError):
+        return ""
+    if os.path.basename(common) != ".git":
+        return ""
+    main = os.path.dirname(common)
+    return main if main != path else ""
+
+
 def scan():
     """Returns a snapshot of directories: roots, depth and everything the walk saw."""
     seen = known_slugs()
@@ -82,7 +109,11 @@ def _walk(path, depth, seen, dirs):
         git = ".git" in names
         claude = slug(path) in seen
         if git or claude or any(m in names for m in MARKERS):
-            dirs.append({"path": path, "kind": "project", "git": git, "claude": claude})
+            row = {"path": path, "kind": "project", "git": git, "claude": claude}
+            main = worktree_of(path) if git else ""
+            if main:
+                row["worktreeOf"] = main
+            dirs.append(row)
             return
         if depth >= DEPTH:
             return

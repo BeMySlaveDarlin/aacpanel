@@ -113,6 +113,34 @@ type LiveSession struct {
 	Transport string `json:"transport"`
 }
 
+// Worktrees maps the git worktrees the agent saw on disk to their main
+// checkouts. A session run in a worktree belongs to the project of the main
+// checkout, and the service cannot look at the disk to find it out.
+func (h *Reader) Worktrees() map[string]string {
+	raw, err := h.Raw()
+	if err != nil {
+		return nil
+	}
+	var snapshot struct {
+		Projects struct {
+			Dirs []struct {
+				Path       string `json:"path"`
+				WorktreeOf string `json:"worktreeOf"`
+			} `json:"dirs"`
+		} `json:"projects"`
+	}
+	if json.Unmarshal(raw, &snapshot) != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for _, d := range snapshot.Projects.Dirs {
+		if d.WorktreeOf != "" {
+			out[d.Path] = d.WorktreeOf
+		}
+	}
+	return out
+}
+
 // LiveSession returns a live session by name together with whether it was found.
 func (h *Reader) LiveSession(name string) (LiveSession, bool) {
 	payload, err := h.JSON()

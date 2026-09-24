@@ -367,6 +367,17 @@ session carries launch parameters that live in the profile map, and a restart
 without them would silently bring it up in another setup, possibly under another
 account. A project session is closed here and opened again from the map.
 
+**A conversation is resumed where it ran, with the parameters of the project
+it belongs to.** Its transcript is kept by the directory it ran in, so a
+session from a worktree or a subdirectory comes back there, not in the
+project's own directory. The project is the nearest directory above it that is
+in the map, or, for a git worktree kept beside its repository, the project of
+the main checkout — the agent reads that off the worktree's `.git` file, since
+the service does not see the disk. The climb stops below a project root: a
+project that is a root itself, like the home directory, holds the machine's own
+session, and taking it for the owner of whatever lies under it would start that
+in another account.
+
 **Kinds are split by intent, not by convenience.** Answering a question and
 dismissing a question are different actions, because their consequences differ.
 A file is not a field inside a message but a kind of its own: the panel asks the
