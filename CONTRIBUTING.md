@@ -83,10 +83,11 @@ The database is a service container there, and a run where the tests with a
 database quietly skipped is failed on purpose: without `AACP_TEST_DSN` forty of
 them pass by doing nothing, and the run stays green.
 
-Separately, outside `check`, because they need data that not every machine has:
+Separately, outside `check`, because they need what not every machine has — live transcripts, a signed-in claude and the tokens it spends:
 
 ```bash
 make usage-replay    # incremental usage collection against a straight pass over live transcripts
+make stream-contract # the stream protocol of the installed claude, before sessions move to a new version
 make skills-diff     # whether the shipped skills have parted from the installed ones
 ```
 
