@@ -73,7 +73,9 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.SessionRestart:
 		return e.sessionRestart(ctx, req.Target)
 	case action.SessionSend:
-		return e.sessionSend(ctx, req.Target, req.Text)
+		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID)
+	case action.SessionUnqueue:
+		return e.sessionUnqueue(ctx, req.Target, req.MessageID)
 	case action.SessionAnswer:
 		return e.sessionAnswer(ctx, req.Target, req.Answer)
 	case action.SessionDismiss:

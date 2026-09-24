@@ -138,7 +138,10 @@ var instantActions = map[string]bool{
 	// presses nothing. It takes a session out of a dialog it put up, which is
 	// no more than writing into it — and a second sheet in front of a button
 	// the person pressed to recover from a refusal is a sheet in the way.
-	"session.escape":  true,
+	"session.escape": true,
+	// Taking back a message the person sent is no more than not sending it:
+	// the message is the person's own, and it goes back into the composer.
+	"session.unqueue": true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -147,12 +150,13 @@ var instantActions = map[string]bool{
 }
 
 var instantExecActions = map[string]bool{
-	"session.send":   true,
-	"session.answer": true,
-	"session.stop":   true,
-	"session.permit": true,
-	"session.file":   true,
-	"session.escape": true,
+	"session.send":    true,
+	"session.answer":  true,
+	"session.stop":    true,
+	"session.permit":  true,
+	"session.file":    true,
+	"session.escape":  true,
+	"session.unqueue": true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

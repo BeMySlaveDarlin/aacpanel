@@ -343,7 +343,7 @@ func TestSessionSendSaysWhenDeliveryIsUnconfirmed(t *testing.T) {
 	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 751}, blind: true})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs")
+	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
 	if err != nil {
 		t.Fatalf("sending failed: %v", err)
 	}
@@ -440,7 +440,7 @@ func TestSessionSendConfirmsFromIdleComposer(t *testing.T) {
 	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 781}, swallow: 0})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs and say what crashed")
+	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs and say what crashed", "")
 	if err != nil {
 		t.Fatalf("sending failed: %v", err)
 	}

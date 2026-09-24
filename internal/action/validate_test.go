@@ -342,3 +342,30 @@ func TestSwitchSaysWhereAndCarriesItsProject(t *testing.T) {
 		t.Fatal("session.switch is missing from Kinds — the executor would reject it as unknown")
 	}
 }
+
+func TestAMessageIDNamesASentOrQueuedMessage(t *testing.T) {
+	const id = "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1"
+	cases := []struct {
+		name string
+		req  Request
+		ok   bool
+	}{
+		{"a send that names its message", Request{ID: "1", Kind: SessionSend, Target: "a", Text: "hi", MessageID: id}, true},
+		{"a send without one", Request{ID: "1", Kind: SessionSend, Target: "a", Text: "hi"}, true},
+		{"taking a message back", Request{ID: "1", Kind: SessionUnqueue, Target: "a", MessageID: id}, true},
+		{"taking back nothing", Request{ID: "1", Kind: SessionUnqueue, Target: "a"}, false},
+		{"a message id that is not a uuid", Request{ID: "1", Kind: SessionUnqueue, Target: "a", MessageID: "$(rm)"}, false},
+		{"a message id riding another action", Request{ID: "1", Kind: SessionClose, Target: "a", MessageID: id}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.req.Validate()
+			if c.ok && err != nil {
+				t.Errorf("a sound request is rejected: %v", err)
+			}
+			if !c.ok && err == nil {
+				t.Error("the request is accepted, though it must not be")
+			}
+		})
+	}
+}

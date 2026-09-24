@@ -836,3 +836,28 @@ func TestRunActionCarriesNotesToExecutor(t *testing.T) {
 		t.Fatalf("the notes reached the executor as %+v", got.Answer)
 	}
 }
+
+func TestRunActionCarriesTheMessageIDToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	const id = "11111111-2222-4333-8444-555555555555"
+	for _, body := range []string{
+		`{"kind":"session.send","target":"aacpanel","params":{"text":"hi","messageId":"` + id + `"}}`,
+		`{"kind":"session.unqueue","target":"aacpanel","params":{"messageId":"` + id + `"}}`,
+	} {
+		if w := post(t, srv, body); w.Code != http.StatusOK {
+			t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+		}
+		select {
+		case got := <-fake.got:
+			if got.MessageID != id {
+				t.Errorf("%s reached the executor without its message id: %+v", got.Kind, got)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("the executor did not get the request")
+		}
+	}
+	if w := post(t, srv, `{"kind":"session.unqueue","target":"aacpanel","params":{}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("taking back no message is accepted: %d", w.Code)
+	}
+}

@@ -117,6 +117,15 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		text, _ := body.Params["text"].(string)
 		req.Text = text
 		params = map[string]any{"chars": len([]rune(text))}
+		if id, _ := body.Params["messageId"].(string); id != "" {
+			req.MessageID = id
+			params["message"] = id
+		}
+	}
+	if req.Kind == action.SessionUnqueue {
+		id, _ := body.Params["messageId"].(string)
+		req.MessageID = id
+		params = map[string]any{"message": id}
 	}
 	if req.Kind == action.SessionFile {
 		files, err := filesFromParams(body.Params)

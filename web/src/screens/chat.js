@@ -33,6 +33,7 @@ import { AttachSheet, HeadTools } from "./chat/tools.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
 import { WindowToggle } from "./chat/window.js";
 import { SwitchToggle } from "./chat/switch.js";
+import { TakeBack } from "./chat/takeback.js";
 import { Term, useTermAvailable } from "./chat/term.js";
 import { useViewPick } from "./chat/viewpick.js";
 import { useViewing } from "../viewing.js";
@@ -318,7 +319,14 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 onFile=${(file) => setLook({ kind: "file", ...file })}
                 onBrief=${openBrief}
             />`)}
-            ${pending.map((row) => html`<${Row} key=${`local-${row.key}`} item=${row} />`)}
+            ${pending.map((row) => html`
+                <${Row} key=${`local-${row.key}`} item=${row} />
+                ${row.state === "queued" && live && live.transport === "stream" && html`
+                    <${TakeBack} key=${`back-${row.key}`} row=${row} name=${name} exec=${exec}
+                                 onGone=${(key) => setLocal((was) => was.filter((l) => l.key !== key))}
+                                 onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />
+                `}
+            `)}
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
         `}

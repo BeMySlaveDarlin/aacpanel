@@ -451,6 +451,31 @@ func (h *Holder) send(text, id string) (string, error) {
 	return id, nil
 }
 
+// cancelled reads whether claude took a message back from its queue.
+func cancelled(resp json.RawMessage) bool {
+	var body struct {
+		Response struct {
+			Cancelled bool `json:"cancelled"`
+		} `json:"response"`
+	}
+	return json.Unmarshal(resp, &body) == nil && body.Response.Cancelled
+}
+
+// unqueue forgets a message claude took back: it will never be read, and a
+// queue that still held it would stand in the way of a switch for good.
+func (h *Holder) unqueue(id string) {
+	h.mu.Lock()
+	kept := h.state.Queue[:0]
+	for _, q := range h.state.Queue {
+		if q.UUID != id {
+			kept = append(kept, q)
+		}
+	}
+	h.state.Queue = kept
+	h.mu.Unlock()
+	h.saveSummary()
+}
+
 // picked remembers a model or an effort chosen by a message: a slash command
 // is a message on the stream, whether the panel sent it or a person typed it.
 func (h *Holder) picked(text string) {
@@ -599,6 +624,9 @@ func (h *Holder) do(req Request) Reply {
 		if model, ok := req.Fields["model"].(string); ok && req.Subtype == "set_model" {
 			h.picked("/model " + model)
 			h.saveSummary()
+		}
+		if id, ok := req.Fields["message_uuid"].(string); ok && req.Subtype == "cancel_async_message" && cancelled(resp) {
+			h.unqueue(id)
 		}
 		return Reply{OK: true, Response: resp}
 	case OpClose:

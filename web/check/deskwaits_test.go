@@ -206,6 +206,7 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		// Esc changes nothing in the list of sessions: the session goes on
 		// standing where it stood, only its composer comes back.
 		"session.escape":  "",
+		"session.unqueue": "",
 		"session.file":    "",
 		"session.command": "",
 	}

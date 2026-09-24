@@ -55,6 +55,16 @@ func fakeClaude() int {
 				body = map[string]any{"still_queued": []any{}}
 			case "set_model":
 				out(map[string]any{"type": "system", "subtype": "init", "model": req["model"]})
+			case "cancel_async_message":
+				found := false
+				for i, m := range held {
+					if m["uuid"] == req["message_uuid"] {
+						held = append(held[:i], held[i+1:]...)
+						found = true
+						break
+					}
+				}
+				body = map[string]any{"cancelled": found}
 			}
 			out(map[string]any{"type": "control_response", "response": map[string]any{
 				"subtype": "success", "request_id": msg["request_id"], "response": body}})
@@ -259,6 +269,28 @@ func TestAQuestionWaitsForAPersonAndTheAnswerReachesClaude(t *testing.T) {
 	r.waitFor("the question to go", func(s State) bool { return len(s.Pending) == 0 })
 	if got := r.eventually(`"Blue"`); !strings.Contains(got, `"request_id":"cc-1"`) {
 		t.Fatalf("the answer did not reach claude:\n%s", got)
+	}
+}
+
+// A message taken back from claude's queue leaves the holder's queue too: it
+// will never be read, and a queue that kept it would block a switch for good.
+func TestAMessageTakenBackLeavesTheQueue(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	const id = "11111111-2222-4333-8444-555555555555"
+	if reply := r.ask(Request{Op: OpSend, Text: "slow", UUID: id}); !reply.OK || reply.UUID != id {
+		t.Fatalf("send: %+v", reply)
+	}
+	reply := r.ask(Request{Op: OpControl, Subtype: "cancel_async_message", Fields: map[string]any{"message_uuid": id}})
+	if !reply.OK || !strings.Contains(string(reply.Response), `"cancelled":true`) {
+		t.Fatalf("cancel: %+v", reply)
+	}
+	if s := r.state(); len(s.Queue) != 0 {
+		t.Errorf("a message claude took back is still in the holder's queue: %+v", s.Queue)
+	}
+	again := r.ask(Request{Op: OpControl, Subtype: "cancel_async_message", Fields: map[string]any{"message_uuid": id}})
+	if !again.OK || !strings.Contains(string(again.Response), `"cancelled":false`) {
+		t.Errorf("a message no longer queued was reported taken back: %+v", again)
 	}
 }
 

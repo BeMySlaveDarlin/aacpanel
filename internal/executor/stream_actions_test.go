@@ -24,6 +24,8 @@ type fakeHolder struct {
 	got   []stream.Request
 	// Ops the holder answers with an error, as a holder that cannot do them.
 	fails map[string]string
+	// What claude answers to a control request, by its subtype.
+	answers map[string]string
 }
 
 func (f *fakeHolder) asked() []stream.Request {
@@ -60,8 +62,12 @@ func onTheStream(t *testing.T, busy bool, pending ...stream.Pending) *fakeHolder
 			}
 			st := f.state
 			failed := f.fails[r.Op]
+			answer := f.answers[r.Subtype]
 			f.mu.Unlock()
 			reply := stream.Reply{OK: true}
+			if answer != "" {
+				reply.Response = json.RawMessage(answer)
+			}
 			if r.Op == stream.OpState {
 				reply.State = &st
 			}
@@ -363,5 +369,56 @@ func TestAPermissionOnTheStreamShowsTheWholeInput(t *testing.T) {
 	cut := permissionLines(long(permLines + 100))
 	if len(cut) != permLines+1 || cut[permLines] != "… 100 more lines" {
 		t.Errorf("a runaway is shown as %d lines, ending %q", len(cut), cut[len(cut)-1])
+	}
+}
+
+const queuedID = "11111111-2222-4333-8444-555555555555"
+
+func TestASendOnTheStreamCarriesTheIDOfItsMessage(t *testing.T) {
+	f := onTheStream(t, true)
+	e, _ := newTest(t, "")
+	r := req(action.SessionSend, "demo")
+	r.Text, r.MessageID = "and then the tests", queuedID
+	if _, err := e.Execute(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	if got := only(t, f); got.Op != stream.OpSend || got.UUID != queuedID {
+		t.Errorf("the holder was asked %+v: the message would not be found to be taken back", got)
+	}
+}
+
+func TestAQueuedMessageIsTakenBack(t *testing.T) {
+	f := onTheStream(t, true)
+	f.mu.Lock()
+	f.answers = map[string]string{"cancel_async_message": `{"subtype":"success","response":{"cancelled":true}}`}
+	f.mu.Unlock()
+	e, _ := newTest(t, "")
+	r := req(action.SessionUnqueue, "demo")
+	r.MessageID = queuedID
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := only(t, f)
+	if got.Subtype != "cancel_async_message" || got.Fields["message_uuid"] != queuedID {
+		t.Errorf("the holder was asked %+v", got)
+	}
+	if !strings.Contains(detail, "taken back") {
+		t.Errorf("the report %q does not say the message was taken back", detail)
+	}
+}
+
+// A message the session has already read cannot be taken back, and the panel
+// says so rather than pretending it was.
+func TestAMessageAlreadyReadIsNotTakenBack(t *testing.T) {
+	f := onTheStream(t, true)
+	f.mu.Lock()
+	f.answers = map[string]string{"cancel_async_message": `{"subtype":"success","response":{"cancelled":false}}`}
+	f.mu.Unlock()
+	e, _ := newTest(t, "")
+	r := req(action.SessionUnqueue, "demo")
+	r.MessageID = queuedID
+	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "already delivered") {
+		t.Fatalf("a message already read passed for taken back: %v", err)
 	}
 }

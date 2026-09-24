@@ -267,6 +267,17 @@ button.filepic {
 }
 .magain .mwait { margin: 0; }
 
+/* Under a message still waiting in the queue of a session on the stream: it
+   can be taken back, or taken back into the composer to be written again. */
+.mqueue {
+    display: flex;
+    justify-content: flex-end;
+    gap: .4rem;
+    margin-top: .2rem;
+}
+.mqueue .btn { padding: .2rem .6rem; font-size: var(--t-xs); }
+.mqueuefail { text-align: right; }
+
 .mwait {
     margin: .3rem 0 0;
     font-family: var(--mono);

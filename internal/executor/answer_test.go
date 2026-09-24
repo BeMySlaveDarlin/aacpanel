@@ -352,7 +352,7 @@ func TestKonsoleFindsRightBus(t *testing.T) {
 	log := fakeBusctlOnBus(t, want, map[string]int{"/Sessions/1": 901})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "probe")
+	detail, err := e.sessionSend(t.Context(), "aacpanel", "probe", "")
 	if err != nil {
 		t.Fatalf("sending failed: %v", err)
 	}

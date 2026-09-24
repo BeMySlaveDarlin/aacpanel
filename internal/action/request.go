@@ -33,6 +33,10 @@ type Request struct {
 
 	Switch *Switch `json:"switch,omitempty"`
 
+	// MessageID names a message sent to a session on the stream, so that it can
+	// be taken back from the queue while it waits there.
+	MessageID string `json:"messageId,omitempty"`
+
 	Ask string `json:"ask,omitempty"`
 }
 

@@ -289,6 +289,13 @@ permission shows the tool's whole input rather than what fits a screen. A note
 sent to a terminal session is refused with the answer: its dialog has no field
 for one, and an answer that silently lost it would say less than the person did.
 
+**A message waiting in the queue of a stream session can be taken back**
+(`session.unqueue`). The panel names each message it sends there, the holder
+passes the name on, and taking back is claude's own request to drop a queued
+message: the holder forgets it too, or its queue would block a switch for good.
+Editing is taking back into the composer. A message read before the press is
+not in the queue any more, and the answer says it was delivered.
+
 **A switch moves a live session between the two** (`session.switch`): the
 executor closes the process on one side and resumes the same conversation on
 the other, under the same name. The id and the history stay; the process does
@@ -363,7 +370,7 @@ Twenty-three actions, and the list is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.permit`, `session.switch` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.permit`, `session.switch`, `session.unqueue` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |

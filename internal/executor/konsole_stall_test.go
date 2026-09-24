@@ -89,7 +89,7 @@ func TestSessionSendStallOnPasteSaysUnknown(t *testing.T) {
 	fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 501}, swallow: 1, stallSend: true})
 
 	e := &Executor{}
-	_, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs")
+	_, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
 	if err == nil {
 		t.Fatal("konsole stayed silent on sendText, yet the send succeeded")
 	}
@@ -114,7 +114,7 @@ func TestSessionSendReportsSecondAttempt(t *testing.T) {
 	fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 501}, swallow: 1, stallTree: 1})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs")
+	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
 	if err != nil {
 		t.Fatalf("the window came back to life, yet the send failed: %v", err)
 	}

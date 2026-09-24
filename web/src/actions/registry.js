@@ -181,6 +181,11 @@ export const ACTIONS = {
         ok: "Move",
         danger: (params) => Boolean(params && params.stops),
     },
+    "session.unqueue": {
+        instant: true,
+        effect: "The message leaves the queue before the session reads it; editing puts its words back into the composer.",
+        done: (target) => `Taken back from the queue of ${target}`,
+    },
     "session.send": {
         instant: true,
         done: (target) => `Sent to ${target}`,
@@ -550,6 +555,7 @@ const NAMES = {
     "session.resume": "Resume session",
     "session.switch": "Move between console and feed",
     "session.send": "Write to session",
+    "session.unqueue": "Take back a queued message",
     "session.answer": "Answer the question",
     "session.dismiss": "Dismiss the question",
     "session.permit": "Answer the permission request",

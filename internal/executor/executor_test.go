@@ -1536,7 +1536,7 @@ func TestSessionSendDelivers(t *testing.T) {
 	sessionFiles(t, fakeSession{pid: 300, name: "aacpanel", start: "77", socket: socket, status: "busy"})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs")
+	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
 	if err != nil {
 		t.Fatalf("sending failed: %v", err)
 	}
@@ -1641,7 +1641,7 @@ func TestSessionSendRefusesUnknown(t *testing.T) {
 	sessionFiles(t, fakeSession{pid: 301, name: "aacpanel-2", start: "78", socket: socket})
 
 	e := &Executor{}
-	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello"); err == nil {
+	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); err == nil {
 		t.Fatal("sending to a session that does not exist succeeded")
 	} else if !strings.Contains(err.Error(), "aacpanel-2") {
 		t.Errorf("the error %q does not list the live sessions", err)
@@ -1658,7 +1658,7 @@ func TestSessionSendRefusesNamesakes(t *testing.T) {
 		fakeSession{pid: 303, name: "aacpanel", start: "80", socket: socket})
 
 	e := &Executor{}
-	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello"); err == nil {
+	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); err == nil {
 		t.Fatal("sending succeeded with two namesakes around — the reply went at random")
 	}
 }
@@ -1668,7 +1668,7 @@ func TestSessionSendNeedsSocket(t *testing.T) {
 	sessionFiles(t, fakeSession{pid: 304, name: "aacpanel", start: "81"})
 
 	e := &Executor{}
-	_, err := e.sessionSend(t.Context(), "aacpanel", "hello")
+	_, err := e.sessionSend(t.Context(), "aacpanel", "hello", "")
 	if err == nil {
 		t.Fatal("sending succeeded without a socket")
 	}
@@ -1683,7 +1683,7 @@ func TestSessionSendChecksProcessIdentity(t *testing.T) {
 	sessionFiles(t, fakeSession{pid: 305, name: "aacpanel", start: "82", socket: socket})
 
 	e := &Executor{}
-	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello"); err == nil {
+	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); err == nil {
 		t.Fatal("the reply went to a process that merely took over the number of the old one")
 	}
 }
@@ -1874,7 +1874,7 @@ func TestSessionSendTypesIntoKonsole(t *testing.T) {
 	log := fakeBusctl(t, map[string]int{"/Sessions/1": 999, "/Sessions/2": 501})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs")
+	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
 	if err != nil {
 		t.Fatalf("sending failed: %v", err)
 	}
@@ -1920,7 +1920,7 @@ func TestSessionSendFallsBackToLetter(t *testing.T) {
 	fakeBusctl(t, map[string]int{"/Sessions/1": 601})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs")
+	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
 	if err != nil {
 		t.Fatalf("sending failed: %v", err)
 	}

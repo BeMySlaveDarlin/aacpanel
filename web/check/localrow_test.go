@@ -46,8 +46,10 @@ func TestUnarrivedRowsAreTheOnesTheFeedHasNotEchoed(t *testing.T) {
 	screen := screenSrc(t, "src/screens/chat.js")
 	for _, want := range []struct{ code, harm string }{
 		{"const pending = unarrived(local, state.items);", "the rows to draw are not read at render time"},
-		{"${pending.map((row) => html`<${Row} key=${`local-${row.key}`} item=${row} />`)}",
+		{"${pending.map((row) => html`",
 			"the feed draws the rows straight from the state — a row the transcript echoed stays on screen for a frame, twice"},
+		{"<${Row} key=${`local-${row.key}`} item=${row} />",
+			"a pending row is drawn under a key of its own kind, or not as a row of the feed at all"},
 		{"setLocal((was) => unarrived(was, state.items));", "the echoed rows never leave the state"},
 	} {
 		if !strings.Contains(screen, want.code) {

@@ -27,17 +27,20 @@ type liveSession struct {
 	Started   time.Time
 }
 
-func (e *Executor) sessionSend(ctx context.Context, target, text string) (string, error) {
+func (e *Executor) sessionSend(ctx context.Context, target, text, messageID string) (string, error) {
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return "", err
+	}
+	if onStream(s) {
+		return streamSend(ctx, s, text, messageID)
 	}
 	return deliverText(ctx, s, senderName, text)
 }
 
 func deliverText(ctx context.Context, s liveSession, from, text string) (string, error) {
 	if onStream(s) {
-		return streamSend(ctx, s, text)
+		return streamSend(ctx, s, text, "")
 	}
 	where := sessionWhere(s)
 

@@ -158,14 +158,22 @@ function saved(id) {
 }
 
 // deliver sends a message into a session, with files or without them.
-export function deliver(run, name, { text, files }) {
+export function deliver(run, name, { text, files, messageId }) {
     const pack = files || [];
     return pack.length
         ? run("session.file", name, {
             text,
             files: pack.map((f) => ({ name: f.name, data: f.data })),
         })
-        : run("session.send", name, { text });
+        : run("session.send", name, messageId ? { text, messageId } : { text });
+}
+
+// messageID names a message to a session on the stream, so that it can be
+// taken back while it waits in the queue. A terminal session gets none: its
+// queue is on its screen.
+function messageID(stream, pack) {
+    if (!stream || pack.length || typeof crypto === "undefined" || !crypto.randomUUID) return undefined;
+    return crypto.randomUUID();
 }
 
 // outcome turns a send result into the state of the local message row.
@@ -191,7 +199,10 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const [sending, setSending] = useState(false);
     useEffect(() => {
         if (!insert || !insert.text) return;
-        setText(withQuote(insert.text, text));
+        // A message taken back comes as it was written, ahead of whatever the
+        // composer already holds; a quote comes as a quote.
+        if (insert.message) setText(text.trim() ? `${insert.text}\n\n${text}` : insert.text);
+        else setText(withQuote(insert.text, text));
         requestAnimationFrame(() => {
             const el = area.current;
             if (!el) return;
@@ -288,6 +299,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         if (cmd) return sendCommand();
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");
+        const messageId = messageID(stream, pack);
         // A row that did not go out is drawn among the rows of the feed, and
         // those are written from the transcript — nothing is handed to them.
         // So the row carries what a second attempt takes: where the message
@@ -301,17 +313,18 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
             sent: body,
             file: named || undefined,
             from: { name, text: body, files: pack.length },
+            messageId,
             done: (patch) => { if (onLocalDone) onLocalDone(key, patch); },
         };
         setText("");
         if (pack.length && onDropFiles) onDropFiles();
         if (hold) {
-            if (onLocal) onLocal({ ...row, state: "held", hold: { text: body, files: pack } });
+            if (onLocal) onLocal({ ...row, state: "held", hold: { text: body, files: pack, messageId } });
             return;
         }
         setSending(true);
         if (onLocal) onLocal({ ...row, state: "sending" });
-        const result = await deliver(run, name, { text: body, files: pack });
+        const result = await deliver(run, name, { text: body, files: pack, messageId });
         setSending(false);
         if (onLocalDone) onLocalDone(key, outcome(result));
     };

@@ -57,12 +57,12 @@ func streamState(ctx context.Context, s liveSession) (stream.State, error) {
 	return *reply.State, nil
 }
 
-func streamSend(ctx context.Context, s liveSession, text string) (string, error) {
+func streamSend(ctx context.Context, s liveSession, text, messageID string) (string, error) {
 	st, err := streamState(ctx, s)
 	if err != nil {
 		return "", err
 	}
-	if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpSend, Text: text}); err != nil {
+	if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpSend, Text: text, UUID: messageID}); err != nil {
 		return "", err
 	}
 	where := "free — it will read it right away"
@@ -93,6 +93,36 @@ func streamCommand(ctx context.Context, s liveSession, cmd *action.Command) (str
 		return fmt.Sprintf("%s sent to %s on the stream: it is busy, the command waits in its queue", line, s.Name), nil
 	}
 	return fmt.Sprintf("%s sent to %s on the stream", line, s.Name), nil
+}
+
+// sessionUnqueue takes a message back from the queue of a session on the
+// stream. A message the session has already read is not in the queue any more,
+// and the answer says so instead of pretending it was taken back.
+func (e *Executor) sessionUnqueue(ctx context.Context, target, messageID string) (string, error) {
+	s, err := findOneLiveSession(target)
+	if err != nil {
+		return "", err
+	}
+	if !onStream(s) {
+		return "", fmt.Errorf("session %s runs in a terminal: its queue is on its screen, and the panel does not take "+
+			"messages back from there", s.Name)
+	}
+	reply, err := streamAsk(ctx, s, stream.Request{Op: stream.OpControl, Subtype: "cancel_async_message",
+		Fields: map[string]any{"message_uuid": messageID}})
+	if err != nil {
+		return "", err
+	}
+	var body struct {
+		Response struct {
+			Cancelled bool `json:"cancelled"`
+		} `json:"response"`
+		Cancelled bool `json:"cancelled"`
+	}
+	_ = json.Unmarshal(reply.Response, &body)
+	if !body.Cancelled && !body.Response.Cancelled {
+		return "", fmt.Errorf("the message is already delivered: %s has read it, and it can no longer be taken back", s.Name)
+	}
+	return fmt.Sprintf("the message was taken back from the queue of %s before it was read", s.Name), nil
 }
 
 func streamInterrupt(ctx context.Context, s liveSession) (string, error) {

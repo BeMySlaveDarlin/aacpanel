@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// A busy session on the stream: a message sent now waits in its queue, and can
+// be taken back — into the composer to be edited, or away for good. A second
+// message is read by the session before the press, and the panel says so.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const sent = [];
+let unqueues = 0;
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u === "/api/actions") {
+        const body = JSON.parse((init && init.body) || "{}");
+        sent.push(body);
+        if (body.kind === "session.unqueue") {
+            unqueues += 1;
+            if (unqueues === 2) return json({ error: "the message is already delivered: evirma has read it", logged: true }, 502);
+        }
+        return json({ logged: true, ok: true, detail: "ok" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.send", "session.unqueue", "session.stop"] };
+const live = { status: "busy", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj" };
+function Page() {
+    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function write(text) {
+    const area = document.querySelector("textarea");
+    area.value = text;
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(80);
+    document.querySelector("button.iconbtn.accent").click();
+    await sleep(250);
+}
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 80 && !document.querySelector("textarea"); i += 1) await sleep(50);
+    await sleep(200);
+    await write("run the e2e suite too");
+    const tools = document.querySelectorAll(".mqueue");
+    const out = { tools: tools.length };
+    tools[0].querySelectorAll(".btn")[0].click();
+    await sleep(300);
+    out.composer = document.querySelector("textarea").value;
+    out.rowsAfterEdit = document.querySelectorAll(".mqueue").length;
+    await write("and then deploy");
+    document.querySelector(".mqueue").querySelectorAll(".btn")[1].click();
+    await sleep(300);
+    out.fail = (document.querySelector(".mqueuefail") || {}).textContent || "";
+    out.rowsAfterRead = document.querySelectorAll(".mqueue").length;
+    out.sent = sent;
+    return out;
+})();
+</script>

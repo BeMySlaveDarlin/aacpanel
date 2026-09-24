@@ -266,6 +266,16 @@ func (r Request) Validate() error {
 			return err
 		}
 	}
+	if r.MessageID != "" {
+		if r.Kind != SessionSend && r.Kind != SessionUnqueue {
+			return badRequest("action %s names no message", r.Kind)
+		}
+		if !safeUUID(r.MessageID) {
+			return badRequest("the message id does not look like a uuid")
+		}
+	} else if r.Kind == SessionUnqueue {
+		return badRequest("action %s without the message to take back", r.Kind)
+	}
 	if r.Kind == SessionSwitch {
 		if r.Switch == nil {
 			return badRequest("action %s without where to move the session", r.Kind)

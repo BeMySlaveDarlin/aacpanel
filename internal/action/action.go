@@ -38,6 +38,10 @@ const (
 	// SessionPermit answers a permission prompt.
 	SessionPermit Kind = "session.permit"
 
+	// SessionUnqueue takes back a message that waits in the queue of a session
+	// on the stream, before the session reads it.
+	SessionUnqueue Kind = "session.unqueue"
+
 	// SessionSwitch moves a live session between the console and the feed:
 	// the same conversation is closed on one side and resumed on the other.
 	SessionSwitch Kind = "session.switch"
@@ -61,7 +65,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
 	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
-	SessionPermit, SessionSwitch, TaskStop, AgentStop, WindowOpen, WindowClose,
+	SessionPermit, SessionSwitch, SessionUnqueue, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }
 
