@@ -137,6 +137,13 @@ class Windows(Repo):
         with self.assertRaises(repo.RepoError):
             repo.blob(self.dir, "/etc/passwd")
 
+    def test_the_key_of_a_file_is_the_one_git_gives_it(self):
+        # The service keeps coloured copies under this key, and the key is
+        # counted without git so that a directory git does not keep has one too.
+        write(self.dir, "keep.txt", "one\ntwo\nthree\nfour\n")
+        want = git(self.dir, "hash-object", "keep.txt").strip()
+        self.assertEqual(repo.blob(self.dir, "keep.txt")["oid"], want)
+
     def test_a_binary_file_is_named_rather_than_sent(self):
         with open(os.path.join(self.dir, "bin.dat"), "wb") as f:
             f.write(b"\x7fELF\x00\x00\x00\x00" + b"x" * 200)
@@ -227,12 +234,14 @@ class Commits(Repo):
             repo.commit(self.dir, "HEAD; rm -rf /")
 
 
-class NoRepository(unittest.TestCase):
+class Plain(unittest.TestCase):
     def setUp(self):
         self.dir = test_barrier.tmp_path(prefix="plain")
         self.addCleanup(subprocess.run, ("rm", "-rf", self.dir))
         write(self.dir, "notes.md", "a shelf of notes, not a repository\n")
 
+
+class NoRepository(Plain):
     def test_a_directory_without_a_repository_is_a_state_and_not_a_failure(self):
         # A project can be a shelf of notes or a stand. Answering it with what
         # git shouted is the panel shouting at its own screen.
@@ -242,12 +251,180 @@ class NoRepository(unittest.TestCase):
         self.assertEqual(out["repo"].get("root"), os.path.realpath(self.dir))
         self.assertNotIn("error", out)
 
-    def test_every_operation_answers_the_same_way(self):
-        for op in ("refs", "tree", "blob", "diff", "commit"):
+    def test_every_operation_of_a_branch_answers_the_same_way(self):
+        for op in ("refs", "changes", "diff", "commit"):
             with self.subTest(op=op):
                 out = repo.answer({"op": op, "cwd": self.dir, "path": "notes.md", "hash": "HEAD"})
                 self.assertTrue(out["ok"], f"{op} on a plain directory: {out}")
                 self.assertTrue(out["repo"].get("noRepo"), f"{op}: {out}")
+
+    def test_the_files_are_read_without_git(self):
+        # The files of a project are there whether git keeps them or not. A
+        # screen told "no repository" for a tree, a file or a search is a
+        # catalogue shut because of a question nobody asked it.
+        for op, extra in (("tree", {}), ("blob", {"path": "notes.md"}), ("find", {"query": "notes"})):
+            with self.subTest(op=op):
+                out = repo.answer({"op": op, "cwd": self.dir, **extra})
+                self.assertTrue(out["ok"], f"{op} on a plain directory: {out}")
+                self.assertFalse(out["repo"].get("noRepo"), f"{op} answered as if there were nothing to read: {out}")
+
+
+class PlainTree(Plain):
+    def test_a_directory_is_listed_as_the_disk_has_it(self):
+        write(self.dir, "pkg/mod.go", "package pkg\n")
+        out = repo.tree(self.dir)
+        names = {e["name"]: e for e in out["entries"]}
+        self.assertEqual(sorted(names), ["notes.md", "pkg"])
+        self.assertTrue(names["pkg"]["dir"])
+        self.assertEqual(out["root"], os.path.realpath(self.dir))
+
+        inner = [e["name"] for e in repo.tree(self.dir, "pkg")["entries"]]
+        self.assertEqual(inner, ["mod.go"])
+
+    def test_nothing_is_marked_untracked_where_nothing_tracks(self):
+        # The mark says "git does not know about this yet". Without git every
+        # file would carry it, and a mark on everything says nothing.
+        for e in repo.tree(self.dir)["entries"]:
+            self.assertNotIn("untracked", e, f"{e['name']} is marked untracked in a directory nothing tracks")
+
+    def test_a_path_outside_the_directory_is_refused(self):
+        for path in ("..", "../..", "/etc"):
+            with self.subTest(path=path):
+                with self.assertRaises(repo.RepoError):
+                    repo.tree(self.dir, path)
+
+    def test_a_link_out_of_the_directory_is_refused(self):
+        os.symlink("/etc", os.path.join(self.dir, "out"))
+        with self.assertRaises(repo.RepoError):
+            repo.tree(self.dir, "out")
+        with self.assertRaises(repo.RepoError):
+            repo.blob(self.dir, "out/hostname")
+
+
+class PlainBlob(Plain):
+    def test_a_file_is_read_with_no_revision_to_fall_behind(self):
+        out = repo.blob(self.dir, "notes.md")
+        self.assertEqual(out["lines"], ["a shelf of notes, not a repository"])
+        self.assertFalse(out.get("rev"), "a directory without git has no revision, and one was invented")
+
+    def test_a_revision_asked_for_is_not_a_reason_to_refuse(self):
+        # Nothing here was read under a revision, so nothing can be stale: a
+        # window refused for it is a file that never opens.
+        out = repo.blob(self.dir, "notes.md", rev="0123456789abcdef")
+        self.assertFalse(out.get("stale"))
+        self.assertEqual(out["lines"], ["a shelf of notes, not a repository"])
+
+    def test_the_key_of_a_file_is_the_one_git_would_give_it(self):
+        # The service keeps coloured copies under this key. The same content
+        # reads under the same key with a repository or without one.
+        want = subprocess.run(("git", "hash-object", os.path.join(self.dir, "notes.md")),
+                              capture_output=True).stdout.decode().strip()
+        self.assertEqual(repo.blob(self.dir, "notes.md")["oid"], want)
+
+    def test_a_path_outside_the_directory_is_refused(self):
+        for path in ("../../etc/passwd", "/etc/passwd"):
+            with self.subTest(path=path):
+                with self.assertRaises(repo.RepoError):
+                    repo.blob(self.dir, path)
+
+
+class PlainFind(Plain):
+    def test_a_name_finds_the_file_wherever_it_sits(self):
+        write(self.dir, "deep/down/here/mod.go", "package here\n")
+        write(self.dir, "pkg/mod.go", "package pkg\n")
+        out = repo.find(self.dir, "mod.go")
+        self.assertEqual(out["paths"], ["pkg/mod.go", "deep/down/here/mod.go"])
+        self.assertFalse(out["cut"])
+        self.assertNotIn("partial", out)
+
+    def test_what_a_tool_filled_is_not_walked(self):
+        # Directories a tool fills hold names nobody types, and enough of them
+        # to spend the ceiling of the walk before it reaches what a person wrote.
+        for skipped in ("node_modules/lib", ".venv/lib", "venv/lib", "pkg/__pycache__"):
+            write(self.dir, f"{skipped}/notes.py", "x\n")
+        write(self.dir, "pkg/notes.py", "x\n")
+        self.assertEqual(repo.find(self.dir, "notes.py")["paths"], ["pkg/notes.py"])
+        names = [e["name"] for e in repo.tree(self.dir)["entries"]]
+        self.assertIn("node_modules", names, "the tree hides what the search skips — it cannot be opened by hand either")
+
+    def test_a_link_to_a_directory_is_not_walked(self):
+        # A link can lead out of the project, or back into itself: followed,
+        # the second one is a walk that never ends.
+        os.symlink(".", os.path.join(self.dir, "loop"))
+        out = repo.find(self.dir, "notes")
+        self.assertEqual(out["paths"], ["notes.md"])
+        # Nor is it offered as a file: opening it would find no file there.
+        self.assertEqual(repo.find(self.dir, "loop")["paths"], [])
+
+    def test_a_walk_past_its_ceiling_says_it_stopped(self):
+        # Breadth first: what the ceiling leaves out is the deepest part, and
+        # the answer says it did not look everywhere rather than passing the
+        # walked part off as the whole directory.
+        for i in range(6):
+            write(self.dir, f"d{i}/deep/notes-{i}.md", "x\n")
+        was = repo.MAX_WALKED
+        repo.MAX_WALKED = 8
+        try:
+            out = repo.find(self.dir, "notes")
+        finally:
+            repo.MAX_WALKED = was
+        self.assertTrue(out["cut"], f"the walk stopped at its ceiling and the answer reads as whole: {out}")
+        self.assertTrue(out.get("partial"), f"the answer does not say the walk stopped short: {out}")
+        self.assertIn("notes.md", out["paths"], "the top of the directory was left out for the sake of its depths")
+
+    def test_a_walk_past_its_time_says_it_stopped(self):
+        write(self.dir, "sub/notes-deep.md", "x\n")
+        was = repo.WALK_SECONDS
+        repo.WALK_SECONDS = 0
+        try:
+            out = repo.find(self.dir, "notes")
+        finally:
+            repo.WALK_SECONDS = was
+        self.assertTrue(out.get("partial"), f"the walk ran out of time and the answer reads as whole: {out}")
+        self.assertEqual(out["paths"], ["notes.md"], "the directory asked about was not read before the clock")
+
+    def test_a_directory_walked_whole_is_not_cut(self):
+        write(self.dir, "sub/notes-deep.md", "x\n")
+        out = repo.find(self.dir, "notes")
+        self.assertFalse(out["cut"])
+        self.assertEqual(out["paths"], ["notes.md", "sub/notes-deep.md"])
+
+
+class Unborn(unittest.TestCase):
+    """A repository made with git init and not committed to yet."""
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_path(prefix="repo")
+        self.addCleanup(subprocess.run, ("rm", "-rf", self.dir))
+        git(self.dir, "init", "-q", "-b", "main")
+        write(self.dir, "staged.go", "package main\n")
+        write(self.dir, "loose.txt", "not added\n")
+        git(self.dir, "add", "staged.go")
+
+    def test_every_operation_answers_before_the_first_commit(self):
+        for op, extra in (("refs", {}), ("changes", {}), ("tree", {}), ("find", {"query": "go"}),
+                          ("blob", {"path": "staged.go"}), ("diff", {"path": "staged.go"})):
+            with self.subTest(op=op):
+                out = repo.answer({"op": op, "cwd": self.dir, **extra})
+                self.assertTrue(out["ok"], f"{op}: {out}")
+                self.assertFalse(out["repo"].get("noRepo"), f"{op} took a repository for a plain directory")
+
+    def test_the_changes_are_every_file_on_the_unborn_branch(self):
+        out = repo.changes(self.dir)
+        self.assertEqual(out["branch"], "main")
+        self.assertEqual(out["head"], "")
+        by = {f["path"]: f for f in out["files"]}
+        self.assertEqual(sorted(by), ["loose.txt", "staged.go"])
+        self.assertEqual(by["staged.go"]["add"], 1, "the staged file is not counted as added")
+
+    def test_the_tree_lists_the_disk(self):
+        names = [e["name"] for e in repo.tree(self.dir)["entries"]]
+        self.assertEqual(names, ["loose.txt", "staged.go"])
+
+    def test_a_staged_file_diffs_as_added(self):
+        out = repo.diff(self.dir, "staged.go", layer="worktree")
+        self.assertIn("+package main", out["worktree"])
+        self.assertNotIn("committed", out)
 
 
 class Language(Repo):

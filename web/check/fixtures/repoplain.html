@@ -1,0 +1,166 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- A project git does not keep: the directory and its files, and nothing that
+     belongs to a branch. One page for both shapes — the phone and the desk get
+     the same answers, and what they draw from them is what this measures. -->
+<div class="shell no-nav" style="height:100vh;display:flex;flex-direction:column">
+  <div id="root" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto"></div>
+</div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { RepoView } from "/src/screens/repo/view.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+// What the collector answers for a directory that is not a repository: the
+// changes say so and name the root; the tree, a file and a search answer off
+// the disk, with no revision and nothing marked untracked.
+const CHANGES = { noRepo: true, root: "/srv/notes", branches: [], worktrees: [], files: [], entries: [], paths: [] };
+const TOP = {
+    root: "/srv/notes", path: "", total: 2, cut: false,
+    entries: [{ name: "drafts", dir: true }, { name: "todo.md", dir: false }],
+};
+const DRAFTS = {
+    root: "/srv/notes", path: "drafts", total: 1, cut: false,
+    entries: [{ name: "plan.md", dir: false }],
+};
+const FILE = {
+    path: "todo.md", oid: "3b18e512dba79e4c8300dd08aeb37f8e728b8dad", size: 20, first: 1, total: 2, more: false,
+    lines: ["# todo", "- write the plan"], spans: [[], []],
+};
+const PLAN = {
+    path: "drafts/plan.md", oid: "9d5f1c", size: 8, first: 1, total: 1, more: false,
+    lines: ["the plan"], spans: [[]],
+};
+const FOUND = { root: "/srv/notes", query: "plan", paths: ["drafts/plan.md"], total: 1, cut: false };
+// A walk that stopped at its ceiling: one name found, and the answer saying
+// it did not look everywhere.
+const WALKED = { root: "/srv/notes", query: "todo", paths: ["todo.md"], total: 1, cut: true, partial: true };
+
+window.__asked = [];
+window.fetch = async (url) => {
+    const at = String(url);
+    window.__asked.push(at);
+    const body = at.includes("/api/repo/changes") ? CHANGES
+        : at.includes("/api/repo/tree") ? (at.includes("path=drafts") ? DRAFTS : TOP)
+        : at.includes("/api/repo/file") ? (at.includes("plan.md") ? PLAN : FILE)
+        : at.includes("/api/repo/find") ? (at.includes("q=todo") ? WALKED : FOUND)
+        : at.includes("/api/reviews") ? { reviews: [] }
+        : { error: "unknown" };
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+};
+
+render(h(ToastHost, null, h(RepoView, { cwd: "/srv/notes", name: "shelf", onBack() {} })), document.getElementById("root"));
+
+const sel = (q) => document.querySelector(q);
+const all = (q) => [...document.querySelectorAll(q)];
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+async function until(q, tries = 60) {
+    for (let i = 0; i < tries; i++) {
+        const el = sel(q);
+        if (el) return el;
+        await tick(30);
+    }
+    return null;
+}
+const press = (key, on) => (on || window).dispatchEvent(
+    new KeyboardEvent("keydown", { key, ctrlKey: key === "k", bubbles: true, cancelable: true }));
+const chips = () => all(".cdstrip .chip, .cdsidetabs .chip").map(text);
+const tabs = () => all(".cdtab").map((t) => text(t).replace("×", "").trim());
+
+async function openNode(name) {
+    const node = all(".cdnode").find((n) => text(n).includes(name));
+    if (node) node.click();
+    await tick(120);
+    return Boolean(node);
+}
+
+window.done = (async () => {
+    // The tree is the first thing on the screen, not a tap away behind a chip.
+    const tree = await until(".cdtree .cdnode");
+    // Effects bind a turn after the first paint.
+    await tick(150);
+    const wide = Boolean(sel(".cdwide"));
+
+    const first = {
+        treeShown: Boolean(tree),
+        chips: chips(),
+        tabs: tabs(),
+        title: text(sel(".chathead h2")),
+        crumb: text(sel(".cdcrumb")),
+        idle: text(sel(".cdscroll .hint")),
+        refusal: document.getElementById("root").textContent.includes("nothing here to compare"),
+    };
+
+    // A directory opens by a tap, and its crumb says where it is.
+    await openNode("drafts");
+    const inner = all(".cdnode").map(text);
+    const up = all(".cdnode").find((n) => text(n).includes(".."));
+    if (up) up.click();
+    await tick(120);
+
+    // A file opens, and nothing about a branch comes with it.
+    const opened = await openNode("todo.md");
+    await until(".cdln");
+    const file = {
+        opened,
+        lines: all(".cdln .cdsrc").map(text),
+        chips: chips(),
+        tabs: tabs(),
+    };
+
+    // A line is not picked up for a note: there is nowhere to keep one.
+    const gutter = sel(".cdln .cdgut");
+    if (gutter) gutter.click();
+    await tick(120);
+    const noteBox = Boolean(sel(".cdnote"));
+    const picked = Boolean(sel(".cdln.picked"));
+
+    let found = null;
+    if (wide) {
+        // Finding by name works the same with no git: the finder asks the
+        // same endpoint, and the file it picks opens as a tab of its own.
+        press("k");
+        await tick(90);
+        const box = await until(".cdfindin");
+        const type = async (what) => {
+            if (!box) return;
+            box.value = what;
+            box.dispatchEvent(new Event("input", { bubbles: true }));
+            await tick(150);
+        };
+        await type("todo");
+        const partial = all(".cdfindlist .cdcut").map(text);
+        await type("plan");
+        const rows = all(".cdfindrow").map(text);
+        press("Enter", sel(".cdfindin"));
+        await tick(150);
+        await until(".cdln");
+        found = { partial, rows, tabs: tabs(), lines: all(".cdln .cdsrc").map(text) };
+
+        // Every tab closed leaves the middle saying how to get to a file,
+        // rather than a strip of nothing above a blank panel.
+        for (let i = 0; i < 4; i++) {
+            const x = sel(".cdtabx");
+            if (!x) break;
+            x.click();
+            await tick(90);
+        }
+        found.afterClose = { tabs: tabs(), strip: Boolean(sel(".cdtabs")), idle: text(sel(".cdscroll .hint")) };
+    }
+
+    return {
+        wide,
+        first,
+        inner,
+        file,
+        noteBox,
+        picked,
+        found,
+        askedBranch: window.__asked.filter((u) => u.includes("/api/repo/diff") || u.includes("/api/repo/refs")),
+    };
+})();
+</script>

@@ -6,6 +6,11 @@
 // scrolls sideways leaves nothing to swipe the page by. At a desk the same
 // pieces stand side by side: the code in the middle, the directory in a panel
 // beside it, and the open files as tabs above.
+//
+// The files are there whether git keeps the project or not; the branch is not.
+// Without a repository the screen is the directory and the files opened from
+// it — no run of changes, no diff, no base and no notes, rather than a screen
+// that refuses to show a directory because nothing in it can be compared.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
@@ -29,6 +34,17 @@ function windowFor(line) {
     if (!line || line < 1) return 1;
     return Math.floor((line - 1) / WINDOW) * WINDOW + 1;
 }
+
+// The name a directory goes by: the last part of its path.
+function dirName(path) {
+    const parts = String(path || "").split("/").filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : "/";
+}
+
+// Nothing to write on. Notes belong to a reading of a branch, and a project
+// without one has no branch to read: a line there is not picked up at all
+// rather than picked up into a box that has nowhere to keep what is written.
+const NO_NOTES = { notes: [], picked: null, onPick: null, composer: null };
 
 export function RepoView({ cwd, name, onBack, onSend }) {
     const wide = useWide();
@@ -130,7 +146,13 @@ export function RepoView({ cwd, name, onBack, onSend }) {
         />
     `;
 
-    const noting = { notes: review.notes, picked, onPick: pick, composer };
+    const [changes] = useAsk(() => changesOf(cwd, base), [cwd, base]);
+    const data = changes.kind === "ready" ? changes.data : null;
+    // Whether the project has a branch at all. The changes answer it: a
+    // directory git does not keep comes back as exactly that, with its root.
+    const plain = Boolean(data && data.noRepo);
+
+    const noting = plain ? NO_NOTES : { notes: review.notes, picked, onPick: pick, composer };
 
     // A note opened from the list goes back to where it was written: the file,
     // the window of it that holds the line, and the line itself with the box
@@ -159,22 +181,25 @@ export function RepoView({ cwd, name, onBack, onSend }) {
         return () => window.removeEventListener("keydown", on);
     }, [wide]);
 
-    const [changes] = useAsk(() => changesOf(cwd, base), [cwd, base]);
-    const data = changes.kind === "ready" ? changes.data : null;
     const file = tabs.active;
 
+    // The head names the branch when there is one, and the directory when
+    // there is not: a project without git is known by where it lies.
     const head = html`
         <div class="chathead">
-            <h2>${file && !wide ? file.split("/").pop() : (data && !data.noRepo ? data.branch : name)}</h2>
+            <h2>${file && !wide ? file.split("/").pop()
+                : data && !plain ? data.branch
+                : plain ? dirName(data.root || cwd)
+                : name}</h2>
             <div class="chatsub">
                 ${file && !wide
                     ? html`<span>${file.split("/").slice(0, -1).join("/") || "/"}</span>`
-                    : data && !data.noRepo
+                    : data && !plain
                     ? html`<span class="cdbase" title=${`the base comes from the ${data.baseFrom}`}>
                              against <b>${data.base || "nothing"}</b>
                            </span>
                            <span>${data.total} ${data.total === 1 ? "file" : "files"}</span>`
-                    : html`<span>${cwd}</span>`}
+                    : html`<span>${(plain && data.root) || cwd}</span>`}
             </div>
         </div>
     `;
@@ -184,7 +209,7 @@ export function RepoView({ cwd, name, onBack, onSend }) {
         <${WrapButton} on=${wrap} onClick=${() => setWrap((w) => !w)} />
     `;
 
-    const label = file && !wide ? "to the changes" : "to the conversation";
+    const label = file && !wide ? (plain ? "to the files" : "to the changes") : "to the conversation";
 
     return html`
         <${BackHead} onBack=${back} label=${label} tools=${tools}>${head}<//>
@@ -194,7 +219,7 @@ export function RepoView({ cwd, name, onBack, onSend }) {
         `}
         ${wide
             ? html`<${DeskBody}
-                       cwd=${cwd} base=${base} wrap=${wrap} pane=${pane}
+                       cwd=${cwd} base=${base} wrap=${wrap} pane=${pane} plain=${plain}
                        tabs=${tabs} state=${changes} data=${data}
                        noting=${noting} review=${review} onSend=${onSend} onNote=${openAt}
                        stale=${stale} onStale=${onStale}
@@ -205,8 +230,11 @@ export function RepoView({ cwd, name, onBack, onSend }) {
                 <div class=${`cdpage${wrap ? " wrap" : ""}`}>
                     ${file
                         ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} noting=${noting}
-                                            notes=${review.notes} onStale=${onStale}
+                                            branch=${!plain}
+                                            notes=${noting.notes} onStale=${onStale}
                                             jump=${jump && jump.path === file ? jump : null} />`
+                        : plain
+                        ? html`<${TreePane} cwd=${cwd} changes=${data} onFile=${openFile} />`
                         : html`<${ChangesBody}
                                    cwd=${cwd} state=${changes} data=${data} base=${base} stale=${stale}
                                    noting=${noting} review=${review} onSend=${onSend} onNote=${openAt}
@@ -271,8 +299,11 @@ function FileFinder({ cwd, onPick, onClose }) {
                             <span class="cdfinddir">${path.split("/").slice(0, -1).join("/")}</span>
                         </button>
                     `)}
-                    ${data && data.cut && html`
+                    ${data && data.total > paths.length && html`
                         <p class="cdcut">Showing <b>${paths.length}</b> of <b>${data.total}</b> — type more of the name.</p>
+                    `}
+                    ${data && data.partial && html`
+                        <p class="cdcut">The search stopped before it walked the whole directory — what sits deeper may be missing.</p>
                     `}
                 </div>
             </div>
@@ -284,7 +315,7 @@ function FileFinder({ cwd, onPick, onClose }) {
 // open, and the directory in a panel that folds away. The panel is one panel
 // with tabs of its own rather than a second column — the notes of a review
 // belong beside the tree, and two narrow columns leave the code nothing.
-function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, jump, stale, onStale,
+function DeskBody({ cwd, base, wrap, pane, plain, tabs, state, data, noting, review, jump, stale, onStale,
                    onSend, onNote, onPick, onClose, onFile, onBase }) {
     // Which of the two the panel is showing. The tree and the notes are two
     // readings of the same repository, not two places to be — a panel that
@@ -295,12 +326,17 @@ function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, ju
     return html`
         <div class=${`cdwide${pane ? "" : " solo"}${wrap ? " wrap" : ""}`}>
             <div class="cdmain">
-                <${TabStrip} tabs=${tabs} onPick=${onPick} onClose=${onClose} />
+                ${(!plain || tabs.open.length > 0) && html`
+                    <${TabStrip} tabs=${tabs} changes=${!plain} onPick=${onPick} onClose=${onClose} />
+                `}
                 <div class="cdscroll">
                     ${tabs.active
                         ? html`<${FileBody} cwd=${cwd} path=${tabs.active} base=${base} wide=${true}
-                                            noting=${noting} notes=${review.notes}
+                                            branch=${!plain}
+                                            noting=${noting} notes=${noting.notes}
                                             onStale=${onStale} jump=${jump} />`
+                        : plain
+                        ? html`<${PlainIdle} />`
                         : html`<${ChangesBody}
                                    cwd=${cwd} state=${state} data=${data} base=${base} noting=${noting}
                                    stale=${stale} review=${review} onSend=${onSend} onNote=${onNote}
@@ -309,21 +345,25 @@ function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, ju
             </div>
             ${pane && html`
                 <aside class="cdside">
-                    <div class="cdsidetabs">
-                        <button class="chip" type="button" aria-pressed=${side === "files"}
-                                onClick=${() => setSide("files")}>Files</button>
-                        <button class="chip cdnotetab" type="button" aria-pressed=${side === "notes"}
-                                onClick=${() => setSide("notes")}>
-                            Notes${notes.length ? html` <b>${notes.length}</b>` : null}
-                        </button>
-                    </div>
+                    ${!plain && html`
+                        <div class="cdsidetabs">
+                            <button class="chip" type="button" aria-pressed=${side === "files"}
+                                    onClick=${() => setSide("files")}>Files</button>
+                            <button class="chip cdnotetab" type="button" aria-pressed=${side === "notes"}
+                                    onClick=${() => setSide("notes")}>
+                                Notes${notes.length ? html` <b>${notes.length}</b>` : null}
+                            </button>
+                        </div>
+                    `}
                     <div class="cdsidebody">
-                        ${side === "notes"
+                        ${side === "notes" && !plain
                             ? html`<${NotesPane} review=${review} wide=${true} stale=${stale}
                                                  onOpen=${onNote} onSend=${onSend} />`
-                            : data && !data.noRepo
+                            : data
                             ? html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`
-                            : html`<p class="hint">No repository to walk.</p>`}
+                            : state.kind === "loading"
+                            ? html`<p class="hint">Reading the project…</p>`
+                            : null}
                     </div>
                 </aside>
             `}
@@ -331,16 +371,32 @@ function DeskBody({ cwd, base, wrap, pane, tabs, state, data, noting, review, ju
     `;
 }
 
+// PlainIdle is the middle of a project without git while no file is open. Not
+// the tree: the tree already stands in the panel beside, and a second copy of
+// it in the middle is two places to be in the same directory. What is said
+// instead is the two ways to a file.
+function PlainIdle() {
+    return html`
+        <p class="hint">
+            No git repository here, so no changes to read — only the files.
+            <br />Pick one in the tree beside, or press Ctrl+K to find it by name.
+        </p>
+    `;
+}
+
 // TabStrip is what is open. The changes stay the leftmost tab and cannot be
 // closed: they are where a reading starts, and a viewer with every tab shut is
-// a blank panel nobody asked for.
-function TabStrip({ tabs, onPick, onClose }) {
+// a blank panel nobody asked for. A project without git has no changes, and
+// its strip is the open files alone.
+function TabStrip({ tabs, changes, onPick, onClose }) {
     return html`
         <div class="cdtabs" role="tablist">
-            <button class="cdtab" type="button" role="tab" aria-selected=${!tabs.active}
-                    onClick=${() => onPick("")}>
-                <span class="cdtabname">Changes</span>
-            </button>
+            ${changes && html`
+                <button class="cdtab" type="button" role="tab" aria-selected=${!tabs.active}
+                        onClick=${() => onPick("")}>
+                    <span class="cdtabname">Changes</span>
+                </button>
+            `}
             ${tabs.open.map((path) => html`
                 <span key=${path} class=${`cdtab${tabs.active === path ? " on" : ""}`}>
                     <button class="cdtabpick" type="button" role="tab"
@@ -379,10 +435,12 @@ function PaneButton({ on, onClick }) {
     `;
 }
 
+// ChangesBody is the branch: the run of changes, the tree with the changes
+// marked on it, and the notes.
 function ChangesBody({ cwd, state, data, base, noting, review, stale, tab, onTab, onBase, onFile, onNote, onSend }) {
     const notes = (noting && noting.notes) || [];
     return html`
-        <div class="cdstrip" hidden=${Boolean(data && data.noRepo)}>
+        <div class="cdstrip">
             ${onTab && html`
                 <button class="chip" type="button" aria-pressed=${tab === "feed"}
                         onClick=${() => onTab("feed")}>Changes</button>
@@ -404,17 +462,11 @@ function ChangesBody({ cwd, state, data, base, noting, review, stale, tab, onTab
             `}
         </div>
 
-        ${state.kind === "loading" && html`<p class="hint">Reading the repository…</p>`}
+        ${state.kind === "loading" && html`<p class="hint">Reading the project…</p>`}
         ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
 
-        ${data && data.noRepo && html`
-            <p class="hint">
-                This project keeps no git repository — there is nothing here to compare or review.
-                <br />The directory itself is at <b>${data.root || cwd}</b>.
-            </p>
-        `}
-        ${data && !data.noRepo && tab === "tree" && html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`}
-        ${data && !data.noRepo && tab === "feed" && html`
+        ${data && tab === "tree" && html`<${TreePane} cwd=${cwd} changes=${data} onFile=${onFile} />`}
+        ${data && tab === "feed" && html`
             <${ChangeFeed} cwd=${cwd} data=${data} noting=${noting} onFile=${onFile} />
         `}
         ${tab === "notes" && html`<${NotesPane} review=${review} onOpen=${onNote} onSend=${onSend} stale=${stale} />`}
@@ -498,7 +550,9 @@ function TreePane({ cwd, changes, onFile }) {
     return html`
         <div class="cdtree">
             <div class="cdcrumbs">
-                <button class="cdcrumb" type="button" onClick=${() => setWhere("")}>${changes.branch}</button>
+                <button class="cdcrumb" type="button" onClick=${() => setWhere("")}>
+                    ${changes.noRepo ? dirName(changes.root || cwd) : changes.branch}
+                </button>
                 ${where.split("/").filter(Boolean).map((part, i, all) => html`
                     <button key=${part + i} class="cdcrumb" type="button"
                             onClick=${() => setWhere(all.slice(0, i + 1).join("/"))}>${part}</button>
@@ -537,7 +591,7 @@ function TreePane({ cwd, changes, onFile }) {
 
 // FileBody is one file, whole: the window a screen reads it by, with the next
 // one a tap away rather than a scroll that never ends.
-function FileBody({ cwd, path, base, wide, noting, jump, notes, onStale }) {
+function FileBody({ cwd, path, base, wide, branch, noting, jump, notes, onStale }) {
     const [first, setFirst] = useState(() => windowFor(jump && jump.line));
     const [mode, setMode] = useState("file");
     // Side by side is offered only where there is room for two columns. On a
@@ -568,8 +622,11 @@ function FileBody({ cwd, path, base, wide, noting, jump, notes, onStale }) {
         onStale(path, place(here, path, rows).stale);
     }, [onStale, notes, path, data]);
 
+    // The file against the diff of it is a question about a branch. Without one
+    // there is only the file, and a strip with one chip in it is a switch that
+    // switches nothing.
     return html`
-        <div class="cdstrip">
+        ${branch && html`<div class="cdstrip">
             <button class="chip" type="button" aria-pressed=${mode === "file"}
                     onClick=${() => setMode("file")}>File</button>
             <button class="chip" type="button" aria-pressed=${mode === "diff"}
@@ -581,7 +638,7 @@ function FileBody({ cwd, path, base, wide, noting, jump, notes, onStale }) {
                     ${split ? "Side by side" : "In one column"}
                 </button>
             `}
-        </div>
+        </div>`}
 
         ${mode === "file" && html`
             ${file.kind === "loading" && html`<p class="hint">Reading the file…</p>`}

@@ -89,8 +89,18 @@ never goes stale and nothing is invalidated by hand.
 
 **Git is asked in one language.** Its output is read, not shown: under the
 language of the host the messages arrive translated, and a reply parsed by its
-words comes apart. A directory that is not a repository is a state of the
-screen, not a failure — a project can be a shelf of notes.
+words comes apart.
+
+**The files do not need git.** A directory that is not a repository is a state
+of the screen, not a failure — a project can be a shelf of notes. Its tree, its
+files and a search by name are read off the disk: a file carries the id git
+would give its content, counted by the collector, so its colouring is kept
+under the same key either way. A search walks the disk breadth first under a
+ceiling of names and of seconds, skips the directories tools fill, and says
+when it stopped short — typing more of a name narrows what was found, not what
+was walked. What belongs to a branch — the changes, a diff, the base, a commit,
+the notes — answers that there is no repository, and the screen leaves it out
+rather than drawing it empty.
 
 ---
 

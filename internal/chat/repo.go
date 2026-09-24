@@ -70,8 +70,10 @@ type RepoOut struct {
 	Rev   string `json:"rev,omitempty"`
 
 	// A directory that is not a repository at all. Not a failure: a project
-	// can be a shelf of notes or a stand, and the screen says so plainly
-	// instead of showing it what git shouted.
+	// can be a shelf of notes or a stand. Its files are still read — the tree,
+	// a file and a search answer off the disk — and what belongs to a branch
+	// answers with this instead, so the screen leaves the branch out rather
+	// than showing it what git shouted.
 	NoRepo bool `json:"noRepo,omitempty"`
 
 	Root      string       `json:"root,omitempty"`
@@ -94,6 +96,11 @@ type RepoOut struct {
 
 	Total int  `json:"total,omitempty"`
 	Cut   bool `json:"cut,omitempty"`
+	// A search of a directory git does not keep walks the disk under a
+	// ceiling, and one that stopped at it did not look everywhere. Typing more
+	// of the name narrows what was found, not what was walked, so the screen
+	// says which of the two cut the list.
+	Partial bool `json:"partial,omitempty"`
 
 	// The id of a blob: what a coloured copy of it is cached under.
 	OID    string   `json:"oid,omitempty"`

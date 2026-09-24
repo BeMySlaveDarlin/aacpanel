@@ -7,6 +7,11 @@ of changed files, the listing of one directory, one blob, the diff of one file.
 Cutting a diff into hunks and colouring it happens in the service, where a
 mistake costs a redraw rather than a shell command.
 
+The files of a project are there whether git keeps them or not. The tree, a
+file and a search by name are read off the disk when there is no repository;
+what belongs to a branch — its changes, a diff, a base, a commit — has nothing
+to be read from there and says so.
+
 Every window carries the revision it was read at. A repository under an agent
 that keeps writing moves between two requests, and a window answered from the
 new state while the list came from the old one is a diff nobody can trust: the
@@ -16,6 +21,8 @@ answer is "stale" and the screen asks again.
 import hashlib
 import os
 import subprocess
+import time
+from collections import deque
 
 from sesstate import inside
 
@@ -29,6 +36,21 @@ MAX_FOUND = 60
 MAX_LINES = 20000
 
 GIT_TIMEOUT = 20
+
+# How far a search walks a directory git does not keep. A repository names its
+# files in one command; a plain directory is walked, and a project can be a
+# home directory. The service stops waiting at ten seconds, so the walk stops
+# well before that, and at a count of names that a local disk reads in a
+# fraction of a second — a slow mount is what the clock is for.
+MAX_WALKED = 50000
+WALK_SECONDS = 3.0
+
+# Directories a search does not walk into. A tool fills them, a person does not
+# write them: tens of thousands of names nobody types, which would spend the
+# ceiling above before the walk reached the files a person wrote. A repository
+# answers the same question with its ignore list; a plain directory has none to
+# read. The tree still lists them and opens them by hand.
+UNWALKED = frozenset((".git", "node_modules", ".venv", "venv", "__pycache__"))
 
 # The trailer a session leaves in the commits it writes. It is what ties a line
 # of code to the conversation it was written in.
@@ -93,6 +115,18 @@ def _repo_dir(cwd):
     except RepoError:
         raise NotARepo(real)
     return _text(top).strip() or real
+
+
+def _root(cwd):
+    """Returns the directory the files are read from, and whether git keeps it.
+
+    The files do not need git; only what is said about them does. A directory
+    that is not a repository is read as it lies on the disk.
+    """
+    try:
+        return _repo_dir(cwd), True
+    except NotARepo as e:
+        return e.path, False
 
 
 def _file(cwd, path):
@@ -179,7 +213,33 @@ def base_of(cwd, branch, named=""):
 # ----------------------------------------------------------------- the state
 
 def _head(cwd):
-    out, _ = _run(cwd, "rev-parse", "HEAD")
+    """Returns the commit HEAD stands on, or "" in a repository with no commit yet.
+
+    A repository just made with `git init` names a branch that does not exist
+    yet. It is still a repository — its files are all new, and that is what
+    the screen shows — not a refusal to open the directory.
+    """
+    try:
+        out, _ = _run(cwd, "rev-parse", "--verify", "--quiet", "HEAD")
+    except RepoError:
+        return ""
+    return _text(out).strip()
+
+
+def _branch(cwd):
+    """Returns the name of the branch HEAD is on, the unborn one included; "HEAD" when detached."""
+    try:
+        out, _ = _run(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
+    except RepoError:
+        return "HEAD"
+    return _text(out).strip() or "HEAD"
+
+
+def _against(cwd, head):
+    """Returns what the working tree is measured against: HEAD, or nothing at all before the first commit."""
+    if head:
+        return head
+    out, _ = _run(cwd, "hash-object", "-t", "tree", "/dev/null")
     return _text(out).strip()
 
 
@@ -256,9 +316,7 @@ def refs(cwd):
     if current:
         trees.append(current)
 
-    out, _ = _run(top, "rev-parse", "--abbrev-ref", "HEAD")
-    branch = _text(out).strip()
-    return {"root": top, "branch": branch, "branches": branches, "worktrees": trees}
+    return {"root": top, "branch": _branch(top), "branches": branches, "worktrees": trees}
 
 
 def changes(cwd, base_named=""):
@@ -272,8 +330,7 @@ def changes(cwd, base_named=""):
     """
     top = _repo_dir(cwd)
     head = _head(top)
-    out, _ = _run(top, "rev-parse", "--abbrev-ref", "HEAD")
-    branch = _text(out).strip()
+    branch = _branch(top)
     base, how = base_of(top, branch, base_named)
 
     files = {}
@@ -309,9 +366,10 @@ def changes(cwd, base_named=""):
                 delete=int(delete) if delete.isdigit() else 0,
                 status="M")
 
-    if base:
+    # A branch with no commit has committed nothing, whatever the base.
+    if base and head:
         numstat("committed", f"{base}...HEAD")
-    numstat("worktree", "HEAD")
+    numstat("worktree", _against(top, head))
 
     out, _ = _run(top, "ls-files", "--others", "--exclude-standard", "-z")
     for path in _text(out).split("\0"):
@@ -341,23 +399,76 @@ def find(cwd, query):
     where it sits, and walking down to it by hand is the thing this answers
     instead of.
     """
-    top = _repo_dir(cwd)
+    top, kept = _root(cwd)
     want = query.strip().lower()
     if not want:
         return {"root": top, "query": "", "paths": [], "total": 0, "cut": False}
 
-    out, _ = _run(top, "ls-files", "-z", limit=8 * 1024 * 1024)
-    paths = [p for p in _text(out).split("\0") if p]
-    out, _ = _run(top, "ls-files", "--others", "--exclude-standard", "-z")
-    paths += [p for p in _text(out).split("\0") if p]
+    partial = False
+    if kept:
+        out, _ = _run(top, "ls-files", "-z", limit=8 * 1024 * 1024)
+        paths = [p for p in _text(out).split("\0") if p]
+        out, _ = _run(top, "ls-files", "--others", "--exclude-standard", "-z")
+        paths += [p for p in _text(out).split("\0") if p]
+    else:
+        paths, partial = _walk(top)
 
     hits = [p for p in dict.fromkeys(paths) if want in p.lower()]
     # What was typed is a name, so a file whose own name carries it comes
     # before one that only matches somewhere up its directories; after that the
     # shorter path is the likelier answer.
     hits.sort(key=lambda p: (want not in os.path.basename(p).lower(), len(p), p))
-    return {"root": top, "query": query, "paths": hits[:MAX_FOUND],
-            "total": len(hits), "cut": len(hits) > MAX_FOUND}
+    out = {"root": top, "query": query, "paths": hits[:MAX_FOUND],
+           "total": len(hits), "cut": len(hits) > MAX_FOUND or partial}
+    if partial:
+        out["partial"] = True
+    return out
+
+
+def _walk(top):
+    """Returns the files under a directory git does not keep, and whether the walk stopped short.
+
+    Breadth first: when a ceiling stops the walk, what is left out is the
+    deepest part of the tree rather than whichever directory happened to sort
+    last, and the shallow path is the likelier answer anyway. Links to
+    directories are not followed — a link can lead out of the project or back
+    into itself, and the tree refuses the first one on its own.
+    """
+    paths = []
+    queue = deque([""])
+    seen = 0
+    deadline = time.monotonic() + WALK_SECONDS
+    while queue:
+        rel = queue.popleft()
+        try:
+            with os.scandir(os.path.join(top, rel) if rel else top) as found:
+                entries = sorted(found, key=lambda e: e.name)
+        except OSError as e:
+            if not rel:
+                raise RepoError(f"the directory was not read: {e.strerror or e}")
+            # A directory the agent may not read is one the tree cannot open
+            # either: there is nothing in it a person could be sent to.
+            continue
+        for entry in entries:
+            if seen >= MAX_WALKED:
+                return paths, True
+            seen += 1
+            path = f"{rel}/{entry.name}" if rel else entry.name
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    if entry.name not in UNWALKED:
+                        queue.append(path)
+                    continue
+                if entry.is_dir():
+                    # A link to a directory: not walked, and not a file either
+                    # — opened, it would find no file there.
+                    continue
+            except OSError:
+                continue
+            paths.append(path)
+        if queue and time.monotonic() > deadline:
+            return paths, True
+    return paths, False
 
 
 def tree(cwd, path=""):
@@ -367,15 +478,19 @@ def tree(cwd, path=""):
     is walked by opening what is asked for, and a listing of everything is a
     number nobody reads and a reply nobody needs.
     """
-    top = _repo_dir(cwd)
+    top, kept = _root(cwd)
     where = path.strip("/")
     real = _file(top, where) if where else top
     if not os.path.isdir(real):
         raise RepoError("that path is not a directory")
+    if not kept:
+        return _listing(top, where, real)
 
     spec = f"{where}/" if where else ""
-    args = ("ls-tree", "--name-only", "-z", "HEAD") + ((spec,) if spec else ())
-    out, _ = _run(top, *args)
+    out = b""
+    if _head(top):
+        args = ("ls-tree", "--name-only", "-z", "HEAD") + ((spec,) if spec else ())
+        out, _ = _run(top, *args)
     entries = {}
     for name in _text(out).split("\0"):
         if not name:
@@ -397,9 +512,53 @@ def tree(cwd, path=""):
     except OSError:
         pass
 
+    return _entries(top, where, entries)
+
+
+def _listing(top, where, real):
+    """Returns one directory of a project git does not keep, as the disk has it.
+
+    Nothing in it is marked untracked: there is nothing here that tracks. And
+    a directory that cannot be read is a refusal rather than an empty listing,
+    since the disk is the only listing there is.
+    """
+    try:
+        names = os.listdir(real)
+    except OSError as e:
+        raise RepoError(f"the directory was not read: {e.strerror or e}")
+    entries = {}
+    for name in names:
+        if name == ".git":
+            continue
+        entries[name] = {"name": name, "dir": os.path.isdir(os.path.join(real, name))}
+    return _entries(top, where, entries)
+
+
+def _entries(top, where, entries):
+    """Returns the rows of one directory, directories first, under the ceiling."""
     rows = sorted(entries.values(), key=lambda r: (not r["dir"], r["name"]))
     return {"root": top, "path": where, "entries": rows[:MAX_ENTRIES], "total": len(rows),
             "cut": len(rows) > MAX_ENTRIES}
+
+
+def _oid(real):
+    """Returns the id git gives a file of this content, counted without git.
+
+    The id of the blob travels with it: it is what a coloured copy is kept
+    under in the service, and it changes with the content and nothing else. A
+    name, a size and a timestamp all stay the same across an edit that changes
+    every line. Counted here in the form git uses, a file reads under the same
+    key whether a repository keeps it or not.
+    """
+    digest = hashlib.sha1()
+    try:
+        with open(real, "rb") as f:
+            digest.update(b"blob %d\0" % os.fstat(f.fileno()).st_size)
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return ""
+    return digest.hexdigest()
 
 
 def blob(cwd, path, rev="", first=1, lines=MAX_LINES):
@@ -408,27 +567,21 @@ def blob(cwd, path, rev="", first=1, lines=MAX_LINES):
     The window is lines, not bytes: the screen counts in lines, and a window
     that ends mid-line has to be stitched by whoever draws it.
     """
-    top = _repo_dir(cwd)
+    top, kept = _root(cwd)
     real = _file(top, path)
     if not os.path.isfile(real):
         raise RepoError("there is no such file in the working tree")
-    head = _head(top)
-    branch_out, _ = _run(top, "rev-parse", "--abbrev-ref", "HEAD")
-    base, _ = base_of(top, _text(branch_out).strip())
-    now = revision(top, base, head)
-    if rev and rev != now:
-        return {"stale": True, "rev": now}
+    # A directory git does not keep has no revision: no list of changes was
+    # read from it, so there is nothing a window could have fallen behind.
+    now = ""
+    if kept:
+        head = _head(top)
+        base, _ = base_of(top, _branch(top))
+        now = revision(top, base, head)
+        if rev and rev != now:
+            return {"stale": True, "rev": now}
 
-    # The id of the blob travels with it: it is what a coloured copy is kept
-    # under in the service, and it changes with the content and nothing else.
-    # A name, a size and a timestamp all stay the same across an edit that
-    # changes every line.
-    try:
-        oid_out, _ = _run(top, "hash-object", "--", real)
-        oid = _text(oid_out).strip()
-    except RepoError:
-        oid = ""
-
+    oid = _oid(real)
     size = os.path.getsize(real)
     if size > MAX_BLOB:
         return {"rev": now, "path": path, "size": size, "oid": oid, "tooBig": True}
@@ -466,20 +619,18 @@ def diff(cwd, path, base_named="", rev="", layer=""):
     top = _repo_dir(cwd)
     _file(top, path)
     head = _head(top)
-    branch_out, _ = _run(top, "rev-parse", "--abbrev-ref", "HEAD")
-    branch = _text(branch_out).strip()
-    base, how = base_of(top, branch, base_named)
+    base, how = base_of(top, _branch(top), base_named)
     now = revision(top, base, head)
     if rev and rev != now:
         return {"stale": True, "rev": now}
 
     out = {"rev": now, "path": path, "base": base, "baseFrom": how}
-    if layer in ("", "committed") and base:
+    if layer in ("", "committed") and base and head:
         raw, cut = _run(top, "diff", "--full-index", f"{base}...HEAD", "--", path)
         out["committed"] = _text(raw)
         out["committedCut"] = cut
     if layer in ("", "worktree"):
-        raw, cut = _run(top, "diff", "--full-index", "HEAD", "--", path)
+        raw, cut = _run(top, "diff", "--full-index", _against(top, head), "--", path)
         text = _text(raw)
         if not text.strip():
             # An untracked file has nothing to diff against; git shows it only
