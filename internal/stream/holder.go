@@ -57,6 +57,13 @@ type Holder struct {
 
 	stderr *tail
 	log    *os.File
+	// Where this holder's files are, fixed at its start: a write that comes
+	// late — an answer arriving as the session ends — goes where the holder
+	// began, or nowhere, never wherever the environment points by then.
+	statePath string
+	// Set when the holder has cleaned up: nothing is written after that, or
+	// a state file would outlive the session it describes.
+	finished bool
 	// A session that ended cleanly leaves no log behind: the log is for the
 	// launch that failed, read by the launcher to say why.
 	clean bool
@@ -78,10 +85,11 @@ func Run(ctx context.Context, spec Spec) error {
 	logFile, _ := os.OpenFile(LogPath(spec.SessionID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 
 	h := &Holder{
-		spec:    spec,
-		waiters: map[string]chan json.RawMessage{},
-		stderr:  &tail{limit: stderrKeep},
-		log:     logFile,
+		spec:      spec,
+		waiters:   map[string]chan json.RawMessage{},
+		stderr:    &tail{limit: stderrKeep},
+		log:       logFile,
+		statePath: StatePath(spec.SessionID),
 		state: State{
 			Protocol:  Protocol,
 			Name:      spec.Name,
@@ -474,7 +482,10 @@ func (h *Holder) control(ctx context.Context, subtype string, fields map[string]
 		return nil, err
 	}
 	select {
-	case resp := <-ch:
+	case resp, ok := <-ch:
+		if !ok {
+			return nil, fmt.Errorf("claude ended before it answered %s", subtype)
+		}
 		var head struct {
 			Subtype string `json:"subtype"`
 			Error   string `json:"error"`
@@ -578,6 +589,9 @@ func (h *Holder) snapshot() State {
 func (h *Holder) saveSummary() {
 	h.saveMu.Lock()
 	defer h.saveMu.Unlock()
+	if h.finished {
+		return
+	}
 	s := h.snapshot()
 	sum := Summary{
 		Protocol: s.Protocol, Name: s.Name, SessionID: s.SessionID, PID: s.PID, Holder: s.Holder,
@@ -591,7 +605,7 @@ func (h *Holder) saveSummary() {
 	if err != nil {
 		return
 	}
-	path := StatePath(s.SessionID)
+	path := h.statePath
 	tmp := path + ".tmp"
 	if os.WriteFile(tmp, body, 0o600) == nil {
 		_ = os.Rename(tmp, path)
@@ -620,9 +634,12 @@ func (h *Holder) exited(err error) {
 }
 
 func (h *Holder) cleanup(ln net.Listener) {
+	h.saveMu.Lock()
+	h.finished = true
+	h.saveMu.Unlock()
 	_ = ln.Close()
 	_ = os.Remove(SocketPath(h.spec.SessionID))
-	_ = os.Remove(StatePath(h.spec.SessionID))
+	_ = os.Remove(h.statePath)
 	if h.log != nil {
 		_ = h.log.Close()
 	}

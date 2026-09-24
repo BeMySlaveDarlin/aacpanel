@@ -182,6 +182,20 @@ func (r *rig) summary(ok func(Summary) bool) Summary {
 	return sum
 }
 
+// eventually waits for claude to have read a line carrying what is looked
+// for: the holder is done once it has written, claude reads when it gets to it.
+func (r *rig) eventually(what string) string {
+	r.t.Helper()
+	var got string
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if got = r.received(); strings.Contains(got, what) {
+			return got
+		}
+	}
+	r.t.Fatalf("claude never read %s:\n%s", what, got)
+	return got
+}
+
 func (r *rig) received() string {
 	b, _ := os.ReadFile(r.log)
 	return string(b)
@@ -240,7 +254,7 @@ func TestAQuestionWaitsForAPersonAndTheAnswerReachesClaude(t *testing.T) {
 		t.Fatalf("respond: %+v", reply)
 	}
 	r.waitFor("the question to go", func(s State) bool { return len(s.Pending) == 0 })
-	if got := r.received(); !strings.Contains(got, `"request_id":"cc-1"`) || !strings.Contains(got, `"Blue"`) {
+	if got := r.eventually(`"Blue"`); !strings.Contains(got, `"request_id":"cc-1"`) {
 		t.Fatalf("the answer did not reach claude:\n%s", got)
 	}
 }
@@ -280,13 +294,8 @@ func TestARequestThePanelDoesNotServeIsRefusedAtOnce(t *testing.T) {
 	r.ask(Request{Op: OpSend, Text: "hook"})
 	// claude reads the refusal after it has finished the turn it was sent in,
 	// so what is waited for is the refusal itself, not the end of the turn.
-	var got string
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if got = r.received(); strings.Contains(got, `"request_id":"cc-2"`) {
-			break
-		}
-	}
-	if !strings.Contains(got, `"request_id":"cc-2"`) || !strings.Contains(got, `"subtype":"error"`) {
+	got := r.eventually(`"request_id":"cc-2"`)
+	if !strings.Contains(got, `"subtype":"error"`) {
 		t.Fatalf("a hook request was left unanswered, which hangs the turn:\n%s", got)
 	}
 	if s := r.state(); len(s.Pending) != 0 {
@@ -386,6 +395,12 @@ func TestAClaudeThatDiesAtStartLeavesItsWordsInTheLog(t *testing.T) {
 	log, _ := os.ReadFile(LogPath(r.spec.SessionID))
 	if !strings.Contains(string(log), "exit 3") || !strings.Contains(string(log), "not signed in") {
 		t.Fatalf("the log does not say why the session died:\n%s", log)
+	}
+	// The handshake was still waiting when claude died; its end must not
+	// write a state file for a session that is already gone.
+	time.Sleep(300 * time.Millisecond)
+	if _, err := os.Stat(StatePath(r.spec.SessionID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("a state file outlived its session: the collector would put a dead session on the map")
 	}
 }
 
