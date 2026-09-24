@@ -124,10 +124,34 @@ func TestAnswerKeysFollowsDialog(t *testing.T) {
 		picks:     [][]int{{2}},
 		want:      []string{"2"},
 	}, {
-		name:      "an option with a preview: the digit picks, Enter confirms",
+		name:      "an option with a preview: the digit moves the cursor, Enter picks",
 		questions: []askQ{{options: []string{"Side menu", "Top bar"}, preview: "+---+\n|   |\n+---+"}},
 		picks:     [][]int{{1}},
 		want:      []string{"1", enterKey},
+	}, {
+		name: "a batch with a preview: Enter picks there and moves on, the digit alone leaves the dialog standing",
+		questions: []askQ{
+			{options: []string{"Red", "Blue"}, preview: "RED BLOCK"},
+			{options: []string{"Small", "Large"}},
+		},
+		picks: [][]int{{2}, {2}},
+		want:  []string{"2", enterKey, "2", submitPick},
+	}, {
+		name: "a batch of previews only: Enter after every digit",
+		questions: []askQ{
+			{options: []string{"Agents", "Router", "Skills"}, preview: "agents/"},
+			{options: []string{"Five", "Three", "One"}, preview: "roles"},
+		},
+		picks: [][]int{{1}, {3}},
+		want:  []string{"1", enterKey, "3", enterKey, submitPick},
+	}, {
+		name: "a skipped question with a preview is passed with Tab: the arrow moves nothing there",
+		questions: []askQ{
+			{options: []string{"Red", "Blue"}, preview: "RED BLOCK"},
+			{options: []string{"Small", "Large"}},
+		},
+		picks: [][]int{{}, {2}},
+		want:  []string{keyTab, "2", submitPick},
 	}, {
 		name:      "several picks: checkboxes, a move and Submit",
 		questions: []askQ{{multi: true, options: []string{"One", "Two", "Three", "Four"}}},
@@ -231,6 +255,10 @@ func TestAnswerKeysRefusesImpossible(t *testing.T) {
 		questions: []askQ{{options: []string{"Side menu", "Top bar"}, preview: "+---+"}},
 		picks:     [][]int{{}},
 		texts:     []string{"put it at the bottom, like a tab bar"},
+	}, {
+		name:      "a lone question with a preview and nothing picked: Enter would pick the first option blind",
+		questions: []askQ{{options: []string{"Side menu", "Top bar"}, preview: "+---+"}},
+		picks:     [][]int{{}},
 	}}
 
 	for _, tt := range tests {

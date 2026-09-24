@@ -20,6 +20,7 @@ const (
 	askStoreName    = "asked.json"
 	keyPause        = 80 * time.Millisecond
 	keyRight        = "\x1b[C"
+	keyTab          = "\t"
 	submitPick      = "1"
 	fieldWait       = 3 * time.Second
 	fieldPoll       = 90 * time.Millisecond
@@ -281,8 +282,13 @@ func answerKeys(ask storedAsk, picks [][]int, texts []string) ([]dialogStep, err
 			keys = append(keys, dialogStep{keys: strconv.Itoa(pick)})
 		}
 		switch {
-		case single && q.hasPreview():
+		case single && len(chosen) == 0:
+		case q.hasPreview() && len(chosen) > 0:
 			keys = append(keys, dialogStep{keys: enterKey})
+			needSubmit = needSubmit || !single
+		case q.hasPreview():
+			keys = append(keys, dialogStep{keys: keyTab})
+			needSubmit = true
 		case single:
 		case q.Multi || len(chosen) == 0:
 			keys = append(keys, dialogStep{keys: keyRight})
