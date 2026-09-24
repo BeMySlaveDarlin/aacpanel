@@ -122,6 +122,7 @@ func TestSwitchFromStreamStopsAtWhatItWouldLose(t *testing.T) {
 func TestSwitchToConsoleResumesTheSameConversation(t *testing.T) {
 	dir, holder := streamStand(t, func(s *stream.State) {
 		s.Mode, s.StartMode = "acceptEdits", "default"
+		s.Picked, s.Effort = "opus[1m]", "max"
 		s.Tasks = []stream.Task{{ID: "b1", Description: "make check"}}
 	})
 	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
@@ -140,7 +141,7 @@ func TestSwitchToConsoleResumesTheSameConversation(t *testing.T) {
 	}
 	got := launched(t, log)
 	want := map[string]any{"_resume": streamSID, "_session": "demo", "transport": "tmux",
-		"permissionMode": "acceptEdits", "model": "opus", "effort": "high", "room": "work"}
+		"permissionMode": "acceptEdits", "model": "opus[1m]", "effort": "max", "room": "work"}
 	for k, v := range want {
 		if got[k] != v {
 			t.Errorf("%s reached the launcher as %v, expected %v", k, got[k], v)

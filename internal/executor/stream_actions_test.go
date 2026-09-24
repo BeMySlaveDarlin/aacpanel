@@ -279,3 +279,37 @@ func TestATerminalSessionNeverAsksAHolder(t *testing.T) {
 	}
 	_ = os.Getpid()
 }
+
+func TestASlashCommandToAStreamSessionIsAMessage(t *testing.T) {
+	f := onTheStream(t, false)
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "model", Arg: "opus[1m]"}
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := only(t, f)
+	if got.Op != stream.OpSend || got.Text != "/model opus[1m]" {
+		t.Errorf("the holder was asked %+v, expected the command as a message", got)
+	}
+	if !strings.Contains(detail, "/model opus[1m] sent to demo on the stream") {
+		t.Errorf("the report %q does not say what went where", detail)
+	}
+}
+
+// Clearing on the stream starts a conversation under a new id: the holder
+// keeps the old one, and the session would drop off the panel.
+func TestClearIsNotSentToAStreamSession(t *testing.T) {
+	f := onTheStream(t, false)
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "clear"}
+	_, err := e.Execute(context.Background(), r)
+	if err == nil || !strings.Contains(err.Error(), "new id") {
+		t.Fatalf("/clear went to a stream session: %v", err)
+	}
+	if got := f.asked(); len(got) != 0 {
+		t.Errorf("the holder was asked %+v", got)
+	}
+}

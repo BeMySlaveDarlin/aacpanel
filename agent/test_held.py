@@ -143,6 +143,11 @@ class OnTheCard(Runtime):
         self.assertEqual(got["waitingFor"], "dialog open")
         self.assertEqual(got["mode"], "plan")
 
+    def test_the_effort_picked_in_the_feed_is_on_the_card(self):
+        self.hold(SID, 1, effort="max")
+        self.assertEqual(self.card()["effort"], "max",
+                         "the transcript of claude -p does not carry the effort; the holder does")
+
     def test_a_question_is_input_needed(self):
         self.hold(SID, 1, waiting=["AskUserQuestion"])
         self.assertEqual(self.card()["waitingFor"], "input needed")

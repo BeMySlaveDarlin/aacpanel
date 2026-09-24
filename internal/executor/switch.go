@@ -175,6 +175,14 @@ func leavingStream(ctx context.Context, s liveSession, force bool) (carried, str
 		keep.Mode = st.Mode
 		keep.From = append(keep.From, "mode "+st.Mode+" from the stream")
 	}
+	if st.Picked != "" {
+		keep.Model = st.Picked
+		keep.From = append(keep.From, "model "+st.Picked+" picked in the feed")
+	}
+	if st.Effort != "" {
+		keep.Effort = st.Effort
+		keep.From = append(keep.From, "effort "+st.Effort+" picked in the feed")
+	}
 	lost := ""
 	if len(st.Tasks) > 0 {
 		lost = fmt.Sprintf("%s stopped: %s", plural(len(st.Tasks), "background task", "background tasks"), taskList(st.Tasks))

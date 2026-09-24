@@ -183,7 +183,7 @@ export function asksSend(e, wide) {
 }
 
 // Composer writes into a live session.
-export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk }) {
+export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -229,8 +229,8 @@ export function Composer({ name, id, exec, busy, hold, files, onFiles, onDropFil
     const canCmd = knows(exec, "session.command");
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
-    const cmd = canCmd && !pack.length ? parseCommand(text) : null;
-    const hints = canCmd && !pack.length && !(cmd && cmd.ready) ? commandHints(text) : [];
+    const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
+    const hints = canCmd && !pack.length && !(cmd && cmd.ready) ? commandHints(text, stream) : [];
     // With dictation on, an empty field shows the microphone rather than the
     // arrow: there is nothing to send yet, and a disabled button takes no press
     // to hold. The moment there are words it is the send button again. The

@@ -291,6 +291,47 @@ func TestOnlyTheListedControlsArePassedOn(t *testing.T) {
 	r.waitFor("the model to change", func(s State) bool { return s.Model == "sonnet" })
 }
 
+// A model and an effort chosen in the feed are remembered as they were chosen:
+// the other side of a switch is started with them, and the id claude resolves
+// a model to has lost its context window.
+func TestAPickedModelAndEffortAreRemembered(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	if s := r.state(); s.Picked != "" || s.Effort != "" {
+		t.Fatalf("a session that picked nothing remembers %q / %q", s.Picked, s.Effort)
+	}
+	r.ask(Request{Op: OpSend, Text: "/model opus[1m]"})
+	r.ask(Request{Op: OpSend, Text: "/effort high"})
+	r.ask(Request{Op: OpSend, Text: "tell me about /model sonnet"})
+	r.waitFor("the choice", func(s State) bool { return s.Picked == "opus[1m]" && s.Effort == "high" && !s.Busy })
+	r.ask(Request{Op: OpControl, Subtype: "set_model", Fields: map[string]any{"model": "haiku"}})
+	if s := r.state(); s.Picked != "haiku" {
+		t.Errorf("a model set by a control request is not remembered: %q", s.Picked)
+	}
+	raw, err := os.ReadFile(StatePath(r.spec.SessionID))
+	if err != nil || !strings.Contains(string(raw), `"effort":"high"`) {
+		t.Errorf("the state file does not carry the effort for the collector: %s", raw)
+	}
+}
+
+// Clearing on the stream starts a conversation under a new id, and the holder
+// keeps its session by the old one: whichever way it comes, it is refused.
+func TestClearingIsRefusedByTheHolder(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	for _, text := range []string{"/clear", "/reset", "  /new  please"} {
+		if reply := r.ask(Request{Op: OpSend, Text: text}); reply.OK || !strings.Contains(reply.Error, "new id") {
+			t.Errorf("%q was not refused: %+v", text, reply)
+		}
+	}
+	if got := r.received(); strings.Contains(got, "/clear") || strings.Contains(got, "/reset") || strings.Contains(got, "/new") {
+		t.Errorf("a clear reached claude:\n%s", got)
+	}
+	if reply := r.ask(Request{Op: OpSend, Text: "clear the table, please"}); !reply.OK {
+		t.Errorf("a message that merely mentions clearing was refused: %+v", reply)
+	}
+}
+
 func TestARequestThePanelDoesNotServeIsRefusedAtOnce(t *testing.T) {
 	r := start(t, nil)
 	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })

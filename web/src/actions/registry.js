@@ -22,6 +22,9 @@ const KEPT = "Directories on disk stay where they are: what disappears from the 
 export const COMMANDS = {
     clear: {
         name: "Clear the conversation",
+        // On the stream a clear starts a conversation under a new id, which the
+        // holder does not keep: the session would drop off the panel.
+        console: true,
         effect: "The console will forget the whole conversation: the context starts from zero. The transcript on disk stays, but the only way back into it is resuming the session.",
         danger: true,
     },
@@ -70,14 +73,17 @@ export function commandLine(params) {
     return params.arg ? `/${params.command} ${params.arg}` : `/${params.command}`;
 }
 
-// parseCommand reads what is typed in the composer as a slash command.
-export function parseCommand(text) {
+// parseCommand reads what is typed in the composer as a slash command. On the
+// stream a command that holds in the console only is never ready: sent as a
+// plain message it would be run all the same.
+export function parseCommand(text, stream = false) {
     const line = String(text || "").trim();
     if (!line.startsWith("/")) return null;
     const space = line.search(/\s/);
     const name = space < 0 ? line.slice(1) : line.slice(1, space);
     const spec = COMMANDS[name];
     if (!spec) return null;
+    if (stream && spec.console) return { command: name, arg: "", ready: false, console: true };
     const arg = space < 0 ? "" : line.slice(space + 1).trim();
     const args = spec.args || [];
     if (args.length === 0) return { command: name, arg: "", ready: arg === "" };
@@ -85,11 +91,14 @@ export function parseCommand(text) {
 }
 
 // commandHints returns the suggestions to show under the line being typed.
-export function commandHints(text) {
+export function commandHints(text, stream = false) {
     const line = String(text || "");
     if (!line.startsWith("/")) return [];
     const space = line.search(/\s/);
     const name = space < 0 ? line.slice(1) : line.slice(1, space);
+    if (stream && COMMANDS[name] && COMMANDS[name].console) {
+        return [{ value: line, label: `/${name}`, hint: "in the console only: on the stream it drops the session off the panel" }];
+    }
     const spec = space < 0 ? null : COMMANDS[name];
     if (spec && spec.args) {
         const typed = line.slice(space + 1).trim().toLowerCase();
@@ -100,7 +109,7 @@ export function commandHints(text) {
     if (spec) return [];
     const typed = name.toLowerCase();
     return Object.keys(COMMANDS)
-        .filter((id) => id.startsWith(typed))
+        .filter((id) => id.startsWith(typed) && !(stream && COMMANDS[id].console))
         .map((id) => ({
             value: COMMANDS[id].args ? `/${id} ` : `/${id}`,
             label: `/${id}`,

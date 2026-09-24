@@ -337,7 +337,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor}
                                       onAnswered=${() => mark(answered(live, ""))} />`
                     : html`
-                        <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"}
+                        <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"} stream=${live.transport === "stream"}
                                      hold=${holding}
                                      files=${files}
                                      onAsk=${() => setAsking(true)}

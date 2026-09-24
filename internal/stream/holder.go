@@ -414,9 +414,18 @@ func (h *Holder) write(obj any) error {
 	return err
 }
 
+// clearing are the commands that start a conversation under a new id. The
+// holder keeps its conversation by id — its socket, its state file, the panel
+// finding the session — so a clear would leave a session nobody holds.
+var clearing = map[string]bool{"/clear": true, "/reset": true, "/new": true}
+
 func (h *Holder) send(text, id string) (string, error) {
 	if strings.TrimSpace(text) == "" {
 		return "", errors.New("the message is empty")
+	}
+	if fields := strings.Fields(text); clearing[fields[0]] {
+		return "", fmt.Errorf("%s starts a conversation under a new id, and the session would drop off the panel: "+
+			"close it and open a new one instead", fields[0])
 	}
 	if id == "" {
 		id = newUUID()
@@ -437,8 +446,26 @@ func (h *Holder) send(text, id string) (string, error) {
 		h.mu.Unlock()
 		return "", err
 	}
+	h.picked(text)
 	h.saveSummary()
 	return id, nil
+}
+
+// picked remembers a model or an effort chosen by a message: a slash command
+// is a message on the stream, whether the panel sent it or a person typed it.
+func (h *Holder) picked(text string) {
+	fields := strings.Fields(text)
+	if len(fields) != 2 {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	switch fields[0] {
+	case "/model":
+		h.state.Picked = fields[1]
+	case "/effort":
+		h.state.Effort = fields[1]
+	}
 }
 
 func (h *Holder) respond(requestID string, response json.RawMessage) error {
@@ -569,6 +596,10 @@ func (h *Holder) do(req Request) Reply {
 		if err != nil {
 			return Reply{Error: err.Error(), Response: resp}
 		}
+		if model, ok := req.Fields["model"].(string); ok && req.Subtype == "set_model" {
+			h.picked("/model " + model)
+			h.saveSummary()
+		}
 		return Reply{OK: true, Response: resp}
 	case OpClose:
 		h.closeStdin()
@@ -598,7 +629,7 @@ func (h *Holder) saveSummary() {
 	s := h.snapshot()
 	sum := Summary{
 		Protocol: s.Protocol, Name: s.Name, SessionID: s.SessionID, PID: s.PID, Holder: s.Holder,
-		Started: s.Started, Busy: s.Busy, Model: s.Model, Mode: s.Mode, Waiting: []string{},
+		Started: s.Started, Busy: s.Busy, Model: s.Model, Mode: s.Mode, Effort: s.Effort, Waiting: []string{},
 		Queue: len(s.Queue), Tasks: len(s.Tasks), Updated: time.Now(),
 	}
 	for _, p := range s.Pending {

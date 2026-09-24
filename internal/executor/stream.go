@@ -71,6 +71,29 @@ func streamSend(ctx context.Context, s liveSession, text string) (string, error)
 	return fmt.Sprintf("sent to %s on the stream (%s), %d characters", s.Name, where, len([]rune(text))), nil
 }
 
+// streamCommand sends a slash command the way claude -p takes one: as a
+// message. Clearing is the exception: on the stream it starts a conversation
+// under a new id that the holder does not keep, and the session would drop
+// off the panel.
+func streamCommand(ctx context.Context, s liveSession, cmd *action.Command) (string, error) {
+	if cmd.Name == "clear" {
+		return "", fmt.Errorf("/clear is not sent to %s: on the stream it starts a conversation under a new id, "+
+			"and the session would drop off the panel. Close the session and open a new one instead", s.Name)
+	}
+	st, err := streamState(ctx, s)
+	if err != nil {
+		return "", err
+	}
+	line := commandLine(cmd)
+	if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpSend, Text: line}); err != nil {
+		return "", err
+	}
+	if st.Busy {
+		return fmt.Sprintf("%s sent to %s on the stream: it is busy, the command waits in its queue", line, s.Name), nil
+	}
+	return fmt.Sprintf("%s sent to %s on the stream", line, s.Name), nil
+}
+
 func streamInterrupt(ctx context.Context, s liveSession) (string, error) {
 	st, err := streamState(ctx, s)
 	if err != nil {

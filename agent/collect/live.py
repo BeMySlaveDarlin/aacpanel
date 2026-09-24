@@ -191,6 +191,10 @@ def sessions():
                 s["waitingFor"] = wait
             if isinstance(hold.get("mode"), str) and hold["mode"]:
                 s["mode"] = hold["mode"]
+            # An effort picked in the feed is known to the holder at once; the
+            # transcript of a claude -p does not carry it.
+            if isinstance(hold.get("effort"), str) and hold["effort"]:
+                s["effort"] = hold["effort"]
         if transcript:
             seen_transcripts.add(transcript)
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))

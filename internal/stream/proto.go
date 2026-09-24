@@ -132,11 +132,17 @@ type State struct {
 	// StartMode is the mode claude reported at the handshake. A mode equal to
 	// it is the one the launch parameters gave, and a switch does not carry it:
 	// the other side is started with the same parameters.
-	StartMode string          `json:"startMode,omitempty"`
-	Pending   []Pending       `json:"pending"`
-	Queue     []Queued        `json:"queue"`
-	Tasks     []Task          `json:"tasks"`
-	Init      json.RawMessage `json:"init,omitempty"`
+	StartMode string `json:"startMode,omitempty"`
+	// Picked is the model as a person chose it since the start — "opus[1m]",
+	// not the id claude resolves it to, which loses the context window — and
+	// Effort the effort chosen since the start. A switch starts the other side
+	// with them; empty is what the launch parameters gave.
+	Picked  string          `json:"picked,omitempty"`
+	Effort  string          `json:"effort,omitempty"`
+	Pending []Pending       `json:"pending"`
+	Queue   []Queued        `json:"queue"`
+	Tasks   []Task          `json:"tasks"`
+	Init    json.RawMessage `json:"init,omitempty"`
 }
 
 // Summary is the state file: what the collector reads to place the session on
@@ -152,6 +158,7 @@ type Summary struct {
 	Busy      bool      `json:"busy"`
 	Model     string    `json:"model,omitempty"`
 	Mode      string    `json:"mode,omitempty"`
+	Effort    string    `json:"effort,omitempty"`
 	Waiting   []string  `json:"waiting"`
 	Queue     int       `json:"queue"`
 	Tasks     int       `json:"tasks"`

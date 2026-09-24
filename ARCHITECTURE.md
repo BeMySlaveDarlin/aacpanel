@@ -275,6 +275,13 @@ A holder's state file names the conversation and the pid of its claude, and
 a process that matches none is somebody else's run — seen in the archive, not
 on the list of live sessions.
 
+**A slash command is a message on the stream**, as `claude -p` takes one; the
+holder remembers a model and an effort picked that way — the model as it was
+picked, since the id claude resolves it to loses the context window. A clear
+is the exception: it starts a conversation under a new id, the holder keeps
+its session by the old one, and the session would drop off the panel. The
+holder refuses it whichever way it comes, and the composer does not offer it.
+
 **A switch moves a live session between the two** (`session.switch`): the
 executor closes the process on one side and resumes the same conversation on
 the other, under the same name. The id and the history stay; the process does
@@ -287,7 +294,8 @@ before the press, and on the stream, where the holder knows the tasks exactly,
 the executor refuses a switch nobody agreed to.
 
 The new process is started with the project's launch parameters and what the
-session changed since its start. On the stream that is the permission mode:
+session changed since its start. On the stream that is the model and the
+effort picked in the feed, as they were picked, and the permission mode:
 always when the start named one, and otherwise only when the holder saw it
 change since the handshake — a mode nobody chose is claude's own name for the
 default, and carrying it would override the project's choice. From a console it is the model and the effort its status

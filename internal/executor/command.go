@@ -15,6 +15,9 @@ func (e *Executor) sessionCommand(ctx context.Context, target string, cmd *actio
 	if err != nil {
 		return "", err
 	}
+	if onStream(s) {
+		return streamCommand(ctx, s, cmd)
+	}
 	t, kerr := termFor(ctx, s.PID)
 	if kerr != nil {
 		return "", fmt.Errorf(
