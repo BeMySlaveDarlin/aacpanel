@@ -74,3 +74,10 @@ def delivered(item):
     fixed = dict(item)
     fixed.pop("state", None)
     return fixed
+
+
+def withdrawn(item):
+    """Returns the same item marked as taken back before the model read it."""
+    fixed = dict(item)
+    fixed["state"] = "withdrawn"
+    return fixed

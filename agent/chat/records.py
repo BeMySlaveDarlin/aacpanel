@@ -8,7 +8,7 @@ from .cards import artifact_card, ask_round, brief_card, sent_card, wake_item
 from .harness import classify, service, strip_panel_note, unwrap_pasted
 from .mail import peer_name, peer_pid
 from .limits import MAX_TEXT, cut
-from .queue import delivered
+from .queue import delivered, withdrawn
 from .tools import edited_path, tool_arg, tool_kind, tool_label
 
 
@@ -91,6 +91,14 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
 
     if kind == "queue-operation":
         operation = record.get("operation")
+        if operation == "popAll":
+            # Esc in a terminal pulls the queue back into the composer: nothing
+            # of it was read, and what goes out after is a message of its own.
+            if pending is None:
+                return []
+            text = strip_panel_note(unwrap_pasted((record.get("content") or "").strip()))
+            item = pending.by_text(text) if text else None
+            return [withdrawn(i) for i in ([item] if item else pending.drain())]
         if operation != "enqueue":
             if pending is None:
                 return []

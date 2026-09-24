@@ -417,6 +417,22 @@ class Queue(unittest.TestCase):
         second = self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
         self.assertEqual([first[0]["pos"], second[0]["pos"]], [10, 20])
 
+    def test_a_queue_pulled_back_into_the_composer_was_not_read(self):
+        pending = chat.Pending()
+        self.enqueued("make the header red", pending, pos=10)
+        got = self.items(line({"type": "queue-operation", "operation": "popAll",
+                               "content": "make the header red"}), pending)
+        self.assertEqual([(i["pos"], i.get("state")) for i in got], [(10, "withdrawn")])
+        self.assertIsNone(pending.head(), "a message pulled back still waits to be delivered")
+
+    def test_a_whole_queue_pulled_back_is_all_taken_back(self):
+        pending = chat.Pending()
+        self.enqueued("first", pending, pos=10)
+        self.enqueued("second", pending, pos=20)
+        got = self.items(line({"type": "queue-operation", "operation": "popAll",
+                               "content": "first\nsecond"}), pending)
+        self.assertEqual([(i["pos"], i.get("state")) for i in got], [(10, "withdrawn"), (20, "withdrawn")])
+
     def test_leaving_an_empty_queue_changes_nothing(self):
         for op in ("dequeue", "remove", "clear"):
             got = self.items(line({"type": "queue-operation", "operation": op,
