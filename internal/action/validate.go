@@ -173,6 +173,9 @@ func (r Request) Validate() error {
 		if err := safeText(r.Text); err != nil {
 			return err
 		}
+		if name, refused := refusedCommand(r.Text); refused {
+			return badRequest("/%s is not sent from the panel: %s", name, Refused[name])
+		}
 	case r.Text != "":
 		return badRequest("action %s takes no message text", r.Kind)
 	}

@@ -45,3 +45,33 @@ func TestClearIsOffInTheComposerOfAStreamSession(t *testing.T) {
 		t.Errorf("a /clear typed on the stream is not explained: %s", text(hints[2]))
 	}
 }
+
+// The rules of permissions are not sent from the panel in any form: the host
+// refuses them, and the composer does not let them go and says why — as a
+// command, and as a message that only starts with one.
+func TestPermissionsIsOffInTheComposer(t *testing.T) {
+	parsed := runModuleJS(t, "src/actions/registry.js", "parseCommand", [][]any{
+		{"/permissions", true}, {"/permissions", false}, {"/Permissions allow Bash", false}, {"/allowed-tools", false},
+		{"tell me about /permissions", false},
+	})
+	for i, v := range parsed[:4] {
+		m, _ := v.(map[string]any)
+		if m == nil || m["ready"] != false || m["refused"] != true {
+			t.Errorf("case %d: %v can be sent", i, v)
+		}
+	}
+	if parsed[4] != nil {
+		t.Errorf("a message that only mentions the command is taken for it: %v", parsed[4])
+	}
+	hints := runModuleJS(t, "src/actions/registry.js", "commandHints", [][]any{{"/permissions", false}, {"/p", false}})
+	text := func(v any) string {
+		b, _ := json.Marshal(v)
+		return string(b)
+	}
+	if !strings.Contains(text(hints[0]), "not sent from the panel") {
+		t.Errorf("the refusal is not explained: %s", text(hints[0]))
+	}
+	if strings.Contains(text(hints[1]), "/permissions") {
+		t.Errorf("the composer offers /permissions among the commands: %s", text(hints[1]))
+	}
+}

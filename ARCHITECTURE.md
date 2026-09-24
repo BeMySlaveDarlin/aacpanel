@@ -286,6 +286,11 @@ two modes that stop a session asking at all are not in the list, because a tap
 on a phone is not how that is decided. A mode on the stream is claude's own
 request; a terminal has only a key that cycles the modes on its screen.
 
+**The rules of permissions are not opened from the panel in any form.** Their
+screen is driven by keys, awkward even at a terminal; `/permissions` and its
+older name are refused as a command and as a message that starts with one, on
+either side, and the composer says so before the press.
+
 **A slash command is a message on the stream**, as `claude -p` takes one; the
 holder remembers a model and an effort picked that way — the model as it was
 picked, since the id claude resolves it to loses the context window. A clear

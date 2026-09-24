@@ -49,6 +49,15 @@ export const COMMANDS = {
     },
 };
 
+// REFUSED lists the slash commands the panel does not send in any form, not
+// even as a message: the rules of permissions are a screen driven by keys, and
+// the panel does not open it. The host refuses them too; the composer says so
+// before the press.
+export const REFUSED = {
+    permissions: "not sent from the panel: the rules of permissions are a screen driven by keys",
+    "allowed-tools": "not sent from the panel: the rules of permissions are a screen driven by keys",
+};
+
 // switchEffect tells what a switch keeps and what it ends. The conversation
 // comes up on the other side whole; what ran inside the process does not.
 function switchEffect(params) {
@@ -81,6 +90,7 @@ export function parseCommand(text, stream = false) {
     if (!line.startsWith("/")) return null;
     const space = line.search(/\s/);
     const name = space < 0 ? line.slice(1) : line.slice(1, space);
+    if (REFUSED[name.toLowerCase()]) return { command: name, arg: "", ready: false, refused: true };
     const spec = COMMANDS[name];
     if (!spec) return null;
     if (stream && spec.console) return { command: name, arg: "", ready: false, console: true };
@@ -96,6 +106,9 @@ export function commandHints(text, stream = false) {
     if (!line.startsWith("/")) return [];
     const space = line.search(/\s/);
     const name = space < 0 ? line.slice(1) : line.slice(1, space);
+    if (REFUSED[name.toLowerCase()]) {
+        return [{ value: line, label: `/${name}`, hint: REFUSED[name.toLowerCase()] }];
+    }
     if (stream && COMMANDS[name] && COMMANDS[name].console) {
         return [{ value: line, label: `/${name}`, hint: "in the console only: on the stream it drops the session off the panel" }];
     }

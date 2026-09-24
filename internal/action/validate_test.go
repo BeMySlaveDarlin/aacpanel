@@ -431,3 +431,30 @@ func TestASettingIsOneAtATime(t *testing.T) {
 		t.Errorf("a question about the models of a session is rejected: %v", err)
 	}
 }
+
+// The rules of permissions are not opened from the panel in any form: typed as
+// a message it would reach a terminal as the command all the same.
+func TestPermissionsIsRefusedInEveryForm(t *testing.T) {
+	for _, text := range []string{"/permissions", "  /permissions  ", "/Permissions", "/permissions allow Bash",
+		"/allowed-tools"} {
+		send := Request{ID: "a1", Kind: SessionSend, Target: "aacpanel", Text: text}
+		if err := send.Validate(); err == nil || !strings.Contains(err.Error(), "not sent from the panel") {
+			t.Errorf("%q went out as a message: %v", text, err)
+		}
+		file := Request{ID: "a1", Kind: SessionFile, Target: "aacpanel", Text: text,
+			Files: []File{{Name: "a.png", Data: []byte("x")}}}
+		if err := file.Validate(); err == nil {
+			t.Errorf("%q went out as the words beside a file", text)
+		}
+	}
+	command := Request{ID: "a1", Kind: SessionCommand, Target: "aacpanel", Command: &Command{Name: "permissions"}}
+	if err := command.Validate(); err == nil {
+		t.Error("/permissions went out as a command")
+	}
+	for _, text := range []string{"tell me about /permissions", "/perm", "/", "permissions"} {
+		send := Request{ID: "a1", Kind: SessionSend, Target: "aacpanel", Text: text}
+		if err := send.Validate(); err != nil {
+			t.Errorf("%q is refused, though it is not the command: %v", text, err)
+		}
+	}
+}
