@@ -566,6 +566,58 @@ def check_resume(claude, cwd, env, sid, model):
                   "the same id, the same history" if same and heard else f"id kept {same}, answered {heard}")
 
 
+def wait_gone(pid, limit=15):
+    """Waits for a process to end. A terminal writes the last of its transcript
+    on the way out, and a directory removed before that comes back with it."""
+    deadline = time.time() + limit
+    while pid and time.time() < deadline and os.path.exists(f"/proc/{pid}"):
+        time.sleep(0.2)
+
+
+def check_console(claude, cwd, env, sid, model):
+    """A session moves to the console by resuming its conversation in a terminal,
+    so a terminal has to read what the stream wrote. No request is made: the
+    history is drawn from the transcript. The directory is new to claude, and
+    the terminal asks whether to trust it with the cursor on "No, exit": a key
+    goes in only after the screen shows where the cursor is, and Enter only on
+    the line that trusts."""
+    tmux = shutil.which("tmux")
+    if not tmux:
+        return Result("console", INFO, "no tmux on this machine: the console side of a switch was not checked",
+                      required=False)
+    name = "stream-contract-" + sid[:8]
+    pane = dict(env, TERM="screen-256color")
+    argv = [tmux, "new-session", "-d", "-s", name, "-x", "160", "-y", "48", "-c", cwd, "--", "env", "-i"]
+    argv += [f"{k}={v}" for k, v in pane.items()]
+    argv += [claude, "--resume", sid, "--model", model, "--setting-sources", "project"]
+    screen = ""
+    pid = 0
+    try:
+        subprocess.run(argv, check=True, capture_output=True, timeout=30)
+        listed = subprocess.run([tmux, "list-panes", "-t", name, "-F", "#{pane_pid}"],
+                                capture_output=True, text=True, timeout=10).stdout.split()
+        pid = int(listed[0]) if listed else 0
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            screen = subprocess.run([tmux, "capture-pane", "-p", "-t", name],
+                                    capture_output=True, text=True, timeout=10).stdout
+            if "RESUMED" in screen:
+                return Result("console", OK, "a terminal resumes what the stream wrote")
+            if "Yes, I trust this folder" in screen:
+                on_yes = any(line.strip().startswith("❯") and "Yes, I trust this folder" in line
+                             for line in screen.splitlines())
+                key = "Enter" if on_yes else "Down"
+                subprocess.run([tmux, "send-keys", "-t", name, key], capture_output=True, timeout=10)
+            time.sleep(1)
+    except (OSError, subprocess.SubprocessError) as e:
+        return Result("console", FAIL, f"the terminal did not start: {e}")
+    finally:
+        subprocess.run([tmux, "kill-session", "-t", name], capture_output=True)
+        wait_gone(pid)
+    last = " | ".join(line.strip() for line in screen.splitlines() if line.strip())[-300:]
+    return Result("console", FAIL, f"the terminal did not show the history: {last}")
+
+
 # ------------------------------------------------------------------ the run
 
 def hooks_settings(cwd):
@@ -628,6 +680,8 @@ def run(claude, model, keep, say):
     results.append(check_hooks(cwd))
     say("… resume")
     results.append(check_resume(claude, cwd, env, s.sid, model))
+    say("… console")
+    results.append(check_console(claude, cwd, env, s.sid, model))
 
     transcript = find_transcript(config, s.sid)
     if keep:
