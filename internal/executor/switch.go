@@ -97,7 +97,7 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 		return "", err
 	}
 
-	closed, err := e.closeForSwitch(ctx, s, proc, held)
+	closed, err := e.closeGently(ctx, s, proc, held)
 	if err != nil {
 		return "", fmt.Errorf("the switch stopped at closing, nothing was started: %w", err)
 	}
@@ -124,12 +124,13 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 	return detail, nil
 }
 
-// closeForSwitch ends the process a switch leaves. A session on the stream is
+// closeGently ends a session the way it ends best. A session on the stream is
 // asked to end the way a finished `claude -p` does: its input is closed, it
 // writes the rest of its transcript and exits cleanly, and its holder leaves
-// nothing behind. A signal is kept for a console, and for a stream session
+// nothing behind — a signal would read as a launch that failed when the
+// session is young. A signal is kept for a console, and for a stream session
 // that did not end on its own.
-func (e *Executor) closeForSwitch(ctx context.Context, s liveSession, proc agentProc, held bool) (string, error) {
+func (e *Executor) closeGently(ctx context.Context, s liveSession, proc agentProc, held bool) (string, error) {
 	if held {
 		if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpClose}); err == nil &&
 			e.waitGone(ctx, proc.Agent, e.softWait()) {

@@ -28,6 +28,9 @@ func (e *Executor) sessionClose(ctx context.Context, target string) (string, err
 	if err != nil {
 		return "", err
 	}
+	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
+		return e.closeGently(ctx, s, p, true)
+	}
 	return e.closeAgent(ctx, p)
 }
 

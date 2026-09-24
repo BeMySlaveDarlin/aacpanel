@@ -348,3 +348,25 @@ func TestSwitchSignalsAStreamSessionThatWouldNotClose(t *testing.T) {
 		t.Errorf("signals %v, expected one TERM once the holder could not close its session", signals.sent)
 	}
 }
+
+// Closing a session on the stream ends its input, the way a finished run ends:
+// a signal to a young session reads as a launch that failed and leaves a log.
+func TestClosingAStreamSessionEndsItsInput(t *testing.T) {
+	_, holder := streamStand(t, func(*stream.State) {})
+	e, _ := newTest(t, "")
+	signals := withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+	detail, err := e.Execute(context.Background(), req(action.SessionClose, "demo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(signals.sent) != 0 {
+		t.Errorf("signals %v went to a stream session that ends cleanly when its input is closed", signals.sent)
+	}
+	if got := holder.asked(); len(got) != 1 || got[0].Op != stream.OpClose {
+		t.Errorf("the holder was asked %+v, expected to close the input of its session", got)
+	}
+	if !strings.Contains(detail, "closed gracefully") {
+		t.Errorf("the report %q does not say the session closed", detail)
+	}
+}
