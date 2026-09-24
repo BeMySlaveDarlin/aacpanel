@@ -63,7 +63,7 @@ func TestTheTopOfAHostMetricHoldsProcessesBesideContainers(t *testing.T) {
 	if !got.ProcTagShown {
 		t.Error("the mark of a process is in the markup but not on the screen")
 	}
-	if !strings.Contains(proc.Sub, "pid 4242") || !strings.Contains(proc.Sub, "aziz") {
+	if !strings.Contains(proc.Sub, "pid 4242") || !strings.Contains(proc.Sub, "dev") {
 		t.Errorf("a process row says %q: without the pid and the user there is nothing to go and look at", proc.Sub)
 	}
 	if !strings.Contains(proc.Title, "/usr/bin/python3") {
