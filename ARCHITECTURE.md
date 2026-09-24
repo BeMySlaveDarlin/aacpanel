@@ -287,9 +287,13 @@ before the press, and on the stream, where the holder knows the tasks exactly,
 the executor refuses a switch nobody agreed to.
 
 The new process is started with the project's launch parameters and what the
-session changed since its start: the permission mode from the holder, or from
-the transcript of a console; the model and the effort a console shows on its
-status line, which names the model with its context window. The opening
+session changed since its start. On the stream that is the permission mode:
+always when the start named one, and otherwise only when the holder saw it
+change since the handshake — a mode nobody chose is claude's own name for the
+default, and carrying it would override the project's choice. From a console it is the model and the effort its status
+line shows, which names the model with its context window, and the mode of
+the last message sent since the console started, or the mode it was started
+with — a mode changed after the last message is in neither. The opening
 message of the project is dropped — a resumed conversation would read it as a
 new request. A stream session can always go to the console; a console goes to
 the feed only when its project lives there, because which projects live in the

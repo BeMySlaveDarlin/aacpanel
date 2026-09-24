@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"aacpanel/internal/action"
 	registry "aacpanel/internal/contours"
@@ -96,7 +97,7 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 		return "", err
 	}
 
-	closed, err := e.closeAgent(ctx, proc)
+	closed, err := e.closeForSwitch(ctx, s, proc, held)
 	if err != nil {
 		return "", fmt.Errorf("the switch stopped at closing, nothing was started: %w", err)
 	}
@@ -121,6 +122,21 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 		detail += "; WARNING: " + w
 	}
 	return detail, nil
+}
+
+// closeForSwitch ends the process a switch leaves. A session on the stream is
+// asked to end the way a finished `claude -p` does: its input is closed, it
+// writes the rest of its transcript and exits cleanly, and its holder leaves
+// nothing behind. A signal is kept for a console, and for a stream session
+// that did not end on its own.
+func (e *Executor) closeForSwitch(ctx context.Context, s liveSession, proc agentProc, held bool) (string, error) {
+	if held {
+		if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpClose}); err == nil &&
+			e.waitGone(ctx, proc.Agent, e.softWait()) {
+			return fmt.Sprintf("session %s closed gracefully, the transcript is complete", proc.Session), nil
+		}
+	}
+	return e.closeAgent(ctx, proc)
 }
 
 // leavingStream says what a session on the stream takes to the console, or
@@ -151,8 +167,11 @@ func leavingStream(ctx context.Context, s liveSession, force bool) (carried, str
 		return carried{}, "", fmt.Errorf("session %s runs %s that stop with the switch: %s",
 			s.Name, plural(len(st.Tasks), "background task", "background tasks"), taskList(st.Tasks))
 	}
+	// A mode the start named is carried whatever it is now. Without one, claude
+	// reports its own name for the default at the handshake, and only a change
+	// since then is the session's own.
 	var keep carried
-	if st.Mode != "" {
+	if st.Mode != "" && (startMode(s.PID) != "" || st.Mode != st.StartMode) {
 		keep.Mode = st.Mode
 		keep.From = append(keep.From, "mode "+st.Mode+" from the stream")
 	}
@@ -198,11 +217,31 @@ func leavingConsole(s liveSession) (carried, error) {
 			keep.From = append(keep.From, "effort "+effort+" from the status line")
 		}
 	}
-	if mode := transcriptMode(s.SessionID); mode != "" {
+	if mode := transcriptMode(s.SessionID, s.Started); mode != "" {
 		keep.Mode = mode
 		keep.From = append(keep.From, "mode "+mode+" from the transcript")
+	} else if mode := startMode(s.PID); mode != "" {
+		keep.Mode = mode
+		keep.From = append(keep.From, "mode "+mode+" from its start")
 	}
 	return keep, nil
+}
+
+// startMode is the mode a session was started with, when its start named one.
+func startMode(pid int) string {
+	args, err := procArgs(pid)
+	if err != nil {
+		return ""
+	}
+	for i, a := range args {
+		if a == "--permission-mode" && i+1 < len(args) {
+			return args[i+1]
+		}
+		if v, ok := strings.CutPrefix(a, "--permission-mode="); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 // consoleModel reads the model and the effort a console shows right now. The
@@ -242,12 +281,16 @@ func sessionModelsDirs() []string {
 }
 
 // transcriptMode reads the permission mode a console was last in off the end
-// of its transcript: every message a person sends carries it.
-func transcriptMode(sessionID string) string {
+// of its transcript: every message a person sends carries it. Only a message
+// sent since the console started counts — an older one was written by another
+// process of the same conversation, perhaps on the other side, and says
+// nothing of this one. A mode changed after the last message is not in the
+// transcript at all.
+func transcriptMode(sessionID string, since time.Time) string {
 	for _, conf := range registry.ConfigDirs() {
 		found, _ := filepath.Glob(filepath.Join(conf, "projects", "*", sessionID+".jsonl"))
 		for _, path := range found {
-			if mode := lastMode(path); mode != "" {
+			if mode := lastMode(path, since); mode != "" {
 				return mode
 			}
 		}
@@ -255,7 +298,7 @@ func transcriptMode(sessionID string) string {
 	return ""
 }
 
-func lastMode(path string) string {
+func lastMode(path string, since time.Time) string {
 	f, err := os.Open(path)
 	if err != nil {
 		return ""
@@ -274,11 +317,16 @@ func lastMode(path string) string {
 			continue
 		}
 		var rec struct {
-			Mode string `json:"permissionMode"`
+			Mode string    `json:"permissionMode"`
+			At   time.Time `json:"timestamp"`
 		}
-		if json.Unmarshal(lines[i], &rec) == nil && rec.Mode != "" {
-			return rec.Mode
+		if json.Unmarshal(lines[i], &rec) != nil || rec.Mode == "" {
+			continue
 		}
+		if rec.At.Before(since) {
+			return ""
+		}
+		return rec.Mode
 	}
 	return ""
 }

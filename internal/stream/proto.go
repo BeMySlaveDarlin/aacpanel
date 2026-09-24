@@ -120,15 +120,19 @@ type Task struct {
 
 // State is what a holder knows about its session.
 type State struct {
-	Protocol  int             `json:"protocol"`
-	Name      string          `json:"name"`
-	SessionID string          `json:"sessionId"`
-	PID       int             `json:"pid"`
-	Holder    int             `json:"holder"`
-	Started   time.Time       `json:"started"`
-	Busy      bool            `json:"busy"`
-	Model     string          `json:"model,omitempty"`
-	Mode      string          `json:"mode,omitempty"`
+	Protocol  int       `json:"protocol"`
+	Name      string    `json:"name"`
+	SessionID string    `json:"sessionId"`
+	PID       int       `json:"pid"`
+	Holder    int       `json:"holder"`
+	Started   time.Time `json:"started"`
+	Busy      bool      `json:"busy"`
+	Model     string    `json:"model,omitempty"`
+	Mode      string    `json:"mode,omitempty"`
+	// StartMode is the mode claude reported at the handshake. A mode equal to
+	// it is the one the launch parameters gave, and a switch does not carry it:
+	// the other side is started with the same parameters.
+	StartMode string          `json:"startMode,omitempty"`
 	Pending   []Pending       `json:"pending"`
 	Queue     []Queued        `json:"queue"`
 	Tasks     []Task          `json:"tasks"`

@@ -222,6 +222,9 @@ func (h *Holder) handshake() {
 	h.state.Init = body.Response
 	if init.Mode != "" {
 		h.state.Mode = init.Mode
+		if h.state.StartMode == "" {
+			h.state.StartMode = init.Mode
+		}
 	}
 	h.mu.Unlock()
 	h.saveSummary()

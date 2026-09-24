@@ -207,6 +207,9 @@ func TestTheHandshakeIsAnsweredAndTheSessionIsHeld(t *testing.T) {
 	if s.Mode != "default" || s.PID <= 0 || s.Protocol != Protocol {
 		t.Fatalf("mode %q, pid %d, protocol %d", s.Mode, s.PID, s.Protocol)
 	}
+	if s.StartMode != "default" {
+		t.Errorf("the mode at the start is %q: a switch would not tell a changed mode from the launched one", s.StartMode)
+	}
 	sum, held := Held(r.spec.SessionID, s.PID)
 	if !held || sum.Name != "demo" {
 		t.Fatalf("the state file does not say the session is held: %+v", sum)

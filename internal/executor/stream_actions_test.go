@@ -21,6 +21,8 @@ type fakeHolder struct {
 	mu    sync.Mutex
 	state stream.State
 	got   []stream.Request
+	// Ops the holder answers with an error, as a holder that cannot do them.
+	fails map[string]string
 }
 
 func (f *fakeHolder) asked() []stream.Request {
@@ -56,10 +58,14 @@ func onTheStream(t *testing.T, busy bool, pending ...stream.Pending) *fakeHolder
 				f.got = append(f.got, r)
 			}
 			st := f.state
+			failed := f.fails[r.Op]
 			f.mu.Unlock()
 			reply := stream.Reply{OK: true}
 			if r.Op == stream.OpState {
 				reply.State = &st
+			}
+			if failed != "" {
+				reply = stream.Reply{Error: failed}
 			}
 			_ = json.NewEncoder(conn).Encode(reply)
 			_ = conn.Close()

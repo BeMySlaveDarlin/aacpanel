@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// A session on the stream with a background task running: the header offers
+// to move it to the console, the sheet names what stops, and the press sends
+// where to go together with the agreement.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) {
+        return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false,
+            state: { tasks: [{ id: "b1", kind: "bash", line: "make check", done: false }], agents: [], workflows: [] } });
+    }
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/window")) return json({ state: "none" });
+    if (u.startsWith("/api/session/switch")) return json({ to: "console" });
+    if (u.startsWith("/api/actions") && init && init.method === "POST") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true, detail: "moved" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const live = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj/panel" };
+const exec = { available: true, kinds: ["session.switch", "window.open", "window.close"] };
+function Page() {
+    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec}
+                         onBack=${() => {}} onUsage=${() => {}} />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const button = () => document.querySelector('.winbtn[aria-label="Move to the console"]');
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 50 && !button(); i++) await sleep(100);
+    const b = button();
+    if (!b) return { button: false };
+    // The work arrives with the conversation: wait until the feed has it.
+    await sleep(400);
+    b.click();
+    for (let i = 0; i < 30 && !document.querySelector(".stitle"); i++) await sleep(100);
+    const title = (document.querySelector(".stitle") || {}).textContent || "";
+    const effect = (document.querySelector(".warnline") || {}).textContent || "";
+    const ok = [...document.querySelectorAll(".btnrow .btn")].pop();
+    const danger = Boolean(ok && ok.classList.contains("danger"));
+    if (ok) ok.click();
+    for (let i = 0; i < 30 && !sent.length; i++) await sleep(100);
+    return { button: true, disabled: b.disabled, title, effect, danger, sent };
+})();
+</script>

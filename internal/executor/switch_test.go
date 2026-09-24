@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"aacpanel/internal/action"
 	registry "aacpanel/internal/contours"
@@ -26,13 +27,13 @@ func switchTo(to string, force bool, dir string) action.Request {
 
 // streamStand is a session on the stream in a real project directory, with a
 // holder answering the given state.
-func streamStand(t *testing.T, st func(*stream.State)) (dir string, f *fakeHolder) {
+func streamStand(t *testing.T, st func(*stream.State), args ...string) (dir string, f *fakeHolder) {
 	t.Helper()
 	root, dir := launchDir(t, "proj")
 	t.Setenv(projectRootsEnv, root)
 	f = onTheStream(t, false)
 	procFS(t, fakeProc{pid: 5001, comm: "claude", ppid: 1, cwd: dir, start: "5555",
-		args: []string{"claude", "-p", "--input-format", "stream-json", "-n", "demo", "--session-id", streamSID}})
+		args: append([]string{"claude", "-p", "--input-format", "stream-json", "-n", "demo", "--session-id", streamSID}, args...)})
 	sessionFiles(t, fakeSession{pid: 5001, name: "demo", start: "5555", sid: streamSID, cwd: dir})
 	f.mu.Lock()
 	st(&f.state)
@@ -40,13 +41,18 @@ func streamStand(t *testing.T, st func(*stream.State)) (dir string, f *fakeHolde
 	return dir, f
 }
 
-func consoleStand(t *testing.T, status string) string {
+// consoleStarted is when the console of consoleStand started: a transcript
+// line before it was written by another process of the conversation.
+var consoleStarted = time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC)
+
+func consoleStand(t *testing.T, status string, args ...string) string {
 	t.Helper()
 	root, dir := launchDir(t, "proj")
 	t.Setenv(projectRootsEnv, root)
 	procFS(t, fakeProc{pid: 1004, comm: "claude", ppid: 1, cwd: dir, start: "1000",
-		args: []string{"claude", "-n", "demo"}})
-	sessionFiles(t, fakeSession{pid: 1004, name: "demo", start: "1000", sid: consoleSID, cwd: dir, status: status})
+		args: append([]string{"claude", "-n", "demo"}, args...)})
+	sessionFiles(t, fakeSession{pid: 1004, name: "demo", start: "1000", sid: consoleSID, cwd: dir, status: status,
+		startedAt: consoleStarted.UnixMilli()})
 	conf := t.TempDir()
 	t.Setenv(registry.HomeEnv, conf)
 	t.Setenv(registry.RegistryEnv, "")
@@ -114,8 +120,8 @@ func TestSwitchFromStreamStopsAtWhatItWouldLose(t *testing.T) {
 }
 
 func TestSwitchToConsoleResumesTheSameConversation(t *testing.T) {
-	dir, _ := streamStand(t, func(s *stream.State) {
-		s.Mode = "acceptEdits"
+	dir, holder := streamStand(t, func(s *stream.State) {
+		s.Mode, s.StartMode = "acceptEdits", "default"
 		s.Tasks = []stream.Task{{ID: "b1", Description: "make check"}}
 	})
 	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
@@ -126,8 +132,11 @@ func TestSwitchToConsoleResumesTheSameConversation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(signals.sent, ",") != "5001:terminated" {
-		t.Errorf("signals %v, expected one TERM to the session", signals.sent)
+	if len(signals.sent) != 0 {
+		t.Errorf("signals %v went to a session that ends cleanly when its input is closed", signals.sent)
+	}
+	if got := holder.asked(); len(got) != 1 || got[0].Op != stream.OpClose {
+		t.Errorf("the holder was asked %+v, expected to close the input of its session", got)
 	}
 	got := launched(t, log)
 	want := map[string]any{"_resume": streamSID, "_session": "demo", "transport": "tmux",
@@ -158,17 +167,11 @@ func TestSwitchToStreamCarriesWhatTheConsoleShows(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(models, consoleSID+".json"), []byte(seen), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	slug := filepath.Join(conf, "projects", "-proj")
-	if err := os.MkdirAll(slug, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	transcript := `{"type":"user","permissionMode":"default"}` + "\n" +
-		`{"type":"assistant","message":{"model":"claude-opus-5-5"}}` + "\n" +
-		`{"type":"user","permissionMode":"auto"}` + "\n" +
-		`{"type":"assistant","message":{"model":"claude-opus-5-5"}}` + "\n"
-	if err := os.WriteFile(filepath.Join(slug, consoleSID+".jsonl"), []byte(transcript), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeTranscript(t, conf,
+		`{"type":"user","permissionMode":"default","timestamp":"2026-09-24T09:00:00Z"}`,
+		`{"type":"assistant","message":{"model":"claude-opus-5-5"}}`,
+		`{"type":"user","permissionMode":"auto","timestamp":"2026-09-24T10:05:00Z"}`,
+		`{"type":"assistant","message":{"model":"claude-opus-5-5"}}`)
 	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportStream})
 	e, _ := newTest(t, "")
 	signals := withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
@@ -190,6 +193,74 @@ func TestSwitchToStreamCarriesWhatTheConsoleShows(t *testing.T) {
 	}
 	if !strings.Contains(detail, "moved in the feed") {
 		t.Errorf("the report %q does not say where the session went", detail)
+	}
+}
+
+func writeTranscript(t *testing.T, conf string, lines ...string) {
+	t.Helper()
+	slug := filepath.Join(conf, "projects", "-proj")
+	if err := os.MkdirAll(slug, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(slug, consoleSID+".jsonl"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A console that has not said a word since it started is in the mode it was
+// started with; the mode in the transcript is of a process that came before.
+func TestSwitchToStreamTakesTheStartModeOverAnOlderTranscript(t *testing.T) {
+	dir := consoleStand(t, "idle", "--permission-mode", "acceptEdits")
+	writeTranscript(t, os.Getenv(registry.HomeEnv),
+		`{"type":"user","permissionMode":"auto","timestamp":"2026-09-24T09:59:00Z"}`)
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportStream})
+	e, _ := newTest(t, "")
+	withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
+
+	detail, err := e.Execute(context.Background(), switchTo(action.SwitchStream, false, dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := launched(t, log)["permissionMode"]; got != "acceptEdits" {
+		t.Errorf("the feed starts in mode %v, while the console was in acceptEdits", got)
+	}
+	if !strings.Contains(detail, "mode acceptEdits from its start") {
+		t.Errorf("the report %q does not say where the mode came from", detail)
+	}
+}
+
+// A stream session in the mode it started with is started on the other side
+// with the same parameters: carrying the mode would put the protocol's name
+// for it over the project's choice.
+func TestSwitchToConsoleLeavesAnUnchangedModeToTheProject(t *testing.T) {
+	dir, _ := streamStand(t, func(s *stream.State) { s.Mode, s.StartMode = "default", "default" })
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
+	e, _ := newTest(t, "")
+	withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+	if _, err := e.Execute(context.Background(), switchTo(action.SwitchConsole, false, dir)); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := launched(t, log)["permissionMode"]; ok {
+		t.Errorf("an unchanged mode was carried over the project's parameters: %v", got)
+	}
+}
+
+// A stream session started in a named mode — by a switch from a console, say —
+// keeps it on the way back, changed or not.
+func TestSwitchToConsoleCarriesTheModeTheStartNamed(t *testing.T) {
+	dir, _ := streamStand(t, func(s *stream.State) { s.Mode, s.StartMode = "acceptEdits", "acceptEdits" },
+		"--permission-mode", "acceptEdits")
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
+	e, _ := newTest(t, "")
+	withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+	if _, err := e.Execute(context.Background(), switchTo(action.SwitchConsole, false, dir)); err != nil {
+		t.Fatal(err)
+	}
+	if got := launched(t, log)["permissionMode"]; got != "acceptEdits" {
+		t.Errorf("the console starts in mode %v, while the feed was started in acceptEdits", got)
 	}
 }
 
@@ -257,5 +328,22 @@ func TestSwitchThatDidNotComeUpSaysTheConversationIsWhole(t *testing.T) {
 		if !strings.Contains(err.Error(), say) {
 			t.Errorf("the error %q does not say %q", err, say)
 		}
+	}
+}
+
+func TestSwitchSignalsAStreamSessionThatWouldNotClose(t *testing.T) {
+	dir, holder := streamStand(t, func(*stream.State) {})
+	holder.mu.Lock()
+	holder.fails = map[string]string{stream.OpClose: "the input is already closed"}
+	holder.mu.Unlock()
+	fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
+	e, _ := newTest(t, "")
+	signals := withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+	if _, err := e.Execute(context.Background(), switchTo(action.SwitchConsole, false, dir)); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(signals.sent, ",") != "5001:terminated" {
+		t.Errorf("signals %v, expected one TERM once the holder could not close its session", signals.sent)
 	}
 }
