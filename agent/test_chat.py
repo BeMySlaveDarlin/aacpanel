@@ -129,6 +129,98 @@ class Parse(unittest.TestCase):
                               "            <command-args>fable xhigh</command-args>"))
         self.assertEqual([(i["role"], i["text"]) for i in got], [("me", "/model fable xhigh")])
 
+    CONTEXT_MD = (
+        "## Context Usage\n\n"
+        "**Model:** claude-opus-5-5[1m]  \n"
+        "**Tokens:** 722.7k / 1m (72%)\n\n"
+        "### Estimated usage by category\n\n"
+        "| Category | Tokens | Percentage |\n"
+        "|----------|--------|------------|\n"
+        "| System prompt | 3.8k | 0.4% |\n"
+        "| MCP tools (deferred) | 69.7k | 7.0% |\n"
+        "| Messages | 664.4k | 66.4% |\n"
+        "| Free space | 244.3k | 24.4% |\n"
+        "| Autocompact buffer | 33k | 3.3% |\n\n"
+        "### MCP Tools\n\n"
+        "| Tool | Server | Tokens |\n"
+        "|------|--------|--------|\n"
+        "| mcp__gmail__send | gmail | 1.9k |\n"
+        "| mcp__gmail__reply | gmail | 1k |\n"
+        "| mcp__drive__copy | drive | 428 |\n\n"
+        "### Skills\n\n"
+        "| Skill | Source | Tokens |\n"
+        "|-------|--------|--------|\n"
+        "| brief | User | ~260 |\n"
+        "| xlsx | claude.ai sync | < 20 |\n")
+
+    def test_the_numbers_of_context_become_a_card(self):
+        got = self.items(line({
+            "type": "system", "subtype": "local_command", "level": "info",
+            "timestamp": "2026-08-23T10:00:00Z",
+            "content": "<local-command-stdout>" + self.CONTEXT_MD + "</local-command-stdout>",
+            "contextUsage": {
+                "model": "claude-opus-5-5[1m]", "total_tokens": 259334,
+                "raw_max_tokens": 1000000, "percentage": 26,
+                "categories": [
+                    {"name": "Messages", "tokens": 205830, "kind": "used"},
+                    {"name": "MCP tools (deferred)", "tokens": 69612, "kind": "deferred"},
+                    {"name": "Autocompact buffer", "tokens": 33000, "kind": "buffer"},
+                    {"name": "Free space", "tokens": 707610, "kind": "free"}],
+                "mcp_tools": [{"name": "a", "server_name": "gmail", "tokens": 100},
+                              {"name": "b", "server_name": "drive", "tokens": 300},
+                              {"name": "c", "server_name": "gmail", "tokens": 50}],
+                "agents": [{"agent_type": "reviewer", "source": "plugin", "tokens": 110}],
+                "memory_files": [], "skills": []}}))
+        self.assertEqual([(i["role"], i["name"]) for i in got], [("command", "context")])
+        data = got[0]["data"]
+        # The field is exact where the markdown beside it is rounded, and the card takes the field.
+        self.assertEqual((data["used"], data["max"], data["percent"]), (259334, 1000000, 26))
+        self.assertEqual([c["kind"] for c in data["categories"]], ["used", "deferred", "buffer", "free"])
+        self.assertEqual(data["mcp"], [{"name": "drive", "tools": 1, "tokens": 300},
+                                       {"name": "gmail", "tools": 2, "tokens": 150}])
+        self.assertEqual(data["agents"], [{"name": "reviewer", "source": "plugin", "tokens": 110}])
+
+    def test_the_markdown_answer_of_context_becomes_a_card(self):
+        got = self.items(line({"type": "user", "isMeta": True, "timestamp": "2026-08-23T10:00:00Z",
+                               "message": {"content": self.CONTEXT_MD}}))
+        self.assertEqual([(i["role"], i["name"]) for i in got], [("command", "context")])
+        data = got[0]["data"]
+        self.assertEqual((data["model"], data["used"], data["max"], data["percent"]),
+                         ("claude-opus-5-5[1m]", 722700, 1000000, 72))
+        self.assertEqual([(c["name"], c["tokens"], c["kind"]) for c in data["categories"]], [
+            ("System prompt", 3800, "used"), ("MCP tools (deferred)", 69700, "deferred"),
+            ("Messages", 664400, "used"), ("Free space", 244300, "free"),
+            ("Autocompact buffer", 33000, "buffer")])
+        self.assertEqual(data["mcp"], [{"name": "gmail", "tools": 2, "tokens": 2900},
+                                       {"name": "drive", "tools": 1, "tokens": 428}])
+        # "< 20" is a bound, not a count: it stays a bound.
+        self.assertEqual(data["skills"], [
+            {"name": "brief", "source": "User", "tokens": 260},
+            {"name": "xlsx", "source": "claude.ai sync", "tokens": 0, "under": 20}])
+
+    def test_the_markdown_in_the_stdout_of_a_stream_becomes_a_card_too(self):
+        got = self.items(local_command("<local-command-stdout>" + self.CONTEXT_MD
+                                       + "</local-command-stdout>"))
+        self.assertEqual([(i["role"], i["data"]["used"]) for i in got], [("command", 722700)])
+
+    def test_the_terminal_grid_of_context_is_left_out(self):
+        # A terminal writes the grid of glyphs first and the markdown after it;
+        # the card comes from the markdown, and the grid is not a note either.
+        got = self.items(local_command(
+            "<local-command-stdout> \x1b[1mContext Usage\x1b[22m\n"
+            "\x1b[38;5;244m⛁ \x1b[38;5;246m⛁ ⛶ ⛝ \x1b[39m  Opus 5.5 (1M context)\n"
+            "</local-command-stdout>"))
+        self.assertEqual(got, [])
+
+    def test_the_markdown_of_context_pasted_by_a_person_stays_their_message(self):
+        got = self.items(user(self.CONTEXT_MD))
+        self.assertEqual([i["role"] for i in got], ["me"])
+
+    def test_an_unreadable_context_answer_falls_back_to_a_note(self):
+        got = self.items(local_command("<local-command-stdout>## Context Usage\n\nnothing measured"
+                                       "</local-command-stdout>"))
+        self.assertEqual([i["role"] for i in got], ["note"])
+
     def test_other_system_records_stay_out_of_the_feed(self):
         self.assertEqual(self.items(line({"type": "system", "subtype": "stop_hook_summary",
                                           "content": "hook ok"})), [])

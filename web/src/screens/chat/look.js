@@ -25,6 +25,7 @@ export const LOOK_NAMES = {
     file: "project file",
     artifact: "published page",
     brief: "brief",
+    command: "command output",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);

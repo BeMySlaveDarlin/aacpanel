@@ -56,6 +56,9 @@ export const Icon = {
 
     clock: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 7v5.3l3.4 2" /></svg>`,
 
+    // A share of a whole: how much of the context window is taken.
+    pie: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 3v9h9" /></svg>`,
+
     cube: () => html`<svg ...${stroke}><path d="M12 2.8 20 7v10l-8 4.2L4 17V7Z" /><path d="m4 7 8 4.2L20 7M12 11.2V21" /></svg>`,
 
     alerts: () => html`<svg ...${stroke}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>`,

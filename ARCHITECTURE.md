@@ -520,6 +520,16 @@ transcript that names no time has nothing left but its file.
 counts it for closed conversations: one and the same session must show one
 number before and after it is closed.
 
+**The answer of a slash command reaches the feed as numbers, not as its
+text.** Claude writes what a command printed for the screen it was typed at: a
+terminal gets a grid of coloured glyphs, everything else a markdown table as
+long as the list of skills, and neither reads in a conversation. The collector
+reads the answer of a command it knows into numbers — from the field the record
+carries them in when there is one, from the markdown when there is not — and
+the screen draws them as a card that opens the breakdown. The terminal's grid
+is left out: a markdown copy of it follows in the next record. The answer of a
+command the collector does not know stays a line of text.
+
 **There is nowhere else to get the subscription limits from.** The 5h/7d
 percentages do not lie on disk and are not handed out by any API — the only one
 claude tells them to is the status line, in the payload on stdin. That is why

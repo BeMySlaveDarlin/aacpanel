@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The answer of /context in a feed: the prompt, the card it left, and the
+// sheet the card opens. The numbers are those of a real session, as the host
+// reads them off its transcript.
+import { render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { CommandSheet } from "/src/screens/chat/command.js";
+import { Sheet } from "/src/ui/sheet.js";
+
+const prompt = { role: "me", text: "/context", pos: 1130, at: "2026-09-24T19:34:51.727Z" };
+const answer = {"role": "command", "name": "context", "data": {"model": "claude-opus-5-5[1m]", "used": 259334, "max": 1000000, "percent": 26, "categories": [{"name": "System prompt", "tokens": 3824, "kind": "used"}, {"name": "System tools", "tokens": 14635, "kind": "used"}, {"name": "MCP tools (deferred)", "tokens": 69612, "kind": "deferred"}, {"name": "System tools (deferred)", "tokens": 25830, "kind": "deferred"}, {"name": "Custom agents", "tokens": 3707, "kind": "used"}, {"name": "Memory files", "tokens": 21460, "kind": "used"}, {"name": "Skills", "tokens": 9934, "kind": "used"}, {"name": "Messages", "tokens": 205830, "kind": "used"}, {"name": "Autocompact buffer", "tokens": 33000, "kind": "buffer"}, {"name": "Free space", "tokens": 707610, "kind": "free"}], "mcp": [{"name": "claude_ai_Gmail", "tools": 30, "tokens": 22952}, {"name": "claude-in-chrome", "tools": 22, "tokens": 11077}, {"name": "docker", "tools": 56, "tokens": 9479}, {"name": "claude_ai_Google_Calendar", "tools": 9, "tokens": 8714}, {"name": "claude_ai_Google_Drive", "tools": 11, "tokens": 6028}], "agents": [{"name": "agent-sdk-dev:agent-sdk-verifier-py", "source": "plugin", "tokens": 110}, {"name": "agent-sdk-dev:agent-sdk-verifier-ts", "source": "plugin", "tokens": 117}, {"name": "hookify:conversation-analyzer", "source": "plugin", "tokens": 131}, {"name": "plugin-dev:agent-creator", "source": "plugin", "tokens": 408}, {"name": "plugin-dev:plugin-validator", "source": "plugin", "tokens": 431}, {"name": "plugin-dev:skill-reviewer", "source": "plugin", "tokens": 410}, {"name": "pr-review-toolkit:code-reviewer", "source": "plugin", "tokens": 293}, {"name": "pr-review-toolkit:code-simplifier", "source": "plugin", "tokens": 738}, {"name": "pr-review-toolkit:comment-analyzer", "source": "plugin", "tokens": 173}, {"name": "pr-review-toolkit:pr-test-analyzer", "source": "plugin", "tokens": 181}, {"name": "pr-review-toolkit:silent-failure-hunter", "source": "plugin", "tokens": 525}, {"name": "pr-review-toolkit:type-design-analyzer", "source": "plugin", "tokens": 190}], "memory": [], "skills": [{"name": "brief", "source": "userSettings", "tokens": 262}, {"name": "cross-profile-message", "source": "userSettings", "tokens": 132}, {"name": "notify", "source": "userSettings", "tokens": 206}, {"name": "restart-session", "source": "userSettings", "tokens": 143}, {"name": "agent-sdk-dev:new-sdk-app", "source": "plugin", "tokens": 27}, {"name": "claude-md-management:revise-claude-md", "source": "plugin", "tokens": 30}, {"name": "anthropic-skills:skill-creator", "source": "syncedSkills", "tokens": 11}, {"name": "anthropic-skills:xlsx", "source": "syncedSkills", "tokens": 8}]}, "at": "2026-09-24T19:34:51.741Z", "pos": 1131};
+
+const opened = [];
+
+function Feed() {
+    const [look, setLook] = useState(null);
+    return html`
+        <div class="chatfeed" style="height: 500px">
+            <${Row} item=${prompt} session="atlas" id="1" />
+            <${Row} item=${answer} session="atlas" id="1"
+                    onCommand=${(row) => { opened.push(row.name); setLook(row); }} />
+        </div>
+        <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)} label="command output" inner>
+            ${look && html`<${CommandSheet} item=${look} />`}
+        <//>
+    `;
+}
+
+render(html`<${Feed} />`, document.getElementById("root"));
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+(async () => {
+    await wait(200);
+    const card = document.querySelector(".chatfeed .cmdcard");
+    const bar = card.querySelector(".cmdbar");
+    const cells = Array.from(bar.children);
+    const full = bar.getBoundingClientRect().width;
+    const before = {
+        tag: card.tagName,
+        title: text(".chatfeed .cmdcard .artitle")[0] || "",
+        figure: text(".chatfeed .cmdcard .cmdfig")[0] || "",
+        height: Math.round(card.getBoundingClientRect().height),
+        // The bar in the order it is drawn: a class per piece, the track as "track".
+        bar: cells.map((c) => (c.tagName === "B" ? "track" : c.className)),
+        messages: Math.round((bar.querySelector(".t-messages").getBoundingClientRect().width / full) * 1000) / 1000,
+        coloured: cells.filter((c) => c.tagName === "I")
+            .map((c) => getComputedStyle(c))
+            .every((cs) => cs.backgroundColor !== "rgba(0, 0, 0, 0)" || cs.backgroundImage !== "none"),
+        feedText: document.querySelector(".chatfeed").textContent.includes("|"),
+    };
+
+    card.click();
+    await wait(200);
+    const sheet = document.querySelector(".sheet.on .cmdsheet");
+    const inside = {
+        head: text(".sheet.on .cmdhead")[0] || "",
+        sub: text(".sheet.on .cmdsub")[0] || "",
+        cats: text(".sheet.on .cmdcats:not(.later) .cmdname"),
+        pcts: text(".sheet.on .cmdcats:not(.later) .cmdpct"),
+        later: text(".sheet.on .cmdcats.later .cmdname"),
+        parts: text(".sheet.on .cmdparthead .cmdname"),
+        rowsClosed: document.querySelectorAll(".sheet.on .cmdrows li").length,
+    };
+    document.querySelectorAll(".sheet.on .cmdparthead")[0].click();
+    await wait(120);
+    const servers = text(".sheet.on .cmdpart.open .cmdrows .cmdname");
+    const serverTokens = text(".sheet.on .cmdpart.open .cmdrows .cmdtok");
+    document.querySelectorAll(".sheet.on .cmdparthead")[2].click();
+    await wait(120);
+    const skills = text(".sheet.on .cmdpart.open:last-child .cmdrows .cmdname");
+
+    window.done = { before, opened, found: Boolean(sheet), inside, servers, serverTokens, skills };
+})();
+</script>

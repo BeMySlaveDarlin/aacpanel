@@ -121,6 +121,17 @@
     --ctx-2: #63a8ff;
     --ctx-3: #8f9dff;
     --ctx-4: #b98cff;
+
+    /* What fills the context window, one hue per part: the same in the card of
+       /context, its legend and its sheet. */
+    --cat-messages: #63a8ff;
+    --cat-memory: #f0a36b;
+    --cat-skills: #e8cf6a;
+    --cat-mcp: #7fe3d4;
+    --cat-agents: #b98cff;
+    --cat-tools: #8f9dff;
+    --cat-system: #8189b3;
+    --cat-other: #bcc4e8;
     --ok-bg: rgba(127, 227, 212, .14);
     --warn-bg: rgba(159, 201, 240, .16);
     --crit-bg: rgba(185, 140, 255, .16);
@@ -185,6 +196,15 @@
     --ctx-2: #2f7fc8;
     --ctx-3: #5f6fd8;
     --ctx-4: #8b5fd8;
+
+    --cat-messages: #2f7fc8;
+    --cat-memory: #c2682a;
+    --cat-skills: #9c7f0c;
+    --cat-mcp: #12857a;
+    --cat-agents: #8b5fd8;
+    --cat-tools: #5f6fd8;
+    --cat-system: #5a6b86;
+    --cat-other: #3e5063;
     --ok-bg: rgba(15, 97, 87, .12);
     --warn-bg: rgba(31, 85, 128, .13);
     --crit-bg: rgba(91, 58, 158, .13);

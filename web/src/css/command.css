@@ -1,0 +1,135 @@
+/* The answer of a slash command: its card in the feed and its sheet. */
+
+/* The card is a line of the feed; on a wide screen a bar the width of the
+   column stops reading as a share of anything. */
+.artifact.cmdcard {
+    width: 100%;
+    max-width: 36rem;
+    border: 0;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cmdico {
+    display: flex;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    color: var(--ink-dim);
+}
+.cmdico svg { width: 100%; height: 100%; }
+
+.cmdtop {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    min-width: 0;
+}
+.cmdtop .artitle { flex: 1 1 auto; min-width: 0; }
+.cmdfig {
+    flex: none;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+
+/* The window as it fills: the used parts from the left, the buffer held back
+   for compaction at the right end, the free space as the track between. */
+.cmdbar {
+    display: flex;
+    gap: 1px;
+    height: 6px;
+    margin-top: .35rem;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--line);
+}
+.cmdbar.big { height: 10px; margin: .7rem 0 .8rem; border-radius: 4px; }
+.cmdbar i { flex: none; height: 100%; }
+.cmdbar b { flex: 1 1 auto; }
+
+.t-messages { --cat: var(--cat-messages); }
+.t-memory { --cat: var(--cat-memory); }
+.t-skills { --cat: var(--cat-skills); }
+.t-mcp { --cat: var(--cat-mcp); }
+.t-agents { --cat: var(--cat-agents); }
+.t-tools { --cat: var(--cat-tools); }
+.t-system { --cat: var(--cat-system); }
+.t-other { --cat: var(--cat-other); }
+.t-free { --cat: var(--line); }
+.cmdbar i { background: var(--cat); }
+.cmdbar i.t-buffer,
+.cmdcat.t-buffer .cmddot {
+    background: repeating-linear-gradient(135deg,
+        var(--ink-faint) 0 1.5px, transparent 1.5px 4px);
+}
+
+.cmdsheet { display: grid; padding-bottom: .6rem; }
+.cmdhead { margin: 0; font-size: var(--t-lg); font-weight: 600; color: var(--ink); }
+.cmdsub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .2rem .8rem;
+    margin-top: .2rem;
+    font-size: var(--t-sm);
+    color: var(--ink-dim);
+}
+.cmdsub b { color: var(--ink); font-weight: 600; }
+.cmdmodel { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); align-self: center; }
+
+.cmdcats, .cmdrows { list-style: none; margin: 0; padding: 0; }
+.cmdcat, .cmdrows li {
+    display: flex;
+    align-items: baseline;
+    gap: .55rem;
+    padding: .28rem 0;
+    font-size: var(--t-sm);
+    border-bottom: var(--hair) solid var(--line);
+}
+.cmdcat:last-child, .cmdrows li:last-child { border-bottom: 0; }
+.cmddot {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: var(--cat, var(--line));
+    align-self: center;
+}
+.cmdcat.t-free .cmddot { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
+.cmdname { flex: 1 1 auto; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.cmdtok, .cmdpct, .cmdsum, .cmdrownote {
+    flex: none;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-dim);
+}
+.cmdpct { width: 3.4rem; text-align: right; color: var(--ink-faint); }
+.cmdrownote { color: var(--ink-faint); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cmdnote { margin: .9rem 0 .2rem; font-size: var(--t-xs); color: var(--ink-faint); }
+.cmdcats.later .cmdname { color: var(--ink-dim); }
+
+.cmdpart { border-top: var(--hair) solid var(--line); }
+.cmdcats + .cmdpart { margin-top: .9rem; }
+.cmdparthead {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    width: 100%;
+    padding: .5rem 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--t-sm);
+    font-weight: 600;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+}
+.cmdparthead .cmdsum { font-weight: 400; }
+.cmdparthead .crgo { transition: transform .15s; }
+.cmdpart.open .cmdparthead .crgo { transform: rotate(90deg); }
+.cmdrows { padding-bottom: .3rem; }
+.cmdrows li { padding: .22rem 0; }
+.cmdrows .cmdname { font-family: var(--mono); font-size: var(--t-xs); }

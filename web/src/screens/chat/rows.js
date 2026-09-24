@@ -10,12 +10,13 @@ import { render } from "../../md.js";
 import { plural } from "../../format.js";
 import { resend } from "./again.js";
 import { idParam } from "./api.js";
+import { CommandCard } from "./command.js";
 import { FileAtts, SentCard } from "./files.js";
 import { Photo, shotName } from "./photo.js";
 import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord } from "./labels.js";
 
 // Row renders one row of the feed.
-export function Row({ item, session, id, onCalls, onFile, onBrief, copies, onPage }) {
+export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, copies, onPage }) {
     if (item.role === "shots") {
         const shots = item.shots || [];
         if (!shots.length) return null;
@@ -93,6 +94,10 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, copies, onPag
 
     if (item.role === "sent") {
         return html`<${SentCard} item=${item} onOpen=${onFile} />`;
+    }
+
+    if (item.role === "command") {
+        return html`<${CommandCard} item=${item} onOpen=${onCommand} />`;
     }
 
     if (item.role === "shell") {

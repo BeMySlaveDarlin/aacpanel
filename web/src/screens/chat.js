@@ -16,6 +16,7 @@ import { RepoView } from "./repo/view.js";
 import { onShelf, sealed, signal } from "./repo/notes.js";
 import { Icon } from "../ui/icons.js";
 import { Row } from "./chat/rows.js";
+import { CommandSheet } from "./chat/command.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
@@ -318,6 +319,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 onCalls=${() => setCalls(runCalls(feed, item.run))}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
                 onBrief=${openBrief}
+                onCommand=${(row) => setLook({ kind: "command", item: row })}
             />`)}
             ${pending.map((row) => html`
                 <${Row} key=${`local-${row.key}`} item=${row} />
@@ -398,6 +400,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                  onSession=${() => setLook(null)} />`
                 : look.kind === "artifact"
                 ? html`<${ArtifactPage} card=${look.card} />`
+                : look.kind === "command"
+                ? html`<${CommandSheet} item=${look.item} />`
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
                                     exec=${exec} onAgent=${openAgent}

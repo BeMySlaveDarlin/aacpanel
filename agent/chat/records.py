@@ -4,6 +4,7 @@ import re
 
 import sesstate
 
+from . import commands
 from .cards import artifact_card, ask_round, brief_card, sent_card, wake_item
 from .harness import classify, service, strip_panel_note, unwrap_pasted
 from .mail import peer_name, peer_pid
@@ -82,6 +83,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     if kind == "system":
         if record.get("subtype") != "local_command":
             return []
+        cards = commands.answer(record, (record.get("content") or "").strip(), at, pos)
+        if cards is not None:
+            return cards
         role, shown = classify((record.get("content") or "").strip())
         if role == "note":
             return [{"role": "note", "text": shown, "at": at, "pos": pos}]
@@ -178,6 +182,12 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         text = unwrap_pasted(text.strip())
         if not text or "system-reminder" in text[:200]:
             return out
+        # Only a record the harness wrote can be an answer: a person pasting
+        # the same markdown into a message wrote a message.
+        if record.get("isMeta") or text.startswith("<local-command-std"):
+            cards = commands.answer(record, text, at, pos)
+            if cards is not None:
+                return out + cards
         ran = shell(text, at, pos)
         if ran:
             return out + [ran]
