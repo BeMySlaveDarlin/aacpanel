@@ -430,8 +430,6 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
         ${live && html`<${AttachSheet}
             open=${asking}
             onClose=${() => setAsking(false)}
-            live=${live}
-            onMode=${knows(exec, "session.set") ? () => { setAsking(false); setPicking("mode"); } : null}
             exec=${exec}
             files=${files}
             onFiles=${(picked) => setFiles((was) => [...was, ...picked])}

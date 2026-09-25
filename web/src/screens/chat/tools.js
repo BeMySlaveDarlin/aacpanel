@@ -5,7 +5,6 @@ import { Sheet } from "../../ui/sheet.js";
 import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
-import { modeName } from "./picker.js";
 
 const FILE_MAX = 32 * 1024 * 1024;
 
@@ -36,7 +35,7 @@ export function PickFile({ exec, onAsk }) {
 }
 
 // AttachSheet renders the sheet with the attachment targets.
-export function AttachSheet({ open, onClose, exec, files, onFiles, live, onMode }) {
+export function AttachSheet({ open, onClose, exec, files, onFiles }) {
     const toast = useToast();
 
     const canSend = knows(exec, "session.file");
@@ -72,18 +71,6 @@ export function AttachSheet({ open, onClose, exec, files, onFiles, live, onMode 
                     </label>
                 `)}
             </div>
-            ${onMode && live && html`
-                <div class="pklist addmode">
-                    <button type="button" class="pkrow pkmore" onClick=${onMode}>
-                        <span class="pkround">${Icon.bolt()}</span>
-                        <span class="pkbody">
-                            <span class="pkname">Permission</span>
-                            <span class="pkdesc">${modeName(live.mode)}</span>
-                        </span>
-                        <span class="crgo">${Icon.chevron()}</span>
-                    </button>
-                </div>
-            `}
         <//>
     `;
 }

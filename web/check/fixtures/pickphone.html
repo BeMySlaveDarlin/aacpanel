@@ -145,12 +145,10 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
 
     out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
 
-    // The attach sheet carries the mode too, the way the native client does.
+    // The attach sheet attaches and nothing else: the mode has its word in the strip.
     await tap(document.querySelector(".pickfile"));
-    out.attachMode = text(".sheet.on .addmode .pkname, .sheet.on .addmode .pkdesc").join(" ");
-    await tap(document.querySelector(".sheet.on .addmode .pkrow"));
-    await sleep(200);
-    out.attachOpens = text(".sheet.on .stitle")[0] || "";
+    out.attachTitle = text(".sheet.on .stitle")[0] || "";
+    out.attachRows = document.querySelectorAll(".sheet.on .pkrow").length;
     document.querySelector(".sheet.on .sheetclose").click();
     await sleep(300);
 

@@ -34,12 +34,12 @@ type pickPhoneShot struct {
 	TermNote       string   `json:"termNote"`
 	Loud           []string `json:"loud"`
 	Bare           []string `json:"bare"`
-	AttachMode     string   `json:"attachMode"`
+	AttachTitle    string   `json:"attachTitle"`
 	BandPainted    bool     `json:"bandPainted"`
 	WordsSmaller   bool     `json:"wordsSmaller"`
 	EmptySendClear bool     `json:"emptySendClear"`
 	SendFilled     bool     `json:"sendFilled"`
-	AttachOpens    string   `json:"attachOpens"`
+	AttachRows     int      `json:"attachRows"`
 }
 
 // The model list is the one claude gives, a row per model: its default is an
@@ -115,8 +115,9 @@ func TestTheEffortTheModeAndTheBareCommand(t *testing.T) {
 	if !got.SendReady || got.FromComposer != "Select model" || got.ComposerAfter != "" {
 		t.Errorf("/model alone: send ready %v, opened %q, composer left %q", got.SendReady, got.FromComposer, got.ComposerAfter)
 	}
-	if got.AttachMode != "Permission Auto" || got.AttachOpens != "Select mode" {
-		t.Errorf("the attach sheet names the mode as %q and opens %q", got.AttachMode, got.AttachOpens)
+	if got.AttachTitle != "Attach" || got.AttachRows != 0 {
+		t.Errorf("the attach sheet %q carries %d rows besides the files — the mode has its own word in the strip",
+			got.AttachTitle, got.AttachRows)
 	}
 }
 

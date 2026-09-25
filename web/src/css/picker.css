@@ -70,7 +70,6 @@
 }
 .pkround svg { width: 100%; height: 100%; }
 .pkgroup { margin: .3rem .2rem .4rem; font-size: var(--t-sm); color: var(--ink-dim); }
-.addmode { margin-top: .2rem; }
 
 /* The effort is a scale from faster to smarter: a stop per level, the level
    the session runs at under the knob and the track filled up to it. */
