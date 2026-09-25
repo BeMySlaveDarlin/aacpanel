@@ -698,13 +698,17 @@ func TestSettingsRequestsPassOnlyThePanelsShape(t *testing.T) {
 		{"update_settings", map[string]any{"source": "userSettings", "settings": map[string]any{"effortLevel": "max"}}},
 		{"update_settings", map[string]any{"source": "userSettings", "settings": map[string]any{"effortLevel": "high", "model": "x"}}},
 		{"get_settings", map[string]any{"source": "userSettings"}},
+		{"rename_session", map[string]any{"title": "x"}},
+		{"rename_session", map[string]any{"title": "x", "source": "user"}},
+		{"rename_session", map[string]any{"title": "", "source": "host"}},
+		{"rename_session", map[string]any{"title": "x", "source": "host", "sessionId": "other"}},
 	} {
 		reply := r.ask(Request{Op: OpControl, Subtype: c.subtype, Fields: c.fields})
 		if reply.OK {
 			t.Errorf("%s %v was passed on", c.subtype, c.fields)
 		}
 	}
-	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "get_settings"} {
+	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "get_settings", "rename_session"} {
 		if strings.Contains(r.received(), word) {
 			t.Errorf("claude read %s", word)
 		}

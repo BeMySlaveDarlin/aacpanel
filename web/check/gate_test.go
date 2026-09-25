@@ -159,7 +159,10 @@ var instantActions = map[string]bool{
 	"session.set": true,
 	// Reconnecting, enabling or disabling one MCP server is pressed on the
 	// server's own card, and undone by the button beside it.
-	"session.mcp":     true,
+	"session.mcp": true,
+	// A new name is typed on the rename sheet and saved with its own button:
+	// the sheet is where the person chose, and the old name can be typed back.
+	"session.rename":  true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -177,6 +180,7 @@ var instantExecActions = map[string]bool{
 	"session.unqueue": true,
 	"session.set":     true,
 	"session.mcp":     true,
+	"session.rename":  true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

@@ -57,6 +57,11 @@ func vetSettings(subtype string, fields map[string]any) error {
 		}
 	case "side_question":
 		return vetSide(fields)
+	case "rename_session":
+		title, ok := fields["title"].(string)
+		if len(fields) != 2 || !ok || title == "" || fields["source"] != "host" {
+			return fmt.Errorf("rename_session passes on only {title, source: host}")
+		}
 	}
 	return nil
 }

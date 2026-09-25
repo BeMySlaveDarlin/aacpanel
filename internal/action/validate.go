@@ -249,6 +249,16 @@ func (r Request) Validate() error {
 	} else if r.Mcp != nil {
 		return badRequest("action %s changes no MCP server", r.Kind)
 	}
+	if r.Kind == SessionRename {
+		if err := safeSessionName(r.Rename); err != nil {
+			return err
+		}
+		if r.Rename == r.Target {
+			return badRequest("session %s is called so already", r.Target)
+		}
+	} else if r.Rename != "" {
+		return badRequest("action %s renames no session", r.Kind)
+	}
 	switch {
 	case r.Kind == TaskStop, r.Kind == AgentStop:
 		if r.Work == nil {

@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// /rename in a session on the stream opens the panel's own sheet: a name that
+// the panel and the host cannot take, or one another live session answers to,
+// is not saved; a sound one is saved with the sheet's own button and no second
+// question. Then the open conversation follows the session to its new name.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { Sessions } from "/src/screens/sessions.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const sent = [];
+const chats = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) {
+        chats.push(new URL(u, location.href).searchParams.get("session"));
+        return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    }
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true, detail: "ok" });
+    }
+    return json({});
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.send", "session.command", "session.rename"] };
+const session = { session: "atlas", sessionId: "s1", status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
+    limit: 1000000, cwd: "/srv/proj", model: "claude-opus-5-5", effort: "xhigh", mode: "auto", profile: "personal" };
+const other = { ...session, session: "lms", sessionId: "s2" };
+const root = document.getElementById("root");
+const waits = { opening: () => [], of: () => null };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());
+const typeInto = async (el, value) => {
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(120);
+};
+const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.primary"))[0];
+
+(async () => {
+    const out = {};
+    try {
+        const snapshot = { at: 1, sessions: [session, other] };
+        render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="atlas" id="s1" live=${session}
+            snapshot=${snapshot} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+        await sleep(400);
+        await typeInto(document.querySelector("textarea"), "/rename");
+        document.querySelector(".composer .iconbtn.accent").click();
+        await sleep(400);
+        out.title = text(".sheet.on .cmdhead")[0] || "";
+        const field = document.querySelector(".sheet.on .rnname");
+        out.value = field ? field.value : "";
+        out.sameOff = save().disabled;
+
+        await typeInto(field, "my session");
+        out.spaceOff = save().disabled;
+        out.spaceWhy = text(".sheet.on .stpwarn")[0] || "";
+        await typeInto(field, "lms");
+        out.takenOff = save().disabled;
+        out.takenWhy = text(".sheet.on .stpwarn")[0] || "";
+        await typeInto(field, "atlas-pilot");
+        out.goodOff = save().disabled;
+        save().click();
+        await sleep(400);
+        out.sent = sent.map((b) => `${b.kind}:${b.target}:${JSON.stringify(b.params)}`);
+        out.confirmation = Boolean(document.querySelector(".sheet.on .btnrow .btn.primary"));
+
+        // The phone's list with the conversation open, and the session renamed
+        // in the next snapshot: the screen asks by the new name.
+        render(null, root);
+        chats.length = 0;
+        const show = (snap, want) => render(h(ToastHost, null, h(GateHost, null, html`<${Sessions} snapshot=${snap}
+            error=${null} ageSec=${1} exec=${exec} wait=${waits} faults=${[]} want=${want}
+            onWanted=${() => {}} onLayer=${() => {}} onUsage=${() => {}} />`)), root);
+        show({ at: 1, sessions: [session, other] }, { name: "atlas", id: "s1" });
+        await sleep(500);
+        out.before = [...new Set(chats)];
+        show({ at: 2, sessions: [{ ...session, session: "atlas-pilot" }, other] }, null);
+        await sleep(600);
+        out.after = [...new Set(chats)];
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    window.done = out;
+})();
+</script>

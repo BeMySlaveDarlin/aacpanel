@@ -283,7 +283,7 @@
 }
 .stpconfig .stpblock { display: grid; gap: .3rem; }
 .stpconfig .stpblock .cmdname { width: auto; }
-.stpfind {
+.stpfind, .rnname {
     width: 100%;
     box-sizing: border-box;
     padding: .45rem .6rem;

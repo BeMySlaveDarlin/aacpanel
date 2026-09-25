@@ -353,6 +353,35 @@ func TestMcpChangeNamesAServerAndWhatToDo(t *testing.T) {
 	}
 }
 
+// A new name of a session keeps to what a URL, a file name and the list take,
+// and only session.rename carries one.
+func TestRenameNamesTheSessionSafely(t *testing.T) {
+	rename := func(name string) Request {
+		return Request{ID: "a1", Kind: SessionRename, Target: "person", Rename: name}
+	}
+	if err := rename("person-pilot_2.b").Validate(); err != nil {
+		t.Fatalf("a sound name is rejected: %v", err)
+	}
+	bad := map[string]Request{
+		"no name":                 rename(""),
+		"the same name":           rename("person"),
+		"a path":                  rename("a/b"),
+		"a flag":                  rename("-rf"),
+		"a hidden file":           rename(".env"),
+		"a space":                 rename("my session"),
+		"a letter outside a-z":    rename("naïve"),
+		"too long":                rename(strings.Repeat("a", 65)),
+		"a name riding a message": {ID: "a1", Kind: SessionSend, Target: "person", Text: "hi", Rename: "x"},
+	}
+	for name, r := range bad {
+		t.Run(name, func(t *testing.T) {
+			if err := r.Validate(); err == nil {
+				t.Errorf("accepted %+v", r)
+			}
+		})
+	}
+}
+
 // A question for a screen of settings names one the panel shows, and no other
 // question carries a screen. The rules of permissions are not among them.
 func TestSetupQuestionNamesAScreen(t *testing.T) {

@@ -222,4 +222,5 @@ var Controls = map[string]bool{
 	"get_hooks_listing":       true,
 	"get_memory_dialog":       true,
 	"get_skills_dialog":       true,
+	"rename_session":          true,
 }

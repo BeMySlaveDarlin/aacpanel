@@ -88,6 +88,35 @@ func safeID(s string) bool {
 	return true
 }
 
+// sessionNameMax is how long a name given to a session may be: it becomes the
+// key the panel and the host find the session by, and a line in the list.
+const sessionNameMax = 64
+
+// safeSessionName checks a name given to a session. It is written into a URL,
+// a file name and the list of sessions, so it keeps to letters, digits and
+// three marks, and it starts with neither a dash nor a dot: one reads as a
+// flag, the other as a hidden file.
+func safeSessionName(s string) error {
+	if s == "" {
+		return badRequest("the new name of the session is empty")
+	}
+	if len(s) > sessionNameMax {
+		return badRequest("the new name is longer than %d characters", sessionNameMax)
+	}
+	if s[0] == '-' || s[0] == '.' {
+		return badRequest("a name starting with %q reads as a flag or a hidden file", s[0])
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '-', r == '_', r == '.':
+		default:
+			return badRequest("the new name contains %q: a name keeps to latin letters, digits, - _ and .", r)
+		}
+	}
+	return nil
+}
+
 func safeTarget(s string) error {
 	if strings.Contains(s, "..") {
 		return badRequest("the target contains .. — a way out of the path")

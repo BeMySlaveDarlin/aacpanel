@@ -69,6 +69,7 @@ export const SCREENS = {
     skills: { name: "Skills, read-only" },
     agents: { name: "Kinds of subagents" },
     config: { name: "Merged settings, read-only" },
+    rename: { name: "Rename the session" },
 };
 
 // REFUSED lists the slash commands the panel does not send in any form, not
@@ -356,6 +357,11 @@ export const ACTIONS = {
         instant: true,
         effect: "One MCP server of the session reconnects, turns on or turns off; its tools come or go with the next request, and the change is undone the same way.",
         done: (target, params) => `${(params && params.server) || "The server"}: ${mcpDone(params)}`,
+    },
+    "session.rename": {
+        instant: true,
+        effect: "The session answers to the new name: the panel and the host find it by that name, and its conversation stays as it is.",
+        done: (target, params) => `${target} is called ${(params && params.name) || "otherwise"} now`,
     },
     "session.set": {
         instant: true,
@@ -699,6 +705,7 @@ const NAMES = {
     "session.command": "Slash command",
     "session.set": "Change a setting",
     "session.mcp": "Change an MCP server",
+    "session.rename": "Rename the session",
     "window.open": "Open window",
     "window.close": "Close window",
     "device.revoke": "Revoke device",

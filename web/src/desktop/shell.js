@@ -7,6 +7,7 @@ import { terminalOnScreen, typing } from "../ui/focus.js";
 import { attachTips } from "./tip.js";
 import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
+import { liveOf } from "../catchup.js";
 import { ChatEmpty } from "../screens/chat/empty.js";
 import { Alerts } from "../screens/alerts.js";
 import { Briefs } from "../screens/briefs.js";
@@ -113,6 +114,13 @@ export function DesktopShell({
     // The note about an action belongs to the section and the conversation it was taken in.
     const hideToast = useToastHide();
     useEffect(() => { hideToast(); }, [section, chat, hideToast]);
+    // A session renamed while its conversation is open is followed to its new
+    // name: every request of the screen goes by the name.
+    useEffect(() => {
+        if (!chat || chat.archived) return;
+        const live = liveOf((snapshot && snapshot.sessions) || [], chat);
+        if (live && live.session !== chat.name) setChat({ ...chat, name: live.session });
+    }, [snapshot, chat]);
     const [picks, setPicks] = useState([]);
     const [names, setNames] = useState([]);
     // The archive filters by contour on its own: the panel stands beside the
@@ -251,9 +259,7 @@ export function DesktopShell({
             return html`<div class="dkpage"><${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => goSection("home")} /></div>`;
         }
         if (!chat) return html`<${ChatEmpty} />`;
-        const live = chat.archived
-            ? null
-            : ((snapshot && snapshot.sessions) || []).find((x) => x.session === chat.name) || null;
+        const live = chat.archived ? null : liveOf((snapshot && snapshot.sessions) || [], chat);
         return html`<section class="dkcenter dkchat">
             <${Chat}
                 name=${chat.name}

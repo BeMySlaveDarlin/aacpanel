@@ -11,6 +11,18 @@ export function noteAction(kind, target) {
     if (kind && target && held) held(kind, target);
 }
 
+// liveOf finds the live session a conversation on screen belongs to: by its
+// name, and failing that by its conversation. A restarted session keeps its
+// name and starts a new conversation; a renamed one keeps its conversation and
+// changes its name — the two ways together keep the screen on the session.
+export function liveOf(sessions, target) {
+    const list = sessions || [];
+    if (!target) return null;
+    return list.find((s) => s.session === target.name)
+        || (target.id ? list.find((s) => s.sessionId === target.id) : null)
+        || null;
+}
+
 export function ownName(name, session) {
     return name === session || new RegExp(`^${session.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-\\d+$`).test(name);
 }

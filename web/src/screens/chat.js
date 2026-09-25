@@ -21,6 +21,7 @@ import { McpSheet } from "./chat/mcp.js";
 import { StatusSheet } from "./chat/status.js";
 import { SetupSheet, SETUP_TITLES } from "./chat/setup.js";
 import { CommandsChip, CommandsSheet } from "./chat/commands.js";
+import { RenameSheet } from "./chat/rename.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
@@ -462,6 +463,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                          onPicker=${knows(exec, "session.set") ? (what) => { setLook(null); setPicking(what); } : null}
                                          onSide=${onStream ? () => { setLook(null); setInsert({ key: Date.now(), text: "/btw ", command: true }); } : null}
                                          onDone=${() => setLook(null)} />`
+                : look.kind === "rename"
+                ? (live ? html`<${RenameSheet} name=${name} exec=${exec} onDone=${() => setLook(null)}
+                                               taken=${((snapshot && snapshot.sessions) || []).map((s) => s.session)} />`
+                    : html`<p class="cmdnote">The session has ended: there is nothing to rename.</p>`)
                 : look.kind === "setup"
                 ? (live ? html`<${SetupSheet} name=${name} part=${look.part} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)

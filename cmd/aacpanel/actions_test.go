@@ -1043,6 +1043,25 @@ func TestRunActionCarriesTheMcpChangeToExecutor(t *testing.T) {
 	}
 }
 
+func TestRunActionCarriesTheNewNameToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	if w := post(t, srv, `{"kind":"session.rename","target":"person","params":{"name":"person-pilot"}}`); w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.Kind != action.SessionRename || got.Target != "person" || got.Rename != "person-pilot" {
+			t.Errorf("the executor got %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+	if w := post(t, srv, `{"kind":"session.rename","target":"person","params":{"name":"../etc"}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("a name with a path in it passed with %d", w.Code)
+	}
+}
+
 // What a session says about itself is the executor's answer passed on.
 func TestSessionStatusPassesTheAnswerOn(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true, Status: &action.Status{Transport: "stream",

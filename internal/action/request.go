@@ -43,6 +43,9 @@ type Request struct {
 	// Mcp is what session.mcp does, and to which server.
 	Mcp *McpChange `json:"mcp,omitempty"`
 
+	// Rename is the new name session.rename gives a session.
+	Rename string `json:"rename,omitempty"`
+
 	Ask string `json:"ask,omitempty"`
 
 	// Part names the screen a setup question asks for.

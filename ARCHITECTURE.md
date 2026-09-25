@@ -630,6 +630,15 @@ registry the composer reads, and each row does what typing it does: a command
 goes through the same confirmation. A console session is offered only what
 works there.
 
+**A session on the stream is renamed from the panel** (`session.rename`, the
+sheet of `/rename`). Claude takes the name with a request of its own and
+writes it into the file of the session, where the panel and the host look a
+session up; the holder is keyed by the conversation and does not notice. A
+name keeps to what a URL and a file name take, and a name another live
+session answers to is refused: two sessions would answer to one name. The
+open conversation follows the session by its conversation to the new name. A
+terminal is renamed on its own screen, `/rename` with keys.
+
 **There is nowhere else to get the subscription limits from.** The 5h/7d
 percentages do not lie on disk and are not handed out by any API — the only one
 claude tells them to is the status line, in the payload on stdin. That is why

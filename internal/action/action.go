@@ -50,6 +50,9 @@ const (
 	// on the stream.
 	SessionMcp Kind = "session.mcp"
 
+	// SessionRename gives a live session on the stream a new name.
+	SessionRename Kind = "session.rename"
+
 	// SessionSwitch moves a live session between the console and the feed:
 	// the same conversation is closed on one side and resumed on the other.
 	SessionSwitch Kind = "session.switch"
@@ -73,7 +76,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
 	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
-	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, TaskStop, AgentStop, WindowOpen, WindowClose,
+	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }
 
