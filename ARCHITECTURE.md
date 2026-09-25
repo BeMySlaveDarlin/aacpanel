@@ -286,6 +286,30 @@ two modes that stop a session asking at all are not in the list, because a tap
 on a phone is not how that is decided. A mode on the stream is claude's own
 request; a terminal has only a key that cycles the modes on its screen.
 
+**How long a pick holds is chosen where the session can hold it either
+way.** On the stream a model or an effort typed as a command holds for the
+session. Saved as the default besides, an effort is written by claude itself,
+for the model the session runs (max it never saves), and a model by the
+executor into the settings file of the contour — rewritten key by key in
+claude's own layout, so the change is one line. A terminal saves what is
+typed as a command as the default, and holds a pick for the session alone
+only through a dialog of its own that the panel does not drive: there the
+pick is the default, and the list says so. Ultracode — xhigh with workflows
+run for every task — holds for one session wherever it is set. Before it
+changes the model or the effort of a conversation it holds cached, a terminal
+asks whether the next answer may read the whole history again; the person
+has already chosen in the list, so the panel agrees and says the price —
+unless a hook is what asks, and then the question is the person's.
+
+**The requests about settings pass only in the shape the panel sends.**
+`apply_flag_settings` would merge any settings into a session, its hooks and
+permissions among them, so the holder passes it with ultracode alone;
+`update_settings` passes with an effort for the settings of the user alone;
+and the answer to `get_settings` comes back with only what the session runs
+with — whole, it carries the environment of the session, tokens and all.
+Claude answers an ultracode it cannot run with success and turns nothing on,
+so the holder asks what the session runs with before it says ultracode is on.
+
 **The rules of permissions are not opened from the panel in any form.** Their
 screen is driven by keys, awkward even at a terminal; `/permissions` and its
 older name are refused as a command and as a message that starts with one, on

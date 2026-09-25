@@ -8,6 +8,12 @@ import { COMMANDS } from "../../actions/registry.js";
 export const MODELS = (COMMANDS.model.args || []).filter((value) => value !== "default");
 export const EFFORTS = COMMANDS.effort.args || [];
 
+// Ultracode is not a level of thinking but xhigh with workflows standing by;
+// the list says so, the way the picker of a live session does.
+function effortLabel(id) {
+    return id === "ultracode" ? "ultracode · xhigh + workflows" : id;
+}
+
 function family(id) {
     const found = /^claude-([a-z]+)/.exec(String(id || ""));
     return found ? found[1] : "";
@@ -267,7 +273,7 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
             <span class="pflabel">Effort</span>
             <select class="search" value=${l.effort || ""} onChange=${(e) => set({ effort: e.target.value })}>
                 <option value="">${none("effort", "claude decides")}</option>
-                ${EFFORTS.map((id) => html`<option value=${id} key=${id}>${id}</option>`)}
+                ${EFFORTS.map((id) => html`<option value=${id} key=${id}>${effortLabel(id)}</option>`)}
             </select>
         </label>
 

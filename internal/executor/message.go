@@ -26,6 +26,9 @@ type liveSession struct {
 	SessionID string
 	Started   time.Time
 	Version   string
+	// Config is the config directory of the contour the session runs in: the
+	// one its session file lies under.
+	Config string
 }
 
 func (e *Executor) sessionSend(ctx context.Context, target, text, messageID string) (string, error) {
@@ -292,5 +295,6 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 		PID: pid, Name: file.Name, Socket: file.Socket,
 		Status: file.Status, CWD: file.CWD, SessionID: file.SessionID,
 		Started: time.UnixMilli(file.StartedAt), Version: file.Version,
+		Config: filepath.Dir(dir),
 	}, true
 }

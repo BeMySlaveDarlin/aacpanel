@@ -74,7 +74,8 @@ func TestThePhonePicksAModelFromTheListClaudeGives(t *testing.T) {
 }
 
 // A row tapped in the list is the choice: no sheet asks again, the setting
-// goes to the host as one change, and the mark moves to it.
+// goes to the host as one change, and the mark moves to it. On the stream a
+// model or an effort says it is for this session unless told otherwise.
 func TestAPickIsOneChangeWithoutASecondQuestion(t *testing.T) {
 	var got pickPhoneShot
 	runFixture(t, "pickphone.html", &got)
@@ -86,9 +87,9 @@ func TestAPickIsOneChangeWithoutASecondQuestion(t *testing.T) {
 		t.Errorf("after the pick the mark stands on %v", got.AfterPick)
 	}
 	want := []string{
-		`session.set:{"model":"sonnet"}`,
-		`session.set:{"model":"claude-opus-4-8"}`,
-		`session.set:{"effort":"max"}`,
+		`session.set:{"model":"sonnet","scope":"session"}`,
+		`session.set:{"model":"claude-opus-4-8","scope":"session"}`,
+		`session.set:{"effort":"max","scope":"session"}`,
 		`session.set:{"mode":"plan"}`,
 	}
 	if !reflect.DeepEqual(got.Sent, want) {
@@ -104,7 +105,7 @@ func TestTheEffortTheModeAndTheBareCommand(t *testing.T) {
 	runFixture(t, "pickphone.html", &got)
 
 	if got.EffortTitle != "Effort" || got.StopOn != "Extra" ||
-		!reflect.DeepEqual(got.Stops, []string{"Low", "Medium", "High", "Extra", "Max"}) {
+		!reflect.DeepEqual(got.Stops, []string{"Low", "Medium", "High", "Extra", "Max", "Ultracode"}) {
 		t.Errorf("the effort opens as %q at %q with stops %v", got.EffortTitle, got.StopOn, got.Stops)
 	}
 	if got.ModeTitle != "Select mode" || !reflect.DeepEqual(got.Modes, []string{"Manual", "Accept edits", "Plan", "Auto"}) ||
@@ -213,7 +214,8 @@ func TestTheDesktopPicksFromMenusOverTheComposer(t *testing.T) {
 	if got.EffortHead != "EffortExtra" {
 		t.Errorf("the effort menu is headed %q", got.EffortHead)
 	}
-	want := []string{`session.set:{"model":"sonnet"}`, `session.set:{"effort":"high"}`, `session.set:{"mode":"acceptEdits"}`}
+	want := []string{`session.set:{"model":"sonnet","scope":"session"}`, `session.set:{"effort":"high","scope":"session"}`,
+		`session.set:{"mode":"acceptEdits"}`}
 	if !reflect.DeepEqual(got.Sent, want) || got.Confirm {
 		t.Errorf("the host got %v (a sheet in front: %v), want %v", got.Sent, got.Confirm, want)
 	}

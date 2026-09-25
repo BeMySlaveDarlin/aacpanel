@@ -157,9 +157,10 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		set.Model, _ = body.Params["model"].(string)
 		set.Effort, _ = body.Params["effort"].(string)
 		set.Mode, _ = body.Params["mode"].(string)
+		set.Scope, _ = body.Params["scope"].(string)
 		req.Setting = set
 		params = map[string]any{}
-		for key, v := range map[string]string{"model": set.Model, "effort": set.Effort, "mode": set.Mode} {
+		for key, v := range map[string]string{"model": set.Model, "effort": set.Effort, "mode": set.Mode, "scope": set.Scope} {
 			if v != "" {
 				params[key] = v
 			}

@@ -680,9 +680,20 @@ func (h *Holder) do(req Request) Reply {
 		if !Controls[req.Subtype] {
 			return Reply{Error: fmt.Sprintf("%q is not a request the panel passes on", req.Subtype)}
 		}
+		if err := vetSettings(req.Subtype, req.Fields); err != nil {
+			return Reply{Error: err.Error()}
+		}
 		resp, err := h.control(context.Background(), req.Subtype, req.Fields, controlWait)
+		if req.Subtype == "get_settings" {
+			resp = trimSettings(resp)
+		}
 		if err != nil {
 			return Reply{Error: err.Error(), Response: resp}
+		}
+		if req.Subtype == "apply_flag_settings" {
+			if err := h.flagsApplied(context.Background(), req.Fields); err != nil {
+				return Reply{Error: err.Error()}
+			}
 		}
 		if model, ok := req.Fields["model"].(string); ok && req.Subtype == "set_model" {
 			h.picked("/model " + model)

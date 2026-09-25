@@ -44,7 +44,7 @@ export const COMMANDS = {
     },
     effort: {
         name: "Effort",
-        args: ["low", "medium", "high", "xhigh", "max"],
+        args: ["low", "medium", "high", "xhigh", "max", "ultracode"],
         effect: "The effort changes starting with the next request: the higher it is, the longer the model thinks over an answer and the faster the limits melt away.",
     },
 };

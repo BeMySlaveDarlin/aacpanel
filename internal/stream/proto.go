@@ -215,4 +215,7 @@ var Controls = map[string]bool{
 	"mcp_toggle":              true,
 	"mcp_reconnect":           true,
 	"stop_task":               true,
+	"apply_flag_settings":     true,
+	"update_settings":         true,
+	"get_settings":            true,
 }

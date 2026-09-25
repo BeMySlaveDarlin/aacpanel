@@ -118,7 +118,7 @@ var Commands = map[string][]string{
 	"compact":  nil,
 	"finalize": nil,
 	"model":    {"default", "fable", "opus", "opus[1m]", "sonnet", "haiku"},
-	"effort":   {"low", "medium", "high", "xhigh", "max"},
+	"effort":   {"low", "medium", "high", "xhigh", "max", "ultracode"},
 }
 
 func commandNames() []string {

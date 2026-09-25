@@ -19,9 +19,16 @@ import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
 import { modelTitle } from "./head.js";
 
-export const EFFORTS = COMMANDS.effort.args;
+// Ultracode is not a level of its own: it is xhigh with workflows standing by,
+// set for a session and never saved as a default. It sits past the scale,
+// behind a dashed line, and only where the model takes xhigh.
+export const ULTRA = "ultracode";
 
-export const EFFORT_NAMES = { low: "Low", medium: "Medium", high: "High", xhigh: "Extra", max: "Max" };
+export const EFFORTS = COMMANDS.effort.args.filter((level) => level !== ULTRA);
+
+export const EFFORT_NAMES = {
+    low: "Low", medium: "Medium", high: "High", xhigh: "Extra", max: "Max", ultracode: "Ultracode",
+};
 
 // The modes in the order a phone lists them; a wide screen puts the one most
 // sessions run in first. The two that stop a session asking at all are not
@@ -142,19 +149,68 @@ export function useModels(name, open) {
     return data;
 }
 
+// pickSub says where a pick went. A terminal saves a model and an effort
+// typed there as the default for new sessions, and so does the stream when
+// asked to; claude keeps max and ultracode for the session alone either way.
+export function pickSub(setting, transport) {
+    if (setting.effort === ULTRA) return "from the next request, for this session only";
+    const saved = !setting.mode && (transport === "console" || setting.scope === "default");
+    if (!saved) return "from the next request";
+    if (setting.effort === "max") return "from the next request; claude keeps max for this session only";
+    return "from the next request, and as the default for new sessions";
+}
+
 // usePick changes one setting and says what changed. Nothing waits for the
 // session to confirm: it takes the setting with its next request.
 function usePick(name, onDone) {
     const run = useAction();
     const toast = useToast();
-    return async (setting, said) => {
+    return async (setting, said, transport) => {
+        const { scope, ...value } = setting;
         const result = await run("session.set", name, setting);
         if (result.ok) {
-            toast(said, "from the next request");
-            if (onDone) onDone(setting);
+            toast(said, pickSub(setting, transport));
+            if (onDone) onDone(value);
         }
         return result;
     };
+}
+
+const SCOPES = [
+    { value: "session", name: "This session" },
+    { value: "default", name: "Default" },
+];
+
+// Scope says where a pick goes. On the stream claude takes a model or an
+// effort for the session alone, or saves it as the default for new sessions
+// as well. A terminal has no such choice to offer: whatever is typed there is
+// saved as the default.
+export function Scope({ transport, value, onChange, effort }) {
+    if (transport === "console") {
+        return html`<p class="hint pknote">In a terminal the pick is saved as the default for new sessions.</p>`;
+    }
+    if (transport !== "stream") return null;
+    return html`
+        <div class="pkscope" role="radiogroup" aria-label="where the pick goes">
+            ${SCOPES.map((s) => html`
+                <button key=${s.value} type="button" role="radio" class=${`pkseg${value === s.value ? " on" : ""}`}
+                        aria-checked=${value === s.value ? "true" : "false"}
+                        onClick=${() => onChange(s.value)}>${s.name}</button>
+            `)}
+        </div>
+        ${effort && value === "default" && html`
+            <p class="hint pknote">Ultracode is set per session, and claude keeps max for this session only.</p>
+        `}
+    `;
+}
+
+// scoped is what a pick carries about where it goes: only the stream is asked.
+function scoped(transport, scope) {
+    return transport === "stream" ? { scope } : {};
+}
+
+function transportOf(data) {
+    return (data && data.session && data.session.transport) || "";
 }
 
 function Row({ on, icon, tone, name, desc, onPick, disabled, number }) {
@@ -173,25 +229,39 @@ function Row({ on, icon, tone, name, desc, onPick, disabled, number }) {
 }
 
 // EffortScale is the effort as a scale from faster to smarter: a stop per
-// level the model takes, the one the session runs at under the knob.
-export function EffortScale({ levels, value, onPick, disabled }) {
-    const at = levels.indexOf(value);
+// level the model takes, the one the session runs at under the knob. A model
+// that takes xhigh takes ultracode too, and it gets the stop past the line;
+// where the pick would be saved as a default, that stop is off — ultracode is
+// set per session.
+export function EffortScale({ levels, value, onPick, disabled, ultraOff }) {
+    const base = levels.filter((level) => level !== ULTRA);
+    const stops = base.includes("xhigh") ? [...base, ULTRA] : base;
+    const at = stops.indexOf(value);
     return html`
         <div class="pkscale">
             <div class="pkscalehead"><span>Faster</span><span>Smarter</span></div>
             <div class="pktrack" role="radiogroup" aria-label="effort">
-                ${levels.map((level, i) => html`
-                    <button key=${level} type="button" role="radio" disabled=${disabled}
-                            class=${`pkstop${i === at ? " on" : ""}${i < at ? " past" : ""}`}
-                            aria-checked=${i === at ? "true" : "false"} aria-label=${effortName(level)}
-                            title=${effortName(level)} onClick=${() => onPick(level)}>
-                        <i></i>
-                    </button>
-                `)}
+                ${stops.map((level, i) => {
+                    const off = disabled || (level === ULTRA && Boolean(ultraOff));
+                    return html`
+                        <button key=${level} type="button" role="radio" disabled=${off}
+                                class=${`pkstop${level === ULTRA ? " pkultra" : ""}${i === at ? " on" : ""}${i < at ? " past" : ""}`}
+                                aria-checked=${i === at ? "true" : "false"} aria-label=${effortName(level)}
+                                title=${level === ULTRA && ultraOff ? ultraOff : effortName(level)}
+                                onClick=${() => onPick(level)}>
+                            <i></i>
+                        </button>
+                    `;
+                })}
             </div>
+            ${stops.includes(ULTRA) && html`
+                <div class="pkscalefoot"><span>${value === ULTRA ? "Ultracode · " : ""}xhigh + workflows</span></div>
+            `}
         </div>
     `;
 }
+
+const ULTRA_OFF = "ultracode is set per session";
 
 // PickSheet is the phone's way in: one sheet, with the model list, the effort
 // behind a row of it, and the mode list, as the native client lays them out.
@@ -205,25 +275,30 @@ export function PickSheet({ what, onClose, name, live, exec }) {
     const data = useModels(name, Boolean(what));
     const [chosen, setChosen] = useState({});
     useEffect(() => { setChosen({}); }, [what, name]);
+    const [scope, setScope] = useState("session");
+    useEffect(() => { setScope("session"); }, [name]);
     const pick = usePick(name, (setting) => setChosen((was) => ({ ...was, ...setting })));
     const labels = { model: "select model", effort: "effort", mode: "select mode" };
     return html`
         <${Sheet} open=${Boolean(what)} onClose=${onClose} label=${labels[pane] || "settings"} inner>
             ${what && html`<${PickPane} pane=${pane} setPane=${setPane} data=${data} live=${live}
-                                        chosen=${chosen} pick=${pick} off=${!can} why=${whyNot(exec, "session.set")} />`}
+                                        chosen=${chosen} pick=${pick} off=${!can} why=${whyNot(exec, "session.set")}
+                                        scope=${scope} setScope=${setScope} />`}
         <//>
     `;
 }
 
-function PickPane({ pane, setPane, data, live, chosen, pick, off, why }) {
+function PickPane({ pane, setPane, data, live, chosen, pick, off, why, scope, setScope }) {
     const choices = modelChoices(data, live);
     const model = chosen.model || (choices.current && choices.current.value);
     const effort = chosen.effort || (data && data.session && data.session.effort) || live.effort;
     const mode = chosen.mode || (data && data.session && data.session.mode) || live.mode;
     const running = [...choices.main, ...choices.other].find((m) => m.value === model) || choices.current;
     const levels = (running && running.efforts && running.efforts.length ? running.efforts : EFFORTS);
-    const terminal = data && data.session && data.session.transport === "console";
+    const transport = transportOf(data);
+    const terminal = transport === "console";
     const refusal = off && html`<p class="hint warn pknote">${why}</p>`;
+    const where = scoped(transport, scope);
 
     if (pane === "effort") {
         return html`
@@ -234,8 +309,10 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why }) {
                 <span class="pkheadval">${effortName(effort)}</span>
             </div>
             ${refusal}
+            <${Scope} transport=${transport} value=${scope} onChange=${setScope} effort />
             <${EffortScale} levels=${levels} value=${effort} disabled=${off}
-                            onPick=${(level) => pick({ effort: level }, `Effort: ${effortName(level)}`)} />
+                            ultraOff=${where.scope === "default" ? ULTRA_OFF : ""}
+                            onPick=${(level) => pick({ effort: level, ...where }, `Effort: ${effortName(level)}`, transport)} />
         `;
     }
 
@@ -256,7 +333,7 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why }) {
                 ${MODE_OPTIONS.map((m) => html`
                     <${Row} key=${m.value} on=${m.value === mode} icon=${m.icon} tone=${m.tone}
                             name=${m.name} desc=${m.desc} disabled=${terminal || off}
-                            onPick=${() => pick({ mode: m.value }, `Mode: ${m.name}`)} />
+                            onPick=${() => pick({ mode: m.value }, `Mode: ${m.name}`, transport)} />
                 `)}
             </div>
         `;
@@ -266,10 +343,11 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why }) {
         <div class="shead pkhead"><span class="stitle">Select model</span></div>
         ${refusal}
         ${data && data.state !== "ok" && html`<p class="hint warn pknote">${data.reason}</p>`}
+        <${Scope} transport=${transport} value=${scope} onChange=${setScope} />
         <div class="pklist">
             ${choices.main.map((m) => html`
                 <${Row} key=${m.value} on=${m.value === model} name=${m.title} desc=${m.desc} disabled=${off}
-                        onPick=${() => pick({ model: m.value }, `Model: ${m.title}`)} />
+                        onPick=${() => pick({ model: m.value, ...where }, `Model: ${m.title}`, transport)} />
             `)}
         </div>
         <div class="pklist">
@@ -287,7 +365,7 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why }) {
             <div class="pklist">
                 ${choices.other.map((m) => html`
                     <${Row} key=${m.value} on=${m.value === model} name=${m.title} disabled=${off}
-                            onPick=${() => pick({ model: m.value }, `Model: ${m.title}`)} />
+                            onPick=${() => pick({ model: m.value, ...where }, `Model: ${m.title}`, transport)} />
                 `)}
             </div>
         `}
@@ -325,6 +403,8 @@ export function PickBar({ name, live, exec }) {
     const [chosen, setChosen] = useState({});
     const pick = usePick(name, (setting) => setChosen((was) => ({ ...was, ...setting })));
     useEffect(() => { setChosen({}); }, [name, live.model, live.effort, live.mode]);
+    const [scope, setScope] = useState("session");
+    useEffect(() => { setScope("session"); }, [name]);
 
     const choices = modelChoices(data, live);
     const model = chosen.model || (choices.current && choices.current.value);
@@ -332,13 +412,15 @@ export function PickBar({ name, live, exec }) {
     const effort = chosen.effort || live.effort;
     const mode = chosen.mode || live.mode;
     const levels = shown && shown.efforts && shown.efforts.length ? shown.efforts : EFFORTS;
-    const terminal = data && data.session && data.session.transport === "console";
+    const transport = transportOf(data);
+    const terminal = transport === "console";
+    const where = scoped(transport, scope);
     const modes = DESK_MODES.map((v) => MODE_OPTIONS.find((m) => m.value === v));
 
     const close = () => { setMenu(""); setMore(false); };
     const choose = async (setting, said) => {
         close();
-        await pick(setting, said);
+        await pick(setting, said, transport);
     };
 
     useEffect(() => {
@@ -354,7 +436,7 @@ export function PickBar({ name, live, exec }) {
             }
             if (menu === "model" && choices.main[n - 1]) {
                 event.preventDefault();
-                choose({ model: choices.main[n - 1].value }, `Model: ${choices.main[n - 1].title}`);
+                choose({ model: choices.main[n - 1].value, ...where }, `Model: ${choices.main[n - 1].title}`);
             }
         };
         document.addEventListener("pointerdown", away);
@@ -363,7 +445,7 @@ export function PickBar({ name, live, exec }) {
             document.removeEventListener("pointerdown", away);
             document.removeEventListener("keydown", keys);
         };
-    }, [menu, data, terminal]);
+    }, [menu, data, terminal, scope]);
 
     const toggle = (which) => { setMore(false); setMenu(menu === which ? "" : which); };
 
@@ -399,9 +481,10 @@ export function PickBar({ name, live, exec }) {
             ${menu === "model" && html`
                 <div class="pkmenu right" role="menu" aria-label="model">
                     ${data && data.state !== "ok" && html`<p class="pknote">${data.reason}</p>`}
+                    <${Scope} transport=${transport} value=${scope} onChange=${setScope} />
                     ${choices.main.map((m, i) => html`
                         <${Row} key=${m.value} on=${m.value === model} name=${m.title} number=${i + 1}
-                                onPick=${() => choose({ model: m.value }, `Model: ${m.title}`)} />
+                                onPick=${() => choose({ model: m.value, ...where }, `Model: ${m.title}`)} />
                     `)}
                     ${choices.other.length > 0 && html`
                         <div class="pkmenusep"></div>
@@ -415,7 +498,7 @@ export function PickBar({ name, live, exec }) {
                         <div class="pkmenu pksub" role="menu" aria-label="more models">
                             ${choices.other.map((m) => html`
                                 <${Row} key=${m.value} on=${m.value === model} name=${m.title}
-                                        onPick=${() => choose({ model: m.value }, `Model: ${m.title}`)} />
+                                        onPick=${() => choose({ model: m.value, ...where }, `Model: ${m.title}`)} />
                             `)}
                         </div>
                     `}
@@ -424,8 +507,10 @@ export function PickBar({ name, live, exec }) {
             ${menu === "effort" && html`
                 <div class="pkmenu right pkeffort" role="dialog" aria-label="effort">
                     <div class="pkmenuhead"><span>Effort</span><b>${effortName(effort)}</b></div>
+                    <${Scope} transport=${transport} value=${scope} onChange=${setScope} effort />
                     <${EffortScale} levels=${levels} value=${effort}
-                                    onPick=${(level) => choose({ effort: level }, `Effort: ${effortName(level)}`)} />
+                                    ultraOff=${where.scope === "default" ? ULTRA_OFF : ""}
+                                    onPick=${(level) => choose({ effort: level, ...where }, `Effort: ${effortName(level)}`)} />
                 </div>
             `}
         </div>

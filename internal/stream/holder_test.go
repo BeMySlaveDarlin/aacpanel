@@ -36,6 +36,7 @@ func fakeClaude() int {
 	in := bufio.NewScanner(os.Stdin)
 	in.Buffer(make([]byte, 1<<20), 1<<20)
 	var held []map[string]any
+	model, ultra := "claude-sonnet-5", false
 	for in.Scan() {
 		line := in.Bytes()
 		fmt.Fprintln(logf, string(line))
@@ -54,7 +55,19 @@ func fakeClaude() int {
 			case "interrupt":
 				body = map[string]any{"still_queued": []any{}}
 			case "set_model":
+				model, _ = req["model"].(string)
 				out(map[string]any{"type": "system", "subtype": "init", "model": req["model"]})
+			case "apply_flag_settings":
+				// Claude answers success either way, and a model without
+				// xhigh turns nothing on.
+				on, _ := req["settings"].(map[string]any)["ultracode"].(bool)
+				ultra = on && model != "haiku"
+			case "get_settings":
+				body = map[string]any{
+					"effective": map[string]any{"env": map[string]any{"GITLAB_TOKEN": "glpat-secret"}},
+					"sources":   []any{map[string]any{"source": "userSettings", "settings": map[string]any{"env": "glpat-secret"}}},
+					"applied":   map[string]any{"model": model, "effort": "xhigh", "advisor": nil, "ultracode": ultra},
+				}
 			case "cancel_async_message":
 				found := false
 				for i, m := range held {
@@ -631,4 +644,81 @@ func TestTheFingerprintIsTheCollectors(t *testing.T) {
 	if got := Fingerprint("  slow  "); got != "5e0cf7bd1dfa3831788b0cf6dedcdd22" {
 		t.Errorf("Fingerprint = %s", got)
 	}
+}
+
+func TestSettingsRequestsPassOnlyThePanelsShape(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	for _, c := range []struct {
+		subtype string
+		fields  map[string]any
+	}{
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"ultracode": true, "hooks": map[string]any{"Stop": "rm"}}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"permissions": map[string]any{"allow": "Bash"}}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"ultracode": "yes"}}},
+		{"update_settings", map[string]any{"source": "localSettings", "settings": map[string]any{"effortLevel": "high"}}},
+		{"update_settings", map[string]any{"source": "userSettings", "settings": map[string]any{"effortLevel": "max"}}},
+		{"update_settings", map[string]any{"source": "userSettings", "settings": map[string]any{"effortLevel": "high", "model": "x"}}},
+		{"get_settings", map[string]any{"source": "userSettings"}},
+	} {
+		reply := r.ask(Request{Op: OpControl, Subtype: c.subtype, Fields: c.fields})
+		if reply.OK {
+			t.Errorf("%s %v was passed on", c.subtype, c.fields)
+		}
+	}
+	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "get_settings"} {
+		if strings.Contains(r.received(), word) {
+			t.Errorf("claude read %s", word)
+		}
+	}
+}
+
+func TestSettingsAreAnsweredWithoutTheEnvironment(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	reply := r.ask(Request{Op: OpControl, Subtype: "get_settings"})
+	if !reply.OK {
+		t.Fatalf("get_settings was refused: %+v", reply)
+	}
+	if strings.Contains(string(reply.Response), "glpat") || strings.Contains(string(reply.Response), "env") {
+		t.Errorf("the answer carries the environment of the session: %s", reply.Response)
+	}
+	if !strings.Contains(string(reply.Response), `"applied"`) {
+		t.Errorf("the answer lost what the session runs with: %s", reply.Response)
+	}
+}
+
+func TestAnEffortClaudeSavesIsPassedOn(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	reply := r.ask(Request{Op: OpControl, Subtype: "update_settings",
+		Fields: map[string]any{"source": "userSettings", "settings": map[string]any{"effortLevel": "high"}}})
+	if !reply.OK {
+		t.Fatalf("an effort claude saves was refused: %+v", reply)
+	}
+	r.eventually(`"effortLevel":"high"`)
+}
+
+func TestUltracodeIsTheEffortOnlyOnceClaudeRunsIt(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	on := Request{Op: OpControl, Subtype: "apply_flag_settings", Fields: map[string]any{"settings": map[string]any{"ultracode": true}}}
+
+	r.ask(Request{Op: OpControl, Subtype: "set_model", Fields: map[string]any{"model": "haiku"}})
+	if reply := r.ask(on); reply.OK || !strings.Contains(reply.Error, "did not take") {
+		t.Errorf("ultracode on a model that does not run it was reported on: %+v", reply)
+	}
+	if s := r.state(); s.Effort == Ultracode {
+		t.Error("the state says ultracode where claude runs without it")
+	}
+
+	r.ask(Request{Op: OpControl, Subtype: "set_model", Fields: map[string]any{"model": "sonnet"}})
+	if reply := r.ask(on); !reply.OK {
+		t.Fatalf("ultracode claude runs was refused: %+v", reply)
+	}
+	r.waitFor("ultracode in the state", func(s State) bool { return s.Effort == Ultracode })
+	r.summary(func(sum Summary) bool { return sum.Effort == Ultracode })
+
+	r.ask(Request{Op: OpControl, Subtype: "apply_flag_settings", Fields: map[string]any{"settings": map[string]any{"ultracode": false}}})
+	r.waitFor("ultracode off", func(s State) bool { return s.Effort == "xhigh" })
 }

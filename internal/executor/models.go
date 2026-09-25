@@ -64,15 +64,16 @@ func initModels(init json.RawMessage) []action.Model {
 
 // sessionSet changes the one setting a pick names. A model and an effort go
 // the way a person would type them — the same slash command, into a terminal
-// or onto the stream — and only the mode, which has no command, goes its own.
+// or onto the stream — with what their scope adds; the mode, which has no
+// command, goes its own.
 func (e *Executor) sessionSet(ctx context.Context, target string, set *action.Setting) (string, error) {
 	switch {
 	case set == nil:
 		return "", fmt.Errorf("no setting arrived: there is nothing to change")
 	case set.Model != "":
-		return e.sessionCommand(ctx, target, &action.Command{Name: "model", Arg: set.Model})
+		return e.setModel(ctx, target, set.Model, set.Scope)
 	case set.Effort != "":
-		return e.sessionCommand(ctx, target, &action.Command{Name: "effort", Arg: set.Effort})
+		return e.setEffort(ctx, target, set.Effort, set.Scope)
 	}
 	return e.sessionMode(ctx, target, set.Mode)
 }
@@ -153,13 +154,19 @@ func (set *setting) watch() *sendWatch {
 // took reads the status line: an effort is taken when it shows the one asked
 // for, a model when the model or its window differ from what it showed before
 // the command. A model is not matched by name — the picker names it the way
-// the command takes it, the status line by its id.
+// the command takes it, the status line by its id. Ultracode is not a level
+// the status line names: it shows xhigh, and only a line drawn since the
+// command tells the command did it.
 func (set *setting) took() bool {
 	v, ok := consoleSeen(set.sid)
 	if !ok {
 		return false
 	}
-	if set.effort {
+	if set.effort && set.value == action.Ultracode {
+		if v.Effort != "xhigh" || v.At < set.sent {
+			return false
+		}
+	} else if set.effort {
 		if v.Effort != set.value {
 			return false
 		}
@@ -213,6 +220,8 @@ func (set *setting) said() string {
 	}
 	if set.seen != nil {
 		switch {
+		case set.effort && set.value == action.Ultracode:
+			out += "; the console runs on ultracode now, for this session only (its status line says xhigh)"
 		case set.effort:
 			out += "; the console shows effort " + set.seen.Effort + " now"
 		case set.seen.Name != "":

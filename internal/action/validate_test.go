@@ -442,7 +442,8 @@ func TestASettingIsOneAtATime(t *testing.T) {
 		return Request{ID: "a1", Kind: SessionSet, Target: "aacpanel", Setting: set}
 	}
 	for _, set := range []*Setting{{Mode: "default"}, {Mode: "acceptEdits"}, {Mode: "plan"}, {Mode: "auto"},
-		{Model: "sonnet"}, {Model: "claude-opus-4-8"}, {Effort: "xhigh"}} {
+		{Model: "sonnet"}, {Model: "claude-opus-4-8"}, {Effort: "xhigh"}, {Effort: Ultracode},
+		{Model: "fable", Scope: ScopeDefault}, {Effort: "high", Scope: ScopeSession}, {Effort: Ultracode, Scope: ScopeSession}} {
 		if err := req(set).Validate(); err != nil {
 			t.Errorf("%+v is rejected: %v", *set, err)
 		}
@@ -456,6 +457,9 @@ func TestASettingIsOneAtATime(t *testing.T) {
 		"a mode in caps":   {Mode: "Auto"},
 		"an unknown model": {Model: "gpt"},
 		"a model effort":   {Effort: "claude-opus-4-8"},
+		"an unknown scope": {Effort: "high", Scope: "forever"},
+		"a mode's scope":   {Mode: "plan", Scope: ScopeSession},
+		"ultracode saved":  {Effort: Ultracode, Scope: ScopeDefault},
 	} {
 		if err := req(set).Validate(); err == nil {
 			t.Errorf("%s is accepted", name)

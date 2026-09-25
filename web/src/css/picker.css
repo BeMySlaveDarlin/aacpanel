@@ -105,6 +105,41 @@
 }
 .pkstop:disabled { cursor: default; }
 
+/* Ultracode stands past the scale, behind a dashed line, with its words under
+   it: it is xhigh with workflows, not a sixth level of thinking. */
+.pkstop.pkultra { border-left: 1px dashed var(--ink-faint); border-radius: 0; }
+.pkstop.pkultra:disabled i { opacity: .35; }
+.pkscalefoot {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -.15rem;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+
+/* Where a pick goes: the session alone, or the default for new sessions too. */
+.pkscope {
+    display: flex;
+    gap: 2px;
+    margin: 0 0 .7rem;
+    padding: 2px;
+    border-radius: var(--r-small);
+    background: var(--surface-2);
+}
+.pkseg {
+    flex: 1 1 0;
+    padding: .35rem .5rem;
+    border: 0;
+    border-radius: calc(var(--r-small) - 2px);
+    background: none;
+    font: inherit;
+    font-size: var(--t-sm);
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.pkseg.on { background: var(--surface); color: var(--ink); box-shadow: var(--hairline); }
+.pkmenu .pkscope { margin: .1rem .2rem .45rem; }
+
 /* Under the composer on a wide screen: the mode on the left, the model and
    its effort on the right, each a quiet word until pressed. */
 .pickbar {
