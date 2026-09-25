@@ -927,3 +927,62 @@ func TestRunActionCarriesTheModeToExecutor(t *testing.T) {
 		t.Errorf("two settings at once passed with %d", w.Code)
 	}
 }
+
+// The list of MCP servers is the executor's answer passed on, and an empty
+// list is a list: the screen reads it without guarding against its absence.
+func TestSessionMcpPassesTheServersOn(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Mcp: &action.Mcp{Transport: "stream",
+		Servers: []action.McpServer{{Name: "docker", Status: "connected", Tools: []string{"ps"}}}}})
+	srv := &Server{exec: client, hostName: "STAND-01"}
+
+	w := httptest.NewRecorder()
+	srv.apiSessionMcp(w, httptest.NewRequest(http.MethodGet, "/api/session/mcp?name=aacpanel", nil))
+	var body struct {
+		State     string             `json:"state"`
+		Transport string             `json:"transport"`
+		Servers   []action.McpServer `json:"servers"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("the response is not json: %s", w.Body.String())
+	}
+	if body.State != "ok" || body.Transport != "stream" || len(body.Servers) != 1 || body.Servers[0].Name != "docker" {
+		t.Errorf("the answer is %s", w.Body.String())
+	}
+	if got := <-fake.got; got.Ask != action.AskMcp || got.Target != "aacpanel" {
+		t.Errorf("the executor was asked %+v", got)
+	}
+
+	empty, _ := startFakeExec(t, action.Response{OK: true, Mcp: &action.Mcp{Transport: "console"}})
+	w = httptest.NewRecorder()
+	(&Server{exec: empty}).apiSessionMcp(w, httptest.NewRequest(http.MethodGet, "/api/session/mcp?name=aacpanel", nil))
+	if !strings.Contains(w.Body.String(), `"servers":[]`) {
+		t.Errorf("a session with no list reads %s — the screen gets no list to read", w.Body.String())
+	}
+
+	failing, _ := startFakeExec(t, action.Response{OK: false, Error: "no live session named aacpanel"})
+	w = httptest.NewRecorder()
+	(&Server{exec: failing}).apiSessionMcp(w, httptest.NewRequest(http.MethodGet, "/api/session/mcp?name=aacpanel", nil))
+	if !strings.Contains(w.Body.String(), `"state":"unknown"`) || !strings.Contains(w.Body.String(), "no live session") {
+		t.Errorf("a refusal of the executor reads %s", w.Body.String())
+	}
+}
+
+func TestRunActionCarriesTheMcpChangeToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	body := `{"kind":"session.mcp","target":"aacpanel","params":{"server":"claude.ai Gmail","do":"disable"}}`
+	if w := post(t, srv, body); w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.Kind != action.SessionMcp || got.Mcp == nil || got.Mcp.Server != "claude.ai Gmail" || got.Mcp.Do != "disable" {
+			t.Errorf("the executor got %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+	if w := post(t, srv, `{"kind":"session.mcp","target":"aacpanel","params":{"server":"docker","do":"authenticate"}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("an action outside the three passed with %d", w.Code)
+	}
+}

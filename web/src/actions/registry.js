@@ -49,6 +49,14 @@ export const COMMANDS = {
     },
 };
 
+// SCREENS lists the slash commands the panel answers with a screen of its own
+// rather than sending them: the session on the stream is asked for the data.
+// In a console each is a screen driven by keys, and the composer does not
+// type into it.
+export const SCREENS = {
+    mcp: { name: "MCP servers" },
+};
+
 // REFUSED lists the slash commands the panel does not send in any form, not
 // even as a message: the rules of permissions are a screen driven by keys, and
 // the panel does not open it. The host refuses them too; the composer says so
@@ -76,6 +84,11 @@ function switchEffect(params) {
     return where + kept + lost;
 }
 
+function mcpDone(params) {
+    const done = { reconnect: "reconnected", enable: "enabled", disable: "disabled" };
+    return done[params && params.do] || "changed";
+}
+
 function command(params) {
     return (params && COMMANDS[params.command]) || {};
 }
@@ -95,6 +108,7 @@ export function parseCommand(text, stream = false) {
     const space = line.search(/\s/);
     const name = space < 0 ? line.slice(1) : line.slice(1, space);
     if (REFUSED[name.toLowerCase()]) return { command: name, arg: "", ready: false, refused: true };
+    if (SCREENS[name]) return { command: name, arg: "", ready: false, screen: stream, keys: !stream };
     const spec = COMMANDS[name];
     if (!spec) return null;
     if (stream && spec.console) return { command: name, arg: "", ready: false, console: true };
@@ -113,6 +127,9 @@ export function commandHints(text, stream = false) {
     if (REFUSED[name.toLowerCase()]) {
         return [{ value: line, label: `/${name}`, hint: REFUSED[name.toLowerCase()] }];
     }
+    if (SCREENS[name] && !stream) {
+        return [{ value: line, label: `/${name}`, hint: "in the feed only: in a console it is a screen driven by keys" }];
+    }
     if (stream && COMMANDS[name] && COMMANDS[name].console) {
         return [{ value: line, label: `/${name}`, hint: "in the console only: on the stream it drops the session off the panel" }];
     }
@@ -125,13 +142,18 @@ export function commandHints(text, stream = false) {
     }
     if (spec) return [];
     const typed = name.toLowerCase();
+    const screens = stream
+        ? Object.keys(SCREENS).filter((id) => id.startsWith(typed))
+            .map((id) => ({ value: `/${id}`, label: `/${id}`, hint: SCREENS[id].name }))
+        : [];
     return Object.keys(COMMANDS)
         .filter((id) => id.startsWith(typed) && !(stream && COMMANDS[id].console))
         .map((id) => ({
             value: COMMANDS[id].args ? `/${id} ` : `/${id}`,
             label: `/${id}`,
             hint: COMMANDS[id].name,
-        }));
+        }))
+        .concat(screens);
 }
 
 export const ACTIONS = {
@@ -247,6 +269,11 @@ export const ACTIONS = {
     "session.escape": {
         instant: true,
         done: (target) => `The composer of ${target} is free`,
+    },
+    "session.mcp": {
+        instant: true,
+        effect: "One MCP server of the session reconnects, turns on or turns off; its tools come or go with the next request, and the change is undone the same way.",
+        done: (target, params) => `${(params && params.server) || "The server"}: ${mcpDone(params)}`,
     },
     "session.set": {
         instant: true,
@@ -589,6 +616,7 @@ const NAMES = {
     "session.file": "Send file",
     "session.command": "Slash command",
     "session.set": "Change a setting",
+    "session.mcp": "Change an MCP server",
     "window.open": "Open window",
     "window.close": "Close window",
     "device.revoke": "Revoke device",

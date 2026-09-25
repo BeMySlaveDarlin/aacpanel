@@ -203,3 +203,46 @@
 .cmdnote { margin: 0 0 .4rem; font-size: var(--t-xs); color: var(--ink-faint); }
 .cmdsum { margin: 0 0 .2rem; font-size: var(--t-sm); color: var(--ink-dim); }
 .cmdhabits .cmdname { font-family: inherit; font-size: var(--t-sm); }
+
+/* The MCP servers of a session: a row per server with a dot of how it stands,
+   and one server with its facts and what can be done to it. */
+.mcplist { list-style: none; margin: 0; padding: 0; }
+.mcprow {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    width: 100%;
+    padding: .45rem 0;
+    border: 0;
+    border-bottom: var(--hair) solid var(--line);
+    background: none;
+    font: inherit;
+    font-size: var(--t-sm);
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+}
+.mcplist li:last-child .mcprow { border-bottom: 0; }
+.mcprow .cmdname { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink); }
+.mcprow .crgo { flex: none; }
+.mcpdot {
+    display: inline-block;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-right: .4rem;
+    border-radius: 50%;
+    background: var(--ink-faint);
+}
+.mcprow .mcpdot { margin-right: 0; }
+.mcpdot.ok { background: var(--ok); }
+.mcpdot.warn { background: var(--warn); }
+.mcpdot.crit { background: var(--crit); }
+.mcpdot.off { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
+.mcpback svg { transform: rotate(180deg); }
+.mcpfacts .cmdname { flex: none; width: 6.5rem; font-family: inherit; font-size: var(--t-sm); }
+.mcpfacts .cmdtok { flex: 1 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.mcpissue { color: var(--crit); }
+.mcpwhere { font-family: var(--mono); font-size: var(--t-xs); }
+.mcpacts { display: flex; flex-wrap: wrap; gap: .5rem; }
+.mcpacts .btn { flex: 1 1 8rem; }

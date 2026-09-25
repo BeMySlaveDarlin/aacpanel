@@ -85,6 +85,7 @@ func TestAuditedPassesOnEveryQuestion(t *testing.T) {
 		"Asker":       func() bool { _, ok := a.(action.Asker); return ok }(),
 		"WindowAsker": func() bool { _, ok := a.(action.WindowAsker); return ok }(),
 		"ModelsAsker": func() bool { _, ok := a.(action.ModelsAsker); return ok }(),
+		"McpAsker":    func() bool { _, ok := a.(action.McpAsker); return ok }(),
 		"Capable":     func() bool { _, ok := a.(action.Capable); return ok }(),
 	} {
 		if !ok {
@@ -98,10 +99,21 @@ func TestAuditedPassesOnEveryQuestion(t *testing.T) {
 	if _, err := any(audited{next: muteExec{}}).(action.ModelsAsker).Models(t.Context(), "aacpanel"); err == nil {
 		t.Error("an executor that does not know models said nothing instead of refusing")
 	}
+	mcp, err := a.(action.McpAsker).Mcp(t.Context(), "aacpanel")
+	if err != nil || mcp == nil || len(mcp.Servers) != 1 {
+		t.Errorf("the question about MCP came back as %+v, %v", mcp, err)
+	}
+	if _, err := any(audited{next: muteExec{}}).(action.McpAsker).Mcp(t.Context(), "aacpanel"); err == nil {
+		t.Error("an executor that does not know MCP said nothing instead of refusing")
+	}
 }
 
 type modelsExec struct{ muteExec }
 
 func (modelsExec) Models(context.Context, string) (*action.Models, error) {
 	return &action.Models{Transport: "stream"}, nil
+}
+
+func (modelsExec) Mcp(context.Context, string) (*action.Mcp, error) {
+	return &action.Mcp{Transport: "stream", Servers: []action.McpServer{{Name: "docker", Status: "connected"}}}, nil
 }

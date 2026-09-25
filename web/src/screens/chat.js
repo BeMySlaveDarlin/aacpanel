@@ -17,6 +17,7 @@ import { onShelf, sealed, signal } from "./repo/notes.js";
 import { Icon } from "../ui/icons.js";
 import { Row } from "./chat/rows.js";
 import { CommandSheet } from "./chat/command.js";
+import { McpSheet } from "./chat/mcp.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
@@ -390,6 +391,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                          was.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
                                      insert=${insert}
                                      onPicker=${knows(exec, "session.set") ? setPicking : null}
+                                     onScreen=${(what) => setLook({ kind: what })}
                                      strip=${wide
                                          ? html`<${PickBar} name=${name} live=${live} exec=${exec} />`
                                          : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} />`}
@@ -435,6 +437,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 ? html`<${ArtifactPage} card=${look.card} />`
                 : look.kind === "command"
                 ? html`<${CommandSheet} item=${look.item} />`
+                : look.kind === "mcp"
+                ? html`<${McpSheet} name=${name} exec=${exec} />`
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
                                     exec=${exec} onAgent=${openAgent}

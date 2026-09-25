@@ -96,6 +96,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionSwitch(ctx, req.Target, req.Switch, req.Project)
 	case action.SessionSet:
 		return e.sessionSet(ctx, req.Target, req.Setting)
+	case action.SessionMcp:
+		return e.sessionMcp(ctx, req.Target, req.Mcp)
 	case action.TaskStop:
 		return e.taskStop(ctx, req.Target, req.Work)
 	case action.AgentStop:

@@ -44,6 +44,11 @@ type ModelsAsker interface {
 	Models(ctx context.Context, target string) (*Models, error)
 }
 
+// McpAsker is an executor that knows the MCP servers of a session.
+type McpAsker interface {
+	Mcp(ctx context.Context, target string) (*Mcp, error)
+}
+
 // Capable is an executor that does not do everything listed in Kinds.
 type Capable interface {
 	Kinds() []Kind
@@ -205,6 +210,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 			return Failed(req.ID, err, 0)
 		}
 		return Response{ID: req.ID, OK: true, Models: models}
+	}
+
+	if req.Ask == AskMcp {
+		asker, ok := s.exec.(McpAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not know the MCP servers of a session"), 0)
+		}
+		mcp, err := asker.Mcp(ctx, req.Target)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Mcp: mcp}
 	}
 
 	s.mu.Lock()

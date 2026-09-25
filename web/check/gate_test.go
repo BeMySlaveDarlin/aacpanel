@@ -147,7 +147,10 @@ var instantActions = map[string]bool{
 	// row they have just tapped is a second press for the same thing. What is
 	// dangerous about a mode stays out of the list — the two that stop a
 	// session asking at all are not offered there.
-	"session.set":     true,
+	"session.set": true,
+	// Reconnecting, enabling or disabling one MCP server is pressed on the
+	// server's own card, and undone by the button beside it.
+	"session.mcp":     true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -164,6 +167,7 @@ var instantExecActions = map[string]bool{
 	"session.escape":  true,
 	"session.unqueue": true,
 	"session.set":     true,
+	"session.mcp":     true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

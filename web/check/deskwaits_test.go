@@ -211,6 +211,8 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.command": "",
 		// A setting changes the session in place: nothing leaves the list or joins it.
 		"session.set": "",
+		// An MCP server changes inside the session: the list of sessions stays.
+		"session.mcp": "",
 	}
 
 	for id, body := range sessionActions(t, files[registryFile]) {

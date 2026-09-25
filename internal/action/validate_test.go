@@ -308,6 +308,43 @@ func TestWorkStopCarriesWhatTheScreenShows(t *testing.T) {
 	}
 }
 
+// A change of MCP names one server as the session reported it and one of three
+// things to do to it; nothing else carries it.
+func TestMcpChangeNamesAServerAndWhatToDo(t *testing.T) {
+	cases := []struct {
+		name string
+		req  Request
+		ok   bool
+	}{
+		{"a reconnect", Request{ID: "1", Kind: SessionMcp, Target: "aacpanel",
+			Mcp: &McpChange{Server: "claude.ai Gmail", Do: McpReconnect}}, true},
+		{"a disable", Request{ID: "1", Kind: SessionMcp, Target: "aacpanel",
+			Mcp: &McpChange{Server: "plugin:data:hex", Do: McpDisable}}, true},
+		{"something else", Request{ID: "1", Kind: SessionMcp, Target: "aacpanel",
+			Mcp: &McpChange{Server: "docker", Do: "authenticate"}}, false},
+		{"no server", Request{ID: "1", Kind: SessionMcp, Target: "aacpanel",
+			Mcp: &McpChange{Server: " ", Do: McpReconnect}}, false},
+		{"a line break in the name", Request{ID: "1", Kind: SessionMcp, Target: "aacpanel",
+			Mcp: &McpChange{Server: "docker\nrm", Do: McpReconnect}}, false},
+		{"nothing to change", Request{ID: "1", Kind: SessionMcp, Target: "aacpanel"}, false},
+		{"a change riding another action", Request{ID: "1", Kind: SessionStop, Target: "aacpanel",
+			Mcp: &McpChange{Server: "docker", Do: McpReconnect}}, false},
+		{"the question", Request{Ask: AskMcp, Target: "aacpanel"}, true},
+		{"the question with no session", Request{Ask: AskMcp}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.req.Validate()
+			if c.ok && err != nil {
+				t.Errorf("a sound request is rejected: %v", err)
+			}
+			if !c.ok && err == nil {
+				t.Error("the request is accepted, though it must not be")
+			}
+		})
+	}
+}
+
 func TestSwitchSaysWhereAndCarriesItsProject(t *testing.T) {
 	project := &Project{Path: "/opt/x", Session: "aacpanel"}
 	cases := []struct {

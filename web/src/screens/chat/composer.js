@@ -191,7 +191,7 @@ export function asksSend(e, wide) {
 }
 
 // Composer writes into a live session.
-export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, strip }) {
+export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, strip }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -245,7 +245,9 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     // as they are in a terminal: sending them opens it instead.
     const lists = cmd && !cmd.arg && onPicker && (cmd.command === "model" || cmd.command === "effort")
         ? cmd.command : "";
-    const hints = canCmd && !pack.length && !(cmd && cmd.ready) && !lists ? commandHints(text, stream) : [];
+    // A command the panel answers with a screen of its own opens it.
+    const opens = cmd && cmd.screen && onScreen ? cmd.command : "";
+    const hints = canCmd && !pack.length && !(cmd && cmd.ready) && !lists && !opens ? commandHints(text, stream) : [];
     // With dictation on, an empty field shows the microphone rather than the
     // arrow: there is nothing to send yet, and a disabled button takes no press
     // to hold. The moment there are words it is the send button again. The
@@ -254,7 +256,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const canTalk = hear.on && !cmd && !pack.length;
     const asMic = canTalk && !text.trim();
     const cantSend = !ready || sending
-        || (cmd ? !(cmd.ready || lists) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
+        || (cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
     const stopping = busy && !text.trim() && !pack.length;
 
     const stop = async () => {
@@ -302,6 +304,11 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         if (lists) {
             setText("");
             onPicker(lists);
+            return;
+        }
+        if (opens) {
+            setText("");
+            onScreen(opens);
             return;
         }
         taken.current = true;

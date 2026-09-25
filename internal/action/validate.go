@@ -27,7 +27,7 @@ func (r Request) Validate() error {
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
-		case AskPermission, AskWindow, AskModels:
+		case AskPermission, AskWindow, AskModels, AskMcp:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -232,6 +232,13 @@ func (r Request) Validate() error {
 		}
 	} else if r.Setting != nil {
 		return badRequest("action %s changes no settings", r.Kind)
+	}
+	if r.Kind == SessionMcp {
+		if err := r.Mcp.validate(); err != nil {
+			return err
+		}
+	} else if r.Mcp != nil {
+		return badRequest("action %s changes no MCP server", r.Kind)
 	}
 	switch {
 	case r.Kind == TaskStop, r.Kind == AgentStop:

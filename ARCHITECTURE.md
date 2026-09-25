@@ -403,7 +403,7 @@ Twenty-six actions, and the list is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.permit`, `session.switch`, `session.unqueue` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
@@ -560,6 +560,15 @@ not carry — in the answer of `/usage`, which habits spent the limits — is re
 off the text beside it. The terminal's grid
 is left out: a markdown copy of it follows in the next record. The answer of a
 command the collector does not know stays a line of text.
+
+**`/mcp` is a screen of the panel, asked of the session.** On the stream the
+panel asks claude for its MCP servers each time the screen opens, and changes
+one of them — reconnect, enable, disable — with claude's own requests.
+Authentication is left to the host: its browser comes back to the host, and a
+phone is not that browser. Only what the screen shows leaves the host: the
+headers, the arguments and the environment of a server, and the query of its
+address, can carry keys. In a console `/mcp` is a screen driven by keys, and
+the composer does not send it.
 
 **There is nowhere else to get the subscription limits from.** The 5h/7d
 percentages do not lie on disk and are not handed out by any API — the only one

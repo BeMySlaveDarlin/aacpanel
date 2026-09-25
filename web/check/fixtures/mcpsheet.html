@@ -1,0 +1,104 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// /mcp typed in a session on the stream opens the panel's own screen: the
+// servers the session reports, by where each comes from, and one server with
+// what can be done to it. In a console the command is a screen driven by
+// keys, and the composer does not send it. The servers are those claude
+// reported on a real host.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const SERVERS = [{"name": "plugin:context7:context7", "status": "connected", "source": "plugin", "scope": "dynamic", "type": "http", "url": "https://mcp.context7.com/mcp", "tools": ["resolve-library-id", "query-docs"]}, {"name": "plugin:pdf-viewer:pdf", "status": "connected", "source": "plugin", "scope": "dynamic", "type": "stdio", "command": "npx", "tools": ["list_pdfs", "read_pdf_bytes", "display_pdf", "interact", "submit_page_data", "submit_save_data", "submit_viewer_state", "poll_pdf_commands", "save_pdf"]}, {"name": "plugin:data:snowflake", "status": "failed", "source": "plugin", "scope": "dynamic", "type": "http", "error": "No URL configured for this server"}, {"name": "plugin:data:databricks", "status": "failed", "source": "plugin", "scope": "dynamic", "type": "http", "error": "No URL configured for this server"}, {"name": "plugin:data:bigquery", "status": "needs-auth", "source": "plugin", "scope": "dynamic", "type": "http", "url": "https://bigquery.googleapis.com/mcp"}, {"name": "plugin:data:hex", "status": "needs-auth", "source": "plugin", "scope": "dynamic", "type": "http", "url": "https://app.hex.tech/mcp"}, {"name": "plugin:data:amplitude", "status": "needs-auth", "source": "plugin", "scope": "dynamic", "type": "http", "url": "https://mcp.amplitude.com/mcp"}, {"name": "plugin:data:amplitude-eu", "status": "needs-auth", "source": "plugin", "scope": "dynamic", "type": "http", "url": "https://mcp.eu.amplitude.com/mcp"}, {"name": "plugin:data:definite", "status": "failed", "source": "plugin", "scope": "dynamic", "type": "http", "error": "MCP endpoint not found at https://api.definite.app. Check the URL in your MCP config.", "url": "https://api.definite.app/v3/mcp/http"}, {"name": "plugin:zoom-plugin:zoom-mcp", "status": "failed", "source": "plugin", "scope": "dynamic", "type": "http", "error": "Server rejected the configured Authorization header (HTTP 401). Check that the token is valid for this MCP endpoint — OAuth fallback is disabled when headers.Authorization is set.", "url": "https://mcp-us.zoom.us/mcp/zoom/streamable"}, {"name": "plugin:zoom-plugin:zoom-docs-mcp", "status": "failed", "source": "plugin", "scope": "dynamic", "type": "http", "error": "Server rejected the configured Authorization header (HTTP 401). Check that the token is valid for this MCP endpoint — OAuth fallback is disabled when headers.Authorization is set.", "url": "https://mcp.zoom.us/mcp/docs/streamable"}, {"name": "plugin:zoom-plugin:zoom-whiteboard-mcp", "status": "failed", "source": "plugin", "scope": "dynamic", "type": "http", "error": "Server rejected the configured Authorization header (HTTP 401). Check that the token is valid for this MCP endpoint — OAuth fallback is disabled when headers.Authorization is set.", "url": "https://mcp-us.zoom.us/mcp/whiteboard/streamable"}, {"name": "docker", "status": "connected", "source": "user", "scope": "user", "type": "stdio", "command": "npx", "tools": ["docker_list_containers", "docker_create_container", "docker_start_container", "docker_stop_container", "docker_restart_container", "docker_kill_container", "docker_remove_container", "docker_inspect_container", "docker_container_logs", "docker_container_stats", "docker_pause_container", "docker_unpause_container", "docker_container_health_check", "docker_list_images", "docker_pull_image", "docker_push_image", "docker_tag_image", "docker_remove_image", "docker_inspect_image", "docker_image_history", "docker_list_networks", "docker_create_network", "docker_remove_network", "docker_inspect_network", "docker_connect_container", "docker_disconnect_container", "docker_list_volumes", "docker_create_volume", "docker_remove_volume", "docker_inspect_volume", "docker_system_info", "docker_version", "docker_prune_system", "docker_prune_images", "docker_prune_containers", "docker_prune_volumes", "docker_prune_networks", "docker_exec", "docker_inspect_exec", "docker_compose_up", "docker_compose_down", "docker_compose_ps", "docker_compose_logs", "docker_compose_config", "docker_compose_build", "docker_compose_restart", "docker_compose_stop", "docker_compose_start", "dockerhub_search", "dockerhub_get_tags", "dockerhub_authenticate", "dockerhub_pull", "dockerhub_push", "ghcr_authenticate", "ghcr_pull", "ghcr_push"]}, {"name": "tg-shadow", "status": "failed", "source": "user", "scope": "user", "type": "http", "error": "ECONNREFUSED: Unable to connect. Is the computer able to access the url?", "url": "http://127.0.0.1:8901/mcp"}, {"name": "claude.ai Claude Docs", "status": "connected", "source": "claudeai", "scope": "claudeai", "type": "claudeai-proxy", "url": "https://api.anthropic.com/v1/pages/mcp", "tools": ["create", "read", "update", "delete", "query", "batch", "guide", "export"]}, {"name": "claude.ai Atlassian Rovo", "status": "needs-auth", "source": "claudeai", "scope": "claudeai", "type": "claudeai-proxy", "url": "https://mcp.atlassian.com/v1/mcp"}, {"name": "claude.ai Context7", "status": "connected", "source": "claudeai", "scope": "claudeai", "type": "claudeai-proxy", "url": "https://mcp.context7.com/mcp", "tools": ["resolve-library-id", "query-docs"]}, {"name": "claude.ai Google Drive", "status": "connected", "source": "claudeai", "scope": "claudeai", "type": "claudeai-proxy", "url": "https://drivemcp.googleapis.com/mcp/v1", "tools": ["copy_file", "create_file", "download_file_content", "get_file_metadata", "get_file_permissions", "list_recent_files", "read_file_content", "search_files", "share_file", "trash_file", "update_file"]}, {"name": "claude.ai Google Calendar", "status": "connected", "source": "claudeai", "scope": "claudeai", "type": "claudeai-proxy", "url": "https://calendarmcp.googleapis.com/mcp/v1", "tools": ["list_events", "get_event", "list_calendars", "suggest_time", "create_event", "update_event", "delete_event", "respond_to_event", "search_events"]}, {"name": "claude.ai Gmail", "status": "connected", "source": "claudeai", "scope": "claudeai", "type": "claudeai-proxy", "url": "https://gmailmcp.googleapis.com/mcp/v1", "tools": ["create_draft", "update_draft", "delete_draft", "send_message", "reply", "forward", "list_drafts", "get_draft", "get_thread", "get_message", "search_threads", "label_thread", "unlabel_thread", "apply_sensitive_thread_label", "trash_thread", "untrash_thread", "mark_thread_spam", "unmark_thread_spam", "list_labels", "label_message", "update_message_labels", "unlabel_message", "apply_sensitive_message_label", "trash_message", "untrash_message", "mark_message_spam", "unmark_message_spam", "create_label", "update_label", "delete_label"]}];
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const sent = [];
+let asked = 0;
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/mcp")) {
+        asked++;
+        return json({ state: "ok", transport: "stream", servers: SERVERS });
+    }
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true, detail: "ok" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.send", "session.command", "session.mcp"] };
+const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj",
+    model: "claude-opus-5-5", effort: "xhigh", mode: "auto" };
+const root = document.getElementById("root");
+const show = (live) => render(h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name="atlas" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+const type = async (value) => {
+    const area = document.querySelector("textarea");
+    area.value = value;
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(150);
+};
+const sendButton = () => document.querySelector(".composer .iconbtn.accent");
+
+(async () => {
+    show(stream);
+    await sleep(400);
+    const out = {};
+
+    await type("/mc");
+    out.hints = text(".slashhint");
+    await type("/mcp");
+    const send = sendButton();
+    out.sendReady = Boolean(send) && !send.disabled;
+    send.click();
+    await sleep(400);
+    out.title = text(".sheet.on .cmdhead")[0] || "";
+    out.count = text(".sheet.on .cmdsum")[0] || "";
+    out.groups = text(".sheet.on .cmdsechead > span:first-child");
+    out.docker = text(".sheet.on .mcprow").find((r) => r.startsWith("docker")) || "";
+    out.dots = Array.from(document.querySelectorAll(".sheet.on .mcprow")).map((r) =>
+        `${r.querySelector(".cmdname").textContent.trim()}:${r.querySelector(".mcpdot").className.replace("mcpdot ", "")}`);
+    out.composerAfter = document.querySelector("textarea").value;
+    out.sentBefore = sent.length;
+
+    Array.from(document.querySelectorAll(".sheet.on .mcprow"))
+        .find((r) => r.querySelector(".cmdname").textContent.trim() === "tg-shadow").click();
+    await sleep(200);
+    out.server = text(".sheet.on .cmdhead")[0] || "";
+    out.facts = text(".sheet.on .mcpfacts li");
+    out.buttons = text(".sheet.on .mcpacts .btn");
+    const before = asked;
+    Array.from(document.querySelectorAll(".sheet.on .mcpacts .btn")).find((b) => b.textContent.trim() === "Disable").click();
+    await sleep(400);
+    out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
+    out.askedAgain = asked > before;
+    document.querySelector(".sheet.on .sheetclose").click();
+    await sleep(300);
+
+    // In a console /mcp is a screen driven by keys: the composer says so and sends nothing.
+    show({ ...stream, transport: "" });
+    await sleep(300);
+    await type("/mcp");
+    out.consoleReady = !sendButton().disabled;
+    out.consoleHint = text(".slashhint")[0] || "";
+    window.done = out;
+})();
+</script>

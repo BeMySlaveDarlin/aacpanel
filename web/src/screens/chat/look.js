@@ -26,6 +26,7 @@ export const LOOK_NAMES = {
     artifact: "published page",
     brief: "brief",
     command: "command output",
+    mcp: "MCP servers",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);

@@ -46,6 +46,10 @@ const (
 	// or its permission mode — picked from the list the session offers.
 	SessionSet Kind = "session.set"
 
+	// SessionMcp reconnects, enables or disables one MCP server of a session
+	// on the stream.
+	SessionMcp Kind = "session.mcp"
+
 	// SessionSwitch moves a live session between the console and the feed:
 	// the same conversation is closed on one side and resumed on the other.
 	SessionSwitch Kind = "session.switch"
@@ -69,7 +73,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
 	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
-	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, TaskStop, AgentStop, WindowOpen, WindowClose,
+	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }
 

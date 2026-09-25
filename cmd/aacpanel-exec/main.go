@@ -290,6 +290,15 @@ func (a audited) Models(ctx context.Context, target string) (*action.Models, err
 	return asker.Models(ctx, target)
 }
 
+// Mcp asks the wrapped executor about the MCP servers of a session.
+func (a audited) Mcp(ctx context.Context, target string) (*action.Mcp, error) {
+	asker, ok := a.next.(action.McpAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know the MCP servers of a session")
+	}
+	return asker.Mcp(ctx, target)
+}
+
 func (a audited) Execute(ctx context.Context, req action.Request) (string, error) {
 	log.Printf("audit phase=start action=%s target=%s device=%q request=%s",
 		req.Kind, req.Target, req.Device, req.ID)

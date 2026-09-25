@@ -40,6 +40,9 @@ type Request struct {
 	// Setting is what session.set changes.
 	Setting *Setting `json:"setting,omitempty"`
 
+	// Mcp is what session.mcp does, and to which server.
+	Mcp *McpChange `json:"mcp,omitempty"`
+
 	Ask string `json:"ask,omitempty"`
 }
 
@@ -139,3 +142,6 @@ const AskWindow = "window"
 // AskModels asks what a session can be switched to: its models as claude
 // lists them, and the mode and the effort it runs with.
 const AskModels = "models"
+
+// AskMcp asks a session on the stream about its MCP servers.
+const AskMcp = "mcp"

@@ -20,6 +20,8 @@ type Response struct {
 	Window *Window `json:"window,omitempty"`
 
 	Models *Models `json:"models,omitempty"`
+
+	Mcp *Mcp `json:"mcp,omitempty"`
 }
 
 // Failed builds a refusal response.

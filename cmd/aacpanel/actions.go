@@ -165,6 +165,13 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if req.Kind == action.SessionMcp {
+		change := &action.McpChange{}
+		change.Server, _ = body.Params["server"].(string)
+		change.Do, _ = body.Params["do"].(string)
+		req.Mcp = change
+		params = map[string]any{"server": change.Server, "do": change.Do}
+	}
 	if req.Kind == action.SessionOpen || req.Kind == action.SessionResume {
 		want, projectID, err := s.launchProject(r.Context(), body.Params, cwd, req.Target)
 		if err != nil {
@@ -352,6 +359,35 @@ func (s *Server) apiSessionModels(w http.ResponseWriter, r *http.Request) {
 	}
 	out["state"], out["session"] = "ok", models
 	writeJSON(w, out)
+}
+
+// apiSessionMcp says what a live session knows about its MCP servers.
+func (s *Server) apiSessionMcp(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "it is not said whose MCP servers to list", http.StatusBadRequest)
+		return
+	}
+	if s.exec == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
+		return
+	}
+	mcp, err := s.exec.Mcp(r.Context(), name)
+	if err != nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
+		return
+	}
+	if mcp == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor did not answer the question about MCP"})
+		return
+	}
+	// The list crosses the socket with omitempty and arrives as nothing when it
+	// is empty; the screen is handed a list either way.
+	servers := mcp.Servers
+	if servers == nil {
+		servers = []action.McpServer{}
+	}
+	writeJSON(w, map[string]any{"state": "ok", "transport": mcp.Transport, "servers": servers})
 }
 
 // apiSessionSwitch says which way a live session can move between the console
