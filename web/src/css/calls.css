@@ -331,9 +331,9 @@ button.filepic {
 }
 
 
-/* A line beside the conversation: a background task done, a warning of
-   claude, the recap after an absence. Under a run it hangs below the badges;
-   alone it takes a row of its own. A dot says how it went. */
+/* A line beside the conversation: a warning of claude, the recap after an
+   absence. Under a run it hangs below the badges; alone it takes a row of its
+   own. A dot says how loud it is. */
 .mside {
     display: flex;
     align-items: baseline;
@@ -361,6 +361,29 @@ button.filepic {
 .msideaside { flex: none; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 /* Under a run the line tucks up to the badges it belongs to. */
 .mside.under { margin-top: -.25rem; padding-left: .15rem; }
+
+/* A background task done: a pill in the middle of the feed, like a note —
+   the mark of how it ended, the name it ran under, and what it took. The name
+   gives way first when the pill runs out of room. */
+.mdone {
+    align-self: center;
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
+    max-width: 100%;
+    min-width: 0;
+    padding: .12rem .7rem;
+    border-radius: var(--r-pill);
+    border: var(--hair) solid var(--line);
+    background: rgba(150, 170, 255, .05);
+    font-size: var(--t-xs);
+    color: var(--ink-dim);
+}
+.mdonemark { flex: none; font-weight: 700; color: var(--ink-faint); }
+.mdone.s-ok .mdonemark { color: var(--ok); }
+.mdone.s-crit .mdonemark, .mdone.s-crit .mdoneaside { color: var(--crit); }
+.mdonename { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdoneaside { flex: none; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 
 /* The length of a turn, under its last answer, with the time it ended. */
 .mturn {

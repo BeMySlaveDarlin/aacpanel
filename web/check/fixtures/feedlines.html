@@ -31,9 +31,18 @@ render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
 (async () => {
     await new Promise((r) => setTimeout(r, 200));
     const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
-    const under = Array.from(document.querySelectorAll(".mside.under")).map(text);
+    const under = Array.from(document.querySelectorAll(".mdone.under, .mside.under")).map(text);
     window.done = {
         badges: Array.from(document.querySelectorAll(".mtools")).map((b) => b.getAttribute("aria-label")),
+        pills: Array.from(document.querySelectorAll(".mdone")).map((el) => ({
+            mark: text(el.querySelector(".mdonemark")),
+            name: text(el.querySelector(".mdonename")),
+            aside: text(el.querySelector(".mdoneaside")),
+            said: el.getAttribute("aria-label"),
+            markColour: getComputedStyle(el.querySelector(".mdonemark")).color,
+            centred: Math.abs((el.getBoundingClientRect().left + el.getBoundingClientRect().right) / 2
+                - (el.parentElement.getBoundingClientRect().left + el.parentElement.getBoundingClientRect().right) / 2) < 2,
+        })),
         lines: Array.from(document.querySelectorAll(".mside")).map((el) => ({
             text: text(el),
             dot: getComputedStyle(el.querySelector(".msidedot")).backgroundColor,

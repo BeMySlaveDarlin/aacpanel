@@ -310,23 +310,41 @@ function Mail({ item }) {
     `;
 }
 
-// The tone of a background task by how it ended.
+// The tone and the mark of a background task by how it ended.
 const DONE_TONES = { completed: "ok", failed: "crit", killed: "faint", stopped: "faint" };
+const DONE_MARKS = { completed: "✓", failed: "✗" };
 
-// Line is what arrives beside the conversation: a background task done, a
-// warning of claude, the recap after an absence.
+// doneName is what a finished task was called: the name in the quotes of
+// claude's sentence about it, or the sentence when it has none.
+function doneName(summary) {
+    const quoted = /"(.+)"/.exec(summary || "");
+    return quoted ? quoted[1] : (summary || "a background task");
+}
+
+// doneExit is the exit code a command ended with, when it is not a clean one.
+function doneExit(summary) {
+    const code = /exit code (\d+)/.exec(summary || "");
+    return code && code[1] !== "0" ? `exit ${code[1]}` : "";
+}
+
+// Line is what arrives beside the conversation. A background task done is a
+// pill: the name it ran under, how it ended, how long it took and what an
+// agent spent. A warning of claude or the recap after an absence is a line,
+// since its words do not fit a pill.
 function Line({ item, under = false }) {
     const where = under ? " under" : "";
     if (item.role === "taskdone") {
         const aside = [
             item.ms > 0 && stopwatch(item.ms / 1000),
             item.tokens > 0 && `${shortTokens(item.tokens)} ${tokenWord(item.tokens)}`,
+            doneExit(item.summary),
         ].filter(Boolean);
         return html`
-            <div class=${`mside s-${DONE_TONES[item.status] || "faint"}${where}`}>
-                <span class="msidedot" aria-hidden="true"></span>
-                <span class="msidetext">${item.summary || "a background task ended"}</span>
-                ${aside.length > 0 && html`<span class="msideaside">${aside.join(" · ")}</span>`}
+            <div class=${`mdone s-${DONE_TONES[item.status] || "faint"}${where}`}
+                 role="note" aria-label=${item.summary || "a background task ended"}>
+                <span class="mdonemark" aria-hidden="true">${DONE_MARKS[item.status] || "–"}</span>
+                <span class="mdonename">${doneName(item.summary)}</span>
+                ${aside.length > 0 && html`<span class="mdoneaside">${aside.join(" · ")}</span>`}
             </div>
         `;
     }
