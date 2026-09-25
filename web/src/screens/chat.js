@@ -362,7 +362,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 onBrief=${openBrief}
                 onCommand=${(row) => setLook({ kind: "command", item: row })}
                 onTask=${(task) => (task.agent
-                    ? openAgent({ id: task.id, name: task.name, kind: "task" })
+                    ? openAgent({ id: task.id, name: task.name, kind: "background" })
                     : setLook({ kind: "task", id: task.id, text: task.name }))}
             />`)}
             ${pending.map((row) => html`

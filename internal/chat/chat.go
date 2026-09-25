@@ -264,13 +264,17 @@ type WorkTask struct {
 	Agent string `json:"agent,omitempty"`
 }
 
-// WorkAgent is a subagent the session started.
+// WorkAgent is a subagent the session started. Status is active while it
+// works; a teammate that wrote is reported, and an agent sent to the
+// background ends the way its task did — completed, failed, stopped or killed —
+// at DoneAt.
 type WorkAgent struct {
 	Name       string `json:"name"`
 	Text       string `json:"text,omitempty"`
 	At         string `json:"at,omitempty"`
 	Status     string `json:"status"`
 	ReportedAt string `json:"reportedAt,omitempty"`
+	DoneAt     string `json:"doneAt,omitempty"`
 	Model      string `json:"model,omitempty"`
 	Color      string `json:"color,omitempty"`
 	Last       string `json:"last,omitempty"`

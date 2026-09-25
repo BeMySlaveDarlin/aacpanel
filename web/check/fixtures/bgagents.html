@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The agents a session sent to the background stand in the list of agents
+// beside its teammates: the one at work, and the ones that ended, each the way
+// it ended. The list of commands holds commands alone.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Work, WorkList } from "/src/screens/chat/work.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const minutes = (n) => new Date(Date.now() - n * 60000).toISOString();
+
+const work = {
+    artifacts: [], docs: [], sent: [],
+    tasks: [{ id: "b1", text: "make check", kind: "bash", at: minutes(3), line: "make check" }],
+    agents: [
+        { id: "adf5ce617c6afff7a", name: "cx-scout", text: "Scouting the restore", kind: "background",
+          status: "active", at: minutes(5), model: "claude-sonnet-5", tokens: 35600, limit: 200000, limitKnown: true },
+        { name: "zone-a", text: "a zone", kind: "teammate", status: "reported",
+          at: minutes(40), reportedAt: minutes(20) },
+        { id: "a8d6b65104dad396c", name: "sub-run", text: "Commit and push", kind: "background",
+          status: "completed", at: minutes(12), doneAt: minutes(11) },
+        { id: "a1111111111111111", name: "sub-run", text: "Run the suite", kind: "background",
+          status: "failed", at: minutes(30), doneAt: minutes(25) },
+    ],
+};
+
+const opened = [];
+render(html`
+    <${ToastHost}><${GateHost}>
+        <div id="chips"><${Work} work=${work} onOpen=${() => {}} /></div>
+        <div id="agents">
+            <${WorkList} session="lab" id="1" kind="agents" work=${work}
+                         exec=${{ available: true, kinds: ["agent.stop", "task.stop"] }}
+                         onAgent=${(agent) => opened.push(agent)} />
+        </div>
+        <div id="tasks">
+            <${WorkList} session="lab" id="1" kind="tasks" work=${work}
+                         exec=${{ available: true, kinds: ["agent.stop", "task.stop"] }} />
+        </div>
+    <//><//>
+`, document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+    const chips = Array.from(document.querySelectorAll("#chips .wchip"));
+    const rows = Array.from(document.querySelectorAll("#agents .wline"));
+    window.done = {
+        chips: chips.map((c) => ({ label: c.getAttribute("aria-label"), num: text(c.querySelector(".wnum")) })),
+        sub: text(document.querySelector("#agents .chatsub")),
+        rows: rows.map((r) => ({
+            name: text(r.querySelector(".wname")),
+            state: text(r.querySelector(".wstate")),
+            stop: r.querySelector(".wstop") ? (r.querySelector(".wstop").disabled ? "off" : "on") : "none",
+        })),
+        hint: text(document.querySelector("#agents .whint")),
+        tasks: Array.from(document.querySelectorAll("#tasks .wrow.task")).map((r) => r.querySelector(".wtext").innerText.replace(/\s+/g, " ").trim()),
+        opened: (() => {
+            rows[0].querySelector(".wrow").click();
+            return opened.map((a) => ({ id: a.id, kind: a.kind }));
+        })(),
+    };
+})();
+</script>

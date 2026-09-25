@@ -7,8 +7,9 @@ from .artifacts import (ARTIFACT_URL_RE, DOC_TOOLS, SENT_TOOL, _artifact, _docum
                         _sent, result_text)
 from .limits import MAX_ITEMS, _short
 from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
-from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_AGENT,
-                    TASK_ID_KEYS, TASK_KIND_BY_KEY, _notify_tasks, _task, finish)
+from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_ID_KEYS,
+                    TASK_KIND_BY_KEY, _notify_tasks, _task, finish)
+from . import background
 from .wake import WAKE_ID, _wake, is_wakeup
 from . import workflows
 
@@ -19,6 +20,7 @@ class State:
     def __init__(self):
         self.tasks = {}
         self.agents = {}
+        self.bg = {}
         self.pending = {}
         self.task_ids = {}
         self.answered = collections.deque(maxlen=100)
@@ -35,8 +37,10 @@ class State:
     def snapshot(self):
         """Returns what goes outside: the live first, then the finished, each newest first."""
         tasks = _live_first(self.tasks.values(), lambda t: not t.get("done"), _task_seen)
-        agents = _live_first(self.agents.values(),
-                             lambda a: a.get("status") != "reported", _agent_seen)
+        # A teammate and an agent sent off to the background are one list: the
+        # session holds both as its agents, and each opens its conversation.
+        agents = _live_first([*self.agents.values(), *self.bg.values()],
+                             lambda a: a.get("status") == background.ACTIVE, _agent_seen)
         arts = sorted(self.arts.values(), key=lambda a: a.get("at") or "", reverse=True)
         docs = sorted(self.docs.values(), key=lambda d: d.get("at") or "", reverse=True)
         sent = sorted(self.sent.values(), key=lambda s: s.get("at") or "", reverse=True)
@@ -68,7 +72,8 @@ def _task_seen(task):
 
 
 def _agent_seen(agent):
-    return max(agent.get("at") or "", agent.get("reportedAt") or "", agent.get("last") or "")
+    return max(agent.get("at") or "", agent.get("reportedAt") or "", agent.get("last") or "",
+               agent.get("doneAt") or "")
 
 
 def _feed_record(state, record, raw):
@@ -107,7 +112,8 @@ def _feed_record(state, record, raw):
             if not isinstance(data, dict):
                 data = {}
             if name in STOPPERS:
-                finish(state, data.get("task_id") or data.get("shell_id") or "", at)
+                finish(state, data.get("task_id") or data.get("shell_id") or "", at,
+                       background.STOPPED)
                 continue
             if name == "Artifact":
                 _artifact(state, data, block.get("id"), at)
@@ -141,6 +147,7 @@ def _feed_record(state, record, raw):
             elif name in MAYBE_BACKGROUND:
                 state.pending[block.get("id")] = _may_go_background(name, data, at)
             elif name == "SendMessage":
+                background.woken(state, data.get("to"))
                 agent = state.agents.get(data.get("to"))
                 if agent is not None:
                     agent["status"] = "active"
@@ -183,8 +190,8 @@ def _feed_record(state, record, raw):
         if started["kind"] == "agent":
             status = result.get("status")
             if status == "async_launched":
-                _task(state, block.get("tool_use_id"), result.get("agentId"),
-                      started, _short(result.get("description")), TASK_AGENT)
+                background.launched(state, block.get("tool_use_id"), result.get("agentId"),
+                                    started, _short(result.get("description")))
                 continue
             if status != "teammate_spawned":
                 continue

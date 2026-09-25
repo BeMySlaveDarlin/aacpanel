@@ -1,7 +1,8 @@
-"""Background tasks: a command, a Monitor watch and an agent sent off to work."""
+"""Background tasks: a command and a Monitor watch."""
 
 import re
 
+from . import background
 from .limits import MAX_ITEMS
 from .subagents import _stamp
 
@@ -29,7 +30,6 @@ TASK_ID_KEYS = ("backgroundTaskId", "taskId")
 
 TASK_BASH = "bash"
 TASK_MONITOR = "aacpanel"
-TASK_AGENT = "agent"
 
 TASK_KIND_BY_KEY = {"backgroundTaskId": TASK_BASH, "taskId": TASK_MONITOR}
 
@@ -54,13 +54,16 @@ def _task(state, use, task_id, started, text="", kind=TASK_BASH):
     _prune_done_tasks(state)
 
 
-def finish(state, task_id, at):
-    """Closes a task: a shell stays in the list, everything else leaves it.
+def finish(state, task_id, at, status=""):
+    """Closes a task: a shell stays in the list, a watch leaves it.
 
     The session keeps a finished shell around — its output is still readable,
-    and the screen of the session counts it among the ones it has. A watch and
-    an agent sent off to work have nothing to come back to, so they go.
+    and the screen of the session counts it among the ones it has. A watch has
+    nothing to come back to, so it goes. The id of an agent sent off to work
+    closes the agent, with how it ended.
     """
+    if background.ended(state, task_id, status, at):
+        return
     task = state.tasks.get(task_id)
     if task is None:
         return
@@ -116,11 +119,12 @@ def _notify_tasks(state, body, at):
     event = " ".join(NOTIF_EVENT_RE.findall(body))
     targets = [state.task_ids.get(t, t) for t in NOTIF_USE_RE.findall(body)]
     targets += NOTIF_TASK_RE.findall(body)
-    if any(s in DONE_STATUSES for s in status) or MONITOR_OVER_RE.search(event):
+    done = [s for s in status if s in DONE_STATUSES]
+    if done or MONITOR_OVER_RE.search(event):
         for tool_id in NOTIF_USE_RE.findall(body):
             state.task_ids.pop(tool_id, None)
-        for task_id in targets:
-            finish(state, task_id, at)
+        for task_id in dict.fromkeys(targets):
+            finish(state, task_id, at, done[0] if done else "")
         return
     if not event:
         return

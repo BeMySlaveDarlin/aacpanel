@@ -169,7 +169,6 @@ export function WorkRefs({ work, pages, briefs, onOpen }) {
 const TASK_KINDS = {
     bash: [Icon.terminal, "command"],
     aacpanel: [Icon.probes, "monitoring"],
-    agent: [Icon.robot, "background agent"],
     wake: [Icon.alerts, "wake-up"],
 };
 
@@ -199,20 +198,52 @@ function voice(task) {
 
 const AGENT_FADE_MS = 90 * 60 * 1000;
 
+// How an agent sent to the background ended, in words.
+const AGENT_ENDS = { completed: "finished", failed: "failed", stopped: "stopped", killed: "gone with the process" };
+
+// agentPhase is where an agent stands: at work; reported — a teammate that
+// wrote, and may still be alive; or over, the way the task of an agent sent to
+// the background ended. The counter, the list and the rows all ask it.
+function agentPhase(agent) {
+    if (agent.status === "active") return "live";
+    if (agent.status === "reported") return "reported";
+    return "over";
+}
+
 function splitAgents(agents, now = Date.now()) {
     const live = [];
     const said = [];
     const faded = [];
+    const reported = [];
+    const over = [];
     for (const agent of agents) {
-        if (agent.status !== "reported") {
+        const phase = agentPhase(agent);
+        if (phase === "live") {
             live.push(agent);
             continue;
         }
-        const at = Date.parse(agent.last || agent.reportedAt || "");
+        (phase === "reported" ? reported : over).push(agent);
+        const at = Date.parse(agent.doneAt || agent.last || agent.reportedAt || "");
         if (Number.isNaN(at) || now - at < AGENT_FADE_MS) said.push(agent);
         else faded.push(agent);
     }
-    return { live, said, faded };
+    return { live, said, faded, reported, over };
+}
+
+// agentState is the line under the name of an agent: how long it has been at
+// work, how it ended, or how long a reported one has been silent.
+function agentState(agent, stop) {
+    if (stop && stop.done) return "stopped from the panel";
+    const phase = agentPhase(agent);
+    if (phase === "live") return `working for ${since(agent.at)}`;
+    if (phase === "over") {
+        const word = AGENT_ENDS[agent.status] || agent.status;
+        if (!agent.doneAt) return word;
+        const ran = agent.at ? ` · ran ${lasted(agent.at, agent.doneAt)}` : "";
+        return `${word} ${since(agent.doneAt)} ago${ran}`;
+    }
+    const last = agent.last || agent.reportedAt;
+    return last ? `silent for ${since(last)}` : "reported, time unknown";
 }
 
 function openAgent(agent, onAgent, setPick) {
@@ -316,7 +347,19 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
     const stopAgent = (agent) => stop(agentKey(agent), "agent work",
         () => run("agent.stop", session, { id: agent.name }));
 
-    const agentStopper = (agent) => ({
+    // A teammate is stopped by its name on the session screen. An agent sent
+    // to the background has no name there the panel could aim at.
+    const agentStopper = (agent) => (agent.kind === "background" ? {
+        ready: false,
+        why: agentPhase(agent) === "over"
+            ? "the agent is over, there is nothing to stop"
+            : "the panel does not know how this agent is named on the session screen — "
+                + "there is nothing here to stop it with",
+        busy: false,
+        done: false,
+        fail: "",
+        onStop: () => {},
+    } : {
         ready: knows(exec, "agent.stop"),
         why: whyNot(exec, "agent.stop"),
         busy: busy === agentKey(agent),
@@ -334,7 +377,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
     const tasks = (work && work.tasks) || [];
     const agents = (work && work.agents) || [];
     const flows = (work && work.workflows) || [];
-    const { live, said, faded } = splitAgents(agents);
+    const { live, said, faded, reported, over } = splitAgents(agents);
     const [showFaded, setShowFaded] = useState(false);
 
     // A run is read out of what the list already holds: everything the panel
@@ -366,7 +409,8 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
             ].filter(Boolean).join(", ") || "empty"
             : [
                 live.length > 0 && `${live.length} working`,
-                said.length > 0 && `${said.length} reported`,
+                reported.length > 0 && `${reported.length} reported`,
+                over.length > 0 && `${over.length} over`,
             ].filter(Boolean).join(", ") || "empty";
 
     return html`
@@ -392,9 +436,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                 : html`
                     <div class="wline" key=${task.id}>
                         <button class="wrow task" type="button"
-                                onClick=${() => (task.kind === "agent" && onAgent
-                                    ? onAgent({ id: task.id, name: task.text || "background agent", kind: "task" })
-                                    : setPick({ kind: "task", id: task.id, text: task.text }))}>
+                                onClick=${() => setPick({ kind: "task", id: task.id, text: task.text })}>
                             <span class="wicon">${taskKind(task)[0]()}</span>
                             <span class="wtext">
                                 ${task.text}
@@ -421,27 +463,27 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                     </div>
                 `))}
             ${kind === "agents" && live.map((agent) => html`
-                <${AgentRow} key=${`live-${agent.name}`} agent=${agent} reported=${false}
+                <${AgentRow} key=${`live-${agentKey(agent)}`} agent=${agent} reported=${false}
                              stop=${agentStopper(agent)}
                              onOpen=${() => openAgent(agent, onAgent, setPick)} />
             `)}
             ${kind === "agents" && said.map((agent) => html`
-                <${AgentRow} key=${`said-${agent.name}`} agent=${agent} reported=${true}
+                <${AgentRow} key=${`said-${agentKey(agent)}`} agent=${agent} reported=${true}
                              stop=${agentStopper(agent)}
                              onOpen=${() => openAgent(agent, onAgent, setPick)} />
             `)}
             ${kind === "agents" && faded.length > 0 && !showFaded && html`
                 <button class="wrow more" type="button" onClick=${() => setShowFaded(true)}>
-                    <span class="wtext">${faded.length} more reported earlier</span>
+                    <span class="wtext">${faded.length} more, quiet for a while</span>
                     <span class="crgo">${Icon.chevron()}</span>
                 </button>
             `}
             ${kind === "agents" && showFaded && faded.map((agent) => html`
-                <${AgentRow} key=${`faded-${agent.name}`} agent=${agent} reported=${true}
+                <${AgentRow} key=${`faded-${agentKey(agent)}`} agent=${agent} reported=${true}
                              stop=${agentStopper(agent)}
                              onOpen=${() => openAgent(agent, onAgent, setPick)} />
             `)}
-            ${kind === "agents" && (said.length > 0 || showFaded) && html`
+            ${kind === "agents" && reported.length > 0 && (said.length > 0 || showFaded) && html`
                 <p class="whint">Reported means it sent a letter. Whether it has finished
                     for good, the session does not say.</p>
             `}
@@ -492,13 +534,7 @@ function AgentRow({ agent, reported, stop, onOpen }) {
                     ${agent.model && html`<span class="wmodel">${agent.model}</span>`}
                 </span>
                 ${agent.text && html`<span class="wsub">${agent.text}</span>`}
-                <span class="wstate">${stop && stop.done
-                    ? "stopped from the panel"
-                    : reported
-                        ? (agent.last || agent.reportedAt
-                            ? `silent for ${since(agent.last || agent.reportedAt)}`
-                            : "reported, time unknown")
-                        : `working for ${since(agent.at)}`}${agent.tokens > 0
+                <span class="wstate">${agentState(agent, stop)}${agent.tokens > 0
                     && ` · ${contextSay(agent)}`}</span>
                 ${stop && stop.fail && html`<span class="wfail">${stop.fail}</span>`}
             </span>

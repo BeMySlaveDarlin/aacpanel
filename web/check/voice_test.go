@@ -20,7 +20,6 @@ func TestTaskVoiceTellsSilenceFromLongPause(t *testing.T) {
 		want string
 	}{
 		{"a command keeps silent in its own way", map[string]any{"kind": "bash", "event": ago(time.Minute)}, "null"},
-		{"a background agent too", map[string]any{"kind": "agent"}, "null"},
 		{"a fresh event", map[string]any{"kind": "aacpanel", "event": ago(4 * time.Minute)},
 			`{"silent":false,"hush":false}`},
 		{"an hour fifty is still ordinary", map[string]any{"kind": "aacpanel", "event": ago(110 * time.Minute)},

@@ -18,7 +18,7 @@ import * as codecopy from "./copy.js";
 const KIND_NAMES = {
     teammate: "teammate",
     subagent: "subagent",
-    task: "background agent",
+    background: "background agent",
 };
 
 // subFeedId returns the address of an agent feed: the conversation and the agent.

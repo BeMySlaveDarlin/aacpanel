@@ -221,7 +221,12 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 			             {"name": "audit-docs", "text": "docs audit", "at": "2026-08-25T10:01:00Z",
 			              "status": "reported", "reportedAt": "2026-08-25T10:03:00Z",
 			              "model": "sonnet", "color": "pink", "last": "2026-08-25T10:03:00Z",
-			              "id": "aaudit-docs-fedcba9876543210", "kind": "teammate"}],
+			              "id": "aaudit-docs-fedcba9876543210", "kind": "teammate"},
+			             {"name": "cx-scout", "text": "Scouting the restore", "at": "2026-08-25T10:02:00Z",
+			              "status": "completed", "doneAt": "2026-08-25T10:12:00Z",
+			              "model": "claude-sonnet-5", "last": "2026-08-25T10:12:00Z",
+			              "id": "adf5ce617c6afff7a", "kind": "background",
+			              "tokens": 51030, "limit": 200000, "limitKnown": true}],
 			"workflows": [{"id": "wf_0c96efa8d5b", "task": "wthbimhp4", "name": "review-changes",
 			               "text": "Review the diff across dimensions", "at": "2026-08-25T10:00:00Z",
 			               "status": "completed", "doneAt": "2026-08-25T10:41:00Z",
@@ -264,7 +269,7 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 	if reply.State == nil {
 		t.Fatal("the session state does not parse at all")
 	}
-	if len(reply.State.Tasks) != 2 || len(reply.State.Agents) != 2 {
+	if len(reply.State.Tasks) != 2 || len(reply.State.Agents) != 3 {
 		t.Fatalf("the state arrived incomplete: %+v", *reply.State)
 	}
 	if tk := reply.State.Tasks[1]; tk.Kind != "wake" || tk.Due == "" {

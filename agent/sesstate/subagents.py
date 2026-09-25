@@ -10,6 +10,9 @@ import models
 
 from .limits import MAX_ITEMS
 
+# The kind of an agent the session sent off to work with no name of its own.
+KIND_BACKGROUND = "background"
+
 AGENT_ID_RE = re.compile(r"agent_id:\s*([^\s@\\\"]+)")
 
 
@@ -146,7 +149,7 @@ def last_request(path, size):
 
 
 def _context(talk, stat, fallback_model):
-    """Returns the context fields of an agent: tokens, limit, limitKnown."""
+    """Returns the context fields of an agent: tokens, limit, limitKnown, and the model it runs on."""
     key = (stat.st_mtime_ns, stat.st_size)
     with _context_lock:
         hit = _context_cache.get(talk)
@@ -159,7 +162,7 @@ def _context(talk, stat, fallback_model):
     limit, known = models.limit_for(model or fallback_model)
     if tokens > limit:
         limit, known = models.DEFAULT_LIMIT_TOKENS, False
-    return {"tokens": tokens, "limit": limit, "limitKnown": known}
+    return {"tokens": tokens, "limit": limit, "limitKnown": known, "ran": model}
 
 
 def _meta_files(path):
@@ -192,15 +195,25 @@ def _meta_of(agent_id, meta_path):
             data = json.load(f)
     except (OSError, ValueError):
         return None
-    if not isinstance(data, dict) or not data.get("name"):
+    if not isinstance(data, dict):
+        return None
+    # An agent sent off without a name of its own is known by its type: the
+    # session cannot write to it, and only its id tells it from its namesakes.
+    if data.get("name"):
+        name = str(data["name"])
+        kind = "teammate" if data.get("taskKind") == "in_process_teammate" else "subagent"
+    elif data.get("agentType") or data.get("description"):
+        name = str(data.get("agentType") or "agent")
+        kind = KIND_BACKGROUND
+    else:
         return None
     meta = {
-        "name": str(data["name"]),
+        "name": name,
         "text": str(data.get("description") or ""),
         "model": str(data.get("model") or ""),
         "color": str(data.get("color") or ""),
         "id": agent_id,
-        "kind": "teammate" if data.get("taskKind") == "in_process_teammate" else "subagent",
+        "kind": kind,
     }
     with _meta_lock:
         _meta_cache[meta_path] = (key, meta)
@@ -211,14 +224,17 @@ def talks(path):
     """Returns (name, transcript) of every subagent of a session.
 
     Namesakes are both returned: two agents called the same are two agents,
-    and the work one of them left running is not the other's.
+    and the work one of them left running is not the other's. An agent with
+    no name of its own goes by what it was sent to do: its type is shared by
+    every agent of that type the session sent off.
     """
     out = []
     for agent_id, meta_path in _meta_files(path):
         meta = _meta_of(agent_id, meta_path)
         if meta is None:
             continue
-        out.append((meta["name"], _talk_of(meta_path)))
+        who = meta["text"] if meta["kind"] == KIND_BACKGROUND and meta["text"] else meta["name"]
+        out.append((who, _talk_of(meta_path)))
     return out
 
 
@@ -226,9 +242,8 @@ def _talk_of(meta_path):
     return meta_path[: -len(".meta.json")] + ".jsonl"
 
 
-def agent_meta(path):
-    """Returns the description, model, color, kind, last activity and context of subagents by name."""
-    out = {}
+def _metas(path):
+    """Yields what the files of every subagent say, with its last activity and context."""
     for agent_id, meta_path in _meta_files(path):
         meta = _meta_of(agent_id, meta_path)
         if meta is None:
@@ -237,11 +252,37 @@ def agent_meta(path):
         try:
             talk_stat = os.stat(talk)
         except OSError:
-            meta = dict(meta, last="", tokens=0, limit=0, limitKnown=False)
-        else:
-            meta = dict(meta, last=_stamp(talk_stat.st_mtime),
-                        **_context(talk, talk_stat, meta["model"]))
+            yield dict(meta, last="", tokens=0, limit=0, limitKnown=False, ran="")
+            continue
+        yield dict(meta, last=_stamp(talk_stat.st_mtime),
+                   **_context(talk, talk_stat, meta["model"]))
+
+
+def agent_meta(path):
+    """Returns the description, model, color, kind, last activity and context of subagents by name.
+
+    An agent without a name of its own is left out: it is found by its id.
+    """
+    out = {}
+    for meta in _metas(path):
+        if meta["kind"] == KIND_BACKGROUND:
+            continue
+        meta.pop("ran")
         was = out.get(meta["name"])
         if was is None or (was.get("last") or "") <= meta["last"]:
             out[meta["name"]] = meta
+    return out
+
+
+def background_meta(path):
+    """Returns the model, last activity and context of every subagent by its id.
+
+    The file of an agent sent off without a name says nothing of its model: the
+    type it was sent as does, so the model is the one its last request ran on.
+    """
+    out = {}
+    for meta in _metas(path):
+        meta["model"] = meta["model"] or meta["ran"]
+        meta.pop("ran")
+        out[meta["id"]] = meta
     return out

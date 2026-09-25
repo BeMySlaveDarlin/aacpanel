@@ -112,11 +112,6 @@ class Notifications(Transcript):
                          orphan_summary("beapubqvz"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"])
 
-    def test_an_agent_completion_removes_the_task_by_its_id(self):
-        got = self.state(async_agent("toolu_1", "a2222222222222222"),
-                         agent_notification("a2222222222222222"))
-        self.assertEqual(got["tasks"], [])
-
     def test_a_monitor_timeout_removes_the_task(self):
         got = self.state(aacpanel("toolu_1", "b00000002"),
                          monitor_event("b00000002", "[Monitor timed out — re-arm if needed.]"))
@@ -213,12 +208,13 @@ class Kinds(Transcript):
 
     def test_a_background_agent_is_recognised_by_its_status(self):
         got = self.state(async_agent("toolu_1", "a3333333333333333"))
-        self.assertEqual([(t["id"], t["text"]) for t in got["tasks"]],
+        self.assertEqual([(a["id"], a["text"]) for a in got["agents"]],
                          [("a3333333333333333", "Run the tests")])
 
-    def test_a_background_agent_does_not_count_as_a_subagent(self):
+    def test_a_background_agent_is_not_a_background_command(self):
         got = self.state(async_agent("toolu_1", "a3333333333333333"))
-        self.assertEqual(got["agents"], [])
+        self.assertEqual(got["tasks"], [],
+                         "an agent sent to the background is listed among the commands")
 
     def test_a_subagent_does_not_count_as_a_background_task(self):
         got = self.state(spawn("toolu_1", "alpha"))
@@ -241,8 +237,7 @@ class Kinds(Transcript):
             async_agent("toolu_3", "a3333333333333333"),
             notification("toolu_1"), notification("toolu_2"), notification("toolu_3"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"],
-                         "a watch and an agent have nothing to come back to, they leave; "
-                         "a shell stays")
+                         "a watch has nothing to come back to, it leaves; a shell stays")
 
     def test_a_running_shell_is_not_marked_finished(self):
         got = self.state(background("toolu_1", "b00000001"))
@@ -272,19 +267,19 @@ class Kinds(Transcript):
             call("TaskStop", "toolu_6", task_id="a3333333333333333"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"])
 
-    def test_the_three_kinds_are_counted_together(self):
+    def test_a_shell_and_a_watch_are_counted_together_and_the_agent_apart(self):
         got = self.state(background("toolu_1", "b00000001"),
                          aacpanel("toolu_2", "b00000003"),
                          async_agent("toolu_3", "a3333333333333333"))
-        self.assertEqual([t["id"] for t in got["tasks"]],
-                         ["b00000001", "b00000003", "a3333333333333333"])
+        self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001", "b00000003"])
+        self.assertEqual([a["id"] for a in got["agents"]], ["a3333333333333333"])
 
 
 class TaskKinds(Transcript):
     def kinds(self, *chunks):
         return {t["id"]: t.get("kind") for t in self.state(*chunks)["tasks"]}
 
-    def test_the_three_kinds_are_told_apart(self):
+    def test_the_two_kinds_are_told_apart(self):
         got = self.kinds(
             call("Bash", "tool-1", command="make check", run_in_background=True),
             result("tool-1", backgroundTaskId="bqqq1"),
@@ -297,7 +292,6 @@ class TaskKinds(Transcript):
         self.assertEqual(got, {
             "bqqq1": sesstate.TASK_BASH,
             "bqqq2": sesstate.TASK_MONITOR,
-            "bqqq3": sesstate.TASK_AGENT,
         })
 
     def test_the_counter_stays_shared(self):
@@ -324,10 +318,6 @@ class ScreenLine(Transcript):
         got = self.state(aacpanel("tool-1", "b00000002"))["tasks"][0]
         self.assertEqual(got["line"], "Watching the build")
 
-    def test_background_agent_has_no_line(self):
-        got = self.state(async_agent("tool-1", "a1"))["tasks"][0]
-        self.assertEqual(got["line"], "")
-
 
 BORN = calendar.timegm(time.strptime("2026-08-25T10:30:00Z", "%Y-%m-%dT%H:%M:%SZ"))
 BEFORE = "2026-08-25T10:00:00Z"
@@ -349,19 +339,19 @@ class Restart(Transcript):
                          [("b00000001", True, "2026-08-25T10:30:00Z")],
                          "the shell died with the process, and the chip still counts it running")
 
-    def test_a_watch_and_an_agent_started_before_the_birth_are_gone(self):
-        got = self.born(BORN, aacpanel("toolu_1", "b00000002", at=BEFORE),
-                        async_agent("toolu_2", "a3333333333333333", at=BEFORE))
+    def test_a_watch_started_before_the_birth_is_gone(self):
+        got = self.born(BORN, aacpanel("toolu_1", "b00000002", at=BEFORE))
         self.assertEqual(got["tasks"], [],
-                         "a watch and an agent have nothing to come back to after a restart")
+                         "a watch has nothing to come back to after a restart")
 
     def test_work_started_after_the_birth_is_running(self):
         got = self.born(BORN, background("toolu_1", "b00000001", at=AFTER),
                         aacpanel("toolu_2", "b00000002", at=AFTER),
                         async_agent("toolu_3", "a3333333333333333", at=AFTER))
         self.assertEqual([(t["id"], t.get("done")) for t in got["tasks"]],
-                         [("b00000001", False), ("b00000002", False),
-                          ("a3333333333333333", False)])
+                         [("b00000001", False), ("b00000002", False)])
+        self.assertEqual([(a["id"], a["status"]) for a in got["agents"]],
+                         [("a3333333333333333", "active")])
 
     def test_a_shell_closed_before_the_restart_keeps_its_own_end(self):
         got = self.born(BORN, background("toolu_1", "b00000001", at=BEFORE),

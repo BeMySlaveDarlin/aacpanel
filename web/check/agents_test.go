@@ -64,7 +64,7 @@ func TestAgentContextReachesTheFeedHeader(t *testing.T) {
 
 func TestReportedAgentNeverBorrowsStartTime(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat.js")
-	row := funcBody(t, src, "function AgentRow(")
+	row := funcBody(t, src, "function agentState(")
 	if strings.Contains(row, "reportedAt || agent.at") {
 		t.Error("the agent row puts the start time in place of the report time")
 	}
