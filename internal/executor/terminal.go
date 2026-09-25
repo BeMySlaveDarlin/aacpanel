@@ -159,7 +159,26 @@ func enterInto(ctx context.Context, t term, text string) error {
 	return t.send(ctx, enterKey)
 }
 
+// sendWatch lets the one who typed a command take part in the wait for it. A
+// command can show it went in by what it changed rather than by its words —
+// a command claude runs at once, while it answers, leaves them neither in the
+// composer nor in the conversation — and it can open a dialog of its own that
+// only the one who typed it knows how to answer.
+type sendWatch struct {
+	// took reports that what was typed has taken effect.
+	took func() bool
+	// dialog is shown a screen that left the composer. It says whether it knew
+	// the screen and answered it; an error ends the wait.
+	dialog func(ctx context.Context, t term, screen string) (bool, error)
+}
+
+func (w *sendWatch) tookIt() bool { return w != nil && w.took != nil && w.took() }
+
 func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail) (bool, error) {
+	return pasteAndSendWith(ctx, t, text, tail, nil)
+}
+
+func pasteAndSendWith(ctx context.Context, t term, text string, tail *transcriptTail, w *sendWatch) (bool, error) {
 	if screen, seen := t.screen(ctx); seen {
 		if busy, ready := composerReady(screen); !ready {
 			return false, fmt.Errorf(
@@ -172,6 +191,7 @@ func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail
 	mark := composerMark(text)
 	arrived := false
 	blind := false
+	answered := false
 	astray := 0
 	deadline := time.Now().Add(arriveWait)
 	for {
@@ -185,6 +205,9 @@ func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail
 			return true, nil
 		}
 		if blind {
+			if w.tookIt() {
+				return true, nil
+			}
 			if time.Now().After(deadline) {
 				return false, nil
 			}
@@ -196,13 +219,32 @@ func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail
 			if err := t.send(ctx, enterKey); err != nil {
 				return false, err
 			}
-			if !tail.watching() {
+			if !tail.watching() && (w == nil || w.took == nil) {
 				return false, nil
 			}
 			blind = true
 			continue
 		}
 		if busy, ready := composerReady(screen); !ready {
+			if w != nil && w.dialog != nil {
+				known, err := w.dialog(ctx, t, screen)
+				if err != nil {
+					return false, err
+				}
+				if known {
+					// The wait is lengthened once, for the answer to take: a
+					// dialog that keeps coming back does not keep it going.
+					if !answered {
+						answered = true
+						deadline = time.Now().Add(sendWait)
+					}
+					astray = 0
+					if time.Now().After(deadline) {
+						break
+					}
+					continue
+				}
+			}
 			astray++
 			if astray > 1 {
 				return false, fmt.Errorf(
@@ -221,7 +263,7 @@ func pasteAndSend(ctx context.Context, t term, text string, tail *transcriptTail
 			if err := t.send(ctx, enterKey); err != nil {
 				return false, err
 			}
-		} else if arrived || state.onScreen {
+		} else if arrived || state.onScreen || w.tookIt() {
 			return true, nil
 		}
 		if time.Now().After(deadline) {

@@ -292,24 +292,43 @@ func startMode(pid int) string {
 // at once — and only the status line names the model the way it was picked,
 // with its context window.
 func consoleModel(sessionID string) (model, effort string, ok bool) {
+	v, ok := consoleSeen(sessionID)
+	return v.Model, v.Effort, ok
+}
+
+// consoleView is what the status line of a console showed when it was last
+// drawn, and when that was.
+type consoleView struct {
+	At     int64
+	Model  string
+	Name   string
+	Effort string
+	Window int
+}
+
+func consoleSeen(sessionID string) (consoleView, bool) {
 	for _, dir := range sessionModelsDirs() {
 		raw, err := os.ReadFile(filepath.Join(dir, sessionID+".json"))
 		if err != nil {
 			continue
 		}
 		var seen struct {
+			At        int64  `json:"at"`
 			SessionID string `json:"sessionId"`
 			Model     struct {
-				ID string `json:"id"`
+				ID   string `json:"id"`
+				Name string `json:"displayName"`
 			} `json:"model"`
 			Effort string `json:"effort"`
+			Window int    `json:"contextWindow"`
 		}
 		if json.Unmarshal(raw, &seen) != nil || (seen.SessionID != "" && seen.SessionID != sessionID) {
 			continue
 		}
-		return seen.Model.ID, seen.Effort, true
+		return consoleView{At: seen.At, Model: seen.Model.ID, Name: seen.Model.Name,
+			Effort: seen.Effort, Window: seen.Window}, true
 	}
-	return "", "", false
+	return consoleView{}, false
 }
 
 func sessionModelsDirs() []string {

@@ -27,11 +27,12 @@ func (e *Executor) sessionCommand(ctx context.Context, target string, cmd *actio
 	}
 
 	line := commandLine(cmd)
-	confirmed, err := pasteAndSend(ctx, t, typed(cmd), watchTranscript(s))
+	set := newSetting(s, cmd)
+	confirmed, err := pasteAndSendWith(ctx, t, typed(cmd), watchTranscript(s), set.watch())
 	if err != nil {
 		return "", fmt.Errorf("session %s did not accept the input: %w", target, err)
 	}
-	detail := fmt.Sprintf("%s typed into %s (%s)", line, s.Name, sessionWhere(s))
+	detail := fmt.Sprintf("%s typed into %s (%s)", line, s.Name, sessionWhere(s)) + set.said()
 	if t.attempts() > 1 {
 		detail += "; " + t.kind() + " answered on the second attempt"
 	}
