@@ -19,8 +19,9 @@
 .deck > .wchips { flex: 0 1 auto; min-width: 0; }
 
 /* What the session has spent so far, in and out: a chip like the others in
-   the row, but a figure to glance at rather than a control — no press, the
-   words "in" and "out" faint, the numbers a tone up, and pushed to the far left. */
+   the row, but a figure to glance at rather than a control — no press, an
+   arrow up for what went in and down for what came out, the way a terminal
+   marks them, and pushed to the far left. */
 .deckuse {
     flex: none;
     align-self: center;
@@ -31,9 +32,9 @@
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: .55rem;
+    gap: .45rem;
     height: 30px;
-    padding: 0 .55rem;
+    padding: 0 .45rem;
     border-radius: var(--r-pill);
     box-shadow: inset 0 0 0 var(--hair) var(--edge);
     font-family: var(--mono);
@@ -43,7 +44,7 @@
     white-space: nowrap;
 }
 .deckuse:active { background: var(--glass); }
-.deckuse i { font-style: normal; color: var(--ink-faint); margin-right: .3rem; }
+.deckuse i { font-style: normal; margin-right: .1rem; opacity: .7; }
 /* The two figures wear the colours the usage chart gives them: in is the
    accent, out the second accent. */
 .deckin { color: var(--accent); }

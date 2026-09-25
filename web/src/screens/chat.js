@@ -414,8 +414,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 ${!wide && live.tokensIn > 0 && html`
                     <button class="deckuse" type="button" aria-label="tokens in and out of this session, open usage"
                             onClick=${onUsage}>
-                        <span class="deckin"><i>in</i>${tokens(live.tokensIn)}</span>
-                        <span class="deckout"><i>out</i>${tokens(live.tokensOut)}</span>
+                        <span class="deckin"><i aria-hidden="true">↑</i>${tokens(live.tokensIn)}</span>
+                        <span class="deckout"><i aria-hidden="true">↓</i>${tokens(live.tokensOut)}</span>
                     </button>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
