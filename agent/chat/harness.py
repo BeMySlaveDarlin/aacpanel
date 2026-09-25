@@ -55,6 +55,11 @@ def task_done(text):
         return None
     item = {"role": "taskdone", "use": use, "status": (fields.get("status") or "").strip(),
             "summary": (fields.get("summary") or "").strip()}
+    # The task names its output, and an agent its conversation: what the feed
+    # opens when the finished task is tapped.
+    task = (fields.get("task-id") or "").strip()
+    if task:
+        item["task"] = task
     for field, key in (("duration_ms", "ms"), ("subagent_tokens", "tokens")):
         value = (fields.get(field) or "").strip()
         if value.isdigit() and int(value) > 0:

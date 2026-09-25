@@ -53,7 +53,7 @@ func TestReplyKeepsEveryFieldAgentSends(t *testing.T) {
 			{"role": "permitted", "at": "2026-08-24T10:00:16Z", "pos": 160,
 			 "rows": [{"tool": "Bash", "subject": "git push origin main", "decision": "allow", "lasting": true},
 			          {"tool": "WebFetch", "decision": "deny"}]},
-			{"role": "taskdone", "use": "toolu_01Agent", "status": "completed", "summary": "Agent \"notes\" finished",
+			{"role": "taskdone", "use": "toolu_01Agent", "status": "completed", "summary": "Agent \"notes\" finished", "task": "a515a204cce27a85c",
 			 "ms": 24233, "tokens": 33108, "at": "2026-08-24T10:00:17Z", "pos": 170},
 			{"role": "notice", "text": "Unknown command: /storage", "from": "safeguards", "level": "warn", "cut": true,
 			 "at": "2026-08-24T10:00:18Z", "pos": 180},

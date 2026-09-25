@@ -360,6 +360,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 onFile=${(file) => setLook({ kind: "file", ...file })}
                 onBrief=${openBrief}
                 onCommand=${(row) => setLook({ kind: "command", item: row })}
+                onTask=${(task) => (task.agent
+                    ? openAgent({ id: task.id, name: task.name, kind: "task" })
+                    : setLook({ kind: "task", id: task.id, text: task.name }))}
             />`)}
             ${pending.map((row) => html`
                 <${Row} key=${`local-${row.key}`} item=${row} />

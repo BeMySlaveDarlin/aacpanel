@@ -16,7 +16,7 @@ import { Photo, shotName } from "./photo.js";
 import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord } from "./labels.js";
 
 // Row renders one row of the feed.
-export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, copies, onPage }) {
+export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, copies, onPage, onTask }) {
     if (item.role === "shots") {
         const shots = item.shots || [];
         if (!shots.length) return null;
@@ -35,7 +35,7 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, co
         return html`<div class="mnote">${item.text}</div>`;
     }
     if (item.role === "taskdone" || item.role === "notice") {
-        return html`<${Line} item=${item} />`;
+        return html`<${Line} item=${item} onTask=${onTask} />`;
     }
     if (item.role === "turn") {
         return html`
@@ -81,7 +81,7 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, co
                     `;
                 })}
             </div>
-            ${(item.lines || []).map((line) => html`<${Line} key=${`${line.role}-${line.pos}`} item=${line} under />`)}
+            ${(item.lines || []).map((line) => html`<${Line} key=${`${line.role}-${line.pos}`} item=${line} onTask=${onTask} under />`)}
         `;
     }
     if (item.role === "mail") {
@@ -321,6 +321,12 @@ function doneName(summary) {
     return quoted ? quoted[1] : (summary || "a background task");
 }
 
+// isAgent tells an agent done from a command done: an agent reports what it
+// spent, and claude names it so.
+function isAgent(item) {
+    return item.tokens > 0 || /^Agent\b/.test(item.summary || "");
+}
+
 // doneExit is the exit code a command ended with, when it is not a clean one.
 function doneExit(summary) {
     const code = /exit code (\d+)/.exec(summary || "");
@@ -331,7 +337,7 @@ function doneExit(summary) {
 // pill: the name it ran under, how it ended, how long it took and what an
 // agent spent. A warning of claude or the recap after an absence is a line,
 // since its words do not fit a pill.
-function Line({ item, under = false }) {
+function Line({ item, onTask, under = false }) {
     const where = under ? " under" : "";
     if (item.role === "taskdone") {
         const aside = [
@@ -339,14 +345,24 @@ function Line({ item, under = false }) {
             item.tokens > 0 && `${shortTokens(item.tokens)} ${tokenWord(item.tokens)}`,
             doneExit(item.summary),
         ].filter(Boolean);
-        return html`
-            <div class=${`mdone s-${DONE_TONES[item.status] || "faint"}${where}`}
-                 role="note" aria-label=${item.summary || "a background task ended"}>
-                <span class="mdonemark" aria-hidden="true">${DONE_MARKS[item.status] || "–"}</span>
-                <span class="mdonename">${doneName(item.summary)}</span>
-                ${aside.length > 0 && html`<span class="mdoneaside">${aside.join(" · ")}</span>`}
-            </div>
+        const said = item.summary || "a background task ended";
+        const body = html`
+            <span class="mdonemark" aria-hidden="true">${DONE_MARKS[item.status] || "–"}</span>
+            <span class="mdonename">${doneName(item.summary)}</span>
+            ${aside.length > 0 && html`<span class="mdoneaside">${aside.join(" · ")}</span>`}
         `;
+        const cls = `mdone s-${DONE_TONES[item.status] || "faint"}${where}`;
+        // A task that names itself opens what it left behind: an agent its
+        // conversation, a command its output.
+        if (item.task && onTask) {
+            return html`
+                <button type="button" class=${cls} aria-label=${`${said} — open`}
+                        onClick=${() => onTask({ id: item.task, name: doneName(item.summary), agent: isAgent(item) })}>
+                    ${body}<span class="mdonego">${Icon.chevron()}</span>
+                </button>
+            `;
+        }
+        return html`<div class=${cls} role="note" aria-label=${said}>${body}</div>`;
     }
     return html`
         <div class=${`mside s-${item.level || "info"}${where}`}>

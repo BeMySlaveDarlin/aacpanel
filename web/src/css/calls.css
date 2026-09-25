@@ -362,17 +362,19 @@ button.filepic {
 /* Under a run the line tucks up to the badges it belongs to. */
 .mside.under { margin-top: -.25rem; padding-left: .15rem; }
 
-/* A background task done: a pill in the middle of the feed, like a note —
-   the mark of how it ended, the name it ran under, and what it took. The name
-   gives way first when the pill runs out of room. */
+/* A background task done: a plate across the feed, one width for all of them
+   and read from the left like the rest — the mark of how it ended, the name
+   it ran under, and what it took. The name gives way first when the plate
+   runs out of room. One that opens something says so with a chevron. */
 .mdone {
-    align-self: center;
+    align-self: stretch;
     display: flex;
     align-items: baseline;
     gap: .4rem;
-    max-width: 100%;
     min-width: 0;
-    padding: .12rem .7rem;
+    padding: .2rem .7rem;
+    font: inherit;
+    text-align: left;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
     background: rgba(150, 170, 255, .05);
@@ -384,10 +386,15 @@ button.filepic {
 .mdone.s-crit .mdonemark, .mdone.s-crit .mdoneaside { color: var(--crit); }
 .mdonename { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mdoneaside { flex: none; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+button.mdone { cursor: pointer; }
+button.mdone:active { background: var(--glass); }
+.mdonego { display: flex; align-self: center; width: 12px; height: 12px; margin-left: auto; color: var(--ink-faint); flex: none; }
+.mdonego svg { width: 100%; height: 100%; }
 
-/* The length of a turn, under its last answer, with the time it ended. */
+/* The length of a turn, under its last answer, with the time it ended, read
+   from the left like the plates above it. */
 .mturn {
-    align-self: flex-end;
+    align-self: flex-start;
     display: flex;
     gap: .5rem;
     font-size: var(--t-xs);

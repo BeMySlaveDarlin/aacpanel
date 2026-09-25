@@ -15,8 +15,10 @@ const items = [
     { role: "ai", text: "Running the checks in the background.", pos: 1, at },
     { role: "tools", kind: "bash", run: 2, pos: 2, at, calls: [{ name: "Bash", arg: "make check", pos: 2, index: 0, use: "u1", seq: 0 }] },
     { role: "tools", kind: "hook", run: 2, pos: 3, at, calls: [{ name: "PreToolUse:Bash hook", arg: "budget ran out", pos: 3, index: 0, use: "", seq: 1 }] },
-    { role: "taskdone", use: "u9", status: "completed", summary: "Agent \"Commit the notes\" finished", ms: 24233, tokens: 33108, pos: 4, at },
-    { role: "taskdone", use: "u1", status: "failed", summary: "Background command \"make check\" failed with exit code 2", pos: 5, at },
+    { role: "taskdone", use: "u9", task: "a515a204cce27a85c", status: "completed", summary: "Agent \"Commit the notes\" finished", ms: 24233, tokens: 33108, pos: 4, at },
+    { role: "taskdone", use: "u1", task: "bg3me3whb", status: "failed", summary: "Background command \"make check\" failed with exit code 2", pos: 5, at },
+    { role: "ai", text: "Between the runs.", pos: 55, at },
+    { role: "taskdone", use: "u7", status: "completed", summary: "Background command \"sleep 1\" completed (exit code 0)", pos: 56, at },
     { role: "ai", text: "The checks failed; looking at the log.", pos: 6, at },
     { role: "turn", ms: 169000, pos: 7, at },
     { role: "notice", text: "Working on the panel; the tree is clean, two tails left.", from: "while you were away", level: "info", pos: 8, at },
@@ -24,8 +26,10 @@ const items = [
     { role: "notice", text: "The safeguards flagged this message.", from: "safeguards", level: "crit", pos: 10, at },
 ];
 
+const opened = [];
 render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
-    html`<${Row} key=${`${item.role}-${item.pos}`} item=${item} session="lab" id="1" onCalls=${() => {}} />`)}</div>`,
+    html`<${Row} key=${`${item.role}-${item.pos}`} item=${item} session="lab" id="1" onCalls=${() => {}}
+                 onTask=${(task) => opened.push(task)} />`)}</div>`,
     document.getElementById("root"));
 
 (async () => {
@@ -34,14 +38,19 @@ render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
     const under = Array.from(document.querySelectorAll(".mdone.under, .mside.under")).map(text);
     window.done = {
         badges: Array.from(document.querySelectorAll(".mtools")).map((b) => b.getAttribute("aria-label")),
+        feedLeft: document.querySelector(".chatfeed").getBoundingClientRect().left,
+        plates: Array.from(document.querySelectorAll(".mdone")).map((el) => ({
+            tag: el.tagName,
+            left: el.getBoundingClientRect().left,
+            width: el.getBoundingClientRect().width,
+        })),
+        turnLeft: document.querySelector(".mturn").getBoundingClientRect().left,
         pills: Array.from(document.querySelectorAll(".mdone")).map((el) => ({
             mark: text(el.querySelector(".mdonemark")),
             name: text(el.querySelector(".mdonename")),
             aside: text(el.querySelector(".mdoneaside")),
             said: el.getAttribute("aria-label"),
             markColour: getComputedStyle(el.querySelector(".mdonemark")).color,
-            centred: Math.abs((el.getBoundingClientRect().left + el.getBoundingClientRect().right) / 2
-                - (el.parentElement.getBoundingClientRect().left + el.parentElement.getBoundingClientRect().right) / 2) < 2,
         })),
         lines: Array.from(document.querySelectorAll(".mside")).map((el) => ({
             text: text(el),
@@ -49,6 +58,7 @@ render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
             colour: getComputedStyle(el.querySelector(".msidetext")).color,
         })),
         turn: text(document.querySelector(".mturn")),
+        opened: (() => { document.querySelectorAll("button.mdone").forEach((b) => b.click()); return opened; })(),
         under,
     };
 })();

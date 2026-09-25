@@ -45,6 +45,8 @@ type Item struct {
 	Status  string      `json:"status,omitempty"`
 	Summary string      `json:"summary,omitempty"`
 	Use     string      `json:"use,omitempty"`
+	// A background task done: its id, by which its output or its agent opens.
+	Task string `json:"task,omitempty"`
 	// A brief card: which document it is and how much of it asks something.
 	BriefID   string  `json:"id,omitempty"`
 	Eyebrow   string  `json:"eyebrow,omitempty"`

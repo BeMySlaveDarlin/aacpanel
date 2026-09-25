@@ -61,12 +61,12 @@ class Records(unittest.TestCase):
     def test_an_agent_done_says_how_long_it_ran_and_what_it_spent(self):
         got = chat.harness.service(AGENT_DONE, AT, 7)
         self.assertEqual(got, [{"role": "taskdone", "use": "toolu_agent", "status": "completed",
-                                "summary": 'Agent "Commit the notes" finished',
+                                "summary": 'Agent "Commit the notes" finished', "task": "a515a204cce27a85c",
                                 "ms": 24233, "tokens": 33108, "at": AT, "pos": 7}])
 
     def test_a_command_done_says_neither(self):
         got = chat.harness.service(COMMAND_DONE, AT, 7)[0]
-        self.assertEqual((got["status"], got["use"]), ("failed", "toolu_make"))
+        self.assertEqual((got["status"], got["use"], got["task"]), ("failed", "toolu_make", "bg3me3whb"))
         self.assertNotIn("ms", got)
         self.assertNotIn("tokens", got)
 
