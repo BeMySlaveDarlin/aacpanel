@@ -31,7 +31,7 @@ import { knows, whyNot } from "../exec.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
 import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
-import { Marquee, short } from "./chat/head.js";
+import { ChatPath, Marquee, short } from "./chat/head.js";
 import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
@@ -300,14 +300,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                         `
                         : html`<span>the conversation is closed</span>`}
                 </div>
-                ${live && live.tokensIn > 0 && html`
-                    <div class="chatmeta">
-                        <button class="deckuse" type="button" aria-label="tokens in and out of this session, open usage"
-                                onClick=${onUsage}>
-                            <span class="deckin"><i>in</i>${tokens(live.tokensIn)}</span>
-                            <span class="deckout"><i>out</i>${tokens(live.tokensOut)}</span>
-                        </button>
-                    </div>
+                ${((live || archive || {}).cwd) && html`
+                    <div class="chatmeta"><${ChatPath} cwd=${(live || archive).cwd} /></div>
                 `}
             </div>
         <//>
@@ -404,6 +398,12 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
 
         ${live && view !== "term" && html`
             <div class="deck">
+                ${!wide && live.tokensIn > 0 && html`
+                    <button class="deckuse" type="button" aria-label="tokens in and out of this session, open usage"
+                            onClick=${onUsage}>
+                        <span class="deckin"><i>in</i>${tokens(live.tokensIn)}</span>
+                        <span class="deckout"><i>out</i>${tokens(live.tokensOut)}</span>
+                    </button>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
                     <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />

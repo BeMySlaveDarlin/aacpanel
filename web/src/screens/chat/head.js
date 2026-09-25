@@ -65,3 +65,24 @@ export function short(n) {
 export function exact(n) {
     return String(Math.max(0, Math.round(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
 }
+
+// shortPath drops the owner's home from the head of a path: the sessions of a
+// machine mostly live under one home, and the rest is what tells them apart.
+export function shortPath(cwd) {
+    return String(cwd || "").replace(/^\/(?:home|Users)\/[^/]+(?=\/|$)/, "~");
+}
+
+// ChatPath says where the session works, on the third line of the header. A
+// path too long for the line keeps its end — the project is its last word —
+// and a tap shows the whole of it.
+export function ChatPath({ cwd }) {
+    const [whole, setWhole] = useState(false);
+    if (!cwd) return null;
+    return html`
+        <button class=${`chatpath${whole ? " whole" : ""}`} type="button" title=${cwd}
+                aria-label=${`the directory of the session: ${cwd}`} aria-expanded=${whole ? "true" : "false"}
+                onClick=${() => setWhole(!whole)}>
+            <span class="chatpathtext"><bdi>${whole ? cwd : shortPath(cwd)}</bdi></span>
+        </button>
+    `;
+}

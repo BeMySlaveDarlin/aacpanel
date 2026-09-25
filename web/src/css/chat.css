@@ -48,11 +48,40 @@
 .chatmeta {
     display: flex;
     align-items: baseline;
+    min-width: 0;
     line-height: 1.2;
     font-size: var(--t-xs);
     color: var(--ink-faint);
 }
-.chatmeta .deckuse { font-size: var(--t-xs); }
+/* Where the session works. The line is as wide as the header and no wider:
+   a long path is cut at its head, where the home and the root of the projects
+   are, and keeps its end, which names the project. The cut is made by laying
+   the line out right to left around a path kept left to right. A tap lets
+   the whole path wrap. */
+.chatpath {
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    text-align: left;
+    cursor: pointer;
+}
+.chatpathtext {
+    display: block;
+    direction: rtl;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.chatpath.whole .chatpathtext {
+    direction: ltr;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 
 .chatsub .sep { color: rgba(150, 170, 255, .3); margin: 0 .35rem; }
 
