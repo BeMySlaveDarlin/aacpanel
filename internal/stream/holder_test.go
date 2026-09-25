@@ -93,6 +93,19 @@ func fakeClaude() int {
 			case "slow":
 				held = append(held, msg)
 				continue
+			case "/plugins":
+				// A command claude runs itself: no echo of the message, only
+				// the lifecycle of the command, as claude -p 2.1.282 writes it.
+				lifecycle := func(state string) {
+					out(map[string]any{"type": "command_lifecycle", "command_uuid": msg["uuid"], "state": state})
+				}
+				lifecycle("queued")
+				lifecycle("started")
+				out(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
+					map[string]any{"type": "text", "text": "/plugins isn't available in this environment."}}}})
+				result()
+				lifecycle("completed")
+				continue
 			case "ask":
 				out(map[string]any{"type": "control_request", "request_id": "cc-1", "request": map[string]any{
 					"subtype": "can_use_tool", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_1",
@@ -278,6 +291,17 @@ func TestAMessageWaitsInTheQueueUntilClaudeTakesItUp(t *testing.T) {
 	if !strings.Contains(r.received(), first.UUID) {
 		t.Error("the message went to claude without the id the panel knows it by")
 	}
+}
+
+// A slash command claude runs itself is never echoed back; the lifecycle
+// claude reports for it takes it off the queue, or it would block a switch.
+func TestACommandClaudeRunsItselfLeavesTheQueue(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	if reply := r.ask(Request{Op: OpSend, Text: "/plugins"}); !reply.OK {
+		t.Fatalf("send: %+v", reply)
+	}
+	r.waitFor("the command to leave the queue", func(s State) bool { return len(s.Queue) == 0 && !s.Busy })
 }
 
 func TestAQuestionWaitsForAPersonAndTheAnswerReachesClaude(t *testing.T) {

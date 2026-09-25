@@ -253,6 +253,8 @@ type event struct {
 	Message        json.RawMessage `json:"message"`
 	Status         json.RawMessage `json:"status"`
 	CompactResult  string          `json:"compact_result"`
+	CommandUUID    string          `json:"command_uuid"`
+	State          string          `json:"state"`
 }
 
 type toolAsk struct {
@@ -294,6 +296,8 @@ func (h *Holder) handle(ev event) {
 		h.dropPending(ev.RequestID)
 	case "user":
 		h.onUser(ev)
+	case "command_lifecycle":
+		h.onCommand(ev)
 	case "system":
 		h.onSystem(ev)
 	case "result":
@@ -355,10 +359,26 @@ func (h *Holder) onUser(ev event) {
 	_ = json.Unmarshal(ev.Message, &msg)
 	var text string
 	_ = json.Unmarshal(msg.Content, &text)
+	h.take(ev.UUID, text)
+}
+
+// onCommand notices that claude has taken up a message by the lifecycle it
+// reports for it. A slash command claude runs itself — /cost, or /plugins it
+// turns down — is never echoed back as a user message, and without this word
+// it would stay in the queue for good and stand in the way of a switch.
+func (h *Holder) onCommand(ev event) {
+	if ev.State == "started" || ev.State == "completed" {
+		h.take(ev.CommandUUID, "")
+	}
+}
+
+// take removes a message claude has read from the queue, found by its id or,
+// for an echo that lost it, by its text.
+func (h *Holder) take(id, text string) {
 	h.mu.Lock()
 	taken := false
 	for i, q := range h.state.Queue {
-		if (ev.UUID != "" && q.UUID == ev.UUID) || (text != "" && q.Text == text) {
+		if (id != "" && q.UUID == id) || (text != "" && q.Text == text) {
 			h.state.Queue = append(h.state.Queue[:i], h.state.Queue[i+1:]...)
 			taken = true
 			break

@@ -343,7 +343,10 @@ for one, and an answer that silently lost it would say less than the person did.
 passes the name on, and taking back is claude's own request to drop a queued
 message: the holder forgets it too, or its queue would block a switch for good.
 Editing is taking back into the composer. A message read before the press is
-not in the queue any more, and the answer says it was delivered. The
+not in the queue any more, and the answer says it was delivered. The holder
+learns a message is read when claude echoes it back, or — for a slash command
+claude runs itself, which is never echoed — when claude reports the command
+started. The
 transcript writes the same record for a message taken back and one read, so
 the holder keeps the fingerprints of the messages taken back — hashes, not
 words — in a file that outlives it, and the feed shows those as taken back,
