@@ -30,7 +30,13 @@ window.fetch = async (url, init) => {
     }
     if (u.startsWith("/api/session/")) return json({ to: "" });
     if (u === "/api/actions") {
-        sent.push(JSON.parse((init && init.body) || "{}"));
+        const body = JSON.parse((init && init.body) || "{}");
+        sent.push(body);
+        // As a live session answers: claude refuses to turn on a server it
+        // cannot reach, and has turned it on all the same.
+        if (body.params && body.params.server === "tg-shadow") {
+            return new Response("session atlas: claude refused mcp_toggle: ECONNREFUSED", { status: 502 });
+        }
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });

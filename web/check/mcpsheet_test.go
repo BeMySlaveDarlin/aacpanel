@@ -57,7 +57,7 @@ func TestMcpOpensTheServersOfTheSession(t *testing.T) {
 		t.Errorf("the server offers %v", got.Buttons)
 	}
 	if !reflect.DeepEqual(got.Sent, []string{`session.mcp:{"server":"tg-shadow","do":"disable"}`}) || !got.AskedAgain {
-		t.Errorf("the host got %v, and the list was asked again: %v", got.Sent, got.AskedAgain)
+		t.Errorf("the host got %v, and after a refusal the list was asked again: %v", got.Sent, got.AskedAgain)
 	}
 	if got.ConsoleReady || !strings.Contains(got.ConsoleHint, "keys") {
 		t.Errorf("in a console /mcp is ready %v, the hint %q", got.ConsoleReady, got.ConsoleHint)

@@ -149,12 +149,14 @@ function McpServer({ name, exec, server, onBack, onDone }) {
     const why = can ? "" : whyNot(exec, "session.mcp");
     const off = server.status === "disabled";
 
+    // The list is asked again whatever the answer: claude refuses to turn on a
+    // server it cannot reach, and has turned it on all the same.
     const act = async (what) => {
         if (!can || busy) return;
         setBusy(what);
         const result = await run("session.mcp", name, { server: server.name, do: what });
         setBusy("");
-        if (result && result.ok) onDone();
+        if (!result || !result.cancelled) onDone();
     };
     const where = server.url || server.command || "";
     const tools = server.tools || [];
