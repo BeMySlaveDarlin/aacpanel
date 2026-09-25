@@ -1,6 +1,6 @@
 // What a session has in flight: the status bar, the counters and their lists.
 
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -16,12 +16,57 @@ import { state as briefState, waiting } from "../../data/briefs.js";
 import { key as pageKey, merge } from "../../data/artifacts.js";
 import { markOpened, unopened } from "../../data/opened.js";
 
-// WorkStatus renders what is happening to the session right now.
-export function WorkStatus({ work, busy }) {
+// WorkStatus renders what is happening to the session right now. A compaction
+// is said whatever else the session reports: claude writes nothing to the
+// conversation while it compacts, and "handling the request" would be all the
+// feed shows for minutes.
+export function WorkStatus({ work, busy, compacting }) {
+    if (compacting) return html`<${Compacting} key=${compacting} since=${compacting} />`;
     if (!busy) return null;
     return html`
         <div class="workbar status">
             <div class="workhead"><span class="working">handling the request</span></div>
+        </div>
+    `;
+}
+
+// compactPct is how far a compaction has got, the way the terminal shows it.
+// Claude reports only the start and the end of a compaction, so it is a guess
+// from the time alone: quick at first, slower as it goes, and never full on its
+// own — the end comes when claude says so.
+export function compactPct(sec) {
+    const t = Math.max(0, sec);
+    return Math.min(95, Math.round((1 - Math.exp(-t / 90)) * 100));
+}
+
+function clock(sec) {
+    const s = Math.floor(Math.max(0, sec));
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+// Compacting counts the compaction up by the second. The share only ever grows:
+// a clock of the phone set back would otherwise pull the bar back under the eye.
+function Compacting({ since }) {
+    const [now, setNow] = useState(() => Date.now());
+    const peak = useRef(0);
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+    const began = new Date(since).getTime();
+    const sec = Number.isFinite(began) ? Math.max(0, (now - began) / 1000) : 0;
+    peak.current = Math.max(peak.current, compactPct(sec));
+    const pct = peak.current;
+    return html`
+        <div class="workbar status">
+            <div class="workhead">
+                <span class="working">compacting the conversation… (${clock(sec)})</span>
+                <span class="workpct">${pct}%</span>
+                <div class="worktrack" role="progressbar" aria-label="compacting the conversation"
+                     aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+                    <i style=${`width:${pct}%`}></i>
+                </div>
+            </div>
         </div>
     `;
 }

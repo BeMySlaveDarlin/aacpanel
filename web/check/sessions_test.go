@@ -389,6 +389,7 @@ func TestCatchUpHasOneOwner(t *testing.T) {
 		"src/screens/chat/feedwindow.js": "the feed of a session that has not said anything yet",
 		"src/screens/chat/look.js":       "the output of a background command while it writes",
 		"src/screens/chat/term.js":       "the key repeat while a finger holds it",
+		"src/screens/chat/work.js":       "the clock of a compaction, redrawn by the second and asking nothing",
 		"src/data/usage.js":              "the progress of usage collection, one for the monitor and the phone",
 	}
 	for _, path := range sortedKeys(files) {

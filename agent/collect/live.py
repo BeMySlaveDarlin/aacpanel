@@ -195,6 +195,10 @@ def sessions():
             # transcript of a claude -p does not carry it.
             if isinstance(hold.get("effort"), str) and hold["effort"]:
                 s["effort"] = hold["effort"]
+            # A compaction is reported by claude on the stream alone: the
+            # transcript learns of it only once it is over.
+            if isinstance(hold.get("compacting"), str) and hold["compacting"]:
+                s["compacting"] = hold["compacting"]
         if transcript:
             seen_transcripts.add(transcript)
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))

@@ -164,12 +164,16 @@ type State struct {
 	// not the id claude resolves it to, which loses the context window — and
 	// Effort the effort chosen since the start. A switch starts the other side
 	// with them; empty is what the launch parameters gave.
-	Picked  string          `json:"picked,omitempty"`
-	Effort  string          `json:"effort,omitempty"`
-	Pending []Pending       `json:"pending"`
-	Queue   []Queued        `json:"queue"`
-	Tasks   []Task          `json:"tasks"`
-	Init    json.RawMessage `json:"init,omitempty"`
+	Picked  string    `json:"picked,omitempty"`
+	Effort  string    `json:"effort,omitempty"`
+	Pending []Pending `json:"pending"`
+	Queue   []Queued  `json:"queue"`
+	Tasks   []Task    `json:"tasks"`
+	// Compacting is when a compaction of the conversation started, while it
+	// runs. Claude reports the start and the end and nothing between: how far
+	// it has got is not known to anybody.
+	Compacting *time.Time      `json:"compacting,omitempty"`
+	Init       json.RawMessage `json:"init,omitempty"`
 }
 
 // Summary is the state file: what the collector reads to place the session on
@@ -189,7 +193,9 @@ type Summary struct {
 	Waiting   []string  `json:"waiting"`
 	Queue     int       `json:"queue"`
 	Tasks     int       `json:"tasks"`
-	Updated   time.Time `json:"updated"`
+	// Compacting is when a compaction started, while it runs.
+	Compacting *time.Time `json:"compacting,omitempty"`
+	Updated    time.Time  `json:"updated"`
 }
 
 // Controls are the control requests a holder passes on to claude. The list

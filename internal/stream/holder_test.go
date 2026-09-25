@@ -89,6 +89,23 @@ func fakeClaude() int {
 			case "tasks":
 				out(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": []any{
 					map[string]any{"task_id": "b1", "task_type": "local_bash", "description": "a sleep"}}})
+			case "compact", "compact-again", "mode-mid-compact", "compact-done", "boundary":
+				switch text {
+				case "compact", "compact-again":
+					out(map[string]any{"type": "system", "subtype": "status", "status": "compacting"})
+				case "mode-mid-compact":
+					out(map[string]any{"type": "system", "subtype": "status", "status": nil, "permissionMode": "plan"})
+				case "compact-done":
+					out(map[string]any{"type": "system", "subtype": "status", "status": nil, "compact_result": "success"})
+				case "boundary":
+					out(map[string]any{"type": "system", "subtype": "compact_boundary",
+						"compact_metadata": map[string]any{"trigger": "manual"}})
+				}
+				// The step is over once the holder has read this: the list of
+				// tasks names the step, and the holder reads in order.
+				out(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": []any{
+					map[string]any{"task_id": text}}})
+				continue
 			}
 			for _, h := range append(held, msg) {
 				out(map[string]any{"type": "user", "uuid": h["uuid"], "message": h["message"]})
@@ -411,6 +428,81 @@ func TestBackgroundTasksFollowTheStream(t *testing.T) {
 		t.Fatalf("tasks: %+v", s.Tasks)
 	}
 	r.summary(func(s Summary) bool { return s.Tasks == 1 })
+}
+
+// step sends a message the fake claude answers with events and no turn, and
+// waits until the holder has read them.
+func (r *rig) step(text string) State {
+	r.t.Helper()
+	r.ask(Request{Op: OpSend, Text: text})
+	return r.waitFor(text, func(s State) bool { return len(s.Tasks) == 1 && s.Tasks[0].ID == text })
+}
+
+func (r *rig) compacting() time.Time {
+	r.t.Helper()
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	s := r.step("compact")
+	if s.Compacting == nil {
+		r.t.Fatal("a compaction claude reported is not in the state")
+	}
+	return *s.Compacting
+}
+
+// Claude repeats "compacting" every half a minute while it compacts; the
+// clock of the compaction runs from the first report, not the last one.
+func TestACompactionIsTimedFromItsFirstReport(t *testing.T) {
+	r := start(t, nil)
+	began := r.compacting()
+	time.Sleep(20 * time.Millisecond)
+	s := r.step("compact-again")
+	if s.Compacting == nil || !s.Compacting.Equal(began) {
+		t.Fatalf("the repeated report moved the start of the compaction: %v, then %v", began, s.Compacting)
+	}
+}
+
+// A change of mode comes as a status too, with no status in it; it is not the
+// end of a compaction that is running.
+func TestAChangeOfModeDoesNotEndACompaction(t *testing.T) {
+	r := start(t, nil)
+	began := r.compacting()
+	s := r.step("mode-mid-compact")
+	if s.Mode != "plan" {
+		t.Errorf("the mode reported during the compaction was not taken: %q", s.Mode)
+	}
+	if s.Compacting == nil || !s.Compacting.Equal(began) {
+		t.Fatalf("a change of mode ended the compaction: %v", s.Compacting)
+	}
+}
+
+// The end of a compaction is a status with its outcome; the state file says
+// a compaction runs while it runs, and says nothing of it after.
+func TestTheEndOfACompactionIsReported(t *testing.T) {
+	r := start(t, nil)
+	r.compacting()
+	r.summary(func(s Summary) bool { return s.Compacting != nil })
+	if s := r.step("compact-done"); s.Compacting != nil {
+		t.Fatalf("the compaction is still running after claude reported its end: %v", s.Compacting)
+	}
+	r.summary(func(s Summary) bool { return s.Compacting == nil })
+}
+
+func TestTheBoundaryOfACompactionEndsIt(t *testing.T) {
+	r := start(t, nil)
+	r.compacting()
+	if s := r.step("boundary"); s.Compacting != nil {
+		t.Fatalf("the compaction is still running after its boundary: %v", s.Compacting)
+	}
+}
+
+// A compaction interrupted ends with the turn, and claude reports nothing
+// else about it.
+func TestAnEndedTurnEndsTheCompaction(t *testing.T) {
+	r := start(t, nil)
+	r.compacting()
+	r.ask(Request{Op: OpSend, Text: "hi"})
+	if s := r.waitFor("the end of the turn", func(s State) bool { return !s.Busy }); s.Compacting != nil {
+		t.Fatalf("the compaction outlived the turn: %v", s.Compacting)
+	}
 }
 
 func TestTheOpeningMessageIsSentAfterTheHandshake(t *testing.T) {

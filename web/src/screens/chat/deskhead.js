@@ -12,6 +12,7 @@ function dot(live) {
     if (live.ask || live.waitingFor || live.status === "waiting") {
         return { kind: "dkwaiting", say: live.ask ? "waiting for an answer to a question" : waitText(live.waitingFor) };
     }
+    if (live.compacting) return { kind: "dkbusy", say: "compacting the conversation" };
     if (live.status === "busy") return { kind: "dkbusy", say: "handling the request" };
     if (!live.status) return { kind: "", say: "the session state is unknown" };
     return { kind: "dkidle", say: "waiting for a message" };

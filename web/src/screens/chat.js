@@ -365,13 +365,14 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
         `}
-        ${live && view !== "term" && !hasWork(state.work, live.status === "busy") && live.lastRequestAt && html`
+        ${live && view !== "term" && !hasWork(state.work, live.status === "busy" || Boolean(live.compacting)) && live.lastRequestAt && html`
             <p class="lastreq">request ${ago(live.lastRequestAt)}</p>
         `}
 
         ${live && view !== "term" && html`
             <div class="composerbox">
-                <${WorkStatus} work=${state.work} busy=${live.status === "busy"} />
+                <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
+                               compacting=${live.transport === "stream" ? live.compacting || "" : ""} />
                 ${state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
                     && !hidesAsk(answer, state.work.ask.toolUseId)
                     ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${live.transport === "stream"}

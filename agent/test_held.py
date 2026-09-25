@@ -148,6 +148,16 @@ class OnTheCard(Runtime):
         self.assertEqual(self.card()["effort"], "max",
                          "the transcript of claude -p does not carry the effort; the holder does")
 
+    def test_a_compaction_running_is_on_the_card(self):
+        self.hold(SID, 1, compacting="2026-01-02T03:04:05.5+07:00")
+        self.assertEqual(self.card()["compacting"], "2026-01-02T03:04:05.5+07:00",
+                         "the transcript says nothing of a compaction until it is over; the holder does")
+
+    def test_no_compaction_leaves_the_card_without_one(self):
+        for value in (None, "", 5):
+            self.hold(SID, 1, compacting=value)
+            self.assertNotIn("compacting", self.card(), f"a compaction of {value!r} reached the card")
+
     def test_a_question_is_input_needed(self):
         self.hold(SID, 1, waiting=["AskUserQuestion"])
         self.assertEqual(self.card()["waitingFor"], "input needed")

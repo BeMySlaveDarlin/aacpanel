@@ -1,0 +1,77 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body">
+    <div class="composerbox" id="compacting"></div>
+    <div class="composerbox" id="busy"></div>
+    <div class="composerbox" id="idle"></div>
+    <div class="composerbox" id="skewed"></div>
+    <div class="composerbox" id="again"></div>
+</div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The line above the composer while a session compacts its conversation: the
+// time it has taken and the share the terminal would show for that time. Each
+// case is drawn in a box of its own, so the picture shows all of them at once.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { WorkStatus, compactPct } from "/src/screens/chat/work.js";
+
+const realNow = Date.now.bind(Date);
+let skew = 0;
+Date.now = () => realNow() + skew;
+
+const ago = (ms) => new Date(realNow() - ms).toISOString();
+const put = (id, props) => render(html`<${WorkStatus} work=${null} ...${props} />`, document.getElementById(id));
+
+put("compacting", { busy: true, compacting: ago(54300) });
+put("busy", { busy: true, compacting: "" });
+put("idle", { busy: false, compacting: "" });
+const skewedSince = ago(54300);
+put("skewed", { busy: false, compacting: skewedSince });
+put("again", { busy: true, compacting: ago(54300) });
+
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+const read = (id) => {
+    const box = document.getElementById(id);
+    const bar = box.querySelector(".worktrack");
+    const fill = bar && bar.querySelector("i");
+    return {
+        text: (box.querySelector(".working") || { textContent: "" }).textContent.trim(),
+        pct: (box.querySelector(".workpct") || { textContent: "" }).textContent.trim(),
+        now: bar ? bar.getAttribute("aria-valuenow") : "",
+        fill: fill ? fill.style.width : "",
+        barHeight: bar ? bar.getBoundingClientRect().height : 0,
+        barShare: bar ? bar.getBoundingClientRect().width / box.querySelector(".workbar").getBoundingClientRect().width : 0,
+        fillShare: fill && bar ? fill.getBoundingClientRect().width / bar.getBoundingClientRect().width : 0,
+        pctRight: box.querySelector(".workpct")
+            ? box.querySelector(".workbar").getBoundingClientRect().right - box.querySelector(".workpct").getBoundingClientRect().right : -1,
+    };
+};
+
+window.done = (async () => {
+    for (let i = 0; i < 60 && !document.querySelector("#compacting .worktrack"); i++) await tick(30);
+    const first = read("compacting");
+    // The clock of the phone goes back half a minute: the time said follows
+    // it, the share does not drop.
+    const before = read("skewed");
+    skew = -30000;
+    put("skewed", { busy: false, compacting: skewedSince });
+    await tick(1200);
+    const after = read("skewed");
+    skew = 0;
+    put("skewed", { busy: false, compacting: skewedSince });
+    // A compaction that starts anew starts from nothing.
+    put("again", { busy: true, compacting: ago(5200) });
+    await tick(100);
+    return {
+        compacting: first,
+        busy: read("busy"),
+        idle: document.getElementById("idle").innerHTML.trim(),
+        skewedBefore: before,
+        skewedAfter: after,
+        again: read("again"),
+        pcts: [0, 54, 90, 180, 1000, -5].map(compactPct),
+    };
+})();
+</script>

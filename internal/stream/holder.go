@@ -248,6 +248,8 @@ type event struct {
 	PermissionMode string          `json:"permissionMode"`
 	Tasks          []Task          `json:"tasks"`
 	Message        json.RawMessage `json:"message"`
+	Status         json.RawMessage `json:"status"`
+	CompactResult  string          `json:"compact_result"`
 }
 
 type toolAsk struct {
@@ -297,6 +299,9 @@ func (h *Holder) handle(ev event) {
 		// A turn that ended waits for nobody: a request left from it was
 		// answered or withdrawn with the turn.
 		h.state.Pending = []Pending{}
+		// Nor does it compact: a compaction interrupted ends with the turn,
+		// and claude says nothing else about it.
+		h.state.Compacting = nil
 		h.mu.Unlock()
 		h.saveSummary()
 	}
@@ -376,6 +381,9 @@ func (h *Holder) onSystem(ev event) {
 		if ev.PermissionMode != "" {
 			h.state.Mode = ev.PermissionMode
 		}
+		h.compacting(ev)
+	case "compact_boundary":
+		h.state.Compacting = nil
 	case "background_tasks_changed":
 		h.state.Tasks = append([]Task{}, ev.Tasks...)
 	default:
@@ -384,6 +392,29 @@ func (h *Holder) onSystem(ev event) {
 	}
 	h.mu.Unlock()
 	h.saveSummary()
+}
+
+// compacting follows a compaction by the status claude reports: "compacting"
+// when it starts and again every half a minute while it runs, anything else
+// once it is over. The start is kept from the first report — the repeats would
+// set the clock back. A status that carries a mode and no outcome of a
+// compaction reports a change of mode, not the end of one. Called under h.mu.
+func (h *Holder) compacting(ev event) {
+	var status *string
+	if len(ev.Status) == 0 || json.Unmarshal(ev.Status, &status) != nil {
+		return
+	}
+	if status != nil && *status == "compacting" {
+		if h.state.Compacting == nil {
+			now := time.Now()
+			h.state.Compacting = &now
+		}
+		return
+	}
+	if ev.PermissionMode != "" && ev.CompactResult == "" {
+		return
+	}
+	h.state.Compacting = nil
 }
 
 func (h *Holder) dropPending(requestID string) {
@@ -698,7 +729,7 @@ func (h *Holder) saveSummary() {
 	sum := Summary{
 		Protocol: s.Protocol, Name: s.Name, SessionID: s.SessionID, PID: s.PID, Holder: s.Holder,
 		Started: s.Started, Busy: s.Busy, Model: s.Model, Mode: s.Mode, Effort: s.Effort, Waiting: []string{},
-		Queue: len(s.Queue), Tasks: len(s.Tasks), Updated: time.Now(),
+		Queue: len(s.Queue), Tasks: len(s.Tasks), Compacting: s.Compacting, Updated: time.Now(),
 	}
 	for _, p := range s.Pending {
 		sum.Waiting = append(sum.Waiting, p.Tool)
