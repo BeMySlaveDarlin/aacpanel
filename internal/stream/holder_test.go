@@ -66,9 +66,21 @@ func fakeClaude() int {
 				body = map[string]any{"response": "tangerine", "synthetic": false}
 			case "get_settings":
 				body = map[string]any{
-					"effective": map[string]any{"env": map[string]any{"GITLAB_TOKEN": "glpat-secret"}},
-					"sources":   []any{map[string]any{"source": "userSettings", "settings": map[string]any{"env": "glpat-secret"}}},
-					"applied":   map[string]any{"model": model, "effort": "xhigh", "advisor": nil, "ultracode": ultra},
+					"effective": map[string]any{"env": map[string]any{"GITLAB_TOKEN": "glpat-secret"},
+						"permissions": map[string]any{"allow": []any{"Bash(git:*)"}},
+						"hooks":       map[string]any{"Stop": []any{}},
+						"model":       "opus[1m]", "theme": "dark"},
+					"sources": []any{map[string]any{"source": "userSettings", "settings": map[string]any{"env": "glpat-secret"}}},
+					"applied": map[string]any{"model": model, "effort": "xhigh", "advisor": nil, "ultracode": ultra},
+				}
+			case "get_hooks_listing":
+				body = map[string]any{
+					"events": []any{map[string]any{"name": "Stop", "summary": "When the turn ends", "hookCount": 1}},
+					"hooks": []any{map[string]any{"event": "Stop", "type": "http", "displayText": "notify",
+						"commandText": "https://hooks.example/stop", "sourceLabel": "User settings",
+						"editable": map[string]any{"config": map[string]any{"headers": map[string]any{"Authorization": "Bearer s3cret"}}}}},
+					"eventCatalog": []any{map[string]any{"name": "Stop"}, map[string]any{"name": "PreToolUse"}},
+					"policy":       map[string]any{"allDisabled": false},
 				}
 			case "cancel_async_message":
 				found := false
@@ -706,11 +718,50 @@ func TestSettingsAreAnsweredWithoutTheEnvironment(t *testing.T) {
 	if !reply.OK {
 		t.Fatalf("get_settings was refused: %+v", reply)
 	}
-	if strings.Contains(string(reply.Response), "glpat") || strings.Contains(string(reply.Response), "env") {
+	if strings.Contains(string(reply.Response), "glpat") || strings.Contains(string(reply.Response), "sources") {
 		t.Errorf("the answer carries the environment of the session: %s", reply.Response)
 	}
 	if !strings.Contains(string(reply.Response), `"applied"`) {
 		t.Errorf("the answer lost what the session runs with: %s", reply.Response)
+	}
+	var body struct {
+		Response struct {
+			Effective map[string]json.RawMessage `json:"effective"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(reply.Response, &body); err != nil {
+		t.Fatalf("the answer did not parse: %v", err)
+	}
+	for _, hidden := range []string{"env", "permissions", "hooks"} {
+		if _, ok := body.Response.Effective[hidden]; ok {
+			t.Errorf("the merged settings carry %q: %s", hidden, reply.Response)
+		}
+	}
+	if string(body.Response.Effective["model"]) != `"opus[1m]"` || string(body.Response.Effective["theme"]) != `"dark"` {
+		t.Errorf("the merged settings lost what the config screen shows: %s", reply.Response)
+	}
+}
+
+// The hooks listing reaches the panel as rows to show: the entry as stored —
+// the headers of an http hook among it — and the catalogue for an add form
+// stay behind.
+func TestTheHooksListingLeavesTheStoredEntryBehind(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	reply := r.ask(Request{Op: OpControl, Subtype: "get_hooks_listing"})
+	if !reply.OK {
+		t.Fatalf("get_hooks_listing was refused: %+v", reply)
+	}
+	got := string(reply.Response)
+	for _, gone := range []string{"editable", "s3cret", "eventCatalog", "PreToolUse"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("the listing carries %q: %s", gone, got)
+		}
+	}
+	for _, kept := range []string{`"displayText":"notify"`, `"commandText":"https://hooks.example/stop"`, `"hookCount":1`, `"policy"`} {
+		if !strings.Contains(got, kept) {
+			t.Errorf("the listing lost %s: %s", kept, got)
+		}
 	}
 }
 

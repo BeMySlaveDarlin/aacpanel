@@ -25,6 +25,8 @@ type Response struct {
 
 	Status *Status `json:"status,omitempty"`
 
+	Setup *Setup `json:"setup,omitempty"`
+
 	Side *Side `json:"side,omitempty"`
 
 	Commands *SessionCommands `json:"commands,omitempty"`

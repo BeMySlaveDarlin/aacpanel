@@ -56,6 +56,11 @@ export const COMMANDS = {
 export const SCREENS = {
     mcp: { name: "MCP servers" },
     status: { name: "Session info", console: true },
+    hooks: { name: "Hooks, read-only" },
+    memory: { name: "Memory files and saved memories" },
+    skills: { name: "Skills, read-only" },
+    agents: { name: "Kinds of subagents" },
+    config: { name: "Merged settings, read-only" },
 };
 
 // REFUSED lists the slash commands the panel does not send in any form, not

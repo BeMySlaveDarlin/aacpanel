@@ -247,3 +247,50 @@
 .mcpacts { display: flex; flex-wrap: wrap; gap: .5rem; }
 .mcpacts .btn { flex: 1 1 8rem; }
 .statcopy { flex: none; width: 1.5rem; height: 1.5rem; padding: .25rem; align-self: center; }
+
+/* The screens of what a session is set up with: rows with a line and the path
+   or the words under it, tags before a name, and code as it runs. */
+.stplist li { display: grid; gap: .1rem; }
+.stpline { display: flex; align-items: baseline; gap: .55rem; }
+.stpname { flex: 1 1 auto; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.stpsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
+.stpdesc { margin: 0; font-size: var(--t-xs); color: var(--ink-dim); overflow-wrap: anywhere; }
+.stpexp .stpdesc { padding: 0 0 .5rem; border-bottom: var(--hair) solid var(--line); }
+.stpexp.open .mcprow { border-bottom: 0; }
+.mcprow:disabled { cursor: default; }
+.stptag {
+    display: inline-block;
+    margin-right: .4rem;
+    padding: 0 .3rem;
+    border-radius: var(--r-small);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    color: var(--ink-faint);
+    font-size: var(--t-xs);
+}
+.stpcount { color: var(--ink-faint); }
+.stpoff { opacity: .55; }
+.stpwarn { color: var(--warn); }
+.stpcode {
+    margin: 0;
+    padding: .5rem .6rem;
+    border-radius: var(--r-small);
+    background: var(--surface);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.stpconfig .stpblock { display: grid; gap: .3rem; }
+.stpconfig .stpblock .cmdname { width: auto; }
+.stpfind {
+    width: 100%;
+    box-sizing: border-box;
+    padding: .45rem .6rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-small);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--t-sm);
+}

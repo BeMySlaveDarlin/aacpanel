@@ -486,7 +486,8 @@ def check_effort(s):
 # The requests the screens read their data from. The list of background tasks
 # is not among them: asked for, it answers with nothing, and it arrives by
 # itself as an event each time it changes.
-DATA_REQUESTS = ("list_models", "get_context_usage", "get_usage", "get_session_cost", "mcp_status")
+DATA_REQUESTS = ("list_models", "get_context_usage", "get_usage", "get_session_cost", "mcp_status",
+                 "get_hooks_listing", "get_memory_dialog", "get_skills_dialog")
 
 
 def check_data(s):

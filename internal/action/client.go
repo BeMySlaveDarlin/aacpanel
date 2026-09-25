@@ -140,6 +140,18 @@ func (c *Client) Status(ctx context.Context, target string) (*Status, error) {
 	return resp.Status, nil
 }
 
+// Setup asks a session for one of its read-only screens of settings.
+func (c *Client) Setup(ctx context.Context, target, part string) (*Setup, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskSetup, Target: target, Part: part})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Setup, nil
+}
+
 // Do sends a request and waits for the answer.
 func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 	if err := req.Validate(); err != nil {

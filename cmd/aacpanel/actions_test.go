@@ -967,6 +967,62 @@ func TestSessionMcpPassesTheServersOn(t *testing.T) {
 	}
 }
 
+// A screen of settings is the executor's answer passed on under the name of
+// its part, an empty list is a list, and a screen the panel does not know is
+// refused before the executor is asked.
+func TestSessionSetupPassesThePartOn(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Setup: &action.Setup{Transport: "stream",
+		Skills: []action.Skill{{Name: "pdf", Source: "claude.ai sync", Tokens: 150, State: "on"}}}})
+	srv := &Server{exec: client, hostName: "STAND-01"}
+
+	w := httptest.NewRecorder()
+	srv.apiSessionSetup(w, httptest.NewRequest(http.MethodGet, "/api/session/setup?name=aacpanel&part=skills", nil))
+	var body struct {
+		State     string         `json:"state"`
+		Transport string         `json:"transport"`
+		Skills    []action.Skill `json:"skills"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("the response is not json: %s", w.Body.String())
+	}
+	if body.State != "ok" || body.Transport != "stream" || len(body.Skills) != 1 || body.Skills[0].Name != "pdf" {
+		t.Errorf("the answer is %s", w.Body.String())
+	}
+	if got := <-fake.got; got.Ask != action.AskSetup || got.Target != "aacpanel" || got.Part != action.SetupSkills {
+		t.Errorf("the executor was asked %+v", got)
+	}
+
+	empty, _ := startFakeExec(t, action.Response{OK: true, Setup: &action.Setup{Transport: "stream"}})
+	for part, want := range map[string]string{"agents": `"agents":[]`, "config": `"config":[]`,
+		"hooks": `"hooks":{"events":[],"hooks":[]}`, "memory": `"files":[]`} {
+		w = httptest.NewRecorder()
+		(&Server{exec: empty}).apiSessionSetup(w, httptest.NewRequest(http.MethodGet,
+			"/api/session/setup?name=aacpanel&part="+part, nil))
+		if !strings.Contains(w.Body.String(), want) {
+			t.Errorf("an empty %s reads %s — the screen gets nothing to read", part, w.Body.String())
+		}
+	}
+
+	console, _ := startFakeExec(t, action.Response{OK: true, Setup: &action.Setup{Transport: "console"}})
+	w = httptest.NewRecorder()
+	(&Server{exec: console}).apiSessionSetup(w, httptest.NewRequest(http.MethodGet, "/api/session/setup?name=aacpanel&part=hooks", nil))
+	if !strings.Contains(w.Body.String(), `"transport":"console"`) || strings.Contains(w.Body.String(), `"hooks"`) {
+		t.Errorf("a terminal reads %s", w.Body.String())
+	}
+
+	asked, seen := startFakeExec(t, action.Response{OK: true})
+	w = httptest.NewRecorder()
+	(&Server{exec: asked}).apiSessionSetup(w, httptest.NewRequest(http.MethodGet, "/api/session/setup?name=aacpanel&part=permissions", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("a screen the panel does not show answered %d", w.Code)
+	}
+	select {
+	case got := <-seen.got:
+		t.Errorf("the executor was asked %+v for a screen the panel does not show", got)
+	default:
+	}
+}
+
 func TestRunActionCarriesTheMcpChangeToExecutor(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}

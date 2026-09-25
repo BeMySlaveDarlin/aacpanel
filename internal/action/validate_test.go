@@ -345,6 +345,33 @@ func TestMcpChangeNamesAServerAndWhatToDo(t *testing.T) {
 	}
 }
 
+// A question for a screen of settings names one the panel shows, and no other
+// question carries a screen. The rules of permissions are not among them.
+func TestSetupQuestionNamesAScreen(t *testing.T) {
+	cases := []struct {
+		name string
+		req  Request
+		ok   bool
+	}{
+		{"a screen of settings", Request{Ask: AskSetup, Target: "aacpanel", Part: SetupHooks}, true},
+		{"a screen the panel does not know", Request{Ask: AskSetup, Target: "aacpanel", Part: "permissions"}, false},
+		{"a setup question naming no screen", Request{Ask: AskSetup, Target: "aacpanel"}, false},
+		{"a screen riding another question", Request{Ask: AskMcp, Target: "aacpanel", Part: SetupHooks}, false},
+		{"a screen with no session", Request{Ask: AskSetup, Part: SetupHooks}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.req.Validate()
+			if c.ok && err != nil {
+				t.Errorf("a sound request is rejected: %v", err)
+			}
+			if !c.ok && err == nil {
+				t.Error("the request is accepted, though it must not be")
+			}
+		})
+	}
+}
+
 func TestSwitchSaysWhereAndCarriesItsProject(t *testing.T) {
 	project := &Project{Path: "/opt/x", Session: "aacpanel"}
 	cases := []struct {

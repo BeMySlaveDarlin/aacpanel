@@ -54,6 +54,11 @@ type StatusAsker interface {
 	Status(ctx context.Context, target string) (*Status, error)
 }
 
+// SetupAsker is an executor that knows what a session is set up with.
+type SetupAsker interface {
+	Setup(ctx context.Context, target, part string) (*Setup, error)
+}
+
 // Capable is an executor that does not do everything listed in Kinds.
 type Capable interface {
 	Kinds() []Kind
@@ -239,6 +244,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 			return Failed(req.ID, err, 0)
 		}
 		return Response{ID: req.ID, OK: true, Status: status}
+	}
+
+	if req.Ask == AskSetup {
+		asker, ok := s.exec.(SetupAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not know what a session is set up with"), 0)
+		}
+		setup, err := asker.Setup(ctx, req.Target, req.Part)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Setup: setup}
 	}
 
 	if req.Ask == AskCommands {

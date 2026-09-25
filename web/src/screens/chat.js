@@ -19,6 +19,7 @@ import { Row } from "./chat/rows.js";
 import { CommandSheet } from "./chat/command.js";
 import { McpSheet } from "./chat/mcp.js";
 import { StatusSheet } from "./chat/status.js";
+import { SetupSheet, SETUP_TITLES } from "./chat/setup.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
@@ -393,7 +394,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                          was.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
                                      insert=${insert}
                                      onPicker=${knows(exec, "session.set") ? setPicking : null}
-                                     onScreen=${(what) => setLook({ kind: what })}
+                                     onScreen=${(what) => setLook(SETUP_TITLES[what] ? { kind: "setup", part: what } : { kind: what })}
                                      onSide=${onStream ? sideChat.ask : null}
                                      strip=${wide
                                          ? html`<${PickBar} name=${name} live=${live} exec=${exec} />`
@@ -436,7 +437,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
         <//>
 
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
-                  label=${look ? LOOK_NAMES[look.kind] : ""} inner
+                  label=${look ? (look.kind === "setup" ? SETUP_TITLES[look.part] : LOOK_NAMES[look.kind]) : ""} inner
                   doc=${Boolean(look) && look.kind === "brief"}>
             ${look && (look.kind === "brief"
                 ? html`<${Brief} id=${look.id} snapshot=${snapshot} exec=${exec}
@@ -450,6 +451,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 ? html`<${McpSheet} name=${name} exec=${exec} />`
                 : look.kind === "status"
                 ? (live ? html`<${StatusSheet} name=${name} live=${live} />`
+                    : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)
+                : look.kind === "setup"
+                ? (live ? html`<${SetupSheet} name=${name} part=${look.part} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}

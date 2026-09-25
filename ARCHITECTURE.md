@@ -305,8 +305,11 @@ unless a hook is what asks, and then the question is the person's.
 `apply_flag_settings` would merge any settings into a session, its hooks and
 permissions among them, so the holder passes it with ultracode alone;
 `update_settings` passes with an effort for the settings of the user alone;
-and the answer to `get_settings` comes back with only what the session runs
-with — whole, it carries the environment of the session, tokens and all.
+and the answer to `get_settings` comes back with what the session runs with
+and the merged settings bar the environment, the rules of permissions and the
+hooks — whole, it carries the environment of every source, tokens and all.
+The hooks listing comes back without the entries as stored, which a host would
+edit by and which hold the headers of an http hook.
 Claude answers an ultracode it cannot run with success and turns nothing on,
 so the holder asks what the session runs with before it says ultracode is on.
 
@@ -609,6 +612,15 @@ kinds of session: most of it the snapshot of the host already holds, the
 version comes from the file of the session, and the account from claude's
 answer to the handshake — which a console does not have, so its card goes
 without one.
+
+**`/hooks`, `/memory`, `/skills`, `/agents` and `/config` are read-only screens
+of the panel.** On the stream claude hands out the rows of its own screens for
+the first three, names the kinds of subagents at the handshake, and answers
+`get_settings` with the merged settings; the panel asks each time a screen
+opens and changes nothing — a hook or a skill is changed in its file or by
+asking Claude. The rules of permissions are not shown in any form, and the
+environment never leaves the host. In a console these are the client's own
+screens, driven by keys, and the composer does not send them.
 
 **There is nowhere else to get the subscription limits from.** The 5h/7d
 percentages do not lie on disk and are not handed out by any API — the only one

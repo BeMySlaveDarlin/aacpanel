@@ -141,6 +141,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/session/models", g.page(s.apiSessionModels))
 	mux.Handle("GET /api/session/mcp", g.page(s.apiSessionMcp))
 	mux.Handle("GET /api/session/status", g.page(s.apiSessionStatus))
+	mux.Handle("GET /api/session/setup", g.page(s.apiSessionSetup))
 	mux.Handle("GET /api/session/commands", g.page(s.apiSessionCommands))
 	mux.Handle("POST /api/session/btw", g.page(s.apiSessionSide))
 	mux.Handle("GET /api/faults", g.page(s.apiFaults))

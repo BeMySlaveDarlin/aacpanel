@@ -45,6 +45,9 @@ type Request struct {
 
 	Ask string `json:"ask,omitempty"`
 
+	// Part names the screen a setup question asks for.
+	Part string `json:"part,omitempty"`
+
 	// History is the side chat so far, sent with a question aside.
 	History []SideTurn `json:"history,omitempty"`
 }
@@ -151,3 +154,7 @@ const AskMcp = "mcp"
 
 // AskStatus asks a session about itself: its version and its account.
 const AskStatus = "status"
+
+// AskSetup asks a session for one of its read-only screens of settings: the
+// part names which.
+const AskSetup = "setup"

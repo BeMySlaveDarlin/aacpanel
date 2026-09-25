@@ -707,9 +707,7 @@ func (h *Holder) do(req Request) Reply {
 			return Reply{Error: err.Error()}
 		}
 		resp, err := h.control(context.Background(), req.Subtype, req.Fields, replyWait(req.Subtype))
-		if req.Subtype == "get_settings" {
-			resp = trimSettings(resp)
-		}
+		resp = trimAnswer(req.Subtype, resp)
 		if err != nil {
 			return Reply{Error: err.Error(), Response: resp}
 		}

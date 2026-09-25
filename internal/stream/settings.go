@@ -88,16 +88,34 @@ func onlyKey(fields map[string]any, key string) (map[string]any, bool) {
 	return inner, ok
 }
 
+// trimAnswer passes on of claude's answer only what the panel reads, for the
+// requests whose answers reach further than that.
+func trimAnswer(subtype string, resp json.RawMessage) json.RawMessage {
+	switch subtype {
+	case "get_settings":
+		return trimSettings(resp)
+	case "get_hooks_listing":
+		return trimHooks(resp)
+	}
+	return resp
+}
+
+// hiddenSettings are the merged settings the panel does not show: the
+// environment carries keys, the rules of permissions are not shown by the
+// panel in any form, and hooks have a screen of their own.
+var hiddenSettings = map[string]bool{"env": true, "permissions": true, "hooks": true}
+
 // trimSettings leaves of claude's answer to get_settings what the session runs
-// with, and drops the rest: the settings of every source and the environment
-// they carry.
+// with and the merged settings bar the hidden ones, and drops the rest: the
+// settings of every source and the environment they carry.
 func trimSettings(resp json.RawMessage) json.RawMessage {
 	var full struct {
 		Subtype   string `json:"subtype"`
 		RequestID string `json:"request_id"`
 		Error     string `json:"error,omitempty"`
 		Response  struct {
-			Applied *Applied `json:"applied"`
+			Applied   *Applied                   `json:"applied"`
+			Effective map[string]json.RawMessage `json:"effective"`
 		} `json:"response"`
 	}
 	if json.Unmarshal(resp, &full) != nil {
@@ -107,10 +125,48 @@ func trimSettings(resp json.RawMessage) json.RawMessage {
 	if full.Error != "" {
 		out["error"] = full.Error
 	}
+	answer := map[string]any{}
 	if full.Response.Applied != nil {
-		out["response"] = map[string]any{"applied": full.Response.Applied}
+		answer["applied"] = full.Response.Applied
+	}
+	if full.Response.Effective != nil {
+		shown := make(map[string]json.RawMessage, len(full.Response.Effective))
+		for key, value := range full.Response.Effective {
+			if !hiddenSettings[key] {
+				shown[key] = value
+			}
+		}
+		answer["effective"] = shown
+	}
+	if len(answer) > 0 {
+		out["response"] = answer
 	}
 	body, _ := json.Marshal(out)
+	return body
+}
+
+// trimHooks leaves of claude's answer to get_hooks_listing the rows the panel
+// shows. The entry as stored, which a host would edit by, stays behind, and
+// so does the catalogue of every event an add form would offer.
+func trimHooks(resp json.RawMessage) json.RawMessage {
+	var full map[string]json.RawMessage
+	var answer map[string]json.RawMessage
+	var hooks []map[string]json.RawMessage
+	if json.Unmarshal(resp, &full) != nil || json.Unmarshal(full["response"], &answer) != nil {
+		return nil
+	}
+	if raw, ok := answer["hooks"]; ok {
+		if json.Unmarshal(raw, &hooks) != nil {
+			return nil
+		}
+		for _, hook := range hooks {
+			delete(hook, "editable")
+		}
+		answer["hooks"], _ = json.Marshal(hooks)
+	}
+	delete(answer, "eventCatalog")
+	full["response"], _ = json.Marshal(answer)
+	body, _ := json.Marshal(full)
 	return body
 }
 

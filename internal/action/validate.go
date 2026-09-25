@@ -27,7 +27,7 @@ func (r Request) Validate() error {
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
-		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide:
+		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -39,6 +39,9 @@ func (r Request) Validate() error {
 			}
 			if r.Ask == AskSide {
 				return validateSide(r)
+			}
+			if (r.Ask == AskSetup) != (r.Part != "") || (r.Part != "" && !SetupParts[r.Part]) {
+				return badRequest("question %q names no screen the panel knows: %q", r.Ask, r.Part)
 			}
 			if r.Text != "" || len(r.History) > 0 {
 				return badRequest("question %q carries no text", r.Ask)

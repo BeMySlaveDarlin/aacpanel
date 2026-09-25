@@ -415,6 +415,69 @@ func (s *Server) apiSessionStatus(w http.ResponseWriter, r *http.Request) {
 		"account": status.Account})
 }
 
+// apiSessionSetup says what a live session is set up with, one read-only
+// screen at a time. The part asked for goes out as a list or an object even
+// when it is empty: the socket drops an empty one, and the screen reads it
+// without guarding against its absence.
+func (s *Server) apiSessionSetup(w http.ResponseWriter, r *http.Request) {
+	name, part := r.URL.Query().Get("name"), r.URL.Query().Get("part")
+	if name == "" {
+		http.Error(w, "it is not said which session to ask", http.StatusBadRequest)
+		return
+	}
+	if !action.SetupParts[part] {
+		http.Error(w, fmt.Sprintf("there is no screen %q of what a session is set up with", part), http.StatusBadRequest)
+		return
+	}
+	if s.exec == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
+		return
+	}
+	setup, err := s.exec.Setup(r.Context(), name, part)
+	if err != nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
+		return
+	}
+	if setup == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor did not answer the question about the settings"})
+		return
+	}
+	out := map[string]any{"state": "ok", "transport": setup.Transport}
+	if setup.Transport == action.SwitchStream {
+		out[part] = setupPart(setup, part)
+	}
+	writeJSON(w, out)
+}
+
+func setupPart(setup *action.Setup, part string) any {
+	switch part {
+	case action.SetupHooks:
+		if setup.Hooks != nil {
+			return setup.Hooks
+		}
+		return &action.Hooks{Events: []action.HookEvent{}, Hooks: []action.Hook{}}
+	case action.SetupMemory:
+		if setup.Memory != nil {
+			return setup.Memory
+		}
+		return &action.Memory{Files: []action.MemoryFile{}, Folders: []action.MemoryFile{}, Memories: []action.SavedMemory{}}
+	case action.SetupSkills:
+		if setup.Skills != nil {
+			return setup.Skills
+		}
+		return []action.Skill{}
+	case action.SetupAgents:
+		if setup.Agents != nil {
+			return setup.Agents
+		}
+		return []action.AgentType{}
+	}
+	if setup.Config != nil {
+		return setup.Config
+	}
+	return []action.ConfigEntry{}
+}
+
 // apiSessionCommands says which commands a live session takes, with what each
 // does. A terminal lists none, and the composer keeps to the panel's own.
 func (s *Server) apiSessionCommands(w http.ResponseWriter, r *http.Request) {

@@ -219,4 +219,7 @@ var Controls = map[string]bool{
 	"update_settings":         true,
 	"get_settings":            true,
 	"side_question":           true,
+	"get_hooks_listing":       true,
+	"get_memory_dialog":       true,
+	"get_skills_dialog":       true,
 }
