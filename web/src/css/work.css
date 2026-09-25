@@ -277,6 +277,27 @@
 .composer .pickfile { color: var(--ink-faint); }
 .composer .iconbtn.accent:active, .composer .pickfile:active { background: var(--glass); }
 
+/* The send button is the one filled mark of the composer: a square of the
+   accent, the shape of the framed buttons under the composer, so it reads as
+   the press that sends rather than as a glyph on the field. With nothing to
+   send it keeps the shape and gives up the fill. The stop that takes its place
+   while the session answers has the same shape in the colour of an alert. */
+.composer .iconbtn.sendbtn,
+.composer .iconbtn.danger {
+    align-self: flex-start;
+    margin: .2rem 0;
+    border-radius: var(--r-small);
+}
+.composer .iconbtn.sendbtn { background: var(--accent); color: var(--on-accent); }
+.composer .iconbtn.sendbtn:active { background: color-mix(in srgb, var(--accent) 82%, var(--on-accent)); }
+.composer .iconbtn.sendbtn:disabled {
+    opacity: 1;
+    background: none;
+    color: var(--ink-faint);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+}
+.composer .iconbtn.danger { background: var(--crit-bg); }
+
 /* The send button is held down to dictate, so it must not answer a long press
    with a text selection or the system menu of the phone. While it listens it
    says so plainly: the colour of an alert and a ring that breathes, because a
@@ -284,8 +305,8 @@
 .composer .iconbtn.accent { touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
 
 .composer .iconbtn.accent.hearing {
-    color: var(--crit);
-    background: var(--crit-bg);
+    color: var(--on-accent);
+    background: var(--crit);
     animation: hearing 1.3s ease-in-out infinite;
 }
 

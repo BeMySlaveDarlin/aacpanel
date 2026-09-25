@@ -171,17 +171,24 @@
 .pkmenu.pkeffort { width: 17rem; padding: .4rem .6rem .2rem; }
 
 /* The frame of the composer carries a second line: the paperclip, the mode,
-   and on the right the model with its effort. */
+   and on the right the model with its effort. It is a band of its own, darker
+   than the field and running to the edges of the frame, with words a size
+   smaller and a shade quieter than what is typed: settings under the field,
+   not more of it. */
 .composer:has(.cstrip) { flex-wrap: wrap; row-gap: 0; }
 .cstrip {
-    flex: 0 0 100%;
+    flex: 0 0 auto;
+    width: calc(100% + 1.05rem);
     display: flex;
     align-items: center;
-    gap: .2rem;
-    margin-top: .2rem;
-    padding-top: .2rem;
-    border-top: var(--hair) solid var(--line);
+    gap: .15rem;
+    margin: .3rem -.3rem -.25rem -.75rem;
+    padding: .1rem .3rem .1rem .3rem;
+    background: var(--strip-bg);
+    border-top: var(--hair) solid var(--edge);
+    border-radius: 0 0 var(--r-card) var(--r-card);
 }
 .cstrip .pickbar { flex: 1 1 auto; padding: 0; }
-.cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: 2.6rem; padding: 0 .6rem; font-size: var(--t-md); }
+.cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: 2.5rem; padding: 0 .55rem; font-size: var(--t-sm); color: var(--ink-dim); }
 .cstrip .pkchip svg { width: var(--i-sm); height: var(--i-sm); }
+.cstrip .pickfile { width: 2.5rem; height: 2.5rem; }

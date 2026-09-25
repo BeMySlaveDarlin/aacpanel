@@ -7,35 +7,39 @@ import (
 )
 
 type pickPhoneShot struct {
-	Head          []string `json:"head"`
-	ModelTitle    string   `json:"modelTitle"`
-	Main          []string `json:"main"`
-	MainDesc      []string `json:"mainDesc"`
-	Checked       []string `json:"checked"`
-	EffortRow     string   `json:"effortRow"`
-	Group         []string `json:"group"`
-	Other         []string `json:"other"`
-	ConfirmSheet  bool     `json:"confirmSheet"`
-	AfterPick     []string `json:"afterPick"`
-	EffortTitle   string   `json:"effortTitle"`
-	Stops         []string `json:"stops"`
-	StopOn        string   `json:"stopOn"`
-	ModeTitle     string   `json:"modeTitle"`
-	Modes         []string `json:"modes"`
-	ModeOn        []string `json:"modeOn"`
-	ModeIcons     int      `json:"modeIcons"`
-	SendReady     bool     `json:"sendReady"`
-	FromComposer  string   `json:"fromComposer"`
-	ComposerAfter string   `json:"composerAfter"`
-	Sent          []string `json:"sent"`
-	TermMain      []string `json:"termMain"`
-	TermOn        []string `json:"termOn"`
-	TermModesOff  bool     `json:"termModesOff"`
-	TermNote      string   `json:"termNote"`
-	Loud          []string `json:"loud"`
-	Bare          []string `json:"bare"`
-	AttachMode    string   `json:"attachMode"`
-	AttachOpens   string   `json:"attachOpens"`
+	Head           []string `json:"head"`
+	ModelTitle     string   `json:"modelTitle"`
+	Main           []string `json:"main"`
+	MainDesc       []string `json:"mainDesc"`
+	Checked        []string `json:"checked"`
+	EffortRow      string   `json:"effortRow"`
+	Group          []string `json:"group"`
+	Other          []string `json:"other"`
+	ConfirmSheet   bool     `json:"confirmSheet"`
+	AfterPick      []string `json:"afterPick"`
+	EffortTitle    string   `json:"effortTitle"`
+	Stops          []string `json:"stops"`
+	StopOn         string   `json:"stopOn"`
+	ModeTitle      string   `json:"modeTitle"`
+	Modes          []string `json:"modes"`
+	ModeOn         []string `json:"modeOn"`
+	ModeIcons      int      `json:"modeIcons"`
+	SendReady      bool     `json:"sendReady"`
+	FromComposer   string   `json:"fromComposer"`
+	ComposerAfter  string   `json:"composerAfter"`
+	Sent           []string `json:"sent"`
+	TermMain       []string `json:"termMain"`
+	TermOn         []string `json:"termOn"`
+	TermModesOff   bool     `json:"termModesOff"`
+	TermNote       string   `json:"termNote"`
+	Loud           []string `json:"loud"`
+	Bare           []string `json:"bare"`
+	AttachMode     string   `json:"attachMode"`
+	BandPainted    bool     `json:"bandPainted"`
+	WordsSmaller   bool     `json:"wordsSmaller"`
+	EmptySendClear bool     `json:"emptySendClear"`
+	SendFilled     bool     `json:"sendFilled"`
+	AttachOpens    string   `json:"attachOpens"`
 }
 
 // The model list is the one claude gives, a row per model: its default is an
@@ -130,6 +134,21 @@ func TestATerminalPicksFromTheCatalogueAndNotItsMode(t *testing.T) {
 	}
 	if !got.TermModesOff || !strings.Contains(got.TermNote, "shift+tab") {
 		t.Errorf("a terminal's modes: off %v, note %q", got.TermModesOff, got.TermNote)
+	}
+}
+
+// The strip under the field is a band of its own with quieter words, and the
+// send button a filled square that gives up its fill when there is nothing to
+// send: the settings do not read as more of the field, and the press that
+// sends does not read as a glyph on it.
+func TestTheComposerStripStandsApartFromTheField(t *testing.T) {
+	var got pickPhoneShot
+	runFixture(t, "pickphone.html", &got)
+	if !got.BandPainted || !got.WordsSmaller {
+		t.Errorf("the strip is painted %v, its words smaller than the field's %v", got.BandPainted, got.WordsSmaller)
+	}
+	if !got.SendFilled || !got.EmptySendClear {
+		t.Errorf("the send button is filled with words %v, clear and off when empty %v", got.SendFilled, got.EmptySendClear)
 	}
 }
 

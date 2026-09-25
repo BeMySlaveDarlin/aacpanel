@@ -403,7 +403,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                 `
                 : html`
                     <button
-                        class=${`iconbtn accent${hear.live ? " hearing" : ""}`}
+                        class=${`iconbtn accent sendbtn${hear.live ? " hearing" : ""}`}
                         type="button"
                         aria-label=${micLabel(asMic, hear.live, cmd, name)}
                         title=${micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd)}
@@ -413,7 +413,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                         onPointerUp=${hear.up}
                         onPointerCancel=${hear.up}
                         onContextMenu=${(e) => hear.on && e.preventDefault()}
-                    >${asMic || hear.live ? Icon.mic() : Icon.send()}</button>
+                    >${asMic || hear.live ? Icon.mic() : Icon.arrowup()}</button>
                 `}
             ${strip && html`<div class="cstrip">
                 ${pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}

@@ -74,6 +74,25 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     show(stream);
     await sleep(400);
     const out = {};
+
+    // The strip is a band of its own under the field, and the send button the
+    // one filled mark: with words it is a square of the accent, empty it is not.
+    const paint = (el) => getComputedStyle(el).backgroundColor;
+    const clear = (c) => c === "rgba(0, 0, 0, 0)" || c === "transparent";
+    const field = document.querySelector(".composer textarea");
+    const band = document.querySelector(".cstrip");
+    const send = () => document.querySelector(".composer .sendbtn");
+    out.bandPainted = !clear(paint(band));
+    out.wordsSmaller = parseFloat(getComputedStyle(band.querySelector(".pkchip")).fontSize)
+        < parseFloat(getComputedStyle(field).fontSize);
+    out.emptySendClear = clear(paint(send())) && send().disabled;
+    field.value = "hello";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(150);
+    out.sendFilled = !clear(paint(send())) && !send().disabled;
+    field.value = "";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(150);
     const head = Array.from(document.querySelectorAll(".cstrip .pkchip"));
     out.head = head.map((b) => b.textContent.trim());
 

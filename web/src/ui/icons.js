@@ -88,6 +88,7 @@ export const Icon = {
     close: () => html`<svg ...${stroke}><path d="M18 6 6 18M6 6l12 12" /></svg>`,
 
     send: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 16.5v-9M8.5 11 12 7.5l3.5 3.5" /></svg>`,
+    arrowup: () => html`<svg ...${stroke}><path d="M12 19V5.5M6 11.5l6-6 6 6" /></svg>`,
 
     quote: () => html`<svg ...${stroke}><path d="M9 6 4 11l5 5" /><path d="M4 11h9a6 6 0 0 1 6 6v1" /></svg>`,
 

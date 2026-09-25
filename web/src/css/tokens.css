@@ -94,6 +94,7 @@
     --toast-bg: linear-gradient(180deg, rgba(30, 34, 62, .97), rgba(12, 14, 30, .98));
     --toast-drop: 0 14px 34px rgba(0, 0, 0, .55);
     --code-bg: rgba(0, 0, 0, .35);
+    --strip-bg: rgba(0, 0, 0, .26);
     --on-accent: #060a1a;
     --me-bg: color-mix(in srgb, var(--accent) 18%, transparent);
 
@@ -217,6 +218,7 @@
     --toast-bg: linear-gradient(180deg, rgba(247, 251, 255, .97), rgba(226, 240, 253, .99));
     --toast-drop: 0 8px 22px rgba(24, 60, 100, .16);
     --code-bg: rgba(255, 255, 255, .62);
+    --strip-bg: rgba(15, 35, 56, .07);
     --on-accent: #ffffff;
     --me-bg: rgba(255, 255, 255, .55);
 
