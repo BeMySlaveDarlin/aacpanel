@@ -1,0 +1,117 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// A project that lives in the feed: the pair of views is the pair of sides.
+// The feed is the session on the stream, the terminal is the console, and a
+// press on the other one moves the session. The window on the host takes a
+// session in the feed to the console first and holds it there: while it is
+// open, the pair only picks what to watch the console with.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const sent = [];
+const windows = { evirma: "unknown", "evirma-c": "none", "evirma-w": "open", "evirma-b": "none" };
+const ways = { evirma: "console", "evirma-c": "stream", "evirma-w": "stream", "evirma-b": "stream" };
+const who = (u) => new URL(u, location.href).searchParams.get("name");
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: true });
+    if (u.startsWith("/api/session/window")) {
+        const state = windows[who(u)];
+        return json(state === "unknown" ? { state, reason: "session does not live in tmux" } : { state });
+    }
+    if (u.startsWith("/api/session/switch")) return json({ to: ways[who(u)] });
+    if (u.startsWith("/api/actions") && init && init.method === "POST") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true, detail: "moved" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.switch", "window.open", "window.close", "session.send"] };
+const base = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj/panel" };
+const root = document.getElementById("root");
+const show = (name, live) => render(h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name=${name} id=${name} live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const pair = () => Array.from(document.querySelectorAll(".viewsw .viewbtn"));
+const pressed = () => {
+    const on = pair().find((b) => b.getAttribute("aria-pressed") === "true");
+    return on ? pair().indexOf(on) === 0 ? "term" : "feed" : "";
+};
+const settle = async () => {
+    for (let i = 0; i < 50 && !pair().length; i++) await sleep(100);
+    await sleep(400);
+};
+// agree presses a control, reads the sheet it opens and confirms it.
+const agree = async (el) => {
+    const before = sent.length;
+    el.click();
+    for (let i = 0; i < 30 && !document.querySelector(".stitle"); i++) await sleep(100);
+    const title = (document.querySelector(".stitle") || {}).textContent || "";
+    const effect = (document.querySelector(".warnline") || {}).textContent || "";
+    const ok = [...document.querySelectorAll(".btnrow .btn")].pop();
+    if (ok) ok.click();
+    for (let i = 0; i < 30 && sent.length === before; i++) await sleep(100);
+    await sleep(300);
+    return { title, effect, sent: sent.length > before ? sent[sent.length - 1] : null };
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = {};
+
+    // On the stream: the feed is on, the terminal moves the session, and the
+    // window takes it to the console with a window over it.
+    show("evirma", { ...base, transport: "stream" });
+    await settle();
+    out.streamOn = pressed();
+    out.windowButtons = document.querySelectorAll(".winbtn").length;
+    out.toConsole = await agree(pair()[0]);
+    const win = document.querySelector(".winbtn");
+    out.windowOff = Boolean(win && win.disabled);
+    out.withWindow = win ? await agree(win) : null;
+
+    // A console of the same project: the terminal is on, the feed moves it.
+    show("evirma-c", { ...base, transport: "tmux" });
+    await settle();
+    out.consoleOn = pressed();
+    out.toFeed = await agree(pair()[1]);
+
+    // A window holds the console: the feed reads it, nothing moves.
+    show("evirma-w", { ...base, transport: "tmux" });
+    await settle();
+    const count = sent.length;
+    pair()[0].click();
+    await sleep(400);
+    out.heldTerm = pressed();
+    out.heldTip = pair()[1].getAttribute("data-tip") || "";
+    pair()[1].click();
+    await sleep(400);
+    out.heldOn = pressed();
+    out.heldSent = sent.length - count;
+    out.heldFeed = Boolean(document.querySelector(".chatfeed"));
+
+    // A turn in progress: the move waits for it.
+    show("evirma-b", { ...base, transport: "tmux", status: "busy" });
+    await settle();
+    out.busyOff = pair()[1].disabled;
+    out.busyWhy = pair()[1].getAttribute("title") || "";
+    return out;
+})();
+</script>

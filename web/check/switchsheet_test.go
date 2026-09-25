@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// A session on the stream offers to move to the console. What runs inside its
-// process does not survive the move, so the sheet names it before the press,
-// the press is marked as the one that costs something, and what goes to the
-// panel says where to go and that the person agreed.
+// The terminal of a session on the stream moves it to the console. What runs
+// inside its process does not survive the move, so the sheet names it before
+// the press, the press is marked as the one that costs something, and what
+// goes to the panel says where to go and that the person agreed.
 func TestTheSwitchSheetNamesWhatStops(t *testing.T) {
 	var got struct {
 		Button   bool   `json:"button"`

@@ -328,16 +328,14 @@ func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
 		}
 	}
 
-	picks := regexp.MustCompile(`onView=\$\{([A-Za-z][A-Za-z0-9]*)\}`).FindAllStringSubmatch(src, -1)
-	if len(picks) < 2 {
-		t.Fatalf("%s: the view toggle stands in fewer than two headers (%d) — nothing to check",
-			chatFile, len(picks))
+	// Both headers draw the same tools, built once: the phone and the desktop
+	// cannot call different view switches.
+	if n := strings.Count(src, "<${ViewToggle}"); n != 1 {
+		t.Errorf("%s: the view toggle is drawn in %d places — the phone and the desktop drift apart silently",
+			chatFile, n)
 	}
-	for _, hit := range picks[1:] {
-		if hit[1] != picks[0][1] {
-			t.Errorf("%s: the headers call different view switches (%s and %s) — the phone and "+
-				"the desktop drift apart silently", chatFile, picks[0][1], hit[1])
-		}
+	if !strings.Contains(src, "tools=${tools}") || !strings.Contains(src, "${live && tools}") {
+		t.Errorf("%s: the two headers do not share the tools of the conversation", chatFile)
 	}
 }
 

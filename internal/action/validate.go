@@ -294,6 +294,9 @@ func (r Request) Validate() error {
 		if r.Switch.To != SwitchConsole && r.Switch.To != SwitchStream {
 			return badRequest("a session moves to %q or %q, not to %q", SwitchConsole, SwitchStream, r.Switch.To)
 		}
+		if r.Switch.Window && r.Switch.To != SwitchConsole {
+			return badRequest("a window opens to a session in the console, not in the feed")
+		}
 		if r.Project == nil {
 			return badRequest("action %s without the project: the session is started again with its launch parameters", r.Kind)
 		}

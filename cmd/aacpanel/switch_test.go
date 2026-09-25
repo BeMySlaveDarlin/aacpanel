@@ -91,13 +91,13 @@ func TestSessionSwitchWayPG(t *testing.T) {
 func TestSessionSwitchCarriesTheLiveNameAndProjectPG(t *testing.T) {
 	srv, fake, dir := switchServer(t, "stream", "stream")
 
-	w := post(t, srv, `{"kind":"session.switch","target":"aacpanel-2","params":{"to":"console","force":true}}`)
+	w := post(t, srv, `{"kind":"session.switch","target":"aacpanel-2","params":{"to":"console","force":true,"window":true}}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
 	}
 	got := <-fake.got
-	if got.Switch == nil || got.Switch.To != action.SwitchConsole || !got.Switch.Force {
-		t.Fatalf("where to move and the agreement did not reach the executor: %+v", got.Switch)
+	if got.Switch == nil || got.Switch.To != action.SwitchConsole || !got.Switch.Force || !got.Switch.Window {
+		t.Fatalf("where to move, the agreement and the window did not reach the executor: %+v", got.Switch)
 	}
 	if got.Project == nil || got.Project.Path != dir {
 		t.Fatalf("the project did not reach the executor: %+v", got.Project)

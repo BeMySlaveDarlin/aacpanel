@@ -33,8 +33,8 @@ import { Marquee, short } from "./chat/head.js";
 import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
-import { WindowToggle } from "./chat/window.js";
-import { SwitchToggle } from "./chat/switch.js";
+import { WindowToggle, useWindow } from "./chat/window.js";
+import { moveSession, sidesOf, useSwitchWay } from "./chat/switch.js";
 import { TakeBack } from "./chat/takeback.js";
 import { Term, useTermAvailable } from "./chat/term.js";
 import { useViewPick } from "./chat/viewpick.js";
@@ -92,7 +92,25 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
     const wide = useWide();
     const term = useTermAvailable();
     const canTerm = term.ok && Boolean(live);
-    const [view, pickView] = useViewPick(canTerm, wide);
+    const [picked, pickView] = useViewPick(canTerm, wide);
+
+    // Which side the session lives on decides what the pair of views does: see
+    // sidesOf. The window on the host is asked here, since it holds a console.
+    const transport = (live && live.transport) || "";
+    const way = useSwitchWay(live ? name : "", transport);
+    const [win, askWindow] = useWindow(live ? name : "", transport);
+    const sides = live
+        ? sidesOf({ live, way, held: win.kind === "open", picked, canTerm, exec })
+        : { view: picked, pair: false, moves: "", tip: "", why: "" };
+    const view = sides.view;
+    const onView = (next) => {
+        if (next === view) return;
+        if (!sides.moves) {
+            pickView(next);
+            return;
+        }
+        moveSession({ run, exec, name, to: sides.moves, work: state.work });
+    };
 
     // Everything a conversation made is filtered by the directory it worked in.
     // A session that has ended leaves its pages and its briefs to the next one
@@ -249,19 +267,21 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
     const feed = weld(state.items);
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
+    const tools = live && html`
+        ${sides.pair && html`<${ViewToggle} view=${view} onView=${onView} tip=${sides.tip} why=${sides.why} />`}
+        <${WindowToggle} name=${name} live=${live} work=${state.work} exec=${exec}
+                         win=${win} way=${way} onChange=${askWindow} />
+    `;
 
     return html`
         ${wide
-            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} work=${state.work}
-                                view=${view} canTerm=${canTerm} exec=${exec} onView=${pickView}
+            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} tools=${tools}
                                 onRepo=${here ? () => setRepo(true) : null} />`
             : html`
         <${BackHead} onBack=${onBack} label="to sessions" foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
                      tools=${html`
                          ${here && html`<${RepoButton} onOpen=${() => setRepo(true)} />`}
-                         ${live && canTerm && html`<${ViewToggle} view=${view} onView=${pickView} />`}
-                         ${live && html`<${SwitchToggle} name=${name} live=${live} work=${state.work} exec=${exec} />`}
-                         ${live && html`<${WindowToggle} name=${name} exec=${exec} />`}
+                         ${live && tools}
                      `}>
             <div class="chathead">
                 <h2>

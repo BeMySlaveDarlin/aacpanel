@@ -6,8 +6,6 @@ import { Icon } from "../../ui/icons.js";
 import { ago, plural, share, since, tokens } from "../../format.js";
 import { Marquee, modelName } from "./head.js";
 import { waitText } from "../../ui/waits.js";
-import { WindowToggle } from "./window.js";
-import { SwitchToggle } from "./switch.js";
 
 function dot(live) {
     if (!live) return { kind: "dkoff", say: "the conversation is gone" };
@@ -77,8 +75,9 @@ function pastFacts(row, pct) {
     `;
 }
 
-// DeskHead renders the conversation header on the wide screen.
-export function DeskHead({ name, live, archive, pct, work, view, canTerm, exec, onView, onRepo }) {
+// DeskHead renders the conversation header on the wide screen; the tools of a
+// live session come ready from the conversation, the same as on a phone.
+export function DeskHead({ name, live, archive, pct, tools, onRepo }) {
     const state = dot(live);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
@@ -91,9 +90,7 @@ export function DeskHead({ name, live, archive, pct, work, view, canTerm, exec, 
                     <button class="viewbtn solo" type="button" title="the files of this project"
                             aria-label="the files of this project" onClick=${onRepo}>${Icon.files()}</button>
                 `}
-                ${canTerm && html`<${ViewToggle} view=${view} onView=${onView} />`}
-                ${live && html`<${SwitchToggle} name=${name} live=${live} work=${work} exec=${exec} />`}
-                ${live && html`<${WindowToggle} name=${name} exec=${exec} />`}
+                ${live && tools}
             </div>
             <div class="dkheadbot">
                 ${live ? liveFacts(live, pct) : pastFacts(archive, pct)}
@@ -103,16 +100,26 @@ export function DeskHead({ name, live, archive, pct, work, view, canTerm, exec, 
     `;
 }
 
-// ViewToggle renders what to watch a live session with: the terminal or the feed.
-export function ViewToggle({ view, onView }) {
+// ViewToggle renders what to watch a live session with: the terminal or the
+// feed. Where the pair also moves the session between the console and the
+// feed, the other button says so, or why it cannot move it now.
+export function ViewToggle({ view, onView, tip = "", why = "" }) {
+    const one = (id, label, icon) => {
+        const other = id !== view;
+        const off = other && Boolean(why);
+        const say = other && tip ? tip : label;
+        return html`
+            <button class=${`viewbtn${other ? "" : " on"}`} type="button"
+                    aria-label=${off ? why : say} aria-pressed=${!other}
+                    data-tip=${other && tip && !off ? tip : undefined}
+                    title=${off ? why : undefined} disabled=${off}
+                    onClick=${() => onView(id)}><${icon} /></button>
+        `;
+    };
     return html`
         <span class="viewsw" role="group" aria-label="how to watch the session">
-            <button class=${`viewbtn${view === "term" ? " on" : ""}`} type="button" aria-label="Terminal"
-                    aria-label="terminal" aria-pressed=${view === "term"}
-                    onClick=${() => onView("term")}><${Icon.terminal} /></button>
-            <button class=${`viewbtn${view === "feed" ? " on" : ""}`} type="button" aria-label="Feed"
-                    aria-label="feed" aria-pressed=${view === "feed"}
-                    onClick=${() => onView("feed")}><${Icon.feed} /></button>
+            ${one("term", "terminal", Icon.terminal)}
+            ${one("feed", "feed", Icon.feed)}
         </span>
     `;
 }

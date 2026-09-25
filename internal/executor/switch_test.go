@@ -57,6 +57,7 @@ func consoleStand(t *testing.T, status string, args ...string) string {
 	t.Setenv(registry.HomeEnv, conf)
 	t.Setenv(registry.RegistryEnv, "")
 	t.Setenv(sessionModelsEnv, filepath.Join(conf, "session-models"))
+	fakeWindowTmux(t, []string{"1004 demo:0.0"}, nil, dir)
 	return dir
 }
 
@@ -282,6 +283,84 @@ func TestSwitchFromConsoleStopsOnATurnOrADialog(t *testing.T) {
 			}
 			if _, err := os.Stat(log); err == nil {
 				t.Error("the launcher was called though the switch stopped")
+			}
+		})
+	}
+}
+
+// A console that a terminal outside the panel shows stays where it is: the
+// switch would end the conversation under the eyes of whoever reads it there.
+func TestSwitchToStreamStopsWhileATerminalShowsTheConsole(t *testing.T) {
+	cases := []struct {
+		name           string
+		panes, clients []string
+		says           string
+	}{
+		{"a window on the host", []string{"1004 demo:0.0"}, []string{"/dev/pts/7 4321"}, "close the window first"},
+		{"a terminal of its own", []string{"2002 other:0.0"}, nil, "does not live in tmux"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := consoleStand(t, "idle")
+			fakeWindowTmux(t, c.panes, c.clients, dir)
+			log := fakeLauncher(t, launcher.Report{Session: "demo"})
+			e, _ := newTest(t, "")
+			signals := withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
+
+			_, err := e.Execute(context.Background(), switchTo(action.SwitchStream, false, dir))
+			if err == nil || !strings.Contains(err.Error(), c.says) {
+				t.Fatalf("the switch was not stopped with %q: %v", c.says, err)
+			}
+			if len(signals.sent) != 0 {
+				t.Errorf("the console was signalled though the switch stopped: %v", signals.sent)
+			}
+			if _, err := os.Stat(log); err == nil {
+				t.Error("the launcher was called though the switch stopped")
+			}
+		})
+	}
+}
+
+// A window asked for with the switch opens onto the session the launcher
+// started in the console; one that does not open leaves the switch done.
+func TestSwitchToConsoleOpensTheWindowItWasAskedFor(t *testing.T) {
+	body, err := json.Marshal(launcher.Report{Session: "demo-2", Transport: launcher.TransportTmux})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name, window, says string
+	}{
+		{"it opens", "", "a window to session demo-2 is open"},
+		{"it does not", "echo 'no display to open it on' >&2; exit 1", "the window did not open"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir, _ := streamStand(t, func(*stream.State) {})
+			log := launcherScript(t, "{ echo \"$@\"; cat; echo; } >> %s\n"+
+				"case \"$*\" in *-window*) "+c.window+" ;; esac\n"+
+				"cat <<'END'\n"+string(body)+"\nEND\n")
+			fakeWindowTmux(t, nil, []string{"/dev/pts/7 4321"}, dir)
+			e, _ := newTest(t, "")
+			withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+			r := switchTo(action.SwitchConsole, false, dir)
+			r.Switch.Window = true
+			detail, err := e.Execute(context.Background(), r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, say := range []string{"moved in the console", c.says} {
+				if !strings.Contains(detail, say) {
+					t.Errorf("the report %q does not say %q", detail, say)
+				}
+			}
+			raw, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := `"dir":"` + dir + `","session":"demo-2"`
+			if !strings.Contains(string(raw), windowFlag) || !strings.Contains(string(raw), want) {
+				t.Errorf("the window opener was not asked for %s: %s", want, raw)
 			}
 		})
 	}

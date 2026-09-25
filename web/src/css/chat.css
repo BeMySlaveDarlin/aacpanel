@@ -272,6 +272,9 @@
 
 .viewbtn.on { color: var(--ink); background: var(--glass-2); }
 
+/* The other side of the pair is off while the session cannot move there. */
+.viewbtn:disabled { opacity: .35; cursor: default; }
+
 /* A button that stands on its own rather than inside the pair that switches
    the view: the pair carries a frame, and a lone glyph beside it reads as a
    mark on the header rather than as something to press. It wears the frame of

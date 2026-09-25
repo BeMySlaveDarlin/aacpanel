@@ -80,6 +80,9 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 		if held {
 			return "", fmt.Errorf("session %s is in the feed already", s.Name)
 		}
+		if err = shownElsewhere(ctx, s); err != nil {
+			return "", err
+		}
 		keep, err = leavingConsole(s)
 	default:
 		return "", fmt.Errorf("a session moves to %q or %q, not to %q", action.SwitchConsole, action.SwitchStream, sw.To)
@@ -121,7 +124,38 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 	for _, w := range rep.Warnings {
 		detail += "; WARNING: " + w
 	}
+	if sw.Window {
+		// The session is in the console already: a window that did not open
+		// is a warning about the window, not a failed switch.
+		opened, err := e.openWindowTo(ctx, p.Path, rep.Session)
+		if err != nil {
+			opened = "WARNING: the window did not open (" + err.Error() + ") — open it with the button in the header"
+		}
+		detail += "; " + opened
+	}
 	return detail, nil
+}
+
+// shownElsewhere stops a console from leaving while a terminal outside the
+// panel shows it: the switch would end the conversation there, under the eyes
+// of whoever reads it. A console outside tmux runs in a terminal of its own; in
+// tmux, a window on the host or an ssh attached to it counts, and the terminal
+// of the panel does not.
+func shownElsewhere(ctx context.Context, s liveSession) error {
+	pane, err := tmuxPaneFor(ctx, s.PID)
+	if err != nil {
+		return fmt.Errorf("session %s does not live in tmux, so it runs in a terminal of its own and a switch "+
+			"would end it there — close it in that terminal and resume the conversation in the feed: %w", s.Name, err)
+	}
+	clients, err := foreignClients(ctx, tmuxSessionOf(pane.Target))
+	if err != nil {
+		return fmt.Errorf("whether a window shows session %s is unknown: %w", s.Name, err)
+	}
+	if len(clients) > 0 {
+		return fmt.Errorf("a window on the host shows session %s and holds it in the console: close the window first",
+			s.Name)
+	}
+	return nil
 }
 
 // closeGently ends a session the way it ends best. A session on the stream is

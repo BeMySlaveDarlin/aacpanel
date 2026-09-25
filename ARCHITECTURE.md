@@ -323,9 +323,9 @@ not, and what lives only inside it goes with it — a turn in progress, an open
 question or permission, messages in the queue, background tasks, Monitor,
 wakeups, agents. So a switch happens only between turns and never under an
 open request: the executor refuses rather than cut anything off. Background
-work is the one loss a person may accept: the conversation header names it
-before the press, and on the stream, where the holder knows the tasks exactly,
-the executor refuses a switch nobody agreed to.
+work is the one loss a person may accept: the sheet names it before the press,
+and on the stream, where the holder knows the tasks exactly, the executor
+refuses a switch nobody agreed to.
 
 The new process is started with the project's launch parameters and what the
 session changed since its start. On the stream that is the model and the
@@ -340,6 +340,19 @@ message of the project is dropped — a resumed conversation would read it as a
 new request. A stream session can always go to the console; a console goes to
 the feed only when its project lives there, because which projects live in the
 feed is decided in the map, not by a button in one conversation.
+
+**The switch is the pair of views, and a window holds a console.** Where the
+project lives in the feed, the terminal and the feed of the conversation
+header are the two sides: the feed is the session on the stream, the terminal
+is the console, and pressing the other one moves the session there. A session
+on the stream has nothing a window on the host could show, so the window
+button moves it to the console and opens the window in one action. While a
+terminal outside the panel shows a console — a window on the host, an ssh
+attached to its tmux, or a terminal of its own when it runs outside tmux — the
+executor refuses to move it to the feed: the conversation would end under the
+eyes of whoever reads it there. The pair then only picks what to watch the
+console with. A project that lives in the console keeps the pair as a choice
+of the device.
 
 ---
 

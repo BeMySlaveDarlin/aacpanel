@@ -30,7 +30,12 @@ func (e *Executor) windowOpen(ctx context.Context, target string) (string, error
 		return "", err
 	}
 
-	name := tmuxSessionOf(pane.Target)
+	return e.openWindowTo(ctx, dir, tmuxSessionOf(pane.Target))
+}
+
+// openWindowTo opens a terminal window on the host attached to a tmux session
+// and waits for it to attach.
+func (e *Executor) openWindowTo(ctx context.Context, dir, name string) (string, error) {
 	rep, err := e.runWindowOpener(ctx, dir, name)
 	if err != nil {
 		return "", err

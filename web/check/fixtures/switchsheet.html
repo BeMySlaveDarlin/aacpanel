@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="module">
-// A session on the stream with a background task running: the header offers
-// to move it to the console, the sheet names what stops, and the press sends
+// A session on the stream with a background task running: the terminal of the
+// pair of views offers to move it to the console, the sheet names what stops, and the press sends
 // where to go together with the agreement.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -46,7 +46,7 @@ function Page() {
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const button = () => document.querySelector('.winbtn[aria-label="Move to the console"]');
+const button = () => document.querySelector('.viewbtn[aria-label="Move to the console"]');
 
 window.done = (async () => {
     await document.fonts.ready;

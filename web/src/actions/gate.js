@@ -165,7 +165,7 @@ export function GateHost({ children }) {
                             class="btn ${danger ? "danger" : "primary"}"
                             type="button"
                             onClick=${confirm}
-                        >${screen.ok}</button>
+                        >${typeof screen.ok === "function" ? screen.ok(pending.params) : screen.ok}</button>
                     </div>
                     ${action.escalate && pending.step === 1 && html`
                         <button class="item danger" type="button" onClick=${escalate}>

@@ -180,6 +180,7 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 	if req.Kind == action.SessionSwitch {
 		to, _ := body.Params["to"].(string)
 		force, _ := body.Params["force"].(bool)
+		window, _ := body.Params["window"].(bool)
 		plan, err := s.switchPlan(r.Context(), body.Target)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -189,10 +190,13 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("session %s cannot move to %q: %s", body.Target, to, plan.why()), http.StatusBadRequest)
 			return
 		}
-		req.Switch, req.Project = &action.Switch{To: to, Force: force}, plan.Project
+		req.Switch, req.Project = &action.Switch{To: to, Force: force, Window: window}, plan.Project
 		params = map[string]any{"to": to, "project": plan.ProjectID, "path": plan.Project.Path}
 		if force {
 			params["force"] = true
+		}
+		if window {
+			params["window"] = true
 		}
 	}
 

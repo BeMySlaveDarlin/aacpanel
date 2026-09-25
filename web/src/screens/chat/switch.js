@@ -1,13 +1,12 @@
-// The switch between the console and the feed: the same conversation, closed
-// on one side and resumed on the other.
+// The two sides a live session lives on — the console and the feed — and the
+// move between them: the same conversation, closed on one side and resumed on
+// the other.
 
 import { useEffect, useState } from "preact/hooks";
 
-import { html } from "../../html.js";
-import { Icon } from "../../ui/icons.js";
-import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { plural } from "../../format.js";
+import { hostLabel } from "../../actions/registry.js";
 import { liveWork } from "./work.js";
 
 const asking = { to: "", reason: "asking the panel where this session can move" };
@@ -25,23 +24,31 @@ export function stops(work) {
 
 // blocked says why the session cannot move right now, or nothing: a switch
 // happens between turns, and never under an open question.
-function blocked(live) {
+export function blocked(live) {
     if (!live) return "the session is not live";
     if (live.status === "busy") return "the session is answering — switch once it finishes";
     if (live.status === "waiting") return "the session is waiting for an answer — answer it first";
     return "";
 }
 
-// SwitchToggle renders the button that moves the session to the other side. It
-// is there only when that side is open to this session: a stream session can
-// always go to the console, a console goes to the feed only when its project
-// lives there.
-export function SwitchToggle({ name, live, work, exec }) {
-    const run = useAction();
+// moveSession asks the executor to move a live session to the other side, with
+// what stops on the way named for the sheet. A window asked for comes up over
+// the console the session moves to.
+export function moveSession({ run, exec, name, to, work, withWindow = false }) {
+    if (!knows(exec, "session.switch")) return;
+    const lost = stops(work);
+    run("session.switch", name, { to, ...(withWindow ? { window: true } : {}), force: Boolean(lost), stops: lost });
+}
+
+// useSwitchWay asks the panel which way a live session can move: a session on
+// the stream can always go to the console, a console goes to the feed only
+// when its project lives there. It asks again when the session changes sides.
+export function useSwitchWay(name, transport) {
     const [answer, setAnswer] = useState({ for: null, ...asking });
-    const transport = (live && live.transport) || "";
+    const key = `${name}|${transport}`;
 
     useEffect(() => {
+        if (!name) return undefined;
         let alive = true;
         fetch(`/api/session/switch?name=${encodeURIComponent(name)}`, { credentials: "same-origin" })
             .then(async (r) => {
@@ -49,35 +56,36 @@ export function SwitchToggle({ name, live, work, exec }) {
                 return r.json();
             })
             .then((body) => {
-                if (alive) setAnswer({ for: name, to: body.to || "", reason: body.reason || "" });
+                if (alive) setAnswer({ for: key, to: body.to || "", reason: body.reason || "" });
             })
             .catch((err) => {
-                if (alive) setAnswer({ for: name, to: "", reason: String(err.message || err) });
+                if (alive) setAnswer({ for: key, to: "", reason: String(err.message || err) });
             });
         return () => {
             alive = false;
         };
-    }, [name, transport]);
+    }, [key]);
 
-    const way = answer.for === name ? answer : asking;
-    if (!way.to) return null;
+    return answer.for === key ? answer : asking;
+}
 
-    const toConsole = way.to === "console";
-    const why = blocked(live) || whyNot(exec, "session.switch");
-    const off = Boolean(why) || !knows(exec, "session.switch");
-    const say = toConsole ? "Move to the console" : "Move to the feed";
-
-    const press = () => {
-        const lost = stops(work);
-        run("session.switch", name, { to: way.to, force: Boolean(lost), stops: lost });
-    };
-
-    return html`
-        <button class=${`winbtn${off ? " off" : ""}`} type="button"
-                data-tip=${off ? undefined : say} data-tipside="left"
-                title=${off ? why : undefined}
-                aria-label=${off ? why : say}
-                disabled=${off}
-                onClick=${press}><${Icon.swap} /></button>
-    `;
+// sidesOf lays the pair of views over the sides of a live session. On the
+// stream the feed is all there is, and the terminal moves the session to the
+// console. A console whose project lives in the feed shows its terminal, and
+// the feed moves it there — unless a window on the host holds it: then the
+// pair only picks what to watch the console with. Anywhere else the pair is
+// the choice of the device, as it always was.
+export function sidesOf({ live, way, held, picked, canTerm, exec }) {
+    const why = () => blocked(live) || whyNot(exec, "session.switch");
+    if (live.transport === "stream") {
+        if (way.to !== "console") return { view: "feed", pair: false, moves: "", tip: "", why: "" };
+        return { view: "feed", pair: true, moves: "console", tip: "Move to the console", why: why() };
+    }
+    if (way.to === "stream" && canTerm && !held) {
+        return { view: "term", pair: true, moves: "stream", tip: "Move to the feed", why: why() };
+    }
+    const tip = way.to === "stream" && held
+        ? `Watch the console as a feed — the window on ${hostLabel()} holds the session there`
+        : "";
+    return { view: picked, pair: canTerm, moves: "", tip, why: "" };
 }
