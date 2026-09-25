@@ -145,3 +145,6 @@ const AskModels = "models"
 
 // AskMcp asks a session on the stream about its MCP servers.
 const AskMcp = "mcp"
+
+// AskStatus asks a session about itself: its version and its account.
+const AskStatus = "status"

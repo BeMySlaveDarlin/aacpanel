@@ -49,6 +49,11 @@ type McpAsker interface {
 	Mcp(ctx context.Context, target string) (*Mcp, error)
 }
 
+// StatusAsker is an executor that knows what a session says about itself.
+type StatusAsker interface {
+	Status(ctx context.Context, target string) (*Status, error)
+}
+
 // Capable is an executor that does not do everything listed in Kinds.
 type Capable interface {
 	Kinds() []Kind
@@ -222,6 +227,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 			return Failed(req.ID, err, 0)
 		}
 		return Response{ID: req.ID, OK: true, Mcp: mcp}
+	}
+
+	if req.Ask == AskStatus {
+		asker, ok := s.exec.(StatusAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not know what a session says about itself"), 0)
+		}
+		status, err := asker.Status(ctx, req.Target)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Status: status}
 	}
 
 	s.mu.Lock()

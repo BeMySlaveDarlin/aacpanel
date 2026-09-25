@@ -22,6 +22,8 @@ type Response struct {
 	Models *Models `json:"models,omitempty"`
 
 	Mcp *Mcp `json:"mcp,omitempty"`
+
+	Status *Status `json:"status,omitempty"`
 }
 
 // Failed builds a refusal response.

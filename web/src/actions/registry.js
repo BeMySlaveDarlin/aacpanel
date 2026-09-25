@@ -50,11 +50,12 @@ export const COMMANDS = {
 };
 
 // SCREENS lists the slash commands the panel answers with a screen of its own
-// rather than sending them: the session on the stream is asked for the data.
-// In a console each is a screen driven by keys, and the composer does not
-// type into it.
+// rather than sending them: the session is asked for the data. In a console
+// each is a screen driven by keys, and the composer does not type into it —
+// unless the panel has the data without it, as it has what /status shows.
 export const SCREENS = {
     mcp: { name: "MCP servers" },
+    status: { name: "Session info", console: true },
 };
 
 // REFUSED lists the slash commands the panel does not send in any form, not
@@ -108,7 +109,10 @@ export function parseCommand(text, stream = false) {
     const space = line.search(/\s/);
     const name = space < 0 ? line.slice(1) : line.slice(1, space);
     if (REFUSED[name.toLowerCase()]) return { command: name, arg: "", ready: false, refused: true };
-    if (SCREENS[name]) return { command: name, arg: "", ready: false, screen: stream, keys: !stream };
+    if (SCREENS[name]) {
+        const here = stream || Boolean(SCREENS[name].console);
+        return { command: name, arg: "", ready: false, screen: here, keys: !here };
+    }
     const spec = COMMANDS[name];
     if (!spec) return null;
     if (stream && spec.console) return { command: name, arg: "", ready: false, console: true };
@@ -127,7 +131,7 @@ export function commandHints(text, stream = false) {
     if (REFUSED[name.toLowerCase()]) {
         return [{ value: line, label: `/${name}`, hint: REFUSED[name.toLowerCase()] }];
     }
-    if (SCREENS[name] && !stream) {
+    if (SCREENS[name] && !stream && !SCREENS[name].console) {
         return [{ value: line, label: `/${name}`, hint: "in the feed only: in a console it is a screen driven by keys" }];
     }
     if (stream && COMMANDS[name] && COMMANDS[name].console) {
@@ -142,10 +146,9 @@ export function commandHints(text, stream = false) {
     }
     if (spec) return [];
     const typed = name.toLowerCase();
-    const screens = stream
-        ? Object.keys(SCREENS).filter((id) => id.startsWith(typed))
-            .map((id) => ({ value: `/${id}`, label: `/${id}`, hint: SCREENS[id].name }))
-        : [];
+    const screens = Object.keys(SCREENS)
+        .filter((id) => id.startsWith(typed) && (stream || SCREENS[id].console))
+        .map((id) => ({ value: `/${id}`, label: `/${id}`, hint: SCREENS[id].name }));
     return Object.keys(COMMANDS)
         .filter((id) => id.startsWith(typed) && !(stream && COMMANDS[id].console))
         .map((id) => ({

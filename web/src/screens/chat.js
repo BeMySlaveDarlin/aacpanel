@@ -18,6 +18,7 @@ import { Icon } from "../ui/icons.js";
 import { Row } from "./chat/rows.js";
 import { CommandSheet } from "./chat/command.js";
 import { McpSheet } from "./chat/mcp.js";
+import { StatusSheet } from "./chat/status.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
@@ -439,6 +440,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 ? html`<${CommandSheet} item=${look.item} />`
                 : look.kind === "mcp"
                 ? html`<${McpSheet} name=${name} exec=${exec} />`
+                : look.kind === "status"
+                ? (live ? html`<${StatusSheet} name=${name} live=${live} />`
+                    : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)
                 : WORK_LISTS.has(look.kind)
                 ? html`<${WorkList} session=${name} id=${id} kind=${look.kind} work=${state.work}
                                     exec=${exec} onAgent=${openAgent}

@@ -27,6 +27,7 @@ export const LOOK_NAMES = {
     brief: "brief",
     command: "command output",
     mcp: "MCP servers",
+    status: "session info",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);

@@ -86,6 +86,7 @@ func TestAuditedPassesOnEveryQuestion(t *testing.T) {
 		"WindowAsker": func() bool { _, ok := a.(action.WindowAsker); return ok }(),
 		"ModelsAsker": func() bool { _, ok := a.(action.ModelsAsker); return ok }(),
 		"McpAsker":    func() bool { _, ok := a.(action.McpAsker); return ok }(),
+		"StatusAsker": func() bool { _, ok := a.(action.StatusAsker); return ok }(),
 		"Capable":     func() bool { _, ok := a.(action.Capable); return ok }(),
 	} {
 		if !ok {
@@ -106,12 +107,23 @@ func TestAuditedPassesOnEveryQuestion(t *testing.T) {
 	if _, err := any(audited{next: muteExec{}}).(action.McpAsker).Mcp(t.Context(), "aacpanel"); err == nil {
 		t.Error("an executor that does not know MCP said nothing instead of refusing")
 	}
+	status, err := a.(action.StatusAsker).Status(t.Context(), "aacpanel")
+	if err != nil || status == nil || status.Version != "2.1.282" {
+		t.Errorf("the question about the session came back as %+v, %v", status, err)
+	}
+	if _, err := any(audited{next: muteExec{}}).(action.StatusAsker).Status(t.Context(), "aacpanel"); err == nil {
+		t.Error("an executor that does not know the session said nothing instead of refusing")
+	}
 }
 
 type modelsExec struct{ muteExec }
 
 func (modelsExec) Models(context.Context, string) (*action.Models, error) {
 	return &action.Models{Transport: "stream"}, nil
+}
+
+func (modelsExec) Status(context.Context, string) (*action.Status, error) {
+	return &action.Status{Transport: "stream", Version: "2.1.282"}, nil
 }
 
 func (modelsExec) Mcp(context.Context, string) (*action.Mcp, error) {

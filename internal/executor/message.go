@@ -25,6 +25,7 @@ type liveSession struct {
 	CWD       string
 	SessionID string
 	Started   time.Time
+	Version   string
 }
 
 func (e *Executor) sessionSend(ctx context.Context, target, text, messageID string) (string, error) {
@@ -272,6 +273,7 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 		Kind      string `json:"kind"`
 		ProcStart string `json:"procStart"`
 		StartedAt int64  `json:"startedAt"`
+		Version   string `json:"version"`
 	}
 	if err := json.Unmarshal(raw, &file); err != nil {
 		return liveSession{}, false
@@ -289,6 +291,6 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 	return liveSession{
 		PID: pid, Name: file.Name, Socket: file.Socket,
 		Status: file.Status, CWD: file.CWD, SessionID: file.SessionID,
-		Started: time.UnixMilli(file.StartedAt),
+		Started: time.UnixMilli(file.StartedAt), Version: file.Version,
 	}, true
 }

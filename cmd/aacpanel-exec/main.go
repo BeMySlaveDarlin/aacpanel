@@ -299,6 +299,15 @@ func (a audited) Mcp(ctx context.Context, target string) (*action.Mcp, error) {
 	return asker.Mcp(ctx, target)
 }
 
+// Status asks the wrapped executor what a session says about itself.
+func (a audited) Status(ctx context.Context, target string) (*action.Status, error) {
+	asker, ok := a.next.(action.StatusAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know what a session says about itself")
+	}
+	return asker.Status(ctx, target)
+}
+
 func (a audited) Execute(ctx context.Context, req action.Request) (string, error) {
 	log.Printf("audit phase=start action=%s target=%s device=%q request=%s",
 		req.Kind, req.Target, req.Device, req.ID)

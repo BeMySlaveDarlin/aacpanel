@@ -390,6 +390,30 @@ func (s *Server) apiSessionMcp(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"state": "ok", "transport": mcp.Transport, "servers": servers})
 }
 
+// apiSessionStatus says what a live session says about itself.
+func (s *Server) apiSessionStatus(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "it is not said which session to ask", http.StatusBadRequest)
+		return
+	}
+	if s.exec == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
+		return
+	}
+	status, err := s.exec.Status(r.Context(), name)
+	if err != nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
+		return
+	}
+	if status == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor did not answer the question about the session"})
+		return
+	}
+	writeJSON(w, map[string]any{"state": "ok", "transport": status.Transport, "version": status.Version,
+		"account": status.Account})
+}
+
 // apiSessionSwitch says which way a live session can move between the console
 // and the feed, so the conversation header offers only the way that works.
 func (s *Server) apiSessionSwitch(w http.ResponseWriter, r *http.Request) {

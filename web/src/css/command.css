@@ -246,3 +246,4 @@
 .mcpwhere { font-family: var(--mono); font-size: var(--t-xs); }
 .mcpacts { display: flex; flex-wrap: wrap; gap: .5rem; }
 .mcpacts .btn { flex: 1 1 8rem; }
+.statcopy { flex: none; width: 1.5rem; height: 1.5rem; padding: .25rem; align-self: center; }

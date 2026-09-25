@@ -125,6 +125,18 @@ func (c *Client) Mcp(ctx context.Context, target string) (*Mcp, error) {
 	return resp.Mcp, nil
 }
 
+// Status asks a session about itself.
+func (c *Client) Status(ctx context.Context, target string) (*Status, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskStatus, Target: target})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Status, nil
+}
+
 // Do sends a request and waits for the answer.
 func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 	if err := req.Validate(); err != nil {

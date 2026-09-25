@@ -1,6 +1,7 @@
 package check
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -122,8 +123,10 @@ func TestChatClosesOnBack(t *testing.T) {
 
 func TestChatAsksByNameNotUUID(t *testing.T) {
 	chat := screenSrc(t, "src/screens/chat.js")
-	if strings.Contains(chat, "sessionId") {
-		t.Error("the chat screen works with sessionId: the phone has to send the name, the id is the service's business")
+	// The card of /status shows the id and copies it; what must not happen is
+	// a request that names the session by it.
+	if asks := regexp.MustCompile("/api/[^`\"\n]*sessionId").FindString(chat); asks != "" {
+		t.Errorf("the chat screen asks by sessionId (%s): the phone has to send the name, the id is the service's business", asks)
 	}
 	if !strings.Contains(chat, "session=${encodeURIComponent(name)}") {
 		t.Error("the session name goes into the request unescaped")

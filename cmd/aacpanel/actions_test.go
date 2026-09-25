@@ -986,3 +986,31 @@ func TestRunActionCarriesTheMcpChangeToExecutor(t *testing.T) {
 		t.Errorf("an action outside the three passed with %d", w.Code)
 	}
 }
+
+// What a session says about itself is the executor's answer passed on.
+func TestSessionStatusPassesTheAnswerOn(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Status: &action.Status{Transport: "stream",
+		Version: "2.1.282", Account: &action.Account{Email: "a@b.c", Plan: "max"}}})
+	srv := &Server{exec: client, hostName: "STAND-01"}
+	w := httptest.NewRecorder()
+	srv.apiSessionStatus(w, httptest.NewRequest(http.MethodGet, "/api/session/status?name=aacpanel", nil))
+	var body struct {
+		State   string          `json:"state"`
+		Version string          `json:"version"`
+		Account *action.Account `json:"account"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("the response is not json: %s", w.Body.String())
+	}
+	if body.State != "ok" || body.Version != "2.1.282" || body.Account == nil || body.Account.Plan != "max" {
+		t.Errorf("the answer is %s", w.Body.String())
+	}
+	if got := <-fake.got; got.Ask != action.AskStatus || got.Target != "aacpanel" {
+		t.Errorf("the executor was asked %+v", got)
+	}
+	w = httptest.NewRecorder()
+	srv.apiSessionStatus(w, httptest.NewRequest(http.MethodGet, "/api/session/status", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("a request without a session name gave %d, expected 400", w.Code)
+	}
+}

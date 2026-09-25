@@ -140,6 +140,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/session/switch", g.page(s.apiSessionSwitch))
 	mux.Handle("GET /api/session/models", g.page(s.apiSessionModels))
 	mux.Handle("GET /api/session/mcp", g.page(s.apiSessionMcp))
+	mux.Handle("GET /api/session/status", g.page(s.apiSessionStatus))
 	mux.Handle("GET /api/faults", g.page(s.apiFaults))
 
 	mux.HandleFunc("POST /auth/passkey/login/begin", s.passkey.BeginLogin)

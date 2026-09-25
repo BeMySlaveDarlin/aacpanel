@@ -568,7 +568,11 @@ Authentication is left to the host: its browser comes back to the host, and a
 phone is not that browser. Only what the screen shows leaves the host: the
 headers, the arguments and the environment of a server, and the query of its
 address, can carry keys. In a console `/mcp` is a screen driven by keys, and
-the composer does not send it.
+the composer does not send it. `/status` is a screen of the panel too, in both
+kinds of session: most of it the snapshot of the host already holds, the
+version comes from the file of the session, and the account from claude's
+answer to the handshake — which a console does not have, so its card goes
+without one.
 
 **There is nowhere else to get the subscription limits from.** The 5h/7d
 percentages do not lie on disk and are not handed out by any API — the only one
