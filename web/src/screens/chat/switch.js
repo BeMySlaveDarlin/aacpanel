@@ -23,11 +23,16 @@ export function stops(work) {
 }
 
 // blocked says why the session cannot move right now, or nothing: a switch
-// happens between turns, and never under an open question.
+// happens between turns, never under an open question, and never before the
+// session has taken what was sent to it.
 export function blocked(live) {
     if (!live) return "the session is not live";
     if (live.status === "busy") return "the session is answering — switch once it finishes";
     if (live.status === "waiting") return "the session is waiting for an answer — answer it first";
+    if (live.queued > 0) {
+        return `the session has not taken ${live.queued} ${plural(live.queued, "message", "messages")} yet — `
+            + "switch once it does";
+    }
     return "";
 }
 

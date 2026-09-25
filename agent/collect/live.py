@@ -224,6 +224,12 @@ def sessions():
             # transcript learns of it only once it is over.
             if isinstance(hold.get("compacting"), str) and hold["compacting"]:
                 s["compacting"] = hold["compacting"]
+            # Messages the session has not taken yet are lost with a move to
+            # the console, so the switch waits for them: the screen says so
+            # before a press rather than after it.
+            queued = hold.get("queue")
+            if isinstance(queued, int) and not isinstance(queued, bool) and queued > 0:
+                s["queued"] = queued
         if transcript:
             seen_transcripts.add(transcript)
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))

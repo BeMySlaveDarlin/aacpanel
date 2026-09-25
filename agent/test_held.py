@@ -168,6 +168,16 @@ class OnTheCard(Runtime):
             self.hold(SID, 1, compacting=value)
             self.assertNotIn("compacting", self.card(), f"a compaction of {value!r} reached the card")
 
+    def test_messages_the_session_has_not_taken_are_on_the_card(self):
+        self.hold(SID, 1, queue=2)
+        self.assertEqual(self.card()["queued"], 2,
+                         "claude said busy or idle; only the holder knows what it has not taken yet")
+
+    def test_an_empty_queue_leaves_the_card_without_one(self):
+        for value in (0, None, True, "1"):
+            self.hold(SID, 1, queue=value)
+            self.assertNotIn("queued", self.card(), f"a queue of {value!r} reached the card")
+
     def test_a_question_is_input_needed(self):
         self.hold(SID, 1, waiting=["AskUserQuestion"])
         self.assertEqual(self.card()["waitingFor"], "input needed")

@@ -21,7 +21,8 @@ type pairSheet struct {
 // the feed is the session on the stream, the terminal is the console, and the
 // other one moves the session there. The window on the host takes a session
 // in the feed to the console and holds it: while it is open the pair only
-// picks what to watch the console with. A turn in progress holds the move.
+// picks what to watch the console with. A turn in progress holds the move, and
+// so does a message the session has not taken yet.
 func TestThePairOfViewsMovesTheSessionBetweenSides(t *testing.T) {
 	var got struct {
 		StreamOn      string     `json:"streamOn"`
@@ -38,6 +39,10 @@ func TestThePairOfViewsMovesTheSessionBetweenSides(t *testing.T) {
 		HeldFeed      bool       `json:"heldFeed"`
 		BusyOff       bool       `json:"busyOff"`
 		BusyWhy       string     `json:"busyWhy"`
+		QueuedOff     bool       `json:"queuedOff"`
+		QueuedWhy     string     `json:"queuedWhy"`
+		QueuedWinOff  bool       `json:"queuedWindowOff"`
+		QueuedWinWhy  string     `json:"queuedWindowWhy"`
 	}
 	runFixture(t, "transportpair.html", &got)
 
@@ -77,5 +82,11 @@ func TestThePairOfViewsMovesTheSessionBetweenSides(t *testing.T) {
 	}
 	if !got.BusyOff || !strings.Contains(got.BusyWhy, "answering") {
 		t.Errorf("during a turn the feed is off %v, saying %q", got.BusyOff, got.BusyWhy)
+	}
+	if !got.QueuedOff || !strings.Contains(got.QueuedWhy, "has not taken 1 message yet") {
+		t.Errorf("with a message not taken yet the terminal is off %v, saying %q", got.QueuedOff, got.QueuedWhy)
+	}
+	if !got.QueuedWinOff || !strings.Contains(got.QueuedWinWhy, "has not taken 1 message yet") {
+		t.Errorf("with a message not taken yet the window is off %v, saying %q", got.QueuedWinOff, got.QueuedWinWhy)
 	}
 }

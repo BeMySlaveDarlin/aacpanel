@@ -18,8 +18,8 @@ import { ToastHost } from "/src/ui/toasts.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
-const windows = { evirma: "unknown", "evirma-c": "none", "evirma-w": "open", "evirma-b": "none" };
-const ways = { evirma: "console", "evirma-c": "stream", "evirma-w": "stream", "evirma-b": "stream" };
+const windows = { evirma: "unknown", "evirma-c": "none", "evirma-w": "open", "evirma-b": "none", "evirma-q": "unknown" };
+const ways = { evirma: "console", "evirma-c": "stream", "evirma-w": "stream", "evirma-b": "stream", "evirma-q": "console" };
 const who = (u) => new URL(u, location.href).searchParams.get("name");
 window.fetch = async (url, init) => {
     const u = String(url);
@@ -112,6 +112,16 @@ window.done = (async () => {
     await settle();
     out.busyOff = pair()[1].disabled;
     out.busyWhy = pair()[1].getAttribute("title") || "";
+
+    // A message the session on the stream has not taken yet: claude is idle,
+    // the holder still has it, and both ways to the console wait for it.
+    show("evirma-q", { ...base, transport: "stream", queued: 1 });
+    await settle();
+    out.queuedOff = pair()[0].disabled;
+    out.queuedWhy = pair()[0].getAttribute("title") || "";
+    const qwin = document.querySelector(".winbtn");
+    out.queuedWindowOff = Boolean(qwin && qwin.disabled);
+    out.queuedWindowWhy = qwin ? qwin.getAttribute("title") || "" : "";
     return out;
 })();
 </script>
