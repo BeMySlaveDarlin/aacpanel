@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root" class="page"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Live cards of the sessions list at the width of a phone: two sessions on the
+// stream — one with a long name, one with no requests yet — and one in a
+// console, which carries no mark.
+import { h, render } from "preact";
+import { LiveRow } from "/src/screens/sessions/card.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const base = {
+    tokens: 184000, limit: 1000000, pct: 18.4, limitKnown: true, messages: 42, compacts: 1,
+    model: "claude-opus-5-5", effort: "xhigh", status: "idle",
+    startedAt: new Date(Date.now() - 3 * 3600e3).toISOString(),
+    lastRequestAt: new Date(Date.now() - 120e3).toISOString(),
+};
+const rows = [
+    { ...base, session: "evirma-fingerprint-rotation-second", sessionId: "a", transport: "stream" },
+    { ...base, session: "aacpanel", sessionId: "b" },
+    { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },
+];
+const exec = { available: true, kinds: ["session.close"] };
+const where = { profile: "personal", group: "Services" };
+
+render(
+    h(ToastHost, null, h(GateHost, null, rows.map((s) =>
+        h(LiveRow, { key: s.session, session: s, where, exec, onOpen: () => {} })))),
+    document.getElementById("root"));
+
+window.done = (async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const cards = Array.from(document.querySelectorAll(".srow"));
+    return cards.map((card) => {
+        const r1 = card.querySelector(".r1").getBoundingClientRect();
+        const name = card.querySelector(".nm").getBoundingClientRect();
+        const mark = card.querySelector(".smark");
+        const box = mark ? mark.getBoundingClientRect() : null;
+        const pct = card.querySelector(".pct").getBoundingClientRect();
+        return {
+            name: card.querySelector(".nm").textContent.trim(),
+            mark: mark ? mark.textContent : "",
+            shown: Boolean(box && box.width > 0 && box.height > 0),
+            gap: box ? Math.round(box.left - name.right) : -1,
+            pctInside: pct.right <= r1.right + 0.5,
+            pctRight: Math.round(r1.right - pct.right),
+            overflow: document.scrollingElement.scrollWidth - window.innerWidth,
+        };
+    });
+})();
+</script>

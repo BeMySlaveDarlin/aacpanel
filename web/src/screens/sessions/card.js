@@ -106,7 +106,7 @@ export function Ghost({ task }) {
     `;
 }
 
-function SessionCard({ name, group, contour, state, live, pct, pctNote, peak, blank, dim, lines, action, waiting, onOpen }) {
+function SessionCard({ name, group, contour, mark, state, live, pct, pctNote, peak, blank, dim, lines, action, waiting, onOpen }) {
     const body = html`
         <div class="sbody">
             <div class="r1">
@@ -115,6 +115,7 @@ function SessionCard({ name, group, contour, state, live, pct, pctNote, peak, bl
                     ${group && html`<span class="nmgroup">${group} · </span>`}${name}
                 </span>
                 ${contour && html`<span class="cmark">${contour}</span>`}
+                ${mark && html`<span class="smark">${mark}</span>`}
                 ${blank
                     ? html`<span class="pct blank">${blank}</span>`
                     : html`<span class="pct">
@@ -243,6 +244,7 @@ export function LiveRow({ session, where, notes, exec, wait, onOpen }) {
             name=${session.session}
             group=${where && where.group}
             contour=${contour === PERSONAL ? "" : contour}
+            mark=${session.transport === "stream" ? "stream" : ""}
             state=${dot}
             live
             pct=${session.pct}
