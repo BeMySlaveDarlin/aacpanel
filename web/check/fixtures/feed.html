@@ -118,6 +118,13 @@ window.done = (async () => {
         quote.offCentre = round(Math.abs((at.left + at.width / 2) - (box.left + box.width / 2)));
         quote.inWindow = at.left >= 0 && at.top >= 0 && at.right <= window.innerWidth && at.bottom <= window.innerHeight;
         quote.overComposer = at.bottom > document.querySelector(".composer").getBoundingClientRect().top;
+        // Where the system puts its bar and its handles on a touch screen: the
+        // bar over the selection, the handles under it — some 24 px of them.
+        const foot = document.querySelector(".chatfeed").getBoundingClientRect();
+        quote.footGap = round(foot.bottom - at.bottom);
+        quote.offFeedCentre = round(Math.abs((at.left + at.width / 2) - (foot.left + foot.width / 2)));
+        quote.clearOfSelection = at.top >= box.bottom + 28 || at.bottom <= box.top - 60;
+        quote.where = { tipTop: round(at.top), tipBottom: round(at.bottom), selTop: round(box.top), selBottom: round(box.bottom), foot: round(foot.bottom) };
         tip.click();
         await sleep(200);
     }

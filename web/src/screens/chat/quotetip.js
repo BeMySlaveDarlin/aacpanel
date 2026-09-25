@@ -1,9 +1,9 @@
-// The quote button, beside the selection it quotes.
+// The quote button, beside the selection it quotes — or, on a touch screen, at
+// the foot of the feed.
 //
-// It stands where the eye already is and takes no room until there is something
-// to quote: a strip above the composer was held on screen for something that
-// happens rarely, and on the phone it moved the feed under the thumb at the
-// moment of the tap.
+// It takes no room until there is something to quote: a strip above the
+// composer was held on screen for something that happens rarely, and on the
+// phone it moved the feed under the thumb at the moment of the tap.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
@@ -28,6 +28,23 @@ export function placeQuoteTip(at, size, vw, vh) {
     x = Math.min(Math.max(x, MARGIN), Math.max(MARGIN, vw - MARGIN - size.width));
     y = Math.min(Math.max(y, MARGIN), Math.max(MARGIN, vh - MARGIN - size.height));
     return { x: Math.round(x), y: Math.round(y) };
+}
+
+// dockQuoteTip returns where the button waits on a touch screen: in the middle
+// of the foot of the feed. The system puts its own bar there — copy, select
+// all, share — right over the selection, by the very rule the button follows
+// with a mouse, and hangs the handles under it; a button beside the selection
+// landed under that bar. The foot of the feed is clear of both, and of the
+// jump to the end, which keeps to the right.
+export function dockQuoteTip(foot, size, vw, vh) {
+    const x = Math.min(Math.max(vw / 2 - size.width / 2, MARGIN), Math.max(MARGIN, vw - MARGIN - size.width));
+    const y = Math.min(Math.max(foot - GAP - size.height, MARGIN), Math.max(MARGIN, vh - MARGIN - size.height));
+    return { x: Math.round(x), y: Math.round(y) };
+}
+
+function touchScreen() {
+    return typeof window !== "undefined" && typeof window.matchMedia === "function"
+        && window.matchMedia("(pointer: coarse)").matches;
 }
 
 function inside(node) {
@@ -86,6 +103,12 @@ export function QuoteTip({ quote, onQuote }) {
             return;
         }
         const size = node.current.getBoundingClientRect();
+        if (touchScreen()) {
+            const feed = document.querySelector(".chatfeed");
+            const foot = feed ? feed.getBoundingClientRect().bottom : window.innerHeight;
+            setSpot(dockQuoteTip(foot, size, window.innerWidth, window.innerHeight));
+            return;
+        }
         setSpot(placeQuoteTip(quote.at, size, window.innerWidth, window.innerHeight));
     }, [quote]);
 
