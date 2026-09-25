@@ -45,7 +45,14 @@ func TestReplyKeepsEveryFieldAgentSends(t *testing.T) {
 			 "asked": [{"text": "Do we deploy?", "header": "Deploy"}]},
 			{"role": "wake", "text": "Keep the loop going", "at": "2026-08-24T10:00:12Z", "pos": 130, "fixes": "me"},
 			{"role": "shell", "text": "make check", "at": "2026-08-24T10:00:13Z", "pos": 140},
-			{"role": "shellout", "text": "ok", "err": "warning: the base is not up", "cut": true, "at": "2026-08-24T10:00:14Z", "pos": 141}
+			{"role": "shellout", "text": "ok", "err": "warning: the base is not up", "cut": true, "at": "2026-08-24T10:00:14Z", "pos": 141},
+			{"role": "command", "name": "context", "at": "2026-08-24T10:00:15Z", "pos": 150,
+			 "data": {"model": "claude-opus-5-5[1m]", "used": 263000, "max": 1000000, "percent": 26,
+			          "categories": [{"name": "Messages", "kind": "used", "tokens": 224600},
+			                         {"name": "MCP tools (deferred)", "kind": "deferred", "tokens": 0, "under": 20}]}},
+			{"role": "permitted", "at": "2026-08-24T10:00:16Z", "pos": 160,
+			 "rows": [{"tool": "Bash", "subject": "git push origin main", "decision": "allow", "lasting": true},
+			          {"tool": "WebFetch", "decision": "deny"}]}
 		],
 		"total": 14, "moreBefore": true, "first": 10, "last": 100, "size": 4096,
 		"text": "the tail of the command output", "cut": true,

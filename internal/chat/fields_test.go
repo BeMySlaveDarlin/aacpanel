@@ -218,3 +218,93 @@ func TestEverySentFieldTheCollectorSendsHasAPlace(t *testing.T) {
 		}
 	}
 }
+
+// A row of the feed is a dict with a role, built by the collector, and the
+// service carries it to the screen through Item. A key Item does not declare is
+// dropped on the way without a word: the card of a slash command reached the
+// screen with no numbers in it, and a card of permissions with no rows. A
+// sample reply written by hand holds the cards someone remembered; this walks
+// every such dict in the collector and demands a place for each of its keys.
+func TestEveryFeedFieldTheCollectorSendsHasAPlace(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("..", "..", "agent", "chat", "*.py"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("the collector source is out of reach: %v", err)
+	}
+	// A single call never leaves the collector: the fold puts it into a group
+	// of calls, and its index lands in ToolCall.
+	folded := map[string]bool{"index": true}
+	// A card is a row everywhere it is named so; an item is also a file of a
+	// row, or a category of a command's answer, and is known by its literal.
+	assigned := regexp.MustCompile(`\bcard\["([a-zA-Z]+)"\]\s*=`)
+
+	known := map[string]bool{}
+	typ := reflect.TypeOf(Item{})
+	for i := 0; i < typ.NumField(); i++ {
+		name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
+		if name != "" && name != "-" {
+			known[name] = true
+		}
+	}
+
+	rows := 0
+	for _, path := range files {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := string(raw)
+		var keys []string
+		for at := 0; ; {
+			i := strings.Index(src[at:], `{"role":`)
+			if i < 0 {
+				break
+			}
+			rows++
+			keys = append(keys, topKeys(src[at+i:])...)
+			at += i + 1
+		}
+		for _, m := range assigned.FindAllStringSubmatch(src, -1) {
+			keys = append(keys, m[1])
+		}
+		for _, key := range keys {
+			if !known[key] && !folded[key] {
+				t.Errorf("%s puts %q into a row of the feed and Item has nowhere to put it: "+
+					"the service drops it on the way to the screen", filepath.Base(path), key)
+			}
+		}
+	}
+	if rows < 20 {
+		t.Fatalf("only %d rows of the feed found in the collector: the test reads the wrong place", rows)
+	}
+}
+
+// topKeys returns the keys of the Python dict literal the text begins with,
+// its own and not those of the dicts inside it.
+func topKeys(src string) []string {
+	var keys []string
+	depth := 0
+	for i := 0; i < len(src); i++ {
+		switch c := src[i]; c {
+		case '{', '[', '(':
+			depth++
+		case '}', ']', ')':
+			depth--
+			if depth == 0 {
+				return keys
+			}
+		case '"', '\'':
+			end := i + 1
+			for end < len(src) && src[end] != c {
+				if src[end] == '\\' {
+					end++
+				}
+				end++
+			}
+			if depth == 1 && strings.HasPrefix(strings.TrimLeft(src[end+1:], " "), ":") {
+				keys = append(keys, src[i+1:end])
+			}
+			i = end
+		}
+	}
+	return keys
+}

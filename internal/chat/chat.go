@@ -43,12 +43,17 @@ type Item struct {
 	Summary string      `json:"summary,omitempty"`
 	Use     string      `json:"use,omitempty"`
 	// A brief card: which document it is and how much of it asks something.
-	BriefID   string    `json:"id,omitempty"`
-	Eyebrow   string    `json:"eyebrow,omitempty"`
-	Questions int       `json:"questions,omitempty"`
-	Asked     []Asked   `json:"asked,omitempty"`
-	Files     []FileRef `json:"files,omitempty"`
-	Pos       int64     `json:"pos"`
+	BriefID   string  `json:"id,omitempty"`
+	Eyebrow   string  `json:"eyebrow,omitempty"`
+	Questions int     `json:"questions,omitempty"`
+	Asked     []Asked `json:"asked,omitempty"`
+	// A card of permissions: each call a person was asked about and the answer.
+	Rows  []Permitted `json:"rows,omitempty"`
+	Files []FileRef   `json:"files,omitempty"`
+	// The answer of a slash command, read into numbers by the collector. The
+	// panel carries it to the screen and never looks inside.
+	Data json.RawMessage `json:"data,omitempty"`
+	Pos  int64           `json:"pos"`
 }
 
 // FileRef is a file attachment named in a reply.
@@ -64,6 +69,15 @@ type Asked struct {
 	Text   string   `json:"text"`
 	Header string   `json:"header,omitempty"`
 	Answer []string `json:"answer,omitempty"`
+}
+
+// Permitted is one call of a card of permissions: what it was about and what
+// the person answered.
+type Permitted struct {
+	Tool     string `json:"tool"`
+	Subject  string `json:"subject,omitempty"`
+	Decision string `json:"decision"`
+	Lasting  bool   `json:"lasting,omitempty"`
 }
 
 // ArchiveRow is one archived session.
