@@ -18,7 +18,6 @@ const (
 	workStopKey  = "x"
 	workDownKey  = "\x1b[B"
 	workUpKey    = "\x1b[A"
-	workOpenWait = 3 * time.Second
 	workStepWait = 120 * time.Millisecond
 	workSteps    = 60
 )

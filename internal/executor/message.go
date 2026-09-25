@@ -12,10 +12,9 @@ import (
 	"time"
 )
 
-const (
-	senderName  = "aacpanel-panel"
-	sendTimeout = 5 * time.Second
-)
+const senderName = "aacpanel-panel"
+
+var sendTimeout = 5 * time.Second
 
 type liveSession struct {
 	PID       int

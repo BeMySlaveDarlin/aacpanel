@@ -59,8 +59,15 @@ render(h(ToastHost, null,
 
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 
+// The shelf is fetched before it is drawn: the page waits for what it reads
+// rather than for a guess at how long that takes, which a busy machine outruns.
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
 (async () => {
-    await new Promise((r) => setTimeout(r, 250));
+    await until(() => document.querySelector(".bcard") && document.querySelector(".bcard-live"));
     const cards = Array.from(document.querySelectorAll(".bcard"));
 
 
@@ -84,11 +91,11 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     const removing = { there: Boolean(x), first: "", gone: 0, before: document.querySelectorAll(".bcard").length };
     if (x) {
         x.click();
-        await new Promise((r) => setTimeout(r, 120));
+        await until(() => document.querySelector(".bcard-x.asking"));
         removing.first = (document.querySelector(".bcard-x.asking") || {}).textContent || "";
         const again = document.querySelector(".bcard-x.asking");
         if (again) again.click();
-        await new Promise((r) => setTimeout(r, 250));
+        await until(() => document.querySelectorAll(".bcard").length < removing.before);
         removing.gone = document.querySelectorAll(".bcard").length;
         removing.titles = Array.from(document.querySelectorAll(".bcard-t")).map((n) => n.textContent.trim());
         removing.stillAsking = document.querySelectorAll(".bcard-x.asking").length;

@@ -13,7 +13,6 @@ const (
 	seenSocketName   = "seen.sock"
 	seenDirEnv       = "AACP_SEEN_DIR"
 	seenDirDefault   = "/run/aacpanel-agent"
-	seenTimeout      = time.Second
 	maxSeenReply     = 4 << 10
 	transcriptLookup = 450 * time.Millisecond
 )

@@ -74,10 +74,11 @@ jobs:
       - name: front
         run: make front
 
+      # A runner has four cores: the frontend fixtures go four at a time.
       - name: tests
         run: |
           set -o pipefail
-          make test GOTEST_FLAGS="-v -count=1" 2>&1 | tee /tmp/go-test.log
+          make test GOTEST_PARALLEL=4 GOTEST_FLAGS="-v -count=1" 2>&1 | tee /tmp/go-test.log
 
       # A green run says nothing until it is known what it skipped. The tests that
       # need a live host skip themselves; the ones that need the database must not.

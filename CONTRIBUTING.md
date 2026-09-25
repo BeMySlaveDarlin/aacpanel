@@ -55,7 +55,9 @@ aacpanel-agent@<user>` is its rollout.
 make check
 ```
 
-That is everything at once:
+That is everything at once — the bundle first, the rest side by side, so the
+run lasts as long as its longest part and a red target does not hide what the
+others found:
 
 | Target | What it checks |
 |---|---|

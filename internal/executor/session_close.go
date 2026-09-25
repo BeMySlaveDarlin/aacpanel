@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const (
+var (
 	softWait  = 15 * time.Second
 	pollEvery = time.Second
 )

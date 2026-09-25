@@ -4,8 +4,13 @@ GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 .PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract delivery-test shellcheck skills-diff skills-local
 
 # check — everything that runs before a commit. front is here as a check, not for
-# the bundle: an error in the screen markup is caught by no test.
-check: fmt vet front shellcheck agent-import test agent-test agent-confined delivery-test vuln
+# the bundle: an error in the screen markup is caught by no test. It goes first,
+# since the frontend tests read the bundle; the rest do not wait on one another
+# and run side by side, so the run lasts as long as its longest part, and a red
+# one does not keep the others from saying what they found.
+check: front
+	@$(MAKE) --no-print-directory -j --output-sync=target \
+		fmt vet shellcheck agent-import test agent-test agent-confined delivery-test vuln
 
 # gofmt -l does not fix anything and says nothing through its exit code, so the
 # output is what gets checked.
@@ -24,7 +29,13 @@ vet:
 # that counts what was skipped, say. The substitution of the home directory is
 # worth more than the convenience of calling go test by hand, so the flags come
 # through here rather than around.
+#
+# GOTEST_PARALLEL is how many frontend fixtures run at once. A fixture spends
+# its time in the pauses of its page, not on the CPU, so it is more than the
+# cores: sixteen keep a machine of eight cores under six. A small CI runner
+# asks for fewer.
 GOTEST_FLAGS ?=
+GOTEST_PARALLEL ?= 16
 test:
 	@test -n "$$AACP_TEST_DSN" || echo "!! AACP_TEST_DSN is not set: the tests with a database will be skipped"
 	@home=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-testhome.XXXXXX"); \
@@ -36,7 +47,7 @@ test:
 	XDG_CACHE_HOME="$$home/.cache" \
 	GOCACHE="$$(go env GOCACHE)" \
 	GOMODCACHE="$$(go env GOMODCACHE)" \
-	go test $(GOTEST_FLAGS) ./...
+	go test -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) ./...
 
 # The agent is deployed from the working tree, so a restart is a release: a name
 # undefined at module level does not break one screen, it keeps the service from

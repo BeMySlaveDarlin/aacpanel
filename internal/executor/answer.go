@@ -22,7 +22,6 @@ const (
 	keyRight        = "\x1b[C"
 	keyTab          = "\t"
 	submitPick      = "1"
-	fieldWait       = 3 * time.Second
 	fieldPoll       = 90 * time.Millisecond
 	dialogMax       = 9
 	dialogMarkRunes = 10

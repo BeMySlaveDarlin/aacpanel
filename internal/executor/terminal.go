@@ -53,14 +53,11 @@ const (
 	// session: at this size and this pace a message of a thousand characters
 	// over thirteen lines arrives as typed, and one write of the same text
 	// arrives folded.
-	typeChunk  = 80
-	typePause  = 50 * time.Millisecond
-	arriveWait = 3 * time.Second
-	sendWait   = 5 * time.Second
-	freeWait   = 2 * time.Second
-	markRunes  = 24
-	tailLines  = 3
-	tailRunes  = 64
+	typeChunk = 80
+	typePause = 50 * time.Millisecond
+	markRunes = 24
+	tailLines = 3
+	tailRunes = 64
 )
 
 var promptMarks = []string{"❯", ">"}

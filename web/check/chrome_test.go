@@ -1,6 +1,7 @@
 package check
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,59 +30,6 @@ func chromeBinary() string {
 	return ""
 }
 
-// The driver speaks the devtools protocol to a headless Chrome over its
-// debugging pipe — no sockets, nothing to install — opens the fixture at the
-// address it is given, waits for the promise the page leaves in window.done
-// and prints what it resolved to.
-const chromeDriver = `
-import { spawn } from "node:child_process";
-const chrome = process.env.AACP_FIXTURE_CHROME, url = process.env.AACP_FIXTURE_URL, profile = process.env.AACP_FIXTURE_PROFILE;
-const screen = JSON.parse(process.env.AACP_FIXTURE_SCREEN);
-const proc = spawn(chrome, ["--headless=new", "--remote-debugging-pipe", "--user-data-dir=" + profile, "--password-store=basic",
-    "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--disable-background-networking", "--hide-scrollbars",
-    "--blink-settings=" + process.env.AACP_FIXTURE_POINTER, "about:blank"],
-    { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] });
-let stderr = ""; proc.stderr.on("data", (d) => { stderr += d; });
-const out = proc.stdio[3], inp = proc.stdio[4];
-let seq = 0; const pending = new Map(); let buf = ""; const errors = [];
-inp.on("data", (d) => {
-    buf += d;
-    let i;
-    while ((i = buf.indexOf("\0")) >= 0) {
-        const msg = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1);
-        if (msg.method === "Runtime.exceptionThrown") errors.push(msg.params.exceptionDetails.text + " " + (msg.params.exceptionDetails.exception?.description || ""));
-        const p = pending.get(msg.id); if (!p) continue;
-        pending.delete(msg.id);
-        if (msg.error) p.rej(new Error(p.method + ": " + msg.error.message)); else p.res(msg.result);
-    }
-});
-const send = (method, params = {}, sessionId) => new Promise((res, rej) => {
-    const id = ++seq; pending.set(id, { res, rej, method });
-    out.write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + "\0");
-});
-const deadline = setTimeout(() => { console.error("the fixture did not finish in time\n" + stderr); proc.kill("SIGKILL"); process.exit(2); }, 60000);
-try {
-    const { targetId } = await send("Target.createTarget", { url: "about:blank" });
-    const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
-    await send("Runtime.enable", {}, sessionId);
-    await send("Emulation.setDeviceMetricsOverride", screen, sessionId);
-    await send("Page.navigate", { url }, sessionId);
-    let result;
-    for (;;) {
-        const r = await send("Runtime.evaluate", { expression: "window.done", awaitPromise: true, returnByValue: true }, sessionId);
-        if (r.exceptionDetails) throw new Error("the fixture failed: " + r.exceptionDetails.text + " " + (r.exceptionDetails.exception?.description || ""));
-        if (r.result.value !== undefined) { result = r.result.value; break; }
-        if (errors.length) throw new Error("the page threw: " + errors.join("; "));
-        await new Promise((res) => setTimeout(res, 100));
-    }
-    if (errors.length) throw new Error("the page threw: " + errors.join("; "));
-    process.stdout.write(JSON.stringify(result));
-} finally {
-    clearTimeout(deadline);
-    proc.kill("SIGKILL");
-}
-`
-
 // phoneScreen and deskScreen are the two screens a fixture is run on. The
 // width decides which half of the styles applies: the desktop rules live
 // behind a media query, and a desktop panel measured on a phone screen is
@@ -101,9 +49,9 @@ var (
 
 // runFixture serves the frontend tree with the fixture page on top of it,
 // opens the page in a headless Chrome and returns what its window.done
-// resolved to. Without node or Chrome the test is skipped: the fixture runs
-// the real components in a real engine, and there is no reading them out of
-// the source instead.
+// resolved to. Without Chrome the test is skipped: the fixture runs the real
+// components in a real engine, and there is no reading them out of the
+// source instead.
 func runFixture(t *testing.T, fixture string, into any) {
 	t.Helper()
 	runFixtureOn(t, fixture, phoneScreen, phonePointer, into)
@@ -117,10 +65,6 @@ func runWideFixture(t *testing.T, fixture string, into any) {
 
 func runFixtureOn(t *testing.T, fixture, screen, pointer string, into any) {
 	t.Helper()
-	node, err := exec.LookPath("node")
-	if err != nil {
-		t.Skip("node not found: the fixture is driven through node")
-	}
 	chrome := chromeBinary()
 	if chrome == "" {
 		t.Skip("no Chrome on this machine: the fixture runs the components in a real engine")
@@ -129,6 +73,9 @@ func runFixtureOn(t *testing.T, fixture, screen, pointer string, into any) {
 	if err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
+	parallel(t)
+	// A server of its own is an origin of its own: nothing a fixture keeps in
+	// its storage is there for the next one.
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 	mux.HandleFunc("/fixture.html", func(w http.ResponseWriter, r *http.Request) {
@@ -138,22 +85,16 @@ func runFixtureOn(t *testing.T, fixture, screen, pointer string, into any) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	cmd := exec.Command(node, "--input-type=module", "-e", chromeDriver)
-	cmd.Env = append(os.Environ(),
-		"AACP_FIXTURE_CHROME="+chrome,
-		"AACP_FIXTURE_URL="+server.URL+"/fixture.html",
-		"AACP_FIXTURE_PROFILE="+t.TempDir(),
-		"AACP_FIXTURE_SCREEN="+screen,
-		"AACP_FIXTURE_POINTER="+pointer,
-	)
 	started := time.Now()
-	out, err := cmd.Output()
+	b, err := sharedBrowser(chrome, pointer)
 	if err != nil {
-		var stderr string
-		if ee, ok := err.(*exec.ExitError); ok {
-			stderr = string(ee.Stderr)
-		}
-		t.Fatalf("%s under Chrome (%s): %v\n%s", fixture, time.Since(started).Round(time.Millisecond), err, stderr)
+		t.Fatalf("Chrome did not start: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, server.URL+"/fixture.html", screen)
+	if err != nil {
+		t.Fatalf("%s under Chrome (%s): %v", fixture, time.Since(started).Round(time.Millisecond), err)
 	}
 	if err := json.Unmarshal(out, into); err != nil {
 		t.Fatalf("the fixture's answer did not parse: %v: %s", err, out)
