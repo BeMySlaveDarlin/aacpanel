@@ -31,6 +31,7 @@ import { knows, whyNot } from "../exec.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
 import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
+import { SideChat, useSideChat } from "./chat/sidechat.js";
 import { ChatPath, Marquee, short } from "./chat/head.js";
 import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
@@ -125,6 +126,11 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
         : []), [here]);
     const myPages = useMemo(() => mine(pages), [mine, pages]);
     const myBriefs = useMemo(() => mine(briefs), [mine, briefs]);
+
+    // Questions asked aside: on the stream the panel asks them itself, and
+    // they reach neither the conversation nor its transcript.
+    const sideChat = useSideChat(name, id);
+    const onStream = Boolean(live) && live.transport === "stream";
 
     const quote = useSelectionQuote();
     const [insert, setInsert] = useState(null);
@@ -388,6 +394,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                      insert=${insert}
                                      onPicker=${knows(exec, "session.set") ? setPicking : null}
                                      onScreen=${(what) => setLook({ kind: what })}
+                                     onSide=${onStream ? sideChat.ask : null}
                                      strip=${wide
                                          ? html`<${PickBar} name=${name} live=${live} exec=${exec} />`
                                          : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} />`}
@@ -451,6 +458,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                     onPage=${(card) => setLook({ kind: "artifact", card })} />`
                 : html`<${Look} session=${name} id=${id} look=${look} />`)}
         <//>
+
+        ${onStream && view !== "term" && html`<${SideChat} chat=${sideChat} wide=${wide} feedRef=${feedRef} />`}
 
         <${QuoteTip} quote=${quote} onQuote=${takeQuote} />
     `;

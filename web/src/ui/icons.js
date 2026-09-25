@@ -86,6 +86,7 @@ export const Icon = {
     chevron: () => html`<svg ...${stroke}><path d="m9 6 6 6-6 6" /></svg>`,
 
     close: () => html`<svg ...${stroke}><path d="M18 6 6 18M6 6l12 12" /></svg>`,
+    trash: () => html`<svg ...${stroke}><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.9 12.1a1.6 1.6 0 0 0 1.6 1.4h6a1.6 1.6 0 0 0 1.6-1.4L17.5 7M10 11v6M14 11v6" /></svg>`,
 
     send: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 16.5v-9M8.5 11 12 7.5l3.5 3.5" /></svg>`,
     arrowup: () => html`<svg ...${stroke}><path d="M12 19V5.5M6 11.5l6-6 6 6" /></svg>`,

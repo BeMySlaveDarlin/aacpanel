@@ -1,0 +1,81 @@
+/* The side chat: questions asked aside of a session on the stream. A card over
+   the feed on a wide screen and a sheet on a phone; either way the question is
+   a bubble of the person and the answer reads the way the feed's answers do. */
+
+.btwhead { display: flex; align-items: center; gap: .3rem; padding: .1rem 0 .45rem; }
+.btwhead.card { padding: .4rem .45rem .4rem .8rem; border-bottom: var(--hair) solid var(--line); }
+.btwtitle { flex: 1 1 auto; min-width: 0; font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+.btwhead .iconbtn { box-shadow: none; }
+
+.btwlist {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    min-height: 0;
+    overflow-y: auto;
+    padding: .2rem 0 .7rem;
+}
+.btwturn { display: flex; flex-direction: column; gap: .45rem; }
+.btwq {
+    align-self: flex-end;
+    max-width: 84%;
+    padding: .4rem .7rem;
+    border-radius: var(--r-bubble) var(--r-bubble) var(--r-small) var(--r-bubble);
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+    color: var(--ink);
+    font-size: var(--t-sm);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.btwa { font-size: var(--t-sm); }
+.btwwait, .btwerr, .btwempty { margin: 0; font-size: var(--t-xs); color: var(--ink-faint); }
+.btwwait { display: inline-flex; align-items: center; gap: .35rem; color: var(--accent); }
+.btwwait::before {
+    content: "";
+    width: .38rem; height: .38rem;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .btwwait::before { animation: none; } }
+.btwerr { color: var(--crit); }
+.btwempty { font-size: var(--t-sm); line-height: 1.5; }
+
+.btwask {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: .2rem;
+    padding: .2rem .25rem .2rem .75rem;
+    border-radius: var(--r-card);
+    background: rgba(var(--tint), .06);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+}
+.btwask:focus-within { box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent); }
+.btwask input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: .4rem 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--t-sm);
+    outline: none;
+}
+
+/* The card stands over the feed and under anything a sheet puts up. */
+.btwcard {
+    position: fixed;
+    z-index: 9;
+    width: min(26rem, 40vw);
+    display: flex;
+    flex-direction: column;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-card);
+    background: var(--tipbg, var(--bg));
+    box-shadow: var(--drop);
+    overflow: hidden;
+}
+.btwcard .btwlist { flex: 1 1 auto; padding: .7rem .8rem; }
+.btwcard .btwask { margin: 0 .6rem .6rem; }

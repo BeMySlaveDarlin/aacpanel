@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
-import { commandHints, parseCommand } from "../../actions/registry.js";
+import { commandHints, parseCommand, parseSide, sessionHints } from "../../actions/registry.js";
 import { knows, whyNot } from "../../exec.js";
 import { mayFocus, regain } from "../../ui/focus.js";
 import { Icon } from "../../ui/icons.js";
@@ -152,6 +152,35 @@ function useDictate(text, setText, toast) {
     };
 }
 
+// The commands a session on the stream takes, asked for once per session the
+// first time the list is opened: a skill installed since is picked up by the
+// next session, as it is by claude.
+const sessionLists = new Map();
+
+function useSessionCommands(name, id, want) {
+    const key = `${name}|${id || ""}`;
+    const [, redraw] = useState(0);
+    useEffect(() => {
+        if (!want || !name || sessionLists.has(key)) return;
+        sessionLists.set(key, { state: "loading" });
+        (async () => {
+            let got = { state: "unknown" };
+            try {
+                const r = await fetch(`/api/session/commands?name=${encodeURIComponent(name)}`, { credentials: "same-origin" });
+                const body = r.ok ? await r.json() : null;
+                if (body && body.state === "ok" && body.transport === "stream" && Array.isArray(body.list)) {
+                    got = { state: "ok", list: body.list };
+                }
+            } catch {
+            }
+            sessionLists.set(key, got);
+            redraw((n) => n + 1);
+        })();
+    }, [want, key]);
+    const held = sessionLists.get(key);
+    return held && held.state === "ok" ? held.list : null;
+}
+
 function saved(id) {
     const one = id ? drafts()[id] : null;
     return (one && one.text) || "";
@@ -191,7 +220,7 @@ export function asksSend(e, wide) {
 }
 
 // Composer writes into a live session.
-export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, strip }) {
+export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -247,7 +276,17 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         ? cmd.command : "";
     // A command the panel answers with a screen of its own opens it.
     const opens = cmd && cmd.screen && onScreen ? cmd.command : "";
-    const hints = canCmd && !pack.length && !(cmd && cmd.ready) && !lists && !opens ? commandHints(text, stream) : [];
+    // A question aside on the stream is the panel's to ask: it goes to the side
+    // chat and never into the conversation.
+    const side = stream && onSide && !pack.length ? parseSide(text) : null;
+    const listing = canCmd && !pack.length && !(cmd && cmd.ready) && !lists && !opens && !(side && side.question);
+    // On the stream the list is the session's own, every command and skill it
+    // takes; until it has come, and in a console, the panel's own list stands.
+    const theirs = useSessionCommands(name, id, stream && listing && text.startsWith("/"));
+    const hints = listing ? (stream && theirs ? sessionHints(text, theirs) : commandHints(text, stream)) : [];
+    const [hot, setHot] = useState(0);
+    useEffect(() => { setHot(0); }, [text]);
+    const wideNow = typeof window !== "undefined" && window.matchMedia(WIDE).matches;
     // With dictation on, an empty field shows the microphone rather than the
     // arrow: there is nothing to send yet, and a disabled button takes no press
     // to hold. The moment there are words it is the send button again. The
@@ -256,7 +295,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const canTalk = hear.on && !cmd && !pack.length;
     const asMic = canTalk && !text.trim();
     const cantSend = !ready || sending
-        || (cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
+        || (side ? false : cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
     const stopping = busy && !text.trim() && !pack.length;
 
     const stop = async () => {
@@ -267,7 +306,9 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         setSending(false);
     };
 
-    const pick = (value) => {
+    const pick = (item) => {
+        if (!item || item.off) return;
+        const value = item.value;
         setText(value);
         const el = area.current;
         if (!el) return;
@@ -311,6 +352,11 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
             onScreen(opens);
             return;
         }
+        if (side) {
+            setText("");
+            onSide(side.question);
+            return;
+        }
         taken.current = true;
         if (cmd) return sendCommand();
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -346,6 +392,19 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     };
 
     const keys = (e) => {
+        // The list under the line is walked with the arrows and taken with Tab,
+        // the way a terminal's is; Enter keeps sending what is typed.
+        if (hints.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp") && !e.shiftKey && !e.altKey) {
+            e.preventDefault();
+            const step = e.key === "ArrowDown" ? 1 : -1;
+            setHot((at) => (at + step + hints.length) % hints.length);
+            return;
+        }
+        if (hints.length > 0 && e.key === "Tab" && !e.shiftKey) {
+            e.preventDefault();
+            pick(hints[Math.min(hot, hints.length - 1)]);
+            return;
+        }
         if (!asksSend(e, window.matchMedia(WIDE).matches)) return;
         e.preventDefault();
         if (cantSend) return;
@@ -354,16 +413,9 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
 
     return html`
         <div class="composer">
-            ${hints.length > 0 && html`
-                <div class="slashlist">
-                    ${hints.map((item) => html`
-                        <button class="slashitem" type="button" onClick=${() => pick(item.value)}>
-                            <span class="slashname">${item.label}</span>
-                            ${item.hint && html`<span class="slashhint">${item.hint}</span>`}
-                        </button>
-                    `)}
-                </div>
-            `}
+            ${hints.length > 0 && html`<${SlashList} hints=${hints} hot=${Math.min(hot, hints.length - 1)}
+                                                   theirs=${Boolean(stream && theirs)} wide=${wideNow}
+                                                   onHot=${setHot} onPick=${pick} />`}
             ${pack.length > 0 && html`
                 <div class="clippack">
                     ${pack.map((one, i) => html`
@@ -405,7 +457,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                     <button
                         class=${`iconbtn accent sendbtn${hear.live ? " hearing" : ""}`}
                         type="button"
-                        aria-label=${micLabel(asMic, hear.live, cmd, name)}
+                        aria-label=${micLabel(asMic, hear.live, cmd, name, side)}
                         title=${micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd)}
                         disabled=${cantSend}
                         onClick=${() => { if (!hear.tap(asMic)) send(); }}
@@ -423,6 +475,62 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     `;
 }
 
+// SlashList is the list of commands under the line being typed. The session's
+// own list is long and its descriptions are long: on a phone each row carries
+// its description on a second line, cut; on a wide screen the rows carry the
+// names alone, and the description of the row under the pointer stands beside
+// the list, whole, the way the native client shows it.
+function SlashList({ hints, hot, theirs, wide, onHot, onPick }) {
+    const box = useRef(null);
+    const [tip, setTip] = useState(null);
+    const item = hints[hot];
+    const beside = theirs && wide;
+    // place puts the description beside the row it belongs to, where the row
+    // is now: the list scrolls under a pointer that stays where it is.
+    const place = () => {
+        const list = box.current;
+        const row = list && list.children[hot];
+        if (!beside || !row) {
+            setTip(null);
+            return;
+        }
+        setTip({ top: row.offsetTop - list.scrollTop, left: list.offsetWidth + 8 });
+    };
+    useEffect(() => {
+        const list = box.current;
+        const row = list && list.children[hot];
+        if (row && (row.offsetTop < list.scrollTop
+            || row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight)) {
+            list.scrollTop = row.offsetTop < list.scrollTop
+                ? row.offsetTop
+                : row.offsetTop + row.offsetHeight - list.clientHeight;
+        }
+        place();
+    }, [hot, beside, hints.length]);
+    return html`
+        <div class=${`slashbox${theirs ? " theirs" : ""}`}>
+            <div class="slashlist" ref=${box} onScroll=${place}>
+                ${hints.map((one, n) => html`
+                    <button class=${`slashitem${n === hot ? " hot" : ""}${one.off ? " off" : ""}`} type="button"
+                            key=${one.label + one.value}
+                            aria-disabled=${one.off ? "true" : "false"}
+                            title=${one.off ? one.hint : ""}
+                            onPointerEnter=${() => onHot(n)}
+                            onClick=${() => onPick(one)}>
+                        <span class="slashname">${one.label}</span>
+                        ${one.screen && html`<span class="slashtag">screen</span>`}
+                        ${one.hint && !beside && html`<span class="slashhint">${one.hint}</span>`}
+                    </button>
+                `)}
+            </div>
+            ${beside && tip && item && item.hint && html`
+                <div class=${`slashtip${item.off ? " off" : ""}`} role="tooltip"
+                     style=${`top:${tip.top}px;left:${tip.left}px`}>${item.hint}</div>
+            `}
+        </div>
+    `;
+}
+
 function grow(el) {
     if (!el) return;
     el.style.height = "auto";
@@ -435,9 +543,10 @@ function placeholder(ready, why, name, pack) {
     return pack.length > 1 ? "A caption for the files — optional" : "A caption for the file — optional";
 }
 
-function micLabel(asMic, live, cmd, name) {
+function micLabel(asMic, live, cmd, name, side) {
     if (live) return `listening to what goes to session ${name} — press again to stop`;
     if (asMic) return `talk to session ${name}`;
+    if (side) return `ask session ${name} aside`;
     return cmd ? `send a command to session ${name}` : `send to session ${name}`;
 }
 

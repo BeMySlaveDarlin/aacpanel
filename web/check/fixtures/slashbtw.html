@@ -1,0 +1,197 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// The composer of a session on the stream, on a phone: the list under a slash
+// is the session's own, and /btw asks aside rather than into the conversation.
+// Then the same composer of a terminal session, which keeps the panel's list.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const long = "Publishes a brief to the panel: a long piece the person reads and walks through — several "
+    + "questions with what each rests on, the options and their cost, and a place to answer.";
+const theirs = [
+    { name: "brief", description: long, hint: "[topic]" },
+    { name: "usage", description: "Show plan usage and rate limits" },
+    { name: "usage-credits", description: "Show the credits left on the plan" },
+    { name: "status", description: "Show the version, the model and the account" },
+    { name: "mcp", description: "Manage MCP servers" },
+    { name: "permissions", description: "Manage the rules of permissions" },
+    { name: "clear", description: "Clear the conversation history" },
+    { name: "config", description: "Open the settings" },
+    { name: "restart-session", description: "Restart a Claude Code session" },
+];
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const log = { lists: [], actions: [], side: [] };
+let sideAnswers = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/commands")) {
+        log.lists.push(u);
+        return json({ state: "ok", transport: "stream", list: theirs });
+    }
+    if (u === "/api/session/btw") {
+        log.side.push(JSON.parse((init && init.body) || "{}"));
+        await new Promise((r) => setTimeout(r, 150));
+        return json(sideAnswers.shift() || { state: "failed", reason: "nothing to say" });
+    }
+    if (u.startsWith("/api/session/")) return json({ state: "unknown", reason: "not in this fixture" });
+    if (u === "/api/actions") {
+        log.actions.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true, detail: "ok" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true };
+const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj" };
+const console_ = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj" };
+
+const root = document.getElementById("root");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((e) => e.textContent.trim().replace(/\s+/g, " "));
+const area = () => document.querySelector(".composer textarea");
+const type = async (value) => {
+    const el = area();
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(120);
+};
+const send = async () => {
+    document.querySelector(".composer .iconbtn.accent").click();
+    await sleep(80);
+};
+const rows = () => Array.from(document.querySelectorAll(".slashbox .slashitem")).map((b) => ({
+    label: b.querySelector(".slashname").textContent.trim(),
+    hint: b.querySelector(".slashhint") ? b.querySelector(".slashhint").textContent.trim() : "",
+    off: b.classList.contains("off"),
+    screen: Boolean(b.querySelector(".slashtag")),
+}));
+
+async function mount(name, live) {
+    render(null, root);
+    render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${name} id=${`${name}-1`} live=${live} exec=${exec}
+                                                          onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    for (let i = 0; i < 60 && !area(); i += 1) await sleep(50);
+    await sleep(250);
+}
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = {};
+    await mount("proj", stream);
+
+    await type("/");
+    await sleep(200);
+    out.theirs = Boolean(document.querySelector(".slashbox.theirs"));
+    out.rows = rows();
+    // The description stands on a line of its own under the name, and is cut.
+    // Every row, a short description as well as a long one that would wrap
+    // under the name anyway.
+    out.hintUnder = Array.from(document.querySelectorAll(".slashitem")).filter((b) => b.querySelector(".slashhint"))
+        .every((b) => b.querySelector(".slashhint").getBoundingClientRect().top >= b.querySelector(".slashname").getBoundingClientRect().bottom - 1);
+    const brief = Array.from(document.querySelectorAll(".slashitem")).find((b) => b.textContent.includes("/brief"));
+    if (brief) {
+        const hint = brief.querySelector(".slashhint").getBoundingClientRect();
+        const style = getComputedStyle(brief.querySelector(".slashhint"));
+        out.hintCut = style.textOverflow === "ellipsis" && style.whiteSpace === "nowrap";
+        // Cut where the composer ends, not past its edge.
+        out.hintInside = hint.right <= document.querySelector(".composer").getBoundingClientRect().right + 1;
+    }
+    await type("/us");
+    out.filtered = rows().map((r) => r.label);
+    await type("/per");
+    const refused = document.querySelector(".slashitem.off");
+    out.refused = refused ? refused.querySelector(".slashname").textContent.trim() : "";
+    out.refusedHint = rows().find((r) => r.off) ? rows().find((r) => r.off).hint : "";
+    if (refused) refused.click();
+    await sleep(80);
+    out.afterRefused = area().value;
+    // The list is the session's for as long as the session is: a slash typed
+    // again after a plain line does not ask for it again.
+    await type("hello");
+    await type("/");
+    out.lists = log.lists.length;
+
+    // A screen of the panel stays a screen: picked, it opens, and nothing goes out.
+    await type("/mc");
+    const mcp = Array.from(document.querySelectorAll(".slashitem")).find((b) => b.textContent.includes("/mcp"));
+    out.mcpTag = Boolean(mcp && mcp.querySelector(".slashtag"));
+    if (mcp) mcp.click();
+    await sleep(80);
+    out.picked = area().value;
+    await send();
+    await sleep(200);
+    out.screen = document.querySelector(".sheet.on") ? document.querySelector(".sheet.on").getAttribute("aria-label") : "";
+    out.actionsAfterScreen = log.actions.length;
+    const shut = document.querySelector(".sheet.on .sheetclose");
+    if (shut) shut.click();
+    await sleep(250);
+
+    // /btw asks aside: the question goes to the side chat, not to the conversation.
+    sideAnswers = [
+        { state: "ok", answer: "The word is **tangerine**." },
+        { state: "ok", answer: "It starts with `t`." },
+        { state: "failed", reason: "session proj is not answering on the stream" },
+    ];
+    await type("/btw which word did I ask you to remember?");
+    await send();
+    await sleep(60);
+    out.waiting = text(".sheet.on .btwwait");
+    await sleep(300);
+    out.sideOpen = document.querySelector(".sheet.on") ? document.querySelector(".sheet.on").getAttribute("aria-label") : "";
+    out.questions = text(".sheet.on .btwq");
+    out.answers = text(".sheet.on .btwa");
+    out.answerBold = Boolean(document.querySelector(".sheet.on .btwa b, .sheet.on .btwa strong"));
+    out.composerAfter = area().value;
+    const follow = document.querySelector(".sheet.on .btwask input");
+    follow.value = "and its first letter?";
+    follow.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(60);
+    document.querySelector(".sheet.on .btwask button").click();
+    await sleep(400);
+    out.answers2 = text(".sheet.on .btwa");
+    follow.value = "and the last one?";
+    follow.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(60);
+    document.querySelector(".sheet.on .btwask button").click();
+    await sleep(400);
+    out.errors = text(".sheet.on .btwerr");
+    out.side = log.side.slice();
+    out.actionsAfterSide = log.actions.map((a) => a.kind);
+    document.querySelector(".sheet.on .btwbin").click();
+    await sleep(100);
+    out.afterBin = text(".sheet.on .btwturn").length;
+    out.binEmpty = text(".sheet.on .btwempty").length;
+
+    // A terminal session keeps the panel's list, and /btw goes to its screen as before.
+    const before = log.lists.length;
+    const asidesBefore = log.side.length;
+    await mount("term", console_);
+    await type("/");
+    await sleep(150);
+    out.termTheirs = Boolean(document.querySelector(".slashbox.theirs"));
+    out.termRows = rows().map((r) => r.label);
+    out.termLists = log.lists.length - before;
+    await type("/btw hello");
+    await send();
+    await sleep(200);
+    const last = log.actions[log.actions.length - 1] || {};
+    out.termSent = { kind: last.kind, text: (last.params || {}).text };
+    out.termSide = log.side.length - asidesBefore;
+    return out;
+})();
+</script>

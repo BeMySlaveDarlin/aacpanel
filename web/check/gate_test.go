@@ -61,6 +61,15 @@ var ceremonies = map[string]ceremony{
 		paths:   []string{"/api/reviews"},
 		methods: []string{"PUT", "POST", "DELETE"},
 	},
+	// A question aside changes nothing: claude answers from what the
+	// conversation holds and writes neither the question nor the answer into
+	// it, and the executor takes it as a question, not as an action, keeping
+	// no entry of it. It goes as a POST only because the question and the side
+	// chat so far do not fit a line of a query.
+	"src/screens/chat/sidechat.js": {
+		paths:   []string{"/api/session/btw"},
+		methods: []string{"POST"},
+	},
 }
 
 type ceremony struct {

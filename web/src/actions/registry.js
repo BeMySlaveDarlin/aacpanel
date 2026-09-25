@@ -159,6 +159,72 @@ export function commandHints(text, stream = false) {
         .concat(screens);
 }
 
+// BTW is the question aside. On the stream the panel asks it itself, and it
+// reaches neither the conversation nor its transcript: the answer comes back
+// to a side chat of the panel.
+export const BTW = {
+    name: "btw",
+    description: "Ask a quick side question without interrupting the main conversation",
+};
+
+// parseSide reads what is typed as a question aside: /btw and the question.
+// Without the question it only opens the side chat.
+export function parseSide(text) {
+    const line = String(text || "").trim();
+    const found = /^\/btw(?:\s+([\s\S]*))?$/i.exec(line);
+    return found ? { question: (found[1] || "").trim() } : null;
+}
+
+// ownCommands are what the panel itself knows to offer on the stream, in case
+// the session's list leaves them out: the question aside, the screens the panel
+// answers, and the commands it sends with options of its own.
+function ownCommands() {
+    const own = [{ name: BTW.name, description: BTW.description }];
+    for (const id of Object.keys(SCREENS)) own.push({ name: id, description: SCREENS[id].name });
+    for (const id of Object.keys(COMMANDS)) own.push({ name: id, description: COMMANDS[id].name });
+    return own;
+}
+
+// sessionHints returns the suggestions from a session's own list of commands:
+// every command and skill it takes, with what each does, filtered by what is
+// typed — the names that start with it first, then the ones that hold it. A
+// command the panel answers with a screen stays a screen; one the panel does
+// not send is listed and cannot be picked, with the reason in its place.
+export function sessionHints(text, list) {
+    const line = String(text || "");
+    if (!line.startsWith("/")) return [];
+    const space = line.search(/\s/);
+    if (space >= 0) {
+        const name = line.slice(1, space);
+        return COMMANDS[name] && COMMANDS[name].args ? commandHints(line, true) : [];
+    }
+    const typed = line.slice(1).toLowerCase();
+    const seen = new Set();
+    const all = [];
+    for (const one of (list || []).concat(ownCommands())) {
+        const key = String(one && one.name || "").toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        all.push(one);
+    }
+    const low = (one) => one.name.toLowerCase();
+    const first = all.filter((one) => low(one).startsWith(typed));
+    const then = typed ? all.filter((one) => !low(one).startsWith(typed) && low(one).includes(typed)) : [];
+    return first.concat(then).map(sessionHint);
+}
+
+function sessionHint(one) {
+    const name = one.name;
+    const label = `/${name}`;
+    const refused = REFUSED[name.toLowerCase()];
+    if (refused) return { value: label, label, hint: refused, off: true };
+    if (COMMANDS[name] && COMMANDS[name].console) {
+        return { value: label, label, hint: "in the console only: on the stream it drops the session off the panel", off: true };
+    }
+    if (SCREENS[name]) return { value: `${label} `, label, hint: one.description || SCREENS[name].name, screen: true };
+    return { value: `${label} `, label, hint: one.description || "", arg: one.hint || "" };
+}
+
 export const ACTIONS = {
     "container.stop": {
         title: (target) => `Stop ${target}?`,

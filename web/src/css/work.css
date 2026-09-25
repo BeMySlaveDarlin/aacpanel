@@ -410,13 +410,17 @@
 .clipoff:active { background: var(--glass-2); }
 .clipoff:disabled { opacity: .4; cursor: default; }
 
-.slashlist {
+.slashbox {
     flex: 1 0 100%;
+    min-width: 0;
+    position: relative;
+    margin-bottom: .2rem;
+}
+.slashlist {
     display: flex;
     flex-direction: column;
     max-height: 11rem;
     overflow-y: auto;
-    margin-bottom: .2rem;
 }
 .slashitem {
     display: flex;
@@ -435,7 +439,17 @@
     cursor: pointer;
 }
 .slashitem:active { background: var(--glass-2); }
+.slashitem.off { cursor: default; }
+.slashitem.off .slashname { color: var(--ink-faint); }
 .slashname { flex: none; color: var(--accent); }
+.slashtag {
+    flex: none;
+    padding: 0 .3rem;
+    border-radius: var(--r-small);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink-faint);
+    font-size: var(--t-xs);
+}
 .slashhint {
     flex: 1 1 auto;
     min-width: 0;
@@ -444,6 +458,40 @@
     white-space: nowrap;
     color: var(--ink-faint);
     font-size: var(--t-xs);
+}
+
+/* The session's own list is every command and skill it takes, and the
+   descriptions run to paragraphs: on a phone a row is the name and, under it,
+   the start of what it does. */
+.slashbox.theirs .slashlist { max-height: 16rem; }
+.slashbox.theirs .slashitem { flex-wrap: wrap; row-gap: 0; }
+.slashbox.theirs .slashhint { flex: 1 0 100%; }
+
+/* A pointer walks the list: the row under it, or under the arrows, is lit. */
+@media (hover: hover) and (pointer: fine) {
+    .slashitem.hot { background: var(--glass-2); }
+}
+
+/* On a wide screen the list is a column of names, and what the row under the
+   pointer does stands beside it, whole. */
+@media (min-width: 1100px) {
+    .slashbox.theirs .slashlist { width: min(19rem, 100%); max-height: 22rem; }
+    .slashtip {
+        position: absolute;
+        z-index: 30;
+        width: max-content;
+        max-width: 24rem;
+        padding: .35rem .6rem;
+        border-radius: var(--r-small);
+        border: var(--hair) solid var(--edge);
+        background: var(--tipbg);
+        box-shadow: var(--drop);
+        color: var(--ink);
+        font-size: var(--t-xs);
+        line-height: 1.45;
+        pointer-events: none;
+    }
+    .slashtip.off { color: var(--ink-faint); }
 }
 
 /* The shelf of what a conversation made takes two tabs, and each shows a page

@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="shell no-nav"><main class="body" id="root"></main></div></div>
+<script type="module">
+// The composer of a session on the stream, on a wide screen: the list under a
+// slash is a column of names with the description of the row under the
+// pointer beside it, and the side chat is a card over the feed.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const theirs = [
+    { name: "workflows", description: "List the workflows of the session" },
+    { name: "status", description: "Show the version, the model and the account" },
+    { name: "usage", description: "Show plan usage and rate limits" },
+    { name: "usage-credits", description: "Show the credits left on the plan" },
+    { name: "autocompact", description: "Turn the automatic compaction on or off" },
+    { name: "config", description: "Open the settings" },
+    { name: "brief", description: "Publishes a brief to the panel: a long piece the person reads and walks through." },
+    { name: "restart-session", description: "Restart a Claude Code session" },
+];
+const items = [];
+for (let i = 1; i <= 6; i += 1) {
+    items.push({ role: "me", pos: i * 20, text: `question number ${i}`, at: new Date(Date.now() - (6 - i) * 60000).toISOString() });
+    items.push({ role: "ai", pos: i * 20 + 10, text: `answer number ${i}: the build is green.`, at: new Date(Date.now() - (6 - i) * 60000 + 5000).toISOString() });
+}
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const log = { side: [], actions: [] };
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: items[0].pos, last: items[items.length - 1].pos, total: items.length, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/commands")) return json({ state: "ok", transport: "stream", list: theirs });
+    if (u === "/api/session/btw") {
+        log.side.push(JSON.parse((init && init.body) || "{}"));
+        await new Promise((r) => setTimeout(r, 100));
+        return json({ state: "ok", answer: "All is well, I am here.\n\nWhile the doctor ran:\n\n- **The install** is clean.\n- **The settings** read without errors." });
+    }
+    if (u.startsWith("/api/session/")) return json({ state: "unknown", reason: "not in this fixture" });
+    if (u === "/api/actions") {
+        log.actions.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true, detail: "ok" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true };
+const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj",
+    model: "claude-opus-5-5", effort: "xhigh", mode: "auto" };
+
+const root = document.getElementById("root");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const area = () => document.querySelector(".composer textarea");
+const type = async (value) => {
+    const el = area();
+    el.focus();
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(150);
+};
+const key = async (name) => {
+    area().dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
+    await sleep(120);
+};
+const round = (n) => Math.round(n);
+const tipNow = () => {
+    const tip = document.querySelector(".slashtip");
+    return tip ? { text: tip.textContent.trim(), top: round(tip.getBoundingClientRect().top), left: round(tip.getBoundingClientRect().left) } : null;
+};
+const rowAt = (n) => document.querySelectorAll(".slashbox .slashitem")[n];
+
+window.done = (async () => {
+    await document.fonts.ready;
+    render(h(ToastHost, null, h(GateHost, null, html`<section class="dkcenter dkchat" style="height:100%">
+        <${Chat} name="proj" id="proj-1" live=${stream} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />
+    </section>`)), root);
+    for (let i = 0; i < 60 && !area(); i += 1) await sleep(50);
+    await sleep(300);
+    const out = {};
+
+    await type("/");
+    await sleep(200);
+    const list = document.querySelector(".slashbox .slashlist").getBoundingClientRect();
+    out.listWidth = round(list.width);
+    out.hintsInRows = document.querySelectorAll(".slashbox .slashhint").length;
+    out.tip0 = tipNow();
+    out.row0Top = round(rowAt(0).getBoundingClientRect().top);
+    out.listRight = round(list.right);
+    out.hot0 = rowAt(0).classList.contains("hot");
+    out.hotBg = getComputedStyle(rowAt(0)).backgroundImage !== "none" || getComputedStyle(rowAt(0)).backgroundColor !== "rgba(0, 0, 0, 0)";
+
+    rowAt(2).dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));
+    await sleep(150);
+    out.tip2 = tipNow();
+    out.row2Top = round(rowAt(2).getBoundingClientRect().top);
+
+    await key("ArrowDown");
+    out.tip3 = tipNow();
+    out.row3Top = round(rowAt(3).getBoundingClientRect().top);
+    await key("Tab");
+    out.tabbed = area().value;
+
+    // A long list scrolls under the pointer: the description stays with its row.
+    await type("/");
+    const scroller = document.querySelector(".slashbox .slashlist");
+    out.scrolls = scroller.scrollHeight > scroller.clientHeight;
+    scroller.scrollTop = scroller.scrollHeight;
+    scroller.dispatchEvent(new Event("scroll"));
+    await sleep(100);
+    const lastAt = document.querySelectorAll(".slashbox .slashitem").length - 1;
+    rowAt(lastAt).dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));
+    await sleep(150);
+    out.tipLast = tipNow();
+    out.rowLastTop = round(rowAt(lastAt).getBoundingClientRect().top);
+
+    // The side chat: a card at the top right of the feed.
+    await type("/btw is everything all right?");
+    document.querySelector(".composer .iconbtn.accent").click();
+    await sleep(400);
+    const card = document.querySelector(".btwcard");
+    const feed = document.querySelector(".chatfeed").getBoundingClientRect();
+    if (card) {
+        const r = card.getBoundingClientRect();
+        out.card = { top: round(r.top - feed.top), right: round(feed.right - r.right), width: round(r.width),
+                     title: card.querySelector(".btwtitle").textContent.trim() };
+        out.cardAnswer = card.querySelector(".btwa") ? card.querySelector(".btwa").textContent.trim().slice(0, 40) : "";
+        out.cardList = card.querySelectorAll(".btwa li").length;
+    }
+    out.asked = log.side.map((s) => s.question);
+    out.actions = log.actions.map((a) => a.kind);
+    const close = document.querySelector(".btwcard .btwclose");
+    if (close) close.click();
+    await sleep(120);
+    out.closed = !document.querySelector(".btwcard");
+    await type("/btw");
+    document.querySelector(".composer .iconbtn.accent").click();
+    await sleep(200);
+    out.reopenedTurns = document.querySelectorAll(".btwcard .btwturn").length;
+    out.reopenedAsked = log.side.length;
+    return out;
+})();
+</script>
