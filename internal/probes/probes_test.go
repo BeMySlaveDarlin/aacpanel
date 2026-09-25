@@ -2,12 +2,36 @@ package probes
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"syscall"
 	"testing"
 	"time"
 )
+
+// deadPort holds a port nothing listens on for as long as the test runs. A
+// listener closed at once frees its port, and the next one bound — the servers
+// of this very test among them — may be handed the same number and answer the
+// probe. A socket bound and never listening refuses a connection and keeps the
+// port its own.
+func deadPort(t *testing.T) string {
+	t.Helper()
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = syscall.Close(fd) })
+	if err := syscall.Bind(fd, &syscall.SockaddrInet4{Addr: [4]byte{127, 0, 0, 1}}); err != nil {
+		t.Fatal(err)
+	}
+	sa, err := syscall.Getsockname(fd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("127.0.0.1:%d", sa.(*syscall.SockaddrInet4).Port)
+}
 
 func TestCheck(t *testing.T) {
 	client := New(nil).client
@@ -27,12 +51,7 @@ func TestCheck(t *testing.T) {
 		}
 	}()
 
-	dead, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	deadAddr := dead.Addr().String()
-	dead.Close()
+	deadAddr := deadPort(t)
 
 	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer ok.Close()
