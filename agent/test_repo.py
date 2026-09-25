@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -6,7 +7,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import test_barrier  # noqa: E402,F401
-from chat import repo  # noqa: E402
+import chat  # noqa: E402
+from chat import locate, repo  # noqa: E402
 
 
 def git(cwd, *args):
@@ -449,6 +451,111 @@ class Language(Repo):
         for letter in out["error"]:
             self.assertLess(ord(letter), 0x400,
                             f"the refusal came back in the language of the host: {out['error']!r}")
+
+
+BRIDGE = "https://claude.ai/code/session_01abcdefghijk"
+
+
+class Blame(Repo):
+    def setUp(self):
+        super().setUp()
+        write(self.dir, "keep.txt", "one\nTWO\nthree\n")
+        git(self.dir, "commit", "-qam", f"a change\n\nClaude-Session: {BRIDGE}")
+        self.first = git(self.dir, "rev-parse", "HEAD~1").strip()
+        self.second = git(self.dir, "rev-parse", "HEAD").strip()
+
+    def test_each_line_names_the_commit_that_last_wrote_it(self):
+        write(self.dir, "keep.txt", "one\nTWO\nTHREE\n")
+        out = repo.blame(self.dir, "keep.txt")
+        self.assertEqual(out["blame"], [self.first, self.second, ""],
+                         "a line nobody committed yet is the working tree's, not a commit's")
+        self.assertEqual(out["commits"][self.second]["session"], BRIDGE)
+        self.assertEqual(out["commits"][self.second]["subject"], "a change")
+        self.assertEqual(out["commits"][self.first]["session"], "",
+                         "a commit written by hand was given a conversation")
+        self.assertEqual(out["total"], 3)
+
+    def test_the_window_is_the_one_the_viewer_reads(self):
+        out = repo.blame(self.dir, "keep.txt", first=2, lines=1)
+        self.assertEqual((out["first"], out["blame"]), (2, [self.second]))
+        self.assertEqual(list(out["commits"]), [self.second])
+
+    def test_a_window_past_the_end_is_empty(self):
+        out = repo.blame(self.dir, "keep.txt", first=9, lines=5)
+        self.assertEqual((out["blame"], out["commits"]), ([], {}))
+
+    def test_the_last_line_without_a_newline_is_a_line(self):
+        write(self.dir, "keep.txt", "one\nTWO\nthree")
+        git(self.dir, "commit", "-qam", "no newline")
+        out = repo.blame(self.dir, "keep.txt")
+        self.assertEqual((out["total"], len(out["blame"])), (3, 3))
+
+    def test_a_window_read_under_another_revision_is_stale(self):
+        out = repo.blame(self.dir, "keep.txt", rev="not-the-revision")
+        self.assertTrue(out["stale"])
+
+    def test_blame_is_an_operation_of_its_own(self):
+        out = repo.answer({"op": "blame", "cwd": self.dir, "path": "keep.txt"})
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["repo"]["blame"][1], self.second)
+
+
+class Conversations(Repo):
+    """A commit leads to the conversation it names, not to a guess."""
+
+    UUID = "1a5f36fb-1187-4f80-a9bf-50a2c2eec482"
+
+    def setUp(self):
+        super().setUp()
+        self.projects = test_barrier.tmp_path(prefix="projects")
+        self.addCleanup(subprocess.run, ("rm", "-rf", self.projects))
+        for name, value in (("PROJECTS_DIR", self.projects),):
+            self.addCleanup(setattr, chat, name, getattr(chat, name))
+            setattr(chat, name, value)
+        self.addCleanup(setattr, locate, "_live_files", locate._live_files)
+        locate._live_files = lambda: []
+        locate._closed.clear()
+        self.addCleanup(locate._closed.clear)
+
+    def transcript(self, slug, sid, *records):
+        folder = os.path.join(self.projects, slug)
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, f"{sid}.jsonl"), "w") as f:
+            # Claude writes its records without a space after a colon.
+            for r in records:
+                f.write(json.dumps(r, separators=(",", ":")) + "\n")
+
+    def bridge_record(self):
+        return {"type": "system", "subtype": "bridge_status", "url": BRIDGE,
+                "content": f"/remote-control is active · Continue here, on your phone, or at {BRIDGE}"}
+
+    def test_a_closed_conversation_is_found_by_the_record_of_its_bridge(self):
+        self.transcript("-srv-proj", self.UUID, {"type": "user", "cwd": "/srv/proj"}, self.bridge_record(),
+                        {"type": "custom-title", "customTitle": "panel"})
+        self.assertEqual(locate.conversation_of(BRIDGE, near="/srv/proj"),
+                         {"id": self.UUID, "name": "panel", "live": False})
+
+    def test_a_conversation_that_only_quotes_the_address_is_not_taken(self):
+        self.transcript("-srv-proj", self.UUID,
+                        {"type": "user", "message": {"content": f'the commit says "url":"{BRIDGE}"'}})
+        self.assertIsNone(locate.conversation_of(BRIDGE, near="/srv/proj"))
+
+    def test_a_live_session_is_found_by_its_file(self):
+        locate._live_files = lambda: [{"bridgeSessionId": "session_01abcdefghijk",
+                                       "sessionId": self.UUID, "name": "aacpanel"}]
+        self.assertEqual(locate.conversation_of(BRIDGE),
+                         {"id": self.UUID, "name": "aacpanel", "live": True})
+
+    def test_an_address_that_is_no_bridge_asks_nothing(self):
+        self.transcript("-srv-proj", self.UUID, self.bridge_record())
+        self.assertIsNone(locate.conversation_of("https://example.org/session_01abcdefghijk"))
+
+    def test_the_commit_carries_the_conversation(self):
+        write(self.dir, "keep.txt", "one\n")
+        git(self.dir, "commit", "-qam", f"a change\n\nClaude-Session: {BRIDGE}")
+        self.transcript("-elsewhere", self.UUID, self.bridge_record())
+        out = repo.commit(self.dir, git(self.dir, "rev-parse", "HEAD").strip())
+        self.assertEqual(out["conversation"]["id"], self.UUID)
 
 
 class Dispatch(Repo):

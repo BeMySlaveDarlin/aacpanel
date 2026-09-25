@@ -98,6 +98,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             archive=${recent.find((r) => r.sessionId === chat.id) || null}
             onBack=${() => setChat(null)}
             onUsage=${onUsage}
+            onOpenChat=${(talk) => setChat({ name: talk.name, id: talk.live ? null : talk.id })}
         />`;
     }
 

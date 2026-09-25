@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Who wrote a file: the commit of each line beside it, and a line opened to
+// its commit and on to the conversation the commit was written in.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { BlameLines } from "/src/screens/repo/blame.js";
+
+const asked = [];
+window.fetch = async (url) => {
+    const u = new URL(String(url), location.href);
+    asked.push(`${u.pathname}?${u.searchParams.get("hash")}`);
+    return new Response(JSON.stringify({ hash: u.searchParams.get("hash"), subject: "a change",
+        session: "https://claude.ai/code/session_01abcdefghijk",
+        conversation: { id: "1a5f36fb-1187-4f80-a9bf-50a2c2eec482", name: "aacpanel", live: false } }),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+};
+
+const A = "a".repeat(40), B = "b".repeat(40);
+const at = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+const commits = {
+    [A]: { author: "Person", at, subject: "by hand" },
+    [B]: { author: "Session", at, subject: "a change", session: "https://claude.ai/code/session_01abcdefghijk" },
+};
+const opened = [];
+render(html`<${BlameLines} cwd="/srv/proj" first=${1}
+    lines=${["package pkg", "", "func a() {}", "func b() {}", "// draft"]}
+    blame=${[A, A, B, B, ""]} commits=${commits} head="lines 1–5 of 5"
+    onConversation=${(talk) => opened.push(talk)} />`, document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+// textContent, not innerText: the lines sit under content-visibility: auto,
+// and innerText of a subtree not yet drawn is empty.
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const gut = (i) => document.querySelectorAll(".blgut")[i];
+
+window.done = (async () => {
+    await until(() => document.querySelectorAll(".blln").length === 5);
+    const labels = Array.from(document.querySelectorAll(".blwho")).map((el) => el.textContent.trim());
+    const tones = Array.from(document.querySelectorAll(".blln")).map((l) => l.classList.contains("odd"));
+
+    gut(1).click();
+    await until(() => document.querySelector(".blcard"));
+    // preact runs the effects of a card after it is drawn: two frames let
+    // them run, so a card that looks something up has asked by now.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const byHand = { card: text(document.querySelector(".blcard")), under: document.querySelector(".blln:nth-child(2) + .blcard") !== null };
+
+    gut(4).click();
+    await until(() => text(document.querySelector(".blcard")).includes("Not committed"));
+    const uncommitted = text(document.querySelector(".blcard"));
+
+    gut(2).click();
+    await until(() => document.querySelector(".blopen"));
+    const talk = text(document.querySelector(".blopen"));
+    document.querySelector(".blopen").click();
+
+    return { labels, tones, byHand, uncommitted, talk, asked, opened, cards: document.querySelectorAll(".blcard").length };
+})();
+</script>

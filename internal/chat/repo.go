@@ -121,6 +121,30 @@ type RepoOut struct {
 	At      string `json:"at,omitempty"`
 	Subject string `json:"subject,omitempty"`
 	Session string `json:"session,omitempty"`
+	// The conversation a commit was written in, when its trailer leads to one.
+	Conversation *RepoConversation `json:"conversation,omitempty"`
+
+	// Which commit last wrote each line of a window, empty for a line nobody
+	// has committed; and each of those commits once.
+	Blame   []string              `json:"blame,omitempty"`
+	Commits map[string]RepoCommit `json:"commits,omitempty"`
+}
+
+// RepoCommit is who wrote a commit, when, what it says it did, and the
+// address of the conversation it names.
+type RepoCommit struct {
+	Author  string `json:"author"`
+	At      string `json:"at"`
+	Subject string `json:"subject"`
+	Session string `json:"session,omitempty"`
+}
+
+// RepoConversation is the conversation a commit was written in: its uuid, its
+// name, and whether its session is alive.
+type RepoConversation struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Live bool   `json:"live"`
 }
 
 // Repo asks the agent one question about a repository.

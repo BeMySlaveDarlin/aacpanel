@@ -62,7 +62,7 @@ function RepoButton({ onOpen }) {
     `;
 }
 
-export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage }) {
+export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
     // where it was. Sending the reader to a page of their own instead costs
@@ -275,8 +275,14 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
             }
             await sealed(id, put.path);
         };
+        // A line of the repository leads to the conversation it was written
+        // in: that conversation opens in place of this one.
+        const openTalk = onOpenChat
+            ? (talk) => { setRepo(false); onOpenChat(talk); }
+            : null;
         return html`<${RepoView} cwd=${here} name=${name}
-                                 onBack=${() => setRepo(false)} onSend=${sendReview} />`;
+                                 onBack=${() => setRepo(false)} onSend=${sendReview}
+                                 onConversation=${openTalk} />`;
     }
 
     const feed = weld(state.items);

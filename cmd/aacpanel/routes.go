@@ -95,6 +95,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/repo/file", g.page(s.apiRepoFile))
 	mux.Handle("GET /api/repo/diff", g.page(s.apiRepoDiff))
 	mux.Handle("GET /api/repo/commit", g.page(s.apiRepoCommit))
+	mux.Handle("GET /api/repo/blame", g.page(s.apiRepoBlame))
 
 	mux.Handle("GET /api/briefs", g.page(s.apiBriefs))
 	mux.Handle("GET /api/briefs/{id}", g.page(s.apiBrief))

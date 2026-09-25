@@ -18,7 +18,7 @@ const CLASSES = ["", "cdcm", "cdstr", "cdkw", "cdnum", "cdty", "cdfn"];
 // Painted turns a line and its spans into the nodes of that line. With no
 // spans — a file of a kind the panel cannot read, or one over the ceiling —
 // the text goes out as it came.
-function Painted({ text, spans }) {
+export function Painted({ text, spans }) {
     if (!spans || !spans.length) return text;
     const out = [];
     let at = 0;

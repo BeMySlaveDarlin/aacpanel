@@ -26,6 +26,8 @@ export const diffOf = (cwd, path, base, rev, layer) =>
     ask("/api/repo/diff", clean({ cwd, path, base, rev, layer }));
 export const refsOf = (cwd) => ask("/api/repo/refs", { cwd });
 export const commitOf = (cwd, hash) => ask("/api/repo/commit", { cwd, hash });
+export const blameOf = (cwd, path, rev, first, lines) =>
+    ask("/api/repo/blame", clean({ cwd, path, rev, first, lines }));
 
 function clean(params) {
     const out = {};

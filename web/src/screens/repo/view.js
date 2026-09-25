@@ -18,7 +18,8 @@ import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Icon } from "../../ui/icons.js";
 import { useWide } from "../../ui/wide.js";
-import { changesOf, diffOf, fileOf, findOf, treeOf, useAsk } from "./data.js";
+import { blameOf, changesOf, diffOf, fileOf, findOf, treeOf, useAsk } from "./data.js";
+import { BlameLines } from "./blame.js";
 import { FileLines, Hunk, SplitHunk } from "./lines.js";
 import { NoteBox, NotesPane, noteAt, place, useReview } from "./notes.js";
 
@@ -46,7 +47,7 @@ function dirName(path) {
 // rather than picked up into a box that has nowhere to keep what is written.
 const NO_NOTES = { notes: [], picked: null, onPick: null, composer: null };
 
-export function RepoView({ cwd, name, onBack, onSend }) {
+export function RepoView({ cwd, name, onBack, onSend, onConversation }) {
     const wide = useWide();
 
     // What is open and which one is being read. The viewer never went deeper
@@ -222,7 +223,7 @@ export function RepoView({ cwd, name, onBack, onSend }) {
                        cwd=${cwd} base=${base} wrap=${wrap} pane=${pane} plain=${plain}
                        tabs=${tabs} state=${changes} data=${data}
                        noting=${noting} review=${review} onSend=${onSend} onNote=${openAt}
-                       stale=${stale} onStale=${onStale}
+                       stale=${stale} onStale=${onStale} onConversation=${onConversation}
                        jump=${jump && jump.path === file ? jump : null}
                        onPick=${(p) => setTabs((t) => ({ ...t, active: p }))}
                        onClose=${closeFile} onFile=${openFile} onBase=${setBase} />`
@@ -230,7 +231,7 @@ export function RepoView({ cwd, name, onBack, onSend }) {
                 <div class=${`cdpage${wrap ? " wrap" : ""}`}>
                     ${file
                         ? html`<${FileBody} cwd=${cwd} path=${file} base=${base} noting=${noting}
-                                            branch=${!plain}
+                                            branch=${!plain} onConversation=${onConversation}
                                             notes=${noting.notes} onStale=${onStale}
                                             jump=${jump && jump.path === file ? jump : null} />`
                         : plain
@@ -316,7 +317,7 @@ function FileFinder({ cwd, onPick, onClose }) {
 // with tabs of its own rather than a second column — the notes of a review
 // belong beside the tree, and two narrow columns leave the code nothing.
 function DeskBody({ cwd, base, wrap, pane, plain, tabs, state, data, noting, review, jump, stale, onStale,
-                   onSend, onNote, onPick, onClose, onFile, onBase }) {
+                   onSend, onNote, onPick, onClose, onFile, onBase, onConversation }) {
     // Which of the two the panel is showing. The tree and the notes are two
     // readings of the same repository, not two places to be — a panel that
     // remembered one of them per file would send the eye looking for the tab
@@ -332,7 +333,7 @@ function DeskBody({ cwd, base, wrap, pane, plain, tabs, state, data, noting, rev
                 <div class="cdscroll">
                     ${tabs.active
                         ? html`<${FileBody} cwd=${cwd} path=${tabs.active} base=${base} wide=${true}
-                                            branch=${!plain}
+                                            branch=${!plain} onConversation=${onConversation}
                                             noting=${noting} notes=${noting.notes}
                                             onStale=${onStale} jump=${jump} />`
                         : plain
@@ -591,13 +592,16 @@ function TreePane({ cwd, changes, onFile }) {
 
 // FileBody is one file, whole: the window a screen reads it by, with the next
 // one a tap away rather than a scroll that never ends.
-function FileBody({ cwd, path, base, wide, branch, noting, jump, notes, onStale }) {
+function FileBody({ cwd, path, base, wide, branch, noting, jump, notes, onStale, onConversation }) {
     const [first, setFirst] = useState(() => windowFor(jump && jump.line));
     const [mode, setMode] = useState("file");
     // Side by side is offered only where there is room for two columns. On a
     // phone it is two half-width columns of code, which is neither side read.
     const [split, setSplit] = useState(false);
-    const [file] = useAsk(() => fileOf(cwd, path, "", first, WINDOW), [cwd, path, first], mode === "file");
+    const [file] = useAsk(() => fileOf(cwd, path, "", first, WINDOW), [cwd, path, first], mode !== "diff");
+    // Who wrote the file is read by the same window as the file: the lines
+    // and the commits beside them are the same lines.
+    const [who] = useAsk(() => blameOf(cwd, path, "", first, WINDOW), [cwd, path, first], mode === "blame");
     const [diff] = useAsk(() => diffOf(cwd, path, base, ""), [cwd, path, base], mode === "diff");
 
     // A note opened from the list lands on the window that holds its line
@@ -631,6 +635,8 @@ function FileBody({ cwd, path, base, wide, branch, noting, jump, notes, onStale 
                     onClick=${() => setMode("file")}>File</button>
             <button class="chip" type="button" aria-pressed=${mode === "diff"}
                     onClick=${() => setMode("diff")}>Diff</button>
+            <button class="chip" type="button" aria-pressed=${mode === "blame"}
+                    onClick=${() => setMode("blame")}>Who wrote</button>
             ${wide && mode === "diff" && html`
                 <button class="chip cdsplitpick" type="button" aria-pressed=${split}
                         onClick=${() => setSplit((s) => !s)}
@@ -650,6 +656,31 @@ function FileBody({ cwd, path, base, wide, branch, noting, jump, notes, onStale 
                               notes=${marks.notes} picked=${marks.picked}
                               onPick=${marks.onPick} composer=${marks.composer}
                               head=${`lines ${data.first}–${data.first + data.lines.length - 1} of ${data.total}`} />
+                ${data.more && html`
+                    <button class="cdopen" type="button"
+                            onClick=${() => setFirst(data.first + data.lines.length)}>
+                        The next ${WINDOW} lines
+                    </button>
+                `}
+                ${data.first > 1 && html`
+                    <button class="cdopen" type="button"
+                            onClick=${() => setFirst(Math.max(1, data.first - WINDOW))}>
+                        The ${WINDOW} before
+                    </button>
+                `}
+            `}
+        `}
+
+        ${mode === "blame" && html`
+            ${(file.kind === "loading" || who.kind === "loading") && html`<p class="hint">Reading who wrote the file…</p>`}
+            ${file.kind === "failed" && html`<p class="hint crit">${file.error}</p>`}
+            ${who.kind === "failed" && html`<p class="hint crit">${who.error}</p>`}
+            ${data && (data.binary || data.tooBig) && html`<p class="hint">There are no lines to name the writers of.</p>`}
+            ${data && data.lines && who.kind === "ready" && html`
+                <${BlameLines} cwd=${cwd} first=${data.first} lines=${data.lines} spans=${data.spans}
+                               blame=${who.data.blame || []} commits=${who.data.commits || {}}
+                               onConversation=${onConversation}
+                               head=${`lines ${data.first}–${data.first + data.lines.length - 1} of ${data.total}`} />
                 ${data.more && html`
                     <button class="cdopen" type="button"
                             onClick=${() => setFirst(data.first + data.lines.length)}>

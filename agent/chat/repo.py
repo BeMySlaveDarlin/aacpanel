@@ -20,11 +20,14 @@ answer is "stale" and the screen asks again.
 
 import hashlib
 import os
+import re
 import subprocess
 import time
 from collections import deque
 
 from sesstate import inside
+
+from .locate import conversation_of
 
 # What one reply may carry. A file past the ceiling is not cut silently: the
 # reply says how much there is and the screen says it out loud.
@@ -650,7 +653,9 @@ def commit(cwd, sha):
     """Returns who wrote a commit and which conversation it was written in.
 
     The tie is not a guess: a session leaves its own name in a trailer of the
-    commits it writes, and that name is the address of the conversation.
+    commits it writes, and that name is the address of the conversation. A
+    commit without the trailer was written by hand, and no conversation is
+    made up for it.
     """
     top = _repo_dir(cwd)
     if not isinstance(sha, str) or not sha or any(c in sha for c in " \t\n:;|&"):
@@ -664,7 +669,73 @@ def commit(cwd, sha):
         if line.startswith(SESSION_TRAILER):
             session = line[len(SESSION_TRAILER):].strip()
             break
-    return {"hash": text[0], "author": text[1], "at": text[2], "subject": text[3], "session": session}
+    out = {"hash": text[0], "author": text[1], "at": text[2], "subject": text[3], "session": session}
+    found = conversation_of(session, near=top) if session else None
+    if found:
+        out["conversation"] = found
+    return out
+
+
+BLAME_HEAD_RE = re.compile(r"^([0-9a-f]{40}) \d+ \d+")
+UNCOMMITTED = "0" * 40
+# One show for every commit of a window: the unit and record separators keep a
+# subject with a newline or a trailer with a comma from splitting a record.
+BLAME_FORMAT = "%H%x1f%an%x1f%aI%x1f%s%x1f%(trailers:key=Claude-Session,valueonly,separator=%x2C)%x1e"
+
+
+def blame(cwd, path, rev="", first=1, lines=MAX_LINES):
+    """Returns which commit last wrote each line of a window of one file.
+
+    The window is the one the viewer reads the file by. A line the working
+    tree wrote and nobody has committed belongs to no commit. The commits come
+    once each, with the conversation they name; which conversation that is, is
+    looked up when a line is opened, not for the whole window.
+    """
+    top = _repo_dir(cwd)
+    real = _file(top, path)
+    if not os.path.isfile(real):
+        raise RepoError("there is no such file in the working tree")
+    head = _head(top)
+    base, _ = base_of(top, _branch(top))
+    now = revision(top, base, head)
+    if rev and rev != now:
+        return {"stale": True, "rev": now}
+
+    with open(real, "rb") as f:
+        raw = f.read(MAX_BLOB)
+    total = raw.count(b"\n") + (1 if raw and not raw.endswith(b"\n") else 0)
+    start = max(1, int(first or 1))
+    want = max(1, min(int(lines or MAX_LINES), MAX_LINES))
+    if start > max(total, 1):
+        return {"rev": now, "path": path, "first": start, "blame": [], "commits": {}, "total": total}
+    last = min(start + want - 1, max(total, 1))
+
+    raw, _ = _run(top, "blame", "--porcelain", "-L", f"{start},{last}", "--", path)
+    shas = []
+    for line in _text(raw).split("\n"):
+        found = BLAME_HEAD_RE.match(line)
+        if found:
+            shas.append(found.group(1))
+
+    commits = {}
+    known = sorted({s for s in shas if s != UNCOMMITTED})
+    if known:
+        raw, _ = _run(top, "show", "-s", "--no-patch", f"--format={BLAME_FORMAT}", *known)
+        for record in _text(raw).split("\x1e"):
+            parts = record.strip("\n").split("\x1f")
+            if len(parts) != 5:
+                continue
+            sha, author, at, subject, session = parts
+            commits[sha] = {"author": author, "at": at, "subject": subject,
+                            "session": session.split(",")[0].strip()}
+    return {
+        "rev": now,
+        "path": path,
+        "first": start,
+        "blame": ["" if s == UNCOMMITTED else s for s in shas],
+        "commits": commits,
+        "total": total,
+    }
 
 
 def answer(request):
@@ -690,6 +761,9 @@ def answer(request):
                        str(request.get("rev") or ""), str(request.get("layer") or ""))
         elif op == "commit":
             out = commit(cwd, str(request.get("hash") or ""))
+        elif op == "blame":
+            out = blame(cwd, str(request.get("path") or ""), str(request.get("rev") or ""),
+                        request.get("first") or 1, request.get("lines") or MAX_LINES)
         else:
             return {"ok": False, "error": f"there is no such repo operation: {op!r}"}
     except NotARepo as e:

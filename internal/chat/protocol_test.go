@@ -358,3 +358,35 @@ func missing(t *testing.T, path string, was, now any) {
 		}
 	}
 }
+
+// A blame and a commit come from the agent with every field they carry.
+func TestRepoBlameAndCommitKeepEveryField(t *testing.T) {
+	const fromAgent = `{
+		"rev": "r1", "path": "keep.txt", "first": 1, "total": 3,
+		"blame": ["aaaa", "bbbb", ""],
+		"commits": {
+			"aaaa": {"author": "Test", "at": "2026-09-26T06:03:53+07:00", "subject": "first"},
+			"bbbb": {"author": "Test", "at": "2026-09-26T06:04:00+07:00", "subject": "a change",
+			         "session": "https://claude.ai/code/session_01abcdefghijk"}
+		},
+		"hash": "bbbb", "author": "Test", "at": "2026-09-26T06:04:00+07:00", "subject": "a change",
+		"session": "https://claude.ai/code/session_01abcdefghijk",
+		"conversation": {"id": "1a5f36fb-1187-4f80-a9bf-50a2c2eec482", "name": "aacpanel", "live": true}
+	}`
+	var out RepoOut
+	if err := json.Unmarshal([]byte(fromAgent), &out); err != nil {
+		t.Fatalf("the agent answer does not parse: %v", err)
+	}
+	var was, now any
+	if err := json.Unmarshal([]byte(fromAgent), &was); err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &now); err != nil {
+		t.Fatal(err)
+	}
+	missing(t, "", was, now)
+}

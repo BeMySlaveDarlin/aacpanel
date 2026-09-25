@@ -270,6 +270,9 @@ export function DesktopShell({
                 archive=${chat.archived ? chat.row : null}
                 onBack=${() => setChat(null)}
                 onUsage=${() => { setChat(null); goSection("home"); }}
+                onOpenChat=${(talk) => openChat(talk.live
+                    ? { name: talk.name, id: null }
+                    : { name: talk.name, id: talk.id, archived: true, row: null })}
             />
         </section>`;
     };

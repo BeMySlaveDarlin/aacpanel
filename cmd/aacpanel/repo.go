@@ -241,6 +241,26 @@ func (s *Server) apiRepoDiff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, answer)
 }
 
+// apiRepoBlame answers with which commit last wrote each line of a window of
+// a file: the window the viewer reads the file by.
+func (s *Server) apiRepoBlame(w http.ResponseWriter, r *http.Request) {
+	cwd, _, ok := s.repoProject(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	first, _ := strconv.Atoi(q.Get("first"))
+	lines, _ := strconv.Atoi(q.Get("lines"))
+	out, ok := s.repoAsk(w, r, chat.RepoReq{
+		Op: "blame", Cwd: cwd, Path: q.Get("path"), Rev: q.Get("rev"),
+		First: first, Lines: lines,
+	})
+	if !ok {
+		return
+	}
+	writeJSON(w, out)
+}
+
 // apiRepoCommit answers with who wrote a commit and in which conversation.
 func (s *Server) apiRepoCommit(w http.ResponseWriter, r *http.Request) {
 	cwd, _, ok := s.repoProject(w, r)
