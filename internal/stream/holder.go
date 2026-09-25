@@ -367,35 +367,48 @@ func (h *Holder) onUser(ev event) {
 	_ = json.Unmarshal(ev.Message, &msg)
 	var text string
 	_ = json.Unmarshal(msg.Content, &text)
-	h.take(ev.UUID, text)
+	if h.take(ev.UUID, text) {
+		h.saveSummary()
+	}
 }
 
 // onCommand notices that claude has taken up a message by the lifecycle it
 // reports for it. A slash command claude runs itself — /cost, or /plugins it
 // turns down — is never echoed back as a user message, and without this word
 // it would stay in the queue for good and stand in the way of a switch.
+//
+// "started" is also where a turn begins that nobody sent a message for right
+// now: a message left in the queue when the turn before it ended, a scheduled
+// prompt, a turn resumed — claude starts them itself. The session is busy from
+// that word to the result, or a switch would take it for free and cut the
+// answer off.
 func (h *Holder) onCommand(ev event) {
-	if ev.State == "started" || ev.State == "completed" {
+	switch ev.State {
+	case "started":
+		h.mu.Lock()
+		h.state.Busy = true
+		h.mu.Unlock()
 		h.take(ev.CommandUUID, "")
+		h.saveSummary()
+	case "completed":
+		if h.take(ev.CommandUUID, "") {
+			h.saveSummary()
+		}
 	}
 }
 
 // take removes a message claude has read from the queue, found by its id or,
-// for an echo that lost it, by its text.
-func (h *Holder) take(id, text string) {
+// for an echo that lost it, by its text, and says whether it was there.
+func (h *Holder) take(id, text string) bool {
 	h.mu.Lock()
-	taken := false
+	defer h.mu.Unlock()
 	for i, q := range h.state.Queue {
 		if (id != "" && q.UUID == id) || (text != "" && q.Text == text) {
 			h.state.Queue = append(h.state.Queue[:i], h.state.Queue[i+1:]...)
-			taken = true
-			break
+			return true
 		}
 	}
-	h.mu.Unlock()
-	if taken {
-		h.saveSummary()
-	}
+	return false
 }
 
 func (h *Holder) onSystem(ev event) {

@@ -126,6 +126,20 @@ func fakeClaude() int {
 				result()
 				lifecycle("completed")
 				continue
+			case "fresh":
+				// A message queued behind a turn that ends before it can take
+				// it: the turn ends with its result, and claude starts a fresh
+				// one for the message on its own. The fresh turn stays open.
+				for _, h := range held {
+					out(map[string]any{"type": "user", "uuid": h["uuid"], "message": h["message"]})
+				}
+				held = nil
+				result()
+				out(map[string]any{"type": "command_lifecycle", "command_uuid": msg["uuid"], "state": "started"})
+				out(map[string]any{"type": "user", "uuid": msg["uuid"], "message": msg["message"]})
+				out(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": []any{
+					map[string]any{"task_id": text}}})
+				continue
 			case "ask":
 				out(map[string]any{"type": "control_request", "request_id": "cc-1", "request": map[string]any{
 					"subtype": "can_use_tool", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_1",
@@ -327,6 +341,24 @@ func TestACommandClaudeRunsItselfLeavesTheQueue(t *testing.T) {
 		t.Fatalf("send: %+v", reply)
 	}
 	r.waitFor("the command to leave the queue", func(s State) bool { return len(s.Queue) == 0 && !s.Busy })
+}
+
+// A turn claude starts on its own keeps the session busy until its result,
+// though the turn before it has ended and nobody has sent anything since.
+func TestATurnClaudeStartsItselfKeepsTheSessionBusy(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	r.ask(Request{Op: OpSend, Text: "slow"})
+	r.ask(Request{Op: OpSend, Text: "fresh"})
+	s := r.waitFor("the fresh turn", func(s State) bool { return len(s.Tasks) == 1 && s.Tasks[0].ID == "fresh" })
+	if !s.Busy {
+		t.Fatalf("the session answering a message it took from the queue reads as free: %+v", s)
+	}
+	if len(s.Queue) != 0 {
+		t.Errorf("the message the fresh turn took is still in the queue: %+v", s.Queue)
+	}
+	r.ask(Request{Op: OpSend, Text: "hello"})
+	r.waitFor("the end of the turn", func(s State) bool { return !s.Busy && len(s.Queue) == 0 })
 }
 
 func TestAQuestionWaitsForAPersonAndTheAnswerReachesClaude(t *testing.T) {
