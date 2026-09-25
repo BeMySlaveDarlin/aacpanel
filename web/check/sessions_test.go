@@ -405,3 +405,26 @@ func TestCatchUpHasOneOwner(t *testing.T) {
 		t.Error("the sessions screen hurries the snapshot itself again")
 	}
 }
+
+// A session run in a worktree kept beside its repository has a name of its
+// own, and the service tells which project it belongs to. The list takes that
+// word over the name: null is outside the map even under a matching name, and
+// the name is the guess only for a row the service did not place.
+func TestSessionGoesToTheProjectTheServiceNamed(t *testing.T) {
+	project := map[string]any{"id": 200, "session": "evirma"}
+	sessions := []any{
+		map[string]any{"session": "evirma-fingerprint-rotation", "project": map[string]any{"id": 200}},
+		map[string]any{"session": "evirma-2", "project": nil},
+		map[string]any{"session": "evirma", "project": map[string]any{"id": 7}},
+		map[string]any{"session": "evirma-3"},
+	}
+	got := runModuleJS(t, "src/screens/sessions/map.js", "sessionsOf", [][]any{{project, sessions}})
+
+	var names []string
+	for _, row := range got[0].([]any) {
+		names = append(names, row.(map[string]any)["session"].(string))
+	}
+	if strings.Join(names, ",") != "evirma-fingerprint-rotation,evirma-3" {
+		t.Errorf("the project holds %v, expected the worktree session and the unplaced one by its name", names)
+	}
+}

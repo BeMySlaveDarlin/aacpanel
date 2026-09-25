@@ -178,6 +178,62 @@ func TestLocateProject(t *testing.T) {
 	})
 }
 
+// A live session is placed in the project a resume of it would carry. The
+// screens read that from the snapshot instead of guessing by the name, and a
+// session run in a worktree does not share its name with the project.
+func TestLiveSessionsCarryTheirProject(t *testing.T) {
+	roots := []string{"/srv/proj", "/home/u"}
+	worktrees := map[string]string{"/srv/proj/Labs/aacpanel-fix": "/srv/proj/Labs/aacpanel"}
+	payload := []byte(`{"at":7,"sessions":[` +
+		`{"session":"fingerprint","cwd":"/srv/proj/Labs/aacpanel-fix","tokens":5},` +
+		`{"session":"aacpanel-2","cwd":"/srv/proj/Beta/service/aacpanel/web"},` +
+		`{"session":"home","cwd":"/elsewhere"},` +
+		`{"session":"stray","cwd":"/srv/proj/Stray"},` +
+		`{"session":"aacpanel","cwd":"/elsewhere"}]}`)
+
+	var out struct {
+		At       int                          `json:"at"`
+		Sessions []map[string]json.RawMessage `json:"sessions"`
+	}
+	if err := json.Unmarshal(sessionsByProject(payload, tree(), worktrees, roots), &out); err != nil {
+		t.Fatalf("the snapshot was not parsed: %v", err)
+	}
+	if out.At != 7 || len(out.Sessions) != 5 {
+		t.Fatalf("the snapshot lost its fields: at %d, %d sessions", out.At, len(out.Sessions))
+	}
+
+	want := map[string]int{"fingerprint": 200, "aacpanel-2": 100, "home": 101, "stray": 0, "aacpanel": 0}
+	for _, row := range out.Sessions {
+		name := textField(row, "session")
+		raw, ok := row["project"]
+		if !ok {
+			t.Errorf("%s: no project word at all — the screen falls back to its own guess", name)
+			continue
+		}
+		var got *struct {
+			ID      int    `json:"id"`
+			Group   string `json:"group"`
+			Session string `json:"session"`
+		}
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("%s: the project was not parsed: %v", name, err)
+		}
+		id := 0
+		if got != nil {
+			id = got.ID
+		}
+		if id != want[name] {
+			t.Errorf("%s went to project %d, expected %d", name, id, want[name])
+		}
+		if name == "fingerprint" && (got == nil || got.Group != "CLIENT" || got.Session != "aacpanel") {
+			t.Errorf("the worktree session lost the group or the session name of its project: %+v", got)
+		}
+	}
+	if string(out.Sessions[0]["tokens"]) != "5" {
+		t.Errorf("the rest of the row was lost: %s", out.Sessions[0]["tokens"])
+	}
+}
+
 func hostServer(t *testing.T, snapshot string) (*Server, string) {
 	t.Helper()
 	srv, root := profilesServer(t)
@@ -235,6 +291,30 @@ func TestHostMapComesFromDBPG(t *testing.T) {
 		}
 		if got.Session != "aacpanel" {
 			t.Errorf("session name %q — by it the screen matches live sessions with projects", got.Session)
+		}
+	})
+
+	t.Run("a live session in a worktree beside the repository carries its project", func(t *testing.T) {
+		srv, root := hostServer(t, snapshot)
+		id := fillMap(t, srv, root)
+		repo, worktree := filepath.Join(root, "aacpanel"), filepath.Join(root, "aacpanel-fix")
+		srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"fix","cwd":"`+worktree+`"}],`+
+			`"projects":{"at":1,"dirs":[{"path":"`+worktree+`","kind":"project","git":true,"worktreeOf":"`+repo+`"}]}}`))
+
+		w := httptest.NewRecorder()
+		srv.apiHost(w, httptest.NewRequest(http.MethodGet, "/api/host", nil))
+		var out struct {
+			Sessions []struct {
+				Project *struct {
+					ID int `json:"id"`
+				} `json:"project"`
+			} `json:"sessions"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatalf("the snapshot was not parsed: %v", err)
+		}
+		if len(out.Sessions) != 1 || out.Sessions[0].Project == nil || out.Sessions[0].Project.ID != id {
+			t.Errorf("the worktree session went out as %s — the screens show it outside the map", w.Body.String())
 		}
 	})
 }

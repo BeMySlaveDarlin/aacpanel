@@ -295,7 +295,7 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
                             <span class="dkcontournum">${list.length} live</span>
                         </div>
                         ${list.map((s) => {
-                            const found = place(s.cwd);
+                            const found = s.project === undefined ? place(s.cwd) : s.project;
                             return html`<${SessionLine}
                                 key=${s.session}
                                 s=${s}

@@ -478,39 +478,31 @@ func (s *Server) placeArchive(ctx context.Context, rows []chat.ArchiveRow) {
 		log.Printf("session archive: the profile map is unavailable, the rows go without a project: %v", err)
 		return
 	}
-	placeRows(rows, list)
+	placeRows(rows, list, s.worktrees(), s.db.ProjectRoots())
 }
 
-func placeRows(rows []chat.ArchiveRow, list []store.Profile) {
-	byPath := make(map[string]*chat.ArchiveProject)
+// placeRows gives every archived conversation the project it ran in, found
+// by its directory the way a resume of it finds it — a worktree kept beside
+// its repository included — and failing that by the directory claude keeps
+// its transcript under.
+func placeRows(rows []chat.ArchiveRow, list []store.Profile, worktreeOf map[string]string, roots []string) {
 	bySlug := make(map[string]*chat.ArchiveProject)
 	for _, profile := range list {
 		for _, group := range profile.Groups {
 			for _, p := range group.Projects {
-				dir := strings.TrimRight(p.Path, "/")
-				if dir == "" {
+				slug := archiveSlug(strings.TrimRight(p.Path, "/"))
+				if _, taken := bySlug[slug]; slug == "" || taken {
 					continue
 				}
-				found := &chat.ArchiveProject{ID: p.ID, Name: p.Name, Session: sessionNameOf(p), Path: p.Path,
-					Group: group.Name}
-				if _, taken := byPath[dir]; !taken {
-					byPath[dir] = found
-				}
-				if slug := archiveSlug(dir); slug != "" {
-					if _, taken := bySlug[slug]; !taken {
-						bySlug[slug] = found
-					}
-				}
+				bySlug[slug] = mapProject{profile: profile, group: group.Name, project: p}.ref()
 			}
 		}
 	}
 
 	for i := range rows {
-		if dir := strings.TrimRight(rows[i].CWD, "/"); dir != "" {
-			if found, ok := byPath[dir]; ok {
-				rows[i].Project = found
-				continue
-			}
+		if found, ok := projectAt(list, rows[i].CWD, worktreeOf, roots); ok {
+			rows[i].Project = found.ref()
+			continue
 		}
 		if found, ok := bySlug[rows[i].Slug]; ok && rows[i].Slug != "" {
 			rows[i].Project = found

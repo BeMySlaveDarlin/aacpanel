@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/chat"
 	"aacpanel/internal/store"
 )
 
@@ -60,6 +61,7 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 	if len(list) == 0 {
 		return payload, nil
 	}
+	payload = sessionsByProject(payload, list, s.worktrees(), s.db.ProjectRoots())
 	tree := profileMap(list)
 	if len(tree) == 0 {
 		return payload, nil
@@ -127,6 +129,7 @@ func sessionNameOf(p store.ProfileProject) string {
 
 type mapProject struct {
 	profile store.Profile
+	group   string
 	project store.ProfileProject
 	// at is where the conversation runs when that is not the project's own
 	// directory: a worktree of it or a directory inside it. The conversation is
@@ -231,14 +234,8 @@ func locateProject(list []store.Profile, id int, cwd, target string, worktreeOf 
 		}
 		return &found, nil
 	}
-	if dir := strings.TrimRight(strings.TrimSpace(cwd), "/"); dir != "" {
-		if found, ok := projectByPath(list, dir); ok {
-			return &found, nil
-		}
-		if found, ok := projectOwning(list, path.Clean(dir), worktreeOf, roots); ok {
-			found.at = path.Clean(dir)
-			return &found, nil
-		}
+	if found, ok := projectAt(list, cwd, worktreeOf, roots); ok {
+		return &found, nil
 	}
 	if name := strings.TrimSpace(target); name != "" {
 		switch hits := projectsBySession(list, name); len(hits) {
@@ -257,12 +254,87 @@ func locateProject(list []store.Profile, id int, cwd, target string, worktreeOf 
 	return nil, nil
 }
 
+// projectAt finds the project a working directory belongs to: the project
+// whose directory it is, or the one that owns it — see projectOwning. at is set
+// when the directory is not the project's own.
+func projectAt(list []store.Profile, cwd string, worktreeOf map[string]string, roots []string) (mapProject, bool) {
+	dir := strings.TrimRight(strings.TrimSpace(cwd), "/")
+	if dir == "" {
+		return mapProject{}, false
+	}
+	if found, ok := projectByPath(list, dir); ok {
+		return found, true
+	}
+	if found, ok := projectOwning(list, path.Clean(dir), worktreeOf, roots); ok {
+		found.at = path.Clean(dir)
+		return found, true
+	}
+	return mapProject{}, false
+}
+
+// ref is the entry of the map a session row carries: which project it ran in
+// and the session name a new one of that project comes up under.
+func (m mapProject) ref() *chat.ArchiveProject {
+	return &chat.ArchiveProject{
+		ID: m.project.ID, Name: m.project.Name, Session: sessionNameOf(m.project), Path: m.project.Path,
+		Group: m.group,
+	}
+}
+
+// sessionsByProject tells every live session the project of the map it
+// belongs to, found the way a resume of it finds it: by its directory — the
+// project's own, one inside it, or a git worktree of it — and failing that by
+// its name. A session no project owns carries null: the screens show it
+// outside the map instead of guessing on their own, and a worktree kept
+// beside its repository is known only here.
+func sessionsByProject(payload []byte, list []store.Profile, worktreeOf map[string]string, roots []string) []byte {
+	var snapshot map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &snapshot); err != nil {
+		return payload
+	}
+	var rows []map[string]json.RawMessage
+	if err := json.Unmarshal(snapshot["sessions"], &rows); err != nil {
+		return payload
+	}
+	for _, row := range rows {
+		var ref *chat.ArchiveProject
+		found, err := locateProject(list, 0, textField(row, "cwd"), textField(row, "session"), worktreeOf, roots)
+		if err == nil && found != nil {
+			ref = found.ref()
+		}
+		raw, err := json.Marshal(ref)
+		if err != nil {
+			return payload
+		}
+		row["project"] = raw
+	}
+	raw, err := json.Marshal(rows)
+	if err != nil {
+		return payload
+	}
+	snapshot["sessions"] = raw
+	out, err := json.Marshal(snapshot)
+	if err != nil {
+		return payload
+	}
+	return out
+}
+
+// textField reads a string field of a snapshot row; anything else reads as empty.
+func textField(row map[string]json.RawMessage, key string) string {
+	var out string
+	if json.Unmarshal(row[key], &out) != nil {
+		return ""
+	}
+	return out
+}
+
 func projectByID(list []store.Profile, id int) (mapProject, bool) {
 	for _, profile := range list {
 		for _, group := range profile.Groups {
 			for _, p := range group.Projects {
 				if p.ID == id {
-					return mapProject{profile: profile, project: p}, true
+					return mapProject{profile: profile, group: group.Name, project: p}, true
 				}
 			}
 		}
@@ -275,7 +347,7 @@ func projectByPath(list []store.Profile, dir string) (mapProject, bool) {
 		for _, group := range profile.Groups {
 			for _, p := range group.Projects {
 				if strings.TrimRight(p.Path, "/") == dir {
-					return mapProject{profile: profile, project: p}, true
+					return mapProject{profile: profile, group: group.Name, project: p}, true
 				}
 			}
 		}
@@ -290,7 +362,7 @@ func projectsBySession(list []store.Profile, name string) []mapProject {
 			for _, p := range group.Projects {
 				base := path.Base(strings.TrimRight(p.Path, "/"))
 				if sessionNameOf(p) == name || base == name {
-					out = append(out, mapProject{profile: profile, project: p})
+					out = append(out, mapProject{profile: profile, group: group.Name, project: p})
 				}
 			}
 		}

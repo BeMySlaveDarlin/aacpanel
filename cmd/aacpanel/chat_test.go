@@ -592,7 +592,7 @@ func TestArchiveRowsCarryProjectFromMap(t *testing.T) {
 		{SessionID: "e", CWD: "/srv/proj/elsewhere", Slug: "-srv-proj-elsewhere"},
 		{SessionID: "f", Home: true},
 	}
-	placeRows(rows, list)
+	placeRows(rows, list, nil, nil)
 
 	want := map[string]string{"a": "cc-lib", "b": "cc-lib", "c": "Panel", "d": "cc-lib", "e": "", "f": ""}
 	for _, row := range rows {
@@ -614,6 +614,33 @@ func TestArchiveRowsCarryProjectFromMap(t *testing.T) {
 	// the project's name when the map left it to the directory.
 	if rows[2].Project.Session != "aacpanel" {
 		t.Errorf("the row names the session of its project %q, expected aacpanel", rows[2].Project.Session)
+	}
+}
+
+// An archived conversation run in a worktree beside its repository, or deeper
+// inside a project, belongs to that project, as a resume of it does.
+func TestArchiveRowOfAWorktreeCarriesItsProject(t *testing.T) {
+	roots := []string{"/srv/proj", "/home/u"}
+	worktrees := map[string]string{"/srv/proj/Labs/aacpanel-fix": "/srv/proj/Labs/aacpanel"}
+	rows := []chat.ArchiveRow{
+		{SessionID: "a", CWD: "/srv/proj/Labs/aacpanel-fix", Slug: "-srv-proj-Labs-aacpanel-fix"},
+		{SessionID: "b", CWD: "/srv/proj/Beta/service/aacpanel/web", Slug: "-srv-proj-Beta-service-aacpanel-web"},
+		{SessionID: "c", CWD: "/home/u/.cache/work", Slug: "-home-u--cache-work"},
+	}
+	placeRows(rows, tree(), worktrees, roots)
+
+	want := map[string]int{"a": 200, "b": 100, "c": 0}
+	for _, row := range rows {
+		id := 0
+		if row.Project != nil {
+			id = row.Project.ID
+		}
+		if id != want[row.SessionID] {
+			t.Errorf("row %s went to project %d, expected %d", row.SessionID, id, want[row.SessionID])
+		}
+	}
+	if rows[0].Project != nil && rows[0].Project.Group != "CLIENT" {
+		t.Errorf("the worktree row lost the group of its project: %+v", rows[0].Project)
 	}
 }
 
