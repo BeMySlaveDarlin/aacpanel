@@ -35,6 +35,13 @@ function ResumeButton({ row, exec }) {
     `;
 }
 
+// sessionOf returns the name a new session of the row's project comes up
+// under. The map names a project for people and its session for the host —
+// "Admin" and "admin" — and the panel waits for the session by the second.
+export function sessionOf(row) {
+    return (row && row.project && row.project.session) || projectOf(row);
+}
+
 // projectOf returns which project an archived session ran in.
 export function projectOf(row) {
     const cwd = ((row && row.cwd) || "").replace(/\/+$/, "");
@@ -59,7 +66,7 @@ function OpenButton({ row, exec }) {
                 // The row carries the entry of the map it ran in, and the entry
                 // is what a new session is opened by: a name is not an address
                 // when two contours hold a project called the same.
-                await run("session.open", project, row.project ? { project: row.project.id } : {});
+                await run("session.open", sessionOf(row), row.project ? { project: row.project.id } : {});
             }}
         >${Icon.plus()}</button>
     `;

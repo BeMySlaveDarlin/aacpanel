@@ -576,7 +576,7 @@ func TestArchiveRowsCarryProjectFromMap(t *testing.T) {
 		Name: "personal",
 		Groups: []store.ProfileGroup{
 			{Name: "Services", Projects: []store.ProfileProject{
-				{ID: 7, Name: "aacpanel", Path: "/srv/proj/Beta/service/aacpanel"},
+				{ID: 7, Name: "Panel", Path: "/srv/proj/Beta/service/aacpanel"},
 			}},
 			{Name: "Libraries", Projects: []store.ProfileProject{
 				{ID: 9, Name: "cc-lib", Path: "/srv/proj/cc-lib/"},
@@ -594,7 +594,7 @@ func TestArchiveRowsCarryProjectFromMap(t *testing.T) {
 	}
 	placeRows(rows, list)
 
-	want := map[string]string{"a": "cc-lib", "b": "cc-lib", "c": "aacpanel", "d": "cc-lib", "e": "", "f": ""}
+	want := map[string]string{"a": "cc-lib", "b": "cc-lib", "c": "Panel", "d": "cc-lib", "e": "", "f": ""}
 	for _, row := range rows {
 		name := ""
 		if row.Project != nil {
@@ -609,6 +609,11 @@ func TestArchiveRowsCarryProjectFromMap(t *testing.T) {
 	}
 	if rows[2].Project.Path != "/srv/proj/Beta/service/aacpanel" {
 		t.Errorf("the project path was taken from the conversation, not from the map: %q", rows[2].Project.Path)
+	}
+	// A new session comes up under the session name of the map, which is not
+	// the project's name when the map left it to the directory.
+	if rows[2].Project.Session != "aacpanel" {
+		t.Errorf("the row names the session of its project %q, expected aacpanel", rows[2].Project.Session)
 	}
 }
 

@@ -93,12 +93,15 @@ type ArchiveRow struct {
 	NoRequests    bool            `json:"noRequests,omitempty"`
 }
 
-// ArchiveProject is the map project the conversation ran in.
+// ArchiveProject is the map project the conversation ran in. Session is the
+// name a new session of it comes up under, which is not always its name: the
+// map names a project for people and its session for the host.
 type ArchiveProject struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	Group string `json:"group"`
+	ID      int    `json:"id"`
+	Name    string `json:"name"`
+	Session string `json:"session"`
+	Path    string `json:"path"`
+	Group   string `json:"group"`
 }
 
 // ArchivePage is one page of the archive.

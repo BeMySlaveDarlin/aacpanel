@@ -14,7 +14,7 @@ import { ToastHost } from "/src/ui/toasts.js";
 const onTheMap = {
     sessionId: "11111111-1111-4111-8111-111111111111",
     name: "Common", cwd: "/srv/proj/Labs/ai-platform", messages: 12,
-    project: { id: 42, name: "ai-platform", path: "/srv/proj/Labs/ai-platform", group: "Labs" },
+    project: { id: 42, name: "AI platform", session: "ai-platform", path: "/srv/proj/Labs/ai-platform", group: "Labs" },
 };
 const offTheMap = {
     sessionId: "22222222-2222-4222-8222-222222222222",
@@ -58,7 +58,7 @@ const press = async (label) => {
 
 window.done = (async () => {
     const trouble = [];
-    trouble.push(await press("new session in project ai-platform"));
+    trouble.push(await press("new session in project AI platform"));
     trouble.push(await press("new session in project lab"));
     return { sent, trouble: trouble.filter(Boolean) };
 })();

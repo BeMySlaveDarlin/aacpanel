@@ -8,6 +8,7 @@ import { pct, plural } from "../../format.js";
 import { knows, whyNot } from "../../exec.js";
 import { useAction } from "../../actions/gate.js";
 import { ago, modelShort, useJSON } from "./util.js";
+import { sessionOf } from "../../screens/sessions/actions.js";
 
 // How many conversations a contour shows at once. Contours are paged apart, so
 // the number is what fits beside its neighbours rather than what fits in the
@@ -66,8 +67,7 @@ function Row({ r, exec, onOpen, run }) {
                         data-tip=${knows(exec, "session.open") ? undefined : whyNot(exec, "session.open")}
                         data-tipside="left"
                         onClick=${() => knows(exec, "session.open") && run("session.open",
-                            (r.project && r.project.name) || projectOf(r),
-                            r.project ? { project: r.project.id } : {})}
+                            sessionOf(r), r.project ? { project: r.project.id } : {})}
                     ><${Icon.plus} /></i>
                 `}
             </span>

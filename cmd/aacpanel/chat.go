@@ -491,7 +491,8 @@ func placeRows(rows []chat.ArchiveRow, list []store.Profile) {
 				if dir == "" {
 					continue
 				}
-				found := &chat.ArchiveProject{ID: p.ID, Name: p.Name, Path: p.Path, Group: group.Name}
+				found := &chat.ArchiveProject{ID: p.ID, Name: p.Name, Session: sessionNameOf(p), Path: p.Path,
+					Group: group.Name}
 				if _, taken := byPath[dir]; !taken {
 					byPath[dir] = found
 				}
