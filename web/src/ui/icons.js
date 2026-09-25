@@ -36,6 +36,7 @@ export const Icon = {
 
     robot: () => html`<svg ...${stroke}><rect x="4" y="8" width="16" height="11" rx="2.5" /><path d="M12 4.5V8M9 13h.01M15 13h.01M9.5 16h5" /></svg>`,
 
+    command: () => html`<svg ...${stroke}><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" /></svg>`,
     list: () => html`<svg ...${stroke}><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></svg>`,
 
     // A workflow: one call that fans out into agents working side by side and

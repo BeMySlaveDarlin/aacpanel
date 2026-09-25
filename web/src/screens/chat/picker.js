@@ -373,9 +373,10 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why, scope, se
 }
 
 // PickWords are the phone's way in, inside the frame of the composer: the
-// model, its effort and the mode on the left, each opening its sheet. A host whose executor predates the list has nothing to change a
-// setting with: the words stay, and nothing pretends to open.
-export function PickWords({ live, exec, onPick, tail = null }) {
+// model, its effort and the mode on the left, each opening its sheet, after
+// what leads the row. A host whose executor predates the list has nothing to
+// change a setting with: the words stay, and nothing pretends to open.
+export function PickWords({ live, exec, onPick, lead = null }) {
     const can = knows(exec, "session.set") && Boolean(onPick);
     const why = can ? "" : whyNot(exec, "session.set");
     const word = (what, label, body, loud) => html`
@@ -384,17 +385,17 @@ export function PickWords({ live, exec, onPick, tail = null }) {
                 onClick=${() => onPick(what)}>${body}</button>
     `;
     return html`
+        ${lead}
         ${word("model", "model", title(live.model || ""))}
         ${word("effort", "effort", effortName(live.effort))}
         ${word("mode", "permission mode", html`${Icon.bolt()}${modeName(live.mode)}`, modeLoud(live.mode))}
-        <span class="pkgap"></span>
-        ${tail}
     `;
 }
 
 // PickBar is the wide screen's way in: inside the frame of the composer, the
-// model, its effort and the mode on the left, each opening its menu above it.
-export function PickBar({ name, live, exec, tail = null }) {
+// model, its effort and the mode on the left, each opening its menu above it,
+// after what leads the row.
+export function PickBar({ name, live, exec, lead = null }) {
     const [menu, setMenu] = useState("");
     const [more, setMore] = useState(false);
     const box = useRef(null);
@@ -448,10 +449,11 @@ export function PickBar({ name, live, exec, tail = null }) {
 
     const toggle = (which) => { setMore(false); setMenu(menu === which ? "" : which); };
 
-    if (!knows(exec, "session.set")) return html`<${PickWords} live=${live} exec=${exec} tail=${tail} />`;
+    if (!knows(exec, "session.set")) return html`<${PickWords} live=${live} exec=${exec} lead=${lead} />`;
 
     return html`
         <div class="pickbar" ref=${box}>
+            ${lead}
             <button type="button" class=${`pkchip${menu === "model" ? " open" : ""}`} data-pick="model"
                     aria-expanded=${menu === "model" ? "true" : "false"} onClick=${() => toggle("model")}>
                 ${shown ? shown.title : title(live.model || "")}
@@ -464,8 +466,6 @@ export function PickBar({ name, live, exec, tail = null }) {
                     aria-expanded=${menu === "mode" ? "true" : "false"} onClick=${() => toggle("mode")}>
                 ${Icon.bolt()}${modeName(mode)}
             </button>
-            <span class="pkgap"></span>
-            ${tail}
 
             ${menu === "mode" && html`
                 <div class="pkmenu left" role="menu" aria-label="mode">

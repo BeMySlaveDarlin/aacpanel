@@ -5,14 +5,18 @@ import (
 	"testing"
 )
 
-// The button at the end of the composer's strip lists what the panel does
-// itself, read from the registry the composer reads, and each row does what
-// typing it does.
+// The button after the paperclip in the composer's strip lists what the panel
+// does itself, read from the registry the composer reads, and each row does
+// what typing it does.
 func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	var got struct {
 		DeckOverflow  int      `json:"deckOverflow"`
 		InStrip       bool     `json:"inStrip"`
 		InDeck        bool     `json:"inDeck"`
+		Order         []string `json:"order"`
+		Gaps          []int    `json:"gaps"`
+		StripOverflow int      `json:"stripOverflow"`
+		CmdsIcon      bool     `json:"cmdsIcon"`
 		PageOverflow  int      `json:"pageOverflow"`
 		Title         string   `json:"title"`
 		Groups        []string `json:"groups"`
@@ -37,7 +41,21 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	}
 	if !got.InStrip || got.InDeck {
 		t.Errorf("the commands button stands in the strip of the composer: %v, in the row under it: %v — "+
-			"it belongs at the end of the model, the effort and the mode", got.InStrip, got.InDeck)
+			"it belongs after the paperclip", got.InStrip, got.InDeck)
+	}
+	if strings.Join(got.Order, ",") != "file,commands,model,effort,mode" {
+		t.Errorf("the strip reads %v: the paperclip, the commands, then the model, the effort and the mode", got.Order)
+	}
+	for i, gap := range got.Gaps {
+		if gap < 6 {
+			t.Errorf("the buttons %d and %d of the strip stand %d px apart: too close for a thumb to tell", i, i+1, gap)
+		}
+	}
+	if got.StripOverflow > 0 {
+		t.Errorf("the strip overflows the phone by %d px", got.StripOverflow)
+	}
+	if !got.CmdsIcon {
+		t.Errorf("the commands button is not an icon: a slash in a row of words reads poorly")
 	}
 	if got.DeckOverflow > 0 || got.PageOverflow > 0 {
 		t.Errorf("the row under the composer overflows the phone by %d px (the page by %d)", got.DeckOverflow, got.PageOverflow)

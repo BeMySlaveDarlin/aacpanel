@@ -407,8 +407,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                      onScreen=${screenLook}
                                      onSide=${onStream ? sideChat.ask : null}
                                      strip=${wide
-                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} tail=${commandsChip} />`
-                                         : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} tail=${commandsChip} />`}
+                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} lead=${commandsChip} />`
+                                         : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} lead=${commandsChip} />`}
                                      focus=${`${name}|${id || ""}|${view}`} />
                     `}
             </div>

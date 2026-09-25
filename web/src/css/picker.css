@@ -148,7 +148,6 @@
     gap: .2rem;
     padding: .2rem .1rem 0;
 }
-.pkgap { flex: 1 1 auto; }
 .pkchip {
     padding: .2rem .5rem;
     border: 0;
@@ -204,31 +203,31 @@
 .pkmenu.pksub { bottom: 0; left: calc(100% + .3rem); min-width: 11rem; }
 .pkmenu.pkeffort { width: 17rem; padding: .4rem .6rem .2rem; }
 
-/* The frame of the composer carries a second line: the paperclip, the mode,
-   and on the right the model with its effort. It is a band of its own, darker
-   than the field and running to the edges of the frame, with words a size
-   smaller and a shade quieter than what is typed: settings under the field,
-   not more of it. */
+/* The frame of the composer carries a second line: the paperclip, the panel's
+   commands, the model, its effort and the mode. It is a band of its own,
+   darker than the field and running to the edges of the frame, with words a
+   size smaller and a shade quieter than what is typed: settings under the
+   field, not more of it. */
 .composer:has(.cstrip) { flex-wrap: wrap; row-gap: 0; }
 .cstrip {
     flex: 0 0 auto;
     width: calc(100% + 1.05rem);
     display: flex;
     align-items: center;
-    gap: .15rem;
+    gap: .4rem;
     margin: .3rem -.3rem -.25rem -.75rem;
     padding: .1rem .3rem .1rem .3rem;
     background: var(--strip-bg);
     border-top: var(--hair) solid var(--edge);
     border-radius: 0 0 var(--r-card) var(--r-card);
 }
-.cstrip .pickbar { flex: 1 1 auto; padding: 0; }
+.cstrip .pickbar { flex: 1 1 auto; gap: .4rem; padding: 0; }
 .cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: 2.5rem; padding: 0 .55rem; font-size: var(--t-sm); color: var(--ink-dim); }
 .cstrip .pkchip svg { width: var(--i-sm); height: var(--i-sm); }
 .cstrip .pickfile { width: 2.5rem; height: 2.5rem; }
-/* The panel's commands close the row: not a setting like the words before it,
-   so not one of them, but the same height and hover; a slash as wide as the
-   paperclip, in the face commands are typed in. */
+/* The panel's commands follow the paperclip: not a setting like the words
+   after it, so not one of them, but the same height and hover, and as wide as
+   the paperclip. */
 .pkcmds {
     display: flex;
     align-items: center;
@@ -243,4 +242,4 @@
     cursor: pointer;
 }
 .pkcmds:hover { background: var(--surface); color: var(--ink); }
-.pkslash { font-family: var(--mono); font-size: var(--t-md); font-weight: 600; line-height: 1; }
+.pkcmds svg { width: var(--i-sm); height: var(--i-sm); }

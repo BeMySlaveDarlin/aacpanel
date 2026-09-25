@@ -40,12 +40,12 @@ export function panelCommands({ stream, live, pick, side }) {
     ].filter((g) => g.rows.length);
 }
 
-// CommandsChip opens the list from the composer's strip, at the end of the row
-// of the model, the effort and the mode: a slash, the way a command starts.
+// CommandsChip opens the list from the composer's strip, right after the
+// paperclip and ahead of the model, the effort and the mode.
 export function CommandsChip({ onOpen }) {
     return html`
         <button class="pkcmds" type="button" aria-label="commands of the panel" onClick=${onOpen}>
-            <span class="pkslash" aria-hidden="true">/</span>
+            ${Icon.command()}
         </button>
     `;
 }

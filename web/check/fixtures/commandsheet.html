@@ -74,6 +74,15 @@ const close = async () => {
         out.deckOverflow = deck.scrollWidth - deck.clientWidth;
         out.inStrip = Boolean(document.querySelector(".cstrip .pkcmds"));
         out.inDeck = Boolean(deck.querySelector(".pkcmds"));
+        const strip = document.querySelector(".cstrip");
+        const buttons = Array.from(strip.querySelectorAll("button"));
+        out.order = buttons.map((b) => b.dataset.pick
+            || (b.classList.contains("pkcmds") ? "commands" : b.classList.contains("pickfile") ? "file" : b.className));
+        out.gaps = buttons.slice(1).map((b, i) =>
+            Math.round(b.getBoundingClientRect().left - buttons[i].getBoundingClientRect().right));
+        out.stripOverflow = strip.scrollWidth - strip.clientWidth;
+        const cmds = strip.querySelector(".pkcmds");
+        out.cmdsIcon = Boolean(cmds.querySelector("svg")) && cmds.textContent.trim() === "";
         out.pageOverflow = document.scrollingElement.scrollWidth - window.innerWidth;
 
         await chip();
