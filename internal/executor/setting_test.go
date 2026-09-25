@@ -14,9 +14,9 @@ import (
 
 // The confirmation claude shows before it changes the model of a conversation
 // it holds cached, as a live console drew it.
-const switchModelScreen = `  По итогу проверки два хвоста, оба — твои действия, не мои:
+const switchModelScreen = `  Two loose ends are left after the check, both of them yours:
 
-  1. ssh-fix-aliases — порты открыты, но алиасов нет.
+  1. ssh-fix-aliases — the ports are open, the aliases are missing.
   2.
 ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
    Switch model?
