@@ -622,6 +622,14 @@ asking Claude. The rules of permissions are not shown in any form, and the
 environment never leaves the host. In a console these are the client's own
 screens, driven by keys, and the composer does not send them.
 
+**A button under the composer lists what the panel does itself** — its
+screens, the pickers of the model, the effort and the mode, a question aside,
+and the commands whose answers the feed draws as cards (`/context`, `/usage`)
+or that change the conversation (`/compact`). The list is read from the same
+registry the composer reads, and each row does what typing it does: a command
+goes through the same confirmation. A console session is offered only what
+works there.
+
 **There is nowhere else to get the subscription limits from.** The 5h/7d
 percentages do not lie on disk and are not handed out by any API — the only one
 claude tells them to is the status line, in the payload on stdin. That is why

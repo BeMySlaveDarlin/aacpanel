@@ -229,8 +229,10 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     useEffect(() => {
         if (!insert || !insert.text) return;
         // A message taken back comes as it was written, ahead of whatever the
-        // composer already holds; a quote comes as a quote.
+        // composer already holds; a command goes in front of it, so what is
+        // typed becomes what the command is about; a quote comes as a quote.
         if (insert.message) setText(text.trim() ? `${insert.text}\n\n${text}` : insert.text);
+        else if (insert.command) setText(`${insert.text}${text.trimStart()}`);
         else setText(withQuote(insert.text, text));
         requestAnimationFrame(() => {
             const el = area.current;

@@ -198,7 +198,7 @@ func TestATerminalKeepsThePanelsListAndItsBtw(t *testing.T) {
 	if got.TermTheirs || got.TermLists != 0 {
 		t.Errorf("a terminal was given a session's list (asked %d times)", got.TermLists)
 	}
-	if !listed(got.TermRows, "/clear") || listed(got.TermRows, "/usage") {
+	if !listed(got.TermRows, "/clear") || listed(got.TermRows, "/usage-credits") {
 		t.Errorf("the terminal lists %v", got.TermRows)
 	}
 	if got.TermSent.Kind != "session.send" || got.TermSent.Text != "/btw hello" || got.TermSide != 0 {

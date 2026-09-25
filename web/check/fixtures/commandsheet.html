@@ -1,0 +1,133 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The button of the panel's commands under the composer: a list of what the
+// panel does itself, each row doing what typing it does — a screen opens, a
+// picker opens, a question aside goes in front of what is typed, and a command
+// goes to the session through the confirmation. A console session is offered
+// only what works there.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/setup?")) {
+        return json({ state: "ok", transport: "stream", hooks: { events: [], hooks: [] } });
+    }
+    if (u.startsWith("/api/session/models")) return json({ state: "ok", session: { list: [] } });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true, detail: "ok" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.send", "session.command", "session.set"] };
+const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj",
+    model: "claude-opus-5-5", effort: "xhigh", mode: "auto", tokensIn: 5000, tokensOut: 900 };
+const root = document.getElementById("root");
+const show = (live, ex = exec) => render(h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name="atlas" id="s1" live=${live} exec=${ex} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());
+const chip = async () => {
+    document.querySelector(".wcmds").click();
+    await sleep(300);
+};
+const row = async (line) => {
+    const r = Array.from(document.querySelectorAll(".sheet.on .mcprow"))
+        .find((b) => b.querySelector(".cmdname").textContent.trim() === line);
+    if (!r) throw new Error(`no row ${line}`);
+    r.click();
+    await sleep(400);
+};
+const close = async () => {
+    const x = document.querySelector(".sheet.on .sheetclose");
+    if (x) x.click();
+    await sleep(300);
+};
+
+(async () => {
+    const out = {};
+    try {
+        show(stream);
+        await sleep(400);
+        const deck = document.querySelector(".deck");
+        out.deckOverflow = deck.scrollWidth - deck.clientWidth;
+        out.pageOverflow = document.scrollingElement.scrollWidth - window.innerWidth;
+
+        await chip();
+        out.title = text(".sheet.on .cmdhead")[0] || "";
+        out.groups = text(".sheet.on .cmdsechead > span:first-child");
+        out.lines = text(".sheet.on .mcprow .cmdname");
+        out.modelNote = text(".sheet.on .mcprow").find((r) => r.startsWith("/model")) || "";
+
+        await row("/hooks");
+        out.hooksTitle = text(".sheet.on .cmdhead")[0] || "";
+        await close();
+
+        await chip();
+        await row("/model");
+        out.picker = text(".sheet.on .stitle")[0] || "";
+        await close();
+
+        const area = document.querySelector("textarea");
+        area.value = "why is the build slow";
+        area.dispatchEvent(new Event("input", { bubbles: true }));
+        await sleep(150);
+        await chip();
+        await row("/btw");
+        out.btw = document.querySelector("textarea").value;
+        out.sheetAfterBtw = Boolean(document.querySelector(".sheet.on"));
+
+        area.value = "";
+        area.dispatchEvent(new Event("input", { bubbles: true }));
+        await sleep(150);
+        await chip();
+        await row("/context");
+        out.confirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
+        out.sentBefore = sent.length;
+        document.querySelector(".sheet.on .btnrow .btn.primary").click();
+        await sleep(400);
+        out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
+        out.sheetAfterSend = Boolean(document.querySelector(".sheet.on"));
+
+        show({ ...stream, transport: "" });
+        await sleep(400);
+        await chip();
+        out.consoleLines = text(".sheet.on .mcprow .cmdname");
+        await close();
+
+        // An executor that cannot send commands: their rows say why and take no press.
+        show(stream, { available: true, kinds: ["session.send", "session.set"] });
+        await sleep(400);
+        await chip();
+        const ctx = Array.from(document.querySelectorAll(".sheet.on .mcprow"))
+            .find((b) => b.querySelector(".cmdname").textContent.trim() === "/context");
+        out.oldHostOff = Boolean(ctx && ctx.disabled);
+        out.oldHostNote = ctx ? ctx.querySelector(".cmdrownote").textContent.trim() : "";
+        await close();
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    window.done = out;
+})();
+</script>

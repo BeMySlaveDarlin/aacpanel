@@ -33,6 +33,14 @@ export const COMMANDS = {
         effect: "The conversation collapses into a retelling: the details of its beginning are lost, and the compaction itself costs a request to the model.",
         danger: true,
     },
+    context: {
+        name: "Context usage",
+        effect: "The session draws how full its context is and with what, as a card in the feed. It is claude's own count: no request goes to the model.",
+    },
+    usage: {
+        name: "Plan usage",
+        effect: "The session draws its limits and what spent them, as a card in the feed. It is claude's own count: no request goes to the model.",
+    },
     finalize: {
         name: "Wrap up",
         effect: "The session will put together a summary and update its notes. That is minutes of work and a noticeable share of the limit.",
@@ -57,7 +65,7 @@ export const SCREENS = {
     mcp: { name: "MCP servers" },
     status: { name: "Session info", console: true },
     hooks: { name: "Hooks, read-only" },
-    memory: { name: "Memory files and saved memories" },
+    memory: { name: "Memory, read-only" },
     skills: { name: "Skills, read-only" },
     agents: { name: "Kinds of subagents" },
     config: { name: "Merged settings, read-only" },

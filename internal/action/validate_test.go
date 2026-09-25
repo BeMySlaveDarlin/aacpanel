@@ -132,11 +132,19 @@ func TestCommandRequestKeepsClosedList(t *testing.T) {
 	if err := req(&Command{Name: "model", Arg: "opus[1m]"}).Validate(); err != nil {
 		t.Fatalf("/model opus[1m] is rejected: %v", err)
 	}
+	// The cards of the context and of the plan are drawn by claude itself: the
+	// list under the composer sends them as commands, not as messages.
+	for _, name := range []string{"context", "usage"} {
+		if err := req(&Command{Name: name}).Validate(); err != nil {
+			t.Errorf("/%s is rejected: %v", name, err)
+		}
+	}
 
 	bad := map[string]*Command{
 		"no command at all":            nil,
 		"command outside the list":     {Name: "permissions"},
 		"argument where none is taken": {Name: "clear", Arg: "everything"},
+		"an argument to a card":        {Name: "context", Arg: "all"},
 		"option outside the list":      {Name: "model", Arg: "gpt"},
 		"option not named":             {Name: "effort"},
 		"a line of its own":            {Name: "clear && rm -rf ~"},

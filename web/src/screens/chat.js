@@ -20,6 +20,7 @@ import { CommandSheet } from "./chat/command.js";
 import { McpSheet } from "./chat/mcp.js";
 import { StatusSheet } from "./chat/status.js";
 import { SetupSheet, SETUP_TITLES } from "./chat/setup.js";
+import { CommandsChip, CommandsSheet } from "./chat/commands.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
@@ -135,6 +136,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
 
     const quote = useSelectionQuote();
     const [insert, setInsert] = useState(null);
+    // A command the panel answers with a screen opens it in the sheet; the
+    // screens of settings share one view, told apart by their part.
+    const screenLook = (what) => setLook(SETUP_TITLES[what] ? { kind: "setup", part: what } : { kind: what });
     const takeQuote = (text) => {
         setInsert({ key: Date.now(), text });
         const sel = document.getSelection();
@@ -394,7 +398,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                          was.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
                                      insert=${insert}
                                      onPicker=${knows(exec, "session.set") ? setPicking : null}
-                                     onScreen=${(what) => setLook(SETUP_TITLES[what] ? { kind: "setup", part: what } : { kind: what })}
+                                     onScreen=${screenLook}
                                      onSide=${onStream ? sideChat.ask : null}
                                      strip=${wide
                                          ? html`<${PickBar} name=${name} live=${live} exec=${exec} />`
@@ -415,6 +419,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
                     <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
+                    <${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />
                 </div>
             </div>
         `}
@@ -452,6 +457,11 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 : look.kind === "status"
                 ? (live ? html`<${StatusSheet} name=${name} live=${live} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)
+                : look.kind === "commands"
+                ? html`<${CommandsSheet} name=${name} live=${live} exec=${exec} onScreen=${screenLook}
+                                         onPicker=${knows(exec, "session.set") ? (what) => { setLook(null); setPicking(what); } : null}
+                                         onSide=${onStream ? () => { setLook(null); setInsert({ key: Date.now(), text: "/btw ", command: true }); } : null}
+                                         onDone=${() => setLook(null)} />`
                 : look.kind === "setup"
                 ? (live ? html`<${SetupSheet} name=${name} part=${look.part} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)
