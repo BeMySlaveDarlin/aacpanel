@@ -73,14 +73,14 @@ var listMarks = []string{"◯", "●", "○", "◉"}
 var attachChips = []string{"[Image#", "[Pastedtext#"}
 
 // opensAMode says whether the composer would read the line as a key rather
-// than as text, so that typing it in would change what arrives. A leading bang
-// hands the rest to a shell, a leading hash files it away as a memory, and a
-// leading slash is a command whose palette swallows whatever follows it.
-// Pasted, each of these is text like any other — and a slash command pasted
-// whole is still run as the command it is.
+// than as text. A leading bang hands the rest to a shell, and a leading slash
+// is a command with a palette that opens under it. Both arrive the same pasted
+// as typed, and a paste keeps the palette out of it. A leading hash is text
+// like any other — the composer has no mode behind it — so it is typed, and a
+// long one does not reach the session marked as pasted.
 func opensAMode(text string) bool {
 	body := strings.TrimSpace(text)
-	for _, mark := range []string{"!", "#", "/"} {
+	for _, mark := range []string{"!", "/"} {
 		if strings.HasPrefix(body, mark) {
 			return true
 		}

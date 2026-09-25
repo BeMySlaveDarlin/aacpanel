@@ -335,7 +335,9 @@ func TestAMessageIsTypedRatherThanHandedOverAsAPaste(t *testing.T) {
 		{name: "a slash command", text: "/status", paste: true},
 		{name: "a slash command with an argument", text: "/model haiku", paste: true},
 		{name: "a bang hands the line to a shell", text: "!git status", paste: true},
-		{name: "a hash files it away as a memory", text: "#the base is main", paste: true},
+		{name: "a bang hands the long line to a shell", text: "!echo a long shell command well over thirty characters", paste: true},
+		// A hash opens nothing in the composer: typed, a long one arrives unmarked.
+		{name: "a hash is text", text: "#the base is main, and the next release waits for the review", paste: false},
 		{name: "an unfinished name of a file at the end", text: "look at @CLAUDE.md", paste: false, closes: true},
 	}
 

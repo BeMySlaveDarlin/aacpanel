@@ -498,10 +498,10 @@ transcript as pasted content: what the person at the panel wrote would then
 reach the session as quoted data rather than as words addressed to it. So the
 executor types — a handful of characters at a time with a pause between the
 writes, line breaks as line breaks, and the key that sends the message only at
-the end. What typing would change goes in as a paste instead: a line beginning
-with a bang, a hash or a slash is a mode or a command, and the palette of a
-command swallows whatever follows it. Such a line arrives wearing the mark, and
-that is the price of it arriving at all. A message ending in an unfinished
+the end. A line beginning with a bang or a slash goes in as a paste instead: it
+is a shell command or a slash command, it arrives the same either way, and a
+paste keeps the palette of commands out of it. A line beginning with a hash is
+text like any other and is typed. A message ending in an unfinished
 `@name` is typed with a space after it, which closes the list of files the Enter
 would otherwise pick a row from — a space rather than Esc, because Esc reaches a
 session that is working as an interruption of its work.
