@@ -124,8 +124,8 @@ class OnTheCard(Runtime):
         self.addCleanup(self.dir.cleanup)
         self.addCleanup(setattr, notes, "BOARD", notes.BOARD)
         notes.BOARD = notes.Board(os.path.join(self.dir.name, "notes.json"))
-        rows = {"sessions": [{"session": "held", "sessionId": SID, "cwd": "/srv/proj/lab"}]}
-        for name, value in (("sessions", lambda: rows), ("session_profiles", dict),
+        self.rows = {"sessions": [{"session": "held", "sessionId": SID, "cwd": "/srv/proj/lab"}]}
+        for name, value in (("sessions", lambda: self.rows), ("session_profiles", dict),
                             ("session_births", dict), ("live_session_waits", dict),
                             ("live_session_status", lambda: {"held": "busy"}), ("live_session_status_at", dict)):
             owner = live.ctx if name == "sessions" else live
@@ -147,6 +147,16 @@ class OnTheCard(Runtime):
         self.hold(SID, 1, effort="max")
         self.assertEqual(self.card()["effort"], "max",
                          "the transcript of claude -p does not carry the effort; the holder does")
+
+    def test_a_session_that_has_not_answered_yet_has_the_model_of_the_handshake(self):
+        self.hold(SID, 1, model="claude-opus-5-5[1m]")
+        self.assertEqual(self.card()["model"], "claude-opus-5-5[1m]",
+                         "the transcript names the model with the first answer; the holder has it before")
+
+    def test_the_model_the_transcript_names_stays(self):
+        self.rows["sessions"][0]["model"] = "claude-sonnet-5"
+        self.hold(SID, 1, model="claude-opus-5-5[1m]")
+        self.assertEqual(self.card()["model"], "claude-sonnet-5")
 
     def test_a_compaction_running_is_on_the_card(self):
         self.hold(SID, 1, compacting="2026-01-02T03:04:05.5+07:00")

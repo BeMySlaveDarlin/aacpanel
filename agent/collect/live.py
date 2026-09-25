@@ -191,6 +191,11 @@ def sessions():
                 s["waitingFor"] = wait
             if isinstance(hold.get("mode"), str) and hold["mode"]:
                 s["mode"] = hold["mode"]
+            # The transcript names the model with the first answer, and the
+            # holder with the handshake: a session that has not answered yet
+            # still has one.
+            if not s.get("model") and isinstance(hold.get("model"), str) and hold["model"]:
+                s["model"] = hold["model"]
             # An effort picked in the feed is known to the holder at once; the
             # transcript of a claude -p does not carry it.
             if isinstance(hold.get("effort"), str) and hold["effort"]:
