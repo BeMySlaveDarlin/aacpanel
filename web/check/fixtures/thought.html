@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A thought beside the answer it led to: the same prose, two steps smaller.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+
+const at = "2026-09-26T10:28:00Z";
+const items = [
+    { role: "mind", text: "The test reads the source; the size needs a fixture.", pos: 1, at },
+    { role: "ai", text: "Writing a fixture that measures it.", pos: 2, at },
+];
+render(html`<div class="chatfeed">${items.map((item) =>
+    html`<${Row} key=${item.pos} item=${item} session="lab" id="1" />`)}</div>`,
+    document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const px = (el) => parseFloat(getComputedStyle(el).fontSize);
+    const root = getComputedStyle(document.documentElement);
+    const rem = parseFloat(root.fontSize);
+    const token = (name) => parseFloat(root.getPropertyValue(name)) * rem;
+    const mind = document.querySelector(".mmind p");
+    const icon = document.querySelector(".mmind .mmicon").getBoundingClientRect();
+    const line = mind.getClientRects()[0];
+    const lineHeight = parseFloat(getComputedStyle(mind).lineHeight);
+    window.done = {
+        mind: px(mind),
+        answer: px(document.querySelector(".msg.ai p")),
+        sm: token("--t-sm"),
+        base: token("--t-base"),
+        iconOff: Math.abs((icon.top + icon.height / 2) - (line.top + lineHeight / 2)),
+    };
+})();
+</script>

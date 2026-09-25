@@ -40,3 +40,23 @@ func TestThoughtWithTextIsReadAsTextNotAsACounter(t *testing.T) {
 			"two can no longer be told apart")
 	}
 }
+
+// A thought reads two steps of the scale under the answer beside it, and its
+// mark stands on its first line.
+func TestAThoughtReadsTwoStepsSmallerThanTheAnswer(t *testing.T) {
+	var got struct {
+		Mind    float64 `json:"mind"`
+		Answer  float64 `json:"answer"`
+		Sm      float64 `json:"sm"`
+		Base    float64 `json:"base"`
+		IconOff float64 `json:"iconOff"`
+	}
+	runFixture(t, "thought.html", &got)
+	if got.Answer != got.Base || got.Mind != got.Sm || got.Mind >= got.Answer {
+		t.Errorf("the thought reads at %.2fpx beside an answer at %.2fpx: two steps under it, %.2fpx",
+			got.Mind, got.Answer, got.Sm)
+	}
+	if got.IconOff > 2 {
+		t.Errorf("the mark of the thought stands %.1fpx off the middle of its first line", got.IconOff)
+	}
+}

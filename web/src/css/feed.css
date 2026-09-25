@@ -280,17 +280,18 @@
 .mthink { color: var(--ink-faint); }
 .mthink .mtnum { color: var(--ink-dim); font-weight: 600; }
 
+/* A thought reads two steps smaller than the answer: the same prose, quieter. */
 .msg.mmind {
     align-self: flex-start;
     position: relative;
     padding-left: 1.5rem;
-    font-size: var(--t-base);
+    font-size: var(--t-sm);
     color: var(--ink-dim);
 }
 .mmind .mmicon {
     position: absolute;
     left: 0;
-    top: .3rem;
+    top: .15rem;
     display: flex;
     width: 14px;
     height: 14px;
