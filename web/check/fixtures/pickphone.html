@@ -96,7 +96,7 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     const head = Array.from(document.querySelectorAll(".cstrip .pkchip"));
     out.head = head.map((b) => b.textContent.trim());
 
-    await tap(head[1]);
+    await tap(document.querySelector(".cstrip .pkchip[data-pick=model]"));
     await sleep(200);
     out.modelTitle = text(".sheet.on .stitle")[0] || "";
     const lists = Array.from(sheet().querySelectorAll(".pklist"));
@@ -120,7 +120,7 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     document.querySelector(".sheet.on .sheetclose").click();
     await sleep(300);
 
-    await tap(document.querySelectorAll(".cstrip .pkchip")[0]);
+    await tap(document.querySelector(".cstrip .pkchip[data-pick=mode]"));
     out.modeTitle = text(".sheet.on .stitle")[0] || "";
     out.modes = rows().map((r) => r.querySelector(".pkname").textContent.trim());
     out.modeOn = text(".sheet.on .pkrow.on .pkname");
@@ -158,13 +158,13 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     transport = "console";
     show(terminal);
     await sleep(400);
-    await tap(document.querySelectorAll(".cstrip .pkchip")[1]);
+    await tap(document.querySelector(".cstrip .pkchip[data-pick=model]"));
     await sleep(200);
     out.termMain = Array.from(sheet().querySelectorAll(".pklist")[0].querySelectorAll(".pkname")).map((n) => n.textContent.trim());
     out.termOn = text(".sheet.on .pkrow.on .pkname");
     document.querySelector(".sheet.on .sheetclose").click();
     await sleep(300);
-    await tap(document.querySelectorAll(".cstrip .pkchip")[0]);
+    await tap(document.querySelector(".cstrip .pkchip[data-pick=mode]"));
     await sleep(200);
     out.termModesOff = rows().every((r) => r.disabled);
     out.termNote = text(".sheet.on .pknote")[0] || "";

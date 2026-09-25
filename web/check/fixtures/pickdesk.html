@@ -64,6 +64,7 @@ const show = (live) => render(h(ToastHost, null, h(GateHost, null,
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+const pick = (what) => document.querySelector(`.pickbar .pkchip[data-pick=${what}]`);
 const chips = () => Array.from(document.querySelectorAll(".pickbar .pkchip"));
 const key = async (k) => { document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })); await sleep(250); };
 const tap = async (el) => { el.click(); await sleep(300); };
@@ -75,33 +76,33 @@ const tap = async (el) => { el.click(); await sleep(300); };
     out.chips = chips().map((c) => c.textContent.trim());
     out.inComposer = document.querySelectorAll(".composer .cstrip .pickbar").length;
 
-    await tap(chips()[1]);
-    out.modelMenu = text(".pkmenu.right > .pkrow .pkname");
-    out.numbers = text(".pkmenu.right > .pkrow .pknum");
-    out.marked = text(".pkmenu.right > .pkrow.on .pkname");
+    await tap(pick("model"));
+    out.modelMenu = text(".pkmenu[aria-label=model] > .pkrow .pkname");
+    out.numbers = text(".pkmenu[aria-label=model] > .pkrow .pknum");
+    out.marked = text(".pkmenu[aria-label=model] > .pkrow.on .pkname");
     await tap(document.querySelector(".pkmorerow"));
     out.more = text(".pkmenu.pksub .pkname");
     await key("3");
     out.afterKey = document.querySelectorAll(".pkmenu").length;
 
-    await tap(chips()[0]);
-    out.modeMenu = text(".pkmenu.left .pkrow .pkname");
-    out.modeOn = text(".pkmenu.left .pkrow.on .pkname");
+    await tap(pick("mode"));
+    out.modeMenu = text(".pkmenu[aria-label=mode] .pkrow .pkname");
+    out.modeOn = text(".pkmenu[aria-label=mode] .pkrow.on .pkname");
     await key("Escape");
     out.afterEscape = document.querySelectorAll(".pkmenu").length;
 
-    await tap(chips()[0]);
+    await tap(pick("mode"));
     document.querySelector(".chatfeed").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
     await sleep(250);
     out.afterAway = document.querySelectorAll(".pkmenu").length;
 
-    await tap(chips()[2]);
+    await tap(pick("effort"));
     out.effortHead = text(".pkmenu.pkeffort .pkmenuhead")[0] || "";
     await tap(document.querySelector('.pkmenu.pkeffort .pkstop[aria-label="High"]'));
     out.afterEffort = document.querySelectorAll(".pkmenu").length;
 
-    await tap(chips()[0]);
-    await tap(Array.from(document.querySelectorAll(".pkmenu.left .pkrow")).find((r) => r.textContent.includes("Accept edits")));
+    await tap(pick("mode"));
+    await tap(Array.from(document.querySelectorAll(".pkmenu[aria-label=mode] .pkrow")).find((r) => r.textContent.includes("Accept edits")));
 
     out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
     out.confirm = Boolean(document.querySelector(".sheet.on .btnrow"));

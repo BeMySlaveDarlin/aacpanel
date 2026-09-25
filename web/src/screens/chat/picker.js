@@ -373,28 +373,26 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why, scope, se
 }
 
 // PickWords are the phone's way in, inside the frame of the composer: the
-// mode on the left, the model and its effort on the right, each opening its
-// sheet. A host whose executor predates the list has nothing to change a
+// model, its effort and the mode on the left, each opening its sheet. A host whose executor predates the list has nothing to change a
 // setting with: the words stay, and nothing pretends to open.
 export function PickWords({ live, exec, onPick }) {
     const can = knows(exec, "session.set") && Boolean(onPick);
     const why = can ? "" : whyNot(exec, "session.set");
     const word = (what, label, body, loud) => html`
-        <button type="button" class=${`pkchip${loud ? " crit" : ""}`} disabled=${!can}
+        <button type="button" class=${`pkchip${loud ? " crit" : ""}`} disabled=${!can} data-pick=${what}
                 aria-label=${can ? `${label} — pick another` : label} title=${why || undefined}
                 onClick=${() => onPick(what)}>${body}</button>
     `;
     return html`
-        ${word("mode", "permission mode", html`${Icon.bolt()}${modeName(live.mode)}`, modeLoud(live.mode))}
-        <span class="pkgap"></span>
         ${word("model", "model", title(live.model || ""))}
         ${word("effort", "effort", effortName(live.effort))}
+        ${word("mode", "permission mode", html`${Icon.bolt()}${modeName(live.mode)}`, modeLoud(live.mode))}
+        <span class="pkgap"></span>
     `;
 }
 
 // PickBar is the wide screen's way in: inside the frame of the composer, the
-// mode on the left and the model with its effort on the right, each opening
-// its menu.
+// model, its effort and the mode on the left, each opening its menu above it.
 export function PickBar({ name, live, exec }) {
     const [menu, setMenu] = useState("");
     const [more, setMore] = useState(false);
@@ -453,19 +451,19 @@ export function PickBar({ name, live, exec }) {
 
     return html`
         <div class="pickbar" ref=${box}>
-            <button type="button" class=${`pkchip${menu === "mode" ? " open" : ""}${modeLoud(mode) ? " crit" : ""}`}
+            <button type="button" class=${`pkchip${menu === "model" ? " open" : ""}`} data-pick="model"
+                    aria-expanded=${menu === "model" ? "true" : "false"} onClick=${() => toggle("model")}>
+                ${shown ? shown.title : title(live.model || "")}
+            </button>
+            <button type="button" class=${`pkchip${menu === "effort" ? " open" : ""}`} data-pick="effort"
+                    aria-expanded=${menu === "effort" ? "true" : "false"} onClick=${() => toggle("effort")}>
+                ${effortName(effort)}
+            </button>
+            <button type="button" class=${`pkchip${menu === "mode" ? " open" : ""}${modeLoud(mode) ? " crit" : ""}`} data-pick="mode"
                     aria-expanded=${menu === "mode" ? "true" : "false"} onClick=${() => toggle("mode")}>
                 ${Icon.bolt()}${modeName(mode)}
             </button>
             <span class="pkgap"></span>
-            <button type="button" class=${`pkchip${menu === "model" ? " open" : ""}`}
-                    aria-expanded=${menu === "model" ? "true" : "false"} onClick=${() => toggle("model")}>
-                ${shown ? shown.title : title(live.model || "")}
-            </button>
-            <button type="button" class=${`pkchip${menu === "effort" ? " open" : ""}`}
-                    aria-expanded=${menu === "effort" ? "true" : "false"} onClick=${() => toggle("effort")}>
-                ${effortName(effort)}
-            </button>
 
             ${menu === "mode" && html`
                 <div class="pkmenu left" role="menu" aria-label="mode">
@@ -479,7 +477,7 @@ export function PickBar({ name, live, exec }) {
                 </div>
             `}
             ${menu === "model" && html`
-                <div class="pkmenu right" role="menu" aria-label="model">
+                <div class="pkmenu left" role="menu" aria-label="model">
                     ${data && data.state !== "ok" && html`<p class="pknote">${data.reason}</p>`}
                     <${Scope} transport=${transport} value=${scope} onChange=${setScope} />
                     ${choices.main.map((m, i) => html`
@@ -505,7 +503,7 @@ export function PickBar({ name, live, exec }) {
                 </div>
             `}
             ${menu === "effort" && html`
-                <div class="pkmenu right pkeffort" role="dialog" aria-label="effort">
+                <div class="pkmenu left pkeffort" role="dialog" aria-label="effort">
                     <div class="pkmenuhead"><span>Effort</span><b>${effortName(effort)}</b></div>
                     <${Scope} transport=${transport} value=${scope} onChange=${setScope} effort />
                     <${EffortScale} levels=${levels} value=${effort}

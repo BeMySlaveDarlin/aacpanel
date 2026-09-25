@@ -65,7 +65,7 @@ const show = (live) => render(h(ToastHost, null, h(GateHost, null,
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
-const chips = () => Array.from(document.querySelectorAll(".pickbar .pkchip"));
+const pick = (what) => document.querySelector(`.pickbar .pkchip[data-pick=${what}]`);
 const key = async (k) => { document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })); await sleep(250); };
 const tap = async (el) => { el.click(); await sleep(300); };
 
@@ -76,7 +76,7 @@ window.done = (async () => {
     await sleep(500);
     const out = {};
 
-    await tap(chips()[2]);
+    await tap(pick("effort"));
     out.stops = Array.from(document.querySelectorAll(".pkmenu.pkeffort .pkstop")).map((b) => b.getAttribute("aria-label"));
     out.scope = text(".pkmenu.pkeffort .pkseg");
     await tap(seg("Default"));
@@ -84,20 +84,20 @@ window.done = (async () => {
     out.ultraOff = document.querySelector('.pkmenu.pkeffort .pkstop[aria-label="Ultracode"]').disabled;
     await tap(document.querySelector('.pkmenu.pkeffort .pkstop[aria-label="High"]'));
 
-    await tap(chips()[1]);
-    out.modelScopeOn = text(".pkmenu.right .pkseg.on");
+    await tap(pick("model"));
+    out.modelScopeOn = text(".pkmenu[aria-label=model] .pkseg.on");
     await key("3");
     // The choice changed while the menu is open goes with the next digit.
-    await tap(chips()[1]);
+    await tap(pick("model"));
     await tap(seg("This session"));
     await key("4");
 
     transport = "console";
     show(terminal);
     await sleep(400);
-    await tap(chips()[1]);
+    await tap(pick("model"));
     out.termScopes = document.querySelectorAll(".pkmenu .pkscope").length;
-    out.termNote = text(".pkmenu.right .pknote")[0] || "";
+    out.termNote = text(".pkmenu[aria-label=model] .pknote")[0] || "";
     await key("2");
 
     out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);

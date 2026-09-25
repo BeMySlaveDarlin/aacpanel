@@ -140,8 +140,8 @@
 .pkseg.on { background: var(--surface); color: var(--ink); box-shadow: var(--hairline); }
 .pkmenu .pkscope { margin: .1rem .2rem .45rem; }
 
-/* Under the composer on a wide screen: the mode on the left, the model and
-   its effort on the right, each a quiet word until pressed. */
+/* Under the composer on a wide screen: the model, its effort and the mode on
+   the left, each a quiet word until pressed. */
 .pickbar {
     position: relative;
     display: flex;
@@ -202,7 +202,7 @@
 .pkmorerow.open { background: var(--surface); }
 /* The older models open beside the menu rather than under it: the list they
    stand in is the one the eye came from. */
-.pkmenu.pksub { bottom: 0; right: calc(100% + .3rem); min-width: 11rem; }
+.pkmenu.pksub { bottom: 0; left: calc(100% + .3rem); min-width: 11rem; }
 .pkmenu.pkeffort { width: 17rem; padding: .4rem .6rem .2rem; }
 
 /* The frame of the composer carries a second line: the paperclip, the mode,

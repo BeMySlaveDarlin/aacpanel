@@ -49,7 +49,7 @@ func TestThePhonePicksAModelFromTheListClaudeGives(t *testing.T) {
 	var got pickPhoneShot
 	runFixture(t, "pickphone.html", &got)
 
-	if !reflect.DeepEqual(got.Head, []string{"Auto", "Opus 5.5", "Extra"}) {
+	if !reflect.DeepEqual(got.Head, []string{"Opus 5.5", "Extra", "Auto"}) {
 		t.Errorf("the line inside the composer offers %v", got.Head)
 	}
 	if got.ModelTitle != "Select model" {
@@ -162,7 +162,7 @@ func TestTheComposerStripKeepsItsWordsAndItsWarning(t *testing.T) {
 	if !reflect.DeepEqual(got.Loud, []string{"Bypass"}) {
 		t.Errorf("a session past the questions shows %v in red", got.Loud)
 	}
-	if !reflect.DeepEqual(got.Bare, []string{"Auto off", "Opus 5.5 off", "Extra off"}) {
+	if !reflect.DeepEqual(got.Bare, []string{"Opus 5.5 off", "Extra off", "Auto off"}) {
 		t.Errorf("without a way to change them the strip reads %v", got.Bare)
 	}
 }
@@ -193,7 +193,7 @@ func TestTheDesktopPicksFromMenusOverTheComposer(t *testing.T) {
 	var got pickDeskShot
 	runWideFixture(t, "pickdesk.html", &got)
 
-	if !reflect.DeepEqual(got.Chips, []string{"Auto", "Opus 5.5", "Extra"}) || got.InComposer != 1 {
+	if !reflect.DeepEqual(got.Chips, []string{"Opus 5.5", "Extra", "Auto"}) || got.InComposer != 1 {
 		t.Errorf("the strip inside the composer reads %v (strips there: %d)", got.Chips, got.InComposer)
 	}
 	if !reflect.DeepEqual(got.ModelMenu, []string{"Opus 5.5", "Fable 5.1", "Sonnet 5", "Haiku 4.5", "More models"}) ||
