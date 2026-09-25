@@ -17,7 +17,7 @@ import { useBackClose } from "../../ui/back.js";
 import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
-import { modelTitle } from "./command.js";
+import { modelTitle } from "./head.js";
 
 export const EFFORTS = COMMANDS.effort.args;
 

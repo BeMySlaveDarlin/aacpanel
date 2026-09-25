@@ -1,0 +1,84 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The answer of /usage in a feed: the card it left and the sheet the card
+// opens. The report is shaped as the host reads it off a session on the
+// stream; the resets are counted from now, as a live report's are.
+import { render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { CommandSheet } from "/src/screens/chat/command.js";
+import { Sheet } from "/src/ui/sheet.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const later = (sec) => new Date(Date.now() + sec * 1000).toISOString();
+const answer = { role: "command", name: "usage", at: "2026-09-24T19:34:51.741Z", pos: 7, data: {
+    cost: 0.0664487, apiMs: 15109, wallMs: 163405, added: 3, removed: 1, extra: false,
+    limits: [
+        { kind: "session", percent: 4, resets: later(2 * 3600 + 30 * 60 + 10), severity: "normal", active: false, model: "" },
+        { kind: "weekly_all", percent: 76, resets: later(5 * 86400), severity: "warning", active: true, model: "" },
+        { kind: "weekly_scoped", percent: 12, resets: later(5 * 86400), severity: "normal", active: false, model: "Fable" },
+    ],
+    models: [{ id: "claude-haiku-4-5-20251001", input: 62, output: 1095, thinking: 508,
+               cacheRead: 208977, cacheWrite: 20007, cost: 0.0664487 }],
+    behaviors: {
+        caveat: "Approximate, based on local sessions on this machine.",
+        windows: [
+            { window: "24h", summary: "120 requests · 5 sessions",
+              lines: ["89% of your usage came from subagent-heavy sessions", "Top skills: /finalize 10%, /rs 6%"] },
+            { window: "7d", summary: "4424 requests · 24 sessions", lines: ["87% of your usage was at >150k context"] },
+        ],
+    },
+} };
+
+function Feed() {
+    const [look, setLook] = useState(null);
+    return html`
+        <div class="chatfeed" style="height: 500px">
+            <${Row} item=${answer} session="atlas" id="1" onCommand=${(row) => setLook(row)} />
+        </div>
+        <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)} label="command output" inner>
+            ${look && html`<${CommandSheet} item=${look} />`}
+        <//>
+    `;
+}
+
+render(html`<${ToastHost}><${Feed} /><//>`, document.getElementById("root"));
+
+const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+(async () => {
+    await wait(200);
+    const card = document.querySelector(".chatfeed .cmdcard");
+    const before = {
+        tag: card.tagName,
+        title: text(".chatfeed .cmdcard .artitle")[0] || "",
+        figure: text(".chatfeed .cmdcard .cmdfig")[0] || "",
+        bar: Array.from(card.querySelectorAll(".cmdbar i")).map((i) => i.className),
+    };
+    card.click();
+    await wait(200);
+    const inside = {
+        head: text(".sheet.on .cmdhead")[0] || "",
+        limits: text(".sheet.on .cmdlimname"),
+        resets: text(".sheet.on .cmdlimit .cmdsub"),
+        percents: text(".sheet.on .cmdlimit .cmdmeter b"),
+        tones: Array.from(document.querySelectorAll(".sheet.on .cmdlimit .cmdbar i")).map((i) => i.className),
+        facts: text(".sheet.on .cmdfacts > span"),
+        model: text(".sheet.on .cmdsec .cmdaside")[0] || "",
+        rows: text(".sheet.on .cmdusage li"),
+        tabs: text(".sheet.on .cmdtab"),
+        day: text(".sheet.on .cmdhabits li"),
+    };
+    document.querySelectorAll(".sheet.on .cmdtab")[1].click();
+    await wait(120);
+    inside.week = text(".sheet.on .cmdhabits li");
+    inside.weekSum = text(".sheet.on .cmdsum")[0] || "";
+    window.done = { before, inside };
+})();
+</script>

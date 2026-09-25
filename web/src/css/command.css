@@ -168,3 +168,38 @@
 .cmdrows { padding-bottom: .3rem; }
 .cmdrows li { padding: .24rem 0; }
 .cmdrows .cmdname { font-family: var(--mono); font-size: var(--t-xs); }
+
+/* The limits of /usage: a line and a bar each, coloured by how loud the plan
+   says the limit is. */
+.t-normal { --cat: var(--accent); }
+.t-warning { --cat: var(--warn); }
+.t-critical { --cat: var(--crit); }
+.cmdlimits { gap: .55rem; }
+.cmdlimit .cmdbar { margin-top: .3rem; }
+.cmdlimname { flex: 1 1 auto; min-width: 0; color: var(--ink); }
+.cmdlimit .cmdmeter .cmdsub { flex: none; color: var(--ink-faint); }
+.cmdfacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem 1.1rem;
+    font-size: var(--t-sm);
+    color: var(--ink-faint);
+}
+.cmdfacts b { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cmdusage .cmdname { font-family: inherit; font-size: var(--t-sm); }
+.cmdtabs { display: flex; flex: none; gap: .15rem; }
+.cmdtab {
+    padding: .1rem .5rem;
+    border: 0;
+    border-radius: var(--r-small);
+    background: none;
+    font: inherit;
+    font-size: var(--t-sm);
+    font-weight: 400;
+    color: var(--ink-faint);
+    cursor: pointer;
+}
+.cmdtab.on { background: var(--surface); color: var(--ink); }
+.cmdnote { margin: 0 0 .4rem; font-size: var(--t-xs); color: var(--ink-faint); }
+.cmdsum { margin: 0 0 .2rem; font-size: var(--t-sm); color: var(--ink-dim); }
+.cmdhabits .cmdname { font-family: inherit; font-size: var(--t-sm); }

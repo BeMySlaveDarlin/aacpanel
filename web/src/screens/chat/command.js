@@ -12,6 +12,8 @@ import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
 import { plural, tokens } from "../../format.js";
 import { copyText } from "./copy.js";
+import { modelTitle } from "./head.js";
+import { USAGE_TITLE, UsageBreakdown, UsageCard } from "./usagecard.js";
 
 // The colour of a category is its meaning, the same in the card, the sheet and
 // the legend. A category the list does not know is drawn in the neutral one.
@@ -34,6 +36,7 @@ function tone(category) {
 // The names the sheet heads its parts with.
 export const COMMAND_TITLES = {
     context: "Context window",
+    usage: USAGE_TITLE,
 };
 
 function share(n, max) {
@@ -72,6 +75,7 @@ function figure(data) {
 // CommandCard is the line a command answer takes in the feed.
 export function CommandCard({ item, onOpen }) {
     const data = item.data || {};
+    if (item.name === "usage") return html`<${UsageCard} item=${item} onOpen=${onOpen} />`;
     if (item.name !== "context") return null;
     const body = html`
         <span class="cmdico">${Icon.pie()}</span>
@@ -94,20 +98,10 @@ export function CommandCard({ item, onOpen }) {
 // CommandSheet is the breakdown the card opens: a bottom sheet on a phone,
 // a dialog on a wide screen — the Sheet it sits in decides which.
 export function CommandSheet({ item }) {
-    if (!item || item.name !== "context") return null;
+    if (!item) return null;
+    if (item.name === "usage") return html`<${UsageBreakdown} data=${item.data || {}} />`;
+    if (item.name !== "context") return null;
     return html`<${ContextBreakdown} data=${item.data || {}} />`;
-}
-
-// modelTitle names a model the way the client does — "Opus 5.5 · 1M" — and
-// not by its id: the id is for machines, and the window rides on it as "[1m]".
-export function modelTitle(id, { withWindow = true } = {}) {
-    const raw = String(id || "");
-    const found = /^(?:claude-)?([a-z]+)-(\d+)(?:-(\d{1,2}))?(?=-\d{8}|\[|$)/i.exec(raw);
-    if (!found) return raw;
-    const name = found[1][0].toUpperCase() + found[1].slice(1);
-    const version = found[3] ? `${found[2]}.${found[3]}` : found[2];
-    const wide = withWindow && /\[1m\]/i.test(raw) ? " · 1M" : "";
-    return `${name} ${version}${wide}`;
 }
 
 // plainText is the breakdown as it goes to the clipboard: the table a person

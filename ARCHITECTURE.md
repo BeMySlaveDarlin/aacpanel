@@ -555,7 +555,9 @@ terminal gets a grid of coloured glyphs, everything else a markdown table as
 long as the list of skills, and neither reads in a conversation. The collector
 reads the answer of a command it knows into numbers — from the field the record
 carries them in when there is one, from the markdown when there is not — and
-the screen draws them as a card that opens the breakdown. The terminal's grid
+the screen draws them as a card that opens the breakdown. What the field does
+not carry — in the answer of `/usage`, which habits spent the limits — is read
+off the text beside it. The terminal's grid
 is left out: a markdown copy of it follows in the next record. The answer of a
 command the collector does not know stays a line of text.
 

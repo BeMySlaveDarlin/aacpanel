@@ -212,6 +212,60 @@ class Parse(unittest.TestCase):
             "</local-command-stdout>"))
         self.assertEqual(got, [])
 
+    USAGE_OUT = (
+        "<local-command-stdout>You are currently using your subscription to power your Claude Code usage\n\n"
+        "Current session: 4% used · resets Sep 24, 7:29pm (Asia/Bangkok)\n\n"
+        "What's contributing to your limits usage?\n"
+        "Approximate, based on local sessions on this machine — does not include other devices or claude.ai.\n\n"
+        "Last 24h · 120 requests · 5 sessions\n"
+        "  89% of your usage came from subagent-heavy sessions\n"
+        "  Top skills: /finalize 10%, /rs 6%\n\n"
+        "Last 7d · 4424 requests · 24 sessions\n"
+        "  87% of your usage was at >150k context</local-command-stdout>")
+
+    USAGE_REPORT = {
+        "session": {"total_cost_usd": 0.0664487, "total_api_duration_ms": 15109, "total_duration_ms": 163405,
+                    "total_lines_added": 3, "total_lines_removed": 1,
+                    "model_usage": {
+                        "claude-haiku-4-5-20251001": {"inputTokens": 62, "outputTokens": 1095, "thinkingTokens": 508,
+                                                      "cacheReadInputTokens": 208977,
+                                                      "cacheCreationInputTokens": 20007, "costUSD": 0.0664487},
+                        "claude-opus-5-5": {"inputTokens": 1, "outputTokens": 2, "costUSD": 0.5}}},
+        "rate_limits": {
+            "limits": [
+                {"kind": "session", "group": "session", "percent": 4, "resets_at": "2026-09-24T12:29:59+00:00",
+                 "scope": None, "severity": "normal", "is_active": False},
+                {"kind": "weekly_scoped", "group": "weekly", "percent": 76, "resets_at": "2026-09-24T16:59:59+00:00",
+                 "scope": {"model": {"display_name": "Fable"}, "surface": None},
+                 "severity": "warning", "is_active": True}],
+            "extra_usage": {"is_enabled": False}}}
+
+    def test_the_report_of_usage_becomes_a_card(self):
+        got = self.items(line({
+            "type": "system", "subtype": "local_command", "level": "info",
+            "timestamp": "2026-08-23T10:00:00Z", "commandRun": {"command": "usage", "args": ""},
+            "content": self.USAGE_OUT, "usageReport": self.USAGE_REPORT}))
+        self.assertEqual([(i["role"], i["name"]) for i in got], [("command", "usage")])
+        data = got[0]["data"]
+        self.assertEqual((data["cost"], data["apiMs"], data["added"], data["removed"], data["extra"]),
+                         (0.0664487, 15109, 3, 1, False))
+        self.assertEqual(data["limits"][1], {"kind": "weekly_scoped", "percent": 76,
+                                             "resets": "2026-09-24T16:59:59+00:00", "severity": "warning",
+                                             "active": True, "model": "Fable"})
+        # The dearest model first: it is the one the breakdown is about.
+        self.assertEqual([m["id"] for m in data["models"]], ["claude-opus-5-5", "claude-haiku-4-5-20251001"])
+        self.assertEqual(data["models"][1]["cacheRead"], 208977)
+        # What spent the limits is in the text only, and it is read from there.
+        habits = data["behaviors"]
+        self.assertTrue(habits["caveat"].startswith("Approximate, based on local sessions"))
+        self.assertEqual([(w["window"], w["summary"], len(w["lines"])) for w in habits["windows"]],
+                         [("24h", "120 requests · 5 sessions", 2), ("7d", "4424 requests · 24 sessions", 1)])
+        self.assertEqual(habits["windows"][0]["lines"][1], "Top skills: /finalize 10%, /rs 6%")
+
+    def test_a_usage_answer_without_its_report_stays_a_note(self):
+        got = self.items(local_command(self.USAGE_OUT))
+        self.assertEqual([i["role"] for i in got], ["note"])
+
     def test_the_markdown_of_context_pasted_by_a_person_stays_their_message(self):
         got = self.items(user(self.CONTEXT_MD))
         self.assertEqual([i["role"] for i in got], ["me"])
