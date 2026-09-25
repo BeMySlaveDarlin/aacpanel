@@ -112,6 +112,9 @@ export function rows(items) {
     const out = [];
     for (const raw of items) {
         if (HIDDEN.has(raw.role)) continue;
+        // A finished task stands where the session read the news: a line of
+        // it that arrived earlier, when the news was queued, gives way.
+        if (raw.role === "taskdone" && raw.use && done.get(raw.use) !== raw) continue;
         const prev = out[out.length - 1];
         if (LINES.has(raw.role) && prev && prev.role === "toolrow") {
             prev.lines = [...(prev.lines || []), raw];

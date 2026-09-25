@@ -2729,6 +2729,30 @@ class Runs(unittest.TestCase):
         self.assertEqual([(i["role"], i["text"]) for i in items],
                          [("mail", "channel check")])
 
+    def test_a_completion_stands_where_the_session_read_it(self):
+        items = self.feed(
+            line({"type": "queue-operation", "operation": "enqueue",
+                  "content": TaskDone.NOTE, "timestamp": "2026-08-30T10:00:00Z"}),
+            assistant(text_block("F4 is committed")),
+            user(TaskDone.NOTE),
+            assistant(text_block("That was the news of the F4 commit")),
+        )
+        self.assertEqual([(i["role"], i.get("text", "")) for i in items],
+                         [("ai", "F4 is committed"), ("taskdone", ""),
+                          ("ai", "That was the news of the F4 commit")],
+                         "the finished task stays where the news was queued, not where the session read it")
+
+    def test_a_completion_read_inside_a_turn_stands_there(self):
+        items = self.feed(
+            line({"type": "queue-operation", "operation": "enqueue",
+                  "content": TaskDone.NOTE, "timestamp": "2026-08-30T10:00:00Z"}),
+            assistant(text_block("F4 is committed")),
+            line({"type": "attachment", "timestamp": "2026-08-30T10:00:01Z",
+                  "attachment": {"type": "queued_command", "prompt": TaskDone.NOTE}}),
+            assistant(text_block("That was the news of the F4 commit")),
+        )
+        self.assertEqual([i["role"] for i in items], ["ai", "taskdone", "ai"])
+
     def test_one_completion_is_shown_once(self):
         items = self.feed(
             line({"type": "queue-operation", "operation": "enqueue",

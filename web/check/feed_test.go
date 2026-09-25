@@ -116,6 +116,30 @@ func TestALineInsideARunHangsUnderIt(t *testing.T) {
 	}
 }
 
+// A finished task stands where the session read the news, as the terminal
+// shows it: the line drawn when the news was queued gives way to the one
+// drawn where it was read, however the two arrived.
+func TestAFinishedTaskStandsWhereTheSessionReadIt(t *testing.T) {
+	done := func(pos int) map[string]any {
+		return map[string]any{"role": "taskdone", "use": "u1", "status": "completed", "summary": "Agent finished", "pos": pos}
+	}
+	ai := func(pos int) map[string]any { return map[string]any{"role": "ai", "text": "ok", "pos": pos} }
+	cases := []struct {
+		name     string
+		items    []map[string]any
+		incoming []map[string]any
+	}{
+		{"read live, after the reply", []map[string]any{ai(1), done(2), ai(3)}, []map[string]any{done(4), ai(5)}},
+		{"both in one page", []map[string]any{ai(1), done(2), ai(3), done(4), ai(5)}, nil},
+	}
+	for _, c := range cases {
+		got := runRowsJS(t, c.items, c.incoming)
+		if want := "ai | ai | taskdone | ai"; strings.Join(got, " | ") != want {
+			t.Errorf("%s: %v, expected %s", c.name, got, want)
+		}
+	}
+}
+
 func runRowsJS(t *testing.T, items, incoming []map[string]any) []string {
 	t.Helper()
 	node, err := exec.LookPath("node")

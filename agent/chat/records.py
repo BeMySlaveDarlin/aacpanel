@@ -14,15 +14,20 @@ from .queue import delivered, withdrawn
 from .tools import edited_path, tool_arg, tool_kind, tool_label
 
 
-def service_once(text, at, pos, pending):
-    """Returns items for a harness insert, and exactly once per text."""
+def service_once(text, at, pos, pending, read=False):
+    """Returns items for a harness insert, and exactly once per text.
+
+    A finished task is the exception: the terminal shows it where the session
+    read the news, not where the news was queued, so the record that hands it
+    to the session (read) draws it again there, and the feed keeps the later.
+    """
     items = service(text, at, pos)
     if items is None:
         return None
     if pending is None:
         return items
     if pending.service_seen(text):
-        return []
+        return [i for i in items if i["role"] == "taskdone"] if read else []
     pending.service_remember(text)
     return items
 
@@ -217,7 +222,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             item["fixes"] = "me"
             return out + [item]
 
-        service_items = service_once(text, at, pos, pending)
+        service_items = service_once(text, at, pos, pending, read=True)
         if service_items is not None:
             return out + service_items
         role, shown = classify(text)
@@ -269,7 +274,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return []
         if shots:
             out.append({"role": "shots", "at": at, "pos": pos, "shots": shots})
-        service_items = service_once(text, at, pos, pending)
+        service_items = service_once(text, at, pos, pending, read=True)
         if service_items is not None:
             return out + service_items
         if pending is not None and pending.seen(text):

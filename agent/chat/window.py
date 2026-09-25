@@ -98,8 +98,13 @@ def fold(rows, limit, before, after):
         if item["role"] == "sent":
             drop_call(item["use"])
         if item["role"] == "taskdone":
-            if any(was["role"] == "taskdone" and was["use"] == item["use"] for was in window):
-                return
+            # Where the session read the news of a finished task is where the
+            # terminal shows it: a later line of the same task takes its place.
+            for i, was in enumerate(window):
+                if was["role"] == "taskdone" and was["use"] == item["use"]:
+                    del window[i]
+                    total -= 1
+                    break
         if item["role"] == "mail":
             if any(was["role"] == "mail" and was["from"] == item["from"]
                    and was["text"] == item["text"] for was in window):
