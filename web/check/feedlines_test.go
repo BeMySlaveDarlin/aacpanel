@@ -31,15 +31,20 @@ type feedLinesShot struct {
 		Dot    string `json:"dot"`
 		Colour string `json:"colour"`
 	} `json:"lines"`
-	Turn  string   `json:"turn"`
-	Under []string `json:"under"`
+	Turn      string   `json:"turn"`
+	TurnNum   string   `json:"turnNum"`
+	TurnIcon  bool     `json:"turnIcon"`
+	TurnOpens []int    `json:"turnOpens"`
+	Worked    bool     `json:"worked"`
+	Under     []string `json:"under"`
 }
 
 // What a terminal prints beside the conversation is in the feed as well: a
 // hook's message adds to a badge of its run, a background task done is a plate
 // under the run it ended in — one width for all, read from the left, opening
-// what the task left behind — the length of a turn stands under its last
-// answer with the time it ended, and a warning of claude is a line of its own.
+// what the task left behind — the end of a turn is a badge under its last
+// answer that opens the calls of the turn with how long it took, and a
+// warning of claude is a line of its own.
 func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 	var got feedLinesShot
 	runFixture(t, "feedlines.html", &got)
@@ -70,7 +75,7 @@ func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 		}
 	}
 	if got.TurnLeft-got.FeedLeft > 1 {
-		t.Errorf("the length of the turn starts at %.1f, the feed at %.1f", got.TurnLeft, got.FeedLeft)
+		t.Errorf("the badge of the turn starts at %.1f, the feed at %.1f", got.TurnLeft, got.FeedLeft)
 	}
 	tags := []string{}
 	for _, p := range got.Plates {
@@ -86,8 +91,18 @@ func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 	if len(got.Under) != 2 {
 		t.Errorf("the tasks done inside the run do not hang under its badges: %v", got.Under)
 	}
-	if !strings.HasPrefix(got.Turn, "worked 2m 49s") || got.Turn == "worked 2m 49s" {
-		t.Errorf("the turn reads %q: the length the way the terminal says it, and the time it ended", got.Turn)
+	if got.Worked {
+		t.Errorf("the length of a turn is printed in the feed: it belongs to the calls the badge opens")
+	}
+	if !got.TurnIcon || got.TurnNum != "2" {
+		t.Errorf("the badge of the turn is not an hourglass with the agents it left at work: icon %v, number %q",
+			got.TurnIcon, got.TurnNum)
+	}
+	if !strings.Contains(got.Turn, "worked 2m 49s") || !strings.Contains(got.Turn, "2 background agents were still at work") {
+		t.Errorf("the badge of the turn says %q: how long it took and what it left at work", got.Turn)
+	}
+	if len(got.TurnOpens) != 1 || got.TurnOpens[0] != 7 {
+		t.Errorf("tapping the badge of the turn opened %v: the calls of that turn", got.TurnOpens)
 	}
 	if len(got.Lines) != 3 {
 		t.Fatalf("lines drawn: %+v", got.Lines)

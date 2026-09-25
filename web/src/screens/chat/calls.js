@@ -7,10 +7,11 @@ import { BackHead, useBackClose } from "../../ui/back.js";
 import { FileCard, fileOfCall } from "./files.js";
 import { Icon } from "../../ui/icons.js";
 import { idParam } from "./api.js";
-import { countCalls, kindIcon, shortTokens, tokenWord } from "./labels.js";
+import { countCalls, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
 
-// Calls renders the page listing the calls of one badge.
-export function Calls({ session, id, calls, onFile }) {
+// Calls renders the page listing the calls of one badge. Opened from the end
+// of a turn, it lists every call of the turn and says how long it took.
+export function Calls({ session, id, calls, turn, onFile }) {
     const [pick, setPick] = useState(null);
     const real = calls.filter((call) => !call.still);
     const place = (n) => real.indexOf(calls[n]) + 1;
@@ -30,9 +31,15 @@ export function Calls({ session, id, calls, onFile }) {
         <div class="sheethead">
             <div class="chatwho">
                 <h2>Calls</h2>
-                <div class="chatsub"><span>${countCalls(real.length)}</span></div>
+                <div class="chatsub">
+                    <span>${countCalls(real.length)}</span>
+                    ${turn && html`<span class="sep">·</span><span class="calltook">${turnTook(turn)}</span>`}
+                    ${turn && turn.at && html`<span class="sep">·</span><span>${stampText(turn.at)}</span>`}
+                </div>
+                ${turn && turnLeft(turn) && html`<div class="chatsub"><span class="callleft">${turnLeft(turn)}</span></div>`}
             </div>
         </div>
+        ${turn && calls.length === 0 && html`<p class="hint">The turn made no calls: it was an answer and nothing else.</p>`}
 
         <div class="calltime">
             ${calls.map((call, n) => (call.still ? html`

@@ -1,6 +1,7 @@
 // Labels and counters shared by the feed, the call list and the sheets.
 
 import { Icon } from "../../ui/icons.js";
+import { stopwatch } from "../../format.js";
 
 export const KIND_NAMES = {
     bash: "commands",
@@ -63,4 +64,17 @@ export function stampText(iso) {
     const day = at.toLocaleString("ru-RU", { day: "numeric", month: "short" }).replace(".", "");
     const time = at.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
     return `${day} · ${time}`;
+}
+
+// turnTook says how long a turn took, the way the terminal says it.
+export function turnTook(turn) {
+    return `worked ${stopwatch((turn.ms || 0) / 1000)}`;
+}
+
+// turnLeft says how many agents a turn left at work in the background, or
+// nothing when it left none.
+export function turnLeft(turn) {
+    const n = turn.agents || 0;
+    if (n <= 0) return "";
+    return `${n} background ${n === 1 ? "agent was" : "agents were"} still at work`;
 }

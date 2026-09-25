@@ -391,13 +391,7 @@ button.mdone:active { background: var(--glass); }
 .mdonego { display: flex; align-self: center; width: 12px; height: 12px; margin-left: auto; color: var(--ink-faint); flex: none; }
 .mdonego svg { width: 100%; height: 100%; }
 
-/* The length of a turn, under its last answer, with the time it ended, read
-   from the left like the plates above it. */
-.mturn {
-    align-self: flex-start;
-    display: flex;
-    gap: .5rem;
-    font-size: var(--t-xs);
-    color: var(--ink-faint);
-    font-variant-numeric: tabular-nums;
-}
+/* The end of a turn is a chip under its last answer, as quiet as the chip
+   of thinking; its number is the agents the turn left at work. */
+.mtools.mturn { color: var(--ink-faint); }
+.mturn .mtnum { color: var(--ink-dim); }

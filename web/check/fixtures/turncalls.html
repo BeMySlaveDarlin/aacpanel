@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body"><div id="turn"></div><div id="empty"></div></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The calls a badge of a turn opens: every run of the turn, none of the turn
+// before it, and how long the turn took.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Calls } from "/src/screens/chat/calls.js";
+import { turnCalls, weld } from "/src/screens/chat/feed.js";
+
+const at = "2026-09-26T10:28:00Z";
+const call = (name, arg, pos) => ({ name, arg, pos, index: 0, use: `u${pos}`, seq: 0, at });
+const items = weld([
+    { role: "tools", kind: "bash", run: 1, pos: 1, at, calls: [call("Bash", "the turn before", 1)] },
+    { role: "ai", text: "Done before.", pos: 2, at },
+    { role: "turn", ms: 5000, pos: 3, at },
+    { role: "me", text: "Go on.", pos: 4, at },
+    { role: "think", run: 5, pos: 5, count: 1, tokens: 120, at,
+      spots: [{ seq: 0, at, tokens: 120, pos: 5, index: 0 }] },
+    { role: "tools", kind: "bash", run: 5, pos: 6, at, calls: [call("Bash", "make check", 6)] },
+    { role: "ai", text: "Checks are running.", pos: 7, at },
+    { role: "tools", kind: "files", run: 8, pos: 8, at, calls: [call("Read", "main.go", 8)] },
+    { role: "ai", text: "Waiting for the agents.", pos: 9, at },
+    { role: "turn", ms: 299797, agents: 2, pos: 10, at },
+    { role: "ai", text: "Nothing to do.", pos: 11, at },
+    { role: "turn", ms: 2000, pos: 12, at },
+]);
+
+const turnOf = (pos) => items.find((item) => item.role === "turn" && item.pos === pos);
+render(html`<${Calls} session="lab" id="1" calls=${turnCalls(items, 10)} turn=${turnOf(10)} />`,
+    document.getElementById("turn"));
+render(html`<${Calls} session="lab" id="1" calls=${turnCalls(items, 12)} turn=${turnOf(12)} />`,
+    document.getElementById("empty"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
+    const sheet = (id) => document.getElementById(id);
+    window.done = {
+        calls: Array.from(sheet("turn").querySelectorAll(".callnode")).map(text),
+        head: Array.from(sheet("turn").querySelectorAll(".chatsub")).map(text),
+        emptyHead: text(sheet("empty").querySelector(".chatsub")),
+        emptyHint: text(sheet("empty").querySelector(".hint")),
+        emptyLeft: sheet("empty").querySelectorAll(".chatsub").length,
+    };
+})();
+</script>

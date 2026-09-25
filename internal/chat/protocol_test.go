@@ -57,7 +57,7 @@ func TestReplyKeepsEveryFieldAgentSends(t *testing.T) {
 			 "ms": 24233, "tokens": 33108, "at": "2026-08-24T10:00:17Z", "pos": 170},
 			{"role": "notice", "text": "Unknown command: /storage", "from": "safeguards", "level": "warn", "cut": true,
 			 "at": "2026-08-24T10:00:18Z", "pos": 180},
-			{"role": "turn", "ms": 169000, "at": "2026-08-24T10:00:19Z", "pos": 190}
+			{"role": "turn", "ms": 169000, "agents": 2, "at": "2026-08-24T10:00:19Z", "pos": 190}
 		],
 		"total": 14, "moreBefore": true, "first": 10, "last": 100, "size": 4096,
 		"text": "the tail of the command output", "cut": true,

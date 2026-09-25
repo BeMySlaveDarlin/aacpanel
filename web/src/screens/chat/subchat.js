@@ -5,7 +5,7 @@ import { useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Sheet } from "../../ui/sheet.js";
-import { rows, runCalls, weld } from "./feed.js";
+import { rows, runCalls, turnCalls, weld } from "./feed.js";
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { Row } from "./rows.js";
 import { Calls } from "./calls.js";
@@ -81,14 +81,15 @@ export function SubChat({ session, id, agent, live, onBack }) {
                 item=${item}
                 session=${session}
                 id=${id}
-                onCalls=${() => setCalls(runCalls(feed, item.run))}
+                onCalls=${() => setCalls({ list: runCalls(feed, item.run) })}
+                onTurn=${(turn) => setCalls({ list: turnCalls(feed, turn.pos), turn })}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
             />`)}
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>
-            <${Calls} session=${session} id=${id} calls=${calls || []}
+            <${Calls} session=${session} id=${id} calls=${calls ? calls.list : []} turn=${calls && calls.turn}
                       onFile=${(file) => setLook({ kind: "file", ...file })} />
         <//>
 

@@ -55,6 +55,7 @@ export const Icon = {
     artifact: () => html`<svg ...${stroke}><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="M3 9h18" /><circle cx="6.4" cy="6.7" r=".7" fill="currentColor" stroke="none" /></svg>`,
 
     clock: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M12 7v5.3l3.4 2" /></svg>`,
+    hourglass: () => html`<svg ...${stroke}><path d="M6.5 3.5h11M6.5 20.5h11" /><path d="M7.5 3.5v2.3a5 5 0 0 0 2.6 4.4L12 11.2l1.9-1a5 5 0 0 0 2.6-4.4V3.5" /><path d="M7.5 20.5v-2.3a5 5 0 0 1 2.6-4.4l1.9-1 1.9 1a5 5 0 0 1 2.6 4.4v2.3" /></svg>`,
 
     // The four permission modes: a raised hand asks first, a pair of brackets
     // takes edits on its own, a sheet with lines plans, a bolt decides itself.

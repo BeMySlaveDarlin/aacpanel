@@ -20,15 +20,17 @@ const items = [
     { role: "ai", text: "Between the runs.", pos: 55, at },
     { role: "taskdone", use: "u7", status: "completed", summary: "Background command \"sleep 1\" completed (exit code 0)", pos: 56, at },
     { role: "ai", text: "The checks failed; looking at the log.", pos: 6, at },
-    { role: "turn", ms: 169000, pos: 7, at },
+    { role: "turn", ms: 169000, agents: 2, pos: 7, at },
     { role: "notice", text: "Working on the panel; the tree is clean, two tails left.", from: "while you were away", level: "info", pos: 8, at },
     { role: "notice", text: "Unknown command: /storage", level: "warn", pos: 9, at },
     { role: "notice", text: "The safeguards flagged this message.", from: "safeguards", level: "crit", pos: 10, at },
 ];
 
 const opened = [];
+const turns = [];
 render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
     html`<${Row} key=${`${item.role}-${item.pos}`} item=${item} session="lab" id="1" onCalls=${() => {}}
+                 onTurn=${(turn) => turns.push(turn.pos)}
                  onTask=${(task) => opened.push(task)} />`)}</div>`,
     document.getElementById("root"));
 
@@ -37,7 +39,7 @@ render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
     const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
     const under = Array.from(document.querySelectorAll(".mdone.under, .mside.under")).map(text);
     window.done = {
-        badges: Array.from(document.querySelectorAll(".mtools")).map((b) => b.getAttribute("aria-label")),
+        badges: Array.from(document.querySelectorAll(".mtools:not(.mturn)")).map((b) => b.getAttribute("aria-label")),
         feedLeft: document.querySelector(".chatfeed").getBoundingClientRect().left,
         plates: Array.from(document.querySelectorAll(".mdone")).map((el) => ({
             tag: el.tagName,
@@ -45,6 +47,8 @@ render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
             width: el.getBoundingClientRect().width,
         })),
         turnLeft: document.querySelector(".mturn").getBoundingClientRect().left,
+        turnNum: text(document.querySelector(".mturn .mtnum")),
+        turnIcon: Boolean(document.querySelector(".mturn .mticon svg")),
         pills: Array.from(document.querySelectorAll(".mdone")).map((el) => ({
             mark: text(el.querySelector(".mdonemark")),
             name: text(el.querySelector(".mdonename")),
@@ -57,7 +61,9 @@ render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
             dot: getComputedStyle(el.querySelector(".msidedot")).backgroundColor,
             colour: getComputedStyle(el.querySelector(".msidetext")).color,
         })),
-        turn: text(document.querySelector(".mturn")),
+        turn: document.querySelector(".mturn").getAttribute("aria-label"),
+        turnOpens: (() => { document.querySelector(".mturn").click(); return turns; })(),
+        worked: document.body.innerText.includes("worked"),
         opened: (() => { document.querySelectorAll("button.mdone").forEach((b) => b.click()); return opened; })(),
         under,
     };

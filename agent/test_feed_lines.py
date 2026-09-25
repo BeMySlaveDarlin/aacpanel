@@ -73,6 +73,15 @@ class Records(unittest.TestCase):
     def test_a_turn_says_how_long_it_took(self):
         self.assertEqual(self.parse(system("turn_duration", durationMs=169000, messageCount=40)),
                          [{"role": "turn", "ms": 169000, "at": AT, "pos": 7}])
+
+    def test_a_turn_says_how_many_agents_it_left_at_work(self):
+        self.assertEqual(self.parse(system("turn_duration", durationMs=3713,
+                                           pendingBackgroundAgentCount=2)),
+                         [{"role": "turn", "ms": 3713, "agents": 2, "at": AT, "pos": 7}])
+        for none in (0, None, True, "2"):
+            self.assertNotIn("agents", self.parse(system("turn_duration", durationMs=3713,
+                                                         pendingBackgroundAgentCount=none))[0],
+                             none)
         for bad in (0, -5, True, "169000", None):
             self.assertEqual(self.parse(system("turn_duration", durationMs=bad)), [], bad)
 

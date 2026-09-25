@@ -34,7 +34,13 @@ def system_notice(record, at, pos):
         ms = record.get("durationMs")
         if isinstance(ms, bool) or not isinstance(ms, (int, float)) or ms <= 0:
             return []
-        return [{"role": "turn", "ms": int(ms), "at": at, "pos": pos}]
+        item = {"role": "turn", "ms": int(ms), "at": at, "pos": pos}
+        # A turn can end with agents still at work in the background: the
+        # session is not done then, it waits for them.
+        agents = record.get("pendingBackgroundAgentCount")
+        if isinstance(agents, int) and not isinstance(agents, bool) and agents > 0:
+            item["agents"] = agents
+        return [item]
     if subtype == "away_summary":
         return notice(content, "while you were away", "info", at, pos)
     if subtype == "informational":

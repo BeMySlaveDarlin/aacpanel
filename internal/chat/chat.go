@@ -32,7 +32,9 @@ type Item struct {
 	Count  int        `json:"count,omitempty"`
 	Tokens int        `json:"tokens,omitempty"`
 	// How long a turn or a background task took, and how loud a line is.
-	MS      int64       `json:"ms,omitempty"`
+	MS int64 `json:"ms,omitempty"`
+	// Agents is how many agents a turn left working in the background.
+	Agents  int         `json:"agents,omitempty"`
 	Level   string      `json:"level,omitempty"`
 	Spots   []ThinkSpot `json:"spots,omitempty"`
 	Title   string      `json:"title,omitempty"`

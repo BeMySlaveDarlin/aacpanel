@@ -219,13 +219,30 @@ function weldThink(was, more) {
 
 // runCalls returns every call of one run, in event order.
 export function runCalls(items, run) {
+    return callsOf(items, (item) => item.run === run);
+}
+
+// turnCalls returns every call of the turn that ended at this position: the
+// runs between the end of the turn before it and this one.
+export function turnCalls(items, pos) {
+    const end = items.findIndex((item) => item.role === "turn" && item.pos === pos);
+    if (end < 0) return [];
+    let start = end;
+    while (start > 0 && items[start - 1].role !== "turn") start -= 1;
+    const runs = new Set(items.slice(start, end)
+        .filter((item) => item.role === "tools" || item.role === "think")
+        .map((item) => item.run));
+    return callsOf(items, (item) => runs.has(item.run));
+}
+
+function callsOf(items, pick) {
     const done = new Map();
     for (const item of items) {
         if (item.role === "taskdone" && item.use) done.set(item.use, item);
     }
     const all = [];
     for (const item of items) {
-        if (item.run !== run) continue;
+        if (!pick(item)) continue;
         if (item.role === "think") {
             for (const spot of item.spots || []) {
                 all.push({ ...spot, kind: "think", still: true });

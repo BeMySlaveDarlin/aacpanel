@@ -13,10 +13,10 @@ import { idParam } from "./api.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, SentCard } from "./files.js";
 import { Photo, shotName } from "./photo.js";
-import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord } from "./labels.js";
+import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
 
 // Row renders one row of the feed.
-export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, copies, onPage, onTask }) {
+export function Row({ item, session, id, onCalls, onTurn, onFile, onBrief, onCommand, copies, onPage, onTask }) {
     if (item.role === "shots") {
         const shots = item.shots || [];
         if (!shots.length) return null;
@@ -37,11 +37,18 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, co
     if (item.role === "taskdone" || item.role === "notice") {
         return html`<${Line} item=${item} onTask=${onTask} />`;
     }
+    // The end of a turn is a badge under its last answer: how long it took
+    // and when it ended are a tap away, with the calls it made. The number is
+    // the agents it left at work, the way the terminal says it is waiting.
     if (item.role === "turn") {
+        const said = [turnTook(item), turnLeft(item)].filter(Boolean).join(" · ");
         return html`
-            <div class="mturn">
-                <span>worked ${stopwatch(item.ms / 1000)}</span>
-                ${item.at && html`<span class="mturnat">${stampText(item.at)}</span>`}
+            <div class="mrow">
+                <button class="mtools mturn" type="button" onClick=${() => onTurn && onTurn(item)}
+                        title=${said} aria-label=${`the turn: ${said}`}>
+                    <span class="mticon">${Icon.hourglass()}</span>
+                    ${item.agents > 0 && html`<span class="mtnum">${item.agents}</span>`}
+                </button>
             </div>
         `;
     }

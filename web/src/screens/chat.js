@@ -9,7 +9,7 @@ import { ContextBar } from "../ui/bar.js";
 import { Ask } from "./ask.js";
 import { Permit } from "./chat/permit.js";
 import { ago, tokens } from "../format.js";
-import { closed, rows, runCalls, unarrived, weld } from "./chat/feed.js";
+import { closed, rows, runCalls, turnCalls, unarrived, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { RepoView } from "./repo/view.js";
@@ -356,7 +356,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 id=${id}
                 copies=${copies}
                 onPage=${(card) => setLook({ kind: "artifact", card })}
-                onCalls=${() => setCalls(runCalls(feed, item.run))}
+                onCalls=${() => setCalls({ list: runCalls(feed, item.run) })}
+                onTurn=${(turn) => setCalls({ list: turnCalls(feed, turn.pos), turn })}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
                 onBrief=${openBrief}
                 onCommand=${(row) => setLook({ kind: "command", item: row })}
@@ -439,7 +440,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
         />`}
 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>
-            <${Calls} session=${name} id=${id} calls=${calls || []}
+            <${Calls} session=${name} id=${id} calls=${calls ? calls.list : []} turn=${calls && calls.turn}
                       onFile=${(file) => setLook({ kind: "file", ...file })} />
         <//>
 
