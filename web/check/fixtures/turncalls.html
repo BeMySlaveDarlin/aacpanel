@@ -35,8 +35,13 @@ render(html`<${Calls} session="lab" id="1" calls=${turnCalls(items, 10)} turn=${
 render(html`<${Calls} session="lab" id="1" calls=${turnCalls(items, 12)} turn=${turnOf(12)} />`,
     document.getElementById("empty"));
 
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await until(() => document.querySelector("#turn .callnode") && document.querySelector("#empty .hint"));
     const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
     const sheet = (id) => document.getElementById(id);
     window.done = {

@@ -34,8 +34,14 @@ render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
                  onTask=${(task) => opened.push(task)} />`)}</div>`,
     document.getElementById("root"));
 
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await until(() => document.querySelector(".mturn") && document.querySelectorAll(".mdone").length === 3
+        && document.querySelectorAll(".mside").length === 3);
     const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
     const under = Array.from(document.querySelectorAll(".mdone.under, .mside.under")).map(text);
     window.done = {

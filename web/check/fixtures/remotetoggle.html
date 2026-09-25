@@ -38,9 +38,12 @@ render(h(ToastHost, null, h(GateHost, null, html`
     ${row("old", "book", { profile: "personal" }, old)}
 `)), document.getElementById("root"));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
 window.done = (async () => {
-    await sleep(200);
+    await until(() => document.querySelectorAll(".rcbtn").length === 4);
     const button = (id) => document.querySelector(`#${id} .rcbtn`);
     const look = (id) => {
         const b = button(id);
@@ -48,13 +51,14 @@ window.done = (async () => {
                  disabled: b.disabled, label: b.getAttribute("aria-label") || "" };
     };
     const before = { off: look("off"), on: look("on"), work: look("work"), old: look("old") };
-    button("off").click();
-    await sleep(300);
-    button("on").click();
-    await sleep(300);
+    // A disabled button gives no click at all: pressed first, whatever they
+    // sent would stand ahead of the two presses that do send.
     button("work").click();
     button("old").click();
-    await sleep(300);
+    button("off").click();
+    await until(() => sent.length >= 1 && look("off").on);
+    button("on").click();
+    await until(() => sent.length >= 2);
     return { before, afterOff: look("off"), sent: sent.map((s) => `${s.kind}:${s.target}:${JSON.stringify(s.params)}`) };
 })();
 </script>

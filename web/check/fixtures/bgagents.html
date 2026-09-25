@@ -46,8 +46,13 @@ render(html`
     <//><//>
 `, document.getElementById("root"));
 
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await until(() => document.querySelectorAll("#agents .wline").length === 4 && document.querySelector("#tasks .wrow.task"));
     const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
     const chips = Array.from(document.querySelectorAll("#chips .wchip"));
     const rows = Array.from(document.querySelectorAll("#agents .wline"));

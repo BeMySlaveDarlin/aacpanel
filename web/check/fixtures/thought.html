@@ -18,8 +18,13 @@ render(html`<div class="chatfeed">${items.map((item) =>
     html`<${Row} key=${item.pos} item=${item} session="lab" id="1" />`)}</div>`,
     document.getElementById("root"));
 
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await until(() => document.querySelector(".mmind p") && document.querySelector(".msg.ai p"));
     const px = (el) => parseFloat(getComputedStyle(el).fontSize);
     const root = getComputedStyle(document.documentElement);
     const rem = parseFloat(root.fontSize);
