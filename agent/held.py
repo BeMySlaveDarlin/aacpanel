@@ -18,13 +18,18 @@ def stream_dir():
     return os.path.join(base, "aacpanel-stream")
 
 
+def named(sid):
+    """Reports whether a conversation id names a file of its own and nothing outside the directory."""
+    return isinstance(sid, str) and bool(sid) and "/" not in sid and not sid.startswith(".")
+
+
 def summary(sid, pid=None):
     """Returns the holder's state of a conversation, or None when no live holder keeps it.
 
     With a pid, the claude the holder keeps has to be that one: another
     process claiming the conversation is not its session.
     """
-    if not isinstance(sid, str) or not sid or "/" in sid or sid.startswith("."):
+    if not named(sid):
         return None
     try:
         with open(os.path.join(stream_dir(), sid + ".json"), encoding="utf-8") as f:
@@ -55,10 +60,47 @@ def waiting_for(data):
     return "input needed" if "AskUserQuestion" in tools else "dialog open"
 
 
+def kept_dir():
+    """Returns where the holders keep what outlives them: what the transcript does not say."""
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    return os.path.join(base, "aacpanel-stream")
+
+
+def kept(path):
+    """Returns a list a holder kept, empty when there is none."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return data if isinstance(data, list) else []
+
+
 def withdrawn_path(sid):
     """Returns where the holder keeps the fingerprints of the messages taken back."""
-    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    return os.path.join(base, "aacpanel-stream", "withdrawn", sid + ".json")
+    return os.path.join(kept_dir(), "withdrawn", sid + ".json")
+
+
+def permits_path(sid):
+    """Returns where the holder keeps the answers to the permissions of a conversation."""
+    return os.path.join(kept_dir(), "permits", sid + ".json")
+
+
+def permits(sid):
+    """Returns the answers a person gave to the permissions of a conversation, by call.
+
+    The transcript has the call and its result and nothing of the question
+    between them: on the stream it is a request and a reply. The holder keeps
+    no words of the call, only which it was and what was answered.
+    """
+    if not named(sid):
+        return {}
+    out = {}
+    for entry in kept(permits_path(sid)):
+        if (isinstance(entry, dict) and isinstance(entry.get("use"), str) and entry["use"]
+                and entry.get("decision") in ("allow", "deny")):
+            out[entry["use"]] = entry
+    return out
 
 
 def fingerprint(text):
@@ -68,14 +110,9 @@ def fingerprint(text):
 
 def withdrawn(sid):
     """Returns the fingerprints of the messages taken back from the queue, with repeats."""
-    if not isinstance(sid, str) or not sid or "/" in sid or sid.startswith("."):
+    if not named(sid):
         return []
-    try:
-        with open(withdrawn_path(sid), encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return []
-    return [x for x in data if isinstance(x, str)] if isinstance(data, list) else []
+    return [x for x in kept(withdrawn_path(sid)) if isinstance(x, str)]
 
 
 def mark_withdrawn(items, sid):

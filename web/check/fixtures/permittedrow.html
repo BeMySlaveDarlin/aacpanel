@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Permissions answered on the stream: one call allowed once, then two calls
+// answered together — one allowed for good, one refused — and a call whose
+// words lay before the piece the collector read.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+
+const once = {
+    role: "permitted", pos: 100, at: "2026-09-26T10:00:05Z",
+    rows: [{ tool: "Bash", subject: "git push origin main", decision: "allow" }],
+};
+const together = {
+    role: "permitted", pos: 200, at: "2026-09-26T10:01:05Z",
+    rows: [
+        { tool: "Edit", subject: "/srv/proj/main.go", decision: "allow", lasting: true },
+        { tool: "Bash", subject: "rm -rf build", decision: "deny" },
+    ],
+};
+const bare = {
+    role: "permitted", pos: 300, at: "2026-09-26T10:02:05Z",
+    rows: [{ tool: "WebFetch", decision: "allow" }],
+};
+
+render(html`
+    <div class="chatfeed">
+        <${Row} item=${once} session="lab" id="1" />
+        <${Row} item=${together} session="lab" id="1" />
+        <${Row} item=${bare} session="lab" id="1" />
+    </div>
+`, document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const text = (el) => (el ? el.textContent.trim() : "");
+    const cards = Array.from(document.querySelectorAll(".permitted")).map((card) => ({
+        asked: card.classList.contains("asked"),
+        label: text(card.querySelector(".askedlabel")),
+        stamped: text(card.querySelector(".askedat")) !== "",
+        rows: Array.from(card.querySelectorAll(".askedrow")).map((row) => ({
+            tool: text(row.querySelector(".askedtop")),
+            subject: text(row.querySelector(".askedsubj")),
+            mono: row.querySelector(".askedsubj")
+                ? getComputedStyle(row.querySelector(".askedsubj")).fontFamily : "",
+            answer: text(row.querySelector(".askeda")),
+            colour: getComputedStyle(row.querySelector(".askeda")).color,
+        })),
+    }));
+    window.done = { cards };
+})();
+</script>

@@ -16,6 +16,8 @@ import os
 import threading
 from collections import deque
 
+import held
+
 from .queue import Pending
 from .records import parse
 
@@ -79,6 +81,21 @@ def record_of(raw):
     return record if isinstance(record, dict) else None
 
 
+def permits_of(path, sidechain):
+    """Returns the answers to the permissions of the conversation of a transcript, by call.
+
+    Read after the length of the file is taken, and only the records within
+    that length are parsed against them: the holder keeps an answer before
+    claude has it, so every result written by then has its answer on the disk.
+    A side chain has none — the holder keeps the answers of the conversation
+    it holds, and a piece remembers what it parsed.
+    """
+    name = os.path.basename(path)
+    if sidechain or not name.endswith(".jsonl"):
+        return {}
+    return held.permits(name[:-len(".jsonl")])
+
+
 def fresh(item):
     """Returns a copy of a kept item, so a fold cannot spoil what is kept.
 
@@ -104,7 +121,9 @@ class Stream:
         self.cwd = ""
 
     def __iter__(self):
-        pending, asks, sent, briefs = Pending(), {}, set(), set()
+        pending, asks, sent, briefs, calls = Pending(), {}, set(), set(), {}
+        size = os.path.getsize(self.path)
+        permits = permits_of(self.path, self.sidechain)
         with open(self.path, "rb") as f:
             pos = self.start
             if pos:
@@ -113,6 +132,8 @@ class Stream:
                 # records before the piece and is read past.
                 pos += len(f.readline())
             for raw in f:
+                if pos >= size:
+                    break
                 line_pos = pos
                 pos += len(raw)
                 record = record_of(raw)
@@ -121,7 +142,7 @@ class Stream:
                 if not self.cwd and isinstance(record.get("cwd"), str):
                     self.cwd = record["cwd"]
                 items = parse(record, line_pos, pending, asks, self.sidechain, sent,
-                              briefs, shelf_of())
+                              briefs, shelf_of(), calls, permits)
                 if items:
                     yield line_pos, items
 
@@ -151,6 +172,7 @@ class Piece:
         self.asks = {}
         self.sent = set()
         self.briefs = set()
+        self.calls = {}
 
     @classmethod
     def of(cls, path, size, span, sidechain=False):
@@ -180,12 +202,15 @@ class Piece:
             return False
 
     def read_on(self, size):
-        """Reads the records that appeared since the last read of this file."""
+        """Reads the records that appeared since the last read of this file, up to this length."""
         if self.pos >= size:
             return
+        permits = permits_of(self.path, self.sidechain)
         with open(self.path, "rb") as f:
             f.seek(self.pos)
             for raw in f:
+                if self.pos >= size:
+                    break
                 if not raw.endswith(b"\n"):
                     # A record still being written: its end is not here yet.
                     break
@@ -197,7 +222,8 @@ class Piece:
                 if not self.cwd and isinstance(record.get("cwd"), str):
                     self.cwd = record["cwd"]
                 items = parse(record, line_pos, self.pending, self.asks,
-                              self.sidechain, self.sent, self.briefs, shelf_of())
+                              self.sidechain, self.sent, self.briefs, shelf_of(),
+                              self.calls, permits)
                 if items:
                     self.rows.append((line_pos, items))
             if len(self.stamp) < STAMP:
@@ -222,7 +248,8 @@ class Piece:
         if record is None:
             return []
         items = parse(record, self.pos, self.pending.clone(), dict(self.asks),
-                      self.sidechain, set(self.sent), set(self.briefs), shelf_of())
+                      self.sidechain, set(self.sent), set(self.briefs), shelf_of(),
+                      dict(self.calls), permits_of(self.path, self.sidechain))
         return [(self.pos, items)] if items else []
 
     def trim(self):

@@ -92,6 +92,10 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, co
         return html`<${AskedCard} item=${item} />`;
     }
 
+    if (item.role === "permitted") {
+        return html`<${PermittedCard} item=${item} />`;
+    }
+
     if (item.role === "sent") {
         return html`<${SentCard} item=${item} onOpen=${onFile} />`;
     }
@@ -318,6 +322,35 @@ function AskedCard({ item }) {
                     ${(row.answer || []).length
                         ? html`<span class="askeda">${row.answer.join(" · ")}</span>`
                         : !item.status && html`<span class="askeda skip">skipped</span>`}
+                </div>
+            `)}
+        </div>
+    `;
+}
+
+// permitAnswer says what a person answered, in the words of the dialog they
+// answered in.
+function permitAnswer(row) {
+    if (row.decision === "deny") return "Denied";
+    return row.lasting ? "Allowed, not asked again" : "Allowed";
+}
+
+// PermittedCard is what a person answered to the permissions of the calls
+// above it: the transcript has the calls and nothing of the question.
+function PermittedCard({ item }) {
+    const rows = item.rows || [];
+    return html`
+        <div class="asked permitted">
+            <div class="askedhead">
+                <span class="askedico">${Icon.hand()}</span>
+                <span class="askedlabel">${rows.length > 1 ? "permissions" : "permission"}</span>
+                ${item.at && html`<span class="askedat">${stampText(item.at)}</span>`}
+            </div>
+            ${rows.map((row, n) => html`
+                <div class="askedrow" key=${n}>
+                    <span class="askedtop">${row.tool}</span>
+                    ${row.subject && html`<code class="askedsubj">${row.subject}</code>`}
+                    <span class=${`askeda${row.decision === "deny" ? " denied" : ""}`}>${permitAnswer(row)}</span>
                 </div>
             `)}
         </div>

@@ -1,4 +1,4 @@
-"""Feed cards: artifact, brief, files sent to the human, answered question round, alarm firing."""
+"""Feed cards: artifact, brief, files sent to the human, answered question round, answered permissions, alarm firing."""
 import re
 
 import sesstate
@@ -142,6 +142,31 @@ def ask_round(data, result, use, at, pos):
     if status:
         card["status"] = status
     return card
+
+
+def permit_row(answer, call):
+    """Returns one line of a card of permissions: the call, what it was about and the answer.
+
+    The call is what the transcript said about it, and None when the call lies
+    before the piece being read: the line then names the tool the holder kept.
+    """
+    call = call or {}
+    row = {"tool": call.get("tool") or str(answer.get("tool") or "?"),
+           "decision": answer["decision"]}
+    if call.get("subject"):
+        row["subject"] = call["subject"]
+    if answer["decision"] == "allow" and answer.get("lasting") is True:
+        row["lasting"] = True
+    return row
+
+
+def permit_card(rows, at, pos):
+    """Returns a card for the permissions a person answered before the calls ran.
+
+    One card per record: calls made together come back in one record, and
+    the feed keeps one card of a kind per record.
+    """
+    return {"role": "permitted", "rows": rows, "at": at, "pos": pos}
 
 
 def wake_item(text, at, pos):

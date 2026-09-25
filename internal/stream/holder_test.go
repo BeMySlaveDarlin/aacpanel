@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -96,6 +97,13 @@ func fakeClaude() int {
 			out(map[string]any{"type": "control_response", "response": map[string]any{
 				"subtype": "success", "request_id": msg["request_id"], "response": body}})
 		case "control_response":
+			// What the collector could find on the disk the moment claude
+			// has the answer: the result it writes next is read against it.
+			kept, _ := filepath.Glob(filepath.Join(os.Getenv("XDG_STATE_HOME"), dirName, "permits", "*.json"))
+			for _, f := range kept {
+				b, _ := os.ReadFile(f)
+				fmt.Fprintln(logf, "kept before the answer:", string(b))
+			}
 			out(map[string]any{"type": "user", "message": map[string]any{"content": []any{
 				map[string]any{"type": "tool_result", "content": "answered"}}}})
 			result()
@@ -122,6 +130,11 @@ func fakeClaude() int {
 				out(map[string]any{"type": "control_request", "request_id": "cc-1", "request": map[string]any{
 					"subtype": "can_use_tool", "tool_name": "AskUserQuestion", "tool_use_id": "toolu_1",
 					"input": map[string]any{"questions": []any{map[string]any{"question": "Q"}}}}})
+				continue
+			case "bash":
+				out(map[string]any{"type": "control_request", "request_id": "cc-3", "request": map[string]any{
+					"subtype": "can_use_tool", "tool_name": "Bash", "tool_use_id": "toolu_2",
+					"input": map[string]any{"command": "git push origin main"}}})
 				continue
 			case "hook":
 				out(map[string]any{"type": "control_request", "request_id": "cc-2", "request": map[string]any{
@@ -339,7 +352,71 @@ func TestAQuestionWaitsForAPersonAndTheAnswerReachesClaude(t *testing.T) {
 	if got := r.eventually(`"Blue"`); !strings.Contains(got, `"request_id":"cc-1"`) {
 		t.Fatalf("the answer did not reach claude:\n%s", got)
 	}
+	if _, err := os.Stat(PermitsPath(r.spec.SessionID)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("an answered question is kept as a permission: %v", err)
+	}
 }
+
+// An answer to a permission is kept for the feed, and kept before claude has
+// it: the collector parses the result once, and a result it read before the
+// answer was kept would stay without its card. What the call was about is not
+// kept — the transcript has it.
+func TestAnAnswerToAPermissionIsKeptBeforeClaudeHasIt(t *testing.T) {
+	cases := []struct {
+		name, answer, kept string
+	}{
+		{"once", `{"behavior":"allow","updatedInput":{"command":"git push origin main"}}`,
+			`[{"use":"toolu_2","tool":"Bash","decision":"allow"}]`},
+		{"for good", `{"behavior":"allow","updatedInput":{},"updatedPermissions":[{"type":"addRules","destination":"session"}]}`,
+			`[{"use":"toolu_2","tool":"Bash","decision":"allow","lasting":true}]`},
+		{"refused", `{"behavior":"deny","message":"refused from the panel"}`,
+			`[{"use":"toolu_2","tool":"Bash","decision":"deny"}]`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := start(t, nil)
+			r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+			r.ask(Request{Op: OpSend, Text: "bash"})
+			s := r.waitFor("the permission", func(s State) bool { return len(s.Pending) == 1 })
+			if reply := r.ask(Request{Op: OpRespond, RequestID: s.Pending[0].RequestID, Response: json.RawMessage(c.answer)}); !reply.OK {
+				t.Fatalf("respond: %+v", reply)
+			}
+			if got := r.eventually("kept before the answer:"); !strings.Contains(got, "kept before the answer: "+c.kept) {
+				t.Fatalf("the answer was not on the disk when claude got it:\n%s", got)
+			}
+			raw, err := os.ReadFile(PermitsPath(r.spec.SessionID))
+			if err != nil || string(raw) != c.kept {
+				t.Errorf("kept %s (%v), want %s", raw, err, c.kept)
+			}
+		})
+	}
+}
+
+// An answer that never reached claude is not kept: the call it was for gets a
+// result of its own later — an interruption — and a card would say allowed.
+func TestAnAnswerClaudeNeverGotIsNotKept(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	h := &Holder{
+		spec:  Spec{SessionID: NewSessionID()},
+		stdin: brokenPipe{},
+		state: State{Pending: []Pending{{RequestID: "cc-9", Tool: "Bash", ToolUseID: "toolu_9"}}},
+	}
+	if err := h.keepPermit(Permit{Use: "toolu_8", Tool: "Read", Decision: "allow"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.respond("cc-9", json.RawMessage(`{"behavior":"allow","updatedInput":{}}`)); err == nil {
+		t.Fatal("an answer that never went out was reported sent")
+	}
+	raw, err := os.ReadFile(PermitsPath(h.spec.SessionID))
+	if err != nil || string(raw) != `[{"use":"toolu_8","tool":"Read","decision":"allow"}]` {
+		t.Errorf("the answer claude never got is kept, or took another with it: %s %v", raw, err)
+	}
+}
+
+type brokenPipe struct{}
+
+func (brokenPipe) Write([]byte) (int, error) { return 0, errors.New("broken pipe") }
+func (brokenPipe) Close() error              { return nil }
 
 // A message taken back from claude's queue leaves the holder's queue too: it
 // will never be read, and a queue that kept it would block a switch for good.

@@ -42,13 +42,9 @@ func Dir() string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("%s-%d", dirName, os.Getuid()))
 }
 
-// WithdrawnPath keeps the fingerprints of the messages a person took back from
-// the queue of one conversation. The transcript cannot tell a message taken
-// back from one that was read — claude writes the same record for both — and
-// the feed would show it as sent. It outlives the holder, so the archive of
-// the conversation says the same, and it holds no words: a fingerprint is a
-// hash of the message, not the message.
-func WithdrawnPath(sessionID string) string {
+// keptDir is where the files that outlive a holder lie: what the transcript
+// does not say about a conversation, kept so the archive of it says the same.
+func keptDir() string {
 	base := os.Getenv("XDG_STATE_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -57,7 +53,35 @@ func WithdrawnPath(sessionID string) string {
 		}
 		base = filepath.Join(home, ".local", "state")
 	}
-	return filepath.Join(base, dirName, "withdrawn", sessionID+".json")
+	return filepath.Join(base, dirName)
+}
+
+// WithdrawnPath keeps the fingerprints of the messages a person took back from
+// the queue of one conversation. The transcript cannot tell a message taken
+// back from one that was read — claude writes the same record for both — and
+// the feed would show it as sent. It holds no words: a fingerprint is a hash
+// of the message, not the message.
+func WithdrawnPath(sessionID string) string {
+	return filepath.Join(keptDir(), "withdrawn", sessionID+".json")
+}
+
+// PermitsPath keeps the answers a person gave to the permissions of one
+// conversation. The transcript has the call and its result and nothing of the
+// question between them — on the stream it is a request and a reply that
+// never reach the file — and the feed would show a call nobody was asked
+// about. It holds no words: what the call was about is in the transcript.
+func PermitsPath(sessionID string) string {
+	return filepath.Join(keptDir(), "permits", sessionID+".json")
+}
+
+// Permit is an answer to a permission, by the call it was given for.
+type Permit struct {
+	Use  string `json:"use"`
+	Tool string `json:"tool"`
+	// allow or deny.
+	Decision string `json:"decision"`
+	// Allowed and not asked again: the answer carried rules for the session.
+	Lasting bool `json:"lasting,omitempty"`
 }
 
 // Fingerprint names a message without keeping its words.

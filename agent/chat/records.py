@@ -5,7 +5,7 @@ import re
 import sesstate
 
 from . import commands
-from .cards import artifact_card, ask_round, brief_card, sent_card, wake_item
+from .cards import artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card, wake_item
 from .harness import classify, service, strip_panel_note, unwrap_pasted
 from .mail import peer_name, peer_pid
 from .limits import MAX_TEXT, cut
@@ -61,14 +61,16 @@ def shell(text, at, pos):
 
 
 def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
-          briefs=None, shelf=None):
+          briefs=None, shelf=None, calls=None, permits=None):
     """Returns the feed items of one transcript record, from none to many.
 
     Asks, sent and briefs are the calls of their kind still waiting for an
     answer, by call id: the card for a question round, for a delivery and for
     a published brief is drawn from the answer, and the answer is another
     record. Shelf reads a published brief by its name, for what the card says
-    about it.
+    about it. Calls are all the calls still waiting, for what a card of
+    permissions says a call was about; permits are the answers a person gave
+    to permissions, by call, and the card stands by the result of the call.
     """
     if not isinstance(record, dict) or (record.get("isSidechain") and not sidechain):
         return []
@@ -140,10 +142,14 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         if isinstance(content, list):
             if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
                 links = []
+                allowed = []
                 for b in content:
                     if not isinstance(b, dict) or b.get("type") != "tool_result":
                         continue
                     use = b.get("tool_use_id") or ""
+                    call = calls.pop(use, None) if calls is not None else None
+                    if permits and use in permits:
+                        allowed.append(permit_row(permits[use], call))
                     if asks is not None and use in asks:
                         card = ask_round(asks.pop(use), record.get("toolUseResult"), use, at, pos)
                         if card:
@@ -165,6 +171,10 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     if found:
                         links.append({"role": "artifactlink", "use": b.get("tool_use_id") or "",
                                       "url": found.group(1), "at": at, "pos": pos})
+                if allowed:
+                    # The person answered before the call ran, so the answer
+                    # stands before whatever its result brought.
+                    links.insert(0, permit_card(allowed, at, pos))
                 return links
             for i, b in enumerate(content):
                 if not isinstance(b, dict) or b.get("type") != "image":
@@ -311,6 +321,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                 out.append({"role": "ai", "text": body, "cut": trimmed, "at": at, "pos": pos})
             elif block.get("type") == "tool_use":
                 name = block.get("name") or "?"
+                if calls is not None:
+                    calls[block.get("id") or ""] = {"tool": tool_label(name, block.get("input")),
+                                                    "subject": tool_arg(block.get("input"))}
                 if name == "ScheduleWakeup" and pending is not None:
                     data = block.get("input")
                     if isinstance(data, dict):

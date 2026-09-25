@@ -124,6 +124,13 @@
 .askedq { font-size: var(--t-sm); color: var(--ink-dim); line-height: 1.4; }
 .askeda { font-size: var(--t-md); font-weight: 600; color: var(--ink); line-height: 1.35; }
 .askeda.skip { font-weight: 400; color: var(--ink-faint); }
+.askeda.denied { color: var(--crit); }
+.askedsubj {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink-dim);
+    line-height: 1.4;
+}
 
 /* A letter carries a rail on the left in the colour of who wrote it; the peek
    takes a line of its own under the sender rather than a stub beside it. */

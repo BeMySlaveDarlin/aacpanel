@@ -355,6 +355,19 @@ the holder keeps the fingerprints of the messages taken back — hashes, not
 words — in a file that outlives it, and the feed shows those as taken back,
 live and in the archive alike.
 
+**An answered permission stays in the feed as a card**, drawn like an
+answered question. On the stream a permission is a request and a reply, and
+the transcript gets the call and its result with nothing of the question
+between them. The holder keeps each answer — the call, the tool, allowed once,
+allowed for good or refused, none of the words of the call — in a file that
+outlives it, and writes it before claude has the answer: the collector parses
+a record once, and a result read before its answer would stay without a card
+for good. For the same reason the collector reads that file after it has
+taken the length of the transcript and parses nothing past that length. The
+card stands at the result of the call; what the call was about comes from the
+transcript. A permission answered at a terminal leaves no card: the console
+keeps nothing of it.
+
 **A switch moves a live session between the two** (`session.switch`): the
 executor closes the process on one side and resumes the same conversation on
 the other, under the same name. The id and the history stay; the process does

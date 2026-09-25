@@ -542,16 +542,28 @@ func (h *Holder) unqueue(id string) {
 // conversation. A message sent twice and taken back once is listed once: the
 // feed marks only as many of its copies as were taken back.
 func withdraw(sessionID, text string) error {
-	path := WithdrawnPath(sessionID)
+	return rewrite(WithdrawnPath(sessionID), func(list []string) []string {
+		return append(list, Fingerprint(text))
+	})
+}
+
+// keptMu keeps the files that outlive the holder to one writer at a time: two
+// answers given at once would each write the list back without the other.
+var keptMu sync.Mutex
+
+// rewrite reads a list kept in a file, changes it and puts it back whole, so a
+// reader never finds half of it.
+func rewrite[T any](path string, change func([]T) []T) error {
+	keptMu.Lock()
+	defer keptMu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	var list []string
+	var list []T
 	if raw, err := os.ReadFile(path); err == nil {
 		_ = json.Unmarshal(raw, &list)
 	}
-	list = append(list, Fingerprint(text))
-	body, err := json.Marshal(list)
+	body, err := json.Marshal(change(list))
 	if err != nil {
 		return err
 	}
@@ -584,24 +596,78 @@ func (h *Holder) respond(requestID string, response json.RawMessage) error {
 		return errors.New("the answer is not JSON")
 	}
 	h.mu.Lock()
-	found := false
+	var asked *Pending
 	for _, p := range h.state.Pending {
 		if p.RequestID == requestID {
-			found = true
+			asked = &p
 			break
 		}
 	}
 	h.mu.Unlock()
-	if !found {
+	if asked == nil {
 		return fmt.Errorf("the session is not asking %q — it was answered or withdrawn", requestID)
+	}
+	// The answer is on the disk before claude has it: the collector parses
+	// a record once, and a result read before its permit stays without one.
+	permit, kept := permitOf(*asked, response)
+	if kept {
+		if err := h.keepPermit(permit); err != nil {
+			h.logf("an answer to a permission was not kept for the feed: %v", err)
+			kept = false
+		}
 	}
 	err := h.write(map[string]any{"type": "control_response", "response": map[string]any{
 		"subtype": "success", "request_id": requestID, "response": response,
 	}})
-	if err == nil {
-		h.dropPending(requestID)
+	if err != nil {
+		if kept {
+			h.dropPermit(permit.Use)
+		}
+		return err
 	}
-	return err
+	h.dropPending(requestID)
+	return nil
+}
+
+// permitOf reads the answer to a permission the feed shows. A question is
+// not one: its answer is in the transcript, and the feed has a card for it.
+func permitOf(p Pending, response json.RawMessage) (Permit, bool) {
+	if p.Tool == "AskUserQuestion" || p.ToolUseID == "" {
+		return Permit{}, false
+	}
+	var answer struct {
+		Behavior string            `json:"behavior"`
+		Rules    []json.RawMessage `json:"updatedPermissions"`
+	}
+	if json.Unmarshal(response, &answer) != nil || (answer.Behavior != "allow" && answer.Behavior != "deny") {
+		return Permit{}, false
+	}
+	return Permit{
+		Use: p.ToolUseID, Tool: p.Tool, Decision: answer.Behavior,
+		Lasting: answer.Behavior == "allow" && len(answer.Rules) > 0,
+	}, true
+}
+
+func (h *Holder) keepPermit(p Permit) error {
+	return rewrite(PermitsPath(h.spec.SessionID), func(list []Permit) []Permit {
+		return append(list, p)
+	})
+}
+
+// dropPermit takes back an answer claude never got.
+func (h *Holder) dropPermit(use string) {
+	err := rewrite(PermitsPath(h.spec.SessionID), func(list []Permit) []Permit {
+		kept := list[:0]
+		for _, p := range list {
+			if p.Use != use {
+				kept = append(kept, p)
+			}
+		}
+		return kept
+	})
+	if err != nil {
+		h.logf("an answer claude never got is still kept for the feed: %v", err)
+	}
 }
 
 func (h *Holder) control(ctx context.Context, subtype string, fields map[string]any, wait time.Duration) (json.RawMessage, error) {
