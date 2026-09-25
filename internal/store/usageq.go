@@ -40,6 +40,9 @@ func (f UsageFilter) zone() (string, error) {
 // account in the directory named "algo" is called "Schoolwork" on the screen.
 // Matching them by name put everything but the personal contour outside the map.
 //
+// A session run in a git worktree is placed by the main checkout the agent
+// found for it: the worktree lies beside the repository, not inside it.
+//
 // A group is keyed by its id, not by its name: two profiles may both have a
 // group called Common, and they are two groups.
 const sessionCTE = `
@@ -47,12 +50,13 @@ const sessionCTE = `
 		SELECT s.session_id, s.contour, s.cwd, s.started_at, s.ended_at,
 		       m.project, m.grp, m.grp_id, m.path
 		  FROM usage_sessions s
+		  CROSS JOIN LATERAL (SELECT coalesce(nullif(s.checkout, ''), s.cwd) AS dir) d
 		  LEFT JOIN LATERAL (
 		       SELECT p.name AS project, g.name AS grp, g.id AS grp_id, p.path AS path
 		         FROM profile_projects p
 		         JOIN profile_groups g ON g.id = p.group_id
 		         JOIN profiles pr ON pr.id = g.profile_id
-		        WHERE s.cwd = p.path OR s.cwd LIKE p.path || '/%'
+		        WHERE d.dir = p.path OR d.dir LIKE p.path || '/%'
 		        ORDER BY length(p.path) DESC, length(pr.prefix) DESC, pr.sort, p.id
 		        LIMIT 1
 		  ) m ON true

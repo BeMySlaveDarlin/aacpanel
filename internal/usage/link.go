@@ -100,11 +100,13 @@ type Idle struct {
 	MaxMS    int64 `json:"maxMs"`
 }
 
-// Session is the conversation reference as this file saw it.
+// Session is the conversation reference as this file saw it. Checkout is the
+// main checkout of the git worktree the session ran in, empty anywhere else.
 type Session struct {
 	SessionID string   `json:"sessionId"`
 	Contour   string   `json:"contour"`
 	CWD       string   `json:"cwd"`
+	Checkout  string   `json:"checkout"`
 	GitBranch string   `json:"gitBranch"`
 	Version   string   `json:"version"`
 	StartedAt string   `json:"startedAt"`

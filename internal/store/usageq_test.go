@@ -529,6 +529,29 @@ func TestUsagePlacesASessionWhoseContourIsNotTheProfileNamePG(t *testing.T) {
 	}
 }
 
+// A session run in a git worktree beside its repository is placed by the
+// repository the agent found for it; without one the worktree is outside.
+func TestUsagePlacesAWorktreeSessionByItsRepositoryPG(t *testing.T) {
+	ctx, s, pool := vitrina(t)
+	seedProfile(t, ctx, pool, "Schoolwork", "/home/probe/.claude-profiles/algo", "/opt/algo",
+		"Backend", map[string]string{"lms": "/opt/algo/lms"})
+	seedSession(t, ctx, pool, vitrinaID(1), "algo", "/opt/algo/lms", 100, 10)
+	seedSession(t, ctx, pool, vitrinaID(2), "algo", "/opt/algo/worktrees/lms-fix/web", 40, 4)
+	seedSession(t, ctx, pool, vitrinaID(3), "algo", "/opt/algo/worktrees/gone", 7, 1)
+	mustExec(t, ctx, pool, `UPDATE usage_sessions SET checkout = '/opt/algo/lms' WHERE session_id = $1`, vitrinaID(2))
+
+	rows, err := s.UsageBreakdownFor(ctx, contourFilter("algo"), UsageByProject, 0)
+	if err != nil {
+		t.Fatalf("the breakdown by project: %v", err)
+	}
+	if len(rows) != 2 || rows[0].Label != "lms" || rows[0].Input != 140 {
+		t.Fatalf("the project rows are %+v, wanted lms with its own 100 and the worktree's 40", rows)
+	}
+	if last := rows[len(rows)-1]; !last.Outside || last.Input != 7 {
+		t.Errorf("outside the map: %+v, wanted the 7 tokens of the worktree with no repository", last)
+	}
+}
+
 // Two profiles may each have a group called Common, and they are two groups:
 // keyed by name they would be added up into one row belonging to neither.
 func TestUsageKeepsTwoGroupsOfTheSameNameApartPG(t *testing.T) {

@@ -83,6 +83,29 @@ class Scan(unittest.TestCase):
         self.assertNotIn("worktreeOf", rows[main], "the main checkout is not a worktree of itself")
         self.assertNotIn("worktreeOf", rows[broken], "a worktree whose repository is gone names nothing")
 
+    def test_a_directory_deep_in_a_worktree_names_the_main_checkout(self):
+        main = os.path.dirname(self.mk("Beta", "shop", ".git"))
+        admin = self.mk("Beta", "shop", ".git", "worktrees", "shop-fix")
+        with open(os.path.join(admin, "commondir"), "w", encoding="utf-8") as f:
+            f.write("../..\n")
+        sister = self.mk("Beta", "shop-fix")
+        with open(os.path.join(sister, ".git"), "w", encoding="utf-8") as f:
+            f.write(f"gitdir: {admin}\n")
+        deep = self.mk("Beta", "shop-fix", "web", "src")
+        inside = self.mk("Beta", "shop", "web")
+        plain = self.mk("Beta", "notes")
+
+        self.assertEqual(projects.checkout_of(deep), main,
+                         "usage of a session deep in the worktree lands outside the map")
+        self.assertEqual(projects.checkout_of(sister + "/"), main)
+        self.assertEqual(projects.checkout_of(inside), "",
+                         "a directory of the repository itself is not a worktree of it")
+        self.assertEqual(projects.checkout_of(plain), "")
+        self.assertEqual(projects.checkout_of(os.path.join(sister, "gone", "away")), main,
+                         "a directory that no longer exists is still inside its worktree")
+        self.assertEqual(projects.checkout_of("relative/path"), "")
+        self.assertEqual(projects.checkout_of(""), "")
+
     def test_slug_repeats_the_rule_of_claude(self):
         self.assertEqual(projects.slug("/srv/proj/web-shop.example"), "-srv-proj-web-shop-example")
         self.assertEqual(projects.slug("/home/u/.cache"), "-home-u--cache")

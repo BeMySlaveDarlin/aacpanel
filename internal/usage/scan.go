@@ -323,6 +323,7 @@ func toStore(res Result, f File, offset int64) (store.UsageFile, error) {
 			SessionID: res.Session.SessionID,
 			Contour:   res.Session.Contour,
 			CWD:       res.Session.CWD,
+			Checkout:  res.Session.Checkout,
 			GitBranch: res.Session.GitBranch,
 			Version:   res.Session.Version,
 		},

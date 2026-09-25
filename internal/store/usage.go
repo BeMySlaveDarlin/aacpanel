@@ -15,6 +15,7 @@ type UsageSession struct {
 	SessionID string
 	Contour   string
 	CWD       string
+	Checkout  string
 	GitBranch string
 	Version   string
 	StartedAt time.Time
@@ -251,16 +252,17 @@ func queueUsageClear(batch *pgx.Batch, f UsageFile, rows []UsageRow, events []Us
 
 func queueUsageSession(batch *pgx.Batch, s UsageSession) {
 	batch.Queue(`
-		INSERT INTO usage_sessions (session_id, contour, cwd, git_branch, version, started_at, ended_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO usage_sessions (session_id, contour, cwd, checkout, git_branch, version, started_at, ended_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (session_id) DO UPDATE SET
 			contour = excluded.contour,
 			cwd = coalesce(nullif(excluded.cwd, ''), usage_sessions.cwd),
+			checkout = coalesce(nullif(excluded.checkout, ''), usage_sessions.checkout),
 			git_branch = coalesce(nullif(excluded.git_branch, ''), usage_sessions.git_branch),
 			version = coalesce(nullif(excluded.version, ''), usage_sessions.version),
 			started_at = least(usage_sessions.started_at, excluded.started_at),
 			ended_at = greatest(usage_sessions.ended_at, excluded.ended_at)`,
-		s.SessionID, s.Contour, s.CWD, s.GitBranch, s.Version,
+		s.SessionID, s.Contour, s.CWD, s.Checkout, s.GitBranch, s.Version,
 		nullTime(s.StartedAt), nullTime(s.EndedAt))
 }
 

@@ -386,7 +386,7 @@ func TestUsageSubagentFileFillsSessionPG(t *testing.T) {
 	if err := s.WriteUsageFile(ctx, UsageFile{
 		Session: UsageSession{
 			SessionID: usageFourth, Contour: "vendor", CWD: "/srv/proj/lab",
-			GitBranch: "main", Version: "2.0.31",
+			Checkout: "/srv/proj/main", GitBranch: "main", Version: "2.0.31",
 			StartedAt: hour.Add(30 * time.Minute), EndedAt: hour.Add(50 * time.Minute),
 		},
 		Rows: []UsageRow{{Bucket: hour, Model: "claude-opus-5", Agent: "agent-B", Answers: 6}},
@@ -395,15 +395,15 @@ func TestUsageSubagentFileFillsSessionPG(t *testing.T) {
 		t.Fatalf("the orphan: %v", err)
 	}
 
-	var contour, cwd, branch string
+	var contour, cwd, checkout, branch string
 	err := pool.QueryRow(ctx, `
-		SELECT contour, cwd, git_branch FROM usage_sessions WHERE session_id = $1`,
-		usageFourth).Scan(&contour, &cwd, &branch)
+		SELECT contour, cwd, checkout, git_branch FROM usage_sessions WHERE session_id = $1`,
+		usageFourth).Scan(&contour, &cwd, &checkout, &branch)
 	if err != nil {
 		t.Fatalf("the session was not created from the subagent file: %v", err)
 	}
-	if contour != "vendor" || cwd != "/srv/proj/lab" || branch != "main" {
-		t.Errorf("the session directory: %q %q %q", contour, cwd, branch)
+	if contour != "vendor" || cwd != "/srv/proj/lab" || checkout != "/srv/proj/main" || branch != "main" {
+		t.Errorf("the session directory: %q %q %q %q", contour, cwd, checkout, branch)
 	}
 
 	if err := s.WriteUsageFile(ctx, UsageFile{
@@ -420,9 +420,14 @@ func TestUsageSubagentFileFillsSessionPG(t *testing.T) {
 
 	var started, ended time.Time
 	if err := pool.QueryRow(ctx, `
-		SELECT started_at, ended_at FROM usage_sessions WHERE session_id = $1`, usageFourth).
-		Scan(&started, &ended); err != nil {
+		SELECT started_at, ended_at, checkout FROM usage_sessions WHERE session_id = $1`, usageFourth).
+		Scan(&started, &ended, &checkout); err != nil {
 		t.Fatal(err)
+	}
+	// The worktree may be gone by the next read of the file, and the agent
+	// then finds no repository: what it found before stays.
+	if checkout != "/srv/proj/main" {
+		t.Errorf("a file read without the repository wiped it: %q", checkout)
 	}
 	if !started.Equal(hour.Add(5 * time.Minute)) {
 		t.Errorf("the session starts at %s, wanted the earliest of the files", started)

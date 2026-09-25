@@ -166,6 +166,20 @@ func TestBoundaryOnlyMovesForward(t *testing.T) {
 	}
 }
 
+// The repository of a worktree session is known only on the host: what the
+// agent found reaches the store, and the session is placed by it.
+func TestTheRepositoryOfAWorktreeReachesTheStore(t *testing.T) {
+	f := File{Path: "/p/a.jsonl", Contour: "home", Inode: 7, Size: 10, Head: head("head")}
+	got, err := toStore(Result{Path: f.Path, Session: Session{
+		SessionID: "s1", CWD: "/srv/proj/shop-fix", Checkout: "/srv/proj/shop"}}, f, 0)
+	if err != nil {
+		t.Fatalf("the conversion: %v", err)
+	}
+	if got.Session.Checkout != "/srv/proj/shop" || got.Session.CWD != "/srv/proj/shop-fix" {
+		t.Errorf("the session went to the store as %+v", got.Session)
+	}
+}
+
 func TestUnparsableHourFailsTheFile(t *testing.T) {
 	f := File{Path: "/p/a.jsonl", Contour: "home", Inode: 7, Size: 10, Head: head("head")}
 	_, err := toStore(Result{

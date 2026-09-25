@@ -88,6 +88,23 @@ def worktree_of(path):
     return main if main != path else ""
 
 
+def checkout_of(cwd):
+    """Returns the main checkout of the git worktree a directory lies in, or "".
+
+    The directory may be deep inside the worktree: the climb stops at the
+    nearest directory holding a .git, which is a file in a worktree and a
+    directory in the repository itself.
+    """
+    if not cwd or not os.path.isabs(cwd):
+        return ""
+    d = os.path.normpath(cwd)
+    while d != os.path.dirname(d):
+        if os.path.lexists(os.path.join(d, ".git")):
+            return worktree_of(d)
+        d = os.path.dirname(d)
+    return ""
+
+
 def scan():
     """Returns a snapshot of directories: roots, depth and everything the walk saw."""
     seen = known_slugs()

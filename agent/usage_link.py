@@ -9,6 +9,7 @@ import threading
 
 import contours
 import paths
+import projects
 
 SOCKET_DIR = os.environ.get("AACP_USAGE_DIR", "")
 SOCKET_NAME = "usage.sock"
@@ -120,6 +121,9 @@ def parse_one(task):
     session = dict(session or {})
     session["contour"] = contour
     session["agents"] = agents_of(real, rows, tools)
+    # A worktree is on no map and may be gone by the time anyone asks: the
+    # repository it belongs to is noted while the disk can still tell.
+    session["checkout"] = projects.checkout_of(session.get("cwd") or "")
     return {"path": path, "session": session, "rows": rows, "tools": tools,
             "events": events, "offset": new_offset,
             "since": getattr(parsed, "since", ""),

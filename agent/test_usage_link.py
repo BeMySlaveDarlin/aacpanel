@@ -98,6 +98,25 @@ class Boundary(unittest.TestCase):
         self.assertEqual(reply["offset"], 7)
         self.assertEqual(reply["session"]["contour"], "home")
 
+    def test_a_session_in_a_worktree_names_its_repository(self):
+        repo = os.path.join(self.dir.name, "shop")
+        admin = os.path.join(repo, ".git", "worktrees", "shop-fix")
+        os.makedirs(admin)
+        with open(os.path.join(admin, "commondir"), "w", encoding="utf-8") as f:
+            f.write("../..\n")
+        sister = os.path.join(self.dir.name, "shop-fix")
+        os.makedirs(os.path.join(sister, "web"))
+        with open(os.path.join(sister, ".git"), "w", encoding="utf-8") as f:
+            f.write(f"gitdir: {admin}\n")
+        cwd = os.path.join(sister, "web")
+        usage_link.OVERRIDE["parse_file"] = lambda path, offset, contour="": (
+            [], [], [], {"sessionId": "s", "cwd": cwd}, 1)
+
+        reply = usage_link.parse_one({"path": self.talk, "offset": 0})
+        self.assertEqual(reply["session"]["checkout"], repo,
+                         "the usage of a worktree session goes out without its repository")
+        self.assertEqual(reply["session"]["cwd"], cwd, "the directory of the session was replaced")
+
 
 class WhoseRows(unittest.TestCase):
     def test_the_root_file_keeps_itself_and_the_sidechain(self):
