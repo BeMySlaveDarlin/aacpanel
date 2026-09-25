@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A run with a call of every kind: each badge is drawn the same size.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { KIND_NAMES } from "/src/screens/chat/labels.js";
+
+const kinds = Object.keys(KIND_NAMES).concat(["hook"]);
+const groups = kinds.map((kind, n) => ({
+    role: "tools", kind, run: 10, pos: 10 + n, at: "2026-09-26T10:00:00Z",
+    calls: [{ name: kind, arg: "x", seq: n, pos: 10 + n, index: 0, use: `u${n}` }],
+}));
+const row = { role: "toolrow", run: 10, pos: 10, groups };
+
+render(html`<div class="chatfeed"><${Row} item=${row} session="lab" id="1" onCalls=${() => {}} /></div>`,
+    document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const badges = Array.from(document.querySelectorAll(".mtools")).map((b) => {
+        const box = b.getBoundingClientRect();
+        const svg = b.querySelector("svg");
+        const icon = svg ? svg.getBoundingClientRect() : { width: 0, height: 0 };
+        const kind = Array.from(b.classList).find((c) => c.startsWith("k-")) || "";
+        return { kind: kind.slice(2), w: box.width, h: box.height, iw: icon.width, ih: icon.height };
+    });
+    window.done = { badges };
+})();
+</script>

@@ -142,10 +142,14 @@ def fold(rows, limit, before, after):
         return max(used, default=-1) + 1
 
     def run_tail():
-        """Returns the badge groups the run at the end of the window is drawn as."""
+        """Returns the badge groups the run at the end of the window is drawn as.
+
+        A line that arrives inside a run — a background task done, a warning
+        of claude — does not end it: the screen hangs it under the run.
+        """
         groups = []
         for was in reversed(window):
-            if was["role"] in ("taskdone", "artifactlink"):
+            if was["role"] in ("taskdone", "artifactlink", "notice"):
                 continue
             if was["role"] not in ("tools", "think"):
                 break

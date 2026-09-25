@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
-import { bytes, lasted, plural, since, tokens, until } from "../../format.js";
+import { bytes, lasted, plural, since, stopwatch, tokens, until } from "../../format.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { taskVoice } from "./voice.js";
@@ -39,11 +39,6 @@ export function compactPct(sec) {
     return Math.min(95, Math.round((1 - Math.exp(-t / 90)) * 100));
 }
 
-function clock(sec) {
-    const s = Math.floor(Math.max(0, sec));
-    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
-}
-
 // Compacting counts the compaction up by the second. The share only ever grows:
 // a clock of the phone set back would otherwise pull the bar back under the eye.
 function Compacting({ since }) {
@@ -60,7 +55,7 @@ function Compacting({ since }) {
     return html`
         <div class="workbar status">
             <div class="workhead">
-                <span class="working">compacting the conversation… (${clock(sec)})</span>
+                <span class="working">compacting the conversation… (${stopwatch(sec)})</span>
                 <span class="workpct">${pct}%</span>
                 <div class="worktrack" role="progressbar" aria-label="compacting the conversation"
                      aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>

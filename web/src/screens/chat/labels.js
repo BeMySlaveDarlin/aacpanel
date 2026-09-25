@@ -13,6 +13,7 @@ export const KIND_NAMES = {
     time: "schedule",
     browser: "browser",
     mcp: "mcp",
+    hook: "hooks",
     other: "other",
 };
 
@@ -28,6 +29,7 @@ export function kindIcon(kind) {
         time: Icon.clock,
         browser: Icon.globe,
         mcp: Icon.plug,
+        hook: Icon.hook,
     }[kind];
     return (pick || Icon.tools)();
 }

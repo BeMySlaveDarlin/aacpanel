@@ -2,6 +2,7 @@
 import json
 
 from .limits import MAX_ARGS, MAX_RESULT, cut
+from .notices import hook_said
 
 
 def blocks_of(record):
@@ -75,6 +76,18 @@ def tool_result(f, tool_id, limit=64):
     return None
 
 
+def hook_spot(record, index):
+    """Returns what a hook said, the way a call is opened: its words are the result."""
+    said = hook_said(record.get("attachment")) if index == 0 else None
+    if not said:
+        return None
+    who, text, failed = said
+    result, result_cut = cut(text, MAX_RESULT)
+    at = record.get("timestamp") or ""
+    return {"tool": who, "args": "", "argsCut": False, "at": at, "result": result,
+            "resultCut": result_cut, "failed": failed, "resultAt": at}
+
+
 def call(path, pos, index):
     """Returns one whole tool call: what it was called with and what came out."""
     with open(path, "rb") as f:
@@ -84,6 +97,8 @@ def call(path, pos, index):
             record = json.loads(raw.decode("utf-8", "replace"))
         except ValueError:
             return None
+        if record.get("type") == "attachment":
+            return hook_spot(record, index)
         content = ((record.get("message") or {}).get("content")) or []
         if not isinstance(content, list) or not (0 <= index < len(content)):
             return None

@@ -270,6 +270,7 @@
 .mtools.k-artifact, .cnmark.k-artifact { color: var(--crit); }
 .mtools.k-time,    .cnmark.k-time,
 .mtools.k-mcp,     .cnmark.k-mcp,
+.mtools.k-hook,    .cnmark.k-hook,
 .mtools.k-other,   .cnmark.k-other   { color: var(--ink-dim); }
 .mtnum {
     font-variant-numeric: tabular-nums;

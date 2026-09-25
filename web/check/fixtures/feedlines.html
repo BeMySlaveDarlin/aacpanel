@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// What a terminal prints beside the conversation: under a run, and alone.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+
+const at = "2026-09-26T10:28:00Z";
+const items = [
+    { role: "ai", text: "Running the checks in the background.", pos: 1, at },
+    { role: "tools", kind: "bash", run: 2, pos: 2, at, calls: [{ name: "Bash", arg: "make check", pos: 2, index: 0, use: "u1", seq: 0 }] },
+    { role: "tools", kind: "hook", run: 2, pos: 3, at, calls: [{ name: "PreToolUse:Bash hook", arg: "budget ran out", pos: 3, index: 0, use: "", seq: 1 }] },
+    { role: "taskdone", use: "u9", status: "completed", summary: "Agent \"Commit the notes\" finished", ms: 24233, tokens: 33108, pos: 4, at },
+    { role: "taskdone", use: "u1", status: "failed", summary: "Background command \"make check\" failed with exit code 2", pos: 5, at },
+    { role: "ai", text: "The checks failed; looking at the log.", pos: 6, at },
+    { role: "turn", ms: 169000, pos: 7, at },
+    { role: "notice", text: "Working on the panel; the tree is clean, two tails left.", from: "while you were away", level: "info", pos: 8, at },
+    { role: "notice", text: "Unknown command: /storage", level: "warn", pos: 9, at },
+    { role: "notice", text: "The safeguards flagged this message.", from: "safeguards", level: "crit", pos: 10, at },
+];
+
+render(html`<div class="chatfeed">${rows(weld(items)).map((item) =>
+    html`<${Row} key=${`${item.role}-${item.pos}`} item=${item} session="lab" id="1" onCalls=${() => {}} />`)}</div>`,
+    document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
+    const under = Array.from(document.querySelectorAll(".mside.under")).map(text);
+    window.done = {
+        badges: Array.from(document.querySelectorAll(".mtools")).map((b) => b.getAttribute("aria-label")),
+        lines: Array.from(document.querySelectorAll(".mside")).map((el) => ({
+            text: text(el),
+            dot: getComputedStyle(el.querySelector(".msidedot")).backgroundColor,
+            colour: getComputedStyle(el.querySelector(".msidetext")).color,
+        })),
+        turn: text(document.querySelector(".mturn")),
+        under,
+    };
+})();
+</script>

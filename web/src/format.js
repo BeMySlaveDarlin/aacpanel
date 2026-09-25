@@ -88,6 +88,14 @@ export function until(iso) {
 // and where it stopped. The age of its beginning is a different number, and for
 // work that is over it is the wrong one — a run of four minutes last night does
 // not become a run of twelve hours by morning.
+// stopwatch reads a length the way the terminal does: 49s, 2m 49s, 1h 23m.
+export function stopwatch(sec) {
+    const s = Math.floor(Math.max(0, sec));
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+    return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
 export function lasted(from, to) {
     if (!from || !to) return "";
     const sec = (new Date(to).getTime() - new Date(from).getTime()) / 1000;

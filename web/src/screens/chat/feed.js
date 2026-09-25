@@ -1,6 +1,11 @@
 // Assembling the conversation feed: what folds into what before it is shown.
 
-const HIDDEN = new Set(["taskdone", "artifactlink"]);
+const HIDDEN = new Set(["artifactlink"]);
+
+// LINES are what arrives beside the conversation — a background task done, a
+// hook's message, a warning of claude. One that arrives inside a run of calls
+// does not end it: it hangs under the run's badges.
+const LINES = new Set(["taskdone", "notice"]);
 
 const CHIP = /^(?:\s*\[Image #\d+\])+/;
 
@@ -107,6 +112,11 @@ export function rows(items) {
     const out = [];
     for (const raw of items) {
         if (HIDDEN.has(raw.role)) continue;
+        const prev = out[out.length - 1];
+        if (LINES.has(raw.role) && prev && prev.role === "toolrow") {
+            prev.lines = [...(prev.lines || []), raw];
+            continue;
+        }
         let item = raw.role === "tools" && done.size ? withDone(raw, done) : raw;
         if (item.role === "artifact") {
             const url = links.get(item.use) || "";
@@ -155,7 +165,7 @@ export function closed(items, use) {
 function tail(items) {
     const out = [];
     for (let i = items.length - 1; i >= 0; i--) {
-        if (HIDDEN.has(items[i].role)) continue;
+        if (HIDDEN.has(items[i].role) || LINES.has(items[i].role)) continue;
         if (items[i].role !== "tools" && items[i].role !== "think") break;
         out.unshift(items[i]);
     }
@@ -168,7 +178,7 @@ export function weld(items) {
     let spots = new Map();
     let run = null;
     for (const item of items) {
-        if (HIDDEN.has(item.role)) {
+        if (HIDDEN.has(item.role) || LINES.has(item.role)) {
             out.push(item);
             continue;
         }

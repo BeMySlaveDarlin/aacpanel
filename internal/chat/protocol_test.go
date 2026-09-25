@@ -52,7 +52,12 @@ func TestReplyKeepsEveryFieldAgentSends(t *testing.T) {
 			                         {"name": "MCP tools (deferred)", "kind": "deferred", "tokens": 0, "under": 20}]}},
 			{"role": "permitted", "at": "2026-08-24T10:00:16Z", "pos": 160,
 			 "rows": [{"tool": "Bash", "subject": "git push origin main", "decision": "allow", "lasting": true},
-			          {"tool": "WebFetch", "decision": "deny"}]}
+			          {"tool": "WebFetch", "decision": "deny"}]},
+			{"role": "taskdone", "use": "toolu_01Agent", "status": "completed", "summary": "Agent \"notes\" finished",
+			 "ms": 24233, "tokens": 33108, "at": "2026-08-24T10:00:17Z", "pos": 170},
+			{"role": "notice", "text": "Unknown command: /storage", "from": "safeguards", "level": "warn", "cut": true,
+			 "at": "2026-08-24T10:00:18Z", "pos": 180},
+			{"role": "turn", "ms": 169000, "at": "2026-08-24T10:00:19Z", "pos": 190}
 		],
 		"total": 14, "moreBefore": true, "first": 10, "last": 100, "size": 4096,
 		"text": "the tail of the command output", "cut": true,

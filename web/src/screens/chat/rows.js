@@ -7,7 +7,7 @@ import { useAction } from "../../actions/gate.js";
 import { knows, useExec, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { render } from "../../md.js";
-import { plural } from "../../format.js";
+import { plural, stopwatch } from "../../format.js";
 import { resend } from "./again.js";
 import { idParam } from "./api.js";
 import { CommandCard } from "./command.js";
@@ -33,6 +33,17 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, co
 
     if (item.role === "note") {
         return html`<div class="mnote">${item.text}</div>`;
+    }
+    if (item.role === "taskdone" || item.role === "notice") {
+        return html`<${Line} item=${item} />`;
+    }
+    if (item.role === "turn") {
+        return html`
+            <div class="mturn">
+                <span>worked ${stopwatch(item.ms / 1000)}</span>
+                ${item.at && html`<span class="mturnat">${stampText(item.at)}</span>`}
+            </div>
+        `;
     }
     if (item.role === "mind") {
         return html`
@@ -70,6 +81,7 @@ export function Row({ item, session, id, onCalls, onFile, onBrief, onCommand, co
                     `;
                 })}
             </div>
+            ${(item.lines || []).map((line) => html`<${Line} key=${`${line.role}-${line.pos}`} item=${line} under />`)}
         `;
     }
     if (item.role === "mail") {
@@ -294,6 +306,36 @@ function Mail({ item }) {
                 <div class="mmbody">${render(item.text)}</div>
                 ${item.cut && html`<p class="hint warn">The letter is longer than shown — cut.</p>`}
             `}
+        </div>
+    `;
+}
+
+// The tone of a background task by how it ended.
+const DONE_TONES = { completed: "ok", failed: "crit", killed: "faint", stopped: "faint" };
+
+// Line is what arrives beside the conversation: a background task done, a
+// warning of claude, the recap after an absence.
+function Line({ item, under = false }) {
+    const where = under ? " under" : "";
+    if (item.role === "taskdone") {
+        const aside = [
+            item.ms > 0 && stopwatch(item.ms / 1000),
+            item.tokens > 0 && `${shortTokens(item.tokens)} ${tokenWord(item.tokens)}`,
+        ].filter(Boolean);
+        return html`
+            <div class=${`mside s-${DONE_TONES[item.status] || "faint"}${where}`}>
+                <span class="msidedot" aria-hidden="true"></span>
+                <span class="msidetext">${item.summary || "a background task ended"}</span>
+                ${aside.length > 0 && html`<span class="msideaside">${aside.join(" · ")}</span>`}
+            </div>
+        `;
+    }
+    return html`
+        <div class=${`mside s-${item.level || "info"}${where}`}>
+            <span class="msidedot" aria-hidden="true"></span>
+            <span class="msidetext">
+                ${item.from && html`<b class="msidefrom">${item.from}</b>`}${item.text}
+            </span>
         </div>
     `;
 }

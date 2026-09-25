@@ -41,7 +41,11 @@ TASK_FIELD_RE = re.compile(r"<([\w-]+)>([^<]*)</\1>")
 
 
 def task_done(text):
-    """Returns the finished background task as (call id, status, what it was about)."""
+    """Returns the feed item of a finished background task, or None when the text names no call.
+
+    An agent reports how long it ran and how many tokens it spent; a command
+    reports neither.
+    """
     found = TASK_NOTE_RE.search(text)
     if not found:
         return None
@@ -49,7 +53,13 @@ def task_done(text):
     use = (fields.get("tool-use-id") or "").strip()
     if not use:
         return None
-    return use, (fields.get("status") or "").strip(), (fields.get("summary") or "").strip()
+    item = {"role": "taskdone", "use": use, "status": (fields.get("status") or "").strip(),
+            "summary": (fields.get("summary") or "").strip()}
+    for field, key in (("duration_ms", "ms"), ("subagent_tokens", "tokens")):
+        value = (fields.get(field) or "").strip()
+        if value.isdigit() and int(value) > 0:
+            item[key] = int(value)
+    return item
 
 
 DELIVERY_MARK = "[Cross-session delivery notice]"
@@ -135,11 +145,7 @@ def service(text, at, pos):
 
     if "<task-notification>" in text:
         done = task_done(text)
-        if not done:
-            return []
-        use, status, summary = done
-        return [{"role": "taskdone", "use": use, "status": status,
-                 "summary": summary, "at": at, "pos": pos}]
+        return [{**done, "at": at, "pos": pos}] if done else []
 
     return None
 

@@ -330,3 +330,44 @@ button.filepic {
     background: rgba(150, 170, 255, .05);
 }
 
+
+/* A line beside the conversation: a background task done, a warning of
+   claude, the recap after an absence. Under a run it hangs below the badges;
+   alone it takes a row of its own. A dot says how it went. */
+.mside {
+    display: flex;
+    align-items: baseline;
+    gap: .45rem;
+    font-size: var(--t-xs);
+    color: var(--ink-dim);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+.msidedot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    transform: translateY(-1px);
+}
+.mside.s-ok .msidedot { background: var(--ok); }
+.mside.s-crit .msidedot { background: var(--crit); }
+.mside.s-warn .msidedot { background: var(--warn); }
+.mside.s-info .msidedot { background: var(--accent); }
+.mside.s-crit .msidetext { color: var(--crit); }
+.msidetext { min-width: 0; white-space: pre-line; }
+.msidefrom { font-weight: 600; color: var(--ink-dim); margin-right: .4rem; }
+.msideaside { flex: none; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+/* Under a run the line tucks up to the badges it belongs to. */
+.mside.under { margin-top: -.25rem; padding-left: .15rem; }
+
+/* The length of a turn, under its last answer, with the time it ended. */
+.mturn {
+    align-self: flex-end;
+    display: flex;
+    gap: .5rem;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}

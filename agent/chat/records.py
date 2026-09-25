@@ -8,6 +8,7 @@ from . import commands
 from .cards import artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card, wake_item
 from .harness import classify, service, strip_panel_note, unwrap_pasted
 from .mail import peer_name, peer_pid
+from .notices import hook_call, system_notice
 from .limits import MAX_TEXT, cut
 from .queue import delivered, withdrawn
 from .tools import edited_path, tool_arg, tool_kind, tool_label
@@ -83,6 +84,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     at = record.get("timestamp") or ""
 
     if kind == "system":
+        said = system_notice(record, at, pos)
+        if said is not None:
+            return said
         if record.get("subtype") != "local_command":
             return []
         cards = commands.answer(record, (record.get("content") or "").strip(), at, pos)
@@ -244,7 +248,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     if kind == "attachment":
         block = record.get("attachment") or {}
         if block.get("type") != "queued_command":
-            return []
+            return hook_call(block, at, pos)
         prompt = block.get("prompt")
         out = []
         shots = []

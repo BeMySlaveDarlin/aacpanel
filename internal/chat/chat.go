@@ -13,24 +13,27 @@ import (
 
 // Item is one row of the feed.
 type Item struct {
-	Role    string      `json:"role"`
-	Text    string      `json:"text,omitempty"`
-	Err     string      `json:"err,omitempty"`
-	Name    string      `json:"name,omitempty"`
-	Arg     string      `json:"arg,omitempty"`
-	Cut     bool        `json:"cut,omitempty"`
-	State   string      `json:"state,omitempty"`
-	Fixes   string      `json:"fixes,omitempty"`
-	At      string      `json:"at,omitempty"`
-	Shots   []Shot      `json:"shots,omitempty"`
-	Calls   []ToolCall  `json:"calls,omitempty"`
-	Kind    string      `json:"kind,omitempty"`
-	Run     int64       `json:"run,omitempty"`
-	From    string      `json:"from,omitempty"`
-	Source  string      `json:"source,omitempty"`
-	Dir     string      `json:"dir,omitempty"`
-	Count   int         `json:"count,omitempty"`
-	Tokens  int         `json:"tokens,omitempty"`
+	Role   string     `json:"role"`
+	Text   string     `json:"text,omitempty"`
+	Err    string     `json:"err,omitempty"`
+	Name   string     `json:"name,omitempty"`
+	Arg    string     `json:"arg,omitempty"`
+	Cut    bool       `json:"cut,omitempty"`
+	State  string     `json:"state,omitempty"`
+	Fixes  string     `json:"fixes,omitempty"`
+	At     string     `json:"at,omitempty"`
+	Shots  []Shot     `json:"shots,omitempty"`
+	Calls  []ToolCall `json:"calls,omitempty"`
+	Kind   string     `json:"kind,omitempty"`
+	Run    int64      `json:"run,omitempty"`
+	From   string     `json:"from,omitempty"`
+	Source string     `json:"source,omitempty"`
+	Dir    string     `json:"dir,omitempty"`
+	Count  int        `json:"count,omitempty"`
+	Tokens int        `json:"tokens,omitempty"`
+	// How long a turn or a background task took, and how loud a line is.
+	MS      int64       `json:"ms,omitempty"`
+	Level   string      `json:"level,omitempty"`
 	Spots   []ThinkSpot `json:"spots,omitempty"`
 	Title   string      `json:"title,omitempty"`
 	File    string      `json:"file,omitempty"`

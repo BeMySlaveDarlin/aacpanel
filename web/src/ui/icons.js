@@ -64,6 +64,7 @@ export const Icon = {
 
     plan: () => html`<svg ...${stroke}><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM8 8h7M8 12h7M8 16h4" /></svg>`,
 
+    hook: () => html`<svg ...${stroke}><path d="M14 3v10.5a4.5 4.5 0 0 1-9 0V12" /><path d="m3 14 2-2 2 2" /><circle cx="14" cy="3" r=".6" fill="currentColor" /></svg>`,
     bolt: () => html`<svg ...${stroke}><path d="M13 2.5 4.5 13.5H12l-1 8 8.5-11H12Z" /></svg>`,
 
     // A share of a whole: how much of the context window is taken.
