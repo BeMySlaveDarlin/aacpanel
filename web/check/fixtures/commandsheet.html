@@ -49,7 +49,7 @@ const show = (live, ex = exec) => render(h(ToastHost, null, h(GateHost, null,
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());
 const chip = async () => {
-    document.querySelector(".wcmds").click();
+    document.querySelector(".cstrip .pkcmds").click();
     await sleep(300);
 };
 const row = async (line) => {
@@ -72,6 +72,8 @@ const close = async () => {
         await sleep(400);
         const deck = document.querySelector(".deck");
         out.deckOverflow = deck.scrollWidth - deck.clientWidth;
+        out.inStrip = Boolean(document.querySelector(".cstrip .pkcmds"));
+        out.inDeck = Boolean(deck.querySelector(".pkcmds"));
         out.pageOverflow = document.scrollingElement.scrollWidth - window.innerWidth;
 
         await chip();

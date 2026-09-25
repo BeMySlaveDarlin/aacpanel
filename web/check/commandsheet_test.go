@@ -5,11 +5,14 @@ import (
 	"testing"
 )
 
-// The button under the composer lists what the panel does itself, read from
-// the registry the composer reads, and each row does what typing it does.
+// The button at the end of the composer's strip lists what the panel does
+// itself, read from the registry the composer reads, and each row does what
+// typing it does.
 func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	var got struct {
 		DeckOverflow  int      `json:"deckOverflow"`
+		InStrip       bool     `json:"inStrip"`
+		InDeck        bool     `json:"inDeck"`
 		PageOverflow  int      `json:"pageOverflow"`
 		Title         string   `json:"title"`
 		Groups        []string `json:"groups"`
@@ -31,6 +34,10 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	runFixture(t, "commandsheet.html", &got)
 	if got.Error != "" {
 		t.Fatalf("the fixture broke: %s", got.Error)
+	}
+	if !got.InStrip || got.InDeck {
+		t.Errorf("the commands button stands in the strip of the composer: %v, in the row under it: %v — "+
+			"it belongs at the end of the model, the effort and the mode", got.InStrip, got.InDeck)
 	}
 	if got.DeckOverflow > 0 || got.PageOverflow > 0 {
 		t.Errorf("the row under the composer overflows the phone by %d px (the page by %d)", got.DeckOverflow, got.PageOverflow)

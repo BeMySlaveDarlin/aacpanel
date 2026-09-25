@@ -286,6 +286,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
         <${WindowToggle} name=${name} live=${live} work=${state.work} exec=${exec}
                          win=${win} way=${way} onChange=${askWindow} />
     `;
+    const commandsChip = html`<${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />`;
 
     return html`
         ${wide
@@ -402,8 +403,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                      onScreen=${screenLook}
                                      onSide=${onStream ? sideChat.ask : null}
                                      strip=${wide
-                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} />`
-                                         : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} />`}
+                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} tail=${commandsChip} />`
+                                         : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} tail=${commandsChip} />`}
                                      focus=${`${name}|${id || ""}|${view}`} />
                     `}
             </div>
@@ -420,7 +421,6 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
                     <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
-                    <${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />
                 </div>
             </div>
         `}

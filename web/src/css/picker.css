@@ -227,3 +227,21 @@
 .cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: 2.5rem; padding: 0 .55rem; font-size: var(--t-sm); color: var(--ink-dim); }
 .cstrip .pkchip svg { width: var(--i-sm); height: var(--i-sm); }
 .cstrip .pickfile { width: 2.5rem; height: 2.5rem; }
+/* The panel's commands close the row: not a setting like the words before it,
+   so not one of them, but the same height and hover; a slash as wide as the
+   paperclip, in the face commands are typed in. */
+.pkcmds {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-small);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.pkcmds:hover { background: var(--surface); color: var(--ink); }
+.pkslash { font-family: var(--mono); font-size: var(--t-md); font-weight: 600; line-height: 1; }

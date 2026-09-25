@@ -634,13 +634,3 @@
     overflow-wrap: anywhere;
 }
 
-/* The button of the panel's commands: a slash, the way a command starts. */
-.wchip .wslash {
-    display: inline-block;
-    width: var(--i-sm);
-    font-family: var(--mono);
-    font-size: var(--t-sm);
-    font-weight: 600;
-    line-height: 1;
-    text-align: center;
-}

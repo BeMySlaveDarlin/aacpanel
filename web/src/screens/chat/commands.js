@@ -40,11 +40,12 @@ export function panelCommands({ stream, live, pick, side }) {
     ].filter((g) => g.rows.length);
 }
 
-// CommandsChip is the button under the composer that opens the list.
+// CommandsChip opens the list from the composer's strip, at the end of the row
+// of the model, the effort and the mode: a slash, the way a command starts.
 export function CommandsChip({ onOpen }) {
     return html`
-        <button class="wchip wcmds" type="button" aria-label="commands of the panel" onClick=${onOpen}>
-            <span class="wslash" aria-hidden="true">/</span>
+        <button class="pkcmds" type="button" aria-label="commands of the panel" onClick=${onOpen}>
+            <span class="pkslash" aria-hidden="true">/</span>
         </button>
     `;
 }
