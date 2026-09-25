@@ -44,6 +44,9 @@ type Request struct {
 	Mcp *McpChange `json:"mcp,omitempty"`
 
 	Ask string `json:"ask,omitempty"`
+
+	// History is the side chat so far, sent with a question aside.
+	History []SideTurn `json:"history,omitempty"`
 }
 
 // Project is the project to open.

@@ -25,6 +25,9 @@ const (
 	initWait = 90 * time.Second
 	// How long a control request may wait for its answer.
 	controlWait = 30 * time.Second
+	// A question aside is answered by the model, and thinking takes as long
+	// as it takes; the panel's own wait for the executor ends a little later.
+	sideWait = 110 * time.Second
 	// How long a closed session gets to finish its turn and write its
 	// transcript before it is asked to stop harder.
 	closeWait = 20 * time.Second
@@ -683,7 +686,7 @@ func (h *Holder) do(req Request) Reply {
 		if err := vetSettings(req.Subtype, req.Fields); err != nil {
 			return Reply{Error: err.Error()}
 		}
-		resp, err := h.control(context.Background(), req.Subtype, req.Fields, controlWait)
+		resp, err := h.control(context.Background(), req.Subtype, req.Fields, replyWait(req.Subtype))
 		if req.Subtype == "get_settings" {
 			resp = trimSettings(resp)
 		}

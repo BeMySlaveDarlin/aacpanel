@@ -241,6 +241,30 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Status: status}
 	}
 
+	if req.Ask == AskCommands {
+		asker, ok := s.exec.(CommandsAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not know the commands of a session"), 0)
+		}
+		commands, err := asker.Commands(ctx, req.Target)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Commands: commands}
+	}
+
+	if req.Ask == AskSide {
+		asker, ok := s.exec.(SideAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not ask a session questions aside"), 0)
+		}
+		side, err := asker.Side(ctx, req.Target, req.Text, req.History)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Side: side}
+	}
+
 	s.mu.Lock()
 	s.sweepLocked()
 	if prev, ok := s.results[req.ID]; ok {

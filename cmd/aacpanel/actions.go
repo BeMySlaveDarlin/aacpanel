@@ -415,6 +415,72 @@ func (s *Server) apiSessionStatus(w http.ResponseWriter, r *http.Request) {
 		"account": status.Account})
 }
 
+// apiSessionCommands says which commands a live session takes, with what each
+// does. A terminal lists none, and the composer keeps to the panel's own.
+func (s *Server) apiSessionCommands(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "it is not said whose commands to list", http.StatusBadRequest)
+		return
+	}
+	if s.exec == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
+		return
+	}
+	commands, err := s.exec.Commands(r.Context(), name)
+	if err != nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
+		return
+	}
+	if commands == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor did not answer the question about commands"})
+		return
+	}
+	list := commands.List
+	if list == nil {
+		list = []action.SlashCommand{}
+	}
+	writeJSON(w, map[string]any{"state": "ok", "transport": commands.Transport, "list": list})
+}
+
+// sideBodyMax bounds a question aside with its side chat: the executor holds
+// them to their own limits, and this one keeps a body from being read whole
+// before that.
+const sideBodyMax = 4 << 20
+
+// apiSessionSide asks a live session a question aside. The answer goes back to
+// the one who asked and nowhere else: it is not in the conversation, and the
+// panel does not keep it either.
+func (s *Server) apiSessionSide(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name     string            `json:"name"`
+		Question string            `json:"question"`
+		History  []action.SideTurn `json:"history"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, sideBodyMax)).Decode(&body); err != nil {
+		http.Error(w, "the question was not read: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Name == "" || strings.TrimSpace(body.Question) == "" {
+		http.Error(w, "a question aside needs the session and the question", http.StatusBadRequest)
+		return
+	}
+	if s.exec == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
+		return
+	}
+	side, err := s.exec.Side(r.Context(), body.Name, body.Question, body.History)
+	if err != nil {
+		writeJSON(w, map[string]any{"state": "failed", "reason": err.Error()})
+		return
+	}
+	if side == nil {
+		writeJSON(w, map[string]any{"state": "failed", "reason": "the executor did not answer the question aside"})
+		return
+	}
+	writeJSON(w, map[string]any{"state": "ok", "answer": side.Answer})
+}
+
 // apiSessionSwitch says which way a live session can move between the console
 // and the feed, so the conversation header offers only the way that works.
 func (s *Server) apiSessionSwitch(w http.ResponseWriter, r *http.Request) {

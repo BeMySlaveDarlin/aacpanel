@@ -14,7 +14,10 @@ import (
 
 const (
 	dialTimeout = 3 * time.Second
-	maxResponse = 4 << 10
+	// A reply carries what a session keeps as well as the outcome of an
+	// action: its commands with what each does run to tens of kilobytes, and
+	// an answer given aside to as much as claude wrote.
+	maxResponse = 1 << 20
 )
 
 // ErrUnavailable means the executor does not answer.
@@ -172,4 +175,28 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 		return Response{}, fmt.Errorf("an answer to another request %q instead of %q", resp.ID, req.ID)
 	}
 	return resp, nil
+}
+
+// Commands asks a session which commands it takes.
+func (c *Client) Commands(ctx context.Context, target string) (*SessionCommands, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskCommands, Target: target})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Commands, nil
+}
+
+// Side asks a session a question aside.
+func (c *Client) Side(ctx context.Context, target, question string, history []SideTurn) (*Side, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskSide, Target: target, Text: question, History: history})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Side, nil
 }

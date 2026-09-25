@@ -215,3 +215,48 @@ func TestTheDefaultModelIsWrittenThroughALink(t *testing.T) {
 		t.Errorf("the file the link points to was not written: %s", raw)
 	}
 }
+
+func TestAQuestionAsideOnTheStreamIsClaudesOwnRequest(t *testing.T) {
+	f := onTheStream(t, false)
+	f.answers = map[string]string{"side_question": `{"subtype":"success","request_id":"x","response":{"response":"tangerine","synthetic":false}}`}
+	e, _ := newTest(t, "")
+	side, err := e.Side(context.Background(), "demo", "which word?", []action.SideTurn{{Question: "q", Response: "a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if side.Answer != "tangerine" {
+		t.Errorf("the answer came back as %q", side.Answer)
+	}
+	got := only(t, f)
+	history, _ := got.Fields["history"].([]any)
+	if got.Subtype != "side_question" || got.Fields["question"] != "which word?" || len(history) != 1 {
+		t.Errorf("the holder was asked %+v", got)
+	}
+}
+
+func TestATerminalIsAskedNothingAside(t *testing.T) {
+	procFS(t, fakeProc{pid: 5004, comm: "claude", ppid: 1, cwd: "/opt/x", start: "5558",
+		args: []string{"claude", "-n", "term"}})
+	sessionFiles(t, fakeSession{pid: 5004, name: "term", start: "5558", sid: "s-5004"})
+	e, _ := newTest(t, "")
+	if _, err := e.Side(context.Background(), "term", "why?", nil); err == nil || !strings.Contains(err.Error(), "/btw") {
+		t.Errorf("a terminal was asked aside: %v", err)
+	}
+	cmds, err := e.Commands(context.Background(), "term")
+	if err != nil || cmds.Transport != action.SwitchConsole || len(cmds.List) != 0 {
+		t.Errorf("a terminal listed %+v (%v)", cmds, err)
+	}
+}
+
+func TestTheCommandsOfAStreamSessionAreTheOnesClaudeListed(t *testing.T) {
+	f := onTheStream(t, false)
+	f.state.Init = []byte(`{"commands":[{"name":"brief","description":"Publishes a brief","argumentHint":"[topic]"},{"name":""},{"name":"compact","description":"Clear the history but keep a summary"}]}`)
+	e, _ := newTest(t, "")
+	cmds, err := e.Commands(context.Background(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmds.Transport != action.SwitchStream || len(cmds.List) != 2 || cmds.List[0].Hint != "[topic]" || cmds.List[1].Name != "compact" {
+		t.Errorf("the commands came back as %+v", cmds)
+	}
+}

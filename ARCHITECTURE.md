@@ -310,6 +310,15 @@ with — whole, it carries the environment of the session, tokens and all.
 Claude answers an ultracode it cannot run with success and turns nothing on,
 so the holder asks what the session runs with before it says ultracode is on.
 
+**A question aside is the one piece of conversation the executor carries.**
+On the stream `/btw` is a request of its own: claude answers it from what the
+conversation holds and writes neither the question nor the answer into the
+transcript, so the collector has nothing to read it from. It goes to the
+executor as a question, not an action — the answer returns to the one who
+asked and is not kept in the journal of actions, nor anywhere in the panel.
+Claude keeps no side chat either: the page holds it and sends it back with
+every question.
+
 **The rules of permissions are not opened from the panel in any form.** Their
 screen is driven by keys, awkward even at a terminal; `/permissions` and its
 older name are refused as a command and as a message that starts with one, on

@@ -21,7 +21,7 @@ func Ask(ctx context.Context, sessionID string, req Request) (Reply, error) {
 		return Reply{}, fmt.Errorf("the session is not held on the stream: %w", err)
 	}
 	defer conn.Close()
-	deadline := time.Now().Add(controlWait + 10*time.Second)
+	deadline := time.Now().Add(replyWait(req.Subtype) + 10*time.Second)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}

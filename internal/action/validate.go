@@ -27,7 +27,7 @@ func (r Request) Validate() error {
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
-		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus:
+		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -36,6 +36,12 @@ func (r Request) Validate() error {
 			}
 			if err := safeTarget(r.Target); err != nil {
 				return err
+			}
+			if r.Ask == AskSide {
+				return validateSide(r)
+			}
+			if r.Text != "" || len(r.History) > 0 {
+				return badRequest("question %q carries no text", r.Ask)
 			}
 		default:
 			return badRequest("unknown question %q", r.Ask)

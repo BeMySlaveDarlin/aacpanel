@@ -503,3 +503,33 @@ func TestPermissionsIsRefusedInEveryForm(t *testing.T) {
 		}
 	}
 }
+
+// A question aside carries the question and the side chat so far, and no
+// other question carries text at all.
+func TestAQuestionAsideIsBoundedLikeAMessage(t *testing.T) {
+	turn := SideTurn{Question: "which word?", Response: "tangerine"}
+	ok := Request{Ask: AskSide, Target: "aacpanel", Text: "and its first letter?", History: []SideTurn{turn}}
+	if err := ok.Validate(); err != nil {
+		t.Errorf("a question aside is rejected: %v", err)
+	}
+	long := make([]SideTurn, sideHistoryMax+1)
+	for i := range long {
+		long[i] = turn
+	}
+	for name, r := range map[string]Request{
+		"no question":           {Ask: AskSide, Target: "aacpanel"},
+		"a question too long":   {Ask: AskSide, Target: "aacpanel", Text: strings.Repeat("a", TextMax+1)},
+		"a side chat too long":  {Ask: AskSide, Target: "aacpanel", Text: "why?", History: long},
+		"an empty turn":         {Ask: AskSide, Target: "aacpanel", Text: "why?", History: []SideTurn{{Response: "x"}}},
+		"no session":            {Ask: AskSide, Text: "why?"},
+		"commands with a text":  {Ask: AskCommands, Target: "aacpanel", Text: "why?"},
+		"models with a history": {Ask: AskModels, Target: "aacpanel", History: []SideTurn{turn}},
+	} {
+		if err := r.Validate(); err == nil {
+			t.Errorf("%s is accepted", name)
+		}
+	}
+	if err := (Request{Ask: AskCommands, Target: "aacpanel"}).Validate(); err != nil {
+		t.Errorf("a question about commands is rejected: %v", err)
+	}
+}

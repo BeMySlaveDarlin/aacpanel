@@ -24,6 +24,10 @@ type Response struct {
 	Mcp *Mcp `json:"mcp,omitempty"`
 
 	Status *Status `json:"status,omitempty"`
+
+	Side *Side `json:"side,omitempty"`
+
+	Commands *SessionCommands `json:"commands,omitempty"`
 }
 
 // Failed builds a refusal response.

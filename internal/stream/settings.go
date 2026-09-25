@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 )
 
 // The requests about settings reach further than the panel needs them to.
@@ -53,6 +54,27 @@ func vetSettings(subtype string, fields map[string]any) error {
 	case "get_settings":
 		if len(fields) != 0 {
 			return fmt.Errorf("get_settings takes no fields")
+		}
+	case "side_question":
+		return vetSide(fields)
+	}
+	return nil
+}
+
+// vetSide passes a question aside in the one shape claude takes: the question,
+// and the side chat so far as pairs of a question and its answer.
+func vetSide(fields map[string]any) error {
+	question, ok := fields["question"].(string)
+	history, isList := fields["history"].([]any)
+	if len(fields) != 2 || !ok || question == "" || !isList {
+		return fmt.Errorf("side_question passes on only {question, history}")
+	}
+	for _, turn := range history {
+		pair, ok := turn.(map[string]any)
+		_, q := pair["question"].(string)
+		_, a := pair["response"].(string)
+		if !ok || len(pair) != 2 || !q || !a {
+			return fmt.Errorf("the history of side_question is pairs of a question and its answer")
 		}
 	}
 	return nil
@@ -136,4 +158,15 @@ func (h *Holder) flagsApplied(ctx context.Context, fields map[string]any) error 
 		return fmt.Errorf("ultracode did not take in this session: its model does not take xhigh, or workflows are off")
 	}
 	return nil
+}
+
+// replyWait is how long claude may take to answer a control request: the
+// holder waits that long for claude, and the one who asked the holder a little
+// longer. A question aside is answered by the model and takes as long as its
+// thinking does; everything else is answered by claude itself.
+func replyWait(subtype string) time.Duration {
+	if subtype == "side_question" {
+		return sideWait
+	}
+	return controlWait
 }

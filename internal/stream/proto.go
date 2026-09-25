@@ -218,4 +218,5 @@ var Controls = map[string]bool{
 	"apply_flag_settings":     true,
 	"update_settings":         true,
 	"get_settings":            true,
+	"side_question":           true,
 }

@@ -62,6 +62,8 @@ func fakeClaude() int {
 				// xhigh turns nothing on.
 				on, _ := req["settings"].(map[string]any)["ultracode"].(bool)
 				ultra = on && model != "haiku"
+			case "side_question":
+				body = map[string]any{"response": "tangerine", "synthetic": false}
 			case "get_settings":
 				body = map[string]any{
 					"effective": map[string]any{"env": map[string]any{"GITLAB_TOKEN": "glpat-secret"}},
@@ -721,4 +723,44 @@ func TestUltracodeIsTheEffortOnlyOnceClaudeRunsIt(t *testing.T) {
 
 	r.ask(Request{Op: OpControl, Subtype: "apply_flag_settings", Fields: map[string]any{"settings": map[string]any{"ultracode": false}}})
 	r.waitFor("ultracode off", func(s State) bool { return s.Effort == "xhigh" })
+}
+
+func TestAQuestionAsidePassesInClaudesShapeOnly(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	ok := r.ask(Request{Op: OpControl, Subtype: "side_question", Fields: map[string]any{
+		"question": "and its first letter?",
+		"history":  []any{map[string]any{"question": "which word?", "response": "tangerine"}},
+	}})
+	if !ok.OK || !strings.Contains(string(ok.Response), "tangerine") {
+		t.Fatalf("a question aside was not answered: %+v", ok)
+	}
+	for name, fields := range map[string]map[string]any{
+		"no question":        {"question": "", "history": []any{}},
+		"no history":         {"question": "why?"},
+		"a history of words": {"question": "why?", "history": []any{"which word?"}},
+		"a turn with more":   {"question": "why?", "history": []any{map[string]any{"question": "a", "response": "b", "tools": "all"}}},
+		"a field of its own": {"question": "why?", "history": []any{}, "model": "opus"},
+	} {
+		if reply := r.ask(Request{Op: OpControl, Subtype: "side_question", Fields: fields}); reply.OK {
+			t.Errorf("%s was passed on", name)
+		}
+	}
+	if strings.Contains(r.received(), `"tools"`) || strings.Contains(r.received(), `"model":"opus"`) {
+		t.Error("claude read a question aside the panel does not send")
+	}
+}
+
+// A question aside waits for the model; the holder and the one who asks it
+// both have to wait longer than for a request claude answers by itself, and
+// the panel, which waits two minutes for the executor, longer still.
+func TestAQuestionAsideIsWaitedForLonger(t *testing.T) {
+	if replyWait("side_question") <= replyWait("get_settings") {
+		t.Errorf("a question aside is waited for %s, a request claude answers itself %s",
+			replyWait("side_question"), replyWait("get_settings"))
+	}
+	if replyWait("side_question")+10*time.Second > 2*time.Minute {
+		t.Errorf("the socket waits %s for a question aside — the panel gives up on the executor at two minutes",
+			replyWait("side_question")+10*time.Second)
+	}
 }

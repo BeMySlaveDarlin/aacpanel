@@ -442,3 +442,39 @@ func TestListenRejectsLongPath(t *testing.T) {
 		t.Fatalf("the error does not explain the reason: %v", err)
 	}
 }
+
+type sideExec struct {
+	question string
+	history  []SideTurn
+}
+
+func (e *sideExec) Execute(context.Context, Request) (string, error) { return "", nil }
+func (e *sideExec) Side(_ context.Context, _, question string, history []SideTurn) (*Side, error) {
+	e.question, e.history = question, history
+	return &Side{Answer: strings.Repeat("an answer that runs long. ", 400)}, nil
+}
+func (e *sideExec) Commands(context.Context, string) (*SessionCommands, error) {
+	return &SessionCommands{Transport: SwitchStream, List: []SlashCommand{{Name: "brief"}}}, nil
+}
+
+// A question aside reaches the executor with the side chat so far, and its
+// answer comes back whole, however long claude wrote it.
+func TestAQuestionAsideCrossesTheSocketWithItsHistory(t *testing.T) {
+	exec := &sideExec{}
+	client := serve(t, exec)
+	side, err := client.Side(context.Background(), "aacpanel", "and its first letter?",
+		[]SideTurn{{Question: "which word?", Response: "tangerine"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exec.question != "and its first letter?" || len(exec.history) != 1 || exec.history[0].Response != "tangerine" {
+		t.Errorf("the executor was asked %q with %+v", exec.question, exec.history)
+	}
+	if len(side.Answer) < 10_000 {
+		t.Errorf("the answer came back cut to %d bytes", len(side.Answer))
+	}
+	cmds, err := client.Commands(context.Background(), "aacpanel")
+	if err != nil || len(cmds.List) != 1 || cmds.List[0].Name != "brief" {
+		t.Errorf("the commands came back as %+v (%v)", cmds, err)
+	}
+}
