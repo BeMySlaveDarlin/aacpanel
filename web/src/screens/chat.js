@@ -30,8 +30,8 @@ import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } 
 import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
 import { Marquee, short } from "./chat/head.js";
-import { AttachSheet, HeadTools } from "./chat/tools.js";
-import { PickBar, PickSheet } from "./chat/picker.js";
+import { AttachSheet } from "./chat/tools.js";
+import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
 import { WindowToggle } from "./chat/window.js";
 import { SwitchToggle } from "./chat/switch.js";
@@ -278,8 +278,15 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                         `
                         : html`<span>the conversation is closed</span>`}
                 </div>
-                ${live && html`<${HeadTools} live=${live}
-                                             onPick=${knows(exec, "session.set") ? setPicking : null} />`}
+                ${live && live.tokensIn > 0 && html`
+                    <div class="chatmeta">
+                        <button class="deckuse" type="button" aria-label="tokens in and out of this session, open usage"
+                                onClick=${onUsage}>
+                            <span class="deckin"><i>in</i>${tokens(live.tokensIn)}</span>
+                            <span class="deckout"><i>out</i>${tokens(live.tokensOut)}</span>
+                        </button>
+                    </div>
+                `}
             </div>
         <//>
         `}
@@ -363,20 +370,16 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
                                          was.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
                                      insert=${insert}
                                      onPicker=${knows(exec, "session.set") ? setPicking : null}
+                                     strip=${wide
+                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} />`
+                                         : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} />`}
                                      focus=${`${name}|${id || ""}|${view}`} />
                     `}
-                ${wide && html`<${PickBar} name=${name} live=${live} exec=${exec} />`}
             </div>
         `}
 
         ${live && view !== "term" && html`
             <div class="deck">
-                ${live.tokensIn > 0 && html`
-                    <button class="deckuse" type="button" title="tokens in and out of this session — open usage"
-                            aria-label="tokens in and out of this session, open usage" onClick=${onUsage}>
-                        <span class="deckin"><i>in</i>${tokens(live.tokensIn)}</span>
-                        <span class="deckout"><i>out</i>${tokens(live.tokensOut)}</span>
-                    </button>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
                     <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />

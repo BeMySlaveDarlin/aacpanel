@@ -1,27 +1,6 @@
-/* Picking the model, the effort and the mode: grouped lists in a sheet on a
-   phone, small menus over the composer on a wide screen. */
-
-/* The header of a conversation names all three; where they can be changed,
-   they are buttons that look like the words they were. */
-.chatmeta.picks > button {
-    padding: .15rem 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    color: inherit;
-    white-space: nowrap;
-    cursor: pointer;
-    text-decoration: underline dotted color-mix(in srgb, var(--ink-faint) 60%, transparent);
-    text-underline-offset: .2em;
-}
-.chatmeta.picks > button + button::before {
-    content: "·";
-    display: inline-block;
-    margin: 0 .35rem;
-    color: rgba(150, 170, 255, .3);
-    text-decoration: none;
-}
-.chatmeta.picks > button.crit { color: var(--crit); }
+/* Picking the model, the effort and the mode: words in a strip inside the
+   frame of the composer, opening grouped lists in a sheet on a phone and
+   small menus over the composer on a wide screen. */
 
 /* The sheet keeps room for its cross on the right; the same room on the left
    puts the title in the middle, where the native client has it. */
@@ -147,6 +126,8 @@
     cursor: pointer;
 }
 .pkchip:hover, .pkchip.open { background: var(--surface); color: var(--ink); }
+.pkchip:disabled { background: none; color: var(--ink-dim); cursor: default; }
+.pkchip.crit { color: var(--crit); }
 
 .pkmenu {
     position: absolute;
@@ -188,3 +169,19 @@
    stand in is the one the eye came from. */
 .pkmenu.pksub { bottom: 0; right: calc(100% + .3rem); min-width: 11rem; }
 .pkmenu.pkeffort { width: 17rem; padding: .4rem .6rem .2rem; }
+
+/* The frame of the composer carries a second line: the paperclip, the mode,
+   and on the right the model with its effort. */
+.composer:has(.cstrip) { flex-wrap: wrap; row-gap: 0; }
+.cstrip {
+    flex: 0 0 100%;
+    display: flex;
+    align-items: center;
+    gap: .2rem;
+    margin-top: .2rem;
+    padding-top: .2rem;
+    border-top: var(--hair) solid var(--line);
+}
+.cstrip .pickbar { flex: 1 1 auto; padding: 0; }
+.cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: 2.6rem; padding: 0 .6rem; font-size: var(--t-md); }
+.cstrip .pkchip svg { width: var(--i-sm); height: var(--i-sm); }

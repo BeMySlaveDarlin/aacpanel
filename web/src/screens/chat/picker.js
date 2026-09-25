@@ -43,9 +43,17 @@ const ALIASES = [
     { value: "haiku", family: "haiku" },
 ];
 
+// The two modes that stop a session asking at all. Nothing here switches to
+// them, but a session launched in one says so loudly wherever its mode shows.
+const LOUD_MODES = { bypassPermissions: "Bypass", dontAsk: "Don't ask" };
+
 export function modeName(mode) {
     const found = MODE_OPTIONS.find((m) => m.value === mode);
-    return found ? found.name : (mode || "mode");
+    return found ? found.name : (LOUD_MODES[mode] || mode || "mode");
+}
+
+export function modeLoud(mode) {
+    return Object.hasOwn(LOUD_MODES, mode || "");
 }
 
 export function effortName(effort) {
@@ -286,8 +294,29 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why }) {
     `;
 }
 
-// PickBar is the wide screen's way in: under the composer, the mode on the
-// left and the model with its effort on the right, each opening its menu.
+// PickWords are the phone's way in, inside the frame of the composer: the
+// mode on the left, the model and its effort on the right, each opening its
+// sheet. A host whose executor predates the list has nothing to change a
+// setting with: the words stay, and nothing pretends to open.
+export function PickWords({ live, exec, onPick }) {
+    const can = knows(exec, "session.set") && Boolean(onPick);
+    const why = can ? "" : whyNot(exec, "session.set");
+    const word = (what, label, body, loud) => html`
+        <button type="button" class=${`pkchip${loud ? " crit" : ""}`} disabled=${!can}
+                aria-label=${can ? `${label} — pick another` : label} title=${why || undefined}
+                onClick=${() => onPick(what)}>${body}</button>
+    `;
+    return html`
+        ${word("mode", "permission mode", html`${Icon.bolt()}${modeName(live.mode)}`, modeLoud(live.mode))}
+        <span class="pkgap"></span>
+        ${word("model", "model", title(live.model || ""))}
+        ${word("effort", "effort", effortName(live.effort))}
+    `;
+}
+
+// PickBar is the wide screen's way in: inside the frame of the composer, the
+// mode on the left and the model with its effort on the right, each opening
+// its menu.
 export function PickBar({ name, live, exec }) {
     const [menu, setMenu] = useState("");
     const [more, setMore] = useState(false);
@@ -338,15 +367,13 @@ export function PickBar({ name, live, exec }) {
 
     const toggle = (which) => { setMore(false); setMenu(menu === which ? "" : which); };
 
-    // A host whose executor predates the list has nothing to change a setting
-    // with: the words stay, and nothing pretends to open.
-    if (!knows(exec, "session.set")) return null;
+    if (!knows(exec, "session.set")) return html`<${PickWords} live=${live} exec=${exec} />`;
 
     return html`
         <div class="pickbar" ref=${box}>
-            <button type="button" class=${`pkchip${menu === "mode" ? " open" : ""}`}
+            <button type="button" class=${`pkchip${menu === "mode" ? " open" : ""}${modeLoud(mode) ? " crit" : ""}`}
                     aria-expanded=${menu === "mode" ? "true" : "false"} onClick=${() => toggle("mode")}>
-                ${modeName(mode)}
+                ${Icon.bolt()}${modeName(mode)}
             </button>
             <span class="pkgap"></span>
             <button type="button" class=${`pkchip${menu === "model" ? " open" : ""}`}

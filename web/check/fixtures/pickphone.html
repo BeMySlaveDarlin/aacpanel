@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
-// A live session on a phone: its header names the model, the effort and the
-// mode, and each opens its list. The session on the stream lists its models
+// A live session on a phone: the frame of its composer names the mode, the
+// model and the effort, and each opens its list. The session on the stream lists its models
 // as claude does; the terminal one takes the catalogue of the account.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -60,8 +60,8 @@ const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
     model: "claude-opus-5-5", effort: "xhigh", mode: "auto" };
 const terminal = { ...stream, transport: "" };
 const root = document.getElementById("root");
-const show = (live) => render(h(ToastHost, null, h(GateHost, null,
-    html`<${Chat} name="atlas" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+const show = (live, can = exec) => render(h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name="atlas" id="s1" live=${live} exec=${can} onBack=${() => {}} onUsage=${() => {}} />`)), root);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
@@ -74,10 +74,10 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     show(stream);
     await sleep(400);
     const out = {};
-    const head = Array.from(document.querySelectorAll(".chatmeta.picks button"));
+    const head = Array.from(document.querySelectorAll(".cstrip .pkchip"));
     out.head = head.map((b) => b.textContent.trim());
 
-    await tap(head[0]);
+    await tap(head[1]);
     await sleep(200);
     out.modelTitle = text(".sheet.on .stitle")[0] || "";
     const lists = Array.from(sheet().querySelectorAll(".pklist"));
@@ -101,7 +101,7 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     document.querySelector(".sheet.on .sheetclose").click();
     await sleep(300);
 
-    await tap(document.querySelectorAll(".chatmeta.picks button")[2]);
+    await tap(document.querySelectorAll(".cstrip .pkchip")[0]);
     out.modeTitle = text(".sheet.on .stitle")[0] || "";
     out.modes = rows().map((r) => r.querySelector(".pkname").textContent.trim());
     out.modeOn = text(".sheet.on .pkrow.on .pkname");
@@ -139,16 +139,29 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     transport = "console";
     show(terminal);
     await sleep(400);
-    await tap(document.querySelectorAll(".chatmeta.picks button")[0]);
+    await tap(document.querySelectorAll(".cstrip .pkchip")[1]);
     await sleep(200);
     out.termMain = Array.from(sheet().querySelectorAll(".pklist")[0].querySelectorAll(".pkname")).map((n) => n.textContent.trim());
     out.termOn = text(".sheet.on .pkrow.on .pkname");
     document.querySelector(".sheet.on .sheetclose").click();
     await sleep(300);
-    await tap(document.querySelectorAll(".chatmeta.picks button")[2]);
+    await tap(document.querySelectorAll(".cstrip .pkchip")[0]);
     await sleep(200);
     out.termModesOff = rows().every((r) => r.disabled);
     out.termNote = text(".sheet.on .pknote")[0] || "";
+    document.querySelector(".sheet.on .sheetclose").click();
+    await sleep(300);
+
+    // A session launched past the questions says so in red; an executor that
+    // cannot change a setting keeps the words and opens nothing.
+    transport = "stream";
+    show({ ...stream, mode: "bypassPermissions" });
+    await sleep(300);
+    out.loud = text(".cstrip .pkchip.crit");
+    show(stream, { ...exec, kinds: exec.kinds.filter((k) => k !== "session.set") });
+    await sleep(300);
+    out.bare = Array.from(document.querySelectorAll(".cstrip .pkchip"))
+        .map((b) => `${b.textContent.trim()}${b.disabled ? " off" : ""}`);
     window.done = out;
 })();
 </script>

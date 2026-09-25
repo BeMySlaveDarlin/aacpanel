@@ -52,13 +52,7 @@
     font-size: var(--t-xs);
     color: var(--ink-faint);
 }
-.chatmeta > span { white-space: nowrap; }
-.chatmeta > span + span::before {
-    content: "·";
-    margin: 0 .35rem;
-    color: rgba(150, 170, 255, .3);
-}
-.chatmeta > span.crit { color: var(--crit); }
+.chatmeta .deckuse { font-size: var(--t-xs); }
 
 .chatsub .sep { color: rgba(150, 170, 255, .3); margin: 0 .35rem; }
 

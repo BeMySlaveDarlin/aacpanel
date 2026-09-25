@@ -32,6 +32,8 @@ type pickPhoneShot struct {
 	TermOn        []string `json:"termOn"`
 	TermModesOff  bool     `json:"termModesOff"`
 	TermNote      string   `json:"termNote"`
+	Loud          []string `json:"loud"`
+	Bare          []string `json:"bare"`
 	AttachMode    string   `json:"attachMode"`
 	AttachOpens   string   `json:"attachOpens"`
 }
@@ -43,8 +45,8 @@ func TestThePhonePicksAModelFromTheListClaudeGives(t *testing.T) {
 	var got pickPhoneShot
 	runFixture(t, "pickphone.html", &got)
 
-	if !reflect.DeepEqual(got.Head, []string{"opus-5-5", "xhigh", "auto"}) {
-		t.Errorf("the header offers %v", got.Head)
+	if !reflect.DeepEqual(got.Head, []string{"Auto", "Opus 5.5", "Extra"}) {
+		t.Errorf("the line inside the composer offers %v", got.Head)
 	}
 	if got.ModelTitle != "Select model" {
 		t.Errorf("the model list opens as %q", got.ModelTitle)
@@ -131,9 +133,23 @@ func TestATerminalPicksFromTheCatalogueAndNotItsMode(t *testing.T) {
 	}
 }
 
+// A session that asks about nothing says so in red where its mode shows, and
+// an executor that cannot change a setting leaves the words without a way in.
+func TestTheComposerStripKeepsItsWordsAndItsWarning(t *testing.T) {
+	var got pickPhoneShot
+	runFixture(t, "pickphone.html", &got)
+
+	if !reflect.DeepEqual(got.Loud, []string{"Bypass"}) {
+		t.Errorf("a session past the questions shows %v in red", got.Loud)
+	}
+	if !reflect.DeepEqual(got.Bare, []string{"Auto off", "Opus 5.5 off", "Extra off"}) {
+		t.Errorf("without a way to change them the strip reads %v", got.Bare)
+	}
+}
+
 type pickDeskShot struct {
 	Chips       []string `json:"chips"`
-	HeadButtons int      `json:"headButtons"`
+	InComposer  int      `json:"inComposer"`
 	ModelMenu   []string `json:"modelMenu"`
 	Numbers     []string `json:"numbers"`
 	Marked      []string `json:"marked"`
@@ -149,7 +165,7 @@ type pickDeskShot struct {
 	Confirm     bool     `json:"confirm"`
 }
 
-// On a wide screen the three sit under the composer and open menus over it:
+// On a wide screen the three sit inside the composer and open menus over it:
 // the models numbered, the older ones beside them, the mode that most sessions
 // run in first, the effort a scale. A digit picks, Esc and a press elsewhere
 // close, and a pick goes out as one change with no sheet in front of it.
@@ -157,8 +173,8 @@ func TestTheDesktopPicksFromMenusOverTheComposer(t *testing.T) {
 	var got pickDeskShot
 	runWideFixture(t, "pickdesk.html", &got)
 
-	if !reflect.DeepEqual(got.Chips, []string{"Auto", "Opus 5.5", "Extra"}) {
-		t.Errorf("the strip under the composer reads %v", got.Chips)
+	if !reflect.DeepEqual(got.Chips, []string{"Auto", "Opus 5.5", "Extra"}) || got.InComposer != 1 {
+		t.Errorf("the strip inside the composer reads %v (strips there: %d)", got.Chips, got.InComposer)
 	}
 	if !reflect.DeepEqual(got.ModelMenu, []string{"Opus 5.5", "Fable 5.1", "Sonnet 5", "Haiku 4.5", "More models"}) ||
 		!reflect.DeepEqual(got.Numbers, []string{"1", "2", "3", "4"}) || !reflect.DeepEqual(got.Marked, []string{"Opus 5.5"}) {

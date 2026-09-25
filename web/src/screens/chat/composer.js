@@ -191,7 +191,7 @@ export function asksSend(e, wide) {
 }
 
 // Composer writes into a live session.
-export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker }) {
+export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, strip }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -382,7 +382,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                 onPaste=${paste}
                 onKeyDown=${keys}
             ></textarea>
-            ${pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
+            ${!strip && pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
             ${stopping
                 ? html`
                     <button
@@ -408,6 +408,10 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                         onContextMenu=${(e) => hear.on && e.preventDefault()}
                     >${asMic || hear.live ? Icon.mic() : Icon.send()}</button>
                 `}
+            ${strip && html`<div class="cstrip">
+                ${pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
+                ${strip}
+            </div>`}
         </div>
     `;
 }

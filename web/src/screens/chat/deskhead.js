@@ -5,7 +5,6 @@ import { ContextBar } from "../../ui/bar.js";
 import { Icon } from "../../ui/icons.js";
 import { ago, plural, share, since, tokens } from "../../format.js";
 import { Marquee, modelName } from "./head.js";
-import { modeInfo } from "./tools.js";
 import { waitText } from "../../ui/waits.js";
 import { WindowToggle } from "./window.js";
 import { SwitchToggle } from "./switch.js";
@@ -36,15 +35,14 @@ function limitSay(row) {
 }
 
 function liveFacts(live, pct) {
-    const mode = modeInfo(live);
     const said = live.messages || 0;
     const empty = !live.tokens;
     return html`
         ${ctxFact(live, pct, "of the context")}
-        <span class="dkfact"><b>${modelName(live) || "model"}</b><span>${live.effort || "effort"}</span></span>
-        <span class=${`dkfact${mode.danger ? " dkchatloud" : ""}`} title=${mode.title}>
-            <b>${mode.label}</b><span>mode</span>
-        </span>
+        ${live.tokensIn > 0 && html`
+            <span class="dkfact"><b>${tokens(live.tokensIn)}</b><span>in</span></span>
+            <span class="dkfact"><b>${tokens(live.tokensOut)}</b><span>out</span></span>
+        `}
         <span class="dkfact"><b>${said}</b><span>${plural(said, "message", "messages")}</span></span>
         ${!empty && html`<span class="dkfact"><b>${since(live.lastRequestAt)}</b><span>since the request</span></span>`}
         <span class="dkchatgrow"></span>

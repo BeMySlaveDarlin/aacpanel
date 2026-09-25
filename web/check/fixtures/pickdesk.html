@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="deskshell"><div class="shell no-nav"><main class="body" id="root"></main></div></div>
 <script type="module">
-// A live session on a wide screen: under the composer the mode on the left, the
-// model and its effort on the right, each a menu over the composer.
+// A live session on a wide screen: inside the composer the mode on the left,
+// the model and its effort on the right, each a menu over the composer.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -73,7 +73,7 @@ const tap = async (el) => { el.click(); await sleep(300); };
     await sleep(500);
     const out = {};
     out.chips = chips().map((c) => c.textContent.trim());
-    out.headButtons = document.querySelectorAll(".chatmeta.picks button").length;
+    out.inComposer = document.querySelectorAll(".composer .cstrip .pickbar").length;
 
     await tap(chips()[1]);
     out.modelMenu = text(".pkmenu.right > .pkrow .pkname");

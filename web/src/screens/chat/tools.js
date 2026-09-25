@@ -1,12 +1,10 @@
-// Conversation header badges and the composer paperclip with its target sheet.
+// The composer paperclip with its target sheet.
 
 import { html } from "../../html.js";
 import { Sheet } from "../../ui/sheet.js";
 import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
-import { ago } from "../../format.js";
-import { modelName } from "./head.js";
 import { modeName } from "./picker.js";
 
 const FILE_MAX = 32 * 1024 * 1024;
@@ -14,66 +12,6 @@ const FILE_MAX = 32 * 1024 * 1024;
 const PACK_MAX = 32 * 1024 * 1024;
 
 export const FILES_MAX = 16;
-
-
-const MODES = {
-    plan: ["plan", false, "planning: the session looks and reasons, but does not act"],
-    default: ["manual", false, "the session asks permission for every action"],
-    acceptEdits: ["edits", false, "edits to files go without a question, everything else is asked"],
-    auto: ["auto", false, "the classifier decides: part of the actions go without a question"],
-    bypassPermissions: ["bypass", true, "the session asks about nothing — neither writes nor commands"],
-    dontAsk: ["no asking", true, "the session asks for no permissions"],
-};
-
-// SessionMode renders the permission mode as a badge next to model and effort.
-export function SessionMode({ live }) {
-    const { label, danger, title } = modeInfo(live);
-    return html`
-        <span class=${danger ? "crit" : ""} title=${title}>${label}</span>
-    `;
-}
-
-// modeInfo returns the label, the loudness and the tooltip of a permission mode.
-export function modeInfo(live) {
-    const known = live.mode && MODES[live.mode];
-    const [label, danger, why] = known || ["mode ?", false, whyUnknown(live)];
-    return { label, danger, title: `${why}. ${knownAt(live)}` };
-}
-
-function knownAt(live) {
-    if (!live.modeAt) return "when the session said so is unknown";
-    return `the session said so ${ago(live.modeAt)}`;
-}
-
-function whyUnknown(live) {
-    if (!live.mode) return "the permission mode could not be worked out";
-    return `the mode “${live.mode}” is unknown to the panel`;
-}
-
-// HeadTools renders the model, the effort and the mode in the conversation
-// header. Where the host can change them, each opens its list.
-export function HeadTools({ live, onPick }) {
-    if (!onPick) {
-        return html`
-            <div class="chatmeta">
-                <span title="session model">${modelName(live) || "model"}</span>
-                <span title="effort level">${live.effort || "effort"}</span>
-                <${SessionMode} live=${live} />
-            </div>
-        `;
-    }
-    const { label, danger, title } = modeInfo(live);
-    return html`
-        <div class="chatmeta picks">
-            <button type="button" aria-label="session model — pick another"
-                    onClick=${() => onPick("model")}>${modelName(live) || "model"}</button>
-            <button type="button" aria-label="effort level — pick another"
-                    onClick=${() => onPick("effort")}>${live.effort || "effort"}</button>
-            <button type="button" class=${danger ? "crit" : ""} title=${title}
-                    aria-label="permission mode — pick another" onClick=${() => onPick("mode")}>${label}</button>
-        </div>
-    `;
-}
 
 const TARGETS = [
     { id: "camera", label: "Camera", icon: Icon.camera, accept: "image/*", capture: "environment", multiple: false },
