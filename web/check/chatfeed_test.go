@@ -334,7 +334,13 @@ func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
 		t.Errorf("%s: the view toggle is drawn in %d places — the phone and the desktop drift apart silently",
 			chatFile, n)
 	}
-	if !strings.Contains(src, "tools=${tools}") || !strings.Contains(src, "${live && tools}") {
+	for _, tool := range []string{"<${WindowToggle}", "<${RemoteToggle}"} {
+		if n := strings.Count(src, tool); n != 1 {
+			t.Errorf("%s: %s is drawn in %d places — the phone and the desktop drift apart silently", chatFile, tool, n)
+		}
+	}
+	if !strings.Contains(src, "tools=${tools}") || !strings.Contains(src, "${viewPair}") ||
+		!strings.Contains(src, "${hostTools}") {
 		t.Errorf("%s: the two headers do not share the tools of the conversation", chatFile)
 	}
 }

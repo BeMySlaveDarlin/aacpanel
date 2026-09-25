@@ -12,7 +12,7 @@ import (
 func TestMain(m *testing.M) {
 	for _, wait := range []*time.Duration{
 		&arriveWait, &fieldWait, &freeWait, &seenTimeout, &sendWait, &workOpenWait,
-		&sendTimeout, &softWait, &pollEvery, &windowWait, &tmuxTimeout,
+		&sendTimeout, &softWait, &pollEvery, &windowWait, &tmuxTimeout, &remoteWait, &remoteStepWait,
 	} {
 		*wait /= 10
 	}

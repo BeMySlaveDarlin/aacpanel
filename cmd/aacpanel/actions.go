@@ -170,6 +170,12 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		req.Rename, _ = body.Params["name"].(string)
 		params = map[string]any{"name": req.Rename}
 	}
+	if req.Kind == action.SessionRemote {
+		if on, ok := body.Params["on"].(bool); ok {
+			req.Remote = &on
+			params = map[string]any{"on": on}
+		}
+	}
 	if req.Kind == action.SessionMcp {
 		change := &action.McpChange{}
 		change.Server, _ = body.Params["server"].(string)

@@ -127,6 +127,7 @@ export const Icon = {
 
     feed: () => html`<svg ...${stroke}><path d="M3.5 6.5h17v9H9l-5.5 4z" /></svg>`,
 
+    remote: () => html`<svg ...${stroke}><rect x="5" y="3" width="10" height="18" rx="2" /><path d="M9 18h2M18.5 9a4.5 4.5 0 0 1 0 6M21 6.5a8 8 0 0 1 0 11" /></svg>`,
     monitor: () => html`<svg ...${stroke}><rect x="2.5" y="4.5" width="19" height="12" rx="2" /><path d="M12 16.5V19M8.5 19h7" /></svg>`,
 
     download: () => html`<svg ...${stroke}><path d="M12 4v10M8 10.5l4 4 4-4M5 19h14" /></svg>`,

@@ -119,6 +119,22 @@ def live_session_status_at():
     return _by_name(stamp)
 
 
+# The address of a session on claude.ai while its Remote Control is up: claude
+# keeps the id of the bridge in the file of the session and takes it out when
+# the bridge goes.
+REMOTE_URL = "https://claude.ai/code/"
+
+
+def live_session_remote():
+    """Maps a session name to its address on claude.ai while Remote Control is on."""
+    def address(data):
+        bridge = data.get("bridgeSessionId")
+        if not isinstance(bridge, str) or not bridge.strip():
+            return None
+        return REMOTE_URL + bridge.strip()
+    return _by_name(address)
+
+
 def _by_name(value_of):
     out, dropped = {}, set()
     for data in live_session_files():
@@ -157,6 +173,7 @@ def sessions():
     waits = live_session_waits()
     statuses = live_session_status()
     stamps = live_session_status_at()
+    remotes = live_session_remote()
     seen_transcripts = set()
     for s in data.get("sessions", []):
         transcript = s.get("transcript") or ""
@@ -174,6 +191,9 @@ def sessions():
         wait = waits.get(s.get("session") or "")
         if wait:
             s["waitingFor"] = wait
+        remote = remotes.get(s.get("session") or "")
+        if remote:
+            s["remote"] = remote
         status = statuses.get(s.get("session") or "")
         if status:
             s["status"] = status

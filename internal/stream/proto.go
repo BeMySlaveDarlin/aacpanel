@@ -109,6 +109,10 @@ type Spec struct {
 	// session in a terminal gets it as an argument; on the stream it is a
 	// message like any other.
 	Intent string `json:"intent,omitempty"`
+	// RemoteControl switches Remote Control on once claude has answered the
+	// handshake. A terminal takes it as an argument; on the stream it is a
+	// request.
+	RemoteControl bool `json:"remoteControl,omitempty"`
 }
 
 // Ops of the socket.
@@ -247,4 +251,5 @@ var Controls = map[string]bool{
 	"get_memory_dialog":       true,
 	"get_skills_dialog":       true,
 	"rename_session":          true,
+	"remote_control":          true,
 }

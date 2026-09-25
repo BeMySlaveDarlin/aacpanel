@@ -162,7 +162,10 @@ var instantActions = map[string]bool{
 	"session.mcp": true,
 	// A new name is typed on the rename sheet and saved with its own button:
 	// the sheet is where the person chose, and the old name can be typed back.
-	"session.rename":  true,
+	"session.rename": true,
+	// Remote Control is a switch in the header: it says which way it stands,
+	// and the same press puts it back.
+	"session.remote":  true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -181,6 +184,7 @@ var instantExecActions = map[string]bool{
 	"session.set":     true,
 	"session.mcp":     true,
 	"session.rename":  true,
+	"session.remote":  true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

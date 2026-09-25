@@ -40,6 +40,7 @@ import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
 import { WindowToggle, useWindow } from "./chat/window.js";
+import { RemoteToggle } from "./chat/remote.js";
 import { moveSession, sidesOf, useSwitchWay } from "./chat/switch.js";
 import { TakeBack } from "./chat/takeback.js";
 import { Term, useTermAvailable } from "./chat/term.js";
@@ -281,11 +282,14 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
     const feed = weld(state.items);
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
-    const tools = live && html`
-        ${sides.pair && html`<${ViewToggle} view=${view} onView=${onView} tip=${sides.tip} why=${sides.why} />`}
+    const viewPair = live && sides.pair
+        && html`<${ViewToggle} view=${view} onView=${onView} tip=${sides.tip} why=${sides.why} />`;
+    const hostTools = live && html`
         <${WindowToggle} name=${name} live=${live} work=${state.work} exec=${exec}
                          win=${win} way=${way} onChange=${askWindow} />
+        <${RemoteToggle} name=${name} live=${live} exec=${exec} snapshot=${snapshot} />
     `;
+    const tools = live && html`${viewPair}${hostTools}`;
     const commandsChip = html`<${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />`;
 
     return html`
@@ -295,8 +299,11 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage 
             : html`
         <${BackHead} onBack=${onBack} label="to sessions" foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
                      tools=${html`
-                         ${here && html`<${RepoButton} onOpen=${() => setRepo(true)} />`}
-                         ${live && tools}
+                         <span class="ptoolrow">
+                             ${here && html`<${RepoButton} onOpen=${() => setRepo(true)} />`}
+                             ${viewPair}
+                         </span>
+                         ${live && html`<span class="ptoolrow">${hostTools}</span>`}
                      `}>
             <div class="chathead">
                 <h2>

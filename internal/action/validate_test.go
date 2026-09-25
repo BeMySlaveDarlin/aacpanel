@@ -597,3 +597,25 @@ func TestAQuestionAsideIsBoundedLikeAMessage(t *testing.T) {
 		t.Errorf("a question about commands is rejected: %v", err)
 	}
 }
+
+// Remote Control is switched on or off by saying which, and only
+// session.remote says it.
+func TestRemoteSaysOnOrOff(t *testing.T) {
+	on, off := true, false
+	for _, want := range []*bool{&on, &off} {
+		if err := (Request{ID: "a1", Kind: SessionRemote, Target: "person", Remote: want}).Validate(); err != nil {
+			t.Fatalf("remote control %v is rejected: %v", *want, err)
+		}
+	}
+	bad := map[string]Request{
+		"neither on nor off":      {ID: "a1", Kind: SessionRemote, Target: "person"},
+		"a switch riding a reply": {ID: "a1", Kind: SessionSend, Target: "person", Text: "hi", Remote: &on},
+	}
+	for name, r := range bad {
+		t.Run(name, func(t *testing.T) {
+			if err := r.Validate(); err == nil {
+				t.Errorf("accepted %+v", r)
+			}
+		})
+	}
+}

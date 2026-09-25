@@ -46,6 +46,9 @@ type Request struct {
 	// Rename is the new name session.rename gives a session.
 	Rename string `json:"rename,omitempty"`
 
+	// Remote is whether session.remote switches Remote Control on or off.
+	Remote *bool `json:"remote,omitempty"`
+
 	Ask string `json:"ask,omitempty"`
 
 	// Part names the screen a setup question asks for.

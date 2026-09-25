@@ -141,10 +141,6 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 // instead of a terminal in tmux, and no window — there is no screen to open
 // one to.
 func runStream(ctx context.Context, spec Spec, params Params, name, bin string, env *sessionEnv, warns []string) (Report, error) {
-	if params.RemoteControl != nil && *params.RemoteControl {
-		warns = append(warns, "remote control was not switched on: a session on the stream has no "+
-			"terminal for claude.ai to attach to")
-	}
 	conversation := spec.Resume
 	if conversation == "" {
 		conversation = stream.NewSessionID()
@@ -155,6 +151,8 @@ func runStream(ctx context.Context, spec Spec, params Params, name, bin string, 
 		SessionID: conversation,
 		Argv:      append([]string{"env", "-i", "sh", env.path, bin}, streamArgs(name, conversation, spec.Resume, params)...),
 		Intent:    params.Intent,
+		// Remote control is on only when the map says so, the same as in a terminal.
+		RemoteControl: params.RemoteControl != nil && *params.RemoteControl,
 	})
 	if err != nil {
 		return Report{}, err

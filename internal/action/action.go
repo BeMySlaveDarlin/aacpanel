@@ -53,6 +53,10 @@ const (
 	// SessionRename gives a live session on the stream a new name.
 	SessionRename Kind = "session.rename"
 
+	// SessionRemote switches Remote Control of a live session on or off: the
+	// bridge that makes it reachable from the Claude app and claude.ai.
+	SessionRemote Kind = "session.remote"
+
 	// SessionSwitch moves a live session between the console and the feed:
 	// the same conversation is closed on one side and resumed on the other.
 	SessionSwitch Kind = "session.switch"
@@ -76,7 +80,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
 	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
-	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, TaskStop, AgentStop, WindowOpen, WindowClose,
+	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }
 

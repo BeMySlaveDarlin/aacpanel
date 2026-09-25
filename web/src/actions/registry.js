@@ -358,6 +358,11 @@ export const ACTIONS = {
         effect: "One MCP server of the session reconnects, turns on or turns off; its tools come or go with the next request, and the change is undone the same way.",
         done: (target, params) => `${(params && params.server) || "The server"}: ${mcpDone(params)}`,
     },
+    "session.remote": {
+        instant: true,
+        effect: "Remote Control makes the session reachable from the Claude app and claude.ai; switched off, the bridge goes and the session stays where it is.",
+        done: (target, params) => `${target}: Remote Control ${params && params.on ? "is on" : "is off"}`,
+    },
     "session.rename": {
         instant: true,
         effect: "The session answers to the new name: the panel and the host find it by that name, and its conversation stays as it is.",
@@ -706,6 +711,7 @@ const NAMES = {
     "session.set": "Change a setting",
     "session.mcp": "Change an MCP server",
     "session.rename": "Rename the session",
+    "session.remote": "Remote Control",
     "window.open": "Open window",
     "window.close": "Close window",
     "device.revoke": "Revoke device",

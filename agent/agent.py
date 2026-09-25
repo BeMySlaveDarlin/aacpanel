@@ -27,7 +27,7 @@ sys.modules.setdefault("agent", sys.modules[__name__])
 
 from collect.limits import limits, limits_paths, limits_sources  # noqa: E402,F401
 from collect.live import (claude_config_dirs, live_session_files,  # noqa: E402,F401
-                          live_session_status, live_session_status_at,
+                          live_session_remote, live_session_status, live_session_status_at,
                           live_session_waits, session_files, session_profiles,
                           sessions, sessions_dirs, sessions_sources)
 from collect.loop import main, write_state  # noqa: E402,F401

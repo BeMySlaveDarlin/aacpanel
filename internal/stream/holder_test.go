@@ -643,6 +643,34 @@ func TestTheOpeningMessageIsSentAfterTheHandshake(t *testing.T) {
 	}
 }
 
+// A project that has Remote Control on gets it on the stream too: the holder
+// asks for it once claude has answered the handshake, before the first message.
+func TestRemoteControlIsSwitchedOnAfterTheHandshake(t *testing.T) {
+	r := start(t, func(s *Spec) { s.RemoteControl = true; s.Intent = "start with the tests" })
+	r.waitFor("the opening turn", func(s State) bool { return len(s.Init) > 0 && !s.Busy && len(s.Queue) == 0 })
+	got := r.received()
+	init := strings.Index(got, `"initialize"`)
+	remote := strings.Index(got, `"remote_control"`)
+	intent := strings.Index(got, "start with the tests")
+	if init < 0 || remote < init || intent < remote || !strings.Contains(got, `"enabled":true`) {
+		t.Fatalf("remote control was not asked for between the handshake and the first message:\n%s", got)
+	}
+}
+
+// Remote Control is switched on and off from the panel with one field.
+func TestRemoteControlIsSwitchedWithItsOneField(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	for _, on := range []bool{true, false} {
+		if reply := r.ask(Request{Op: OpControl, Subtype: "remote_control", Fields: map[string]any{"enabled": on}}); !reply.OK {
+			t.Fatalf("remote control %v was refused: %s", on, reply.Error)
+		}
+	}
+	if got := r.received(); !strings.Contains(got, `"enabled":false`) {
+		t.Errorf("claude was not asked to switch remote control off:\n%s", got)
+	}
+}
+
 func TestTheStateFileKeepsNoWordsOfTheConversation(t *testing.T) {
 	r := start(t, nil)
 	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
@@ -779,13 +807,17 @@ func TestSettingsRequestsPassOnlyThePanelsShape(t *testing.T) {
 		{"rename_session", map[string]any{"title": "x", "source": "user"}},
 		{"rename_session", map[string]any{"title": "", "source": "host"}},
 		{"rename_session", map[string]any{"title": "x", "source": "host", "sessionId": "other"}},
+		{"remote_control", map[string]any{}},
+		{"remote_control", map[string]any{"enabled": "yes"}},
+		{"remote_control", map[string]any{"enabled": true, "work_secret": "s3cret"}},
+		{"remote_control", map[string]any{"enabled": true, "reattach_session_id": "cse_other"}},
 	} {
 		reply := r.ask(Request{Op: OpControl, Subtype: c.subtype, Fields: c.fields})
 		if reply.OK {
 			t.Errorf("%s %v was passed on", c.subtype, c.fields)
 		}
 	}
-	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "get_settings", "rename_session"} {
+	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "get_settings", "rename_session", "remote_control"} {
 		if strings.Contains(r.received(), word) {
 			t.Errorf("claude read %s", word)
 		}

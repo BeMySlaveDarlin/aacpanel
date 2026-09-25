@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Remote Control in the header: off, on, a session of a contour on another
+// account, and a host whose executor does not know the switch.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { RemoteToggle } from "/src/screens/chat/remote.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const sent = [];
+window.fetch = async (url, init) => {
+    if (String(url) === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return new Response(JSON.stringify({ logged: true, ok: true, detail: "ok" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const snapshot = { profiles: [
+    { name: "personal", auth: "builtin" },
+    { name: "evirma", auth: "token" },
+] };
+const exec = { available: true, kinds: ["session.remote"] };
+const old = { available: true, kinds: ["session.send"] };
+const row = (id, name, live, ex = exec) => html`
+    <div id=${id}><${RemoteToggle} name=${name} live=${live} exec=${ex} snapshot=${snapshot} /></div>`;
+
+render(h(ToastHost, null, h(GateHost, null, html`
+    ${row("off", "atlas", { profile: "personal" })}
+    ${row("on", "aacpanel", { profile: "personal", remote: "https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT" })}
+    ${row("work", "wb-parser", { profile: "evirma" })}
+    ${row("old", "book", { profile: "personal" }, old)}
+`)), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+window.done = (async () => {
+    await sleep(200);
+    const button = (id) => document.querySelector(`#${id} .rcbtn`);
+    const look = (id) => {
+        const b = button(id);
+        return { on: b.classList.contains("on"), pressed: b.getAttribute("aria-pressed"),
+                 disabled: b.disabled, label: b.getAttribute("aria-label") || "" };
+    };
+    const before = { off: look("off"), on: look("on"), work: look("work"), old: look("old") };
+    button("off").click();
+    await sleep(300);
+    button("on").click();
+    await sleep(300);
+    button("work").click();
+    button("old").click();
+    await sleep(300);
+    return { before, afterOff: look("off"), sent: sent.map((s) => `${s.kind}:${s.target}:${JSON.stringify(s.params)}`) };
+})();
+</script>

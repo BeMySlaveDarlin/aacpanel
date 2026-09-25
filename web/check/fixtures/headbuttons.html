@@ -5,10 +5,11 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="module">
-// The tools of the header of a conversation: the files of the project, the
-// pair that switches between the run and the terminal, and the window on the
-// host. Three controls in one row — and the two that stand on their own have
-// to read as controls beside the pair that carries a frame.
+// The tools of the header of a conversation on a phone: the files of the
+// project and the pair that switches between the run and the terminal in one
+// row, the window on the host and Remote Control in the row under it. The
+// buttons that stand on their own have to read as controls beside the pair
+// that carries a frame.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -56,12 +57,13 @@ window.done = (async () => {
             height: round(box.height),
             width: round(box.width),
             top: round(box.top),
+            right: round(box.right),
             background: style.backgroundColor + " / " + style.backgroundImage,
             hasBackground: painted,
             border: style.borderTopWidth,
             hasBorder: parseFloat(style.borderTopWidth) > 0 && opaque(style.borderTopColor),
         };
     };
-    return { files: look(".viewbtn.solo"), pair: look(".viewsw"), window: look(".winbtn") };
+    return { files: look(".viewbtn.solo"), pair: look(".viewsw"), window: look(".winbtn"), remote: look(".rcbtn") };
 })();
 </script>

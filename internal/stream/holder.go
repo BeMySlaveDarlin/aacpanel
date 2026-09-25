@@ -23,6 +23,9 @@ const (
 	// settings, plugins and MCP servers first, and a cold start with a few of
 	// them is seconds.
 	initWait = 90 * time.Second
+	// How long claude may take to bring Remote Control up: it registers the
+	// session with claude.ai before it answers.
+	remoteWait = 60 * time.Second
 	// How long a control request may wait for its answer.
 	controlWait = 30 * time.Second
 	// A question aside is answered by the model, and thinking takes as long
@@ -231,6 +234,11 @@ func (h *Holder) handshake() {
 	}
 	h.mu.Unlock()
 	h.saveSummary()
+	if h.spec.RemoteControl {
+		if _, err := h.control(context.Background(), "remote_control", map[string]any{"enabled": true}, remoteWait); err != nil {
+			h.logf("remote control was not switched on: %v", err)
+		}
+	}
 	if strings.TrimSpace(h.spec.Intent) != "" {
 		if _, err := h.send(h.spec.Intent, ""); err != nil {
 			h.logf("the opening message was not sent: %v", err)

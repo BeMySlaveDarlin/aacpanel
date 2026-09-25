@@ -62,6 +62,12 @@ func vetSettings(subtype string, fields map[string]any) error {
 		if len(fields) != 2 || !ok || title == "" || fields["source"] != "host" {
 			return fmt.Errorf("rename_session passes on only {title, source: host}")
 		}
+	case "remote_control":
+		// The request can also carry a secret of the bridge and the session
+		// to attach to: those belong to claude.ai, and the panel only switches.
+		if _, ok := fields["enabled"].(bool); len(fields) != 1 || !ok {
+			return fmt.Errorf("remote_control passes on only {enabled: true|false}")
+		}
 	}
 	return nil
 }

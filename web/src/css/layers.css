@@ -128,6 +128,11 @@
     gap: .3rem;
     min-width: 4.4rem;
 }
+/* The tools of a conversation's header stand in rows under each other, flush
+   right: what the conversation is watched with, and what it does on the host. */
+.pheadtools:has(> .ptoolrow) { flex-direction: column; align-items: flex-end; justify-content: center; }
+.ptoolrow { display: flex; align-items: center; justify-content: flex-end; gap: .3rem; }
+.ptoolrow:empty { display: none; }
 
 .phead > .ctxbar { grid-column: 1 / -1; }
 

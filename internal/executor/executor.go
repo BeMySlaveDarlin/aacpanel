@@ -100,6 +100,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionMcp(ctx, req.Target, req.Mcp)
 	case action.SessionRename:
 		return e.sessionRename(ctx, req.Target, req.Rename)
+	case action.SessionRemote:
+		return e.sessionRemote(ctx, req.Target, *req.Remote)
 	case action.TaskStop:
 		return e.taskStop(ctx, req.Target, req.Work)
 	case action.AgentStop:

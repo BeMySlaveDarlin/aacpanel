@@ -1013,6 +1013,8 @@ type fakeSession struct {
 	// startedAt is the start of the session in milliseconds, as claude writes it.
 	startedAt int64
 	version   string
+	// bridge is the id of the Remote Control bridge claude writes while it is up.
+	bridge string
 }
 
 func sessionFiles(t *testing.T, files ...fakeSession) {
@@ -1044,6 +1046,9 @@ func sessionFiles(t *testing.T, files ...fakeSession) {
 		}
 		if f.version != "" {
 			body = strings.TrimSuffix(body, "}") + fmt.Sprintf(`,"version":%q}`, f.version)
+		}
+		if f.bridge != "" {
+			body = strings.TrimSuffix(body, "}") + fmt.Sprintf(`,"bridgeSessionId":%q}`, f.bridge)
 		}
 		if err := os.WriteFile(filepath.Join(root, strconv.Itoa(f.pid)+".json"), []byte(body), 0o600); err != nil {
 			t.Fatal(err)

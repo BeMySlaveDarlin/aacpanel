@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1059,6 +1060,28 @@ func TestRunActionCarriesTheNewNameToExecutor(t *testing.T) {
 	}
 	if w := post(t, srv, `{"kind":"session.rename","target":"person","params":{"name":"../etc"}}`); w.Code != http.StatusBadRequest {
 		t.Errorf("a name with a path in it passed with %d", w.Code)
+	}
+}
+
+func TestRunActionCarriesTheRemoteSwitchToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	for _, on := range []bool{true, false} {
+		body := fmt.Sprintf(`{"kind":"session.remote","target":"person","params":{"on":%v}}`, on)
+		if w := post(t, srv, body); w.Code != http.StatusOK {
+			t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+		}
+		select {
+		case got := <-fake.got:
+			if got.Kind != action.SessionRemote || got.Target != "person" || got.Remote == nil || *got.Remote != on {
+				t.Errorf("the executor got %+v", got)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("the executor did not get the request")
+		}
+	}
+	if w := post(t, srv, `{"kind":"session.remote","target":"person","params":{"on":"yes"}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("a switch that is neither on nor off passed with %d", w.Code)
 	}
 }
 

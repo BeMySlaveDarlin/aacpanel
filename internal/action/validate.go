@@ -259,6 +259,13 @@ func (r Request) Validate() error {
 	} else if r.Rename != "" {
 		return badRequest("action %s renames no session", r.Kind)
 	}
+	if r.Kind == SessionRemote {
+		if r.Remote == nil {
+			return badRequest("action %s without saying on or off", r.Kind)
+		}
+	} else if r.Remote != nil {
+		return badRequest("action %s switches no remote control", r.Kind)
+	}
 	switch {
 	case r.Kind == TaskStop, r.Kind == AgentStop:
 		if r.Work == nil {

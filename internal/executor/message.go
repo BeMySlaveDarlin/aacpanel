@@ -28,6 +28,9 @@ type liveSession struct {
 	// Config is the config directory of the contour the session runs in: the
 	// one its session file lies under.
 	Config string
+	// Bridge is the id of the Remote Control bridge while it is up: claude
+	// writes it into the file of the session and takes it out when it goes.
+	Bridge string
 }
 
 func (e *Executor) sessionSend(ctx context.Context, target, text, messageID string) (string, error) {
@@ -276,6 +279,7 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 		ProcStart string `json:"procStart"`
 		StartedAt int64  `json:"startedAt"`
 		Version   string `json:"version"`
+		Bridge    string `json:"bridgeSessionId"`
 	}
 	if err := json.Unmarshal(raw, &file); err != nil {
 		return liveSession{}, false
@@ -294,6 +298,6 @@ func readSessionFile(dir string, pid int) (liveSession, bool) {
 		PID: pid, Name: file.Name, Socket: file.Socket,
 		Status: file.Status, CWD: file.CWD, SessionID: file.SessionID,
 		Started: time.UnixMilli(file.StartedAt), Version: file.Version,
-		Config: filepath.Dir(dir),
+		Config: filepath.Dir(dir), Bridge: file.Bridge,
 	}, true
 }

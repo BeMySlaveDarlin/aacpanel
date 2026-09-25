@@ -164,12 +164,13 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 	if rep.Transport != TransportStream || rep.Agent != 300 || rep.Conversation != spec.SessionID || rep.Konsole != 0 {
 		t.Errorf("report %+v", rep)
 	}
-	said := false
-	for _, w := range rep.Warnings {
-		said = said || strings.Contains(w, "remote control was not switched on")
+	if !spec.RemoteControl {
+		t.Errorf("remote control asked for a stream session did not reach its holder: %+v", spec)
 	}
-	if !said {
-		t.Errorf("remote control asked for a stream session was not refused out loud: %v", rep.Warnings)
+	for _, w := range rep.Warnings {
+		if strings.Contains(w, "remote control") {
+			t.Errorf("remote control asked for a stream session was refused: %v", rep.Warnings)
+		}
 	}
 }
 

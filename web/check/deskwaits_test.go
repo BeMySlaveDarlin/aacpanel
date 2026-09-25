@@ -216,6 +216,9 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		// A renamed session stays in the list under its conversation: the
 		// name changes with the next snapshot, and the open screen follows it.
 		"session.rename": "",
+		// Remote Control changes nothing in the list: the session stays where
+		// it stood, and the switch in its header follows the snapshot.
+		"session.remote": "",
 	}
 
 	for id, body := range sessionActions(t, files[registryFile]) {

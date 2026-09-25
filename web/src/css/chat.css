@@ -309,7 +309,8 @@
    mark on the header rather than as something to press. It wears the frame of
    the pair, and the padding of the pair with it, so the row stands level. */
 .viewbtn.solo,
-.winbtn {
+.winbtn,
+.rcbtn {
     width: calc(1.7rem + .24rem + 2 * var(--hair));
     height: calc(1.55rem + .24rem + 2 * var(--hair));
     background: var(--glass);
@@ -333,6 +334,19 @@
 .winbtn.on { color: var(--accent); background: var(--accent-bg); border-color: var(--edge); }
 
 .winbtn.off { opacity: .35; cursor: default; }
+
+/* Remote Control beside the window: the same frame, lit while the bridge is up. */
+.rcbtn {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    color: var(--ink-faint);
+    cursor: pointer;
+}
+.winbtn + .rcbtn { margin-left: .3rem; }
+.rcbtn svg { width: var(--i-sm); height: var(--i-sm); }
+.rcbtn.on { color: var(--accent); background: var(--accent-bg); border-color: var(--edge); }
+.rcbtn.off, .rcbtn:disabled { opacity: .35; cursor: default; }
 
 /* The quote button beside the selection: a small slab over the feed, placed by
    script and hidden until it has been measured — un-placed, it would flash at
