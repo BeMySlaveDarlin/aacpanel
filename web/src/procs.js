@@ -58,10 +58,11 @@ export function shortCmd(cmd) {
     return head.slice(head.lastIndexOf("/") + 1) + (cut < 0 ? "" : text.slice(cut));
 }
 
-// procNote is the line under a process: who runs it and that the number is
+// procNote is the line under a process: who runs it, the container it runs
+// in — which stands in the same list under that name — and that the number is
 // not an average of anything.
 export function procNote(p) {
-    return `pid ${p.pid}${p.user ? ` · ${p.user}` : ""} · right now`;
+    return `pid ${p.pid}${p.user ? ` · ${p.user}` : ""}${p.container ? ` · in ${p.container}` : ""} · right now`;
 }
 
 // mergeTop puts the containers of the history and the processes of the host
@@ -87,7 +88,7 @@ export function mergeTop(top, procs, metric, { field = "max", limit = 12 } = {})
         name: shortCmd(p.cmd),
         value: metric === "mem" ? p.rss : p.cpuPct,
         alive: true,
-        hint: `pid ${p.pid}${p.user ? ` · ${p.user}` : ""} · ${p.cmd}`,
+        hint: `pid ${p.pid}${p.user ? ` · ${p.user}` : ""}${p.container ? ` · in ${p.container}` : ""} · ${p.cmd}`,
         note: procNote(p),
     }));
     return [...containers, ...host]

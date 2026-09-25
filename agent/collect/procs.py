@@ -1,6 +1,7 @@
 """Host processes: who eats processor and memory right now."""
 import os
 import pwd
+import re
 import time
 
 from .metrics import mem_info, read
@@ -13,6 +14,12 @@ HZ = os.sysconf("SC_CLK_TCK")
 PAGE = os.sysconf("SC_PAGE_SIZE")
 
 _users = {}
+
+# The cgroup of a process in a container names the container: docker keeps it
+# in a scope of its own (docker-<id>.scope) or a directory of its own
+# (/docker/<id>). The same process is in the list of containers under its name,
+# and the panel says which one it is instead of counting it twice.
+CONTAINER_RE = re.compile(r"docker[-/]([0-9a-f]{64})")
 
 
 def parse_proc_stat(raw):
@@ -90,10 +97,24 @@ def proc_describe(pid, comm):
         except KeyError:
             _users[uid] = str(uid)
 
-    return {
+    out = {
         "cmd": (cmd or f"[{comm}]")[:CMD_MAX],
         "user": _users.get(uid, ""),
     }
+    container = proc_container(pid)
+    if container:
+        out["container"] = container
+    return out
+
+
+def proc_container(pid):
+    """Returns the id of the container a process runs in, empty when it runs on the host."""
+    try:
+        raw = read(f"/proc/{pid}/cgroup")
+    except OSError:
+        return ""
+    found = CONTAINER_RE.search(raw)
+    return found.group(1) if found else ""
 
 
 def proc_top(prev, cur, elapsed):

@@ -2,6 +2,7 @@ import os
 import pwd
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -88,6 +89,18 @@ class SampleAndDescribe(unittest.TestCase):
         got = procs.proc_describe(os.getpid(), "python3")
         self.assertIn("python3", got["cmd"])
         self.assertEqual(got["user"], pwd.getpwuid(os.getuid()).pw_name)
+
+    def test_a_process_of_the_host_names_no_container(self):
+        self.assertNotIn("container", procs.proc_describe(os.getpid(), "python3"))
+
+    def test_the_container_is_read_from_the_cgroup(self):
+        ids = "4426af4f45ae09720a1e50f220d19db5b71cfe897480d860f0bc761d7f4be69d"
+        for raw in (f"0::/system.slice/docker-{ids}.scope\n",
+                    f"12:memory:/docker/{ids}\n11:cpu:/docker/{ids}\n"):
+            with mock.patch.object(procs, "read", return_value=raw):
+                self.assertEqual(procs.proc_container(1), ids, raw)
+        with mock.patch.object(procs, "read", return_value="0::/user.slice/user-1000.slice\n"):
+            self.assertEqual(procs.proc_container(1), "")
 
     def test_a_long_command_is_truncated(self):
         got = procs.proc_describe(os.getpid(), "python3")

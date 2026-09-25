@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/docker"
 	"aacpanel/internal/store"
 )
 
@@ -63,6 +64,9 @@ type procRow struct {
 	CPUPct float64 `json:"cpuPct"`
 	RSS    int64   `json:"rss"`
 	MemPct float64 `json:"memPct"`
+	// Container is the container the process runs in: its id from the agent,
+	// its name once the service has looked it up.
+	Container string `json:"container,omitempty"`
 }
 
 type procsReply struct {
@@ -105,7 +109,49 @@ func (s *Server) apiProcs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-	writeJSON(w, procsReport(raw))
+	out := procsReport(raw)
+	if s.docker != nil && anyContainer(out.Items) {
+		if tree, err := s.docker.Tree(r.Context(), nil); err == nil {
+			nameContainers(out.Items, containerNames(tree))
+		}
+	}
+	writeJSON(w, out)
+}
+
+func anyContainer(rows []procRow) bool {
+	for _, row := range rows {
+		if row.Container != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func containerNames(tree *docker.Tree) map[string]string {
+	names := map[string]string{}
+	for _, stack := range tree.Stacks {
+		for _, c := range stack.Containers {
+			names[c.ID] = c.Name
+		}
+	}
+	return names
+}
+
+// nameContainers puts the name of its container on each process that runs in
+// one: the container stands in the same list under that name, and a reader
+// seeing two names counts two consumers. A container the listing does not
+// know keeps the short form of its id.
+func nameContainers(rows []procRow, names map[string]string) {
+	for i, row := range rows {
+		if row.Container == "" {
+			continue
+		}
+		if name := names[row.Container]; name != "" {
+			rows[i].Container = name
+		} else if len(row.Container) > 12 {
+			rows[i].Container = row.Container[:12]
+		}
+	}
 }
 
 func (s *Server) apiFaults(w http.ResponseWriter, r *http.Request) {

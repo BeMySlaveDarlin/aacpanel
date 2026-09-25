@@ -105,3 +105,27 @@ func TestProcsSayWhenAgentIsSilent(t *testing.T) {
 		t.Errorf("there is nothing for a person to read in the refusal: %q", rec.Body.String())
 	}
 }
+
+// A process in a container carries the name of its container: the container
+// stands in the same list, and two names would read as two consumers.
+func TestAProcessOfAContainerIsNamedByItsContainer(t *testing.T) {
+	const id = "4426af4f45ae09720a1e50f220d19db5b71cfe897480d860f0bc761d7f4be69d"
+	got := procsReport([]byte(`{"procs":{"at":1,"total":3,"items":[
+		{"pid":6345,"cmd":"python3 -m homeassistant","cpuPct":2,"container":"` + id + `"},
+		{"pid":7001,"cmd":"sleep 9","cpuPct":1,"container":"` + strings.Repeat("f", 64) + `"},
+		{"pid":1201,"cmd":"claude -n panel","cpuPct":1}
+	]}}`))
+	if !anyContainer(got.Items) {
+		t.Fatalf("the container of a process was lost on the way: %+v", got.Items)
+	}
+	nameContainers(got.Items, map[string]string{id: "homeassistant"})
+	if got.Items[0].Container != "homeassistant" {
+		t.Errorf("the process of homeassistant is named %q", got.Items[0].Container)
+	}
+	if got.Items[1].Container != strings.Repeat("f", 12) {
+		t.Errorf("a container the listing does not know is named %q: the short form of its id", got.Items[1].Container)
+	}
+	if got.Items[2].Container != "" {
+		t.Errorf("a process of the host was given a container: %q", got.Items[2].Container)
+	}
+}

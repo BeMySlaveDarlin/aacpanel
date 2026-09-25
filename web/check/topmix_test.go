@@ -66,6 +66,12 @@ func TestTheTopOfAHostMetricHoldsProcessesBesideContainers(t *testing.T) {
 	if !strings.Contains(proc.Sub, "pid 4242") || !strings.Contains(proc.Sub, "dev") {
 		t.Errorf("a process row says %q: without the pid and the user there is nothing to go and look at", proc.Sub)
 	}
+	if boxed, ok := findRow(got.CPURows, "homeassistant"); !ok || !strings.Contains(boxed.Sub, "in homeassistant") {
+		t.Errorf("a process of a container does not say which container it runs in: %+v", boxed)
+	}
+	if strings.Contains(proc.Sub, " in ") {
+		t.Errorf("a process of the host is placed in a container: %q", proc.Sub)
+	}
 	if !strings.Contains(proc.Title, "/usr/bin/python3") {
 		t.Errorf("the full command is not kept anywhere: the row carries %q", proc.Title)
 	}
