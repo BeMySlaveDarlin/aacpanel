@@ -17,10 +17,15 @@ const (
 	transcriptLookup = 450 * time.Millisecond
 )
 
+// seenAskTurn asks whether the session's own turn is over, instead of
+// whether a prompt landed.
+const seenAskTurn = "turn"
+
 type seenReq struct {
 	Session string `json:"session"`
 	Pos     *int64 `json:"pos,omitempty"`
 	Mark    string `json:"mark,omitempty"`
+	Ask     string `json:"ask,omitempty"`
 }
 
 type seenReply struct {
@@ -28,6 +33,7 @@ type seenReply struct {
 	Found bool  `json:"found"`
 	Pos   int64 `json:"pos"`
 	Seen  bool  `json:"seen"`
+	Ended bool  `json:"ended"`
 }
 
 type transcriptTail struct {

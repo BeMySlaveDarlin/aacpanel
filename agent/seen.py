@@ -19,6 +19,11 @@ MAX_CHUNK = 4 << 20
 
 MAX_PATHS = 64
 
+# How much of the end of a conversation is read for whether its turn is over:
+# the last word of the conversation is at the very end unless it is one huge
+# answer.
+TURN_TAIL = 512 << 10
+
 CHIPS = ("[Image#", "[Pastedtext#")
 
 _paths = {}
@@ -103,6 +108,44 @@ def tail(path, pos):
     return chunk[:cut].decode("utf-8", "replace"), pos + cut + 1
 
 
+def turn_ended(text):
+    """Reports whether the session's own turn is over, by the last word of its conversation, or None.
+
+    Claude keeps a session busy while an agent it sent off to work runs, long
+    after the turn that sent it: the turn is over when the last word is an
+    answer that ended it, and the reason an answer ended is written once it
+    has. A prompt, the result of a call or the news of a task after it is a
+    turn going on; the words of an agent are its own.
+    """
+    for line in reversed(text.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(record, dict) or record.get("isSidechain"):
+            continue
+        if record.get("type") == "user":
+            return False
+        if record.get("type") == "assistant":
+            message = record.get("message")
+            return isinstance(message, dict) and message.get("stop_reason") == "end_turn"
+    return None
+
+
+def end_of(path):
+    """Returns the whole lines at the end of a file."""
+    with open(path, "rb") as f:
+        size = f.seek(0, os.SEEK_END)
+        f.seek(max(0, size - TURN_TAIL))
+        chunk = f.read(TURN_TAIL)
+    if size > TURN_TAIL:
+        chunk = chunk[chunk.find(b"\n") + 1:]
+    return chunk.decode("utf-8", "replace")
+
+
 def locate(session):
     """Returns the conversation file for a uuid, remembering it for the time of sending."""
     with _paths_lock:
@@ -134,6 +177,14 @@ def answer(request):
         return {"ok": False, "error": f"the mark is longer than {MAX_MARK} characters"}
 
     path = locate(session)
+    if request.get("ask") == "turn":
+        if not path:
+            return {"ok": True, "found": False, "ended": False}
+        try:
+            ended = turn_ended(end_of(path))
+        except OSError:
+            return {"ok": True, "found": False, "ended": False}
+        return {"ok": True, "found": ended is not None, "ended": bool(ended)}
     if not path:
         return {"ok": True, "found": False, "pos": 0, "seen": False, "queued": False}
 

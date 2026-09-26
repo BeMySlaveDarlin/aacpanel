@@ -361,7 +361,15 @@ func transcriptMode(sessionID string, since time.Time) string {
 }
 
 func lastMode(path string, since time.Time) string {
-	tail, err := readTranscriptEnd(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	if info, err := f.Stat(); err == nil && info.Size() > transcriptTailBytes {
+		_, _ = f.Seek(info.Size()-transcriptTailBytes, io.SeekStart)
+	}
+	tail, err := io.ReadAll(f)
 	if err != nil {
 		return ""
 	}
@@ -383,20 +391,6 @@ func lastMode(path string, since time.Time) string {
 		return rec.Mode
 	}
 	return ""
-}
-
-// readTranscriptEnd reads the end of a transcript, where the state of a
-// conversation is.
-func readTranscriptEnd(path string) ([]byte, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	if info, err := f.Stat(); err == nil && info.Size() > transcriptTailBytes {
-		_, _ = f.Seek(info.Size()-transcriptTailBytes, io.SeekStart)
-	}
-	return io.ReadAll(f)
 }
 
 // switchedLaunch is the project's launch with the other transport and what

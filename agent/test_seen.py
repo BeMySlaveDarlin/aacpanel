@@ -172,3 +172,34 @@ class Seen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TurnEnded(Seen):
+    """Whether the session's own turn is over, for a console busy with the agents it sent off."""
+
+    def turn(self):
+        reply = seen.answer({"session": TALK, "ask": "turn"})
+        self.assertTrue(reply["ok"])
+        return reply["found"], reply["ended"]
+
+    def test_an_answer_that_ended_the_turn_and_the_hooks_after_it(self):
+        self.append(json.dumps({"type": "user", "message": {"content": "launch an agent"}}))
+        self.append(json.dumps({"type": "assistant", "message": {"stop_reason": "end_turn"}}))
+        self.append(json.dumps({"type": "system", "subtype": "stop_hook_summary"}))
+        self.assertEqual(self.turn(), (True, True))
+
+    def test_a_prompt_the_news_of_a_task_or_a_call_is_a_turn_going_on(self):
+        for last in ({"type": "user", "message": {"content": "write about rivers"}},
+                     {"type": "user", "message": {"content": "<task-notification>done</task-notification>"}},
+                     {"type": "assistant", "message": {"stop_reason": "tool_use"}}):
+            self.append(json.dumps({"type": "assistant", "message": {"stop_reason": "end_turn"}}))
+            self.append(json.dumps(last))
+            self.assertEqual(self.turn(), (True, False), f"{last} read as a turn that is over")
+
+    def test_the_words_of_an_agent_are_its_own(self):
+        self.append(json.dumps({"type": "user", "message": {"content": "write about rivers"}}))
+        self.append(json.dumps({"type": "assistant", "isSidechain": True, "message": {"stop_reason": "end_turn"}}))
+        self.assertEqual(self.turn(), (True, False))
+
+    def test_a_conversation_with_no_word_yet_is_not_known(self):
+        self.assertEqual(self.turn(), (False, False))

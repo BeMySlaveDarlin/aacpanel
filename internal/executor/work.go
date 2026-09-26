@@ -1,17 +1,13 @@
 package executor
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"aacpanel/internal/action"
-	registry "aacpanel/internal/contours"
 	"aacpanel/internal/stream"
 )
 
@@ -405,47 +401,16 @@ func workPlural(n int) string {
 	return "entries"
 }
 
-// turnEnded reads off the end of the transcript whether the session's own turn
-// is over. Claude keeps a session busy while an agent it sent off to work runs,
-// long after the turn that sent it; the list of background work opens at once
-// then, and it is the only moment there is an agent to stop. The turn is over
-// when the last word of the conversation is an answer that ended it: the
-// reason an answer ended is written once it has.
+// turnEnded asks the collector whether the session's own turn is over: the
+// transcript is the collector's to read, not the executor's. Claude keeps a
+// session busy while an agent it sent off to work runs, long after the turn
+// that sent it; the list of background work opens at once then, and it is the
+// only moment there is an agent to stop. Without an answer the turn is taken
+// for one going on.
 func turnEnded(sessionID string) bool {
-	for _, conf := range registry.ConfigDirs() {
-		found, _ := filepath.Glob(filepath.Join(conf, "projects", "*", sessionID+".jsonl"))
-		for _, path := range found {
-			if ended, known := lastTurnEnded(path); known {
-				return ended
-			}
-		}
+	if sessionID == "" {
+		return false
 	}
-	return false
-}
-
-func lastTurnEnded(path string) (ended, known bool) {
-	tail, err := readTranscriptEnd(path)
-	if err != nil {
-		return false, false
-	}
-	lines := bytes.Split(tail, []byte("\n"))
-	for i := len(lines) - 1; i >= 0; i-- {
-		var rec struct {
-			Type      string `json:"type"`
-			Sidechain bool   `json:"isSidechain"`
-			Message   struct {
-				StopReason string `json:"stop_reason"`
-			} `json:"message"`
-		}
-		if json.Unmarshal(lines[i], &rec) != nil || rec.Sidechain {
-			continue
-		}
-		switch rec.Type {
-		case "user":
-			return false, true
-		case "assistant":
-			return rec.Message.StopReason == "end_turn", true
-		}
-	}
-	return false, false
+	reply, err := askSeen(seenSocket(), seenReq{Session: sessionID, Ask: seenAskTurn})
+	return err == nil && reply.OK && reply.Found && reply.Ended
 }

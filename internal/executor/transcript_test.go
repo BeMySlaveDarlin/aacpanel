@@ -51,6 +51,7 @@ type fakeSeen struct {
 	mu    sync.Mutex
 	found bool
 	seen  bool
+	ended bool
 	end   int64
 	asks  int
 	marks []string
@@ -97,6 +98,9 @@ func (f *fakeSeen) answer(conn net.Conn) {
 	f.mu.Lock()
 	f.asks++
 	reply := seenReply{OK: true, Found: f.found, Pos: f.end}
+	if req.Ask == seenAskTurn {
+		reply = seenReply{OK: true, Found: f.found, Ended: f.ended}
+	}
 	if req.Pos != nil {
 		f.marks = append(f.marks, req.Mark)
 		reply.Pos = *req.Pos
