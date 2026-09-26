@@ -16,6 +16,8 @@ func TestAnsweredMarkAgainstSnapshot(t *testing.T) {
 		stamped   = `answered({ status: "waiting", waitingFor: "input needed", statusUpdatedAt: 700 }, "toolu_1", 1000)`
 		sameStamp = `{ status: "waiting", waitingFor: "input needed", statusUpdatedAt: 700 }`
 		newStamp  = `{ status: "waiting", waitingFor: "input needed", statusUpdatedAt: 3000 }`
+		early     = `answered({ status: "busy", statusUpdatedAt: 500 }, "toolu_1", 1000, "1970-01-01T00:00:03Z")`
+		itsWait   = `{ status: "waiting", waitingFor: "input needed", statusUpdatedAt: 3400 }`
 	)
 	cases := []struct {
 		name string
@@ -53,6 +55,16 @@ func TestAnsweredMarkAgainstSnapshot(t *testing.T) {
 		{"the mark is stored as a number", `answered({ status: "waiting", statusUpdatedAt: 700 }, "", 1000).statusAt === 700`, true},
 		{"a mark as a string is no mark", `answered({ status: "waiting", statusUpdatedAt: "700" }, "", 1000).statusAt === 0`, true},
 		{"a string mark in the snapshot — compare by reason", `lagging(` + stamped + `, { status: "waiting", waitingFor: "input needed", statusUpdatedAt: "700" }, 5000)`, true},
+
+		// The question reached the screen before the snapshot learned the session waits on it,
+		// and the answer went out while the snapshot still showed the session at work.
+		{"an early answer: the waiting that arrives after it lags", `lagging(` + early + `, ` + itsWait + `, 5000)`, true},
+		{"an early answer: the snapshot still at work is no news", `(() => { const m = ` + early + `; return settle(m, { status: "busy", statusUpdatedAt: 900 }) === m; })()`, true},
+		{"an early answer: meeting its waiting is no news", `settle(` + early + `, ` + itsWait + `).settled`, false},
+		{"an early answer: its waiting over, the mark settles", `settle(settle(` + early + `, ` + itsWait + `), { status: "busy", statusUpdatedAt: 6000 }).settled`, true},
+		{"an early answer: a waiting long after the question is another", `lagging(` + early + `, { status: "waiting", waitingFor: "dialog open", statusUpdatedAt: 20000 }, 5000)`, false},
+		{"an early answer with no time of the question takes the first waiting", `lagging(answered({ status: "busy" }, "toolu_1", 1000), ` + itsWait + `, 5000)`, true},
+		{"the time of the question is read from the store's stamp", `answered({ status: "busy" }, "toolu_1", 1000, "1970-01-01T00:00:03Z").askedAt === 3000`, true},
 	}
 
 	exprs := make([]string, 0, len(cases))

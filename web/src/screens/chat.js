@@ -400,7 +400,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
                 ${state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
                     && !hidesAsk(answer, state.work.ask.toolUseId)
                     ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${live.transport === "stream"}
-                                   onAnswered=${(use) => mark(answered(live, use))} />`
+                                   onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))} />`
                     : live.status === "waiting" && !holding
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor}
                                       onAnswered=${() => mark(answered(live, ""))} />`

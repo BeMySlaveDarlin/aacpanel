@@ -26,21 +26,35 @@ export function recall(name, now = Date.now()) {
     return mark;
 }
 
-// answered returns the mark: when the answer went out, to what and on what waiting.
-export function answered(live, use, now = Date.now()) {
+// How far from the question a waiting may begin and still be the one it put
+// the session into.
+const ASKED_SLACK_MS = 10000;
+
+// answered returns the mark: when the answer went out, to what and on what
+// waiting. The question reaches the screen from the agent sooner than the
+// snapshot learns that the session waits on it, so an answer can go out while
+// the snapshot still shows the session at work: such a mark is early, and the
+// waiting it answered is still to come, stamped about when the question was
+// asked.
+export function answered(live, use, now = Date.now(), askedAt = "") {
     return {
         at: now,
         use: use || "",
         waitingFor: (live && live.waitingFor) || "",
         statusAt: stampOf(live),
+        early: !live || live.status !== "waiting",
+        askedAt: momentOf(askedAt),
         settled: false,
     };
 }
 
-// settle marks that the snapshot has brought news.
+// settle marks that the snapshot has brought news. An early mark has none to
+// hear until its waiting arrives: what comes before it is the snapshot still
+// catching up.
 export function settle(mark, live) {
     if (!mark || mark.settled) return mark;
-    if (sameWait(mark, live)) return mark;
+    if (sameWait(mark, live)) return mark.early && !mark.met ? { ...mark, met: true } : mark;
+    if (mark.early && !mark.met && live) return mark;
     return { ...mark, settled: true };
 }
 
@@ -59,9 +73,16 @@ function fresh(mark, now) {
 }
 
 function sameWait(mark, live) {
-    if (!live || live.status !== "waiting" || (live.waitingFor || "") !== mark.waitingFor) return false;
+    if (!live || live.status !== "waiting") return false;
     const stamp = stampOf(live);
+    if (mark.early) return !mark.askedAt || !stamp || Math.abs(stamp - mark.askedAt) <= ASKED_SLACK_MS;
+    if ((live.waitingFor || "") !== mark.waitingFor) return false;
     return !mark.statusAt || !stamp || stamp === mark.statusAt;
+}
+
+function momentOf(at) {
+    const ms = Date.parse(at || "");
+    return Number.isFinite(ms) ? ms : 0;
 }
 
 function stampOf(live) {

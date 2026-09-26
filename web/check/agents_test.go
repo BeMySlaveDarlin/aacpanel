@@ -280,7 +280,7 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`onAnswered=${(use) => mark(answered(live, use))}`,
+		`onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))}`,
 		`onAnswered=${() => mark(answered(live, ""))}`,
 	} {
 		if !strings.Contains(body, want) {
