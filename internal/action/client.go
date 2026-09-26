@@ -104,6 +104,18 @@ func (c *Client) Window(ctx context.Context, target string) (*Window, error) {
 	return resp.Window, nil
 }
 
+// KeepGuards hands the executor the context guard of every place the map knows.
+func (c *Client) KeepGuards(ctx context.Context, guards []Guard) error {
+	resp, err := c.Do(ctx, Request{Ask: AskGuards, Guards: guards})
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
 // Models asks what a session can be switched to.
 func (c *Client) Models(ctx context.Context, target string) (*Models, error) {
 	resp, err := c.Do(ctx, Request{Ask: AskModels, Target: target})

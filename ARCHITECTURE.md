@@ -834,8 +834,10 @@ stays the base.
 - **Actions of its own on a session.** The panel never types into a session by
   itself, not even to save it from a full context. What a session does about
   its own context is decided inside it: the context guard is a `Stop` hook,
-  switched on by a setting of the project, and it speaks to the model at the end
-  of a turn, when the session is free by construction. A watchdog outside would
+  switched on by a setting of the project — the service hands the map's caps to
+  the executor, which keeps them in a file on the host for the hook — and it
+  speaks to the model at the end of a turn, when the session is free by
+  construction. A watchdog outside would
   have to guess whether the session can take a keystroke right now, and a guess
   that lands in an open dialog is an answer given blind.
 - **Settings for notification delivery.** No quiet hours, no importance

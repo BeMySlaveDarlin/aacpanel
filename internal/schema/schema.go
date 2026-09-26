@@ -90,6 +90,14 @@ type Param struct {
 	Reserved map[string]string `json:"reserved,omitempty"`
 	// Forbidden are arguments a map may not add, each with the reason.
 	Forbidden map[string]string `json:"forbidden,omitempty"`
+
+	// Default is what the panel takes where no level says anything; null
+	// leaves it to claude, and Unset says what that is.
+	Default any `json:"default"`
+	// Host marks a parameter the launch does not pass to claude: the host
+	// reads it — the context guard hook and the prompt stamp — from what the
+	// executor keeps of the map.
+	Host bool `json:"host,omitempty"`
 }
 
 // Retired is a key that means nothing any more.
@@ -163,11 +171,27 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNextStart},
 	},
 	{
-		Key: "finalizeAt", Label: "Wrap up at", Kind: KindInt, Unit: "%", Min: 1, Max: 99,
-		Levels: []Level{LevelContour, LevelProject},
-		Help:   "past this share of the context the session finalizes and restarts itself; needs the context guard hook",
-		Unset:  "Never", Merge: MergeOverride,
-		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
+		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax,
+		Levels: []Level{LevelContour, LevelProject}, Default: CapDefault, Host: true,
+		Help: "the share of the model's window a session works up to: the prompt stamp names it, and past it " +
+			"a session with Auto restart wraps up and starts afresh",
+		Unset: "80% of the model's window", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
+	},
+	{
+		Key: "autoRestart", Label: "Auto restart", Kind: KindBool,
+		Levels: []Level{LevelContour, LevelProject}, Default: false, Host: true,
+		Help: "past the context cap the session puts its work on disk and starts afresh in the same place, " +
+			"with the project's parameters; needs the context guard hook in the account",
+		Unset: "Off", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
+	},
+	{
+		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: 500,
+		Levels: []Level{LevelContour, LevelProject}, Default: RestartIntentDefault, Host: true,
+		Help:  "the first message of the session an automatic restart brings up",
+		Unset: RestartIntentDefault, Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
 		Key: "env", Label: "Environment", Kind: KindKV,
@@ -177,7 +201,6 @@ var params = []Param{
 			"CLAUDE_CONFIG_DIR":       accountRoute,
 			"CLAUDE_CODE_OAUTH_TOKEN": accountRoute,
 			"CLAUDE_PROFILE":          "the router's own variable",
-			"AACP_FINALIZE_AT":        "set by Wrap up at",
 		},
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
@@ -207,7 +230,21 @@ var params = []Param{
 
 var retired = []Retired{
 	{Key: "room", Why: "sessions no longer go to rooms; the key reaches nothing"},
+	{Key: "finalizeAt", Why: "replaced by the context cap and Auto restart"},
 }
+
+// The context cap, in percent of the model's window. Below the floor a session
+// restarted by it would start past it again: what a session loads before its
+// first word is a tenth of a small window.
+const (
+	CapMin     = 50
+	CapMax     = 95
+	CapDefault = 80
+)
+
+// RestartIntentDefault is the first message of a session an automatic
+// restart brings up, where no level names one.
+const RestartIntentDefault = "Continue"
 
 // Params returns the launch parameters in the order a page shows them.
 func Params() []Param {

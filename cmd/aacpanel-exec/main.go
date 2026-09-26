@@ -287,6 +287,21 @@ func (a audited) Kinds() []action.Kind {
 	return able.Kinds()
 }
 
+// KeepGuards hands the wrapped executor the context guards of the map. It
+// changes one file of the host's and nothing a person did, so the audit says
+// only how many places it holds.
+func (a audited) KeepGuards(ctx context.Context, guards []action.Guard) error {
+	keeper, ok := a.next.(action.GuardKeeper)
+	if !ok {
+		return fmt.Errorf("this executor does not keep the context guards")
+	}
+	err := keeper.KeepGuards(ctx, guards)
+	if err != nil {
+		log.Printf("audit phase=done action=ask.guards places=%d result=failed error=%q", len(guards), err.Error())
+	}
+	return err
+}
+
 // Permission asks the wrapped executor about a session dialog and audits the call.
 func (a audited) Permission(ctx context.Context, target string) (*action.Permission, error) {
 	asker, ok := a.next.(action.Asker)

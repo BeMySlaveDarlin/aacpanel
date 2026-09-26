@@ -27,6 +27,8 @@ func (r Request) Validate() error {
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
+		case AskGuards:
+			return validateGuards(r)
 		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)

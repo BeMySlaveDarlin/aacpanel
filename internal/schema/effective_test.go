@@ -45,7 +45,9 @@ func TestEffectiveNamesTheLayerOfEveryValue(t *testing.T) {
 		{"remoteControl", false, LayerProject},
 		{"intent", "", LayerProject},
 		{"transport", nil, LayerClaude},
-		{"finalizeAt", nil, LayerClaude},
+		{"contextCap", CapDefault, LayerPanel},
+		{"autoRestart", false, LayerPanel},
+		{"restartIntent", RestartIntentDefault, LayerPanel},
 	}
 	for _, c := range cases {
 		v := valueOf(t, got, c.key)
@@ -62,10 +64,11 @@ func TestEffectiveNamesTheLayerOfEveryValue(t *testing.T) {
 
 // What the launcher is given carries the contour and the project only:
 // claude reads the account's settings itself, and a flag made of them would
-// pin the project to what the account said on the day.
+// pin the project to what the account said on the day. The panel's defaults
+// are not written into it either — the schema says them.
 func TestLaunchLeavesTheAccountToClaude(t *testing.T) {
-	got := Launch(map[string]any{"effort": "high", "room": "x"}, map[string]any{"remoteControl": false})
-	want := map[string]any{"effort": "high", "remoteControl": false}
+	got := Launch(map[string]any{"effort": "high", "room": "x"}, map[string]any{"remoteControl": false, "autoRestart": true})
+	want := map[string]any{"effort": "high", "remoteControl": false, "autoRestart": true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("launch %v, meant %v", got, want)
 	}

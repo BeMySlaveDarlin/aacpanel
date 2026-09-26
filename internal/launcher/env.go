@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -38,10 +37,6 @@ var unitVars = []string{
 }
 
 const scratchDir = ".cache/claude-tmp"
-
-// finalizeEnv is what the context guard hook reads: the percentage of the
-// window past which the session is told to finalize and restart.
-const finalizeEnv = "AACP_FINALIZE_AT"
 
 const (
 	defaultTerm = "xterm-256color"
@@ -103,19 +98,6 @@ func childEnv(own []string, params Params, display, lang, configDir string) ([]s
 
 	for name, value := range params.Env {
 		env[name] = value
-	}
-
-	// The threshold field wins over the same variable typed into the
-	// environment map: the field is what the screen shows as the threshold,
-	// and a session guarded by another number would contradict it. The map
-	// still carries the variable on its own where the field is not set.
-	if params.FinalizeAt > 0 {
-		at := strconv.Itoa(params.FinalizeAt)
-		if typed, ok := params.Env[finalizeEnv]; ok && typed != at {
-			warns = append(warns, fmt.Sprintf("the environment names %s=%s, but the threshold field says %s%% — the field wins",
-				finalizeEnv, typed, at))
-		}
-		env[finalizeEnv] = at
 	}
 
 	out := make([]string, 0, len(env))

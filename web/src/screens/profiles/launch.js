@@ -84,25 +84,31 @@ function origin(key, profile, project) {
     return "";
 }
 
-// The percentage the context guard hook works from when nothing else is said.
-export const FINALIZE_DEFAULT = 80;
+// The context cap, in percent of the model's window, where no level names one;
+// and the bounds the map keeps it in.
+export const CAP_DEFAULT = 80;
+const CAP_MIN = 50;
+const CAP_MAX = 95;
 
-// guarded says whether the map names a threshold at all: zero and junk count,
-// so that what the human typed is shown back rather than quietly dropped.
-function guarded(launch) {
-    const at = (launch || EMPTY).finalizeAt;
+// capped says whether the map names a cap at all: zero and junk count, so
+// that what the human typed is shown back rather than quietly dropped.
+function capped(launch) {
+    const at = (launch || EMPTY).contextCap;
     return at !== undefined && at !== null;
 }
 
-function inRange(at) {
-    return Number.isInteger(at) && at >= 1 && at <= 99;
+function capInRange(at) {
+    return Number.isInteger(at) && at >= CAP_MIN && at <= CAP_MAX;
 }
 
-// parseFinalizeAt reads the percentage back from the input field: a whole
-// number as typed, and zero for anything else — the launcher refuses zero and
-// says so, which is better than a field that shows one number and saves another.
-export function parseFinalizeAt(text) {
-    const n = Number(String(text || "").trim());
+// parseCap reads the percentage back from the input field: a whole number as
+// typed, empty for nothing, and zero for anything else — the map refuses zero
+// and says why, which is better than a field that shows one number and saves
+// another.
+export function parseCap(text) {
+    const raw = String(text || "").trim();
+    if (raw === "") return undefined;
+    const n = Number(raw);
     return Number.isInteger(n) ? n : 0;
 }
 
@@ -117,7 +123,8 @@ export function summary(launch) {
     }
     if (l.remoteControl) parts.push("remote control");
     if (l.transport === "stream") parts.push("on the stream");
-    if (guarded(l)) parts.push(`finalize at ${l.finalizeAt}%`);
+    if (capped(l)) parts.push(`cap ${l.contextCap}%`);
+    if (l.autoRestart) parts.push("auto restart");
     if (l.intent) parts.push("intent");
     const env = Object.keys(l.env || EMPTY).length;
     if (env > 0) parts.push(`${env} vars`);
@@ -137,7 +144,8 @@ export function LaunchView({ launch, profile }) {
         ["permissions", eff.permissionMode, origin("permissionMode", profile, launch)],
         ["remote control", eff.remoteControl ? "on" : "", origin("remoteControl", profile, launch)],
         ["lives in", eff.transport, origin("transport", profile, launch)],
-        ["finalize at", guarded(eff) ? `${eff.finalizeAt}%` : "", origin("finalizeAt", profile, launch)],
+        ["context cap", capped(eff) ? `${eff.contextCap}%` : "", origin("contextCap", profile, launch)],
+        ["auto restart", eff.autoRestart ? "on" : "", origin("autoRestart", profile, launch)],
     ];
     return html`
         <div class="pfprops">
@@ -210,13 +218,17 @@ function intentHelp(intent, muted, fromProfile) {
     return "not set — the conversation opens empty, as before";
 }
 
-function finalizeHelp(launch, fromProfile) {
-    if (guarded(launch)) {
-        if (!inRange(launch.finalizeAt)) return "outside 1–99: the launcher skips the threshold and says so";
-        return "works only where the account has the context guard hook from the install; without it the field does nothing";
+function capHelp(launch, parent) {
+    if (capped(launch) && !capInRange(launch.contextCap)) {
+        return `outside ${CAP_MIN}–${CAP_MAX}: the map does not keep it`;
     }
-    if (fromProfile) return `unchecked — as in the profile: ${fromProfile}%`;
-    return "unchecked — the session is never told to finalize";
+    const cap = capped(launch) ? launch.contextCap : parent.contextCap || CAP_DEFAULT;
+    const restart = launch.autoRestart || (launch.autoRestart === undefined && parent.autoRestart);
+    const where = capped(launch) ? "" : parent.contextCap ? " (from the profile)" : " (the panel's default)";
+    if (restart) {
+        return `past ${cap}%${where} of the window the session wraps up and starts afresh — where the account has the context guard hook`;
+    }
+    return `the prompt stamp names ${cap}%${where} as the point to wrap up; nothing restarts`;
 }
 
 // LaunchFields renders the same parameters as form fields.
@@ -228,7 +240,7 @@ function StreamBlock() {
         <div class="pfstream">
             <span class="pflabel">On the stream</span>
             <span class="pfhelp">takes effect at the next start: the session is answered in the feed — there is no terminal and no window on the host</span>
-            <span class="pfhelp">holds here too: the model, the effort, the permission mode, remote control, the starting intent, the environment and finalizing</span>
+            <span class="pfhelp">holds here too: the model, the effort, the permission mode, remote control, the starting intent, the environment and the context cap</span>
             <span class="pfhelp warn">the extra arguments go to <code>claude -p</code>: one only the terminal knows stops the session at its start</span>
             <span class="pfhelp">what the feed cannot do yet is in the console: the terminal of the pair of views in the conversation header moves the session there and back</span>
         </div>
@@ -249,7 +261,7 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
     const muted = l.intent === "";
     const stream = (l.transport || parent.transport) === "stream";
 
-    const [atDraft, setAtDraft] = useState(() => (guarded(l) ? String(l.finalizeAt) : ""));
+    const [capDraft, setCapDraft] = useState(() => (capped(l) ? String(l.contextCap) : ""));
     const [envDraft, setEnvDraft] = useState(() => envText(l.env));
     const [argsDraft, setArgsDraft] = useState(() => (l.args || []).join(" "));
 
@@ -309,22 +321,18 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
 
         <div class="pfguard">
             <label class="row-switch">
-                <input type="checkbox" checked=${guarded(l)}
-                       onChange=${(e) => {
-                           const at = e.target.checked ? (parent.finalizeAt || FINALIZE_DEFAULT) : undefined;
-                           setAtDraft(at === undefined ? "" : String(at));
-                           set({ finalizeAt: at });
-                       }} />
-                finalize when the context fills up
+                <input type="checkbox" checked=${Boolean(l.autoRestart)}
+                       onChange=${(e) => set({ autoRestart: e.target.checked || undefined })} />
+                restart past the context cap
             </label>
-            <input class="search pfpct" type="number" inputmode="numeric" min="1" max="99" step="1"
-                   disabled=${!guarded(l)}
-                   value=${guarded(l) ? atDraft : String(parent.finalizeAt || FINALIZE_DEFAULT)}
-                   onInput=${(e) => { setAtDraft(e.target.value); set({ finalizeAt: parseFinalizeAt(e.target.value) }); }} />
+            <input class="search pfpct" type="number" inputmode="numeric" min=${CAP_MIN} max=${CAP_MAX} step="1"
+                   placeholder=${String(parent.contextCap || CAP_DEFAULT)}
+                   value=${capDraft}
+                   onInput=${(e) => { setCapDraft(e.target.value); set({ contextCap: parseCap(e.target.value) }); }} />
             <span class="pfpctsign">%</span>
         </div>
-        <span class=${guarded(l) && !inRange(l.finalizeAt) ? "pfhelp warn" : "pfhelp"}>
-            ${finalizeHelp(l, parent.finalizeAt)}
+        <span class=${capped(l) && !capInRange(l.contextCap) ? "pfhelp warn" : "pfhelp"}>
+            ${capHelp(l, parent)}
         </span>
 
         <label class="pffield">

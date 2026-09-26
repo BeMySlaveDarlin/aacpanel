@@ -6,7 +6,9 @@ import os
 import sys
 import time
 
-FINALIZE_PCT = 80
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import guards  # noqa: E402
 
 BATCH_INTERVAL = 600
 BATCH_STEP = 10
@@ -28,8 +30,8 @@ def human_bytes(value):
     return f"{value / 1024 ** 3:.0f}G"
 
 
-def line_context(state, session_id):
-    """Returns the context fill line of this session."""
+def line_context(state, session_id, cap=guards.CAP_DEFAULT):
+    """Returns the context fill line of this session, with where its cap falls in its window."""
     for s in state.get("sessions", []):
         if s.get("sessionId") != session_id:
             continue
@@ -37,7 +39,7 @@ def line_context(state, session_id):
         tokens, limit = s.get("tokens"), s.get("limit")
         if pct is None or not limit:
             return None
-        note = f"finalize from {round(limit * FINALIZE_PCT / 100 / 1000)}k"
+        note = f"finalize from {round(limit * cap / 100 / 1000)}k"
         if not s.get("limitKnown", True):
             note += " · the model window is not exact"
         return f"Context:  {round(tokens / 1000)}k/{round(limit / 1000)}k ({pct:.0f}%) · {note}"
@@ -113,7 +115,7 @@ def line_alarms(state):
     return "Alarms:   " + " · ".join(alarms)
 
 
-def stamp(state, session_id, config_dir, with_date):
+def stamp(state, session_id, config_dir, with_date, cap=guards.CAP_DEFAULT):
     """Returns every line of the stamp, top to bottom."""
     lines = []
     if with_date:
@@ -124,7 +126,7 @@ def stamp(state, session_id, config_dir, with_date):
         return lines
 
     age = time.time() - (state.get("at") or 0)
-    for line in (line_context(state, session_id), line_limits(state, config_dir),
+    for line in (line_context(state, session_id, cap), line_limits(state, config_dir),
                  line_resources(state), line_disks(state), line_alarms(state)):
         if line:
             lines.append(line)
@@ -165,16 +167,21 @@ def main():
     event = sys.argv[1] if len(sys.argv) > 1 else "UserPromptSubmit"
     state_dir = os.environ.get("AACP_STATE_DIR") or "/var/lib/aacpanel"
 
-    session_id = ""
+    session_id, cwd = "", ""
     try:
         payload = json.load(sys.stdin)
         session_id = payload.get("session_id") or ""
-    except (ValueError, OSError):
+        cwd = payload.get("cwd") or ""
+    except (ValueError, OSError, AttributeError):
         pass
+
+    # The cap of the project the session works in, as the panel's map says it.
+    guard = guards.of(cwd or os.getcwd())
+    cap = guard[0] if guard else guards.CAP_DEFAULT
 
     state = read_state(os.path.join(state_dir, "state.json"))
     config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or ""
-    lines = stamp(state, session_id, config_dir, with_date=event == "UserPromptSubmit")
+    lines = stamp(state, session_id, config_dir, with_date=event == "UserPromptSubmit", cap=cap)
 
     if event != "UserPromptSubmit":
         pct = None

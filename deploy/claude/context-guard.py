@@ -1,23 +1,13 @@
 #!/usr/bin/env python3
-"""Context guard: past the threshold a session is told to finalize and restart itself."""
+"""Context guard: past its cap a session with Auto restart is told to wrap up and restart itself."""
 
 import json
 import os
 import sys
 
-SETTING = "AACP_FINALIZE_AT"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-
-def threshold():
-    """Returns the percentage the project set, or None when the guard is off here."""
-    raw = os.environ.get(SETTING, "").strip()
-    if not raw:
-        return None
-    try:
-        value = int(raw)
-    except ValueError:
-        return None
-    return value if 0 < value < 100 else None
+import guards  # noqa: E402
 
 
 def read_state(path):
@@ -41,21 +31,18 @@ def fill(state, session_id):
     return None
 
 
-def reason(pct, at):
+def reason(pct, cap):
     """Returns what the model is told instead of stopping."""
-    return (f"The context of this session is at {pct:.0f}% of the model window, past the {at}% "
-            "this project set as the point to finalize. Take no new work. Put the state of the "
-            "work on disk the way this project keeps it: its finalize skill if it has one, "
-            "otherwise a handoff note for the next session and a commit of what is done. Then "
-            "run the restart-session skill with no flags: it starts a fresh session in this "
-            "place with a clean context. Do not continue this conversation and do not pass "
-            "--continue.")
+    return (f"The context of this session is at {pct:.0f}% of the model window, past the {cap}% "
+            "this project set as its context cap, and the project restarts its sessions there. "
+            "Take no new work. Put the state of the work on disk the way this project keeps it: "
+            "its finalize skill if it has one, otherwise a handoff note for the next session and "
+            "a commit of what is done. Then run the restart-session skill with no flags: it starts "
+            "a fresh session in this place with the project's parameters. Do not continue this "
+            "conversation and do not pass --continue.")
 
 
 def main():
-    at = threshold()
-    if at is None:
-        return
     try:
         payload = json.load(sys.stdin)
     except (ValueError, OSError):
@@ -65,11 +52,17 @@ def main():
     # The turn that follows a block is the finalization itself: it is never blocked again.
     if payload.get("stop_hook_active"):
         return
+    guard = guards.of(payload.get("cwd") or os.getcwd())
+    if guard is None:
+        return
+    cap, restart = guard
+    if not restart:
+        return
     state_dir = os.environ.get("AACP_STATE_DIR") or "/var/lib/aacpanel"
     pct = fill(read_state(os.path.join(state_dir, "state.json")), payload.get("session_id") or "")
-    if pct is None or pct < at:
+    if pct is None or pct < cap:
         return
-    json.dump({"decision": "block", "reason": reason(pct, at)}, sys.stdout, ensure_ascii=False)
+    json.dump({"decision": "block", "reason": reason(pct, cap)}, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
 
 

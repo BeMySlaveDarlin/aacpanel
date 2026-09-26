@@ -56,6 +56,9 @@ type Server struct {
 	insecureSeen atomic.Bool
 	termPublic   bool
 	endpoints    endpoints
+	// guards is poked when the map changes, so the host learns the context
+	// guard of every place; nil where there is no map.
+	guards chan struct{}
 }
 
 const execTimeout = 2 * time.Minute
@@ -322,6 +325,8 @@ func run() error {
 		go push.Run(ctx)
 		srv.watch = newWatcher(srv, db.PushJournal())
 		go srv.watch.Run(ctx)
+		srv.guards = make(chan struct{}, 1)
+		go srv.runGuards(ctx)
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

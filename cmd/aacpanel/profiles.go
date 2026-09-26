@@ -34,7 +34,7 @@ func (s *Server) apiProfilesSchema(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"params":  schema.Params(),
 		"retired": schema.RetiredKeys(),
-		"layers":  []string{schema.LayerClaude, schema.LayerAccount, schema.LayerContour, schema.LayerProject},
+		"layers":  []string{schema.LayerClaude, schema.LayerPanel, schema.LayerAccount, schema.LayerContour, schema.LayerProject},
 	})
 }
 
@@ -318,6 +318,9 @@ func (s *Server) apiShowDir(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeProfiles(w http.ResponseWriter, r *http.Request, extra map[string]any) {
+	if r.Method != http.MethodGet {
+		s.guardsChanged()
+	}
 	list, err := s.db.Profiles(r.Context())
 	if err != nil {
 		profilesError(w, err)

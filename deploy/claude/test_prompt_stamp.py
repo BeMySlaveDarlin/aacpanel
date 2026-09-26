@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import pathlib
+import sys
 import tempfile
 import time
 import unittest
@@ -62,6 +65,39 @@ class TestLines(unittest.TestCase):
 
         self.assertIsNone(stamp.line_context(snapshot(), "unknown"),
                           "the session was not found, yet the line was drawn anyway")
+
+    def test_the_cap_is_the_project_s_share_of_this_session_s_window(self):
+        data = snapshot()
+        data["sessions"][0].update({"tokens": 100_000, "limit": 200_000, "pct": 50.0})
+        self.assertIn("finalize from 140k", stamp.line_context(data, "mine", 70))
+
+    def test_the_cap_comes_from_the_place_the_session_works_in(self):
+        with tempfile.TemporaryDirectory() as xdg, tempfile.TemporaryDirectory() as state_dir:
+            os.makedirs(os.path.join(xdg, "aacpanel"))
+            with open(os.path.join(xdg, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
+                f.write("/srv/proj/Algo\t60\t0\n")
+            with open(os.path.join(state_dir, "state.json"), "w", encoding="utf-8") as f:
+                json.dump(snapshot(), f)
+            said = {}
+            for cwd in ("/srv/proj/Algo/lms", "/srv/elsewhere"):
+                was = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "AACP_STATE_DIR")}
+                os.environ.update({"XDG_STATE_HOME": xdg, "AACP_STATE_DIR": state_dir})
+                out = io.StringIO()
+                try:
+                    sys.stdin = io.StringIO(json.dumps({"session_id": "mine", "cwd": cwd}))
+                    sys.argv = ["prompt-stamp.py", "UserPromptSubmit"]
+                    with contextlib.redirect_stdout(out):
+                        stamp.main()
+                finally:
+                    sys.stdin = sys.__stdin__
+                    for k, v in was.items():
+                        if v is None:
+                            os.environ.pop(k, None)
+                        else:
+                            os.environ[k] = v
+                said[cwd] = json.loads(out.getvalue())["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("finalize from 600k", said["/srv/proj/Algo/lms"])
+            self.assertIn("finalize from 800k", said["/srv/elsewhere"])
 
     def test_unknown_model_window_is_said_aloud(self):
         data = snapshot()

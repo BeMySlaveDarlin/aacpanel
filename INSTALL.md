@@ -291,7 +291,7 @@ the panel's eyes.
 | `deploy/claude/cost-snapshot.py` | the `Stop` and `SubagentStop` hooks | a line per turn in `<account>/logs/cost.jsonl`: where the tokens went |
 | `deploy/claude/artifact-copy.py` | the `PostToolUse` hook on `Artifact` | the panel keeps a copy of every page a session publishes and shows it without the account it went out under; without the hook the card has only its link |
 | `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
-| `deploy/claude/context-guard.py` | the `Stop` hook | past the threshold a session finalizes and restarts itself; on only where a threshold is set — in the panel's launch parameters or in the project's settings |
+| `deploy/claude/context-guard.py` | the `Stop` hook | past its context cap a session with Auto restart finalizes and restarts itself; the cap and the switch are set in the panel, per contour or per project |
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session in place |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
 | `deploy/claude/skills/notify/` | `<account>/skills/` | `/notify`: the session calls the person to it, and the line arrives on their phone |
@@ -324,25 +324,21 @@ the page itself, for anyone who can see the panel. The copies are swept by age,
 by count and by the room they take together, and the hook says nothing on a
 machine where the panel is not installed.
 
-**The context guard.** The hook sits in the account settings, the threshold
-with the project: a session finalizes and restarts itself only where the
-percentage is named. It is named in one of two places — in the panel, in the
-launch parameters of the profile or the project ("finalize when the context
-fills up": the launcher puts `AACP_FINALIZE_AT` into the environment of the
-session it brings up), or in the project's `.claude/settings.json` (or
-`settings.local.json`), for a session started by hand. The panel's field does
-nothing where the hook is not installed.
+**The context guard.** The hook sits in the account settings; the context cap
+and Auto restart are set in the panel, in the launch parameters of the profile
+or the project. The executor keeps what the map says of every project and
+contour in `~/.local/state/aacpanel/guards.tsv` (under `$XDG_STATE_HOME` where
+it is set), a line a place, and the hook finds a session's place by its working
+directory: a session started by hand in a project is guarded like one the panel
+brought up, and a change in the panel holds from the next turn. The cap alone
+restarts nothing — the prompt stamp names it as the point to wrap up. With Auto
+restart on, a session past it is told to finalize and restart itself. The
+switch does nothing where the account does not have the hook.
 
 ```json
 {"hooks": {"Stop": [
   {"hooks": [{"type": "command", "command": "python3 <repo>/deploy/claude/context-guard.py", "timeout": 5}]}
 ]}}
-```
-
-The same threshold in the project's settings instead of the panel:
-
-```json
-{"env": {"AACP_FINALIZE_AT": "80"}}
 ```
 
 It speaks only at the end of a turn, when the session is free: no question and

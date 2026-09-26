@@ -32,9 +32,10 @@ func sample(t *testing.T, p schema.Param) any {
 }
 
 // The schema is the list of what a launch can say, and the launcher reads it
-// whole: every key of it lands in the parameters of the launch, a retired key
-// passes without a word, and a key outside it is named — so a parameter added
-// to the screens without a launcher behind it fails here, not on the host.
+// whole: every key of it lands in the parameters of the launch, a key the
+// host reads and a retired one pass without a word, and a key outside it is
+// named — so a parameter added to the screens without a launcher behind it
+// fails here, not on the host.
 func TestTheLauncherTakesEveryKeyOfTheSchema(t *testing.T) {
 	for _, p := range schema.Params() {
 		raw, err := json.Marshal(map[string]any{p.Key: sample(t, p)})
@@ -45,7 +46,10 @@ func TestTheLauncherTakesEveryKeyOfTheSchema(t *testing.T) {
 		if len(warns) != 0 {
 			t.Errorf("%s: the launcher complained about a value the schema accepts: %v", p.Key, warns)
 		}
-		if reflect.DeepEqual(got, Params{}) {
+		switch empty := reflect.DeepEqual(got, Params{}); {
+		case p.Host && !empty:
+			t.Errorf("%s is the host's, and the launch took it: %+v", p.Key, got)
+		case !p.Host && empty:
 			t.Errorf("%s: the launcher read the key and kept nothing of it", p.Key)
 		}
 	}

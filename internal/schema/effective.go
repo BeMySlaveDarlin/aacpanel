@@ -5,6 +5,8 @@ const (
 	// LayerClaude: nothing sets it, and the parameter's Unset says what
 	// happens then.
 	LayerClaude = "claude"
+	// LayerPanel: nothing sets it, and the panel takes its own default.
+	LayerPanel = "panel"
 	// LayerAccount: the settings.json of the contour's account. The panel
 	// reads it and never writes it; it reaches the session past the command.
 	LayerAccount = "account"
@@ -44,6 +46,9 @@ func Effective(account, contour, project map[string]any) []Value {
 			}
 			v.Value, v.Layer = got, layer.name
 		}
+		if v.Layer == LayerClaude && p.Default != nil {
+			v.Value, v.Layer = p.Default, LayerPanel
+		}
 		out = append(out, v)
 	}
 	return out
@@ -75,7 +80,7 @@ func mergeKeys(v Value, got any, layer string) Value {
 func Launch(contour, project map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, v := range Effective(nil, contour, project) {
-		if v.Layer != LayerClaude {
+		if v.Layer == LayerContour || v.Layer == LayerProject {
 			out[v.Key] = v.Value
 		}
 	}

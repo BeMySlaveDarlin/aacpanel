@@ -21,6 +21,9 @@ def load(name):
 
 
 guard = load("context-guard")
+guards = load("guards")
+
+PROJECT = "/srv/proj/Pets/service/aacpanel"
 
 
 class TestGuard(unittest.TestCase):
@@ -28,7 +31,15 @@ class TestGuard(unittest.TestCase):
     def setUp(self):
         self.state_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.state_dir.cleanup)
-        self.env = {"AACP_STATE_DIR": self.state_dir.name, guard.SETTING: "80"}
+        self.xdg = tempfile.TemporaryDirectory()
+        self.addCleanup(self.xdg.cleanup)
+        self.env = {"AACP_STATE_DIR": self.state_dir.name, "XDG_STATE_HOME": self.xdg.name}
+        self.places(f"{PROJECT}\t80\t1")
+
+    def places(self, *lines):
+        os.makedirs(os.path.join(self.xdg.name, "aacpanel"), exist_ok=True)
+        with open(os.path.join(self.xdg.name, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
+            f.write("".join(line + "\n" for line in lines))
 
     def snapshot(self, **row):
         session = {"sessionId": "mine", "tokens": 840_000, "limit": 1_000_000,
@@ -38,7 +49,7 @@ class TestGuard(unittest.TestCase):
             json.dump({"sessions": [session]}, f)
 
     def run_hook(self, payload=None, **env):
-        payload = {"hook_event_name": "Stop", "session_id": "mine",
+        payload = {"hook_event_name": "Stop", "session_id": "mine", "cwd": PROJECT,
                    "stop_hook_active": False, **(payload or {})}
         settings = {**self.env, **env}
         was = {k: os.environ.get(k) for k in settings}
@@ -62,7 +73,7 @@ class TestGuard(unittest.TestCase):
         text = out.getvalue().strip()
         return json.loads(text) if text else None
 
-    def test_past_the_threshold_the_session_is_told_to_finalize_and_restart(self):
+    def test_past_the_cap_the_session_is_told_to_finalize_and_restart(self):
         self.snapshot()
         got = self.run_hook()
         self.assertEqual(got["decision"], "block")
@@ -71,24 +82,35 @@ class TestGuard(unittest.TestCase):
         self.assertIn("restart-session", got["reason"])
         self.assertIn("do not pass --continue", got["reason"])
 
-    def test_under_the_threshold_nothing_is_said(self):
+    def test_under_the_cap_nothing_is_said(self):
         self.snapshot(pct=79.9, tokens=799_000)
         self.assertIsNone(self.run_hook())
 
-    def test_the_threshold_is_the_project_setting(self):
+    def test_the_cap_is_the_project_setting(self):
         self.snapshot(pct=61.0, tokens=610_000)
         self.assertIsNone(self.run_hook())
-        self.assertEqual(self.run_hook(**{guard.SETTING: "60"})["decision"], "block")
+        self.places(f"{PROJECT}\t60\t1")
+        self.assertEqual(self.run_hook()["decision"], "block")
 
-    def test_without_the_setting_the_guard_is_off(self):
+    def test_without_auto_restart_past_the_cap_nothing_is_said(self):
         self.snapshot(pct=99.0)
-        self.assertIsNone(self.run_hook(**{guard.SETTING: None}))
-        self.assertIsNone(self.run_hook(**{guard.SETTING: ""}))
+        self.places(f"{PROJECT}\t80\t0")
+        self.assertIsNone(self.run_hook())
 
-    def test_a_setting_that_is_not_a_percentage_keeps_the_guard_off(self):
+    def test_a_directory_no_place_holds_is_not_guarded(self):
         self.snapshot(pct=99.0)
-        for raw in ("yes", "0", "100", "150", "-5", "80%"):
-            self.assertIsNone(self.run_hook(**{guard.SETTING: raw}), raw)
+        self.assertIsNone(self.run_hook({"cwd": "/srv/elsewhere"}))
+        self.assertIsNone(self.run_hook({"cwd": PROJECT + "-2"}))
+
+    def test_a_directory_inside_the_project_is_the_project(self):
+        self.snapshot()
+        got = self.run_hook({"cwd": PROJECT + "/.claude/worktrees/agent-1"})
+        self.assertEqual(got["decision"], "block")
+
+    def test_without_the_guards_file_the_guard_is_off(self):
+        self.snapshot(pct=99.0)
+        os.remove(os.path.join(self.xdg.name, "aacpanel", "guards.tsv"))
+        self.assertIsNone(self.run_hook())
 
     def test_the_turn_after_a_block_is_not_blocked_again(self):
         self.snapshot(pct=95.0)
@@ -111,9 +133,8 @@ class TestGuard(unittest.TestCase):
 
     def test_a_broken_payload_is_not_a_crash(self):
         self.snapshot()
-        was = os.environ.get(guard.SETTING)
-        os.environ[guard.SETTING] = "80"
         os.environ["AACP_STATE_DIR"] = self.state_dir.name
+        os.environ["XDG_STATE_HOME"] = self.xdg.name
         try:
             sys.stdin = io.StringIO("not json")
             with contextlib.redirect_stdout(io.StringIO()) as out:
@@ -121,9 +142,32 @@ class TestGuard(unittest.TestCase):
         finally:
             sys.stdin = sys.__stdin__
             os.environ.pop("AACP_STATE_DIR", None)
-            if was is None:
-                os.environ.pop(guard.SETTING, None)
+            os.environ.pop("XDG_STATE_HOME", None)
         self.assertEqual(out.getvalue(), "")
+
+
+class TestPlaces(unittest.TestCase):
+
+    def file(self, *lines):
+        f = tempfile.NamedTemporaryFile("w", suffix=".tsv", delete=False, encoding="utf-8")
+        self.addCleanup(os.remove, f.name)
+        f.write("".join(line + "\n" for line in lines))
+        f.close()
+        return f.name
+
+    def test_the_closest_place_above_wins(self):
+        name = self.file("/srv/proj/Algo\t70\t1", "/srv/proj/Algo/lms\t90\t0")
+        self.assertEqual(guards.of("/srv/proj/Algo/lms/src", name), (90, False))
+        self.assertEqual(guards.of("/srv/proj/Algo/ai-platform", name), (70, True))
+        self.assertEqual(guards.of("/srv/proj/Algo", name), (70, True))
+        self.assertIsNone(guards.of("/srv/proj/AlgoX", name))
+
+    def test_a_broken_line_is_passed_over(self):
+        name = self.file("/opt/x\teighty\t1", "/opt/x", "/opt\t75\t0")
+        self.assertEqual(guards.of("/opt/x", name), (75, False))
+
+    def test_no_file_is_no_guard(self):
+        self.assertIsNone(guards.of("/opt/x", "/nonexistent/guards.tsv"))
 
 
 if __name__ == "__main__":

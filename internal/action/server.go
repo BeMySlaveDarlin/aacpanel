@@ -186,6 +186,17 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Kinds: s.kinds()}
 	}
 
+	if req.Ask == AskGuards {
+		keeper, ok := s.exec.(GuardKeeper)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not keep the context guards"), 0)
+		}
+		if err := keeper.KeepGuards(ctx, req.Guards); err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true}
+	}
+
 	if req.Ask == AskPermission {
 		asker, ok := s.exec.(Asker)
 		if !ok {

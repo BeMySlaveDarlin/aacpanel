@@ -181,7 +181,11 @@ func TestEffectiveLaunchTellsEmptyIntentFromNoIntent(t *testing.T) {
 	}
 }
 
-func TestEffectiveLaunchCarriesFinalizeAt(t *testing.T) {
+// The context cap travels with the launch to the executor, which keeps it for
+// the host: a number from the contour unless the project names its own, and
+// no key where nobody names one — the panel's default is said by the schema,
+// not written into every launch.
+func TestEffectiveLaunchCarriesTheContextCap(t *testing.T) {
 	cases := []struct {
 		name    string
 		profile string
@@ -189,15 +193,15 @@ func TestEffectiveLaunchCarriesFinalizeAt(t *testing.T) {
 		want    any
 	}{
 		{
-			name:    "the project is silent — the threshold comes from the profile",
-			profile: `{"finalizeAt":80}`,
+			name:    "the project is silent — the cap comes from the profile",
+			profile: `{"contextCap":80}`,
 			project: `{"model":"opus"}`,
 			want:    float64(80),
 		},
 		{
 			name:    "the project names its own — and that is what wins",
-			profile: `{"finalizeAt":80}`,
-			project: `{"finalizeAt":60}`,
+			profile: `{"contextCap":80}`,
+			project: `{"contextCap":60}`,
 			want:    float64(60),
 		},
 		{
@@ -217,17 +221,15 @@ func TestEffectiveLaunchCarriesFinalizeAt(t *testing.T) {
 			if err := json.Unmarshal(raw, &got); err != nil {
 				t.Fatal(err)
 			}
-			value, ok := got["finalizeAt"]
+			value, ok := got["contextCap"]
 			if c.want == nil {
 				if ok {
-					t.Fatalf("a threshold appeared out of nowhere: %s", raw)
+					t.Fatalf("a cap appeared out of nowhere: %s", raw)
 				}
 				return
 			}
-			// A number that came back as a string would slip past the
-			// launcher's check and switch nothing on.
 			if !ok || value != c.want {
-				t.Errorf("the threshold after the merge is %v (%T), %v was expected", value, value, c.want)
+				t.Errorf("the cap after the merge is %v (%T), %v was expected", value, value, c.want)
 			}
 		})
 	}

@@ -56,6 +56,9 @@ type Request struct {
 
 	// History is the side chat so far, sent with a question aside.
 	History []SideTurn `json:"history,omitempty"`
+
+	// Guards are what the host keeps of the context guard of every place.
+	Guards []Guard `json:"guards,omitempty"`
 }
 
 // Project is the project to open.

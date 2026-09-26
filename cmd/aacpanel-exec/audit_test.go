@@ -129,3 +129,30 @@ func (modelsExec) Status(context.Context, string) (*action.Status, error) {
 func (modelsExec) Mcp(context.Context, string) (*action.Mcp, error) {
 	return &action.Mcp{Transport: "stream", Servers: []action.McpServer{{Name: "docker", Status: "connected"}}}, nil
 }
+
+type keepingExec struct {
+	muteExec
+	got *[]action.Guard
+}
+
+func (k keepingExec) KeepGuards(_ context.Context, guards []action.Guard) error {
+	*k.got = guards
+	return nil
+}
+
+// The guards reach the executor through the journal wrapper: without it the
+// server answers "does not keep" while the host file goes stale unseen.
+func TestAuditedForwardsTheGuards(t *testing.T) {
+	var got []action.Guard
+	keeper, ok := any(audited{next: keepingExec{got: &got}}).(action.GuardKeeper)
+	if !ok {
+		t.Fatal("the journal wrapper does not implement action.GuardKeeper")
+	}
+	want := []action.Guard{{Path: "/opt/x", Cap: 80, Restart: true}}
+	if err := keeper.KeepGuards(t.Context(), want); err != nil || len(got) != 1 || got[0] != want[0] {
+		t.Errorf("the guards reached the executor as %v, %v", got, err)
+	}
+	if err := any(audited{next: muteExec{}}).(action.GuardKeeper).KeepGuards(t.Context(), want); err == nil {
+		t.Error("an executor that keeps no guards said nothing instead of refusing")
+	}
+}

@@ -14,7 +14,6 @@ const (
 	keyEffort         = "effort"
 	keyPermissionMode = "permissionMode"
 	keyRemoteControl  = "remoteControl"
-	keyFinalizeAt     = "finalizeAt"
 	keyEnv            = "env"
 	keyArgs           = "args"
 	keyIntent         = "intent"
@@ -35,7 +34,6 @@ type Params struct {
 	Effort         string
 	PermissionMode string
 	RemoteControl  *bool
-	FinalizeAt     int
 	Env            map[string]string
 	Args           []string
 	Intent         string
@@ -64,10 +62,16 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 		// The schema is the list of keys: a key it does not hold is unknown,
 		// and a retired one is passed over in silence — scripts outside the
 		// panel still send it, and it asks nothing of the launch.
-		if _, ok := schema.Find(key); !ok {
+		known, ok := schema.Find(key)
+		if !ok {
 			if _, gone := schema.Retire(key); !gone {
 				unknown = append(unknown, key)
 			}
+			continue
+		}
+		// A parameter the host reads is not the launch's: the context guard
+		// and the prompt stamp take it from what the executor keeps of the map.
+		if known.Host {
 			continue
 		}
 		switch key {
@@ -103,17 +107,6 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 				break
 			}
 			p.RemoteControl = &on
-		case keyFinalizeAt:
-			var at int
-			if err := json.Unmarshal(obj[key], &at); err != nil {
-				warns = append(warns, "parameter finalizeAt is not a whole number — skipped")
-				break
-			}
-			if at < 1 || at > 99 {
-				warns = append(warns, fmt.Sprintf("parameter finalizeAt is %d, outside 1–99 — skipped", at))
-				break
-			}
-			p.FinalizeAt = at
 		case keyEnv:
 			if err := json.Unmarshal(obj[key], &p.Env); err != nil {
 				p.Env = nil
