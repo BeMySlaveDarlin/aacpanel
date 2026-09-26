@@ -6,13 +6,10 @@ import { html } from "../../html.js";
 import { COMMANDS } from "../../actions/registry.js";
 
 export const MODELS = (COMMANDS.model.args || []).filter((value) => value !== "default");
-export const EFFORTS = COMMANDS.effort.args || [];
-
-// Ultracode is not a level of thinking but xhigh with workflows standing by;
-// the list says so, the way the picker of a live session does.
-function effortLabel(id) {
-    return id === "ultracode" ? "ultracode · xhigh + workflows" : id;
-}
+// Ultracode is not offered here: claude does not take it at launch and starts
+// at its default effort instead. A live session takes it from the composer.
+const ULTRACODE = "ultracode";
+export const EFFORTS = (COMMANDS.effort.args || []).filter((id) => id !== ULTRACODE);
 
 function family(id) {
     const found = /^claude-([a-z]+)/.exec(String(id || ""));
@@ -272,8 +269,11 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
             <span class="pflabel">Effort</span>
             <select class="search" value=${l.effort || ""} onChange=${(e) => set({ effort: e.target.value })}>
                 <option value="">${none("effort", "claude decides")}</option>
-                ${EFFORTS.map((id) => html`<option value=${id} key=${id}>${effortLabel(id)}</option>`)}
+                ${EFFORTS.map((id) => html`<option value=${id} key=${id}>${id}</option>`)}
             </select>
+            ${l.effort === ULTRACODE && html`
+                <span class="pfhelp warn">ultracode — claude does not take it at launch; the session starts at its default effort, and ultracode is chosen in the composer of a live session</span>
+            `}
         </label>
 
         <label class="pffield">

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -153,6 +154,26 @@ func TestParseParamsNamesWhatItCannotUse(t *testing.T) {
 	}
 	if len(warns) == 0 {
 		t.Error("the broken parameter was not named")
+	}
+}
+
+// Claude drops an effort it does not take at launch and starts at its
+// default, with a line on a terminal nobody reads; the launcher names it and
+// passes nothing, and ultracode, the one the composer offers, is among them.
+func TestParseParamsNamesAnEffortClaudeDoesNotTakeAtLaunch(t *testing.T) {
+	for _, effort := range []string{"ultracode", "extreme"} {
+		p, warns := parseParams(json.RawMessage(`{"effort":"` + effort + `"}`))
+		if len(warns) == 0 {
+			t.Errorf("effort %q accepted silently", effort)
+		}
+		if p.Effort != "" || slices.Contains(claudeArgs("home", "", p), "--effort") ||
+			slices.Contains(streamArgs("home", "id", "", p), "--effort") {
+			t.Errorf("effort %q went on to claude: %+v", effort, p)
+		}
+	}
+	p, warns := parseParams(json.RawMessage(`{"effort":"max"}`))
+	if len(warns) != 0 || p.Effort != "max" {
+		t.Errorf("max was turned away: %+v %v", p, warns)
 	}
 }
 

@@ -5,21 +5,28 @@ import (
 	"testing"
 )
 
-// A launch takes ultracode as it takes a level: claude starts the session in
-// it. The list names it for what it is, xhigh with workflows, the way the
-// picker of a live session does.
-func TestALaunchOffersUltracodeByWhatItIs(t *testing.T) {
+// A launch does not offer ultracode: claude drops it at launch and starts at
+// its default effort, so the list would promise what the session never gets.
+// A map that holds it anyway says so under the field rather than showing a
+// blank choice.
+func TestALaunchDoesNotOfferUltracode(t *testing.T) {
 	var got struct {
 		Fields string `json:"fields"`
+		Held   string `json:"held"`
 	}
 	launchNode(t, launchBundle(t, true), renderPrelude+`
 process.stdout.write(JSON.stringify({
     fields: text(LaunchFields({ value: {}, onChange: () => {}, inherited: {} })),
+    held: text(LaunchFields({ value: { effort: "ultracode" }, onChange: () => {}, inherited: {} })),
 }));
 `, &got)
-	for _, want := range []string{"value=max", "value=ultracode", "ultracode · xhigh + workflows"} {
-		if !strings.Contains(got.Fields, want) {
-			t.Errorf("the effort of a launch does not offer %q:\n%s", want, got.Fields)
-		}
+	if !strings.Contains(got.Fields, "value=max") {
+		t.Errorf("the effort of a launch lost its levels:\n%s", got.Fields)
+	}
+	if strings.Contains(got.Fields, "value=ultracode") {
+		t.Errorf("the effort of a launch offers ultracode, which claude drops at launch:\n%s", got.Fields)
+	}
+	if !strings.Contains(got.Held, "claude does not take it at launch") {
+		t.Errorf("a map holding ultracode says nothing about it:\n%s", got.Held)
 	}
 }

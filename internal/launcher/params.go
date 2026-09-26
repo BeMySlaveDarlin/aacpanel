@@ -28,6 +28,12 @@ const (
 	TransportStream = "stream"
 )
 
+// The efforts claude takes at launch. Ultracode is not one of them: claude
+// drops it with a line on the terminal and starts at its default effort, so the
+// launcher names it instead of passing it on — a live session takes it from the
+// composer.
+var launchEfforts = []string{"low", "medium", "high", "xhigh", "max"}
+
 // Params is what makes one launch differ from another.
 type Params struct {
 	Model          string
@@ -66,6 +72,11 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 			str(key, &p.Model)
 		case keyEffort:
 			str(key, &p.Effort)
+			if p.Effort != "" && !slices.Contains(launchEfforts, p.Effort) {
+				warns = append(warns, fmt.Sprintf("parameter effort is %q, which claude does not take at launch (%s) — "+
+					"the session starts at its default effort", p.Effort, strings.Join(launchEfforts, ", ")))
+				p.Effort = ""
+			}
 		case keyPermissionMode:
 			str(key, &p.PermissionMode)
 		case keyRoom:
