@@ -3,6 +3,7 @@ import sys
 import time
 
 import chat
+import held
 import models
 
 import agent
@@ -59,9 +60,12 @@ def models_worker(shared, lock):
 
 
 def models_snapshot(shared, lock):
-    """Returns the last model catalog, or None while it has not been collected yet."""
+    """Returns the last model catalog with what the models take, or None while it has not been collected yet."""
     with lock:
-        return shared["catalog"]
+        catalog = shared["catalog"]
+    if catalog is None:
+        return None
+    return {**catalog, "traits": held.traits()}
 
 
 def probes_snapshot(shared, lock):

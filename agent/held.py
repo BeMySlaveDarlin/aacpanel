@@ -76,6 +76,35 @@ def kept(path):
     return data if isinstance(data, list) else []
 
 
+_traits = {}
+_traits_key = None
+
+
+def traits():
+    """Returns what the holders learned of the models, by resolved id; empty when nothing yet.
+
+    A property of the model, the same in every account: which efforts it takes and
+    whether it has the auto mode. Read again only when the file changes.
+    """
+    global _traits, _traits_key
+    path = os.path.join(kept_dir(), "traits.json")
+    try:
+        stat = os.stat(path)
+        key = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return {}
+    if key != _traits_key:
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            data = None
+        models = data.get("models") if isinstance(data, dict) else None
+        _traits = models if isinstance(models, dict) else {}
+        _traits_key = key
+    return _traits
+
+
 def withdrawn_path(sid):
     """Returns where the holder keeps the fingerprints of the messages taken back."""
     return os.path.join(kept_dir(), "withdrawn", sid + ".json")

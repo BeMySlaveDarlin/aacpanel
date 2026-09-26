@@ -46,6 +46,33 @@ func TestProfilesSchemaNeedsNoDatabase(t *testing.T) {
 	}
 }
 
+// What a model takes comes with the schema, as the host's sessions on the
+// stream learned it; a host that has not learned it says so by an empty map,
+// not by null.
+func TestProfilesSchemaCarriesWhatModelsTake(t *testing.T) {
+	var got struct {
+		Traits map[string]struct {
+			Efforts  []string `json:"efforts"`
+			AutoMode bool     `json:"autoMode"`
+		} `json:"traits"`
+	}
+	for _, snap := range []string{`{"at":1}`, `{"at":1,"models":{"traits":{"claude-sonnet-4-6":{"effort":true,"efforts":["low","medium","high"],"autoMode":false}}}}`} {
+		srv := &Server{host: host.NewReader(snapshotWith(t, snap))}
+		w := httptest.NewRecorder()
+		srv.apiProfilesSchema(w, httptest.NewRequest(http.MethodGet, "/api/profiles/schema", nil))
+		if !strings.Contains(w.Body.String(), `"traits":{`) {
+			t.Errorf("the schema carries no map of traits: %s", w.Body.String())
+		}
+		got.Traits = nil
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s := got.Traits["claude-sonnet-4-6"]; len(s.Efforts) != 3 || s.AutoMode {
+		t.Errorf("sonnet 4.6 reads %+v", s)
+	}
+}
+
 // The map answers what every contour and project starts with, and from which
 // layer; a project that turns off what its contour turns on says off, from
 // itself. A change of one key through the API leaves the others as they were.

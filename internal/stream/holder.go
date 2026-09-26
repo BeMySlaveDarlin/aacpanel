@@ -242,6 +242,9 @@ func (h *Holder) handshake() {
 	}
 	h.mu.Unlock()
 	h.saveSummary()
+	if err := keepTraits(body.Response, time.Now()); err != nil {
+		h.logf("what claude said of its models was not kept: %v", err)
+	}
 	if h.spec.RemoteControl {
 		if _, err := h.control(context.Background(), "remote_control", map[string]any{"enabled": true}, remoteWait); err != nil {
 			h.logf("remote control was not switched on: %v", err)

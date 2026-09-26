@@ -31,10 +31,17 @@ func (s *Server) apiProfiles(w http.ResponseWriter, r *http.Request) {
 // screens are drawn from it, and it needs no database — the schema is built
 // into the service.
 func (s *Server) apiProfilesSchema(w http.ResponseWriter, r *http.Request) {
+	traits := map[string]host.ModelTrait{}
+	if s.host != nil {
+		traits = s.host.ModelTraits()
+	}
 	writeJSON(w, map[string]any{
 		"params":  schema.Params(),
 		"retired": schema.RetiredKeys(),
 		"layers":  []string{schema.LayerClaude, schema.LayerPanel, schema.LayerAccount, schema.LayerContour, schema.LayerProject},
+		// What each model takes: the efforts a screen offers for it and
+		// whether it has auto. Empty until a session on the stream says it.
+		"traits": traits,
 	})
 }
 

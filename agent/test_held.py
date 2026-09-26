@@ -231,3 +231,38 @@ class Withdrawn(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Traits(unittest.TestCase):
+    """What the holders learned of the models, read from the file they keep."""
+
+    def setUp(self):
+        self.state = test_barrier.tmp_path(prefix="traits-")
+        self.addCleanup(shutil.rmtree, self.state, True)
+        self.old = os.environ.get("XDG_STATE_HOME")
+        os.environ["XDG_STATE_HOME"] = self.state
+        self.addCleanup(lambda: os.environ.pop("XDG_STATE_HOME", None) if self.old is None
+                        else os.environ.__setitem__("XDG_STATE_HOME", self.old))
+
+    def keep(self, models):
+        os.makedirs(held.kept_dir(), exist_ok=True)
+        path = os.path.join(held.kept_dir(), "traits.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"at": 1, "models": models}, f)
+        os.utime(path, ns=(time.time_ns(), time.time_ns()))
+
+    def test_no_file_is_nothing_known(self):
+        self.assertEqual(held.traits(), {})
+
+    def test_the_file_is_read_and_read_again_when_it_changes(self):
+        self.keep({"claude-opus-5-5": {"effort": True, "efforts": ["low", "high"], "autoMode": True}})
+        self.assertEqual(held.traits()["claude-opus-5-5"]["efforts"], ["low", "high"])
+        self.keep({"claude-haiku-4-5": {"effort": False, "autoMode": False},
+                   "claude-opus-5-5": {"effort": True, "efforts": ["low"], "autoMode": True}})
+        self.assertEqual(sorted(held.traits()), ["claude-haiku-4-5", "claude-opus-5-5"])
+
+    def test_a_broken_file_is_nothing_known(self):
+        os.makedirs(held.kept_dir(), exist_ok=True)
+        with open(os.path.join(held.kept_dir(), "traits.json"), "w", encoding="utf-8") as f:
+            f.write("{not json")
+        self.assertEqual(held.traits(), {})

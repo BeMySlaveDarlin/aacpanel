@@ -264,6 +264,31 @@ type Catalog struct {
 
 var errorCode = regexp.MustCompile(`^[a-z0-9-]{1,16}$`)
 
+// ModelTrait is what a model takes, as a session on the stream learned it.
+type ModelTrait struct {
+	Effort   bool     `json:"effort"`
+	Efforts  []string `json:"efforts,omitempty"`
+	AutoMode bool     `json:"autoMode"`
+}
+
+// ModelTraits returns what the models take, by resolved id; empty where no
+// session on the stream has said it yet.
+func (h *Reader) ModelTraits() map[string]ModelTrait {
+	payload, err := h.JSON()
+	if err != nil {
+		return map[string]ModelTrait{}
+	}
+	var snapshot struct {
+		Models struct {
+			Traits map[string]ModelTrait `json:"traits"`
+		} `json:"models"`
+	}
+	if json.Unmarshal(payload, &snapshot) != nil || snapshot.Models.Traits == nil {
+		return map[string]ModelTrait{}
+	}
+	return snapshot.Models.Traits
+}
+
 // ModelCatalog returns the model catalog of the host, one for all contours.
 func (h *Reader) ModelCatalog() Catalog {
 	rows := h.contourCatalogs()
