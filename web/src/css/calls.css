@@ -395,3 +395,4 @@ button.mdone:active { background: var(--glass); }
    of thinking; its number is the agents the turn left at work. */
 .mtools.mturn { color: var(--ink-faint); }
 .mturn .mtnum { color: var(--ink-dim); }
+.mturn .mtleft { font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; }

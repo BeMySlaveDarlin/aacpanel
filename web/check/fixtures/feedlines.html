@@ -20,7 +20,7 @@ const items = [
     { role: "ai", text: "Between the runs.", pos: 55, at },
     { role: "taskdone", use: "u7", status: "completed", summary: "Background command \"sleep 1\" completed (exit code 0)", pos: 56, at },
     { role: "ai", text: "The checks failed; looking at the log.", pos: 6, at },
-    { role: "turn", ms: 169000, agents: 2, pos: 7, at },
+    { role: "turn", ms: 169000, agents: 3, pos: 7, at },
     { role: "notice", text: "Working on the panel; the tree is clean, two tails left.", from: "while you were away", level: "info", pos: 8, at },
     { role: "notice", text: "Unknown command: /storage", level: "warn", pos: 9, at },
     { role: "notice", text: "The safeguards flagged this message.", from: "safeguards", level: "crit", pos: 10, at },
@@ -54,6 +54,7 @@ const until = async (ok, ms = 3000) => {
         })),
         turnLeft: document.querySelector(".mturn").getBoundingClientRect().left,
         turnNum: text(document.querySelector(".mturn .mtnum")),
+        turnLeftSay: text(document.querySelector(".mturn .mtleft")),
         turnIcon: Boolean(document.querySelector(".mturn .mticon svg")),
         pills: Array.from(document.querySelectorAll(".mdone")).map((el) => ({
             mark: text(el.querySelector(".mdonemark")),

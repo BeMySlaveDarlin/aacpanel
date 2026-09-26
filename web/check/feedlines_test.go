@@ -1,6 +1,8 @@
 package check
 
 import (
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -33,6 +35,7 @@ type feedLinesShot struct {
 	} `json:"lines"`
 	Turn      string   `json:"turn"`
 	TurnNum   string   `json:"turnNum"`
+	TurnSays  string   `json:"turnLeftSay"`
 	TurnIcon  bool     `json:"turnIcon"`
 	TurnOpens []int    `json:"turnOpens"`
 	Worked    bool     `json:"worked"`
@@ -95,11 +98,15 @@ func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 		t.Errorf("the length of a turn is printed in the feed: it belongs to the calls the badge opens")
 	}
 	if !got.TurnIcon || got.TurnNum != "2" {
-		t.Errorf("the badge of the turn is not an hourglass with the agents it left at work: icon %v, number %q",
-			got.TurnIcon, got.TurnNum)
+		t.Errorf("the badge of the turn is not an hourglass with the calls it opens: icon %v, number %q — "+
+			"a number on a badge is the calls behind it, as on every badge beside it", got.TurnIcon, got.TurnNum)
 	}
-	if !strings.Contains(got.Turn, "worked 2m 49s") || !strings.Contains(got.Turn, "2 background agents were still at work") {
-		t.Errorf("the badge of the turn says %q: how long it took and what it left at work", got.Turn)
+	if got.TurnSays != "· 3 at work" {
+		t.Errorf("the agents the turn left at work read %q: in words, so they are not taken for calls", got.TurnSays)
+	}
+	if !strings.Contains(got.Turn, "worked 2m 49s") || !strings.Contains(got.Turn, "2 calls") ||
+		!strings.Contains(got.Turn, "3 background agents were still at work") {
+		t.Errorf("the badge of the turn says %q: how long it took, the calls and what it left at work", got.Turn)
 	}
 	if len(got.TurnOpens) != 1 || got.TurnOpens[0] != 7 {
 		t.Errorf("tapping the badge of the turn opened %v: the calls of that turn", got.TurnOpens)
@@ -113,5 +120,40 @@ func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 	}
 	if warn.Dot == crit.Dot || crit.Colour == warn.Colour {
 		t.Errorf("a refusal reads like a warning: %+v %+v", warn, crit)
+	}
+}
+
+// The end of a turn counts the calls of its own turn only: the number on its
+// badge is what the calls sheet it opens lists, and the turn before it has a
+// badge of its own.
+func TestTheTurnCountsItsOwnCalls(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not found: the feed is run by the engine, not by reading the source")
+	}
+	path, err := filepath.Abs(filepath.Join(webDir, "src", "screens", "chat", "feed.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `
+import { rows } from ` + jsString("file://"+path) + `;
+const items = [
+    { role: "tools", kind: "bash", run: 1, pos: 1, calls: [{ name: "Bash", pos: 1 }, { name: "Read", pos: 1, index: 1 }] },
+    { role: "think", run: 1, pos: 2, spots: [{ pos: 2 }] },
+    { role: "turn", pos: 3, ms: 1000 },
+    { role: "ai", text: "next", pos: 4 },
+    { role: "tools", kind: "bash", run: 5, pos: 5, calls: [{ name: "Bash", pos: 5 }] },
+    { role: "turn", pos: 6, ms: 1000, agents: 3 },
+    { role: "turn", pos: 7, ms: 1000 },
+];
+process.stdout.write(JSON.stringify(rows(items).filter((r) => r.role === "turn").map((r) => r.calls)));
+`
+	out, err := exec.Command(node, "--input-type=module", "-e", script).Output()
+	if err != nil {
+		t.Fatalf("node: %v", err)
+	}
+	if got := string(out); got != "[2,1,0]" {
+		t.Errorf("the ends of three turns count %s calls, expected [2,1,0]: a thought is no call, "+
+			"and a turn counts from the end of the one before it", got)
 	}
 }

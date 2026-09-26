@@ -13,7 +13,7 @@ import { idParam } from "./api.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, SentCard } from "./files.js";
 import { Photo, shotName } from "./photo.js";
-import { callWord, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
+import { callWord, countCalls, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
 
 // Row renders one row of the feed.
 export function Row({ item, session, id, onCalls, onTurn, onFile, onBrief, onCommand, copies, onPage, onTask }) {
@@ -38,16 +38,19 @@ export function Row({ item, session, id, onCalls, onTurn, onFile, onBrief, onCom
         return html`<${Line} item=${item} onTask=${onTask} />`;
     }
     // The end of a turn is a badge under its last answer: how long it took
-    // and when it ended are a tap away, with the calls it made. The number is
-    // the agents it left at work, the way the terminal says it is waiting.
+    // and when it ended are a tap away, with the calls it made. Its number is
+    // the calls the tap opens, as on every badge beside it; the agents it left
+    // at work are said in words, since a second bare number would read as calls.
     if (item.role === "turn") {
-        const said = [turnTook(item), turnLeft(item)].filter(Boolean).join(" · ");
+        const count = item.calls || 0;
+        const said = [turnTook(item), count > 0 && countCalls(count), turnLeft(item)].filter(Boolean).join(" · ");
         return html`
             <div class="mrow">
                 <button class="mtools mturn" type="button" onClick=${() => onTurn && onTurn(item)}
                         title=${said} aria-label=${`the turn: ${said}`}>
                     <span class="mticon">${Icon.hourglass()}</span>
-                    ${item.agents > 0 && html`<span class="mtnum">${item.agents}</span>`}
+                    ${count > 0 && html`<span class="mtnum">${count}</span>`}
+                    ${item.agents > 0 && html`<span class="mtleft">· ${item.agents} at work</span>`}
                 </button>
             </div>
         `;
