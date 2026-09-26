@@ -14,6 +14,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/contours"
 	"aacpanel/internal/host"
+	"aacpanel/internal/launcher"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
@@ -395,11 +396,40 @@ func (s *Server) writeProfiles(w http.ResponseWriter, r *http.Request, extra map
 		list[i].Account, list[i].ContextGuard = st.Account, st.ContextGuard
 	}
 	store.FillEffective(list)
+	fillLines(list)
 	body := map[string]any{"profiles": list, "models": s.modelCatalog(), "disk": s.diskReport(r.Context(), list)}
 	for k, v := range extra {
 		body[k] = sameEntry(list, v)
 	}
 	writeJSON(w, body)
+}
+
+// fillLines puts on every project the command its next launch runs, built by
+// the launcher's own code and started by nobody, each word marked with the
+// layer its parameter came from.
+func fillLines(list []store.Profile) {
+	for i := range list {
+		for g := range list[i].Groups {
+			for p := range list[i].Groups[g].Projects {
+				project := &list[i].Groups[g].Projects[p]
+				launch, err := store.EffectiveLaunch(list[i].Launch, project.Launch)
+				if err != nil {
+					continue
+				}
+				line := launcher.Preview(sessionNameOf(*project), launch)
+				layers := map[string]string{}
+				for _, v := range project.Effective {
+					layers[v.Key] = v.Layer
+				}
+				for _, words := range [][]schema.Word{line.Words, line.Then} {
+					for w := range words {
+						words[w].Layer = layers[words[w].Key]
+					}
+				}
+				project.Line = &line
+			}
+		}
+	}
 }
 
 // sameEntry returns the entry of the map an answer names beside it, as the

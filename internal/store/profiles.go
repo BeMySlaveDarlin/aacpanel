@@ -74,6 +74,8 @@ type ProfileProject struct {
 	// Effective is what the project starts with, parameter by parameter,
 	// with the layer of each.
 	Effective []schema.Value `json:"effective"`
+	// Line is the command its next launch runs, word by word.
+	Line *schema.Line `json:"line,omitempty"`
 }
 
 // ProfileEdit holds the profile's fields that can be set.

@@ -173,3 +173,38 @@ func TestProfilesAnswerTheAccountLayerPG(t *testing.T) {
 		t.Errorf("the contour's defaults read model %q, effort %q", got["model"], got["effort"])
 	}
 }
+
+// Every project answers the command its next launch runs, each word marked
+// with the layer its parameter came from.
+func TestProfilesAnswerTheLaunchLinePG(t *testing.T) {
+	srv, root := profilesServer(t)
+	mux := profilesMux(srv)
+	call := func(method, path, body string) map[string]any {
+		t.Helper()
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s %s: %d %s", method, path, w.Code, w.Body.String())
+		}
+		var out map[string]any
+		json.Unmarshal(w.Body.Bytes(), &out)
+		return out
+	}
+	profile := idOf(t, call(http.MethodPost, "/api/profiles",
+		`{"name":"personal","configDir":"`+root+`","launch":{"remoteControl":true}}`), "profile")
+	group := idOf(t, call(http.MethodPost, "/api/profiles/"+strconv.Itoa(profile)+"/groups", `{"name":"s"}`), "group")
+	body := call(http.MethodPost, "/api/groups/"+strconv.Itoa(group)+"/projects",
+		`{"name":"aacpanel","path":"`+root+`/aacpanel","launch":{"effort":"high"}}`)
+	line, _ := body["project"].(map[string]any)["line"].(map[string]any)
+	words, _ := line["words"].([]any)
+	got := []string{}
+	for _, raw := range words {
+		w := raw.(map[string]any)
+		layer, _ := w["layer"].(string)
+		got = append(got, w["text"].(string)+"/"+layer)
+	}
+	want := "claude/ -n/ aacpanel/ --remote-control/contour aacpanel/contour --effort/project high/project"
+	if strings.Join(got, " ") != want {
+		t.Errorf("the line reads %q, meant %q", strings.Join(got, " "), want)
+	}
+}

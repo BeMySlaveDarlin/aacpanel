@@ -62,3 +62,34 @@ func TestTheLauncherTakesEveryKeyOfTheSchema(t *testing.T) {
 		t.Error("a key outside the schema passed in silence")
 	}
 }
+
+// The line a screen shows is the command a launch runs: the same words in the
+// same order, each with the parameter that put it there. A session on the
+// stream folds nothing away here — the screen does — and says what its holder
+// does past the handshake.
+func TestPreviewIsTheCommandTheLaunchRuns(t *testing.T) {
+	raw := json.RawMessage(`{"model":"opus","effort":"high","remoteControl":true,"intent":"go","args":["--verbose"]}`)
+	p, _ := parseParams(raw)
+	line := Preview("panel", raw)
+	if got, want := texts(line.Words), append([]string{"claude"}, claudeArgs("panel", "", p)...); !reflect.DeepEqual(got, want) {
+		t.Errorf("the preview reads %v, the launch runs %v", got, want)
+	}
+	keys := map[string]string{}
+	for _, w := range line.Words {
+		keys[w.Text] = w.Key
+	}
+	if keys["--effort"] != keyEffort || keys["--remote-control"] != keyRemoteControl || keys["go"] != keyIntent ||
+		keys["--verbose"] != keyArgs || keys["-n"] != "" {
+		t.Errorf("the words name their parameters as %v", keys)
+	}
+
+	stream := Preview("panel", json.RawMessage(`{"transport":"stream","remoteControl":true,"intent":"go"}`))
+	if stream.Words[1].Key != keyTransport || len(stream.Then) != 2 || stream.Then[0].Key != keyRemoteControl {
+		t.Errorf("the stream line is %+v", stream)
+	}
+	for _, w := range stream.Words {
+		if w.Text == "go" || w.Text == "--remote-control" {
+			t.Errorf("the stream command carries %q, which the holder does itself", w.Text)
+		}
+	}
+}
