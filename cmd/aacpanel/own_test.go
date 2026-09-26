@@ -20,3 +20,15 @@ func TestOwnValuesAreWhatDiffersFromTheContour(t *testing.T) {
 		t.Errorf("own values %v — meant effort max and the stream; the repeated RC and the default-equal auto restart are not the project's own", got)
 	}
 }
+
+// What the account already says is not the project's own either: a pin of the
+// account's effort is a repeat, and the row stays quiet about it.
+func TestOwnValuesSkipWhatTheAccountSays(t *testing.T) {
+	account := map[string]any{"effort": "xhigh", "permissionMode": "auto"}
+	contour := schema.Effective(account, nil, nil)
+	project := schema.Effective(account, nil, map[string]any{"effort": "xhigh", "permissionMode": "plan"})
+	got := ownValues(contour, project)
+	if len(got) != 1 || got[0].Key != "permissionMode" {
+		t.Errorf("own values %+v — only the mode differs from the account", got)
+	}
+}

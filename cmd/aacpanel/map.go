@@ -69,6 +69,13 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 		return payload, nil
 	}
 	payload = sessionsByProject(payload, list, s.worktrees(), s.db.ProjectRoots())
+	// The account is a layer too: a project that repeats what its account
+	// says is not setting anything of its own.
+	states := s.contourStates()
+	for i := range list {
+		st := states.of(list[i])
+		list[i].Account = st.Account
+	}
 	store.FillEffective(list)
 	fillLines(list)
 	tree := profileMap(list)
