@@ -41,6 +41,12 @@ type Profile struct {
 	Launch    json.RawMessage `json:"launch"`
 	CreatedAt int64           `json:"createdAt"`
 	Groups    []ProfileGroup  `json:"groups"`
+
+	// Account is what the account starts a session with where the map says
+	// nothing, and ContextGuard whether it runs the context guard hook — both
+	// as the collector read them on the host; absent where it did not.
+	Account      map[string]string `json:"account,omitempty"`
+	ContextGuard *bool             `json:"contextGuard,omitempty"`
 	// Effective is what the contour's projects start with where they say
 	// nothing themselves, parameter by parameter, with the layer of each.
 	Effective []schema.Value `json:"effective"`
@@ -228,12 +234,19 @@ func FillEffective(list []Profile) {
 		if err != nil {
 			continue
 		}
-		list[i].Effective = schema.Effective(nil, contour, nil)
+		var account map[string]any
+		for k, v := range list[i].Account {
+			if account == nil {
+				account = map[string]any{}
+			}
+			account[k] = v
+		}
+		list[i].Effective = schema.Effective(account, contour, nil)
 		for g := range list[i].Groups {
 			for p := range list[i].Groups[g].Projects {
 				project := &list[i].Groups[g].Projects[p]
 				if own, err := launchObject(project.Launch, "the project"); err == nil {
-					project.Effective = schema.Effective(nil, contour, own)
+					project.Effective = schema.Effective(account, contour, own)
 				}
 			}
 		}

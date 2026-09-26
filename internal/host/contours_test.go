@@ -260,3 +260,24 @@ func TestSnapshotKeepsWaitingReason(t *testing.T) {
 		t.Errorf("the waiting reason is lost or translated on the way: %q (%s)", got, payload)
 	}
 }
+
+// What an account starts a session with and whether it runs the context guard
+// come through as the collector read them, and stay unknown where it did not.
+func TestContoursCarryTheAccountAndTheGuard(t *testing.T) {
+	r := readerWith(t, `{"at":1,"profiles":[
+		{"name":"personal","configDir":"/home/u/.claude","auth":"builtin",
+		 "account":{"model":"opus[1m]","effort":"xhigh","permissionMode":"auto"},"contextGuard":true},
+		{"name":"work","configDir":"/home/u/.claude-contours/work","auth":"token"}
+	]}`)
+	got := r.Contours()
+	if len(got) != 2 {
+		t.Fatalf("%d contours parsed: %+v", len(got), got)
+	}
+	if got[0].Account["model"] != "opus[1m]" || got[0].Account["permissionMode"] != "auto" ||
+		got[0].ContextGuard == nil || !*got[0].ContextGuard {
+		t.Errorf("the account or the guard of personal did not come through: %+v", got[0])
+	}
+	if got[1].Account != nil || got[1].ContextGuard != nil {
+		t.Errorf("a contour whose settings were not read got an account or a guard: %+v", got[1])
+	}
+}

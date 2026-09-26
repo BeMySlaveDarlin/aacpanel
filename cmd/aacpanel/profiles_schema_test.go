@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/host"
 )
 
 // The schema is answered without a database: it is built into the service,
@@ -104,4 +106,43 @@ func TestProfilesAnswerEffectiveValuesPG(t *testing.T) {
 func jsonText(v any) string {
 	raw, _ := json.Marshal(v)
 	return string(raw)
+}
+
+// Where the map says nothing, the account's own settings are what a session
+// starts with, and the map answers them from the account layer — the model a
+// console runs on is not "claude decides" when the account names it.
+func TestProfilesAnswerTheAccountLayerPG(t *testing.T) {
+	srv, root := profilesServer(t)
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"profiles":[{"name":"personal","configDir":"`+root+
+		`","auth":"builtin","account":{"model":"opus[1m]","effort":"xhigh"},"contextGuard":true}]}`))
+	mux := profilesMux(srv)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/profiles",
+		strings.NewReader(`{"name":"personal","configDir":"`+root+`","launch":{"effort":"high"}}`)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Profile struct {
+			ContextGuard *bool `json:"contextGuard"`
+			Effective    []struct {
+				Key   string `json:"key"`
+				Value any    `json:"value"`
+				Layer string `json:"layer"`
+			} `json:"effective"`
+		} `json:"profile"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Profile.ContextGuard == nil || !*body.Profile.ContextGuard {
+		t.Error("the contour does not say its account runs the context guard")
+	}
+	got := map[string]string{}
+	for _, v := range body.Profile.Effective {
+		got[v.Key] = jsonText(v.Value) + " · " + v.Layer
+	}
+	if got["model"] != `"opus[1m]" · account` || got["effort"] != `"high" · contour` {
+		t.Errorf("the contour's defaults read model %q, effort %q", got["model"], got["effort"])
+	}
 }

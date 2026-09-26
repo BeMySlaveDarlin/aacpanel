@@ -330,6 +330,7 @@ func (s *Server) writeProfiles(w http.ResponseWriter, r *http.Request, extra map
 	for i := range list {
 		st := states.of(list[i])
 		list[i].Auth, list[i].Hooks = st.Auth, st.Hooks
+		list[i].Account, list[i].ContextGuard = st.Account, st.ContextGuard
 	}
 	store.FillEffective(list)
 	body := map[string]any{"profiles": list, "models": s.modelCatalog(), "disk": s.diskReport(r.Context(), list)}

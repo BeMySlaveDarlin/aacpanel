@@ -154,8 +154,8 @@ class Contours(unittest.TestCase):
         self.assertEqual(by["work"]["auth"], "missing")
 
     def test_without_a_registry_only_the_personal_one_is_described(self):
-        self.assertEqual(contours.described(),
-                         [{"name": "personal", "configDir": self.home, "auth": "builtin"}])
+        self.assertEqual([(p["name"], p["configDir"], p["auth"]) for p in contours.described()],
+                         [("personal", self.home, "builtin")])
 
     def test_a_profile_without_its_directory_is_not_described(self):
         self.registry(("acme", os.path.join(self.root, "no-such-directory"), "-"))
@@ -199,6 +199,26 @@ class Contours(unittest.TestCase):
         self.registry(("work", work, "-"))
         by = {p["name"]: p for p in contours.described()}
         self.assertEqual(by["work"]["hooks"], "unknown")
+
+    def test_the_account_says_three_keys_and_never_its_environment(self):
+        work = self.contour()
+        with open(os.path.join(work, "settings.json"), "w", encoding="utf-8") as f:
+            json.dump({"model": "opus[1m]", "effortLevel": "xhigh", "permissions": {"defaultMode": "auto"},
+                       "env": {"CLAUDE_CODE_OAUTH_TOKEN": "secret"}, "theme": "dark"}, f)
+        self.registry(("work", work, "-"))
+        by = {p["name"]: p for p in contours.described()}
+        self.assertEqual(by["work"]["account"], {"model": "opus[1m]", "effort": "xhigh", "permissionMode": "auto"})
+        self.assertNotIn("secret", json.dumps(contours.described()))
+
+    def test_the_context_guard_is_seen_where_the_account_runs_it(self):
+        work = self.contour()
+        self.settings(self.home, {"Stop": [{"hooks": [
+            {"type": "command", "command": "python3 /srv/proj/aacpanel/deploy/claude/context-guard.py"}]}]})
+        self.settings(work, {"Stop": [{"hooks": [{"type": "command", "command": "bash cost.sh"}]}]})
+        self.registry(("work", work, "-"))
+        by = {p["name"]: p for p in contours.described()}
+        self.assertTrue(by["personal"]["contextGuard"])
+        self.assertFalse(by["work"]["contextGuard"])
 
     def test_a_broken_settings_json_of_a_profile_is_unknown(self):
         work = self.contour()

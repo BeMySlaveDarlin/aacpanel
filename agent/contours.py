@@ -94,14 +94,46 @@ def profiles():
     return [(name, d) for name, d, _ in _rows() if os.path.isdir(d)]
 
 
-def _hooks_of(config_dir):
+def _settings_of(config_dir):
     path = os.path.join(config_dir, "settings.json")
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
         return None
-    return data.get("hooks") if isinstance(data, dict) else None
+    return data if isinstance(data, dict) else None
+
+
+def _hooks_of(config_dir):
+    data = _settings_of(config_dir)
+    return data.get("hooks") if data is not None else None
+
+
+GUARD_HOOK = "context-guard.py"
+
+
+def _account_of(settings):
+    """Returns what the account starts a session with, in the map's words.
+
+    Three keys and nothing else: the settings hold the environment of the account,
+    tokens among it, and the panel has no business carrying that anywhere.
+    """
+    out = {}
+    for key, value in (("model", settings.get("model")),
+                       ("effort", settings.get("effortLevel")),
+                       ("permissionMode", (settings.get("permissions") or {}).get("defaultMode"))):
+        if isinstance(value, str) and value:
+            out[key] = value
+    return out
+
+
+def _guarded(settings):
+    """Says whether the account runs the context guard hook at the end of a turn."""
+    for entry in ((settings.get("hooks") or {}).get("Stop") or []):
+        for hook in (entry.get("hooks") or []) if isinstance(entry, dict) else []:
+            if isinstance(hook, dict) and GUARD_HOOK in str(hook.get("command") or ""):
+                return True
+    return False
 
 
 def _hooks_state(base, config_dir):
@@ -127,6 +159,10 @@ def described():
         row = {"name": name, "configDir": conf, "auth": auth}
         if conf != HOME:
             row["hooks"] = _hooks_state(base, conf)
+        settings = _settings_of(conf)
+        if settings is not None:
+            row["account"] = _account_of(settings)
+            row["contextGuard"] = _guarded(settings)
         out.append(row)
     return out
 

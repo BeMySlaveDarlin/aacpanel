@@ -193,6 +193,12 @@ type ContourState struct {
 	ConfigDir string
 	Auth      string
 	Hooks     string
+	// Account is what the account starts a session with — model, effort,
+	// permissionMode — as its settings say; nil where they were not read.
+	Account map[string]string
+	// ContextGuard says whether the account runs the context guard hook; nil
+	// where its settings were not read.
+	ContextGuard *bool
 }
 
 // Contours returns the host contours from the agent snapshot, in snapshot order.
@@ -203,10 +209,12 @@ func (h *Reader) Contours() []ContourState {
 	}
 	var snapshot struct {
 		Profiles []struct {
-			Name      string `json:"name"`
-			ConfigDir string `json:"configDir"`
-			Auth      string `json:"auth"`
-			Hooks     string `json:"hooks"`
+			Name         string            `json:"name"`
+			ConfigDir    string            `json:"configDir"`
+			Auth         string            `json:"auth"`
+			Hooks        string            `json:"hooks"`
+			Account      map[string]string `json:"account"`
+			ContextGuard *bool             `json:"contextGuard"`
 		} `json:"profiles"`
 	}
 	if err := json.Unmarshal(payload, &snapshot); err != nil {
@@ -217,7 +225,7 @@ func (h *Reader) Contours() []ContourState {
 		if c.Name == "" && c.ConfigDir == "" {
 			continue
 		}
-		row := ContourState{Name: c.Name, ConfigDir: c.ConfigDir}
+		row := ContourState{Name: c.Name, ConfigDir: c.ConfigDir, Account: c.Account, ContextGuard: c.ContextGuard}
 		switch c.Auth {
 		case AuthBuiltin, AuthToken, AuthMissing:
 			row.Auth = c.Auth
