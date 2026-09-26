@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -213,6 +214,11 @@ func (h *Holder) start() error {
 // but a session that failed to start would then take a message nobody knows
 // was lost.
 func (h *Holder) handshake() {
+	defer func() {
+		if p := recover(); p != nil {
+			h.logf("the handshake failed inside the holder: %v\n%s", p, debug.Stack())
+		}
+	}()
 	resp, err := h.control(context.Background(), "initialize", nil, initWait)
 	if err != nil {
 		h.logf("claude did not answer the handshake: %v", err)
@@ -287,13 +293,43 @@ func (h *Holder) read(stdout io.Reader) {
 		if len(line) > 0 {
 			var ev event
 			if json.Unmarshal(line, &ev) == nil {
-				h.handle(ev)
+				h.handleSafely(ev)
 			}
 		}
 		if err != nil {
 			return
 		}
 	}
+}
+
+// The holder is claude's only way out: a holder that falls takes the session
+// with it. A mistake in reading one event of claude's or in answering one
+// request of the panel's costs that event or that request, not the session.
+// Tests put a fault in here; the running holder has none.
+var (
+	faultInEvent   = func(event) {}
+	faultInRequest = func(Request) {}
+)
+
+func (h *Holder) handleSafely(ev event) {
+	defer func() {
+		if p := recover(); p != nil {
+			h.logf("reading a %s event failed, the event is skipped: %v\n%s", ev.Type, p, debug.Stack())
+		}
+	}()
+	faultInEvent(ev)
+	h.handle(ev)
+}
+
+func (h *Holder) doSafely(req Request) (reply Reply) {
+	defer func() {
+		if p := recover(); p != nil {
+			h.logf("the %s request failed inside the holder: %v\n%s", req.Op, p, debug.Stack())
+			reply = Reply{Error: fmt.Sprintf("the holder failed on the %s request; the session goes on", req.Op)}
+		}
+	}()
+	faultInRequest(req)
+	return h.do(req)
 }
 
 func (h *Holder) handle(ev event) {
@@ -776,7 +812,7 @@ func (h *Holder) answer(conn net.Conn) {
 		_ = json.NewEncoder(conn).Encode(Reply{Error: "the request was not parsed: " + err.Error()})
 		return
 	}
-	_ = json.NewEncoder(conn).Encode(h.do(req))
+	_ = json.NewEncoder(conn).Encode(h.doSafely(req))
 }
 
 func (h *Holder) do(req Request) Reply {

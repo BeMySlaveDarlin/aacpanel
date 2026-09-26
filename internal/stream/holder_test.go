@@ -357,6 +357,37 @@ func TestTheHolderKnowsWhetherTheConversationIsOnTheDisk(t *testing.T) {
 	}
 }
 
+// A fault in answering one request of the panel's or in reading one event
+// of claude's costs that request or that event: the session goes on.
+func TestAFaultInTheHolderDoesNotEndTheSession(t *testing.T) {
+	wasEvent, wasRequest := faultInEvent, faultInRequest
+	t.Cleanup(func() { faultInEvent, faultInRequest = wasEvent, wasRequest })
+	faultInRequest = func(r Request) {
+		if r.Op == OpControl && r.Subtype == "interrupt" {
+			panic("a fault in answering the panel")
+		}
+	}
+	faultInEvent = func(ev event) {
+		if ev.Subtype == "background_tasks_changed" {
+			panic("a fault in reading claude")
+		}
+	}
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+
+	if reply := r.ask(Request{Op: OpControl, Subtype: "interrupt"}); reply.OK || !strings.Contains(reply.Error, "session goes on") {
+		t.Errorf("a request the holder failed on was answered %+v", reply)
+	}
+	r.ask(Request{Op: OpSend, Text: "tasks"})
+	r.ask(Request{Op: OpSend, Text: "hello"})
+	r.waitFor("the session to go on past both faults", func(s State) bool { return !s.Busy && len(s.Queue) == 0 })
+	select {
+	case err := <-r.done:
+		t.Fatalf("the holder ended on a fault: %v", err)
+	default:
+	}
+}
+
 func TestAMessageWaitsInTheQueueUntilClaudeTakesItUp(t *testing.T) {
 	r := start(t, nil)
 	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
