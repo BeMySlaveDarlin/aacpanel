@@ -144,3 +144,22 @@ class Answered(Transcript):
         state = sesstate.read(path)
         self.assertEqual(len(state.answered), 100)
         self.assertIn("toolu_149", set(state.answered))
+
+    def test_the_end_of_a_turn_is_kept_across_reads(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(line({"type": "system", "subtype": "stop_hook_summary",
+                          "timestamp": "2026-09-26T15:42:27.100Z"}))
+            f.write(line({"type": "system", "subtype": "turn_duration",
+                          "timestamp": "2026-09-26T15:42:27.300Z"}))
+            f.write(line({"type": "system", "subtype": "local_command",
+                          "timestamp": "2026-09-26T15:44:00.000Z"}))
+        first = sesstate.read(path)
+        self.assertEqual(first.ended, "2026-09-26T15:42:27.300Z",
+                         "a record that is not the end of a turn moved the end of the turn")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line({"type": "system", "subtype": "turn_duration",
+                          "timestamp": "2026-09-26T15:47:07.105Z"}))
+        second = sesstate.read(path, first)
+        self.assertEqual(second.ended, "2026-09-26T15:47:07.105Z",
+                         "the next turn end was not noticed on the next read")

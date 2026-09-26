@@ -2,6 +2,7 @@ package executor
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ func askFile(t *testing.T, sessionID, toolUseID string, questions ...askQ) {
 		Label string `json:"label"`
 	}
 	type question struct {
+		Text    string   `json:"text"`
 		Multi   bool     `json:"multi"`
 		Options []option `json:"options"`
 	}
@@ -26,7 +28,7 @@ func askFile(t *testing.T, sessionID, toolUseID string, questions ...askQ) {
 		for _, label := range q.options {
 			opts = append(opts, option{Label: label})
 		}
-		qs = append(qs, question{Multi: q.multi, Options: opts})
+		qs = append(qs, question{Text: q.text, Multi: q.multi, Options: opts})
 	}
 	body, err := json.Marshal(map[string]any{
 		sessionID: map[string]any{
@@ -70,15 +72,40 @@ func storedAskJSON(sessionID, toolUseID string, questions []askQ) map[string]any
 			}
 			opts = append(opts, opt)
 		}
-		qs = append(qs, map[string]any{"multi": q.multi, "options": opts})
+		qs = append(qs, map[string]any{"text": q.text, "multi": q.multi, "options": opts})
 	}
 	return map[string]any{"sessionId": sessionID, "toolUseId": toolUseID, "questions": qs}
 }
 
 type askQ struct {
+	text    string
 	multi   bool
 	options []string
 	preview string
+}
+
+// drawn is the dialog of a question the way the console draws it: the words,
+// then the items under their numbers, a box between the number and the label
+// when several can be picked, and the two items of its own at the end.
+func drawn(q askQ) []string {
+	lines := []string{"  ☐ Ask", "", "  " + q.text, ""}
+	box := ""
+	if q.multi {
+		box = "[ ] "
+	}
+	for i, label := range q.options {
+		pointer := "  "
+		if i == 0 {
+			pointer = "❯ "
+		}
+		lines = append(lines, fmt.Sprintf("%s%d. %s%s", pointer, i+1, box, label))
+	}
+	n := len(q.options)
+	lines = append(lines, fmt.Sprintf("  %d. %sType something.", n+1, box), "  "+strings.Repeat("─", 40))
+	if !q.multi {
+		lines = append(lines, fmt.Sprintf("  %d. Chat about this", n+2))
+	}
+	return lines
 }
 
 func pasteStep(text string) string { return "paste:" + text }
@@ -98,7 +125,7 @@ func stepNames(steps []dialogStep) []string {
 func storedFrom(questions ...askQ) storedAsk {
 	var ask storedAsk
 	for _, q := range questions {
-		block := storedQuestion{Multi: q.multi}
+		block := storedQuestion{Text: q.text, Multi: q.multi}
 		for i, label := range q.options {
 			opt := storedOption{Label: label}
 			if i == 0 {
@@ -295,8 +322,10 @@ func TestSessionAnswerPressesKeys(t *testing.T) {
 		fakeProc{pid: 801, comm: "claude", args: []string{"claude"}, ppid: 800, start: "77"},
 	)
 	sessionFiles(t, fakeSession{pid: 801, name: "aacpanel", start: "77", status: "waiting"})
-	askFile(t, "s-801", "toolu_42", askQ{options: []string{"Alpha", "Beta", "Gamma"}})
-	log := fakeBusctl(t, map[string]int{"/Sessions/1": 999, "/Sessions/2": 801})
+	q := askQ{text: "Which letter goes first?", options: []string{"Alpha", "Beta", "Gamma"}}
+	askFile(t, "s-801", "toolu_42", q)
+	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 999, "/Sessions/2": 801}, swallow: 1,
+		dialog: drawn(q)})
 
 	e := &Executor{}
 	detail, err := e.sessionAnswer(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42", Picks: [][]int{{2}}})
@@ -371,8 +400,9 @@ func TestSessionAnswerTypesOwnWords(t *testing.T) {
 		fakeProc{pid: 821, comm: "claude", args: []string{"claude"}, ppid: 820, start: "77"},
 	)
 	sessionFiles(t, fakeSession{pid: 821, name: "aacpanel", start: "77", status: "waiting"})
-	askFile(t, "s-821", "toolu_42", askQ{options: []string{"Alpha", "Beta", "Gamma"}})
-	log := fakeBusctl(t, map[string]int{"/Sessions/1": 821})
+	q := askQ{text: "Which letter goes first?", options: []string{"Alpha", "Beta", "Gamma"}}
+	askFile(t, "s-821", "toolu_42", q)
+	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 821}, swallow: 1, dialog: drawn(q)})
 
 	const own = "none of these fit:\nlet us take a third way"
 	e := &Executor{}
@@ -404,15 +434,16 @@ func TestSessionAnswerRefusesBlindEnterWhenFieldStaysShut(t *testing.T) {
 		fakeProc{pid: 831, comm: "claude", args: []string{"claude"}, ppid: 830, start: "77"},
 	)
 	sessionFiles(t, fakeSession{pid: 831, name: "aacpanel", start: "77", status: "waiting"})
-	askFile(t, "s-831", "toolu_42", askQ{options: []string{"Alpha", "Beta"}})
+	q := askQ{text: "Which letter goes first?", options: []string{"Alpha", "Beta"}}
+	askFile(t, "s-831", "toolu_42", q)
 	log := fakeBusctlAs(t, fakeBus{
-		tabs: map[string]int{"/Sessions/1": 831}, swallow: 1, renderAfter: 1 << 20})
+		tabs: map[string]int{"/Sessions/1": 831}, swallow: 1, renderAfter: 1 << 20, dialog: drawn(q)})
 
 	e := &Executor{}
 	_, err := e.sessionAnswer(t.Context(), "aacpanel",
 		&action.Answer{AskID: "toolu_42", Picks: [][]int{{}}, Texts: []string{"my own words"}})
-	if err == nil {
-		t.Fatal("the executor reported success without seeing its own words on the screen")
+	if err == nil || !strings.Contains(err.Error(), "did not open") {
+		t.Fatalf("the executor did not stop on its own words missing from the screen: %v", err)
 	}
 	raw, _ := os.ReadFile(log)
 	if strings.Contains(string(raw), enterKey) {
@@ -426,8 +457,9 @@ func TestSessionDismissPressesChatAbout(t *testing.T) {
 		fakeProc{pid: 841, comm: "claude", args: []string{"claude"}, ppid: 840, start: "77"},
 	)
 	sessionFiles(t, fakeSession{pid: 841, name: "aacpanel", start: "77", status: "waiting"})
-	askFile(t, "s-841", "toolu_42", askQ{options: []string{"Alpha", "Beta", "Gamma"}})
-	log := fakeBusctl(t, map[string]int{"/Sessions/1": 841})
+	q := askQ{text: "Which letter goes first?", options: []string{"Alpha", "Beta", "Gamma"}}
+	askFile(t, "s-841", "toolu_42", q)
+	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 841}, swallow: 1, dialog: drawn(q)})
 
 	e := &Executor{}
 	if _, err := e.sessionDismiss(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42"}); err != nil {
@@ -540,5 +572,87 @@ func TestSessionAnswerStaysShortWhenNothingIsAsked(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "standing on a dialog") {
 		t.Error("the refusal invented a lost question where there is no dialog")
+	}
+}
+
+// A question in the store that the screen does not show: the hook reported it
+// and the console never drew it, or it was answered at the machine. A digit
+// sent there lands in the composer and leaves with the next Enter as a message.
+func TestSessionDialogKeysNeedTheQuestionOnScreen(t *testing.T) {
+	q := askQ{text: "What next?", options: []string{"Status", "Carry on"}}
+	answered := []string{
+		"● User answered Claude's questions:",
+		"  ⎿  · What next? → Status",
+	}
+	cases := []struct {
+		name   string
+		bus    fakeBus
+		act    func(e *Executor) error
+		refuse string
+	}{
+		{"an answer to a screen without the dialog", fakeBus{},
+			func(e *Executor) error {
+				_, err := e.sessionAnswer(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42", Picks: [][]int{{1}}})
+				return err
+			}, "not on the screen"},
+		{"a dismissal to a screen without the dialog", fakeBus{},
+			func(e *Executor) error {
+				_, err := e.sessionDismiss(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42"})
+				return err
+			}, "not on the screen"},
+		{"an answer to the question answered at the machine", fakeBus{dialog: answered},
+			func(e *Executor) error {
+				_, err := e.sessionAnswer(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42", Picks: [][]int{{2}}})
+				return err
+			}, "not on the screen"},
+		{"an answer to a screen that was not read", fakeBus{blind: true, dialog: drawn(q)},
+			func(e *Executor) error {
+				_, err := e.sessionAnswer(t.Context(), "aacpanel", &action.Answer{AskID: "toolu_42", Picks: [][]int{{1}}})
+				return err
+			}, "was not read"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			procFS(t,
+				fakeProc{pid: 870, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+				fakeProc{pid: 871, comm: "claude", args: []string{"claude"}, ppid: 870, start: "77"},
+			)
+			sessionFiles(t, fakeSession{pid: 871, name: "aacpanel", start: "77", status: "waiting"})
+			askFile(t, "s-871", "toolu_42", q)
+			bus := c.bus
+			bus.tabs = map[string]int{"/Sessions/1": 871}
+			bus.swallow = 1
+			log := fakeBusctlAs(t, bus)
+
+			err := c.act(&Executor{})
+			if err == nil || !strings.Contains(err.Error(), c.refuse) {
+				t.Fatalf("the refusal is not the one expected (%q): %v", c.refuse, err)
+			}
+			if raw, _ := os.ReadFile(log); len(raw) > 0 {
+				t.Errorf("%q was typed into a screen that does not show the question", raw)
+			}
+		})
+	}
+}
+
+// A dialog of several choices draws a box between the number and the label,
+// and the question is found on the screen all the same.
+func TestSessionAnswerFindsAMultipleChoiceDialog(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 875, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 876, comm: "claude", args: []string{"claude"}, ppid: 875, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 876, name: "aacpanel", start: "77", status: "waiting"})
+	q := askQ{text: "Which of them to keep?", multi: true, options: []string{"Alpha", "Beta", "Gamma"}}
+	askFile(t, "s-876", "toolu_42", q)
+	log := fakeBusctlAs(t, fakeBus{tabs: map[string]int{"/Sessions/1": 876}, swallow: 1, dialog: drawn(q)})
+
+	e := &Executor{}
+	if _, err := e.sessionAnswer(t.Context(), "aacpanel",
+		&action.Answer{AskID: "toolu_42", Picks: [][]int{{1, 3}}}); err != nil {
+		t.Fatalf("the answer to a dialog of several choices did not go out: %v", err)
+	}
+	if raw, _ := os.ReadFile(log); !strings.HasPrefix(string(raw), "13") {
+		t.Errorf("%q went into the dialog, while the two picked items were due first", raw)
 	}
 }

@@ -2014,6 +2014,16 @@ class AskDropped(unittest.TestCase):
         self.assertEqual([i["role"] for i in reply["items"] if i["role"] == "asked"], ["asked"],
                          "the trace of the round is in the feed instead of a hanging question")
 
+    def test_a_turn_that_ended_after_the_question_clears_it(self):
+        # No call of that id in the conversation at all, and a turn ended after
+        # the question came: nothing on the screen waits for this answer.
+        with open(self.path, "a", encoding="utf-8") as f:
+            f.write(line({"type": "system", "subtype": "turn_duration",
+                          "timestamp": "2026-08-30T10:05:00.000Z"}))
+        reply = chat.answer({"session": UUID, "limit": 20, "state": True})
+        self.assertNotIn("ask", reply["state"])
+        self.assertIsNone(asked.BOOK.of(UUID))
+
     def test_someone_elses_answer_does_not_clear_the_question(self):
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(line({"type": "user", "message": {"content": [

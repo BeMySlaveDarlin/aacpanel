@@ -148,11 +148,21 @@ class Book:
                 return None
         return gone
 
-    def answered(self, session, tool_ids):
-        """Drops the question that has already been answered."""
+    def answered(self, session, tool_ids, ended=""):
+        """Drops the question that has been answered or that the turn outlived.
+
+        A turn does not end while its question waits: the answer comes back to
+        the call first, and the call id is in tool_ids. A turn that ended after
+        the question arrived means the question never stood on the screen — the
+        hook reported a call the conversation did not make — or it went with an
+        interrupted turn. Kept, it would offer the panel a dialog to answer, and
+        the keys would go into the composer."""
         with self._lock:
             ask = self._asks.get(session)
-            if not (ask and ask.get("toolUseId") and ask["toolUseId"] in tool_ids):
+            if not ask:
+                return False
+            done = bool(ask.get("toolUseId")) and ask["toolUseId"] in tool_ids
+            if not (done or _outlived(ask.get("at"), ended)):
                 return False
             before = dict(self._asks)
             self._asks.pop(session, None)
@@ -187,6 +197,25 @@ class Book:
         for session in stale:
             print(f"aacpanel-agent: the question of {session} is forgotten — {why[session]}", flush=True)
         return stale
+
+
+def _moment(stamp):
+    """Returns the seconds of an ISO time in UTC, with or without a fraction."""
+    head = str(stamp or "").split(".")[0].rstrip("Z")
+    try:
+        return calendar.timegm(time.strptime(head, "%Y-%m-%dT%H:%M:%S"))
+    except ValueError:
+        return None
+
+
+def _outlived(asked_at, ended):
+    """Says whether a turn ended after the question was asked.
+
+    The question is stamped to the second and the end of a turn to the
+    millisecond: an end within the same second may be the end of the turn
+    before, so only a later second counts."""
+    start, end = _moment(asked_at), _moment(ended)
+    return start is not None and end is not None and end > start
 
 
 BOOK = Book()

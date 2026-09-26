@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ type storedAsk struct {
 }
 
 type storedQuestion struct {
+	Text    string         `json:"text"`
 	Multi   bool           `json:"multi"`
 	Options []storedOption `json:"options"`
 }
@@ -74,7 +76,7 @@ func (e *Executor) sessionAnswer(ctx context.Context, target string, ans *action
 	if err != nil {
 		return "", err
 	}
-	if err := playDialog(ctx, s, target, steps); err != nil {
+	if err := playDialog(ctx, s, target, ask.Questions[0], steps); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("answer sent to %s: %s", s.Name, picked(ask, ans.Picks, ans.Texts)), nil
@@ -103,7 +105,7 @@ func (e *Executor) sessionDismiss(ctx context.Context, target string, ans *actio
 			"this question cannot be dismissed from the panel: the \"Chat about this\" item got number %d, "+
 				"and items are picked with a single digit", item)
 	}
-	if err := playDialog(ctx, s, target, []dialogStep{{keys: strconv.Itoa(item)}}); err != nil {
+	if err := playDialog(ctx, s, target, first, []dialogStep{{keys: strconv.Itoa(item)}}); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("question dismissed in %s: the session is waiting for an ordinary message", s.Name), nil
@@ -139,10 +141,13 @@ func askingSession(target, askID string) (liveSession, storedAsk, error) {
 	return s, ask, nil
 }
 
-func playDialog(ctx context.Context, s liveSession, target string, steps []dialogStep) error {
+func playDialog(ctx context.Context, s liveSession, target string, first storedQuestion, steps []dialogStep) error {
 	t, err := termFor(ctx, s.PID)
 	if err != nil {
 		return fmt.Errorf("the question of session %s cannot be answered from the panel: %w", target, err)
+	}
+	if err := dialogShown(ctx, t, target, first); err != nil {
+		return err
 	}
 	for i, step := range steps {
 		if i > 0 {
@@ -163,6 +168,33 @@ func playDialog(ctx context.Context, s liveSession, target string, steps []dialo
 		}
 	}
 	return nil
+}
+
+// dialogShown makes sure the question is drawn on the session screen before a
+// key goes in: its words, and its first item under the number a digit
+// presses. The store can hold a question the screen does not show — one
+// answered at the machine a moment ago, or one the hook reported and the
+// console never drew — and a digit sent to a screen without the dialog lands
+// in the composer, where the next Enter sends it as a message.
+func dialogShown(ctx context.Context, t term, target string, q storedQuestion) error {
+	screen, known := t.screen(ctx)
+	if !known {
+		return fmt.Errorf("the screen of session %s was not read, and the panel does not press keys "+
+			"into a dialog it cannot see: nothing was pressed", target)
+	}
+	flat := squeeze(screen)
+	words := dialogMark(q.Text)
+	item := ""
+	if len(q.Options) > 0 {
+		item = dialogMark(q.Options[0].Label)
+	}
+	// A multiple choice draws a box between the number and the label.
+	numbered := regexp.MustCompile(`1\.\S{0,4}?` + regexp.QuoteMeta(item))
+	if words != "" && item != "" && strings.Contains(flat, words) && numbered.MatchString(flat) {
+		return nil
+	}
+	return fmt.Errorf("the question is not on the screen of session %s: nothing was pressed. It was answered "+
+		"at the machine, or the console never drew it — look at the terminal of the session", target)
 }
 
 func pasteIntoDialog(ctx context.Context, t term, text string) error {

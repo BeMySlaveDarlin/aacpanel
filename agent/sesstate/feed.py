@@ -14,6 +14,10 @@ from .wake import WAKE_ID, _wake, is_wakeup
 from . import workflows
 
 
+# The records claude writes when a turn is over.
+TURN_ENDS = ("turn_duration", "stop_hook_summary")
+
+
 class State:
     """State of one transcript, accumulated as it is read."""
 
@@ -24,6 +28,9 @@ class State:
         self.pending = {}
         self.task_ids = {}
         self.answered = collections.deque(maxlen=100)
+        # When the conversation last ended a turn: a question asked before it
+        # is no longer waiting.
+        self.ended = ""
         self.flows = {}
         self.flow_ids = {}
         self.arts = {}
@@ -85,6 +92,9 @@ def _feed_record(state, record, raw):
             state.cwd = cwd
 
     at = record.get("timestamp") or ""
+
+    if kind == "system" and record.get("subtype") in TURN_ENDS and at > state.ended:
+        state.ended = at
 
     if is_wakeup(record):
         state.tasks.pop(WAKE_ID, None)

@@ -13,6 +13,7 @@ import agent  # noqa: E402
 import asked  # noqa: E402
 import ctx  # noqa: E402
 import paths  # noqa: E402
+import sesstate  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -182,6 +183,29 @@ class Sessions(unittest.TestCase):
         self.rows({"session": "aacpanel", "sessionId": UUID_A, "transcript": path})
         agent.sessions()
         self.assertEqual(seen, [path])
+
+    def test_a_question_the_turn_outlived_leaves_the_row(self):
+        # The hook reported a call the conversation never made: the row must not
+        # go on saying the session waits for an answer after its turn is over.
+        state = sesstate.State()
+        state.ended = "2026-09-26T15:47:07.105Z"
+
+        class Cache:
+            def state(self, path, born=None):
+                return state
+
+            def forget(self, alive):
+                pass
+
+        self.addCleanup(setattr, agent, "SESSION_STATE", agent.SESSION_STATE)
+        agent.SESSION_STATE = Cache()
+        asked.BOOK.put({"sessionId": UUID_A, "toolUseId": "toolu_ghost", "at": "2026-09-26T15:42:30Z",
+                        "questions": [{"text": "What next?", "header": "Next"}]})
+        path = f"/home/x/.claude/projects/-opt-p/{UUID_A}.jsonl"
+        self.rows({"session": "aacpanel", "sessionId": UUID_A, "transcript": path})
+        row = agent.sessions()["sessions"][0]
+        self.assertNotIn("ask", row, "the row still offers a question nobody can answer")
+        self.assertIsNone(asked.BOOK.of(UUID_A))
 
     def test_the_birth_of_the_process_reaches_the_session_state(self):
         seen = []

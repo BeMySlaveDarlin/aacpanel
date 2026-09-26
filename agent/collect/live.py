@@ -235,7 +235,7 @@ def sessions():
             state = agent.SESSION_STATE.state(transcript, born=births.get(sid))
             busy = state.snapshot() if state else None
             if state and sid:
-                asked.BOOK.answered(sid, set(state.answered))
+                asked.BOOK.answered(sid, set(state.answered), state.ended)
             ask = asked.BOOK.of(sid) if sid else None
             if ask:
                 first = (ask.get("questions") or [{}])[0]

@@ -1724,6 +1724,7 @@ type fakeBus struct {
 	stallTree   int
 	stallSend   bool
 	tabError    string
+	dialog      []string
 }
 
 func fakeBusctl(t *testing.T, tabs map[string]int) string {
@@ -1762,6 +1763,7 @@ SECRET = %q
 STALL_TREE = %d
 STALL_SEND = %s
 TAB_ERROR = %q
+DIALOG = json.loads(%q) or []
 
 if WANT and os.environ.get("DBUS_SESSION_BUS_ADDRESS", "") != WANT:
     sys.exit(1)
@@ -1845,6 +1847,7 @@ if method == "getAllDisplayedText":
         lines = ["❯ " + l for l in text.split("\n")] + lines
     lines += ["❯ " + body[0]] + ["  " + l for l in body[1:]]
     lines += ["─" * 56, "  " + "─" * 40, "   Opus 5"]
+    lines += DIALOG
     out = "\\n".join(l.replace("\\", "\\\\").replace('"', '\\"') for l in lines)
     sys.stdout.write('s "%%s"\n' %% out)
     sys.exit(0)
@@ -1852,7 +1855,7 @@ if method == "getAllDisplayedText":
 with open(LOG, "ab") as f:
     f.write(sys.argv[-1].encode("utf-8", "surrogateescape"))
 `, log, mustJSON(t, bus.tabs), mustJSON(t, paths), bus.swallow, bus.renderAfter, pyBool(bus.attach), pyBool(bus.blind), bus.bus, bus.secret,
-		bus.stallTree, pyBool(bus.stallSend), bus.tabError)
+		bus.stallTree, pyBool(bus.stallSend), bus.tabError, mustJSON(t, bus.dialog))
 
 	bin := filepath.Join(dir, "busctl")
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {

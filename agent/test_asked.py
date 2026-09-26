@@ -120,6 +120,24 @@ class Store(unittest.TestCase):
         self.assertFalse(self.book.answered(ask["sessionId"], {"toolu_other"}))
         self.assertIsNotNone(self.book.of(ask["sessionId"]))
 
+    def test_a_turn_that_ended_after_the_question_clears_it(self):
+        # The hook reported a call the conversation never made: nothing will
+        # answer it, and the next end of a turn is what says so.
+        ask = asked.clean(PROBE)
+        ask["at"] = "2026-09-26T15:42:30Z"
+        self.book.put(ask)
+        self.assertTrue(self.book.answered(ask["sessionId"], set(), "2026-09-26T15:47:07.105Z"))
+        self.assertIsNone(self.book.of(ask["sessionId"]))
+
+    def test_a_turn_end_before_the_question_keeps_it(self):
+        ask = asked.clean(PROBE)
+        ask["at"] = "2026-09-26T15:42:30Z"
+        self.book.put(ask)
+        for ended in ("", "2026-09-26T15:42:27.300Z", "2026-09-26T15:42:30.900Z", "not a time"):
+            self.assertFalse(self.book.answered(ask["sessionId"], set(), ended),
+                             f"the question went with a turn end at {ended!r}")
+        self.assertIsNotNone(self.book.of(ask["sessionId"]))
+
     def test_the_question_of_a_dead_session_is_forgotten(self):
         self.book.put(asked.clean(PROBE))
         with muted():
