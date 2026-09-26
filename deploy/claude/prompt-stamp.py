@@ -30,20 +30,45 @@ def human_bytes(value):
     return f"{value / 1024 ** 3:.0f}G"
 
 
-def line_context(state, session_id, cap=guards.CAP_DEFAULT):
-    """Returns the context fill line of this session, with where its cap falls in its window."""
-    for s in state.get("sessions", []):
-        if s.get("sessionId") != session_id:
-            continue
-        pct = s.get("pct")
-        tokens, limit = s.get("tokens"), s.get("limit")
-        if pct is None or not limit:
-            return None
-        note = f"finalize from {round(limit * cap / 100 / 1000)}k"
-        if not s.get("limitKnown", True):
-            note += " · the model window is not exact"
-        return f"Context:  {round(tokens / 1000)}k/{round(limit / 1000)}k ({pct:.0f}%) · {note}"
+def window(tokens):
+    """Names a window: a round million as 1M — "1000k" does not read as the model's limit."""
+    k = round(tokens / 1000)
+    return f"{k // 1000}M" if k >= 1000 and k % 1000 == 0 else f"{k}k"
+
+
+def session_of(state, session_id):
+    """Returns the collector's row of this session, or None."""
+    for s in (state or {}).get("sessions", []):
+        if s.get("sessionId") == session_id:
+            return s
     return None
+
+
+def past_cap(state, session_id, cap):
+    """Says whether this session's context is past the cap of its project."""
+    s = session_of(state, session_id) or {}
+    pct = s.get("pct")
+    return isinstance(pct, (int, float)) and bool(s.get("limit")) and pct >= cap
+
+
+def line_context(state, session_id, cap=guards.CAP_DEFAULT):
+    """Returns the context fill line of this session, with where its cap falls in its window.
+
+    The share is of the window, the hard limit; the cap stands beside it as a number of
+    its own — a share of the cap read as a share of the window says "wrap up" a quarter
+    too early.
+    """
+    s = session_of(state, session_id)
+    if s is None:
+        return None
+    pct = s.get("pct")
+    tokens, limit = s.get("tokens"), s.get("limit")
+    if pct is None or not limit:
+        return None
+    note = f"finalize from {round(limit * cap / 100 / 1000)}k"
+    if not s.get("limitKnown", True):
+        note += " · the model window is not exact"
+    return f"Context:  {round(tokens / 1000)}k/{window(limit)} ({pct:.0f}%) · {note}"
 
 
 def line_limits(state, config_dir):
@@ -75,7 +100,10 @@ def line_resources(state):
     host = state.get("host") or {}
     parts = []
     if host.get("cpuPct") is not None:
-        parts.append(f"CPU {host['cpuPct']:.0f}%")
+        # The temperature stands in brackets by its device: a field of its own
+        # beside it read as a second measure of the same name.
+        temp = host.get("cpuTemp")
+        parts.append(f"CPU {host['cpuPct']:.0f}%" + (f" ({temp:.0f}°C)" if isinstance(temp, (int, float)) else ""))
     mem = host.get("mem") or {}
     if mem.get("pct") is not None:
         parts.append(f"RAM {mem['pct']:.0f}%")
@@ -99,9 +127,11 @@ def line_disks(state):
     return "          Disks " + " · ".join(said)
 
 
-def line_alarms(state):
+def line_alarms(state, session_id="", cap=guards.CAP_DEFAULT):
     """Returns the alarms line, empty when there is nothing to say."""
     alarms = []
+    if session_id and past_cap(state, session_id, cap):
+        alarms.append("CONTEXT past the cap")
     host = state.get("host") or {}
     for d in (host.get("disks") or []):
         pct = d.get("pct")
@@ -127,7 +157,7 @@ def stamp(state, session_id, config_dir, with_date, cap=guards.CAP_DEFAULT):
 
     age = time.time() - (state.get("at") or 0)
     for line in (line_context(state, session_id, cap), line_limits(state, config_dir),
-                 line_resources(state), line_disks(state), line_alarms(state)):
+                 line_resources(state), line_disks(state), line_alarms(state, session_id, cap)):
         if line:
             lines.append(line)
     if age > STALE_SEC and len(lines) > (1 if with_date else 0):
@@ -187,7 +217,7 @@ def main():
         for s in (state or {}).get("sessions", []):
             if s.get("sessionId") == session_id:
                 pct = s.get("pct")
-        if not throttle(state_dir, session_id, pct, line_alarms(state or {})):
+        if not throttle(state_dir, session_id, pct, line_alarms(state or {}, session_id, cap)):
             return
         lines = [l for l in lines if not l.startswith("[")]
 

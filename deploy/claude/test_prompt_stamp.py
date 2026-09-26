@@ -57,7 +57,7 @@ class TestLines(unittest.TestCase):
     def test_context_belongs_to_this_session(self):
         line = stamp.line_context(snapshot(), "mine")
         self.assertIn("50%", line)
-        self.assertIn("500k/1000k", line)
+        self.assertIn("500k/1M", line)
         self.assertIn("finalize from 800k", line)
 
         other = stamp.line_context(snapshot(), "other")
@@ -99,6 +99,22 @@ class TestLines(unittest.TestCase):
                 said[cwd] = json.loads(out.getvalue())["hookSpecificOutput"]["additionalContext"]
             self.assertIn("finalize from 600k", said["/srv/proj/Algo/lms"])
             self.assertIn("finalize from 800k", said["/srv/elsewhere"])
+
+    def test_a_window_that_is_not_a_round_million_stays_in_thousands(self):
+        data = snapshot()
+        data["sessions"][0].update({"tokens": 100_000, "limit": 200_000, "pct": 50.0})
+        self.assertIn("100k/200k", stamp.line_context(data, "mine"))
+
+    def test_the_cpu_temperature_stands_by_the_cpu(self):
+        data = snapshot()
+        data["host"]["cpuTemp"] = 43.6
+        self.assertIn("CPU 7% (44°C)", stamp.line_resources(data))
+        self.assertNotIn("°C", stamp.line_resources(snapshot()))
+
+    def test_past_the_cap_is_an_alarm(self):
+        self.assertIsNone(stamp.line_alarms(snapshot(), "mine", 80))
+        self.assertIn("CONTEXT past the cap", stamp.line_alarms(snapshot(), "other", 80))
+        self.assertIn("CONTEXT past the cap", stamp.line_alarms(snapshot(), "mine", 50))
 
     def test_unknown_model_window_is_said_aloud(self):
         data = snapshot()
