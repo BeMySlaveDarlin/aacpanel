@@ -134,14 +134,20 @@ func TestAPIBaseInterceptLivesInOneModule(t *testing.T) {
 	if !strings.Contains(sw, `type === "ENDPOINTS"`) || !strings.Contains(sw, "ENDPOINTS.includes(url.origin)") || !strings.Contains(sw, "dataKey(request)") {
 		t.Error("src/sw.js: API answers from addresses on the map are not cached by path — the offline snapshot lives only on the home origin")
 	}
-	for _, path := range []string{"src/app.js", "src/desktop/shell.js"} {
-		code := withoutComments(files[path])
-		if !strings.Contains(code, "route.onOpen") {
+	for _, path := range []string{"src/ui/header.js", "src/desktop/shell.js"} {
+		if !strings.Contains(withoutComments(files[path]), "route.onOpen") {
 			t.Errorf("%s: the address chip in the header does not open the sheet — the address table cannot be reached at all", path)
 		}
-		if !strings.Contains(code, "route.here && html") {
-			t.Errorf("%s: the addresses button is conditional — normally the table is out of reach", path)
-		}
+	}
+	if !strings.Contains(withoutComments(files["src/desktop/shell.js"]), "route.here && html") {
+		t.Error("src/desktop/shell.js: the addresses button is conditional — normally the table is out of reach")
+	}
+	// On the phone the chip is the connection itself: it is drawn in every
+	// state, with a map of addresses or without, and always opens the sheet.
+	if head := withoutComments(files["src/ui/header.js"]); strings.Contains(head, "route.here && html") ||
+		!strings.Contains(head, "onClick=${route && route.onOpen}") {
+		t.Error("src/ui/header.js: the connection chip is drawn only with a map, or does not open the sheet — " +
+			"with no map the connection has no door at all")
 	}
 	for _, path := range []string{"src/screens/machine.js", "src/desktop/machine.js"} {
 		if strings.Contains(withoutComments(files[path]), "RouteTable") {

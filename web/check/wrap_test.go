@@ -147,35 +147,43 @@ func TestNamesInListsAreNotShortened(t *testing.T) {
 	}
 }
 
-// TestTheStatusBarNeverClipsItsChips: the bar carries words and buttons side by
-// side. text-overflow can shorten a word but never a button, so a bar that hid
-// its overflow would saw the address chip through its own border.
-func TestTheStatusBarNeverClipsItsChips(t *testing.T) {
+// TestTheAppBarShortensWordsNotChips: the bar is one line and never wraps, so
+// when it runs out of room something has to give. text-overflow can shorten a
+// word but never a button: the chip keeps its box and only the words inside it
+// are cut, or the chip would be sawn through its own border. The host name is
+// cut the same way, inside its button.
+func TestTheAppBarShortensWordsNotChips(t *testing.T) {
 	rules := cssRules(t)
-	var bar, status *cssRule
+	var row, chip, words, host *cssRule
 	for i, r := range rules {
 		if r.file != "header.css" {
 			continue
 		}
 		switch r.sel {
-		case ".statusbar":
-			bar = &rules[i]
-		case ".statusbar .status":
-			status = &rules[i]
+		case ".titlerow":
+			row = &rules[i]
+		case ".conn .cbox":
+			chip = &rules[i]
+		case ".conn .cword":
+			words = &rules[i]
+		case ".titlerow .hname":
+			host = &rules[i]
 		}
 	}
-	if bar == nil || status == nil {
-		t.Fatal("header.css has no .statusbar or no .statusbar .status — the header is built out of something else")
+	if host == nil || !host.has("text-overflow: ellipsis") || !host.has("min-width: 0") {
+		t.Error("header.css: the host name cannot shrink — a long one pushes the buttons off the screen")
 	}
-	for _, r := range []*cssRule{bar, status} {
-		if r.has("overflow: hidden") {
-			t.Errorf("%s hides its overflow — the address chip is cut through its border "+
-				"instead of moving to the next line", r.where())
-		}
-		if !r.has("flex-wrap: wrap") {
-			t.Errorf("%s does not wrap — when the title and the icons leave it too little room "+
-				"there is nowhere for the chips to go", r.where())
-		}
+	if row == nil || chip == nil || words == nil {
+		t.Fatal("header.css has no .titlerow, .conn .cbox or .conn .cword — the bar is built out of something else")
+	}
+	if row.has("flex-wrap: wrap") || row.has("overflow: hidden") {
+		t.Errorf("%s wraps or clips — the bar is one line, and what does not fit is the words of the chip", row.where())
+	}
+	if chip.has("text-overflow: ellipsis") {
+		t.Errorf("%s shortens the chip itself — the ellipsis belongs to the words inside it", chip.where())
+	}
+	if !words.has("text-overflow: ellipsis") || !words.has("min-width: 0") {
+		t.Errorf("%s cannot shrink — a long state pushes the buttons off the screen", words.where())
 	}
 }
 

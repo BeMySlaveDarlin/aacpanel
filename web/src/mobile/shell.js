@@ -3,14 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { useBackClose } from "../ui/back.js";
-import { Header } from "../ui/header.js";
+import { Header, HostMenu } from "../ui/header.js";
 import { Chips } from "../ui/chips.js";
 import { Nav, PAGES, TABS } from "../ui/nav.js";
 import { HomeButton } from "../ui/home.js";
 import { LogBar } from "../ui/logbar.js";
-import { Sheet } from "../ui/sheet.js";
 import { useToastHide } from "../ui/toasts.js";
-import { logout } from "../auth.js";
 import { Alerts } from "../screens/alerts.js";
 import { Containers, filterChips } from "../screens/containers.js";
 import { Machine, machineStats } from "../screens/machine.js";
@@ -36,7 +34,7 @@ function lastTab() {
 export function MobileShell({
     snapshot, tree, treeError, hostError, ageSec, history, faults, alerts, openAlerts,
     exec, onRefresh, wait, conn, theme, onTheme, updateReady, updating, onApplyUpdate, installable, onInstall,
-    status, jump, onJumped,
+    route, jump, onJumped,
 }) {
     const [tab, setTab] = useState(lastTab);
     const [filters, setFilters] = useState({ containers: "all", sessions: "all" });
@@ -131,17 +129,16 @@ export function MobileShell({
             <${Header}
                 onMenu=${() => setMenu(true)}
                 hostName=${(snapshot && snapshot.hostName) || "host"}
-                insecure=${!!(snapshot && snapshot.cookieInsecure)}
+                flag=${!!installable}
                 ageSec=${ageSec}
+                conn=${conn}
+                route=${route}
                 machine=${machine}
                 onMachine=${() => setPage("machine")}
                 alerts=${openAlerts}
                 onAlerts=${() => setPage("alerts")}
                 query=${query}
                 onQuery=${setQuery}
-                status=${status}
-                theme=${theme}
-                onTheme=${onTheme}
             />
 
             ${!page && chips && html`<${Chips} items=${chips} current=${filter} onSelect=${setFilter} />`}
@@ -188,24 +185,16 @@ export function MobileShell({
                 onUsage=${() => setPage("usage")} />`}
             </main>
 
-            <${Sheet} open=${menu} onClose=${() => setMenu(false)} label="menu">
-                <div class="shead">
-                    <div><div class="stitle">${(snapshot && snapshot.hostName) || "host"}</div><div class="ssub">monitoring panel</div></div>
-                </div>
-                <button class="item" type="button" onClick=${() => { setMenu(false); setPage("settings"); }}>
-                    Settings
-                </button>
-                <button class="item" type="button" onClick=${() => { setMenu(false); setPage("devices"); }}>
-                    Devices
-                </button>
-                <button class="item" type="button" onClick=${() => { setMenu(false); setPage("journal"); }}>
-                    Journal
-                </button>
-                <button class="item" type="button" onClick=${() => { setMenu(false); setPage("usage"); }}>
-                    Usage
-                </button>
-                <button class="item danger" type="button" onClick=${logout}>Sign out</button>
-            <//>
+            <${HostMenu}
+                open=${menu}
+                onClose=${() => setMenu(false)}
+                hostName=${(snapshot && snapshot.hostName) || "host"}
+                installable=${installable}
+                onInstall=${onInstall}
+                theme=${theme}
+                onTheme=${onTheme}
+                onPage=${(id) => { setMenu(false); setPage(id); }}
+            />
 
             ${logs && html`
                 <${LogBar}

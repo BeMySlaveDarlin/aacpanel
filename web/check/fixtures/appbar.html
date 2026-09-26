@@ -1,0 +1,183 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<div id="sheet"></div>
+<script type="module">
+// The app bar on a phone in every state of the link: one line, one chip for the
+// connection, and the sheets behind the host name and behind the chip.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Header, HostMenu } from "/src/ui/header.js";
+import { RouteSheet } from "/src/ui/route.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const legs = [
+    { kind: "local", url: "http://127.0.0.1:8777" },
+    { kind: "lan", url: "https://atlas.example.net:8443" },
+    { kind: "ts", url: "https://atlas.tail0000.ts.net" },
+];
+let maps = 0;
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u === "/api/endpoints") {
+        maps++;
+        return json({ panel: "p1", here: "local", endpoints: legs });
+    }
+    if (u === "https://atlas.example.net:8443/probe") return json({ panel: "p1", kind: "lan" });
+    if (u.endsWith("/probe")) throw new TypeError("no answer");
+    return new Response("", { status: 404 });
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 5000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(25);
+    return ok();
+};
+const box = (el) => {
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { width: Math.round(b.width), height: Math.round(b.height), top: Math.round(b.top), bottom: Math.round(b.bottom),
+             left: Math.round(b.left), right: Math.round(b.right) };
+};
+
+const at = new Date(2026, 8, 26, 22, 41);
+const route = (extra = {}) => ({ here: "local", via: "", why: "here", onRecheck: () => {}, onOpen: () => {}, ...extra });
+const states = [
+    ["fresh", { kind: "live", at }, 3, false],
+    ["aging", { kind: "live", at }, 25, false],
+    ["warn", { kind: "live", at }, 180, false],
+    ["crit", { kind: "live", at }, 720, false],
+    ["hours", { kind: "live", at }, 7300, false],
+    ["noagent", { kind: "live", at }, null, false],
+    ["stale", { kind: "stale", at }, 25, false],
+    ["offline", { kind: "offline", at }, null, false],
+    ["offlineEmpty", { kind: "offline" }, null, false],
+    ["signedout", { kind: "unauthorized" }, null, false],
+    ["loading", { kind: "loading" }, null, false],
+    ["install", { kind: "live", at }, 3, true],
+    ["nomap", { kind: "live", at }, 3, false, { here: "", why: "no-map" }],
+    ["via", { kind: "live", at }, 3, false, { via: "lan", why: "lan" }],
+    // Words that cannot fit: a leg the labels do not know and a long host name.
+    ["longleg", { kind: "live", at }, 720, false, { via: "wireguard-backup-leg", why: "wireguard-backup-leg" }],
+    ["longhost", { kind: "offline", at }, null, false, {}, "aziz-workstation-builder-01"],
+];
+
+const root = document.getElementById("root");
+const show = (conn, ageSec, flag, r, host = "ATLAS") => render(html`
+    <${Header} hostName=${host} conn=${conn} ageSec=${ageSec} route=${r} flag=${flag}
+               alerts=${3} query="" onQuery=${() => {}} onMenu=${() => {}} onAlerts=${() => {}} />
+`, root);
+
+// wrapped says whether any piece of the bar left the line: every child has to
+// sit inside the row, and the words of the chip on a single line of their own.
+const measureBar = () => {
+    const row = document.querySelector(".titlerow");
+    const rb = row.getBoundingClientRect();
+    const kids = [...row.children].map((el) => el.getBoundingClientRect());
+    const word = document.querySelector(".cword");
+    const lh = parseFloat(getComputedStyle(word).lineHeight) || 20;
+    return {
+        top: box(document.querySelector("header.top")),
+        row: box(row),
+        chip: box(document.querySelector(".conn")),
+        cbox: box(document.querySelector(".cbox")),
+        text: word.textContent,
+        cut: word.scrollWidth > word.clientWidth + 1,
+        wrapped: kids.some((k) => k.top < rb.top - 0.5 || k.bottom > rb.bottom + 0.5) || word.getBoundingClientRect().height > lh * 1.5,
+        tone: document.querySelector(".conn").dataset.tone || "",
+        dot: (document.querySelector(".cdot") || { dataset: {} }).dataset.dot || "",
+        dotFill: document.querySelector(".cdot") ? getComputedStyle(document.querySelector(".cdot")).backgroundColor : "",
+        label: document.querySelector(".conn").getAttribute("aria-label"),
+        signIn: (document.querySelector(".signin") || { getAttribute: () => "" }).getAttribute("href"),
+        signInBox: box(document.querySelector(".signin")),
+        host: box(document.querySelector(".titlerow .host")),
+        caretShown: (() => {
+            const c = document.querySelector(".titlerow .host .caret").getBoundingClientRect();
+            const hb = document.querySelector(".titlerow .host").getBoundingClientRect();
+            return c.width > 0 && c.right <= hb.right + 0.5;
+        })(),
+        flag: document.querySelector(".titlerow .host").hasAttribute("data-flag"),
+        caret: getComputedStyle(document.querySelector(".titlerow .host .caret")).color,
+        buttons: [...document.querySelectorAll(".titlerow .icons .iconbtn")].map((b) => ({ label: b.getAttribute("aria-label"), ...box(b) })),
+        overflow: document.documentElement.scrollWidth > innerWidth || innerWidth !== Math.round(visualViewport.width),
+    };
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = { width: innerWidth, bars: {} };
+
+    for (const [name, conn, age, flag, extra, host] of states) {
+        show(conn, age, flag, route(extra), host);
+        await sleep(30);
+        out.bars[name] = measureBar();
+    }
+
+    // A tap on the chip is the way to the sheet of the connection.
+    let opened = 0;
+    show({ kind: "offline", at }, null, false, route({ onOpen: () => { opened++; } }));
+    await sleep(30);
+    document.querySelector(".conn").click();
+    out.opened = opened;
+
+    // The sheet behind the chip: the state in a sentence, the legs, Retry.
+    render(null, root);
+    let retried = 0, rechecked = 0;
+    const sheetRoot = document.getElementById("sheet");
+    render(html`<${RouteSheet} open=${true} onClose=${() => {}} conn=${{ kind: "offline", at }} ageSec=${null}
+        insecure=${true} onRetry=${() => { retried++; }}
+        route=${route({ onRecheck: () => { rechecked++; } })} />`, sheetRoot);
+    await until(() => document.querySelectorAll(".routerow").length === 3);
+    const sheet = document.querySelector(".sheet.on");
+    out.sheet = {
+        say: (sheet.querySelector(".connsay") || {}).textContent || "",
+        tone: (sheet.querySelector(".connsay") || { dataset: {} }).dataset.tone || "",
+        insecure: (sheet.querySelector(".warnline") || {}).textContent || "",
+        rows: [...sheet.querySelectorAll(".routerow")].map((r) => ({
+            kind: r.querySelector(".routekind").firstChild.textContent.trim(),
+            tag: r.querySelector(".legtag").textContent,
+            where: r.querySelector(".routeurl").textContent,
+            mark: r.querySelector(".routehere").textContent,
+        })),
+        retry: box([...sheet.querySelectorAll("button")].find((b) => b.textContent.trim() === "Retry")),
+    };
+    const before = maps;
+    [...sheet.querySelectorAll("button")].find((b) => b.textContent.trim() === "Retry").click();
+    await until(() => maps > before && document.querySelectorAll(".routerow").length === 3);
+    out.sheet.retried = retried;
+    out.sheet.rechecked = rechecked;
+    out.sheet.remeasured = maps - before;
+    render(null, sheetRoot);
+
+    // The host menu: install and theme moved here from the bar.
+    let installs = 0, themes = 0, closed = 0;
+    const menu = (installable, theme) => render(html`<${HostMenu} open=${true} hostName="ATLAS" installable=${installable}
+        theme=${theme} onClose=${() => { closed++; }} onInstall=${() => { installs++; }} onTheme=${() => { themes++; }}
+        onPage=${() => {}} />`, sheetRoot);
+    menu(true, "space");
+    await sleep(30);
+    const m = document.querySelector(".sheet.on");
+    const pressed = () => [...m.querySelectorAll(".themerow .btn")].map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-pressed")}`);
+    out.menu = {
+        items: [...m.querySelectorAll(".item")].map((b) => b.textContent.trim()),
+        theme: pressed(),
+        themeBox: [...m.querySelectorAll(".themerow .btn")].map(box),
+    };
+    [...m.querySelectorAll(".themerow .btn")].find((b) => b.textContent.trim() === "Dark").click();
+    out.menu.darkOnDark = themes;
+    [...m.querySelectorAll(".themerow .btn")].find((b) => b.textContent.trim() === "Light").click();
+    out.menu.lightOnDark = themes;
+    m.querySelector(".item.install").click();
+    out.menu.installs = installs;
+    out.menu.closedOnInstall = closed;
+    menu(false, "sky");
+    await sleep(30);
+    out.menu.itemsInstalled = [...document.querySelectorAll(".sheet.on .item")].map((b) => b.textContent.trim());
+    out.menu.themeLight = [...document.querySelectorAll(".sheet.on .themerow .btn")].map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-pressed")}`);
+    return out;
+})();
+</script>

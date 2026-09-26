@@ -21,12 +21,11 @@ func TestBriefsSitInTheBottomMenuAndTheJournalUnderTheLogo(t *testing.T) {
 		t.Error("the journal is still in the bottom menu, which has five columns and all of them are taken")
 	}
 
-	shell := files["src/mobile/shell.js"]
-	sheet := shellSheet(t, shell)
-	if !strings.Contains(sheet, `setPage("journal")`) {
+	sheet := shellSheet(t, files)
+	if !strings.Contains(sheet, `onPage("journal")`) {
 		t.Error("the journal left the bottom menu and got no entry in the sheet: there is no way into it at all")
 	}
-	if strings.Contains(sheet, `setPage("briefs")`) {
+	if strings.Contains(sheet, `onPage("briefs")`) {
 		t.Error("briefs are in the bottom menu and in the sheet at once: one screen, two doors")
 	}
 }

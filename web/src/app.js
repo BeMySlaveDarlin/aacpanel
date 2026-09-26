@@ -10,7 +10,7 @@ import { useExec, useTreeStream } from "./exec.js";
 import { useWide } from "./ui/wide.js";
 import { openCount, useAlerts } from "./alerts.js";
 import { MobileShell } from "./mobile/shell.js";
-import { RouteSheet, routeChip } from "./ui/route.js";
+import { RouteSheet } from "./ui/route.js";
 import { DesktopShell } from "./desktop/shell.js";
 import { failed, pick } from "./router.js";
 import * as api from "./api.js";
@@ -48,10 +48,6 @@ function point(snapshot) {
 
 function trim(points) {
     return points.length > HISTORY_POINTS ? points.slice(-HISTORY_POINTS) : points;
-}
-
-function clock(date) {
-    return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
 const THEME_KEY = "aacpanel.theme";
@@ -224,7 +220,17 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
     };
 
     const wide = useWide();
-    const sheet = html`<${RouteSheet} open=${routeOpen} onClose=${closeRoute} route=${shared.route} />`;
+    const sheet = html`
+        <${RouteSheet}
+            open=${routeOpen}
+            onClose=${closeRoute}
+            route=${shared.route}
+            conn=${conn}
+            ageSec=${ageSec}
+            insecure=${!!(snapshot && snapshot.cookieInsecure)}
+            onRetry=${refresh}
+        />
+    `;
     if (wide) {
         return html`
             <${DesktopShell} ...${shared} />
@@ -238,40 +244,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
             conn=${conn}
             installable=${installable}
             onInstall=${onInstall}
-            status=${html`<${Status} conn=${conn} installable=${installable} onInstall=${onInstall} route=${shared.route} />`}
         />
         ${sheet}
-    `;
-}
-
-function Status({ conn, installable, onInstall, route }) {
-    const text = () => {
-        if (conn.kind === "loading") return html`<span>Loading…</span>`;
-        if (conn.kind === "unauthorized") return html`<span>The session has ended — <a href="/login">sign in again</a></span>`;
-        if (conn.kind === "offline") {
-            return conn.at
-                ? html`<span>No connection — data from ${clock(conn.at)}</span>`
-                : html`<span>No connection and no saved snapshot</span>`;
-        }
-        if (conn.kind === "stale") return html`<span>No connection — snapshot from ${clock(conn.at)}</span>`;
-        return null;
-    };
-
-    const kind = { live: "ok", stale: "warn", offline: "warn", unauthorized: "bad", loading: "" }[conn.kind];
-    const chip = routeChip(route);
-
-    return html`
-        <span class="status ${kind}">
-            ${text()}
-            ${installable && html`<button class="ghost accent" type="button" onClick=${onInstall}>install</button>`}
-            ${route.here && html`
-                <button
-                    class=${`route${chip.near ? " on" : ""}`}
-                    type="button"
-                    title=${chip.tip}
-                    onClick=${route.onOpen}
-                >${chip.text}</button>
-            `}
-        </span>
     `;
 }

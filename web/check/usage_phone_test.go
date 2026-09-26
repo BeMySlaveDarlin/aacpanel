@@ -24,12 +24,12 @@ func TestUsageOpensFromTheLogoSheet(t *testing.T) {
 		t.Fatal("src/mobile/shell.js not found — the test looks in the wrong place")
 	}
 
-	sheet := shellSheet(t, shell)
-	if !strings.Contains(sheet, `setPage("usage")`) {
+	sheet := shellSheet(t, files)
+	if !strings.Contains(sheet, `onPage("usage")`) {
 		t.Error("the logo sheet has no entry for the usage screen — there is no way into it at all: " +
 			"it is kept out of the bottom menu on purpose")
 	}
-	if strings.Index(sheet, `setPage("devices")`) > strings.Index(sheet, `setPage("usage")`) {
+	if strings.Index(sheet, `onPage("devices")`) > strings.Index(sheet, `onPage("usage")`) {
 		t.Error("the usage screen sits above devices in the sheet — a rarely used entry landed at the top of the list")
 	}
 
@@ -48,18 +48,27 @@ func TestUsageOpensFromTheLogoSheet(t *testing.T) {
 	}
 }
 
-func shellSheet(t *testing.T, shell string) string {
+// shellSheet returns the sheet behind the host name. It lives in the header,
+// and the shell opens the page it names: without that hand-over every entry is
+// drawn and opens nothing.
+func shellSheet(t *testing.T, files map[string]string) string {
 	t.Helper()
 
-	at := strings.Index(shell, "<${Sheet}")
+	shell := stripComments(files["src/mobile/shell.js"])
+	if at := strings.Index(shell, "<${HostMenu}"); at < 0 ||
+		!strings.Contains(shell[at:min(len(shell), at+600)], "setPage(id)") {
+		t.Fatal("the mobile shell does not open the pages of the host menu — the test looks in the wrong place")
+	}
+	head := files["src/ui/header.js"]
+	at := strings.Index(head, "<${Sheet}")
 	if at < 0 {
-		t.Fatal("the mobile shell has no logo sheet — the test looks in the wrong place")
+		t.Fatal("the header has no host menu — the test looks in the wrong place")
 	}
-	end := strings.Index(shell[at:], "<//>")
+	end := strings.Index(head[at:], "<//>")
 	if end < 0 {
-		t.Fatal("the logo sheet is not closed — the test looks in the wrong place")
+		t.Fatal("the host menu is not closed — the test looks in the wrong place")
 	}
-	return shell[at : at+end]
+	return head[at : at+end]
 }
 
 func TestUsageFiltersAreCountedOnTheServer(t *testing.T) {

@@ -1,50 +1,50 @@
-// Header: which machine is watched, how fresh the data is and what it is busy with.
+// Header: which machine is watched, how the link to it stands and what it is busy with.
 import { useState } from "preact/hooks";
 
 import { html } from "../html.js";
+import { logout } from "../auth.js";
 import { Icon } from "./icons.js";
+import { connection } from "./route.js";
+import { Sheet } from "./sheet.js";
 import { level, pct, rate } from "../format.js";
 
-const STALE_SEC = 60;
-const DEAD_SEC = 300;
-
-function ageText(sec) {
-    if (sec < 10) return "just now";
-    if (sec < 60) return `${Math.round(sec)} s`;
-    if (sec < 3600) return `${Math.round(sec / 60)} min`;
-    return `snapshot ${Math.round(sec / 3600)} h ago`;
-}
-
-function ageClass(sec) {
-    if (sec >= DEAD_SEC) return "crit";
-    if (sec >= STALE_SEC) return "warn";
-    return "";
-}
-
-export function Header({ hostName = "host", ageSec, machine, onMachine, alerts = 0, query, onQuery, onMenu, onAlerts, status, theme, onTheme, insecure = false }) {
+// The bar is one line at any phone width and in any state. The chip of the
+// connection keeps the words of the state; a long host name gives way instead.
+// The theme and the install live in the host menu; the caret lights up while
+// the install waits there, or it would never be found.
+export function Header({ hostName = "host", ageSec, conn, route, flag = false, machine, onMachine, alerts = 0, query, onQuery, onMenu, onAlerts }) {
     const [searching, setSearching] = useState(false);
-    const stale = ageSec === null || ageSec === undefined;
+    const state = connection({ conn, ageSec, route });
+    const leg = state.leg !== undefined;
 
     return html`
         <header class="top">
             <div class="titlerow">
-                <button class="host" type="button" onClick=${onMenu}>
-                    ${hostName}<span class="caret">▾</span>
+                <button
+                    class="host"
+                    type="button"
+                    data-flag=${flag ? "install" : undefined}
+                    aria-label=${flag ? `${hostName} menu, the app can be installed` : `${hostName} menu`}
+                    onClick=${onMenu}
+                ><span class="hname">${hostName}</span><span class="caret">▾</span></button>
+                <button
+                    class="conn"
+                    type="button"
+                    data-tone=${state.tone || undefined}
+                    data-words=${leg ? undefined : "say"}
+                    aria-label=${`connection: ${state.phrase}`}
+                    title=${state.phrase}
+                    onClick=${route && route.onOpen}
+                >
+                    <span class="cbox">
+                        ${state.dot && html`<i class="cdot" data-dot=${state.dot}></i>`}
+                        <em class="cword">${leg
+                            ? html`${state.leg}${state.age && html`<span class="csep"> · </span>${state.age}`}`
+                            : state.words}</em>
+                    </span>
                 </button>
-                <div class="statusbar">
-                    <span class="age ${stale ? "crit" : ageClass(ageSec)}">${stale ? "no agent snapshot" : ageText(ageSec)}</span>
-                    ${insecure && html`
-                        <span class="age warn" title="AACP_SECURE=0 in .env while the panel is reached over https: the session cookie has no Secure flag and travels over plain http as well">cookie without Secure</span>
-                    `}
-                    ${status}
-                </div>
+                ${state.signIn && html`<a class="signin" href="/login"><span>Sign in</span></a>`}
                 <div class="icons">
-                    <button
-                        class="iconbtn"
-                        type="button"
-                        aria-label=${theme === "sky" ? "dark theme" : "light theme"}
-                        onClick=${onTheme}
-                    >${theme === "sky" ? Icon.moon() : Icon.sun()}</button>
                     <button class="iconbtn" type="button" aria-label="alerts" onClick=${onAlerts}>
                         ${Icon.alerts()}
                         ${alerts > 0 && html`<span class="badge">${alerts}</span>`}
@@ -88,6 +88,37 @@ export function Header({ hostName = "host", ageSec, machine, onMachine, alerts =
                 </div>
             `}
         </header>
+    `;
+}
+
+// HostMenu is the sheet behind the host name: the install while the app is not
+// installed, the theme, and the pages that have no tab of their own.
+export function HostMenu({ open, onClose, hostName = "host", installable = false, onInstall, theme, onTheme, onPage }) {
+    const light = theme === "sky";
+    return html`
+        <${Sheet} open=${open} onClose=${onClose} label="menu">
+            <div class="shead">
+                <div><div class="stitle">${hostName}</div><div class="ssub">monitoring panel</div></div>
+            </div>
+            ${installable && html`
+                <button class="item install" type="button" onClick=${() => { onClose(); onInstall(); }}>
+                    ${Icon.download()}Install the app<small>not installed yet</small>
+                </button>
+            `}
+            <div class="themerow" role="group" aria-label="theme">
+                ${light ? Icon.sun() : Icon.moon()}
+                <span class="grow">Theme</span>
+                <button class="btn" type="button" aria-pressed=${light ? "false" : "true"}
+                    onClick=${() => light && onTheme()}>${Icon.moon()}Dark</button>
+                <button class="btn" type="button" aria-pressed=${light ? "true" : "false"}
+                    onClick=${() => !light && onTheme()}>${Icon.sun()}Light</button>
+            </div>
+            <button class="item" type="button" onClick=${() => onPage("settings")}>Settings</button>
+            <button class="item" type="button" onClick=${() => onPage("devices")}>Devices</button>
+            <button class="item" type="button" onClick=${() => onPage("journal")}>Journal</button>
+            <button class="item" type="button" onClick=${() => onPage("usage")}>Usage</button>
+            <button class="item danger" type="button" onClick=${logout}>Sign out</button>
+        <//>
     `;
 }
 

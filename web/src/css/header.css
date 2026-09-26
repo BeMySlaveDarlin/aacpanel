@@ -4,79 +4,133 @@
     flex: none;
     display: flex;
     flex-direction: column;
-    gap: .6rem;
-    padding: calc(.35rem + env(safe-area-inset-top)) 1rem .35rem;
+    padding: env(safe-area-inset-top) 2px 0 4px;
     background: var(--top-bg);
     backdrop-filter: blur(18px) saturate(140%);
     -webkit-backdrop-filter: blur(18px) saturate(140%);
-    -webkit-mask-image: linear-gradient(180deg, #000 76%, transparent);
-    mask-image: linear-gradient(180deg, #000 76%, transparent);
-    padding-bottom: .8rem;
-    gap: .35rem;
+    -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 6px), transparent);
+    mask-image: linear-gradient(180deg, #000 calc(100% - 6px), transparent);
 }
 
-.statusbar {
-    flex: 0 1 auto;
-    min-width: 0;
+/* The rows under the bar keep the page gutter; the bar itself runs nearly to
+   the edges, because its buttons are 44 px targets with the mark drawn in the
+   middle, and a gutter on top of that would push the words off a 360 screen. */
+.top > .search, .top > .hostbar { margin: 0 calc(1rem - 2px) .6rem calc(1rem - 4px); width: auto; }
+
+/* One line, 48 px, at every width and in every state: nothing in the bar
+   wraps. Words that do not fit are cut inside their own box, so no button is
+   ever sawn through its border. */
+.titlerow {
+    height: 48px;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: .2rem .5rem;
-    font-family: var(--mono);
-    font-size: var(--t-xs);
-    color: var(--ink-faint);
+    gap: 2px;
     white-space: nowrap;
 }
 
-.statusbar .age { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-
-/* The bar holds chips as well as words, and text-overflow cannot shorten a
-   button: a bar that clipped would slice the address chip through its border.
-   So it wraps instead, and only the words are shortened. */
-.statusbar .status {
+/* The host name is the one thing in the bar that gives way: a long one loses
+   its tail, the caret stays, and the chip keeps the words of the state. */
+.titlerow .host {
+    flex: 0 1 auto;
     min-width: 0;
+    height: 44px;
+    padding: 0 5px 0 8px;
+    gap: 4px;
+    font-size: var(--t-base);
+    font-weight: 800;
+    letter-spacing: .04em;
+}
+
+.titlerow .hname { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.titlerow .caret { flex: none; }
+.titlerow .host[data-flag] .caret { color: var(--accent); }
+.titlerow .host[data-flag] .caret::after {
+    content: "";
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    margin-left: 2px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    vertical-align: .5em;
+}
+
+/* The chip draws 28 px and takes a 44 px tall target. It does not shrink:
+   its box stops at 163 px and the words inside it are cut there instead. */
+.conn {
+    flex: none;
+    min-width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: .2rem .4rem;
-}
-.statusbar .status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.titlerow .statusbar { margin-left: auto; }
-.statusbar .age.warn { color: var(--warn); }
-.statusbar .age.crit { color: var(--crit); }
-.statusbar .route {
-    flex: 0 0 auto;
-    padding: .05rem .4rem;
+    padding: 0;
+    border: 0;
     background: none;
     font: inherit;
-    color: var(--ink-faint);
-    border: 0;
-    border-radius: var(--r-pill);
-    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink-dim);
     cursor: pointer;
 }
 
-.statusbar .route.on {
-    color: var(--accent);
-    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent);
-}
-
-.titlerow {
+.conn .cbox {
+    min-width: 0;
+    max-width: 163px;
+    height: 28px;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: .75rem;
+    gap: 6px;
+    padding: 0 9px;
+    border-radius: var(--r-card);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
 }
 
-.host {
-    font-size: var(--t-xl);
+.conn .cword { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; }
+.conn .csep { color: var(--ink-faint); }
+.conn[data-words="say"] .cbox { font-family: var(--sans); font-size: var(--t-sm); font-weight: 600; }
+
+.conn[data-tone="warn"] .cbox {
+    color: var(--warn);
+    background: var(--warn-bg);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
+.conn[data-tone="crit"] .cbox {
+    color: var(--crit);
+    background: var(--crit-bg);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--crit) 40%, transparent);
+}
+
+.cdot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.conn[data-tone="warn"] .cdot { background: var(--warn); }
+.conn[data-tone="crit"] .cdot { background: var(--crit); }
+/* A hollow dot: the panel has no live link, whatever the leg. */
+.conn .cdot[data-dot="off"] { background: none; box-shadow: inset 0 0 0 1.5px currentColor; }
+
+.signin {
+    flex: none;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.signin > span {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 9px;
+    border-radius: var(--r-card);
+    background: var(--accent-bg);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 50%, transparent);
+    color: var(--ink);
+    font-size: var(--t-sm);
     font-weight: 600;
-    letter-spacing: -.01em;
 }
 
-.icons { display: flex; gap: .35rem; }
+.titlerow .icons { flex: none; margin-left: auto; display: flex; }
 
 /* A button of the header is a square with a hairline and nothing inside it
    but the mark; only the one that is on carries a fill. */
@@ -108,8 +162,40 @@
 .iconbtn.accent { color: var(--accent); }
 .iconbtn.accent:active { background: var(--accent-bg); }
 
-.icons .iconbtn { width: 38px; height: 38px; }
+/* In the bar the buttons lose the hairline: two framed squares next to a
+   framed chip read as three chips. */
+.icons .iconbtn { width: 44px; height: 44px; box-shadow: none; }
+.icons .iconbtn.on { box-shadow: none; }
 .icons .iconbtn svg { width: var(--i-md); height: var(--i-md); }
+.icons .badge { top: 6px; right: 5px; }
+
+/* The host menu carries the install while it waits, and the theme. */
+.sheet .item.install {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    color: var(--accent);
+    font-weight: 600;
+}
+.sheet .item.install svg { flex: none; width: var(--i-md); height: var(--i-md); }
+.sheet .item.install small { margin-left: auto; font-size: var(--t-sm); font-weight: 400; color: var(--ink-faint); }
+
+.themerow {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-top: .5rem;
+    padding: 0 .5rem;
+    min-height: 48px;
+    font-weight: 500;
+}
+.themerow > svg { flex: none; width: var(--i-md); height: var(--i-md); color: var(--ink-dim); margin-right: .25rem; }
+.themerow .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
+.themerow .btn svg { width: var(--i-sm); height: var(--i-sm); }
+.themerow .btn[aria-pressed="true"] {
+    background: var(--accent-bg);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
 
 .badge, .tbadge {
     position: absolute;
