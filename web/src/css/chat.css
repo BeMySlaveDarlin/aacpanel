@@ -25,13 +25,25 @@
     line-height: 1.15;
     overflow-wrap: anywhere;
 }
-.chathead .livedot {
+/* How the session stands, as a dot and a word: answering, waiting for the
+   person, idle. The word is there for whoever cannot tell the colours. */
+.talkdot {
     flex: 0 0 auto;
     width: 7px; height: 7px;
     border-radius: 50%;
-    background: var(--ok);
-    box-shadow: 0 0 9px var(--ok);
+    background: var(--ink-faint);
 }
+.talkdot[data-tone="busy"] { background: var(--accent); box-shadow: 0 0 9px var(--accent); }
+.talkdot[data-tone="waiting"] { background: var(--wait); box-shadow: 0 0 9px var(--wait); }
+.talkdot[data-tone="idle"] { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+.talkdot[data-tone="off"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
+.talkword[data-tone="waiting"] { color: var(--wait); }
+
+/* A name too long for its line loses its middle: the head is cut, the tail
+   that tells one session of a project from another stays whole. */
+.midname { display: flex; min-width: 0; overflow: hidden; white-space: nowrap; }
+.midhead { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.midtail { flex: none; }
 
 .chatsub {
     display: flex;
@@ -43,47 +55,68 @@
     font-size: var(--t-xs);
     color: var(--ink-faint);
 }
-.chatvol { font-variant-numeric: tabular-nums; }
+.chatsub .sep { color: rgba(150, 170, 255, .3); margin: 0 .35rem; }
+.phead.talk .chatsub .sep { margin: 0; }
 
-.chatmeta {
-    display: flex;
-    align-items: baseline;
+/* The tools of a session on a phone: a line per tool with its word, how it
+   stands and why it cannot, when it cannot. Moving the session stands apart
+   under a rule of its own, with what stops on the way. */
+.tools .toolname { overflow-wrap: anywhere; }
+.toolpath { display: flex; align-items: center; gap: .5rem; margin-top: -.7rem; }
+.toolwhere {
+    flex: 1 1 auto;
     min-width: 0;
-    line-height: 1.2;
-    font-size: var(--t-xs);
-    color: var(--ink-faint);
-}
-/* Where the session works. The line is as wide as the header and no wider:
-   a long path is cut at its head, where the home and the root of the projects
-   are, and keeps its end, which names the project. The cut is made by laying
-   the line out right to left around a path kept left to right. A tap lets
-   the whole path wrap. */
-.chatpath {
-    min-width: 0;
-    max-width: 100%;
-    padding: 0;
-    border: 0;
-    background: none;
     font-family: var(--mono);
     font-size: var(--t-xs);
     color: var(--ink-faint);
-    text-align: left;
-    cursor: pointer;
-}
-.chatpathtext {
-    display: block;
-    direction: rtl;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.chatpath.whole .chatpathtext {
-    direction: ltr;
-    white-space: normal;
     overflow-wrap: anywhere;
 }
-
-.chatsub .sep { color: rgba(150, 170, 255, .3); margin: 0 .35rem; }
+.toolline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .7rem;
+    min-height: 48px;
+    padding: .35rem 0;
+    border-bottom: var(--hair) solid var(--line);
+}
+.toollist > li.toolline:last-child { border-bottom: 0; }
+.mcprow.toolrow { gap: .7rem; min-height: 48px; }
+.toolicon { flex: none; display: flex; width: var(--i-md); height: var(--i-md); color: var(--ink-dim); }
+.toolicon svg { width: 100%; height: 100%; }
+.toolbody { flex: 1 1 8rem; min-width: 0; display: grid; gap: .1rem; }
+.toollabel { flex: 1 1 auto; min-width: 0; font-size: var(--t-sm); color: var(--ink); }
+.toolnote { font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
+.toolnote.on { color: var(--ok); }
+.toolnote.why { color: var(--ink-dim); }
+.toolnote.stops { color: var(--crit); }
+.toolbtn { flex: none; min-width: 5.5rem; min-height: 44px; }
+.toolsegs { flex: none; display: flex; gap: .4rem; margin-left: auto; }
+.toolseg {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 44px;
+    padding: 0 .75rem;
+    border: var(--hair) solid var(--line);
+    border-radius: var(--r-small);
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: var(--t-sm);
+    cursor: pointer;
+}
+.toolseg svg { width: var(--i-sm); height: var(--i-sm); }
+.toolseg.on {
+    background: var(--accent-bg);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--ink);
+}
+.toolmove { display: grid; gap: .4rem; padding-top: .4rem; border-top: var(--hair) solid var(--line); }
+.toolmove .toolline { border-bottom: 0; }
+.toolmove .toolicon { color: var(--crit); }
+.toolacts { display: flex; flex-wrap: wrap; gap: .5rem; }
+.toolacts .btn { flex: 1 1 8rem; min-height: 44px; }
 
 .chatpct {
     font-size: var(--t-md);

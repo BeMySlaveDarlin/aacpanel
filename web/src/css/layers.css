@@ -128,11 +128,27 @@
     gap: .3rem;
     min-width: 4.4rem;
 }
-/* The tools of a conversation's header stand in rows under each other, flush
-   right: what the conversation is watched with, and what it does on the host. */
-.pheadtools:has(> .ptoolrow) { flex-direction: column; align-items: flex-end; justify-content: center; }
-.ptoolrow { display: flex; align-items: center; justify-content: flex-end; gap: .3rem; }
-.ptoolrow:empty { display: none; }
+/* The header of a conversation on a phone is one line: the way back, who the
+   session is and how it stands, and the one button its tools live behind.
+   Both buttons are a finger wide. */
+.phead.talk { align-items: center; }
+.phead.talk .pback { align-self: center; width: 44px; min-height: 44px; }
+.phead.talk .pheadtools { min-width: 0; }
+.pmore {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--glass);
+    box-shadow: var(--hairline);
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.pmore:active { background: var(--glass-2); }
+.pmore svg { width: var(--i-md); height: var(--i-md); }
 
 .phead > .ctxbar { grid-column: 1 / -1; }
 

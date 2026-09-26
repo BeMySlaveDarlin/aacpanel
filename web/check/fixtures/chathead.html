@@ -33,17 +33,6 @@ render(h(ToastHost, null, h(GateHost, null,
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const round = (n) => Math.round(n);
-// rectOf returns where a piece of the path is drawn.
-const rectOf = (node, text) => {
-    const at = node.textContent.indexOf(text);
-    if (at < 0) return null;
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-    const t = walker.nextNode();
-    const range = document.createRange();
-    range.setStart(t, at);
-    range.setEnd(t, at + text.length);
-    return range.getBoundingClientRect();
-};
 
 window.done = (async () => {
     await document.fonts.ready;
@@ -52,8 +41,7 @@ window.done = (async () => {
     const out = {};
     const head = document.querySelector(".chathead");
     out.headUse = Boolean(head && head.querySelector(".deckuse"));
-    const path = document.querySelector(".chathead .chatpath");
-    out.path = Boolean(path);
+    out.path = Boolean(head && /Projects/.test(head.textContent));
     out.deck = Boolean(document.querySelector(".deck"));
     const use = document.querySelector(".deck .deckuse");
     out.deckUse = Boolean(use);
@@ -63,24 +51,16 @@ window.done = (async () => {
         out.deckUseLeftGap = round(box.left - deck.left);
         out.deckUseFirst = document.querySelector(".deck").firstElementChild === use;
     }
-    if (path) {
-        const line = path.querySelector(".chatpathtext");
-        const box = line.getBoundingClientRect();
-        out.pathText = line.textContent;
-        out.cut = line.scrollWidth > line.clientWidth;
-        const end = rectOf(line, "aacpanel");
-        const start = rectOf(line, "~/Projects");
-        out.endShown = Boolean(end) && end.right <= box.right + 1 && end.left >= box.left - 1;
-        out.startHidden = Boolean(start) && start.left < box.left - 1;
-        out.lineHeight = round(box.height);
-        out.headRight = round(head.getBoundingClientRect().right);
-        out.pathRight = round(box.right);
-        path.click();
-        await sleep(100);
-        const whole = path.querySelector(".chatpathtext");
-        out.wholeText = whole.textContent;
-        out.wholeCut = whole.scrollWidth > whole.clientWidth;
-        out.wholeHeight = round(whole.getBoundingClientRect().height);
+    out.wide = document.documentElement.scrollWidth > innerWidth || innerWidth > visualViewport.width + 1;
+    const more = document.querySelector(".phead .pmore");
+    if (more) {
+        more.click();
+        for (let i = 0; i < 30 && !document.querySelector(".tools .toolwhere"); i++) await sleep(100);
+        const where = document.querySelector(".tools .toolwhere");
+        if (where) {
+            out.pathText = where.textContent;
+            out.cut = where.scrollWidth > where.clientWidth;
+        }
     }
     return out;
 })();

@@ -1,0 +1,108 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// The header of a conversation on a phone: one line with the way back, the
+// name and how the session stands, and the one button the tools live behind.
+// The tools open in a sheet, a line each, with words.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: true });
+    if (u.startsWith("/api/session/window")) return json({ state: "none", reason: "" });
+    if (u.startsWith("/api/session/switch")) return json({ to: "" });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const name = "evirma-fingerprint-rotation-review-2";
+const live = { status: "waiting", ask: { header: "Next", text: "What next?" }, pct: 12.4, tokens: 124000,
+               limit: 1000000, cwd: "/srv/proj/panel", profile: "personal" };
+const exec = { available: true, kinds: ["window.open", "window.close", "session.remote"] };
+const snapshot = { profiles: [{ name: "personal", auth: "builtin" }] };
+const show = (session) => render(h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name=${name} id="s1" live=${session} exec=${exec} snapshot=${snapshot}
+                  onBack=${() => {}} onUsage=${() => {}} />`)), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 5000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(25);
+    return ok();
+};
+const box = (el) => {
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { width: Math.round(b.width), height: Math.round(b.height), top: Math.round(b.top), bottom: Math.round(b.bottom) };
+};
+
+// spread says whether a piece of the header covers the screen.
+const spread = () => [...document.querySelectorAll(".phead *")].some((n) => n.getBoundingClientRect().height > 200);
+
+window.done = (async () => {
+    await document.fonts.ready;
+    // A session at work first: the word of that state is the name of a class
+    // another screen owns.
+    show({ ...live, status: "busy", ask: null });
+    await until(() => document.querySelector(".phead .pmore"));
+    await sleep(200);
+    const busy = { spread: spread(), word: (document.querySelector(".talkword") || {}).textContent || "" };
+    show(live);
+    await sleep(300);
+    const head = document.querySelector(".phead");
+    const out = {
+        head: box(head),
+        back: box(head.querySelector(".pback")),
+        more: box(head.querySelector(".pmore")),
+        buttons: head.querySelectorAll("button").length,
+        oldTools: head.querySelectorAll(".viewsw, .viewbtn, .winbtn, .rcbtn").length,
+        running: head.querySelectorAll(".marq").length,
+        dot: (head.querySelector(".talkdot") || { dataset: {} }).dataset.tone || "",
+        overlay: busy.spread || spread(),
+        busyWord: busy.word,
+        word: (head.querySelector(".talkword") || {}).textContent || "",
+        label: (head.querySelector(".midname") || { getAttribute: () => "" }).getAttribute("aria-label") || "",
+    };
+    const mid = head.querySelector(".midhead");
+    const tail = head.querySelector(".midtail");
+    out.headCut = Boolean(mid) && mid.scrollWidth > mid.clientWidth;
+    out.tail = tail ? tail.textContent : "";
+    out.tailWhole = Boolean(tail) && tail.scrollWidth <= tail.clientWidth
+        && tail.getBoundingClientRect().right <= head.querySelector(".chathead").getBoundingClientRect().right + 1;
+
+    head.querySelector(".pmore").click();
+    await until(() => document.querySelector(".tools"));
+    await sleep(200);
+    const sheet = document.querySelector(".tools");
+    out.lines = [...sheet.querySelectorAll(".toollabel")].map((n) => n.textContent.trim());
+    out.title = (sheet.querySelector(".toolname") || {}).textContent || "";
+    out.where = (sheet.querySelector(".toolwhere") || {}).textContent || "";
+    const segs = [...sheet.querySelectorAll(".toolseg")];
+    out.segs = segs.map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-pressed")}`);
+    out.small = [...sheet.querySelectorAll("button")]
+        .filter((b) => b.getBoundingClientRect().height > 0 && b.getBoundingClientRect().height < 44 && !b.classList.contains("cmdcopy"))
+        .map((b) => `${b.className}:${Math.round(b.getBoundingClientRect().height)}`);
+    const term = segs.find((b) => /Terminal/.test(b.textContent));
+    if (term) term.click();
+    await until(() => !document.querySelector(".tools"));
+    await sleep(200);
+    out.closedOnPick = !document.querySelector(".tools");
+    out.feedGone = !document.querySelector(".chatfeed");
+    out.moreStays = Boolean(document.querySelector(".phead .pmore"));
+    return out;
+})();
+</script>

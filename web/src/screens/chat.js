@@ -14,7 +14,6 @@ import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { RepoView } from "./repo/view.js";
 import { onShelf, sealed, signal } from "./repo/notes.js";
-import { Icon } from "../ui/icons.js";
 import { Row } from "./chat/rows.js";
 import { CommandSheet } from "./chat/command.js";
 import { McpSheet } from "./chat/mcp.js";
@@ -35,7 +34,8 @@ import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } 
 import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
 import { SideChat, useSideChat } from "./chat/sidechat.js";
-import { ChatPath, Marquee, short } from "./chat/head.js";
+import { MidName, stateOf } from "./chat/head.js";
+import { MoreButton, SessionTools } from "./chat/sessiontools.js";
 import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
 import { DeskHead, ViewToggle } from "./chat/deskhead.js";
@@ -48,19 +48,6 @@ import { useViewPick } from "./chat/viewpick.js";
 import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 
-
-// RepoButton opens the repository of this conversation. It stands to the left
-// of the pair that says what a session is watched with, in the same set of
-// tools: the code of a project belongs beside its terminal and its run, not on
-// a screen of its own that has to be found.
-function RepoButton({ onOpen }) {
-    return html`
-        <button class="viewbtn solo" type="button" title="the files of this project"
-                aria-label="the files of this project" onClick=${onOpen}>
-            ${Icon.files()}
-        </button>
-    `;
-}
 
 export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
@@ -288,6 +275,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
     const feed = weld(state.items);
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
+    const stand = stateOf(live);
     const viewPair = live && sides.pair
         && html`<${ViewToggle} view=${view} onView=${onView} tip=${sides.tip} why=${sides.why} />`;
     const hostTools = live && html`
@@ -303,32 +291,21 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
             ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} tools=${tools}
                                 onRepo=${here ? () => setRepo(true) : null} />`
             : html`
-        <${BackHead} onBack=${onBack} label="to sessions" foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
-                     tools=${html`
-                         <span class="ptoolrow">
-                             ${here && html`<${RepoButton} onOpen=${() => setRepo(true)} />`}
-                             ${viewPair}
-                         </span>
-                         ${live && html`<span class="ptoolrow">${hostTools}</span>`}
-                     `}>
+        <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
+                     foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
+                     tools=${html`<${MoreButton} onOpen=${() => setLook({ kind: "tools" })} />`}>
             <div class="chathead">
                 <h2>
-                    ${live && html`<span class="livedot" title="live"></span>`}
-                    <${Marquee} text=${name} />
+                    <span class="talkdot" data-tone=${stand.tone} title=${stand.say}></span>
+                    <${MidName} text=${name} />
                 </h2>
                 <div class="chatsub">
-                    ${pct != null
-                        ? html`
-                            <span class="chatpct">${pct.toFixed(1)}<span class="u">%</span></span>
-                            ${live && live.tokens > 0 && html`
-                                <span class="chatvol">${short(live.tokens)}${live.limit ? ` of ${short(live.limit)}` : ""}</span>
-                            `}
-                        `
-                        : html`<span>the conversation is closed</span>`}
+                    ${pct != null && html`
+                        <span class="chatpct">${pct.toFixed(1)}<span class="u">%</span></span>
+                        <span class="sep">·</span>
+                    `}
+                    <span class="talkword" data-tone=${stand.tone}>${stand.word || (archive ? "peak" : "")}</span>
                 </div>
-                ${((live || archive || {}).cwd) && html`
-                    <div class="chatmeta"><${ChatPath} cwd=${(live || archive).cwd} /></div>
-                `}
             </div>
         <//>
         `}
@@ -482,6 +459,13 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
                 ? (live ? html`<${RenameSheet} name=${name} exec=${exec} onDone=${() => setLook(null)}
                                                taken=${((snapshot && snapshot.sessions) || []).map((s) => s.session)} />`
                     : html`<p class="cmdnote">The session has ended: there is nothing to rename.</p>`)
+                : look.kind === "tools"
+                ? html`<${SessionTools} name=${name} live=${live} archive=${archive} pct=${pct} exec=${exec}
+                                        snapshot=${snapshot} cwd=${here} view=${view} sides=${sides} win=${win}
+                                        way=${way} work=${state.work}
+                                        onRepo=${here ? () => { setLook(null); setRepo(true); } : null}
+                                        onPick=${(next) => { setLook(null); pickView(next); }}
+                                        onWindow=${askWindow} onDone=${() => setLook(null)} />`
                 : look.kind === "setup"
                 ? (live ? html`<${SetupSheet} name=${name} part=${look.part} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)

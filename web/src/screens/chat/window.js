@@ -40,35 +40,40 @@ export function useWindow(name, transport) {
     return [answer.for === key ? answer : asking, () => setTick((n) => n + 1)];
 }
 
-// WindowToggle renders one button for both positions of the window. A session
-// in the feed has nothing a window could show: the window takes it to the
-// console first, and holds it there while it is open.
-export function WindowToggle({ name, live, work, exec, win, way, onChange }) {
-    const run = useAction();
-
+// windowOf says what the window button does for this session and why it
+// cannot, when it cannot. A session in the feed has nothing a window could
+// show: the window takes it to the console first, and holds it there while it
+// is open.
+export function windowOf({ name, live, work, exec, win, way, run, onChange }) {
     if (live.transport === "stream" && way.to === "console") {
-        const press = () => moveSession({ run, exec, name, to: "console", work, withWindow: true });
-        return button({
+        return {
+            moves: true,
             open: false,
             why: blocked(live) || whyNot(exec, "session.switch") || whyNot(exec, "window.open"),
             say: `Move to the console and open a window on ${hostLabel()}`,
-            press,
-        });
+            press: () => moveSession({ run, exec, name, to: "console", work, withWindow: true }),
+        };
     }
 
     const open = win.kind === "open";
     const kind = open ? "window.close" : "window.open";
-    const press = async () => {
-        const result = await run(kind, name, {});
-        if (result && result.cancelled) return;
-        onChange();
-    };
-    return button({
+    return {
+        moves: false,
         open,
         why: win.kind === "unknown" ? (win.reason || "the window state is unknown") : whyNot(exec, kind),
         say: open ? `The window on ${hostLabel()} is open · close it` : `Open a window on ${hostLabel()}`,
-        press,
-    });
+        press: async () => {
+            const result = await run(kind, name, {});
+            if (result && result.cancelled) return;
+            onChange();
+        },
+    };
+}
+
+// WindowToggle renders one button for both positions of the window.
+export function WindowToggle(props) {
+    const run = useAction();
+    return button(windowOf({ ...props, run }));
 }
 
 function button({ open, why, say, press }) {

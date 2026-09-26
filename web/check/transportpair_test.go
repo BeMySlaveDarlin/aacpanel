@@ -17,7 +17,7 @@ type pairSheet struct {
 	Sent   *pairSent `json:"sent"`
 }
 
-// Where a project lives in the feed, the pair of views is the pair of sides:
+// On the wide screen, where a project lives in the feed, the pair of views is the pair of sides:
 // the feed is the session on the stream, the terminal is the console, and the
 // other one moves the session there. The window on the host takes a session
 // in the feed to the console and holds it: while it is open the pair only
@@ -44,7 +44,7 @@ func TestThePairOfViewsMovesTheSessionBetweenSides(t *testing.T) {
 		QueuedWinOff  bool       `json:"queuedWindowOff"`
 		QueuedWinWhy  string     `json:"queuedWindowWhy"`
 	}
-	runFixture(t, "transportpair.html", &got)
+	runWideFixture(t, "transportpair.html", &got)
 
 	if got.StreamOn != "feed" || got.WindowButtons != 1 {
 		t.Errorf("a session on the stream shows %q, with %d buttons beside the pair — the pair is the switch now",

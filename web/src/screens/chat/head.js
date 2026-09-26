@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { waitText } from "../../ui/waits.js";
 
 // Marquee renders a heading that does not fit as a running line.
 export function Marquee({ text }) {
@@ -50,17 +51,6 @@ export function modelTitle(id, { withWindow = true } = {}) {
     return `${name} ${version}${wide}`;
 }
 
-// short renders a context size in human figures.
-export function short(n) {
-    if (!n) return "0";
-    if (n >= 1000000) {
-        const m = n / 1000000;
-        return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
-    }
-    if (n >= 1000) return `${Math.round(n / 1000)}k`;
-    return String(n);
-}
-
 // exact renders the same number in full, with digit group separators.
 export function exact(n) {
     return String(Math.max(0, Math.round(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
@@ -72,17 +62,51 @@ export function shortPath(cwd) {
     return String(cwd || "").replace(/^\/(?:home|Users)\/[^/]+(?=\/|$)/, "~");
 }
 
-// ChatPath says where the session works, on the third line of the header. A
-// path too long for the line keeps its end — the project is its last word —
-// and a tap shows the whole of it.
-export function ChatPath({ cwd }) {
-    const [whole, setWhole] = useState(false);
-    if (!cwd) return null;
+// stateOf says how a session stands: the tone its dot is painted with, the
+// line a pointer or a screen reader gets, and the word that stands beside the
+// dot where a line has no room.
+export function stateOf(live) {
+    if (!live) return { tone: "off", say: "the conversation is gone", word: "closed" };
+    if (live.ask || live.waitingFor || live.status === "waiting") {
+        return {
+            tone: "waiting",
+            say: live.ask ? "waiting for an answer to a question" : waitText(live.waitingFor),
+            word: "waiting for you",
+        };
+    }
+    if (live.compacting) return { tone: "busy", say: "compacting the conversation", word: "compacting" };
+    if (live.status === "busy") return { tone: "busy", say: "handling the request", word: "answering" };
+    if (!live.status) return { tone: "", say: "the session state is unknown", word: "" };
+    return { tone: "idle", say: "waiting for a message", word: "idle" };
+}
+
+// Most of a name the tail keeps when the line is too short for all of it.
+const TAIL_MAX = 12;
+
+// splitName parts a name into a head that gives way and a tail that stays.
+// The tail is taken in whole words from the end, as many as fit in TAIL_MAX:
+// sessions of one project differ at the end of their names, so the end is
+// what tells two of them apart.
+export function splitName(text) {
+    const name = String(text || "");
+    const words = name.split(/(?=[-_. ])/);
+    let tail = "";
+    for (let i = words.length - 1; i > 0; i--) {
+        if (tail && tail.length + words[i].length > TAIL_MAX) break;
+        tail = words[i] + tail;
+    }
+    if (!tail || tail.length > TAIL_MAX) tail = name.length > TAIL_MAX ? name.slice(-8) : "";
+    return [name.slice(0, name.length - tail.length), tail];
+}
+
+// MidName renders a name that does not fit with its middle left out: the head
+// is cut, the tail stays whole. Where it fits the two halves read as one.
+export function MidName({ text }) {
+    const [head, tail] = splitName(text);
     return html`
-        <button class=${`chatpath${whole ? " whole" : ""}`} type="button" title=${cwd}
-                aria-label=${`the directory of the session: ${cwd}`} aria-expanded=${whole ? "true" : "false"}
-                onClick=${() => setWhole(!whole)}>
-            <span class="chatpathtext"><bdi>${whole ? cwd : shortPath(cwd)}</bdi></span>
-        </button>
+        <span class="midname" title=${text} aria-label=${text}>
+            <span class="midhead" aria-hidden="true">${head}</span>
+            ${tail && html`<span class="midtail" aria-hidden="true">${tail}</span>`}
+        </span>
     `;
 }

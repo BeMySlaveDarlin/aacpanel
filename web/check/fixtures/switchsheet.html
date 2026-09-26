@@ -46,15 +46,22 @@ function Page() {
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const button = () => document.querySelector('.viewbtn[aria-label="Move to the console"]');
+// On a phone the move lives in the tools of the session, a line of its own.
+const button = () => [...document.querySelectorAll(".tools .toolmove .btn")].find((b) => b.textContent.trim() === "Move");
 
 window.done = (async () => {
     await document.fonts.ready;
-    for (let i = 0; i < 50 && !button(); i++) await sleep(100);
+    for (let i = 0; i < 50 && !document.querySelector(".phead .pmore"); i++) await sleep(100);
+    // The work arrives with the conversation: wait until the feed has it.
+    await sleep(600);
+    const more = document.querySelector(".phead .pmore");
+    if (!more) return { button: false };
+    more.click();
+    for (let i = 0; i < 30 && !button(); i++) await sleep(100);
     const b = button();
     if (!b) return { button: false };
-    // The work arrives with the conversation: wait until the feed has it.
-    await sleep(400);
+    const note = [...document.querySelectorAll(".tools .toolmove .toolnote")].map((n) => n.textContent).join(" | ");
+    const disabled = b.disabled;
     b.click();
     for (let i = 0; i < 30 && !document.querySelector(".stitle"); i++) await sleep(100);
     const title = (document.querySelector(".stitle") || {}).textContent || "";
@@ -63,6 +70,6 @@ window.done = (async () => {
     const danger = Boolean(ok && ok.classList.contains("danger"));
     if (ok) ok.click();
     for (let i = 0; i < 30 && !sent.length; i++) await sleep(100);
-    return { button: true, disabled: b.disabled, title, effect, danger, sent };
+    return { button: true, disabled, note, title, effect, danger, sent };
 })();
 </script>

@@ -30,6 +30,7 @@ export const LOOK_NAMES = {
     status: "session info",
     commands: "commands",
     rename: "rename",
+    tools: "tools of the session",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);

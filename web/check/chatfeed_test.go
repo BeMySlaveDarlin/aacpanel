@@ -391,10 +391,10 @@ func TestChatStreamIsKeyedByConversationNotSnapshot(t *testing.T) {
 }
 
 func TestChatHeadDotSeparatesBusyFromWaiting(t *testing.T) {
-	src := screenSrc(t, "src/screens/chat.js")
+	src := screenSrc(t, "src/screens/chat/head.js")
 
-	waits := strings.Index(src, "dkwaiting")
-	busy := strings.Index(src, "dkbusy")
+	waits := strings.Index(src, `tone: "waiting"`)
+	busy := strings.Index(src, `tone: "busy"`)
 	if waits < 0 || busy < 0 {
 		t.Fatal("the chat header does not tell a busy session from one waiting for an answer — " +
 			"the dot does not say whether you are being called to the machine")
@@ -403,12 +403,9 @@ func TestChatHeadDotSeparatesBusyFromWaiting(t *testing.T) {
 		t.Error("busy is checked before waiting: a session with an open question is marked " +
 			"`busy` and shown as working — that is the answer inverted")
 	}
-
-	css := cssSrc(t)
-	for _, name := range []string{".dkdot.dkwaiting", ".dkdot.dkbusy", ".dkdot.dkidle"} {
-		if !strings.Contains(css, name) {
-			t.Errorf("state %s has no color — every dot turns the same color "+
-				"and there is nothing left to tell them apart by", name)
+	for _, file := range []string{"src/screens/chat.js", "src/screens/chat/deskhead.js"} {
+		if !strings.Contains(screenSrc(t, file), "stateOf(live)") {
+			t.Errorf("%s draws the dot of the session without stateOf — two opinions of how it stands drift apart", file)
 		}
 	}
 }

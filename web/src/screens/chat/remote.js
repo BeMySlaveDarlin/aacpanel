@@ -25,8 +25,10 @@ export function remoteContour(live, snapshot) {
     return mine.name;
 }
 
-// RemoteToggle switches Remote Control of a live session on and off.
-export function RemoteToggle({ name, live, exec, snapshot }) {
+// useRemote says how Remote Control of a live session stands, why it cannot
+// be switched when it cannot, and switches it. A switch that went through
+// stands the new way until the snapshot catches up with it.
+export function useRemote({ name, live, exec, snapshot }) {
     const run = useAction();
     const [want, setWant] = useState(null);
     const on = Boolean(live.remote);
@@ -55,6 +57,12 @@ export function RemoteToggle({ name, live, exec, snapshot }) {
         const result = await run("session.remote", name, { on: !shown });
         if (result && result.ok) setWant(!shown);
     };
+    return { shown, contour, why, off, settling: want !== null, say, press };
+}
+
+// RemoteToggle switches Remote Control of a live session on and off.
+export function RemoteToggle(props) {
+    const { shown, why, off, say, press } = useRemote(props);
     return html`
         <button class=${`rcbtn${shown ? " on" : ""}${why ? " off" : ""}`} type="button"
                 data-tip=${why ? undefined : say} data-tipside="left"

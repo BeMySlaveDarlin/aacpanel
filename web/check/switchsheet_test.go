@@ -5,14 +5,16 @@ import (
 	"testing"
 )
 
-// The terminal of a session on the stream moves it to the console. What runs
-// inside its process does not survive the move, so the sheet names it before
-// the press, the press is marked as the one that costs something, and what
-// goes to the panel says where to go and that the person agreed.
+// A session on the stream moves to the console from its tools. What runs
+// inside its process does not survive the move, so the tools name it before
+// the press, the confirmation names it again and marks the press as the one
+// that costs something, and what goes to the panel says where to go and that
+// the person agreed.
 func TestTheSwitchSheetNamesWhatStops(t *testing.T) {
 	var got struct {
 		Button   bool   `json:"button"`
 		Disabled bool   `json:"disabled"`
+		Note     string `json:"note"`
 		Title    string `json:"title"`
 		Effect   string `json:"effect"`
 		Danger   bool   `json:"danger"`
@@ -25,10 +27,13 @@ func TestTheSwitchSheetNamesWhatStops(t *testing.T) {
 	runFixture(t, "switchsheet.html", &got)
 
 	if !got.Button {
-		t.Fatal("the header of a stream session offers no way to the console")
+		t.Fatal("the tools of a stream session offer no way to the console")
 	}
 	if got.Disabled {
 		t.Fatal("the switch is off for an idle session")
+	}
+	if !strings.Contains(got.Note, "1 background task") {
+		t.Errorf("the tools do not say what stops before the press: %q", got.Note)
 	}
 	if got.Title != "Move evirma to the console?" {
 		t.Errorf("the sheet asks %q", got.Title)

@@ -82,9 +82,10 @@ export function useBackClose(open, onClose) {
 }
 
 // BackHead renders the header of a layer page: the exit arrow and its title.
-export function BackHead({ onBack, label, foot, tools, children }) {
+// A kind names a header laid out its own way.
+export function BackHead({ onBack, label, foot, tools, children, kind = "" }) {
     return html`
-        <div class="phead">
+        <div class=${`phead${kind ? ` ${kind}` : ""}`}>
             <button class="pback" type="button" onClick=${onBack} aria-label=${label || "back"}>
                 <span class="chev back">${Icon.chevron()}</span>
             </button>

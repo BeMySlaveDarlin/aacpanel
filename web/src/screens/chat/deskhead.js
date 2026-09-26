@@ -4,19 +4,7 @@ import { html } from "../../html.js";
 import { ContextBar } from "../../ui/bar.js";
 import { Icon } from "../../ui/icons.js";
 import { ago, plural, share, since, tokens } from "../../format.js";
-import { Marquee, modelName } from "./head.js";
-import { waitText } from "../../ui/waits.js";
-
-function dot(live) {
-    if (!live) return { kind: "dkoff", say: "the conversation is gone" };
-    if (live.ask || live.waitingFor || live.status === "waiting") {
-        return { kind: "dkwaiting", say: live.ask ? "waiting for an answer to a question" : waitText(live.waitingFor) };
-    }
-    if (live.compacting) return { kind: "dkbusy", say: "compacting the conversation" };
-    if (live.status === "busy") return { kind: "dkbusy", say: "handling the request" };
-    if (!live.status) return { kind: "", say: "the session state is unknown" };
-    return { kind: "dkidle", say: "waiting for a message" };
-}
+import { Marquee, modelName, stateOf } from "./head.js";
 
 function ctxFact(row, pct, say) {
     const iffy = row && row.stale;
@@ -79,12 +67,12 @@ function pastFacts(row, pct) {
 // DeskHead renders the conversation header on the wide screen; the tools of a
 // live session come ready from the conversation, the same as on a phone.
 export function DeskHead({ name, live, archive, pct, tools, onRepo }) {
-    const state = dot(live);
+    const state = stateOf(live);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
         <div class="dkhead">
             <div class="dkheadtop">
-                <span class=${`dkdot ${state.kind}`.trim()} title=${state.say}></span>
+                <span class=${`dkdot ${state.tone ? `dk${state.tone}` : ""}`.trim()} title=${state.say}></span>
                 <span class="dkheadname dkchatname"><${Marquee} text=${name} /></span>
                 <span class="dkheadpath" title=${cwd}>${cwd || "the conversation directory is unknown"}</span>
                 ${onRepo && html`
