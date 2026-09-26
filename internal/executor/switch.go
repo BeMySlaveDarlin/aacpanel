@@ -39,6 +39,9 @@ type carried struct {
 	// Where each value was read, for the report: a value the panel guessed
 	// is not the same as a value it read.
 	From []string
+	// Unsaid is a conversation nobody has said a word in: it has no
+	// transcript, and the other side starts anew rather than resuming it.
+	Unsaid bool
 }
 
 func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.Switch, want *action.Project) (string, error) {
@@ -107,7 +110,11 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 	if err != nil {
 		return "", fmt.Errorf("the switch stopped at closing, nothing was started: %w", err)
 	}
-	rep, err := e.runLauncher(ctx, p, s.SessionID)
+	resume := s.SessionID
+	if keep.Unsaid {
+		resume = ""
+	}
+	rep, err := e.runLauncher(ctx, p, resume)
 	if err != nil {
 		return "", fmt.Errorf("%s; the conversation did not come up on the other side: %w — "+
 			"it is whole on disk, resume it from the archive", closed, err)
@@ -118,6 +125,10 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 		where = "in the feed"
 	}
 	detail := fmt.Sprintf("session %s moved %s, conversation %s", rep.Session, where, s.SessionID)
+	if keep.Unsaid {
+		detail = fmt.Sprintf("session %s moved %s as a new conversation: nothing had been said in the old one",
+			rep.Session, where)
+	}
 	if len(keep.From) > 0 {
 		detail += "; kept: " + strings.Join(keep.From, ", ")
 	}
@@ -234,7 +245,7 @@ func leavingStream(ctx context.Context, s liveSession, force bool) (carried, str
 	// A mode the start named is carried whatever it is now. Without one, claude
 	// reports its own name for the default at the handshake, and only a change
 	// since then is the session's own.
-	var keep carried
+	keep := carried{Unsaid: !st.Said}
 	if st.Mode != "" && (startMode(s.PID) != "" || st.Mode != st.StartMode) {
 		keep.Mode = st.Mode
 		keep.From = append(keep.From, "mode "+st.Mode+" from the stream")

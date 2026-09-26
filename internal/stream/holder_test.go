@@ -340,6 +340,23 @@ func TestTheHolderKeepsWhatTheSessionWasStartedWith(t *testing.T) {
 	}
 }
 
+// claude writes no transcript for a conversation nobody has said a word in:
+// the holder knows whether there is one to resume.
+func TestTheHolderKnowsWhetherTheConversationIsOnTheDisk(t *testing.T) {
+	fresh := start(t, nil)
+	if s := fresh.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 }); s.Said {
+		t.Fatal("a session nobody has written to reads as a conversation on the disk")
+	}
+	fresh.ask(Request{Op: OpSend, Text: "hello"})
+	if s := fresh.state(); !s.Said {
+		t.Error("a message went to claude, and the conversation still reads as unsaid")
+	}
+	resumed := start(t, func(s *Spec) { s.Resumed = true })
+	if s := resumed.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 }); !s.Said {
+		t.Error("a resumed conversation reads as one with nothing on the disk")
+	}
+}
+
 func TestAMessageWaitsInTheQueueUntilClaudeTakesItUp(t *testing.T) {
 	r := start(t, nil)
 	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })

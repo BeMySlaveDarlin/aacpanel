@@ -113,6 +113,9 @@ type Spec struct {
 	// handshake. A terminal takes it as an argument; on the stream it is a
 	// request.
 	RemoteControl bool `json:"remoteControl,omitempty"`
+	// Resumed says the session goes on with a conversation already on the
+	// disk, rather than starting one.
+	Resumed bool `json:"resumed,omitempty"`
 	// Launched is what the launcher started the session with — the project,
 	// its launch parameters and its contour. The session is started again from
 	// it where the panel that knows the project is not there to ask.
@@ -208,6 +211,10 @@ type State struct {
 	Init       json.RawMessage `json:"init,omitempty"`
 	// Launched is what the session was started with; see Spec.
 	Launched json.RawMessage `json:"launched,omitempty"`
+	// Said is whether the conversation is on the disk to be resumed: it was
+	// resumed, or a message went to claude. claude writes no transcript for
+	// a conversation nobody has said a word in.
+	Said bool `json:"said,omitempty"`
 }
 
 // Summary is the state file: what the collector reads to place the session on

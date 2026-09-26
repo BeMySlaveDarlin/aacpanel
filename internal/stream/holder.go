@@ -106,6 +106,7 @@ func Run(ctx context.Context, spec Spec) error {
 			Queue:     []Queued{},
 			Tasks:     []Task{},
 			Launched:  spec.Launched,
+			Said:      spec.Resumed,
 		},
 	}
 	defer h.cleanup(ln)
@@ -526,6 +527,9 @@ func (h *Holder) send(text, id string) (string, error) {
 		h.mu.Unlock()
 		return "", err
 	}
+	h.mu.Lock()
+	h.state.Said = true
+	h.mu.Unlock()
 	h.picked(text)
 	h.saveSummary()
 	return id, nil

@@ -159,6 +159,9 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 			t.Errorf("the holder was handed a command without %q: %s", want, argv)
 		}
 	}
+	if spec.Resumed {
+		t.Error("a new conversation was handed to its holder as a resumed one")
+	}
 	if spec.Intent != "begin" || spec.Name != "demo" || spec.Dir != dir {
 		t.Errorf("the holder was handed %+v", spec)
 	}

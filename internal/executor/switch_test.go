@@ -36,6 +36,7 @@ func streamStand(t *testing.T, st func(*stream.State), args ...string) (dir stri
 		args: append([]string{"claude", "-p", "--input-format", "stream-json", "-n", "demo", "--session-id", streamSID}, args...)})
 	sessionFiles(t, fakeSession{pid: 5001, name: "demo", start: "5555", sid: streamSID, cwd: dir})
 	f.mu.Lock()
+	f.state.Said = true
 	st(&f.state)
 	f.mu.Unlock()
 	return dir, f
@@ -491,5 +492,26 @@ func TestSwitchToConsoleWithoutThePanelNeedsWhatTheHolderKeeps(t *testing.T) {
 	}
 	if _, err := os.Stat(log); err == nil {
 		t.Error("the launcher was called with a guessed project")
+	}
+}
+
+// A session on the stream nobody has said a word in has no transcript: the
+// console starts anew under its name rather than resuming what is not there,
+// which would close the session and bring nothing up.
+func TestSwitchToConsoleOfAConversationWithNoWordStartsAnew(t *testing.T) {
+	dir, _ := streamStand(t, func(s *stream.State) { s.Said = false })
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
+	e, _ := newTest(t, "")
+	withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+	detail, err := e.Execute(context.Background(), switchTo(action.SwitchConsole, false, dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := launched(t, log)["_resume"]; got != "" {
+		t.Errorf("a conversation with no word was resumed as %v", got)
+	}
+	if !strings.Contains(detail, "as a new conversation") {
+		t.Errorf("the report %q does not say the conversation starts anew", detail)
 	}
 }

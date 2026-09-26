@@ -158,6 +158,7 @@ func runStream(ctx context.Context, spec Spec, params Params, name, bin string, 
 		Intent:    params.Intent,
 		// Remote control is on only when the map says so, the same as in a terminal.
 		RemoteControl: params.RemoteControl != nil && *params.RemoteControl,
+		Resumed:       spec.Resume != "",
 		Launched:      launched,
 	})
 	if err != nil {
