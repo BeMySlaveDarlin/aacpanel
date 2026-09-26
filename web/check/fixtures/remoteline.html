@@ -4,11 +4,12 @@
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// Remote Control in the header: off, on, a session of a contour on another
-// account, and a host whose executor does not know the switch.
+// Remote Control among the tools of a session: off, on, a session of a
+// contour on another account, and a host whose executor does not know the
+// switch.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
-import { RemoteToggle } from "/src/screens/chat/remote.js";
+import { RemoteLine } from "/src/screens/chat/sessiontools.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
@@ -22,6 +23,7 @@ window.fetch = async (url, init) => {
     return new Response("", { status: 404 });
 };
 
+const url = "https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT";
 const snapshot = { profiles: [
     { name: "personal", auth: "builtin" },
     { name: "evirma", auth: "token" },
@@ -29,11 +31,11 @@ const snapshot = { profiles: [
 const exec = { available: true, kinds: ["session.remote"] };
 const old = { available: true, kinds: ["session.send"] };
 const row = (id, name, live, ex = exec) => html`
-    <div id=${id}><${RemoteToggle} name=${name} live=${live} exec=${ex} snapshot=${snapshot} /></div>`;
+    <ul id=${id} class="mcplist toollist"><${RemoteLine} name=${name} live=${live} exec=${ex} snapshot=${snapshot} /></ul>`;
 
 render(h(ToastHost, null, h(GateHost, null, html`
     ${row("off", "atlas", { profile: "personal" })}
-    ${row("on", "aacpanel", { profile: "personal", remote: "https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT" })}
+    ${row("on", "aacpanel", { profile: "personal", remote: url })}
     ${row("work", "wb-parser", { profile: "evirma" })}
     ${row("old", "book", { profile: "personal" }, old)}
 `)), document.getElementById("root"));
@@ -43,20 +45,26 @@ const until = async (ok, ms = 3000) => {
     while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
 };
 window.done = (async () => {
-    await until(() => document.querySelectorAll(".rcbtn").length === 4);
-    const button = (id) => document.querySelector(`#${id} .rcbtn`);
+    await until(() => document.querySelectorAll(".toolline").length === 4);
+    const button = (id) => document.querySelector(`#${id} .toolbtn`);
     const look = (id) => {
         const b = button(id);
-        return { on: b.classList.contains("on"), pressed: b.getAttribute("aria-pressed"),
-                 disabled: b.disabled, label: b.getAttribute("aria-label") || "" };
+        const link = document.querySelector(`#${id} a.toolrow`);
+        return {
+            button: Boolean(b),
+            says: b ? b.textContent.trim() : "",
+            pressed: b ? b.getAttribute("aria-pressed") : "",
+            disabled: Boolean(b && b.disabled),
+            note: (document.querySelector(`#${id} .toolnote`) || {}).textContent || "",
+            link: link ? link.getAttribute("href") : "",
+        };
     };
     const before = { off: look("off"), on: look("on"), work: look("work"), old: look("old") };
     // A disabled button gives no click at all: pressed first, whatever they
     // sent would stand ahead of the two presses that do send.
-    button("work").click();
-    button("old").click();
+    if (button("old")) button("old").click();
     button("off").click();
-    await until(() => sent.length >= 1 && look("off").on);
+    await until(() => sent.length >= 1 && look("off").says === "Turn off");
     button("on").click();
     await until(() => sent.length >= 2);
     return { before, afterOff: look("off"), sent: sent.map((s) => `${s.kind}:${s.target}:${JSON.stringify(s.params)}`) };

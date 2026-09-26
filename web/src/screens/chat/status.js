@@ -8,7 +8,7 @@ import { useEffect, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { useToast } from "../../ui/toasts.js";
-import { ago, plural } from "../../format.js";
+import { ago, plural, share, tokens } from "../../format.js";
 import { copyText } from "./copy.js";
 import { modelTitle } from "./head.js";
 import { effortName, modeName } from "./picker.js";
@@ -68,6 +68,10 @@ export function StatusSheet({ name, live }) {
         ["Model", model || "—"],
         ["Permissions", live.mode ? modeName(live.mode) : "—"],
         ["Started", live.startedAt ? ago(live.startedAt) : "—"],
+        ["Context", live.pct == null ? "—"
+            : `${share(live.pct)}${live.tokens ? ` · ${tokens(live.tokens)}${live.limit ? ` of ${tokens(live.limit)}` : ""}` : ""}`],
+        ["Tokens", live.tokensIn > 0 ? `${tokens(live.tokensIn)} in · ${tokens(live.tokensOut || 0)} out` : "—"],
+        ["Messages", String(live.messages || 0)],
     ];
     const servers = !stream ? "on its own screen, /mcp with keys"
         : !mcp ? "asking…"

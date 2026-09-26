@@ -47,7 +47,7 @@ render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // On a phone the move lives in the tools of the session, a line of its own.
-const button = () => [...document.querySelectorAll(".tools .toolmove .btn")].find((b) => b.textContent.trim() === "Move");
+const button = () => document.querySelector(".tools .toolmove .toolgo");
 
 window.done = (async () => {
     await document.fonts.ready;

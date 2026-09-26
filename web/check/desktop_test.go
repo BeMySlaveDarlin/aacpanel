@@ -246,22 +246,23 @@ func TestDesktopChatKeepsItsOwnColumn(t *testing.T) {
 
 func TestDesktopChatHeadIsTheSectionHead(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat.js")
+	head := screenSrc(t, "src/screens/chat/deskhead.js") + screenSrc(t, "src/screens/chat/sessiontools.js")
 
 	if !strings.Contains(src, "<${DeskHead}") {
 		t.Fatal("on a wide screen the chat draws the layer header: " +
 			"the back arrow leads into an empty center and the session path is not there at all")
 	}
-	if !strings.Contains(src, "dkheadpath") || !strings.Contains(src, "cwd") {
+	if !strings.Contains(head, "dkheadpath") || !strings.Contains(head, "cwd") {
 		t.Error("the chat header does not name the directory: it does not say which project the chat runs in")
 	}
 
 	css := cssSrc(t)
-	for _, name := range []string{".dkhead", ".dkheadtop", ".dkheadbot", ".dkfact", ".dkdot", ".viewsw", ".viewbtn"} {
+	for _, name := range []string{".dkhead", ".dkheadtop", ".dkdot", ".dkheadpath", ".dktabs", ".dktab", ".dkplace", ".dkword", ".dkpct"} {
 		if !strings.Contains(css, name+" {") {
 			t.Errorf("class %s is gone from the styles — the chat header is built out of what "+
 				"does not exist and arrives unstyled", name)
 		}
-		if !strings.Contains(src, strings.TrimPrefix(name, ".")) {
+		if !strings.Contains(head, strings.TrimPrefix(name, ".")) {
 			t.Errorf("the chat header no longer uses %s — that is a second header "+
 				"resembling the first, and they drift apart on the first edit of the neighbouring file", name)
 		}

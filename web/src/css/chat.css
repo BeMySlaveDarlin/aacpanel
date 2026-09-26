@@ -112,11 +112,27 @@
     border-color: color-mix(in srgb, var(--accent) 45%, transparent);
     color: var(--ink);
 }
-.toolmove { display: grid; gap: .4rem; padding-top: .4rem; border-top: var(--hair) solid var(--line); }
-.toolmove .toolline { border-bottom: 0; }
-.toolmove .toolicon { color: var(--crit); }
-.toolacts { display: flex; flex-wrap: wrap; gap: .5rem; }
-.toolacts .btn { flex: 1 1 8rem; min-height: 44px; }
+.toolsec { display: grid; }
+.toolsec .cmdsechead { padding-top: .2rem; font-size: var(--t-xs); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+.toolend { padding-top: .2rem; border-top: var(--hair) solid var(--line); }
+.toolaside { flex: none; font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
+.mcprow.toolrow:disabled { opacity: .6; }
+.toolstop .toollabel, .toolstop .toolicon { color: var(--crit); }
+a.mcprow.toolrow { text-decoration: none; }
+.toolmove { display: grid; gap: .45rem; padding: .5rem 0 .2rem; }
+.toolgo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 44px;
+    color: var(--crit);
+    border-color: color-mix(in srgb, var(--crit) 45%, transparent);
+}
+.toolgo svg { width: var(--i-sm); height: var(--i-sm); }
+.toolcheck { display: flex; align-items: center; gap: .5rem; min-height: 44px; font-size: var(--t-sm); color: var(--ink-dim); cursor: pointer; }
+.toolcheck.off { opacity: .6; cursor: default; }
+.toolcheck input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
 
 .chatpct {
     font-size: var(--t-md);
@@ -336,50 +352,6 @@
 
 /* The other side of the pair is off while the session cannot move there. */
 .viewbtn:disabled { opacity: .35; cursor: default; }
-
-/* A button that stands on its own rather than inside the pair that switches
-   the view: the pair carries a frame, and a lone glyph beside it reads as a
-   mark on the header rather than as something to press. It wears the frame of
-   the pair, and the padding of the pair with it, so the row stands level. */
-.viewbtn.solo,
-.winbtn,
-.rcbtn {
-    width: calc(1.7rem + .24rem + 2 * var(--hair));
-    height: calc(1.55rem + .24rem + 2 * var(--hair));
-    background: var(--glass);
-    border: var(--hair) solid var(--edge);
-    border-radius: var(--r-small);
-}
-
-.winbtn {
-    margin-left: auto;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    color: var(--ink-faint);
-    cursor: pointer;
-}
-
-.viewsw + .winbtn { margin-left: .3rem; }
-
-.winbtn svg { width: var(--i-sm); height: var(--i-sm); }
-
-.winbtn.on { color: var(--accent); background: var(--accent-bg); border-color: var(--edge); }
-
-.winbtn.off { opacity: .35; cursor: default; }
-
-/* Remote Control beside the window: the same frame, lit while the bridge is up. */
-.rcbtn {
-    display: grid;
-    place-items: center;
-    padding: 0;
-    color: var(--ink-faint);
-    cursor: pointer;
-}
-.winbtn + .rcbtn { margin-left: .3rem; }
-.rcbtn svg { width: var(--i-sm); height: var(--i-sm); }
-.rcbtn.on { color: var(--accent); background: var(--accent-bg); border-color: var(--edge); }
-.rcbtn.off, .rcbtn:disabled { opacity: .35; cursor: default; }
 
 /* The quote button beside the selection: a small slab over the feed, placed by
    script and hidden until it has been measured — un-placed, it would flash at

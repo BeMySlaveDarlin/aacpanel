@@ -129,6 +129,8 @@ export const Icon = {
 
     remote: () => html`<svg ...${stroke}><rect x="5" y="3" width="10" height="18" rx="2" /><path d="M9 18h2M18.5 9a4.5 4.5 0 0 1 0 6M21 6.5a8 8 0 0 1 0 11" /></svg>`,
     monitor: () => html`<svg ...${stroke}><rect x="2.5" y="4.5" width="19" height="12" rx="2" /><path d="M12 16.5V19M8.5 19h7" /></svg>`,
+    // Where a session lives: on the stream or in the console of the host.
+    pin: () => html`<svg ...${stroke}><path d="M12 21s-6.5-5.4-6.5-11a6.5 6.5 0 0 1 13 0c0 5.6-6.5 11-6.5 11Z" /><circle cx="12" cy="10" r="2.3" /></svg>`,
     // What else can be done here: the tools a header has no room for.
     more: () => html`<svg ...${stroke}><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none" /></svg>`,
 

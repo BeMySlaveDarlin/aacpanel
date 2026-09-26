@@ -24,10 +24,10 @@ func TestTerminalReachesWhoeverServerAllows(t *testing.T) {
 			"on a phone it arrives without a single rule")
 	}
 
-	for _, name := range []string{".viewsw", ".viewbtn", ".winbtn"} {
+	for _, name := range []string{".viewsw", ".viewbtn"} {
 		if !strings.Contains(cssBlockFile(t, "src/css/chat.css", name), "display") {
-			t.Errorf("the rules for %s are not in the chat styles — the button is needed by both headers, "+
-				"and in the desktop file the phone will not see them", name)
+			t.Errorf("the rules for %s are not in the chat styles — the files of a project switch their "+
+				"view with it on both screens, and in the desktop file the phone will not see them", name)
 		}
 	}
 }

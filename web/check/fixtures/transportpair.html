@@ -5,11 +5,12 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="module">
-// A project that lives in the feed: the pair of views is the pair of sides.
-// The feed is the session on the stream, the terminal is the console, and a
-// press on the other one moves the session. The window on the host takes a
-// session in the feed to the console first and holds it there: while it is
-// open, the pair only picks what to watch the console with.
+// A project that lives in the feed, on the wide screen: the views are the
+// sides. The feed is the session on the stream, the terminal is the console,
+// and the view on the other side is reached by a move, which its tab opens
+// rather than makes. The window on the host comes with a move to the console
+// and holds the session there: while it is open, the views only pick what to
+// watch the console with.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -49,14 +50,21 @@ const show = (name, live) => render(h(ToastHost, null, h(GateHost, null,
     html`<${Chat} name=${name} id=${name} live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const pair = () => Array.from(document.querySelectorAll(".viewsw .viewbtn"));
+const tabs = () => Array.from(document.querySelectorAll(".dkhead .dktabs .dktab"));
+const tab = (label) => tabs().find((b) => b.textContent.replace("⇢", "").trim() === label);
 const pressed = () => {
-    const on = pair().find((b) => b.getAttribute("aria-pressed") === "true");
-    return on ? pair().indexOf(on) === 0 ? "term" : "feed" : "";
+    const on = tabs().find((b) => b.getAttribute("aria-pressed") === "true");
+    return on ? (on.textContent.includes("Terminal") ? "term" : "feed") : "";
 };
 const settle = async () => {
-    for (let i = 0; i < 50 && !pair().length; i++) await sleep(100);
+    for (let i = 0; i < 50 && !document.querySelector(".dkplace"); i++) await sleep(100);
     await sleep(400);
+};
+const go = () => document.querySelector(".dkpop .toolgo");
+const panel = async (press) => {
+    press.click();
+    for (let i = 0; i < 30 && !go(); i++) await sleep(50);
+    return go();
 };
 // agree presses a control, reads the sheet it opens and confirms it.
 const agree = async (el) => {
@@ -71,57 +79,69 @@ const agree = async (el) => {
     await sleep(300);
     return { title, effect, sent: sent.length > before ? sent[sent.length - 1] : null };
 };
+const notes = () => [...document.querySelectorAll(".dkpop .toolmove .toolnote")].map((n) => n.textContent).join(" | ");
 
 window.done = (async () => {
     await document.fonts.ready;
     const out = {};
 
-    // On the stream: the feed is on, the terminal moves the session, and the
-    // window takes it to the console with a window over it.
+    // On the stream: the feed is on, the terminal is reached by a move and
+    // says so; it opens the move rather than making it.
     show("evirma", { ...base, transport: "stream" });
     await settle();
     out.streamOn = pressed();
-    out.windowButtons = document.querySelectorAll(".winbtn").length;
-    out.toConsole = await agree(pair()[0]);
-    const win = document.querySelector(".winbtn");
-    out.windowOff = Boolean(win && win.disabled);
-    out.withWindow = win ? await agree(win) : null;
+    out.termMarked = Boolean(tab("Terminal") && tab("Terminal").classList.contains("moves"));
+    out.windowButtons = document.querySelectorAll(".dkhead .winbtn, .dkhead [aria-label*='window']").length;
+    const before = sent.length;
+    const move = await panel(tab("Terminal"));
+    out.termSentNothing = sent.length === before;
+    out.toConsole = move ? await agree(move) : { title: "", effect: "", sent: null };
+    // The window comes with the move to the console, as a choice in it.
+    const again = await panel(document.querySelector(".dkplace"));
+    const box = document.querySelector(".dkpop .toolcheck input");
+    out.windowOff = !box || box.disabled;
+    if (box) box.click();
+    await sleep(100);
+    out.withWindow = again ? await agree(again) : null;
 
     // A console of the same project: the terminal is on, the feed moves it.
     show("evirma-c", { ...base, transport: "tmux" });
     await settle();
     out.consoleOn = pressed();
-    out.toFeed = await agree(pair()[1]);
+    const toFeed = await panel(tab("Feed"));
+    out.toFeed = toFeed ? await agree(toFeed) : { title: "", sent: null };
 
     // A window holds the console: the feed reads it, nothing moves.
     show("evirma-w", { ...base, transport: "tmux" });
     await settle();
     const count = sent.length;
-    pair()[0].click();
-    await sleep(400);
+    tab("Terminal").click();
+    await sleep(300);
     out.heldTerm = pressed();
-    out.heldTip = pair()[1].getAttribute("data-tip") || "";
-    pair()[1].click();
+    out.heldTip = tab("Feed").getAttribute("data-tip") || "";
+    tab("Feed").click();
     await sleep(400);
     out.heldOn = pressed();
     out.heldSent = sent.length - count;
     out.heldFeed = Boolean(document.querySelector(".chatfeed"));
+    out.heldMarked = tabs().some((b) => b.classList.contains("moves"));
 
-    // A turn in progress: the move waits for it.
+    // A turn in progress: the move waits for it, and says so.
     show("evirma-b", { ...base, transport: "tmux", status: "busy" });
     await settle();
-    out.busyOff = pair()[1].disabled;
-    out.busyWhy = pair()[1].getAttribute("title") || "";
+    const busy = await panel(tab("Feed"));
+    out.busyOff = Boolean(busy && busy.disabled);
+    out.busyWhy = notes();
 
     // A message the session on the stream has not taken yet: claude is idle,
-    // the holder still has it, and both ways to the console wait for it.
+    // the holder still has it, and the move and its window wait for it.
     show("evirma-q", { ...base, transport: "stream", queued: 1 });
     await settle();
-    out.queuedOff = pair()[0].disabled;
-    out.queuedWhy = pair()[0].getAttribute("title") || "";
-    const qwin = document.querySelector(".winbtn");
-    out.queuedWindowOff = Boolean(qwin && qwin.disabled);
-    out.queuedWindowWhy = qwin ? qwin.getAttribute("title") || "" : "";
+    const queued = await panel(document.querySelector(".dkplace"));
+    out.queuedOff = Boolean(queued && queued.disabled);
+    out.queuedWhy = notes();
+    const qbox = document.querySelector(".dkpop .toolcheck input");
+    out.queuedWindowOff = Boolean(qbox && qbox.disabled);
     return out;
 })();
 </script>

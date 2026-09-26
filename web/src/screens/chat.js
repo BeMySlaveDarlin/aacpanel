@@ -35,13 +35,12 @@ import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
 import { SideChat, useSideChat } from "./chat/sidechat.js";
 import { MidName, stateOf } from "./chat/head.js";
-import { MoreButton, SessionTools } from "./chat/sessiontools.js";
+import { MoreButton, SessionButton, SessionTools, ViewTabs } from "./chat/sessiontools.js";
 import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
-import { DeskHead, ViewToggle } from "./chat/deskhead.js";
-import { WindowToggle, useWindow } from "./chat/window.js";
-import { RemoteToggle } from "./chat/remote.js";
-import { moveSession, sidesOf, useSwitchWay } from "./chat/switch.js";
+import { DeskHead } from "./chat/deskhead.js";
+import { useWindow } from "./chat/window.js";
+import { sidesOf, useSwitchWay } from "./chat/switch.js";
 import { TakeBack } from "./chat/takeback.js";
 import { Term, useTermAvailable } from "./chat/term.js";
 import { useViewPick } from "./chat/viewpick.js";
@@ -97,14 +96,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
         ? sidesOf({ live, way, held: win.kind === "open", picked, canTerm, exec })
         : { view: picked, pair: false, moves: "", tip: "", why: "" };
     const view = sides.view;
-    const onView = (next) => {
-        if (next === view) return;
-        if (!sides.moves) {
-            pickView(next);
-            return;
-        }
-        moveSession({ run, exec, name, to: sides.moves, work: state.work });
-    };
+    // The session panel of the wide screen: a view that is reached only by a
+    // move opens it on the move.
+    const [panel, setPanel] = useState(false);
 
     // Everything a conversation made is filtered by the directory it worked in.
     // A session that has ended leaves its pages and its briefs to the next one
@@ -170,6 +164,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
         setFiles([]);
         setCalls(null);
         setLook(null);
+        setPanel(false);
         setInsert(null);
     }, [name, id]);
 
@@ -276,20 +271,21 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
     const stand = stateOf(live);
-    const viewPair = live && sides.pair
-        && html`<${ViewToggle} view=${view} onView=${onView} tip=${sides.tip} why=${sides.why} />`;
-    const hostTools = live && html`
-        <${WindowToggle} name=${name} live=${live} work=${state.work} exec=${exec}
-                         win=${win} way=${way} onChange=${askWindow} />
-        <${RemoteToggle} name=${name} live=${live} exec=${exec} snapshot=${snapshot} />
+    const openRepo = here ? () => setRepo(true) : null;
+    const tools = {
+        name, live, archive, pct, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
+        onWindow: askWindow, onLook: (kind) => setLook({ kind }),
+    };
+    const deskTools = html`
+        <${ViewTabs} view=${view} sides=${live ? sides : {}} canTerm=${canTerm}
+                     onView=${pickView} onRepo=${openRepo} onMove=${() => setPanel(true)} />
+        ${live && html`<${SessionButton} ...${tools} open=${panel} onOpen=${setPanel} />`}
     `;
-    const tools = live && html`${viewPair}${hostTools}`;
     const commandsChip = html`<${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />`;
 
     return html`
         ${wide
-            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} tools=${tools}
-                                onRepo=${here ? () => setRepo(true) : null} />`
+            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} tools=${deskTools} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
                      foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
@@ -460,12 +456,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
                                                taken=${((snapshot && snapshot.sessions) || []).map((s) => s.session)} />`
                     : html`<p class="cmdnote">The session has ended: there is nothing to rename.</p>`)
                 : look.kind === "tools"
-                ? html`<${SessionTools} name=${name} live=${live} archive=${archive} pct=${pct} exec=${exec}
-                                        snapshot=${snapshot} cwd=${here} view=${view} sides=${sides} win=${win}
-                                        way=${way} work=${state.work}
+                ? html`<${SessionTools} ...${tools}
                                         onRepo=${here ? () => { setLook(null); setRepo(true); } : null}
                                         onPick=${(next) => { setLook(null); pickView(next); }}
-                                        onWindow=${askWindow} onDone=${() => setLook(null)} />`
+                                        onDone=${() => setLook(null)} />`
                 : look.kind === "setup"
                 ? (live ? html`<${SetupSheet} name=${name} part=${look.part} />`
                     : html`<p class="cmdnote">The session has ended: there is no one to ask.</p>`)

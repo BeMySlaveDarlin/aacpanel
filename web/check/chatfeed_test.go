@@ -328,20 +328,16 @@ func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
 		}
 	}
 
-	// Both headers draw the same tools, built once: the phone and the desktop
-	// cannot call different view switches.
-	if n := strings.Count(src, "<${ViewToggle}"); n != 1 {
-		t.Errorf("%s: the view toggle is drawn in %d places — the phone and the desktop drift apart silently",
-			chatFile, n)
+	// Both headers draw the same tools, built once: the sheet of the phone and
+	// the panel of the wide screen hold one set of sections, fed one set of
+	// facts, and cannot drift apart.
+	tools := screenSrc(t, "src/screens/chat/sessiontools.js")
+	if n := strings.Count(tools, "<${SessionSections}"); n != 2 {
+		t.Errorf("the sections of the session are drawn in %d places, not in the phone's sheet and the "+
+			"wide screen's panel alone — the two drift apart silently", n)
 	}
-	for _, tool := range []string{"<${WindowToggle}", "<${RemoteToggle}"} {
-		if n := strings.Count(src, tool); n != 1 {
-			t.Errorf("%s: %s is drawn in %d places — the phone and the desktop drift apart silently", chatFile, tool, n)
-		}
-	}
-	if !strings.Contains(src, "tools=${tools}") || !strings.Contains(src, "${viewPair}") ||
-		!strings.Contains(src, "${hostTools}") {
-		t.Errorf("%s: the two headers do not share the tools of the conversation", chatFile)
+	if !strings.Contains(src, "<${SessionTools} ...${tools}") || !strings.Contains(src, "<${SessionButton} ...${tools}") {
+		t.Errorf("%s: the two headers do not share the facts of the conversation", chatFile)
 	}
 }
 

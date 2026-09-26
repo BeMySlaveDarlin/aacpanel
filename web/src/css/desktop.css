@@ -628,15 +628,37 @@
         border-bottom: var(--hair) solid var(--line);
     }
 
-    .dkheadtop { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+    .dkheadtop { display: flex; align-items: center; gap: .5rem; min-width: 0; min-height: 2.4rem; }
 
-    .dkheadtop .dkheadpath { flex: 1 1 auto; min-width: 0; }
+    /* The line gives way from its end of least use: the path goes first, the
+       name loses its middle next, and the tools never shrink. */
+    .dkheadtop > * { flex: none; }
 
-    .dkheadacts { flex: none; }
+    .dkheadtop .dkheadpath { flex: 1 1 0; min-width: 0; }
+
+    .dkheadtop .dkheadname { flex: 0 1 auto; min-width: 6rem; }
 
     .dkheadname { font-size: var(--t-base); font-weight: 600; }
 
+    .dkword { font-size: var(--t-sm); color: var(--ink-faint); }
+
+    .dkword[data-tone="waiting"] { color: var(--wait); }
+
+    .dkpct { font-size: var(--t-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ctx-1); }
+
+    .dkpct[data-fill="s2"] { color: var(--ctx-2); }
+
+    .dkpct[data-fill="s3"] { color: var(--ctx-3); }
+
+    .dkpct[data-fill="s4"] { color: var(--ctx-4); }
+
+    .dkpct[data-fill="peak"] { color: var(--ink-faint); }
+
+    /* A path too long for the line keeps its end, which names the project: the
+       line is laid out right to left around a path kept left to right. */
     .dkheadpath {
+        direction: rtl;
+        text-align: left;
         font-family: var(--mono);
         font-size: var(--t-sm);
         color: var(--ink-faint);
@@ -645,17 +667,98 @@
         white-space: nowrap;
     }
 
-    .dkheadbot { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem 1rem; margin-top: .35rem; min-width: 0; }
+    /* What the conversation is looked at with: one segment, one fill for the
+       view picked. A tab reached only by a move says so with an arrow. */
+    .dktabs {
+        display: flex;
+        gap: 2px;
+        padding: 2px;
+        border: var(--hair) solid var(--line);
+        border-radius: var(--r-small);
+    }
 
-    /* A fact of the head is a value in the ink and a caption in the faint ink,
-       parted from the next fact by space alone. */
-    .dkfact { display: flex; align-items: baseline; gap: .28rem; }
+    .dktab {
+        display: flex;
+        align-items: center;
+        gap: .25rem;
+        height: 1.9rem;
+        padding: 0 .75rem;
+        border: 0;
+        border-radius: calc(var(--r-small) - 2px);
+        background: none;
+        color: var(--ink-dim);
+        font: inherit;
+        font-size: var(--t-sm);
+        cursor: pointer;
+    }
 
-    .dkfact b { font-size: var(--t-md); font-weight: 600; color: var(--ink); }
+    .dktab:hover { color: var(--ink); background: var(--glass); }
 
-    .dkfact span { font-size: var(--t-sm); color: var(--ink-faint); }
+    .dktab.on { color: var(--ink); background: var(--accent-bg); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
 
-    .dkfact.right b { font-variant-numeric: tabular-nums; }
+    .dktab.moves { color: var(--ink-faint); }
+
+    .dktabgo { font-size: var(--t-xs); }
+
+    /* The one control for the session: its face says where the session lives,
+       whether a window shows it and whether Remote Control is on. */
+    .dksessctl { position: relative; margin-left: .3rem; padding-left: .6rem; border-left: var(--hair) solid var(--line); }
+
+    .dkplace {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        height: 2.1rem;
+        padding: 0 .6rem;
+        border: var(--hair) solid var(--line);
+        border-radius: var(--r-small);
+        background: none;
+        color: var(--ink);
+        font: inherit;
+        font-size: var(--t-sm);
+        cursor: pointer;
+    }
+
+    .dkplace:hover, .dkplace.on { background: var(--glass); }
+
+    .dkplaceicon, .dkplacechev { display: flex; width: var(--i-sm); height: var(--i-sm); color: var(--ink-dim); }
+
+    .dkplaceicon svg, .dkplacechev svg { width: 100%; height: 100%; }
+
+    .dkplacechev { transform: rotate(90deg); }
+
+    .dkplacewin { color: var(--ink-faint); }
+
+    .dkrc {
+        display: flex;
+        align-items: center;
+        gap: .25rem;
+        padding: 0 .35rem;
+        border-radius: var(--r-small);
+        font-size: var(--t-xs);
+        font-weight: 600;
+        color: var(--ok);
+        background: color-mix(in srgb, var(--ok) 14%, transparent);
+    }
+
+    .dkrc::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+
+    .dkpop {
+        position: absolute;
+        top: calc(100% + .4rem);
+        right: 0;
+        z-index: 30;
+        width: 24rem;
+        max-height: min(70vh, 40rem);
+        overflow-y: auto;
+        padding: .9rem 1rem;
+        border: var(--hair) solid var(--line);
+        border-radius: var(--r-card);
+        background: var(--bg-2, var(--bg));
+        box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .6);
+    }
+
+    .dkpanel .toolline, .dkpanel .mcprow.toolrow { min-height: 2.6rem; }
 
     .dktable { flex: 1; min-height: 0; overflow-y: auto; }
 

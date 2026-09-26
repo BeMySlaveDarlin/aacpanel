@@ -1,114 +1,33 @@
-// The conversation header on the wide screen.
+// The conversation header on the wide screen: one line of who the session is
+// and how it stands, then what it is looked at with and the one control for
+// the session itself. The line gives way from its end of least use: the path
+// first, then the middle of the name; the tools never shrink.
 
 import { html } from "../../html.js";
 import { ContextBar } from "../../ui/bar.js";
-import { Icon } from "../../ui/icons.js";
-import { ago, plural, share, since, tokens } from "../../format.js";
-import { Marquee, modelName, stateOf } from "./head.js";
+import { fill, share } from "../../format.js";
+import { MidName, shortPath, stateOf } from "./head.js";
 
-function ctxFact(row, pct, say) {
-    const iffy = row && row.stale;
-    return html`
-        <span class="dkfact">
-            <b>${pct == null ? "—" : share(pct)}</b>
-            <span class=${iffy ? "dkchatguess" : ""}>${iffy ? `${say} before the compaction` : say}</span>
-        </span>
-    `;
-}
-
-function limitSay(row) {
-    if (!row.limit) return "tokens";
-    return row.limitKnown ? `of ${tokens(row.limit)}` : `of ${tokens(row.limit)} · limit guessed`;
-}
-
-function liveFacts(live, pct) {
-    const said = live.messages || 0;
-    const empty = !live.tokens;
-    return html`
-        ${ctxFact(live, pct, "of the context")}
-        ${live.tokensIn > 0 && html`
-            <span class="dkfact"><b>${tokens(live.tokensIn)}</b><span>in</span></span>
-            <span class="dkfact"><b>${tokens(live.tokensOut)}</b><span>out</span></span>
-        `}
-        <span class="dkfact"><b>${said}</b><span>${plural(said, "message", "messages")}</span></span>
-        ${!empty && html`<span class="dkfact"><b>${since(live.lastRequestAt)}</b><span>since the request</span></span>`}
-        <span class="dkchatgrow"></span>
-        ${empty
-            ? html`<span class="dkfact right"><b>—</b><span>no requests yet</span></span>`
-            : html`
-                <span class="dkfact right">
-                    <b>${tokens(live.tokens)}</b>
-                    <span class=${live.limitKnown ? "" : "dkchatguess"}>${limitSay(live)}</span>
-                </span>
-            `}
-    `;
-}
-
-function pastFacts(row, pct) {
-    if (!row) {
-        return html`<span class="dkfact"><b>the conversation is closed</b><span>the session is gone</span></span>`;
-    }
-    const said = row.messages || 0;
-    return html`
-        ${ctxFact(row, pct, "context peak")}
-        <span class="dkfact"><b>${modelName(row) || "model"}</b><span>${row.effort || "effort"}</span></span>
-        <span class="dkfact"><b>${said}</b><span>${plural(said, "message", "messages")}</span></span>
-        ${row.lastAt && html`<span class="dkfact"><b>${ago(row.lastAt)}</b><span>last record</span></span>`}
-        <span class="dkchatgrow"></span>
-        ${row.tokensMax > 0 && html`
-            <span class="dkfact right">
-                <b>${tokens(row.tokensMax)}</b>
-                <span class=${row.limitKnown ? "" : "dkchatguess"}>${limitSay(row)}</span>
-            </span>
-        `}
-    `;
-}
-
-// DeskHead renders the conversation header on the wide screen; the tools of a
-// live session come ready from the conversation, the same as on a phone.
-export function DeskHead({ name, live, archive, pct, tools, onRepo }) {
+// DeskHead renders the conversation header on the wide screen; the tools come
+// ready from the conversation.
+export function DeskHead({ name, live, archive, pct, tools }) {
     const state = stateOf(live);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
         <div class="dkhead">
             <div class="dkheadtop">
                 <span class=${`dkdot ${state.tone ? `dk${state.tone}` : ""}`.trim()} title=${state.say}></span>
-                <span class="dkheadname dkchatname"><${Marquee} text=${name} /></span>
-                <span class="dkheadpath" title=${cwd}>${cwd || "the conversation directory is unknown"}</span>
-                ${onRepo && html`
-                    <button class="viewbtn solo" type="button" title="the files of this project"
-                            aria-label="the files of this project" onClick=${onRepo}>${Icon.files()}</button>
+                <span class="dkheadname dkchatname"><${MidName} text=${name} /></span>
+                ${state.word && html`<span class="dkword" data-tone=${state.tone}>${state.word}</span>`}
+                ${pct != null && html`
+                    <span class="dkpct" data-fill=${live ? fill(pct) : "peak"}>${share(pct)}${live ? "" : " peak"}</span>
                 `}
-                ${live && tools}
-            </div>
-            <div class="dkheadbot">
-                ${live ? liveFacts(live, pct) : pastFacts(archive, pct)}
+                <span class="dkheadpath" title=${cwd || undefined}>
+                    <bdi>${cwd ? shortPath(cwd) : "the conversation directory is unknown"}</bdi>
+                </span>
+                ${tools}
             </div>
             <${ContextBar} pct=${pct} peak=${!live} />
         </div>
-    `;
-}
-
-// ViewToggle renders what to watch a live session with: the terminal or the
-// feed. Where the pair also moves the session between the console and the
-// feed, the other button says so, or why it cannot move it now.
-export function ViewToggle({ view, onView, tip = "", why = "" }) {
-    const one = (id, label, icon) => {
-        const other = id !== view;
-        const off = other && Boolean(why);
-        const say = other && tip ? tip : label;
-        return html`
-            <button class=${`viewbtn${other ? "" : " on"}`} type="button"
-                    aria-label=${off ? why : say} aria-pressed=${!other}
-                    data-tip=${other && tip && !off ? tip : undefined}
-                    title=${off ? why : undefined} disabled=${off}
-                    onClick=${() => onView(id)}><${icon} /></button>
-        `;
-    };
-    return html`
-        <span class="viewsw" role="group" aria-label="how to watch the session">
-            ${one("term", "terminal", Icon.terminal)}
-            ${one("feed", "feed", Icon.feed)}
-        </span>
     `;
 }

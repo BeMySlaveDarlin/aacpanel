@@ -1,10 +1,8 @@
-// The window toggle on the host: open a terminal window to this session, or close it.
+// The window on the host: whether a terminal window shows this session, and
+// how it is opened or closed.
 
 import { useEffect, useState } from "preact/hooks";
 
-import { html } from "../../html.js";
-import { Icon } from "../../ui/icons.js";
-import { useAction } from "../../actions/gate.js";
 import { whyNot } from "../../exec.js";
 import { hostLabel } from "../../actions/registry.js";
 import { blocked, moveSession } from "./switch.js";
@@ -68,22 +66,4 @@ export function windowOf({ name, live, work, exec, win, way, run, onChange }) {
             onChange();
         },
     };
-}
-
-// WindowToggle renders one button for both positions of the window.
-export function WindowToggle(props) {
-    const run = useAction();
-    return button(windowOf({ ...props, run }));
-}
-
-function button({ open, why, say, press }) {
-    const off = Boolean(why);
-    return html`
-        <button class=${`winbtn${open ? " on" : ""}${off ? " off" : ""}`} type="button"
-                data-tip=${off ? undefined : say} data-tipside="left"
-                title=${off ? why : undefined}
-                aria-label=${off ? why : say} aria-pressed=${open}
-                disabled=${off}
-                onClick=${press}><${Icon.monitor} /></button>
-    `;
 }

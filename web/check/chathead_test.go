@@ -47,8 +47,8 @@ func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
 	}
 }
 
-// A wide screen has the tokens in and out among the facts of its header, and
-// the row under the composer does not repeat them.
+// A wide screen keeps the tokens in and out in the session info its panel
+// opens, and the row under the composer does not bring them back.
 func TestTheWideDeckDoesNotRepeatTheTokens(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
@@ -59,6 +59,6 @@ func TestTheWideDeckDoesNotRepeatTheTokens(t *testing.T) {
 		t.Fatal("the wide screen drew no row under the composer — there is nothing to check")
 	}
 	if got.DeckUse {
-		t.Error("the row under the composer repeats the tokens in and out the wide header already shows")
+		t.Error("the row under the composer shows the tokens in and out on the wide screen, where the session info holds them")
 	}
 }

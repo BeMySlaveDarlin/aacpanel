@@ -1,13 +1,10 @@
-// Remote Control in the header of a session: one button for both positions of
-// the bridge that makes the session reachable from the Claude app and
-// claude.ai.
+// Remote Control of a session: the bridge that makes it reachable from the
+// Claude app and claude.ai, how it stands and how it is switched.
 
 import { useEffect, useState } from "preact/hooks";
 
-import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
-import { Icon } from "../../ui/icons.js";
 
 // How long a switch that went through stands on the button before the
 // snapshot has caught up with it.
@@ -58,17 +55,4 @@ export function useRemote({ name, live, exec, snapshot }) {
         if (result && result.ok) setWant(!shown);
     };
     return { shown, contour, why, off, settling: want !== null, say, press };
-}
-
-// RemoteToggle switches Remote Control of a live session on and off.
-export function RemoteToggle(props) {
-    const { shown, why, off, say, press } = useRemote(props);
-    return html`
-        <button class=${`rcbtn${shown ? " on" : ""}${why ? " off" : ""}`} type="button"
-                data-tip=${why ? undefined : say} data-tipside="left"
-                title=${why || undefined}
-                aria-label=${why || say} aria-pressed=${shown}
-                disabled=${off}
-                onClick=${press}><${Icon.remote} /></button>
-    `;
 }
