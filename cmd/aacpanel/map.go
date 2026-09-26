@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"path"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -24,6 +25,9 @@ type projectNode struct {
 	Session string `json:"session"`
 	// Line is the command the project's next launch runs.
 	Line *schema.Line `json:"line,omitempty"`
+	// Own is what the project sets otherwise than its contour would: the
+	// row of a project shows these and nothing it merely inherits.
+	Own []schema.Value `json:"own,omitempty"`
 }
 
 type groupNode struct {
@@ -111,6 +115,7 @@ func profileMap(list []store.Profile) []profileNode {
 					Path:    p.Path,
 					Session: sessionNameOf(p),
 					Line:    p.Line,
+					Own:     ownValues(profile.Effective, p.Effective),
 				})
 			}
 			if len(projects) == 0 {
@@ -386,4 +391,20 @@ func projectFromParams(params map[string]any) (int, error) {
 		return 0, fmt.Errorf("the project id did not arrive as a positive integer")
 	}
 	return int(num), nil
+}
+
+// ownValues returns the values a project sets itself and that differ from what
+// its contour would give it: a project that repeats its contour says nothing.
+func ownValues(contour, project []schema.Value) []schema.Value {
+	inherited := make(map[string]any, len(contour))
+	for _, v := range contour {
+		inherited[v.Key] = v.Value
+	}
+	var out []schema.Value
+	for _, v := range project {
+		if v.Layer == schema.LayerProject && !reflect.DeepEqual(v.Value, inherited[v.Key]) {
+			out = append(out, v)
+		}
+	}
+	return out
 }

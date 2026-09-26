@@ -6,6 +6,7 @@ import { useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { LaunchLine, onStream } from "../../ui/launchline.js";
+import { ownLabel } from "../../ui/own.js";
 import { plural } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
@@ -128,6 +129,11 @@ export function Groups({ profile, sessions, onOpen, exec }) {
                                         </div>
                                         <div class="meta">
                                             <div class="mline"><span class="path">${p.path}</span></div>
+                                            ${(p.own || []).length > 0 && html`
+                                                <div class="mline pown">
+                                                    ${p.own.map((v) => html`<span class="ownchip" key=${v.key}>${ownLabel(v)}</span>`)}
+                                                </div>
+                                            `}
                                             ${own.length > 0 && html`
                                                 <div class="mline">
                                                     <span>${own.length} ${plural(own.length, "live session", "live sessions")}</span>

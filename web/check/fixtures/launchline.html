@@ -8,6 +8,7 @@
 // one word, the project's own values underlined, the contour's dashed.
 import { h, render } from "preact";
 import { LaunchLine, onStream } from "/src/ui/launchline.js";
+import { ownLabel } from "/src/ui/own.js";
 
 const stream = { words: [{ text: "claude" },
     ...["-p", "--input-format", "stream-json", "--verbose"].map((text) => ({ text, key: "transport", layer: "project" })),
@@ -29,6 +30,8 @@ window.done = (async () => {
         then: (document.querySelector("#a .lthen") || {}).textContent || "",
         tmuxThen: Boolean(document.querySelector("#b .lthen")),
         onStream: [onStream(stream), onStream(tmux), onStream(null)],
+        labels: [{ key: "transport", value: "stream" }, { key: "remoteControl", value: false }, { key: "contextCap", value: 70 },
+              { key: "intent", value: "" }, { key: "model", value: "sonnet" }].map(ownLabel),
     };
 })();
 </script>

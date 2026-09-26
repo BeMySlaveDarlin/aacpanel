@@ -18,6 +18,7 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 		Then     string   `json:"then"`
 		TmuxThen bool     `json:"tmuxThen"`
 		OnStream []bool   `json:"onStream"`
+		Labels   []string `json:"labels"`
 	}
 	runFixture(t, "launchline.html", &got)
 	if strings.Join(got.Stream, " ") != "claude ⟨stream⟩ -n person --effort high" {
@@ -31,6 +32,9 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 	}
 	if got.Then != "then: remote control on · the first message" || got.TmuxThen {
 		t.Errorf("then reads %q (console has one: %v)", got.Then, got.TmuxThen)
+	}
+	if strings.Join(got.Labels, "|") != "feed|no RC|cap 70%|no first message|sonnet" {
+		t.Errorf("a project's own values read %v", got.Labels)
 	}
 	if got.OnStream[0] != true || got.OnStream[1] || got.OnStream[2] {
 		t.Errorf("onStream says %v", got.OnStream)

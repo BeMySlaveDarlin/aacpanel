@@ -78,3 +78,10 @@
 .lw[data-layer="project"] { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .lw[data-layer="contour"] { color: var(--ink); text-decoration: underline dashed; text-underline-offset: 3px; }
 .lthen { font-size: var(--t-xs); color: var(--ink-faint); }
+
+/* What a project sets otherwise than its contour, a word each. */
+.pown { display: flex; flex-wrap: wrap; gap: .25rem; }
+.ownchip {
+    font-size: var(--t-xs); color: var(--ink-dim);
+    border: var(--hair) solid var(--edge); border-radius: 999px; padding: 0 .45rem;
+}
