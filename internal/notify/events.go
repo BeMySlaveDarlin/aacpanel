@@ -83,8 +83,10 @@ type Session struct {
 	Status     string
 	StatusAt   int64
 	WaitingFor string
-	Ask        *Ask
-	Note       *Note
+	// Transport is how the session is kept: "stream" is under a holder.
+	Transport string
+	Ask       *Ask
+	Note      *Note
 }
 
 // Note is a session calling for the person: a word it chose to send itself,
@@ -422,6 +424,16 @@ func freed(s Session, took time.Duration) Event {
 
 func closed(s Session) Event {
 	body := "Closed outside the panel: it crashed or was closed at the machine"
+	// A session on the stream lives exactly as long as its holder: nobody
+	// closes it at a terminal, so an end the panel did not ask for is a
+	// holder or a claude that died. The conversation is whole on the disk.
+	if s.Transport == "stream" {
+		body = "Ended outside the panel: its holder or its claude died. The conversation is whole — " +
+			"resume it from the archive"
+		if s.ID != "" {
+			body += " · conversation " + shortID(s.ID)
+		}
+	}
 	if where := s.where(); where != "" {
 		body += " · " + where
 	}
@@ -773,4 +785,11 @@ func upperFirst(s string) string {
 		return strings.ToUpper(string(r)) + s[i+len(string(r)):]
 	}
 	return s
+}
+
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
 }

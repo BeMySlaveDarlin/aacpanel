@@ -16,7 +16,7 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 		"sessions": [
 			{"session": "aacpanel", "sessionId": "4d89ed41", "cwd": "/srv/proj/aacpanel",
 			 "profile": "personal", "status": "waiting", "statusUpdatedAt": 1788813894909,
-			 "waitingFor": "input needed",
+			 "waitingFor": "input needed", "transport": "stream",
 			 "ask": {"header": "Method", "text": "What do we bring the stack down with?", "count": 2, "at": "2026-09-08T03:00:00Z"}}
 		],
 		"limits": {"profile": "personal",
@@ -41,6 +41,9 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 	}
 	if s.Status != "waiting" || s.WaitingFor != "input needed" || s.StatusAt != 1788813894909 {
 		t.Errorf("what the session waits for was lost: %+v", s)
+	}
+	if s.Transport != "stream" {
+		t.Errorf("how the session is kept was lost — the push of its end would not say its holder died: %q", s.Transport)
 	}
 	if s.Ask == nil || s.Ask.Header != "Method" || s.Ask.Text != "What do we bring the stack down with?" ||
 		s.Ask.Count != 2 || s.Ask.At != "2026-09-08T03:00:00Z" {

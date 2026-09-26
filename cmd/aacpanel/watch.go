@@ -129,7 +129,9 @@ type snapshot struct {
 		Status   string `json:"status"`
 		StatusAt int64  `json:"statusUpdatedAt"`
 		Waiting  string `json:"waitingFor"`
-		Ask      *struct {
+		// How the session is kept: in tmux, or on the stream under a holder.
+		Transport string `json:"transport"`
+		Ask       *struct {
 			Header string `json:"header"`
 			Text   string `json:"text"`
 			Count  int    `json:"count"`
@@ -176,7 +178,7 @@ func (w *watcher) readSnapshot(cur *notify.World) {
 	for _, s := range snap.Sessions {
 		item := notify.Session{
 			ID: s.ID, Name: s.Name, Profile: s.Profile, CWD: s.CWD,
-			Status: s.Status, StatusAt: s.StatusAt, WaitingFor: s.Waiting,
+			Status: s.Status, StatusAt: s.StatusAt, WaitingFor: s.Waiting, Transport: s.Transport,
 		}
 		if s.Ask != nil {
 			item.Ask = &notify.Ask{Header: s.Ask.Header, Text: s.Ask.Text, Count: s.Ask.Count, At: s.Ask.At}

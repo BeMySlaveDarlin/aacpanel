@@ -95,6 +95,22 @@ func TestEveryEventLooksLikeThis(t *testing.T) {
 			goneSilent: true,
 		},
 		{
+			name: "a session on the stream ended outside the panel",
+			prev: world(snapshotWorld(), func(w *World) {
+				held := sess()
+				held.ID, held.Transport = "4d89ed41-06bf-41fb-8693-1bb025c09e7d", "stream"
+				w.Sessions = []Session{held}
+			}),
+			cur: snapshotWorld(),
+			key: "gone:4d89ed41-06bf-41fb-8693-1bb025c09e7d",
+
+			title: "Session closed · aacpanel",
+			body: "Ended outside the panel: its holder or its claude died. The conversation is whole — " +
+				"resume it from the archive · conversation 4d89ed41 · personal · aacpanel",
+			severity:   Warning,
+			goneSilent: true,
+		},
+		{
 			name: "a container fell",
 			prev: world(snapshotWorld(), func(w *World) { w.Containers = []Container{alive} }),
 			cur:  world(snapshotWorld(), func(w *World) { w.Containers = []Container{fallen} }),
