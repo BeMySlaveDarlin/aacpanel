@@ -120,6 +120,7 @@ export function Groups({ profile, sessions, onOpen, exec }) {
                     <div class="rows">
                         ${group.shown.map((p) => {
                             const own = sessionsOf(p, sessions);
+                            const differs = p.own || [];
                             return html`
                                 <div class="prow ${own.length > 0 ? "live" : ""}" key=${p.path}>
                                     <button class="pmain" type="button" onClick=${() => onOpen({ ...p, profile: profile.profile, group: group.name })}>
@@ -129,9 +130,9 @@ export function Groups({ profile, sessions, onOpen, exec }) {
                                         </div>
                                         <div class="meta">
                                             <div class="mline"><span class="path">${p.path}</span></div>
-                                            ${(p.own || []).length > 0 && html`
+                                            ${differs.length > 0 && html`
                                                 <div class="mline pown">
-                                                    ${p.own.map((v) => html`<span class="ownchip" key=${v.key}>${ownLabel(v)}</span>`)}
+                                                    ${differs.map((v) => html`<span class="ownchip" key=${v.key}>${ownLabel(v)}</span>`)}
                                                 </div>
                                             `}
                                             ${own.length > 0 && html`
