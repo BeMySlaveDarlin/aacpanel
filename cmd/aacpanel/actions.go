@@ -13,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -189,6 +190,19 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if want != nil {
+			req.Project = want
+			params = map[string]any{"project": projectID, "path": want.Path}
+		}
+	}
+
+	if req.Kind == action.SessionRestart {
+		name, want, projectID, err := s.restartPlan(r.Context(), body.Target, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Target, body.Target = name, name
 		if want != nil {
 			req.Project = want
 			params = map[string]any{"project": projectID, "path": want.Path}
@@ -619,6 +633,59 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 		return switchWay{}, fmt.Errorf("the project of session %q lives in the console", name)
 	}
 	return switchWay{To: action.SwitchStream, Project: want, ProjectID: projectID}, nil
+}
+
+// restartPlan finds the session a restart is about and the project it comes
+// back with. A session restarting itself names its conversation, since it does
+// not know the name the panel calls it by. The project is the map's, found by
+// where the session works, and its first message is the one the map says to
+// send after a restart; a session no project of the map holds goes without
+// one, and the executor restarts it only if it is the host's main session.
+func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (string, *action.Project, int, error) {
+	if s.host == nil {
+		return name, nil, 0, nil
+	}
+	live, ok := s.host.LiveSession(name)
+	if conversation, _ := params["conversation"].(string); conversation != "" {
+		if live, ok = s.host.LiveSessionOf(conversation); !ok {
+			return "", nil, 0, fmt.Errorf("no live session runs conversation %s", conversation)
+		}
+		if name != "" && name != live.Name {
+			return "", nil, 0, fmt.Errorf("conversation %s runs in session %s, not in %s", conversation, live.Name, name)
+		}
+		name = live.Name
+	}
+	if !ok || live.CWD == "" {
+		return name, nil, 0, nil
+	}
+	want, projectID, err := s.launchProject(ctx, nil, live.CWD, "")
+	if err != nil || want == nil {
+		return name, nil, 0, err
+	}
+	want.Session = name
+	launch, err := restartLaunch(want.Launch)
+	if err != nil {
+		return "", nil, 0, fmt.Errorf("session %s cannot be restarted from the map: %w", name, err)
+	}
+	want.Launch = launch
+	return name, want, projectID, nil
+}
+
+// restartLaunch returns a project's launch with the message after a restart
+// as its first message, in place of the one the project opens with.
+func restartLaunch(raw json.RawMessage) (json.RawMessage, error) {
+	launch := map[string]any{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &launch); err != nil {
+			return nil, err
+		}
+	}
+	intent, ok := launch["restartIntent"].(string)
+	if !ok {
+		intent = schema.RestartIntentDefault
+	}
+	launch["intent"] = intent
+	return json.Marshal(launch)
 }
 
 func (s *Server) apiExecStatus(w http.ResponseWriter, r *http.Request) {

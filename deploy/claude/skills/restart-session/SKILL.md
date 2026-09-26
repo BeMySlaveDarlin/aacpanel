@@ -40,6 +40,16 @@ trade.
 | restart and continue the conversation from the same place | `--continue` |
 | see what would happen, changing nothing | `--dry-run` |
 
+**A clean restart goes through the panel first.** The script asks it to
+restart this session as its project from the map: the panel closes the session
+the gentle way and brings it up again with the project's parameters — the
+console or the feed, the model, the account — and sends the project's message
+after a restart as the first one. It answers "restarting", and the session is
+closed a few seconds after the script is done: end the turn right there. Where
+the panel refuses or does not answer, the script restarts the session in the
+same tmux pane, as below. A session on the feed has no pane: it restarts only
+through the panel. `--continue` always goes the old way.
+
 The rest the script works out by itself, and it is worth knowing what "the rest"
 is: every part of it has been stepped on somewhere.
 
@@ -62,8 +72,9 @@ is: every part of it has been stepped on somewhere.
 
 The script stops and says why instead of guessing:
 
-- **`tmux not found`** — the session does not live in tmux, and there is nothing
-  to restart it with: there is no pane. Restart it the same way it was started.
+- **`tmux not found`** — the panel did not take the restart, and the session
+  does not live in tmux: there is no pane to restart it with. Say what the panel
+  answered; restart it the same way it was started.
 - **`no tmux pane with this session`** — the same thing from the other end: the
   process is not inside a pane. A session started by hand in an ordinary terminal
   is restarted by hand.

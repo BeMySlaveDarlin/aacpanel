@@ -143,6 +143,20 @@ func (h *Reader) Worktrees() map[string]string {
 
 // LiveSession returns a live session by name together with whether it was found.
 func (h *Reader) LiveSession(name string) (LiveSession, bool) {
+	return h.liveSession(func(s LiveSession) bool { return s.Name == name })
+}
+
+// LiveSessionOf returns the live session a conversation runs in. A session
+// that asks the panel about itself knows its conversation, not the name the
+// panel calls it by.
+func (h *Reader) LiveSessionOf(conversation string) (LiveSession, bool) {
+	if conversation == "" {
+		return LiveSession{}, false
+	}
+	return h.liveSession(func(s LiveSession) bool { return s.SessionID == conversation })
+}
+
+func (h *Reader) liveSession(match func(LiveSession) bool) (LiveSession, bool) {
 	payload, err := h.JSON()
 	if err != nil {
 		return LiveSession{}, false
@@ -154,7 +168,7 @@ func (h *Reader) LiveSession(name string) (LiveSession, bool) {
 		return LiveSession{}, false
 	}
 	for _, s := range snapshot.Sessions {
-		if s.Name == name {
+		if match(s) {
 			return s, true
 		}
 	}

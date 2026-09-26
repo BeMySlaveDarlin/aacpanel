@@ -22,6 +22,20 @@ for arg in "$@"; do
     esac
 done
 
+# The panel restarts a session as its project from the map: the same setup,
+# a session on the feed included, which has no tmux pane to respawn. A
+# conversation carried over is not the panel's: that goes the old way.
+if [ "$cont" = "0" ]; then
+    here=$(dirname "$(readlink -f "$0")")
+    if [ "$dry" = "1" ]; then
+        echo "first:    the panel restarts this session as its project ($here/restart-via-panel.py)"
+    elif python3 "$here/restart-via-panel.py"; then
+        exit 0
+    else
+        echo "restart-session: the panel did not take the restart - restarting in the same tmux pane" >&2
+    fi
+fi
+
 command -v tmux >/dev/null 2>&1 || {
     echo "restart-session: tmux not found - the session lives inside it, there is nothing to restart with" >&2
     exit 1

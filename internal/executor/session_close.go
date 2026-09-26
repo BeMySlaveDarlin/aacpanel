@@ -7,6 +7,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"aacpanel/internal/action"
 )
 
 var (
@@ -34,16 +36,20 @@ func (e *Executor) sessionClose(ctx context.Context, target string) (string, err
 	return e.closeAgent(ctx, p)
 }
 
-// sessionRestart ends the host's main session the gentle way and starts a new
-// one in the same directory with an empty context. Only the main session is
-// restarted here: its launch is fixed — the home directory, the same name — while
-// a project session carries launch parameters that live in the profile map, and
-// a restart without them would silently bring it up in another setup, possibly
-// under another account.
-func (e *Executor) sessionRestart(ctx context.Context, target string) (string, error) {
+// sessionRestart ends a session the gentle way and starts a new one in the
+// same place with an empty context. The panel names the project the session
+// belongs to, with its launch parameters from the map and the message after a
+// restart as its first one: a project session started without them would come
+// up in another setup — the console instead of the feed, another model,
+// possibly another account. Without a project only the host's main session is
+// restarted, since its launch is fixed: the home directory, the same name.
+func (e *Executor) sessionRestart(ctx context.Context, target string, want *action.Project) (string, error) {
 	p, err := lookupAgent(target)
 	if err != nil {
 		return "", err
+	}
+	if want != nil {
+		return e.restartFromMap(ctx, target, p, want)
 	}
 	if !p.Home {
 		return "", fmt.Errorf(
@@ -63,6 +69,27 @@ func (e *Executor) sessionRestart(ctx context.Context, target string) (string, e
 		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
 	return closed + "; " + describeConsole(rep) + " with an empty context", nil
+}
+
+func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project) (string, error) {
+	next, err := chooseProject(target, want)
+	if err != nil {
+		return "", err
+	}
+	var closed string
+	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
+		closed, err = e.closeGently(ctx, s, p, true)
+		if err != nil {
+			return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
+		}
+	} else if closed, err = e.closeAgent(ctx, p); err != nil {
+		return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
+	}
+	rep, err := e.runLauncher(ctx, next, "")
+	if err != nil {
+		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
+	}
+	return closed + "; " + describeConsole(rep) + " with an empty context and the project's parameters", nil
 }
 
 func (e *Executor) closeAgent(ctx context.Context, p agentProc) (string, error) {

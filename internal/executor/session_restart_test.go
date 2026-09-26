@@ -90,6 +90,47 @@ func TestSessionRestart(t *testing.T) {
 		}
 	})
 
+	t.Run("a project session restarts with the project the panel names", func(t *testing.T) {
+		stand(t)
+		root := t.TempDir()
+		dir := root + "/probe"
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(projectRootsEnv, root)
+		log := fakeLauncher(t, launcher.Report{Session: "probe", Konsole: 1, Agent: 2})
+		fakeTmux(t, nil, "")
+		e, _ := newTest(t, "")
+		sig := withSignals(t, e, map[int]bool{402: true}, map[int]int{402: 1})
+
+		r := req(action.SessionRestart, "probe")
+		r.Project = &action.Project{Path: dir, Session: "probe",
+			Launch: []byte(`{"model":"opus","remoteControl":true,"intent":"Continue"}`)}
+		detail, err := e.Execute(ctx, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Join(sig.sent, ",") != "402:terminated" {
+			t.Errorf("signals %v — the old session goes the gentle way, and only it", sig.sent)
+		}
+		raw, err := os.ReadFile(log)
+		if err != nil {
+			t.Fatalf("the launcher was not called: %v", err)
+		}
+		spec := string(raw)
+		for _, want := range []string{`"dir":"` + dir + `"`, `"session":"probe"`, `"model":"opus"`, `"intent":"Continue"`} {
+			if !strings.Contains(spec, want) {
+				t.Errorf("the launcher was called with %s — without %s the session comes up in another setup", spec, want)
+			}
+		}
+		if strings.Contains(spec, "resume") {
+			t.Errorf("the launcher was asked to resume: %s", spec)
+		}
+		if !strings.Contains(detail, "project's parameters") {
+			t.Errorf("the reply %q does not say the session came back with its project's parameters", detail)
+		}
+	})
+
 	t.Run("nothing is started while the old session is still alive", func(t *testing.T) {
 		stand(t)
 		log := fakeLauncher(t, launcher.Report{Session: "host", Konsole: 1, Agent: 2})

@@ -303,7 +303,7 @@ func (r Request) Validate() error {
 		return badRequest("action %s stops no background work", r.Kind)
 	}
 	if r.Project != nil {
-		if r.Kind != SessionOpen && r.Kind != SessionResume && r.Kind != SessionSwitch {
+		if r.Kind != SessionOpen && r.Kind != SessionResume && r.Kind != SessionSwitch && r.Kind != SessionRestart {
 			return badRequest("action %s takes no project", r.Kind)
 		}
 		if err := r.Project.validate(); err != nil {
