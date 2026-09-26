@@ -6,12 +6,13 @@
 import { html } from "../../html.js";
 import { ContextBar } from "../../ui/bar.js";
 import { fill, share } from "../../format.js";
+import { useAsOf } from "../../ui/asof.js";
 import { MidName, shortPath, stateOf } from "./head.js";
 
 // DeskHead renders the conversation header on the wide screen; the tools come
 // ready from the conversation.
 export function DeskHead({ name, live, archive, pct, tools }) {
-    const state = stateOf(live);
+    const state = stateOf(live, useAsOf());
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
         <div class="dkhead">

@@ -64,9 +64,16 @@ export function shortPath(cwd) {
 
 // stateOf says how a session stands: the tone its dot is painted with, the
 // line a pointer or a screen reader gets, and the word that stands beside the
-// dot where a line has no room.
-export function stateOf(live) {
+// dot where a line has no room. still is the time the data stood still at
+// (see useAsOf): a state read off a snapshot nobody refreshes is not said as
+// if it were now, it is dated.
+export function stateOf(live, still = null) {
     if (!live) return { tone: "off", say: "the conversation is gone", word: "closed" };
+    if (still !== null) {
+        return still
+            ? { tone: "off", say: `no fresh data since ${still} — the session may stand otherwise now`, word: `as of ${still}` }
+            : { tone: "off", say: "no fresh data — the session may stand otherwise now", word: "not live" };
+    }
     if (live.ask || live.waitingFor || live.status === "waiting") {
         return {
             tone: "waiting",

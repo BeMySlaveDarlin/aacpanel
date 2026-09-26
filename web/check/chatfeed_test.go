@@ -400,7 +400,7 @@ func TestChatHeadDotSeparatesBusyFromWaiting(t *testing.T) {
 			"`busy` and shown as working — that is the answer inverted")
 	}
 	for _, file := range []string{"src/screens/chat.js", "src/screens/chat/deskhead.js"} {
-		if !strings.Contains(screenSrc(t, file), "stateOf(live)") {
+		if !strings.Contains(screenSrc(t, file), "stateOf(live") {
 			t.Errorf("%s draws the dot of the session without stateOf — two opinions of how it stands drift apart", file)
 		}
 	}

@@ -27,6 +27,7 @@ type barState struct {
 	DotFill   string  `json:"dotFill"`
 	Label     string  `json:"label"`
 	SignIn    string  `json:"signIn"`
+	Still     *string `json:"still"`
 	SignInBox *barBox `json:"signInBox"`
 	Host      *barBox `json:"host"`
 	Caret     bool    `json:"caretShown"`
@@ -92,6 +93,15 @@ var barWords = map[string]struct{ text, tone, dot string }{
 	"via":          {"LAN", "", "on"},
 	"longleg":      {"wireguard-backup-leg · 12 min", "crit", "on"},
 	"longhost":     {"No connection · 22:41", "warn", "off"},
+}
+
+// A line that shows a state of its own dates it from the moment the chip stops
+// calling the link live, with the time the snapshot was taken — not the time
+// the link last answered, which a live link with an old snapshot keeps at now.
+// The states missing here are live; an empty time is a snapshot with none.
+var barStill = map[string]string{
+	"warn": "22:38", "crit": "22:29", "hours": "20:39", "noagent": "22:41", "stale": "22:40",
+	"offline": "22:41", "offlineEmpty": "", "signedout": "", "longleg": "22:29", "longhost": "22:41",
 }
 
 // Words that cannot fit are cut inside their box, and only there.
@@ -167,6 +177,15 @@ func TestTheAppBarIsOneLineInEveryState(t *testing.T) {
 				}
 				if name == "signedout" && (bar.SignInBox == nil || bar.SignInBox.Height < 44) {
 					t.Errorf("signedout: Sign in is %+v — narrower than a finger", bar.SignInBox)
+				}
+				still, dated := barStill[name]
+				switch {
+				case !dated && bar.Still != nil:
+					t.Errorf("%s: the chip calls the link live, and a state is dated %q", name, *bar.Still)
+				case dated && bar.Still == nil:
+					t.Errorf("%s: the link is not live, and a state is still said as now", name)
+				case dated && *bar.Still != still:
+					t.Errorf("%s: a state is dated %q, not %q — the time of its snapshot", name, *bar.Still, still)
 				}
 				if bar.Flag != (name == "install") {
 					t.Errorf("%s: the host flags the install: %v", name, bar.Flag)

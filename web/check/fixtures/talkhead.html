@@ -4,6 +4,7 @@
 <style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
+<div id="desk"></div>
 <script type="module">
 // The header of a conversation on a phone: one line with the way back, the
 // name and how the session stands, and the one button the tools live behind.
@@ -13,6 +14,8 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { AsOf } from "/src/ui/asof.js";
+import { DeskHead } from "/src/screens/chat/deskhead.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 window.fetch = async (url) => {
@@ -34,9 +37,11 @@ const live = { status: "waiting", ask: { header: "Next", text: "What next?" }, p
                limit: 1000000, cwd: "/srv/proj/panel", profile: "personal" };
 const exec = { available: true, kinds: ["window.open", "window.close", "session.remote"] };
 const snapshot = { profiles: [{ name: "personal", auth: "builtin" }] };
-const show = (session) => render(h(ToastHost, null, h(GateHost, null,
+// still is what the application says the data stood still at: null while it
+// is live.
+const show = (session, still = null) => render(h(AsOf.Provider, { value: still }, h(ToastHost, null, h(GateHost, null,
     html`<${Chat} name=${name} id="s1" live=${session} exec=${exec} snapshot=${snapshot}
-                  onBack=${() => {}} onUsage=${() => {}} />`)), document.getElementById("root"));
+                  onBack=${() => {}} onUsage=${() => {}} />`))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (ok, ms = 5000) => {
@@ -61,6 +66,21 @@ window.done = (async () => {
     await until(() => document.querySelector(".phead .pmore"));
     await sleep(200);
     const busy = { spread: spread(), word: (document.querySelector(".talkword") || {}).textContent || "" };
+    // The same session with the link gone: the word is not said as if it
+    // were now but dated, and the dot is hollow.
+    show({ ...live, status: "busy", ask: null }, "22:41");
+    await until(() => /as of/.test((document.querySelector(".talkword") || {}).textContent || ""));
+    const offline = {
+        word: (document.querySelector(".talkword") || {}).textContent || "",
+        dot: (document.querySelector(".talkdot") || { dataset: {} }).dataset.tone || "",
+        pct: (document.querySelector(".chatpct") || {}).textContent || "",
+    };
+    // The wide screen's header dates it the same way.
+    render(h(AsOf.Provider, { value: "22:41" }, html`<${DeskHead} name=${name} live=${{ ...live, status: "busy", ask: null }} pct=${12.4} tools=${null} />`),
+        document.getElementById("desk"));
+    offline.desk = (document.querySelector("#desk .dkword") || {}).textContent || "";
+    offline.deskDot = (document.querySelector("#desk .dkdot") || { className: "" }).className;
+    render(null, document.getElementById("desk"));
     show(live);
     await sleep(300);
     const head = document.querySelector(".phead");
@@ -74,6 +94,7 @@ window.done = (async () => {
         dot: (head.querySelector(".talkdot") || { dataset: {} }).dataset.tone || "",
         overlay: busy.spread || spread(),
         busyWord: busy.word,
+        offline,
         word: (head.querySelector(".talkword") || {}).textContent || "",
         label: (head.querySelector(".midname") || { getAttribute: () => "" }).getAttribute("aria-label") || "",
     };

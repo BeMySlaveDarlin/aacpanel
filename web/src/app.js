@@ -10,7 +10,8 @@ import { useExec, useTreeStream } from "./exec.js";
 import { useWide } from "./ui/wide.js";
 import { openCount, useAlerts } from "./alerts.js";
 import { MobileShell } from "./mobile/shell.js";
-import { RouteSheet } from "./ui/route.js";
+import { RouteSheet, asOf } from "./ui/route.js";
+import { AsOf } from "./ui/asof.js";
 import { DesktopShell } from "./desktop/shell.js";
 import { failed, pick } from "./router.js";
 import * as api from "./api.js";
@@ -220,6 +221,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
     };
 
     const wide = useWide();
+    const still = asOf({ conn, ageSec, snapshot });
     const sheet = html`
         <${RouteSheet}
             open=${routeOpen}
@@ -233,18 +235,22 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
     `;
     if (wide) {
         return html`
-            <${DesktopShell} ...${shared} />
+            <${AsOf.Provider} value=${still}>
+                <${DesktopShell} ...${shared} />
+            <//>
             ${sheet}
         `;
     }
 
     return html`
-        <${MobileShell}
-            ...${shared}
-            conn=${conn}
-            installable=${installable}
-            onInstall=${onInstall}
-        />
+        <${AsOf.Provider} value=${still}>
+            <${MobileShell}
+                ...${shared}
+                conn=${conn}
+                installable=${installable}
+                onInstall=${onInstall}
+            />
+        <//>
         ${sheet}
     `;
 }

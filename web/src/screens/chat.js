@@ -46,6 +46,7 @@ import { Term, useTermAvailable } from "./chat/term.js";
 import { useViewPick } from "./chat/viewpick.js";
 import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
+import { useAsOf } from "../ui/asof.js";
 
 
 export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat }) {
@@ -83,6 +84,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
     const [picking, setPicking] = useState("");
 
     const wide = useWide();
+    const still = useAsOf();
     const term = useTermAvailable();
     const canTerm = term.ok && Boolean(live);
     const [picked, pickView] = useViewPick(canTerm, wide);
@@ -270,7 +272,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
     const feed = weld(state.items);
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
-    const stand = stateOf(live);
+    const stand = stateOf(live, still);
     const openRepo = here ? () => setRepo(true) : null;
     const tools = {
         name, live, archive, pct, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,

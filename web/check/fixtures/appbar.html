@@ -11,7 +11,7 @@
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Header, HostMenu } from "/src/ui/header.js";
-import { RouteSheet } from "/src/ui/route.js";
+import { RouteSheet, asOf } from "/src/ui/route.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const legs = [
@@ -115,6 +115,11 @@ window.done = (async () => {
         show(conn, age, flag, route(extra), host);
         await sleep(30);
         out.bars[name] = measureBar();
+        // What a line with a state of its own is told the data stood still
+        // at. The snapshot was taken its age before the link last answered:
+        // with a live link and an old snapshot the two times part.
+        const shot = conn.at ? { at: conn.at.getTime() / 1000 - (age || 0) } : null;
+        out.bars[name].still = asOf({ conn, ageSec: age, snapshot: shot });
     }
 
     // A tap on the chip is the way to the sheet of the connection.

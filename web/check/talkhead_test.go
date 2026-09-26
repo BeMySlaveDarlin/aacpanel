@@ -12,6 +12,15 @@ type talkBox struct {
 	Bottom float64 `json:"bottom"`
 }
 
+// talkOff is how the header reads a session with the link gone.
+type talkOff struct {
+	Word    string `json:"word"`
+	Dot     string `json:"dot"`
+	Pct     string `json:"pct"`
+	Desk    string `json:"desk"`
+	DeskDot string `json:"deskDot"`
+}
+
 // The header of a conversation on a phone is one line: the way back, the name
 // with how the session stands under it, and one button the tools of the
 // session live behind. A name too long for the line keeps its tail and loses
@@ -28,6 +37,7 @@ func TestThePhoneHeaderIsOneLineWithTheToolsBehindIt(t *testing.T) {
 		Dot          string   `json:"dot"`
 		Overlay      bool     `json:"overlay"`
 		BusyWord     string   `json:"busyWord"`
+		Offline      talkOff  `json:"offline"`
 		Word         string   `json:"word"`
 		Label        string   `json:"label"`
 		HeadCut      bool     `json:"headCut"`
@@ -71,6 +81,16 @@ func TestThePhoneHeaderIsOneLineWithTheToolsBehindIt(t *testing.T) {
 	}
 	if got.BusyWord != "answering" {
 		t.Errorf("a session at work says %q", got.BusyWord)
+	}
+	// Without a link the state is a snapshot's: dated, not said as now. The
+	// chip of the app bar already says the link is gone; the line does not
+	// repeat it, it says what the state is true as of.
+	if off := got.Offline; off.Word != "as of 22:41" || off.Dot != "off" || !strings.HasPrefix(off.Pct, "12.4") {
+		t.Errorf("a session seen without a link reads %q with its dot %q and context %q — meant 12.4%% · as of 22:41, hollow",
+			off.Word, off.Dot, off.Pct)
+	}
+	if off := got.Offline; off.Desk != "as of 22:41" || !strings.Contains(off.DeskDot, "dkoff") {
+		t.Errorf("the wide header without a link reads %q with its dot %q", off.Desk, off.DeskDot)
 	}
 	if got.Dot != "waiting" || got.Word != "waiting for you" {
 		t.Errorf("a session waiting on a question stands as %q, saying %q", got.Dot, got.Word)

@@ -78,6 +78,18 @@ export function connection({ conn, ageSec, route }) {
     };
 }
 
+// asOf says since when the data on the screens has stood still: null while
+// the link is live and the agent snapshot fresh — the moment the chip stops
+// calling it live, so does this — and the time the agent took the snapshot
+// otherwise, which is what a state read off it is true as of.
+export function asOf({ conn, ageSec, snapshot }) {
+    const kind = conn ? conn.kind : "loading";
+    if (kind === "loading") return null;
+    if (kind === "live" && ageSec !== null && ageSec !== undefined && ageSec < STALE_SEC) return null;
+    if (snapshot && snapshot.at) return clock(new Date(snapshot.at * 1000));
+    return conn && conn.at ? clock(conn.at) : "";
+}
+
 function legWhere(row) {
     const url = row.url.replace(/^https?:\/\//, "");
     return row.kind === "local" ? `this device · ${url}` : url;
