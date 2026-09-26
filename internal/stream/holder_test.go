@@ -325,6 +325,21 @@ func TestTheHandshakeIsAnsweredAndTheSessionIsHeld(t *testing.T) {
 	}
 }
 
+// What the session was started with stays with its holder: the console is
+// started from it when the panel that knows the project is down.
+func TestTheHolderKeepsWhatTheSessionWasStartedWith(t *testing.T) {
+	launched := json.RawMessage(`{"dir":"/srv/proj","session":"demo","configDir":"/home/u/.claude-profiles/work"}`)
+	r := start(t, func(s *Spec) { s.Launched = launched })
+	s := r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	if string(s.Launched) != string(launched) {
+		t.Fatalf("the holder keeps %s", s.Launched)
+	}
+	raw, err := os.ReadFile(StatePath(r.spec.SessionID))
+	if err != nil || strings.Contains(string(raw), "configDir") {
+		t.Errorf("what the session was started with reached the state file the collector reads: %s", raw)
+	}
+}
+
 func TestAMessageWaitsInTheQueueUntilClaudeTakesItUp(t *testing.T) {
 	r := start(t, nil)
 	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })

@@ -105,6 +105,7 @@ func Run(ctx context.Context, spec Spec) error {
 			Pending:   []Pending{},
 			Queue:     []Queued{},
 			Tasks:     []Task{},
+			Launched:  spec.Launched,
 		},
 	}
 	defer h.cleanup(ln)

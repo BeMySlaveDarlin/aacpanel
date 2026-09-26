@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	registry "aacpanel/internal/contours"
+	"aacpanel/internal/stream"
 )
 
 // Console is an open claude session.
@@ -18,6 +19,10 @@ type Console struct {
 	Agent   int    `json:"agent"`
 	Konsole int    `json:"konsole"`
 	Dir     string `json:"dir"`
+	// Transport is how the session is kept: in tmux or on the stream.
+	Transport string `json:"transport"`
+	// Conversation is the id the session writes its transcript under.
+	Conversation string `json:"conversation,omitempty"`
 }
 
 // Open reports what is open right now.
@@ -32,11 +37,18 @@ func Open() []Console {
 		if !ok {
 			continue
 		}
+		conversation, _ := argValue(args, "--session-id", "--resume", "-r")
+		transport := TransportTmux
+		if _, held := stream.Held(conversation, pid); held {
+			transport = TransportStream
+		}
 		out = append(out, Console{
-			Session: name,
-			Agent:   pid,
-			Konsole: konsoleOf(pid),
-			Dir:     procCwd(pid),
+			Session:      name,
+			Agent:        pid,
+			Konsole:      konsoleOf(pid),
+			Dir:          procCwd(pid),
+			Transport:    transport,
+			Conversation: conversation,
 		})
 	}
 	slices.SortFunc(out, func(a, b Console) int { return strings.Compare(a.Session, b.Session) })

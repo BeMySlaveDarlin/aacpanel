@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -47,6 +48,9 @@ func main() {
 	hold := flag.Bool("hold", false,
 		"hold a claude session on the stream protocol from the task on stdin, until it ends. "+
 			"Not a panel action: the launcher starts it in place of a tmux server")
+	console := flag.String("console", "",
+		"move a live session on the stream to the console, without the panel: the running executor "+
+			"starts it in tmux with what it was started with, and tmux attach reaches it")
 	flag.Parse()
 
 	if *hold {
@@ -66,9 +70,14 @@ func main() {
 
 	if *sessions {
 		for _, c := range launcher.Open() {
-			fmt.Printf("%s\tagent %d\tkonsole %d\t%s\n", c.Session, c.Agent, c.Konsole, c.Dir)
+			fmt.Printf("%s\t%s\tagent %d\tkonsole %d\t%s\t%s\n",
+				c.Session, c.Transport, c.Agent, c.Konsole, c.Dir, c.Conversation)
 		}
 		return
+	}
+
+	if *console != "" {
+		os.Exit(runConsole(*socket, *console, os.Stdout, os.Stderr))
 	}
 
 	if *launch {
@@ -123,6 +132,31 @@ func defaultSocket() string {
 		return filepath.Join(dir, "aacpanel-exec", "sock")
 	}
 	return filepath.Join(os.TempDir(), fmt.Sprintf("aacpanel-exec-%d", os.Getuid()), "sock")
+}
+
+// runConsole moves a session on the stream to the console where the panel is
+// not there to do it. The running executor does the move, as it does for the
+// panel: it has the environment a session is started with, which a terminal
+// the person typed this in does not.
+func runConsole(socket, name string, out, errs io.Writer) int {
+	req := action.Request{
+		ID: fmt.Sprintf("console-%d", time.Now().UnixNano()), Kind: action.SessionSwitch, Target: name,
+		Device: "terminal", Switch: &action.Switch{To: action.SwitchConsole},
+	}
+	resp, err := action.NewClient(socket, actionTimeout).Do(context.Background(), req)
+	if err != nil {
+		fmt.Fprintf(errs, "aacpanel-exec: %v\n"+
+			"If the executor is down, start it again — sessions on the stream outlive it: "+
+			"systemctl --user restart aacpanel-exec\n", err)
+		return 1
+	}
+	if !resp.OK {
+		fmt.Fprintf(errs, "aacpanel-exec: %s\n", resp.Error)
+		return 1
+	}
+	fmt.Fprintln(out, resp.Detail)
+	fmt.Fprintf(out, "tmux attach -t %s\n", name)
+	return 0
 }
 
 // runHold keeps one session on the stream protocol. A signal ends it the

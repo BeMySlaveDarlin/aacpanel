@@ -145,6 +145,11 @@ func runStream(ctx context.Context, spec Spec, params Params, name, bin string, 
 	if conversation == "" {
 		conversation = stream.NewSessionID()
 	}
+	launched, err := json.Marshal(Spec{Dir: spec.Dir, Session: name, Launch: spec.Launch,
+		ClaudeBin: spec.ClaudeBin, ConfigDir: spec.ConfigDir})
+	if err != nil {
+		return Report{}, err
+	}
 	held, err := startHolder(stream.Spec{
 		Name:      name,
 		Dir:       spec.Dir,
@@ -153,6 +158,7 @@ func runStream(ctx context.Context, spec Spec, params Params, name, bin string, 
 		Intent:    params.Intent,
 		// Remote control is on only when the map says so, the same as in a terminal.
 		RemoteControl: params.RemoteControl != nil && *params.RemoteControl,
+		Launched:      launched,
 	})
 	if err != nil {
 		return Report{}, err

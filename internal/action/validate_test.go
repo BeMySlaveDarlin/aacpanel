@@ -427,8 +427,10 @@ func TestSwitchSaysWhereAndCarriesItsProject(t *testing.T) {
 		{"nowhere", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel", Project: project}, false},
 		{"somewhere unknown", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel",
 			Switch: &Switch{To: "tmux"}, Project: project}, false},
-		{"without its project", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel",
-			Switch: &Switch{To: SwitchConsole}}, false},
+		{"to the console without its project, as a terminal asks with the panel down",
+			Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel", Switch: &Switch{To: SwitchConsole}}, true},
+		{"to the feed without its project", Request{ID: "1", Kind: SessionSwitch, Target: "aacpanel",
+			Switch: &Switch{To: SwitchStream}}, false},
 		{"a switch riding another action", Request{ID: "1", Kind: SessionClose, Target: "aacpanel",
 			Switch: &Switch{To: SwitchConsole}}, false},
 	}

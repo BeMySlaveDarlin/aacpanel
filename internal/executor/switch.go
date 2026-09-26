@@ -42,8 +42,8 @@ type carried struct {
 }
 
 func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.Switch, want *action.Project) (string, error) {
-	if sw == nil || want == nil {
-		return "", fmt.Errorf("a switch needs where to move the session and its project")
+	if sw == nil {
+		return "", fmt.Errorf("a switch needs where to move the session")
 	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
@@ -51,6 +51,11 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 	}
 	if s.SessionID == "" {
 		return "", fmt.Errorf("session %s has no conversation id the panel can resume", s.Name)
+	}
+	if want == nil {
+		if want, err = launchedWith(ctx, s, sw); err != nil {
+			return "", err
+		}
 	}
 	proc, err := findAgent(target)
 	if err != nil {
@@ -132,6 +137,32 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 		detail += "; " + opened
 	}
 	return detail, nil
+}
+
+// launchedWith is the project a session on the stream was started with, as
+// its holder keeps it: a move to the console asked for without the panel —
+// the panel is down — starts the console from it. The contour comes with it,
+// so the console runs under the same account. Nothing else is guessed: a
+// project found by its directory alone would carry neither.
+func launchedWith(ctx context.Context, s liveSession, sw *action.Switch) (*action.Project, error) {
+	if sw.To != action.SwitchConsole || !onStream(s) {
+		return nil, fmt.Errorf("a switch without the project moves only a session on the stream to the console")
+	}
+	st, err := streamState(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	if len(st.Launched) == 0 {
+		return nil, fmt.Errorf("the holder of session %s does not keep what the session was started with — "+
+			"it was started before holders kept it. Move it from the panel, or close it and resume "+
+			"conversation %s in a terminal", s.Name, s.SessionID)
+	}
+	var spec launcher.Spec
+	if err := json.Unmarshal(st.Launched, &spec); err != nil {
+		return nil, fmt.Errorf("what session %s was started with was not read: %w", s.Name, err)
+	}
+	return &action.Project{Path: spec.Dir, Session: spec.Session, Launch: spec.Launch,
+		ClaudeBin: spec.ClaudeBin, ConfigDir: spec.ConfigDir}, nil
 }
 
 // shownElsewhere stops a console from leaving while a terminal outside the

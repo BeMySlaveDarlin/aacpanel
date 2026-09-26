@@ -140,8 +140,9 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 		}
 	}()
 
+	contour := t.TempDir()
 	rep, err := Run(context.Background(), Spec{
-		Dir: dir, Session: "demo",
+		Dir: dir, Session: "demo", ConfigDir: contour,
 		Launch: json.RawMessage(`{"transport":"stream","model":"haiku","intent":"begin","remoteControl":true}`),
 	})
 	if err != nil {
@@ -166,6 +167,12 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 	}
 	if !spec.RemoteControl {
 		t.Errorf("remote control asked for a stream session did not reach its holder: %+v", spec)
+	}
+	var kept Spec
+	if err := json.Unmarshal(spec.Launched, &kept); err != nil || kept.Dir != dir || kept.Session != "demo" ||
+		kept.ConfigDir != contour || !strings.Contains(string(kept.Launch), `"model":"haiku"`) {
+		t.Errorf("the holder keeps %s as what the session was started with: without it, a console started "+
+			"with the panel down would not know its project or its contour", spec.Launched)
 	}
 	for _, w := range rep.Warnings {
 		if strings.Contains(w, "remote control") {

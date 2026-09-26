@@ -113,6 +113,10 @@ type Spec struct {
 	// handshake. A terminal takes it as an argument; on the stream it is a
 	// request.
 	RemoteControl bool `json:"remoteControl,omitempty"`
+	// Launched is what the launcher started the session with — the project,
+	// its launch parameters and its contour. The session is started again from
+	// it where the panel that knows the project is not there to ask.
+	Launched json.RawMessage `json:"launched,omitempty"`
 }
 
 // Ops of the socket.
@@ -202,6 +206,8 @@ type State struct {
 	// it has got is not known to anybody.
 	Compacting *time.Time      `json:"compacting,omitempty"`
 	Init       json.RawMessage `json:"init,omitempty"`
+	// Launched is what the session was started with; see Spec.
+	Launched json.RawMessage `json:"launched,omitempty"`
 }
 
 // Summary is the state file: what the collector reads to place the session on

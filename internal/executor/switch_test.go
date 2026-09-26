@@ -437,3 +437,59 @@ func TestClosingAStreamSessionEndsItsInput(t *testing.T) {
 		t.Errorf("the report %q does not say the session closed", detail)
 	}
 }
+
+// With the panel down, a session on the stream goes to the console from what
+// its holder keeps it was started with: the project, its launch and its
+// contour — a console under another account would be another person's.
+func TestSwitchToConsoleWithoutThePanelStartsFromWhatTheHolderKeeps(t *testing.T) {
+	dir, f := streamStand(t, func(*stream.State) {})
+	kept, err := json.Marshal(launcher.Spec{Dir: dir, Session: "demo", Launch: json.RawMessage(`{"model":"opus","room":"work"}`),
+		ClaudeBin: "/opt/claude-work", ConfigDir: "/home/u/.claude-profiles/work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.state.Launched = kept
+	f.mu.Unlock()
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
+	e, _ := newTest(t, "")
+	withSignals(t, e, map[int]bool{5001: true}, map[int]int{5001: 1})
+
+	r := req(action.SessionSwitch, "demo")
+	r.Switch = &action.Switch{To: action.SwitchConsole}
+	if _, err := e.Execute(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var spec launcher.Spec
+	body := raw[strings.Index(string(raw), "{") : strings.LastIndex(string(raw), "}")+1]
+	if err := json.Unmarshal(body, &spec); err != nil {
+		t.Fatalf("%v: %s", err, raw)
+	}
+	if spec.Dir != dir || spec.ConfigDir != "/home/u/.claude-profiles/work" || spec.ClaudeBin != "/opt/claude-work" ||
+		spec.Resume != streamSID {
+		t.Errorf("the console was started with %+v", spec)
+	}
+	if got := launched(t, log); got["model"] != "opus" || got["transport"] != "tmux" {
+		t.Errorf("the launch of the console is %v", got)
+	}
+}
+
+// A holder that does not keep what the session was started with is not
+// guessed around: a project found by its directory has no contour.
+func TestSwitchToConsoleWithoutThePanelNeedsWhatTheHolderKeeps(t *testing.T) {
+	streamStand(t, func(*stream.State) {})
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
+	e, _ := newTest(t, "")
+	r := req(action.SessionSwitch, "demo")
+	r.Switch = &action.Switch{To: action.SwitchConsole}
+	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "does not keep") {
+		t.Fatalf("a switch without the project and without what the holder keeps: %v", err)
+	}
+	if _, err := os.Stat(log); err == nil {
+		t.Error("the launcher was called with a guessed project")
+	}
+}

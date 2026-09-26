@@ -328,7 +328,9 @@ func (r Request) Validate() error {
 		if r.Switch.Window && r.Switch.To != SwitchConsole {
 			return badRequest("a window opens to a session in the console, not in the feed")
 		}
-		if r.Project == nil {
+		// A session on the stream goes to the console with the project its
+		// holder keeps; the other way the panel names the project.
+		if r.Project == nil && r.Switch.To != SwitchConsole {
 			return badRequest("action %s without the project: the session is started again with its launch parameters", r.Kind)
 		}
 	} else if r.Switch != nil {

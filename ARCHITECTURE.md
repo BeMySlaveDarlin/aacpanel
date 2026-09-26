@@ -385,9 +385,10 @@ effort picked in the feed, as they were picked, and the permission mode:
 always when the start named one, and otherwise only when the holder saw it
 change since the handshake — a mode nobody chose is claude's own name for the
 default, and carrying it would override the project's choice. From a console it is the model and the effort its status
-line shows, which names the model with its context window, and the mode of
-the last message sent since the console started, or the mode it was started
-with — a mode changed after the last message is in neither. The opening
+line shows, which names the model with its context window, and the mode
+claude last wrote into the transcript since the console started, or the mode
+it was started with. The transcript is read for it by the collector: the
+executor has no access to transcripts. The opening
 message of the project is dropped — a resumed conversation would read it as a
 new request. A stream session can always go to the console; a console goes to
 the feed only when its project lives there, because which projects live in the
@@ -405,6 +406,20 @@ executor refuses to move it to the feed: the conversation would end under the
 eyes of whoever reads it there. The pair then only picks what to watch the
 console with. A project that lives in the console keeps the pair as a choice
 of the device.
+
+**A stream session is reached from the host when the panel is down.** A tmux
+session is reached with `tmux attach` whatever happens to the panel; a stream
+session has only its holder's pipes, and the panel is the way to them.
+`aacpanel-exec -sessions` lists the live sessions with how each is kept, and
+`aacpanel-exec -console <name>` asks the running executor to move one to the
+console, after which `tmux attach -t <name>` reaches it. The console is started
+from what the holder keeps the session was started with — the project, its
+launch parameters and its contour, so it runs under the same account; a holder
+that does not keep it is refused rather than guessed around, since a project
+found by its directory carries no contour. The executor outlives the service's
+container, and a restart of the executor leaves the holders alive. A holder
+that ends ends its session: the conversation stays on the disk and resumes in
+a terminal.
 
 ---
 
