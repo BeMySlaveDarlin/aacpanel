@@ -12,6 +12,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -21,6 +22,8 @@ type projectNode struct {
 	Comment string `json:"comment"`
 	Path    string `json:"path"`
 	Session string `json:"session"`
+	// Line is the command the project's next launch runs.
+	Line *schema.Line `json:"line,omitempty"`
 }
 
 type groupNode struct {
@@ -62,6 +65,8 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 		return payload, nil
 	}
 	payload = sessionsByProject(payload, list, s.worktrees(), s.db.ProjectRoots())
+	store.FillEffective(list)
+	fillLines(list)
 	tree := profileMap(list)
 	if len(tree) == 0 {
 		return payload, nil
@@ -105,6 +110,7 @@ func profileMap(list []store.Profile) []profileNode {
 					Name:    p.Name,
 					Path:    p.Path,
 					Session: sessionNameOf(p),
+					Line:    p.Line,
 				})
 			}
 			if len(projects) == 0 {

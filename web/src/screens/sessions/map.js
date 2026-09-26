@@ -5,6 +5,7 @@ import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
+import { LaunchLine, onStream } from "../../ui/launchline.js";
 import { plural } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
@@ -156,6 +157,12 @@ export function Groups({ profile, sessions, onOpen, exec }) {
 }
 
 // Project renders the project screen.
+// openLabel names the press by where the session will live.
+function openLabel(more, stream) {
+    if (stream) return more ? "Open one more in the feed" : "Open in the feed";
+    return more ? "Open one more console" : "Open the console";
+}
+
 export function Project({ project, sessions, notes, exec, wait, onBack, onChat }) {
     useBackClose(true, onBack);
 
@@ -171,6 +178,8 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
             <span class="where">${project.profile} · ${project.group}</span>
         <//>
 
+        <${LaunchLine} line=${project.line} />
+
         <div class="btnrow">
             <button
                 class="btn primary"
@@ -179,7 +188,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
                 onClick=${async () => {
                     await run("session.open", project.session, { project: project.id });
                 }}
-            >${own.length > 0 ? "Open one more console" : "Open the console"}</button>
+            >${openLabel(own.length > 0, onStream(project.line))}</button>
         </div>
         ${!ready && html`<p class="hint warn">${why}</p>`}
 

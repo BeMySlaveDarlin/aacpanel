@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="a"></div><div id="b"></div>
+<script type="module">
+// The command a project's next launch runs: the stream's plumbing folded into
+// one word, the project's own values underlined, the contour's dashed.
+import { h, render } from "preact";
+import { LaunchLine, onStream } from "/src/ui/launchline.js";
+
+const stream = { words: [{ text: "claude" },
+    ...["-p", "--input-format", "stream-json", "--verbose"].map((text) => ({ text, key: "transport", layer: "project" })),
+    { text: "-n" }, { text: "person" },
+    { text: "--effort", key: "effort", layer: "contour" }, { text: "high", key: "effort", layer: "contour" }],
+    then: [{ text: "remote control on", key: "remoteControl", layer: "project" }, { text: "go", key: "intent", layer: "project" }] };
+const tmux = { words: [{ text: "claude" }, { text: "-n" }, { text: "aacpanel" },
+    { text: "--remote-control", key: "remoteControl", layer: "project" }, { text: "aacpanel", key: "remoteControl", layer: "project" }] };
+render(h(LaunchLine, { line: stream }), document.getElementById("a"));
+render(h(LaunchLine, { line: tmux }), document.getElementById("b"));
+
+window.done = (async () => {
+    await new Promise((r) => setTimeout(r, 50));
+    const words = (id) => [...document.querySelectorAll(`#${id} .lw`)].map((w) => w.textContent);
+    const deco = (id, n) => getComputedStyle(document.querySelectorAll(`#${id} .lw`)[n]).textDecorationStyle;
+    return {
+        stream: words("a"), tmux: words("b"),
+        own: deco("b", 3), contour: deco("a", 4), plain: getComputedStyle(document.querySelectorAll("#b .lw")[0]).textDecorationLine,
+        then: (document.querySelector("#a .lthen") || {}).textContent || "",
+        tmuxThen: Boolean(document.querySelector("#b .lthen")),
+        onStream: [onStream(stream), onStream(tmux), onStream(null)],
+    };
+})();
+</script>

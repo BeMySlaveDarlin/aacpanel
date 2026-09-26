@@ -67,3 +67,14 @@
 .pmain .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prow.live .pmain .mline:last-child span { color: var(--ink-dim); }
 
+
+/* The command the next launch runs: the project's own values underlined, the
+   contour's dashed, the command's own words plain. */
+.lline { display: flex; flex-direction: column; gap: .2rem; margin: .4rem 0 .6rem; min-width: 0; }
+.lwords {
+    font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim);
+    display: flex; flex-wrap: wrap; gap: 0 .45ch; overflow-wrap: anywhere;
+}
+.lw[data-layer="project"] { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.lw[data-layer="contour"] { color: var(--ink); text-decoration: underline dashed; text-underline-offset: 3px; }
+.lthen { font-size: var(--t-xs); color: var(--ink-faint); }
