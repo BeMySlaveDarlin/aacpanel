@@ -341,11 +341,10 @@ func sessionModelsDirs() []string {
 }
 
 // transcriptMode asks the collector for the permission mode a console was
-// last in: every message a person sends carries it, and the transcript is the
-// collector's to read, not the executor's. Only a message sent since the
+// last in, as claude wrote it into the transcript: the transcript is the
+// collector's to read, not the executor's. Only a mode written since the
 // console started counts — an older one was written by another process of the
-// same conversation. A mode changed after the last message is not in the
-// transcript at all.
+// same conversation.
 func transcriptMode(sessionID string, since time.Time) string {
 	if sessionID == "" {
 		return ""

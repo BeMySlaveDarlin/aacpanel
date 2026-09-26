@@ -230,6 +230,17 @@ class LastMode(Seen):
         self.append(json.dumps({"type": "user", "permissionMode": "auto", "timestamp": "2026-09-21T14:13:20.5Z"}))
         self.assertEqual(self.mode(), "auto")
 
+    def test_a_record_of_the_mode_is_dated_by_the_word_before_it(self):
+        self.append(json.dumps({"type": "user", "permissionMode": "default", "timestamp": "2026-09-21T14:14:00Z"}))
+        self.append(json.dumps({"type": "assistant", "timestamp": "2026-09-21T14:14:05Z"}))
+        self.append(json.dumps({"type": "permission-mode", "permissionMode": "plan"}))
+        self.assertEqual(self.mode(), "plan", "the mode changed in the console after the last message is lost")
+
+    def test_a_record_of_the_mode_before_the_start_is_another_process(self):
+        self.append(json.dumps({"type": "assistant", "timestamp": "2026-09-21T14:13:00Z"}))
+        self.append(json.dumps({"type": "permission-mode", "permissionMode": "plan"}))
+        self.assertEqual(self.mode(), "")
+
     def test_a_start_that_is_not_a_time_is_refused(self):
         for since in (None, "2026-09-21", True, -1):
             reply = seen.answer({"session": TALK, "ask": "mode", "since": since})

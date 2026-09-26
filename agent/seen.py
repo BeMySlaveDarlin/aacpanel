@@ -139,24 +139,30 @@ def turn_ended(text):
 def last_mode(text, since):
     """Returns the permission mode a console was last in, or "".
 
-    Every message a person sends carries the mode, so the end of a conversation
-    has it. Only a message sent since the console started counts (since, in
-    epoch milliseconds): an older one was written by another process of the
-    same conversation and says nothing of this one.
+    Claude writes the mode as a record of its own, and a message a person sends
+    may carry it too. Only a mode written since the console started counts
+    (since, in epoch milliseconds): an older one was written by another process
+    of the same conversation and says nothing of this one. The record of the
+    mode carries no time, so it is dated by the nearest word before it that
+    does.
     """
+    found = None
     for line in reversed(text.splitlines()):
         line = line.strip()
-        if not line.startswith("{") or '"permissionMode"' not in line:
+        if not line.startswith("{"):
             continue
         try:
             record = json.loads(line)
         except ValueError:
             continue
-        mode = record.get("permissionMode") if isinstance(record, dict) else None
-        if not isinstance(mode, str) or not mode:
+        if not isinstance(record, dict):
             continue
+        mode = record.get("permissionMode")
         at = epoch_ms(record.get("timestamp"))
-        return mode if at is not None and at >= since else ""
+        if found is None and isinstance(mode, str) and mode:
+            found = mode
+        if found is not None and at is not None:
+            return found if at >= since else ""
     return ""
 
 
