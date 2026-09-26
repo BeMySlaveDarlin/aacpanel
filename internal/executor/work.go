@@ -1,13 +1,17 @@
 package executor
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"aacpanel/internal/action"
+	registry "aacpanel/internal/contours"
 	"aacpanel/internal/stream"
 )
 
@@ -130,7 +134,7 @@ func runningTask(st stream.State, id string) bool {
 }
 
 func (e *Executor) stopBackgroundWork(ctx context.Context, s liveSession, want string) error {
-	if s.Status == "busy" {
+	if s.Status == "busy" && !turnEnded(s.SessionID) {
 		return fmt.Errorf(
 			"session %s is busy right now: the list of background work is opened by a slash command, and "+
 				"with a busy session that command queues up and runs only after its turn. Wait until the "+
@@ -399,4 +403,49 @@ func workPlural(n int) string {
 		return "entry"
 	}
 	return "entries"
+}
+
+// turnEnded reads off the end of the transcript whether the session's own turn
+// is over. Claude keeps a session busy while an agent it sent off to work runs,
+// long after the turn that sent it; the list of background work opens at once
+// then, and it is the only moment there is an agent to stop. The turn is over
+// when the last word of the conversation is an answer that ended it: the
+// reason an answer ended is written once it has.
+func turnEnded(sessionID string) bool {
+	for _, conf := range registry.ConfigDirs() {
+		found, _ := filepath.Glob(filepath.Join(conf, "projects", "*", sessionID+".jsonl"))
+		for _, path := range found {
+			if ended, known := lastTurnEnded(path); known {
+				return ended
+			}
+		}
+	}
+	return false
+}
+
+func lastTurnEnded(path string) (ended, known bool) {
+	tail, err := readTranscriptEnd(path)
+	if err != nil {
+		return false, false
+	}
+	lines := bytes.Split(tail, []byte("\n"))
+	for i := len(lines) - 1; i >= 0; i-- {
+		var rec struct {
+			Type      string `json:"type"`
+			Sidechain bool   `json:"isSidechain"`
+			Message   struct {
+				StopReason string `json:"stop_reason"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(lines[i], &rec) != nil || rec.Sidechain {
+			continue
+		}
+		switch rec.Type {
+		case "user":
+			return false, true
+		case "assistant":
+			return rec.Message.StopReason == "end_turn", true
+		}
+	}
+	return false, false
 }

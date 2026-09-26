@@ -3,10 +3,13 @@ package executor
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"aacpanel/internal/action"
+	registry "aacpanel/internal/contours"
 )
 
 type workScreen struct {
@@ -357,5 +360,65 @@ func TestWorkStopRefusesBusySession(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "is busy") {
 		t.Errorf("the refusal does not name the reason — a busy session: %v", err)
+	}
+}
+
+// Claude keeps a session busy while an agent it sent off to work runs, after
+// the turn that sent it is over: the end of the transcript tells the two apart.
+func TestATurnEndsWithTheAnswerThatEndedIt(t *testing.T) {
+	cases := []struct {
+		name  string
+		lines []string
+		ended bool
+	}{
+		{"an answer that ended the turn, and the hooks after it", []string{
+			`{"type":"user","message":{"content":"launch an agent"}}`,
+			`{"type":"assistant","message":{"stop_reason":"end_turn","content":[{"type":"text","text":"launched"}]}}`,
+			`{"type":"system","subtype":"stop_hook_summary"}`,
+		}, true},
+		{"a prompt not answered yet", []string{
+			`{"type":"assistant","message":{"stop_reason":"end_turn"}}`,
+			`{"type":"user","message":{"content":"write about rivers"}}`,
+		}, false},
+		{"an answer that goes on to a tool", []string{
+			`{"type":"assistant","message":{"stop_reason":"tool_use"}}`,
+		}, false},
+		{"the news of a task, being answered", []string{
+			`{"type":"assistant","message":{"stop_reason":"end_turn"}}`,
+			`{"type":"user","message":{"content":"<task-notification>done</task-notification>"}}`,
+		}, false},
+		{"an agent's own answer is not the session's", []string{
+			`{"type":"user","message":{"content":"write about rivers"}}`,
+			`{"type":"assistant","isSidechain":true,"message":{"stop_reason":"end_turn"}}`,
+		}, false},
+	}
+	for _, c := range cases {
+		path := filepath.Join(t.TempDir(), "t.jsonl")
+		if err := os.WriteFile(path, []byte(strings.Join(c.lines, "\n")+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if ended, known := lastTurnEnded(path); !known || ended != c.ended {
+			t.Errorf("%s: ended %v (known %v), expected %v", c.name, ended, known, c.ended)
+		}
+	}
+}
+
+// A busy session whose turn is over is busy with its background work: the
+// list of that work opens at once, and the stop goes on to the screen.
+func TestWorkStopGoesOnWhenTheBusyIsTheBackgroundWork(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 860, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 861, comm: "claude", args: []string{"claude"}, ppid: 860, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 861, name: "aacpanel", start: "77", status: "busy", sid: consoleSID})
+	t.Setenv(registry.HomeEnv, t.TempDir())
+	writeTranscript(t, os.Getenv(registry.HomeEnv),
+		`{"type":"user","message":{"content":"launch an agent"}}`,
+		`{"type":"assistant","message":{"stop_reason":"end_turn"}}`)
+
+	e := &Executor{}
+	_, err := e.taskStop(t.Context(), "aacpanel", &action.Work{ID: "a1", Line: "probe tale"})
+	if err == nil || strings.Contains(err.Error(), "is busy") {
+		t.Fatalf("a session busy with its background work was refused as busy: %v", err)
 	}
 }
