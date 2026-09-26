@@ -33,7 +33,8 @@ class TestGuard(unittest.TestCase):
         self.addCleanup(self.state_dir.cleanup)
         self.xdg = tempfile.TemporaryDirectory()
         self.addCleanup(self.xdg.cleanup)
-        self.env = {"AACP_STATE_DIR": self.state_dir.name, "XDG_STATE_HOME": self.xdg.name}
+        self.env = {"AACP_STATE_DIR": self.state_dir.name, "XDG_STATE_HOME": self.xdg.name,
+                    "CLAUDE_PROJECT_DIR": None}
         self.places(f"{PROJECT}\t80\t1")
 
     def places(self, *lines):
@@ -101,6 +102,12 @@ class TestGuard(unittest.TestCase):
         self.snapshot(pct=99.0)
         self.assertIsNone(self.run_hook({"cwd": "/srv/elsewhere"}))
         self.assertIsNone(self.run_hook({"cwd": PROJECT + "-2"}))
+
+    def test_the_project_directory_wins_over_where_the_agent_went(self):
+        self.snapshot()
+        got = self.run_hook({"cwd": "/srv/elsewhere"}, CLAUDE_PROJECT_DIR=PROJECT)
+        self.assertEqual(got["decision"], "block")
+        self.assertIsNone(self.run_hook({"cwd": PROJECT}, CLAUDE_PROJECT_DIR="/srv/elsewhere"))
 
     def test_a_directory_inside_the_project_is_the_project(self):
         self.snapshot()

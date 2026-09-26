@@ -80,8 +80,9 @@ class TestLines(unittest.TestCase):
                 json.dump(snapshot(), f)
             said = {}
             for cwd in ("/srv/proj/Algo/lms", "/srv/elsewhere"):
-                was = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "AACP_STATE_DIR")}
+                was = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "AACP_STATE_DIR", "CLAUDE_PROJECT_DIR")}
                 os.environ.update({"XDG_STATE_HOME": xdg, "AACP_STATE_DIR": state_dir})
+                os.environ.pop("CLAUDE_PROJECT_DIR", None)
                 out = io.StringIO()
                 try:
                     sys.stdin = io.StringIO(json.dumps({"session_id": "mine", "cwd": cwd}))

@@ -11,6 +11,18 @@ def path():
     return os.path.join(base, "aacpanel", "guards.tsv")
 
 
+def where(payload):
+    """Returns the directory a session belongs to.
+
+    The project directory claude names for its hooks, not the working directory:
+    that one follows every cd the agent makes, and the cap would jump to whatever
+    project the agent is looking into.
+    """
+    return (os.environ.get("CLAUDE_PROJECT_DIR")
+            or (payload.get("cwd") if isinstance(payload, dict) else "")
+            or os.getcwd())
+
+
 def of(cwd, file=None):
     """Returns (cap, restart) of the place closest above cwd, or None where the file names none.
 

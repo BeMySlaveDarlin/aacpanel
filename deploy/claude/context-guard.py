@@ -52,7 +52,7 @@ def main():
     # The turn that follows a block is the finalization itself: it is never blocked again.
     if payload.get("stop_hook_active"):
         return
-    guard = guards.of(payload.get("cwd") or os.getcwd())
+    guard = guards.of(guards.where(payload))
     if guard is None:
         return
     cap, restart = guard

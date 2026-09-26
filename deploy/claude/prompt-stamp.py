@@ -167,16 +167,15 @@ def main():
     event = sys.argv[1] if len(sys.argv) > 1 else "UserPromptSubmit"
     state_dir = os.environ.get("AACP_STATE_DIR") or "/var/lib/aacpanel"
 
-    session_id, cwd = "", ""
+    session_id, payload = "", {}
     try:
         payload = json.load(sys.stdin)
         session_id = payload.get("session_id") or ""
-        cwd = payload.get("cwd") or ""
     except (ValueError, OSError, AttributeError):
         pass
 
     # The cap of the project the session works in, as the panel's map says it.
-    guard = guards.of(cwd or os.getcwd())
+    guard = guards.of(guards.where(payload))
     cap = guard[0] if guard else guards.CAP_DEFAULT
 
     state = read_state(os.path.join(state_dir, "state.json"))
