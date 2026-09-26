@@ -16,6 +16,11 @@ import (
 // until then.
 const guardsEvery = 5 * time.Minute
 
+// guardsRetry is how soon a handing that failed is tried again: at start the
+// database is still migrating, and a map that waited guardsEvery for it would
+// leave the host unguarded for minutes after every deploy.
+const guardsRetry = 15 * time.Second
+
 const guardsTimeout = 10 * time.Second
 
 // guardsChanged tells the publisher the map changed. A change that finds one
@@ -32,19 +37,25 @@ func (s *Server) guardsChanged() {
 }
 
 // runGuards hands the executor the context guard of every place the map
-// knows: at start, after every change of the map, and every guardsEvery.
+// knows: at start, after every change of the map, and every guardsEvery —
+// every guardsRetry while it fails.
 func (s *Server) runGuards(ctx context.Context) {
-	tick := time.NewTicker(guardsEvery)
-	defer tick.Stop()
 	failed := ""
 	for {
 		failed = s.handGuards(ctx, failed)
+		wait := guardsEvery
+		if failed != "" {
+			wait = guardsRetry
+		}
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
 		case <-s.guards:
-		case <-tick.C:
+		case <-timer.C:
 		}
+		timer.Stop()
 	}
 }
 
