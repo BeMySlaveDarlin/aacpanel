@@ -26,6 +26,8 @@ type fakeHolder struct {
 	fails map[string]string
 	// What claude answers to a control request, by its subtype.
 	answers map[string]string
+	// What a control request does to the state, by its subtype.
+	effects map[string]func(*stream.State, map[string]any)
 }
 
 func (f *fakeHolder) asked() []stream.Request {
@@ -59,6 +61,9 @@ func onTheStream(t *testing.T, busy bool, pending ...stream.Pending) *fakeHolder
 			f.mu.Lock()
 			if r.Op != stream.OpState {
 				f.got = append(f.got, r)
+			}
+			if effect := f.effects[r.Subtype]; effect != nil && r.Op == stream.OpControl {
+				effect(&f.state, r.Fields)
 			}
 			st := f.state
 			failed := f.fails[r.Op]
@@ -510,5 +515,68 @@ func TestATerminalSessionListsNoModelsAndTakesNoMode(t *testing.T) {
 	r.Setting = &action.Setting{Mode: "auto"}
 	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "shift+tab") {
 		t.Errorf("a mode for a terminal session was not refused with a reason: %v", err)
+	}
+}
+
+// stopsTheTask takes the task a stop names off the running ones, as claude does.
+func stopsTheTask() func(*stream.State, map[string]any) {
+	return func(st *stream.State, fields map[string]any) {
+		kept := st.Tasks[:0]
+		for _, t := range st.Tasks {
+			if t.ID != fields["task_id"] {
+				kept = append(kept, t)
+			}
+		}
+		st.Tasks = kept
+	}
+}
+
+// A background task on the stream — an agent sent off to work among them — is
+// stopped by the id claude knows it by, and counts as stopped once it has left
+// the running ones.
+func TestAStreamTaskIsStoppedByItsID(t *testing.T) {
+	f := onTheStream(t, false)
+	f.state.Tasks = []stream.Task{{ID: "b1", Type: "local_bash"}, {ID: "a391c0067276d1fd9", Type: "local_agent"}}
+	f.effects = map[string]func(*stream.State, map[string]any){"stop_task": stopsTheTask()}
+	e, _ := newTest(t, "")
+	r := req(action.TaskStop, "demo")
+	r.Work = &action.Work{ID: "a391c0067276d1fd9", Line: "probe sleeper"}
+	out, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := only(t, f)
+	if got.Op != stream.OpControl || got.Subtype != "stop_task" || got.Fields["task_id"] != "a391c0067276d1fd9" {
+		t.Fatalf("the holder was asked %+v", got)
+	}
+	if !strings.Contains(out, "probe sleeper") || !strings.Contains(out, "stopped") {
+		t.Errorf("the report does not name what stopped: %q", out)
+	}
+}
+
+// Claude answers success for a task that has already ended too: the panel
+// does not send a stop for one that is gone, and does not report a stop for
+// one that keeps running.
+func TestAStreamTaskStopIsReadOffTheRunningOnes(t *testing.T) {
+	gone := onTheStream(t, false)
+	e, _ := newTest(t, "")
+	r := req(action.TaskStop, "demo")
+	r.Work = &action.Work{ID: "b1"}
+	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "no longer running") {
+		t.Fatalf("a stop of a task that is gone: %v", err)
+	}
+	if n := len(gone.asked()); n != 0 {
+		t.Errorf("a stop went to claude for a task that is gone: %d requests", n)
+	}
+}
+
+func TestAStreamTaskThatKeepsRunningIsNotReportedStopped(t *testing.T) {
+	f := onTheStream(t, false)
+	f.state.Tasks = []stream.Task{{ID: "b1", Type: "local_bash"}}
+	e, _ := newTest(t, "")
+	r := req(action.TaskStop, "demo")
+	r.Work = &action.Work{ID: "b1"}
+	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "still running") {
+		t.Fatalf("a task that kept running was reported: %v", err)
 	}
 }

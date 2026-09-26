@@ -294,6 +294,16 @@ function whyStopTask(exec, task) {
     return "";
 }
 
+function whyStopAgent(exec, agent) {
+    if (!knows(exec, "task.stop")) return whyNot(exec, "task.stop");
+    if (agentPhase(agent) === "over") return "the agent is over, there is nothing to stop";
+    if (!agent.line) {
+        return "the panel does not know how this agent is named on the session screen — "
+            + "there is nothing here to stop it with";
+    }
+    return "";
+}
+
 function StopButton({ ready, why, busy, done, onStop, label }) {
     if (done) return html`<span class="wstop done" aria-hidden="true"></span>`;
     return html`
@@ -349,16 +359,17 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
 
     // A teammate is stopped by its name on the session screen. An agent sent
     // to the background has no name there the panel could aim at.
+    // An agent sent off to work is a background task to claude: the stream
+    // stops it by its id, a console by its line on the screen of background
+    // work.
     const agentStopper = (agent) => (agent.kind === "background" ? {
-        ready: false,
-        why: agentPhase(agent) === "over"
-            ? "the agent is over, there is nothing to stop"
-            : "the panel does not know how this agent is named on the session screen — "
-                + "there is nothing here to stop it with",
-        busy: false,
-        done: false,
-        fail: "",
-        onStop: () => {},
+        ready: knows(exec, "task.stop") && agentPhase(agent) !== "over" && Boolean(agent.line),
+        why: whyStopAgent(exec, agent),
+        busy: busy === agentKey(agent),
+        done: stoppedWork.has(workKey(session, agentKey(agent))),
+        fail: fail[agentKey(agent)] || "",
+        onStop: () => stop(agentKey(agent), "agent",
+            () => run("task.stop", session, { id: agent.id, line: agent.line })),
     } : {
         ready: knows(exec, "agent.stop"),
         why: whyNot(exec, "agent.stop"),

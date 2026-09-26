@@ -31,6 +31,17 @@ class BackgroundAgents(Transcript):
             [(a["id"], a["name"], a["text"], a["status"], a["kind"]) for a in got["agents"]],
             [(AGENT, "general-purpose", "Run the tests", "active", "background")])
 
+    def test_the_line_is_how_the_screen_of_background_work_names_it(self):
+        named = (call("Agent", "toolu_2", at="2026-08-25T10:01:00Z", description="Essay",
+                      prompt="write", subagent_type="general-purpose", name="lighthouse-essay",
+                      run_in_background=True)
+                 + result("toolu_2", "Agent launched.", status="async_launched",
+                          agentId="a4444444444444444", description="Essay", isAsync=True))
+        got = self.state(async_agent("toolu_1", AGENT), named)
+        self.assertEqual({a["id"]: a["line"] for a in got["agents"]},
+                         {AGENT: "Run the tests", "a4444444444444444": "@lighthouse-essay"},
+                         "the stop aims at the line the screen shows: a teammate by its name, a local agent by what it does")
+
     def test_one_that_finished_keeps_its_place_with_how_it_ended(self):
         got = self.state(async_agent("toolu_1", AGENT), agent_notification(AGENT))
         self.assertEqual([(a["id"], a["status"], a["doneAt"]) for a in got["agents"]],

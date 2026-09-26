@@ -141,6 +141,7 @@ def _feed_record(state, record, raw):
                 state.pending[block.get("id")] = {
                     "kind": "agent",
                     "name": _short(data.get("name") or data.get("subagent_type") or "agent"),
+                    "called": _short(data.get("name")),
                     "text": label,
                     "at": at,
                 }

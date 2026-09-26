@@ -22,9 +22,13 @@ def launched(state, use, agent_id, started, text):
     if not agent_id:
         return
     state.task_ids[use] = agent_id
+    said = started["text"] or text
     state.bg[agent_id] = {
-        "id": agent_id, "name": started["name"], "text": started["text"] or text,
+        "id": agent_id, "name": started["name"], "text": said,
         "at": started["at"], "status": ACTIVE, "kind": KIND_BACKGROUND,
+        # How the screen of background work names it: an agent given a name
+        # stands there as a teammate, one without as its description.
+        "line": f"@{started['called']}" if started.get("called") else said,
     }
     _prune(state)
 

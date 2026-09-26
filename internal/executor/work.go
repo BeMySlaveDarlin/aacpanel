@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/stream"
 )
 
 const (
@@ -15,14 +16,21 @@ const (
 	workTitle    = "Background"
 	workSelect   = "to select"
 	workClose    = "Esc to close"
+	workBack     = "to go back"
 	workStopKey  = "x"
 	workDownKey  = "\x1b[B"
 	workUpKey    = "\x1b[A"
+	workBackKey  = "\x1b[D"
 	workStepWait = 120 * time.Millisecond
 	workSteps    = 60
 )
 
 var workStatusRe = regexp.MustCompile(`\s+\([A-Za-z][A-Za-z ]*\)$`)
+
+// A local agent — one sent off to work without a name — is its description
+// between a mark of its state and the state with the model:
+// "● probe poem   running · Haiku 4.5".
+var workAgentRe = regexp.MustCompile(`^[^\p{L}\p{N}\s]\s+(.+?)\s{2,}\p{Ll}[\p{Ll} ]*(?:\s+·\s+.*)?$`)
 
 const workCursors = "❯›>"
 
@@ -33,11 +41,25 @@ type workRow struct {
 	cut    bool
 }
 
+// taskStop stops a background task: a command, a monitor or an agent sent off
+// to work. On the stream claude stops it by its id; in a console the panel
+// finds its line on the screen of background work and presses the key there.
 func (e *Executor) taskStop(ctx context.Context, target string, w *action.Work) (string, error) {
 	if w == nil {
 		return "", fmt.Errorf("it is not said which task to stop")
 	}
-	if err := e.stopBackgroundWork(ctx, target, w.Line); err != nil {
+	s, err := findOneLiveSession(target)
+	if err != nil {
+		return "", err
+	}
+	if onStream(s) {
+		return streamStopTask(ctx, s, w)
+	}
+	if w.Line == "" {
+		return "", fmt.Errorf("the panel does not know how this task is named on the session screen — " +
+			"there would be nothing to check the keypress against")
+	}
+	if err := e.stopBackgroundWork(ctx, s, w.Line); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("background task %q (%s) stopped in %s", w.Line, w.ID, target), nil
@@ -47,36 +69,86 @@ func (e *Executor) agentStop(ctx context.Context, target string, w *action.Work)
 	if w == nil {
 		return "", fmt.Errorf("it is not said which agent to stop")
 	}
-	if err := e.stopBackgroundWork(ctx, target, "@"+w.ID); err != nil {
+	s, err := findOneLiveSession(target)
+	if err != nil {
+		return "", err
+	}
+	if err := e.stopBackgroundWork(ctx, s, "@"+w.ID); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("subagent %s stopped in %s", w.ID, target), nil
 }
 
-func (e *Executor) stopBackgroundWork(ctx context.Context, target, want string) error {
-	s, err := findOneLiveSession(target)
-	if err != nil {
-		return err
+// streamStopTask asks claude to stop a task by the id it knows it by. Claude
+// answers success for a task that has already ended as well, so the stop
+// counts once the task has left the list of the running ones.
+func streamStopTask(ctx context.Context, s liveSession, w *action.Work) (string, error) {
+	name := w.ID
+	if w.Line != "" {
+		name = fmt.Sprintf("%q (%s)", w.Line, w.ID)
 	}
+	st, err := streamState(ctx, s)
+	if err != nil {
+		return "", err
+	}
+	if !runningTask(st, w.ID) {
+		return "", fmt.Errorf("background task %s is no longer running in %s — most likely it finished by itself: "+
+			"the list in the panel lags behind", name, s.Name)
+	}
+	stop := stream.Request{Op: stream.OpControl, Subtype: "stop_task", Fields: map[string]any{"task_id": w.ID}}
+	if _, err := streamAsk(ctx, s, stop); err != nil {
+		return "", err
+	}
+	deadline := time.Now().Add(workOpenWait)
+	for {
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("the stop was sent, but there was no time to see background task %s end", name)
+		case <-time.After(workStepWait):
+		}
+		st, err := streamState(ctx, s)
+		if err != nil {
+			return "", fmt.Errorf("the stop was sent, but whether background task %s ended is unknown: %w", name, err)
+		}
+		if !runningTask(st, w.ID) {
+			return fmt.Sprintf("background task %s stopped in %s", name, s.Name), nil
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("claude took the stop, but background task %s is still running in %s after %s",
+				name, s.Name, workOpenWait)
+		}
+	}
+}
+
+func runningTask(st stream.State, id string) bool {
+	for _, t := range st.Tasks {
+		if t.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *Executor) stopBackgroundWork(ctx context.Context, s liveSession, want string) error {
 	if s.Status == "busy" {
 		return fmt.Errorf(
 			"session %s is busy right now: the list of background work is opened by a slash command, and "+
 				"with a busy session that command queues up and runs only after its turn. Wait until the "+
-				"session is free", target)
+				"session is free", s.Name)
 	}
 	t, err := termFor(ctx, s.PID)
 	if err != nil {
-		return fmt.Errorf("the background work of session %s cannot be stopped from the panel: %w", target, err)
+		return fmt.Errorf("the background work of session %s cannot be stopped from the panel: %w", s.Name, err)
 	}
 
 	if screen, known := t.screen(ctx); known && dialogOnScreen(screen) {
 		return fmt.Errorf(
 			"session %s is holding a dialog on screen — answer it first, otherwise the list of "+
-				"background work will not open", target)
+				"background work will not open", s.Name)
 	}
 
 	if err := openWorkScreen(ctx, t); err != nil {
-		return fmt.Errorf("the list of background work of session %s did not open: %w", target, err)
+		return fmt.Errorf("the list of background work of session %s did not open: %w", s.Name, err)
 	}
 	defer closeWorkScreen(context.WithoutCancel(ctx), t)
 
@@ -107,6 +179,14 @@ func openWorkScreen(ctx context.Context, t term) error {
 		if workScreenOpen(screen) {
 			return nil
 		}
+		// With one piece of work running the list opens straight on its
+		// card; the way back from the card is the list.
+		if workCardOpen(screen) {
+			if err := t.send(ctx, workBackKey); err != nil {
+				return err
+			}
+			continue
+		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf(
 				"it did not appear within %s: the session took a turn of its own and the command queued up. "+
@@ -117,10 +197,21 @@ func openWorkScreen(ctx context.Context, t term) error {
 
 func closeWorkScreen(ctx context.Context, t term) {
 	screen, known := t.screen(ctx)
-	if !known || !workScreenOpen(screen) {
+	if !known || !(workScreenOpen(screen) || workCardOpen(screen)) {
 		return
 	}
 	_ = t.send(ctx, escKey)
+}
+
+// workCardOpen reports the card of one piece of work, which the screen of
+// background work opens instead of the list when there is one to show.
+func workCardOpen(screen string) bool {
+	for _, line := range strings.Split(screen, "\n") {
+		if trimmed := strings.TrimSpace(line); strings.Contains(trimmed, workBack) && strings.Contains(trimmed, "to close") {
+			return true
+		}
+	}
+	return false
 }
 
 func workScreenOpen(screen string) bool {
@@ -192,11 +283,14 @@ func parseWorkRow(line string) (workRow, bool) {
 		return workRow{cursor: cursor, name: strings.TrimSpace(name)}, true
 	}
 
-	found := workStatusRe.FindStringIndex(body)
-	if found == nil {
+	var name string
+	if found := workStatusRe.FindStringIndex(body); found != nil {
+		name = strings.TrimSpace(body[:found[0]])
+	} else if agent := workAgentRe.FindStringSubmatch(body); agent != nil {
+		name = strings.TrimSpace(agent[1])
+	} else {
 		return workRow{}, false
 	}
-	name := strings.TrimSpace(body[:found[0]])
 	cut := false
 	if trimmed := strings.TrimRight(name, "…"); trimmed != name {
 		name = strings.TrimSpace(trimmed)

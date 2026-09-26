@@ -20,7 +20,7 @@ const work = {
     tasks: [{ id: "b1", text: "make check", kind: "bash", at: minutes(3), line: "make check" }],
     agents: [
         { id: "adf5ce617c6afff7a", name: "cx-scout", text: "Scouting the restore", kind: "background",
-          status: "active", at: minutes(5), model: "claude-sonnet-5", tokens: 35600, limit: 200000, limitKnown: true },
+          line: "@cx-scout", status: "active", at: minutes(5), model: "claude-sonnet-5", tokens: 35600, limit: 200000, limitKnown: true },
         { name: "zone-a", text: "a zone", kind: "teammate", status: "reported",
           at: minutes(40), reportedAt: minutes(20) },
         { id: "a8d6b65104dad396c", name: "sub-run", text: "Commit and push", kind: "background",
@@ -31,6 +31,15 @@ const work = {
 };
 
 const opened = [];
+const sent = [];
+window.fetch = async (url, init) => {
+    if (String(url).startsWith("/api/actions") && init && init.method === "POST") {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ ok: true, detail: "stopped" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
 render(html`
     <${ToastHost}><${GateHost}>
         <div id="chips"><${Work} work=${work} onOpen=${() => {}} /></div>
@@ -56,7 +65,7 @@ const until = async (ok, ms = 3000) => {
     const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
     const chips = Array.from(document.querySelectorAll("#chips .wchip"));
     const rows = Array.from(document.querySelectorAll("#agents .wline"));
-    window.done = {
+    const out = {
         chips: chips.map((c) => ({ label: c.getAttribute("aria-label"), num: text(c.querySelector(".wnum")) })),
         sub: text(document.querySelector("#agents .chatsub")),
         rows: rows.map((r) => ({
@@ -71,5 +80,15 @@ const until = async (ok, ms = 3000) => {
             return opened.map((a) => ({ id: a.id, kind: a.kind }));
         })(),
     };
+    // The stop of the agent at work goes out as a stop of a background task,
+    // by the id claude knows it by and the line the screen shows it under.
+    rows[0].querySelector(".wstop").click();
+    await until(() => document.querySelector(".stitle") && document.querySelector(".btnrow .btn"));
+    out.stopAsks = text(document.querySelector(".stitle"));
+    const ok = [...document.querySelectorAll(".btnrow .btn")].pop();
+    if (ok) ok.click();
+    await until(() => sent.length > 0);
+    out.stopSent = sent.map((r) => ({ kind: r.kind, target: r.target, work: r.params || null }));
+    window.done = out;
 })();
 </script>

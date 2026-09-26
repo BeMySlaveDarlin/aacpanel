@@ -286,10 +286,8 @@ func (r Request) Validate() error {
 			}
 			break
 		}
-		if r.Work.Line == "" {
-			return badRequest(
-				"the panel does not know how this task is named on the session screen — there would be nothing to check the keypress against")
-		}
+		// A session on the stream stops a task by its id alone; the line is
+		// what a console is checked against, and the executor asks for it there.
 		if len([]rune(r.Work.Line)) > workLineMax {
 			return badRequest("the task line is longer than %d characters", workLineMax)
 		}

@@ -14,6 +14,10 @@ type workScreen struct {
 	at    int
 	open  bool
 	blind bool
+	// card opens the list on the card of its first row, the way claude does
+	// when there is one piece of work to show.
+	card   bool
+	carded bool
 
 	sent    []string
 	stopped []string
@@ -27,9 +31,14 @@ func (w *workScreen) send(_ context.Context, payload string) error {
 	switch {
 	case strings.Contains(payload, workOpen):
 		w.open = true
+		w.carded = w.card
 	case payload == escKey:
-		w.open = false
+		w.open, w.carded = false, false
 	case !w.open:
+	case w.carded:
+		if payload == workBackKey {
+			w.carded = false
+		}
 	case payload == workDownKey:
 		if w.at < len(w.rows)-1 {
 			w.at++
@@ -56,6 +65,10 @@ func (w *workScreen) screen(context.Context) (string, bool) {
 	}
 	if !w.open {
 		return "❯ an ordinary composer, no list on the screen\n", true
+	}
+	if w.carded {
+		return "   " + w.rows[0] + "\n   2m 2s · 49.8k tokens · haiku\n   Prompt\n   Write an essay.\n" +
+			"   ← to go back · Esc/Enter/Space to close · x to stop · f to foreground\n", true
 	}
 	var agents, shells []string
 	for i, row := range w.rows {
@@ -221,6 +234,57 @@ func TestAgentStopLooksForTheAtName(t *testing.T) {
 	}
 	if want := []string{"@probe-b"}; !equalRows(w.stopped, want) {
 		t.Fatalf("%v was stopped while %v was asked for — a background command with the same name is not an agent", w.stopped, want)
+	}
+}
+
+// An agent sent off without a name is a local agent on the screen: its
+// description between a mark of its state and the state with the model.
+func TestWorkStopFindsALocalAgentByItsDescription(t *testing.T) {
+	w := &workScreen{open: true, rows: []string{
+		"@team-lead",
+		"@lighthouse-essay: idle",
+		"● probe poem   running · Haiku 4.5",
+	}}
+	if err := aimAndStop(t.Context(), w, "probe poem"); err != nil {
+		t.Fatalf("the agent was not stopped: %v", err)
+	}
+	if want := []string{"● probe poem   running · Haiku 4.5"}; !equalRows(w.stopped, want) {
+		t.Fatalf("%v was stopped while %v was asked for", w.stopped, want)
+	}
+}
+
+// With one piece of work running, the list opens on its card; the list is
+// one step back from there.
+func TestWorkScreenOpensPastTheCardOfTheOnlyWork(t *testing.T) {
+	w := &workScreen{card: true, rows: []string{"@lighthouse-essay (working)", "@team-lead"}}
+	if err := openWorkScreen(t.Context(), w); err != nil {
+		t.Fatalf("the list did not open past the card: %v", err)
+	}
+	if w.pressed(workBackKey) != 1 || w.carded {
+		t.Errorf("the card was left %d times and is still open: %v", w.pressed(workBackKey), w.carded)
+	}
+
+	shut := &workScreen{card: true, rows: []string{"@lighthouse-essay (working)"}}
+	_ = shut.send(t.Context(), workOpen)
+	closeWorkScreen(t.Context(), shut)
+	if shut.pressed(escKey) != 1 {
+		t.Error("the card left open was not closed")
+	}
+}
+
+// A console checks the keypress against the line of the task: without one
+// there is nothing to aim at.
+func TestAConsoleTaskIsNotStoppedWithoutItsLine(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 860, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 861, comm: "claude", args: []string{"claude"}, ppid: 860, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 861, name: "aacpanel", start: "77", status: "idle"})
+
+	e := &Executor{}
+	_, err := e.taskStop(t.Context(), "aacpanel", &action.Work{ID: "b1"})
+	if err == nil || !strings.Contains(err.Error(), "named on the session screen") {
+		t.Fatalf("a console task without its line was not refused for it: %v", err)
 	}
 }
 
