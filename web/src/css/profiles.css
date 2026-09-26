@@ -203,7 +203,6 @@
 
 /* A setting that holds only in the console stays editable on the stream: it
    comes back into force when the session moves there. */
-.row-switch.pfconsole { opacity: .6; }
 
 /* The threshold sits on the row of its switch; on a narrow screen the field
    drops under the caption rather than squeezing it. */

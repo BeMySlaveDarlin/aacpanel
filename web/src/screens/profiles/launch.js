@@ -231,10 +231,9 @@ function StreamBlock() {
         <div class="pfstream">
             <span class="pflabel">On the stream</span>
             <span class="pfhelp">takes effect at the next start: the session is answered in the feed — there is no terminal and no window on the host</span>
-            <span class="pfhelp">holds here too: the model, the effort, the permission mode, the starting intent, the environment and finalizing</span>
-            <span class="pfhelp">remote control does not reach a session on the stream — claude.ai has no terminal to attach to</span>
+            <span class="pfhelp">holds here too: the model, the effort, the permission mode, remote control, the starting intent, the environment and finalizing</span>
             <span class="pfhelp warn">the extra arguments go to <code>claude -p</code>: one only the terminal knows stops the session at its start</span>
-            <span class="pfhelp">what the feed cannot do yet — /model, the screens of commands — is in the console: the ⇄ button in the conversation header moves the session there and back</span>
+            <span class="pfhelp">what the feed cannot do yet is in the console: the terminal of the pair of views in the conversation header moves the session there and back</span>
         </div>
     `;
 }
@@ -299,15 +298,13 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
         </label>
         ${stream && html`<${StreamBlock} />`}
 
-        <label class=${`row-switch${stream ? " pfconsole" : ""}`}>
+        <label class="row-switch">
             <input type="checkbox" checked=${Boolean(l.remoteControl)}
                    onChange=${(e) => set({ remoteControl: e.target.checked })} />
-            start with remote control${stream ? " — in the console only" : ""}
+            start with remote control
         </label>
         <span class="pfhelp">
-            ${stream
-                ? "kept for the console: it is turned on when the session moves there"
-                : parent.remoteControl ? "unchecked — as in the profile: on" : "unchecked — do not turn it on"}
+            ${parent.remoteControl ? "unchecked — as in the profile: on" : "unchecked — do not turn it on"}
         </span>
 
         <div class="pfguard">
