@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// A note that offers a way back: a button a finger can press on a toast that
+// lets touches through, and the note goes away as it is pressed.
+import { h, render } from "preact";
+import { ToastHost, useToast } from "/src/ui/toasts.js";
+
+let show = null;
+function Grab() {
+    show = useToast();
+    return null;
+}
+render(h(ToastHost, null, h(Grab)), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+window.done = (async () => {
+    await sleep(50);
+    const out = {};
+    show("Project \"aacpanel\" deleted");
+    await sleep(250);
+    out.plainButtons = document.querySelectorAll(".toast button").length;
+
+    let ran = 0;
+    show("Project \"aacpanel\" deleted", undefined, false, { label: "Undo", run: () => { ran++; } });
+    await sleep(250);
+    const button = document.querySelector(".toast .tact");
+    const b = button ? button.getBoundingClientRect() : null;
+    out.button = b ? { width: Math.round(b.width), height: Math.round(b.height), label: button.textContent.trim(),
+                       pointer: getComputedStyle(button).pointerEvents } : null;
+    const hit = b ? document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) : null;
+    out.hitsButton = hit === button;
+    if (button) button.click();
+    await sleep(250);
+    out.ran = ran;
+    out.onAfter = Boolean(document.querySelector(".toast.on"));
+    return out;
+})();
+</script>

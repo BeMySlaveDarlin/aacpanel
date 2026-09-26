@@ -169,6 +169,9 @@ var instantActions = map[string]bool{
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
+	// Taking back a deletion is pressed on the note about it, and puts back
+	// what was there a moment ago.
+	"project.restore": true,
 	"disk.hide":       true,
 	"disk.show":       true,
 }

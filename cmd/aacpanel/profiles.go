@@ -171,7 +171,7 @@ func (s *Server) prepareProjectDir(ctx context.Context, p store.ProfileProject) 
 	if err == nil {
 		return nil
 	}
-	if drop := s.db.DeleteProject(ctx, p.ID); drop != nil {
+	if _, drop := s.db.DeleteProject(ctx, p.ID); drop != nil {
 		log.Printf("profile map: the directory for project %d was not created (%v), "+
 			"and the entry was not rolled back either: %v", p.ID, err, drop)
 		return fmt.Errorf("%w; and the map entry was not rolled back either (%v) — "+
@@ -228,11 +228,66 @@ func (s *Server) apiDeleteProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.db.DeleteProject(r.Context(), id); err != nil {
+	entry, err := s.db.DeleteProject(r.Context(), id)
+	if err != nil {
 		profilesError(w, err)
 		return
 	}
-	s.writeProfiles(w, r, nil)
+	// The entry of the journal the deletion made: the screen offers to take
+	// it back by it.
+	s.writeProfiles(w, r, map[string]any{"undo": entry})
+}
+
+// apiProfilesJournal answers the latest changes of the map, the newest first.
+func (s *Server) apiProfilesJournal(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	list, err := s.db.Journal(r.Context(), limit)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"journal": list})
+}
+
+// apiUndoJournal takes back the change a journal entry names: a deleted
+// project comes back as it was.
+func (s *Server) apiUndoJournal(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "the journal entry is not a number", http.StatusBadRequest)
+		return
+	}
+	p, err := s.db.UndoDelete(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotUndoable) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		profilesError(w, err)
+		return
+	}
+	s.writeProfiles(w, r, map[string]any{"project": p})
+}
+
+// mapActor names who changes the map, for its journal: the device of the
+// request, as the actions journal names it.
+func (s *Server) mapActor(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := ""
+		if s.auth != nil {
+			name = s.passkey.DeviceName(r.Context(), s.auth.CurrentDevice(r))
+		}
+		if name == "" {
+			name = "unknown device"
+		}
+		next(w, r.WithContext(store.WithActor(r.Context(), name)))
+	}
 }
 
 func cascadeAsked(r *http.Request) bool {

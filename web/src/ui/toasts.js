@@ -25,10 +25,12 @@ export function ToastHost({ children }) {
     }, []);
 
     // A repeated show restarts the clock: the last toast gets its full time.
-    const show = useCallback((text, sub, bad = false) => {
+    // act is one way to take back what the note is about — a label and what
+    // it does; the note goes away as it is pressed.
+    const show = useCallback((text, sub, bad = false, act = null) => {
         clearTimeout(timer.current);
         timer.current = setTimeout(hide, LIFETIME);
-        setToast({ text, sub, bad });
+        setToast({ text, sub, bad, act });
     }, [hide]);
 
     // A page put away has had its moment: whoever comes back to it later
@@ -49,7 +51,7 @@ export function ToastHost({ children }) {
     return html`
         <${ToastContext.Provider} value=${api}>
             ${children}
-            <${Toast} toast=${toast} />
+            <${Toast} toast=${toast} onAct=${hide} />
         <//>
     `;
 }

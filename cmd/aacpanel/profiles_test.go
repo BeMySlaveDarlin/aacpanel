@@ -419,6 +419,8 @@ var profileRoutes = []struct {
 }{
 	{"GET /api/profiles", func(s *Server) http.HandlerFunc { return s.apiProfiles }},
 	{"GET /api/profiles/schema", func(s *Server) http.HandlerFunc { return s.apiProfilesSchema }},
+	{"GET /api/profiles/journal", func(s *Server) http.HandlerFunc { return s.apiProfilesJournal }},
+	{"POST /api/profiles/journal/{id}/undo", func(s *Server) http.HandlerFunc { return s.apiUndoJournal }},
 	{"POST /api/profiles", func(s *Server) http.HandlerFunc { return s.apiCreateProfile }},
 	{"PATCH /api/profiles/{id}", func(s *Server) http.HandlerFunc { return s.apiUpdateProfile }},
 	{"DELETE /api/profiles/{id}", func(s *Server) http.HandlerFunc { return s.apiDeleteProfile }},
@@ -467,7 +469,7 @@ func profilesServer(t *testing.T) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"profile_projects", "profile_groups", "profiles"} {
+	for _, table := range []string{"profile_journal", "profile_projects", "profile_groups", "profiles"} {
 		if _, err := pool.Exec(t.Context(), "DELETE FROM "+table); err != nil {
 			t.Fatal(err)
 		}

@@ -42,7 +42,7 @@ func TestDeleteRefusesWhileProjectsInsidePG(t *testing.T) {
 		t.Fatalf("the map slipped after the refusal: %+v", tree)
 	}
 
-	if err := s.DeleteProject(ctx, pr.ID); err != nil {
+	if _, err := s.DeleteProject(ctx, pr.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.DeleteGroup(ctx, g.ID, false); err != nil {

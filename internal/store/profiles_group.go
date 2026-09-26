@@ -19,13 +19,26 @@ func (s *Store) CreateGroup(ctx context.Context, profileID int, e GroupEdit) (g 
 	if err != nil {
 		return g, err
 	}
-	row := pool.QueryRow(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return g, err
+	}
+	defer tx.Rollback(ctx)
+
+	row := tx.QueryRow(ctx, `
 		INSERT INTO profile_groups (profile_id, name, sort)
 		VALUES ($1, $2, COALESCE($3, (SELECT COALESCE(MAX(sort), -1) + 1 FROM profile_groups WHERE profile_id = $1)))
 		RETURNING id, profile_id, name, sort`, profileID, name, e.Sort)
 	g, err = scanGroup(rowOnly{row})
 	if err != nil {
 		return g, groupNameTaken(noParent(err, "there is no profile %d", profileID))
+	}
+	if _, err := journal(ctx, tx, journalRow{entity: journalGroup, id: g.ID, name: g.Name, op: OpCreate,
+		changes: changesOf(nil, normalized(groupFields(g)))}); err != nil {
+		return ProfileGroup{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ProfileGroup{}, err
 	}
 	g.Projects = []ProfileProject{}
 	return g, nil
@@ -58,6 +71,11 @@ func (s *Store) UpdateGroup(ctx context.Context, id int, e GroupEdit) (g Profile
 			return g, err
 		}
 	}
+	before, err := scanGroup(rowOnly{tx.QueryRow(ctx,
+		`SELECT id, profile_id, name, sort FROM profile_groups WHERE id = $1 FOR UPDATE`, id)})
+	if err != nil {
+		return g, missing(err, "there is no group %d", id)
+	}
 
 	row := tx.QueryRow(ctx, `
 		UPDATE profile_groups SET
@@ -72,6 +90,12 @@ func (s *Store) UpdateGroup(ctx context.Context, id int, e GroupEdit) (g Profile
 	g, err = scanGroup(rowOnly{row})
 	if err != nil {
 		return g, groupNameTaken(missing(err, "there is no group %d", id))
+	}
+	if changes := changesOf(normalized(groupFields(before)), normalized(groupFields(g))); len(changes) > 0 {
+		if _, err := journal(ctx, tx, journalRow{entity: journalGroup, id: g.ID, name: g.Name, op: OpUpdate,
+			changes: changes}); err != nil {
+			return ProfileGroup{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ProfileGroup{}, err
@@ -119,9 +143,18 @@ func (s *Store) DeleteGroup(ctx context.Context, id int, cascade bool) (err erro
 	}
 	defer tx.Rollback(ctx)
 
+	before, err := scanGroup(rowOnly{tx.QueryRow(ctx,
+		`SELECT id, profile_id, name, sort FROM profile_groups WHERE id = $1 FOR UPDATE`, id)})
+	if err != nil {
+		return missing(err, "there is no group %d", id)
+	}
 	if cascade {
-		if _, err := tx.Exec(ctx,
-			`DELETE FROM profile_projects WHERE group_id = $1`, id); err != nil {
+		rows, err := tx.Query(ctx, `DELETE FROM profile_projects WHERE group_id = $1
+			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, id)
+		if err != nil {
+			return err
+		}
+		if err := journalDeletedProjects(ctx, tx, rows); err != nil {
 			return err
 		}
 	} else {
@@ -141,6 +174,10 @@ func (s *Store) DeleteGroup(ctx context.Context, id int, cascade bool) (err erro
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("%w: there is no group %d", ErrNotFound, id)
+	}
+	if _, err := journal(ctx, tx, journalRow{entity: journalGroup, id: id, name: before.Name, op: OpDelete,
+		changes: changesOf(normalized(groupFields(before)), nil)}); err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }

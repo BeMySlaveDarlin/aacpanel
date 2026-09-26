@@ -129,7 +129,7 @@ func profileStore(t *testing.T) (*Store, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"profile_projects", "profile_groups", "profiles"} {
+	for _, table := range []string{"profile_journal", "profile_projects", "profile_groups", "profiles"} {
 		if _, err := pool.Exec(t.Context(), "DELETE FROM "+table); err != nil {
 			t.Fatal(err)
 		}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 
 import { useAction } from "../../actions/gate.js";
+import { useToast } from "../../ui/toasts.js";
 import { useProfilePage } from "../sessions/pages.js";
 import { moveIds } from "./move.js";
 
@@ -15,6 +16,7 @@ export function useProfileMap() {
     const [form, setForm] = useState(null);
     const [loose, setLoose] = useState(false);
     const run = useAction();
+    const toast = useToast();
 
     const names = (profiles || []).map((p) => p.name);
     const [current, pick] = useProfilePage(names);
@@ -62,11 +64,28 @@ export function useProfileMap() {
         });
     }, []);
 
+    // A deleted project can be taken back from the map's journal: the note
+    // about the deletion offers it while it shows.
     const remove = useCallback(async (spec) => {
         const result = await drop(run, spec);
-        if (result && result.ok) apply(result.data);
+        if (!result || !result.ok) return result;
+        apply(result.data);
+        const entry = result.data && result.data.undo;
+        if (spec.kind === "project" && entry) {
+            const name = spec.project.name;
+            toast(`Project "${name}" deleted`, undefined, false, {
+                label: "Undo",
+                run: async () => {
+                    const back = await run("project.restore", name, { entry });
+                    if (back && back.ok) {
+                        apply(back.data);
+                        toast(`Project "${name}" is back`);
+                    }
+                },
+            });
+        }
         return result;
-    }, [run, apply]);
+    }, [run, apply, toast]);
 
     const reorder = useCallback(async (id, target, params) => {
         const result = await run(id, target, params);

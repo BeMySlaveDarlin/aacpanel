@@ -232,6 +232,9 @@
 .toast.on { opacity: 1; transform: translateY(0); }
 .toast.bad { border-color: rgba(255, 111, 92, .45); }
 .tsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
+/* The one way back the note offers: the toast lets touches through to the
+   screen under it, its button takes them. */
+.toast .tact { align-self: flex-end; min-height: 44px; margin-top: .35rem; pointer-events: auto; }
 
 .picklist { display: flex; flex-direction: column; }
 .picklist .item { display: flex; align-items: baseline; gap: .5rem; margin-top: .25rem; }

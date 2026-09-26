@@ -41,7 +41,13 @@ func (s *Store) CreateProject(ctx context.Context, groupID int, e ProjectEdit) (
 		return p, err
 	}
 
-	row := pool.QueryRow(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return p, err
+	}
+	defer tx.Rollback(ctx)
+
+	row := tx.QueryRow(ctx, `
 		INSERT INTO profile_projects (group_id, name, path, session_name, base_branch, sort, launch)
 		VALUES ($1, $2, $3, COALESCE($4, ''), COALESCE($7, ''), COALESCE($5, (SELECT COALESCE(MAX(sort), -1) + 1 FROM profile_projects WHERE group_id = $1)), COALESCE($6, '{}'::jsonb))
 		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`,
@@ -49,6 +55,13 @@ func (s *Store) CreateProject(ctx context.Context, groupID int, e ProjectEdit) (
 	p, err = scanProject(rowOnly{row})
 	if err != nil {
 		return p, s.pathTaken(ctx, noParent(err, "there is no group %d", groupID), path)
+	}
+	if _, err := journal(ctx, tx, journalRow{entity: journalProject, id: p.ID, name: p.Name, op: OpCreate,
+		changes: changesOf(nil, normalized(projectFields(p)))}); err != nil {
+		return ProfileProject{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ProfileProject{}, err
 	}
 	return p, nil
 }
@@ -112,6 +125,12 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 			return p, err
 		}
 	}
+	before, err := scanProject(rowOnly{tx.QueryRow(ctx, `
+		SELECT id, group_id, name, path, session_name, base_branch, sort, launch
+		FROM profile_projects WHERE id = $1 FOR UPDATE`, id)})
+	if err != nil {
+		return p, missing(err, "there is no project %d", id)
+	}
 
 	row := tx.QueryRow(ctx, `
 		UPDATE profile_projects SET
@@ -135,6 +154,12 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 			pathVal = *path
 		}
 		return p, s.pathTaken(ctx, missing(err, "there is no project %d", id), pathVal)
+	}
+	if changes := changesOf(normalized(projectFields(before)), normalized(projectFields(p))); len(changes) > 0 {
+		if _, err := journal(ctx, tx, journalRow{entity: journalProject, id: p.ID, name: p.Name, op: OpUpdate,
+			changes: changes}); err != nil {
+			return ProfileProject{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ProfileProject{}, err
@@ -170,22 +195,33 @@ func checkMove(ctx context.Context, q interface {
 	return nil
 }
 
-// DeleteProject removes a project.
-func (s *Store) DeleteProject(ctx context.Context, id int) (err error) {
+// DeleteProject removes a project and returns the journal entry that can put
+// it back.
+func (s *Store) DeleteProject(ctx context.Context, id int) (entry int64, err error) {
 	defer func() { err = Unavailable(err) }()
 
 	pool, err := s.Pool()
 	if err != nil {
-		return err
+		return 0, err
 	}
-	tag, err := pool.Exec(ctx, `DELETE FROM profile_projects WHERE id = $1`, id)
+	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("%w: there is no project %d", ErrNotFound, id)
+	defer tx.Rollback(ctx)
+
+	p, err := scanProject(rowOnly{tx.QueryRow(ctx, `
+		DELETE FROM profile_projects WHERE id = $1
+		RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, id)})
+	if err != nil {
+		return 0, missing(err, "there is no project %d", id)
 	}
-	return nil
+	entry, err = journal(ctx, tx, journalRow{entity: journalProject, id: p.ID, name: p.Name, op: OpDelete,
+		changes: changesOf(normalized(projectFields(p)), nil), before: keptProject(p)})
+	if err != nil {
+		return 0, err
+	}
+	return entry, tx.Commit(ctx)
 }
 
 // ProjectBase returns the branch a review of this project is measured against,

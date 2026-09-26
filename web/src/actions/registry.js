@@ -628,6 +628,17 @@ export const ACTIONS = {
             path: (target, params) => `/api/projects/${params.id}`,
         },
     },
+    // A deletion of a project taken back from the map's journal: pressed on
+    // the note about the deletion, it puts back what was there a moment ago.
+    "project.restore": {
+        instant: true,
+        done: (target) => `Project "${target}" is back`,
+        journaled: false,
+        send: {
+            verb: "POST",
+            path: (target, params) => `/api/profiles/journal/${params.entry}/undo`,
+        },
+    },
     "profile.reorder": {
         instant: true,
         done: () => "Order saved",
@@ -729,6 +740,7 @@ const NAMES = {
     "project.add": "Create project",
     "project.edit": "Edit project",
     "project.remove": "Delete project",
+    "project.restore": "Restore project",
     "disk.hide": "Hide directory",
     "disk.show": "Restore directory",
     "profile.reorder": "Reorder profile",

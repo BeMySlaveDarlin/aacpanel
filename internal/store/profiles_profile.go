@@ -41,13 +41,26 @@ func (s *Store) CreateProfile(ctx context.Context, e ProfileEdit) (p Profile, er
 		return p, err
 	}
 
-	row := pool.QueryRow(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return p, err
+	}
+	defer tx.Rollback(ctx)
+
+	row := tx.QueryRow(ctx, `
 		INSERT INTO profiles (name, config_dir, prefix, claude_bin, sort, launch)
 		VALUES ($1, $2, $3, $4, COALESCE($5, (SELECT COALESCE(MAX(sort), -1) + 1 FROM profiles)), COALESCE($6, '{}'::jsonb))
 		RETURNING `+profileCols, name, configDir, prefix, claudeBin, e.Sort, launch)
 	p, err = scanProfile(rowOnly{row})
 	if err != nil {
 		return p, nameTaken(err)
+	}
+	if _, err := journal(ctx, tx, journalRow{entity: journalContour, id: p.ID, name: p.Name, op: OpCreate,
+		changes: changesOf(nil, normalized(contourFields(p)))}); err != nil {
+		return Profile{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Profile{}, err
 	}
 	return p, nil
 }
@@ -107,6 +120,10 @@ func (s *Store) UpdateProfile(ctx context.Context, id int, e ProfileEdit) (p Pro
 	}
 	defer tx.Rollback(ctx)
 
+	before, err := scanProfile(rowOnly{tx.QueryRow(ctx, `SELECT `+profileCols+` FROM profiles WHERE id = $1 FOR UPDATE`, id)})
+	if err != nil {
+		return p, missing(err, "there is no profile %d", id)
+	}
 	if ops {
 		launch, err = launchChange(ctx, tx, "profiles", id, e.LaunchSet, e.LaunchUnset, schema.LevelContour)
 		if err != nil {
@@ -128,6 +145,12 @@ func (s *Store) UpdateProfile(ctx context.Context, id int, e ProfileEdit) (p Pro
 	if err != nil {
 		return p, nameTaken(missing(err, "there is no profile %d", id))
 	}
+	if changes := changesOf(normalized(contourFields(before)), normalized(contourFields(p))); len(changes) > 0 {
+		if _, err := journal(ctx, tx, journalRow{entity: journalContour, id: p.ID, name: p.Name, op: OpUpdate,
+			changes: changes}); err != nil {
+			return Profile{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Profile{}, err
 	}
@@ -148,10 +171,19 @@ func (s *Store) DeleteProfile(ctx context.Context, id int, cascade bool) (err er
 	}
 	defer tx.Rollback(ctx)
 
+	before, err := scanProfile(rowOnly{tx.QueryRow(ctx, `SELECT `+profileCols+` FROM profiles WHERE id = $1 FOR UPDATE`, id)})
+	if err != nil {
+		return missing(err, "there is no profile %d", id)
+	}
 	if cascade {
-		if _, err := tx.Exec(ctx, `
+		rows, err := tx.Query(ctx, `
 			DELETE FROM profile_projects
-			 WHERE group_id IN (SELECT id FROM profile_groups WHERE profile_id = $1)`, id); err != nil {
+			 WHERE group_id IN (SELECT id FROM profile_groups WHERE profile_id = $1)
+			RETURNING id, group_id, name, path, session_name, base_branch, sort, launch`, id)
+		if err != nil {
+			return err
+		}
+		if err := journalDeletedProjects(ctx, tx, rows); err != nil {
 			return err
 		}
 	} else {
@@ -173,6 +205,10 @@ func (s *Store) DeleteProfile(ctx context.Context, id int, cascade bool) (err er
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("%w: there is no profile %d", ErrNotFound, id)
+	}
+	if _, err := journal(ctx, tx, journalRow{entity: journalContour, id: id, name: before.Name, op: OpDelete,
+		changes: changesOf(normalized(contourFields(before)), nil)}); err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }
