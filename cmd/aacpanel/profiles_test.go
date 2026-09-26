@@ -418,6 +418,7 @@ var profileRoutes = []struct {
 	handler func(*Server) http.HandlerFunc
 }{
 	{"GET /api/profiles", func(s *Server) http.HandlerFunc { return s.apiProfiles }},
+	{"GET /api/profiles/schema", func(s *Server) http.HandlerFunc { return s.apiProfilesSchema }},
 	{"POST /api/profiles", func(s *Server) http.HandlerFunc { return s.apiCreateProfile }},
 	{"PATCH /api/profiles/{id}", func(s *Server) http.HandlerFunc { return s.apiUpdateProfile }},
 	{"DELETE /api/profiles/{id}", func(s *Server) http.HandlerFunc { return s.apiDeleteProfile }},

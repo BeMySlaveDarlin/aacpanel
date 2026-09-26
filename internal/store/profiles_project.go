@@ -89,12 +89,23 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 	if err != nil {
 		return p, err
 	}
+	ops, err := launchOps(e.Launch, e.LaunchSet, e.LaunchUnset)
+	if err != nil {
+		return p, err
+	}
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return p, err
 	}
 	defer tx.Rollback(ctx)
+
+	if ops {
+		launch, err = launchChange(ctx, tx, "profile_projects", id, e.LaunchSet, e.LaunchUnset, schema.LevelProject)
+		if err != nil {
+			return p, err
+		}
+	}
 
 	if e.GroupID != nil {
 		if err := checkMove(ctx, tx, id, *e.GroupID); err != nil {

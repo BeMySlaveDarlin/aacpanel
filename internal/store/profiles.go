@@ -8,6 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"aacpanel/internal/schema"
 )
 
 // ErrNotFound means what was asked for does not exist.
@@ -39,6 +41,9 @@ type Profile struct {
 	Launch    json.RawMessage `json:"launch"`
 	CreatedAt int64           `json:"createdAt"`
 	Groups    []ProfileGroup  `json:"groups"`
+	// Effective is what the contour's projects start with where they say
+	// nothing themselves, parameter by parameter, with the layer of each.
+	Effective []schema.Value `json:"effective"`
 }
 
 // ProfileGroup is a group of projects inside a profile.
@@ -60,6 +65,9 @@ type ProfileProject struct {
 	Base    string          `json:"base"`
 	Sort    int             `json:"sort"`
 	Launch  json.RawMessage `json:"launch"`
+	// Effective is what the project starts with, parameter by parameter,
+	// with the layer of each.
+	Effective []schema.Value `json:"effective"`
 }
 
 // ProfileEdit holds the profile's fields that can be set.
@@ -70,6 +78,10 @@ type ProfileEdit struct {
 	ClaudeBin *string         `json:"claudeBin"`
 	Sort      *int            `json:"sort"`
 	Launch    json.RawMessage `json:"launch"`
+	// LaunchSet and LaunchUnset change some keys of the launch and leave the
+	// rest as stored.
+	LaunchSet   map[string]any `json:"launchSet"`
+	LaunchUnset []string       `json:"launchUnset"`
 }
 
 // GroupEdit holds the group's fields.
@@ -95,6 +107,8 @@ type ProjectEdit struct {
 	MoveProfile bool            `json:"moveProfile"`
 	MoveContour bool            `json:"moveContour"`
 	Launch      json.RawMessage `json:"launch"`
+	LaunchSet   map[string]any  `json:"launchSet"`
+	LaunchUnset []string        `json:"launchUnset"`
 }
 
 // Profiles returns the whole map: profiles, their groups and the projects inside.
@@ -204,3 +218,24 @@ func (r rowOnly) Values() ([]any, error) {
 	return nil, errors.New("the values of a single row cannot be read")
 }
 func (r rowOnly) Conn() *pgx.Conn { return nil }
+
+// FillEffective puts on every contour and project of the map what it starts
+// with, laid the way a launch lays it. A launch that does not parse leaves its
+// entry without values rather than the whole map unreadable.
+func FillEffective(list []Profile) {
+	for i := range list {
+		contour, err := launchObject(list[i].Launch, "the profile")
+		if err != nil {
+			continue
+		}
+		list[i].Effective = schema.Effective(nil, contour, nil)
+		for g := range list[i].Groups {
+			for p := range list[i].Groups[g].Projects {
+				project := &list[i].Groups[g].Projects[p]
+				if own, err := launchObject(project.Launch, "the project"); err == nil {
+					project.Effective = schema.Effective(nil, contour, own)
+				}
+			}
+		}
+	}
+}

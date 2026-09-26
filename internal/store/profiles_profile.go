@@ -96,8 +96,25 @@ func (s *Store) UpdateProfile(ctx context.Context, id int, e ProfileEdit) (p Pro
 	if err != nil {
 		return p, err
 	}
+	ops, err := launchOps(e.Launch, e.LaunchSet, e.LaunchUnset)
+	if err != nil {
+		return p, err
+	}
 
-	row := pool.QueryRow(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return p, err
+	}
+	defer tx.Rollback(ctx)
+
+	if ops {
+		launch, err = launchChange(ctx, tx, "profiles", id, e.LaunchSet, e.LaunchUnset, schema.LevelContour)
+		if err != nil {
+			return p, err
+		}
+	}
+
+	row := tx.QueryRow(ctx, `
 		UPDATE profiles SET
 			name       = COALESCE($2, name),
 			config_dir = COALESCE($3, config_dir),
@@ -110,6 +127,9 @@ func (s *Store) UpdateProfile(ctx context.Context, id int, e ProfileEdit) (p Pro
 	p, err = scanProfile(rowOnly{row})
 	if err != nil {
 		return p, nameTaken(missing(err, "there is no profile %d", id))
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Profile{}, err
 	}
 	return p, nil
 }

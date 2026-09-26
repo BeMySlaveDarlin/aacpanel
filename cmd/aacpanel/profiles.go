@@ -14,6 +14,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/contours"
 	"aacpanel/internal/host"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -24,6 +25,17 @@ func (s *Server) apiProfiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeProfiles(w, r, nil)
+}
+
+// apiProfilesSchema answers what the launch parameters of the map are: the
+// screens are drawn from it, and it needs no database — the schema is built
+// into the service.
+func (s *Server) apiProfilesSchema(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{
+		"params":  schema.Params(),
+		"retired": schema.RetiredKeys(),
+		"layers":  []string{schema.LayerClaude, schema.LayerAccount, schema.LayerContour, schema.LayerProject},
+	})
 }
 
 func (s *Server) apiCreateProfile(w http.ResponseWriter, r *http.Request) {
@@ -316,16 +328,34 @@ func (s *Server) writeProfiles(w http.ResponseWriter, r *http.Request, extra map
 		st := states.of(list[i])
 		list[i].Auth, list[i].Hooks = st.Auth, st.Hooks
 	}
+	store.FillEffective(list)
 	body := map[string]any{"profiles": list, "models": s.modelCatalog(), "disk": s.diskReport(r.Context(), list)}
 	for k, v := range extra {
-		if p, ok := v.(store.Profile); ok {
-			st := states.of(p)
-			p.Auth, p.Hooks = st.Auth, st.Hooks
-			v = p
-		}
-		body[k] = v
+		body[k] = sameEntry(list, v)
 	}
 	writeJSON(w, body)
+}
+
+// sameEntry returns the entry of the map an answer names beside it, as the
+// map has it — with the account state and the effective values filled — so
+// the two never disagree. An entry the map no longer holds goes as it is.
+func sameEntry(list []store.Profile, v any) any {
+	for _, p := range list {
+		if want, ok := v.(store.Profile); ok && p.ID == want.ID {
+			return p
+		}
+		for _, g := range p.Groups {
+			if want, ok := v.(store.ProfileGroup); ok && g.ID == want.ID {
+				return g
+			}
+			for _, project := range g.Projects {
+				if want, ok := v.(store.ProfileProject); ok && project.ID == want.ID {
+					return project
+				}
+			}
+		}
+	}
+	return v
 }
 
 func (s *Server) keepPersonalName(ctx context.Context, id int, name string) error {

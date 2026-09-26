@@ -116,6 +116,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("POST /api/usage/scan", g.page(s.apiUsageScanStart))
 
 	mux.Handle("GET /api/profiles", g.page(s.apiProfiles))
+	mux.Handle("GET /api/profiles/schema", g.page(s.apiProfilesSchema))
 	mux.Handle("POST /api/profiles", g.page(s.apiCreateProfile))
 	mux.Handle("PATCH /api/profiles/{id}", g.page(s.apiUpdateProfile))
 	mux.Handle("DELETE /api/profiles/{id}", g.page(s.apiDeleteProfile))
