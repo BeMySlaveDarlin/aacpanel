@@ -3,6 +3,8 @@ package store
 import (
 	"encoding/json"
 	"strings"
+
+	"aacpanel/internal/schema"
 )
 
 func checkName(name *string, what string) (string, error) {
@@ -91,7 +93,9 @@ func checkBase(base *string) (*string, error) {
 	return &v, nil
 }
 
-func checkLaunch(raw json.RawMessage) (json.RawMessage, error) {
+// checkLaunch refuses launch parameters the launcher would refuse, drop or
+// misread, by the schema: a value saved here is one the next start takes.
+func checkLaunch(raw json.RawMessage, level schema.Level) (json.RawMessage, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -105,31 +109,12 @@ func checkLaunch(raw json.RawMessage) (json.RawMessage, error) {
 	if probe == nil {
 		return nil, badRequest("the launch parameters are not an object")
 	}
-	if err := checkIntent(probe); err != nil {
-		return nil, err
+	if problems := schema.Check(level, probe); len(problems) > 0 {
+		said := make([]string, 0, len(problems))
+		for _, p := range problems {
+			said = append(said, p.String())
+		}
+		return nil, badRequest("the launch parameters would not start as saved — %s", strings.Join(said, "; "))
 	}
 	return raw, nil
-}
-
-func checkIntent(launch map[string]any) error {
-	value, ok := launch["intent"]
-	if !ok {
-		return nil
-	}
-	text, ok := value.(string)
-	if !ok {
-		return badRequest("the opening message is a string, not %T", value)
-	}
-	if len([]rune(text)) > intentMax {
-		return badRequest("the opening message is longer than %d characters", intentMax)
-	}
-	for _, r := range text {
-		if r == '\n' || r == '\t' {
-			continue
-		}
-		if r < 0x20 || r == 0x7f {
-			return badRequest("the opening message holds a forbidden character %q", r)
-		}
-	}
-	return nil
 }

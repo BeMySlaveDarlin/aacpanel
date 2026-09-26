@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+
+	"aacpanel/internal/schema"
 )
 
 // CreateProfile creates a profile.
@@ -34,7 +36,7 @@ func (s *Store) CreateProfile(ctx context.Context, e ProfileEdit) (p Profile, er
 			return p, err
 		}
 	}
-	launch, err := checkLaunch(e.Launch)
+	launch, err := checkLaunch(e.Launch, schema.LevelContour)
 	if err != nil {
 		return p, err
 	}
@@ -90,7 +92,7 @@ func (s *Store) UpdateProfile(ctx context.Context, id int, e ProfileEdit) (p Pro
 		}
 		claudeBin = &v
 	}
-	launch, err := checkLaunch(e.Launch)
+	launch, err := checkLaunch(e.Launch, schema.LevelContour)
 	if err != nil {
 		return p, err
 	}

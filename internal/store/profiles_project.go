@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+
+	"aacpanel/internal/schema"
 )
 
 // CreateProject creates a project in a group.
@@ -34,7 +36,7 @@ func (s *Store) CreateProject(ctx context.Context, groupID int, e ProjectEdit) (
 	if err != nil {
 		return p, err
 	}
-	launch, err := checkLaunch(e.Launch)
+	launch, err := checkLaunch(e.Launch, schema.LevelProject)
 	if err != nil {
 		return p, err
 	}
@@ -83,7 +85,7 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 	if err != nil {
 		return p, err
 	}
-	launch, err := checkLaunch(e.Launch)
+	launch, err := checkLaunch(e.Launch, schema.LevelProject)
 	if err != nil {
 		return p, err
 	}

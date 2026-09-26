@@ -12,7 +12,7 @@ func TestIntentKeyIsSpelledTheSameEverywhere(t *testing.T) {
 		file string
 		want string
 	}{
-		{"../store/profiles_check.go", "launch[" + quoted + "]"},
+		{"../schema/schema.go", "Key: " + quoted},
 		{"../../web/src/screens/profiles/launch.js", "key === " + quoted},
 		{"../../web/src/screens/profiles/launch.js", "l." + keyIntent},
 	} {

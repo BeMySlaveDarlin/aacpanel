@@ -37,9 +37,9 @@ func switchServer(t *testing.T, projectTransport, liveTransport string) (*Server
 	if err != nil {
 		t.Fatal(err)
 	}
-	launch := json.RawMessage(`{"room":"work"}`)
+	launch := json.RawMessage(`{"effort":"high"}`)
 	if projectTransport != "" {
-		launch = json.RawMessage(`{"room":"work","transport":"` + projectTransport + `"}`)
+		launch = json.RawMessage(`{"effort":"high","transport":"` + projectTransport + `"}`)
 	}
 	if _, err := srv.db.CreateProject(t.Context(), g.ID, store.ProjectEdit{
 		Name: &project, Path: &dir, Launch: launch,
@@ -106,7 +106,7 @@ func TestSessionSwitchCarriesTheLiveNameAndProjectPG(t *testing.T) {
 		t.Errorf("the session would come back as %q, not under its own name", got.Project.Session)
 	}
 	var launch map[string]any
-	if err := json.Unmarshal(got.Project.Launch, &launch); err != nil || launch["model"] != "opus" || launch["room"] != "work" {
+	if err := json.Unmarshal(got.Project.Launch, &launch); err != nil || launch["model"] != "opus" || launch["effort"] != "high" {
 		t.Errorf("the launch parameters of the map did not come along: %s", got.Project.Launch)
 	}
 }

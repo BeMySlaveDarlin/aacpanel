@@ -23,7 +23,7 @@ func tree() []store.Profile {
 			Groups: []store.ProfileGroup{
 				{ID: 10, Name: "Services", Projects: []store.ProfileProject{
 					{ID: 100, GroupID: 10, Name: "aacpanel", Path: "/srv/proj/Beta/service/aacpanel",
-						Launch: json.RawMessage(`{"room":"home"}`)},
+						Launch: json.RawMessage(`{"effort":"low"}`)},
 					{ID: 101, GroupID: 10, Name: "the main host session", Path: "/home/u", Session: "home"},
 				}},
 				{ID: 11, Name: "Empty"},
@@ -335,7 +335,7 @@ func fillMap(t *testing.T, srv *Server, root string) int {
 	}
 	project := "aacpanel"
 	p, err := srv.db.CreateProject(t.Context(), g.ID, store.ProjectEdit{
-		Name: &project, Path: &dir, Launch: json.RawMessage(`{"room":"work"}`),
+		Name: &project, Path: &dir, Launch: json.RawMessage(`{"effort":"high"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -371,7 +371,7 @@ func TestSessionOpenCarriesProjectToExecutorPG(t *testing.T) {
 	if launch["model"] != "opus" {
 		t.Errorf("the profile parameters were not poured in: %v", launch)
 	}
-	if launch["room"] != "work" {
+	if launch["effort"] != "high" {
 		t.Errorf("the project parameters were lost: %v", launch)
 	}
 

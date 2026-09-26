@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/schema"
 )
 
 func TestLaunchMustBeObjectPG(t *testing.T) {
@@ -26,6 +28,8 @@ func TestLaunchMustBeObjectPG(t *testing.T) {
 }
 
 func TestIntentIsCheckedAsOurOwnKey(t *testing.T) {
+	intent, _ := schema.Find("intent")
+	intentMax := intent.MaxLen
 	bad := []struct {
 		name   string
 		launch string
@@ -36,7 +40,7 @@ func TestIntentIsCheckedAsOurOwnKey(t *testing.T) {
 	}
 	for _, c := range bad {
 		t.Run(c.name, func(t *testing.T) {
-			if _, err := checkLaunch(json.RawMessage(c.launch)); err == nil {
+			if _, err := checkLaunch(json.RawMessage(c.launch), schema.LevelProject); err == nil {
 				t.Errorf("such an intent was accepted silently: %s", c.launch)
 			}
 		})
@@ -53,7 +57,7 @@ func TestIntentIsCheckedAsOurOwnKey(t *testing.T) {
 	}
 	for _, c := range good {
 		t.Run(c.name, func(t *testing.T) {
-			if _, err := checkLaunch(json.RawMessage(c.launch)); err != nil {
+			if _, err := checkLaunch(json.RawMessage(c.launch), schema.LevelProject); err != nil {
 				t.Errorf("a legitimate intent was rejected: %v", err)
 			}
 		})

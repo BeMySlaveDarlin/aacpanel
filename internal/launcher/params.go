@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"aacpanel/internal/schema"
 )
 
 const (
@@ -15,7 +17,6 @@ const (
 	keyFinalizeAt     = "finalizeAt"
 	keyEnv            = "env"
 	keyArgs           = "args"
-	keyRoom           = "room"
 	keyIntent         = "intent"
 	keyTransport      = "transport"
 )
@@ -28,12 +29,6 @@ const (
 	TransportStream = "stream"
 )
 
-// The efforts claude takes at launch. Ultracode is not one of them: claude
-// drops it with a line on the terminal and starts at its default effort, so the
-// launcher names it instead of passing it on — a live session takes it from the
-// composer.
-var launchEfforts = []string{"low", "medium", "high", "xhigh", "max"}
-
 // Params is what makes one launch differ from another.
 type Params struct {
 	Model          string
@@ -43,7 +38,6 @@ type Params struct {
 	FinalizeAt     int
 	Env            map[string]string
 	Args           []string
-	Room           string
 	Intent         string
 	Transport      string
 }
@@ -67,20 +61,32 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 
 	var unknown []string
 	for key := range obj {
+		// The schema is the list of keys: a key it does not hold is unknown,
+		// and a retired one is passed over in silence — scripts outside the
+		// panel still send it, and it asks nothing of the launch.
+		if _, ok := schema.Find(key); !ok {
+			if _, gone := schema.Retire(key); !gone {
+				unknown = append(unknown, key)
+			}
+			continue
+		}
 		switch key {
 		case keyModel:
 			str(key, &p.Model)
 		case keyEffort:
+			// The efforts of the schema are the ones claude takes at launch.
+			// Ultracode is not among them: claude drops it with a line on the
+			// terminal and starts at its default effort, so the launcher names
+			// it instead of passing it on — a live session takes it from the
+			// composer.
 			str(key, &p.Effort)
-			if p.Effort != "" && !slices.Contains(launchEfforts, p.Effort) {
-				warns = append(warns, fmt.Sprintf("parameter effort is %q, which claude does not take at launch (%s) — "+
-					"the session starts at its default effort", p.Effort, strings.Join(launchEfforts, ", ")))
+			if effort, _ := schema.Find(key); p.Effort != "" && !effort.Offers(p.Effort) {
+				warns = append(warns, fmt.Sprintf("parameter effort is %q, which claude does not take at launch — "+
+					"the session starts at its default effort", p.Effort))
 				p.Effort = ""
 			}
 		case keyPermissionMode:
 			str(key, &p.PermissionMode)
-		case keyRoom:
-			str(key, &p.Room)
 		case keyIntent:
 			str(key, &p.Intent)
 		case keyTransport:
@@ -119,7 +125,7 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 				warns = append(warns, "parameter args is not a list of strings — skipped")
 			}
 		default:
-			unknown = append(unknown, key)
+			warns = append(warns, fmt.Sprintf("parameter %s is in the schema, but the launcher has no use for it — skipped", key))
 		}
 	}
 	if len(unknown) > 0 {

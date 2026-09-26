@@ -23,7 +23,6 @@ const (
 	profileNameMax = 200
 	profilePathMax = 4096
 	launchMax      = 8 << 10
-	intentMax      = 500
 )
 
 // Profile is a contour with its own configuration directory and projects.
