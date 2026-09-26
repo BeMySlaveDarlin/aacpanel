@@ -52,6 +52,8 @@ type fakeSeen struct {
 	found bool
 	seen  bool
 	ended bool
+	mode  string
+	since []int64
 	end   int64
 	asks  int
 	marks []string
@@ -98,8 +100,12 @@ func (f *fakeSeen) answer(conn net.Conn) {
 	f.mu.Lock()
 	f.asks++
 	reply := seenReply{OK: true, Found: f.found, Pos: f.end}
-	if req.Ask == seenAskTurn {
+	switch req.Ask {
+	case seenAskTurn:
 		reply = seenReply{OK: true, Found: f.found, Ended: f.ended}
+	case seenAskMode:
+		f.since = append(f.since, req.Since)
+		reply = seenReply{OK: true, Found: f.found, Mode: f.mode}
 	}
 	if req.Pos != nil {
 		f.marks = append(f.marks, req.Mark)

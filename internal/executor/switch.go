@@ -1,11 +1,9 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -342,55 +340,21 @@ func sessionModelsDirs() []string {
 	return out
 }
 
-// transcriptMode reads the permission mode a console was last in off the end
-// of its transcript: every message a person sends carries it. Only a message
-// sent since the console started counts — an older one was written by another
-// process of the same conversation, perhaps on the other side, and says
-// nothing of this one. A mode changed after the last message is not in the
+// transcriptMode asks the collector for the permission mode a console was
+// last in: every message a person sends carries it, and the transcript is the
+// collector's to read, not the executor's. Only a message sent since the
+// console started counts — an older one was written by another process of the
+// same conversation. A mode changed after the last message is not in the
 // transcript at all.
 func transcriptMode(sessionID string, since time.Time) string {
-	for _, conf := range registry.ConfigDirs() {
-		found, _ := filepath.Glob(filepath.Join(conf, "projects", "*", sessionID+".jsonl"))
-		for _, path := range found {
-			if mode := lastMode(path, since); mode != "" {
-				return mode
-			}
-		}
-	}
-	return ""
-}
-
-func lastMode(path string, since time.Time) string {
-	f, err := os.Open(path)
-	if err != nil {
+	if sessionID == "" {
 		return ""
 	}
-	defer f.Close()
-	if info, err := f.Stat(); err == nil && info.Size() > transcriptTailBytes {
-		_, _ = f.Seek(info.Size()-transcriptTailBytes, io.SeekStart)
-	}
-	tail, err := io.ReadAll(f)
-	if err != nil {
+	reply, err := askSeen(seenSocket(), seenReq{Session: sessionID, Ask: seenAskMode, Since: since.UnixMilli()})
+	if err != nil || !reply.OK || !reply.Found {
 		return ""
 	}
-	lines := bytes.Split(tail, []byte("\n"))
-	for i := len(lines) - 1; i >= 0; i-- {
-		if !bytes.Contains(lines[i], []byte(`"permissionMode"`)) {
-			continue
-		}
-		var rec struct {
-			Mode string    `json:"permissionMode"`
-			At   time.Time `json:"timestamp"`
-		}
-		if json.Unmarshal(lines[i], &rec) != nil || rec.Mode == "" {
-			continue
-		}
-		if rec.At.Before(since) {
-			return ""
-		}
-		return rec.Mode
-	}
-	return ""
+	return reply.Mode
 }
 
 // switchedLaunch is the project's launch with the other transport and what

@@ -17,23 +17,30 @@ const (
 	transcriptLookup = 450 * time.Millisecond
 )
 
-// seenAskTurn asks whether the session's own turn is over, instead of
-// whether a prompt landed.
-const seenAskTurn = "turn"
+// What else the collector is asked about a conversation, instead of whether a
+// prompt landed: whether the session's own turn is over, and the permission
+// mode it was last in.
+const (
+	seenAskTurn = "turn"
+	seenAskMode = "mode"
+)
 
 type seenReq struct {
 	Session string `json:"session"`
 	Pos     *int64 `json:"pos,omitempty"`
 	Mark    string `json:"mark,omitempty"`
 	Ask     string `json:"ask,omitempty"`
+	// Since is when the console started, in epoch milliseconds.
+	Since int64 `json:"since,omitempty"`
 }
 
 type seenReply struct {
-	OK    bool  `json:"ok"`
-	Found bool  `json:"found"`
-	Pos   int64 `json:"pos"`
-	Seen  bool  `json:"seen"`
-	Ended bool  `json:"ended"`
+	OK    bool   `json:"ok"`
+	Found bool   `json:"found"`
+	Pos   int64  `json:"pos"`
+	Seen  bool   `json:"seen"`
+	Ended bool   `json:"ended"`
+	Mode  string `json:"mode,omitempty"`
 }
 
 type transcriptTail struct {

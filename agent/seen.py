@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Whether a prompt landed in the conversation: a mark in, a fact out."""
 
+import datetime
 import json
 import os
 import socket
@@ -135,6 +136,40 @@ def turn_ended(text):
     return None
 
 
+def last_mode(text, since):
+    """Returns the permission mode a console was last in, or "".
+
+    Every message a person sends carries the mode, so the end of a conversation
+    has it. Only a message sent since the console started counts (since, in
+    epoch milliseconds): an older one was written by another process of the
+    same conversation and says nothing of this one.
+    """
+    for line in reversed(text.splitlines()):
+        line = line.strip()
+        if not line.startswith("{") or '"permissionMode"' not in line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        mode = record.get("permissionMode") if isinstance(record, dict) else None
+        if not isinstance(mode, str) or not mode:
+            continue
+        at = epoch_ms(record.get("timestamp"))
+        return mode if at is not None and at >= since else ""
+    return ""
+
+
+def epoch_ms(stamp):
+    """Returns an ISO timestamp as epoch milliseconds, or None."""
+    if not isinstance(stamp, str) or not stamp:
+        return None
+    try:
+        return int(datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp() * 1000)
+    except ValueError:
+        return None
+
+
 def end_of(path):
     """Returns the whole lines at the end of a file."""
     with open(path, "rb") as f:
@@ -177,6 +212,16 @@ def answer(request):
         return {"ok": False, "error": f"the mark is longer than {MAX_MARK} characters"}
 
     path = locate(session)
+    if request.get("ask") == "mode":
+        since = request.get("since")
+        if not isinstance(since, int) or isinstance(since, bool) or since < 0:
+            return {"ok": False, "error": "since is not a time"}
+        if not path:
+            return {"ok": True, "found": False, "mode": ""}
+        try:
+            return {"ok": True, "found": True, "mode": last_mode(end_of(path), since)}
+        except OSError:
+            return {"ok": True, "found": False, "mode": ""}
     if request.get("ask") == "turn":
         if not path:
             return {"ok": True, "found": False, "ended": False}

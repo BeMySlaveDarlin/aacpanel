@@ -203,3 +203,34 @@ class TurnEnded(Seen):
 
     def test_a_conversation_with_no_word_yet_is_not_known(self):
         self.assertEqual(self.turn(), (False, False))
+
+
+class LastMode(Seen):
+    """The mode a console was last in, for a move of it to the feed."""
+
+    START = 1790000000000  # 2026-09-21T14:13:20Z
+
+    def mode(self, since=START):
+        reply = seen.answer({"session": TALK, "ask": "mode", "since": since})
+        self.assertTrue(reply["ok"])
+        return reply["mode"]
+
+    def test_the_last_mode_said_since_the_start(self):
+        self.append(json.dumps({"type": "user", "permissionMode": "default", "timestamp": "2026-09-21T14:14:00Z"}))
+        self.append(json.dumps({"type": "assistant", "message": {"stop_reason": "end_turn"}}))
+        self.append(json.dumps({"type": "user", "permissionMode": "plan", "timestamp": "2026-09-21T14:15:00.5Z"}))
+        self.append(json.dumps({"type": "assistant", "message": {"stop_reason": "end_turn"}}))
+        self.assertEqual(self.mode(), "plan")
+
+    def test_a_mode_said_before_the_start_is_another_process(self):
+        self.append(json.dumps({"type": "user", "permissionMode": "auto", "timestamp": "2026-09-21T14:13:19.999Z"}))
+        self.assertEqual(self.mode(), "")
+
+    def test_a_fraction_of_a_second_is_read_as_time_not_as_text(self):
+        self.append(json.dumps({"type": "user", "permissionMode": "auto", "timestamp": "2026-09-21T14:13:20.5Z"}))
+        self.assertEqual(self.mode(), "auto")
+
+    def test_a_start_that_is_not_a_time_is_refused(self):
+        for since in (None, "2026-09-21", True, -1):
+            reply = seen.answer({"session": TALK, "ask": "mode", "since": since})
+            self.assertFalse(reply["ok"], f"since {since!r} was taken")

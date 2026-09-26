@@ -57,6 +57,7 @@ func consoleStand(t *testing.T, status string, args ...string) string {
 	t.Setenv(registry.HomeEnv, conf)
 	t.Setenv(registry.RegistryEnv, "")
 	t.Setenv(sessionModelsEnv, filepath.Join(conf, "session-models"))
+	noSeen(t)
 	fakeWindowTmux(t, []string{"1004 demo:0.0"}, nil, dir)
 	return dir
 }
@@ -160,7 +161,6 @@ func TestSwitchToConsoleResumesTheSameConversation(t *testing.T) {
 
 func TestSwitchToStreamCarriesWhatTheConsoleShows(t *testing.T) {
 	dir := consoleStand(t, "idle")
-	conf := os.Getenv(registry.HomeEnv)
 	models := os.Getenv(sessionModelsEnv)
 	if err := os.MkdirAll(models, 0o755); err != nil {
 		t.Fatal(err)
@@ -169,11 +169,8 @@ func TestSwitchToStreamCarriesWhatTheConsoleShows(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(models, consoleSID+".json"), []byte(seen), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	writeTranscript(t, conf,
-		`{"type":"user","permissionMode":"default","timestamp":"2026-09-24T09:00:00Z"}`,
-		`{"type":"assistant","message":{"model":"claude-opus-5-5"}}`,
-		`{"type":"user","permissionMode":"auto","timestamp":"2026-09-24T10:05:00Z"}`,
-		`{"type":"assistant","message":{"model":"claude-opus-5-5"}}`)
+	collector := startFakeSeen(t)
+	collector.mode = "auto"
 	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportStream})
 	e, _ := newTest(t, "")
 	signals := withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
@@ -196,26 +193,17 @@ func TestSwitchToStreamCarriesWhatTheConsoleShows(t *testing.T) {
 	if !strings.Contains(detail, "moved in the feed") {
 		t.Errorf("the report %q does not say where the session went", detail)
 	}
-}
-
-func writeTranscript(t *testing.T, conf string, lines ...string) {
-	t.Helper()
-	slug := filepath.Join(conf, "projects", "-proj")
-	if err := os.MkdirAll(slug, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	body := strings.Join(lines, "\n") + "\n"
-	if err := os.WriteFile(filepath.Join(slug, consoleSID+".jsonl"), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
+	if len(collector.since) != 1 || collector.since[0] != consoleStarted.UnixMilli() {
+		t.Errorf("the collector was asked for the mode since %v, not since the console started", collector.since)
 	}
 }
 
 // A console that has not said a word since it started is in the mode it was
-// started with; the mode in the transcript is of a process that came before.
-func TestSwitchToStreamTakesTheStartModeOverAnOlderTranscript(t *testing.T) {
+// started with: the collector names no mode of it, since one said before the
+// start is of a process that came before.
+func TestSwitchToStreamTakesTheStartModeWhenTheConsoleSaidNone(t *testing.T) {
 	dir := consoleStand(t, "idle", "--permission-mode", "acceptEdits")
-	writeTranscript(t, os.Getenv(registry.HomeEnv),
-		`{"type":"user","permissionMode":"auto","timestamp":"2026-09-24T09:59:00Z"}`)
+	startFakeSeen(t)
 	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportStream})
 	e, _ := newTest(t, "")
 	withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
