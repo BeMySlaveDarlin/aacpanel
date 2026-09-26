@@ -415,6 +415,10 @@ func (h *Holder) onSystem(ev event) {
 	h.mu.Lock()
 	switch ev.Subtype {
 	case "init":
+		// Claude writes it as a turn begins, and only then — a turn it starts
+		// on its own for the news of a background task too, with no word of a
+		// message before it.
+		h.state.Busy = true
 		if ev.Model != "" {
 			h.state.Model = ev.Model
 		}
@@ -803,8 +807,14 @@ func (h *Holder) do(req Request) Reply {
 				return Reply{Error: err.Error()}
 			}
 		}
+		// Claude names the model it runs on with the next turn, not with the
+		// answer: the model the person has just been told was set is not left
+		// to arrive with it.
 		if model, ok := req.Fields["model"].(string); ok && req.Subtype == "set_model" {
 			h.picked("/model " + model)
+			h.mu.Lock()
+			h.state.Model = model
+			h.mu.Unlock()
 			h.saveSummary()
 		}
 		// claude reports a new mode by an event of its own, but a mode the

@@ -56,8 +56,9 @@ func fakeClaude() int {
 			case "interrupt":
 				body = map[string]any{"still_queued": []any{}}
 			case "set_model":
+				// Claude answers and says nothing else: the model comes with
+				// the init of the next turn.
 				model, _ = req["model"].(string)
-				out(map[string]any{"type": "system", "subtype": "init", "model": req["model"]})
 			case "apply_flag_settings":
 				// Claude answers success either way, and a model without
 				// xhigh turns nothing on.
@@ -125,6 +126,16 @@ func fakeClaude() int {
 					map[string]any{"type": "text", "text": "/plugins isn't available in this environment."}}}})
 				result()
 				lifecycle("completed")
+				continue
+			case "news":
+				// The turn for the message ends, and claude starts one of its
+				// own for the news of a background task: an init, and no
+				// lifecycle of any message before it. The turn stays open.
+				out(map[string]any{"type": "user", "uuid": msg["uuid"], "message": msg["message"]})
+				result()
+				out(map[string]any{"type": "system", "subtype": "init", "model": model})
+				out(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": []any{
+					map[string]any{"task_id": text}}})
 				continue
 			case "fresh":
 				// A message queued behind a turn that ends before it can take
@@ -359,6 +370,20 @@ func TestATurnClaudeStartsItselfKeepsTheSessionBusy(t *testing.T) {
 	}
 	r.ask(Request{Op: OpSend, Text: "hello"})
 	r.waitFor("the end of the turn", func(s State) bool { return !s.Busy && len(s.Queue) == 0 })
+}
+
+// The news of a background task starts a turn claude begins by itself, with
+// nothing but its init to say so: the session is busy until its result.
+func TestATurnForTheNewsOfABackgroundTaskKeepsTheSessionBusy(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	r.ask(Request{Op: OpSend, Text: "news"})
+	s := r.waitFor("the turn for the news", func(s State) bool { return len(s.Tasks) == 1 && s.Tasks[0].ID == "news" })
+	if !s.Busy {
+		t.Fatalf("the session answering the news of a background task reads as free: %+v", s)
+	}
+	r.ask(Request{Op: OpSend, Text: "hello"})
+	r.waitFor("the end of the turn", func(s State) bool { return !s.Busy })
 }
 
 func TestAQuestionWaitsForAPersonAndTheAnswerReachesClaude(t *testing.T) {
