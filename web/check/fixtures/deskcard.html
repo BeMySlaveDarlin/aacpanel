@@ -4,24 +4,28 @@
 <style>
 html,body{margin:0}
 #col .deskshell{position:static;height:900px} #col .dkbody{height:900px}
+#root{display:flex;min-width:0;min-height:0} #root > .dkleft{flex:1;min-width:0}
 #talk .deskshell{position:static;height:600px} #talk .dkbody{height:600px}
 #talk .dkbody:not(.withpanel) > .dkright{display:none}
 #phone{width:390px}
 </style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script>document.documentElement.style.setProperty("--ui-scale", "1.2");</script>
-<div id="col"><div class="deskshell"><div class="dkbody" id="root"></div></div></div>
+<div id="col"><div class="deskshell"><div class="dkbody withpanel">
+    <div id="root"></div><section class="dkcenter"></section><aside class="dkright"></aside>
+</div></div></div>
 <div id="talk"><div class="deskshell"><div class="dkbody withpanel" id="body">
     <aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section><aside class="dkright"></aside>
 </div></div></div>
 <div id="phone"></div>
 <script type="module">
-// The card of a session in the desktop column: live and closed apart. The
-// live sessions of a contour keep their places and keys whatever they do; the
-// state is said in the words of the phone, with a quiet line of what the
-// session runs on under it; the one action of a row comes under the pointer
-// and on the open row; the heading counts who waits and opens a new session;
-// the closed conversations stand on a shelf below. Then the header of the
+// The card of a session in the desktop column, with the right panel open:
+// live and closed apart. The live sessions of a contour keep their places and
+// keys whatever they do; the state is said in the words of the phone, with a
+// quiet line of what the session runs on under it; the share and the one
+// action of a row stand on every row in a column of their own; the heading
+// counts who waits and opens a new session; the closed conversations stand on
+// a shelf below with their time and Resume. Then the header of the
 // conversation in two lines, with the right panel open and without, and the
 // time of a closed conversation on the phone.
 import { h, render } from "preact";
@@ -72,10 +76,15 @@ const first = [
     S({ session: "atlas", profile: "personal", contour: 3, project: projects[14], home: true, status: "idle", pct: 10,
         remote: "https://claude.ai/code/session_y" }),
     S({ session: "scratch", profile: "personal", contour: 3, project: null, transport: "tmux", status: "idle", pct: 5 }),
+    // A name longer than the column, both marks and a full context: what
+    // crowds the right column most.
+    S({ session: "evirma-fingerprint-rotation-review", profile: "algo", contour: 1, project: null, transport: "tmux",
+        status: "idle", pct: 99.6, remote: "https://claude.ai/code/session_w" }),
 ];
 // A minute later every one of them stands otherwise, and the list comes in
 // another order.
 const later = [
+    { ...first[6], status: "busy" },
     { ...first[5], pct: 81, status: "busy" },
     { ...first[4], pct: 90 },
     { ...first[3], status: "idle" },
@@ -159,26 +168,60 @@ const facts = (name) => {
             && sp.getBoundingClientRect().right > d.getBoundingClientRect().right + 0.5).map(text),
     };
 };
-const acts = (name) => {
-    const box = rowOf(name) && rowOf(name).querySelector(".dkrowacts");
-    return box ? { visible: getComputedStyle(box).visibility, icons: box.querySelectorAll(".dkact").length } : null;
-};
-
-// The rules that bring the action out under the pointer, read from the
-// stylesheet: headless moves no pointer, so the hover itself is not seen.
-function hoverRules() {
-    const out = { hidden: false, shown: false, resume: false };
-    for (const sheet of document.styleSheets) {
-        for (const rule of sheet.cssRules) {
-            if (!(rule instanceof CSSMediaRule) || !rule.conditionText.includes("hover: hover")) continue;
-            for (const inner of rule.cssRules) {
-                const sel = inner.selectorText || "";
-                if (sel === ".deskshell .dklive > .dkrowacts" && inner.style.visibility === "hidden") out.hidden = true;
-                if (sel.includes(".dklive:hover > .dkrowacts") && sel.includes(".dklive.on > .dkrowacts") && inner.style.visibility === "visible") out.shown = true;
-                if (sel.includes(".dkclosed:hover .dkresume") && inner.style.display === "inline-flex") out.resume = true;
-            }
-        }
+const box = (el) => (el ? el.getBoundingClientRect() : null);
+const hit = (a, b) => Boolean(a && b && a.width > 0 && b.width > 0
+    && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5);
+const clipped = (el) => Boolean(el) && el.scrollWidth > el.clientWidth + 1;
+// rows says of every live row whether its action stands and whether its
+// pieces stand clear of each other and inside the row.
+const rows = () => Array.from(root().querySelectorAll(".dklive:not(.dkghost)")).map((row) => {
+    const r = box(row);
+    const left = Array.from(row.querySelectorAll(".dksessmain > *")).map((el) => [el.className || "name", box(el)]);
+    const num = row.querySelector(".dknum");
+    const icon = row.querySelector(".dkrowacts .dkact");
+    const pct = box(num);
+    const act = box(icon);
+    const detail = box(row.querySelector(".dkdetail"));
+    const say = box(row.querySelector(".dksay"));
+    const bad = [];
+    if (hit(pct, act)) bad.push("share/action");
+    for (const [name, b] of left) {
+        if (hit(b, pct)) bad.push(`${name}/share`);
+        if (hit(b, act)) bad.push(`${name}/action`);
     }
+    if (hit(say, act)) bad.push("state/action");
+    if (hit(say, pct)) bad.push("state/share");
+    if (hit(detail, act)) bad.push("detail/action");
+    if (hit(detail, pct)) bad.push("detail/share");
+    for (const [name, b] of [["share", pct], ["action", act], ["detail", detail]]) {
+        if (b && (b.right > r.right + 0.5 || b.bottom > r.bottom + 0.5)) bad.push(`${name} out of the row`);
+    }
+    if (clipped(num)) bad.push("share cut");
+    const style = icon ? getComputedStyle(icon) : null;
+    const shown = icon && getComputedStyle(row.querySelector(".dkrowacts")).visibility === "visible"
+        && style.visibility === "visible" && style.display !== "none" && Number(style.opacity) === 1 && act.width > 0;
+    return { name: text(row.querySelector(".dkname")), icons: row.querySelectorAll(".dkrowacts .dkact").length,
+        shown: Boolean(shown), bad };
+});
+
+// hiding lists the rules of the stylesheet that take the action of a row, the
+// plus of a heading, Resume or the time of a closed conversation off the
+// screen: none of them waits for the pointer.
+function hiding() {
+    const out = [];
+    const walk = (list) => {
+        for (const rule of list) {
+            if (rule.cssRules && !rule.selectorText) {
+                walk(rule.cssRules);
+                continue;
+            }
+            const sel = rule.selectorText || "";
+            if (!/\.dkrowacts|\.dknew\b|\.dkresume|\.dkclwhen/.test(sel)) continue;
+            const st = rule.style;
+            if (st.visibility === "hidden" || st.display === "none" || st.opacity === "0") out.push(sel);
+        }
+    };
+    for (const sheet of document.styleSheets) walk(sheet.cssRules);
     return out;
 }
 
@@ -205,9 +248,9 @@ window.done = (async () => {
     out.marks = Object.fromEntries(["aacpanel", "atlas", "scratch", "lms"].map((n) => [n,
         Array.from(rowOf(n).querySelectorAll(".dkmark, .dkrc, .dkhome")).map(text)]));
     out.columnText = text(root().querySelector(".dkscroll"));
-    out.acts = { open: acts("aacpanel"), other: acts("person"), home: acts("atlas"), console: acts("scratch") };
+    out.rows = rows();
     out.homeAct = (rowOf("atlas").querySelector(".dkrowacts .dkact") || {}).getAttribute?.("aria-label") || "";
-    out.rules = hoverRules();
+    out.hiding = hiding();
 
     // The shelf.
     out.asked = [...asked];
@@ -216,6 +259,14 @@ window.done = (async () => {
         when: text(r.querySelector(".dkclwhen")), about: text(r.querySelector(".dkabout")),
         dot: Boolean(r.querySelector(".dkdot, .dkkey, .dksessbar")),
         resume: getComputedStyle(r.querySelector(".dkresume")).display,
+        bad: [
+            hit(box(r.querySelector(".dkresume")), box(r.querySelector(".dkabout"))) && "Resume/about",
+            hit(box(r.querySelector(".dkresume")), box(r.querySelector(".dkclwhen"))) && "Resume/time",
+            hit(box(r.querySelector(".dkclwhen")), box(r.querySelector(".dkclcontour"))) && "time/contour",
+            clipped(r.querySelector(".dkclwhen")) && "time cut",
+            clipped(r.querySelector(".dkresume")) && "Resume cut",
+            box(r.querySelector(".dkresume")).right > box(r).right + 0.5 && "Resume out of the row",
+        ].filter(Boolean),
     }));
     root().querySelector(".dkshelfall").click();
     out.archiveOpened = archiveOpened;
@@ -224,7 +275,7 @@ window.done = (async () => {
 
     // The new session of a contour.
     const plus = root().querySelector(".dkscroll > section .dknew");
-    out.plusHidden = getComputedStyle(plus).visibility;
+    out.plus = getComputedStyle(plus).visibility;
     plus.click();
     await sleep(100);
     out.menu = Array.from(root().querySelectorAll(".dknewpop .dknewgroup, .dknewpop .dknewrow")).map((el) =>
@@ -243,7 +294,7 @@ window.done = (async () => {
     out.orderAfter = orders[orders.length - 1];
     out.saysAfter = { aacpanel: say("aacpanel"), person: say("person") };
 
-    // A closed conversation open: its row carries Resume in place of its time.
+    // A closed conversation open: its row carries its time and Resume both.
     sent.length = 0;
     column(first, "lms-admin", "c-lms-admin");
     await sleep(120);

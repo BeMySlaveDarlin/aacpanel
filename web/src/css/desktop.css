@@ -451,15 +451,25 @@
     .dksessbar.s4 i { background: var(--ctx-4); }
 
     /* A live session of the column: its key in a column of its own; the name
-       with the marks of what is unusual about it and how full it is; its
-       state in the words of the phone; a quiet line of what it runs on. The
-       bar of its context runs along the bottom edge, and a session that
-       waits for the person has an edge of its own on the left. */
+       with the marks of what is unusual about it, its state in the words of
+       the phone; on the right, in a column of their own, how full it is and
+       under it the action of the row; a quiet line of what it runs on under
+       all of it. The bar of its context runs along the bottom edge, and a
+       session that waits for the person has an edge of its own on the left. */
     .dksess.dklive {
         grid-template-columns: .8rem minmax(0, 1fr) auto;
-        align-items: start;
-        padding: .4rem .35rem .5rem .55rem;
+        align-items: center;
+        gap: .1rem .45rem;
+        padding: .4rem .45rem .5rem .55rem;
     }
+
+    .dklive > .dkkey { grid-column: 1; grid-row: 1; }
+
+    .dklive > .dksessmain { grid-column: 2; grid-row: 1; }
+
+    .dklive > .dksay { grid-column: 2; grid-row: 2; }
+
+    .dkghost > .dksay { grid-column: 2 / -1; }
 
     .dksess.dklive.dkkid { padding-left: 1.4rem; }
 
@@ -468,13 +478,10 @@
     .dksess.dkghost { cursor: default; }
 
     .dkkey {
-        padding-top: .15rem;
         font-family: var(--mono);
         font-size: var(--t-xs);
         color: var(--ink-faint);
     }
-
-    .dklive .dksessbody { gap: .1rem; }
 
     .dklive .dksessmain { gap: .35rem; min-width: 0; }
 
@@ -484,7 +491,18 @@
 
     .dkghost .dkname { color: var(--ink-dim); }
 
-    .dklive .dknum { margin-left: auto; min-width: 2.4rem; font-family: var(--mono); }
+    /* The right column of a row holds the share on the line of the name and
+       the action on the line of the state, at the same place on every row:
+       the numbers of the column read down one edge and the actions down the
+       same edge under them, and a long name or its marks push neither. */
+    .dklive > .dknum {
+        grid-column: 3;
+        grid-row: 1;
+        justify-self: end;
+        min-width: 2.4rem;
+        font-family: var(--mono);
+        white-space: nowrap;
+    }
 
     .dklive .dknum[data-level="warn"] { font-weight: 600; color: var(--warn); }
 
@@ -545,7 +563,7 @@
        a whole fact at a time rather than in the middle of one. */
     .dkdetail {
         grid-column: 2 / -1;
-        margin-top: .1rem;
+        grid-row: 3;
         display: flex;
         flex-wrap: wrap;
         min-width: 0;
@@ -562,9 +580,9 @@
 
     .dkdetail > span + span::before { content: "·"; margin: 0 .35em; }
 
-    .dklive > .dkrowacts { align-self: center; justify-content: center; width: 1.7rem; margin-left: 0; }
+    .dklive > .dkrowacts { grid-column: 3; grid-row: 2; justify-self: end; margin: 0; }
 
-    .dklive > .dkrowacts .dkact { width: 1.7rem; height: 1.7rem; }
+    .dklive > .dkrowacts .dkact { width: 1.7rem; height: 1.1rem; justify-content: end; }
 
     .dklive > .dkrowacts .dkact svg { width: var(--i-sm); height: var(--i-sm); }
 
@@ -653,7 +671,8 @@
 
     /* The shelf of the closed conversations under all the contours: a heading
        of its own, one line and a phrase per conversation, no dot, no key, no
-       bar; Resume stands in place of the time under the pointer. */
+       bar. The time closes the first line and Resume the second; what the
+       conversation was about gives way to both. */
     .dkshelf { margin-top: .9rem; border-top: var(--hair) solid var(--line); }
 
     .dkshelfhead { display: flex; align-items: center; gap: .4rem; padding: .5rem .55rem .35rem; }
@@ -700,18 +719,29 @@
 
     .dkclcontour { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 
-    .dkclend { flex: none; display: flex; align-items: center; gap: .4rem; margin-left: auto; }
+    .dkclwhen {
+        flex: none;
+        margin-left: auto;
+        font-size: var(--t-xs);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        color: var(--ink-faint);
+    }
 
-    .dkclwhen { font-size: var(--t-xs); font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+    .dkclsub { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+
+    .dkclsub .dkabout { flex: 1 1 auto; }
 
     .dkresume {
+        flex: none;
+        margin-left: auto;
         display: inline-flex;
         align-items: center;
-        height: 1.35rem;
+        height: 1.25rem;
         padding: 0 .5rem;
-        border: var(--hair) solid color-mix(in srgb, var(--accent) 45%, transparent);
+        border: var(--hair) solid color-mix(in srgb, var(--accent) 40%, transparent);
         border-radius: var(--r-pill);
-        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        background: none;
         color: var(--accent);
         font: inherit;
         font-size: var(--t-xs);
@@ -1879,7 +1909,7 @@
     .dkclosed:not(.on):hover { background: var(--glass); }
     .dknew:hover, .dkshelfall:hover { color: var(--ink); background: var(--glass); }
     .dknewrow:not(:disabled):hover { background: var(--glass); }
-    .dkresume:not(.off):hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+    .dkresume:not(.off):hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
     .dktr:hover .dkc-acts { opacity: 1; }
     .dkact:hover { color: var(--ink); }
     .dkact.danger:hover { color: var(--crit); }
@@ -1942,30 +1972,6 @@
     .deskshell .dkc-acts.shown { opacity: 1; }
 }
 
-/* A row of the sessions column does one thing besides opening, and says so
-   under the pointer and on the open row: a column of crosses beside every
-   session reads as a column of warnings. The plus of a contour and Resume of
-   a closed conversation come the same way; where there is no pointer they
-   stand as they are. */
-@media (hover: hover) and (pointer: fine) {
-    .deskshell .dklive > .dkrowacts { visibility: hidden; }
-    .deskshell .dklive:hover > .dkrowacts,
-    .deskshell .dklive.on > .dkrowacts,
-    .deskshell .dklive:focus-visible > .dkrowacts { visibility: visible; }
-
-    .deskshell .dknew { visibility: hidden; }
-    .deskshell .dklimhead:hover .dknew,
-    .deskshell .dknew.on,
-    .deskshell .dknew:focus-visible { visibility: visible; }
-
-    .deskshell .dkclosed .dkresume { display: none; }
-    .deskshell .dkclosed:hover .dkresume,
-    .deskshell .dkclosed.on .dkresume,
-    .deskshell .dkclosed:focus-within .dkresume { display: inline-flex; }
-    .deskshell .dkclosed:hover .dkclwhen,
-    .deskshell .dkclosed.on .dkclwhen,
-    .deskshell .dkclosed:focus-within .dkclwhen { display: none; }
-}
 @media (min-width: 1100px) {
     .dkentry {
         display: flex;

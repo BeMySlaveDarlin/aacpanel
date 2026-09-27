@@ -128,15 +128,13 @@ function GhostLine({ task }) {
     return html`
         <div class="dksess dklive dkghost" role="status">
             <span class="dkkey"></span>
-            <span class="dksessbody">
-                <span class="dksessmain">
-                    <span class="dkname">${task.target}</span>
-                </span>
-                <span class="dksay">
-                    <span class="spin"></span>
-                    <span class="dksaytext">starting on the host</span>
-                    <span class="dksaysince">· ${held(task)} s</span>
-                </span>
+            <span class="dksessmain">
+                <span class="dkname">${task.target}</span>
+            </span>
+            <span class="dksay">
+                <span class="spin"></span>
+                <span class="dksaytext">starting on the host</span>
+                <span class="dksaysince">· ${held(task)} s</span>
             </span>
         </div>
     `;
@@ -144,8 +142,8 @@ function GhostLine({ task }) {
 
 // SessionLine is one live session: its key, name and the marks of what is
 // unusual about it, its state in the words of the phone, the quiet line of
-// what it runs on, and the one thing done to it besides opening — shown
-// under the pointer and on the open row.
+// what it runs on; and on the right, in a column of their own, how full it is
+// and under it the one thing done to it besides opening, on every row.
 function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid = false }) {
     const run = useAction();
     const closing = wait ? wait.of("close", s.session) : null;
@@ -171,28 +169,26 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
             onClick=${() => onPick({ name: s.session, id: s.sessionId })}
         >
             <span class="dkkey">${index >= 0 && index < 9 ? index + 1 : ""}</span>
-            <span class="dksessbody">
-                <span class="dksessmain">
-                    <span class="dkname">${s.session}</span>
-                    ${s.home && html`<span class="dkhome">home</span>`}
-                    ${s.outside && !kid && html`
-                        <span class="dkmark" data-tip=${outsideNote(s)}>
-                            <${Icon.exit} />outside
-                        </span>
-                    `}
-                    ${!s.outside && s.transport !== "stream" && html`
-                        <span class="dkmark" data-tip="Lives in a console of tmux rather than on the feed">
-                            <${Icon.terminal} />console
-                        </span>
-                    `}
-                    ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
-                    <span class="dknum" data-level=${level}>${s.limitKnown === false || s.noRequests ? "—" : pct(full)}</span>
-                </span>
-                <span class="dksay">
-                    <span class=${`dkdot ${DOT[tone]}`}></span>
-                    <span class="dksaytext">${said}</span>
-                    ${since && html`<span class="dksaysince">· ${since}</span>`}
-                </span>
+            <span class="dksessmain">
+                <span class="dkname">${s.session}</span>
+                ${s.home && html`<span class="dkhome">home</span>`}
+                ${s.outside && !kid && html`
+                    <span class="dkmark" data-tip=${outsideNote(s)}>
+                        <${Icon.exit} />outside
+                    </span>
+                `}
+                ${!s.outside && s.transport !== "stream" && html`
+                    <span class="dkmark" data-tip="Lives in a console of tmux rather than on the feed">
+                        <${Icon.terminal} />console
+                    </span>
+                `}
+                ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+            </span>
+            <span class="dknum" data-level=${level}>${s.limitKnown === false || s.noRequests ? "—" : pct(full)}</span>
+            <span class="dksay">
+                <span class=${`dkdot ${DOT[tone]}`}></span>
+                <span class="dksaytext">${said}</span>
+                ${since && html`<span class="dksaysince">· ${since}</span>`}
             </span>
             <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
                 ${!s.home && !s.outside && html`
@@ -432,8 +428,8 @@ export function shelfOf(rows, max = SHELF) {
 }
 
 // ClosedLine is a closed conversation on the shelf: its name, its contour when
-// the column shows more than one, what it was about and when; Resume stands
-// in place of the time under the pointer and on the open row.
+// the column shows more than one and when it was, over what it was about and
+// Resume; what it was about gives way, the time and Resume stay.
 function ClosedLine({ row, contour, project, on, onPick, exec }) {
     const run = useAction();
     const about = aboutOf(row, project);
@@ -446,24 +442,24 @@ function ClosedLine({ row, contour, project, on, onPick, exec }) {
             <span class="dkcltop">
                 <span class="dkclname">${row.name}</span>
                 ${contour && html`<span class="dkclcontour">${contour}</span>`}
-                <span class="dkclend">
-                    <span class="dkclwhen">${when(stamp(row.lastAt))}</span>
-                    ${row.sessionId && html`
-                        <button class=${`dkresume${ready ? "" : " off"}`} type="button"
-                                aria-label=${`resume conversation of ${row.name}`}
-                                data-tip=${ready ? undefined : whyNot(exec, "session.resume")}
-                                data-tipside="left"
-                                onClick=${async (e) => {
-                                    e.stopPropagation();
-                                    if (!ready) return;
-                                    await run("session.resume", row.name, { session: row.sessionId });
-                                }}>Resume</button>
-                    `}
-                </span>
+                <span class="dkclwhen">${when(stamp(row.lastAt))}</span>
             </span>
-            <span class="dkabout">${about
-                ? `«${about}»`
-                : `${row.messages} ${plural(row.messages, "message", "messages")}`}</span>
+            <span class="dkclsub">
+                <span class="dkabout">${about
+                    ? `«${about}»`
+                    : `${row.messages} ${plural(row.messages, "message", "messages")}`}</span>
+                ${row.sessionId && html`
+                    <button class=${`dkresume${ready ? "" : " off"}`} type="button"
+                            aria-label=${`resume conversation of ${row.name}`}
+                            data-tip=${ready ? undefined : whyNot(exec, "session.resume")}
+                            data-tipside="left"
+                            onClick=${async (e) => {
+                                e.stopPropagation();
+                                if (!ready) return;
+                                await run("session.resume", row.name, { session: row.sessionId });
+                            }}>Resume</button>
+                `}
+            </span>
         </div>
     `;
 }

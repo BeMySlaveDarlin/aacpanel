@@ -21,9 +21,11 @@ type deskCardFacts struct {
 	Cut   []string `json:"cut"`
 }
 
-type deskCardActs struct {
-	Visible string `json:"visible"`
-	Icons   int    `json:"icons"`
+type deskCardRow struct {
+	Name  string   `json:"name"`
+	Icons int      `json:"icons"`
+	Shown bool     `json:"shown"`
+	Bad   []string `json:"bad"`
 }
 
 type deskCardHead struct {
@@ -61,21 +63,18 @@ type deskCard struct {
 	Facts      map[string]deskCardFacts `json:"facts"`
 	Marks      map[string][]string      `json:"marks"`
 	ColumnText string                   `json:"columnText"`
-	Acts       map[string]*deskCardActs `json:"acts"`
+	Rows       []deskCardRow            `json:"rows"`
 	HomeAct    string                   `json:"homeAct"`
-	Rules      struct {
-		Hidden bool `json:"hidden"`
-		Shown  bool `json:"shown"`
-		Resume bool `json:"resume"`
-	} `json:"rules"`
-	Asked []string `json:"asked"`
-	Shelf []struct {
-		Name    string `json:"name"`
-		Contour string `json:"contour"`
-		When    string `json:"when"`
-		About   string `json:"about"`
-		Dot     bool   `json:"dot"`
-		Resume  string `json:"resume"`
+	Hiding     []string                 `json:"hiding"`
+	Asked      []string                 `json:"asked"`
+	Shelf      []struct {
+		Name    string   `json:"name"`
+		Contour string   `json:"contour"`
+		When    string   `json:"when"`
+		About   string   `json:"about"`
+		Dot     bool     `json:"dot"`
+		Resume  string   `json:"resume"`
+		Bad     []string `json:"bad"`
 	} `json:"shelf"`
 	ArchiveOpened int `json:"archiveOpened"`
 	PickedClosed  struct {
@@ -83,7 +82,7 @@ type deskCard struct {
 		ID       string `json:"id"`
 		Archived bool   `json:"archived"`
 	} `json:"pickedClosed"`
-	PlusHidden string           `json:"plusHidden"`
+	Plus       string           `json:"plus"`
 	Menu       []string         `json:"menu"`
 	Opened     []deskCardAction `json:"opened"`
 	OpenClosed *struct {
@@ -109,7 +108,7 @@ var deskCardRun struct {
 func runDeskCard(t *testing.T) deskCard {
 	t.Helper()
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built: what shows under the pointer and what fits a line is the stylesheet's business — run make front first")
+		t.Skip("web/dist/bundle.css is not built: what stands on a row and what fits a line is the stylesheet's business — run make front first")
 	}
 	if chromeBinary() == "" {
 		t.Skip("no Chrome on this machine: the fixture runs the components in a real engine")
@@ -125,7 +124,7 @@ func runDeskCard(t *testing.T) deskCard {
 		t.Fatal("deskcard.html failed under Chrome — its error is reported by the test that ran it")
 	}
 	if !deskCardRun.got.Pointer {
-		t.Fatal("the fixture runs without a hovering pointer: the rules of the column behind (hover: hover) are measured switched off")
+		t.Fatal("the fixture runs without a hovering pointer: a rule behind (hover: hover) that hid the actions until the pointer came would go unseen")
 	}
 	return deskCardRun.got
 }
@@ -140,7 +139,7 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 
 	want := []deskCardSection{
 		{Name: "personal", Rows: []string{"1:aacpanel", "2:person", "3:atlas", "4:scratch"}},
-		{Name: "Algorithmics", Rows: []string{"5:lms", "6:ai-platform", ":lms-admin"}},
+		{Name: "Algorithmics", Rows: []string{"5:lms", "6:ai-platform", "7:evirma-fingerprint-rotation-review", ":lms-admin"}},
 	}
 	check := func(when string, sections []deskCardSection) {
 		if len(sections) != len(want) {
@@ -155,7 +154,7 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	}
 	check("at first", got.Before)
 	check("a minute later, every state changed", got.After)
-	if got.OrderBefore != "aacpanel,person,atlas,scratch,lms,ai-platform" || got.OrderAfter != got.OrderBefore {
+	if got.OrderBefore != "aacpanel,person,atlas,scratch,lms,ai-platform,evirma-fingerprint-rotation-review" || got.OrderAfter != got.OrderBefore {
 		t.Errorf("the keys of the shell go %q, then %q — the same places the column shows, before and after", got.OrderBefore, got.OrderAfter)
 	}
 	if got.Ghost == nil || got.Ghost.Section != "Algorithmics" || got.Ghost.Key != "" || !got.Ghost.Last ||
@@ -254,39 +253,45 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	}
 }
 
-// A row does one thing besides opening, and says so under the pointer and on
-// the open row, not all the time: a cross to close a session, a restart for
-// the home one. One the panel did not start has nothing, which the fixture of
-// such sessions holds.
-func TestDeskRowShowsItsActionUnderThePointer(t *testing.T) {
+// A row does one thing besides opening and shows it on every row, not under
+// the pointer: a cross to close a session, a restart for the home one. The
+// share and the action hold a column of their own at the right of the row —
+// the share on the line of the name, the action on the line of the state —
+// and nothing of the row runs into them: not a long name, not its marks, not
+// the state or the line of what it runs on. The column stands as narrow as it
+// gets, with the right panel open. One the panel did not start has no action,
+// which the fixture of such sessions holds.
+func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 	got := runDeskCard(t)
 
-	if a := got.Acts["open"]; a == nil || a.Visible != "visible" || a.Icons != 1 {
-		t.Errorf("the open row's action is %+v, expected one, shown", a)
+	if len(got.Rows) < 7 {
+		t.Fatalf("the column shows %d live rows: %+v", len(got.Rows), got.Rows)
 	}
-	if a := got.Acts["other"]; a == nil || a.Visible != "hidden" || a.Icons != 1 {
-		t.Errorf("a row neither open nor under the pointer has its action %+v, expected one, hidden until the pointer comes", a)
+	for _, row := range got.Rows {
+		if row.Icons != 1 || !row.Shown {
+			t.Errorf("%s has %d actions, shown %v — every row the panel started shows its one action without the pointer", row.Name, row.Icons, row.Shown)
+		}
+		if len(row.Bad) > 0 {
+			t.Errorf("%s: %v — the share and the action keep a place of their own", row.Name, row.Bad)
+		}
 	}
-	if a := got.Acts["home"]; a == nil || a.Icons != 1 || got.HomeAct != "restart session atlas" {
-		t.Errorf("the home session offers %+v (%q), expected its restart alone", a, got.HomeAct)
+	if got.HomeAct != "restart session atlas" {
+		t.Errorf("the home session offers %q, expected its restart alone", got.HomeAct)
 	}
-	if a := got.Acts["console"]; a == nil || a.Icons != 1 {
-		t.Errorf("a session in a console offers %+v: it is closed like any other the panel started", a)
-	}
-	if !got.Rules.Hidden || !got.Rules.Shown {
-		t.Errorf("the stylesheet hides the action %v and brings it out under the pointer and on the open row %v", got.Rules.Hidden, got.Rules.Shown)
+	if len(got.Hiding) > 0 {
+		t.Errorf("the stylesheet takes off the screen %v — the actions of the column stand without the pointer", got.Hiding)
 	}
 }
 
-// The plus in the heading of a contour starts a new session in a project of
-// its map: the projects drop from it grouped as the map groups them, the home
+// The plus in the heading of a contour, there without the pointer, starts a
+// new session in a project of its map: the projects drop from it grouped as the map groups them, the home
 // project left out while the home session lives, and a press sends the same
 // action the projects panel does, addressed by the id of the map entry.
 func TestDeskContourHeadingStartsASession(t *testing.T) {
 	got := runDeskCard(t)
 
-	if got.PlusHidden != "hidden" {
-		t.Errorf("the plus of a heading stands %q without the pointer — it comes under the pointer", got.PlusHidden)
+	if got.Plus != "visible" {
+		t.Errorf("the plus of a heading stands %q — it is there without the pointer", got.Plus)
 	}
 	if want := "[Pets],aacpanel live,person live,blog"; strings.Join(got.Menu, ",") != want {
 		t.Errorf("the plus of personal offers %v, expected %s", got.Menu, want)
@@ -302,9 +307,9 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 // The closed conversations of every contour shown stand on a shelf below all
 // of them: one request for all the contours, newest first, one per project
 // and none where nothing was said; each with its name, its contour, what it
-// was about and when, and no dot, key or bar. Resume stands in place of the
-// time under the pointer and on the open conversation; the archive is a press
-// away.
+// was about and when, and no dot, key or bar. The time closes the first line
+// and Resume the second, both on every row: what the conversation was about
+// gives way to them and nothing runs into them. The archive is a press away.
 func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	got := runDeskCard(t)
 
@@ -327,13 +332,16 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 			t.Errorf("the shelf says %q and %q, %q", first.When, last.When, last.About)
 		}
 		for _, row := range got.Shelf {
-			if row.Dot || row.Resume != "none" {
-				t.Errorf("%s on the shelf has a dot, key or bar %v, Resume %q — a closed conversation is quiet until the pointer comes", row.Name, row.Dot, row.Resume)
+			if row.Dot {
+				t.Errorf("%s on the shelf has a dot, key or bar — a closed conversation is quiet", row.Name)
+			}
+			if row.Resume == "none" || row.When == "" {
+				t.Errorf("%s on the shelf shows Resume %q and the time %q — both stand without the pointer", row.Name, row.Resume, row.When)
+			}
+			if len(row.Bad) > 0 {
+				t.Errorf("%s on the shelf: %v", row.Name, row.Bad)
 			}
 		}
-	}
-	if !got.Rules.Resume {
-		t.Error("the stylesheet never brings Resume out under the pointer")
 	}
 	if got.ArchiveOpened != 1 {
 		t.Errorf("the way to the archive opened it %d times", got.ArchiveOpened)
@@ -341,8 +349,8 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	if got.PickedClosed.Name != "lms-admin" || got.PickedClosed.ID != "c-lms-admin" || !got.PickedClosed.Archived {
 		t.Errorf("a press on a closed conversation opened %+v", got.PickedClosed)
 	}
-	if got.OpenClosed == nil || got.OpenClosed.Name != "lms-admin" || got.OpenClosed.Resume == "none" || got.OpenClosed.When != "none" {
-		t.Errorf("the open closed conversation stands as %+v: Resume in place of its time", got.OpenClosed)
+	if got.OpenClosed == nil || got.OpenClosed.Name != "lms-admin" || got.OpenClosed.Resume == "none" || got.OpenClosed.When == "none" {
+		t.Errorf("the open closed conversation stands as %+v: with its time and Resume both", got.OpenClosed)
 	}
 	if len(got.Resumed) != 1 || got.Resumed[0].Kind != "session.resume" || got.Resumed[0].Params["session"] != "c-lms-admin" {
 		t.Errorf("Resume sent %+v", got.Resumed)
