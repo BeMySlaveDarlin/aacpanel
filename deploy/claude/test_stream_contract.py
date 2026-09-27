@@ -188,3 +188,23 @@ class AgainstAFakeClaude(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Checked(unittest.TestCase):
+    """A passed contract leaves the version it ran on for the panel."""
+
+    def test_the_version_of_a_passed_run_is_kept(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "aacpanel", "stream-contract.json")
+            results = [contract.Result("version", contract.INFO, "2.1.283 (Claude Code)", required=False)]
+            self.assertEqual(contract.keep_checked(results, path), "2.1.283")
+            with open(path, encoding="utf-8") as f:
+                kept = json.load(f)
+            self.assertEqual(kept["version"], "2.1.283")
+            self.assertTrue(kept["at"])
+
+    def test_a_run_that_named_no_version_keeps_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "stream-contract.json")
+            self.assertEqual(contract.keep_checked([], path), "")
+            self.assertFalse(os.path.exists(path))
