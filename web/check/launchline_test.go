@@ -19,6 +19,7 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 		TmuxThen bool     `json:"tmuxThen"`
 		OnStream []bool   `json:"onStream"`
 		Labels   []string `json:"labels"`
+		Drift    []string `json:"drift"`
 	}
 	runFixture(t, "launchline.html", &got)
 	if strings.Join(got.Stream, " ") != "claude ⟨stream⟩ -n person --effort high" {
@@ -35,6 +36,10 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 	}
 	if strings.Join(got.Labels, "|") != "feed|no RC|cap 70%|no first message|sonnet" {
 		t.Errorf("a project's own values read %v", got.Labels)
+	}
+	want := "person runs in the console — the project says the feed|ai-platform runs Fable — the project says Opus"
+	if strings.Join(got.Drift, "|") != want {
+		t.Errorf("drift reads %q, meant %q — and a model the launch does not name is the session's own pick", strings.Join(got.Drift, "|"), want)
 	}
 	if got.OnStream[0] != true || got.OnStream[1] || got.OnStream[2] {
 		t.Errorf("onStream says %v", got.OnStream)

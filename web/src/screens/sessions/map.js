@@ -5,7 +5,7 @@ import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
-import { LaunchLine, onStream } from "../../ui/launchline.js";
+import { LaunchLine, drift, onStream } from "../../ui/launchline.js";
 import { ownLabel } from "../../ui/own.js";
 import { plural } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
@@ -186,6 +186,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
         <//>
 
         <${LaunchLine} line=${project.line} />
+        ${own.flatMap((s) => drift(project.line, s)).map((said) => html`<p class="hint warn" key=${said}>${said}</p>`)}
 
         <div class="btnrow">
             <button

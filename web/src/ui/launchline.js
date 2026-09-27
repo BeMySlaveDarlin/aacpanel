@@ -17,6 +17,39 @@ export function fold(words) {
     return out;
 }
 
+const FAMILY = /(opus|sonnet|haiku|fable)/i;
+
+function family(model) {
+    const found = FAMILY.exec(String(model || ""));
+    return found ? found[1].toLowerCase() : "";
+}
+
+function titled(word) {
+    return word ? word[0].toUpperCase() + word.slice(1) : word;
+}
+
+// drift says, a line each, where a live session of the project runs otherwise
+// than the project's launch says: the console against the feed, or another
+// family of model where the launch names one. What the account picks is not
+// in the line, and a session that picks for itself is not held against it.
+export function drift(line, live) {
+    const out = [];
+    if (!line || !live) return out;
+    const stream = onStream(line);
+    const liveStream = live.transport === "stream";
+    if (stream !== liveStream) {
+        out.push(`${live.session} runs in the ${liveStream ? "feed" : "console"} — the project says the ${stream ? "feed" : "console"}`);
+    }
+    const words = line.words || [];
+    const at = words.findIndex((w) => w.key === "model" && w.text === "--model");
+    const want = at >= 0 && words[at + 1] ? family(words[at + 1].text) : "";
+    const runs = family(live.model);
+    if (want && runs && want !== runs) {
+        out.push(`${live.session} runs ${titled(runs)} — the project says ${titled(want)}`);
+    }
+    return out;
+}
+
 // onStream says whether the line starts a session on the stream.
 export function onStream(line) {
     return Boolean(line && (line.words || []).some((w) => w.key === STREAM));
