@@ -196,6 +196,9 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndThreeCards(t *testing.T) {
 	if len(algo.Rings) == 2 && (algo.Rings[0].Level != "crit" || !strings.HasPrefix(algo.Rings[0].Text, "93")) {
 		t.Errorf("a five-hour window at 93%% reads %+v: it has to be marked", algo.Rings[0])
 	}
+	if !strings.Contains(evirma.Head, "1 h ago") {
+		t.Errorf("the heading of numbers an hour old reads %q — how old they are has to show without a press", evirma.Head)
+	}
 	if len(evirma.Live) != 0 || len(evirma.Past) != 3 || !evirma.Old {
 		t.Errorf("the contour with no live session shows live %v, %d closed, dimmed %v: expected three closed and old numbers dimmed",
 			evirma.Live, len(evirma.Past), evirma.Old)

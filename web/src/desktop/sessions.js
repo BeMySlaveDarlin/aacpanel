@@ -233,6 +233,7 @@ export function ContourLimits({ limits, name, profiles }) {
         <span class="dkringsctl">
             <button class=${`dkrings${old ? " dkold" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
                     aria-label=${`the limits of contour ${name}`} onClick=${() => setOpen(!open)}>
+                ${old && html`<span class="dkringsage">${agoText(c.ageSec)}</span>`}
                 <${Ring} label="5h" part=${c.fiveHour} />
                 <${Ring} label="7d" part=${c.sevenDay} />
             </button>

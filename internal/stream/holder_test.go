@@ -227,7 +227,6 @@ func start(t *testing.T, mutate func(*Spec)) *rig {
 	t.Setenv("STREAM_FAKE_CLAUDE", "1")
 	logPath := run + "/claude.log"
 	t.Setenv("FAKE_LOG", logPath)
-	t.Setenv("AACP_RATE_SNAPSHOT", run+"/rate-limits.json")
 
 	spec := Spec{Name: "demo", Dir: run, SessionID: NewSessionID(), Argv: []string{os.Args[0], "-test.run=^$"}}
 	if mutate != nil {
@@ -1082,12 +1081,25 @@ func TestAQuestionAsideIsWaitedForLonger(t *testing.T) {
 	}
 }
 
-// A contour on the stream runs no status line, so the holder renews the
-// snapshot of its subscription limits itself, from claude's own answer — in
-// the form the status line writes, which the collector reads.
-func TestTheHolderRenewsTheLimitsOfItsContour(t *testing.T) {
+// A contour on the stream runs no status line, so the executor renews the
+// snapshot of its subscription limits through a holder of the contour, from
+// claude's own answer — in the form the status line writes, in the directory
+// of the contour claude runs in, and not again before the snapshot has aged.
+func TestLimitsAreRenewedThroughAHolderOfTheContour(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
 	r := start(t, nil)
-	path := os.Getenv("AACP_RATE_SNAPSHOT")
+	r.waitFor("the handshake", func(s State) bool { return s.PID > 0 })
+	path := filepath.Join(cfg, "rate-limits.json")
+
+	now := time.Now()
+	if failed := RenewLimits(context.Background(), now); len(failed) > 0 {
+		t.Fatalf("the renewal failed: %v", failed)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("no snapshot in the directory of the contour: %v", err)
+	}
 	var snap struct {
 		At       int64 `json:"at"`
 		FiveHour struct {
@@ -1099,28 +1111,28 @@ func TestTheHolderRenewsTheLimitsOfItsContour(t *testing.T) {
 			ResetsAt int64   `json:"resetsAt"`
 		} `json:"sevenDay"`
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		b, err := os.ReadFile(path)
-		if err == nil && json.Unmarshal(b, &snap) == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("no snapshot of the limits after the handshake: %v", err)
-		}
-		time.Sleep(20 * time.Millisecond)
+	if err := json.Unmarshal(b, &snap); err != nil {
+		t.Fatalf("the snapshot does not parse: %v: %s", err, b)
 	}
 	if snap.FiveHour.Pct != 42 || snap.SevenDay.Pct != 7 {
 		t.Errorf("the windows read %v and %v, claude said 42 and 7", snap.FiveHour.Pct, snap.SevenDay.Pct)
 	}
 	five, _ := time.Parse(time.RFC3339, "2026-09-24T22:30:00Z")
-	if snap.FiveHour.ResetsAt != five.Unix() || snap.SevenDay.ResetsAt == 0 {
-		t.Errorf("the resets read %d and %d, expected seconds of claude's times", snap.FiveHour.ResetsAt, snap.SevenDay.ResetsAt)
+	if snap.FiveHour.ResetsAt != five.Unix() || snap.SevenDay.ResetsAt == 0 || snap.At != now.Unix() {
+		t.Errorf("the snapshot reads at %d, resets %d and %d", snap.At, snap.FiveHour.ResetsAt, snap.SevenDay.ResetsAt)
 	}
-	if time.Since(time.Unix(snap.At, 0)) > time.Minute {
-		t.Errorf("the snapshot is stamped %d, not now", snap.At)
+
+	if err := os.WriteFile(path, []byte("fresh"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	_ = r
+	RenewLimits(context.Background(), time.Now())
+	if b, _ := os.ReadFile(path); string(b) != "fresh" {
+		t.Errorf("a snapshot a moment old was written over: %s", b)
+	}
+	RenewLimits(context.Background(), time.Now().Add(LimitsEvery+time.Second))
+	if b, _ := os.ReadFile(path); string(b) == "fresh" {
+		t.Error("a snapshot past its age was not renewed")
+	}
 }
 
 func TestLimitsAreWrittenOnlyForAnAccountThatHasThem(t *testing.T) {

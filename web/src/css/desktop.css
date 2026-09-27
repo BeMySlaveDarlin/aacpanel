@@ -609,7 +609,9 @@
 
     .dkrings:hover { background: var(--glass); }
 
-    .dkrings.dkold { opacity: .55; }
+    .dkrings.dkold .dkring { opacity: .55; }
+
+    .dkringsage { font-size: var(--t-xs); color: var(--warn); white-space: nowrap; }
 
     .dkrings.dknone { margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); cursor: default; }
 

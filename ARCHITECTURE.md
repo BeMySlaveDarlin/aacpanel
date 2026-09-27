@@ -784,11 +784,12 @@ terminal is renamed on its own screen, `/rename` with keys.
 not lie on disk and no API hands them out: claude tells them to the status line
 of a terminal, in the payload on stdin, and to whoever asks it `get_usage` on
 the stream. So one snapshot per contour has two writers — a script the install
-puts first in the status line chain, and the holder of each session on the
-stream after the handshake and after every turn, at most once in twenty seconds
-a contour. Hence a consequence visible in the interface: the numbers are renewed
-only while a session of the contour answers, and the screens show the age of
-the snapshot instead of yesterday's percentages.
+puts first in the status line chain, and the executor, which once a minute asks
+a live session of each contour on the stream through its holder and writes the
+snapshot into the directory the contour's claude runs in (the wrapper of the
+contours sets it for claude, not for the holder). Hence a consequence visible
+in the interface: the numbers live only while a session of the contour is up,
+and the screens show the age of the snapshot beside old percentages.
 
 **The snapshot is parsed block by block, and a failed block is visible.** One
 field handed over as a fraction where an integer is expected does not bring down

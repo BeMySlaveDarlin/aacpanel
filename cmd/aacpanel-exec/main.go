@@ -259,6 +259,8 @@ func run(socket, dockerHost, self string) error {
 		log.Printf("session terminal: %s", termSocket)
 	}
 
+	go keepLimits(ctx)
+
 	kinds := exec.Kinds()
 	log.Printf("listening on %s, actions allowed: %d of %d", socket, len(kinds), len(action.Kinds))
 	if len(kinds) < len(action.Kinds) {
@@ -274,6 +276,33 @@ func run(socket, dockerHost, self string) error {
 	}
 	log.Print("stopped")
 	return nil
+}
+
+// keepLimits renews the snapshot of the subscription limits of the contours
+// on the stream once a minute: claude -p runs no status line to write it. A
+// failure is logged when it changes, not every minute it lasts.
+func keepLimits(ctx context.Context) {
+	tick := time.NewTicker(time.Minute)
+	defer tick.Stop()
+	said := ""
+	renew := func() {
+		c, cancel := context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+		failed := strings.Join(stream.RenewLimits(c, time.Now()), "; ")
+		if failed != said && failed != "" {
+			log.Printf("the subscription limits were not renewed: %s", failed)
+		}
+		said = failed
+	}
+	renew()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			renew()
+		}
+	}
 }
 
 type audited struct{ next action.Executor }
