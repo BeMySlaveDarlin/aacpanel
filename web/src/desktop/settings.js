@@ -35,7 +35,7 @@ export function replaced(from, to) {
     return { middle, right };
 }
 
-export function SettingsColumns({ map, start, onClose }) {
+export function SettingsColumns({ map, start, sessions, onClose }) {
     const { profiles, catalog, disk, apply, remove } = map;
     const [pick, setPick] = useState(start);
     const [dirty, setDirty] = useState({ middle: 0, right: 0 });
@@ -142,6 +142,7 @@ export function SettingsColumns({ map, start, onClose }) {
                         contour=${contour}
                         group=${group}
                         catalog=${catalog}
+                        sessions=${sessions}
                         onClose=${() => take({ contour: contour.id, group: group.id })}
                         onDone=${apply}
                         onRemove=${remove}

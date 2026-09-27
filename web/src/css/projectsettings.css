@@ -260,3 +260,16 @@ p.pznote { margin: .3rem 0 0; }
 }
 .pznearpath { font-family: var(--code); font-size: var(--t-xs); color: var(--ink); overflow-wrap: anywhere; }
 .pzneardo { display: flex; gap: .4rem; justify-content: flex-end; }
+
+/* After a Save: what a running session of the project can take right away. */
+.pzapply {
+    display: flex; flex-direction: column; gap: .45rem;
+    margin: .6rem 0; padding: .65rem .75rem;
+    border-radius: var(--r-card);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.pzapplyhead { display: flex; align-items: center; gap: .5rem; font-size: var(--t-sm); font-weight: 600; }
+.pzapplyhead .pzx { margin-left: auto; }
+.pzapplyrow { display: flex; flex-direction: column; gap: .3rem; }
+.pzapplywho { font-size: var(--t-xs); color: var(--ink-dim); font-family: var(--code); }

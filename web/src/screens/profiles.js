@@ -9,7 +9,7 @@ import { looseOf } from "./profiles/pick.js";
 import { orderOf, useProfileMap } from "./profiles/state.js";
 
 // Profiles renders the profile map on the phone.
-export function Profiles() {
+export function Profiles({ sessions }) {
     const map = useProfileMap();
     const {
         profiles, catalog, disk, accounts, error, gone,
@@ -25,6 +25,7 @@ export function Profiles() {
             catalog=${catalog}
             disk=${disk}
             accounts=${accounts}
+            sessions=${sessions}
             order=${orderOf(profiles, form, reorder)}
             onClose=${() => setForm(null)}
             onDone=${apply}

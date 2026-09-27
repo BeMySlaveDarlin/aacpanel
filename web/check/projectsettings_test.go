@@ -87,6 +87,11 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 		SheetOnPlainSave    bool           `json:"sheetOnPlainSave"`
 		Done                []bool         `json:"done"`
 		BarAfterSave        bool           `json:"barAfterSave"`
+		ApplyHead           string         `json:"applyHead"`
+		ApplyNow            []string       `json:"applyNow"`
+		ApplyLater          []string       `json:"applyLater"`
+		Applied             map[string]any `json:"applied"`
+		Moved               map[string]any `json:"moved"`
 		PathSays            string         `json:"pathSays"`
 		PathSheet           string         `json:"pathSheet"`
 		GestureAsks         bool           `json:"gestureAsks"`
@@ -150,6 +155,18 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	if got.SheetOnPlainSave || len(got.Done) != 1 || !got.Done[0] || got.BarAfterSave {
 		t.Errorf("a plain Save: sheet %v, done %v, bar left %v", got.SheetOnPlainSave, got.Done, got.BarAfterSave)
+	}
+	if got.ApplyHead != "2 sessions run now" || strings.Join(got.ApplyNow, "|") != "Effort Max|Move to the feed|Effort Max|Permissions Auto" {
+		t.Errorf("after Save the running session is offered %q %v", got.ApplyHead, got.ApplyNow)
+	}
+	if strings.Join(got.ApplyLater, "|") != "Effort Max: the console also keeps it as the account's default for new sessions|Permissions Auto — at the next start" {
+		t.Errorf("what the session takes later is said as %v", got.ApplyLater)
+	}
+	if p, _ := got.Applied["params"].(map[string]any); got.Applied["kind"] != "session.set" || got.Applied["target"] != "atlas" || p["effort"] != "max" {
+		t.Errorf("applying the effort sent %v", got.Applied)
+	}
+	if p, _ := got.Moved["params"].(map[string]any); got.Moved["kind"] != "session.switch" || p["to"] != "stream" {
+		t.Errorf("the move sent %v", got.Moved)
 	}
 	if !strings.Contains(got.PathSays, "stay in the archive") || !strings.Contains(got.PathSheet, "stay in the archive") ||
 		!strings.Contains(got.PathSheet, `moves to group "pets"`) {

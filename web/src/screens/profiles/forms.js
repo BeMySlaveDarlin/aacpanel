@@ -38,7 +38,7 @@ export function EditLayer(props) {
             group=${found.group || form.group}
             profiles=${profiles}
             catalog=${props.catalog}
-            order=${props.order}
+            sessions=${props.sessions}
             onClose=${props.onClose}
             onDone=${props.onDone}
             onRemove=${props.onRemove}

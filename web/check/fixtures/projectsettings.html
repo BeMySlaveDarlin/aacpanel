@@ -74,6 +74,7 @@ const contour = () => ({
 
 const previews = [];
 const patches = [];
+const actions = [];
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u === "/api/profiles/schema") return real(u);
@@ -85,6 +86,10 @@ window.fetch = async (url, init) => {
         const problems = [];
         if ((launch.args || []).includes("-p")) problems.push({ key: "args", why: "-p: the panel decides where the session lives" });
         return json({ effective: effectiveOf(launch), line: lineOf(launch, body.session || project.session), problems });
+    }
+    if (u === "/api/actions") {
+        actions.push(JSON.parse(init.body));
+        return json({ ok: true, logged: true, detail: "done" });
     }
     if (u === "/api/projects/4" && init && init.method === "PATCH") {
         const body = JSON.parse(init.body);
@@ -119,6 +124,9 @@ function Harness() {
         profiles=${[c]}
         catalog=${catalog}
         order=${null}
+        sessions=${[{ session: "atlas", project: { id: 4 }, transport: null, remote: null, status: "idle" },
+                    { session: "atlas-2", project: { id: 4 }, transport: "stream", remote: null, status: "idle" },
+                    { session: "other", project: { id: 9 }, transport: null, remote: null, status: "idle" }]}
         onClose=${() => { closed += 1; }}
         onDone=${(data) => { done.push(Boolean(data && data.profiles)); setTick((n) => n + 1); }}
         onRemove=${async () => ({ ok: false })}
@@ -215,6 +223,19 @@ window.done = mode === "haiku" ? (async () => {
     out.sheetOnPlainSave = Boolean(document.querySelector(".sheet.on"));
     out.done = done;
     out.barAfterSave = Boolean(bar());
+    await until(() => document.querySelector(".pzapply"));
+    out.applyHead = text(document.querySelector(".pzapplyhead span"));
+    out.applyNow = all(".pzapply .pzopt").map(text);
+    out.applyLater = all(".pzapply .pzhelp").map(text);
+    Array.from(document.querySelectorAll(".pzapply .pzopt")).find((b) => text(b) === "Effort Max").click();
+    await until(() => actions.length > 0);
+    out.applied = actions[0];
+    Array.from(document.querySelectorAll(".pzapply .pzopt")).find((b) => text(b) === "Move to the feed").click();
+    const move = await until(() => Array.from(document.querySelectorAll(".sheet.on")).find((x) => Array.from(x.querySelectorAll("button")).some((b) => text(b) === "Move")));
+    Array.from(move.querySelectorAll("button")).find((b) => text(b) === "Move").click();
+    await until(() => actions.length > 1);
+    out.moved = actions[1];
+    await sleep(150);
 
     const path = all(".pffield").find((f) => text(f.querySelector(".pflabel")).startsWith("Directory")).querySelector("input");
     await typeInto(path, "/srv/proj/elsewhere");

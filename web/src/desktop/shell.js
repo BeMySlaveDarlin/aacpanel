@@ -368,6 +368,7 @@ export function DesktopShell({
                         setArchPicks=${setArchPicks}
                         container=${container}
                         exec=${exec}
+                        sessions=${snapshot && snapshot.sessions}
                         onOpen=${openChat}
                         onClose=${() => setPanel(null)}
                         onOpened=${onOpened}

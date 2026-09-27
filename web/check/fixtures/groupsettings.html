@@ -175,6 +175,8 @@ window.done = mode === "free" ? (async () => {
     all(".pzgroupmain")[0].click();
     await until(() => document.querySelector(".pzstack[hidden]") && all(".pzrow").some(visible));
     out.projectOver = text(all(".phead h2").find(visible));
+    // A layer takes the back gesture a moment after it is drawn.
+    await sleep(150);
     history.back();
     await until(() => !document.querySelector(".pzstack[hidden]"));
     out.backToShelf = all(".pzgroupname").some(visible);

@@ -91,7 +91,7 @@ function GroupRow({ profile, group, expanded, onToggle, onForm, onRemove, gone, 
     `;
 }
 
-export function Projects({ picks, exec, onOpened }) {
+export function Projects({ picks, exec, sessions, onOpened }) {
     const map = useProfileMap();
     const {
         profiles, catalog, disk, accounts, error, gone,
@@ -108,7 +108,7 @@ export function Projects({ picks, exec, onOpened }) {
     // A contour, a group or a project that exists opens in the columns; the
     // rest — adding something — in its own dialog.
     const pick = pickOf(form);
-    const editing = pick ? html`<${SettingsColumns} key=${JSON.stringify(pick)} map=${map} start=${pick} onClose=${() => setForm(null)} />`
+    const editing = pick ? html`<${SettingsColumns} key=${JSON.stringify(pick)} map=${map} start=${pick} sessions=${sessions} onClose=${() => setForm(null)} />`
         : form && html`<${EditLayer}
         form=${form}
         profiles=${profiles}

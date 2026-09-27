@@ -7,7 +7,7 @@ import { EditLayer } from "./forms.js";
 import { locate } from "./settings.js";
 import { useProfileMap } from "./state.js";
 
-export function ProjectDoor({ id, onClose }) {
+export function ProjectDoor({ id, sessions, onClose }) {
     const map = useProfileMap();
     const found = locate(map.profiles, id);
     // A layer of its own only for the page that says the project is gone:
@@ -26,6 +26,7 @@ export function ProjectDoor({ id, onClose }) {
         catalog=${map.catalog}
         disk=${map.disk}
         accounts=${map.accounts}
+        sessions=${sessions}
         order=${null}
         onClose=${onClose}
         onDone=${map.apply}

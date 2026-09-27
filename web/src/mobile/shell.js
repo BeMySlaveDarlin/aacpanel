@@ -154,7 +154,7 @@ export function MobileShell({
                     : page === "settings"
                     ? html`<${Settings} onClose=${() => setPage(null)} />`
                     : page === "profiles"
-                    ? html`<${Profiles} />`
+                    ? html`<${Profiles} sessions=${snapshot && snapshot.sessions} />`
                     : page === "journal"
                     ? html`<${Journal} onBack=${() => setPage(null)} />`
                     : page === "briefs"

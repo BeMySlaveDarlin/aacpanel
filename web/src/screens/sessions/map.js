@@ -12,18 +12,11 @@ import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { ownName } from "../../catchup.js";
+import { sessionsOf } from "./of.js";
+
+export { sessionsOf };
 import { Ghost, LiveRow } from "./card.js";
 import { ProjectDoor } from "../profiles/door.js";
-
-// sessionsOf returns the sessions of one project. The service says which
-// project a live session belongs to — by its directory, a worktree of the
-// project included — and null when none; the name is the guess only for a
-// snapshot the service could not place.
-export function sessionsOf(project, sessions) {
-    return sessions.filter((s) => (s.project === undefined
-        ? ownName(s.session, project.session)
-        : Boolean(s.project) && s.project.id === project.id));
-}
 
 // contoursOf returns which profile each session lives in.
 export function contoursOf(profiles, sessions) {
@@ -180,7 +173,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
     const ready = knows(exec, "session.open");
     const why = whyNot(exec, "session.open");
     const opening = wait ? wait.of("open", project.session) : null;
-    if (settings) return html`<${ProjectDoor} id=${project.id} onClose=${() => setSettings(false)} />`;
+    if (settings) return html`<${ProjectDoor} id=${project.id} sessions=${sessions} onClose=${() => setSettings(false)} />`;
     return html`
         <${BackHead} onBack=${onBack} label="to the projects">
             <h2>${project.name}</h2>

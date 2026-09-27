@@ -15,6 +15,8 @@ import {
     body, count, emptyDraft, field, fieldOf, fieldProblems, overlay, own, pins, put, touched, valueOf, weighty,
 } from "./draft.js";
 import { ModelPopover, ModelSheet, traitOf } from "./controls.js";
+import { Apply } from "./apply.js";
+import { sessionsOf } from "../sessions/of.js";
 import { paramOf, useSchema } from "./schema.js";
 import {
     Bar, LAUNCH_ORDER, LaunchRow, Layer, LeaveSheet, Where, launchAsk, modelHolds, problemOf, useDraft, usePreview,
@@ -39,12 +41,13 @@ function Account({ contour, effective, stream }) {
     `;
 }
 
-export function ProjectSettings({ project, contour, group, catalog, onClose, onDone, onRemove, onDirty }) {
+export function ProjectSettings({ project, contour, group, catalog, sessions, onClose, onDone, onRemove, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [modelOpen, setModelOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState("");
+    const [saved, setSaved] = useState(null);
     const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, modelOpen, onDirty);
     topRef.current = useBackClose(true, onClose, hold).isTop;
     const wide = useWide();
@@ -117,6 +120,8 @@ export function ProjectSettings({ project, contour, group, catalog, onClose, onD
             return false;
         }
         onDone(result.data);
+        const fresh = result.data && result.data.project;
+        setSaved({ keys: Object.keys(draft.launch), effective: fresh ? fresh.effective : effective });
         setDraft(emptyDraft());
         return true;
     };
@@ -157,6 +162,8 @@ export function ProjectSettings({ project, contour, group, catalog, onClose, onD
             <${LaunchLine} line=${line} changed=${new Set([...Object.keys(draft.launch), ...("session" in draft.fields ? ["session"] : [])])} />
             <${Account} contour=${contour} effective=${effective} stream=${transport === "stream"} />
         </div>
+        <${Apply} saved=${saved && saved.keys.length > 0 ? saved : null} params=${params}
+            sessions=${sessionsOf(project, sessions || [])} onClose=${() => setSaved(null)} />
 
         <div class="pfsub">where it lives</div>
         <${Where}
