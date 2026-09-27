@@ -92,7 +92,7 @@ function GroupRow({ profile, group, expanded, onToggle, onForm, onRemove, gone, 
 
 export function Projects({ picks, exec, onOpened }) {
     const {
-        profiles, catalog, disk, error, gone,
+        profiles, catalog, disk, accounts, error, gone,
         open, toggle, form, setForm,
         apply, remove, reorder,
     } = useProfileMap();
@@ -108,6 +108,7 @@ export function Projects({ picks, exec, onOpened }) {
         profiles=${profiles}
         catalog=${catalog}
         disk=${disk}
+        accounts=${accounts}
         order=${orderOf(profiles, form, reorder)}
         onClose=${() => setForm(null)}
         onDone=${apply}

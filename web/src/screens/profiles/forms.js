@@ -10,19 +10,24 @@ import { LaunchFields, clean } from "./launch.js";
 import { DiskPicker, diskNote } from "./disk.js";
 import { PERSONAL } from "../../contour.js";
 import { ProjectLayer, locate } from "./settings.js";
+import { ContourLayer } from "./contour.js";
+import { JournalLayer } from "./journal.js";
+import { NewContourLayer } from "./newcontour.js";
 
 const TITLES = {
     "profile.add": ["New profile", "its own token, its own config directory, its own projects"],
-    "profile.edit": ["Profile", "the change applies to the sessions launched next"],
     "group.add": ["New group", "a shelf inside the profile: projects are laid out on it"],
     "group.edit": ["Group", "the name shows on the map and in the launch list"],
     "project.add": ["New project", "something the panel can bring up as a console"],
 };
 
-// EditLayer renders the one open form. A project that exists opens its
-// settings page; the rest — a contour, a group, a new project — a form.
+// EditLayer renders the one open form. A contour or a project that exists
+// opens its settings page, a new contour the host's accounts; the rest — a
+// group, a new project, a contour typed by hand — a form.
 export function EditLayer(props) {
     const { form, profiles } = props;
+    if (form.kind === "profile" && form.mode === "edit") return html`<${ContourEdit} ...${props} />`;
+    if (form.kind === "profile" && form.mode === "add" && !form.manual) return html`<${NewContourDoor} ...${props} />`;
     if (form.kind === "project" && form.mode === "edit") {
         const found = locate(profiles, form.project.id);
         return html`<${ProjectLayer}
@@ -38,6 +43,42 @@ export function EditLayer(props) {
         />`;
     }
     return html`<${FormLayer} ...${props} />`;
+}
+
+// ContourEdit is the settings page of a contour, with what it opens laid over
+// it — a group's form, the journal of the map — so its draft waits underneath.
+function ContourEdit(props) {
+    const [over, setOver] = useState(null);
+    const contour = (props.profiles || []).find((p) => p.id === props.form.profile.id) || props.form.profile;
+    return html`
+        <div class="pzstack" hidden=${Boolean(over)}>
+            <${ContourLayer}
+                contour=${contour}
+                catalog=${props.catalog}
+                onClose=${props.onClose}
+                onDone=${props.onDone}
+                onRemove=${props.onRemove}
+                onForm=${setOver}
+                onJournal=${() => setOver({ journal: true })}
+            />
+        </div>
+        ${over && over.journal && html`<${JournalLayer} onClose=${() => setOver(null)} onDone=${props.onDone} />`}
+        ${over && !over.journal && html`<${FormLayer} ...${props} form=${over} order=${null} onClose=${() => setOver(null)} />`}
+    `;
+}
+
+// NewContourDoor offers the host's accounts the map has no contour for, and
+// the form with paths where the machine has no router.
+function NewContourDoor(props) {
+    const [manual, setManual] = useState(false);
+    if (manual) return html`<${FormLayer} ...${props} form=${{ kind: "profile", mode: "add", manual: true }} />`;
+    return html`<${NewContourLayer}
+        profiles=${props.profiles}
+        accounts=${props.accounts}
+        onClose=${props.onClose}
+        onDone=${props.onDone}
+        onManual=${() => setManual(true)}
+    />`;
 }
 
 function FormLayer({ form, profiles, catalog, disk, order, onClose, onDone, onRemove }) {
@@ -109,7 +150,6 @@ function Body({ form, profiles, catalog, disk, onClose, onDone }) {
 }
 
 const DANGER = {
-    profile: "Delete profile",
     group: "Delete group",
 };
 
@@ -197,25 +237,23 @@ function absolute(path) {
     return path.startsWith("/") && !path.split("/").includes("..");
 }
 
-function ProfileForm({ form, catalog, onClose, onDone }) {
-    const editing = form.mode === "edit";
-    const was = form.profile || {};
-    const [name, setName] = useState(was.name || "");
-    const [dir, setDir] = useState(was.configDir || "");
-    const [prefix, setPrefix] = useState(was.prefix || "");
-    const [bin, setBin] = useState(was.claudeBin || "");
-    const [launch, setLaunch] = useState(was.launch || {});
+// ProfileForm adds a contour by hand, on a machine without the router: one
+// that exists opens its settings page, and on a routed machine a new one is
+// taken from the host's accounts.
+function ProfileForm({ catalog, onClose, onDone }) {
+    const [name, setName] = useState("");
+    const [dir, setDir] = useState("");
+    const [prefix, setPrefix] = useState("");
+    const [bin, setBin] = useState("");
+    const [launch, setLaunch] = useState({});
     const { busy, problem, nameProblem, clearNameProblem, save } = useSave(onClose, onDone);
 
-    const id = editing ? "profile.edit" : "profile.add";
-    const locked = editing && was.name === PERSONAL;
     const binNow = bin.trim();
-    const binWas = (was.claudeBin || "").trim();
     const fields = {
         name: name.trim(),
         configDir: dir.trim(),
         prefix: prefix.trim(),
-        ...((editing ? binNow !== binWas : binNow !== "") ? { claudeBin: binNow } : {}),
+        ...(binNow !== "" ? { claudeBin: binNow } : {}),
         launch: clean(launch),
     };
     const check = () => {
@@ -232,14 +270,11 @@ function ProfileForm({ form, catalog, onClose, onDone }) {
     return html`
         <label class="pffield">
             <span class="pflabel">Name</span>
-            <input class="search" spellcheck="false" placeholder=${PERSONAL} disabled=${locked}
+            <input class="search" spellcheck="false" placeholder=${PERSONAL}
                    value=${name} onInput=${(e) => { setName(e.target.value); clearNameProblem(); }} />
             ${nameProblem
                 ? html`<span class="pfhelp warn">${nameProblem}</span>`
-                : locked
-                    ? html`<span class="pfhelp">the personal contour is called ${PERSONAL} and is not
-                        renamed: by that name the panel, the collector and the installer find its config directory</span>`
-                    : html`<span class="pfhelp">the name is unique across the machine: it is how the profile is recognised</span>`}
+                : html`<span class="pfhelp">the name is unique across the machine: it is how the profile is recognised</span>`}
         </label>
 
         <label class="pffield">
@@ -274,9 +309,9 @@ function ProfileForm({ form, catalog, onClose, onDone }) {
         <${Buttons}
             busy=${busy}
             problem=${problem}
-            ok=${editing ? "Save" : "Add"}
+            ok="Add"
             onClose=${onClose}
-            onSave=${() => save(id, fields.name, editing ? { id: was.id, fields } : { fields }, check)}
+            onSave=${() => save("profile.add", fields.name, { fields }, check)}
         />
     `;
 }

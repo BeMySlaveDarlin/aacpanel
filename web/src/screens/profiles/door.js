@@ -25,6 +25,31 @@ export function ProjectDoor({ id, onClose }) {
         profiles=${map.profiles}
         catalog=${map.catalog}
         disk=${map.disk}
+        accounts=${map.accounts}
+        order=${null}
+        onClose=${onClose}
+        onDone=${map.apply}
+        onRemove=${map.remove}
+    />`;
+}
+
+// ContourDoor opens a contour's settings from its page in Sessions.
+export function ContourDoor({ id, onClose }) {
+    const map = useProfileMap();
+    const contour = (map.profiles || []).find((p) => p.id === id);
+    useBackClose(Boolean(map.profiles) && !contour, onClose);
+    if (!contour) {
+        return html`
+            <${BackHead} onBack=${onClose} label="back"><h2>Settings</h2><//>
+            <p class=${map.error ? "hint crit" : "empty"}>${map.error || (map.profiles ? "The contour is not on the map any more." : "Loading…")}</p>
+        `;
+    }
+    return html`<${EditLayer}
+        form=${{ kind: "profile", mode: "edit", profile: contour }}
+        profiles=${map.profiles}
+        catalog=${map.catalog}
+        disk=${map.disk}
+        accounts=${map.accounts}
         order=${null}
         onClose=${onClose}
         onDone=${map.apply}

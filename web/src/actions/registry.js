@@ -504,6 +504,37 @@ export const ACTIONS = {
             body: (target, params) => params.fields,
         },
     },
+    // Saving the draft of a contour's settings page: the bar it is pressed on
+    // counts the changes, Discard stands beside it, and a draft the launch
+    // would refuse never gets this far. The account's paths go as profile.edit.
+    "profile.save": {
+        title: (target) => `Save profile "${target}"?`,
+        effect: () => "The new values go into the launch of the next sessions of its projects.",
+        done: (target) => `Profile "${target}" saved`,
+        ok: "Save",
+        instant: true,
+        journaled: false,
+        fieldConflict: true,
+        send: {
+            verb: "PATCH",
+            path: (target, params) => `/api/profiles/${params.id}`,
+            body: (target, params) => params.fields,
+        },
+    },
+    "profile.unpin": {
+        title: (target, params) => `Remove the copies of ${params.label}?`,
+        effect: (params) => `${count(params.names.length, "project stores", "projects store")} ${params.label} themselves — `
+            + `${params.names.join(", ")}. The copies go, and they follow the contour from now on, as the rest do. `
+            + "A project storing another value keeps it.",
+        done: (target, params) => `Copies of ${params.label} removed`,
+        ok: "Remove the copies",
+        journaled: false,
+        send: {
+            verb: "POST",
+            path: (target, params) => `/api/profiles/${params.id}/unpin`,
+            body: (target, params) => ({ key: params.key }),
+        },
+    },
     "profile.edit": {
         title: (target) => `Save profile "${target}"?`,
         effect: "The new values go into the launch of the next sessions. Consoles already up stay the way they were — they read their settings at start.",
@@ -759,6 +790,8 @@ const NAMES = {
     "group.edit": "Edit group",
     "group.remove": "Delete group",
     "project.add": "Create project",
+    "profile.save": "Save profile",
+    "profile.unpin": "Remove copies from projects",
     "project.save": "Save project",
     "project.edit": "Edit project",
     "project.remove": "Delete project",

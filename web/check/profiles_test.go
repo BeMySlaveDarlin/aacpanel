@@ -217,16 +217,21 @@ func TestDeleteButtonSaysWhatTheSheetWillSay(t *testing.T) {
 		t.Fatal("no DANGER found in forms.js — the test guards the wrong place")
 	}
 	found := regexp.MustCompile(`(?m)^\s+([a-z]+): "([^"]+)"`).FindAllStringSubmatch(block[1], -1)
-	if len(found) != 2 {
-		t.Fatalf("%d delete levels in the forms, expected two (contour, group)", len(found))
+	if len(found) != 1 {
+		t.Fatalf("%d delete levels in the forms, expected one (group)", len(found))
 	}
-	// A project is deleted from its settings page.
-	settings := srcFiles(t)["src/screens/profiles/settings.js"]
-	own := regexp.MustCompile(`const DELETE = "([^"]+)";`).FindStringSubmatch(settings)
-	if own == nil || !strings.Contains(settings, "${DELETE}") {
-		t.Fatal("the settings page of a project names its delete button otherwise than by DELETE — the test guards the wrong place")
+	// A contour and a project are deleted from their settings pages.
+	for level, file := range map[string]string{
+		"profile": "src/screens/profiles/contour.js",
+		"project": "src/screens/profiles/settings.js",
+	} {
+		page := srcFiles(t)[file]
+		own := regexp.MustCompile(`const DELETE = "([^"]+)";`).FindStringSubmatch(page)
+		if own == nil || !strings.Contains(page, "${DELETE}") {
+			t.Fatalf("%s names its delete button otherwise than by DELETE — the test guards the wrong place", file)
+		}
+		found = append(found, []string{"", level, own[1]})
 	}
-	found = append(found, []string{"", "project", own[1]})
 	for _, m := range found {
 		want := regexp.MustCompile(`"` + m[1] + `\.remove":\s*"([^"]+)"`).FindStringSubmatch(registry)
 		if want == nil {
@@ -312,6 +317,11 @@ func TestGroupMoveSpeaksOneWordAboutTheProfile(t *testing.T) {
 	}
 }
 
+// What to launch a contour with: a new contour typed by hand sends the path
+// only when one is typed; the settings page shows the record's path and sends
+// it only when it is changed — cleared included — which the fixture of the
+// page sees (TestTheContourSettingsPage/paths). Both say what an empty field
+// costs.
 func TestContourBinaryRidesTheProfileForm(t *testing.T) {
 	const file = "src/screens/profiles/forms.js"
 	forms := srcFiles(t)[file]
@@ -320,27 +330,23 @@ func TestContourBinaryRidesTheProfileForm(t *testing.T) {
 	}
 	body := jsBlock(t, file, forms, "function ProfileForm(")
 
-	if !strings.Contains(body, `useState(was.claudeBin || "")`) {
-		t.Error("the contour form does not read claudeBin from the record — it shows the path set on " +
-			"the host as empty and clears it on save")
-	}
-
-	const only = `...((editing ? binNow !== binWas : binNow !== "") ? { claudeBin: binNow } : {})`
+	const only = `...(binNow !== "" ? { claudeBin: binNow } : {})`
 	if !strings.Contains(body, only) {
-		t.Error("claudeBin goes out not only when edited — the pointer on the server tells " +
-			"do not touch from clear the path, and the form has to tell them apart too")
+		t.Error("a new contour sends claudeBin when none is typed — an empty path is not a path")
 	}
 	if n := strings.Count(body, "claudeBin: binNow"); n != 1 {
 		t.Errorf("claudeBin is put into the body %d times — a second place goes around the condition", n)
 	}
-
 	if !strings.Contains(body, "${binNow") {
 		t.Error("the field hint does not depend on whether the path is set — an empty value " +
 			"is left unexplained")
 	}
-	for _, word := range []string{"PATH", "personal account"} {
-		if !strings.Contains(body, word) {
-			t.Errorf("the hint on an empty field says nothing about %q — a dash instead of a price", word)
+	contour := srcFiles(t)["src/screens/profiles/contour.js"]
+	for _, code := range []string{body, contour} {
+		for _, word := range []string{"PATH", "personal account"} {
+			if !strings.Contains(code, word) {
+				t.Errorf("the hint on an empty field says nothing about %q — a dash instead of a price", word)
+			}
 		}
 	}
 }

@@ -195,3 +195,54 @@
 @media (max-width: 380px) {
     .pzwhere { grid-template-columns: 1fr; }
 }
+
+/* The contour's groups: a handle drags a group to another place. */
+.pzgroups { display: flex; flex-direction: column; margin-top: .3rem; }
+.pzgroup {
+    display: flex; align-items: center; gap: .2rem;
+    border-bottom: var(--hair) solid var(--line);
+    background: var(--bg);
+}
+.pzgroup[data-dragging="1"] { position: relative; z-index: 2; box-shadow: var(--drop); border-radius: var(--r-card); }
+.pzhandle {
+    flex: none; width: 2.2rem; align-self: stretch;
+    display: grid; place-content: center; gap: 3px;
+    border: 0; background: none; cursor: grab; touch-action: none;
+}
+.pzhandle span { display: block; width: .9rem; height: 1.5px; background: var(--ink-faint); border-radius: 1px; }
+.pzgroupmain {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: .5rem;
+    font: inherit; color: var(--ink); text-align: left;
+    padding: .65rem .2rem; border: 0; background: none; cursor: pointer;
+}
+.pzgroupname { flex: 1; min-width: 0; font-size: var(--t-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pzgroupfoot { display: flex; align-items: center; justify-content: flex-end; gap: .6rem; padding-top: .3rem; }
+.pzgroupfoot .pzdraft { margin: 0 auto 0 0; }
+
+.pznote { color: var(--ink-dim); }
+p.pznote { margin: .3rem 0 0; }
+.pzfacts { margin-top: .6rem; }
+.pzfacts .dot { display: inline-block; vertical-align: middle; margin-right: .2rem; }
+.pzjournal { margin-top: 1rem; }
+
+/* The journal of the map, an entry a change. */
+.pzentry {
+    display: flex; flex-direction: column; gap: .25rem; align-items: flex-start;
+    padding: .6rem 0; border-bottom: var(--hair) solid var(--line);
+}
+.pzentryhead { display: flex; flex-direction: column; gap: .1rem; }
+.pzentrywhat { font-size: var(--t-sm); color: var(--ink-dim); }
+.pzentrywhat b { color: var(--ink); font-weight: 600; }
+.pzchange { font-size: var(--t-xs); color: var(--ink-dim); overflow-wrap: anywhere; }
+.pzchange code { font-family: var(--code); color: var(--ink); }
+.pzarrow { color: var(--ink-faint); }
+
+/* The accounts of the host a new contour is taken from. */
+.pzaccount {
+    display: flex; flex-direction: column; gap: .15rem; align-items: flex-start;
+    width: 100%; margin-top: .5rem; padding: .7rem .8rem;
+    font: inherit; text-align: left; color: var(--ink);
+    border: 0; border-radius: var(--r-card); background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge); cursor: pointer;
+}
+.pzaccountname { font-size: var(--t-md); font-weight: 600; }

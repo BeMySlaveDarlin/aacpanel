@@ -1,0 +1,223 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The settings page of a contour, opened as the map opens it: a value most of
+// its projects store is offered as the contour's default and goes into the
+// draft; a group is dragged to another place; Save sends the launch and the
+// order without a sheet; then the copies left in the projects are offered for
+// removal through a sheet; the journal of the map lays over the page and
+// takes a deleted project back. A new contour is taken from the host's
+// accounts the map has none for.
+import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { EditLayer } from "/src/screens/profiles/forms.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const real = window.fetch.bind(window);
+const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
+
+const account = { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" };
+const layered = (launch) => [
+    ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
+    ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
+    ["contextCap", 80, "panel"], ["autoRestart", false, "panel"], ["restartIntent", "Continue", "panel"],
+    ["env", null, "claude"], ["args", null, "claude"],
+].map(([key, value, layer]) => (key in launch ? { key, value: launch[key], layer: "contour" } : { key, value, layer }));
+
+const project = (id, name, launch) => ({ id, groupId: id < 20 ? 3 : 5, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id, launch });
+let contour = {
+    id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", claudeBin: "/srv/bin/claude", auth: "builtin",
+    account, contextGuard: true, route: { prefix: "*" }, launch: { contextCap: 80 },
+    groups: [
+        { id: 3, name: "home", projects: [project(11, "alpha", { remoteControl: true }), project(12, "beta", { remoteControl: true })] },
+        { id: 5, name: "pets", projects: [project(21, "gamma", { remoteControl: true }), project(22, "delta", { effort: "high" })] },
+    ],
+};
+contour.effective = layered(contour.launch);
+const accounts = mode === "new" || mode === "bare"
+    ? [{ name: "work", configDir: "/home/u/.claude-profiles/work", auth: "token", ...(mode === "new" ? { route: { prefix: "/srv/proj/Work/" } } : {}) }]
+    : [];
+if (mode === "bare" || mode === "paths") delete contour.route;
+
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    const method = (init && init.method) || "GET";
+    if (u === "/api/profiles/schema") return real(u);
+    const body = init && init.body ? JSON.parse(init.body) : null;
+    if (method !== "GET") sent.push({ method, url: u, body });
+    if (u === "/api/profiles/3/preview") {
+        const launch = { ...contour.launch, ...(body.launchSet || {}) };
+        for (const k of body.launchUnset || []) delete launch[k];
+        return json({ effective: layered(launch), problems: [] });
+    }
+    if (u === "/api/profiles/3" && method === "PATCH") {
+        const launch = { ...contour.launch, ...(body.launchSet || {}) };
+        for (const k of body.launchUnset || []) delete launch[k];
+        contour = { ...contour, launch, effective: layered(launch) };
+        return json({ profiles: [contour], profile: contour });
+    }
+    if (u === "/api/profiles/3/groups/order") {
+        contour = { ...contour, groups: body.ids.map((id) => contour.groups.find((g) => g.id === id)) };
+        return json({ profiles: [contour] });
+    }
+    if (u === "/api/profiles/3/unpin") {
+        return json({ profiles: [contour], unpinned: 3 });
+    }
+    if (u.startsWith("/api/profiles/journal?")) {
+        return json({ journal: [
+            { id: 9, at: Math.floor(Date.now() / 1000) - 120, actor: "this machine", entity: "project", entityId: 30, name: "old",
+              op: "delete", changes: [], undoable: true },
+            { id: 8, at: Math.floor(Date.now() / 1000) - 600, actor: "phone", entity: "project", entityId: 11, name: "alpha",
+              op: "update", changes: [{ key: "launch.remoteControl", from: null, to: true }], undoable: false },
+        ] });
+    }
+    if (u === "/api/profiles/journal/9/undo") return json({ profiles: [contour] });
+    if (u === "/api/profiles" && method === "POST") return json({ profiles: [contour], profile: { id: 7, name: body.name } });
+    return json({});
+};
+
+const done = [];
+let closed = 0;
+function Harness() {
+    const [, tick] = useState(0);
+    const adding = mode === "new" || mode === "bare";
+    const form = adding ? { kind: "profile", mode: "add" } : { kind: "profile", mode: "edit", profile: contour };
+    return html`<${EditLayer}
+        form=${form}
+        profiles=${[contour]}
+        catalog=${null}
+        disk=${null}
+        accounts=${accounts}
+        order=${null}
+        onClose=${() => { closed += 1; }}
+        onDone=${(data) => { done.push(Boolean(data)); tick((n) => n + 1); }}
+        onRemove=${async () => ({ ok: false })}
+    />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Harness))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel) => Array.from(document.querySelectorAll(sel));
+const visible = (el) => Boolean(el) && !el.closest("[hidden]");
+const row = (name) => all(".pzrow").find((r) => visible(r) && text(r.querySelector(".pzname")) === name);
+const bar = () => all(".pzbar").find((b) => visible(b) && !b.closest(".sheet"));
+const button = (label, scope = document) => Array.from(scope.querySelectorAll("button")).find((b) => visible(b) && text(b) === label);
+const sheet = () => document.querySelector(".sheet.on");
+
+const field = (title) => all(".pffield").find((f) => visible(f) && text(f.querySelector(".pflabel")).startsWith(title));
+const typeInto = async (el, value) => {
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(60);
+};
+
+window.done = mode === "paths" ? (async () => {
+    await until(() => field("What to launch with"));
+    const out = { bin: field("What to launch with").querySelector("input").value };
+    await typeInto(field("Name").querySelector("input"), "home");
+    await until(() => bar());
+    button("Save", bar()).click();
+    await until(() => sent.some((x) => x.method === "PATCH"));
+    out.renamed = sent.find((x) => x.method === "PATCH").body;
+    out.sheetOnRename = Boolean(sheet());
+    await until(() => !bar());
+    await typeInto(field("What to launch with").querySelector("input"), "");
+    await until(() => bar());
+    button("Save", bar()).click();
+    const s = await until(sheet);
+    out.clearSheet = Boolean(s);
+    button("Save", s).click();
+    await until(() => sent.filter((x) => x.method === "PATCH").length > 1);
+    out.cleared = sent.filter((x) => x.method === "PATCH")[1].body;
+    return out;
+})() : mode ? (async () => {
+    await until(() => all(".pzaccount").length > 0);
+    const out = {
+        accounts: all(".pzaccount").map(text),
+        byHand: Boolean(button("Add by hand")),
+    };
+    document.querySelector(".pzaccount").click();
+    const s = await until(sheet);
+    out.sheet = text(s);
+    button("Add", s).click();
+    await until(() => sent.length > 0);
+    out.sent = sent[0];
+    out.closed = closed;
+    return out;
+})() : (async () => {
+    const out = {};
+    await until(() => all(".pzrow").length > 0);
+    out.rows = all(".pzrow").map((r) => text(r.querySelector(".pzname")));
+    out.groups = all(".pzgroupname").map(text);
+    out.raise = all(".pzhint span").map(text);
+    out.files = text(document.querySelector(".pzfacts"));
+    out.pathInputs = all(".pffield .pflabel").map(text).filter((t) => /Config directory|Path prefix/.test(t));
+    out.deleteDisabled = button("Delete profile").disabled;
+
+    button("Make it the default").click();
+    await until(() => bar());
+    out.afterRaise = text(bar().querySelector(".pzbarsay"));
+    out.rcNote = text(row("Remote Control").querySelector(".pznote"));
+    out.raiseLeft = all(".pzhint span").map(text).filter((t) => t.includes("make it this contour's default"));
+
+    const handle = document.querySelector(".pzgroup:nth-child(2) .pzhandle");
+    const box = handle.getBoundingClientRect();
+    const y = box.top + box.height / 2;
+    const fire = (type, clientY) => handle.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, clientY, clientX: box.left + 5 }));
+    fire("pointerdown", y);
+    fire("pointermove", y - box.height * 0.3);
+    fire("pointermove", y - box.height * 0.8);
+    fire("pointerup", y - box.height * 0.8);
+    await until(() => text(bar().querySelector(".pzbarsay")) === "2 changes");
+    out.afterDrag = text(bar().querySelector(".pzbarsay"));
+    out.orderNow = all(".pzgroupname").map(text);
+    out.orderSays = text(document.querySelector(".pzgroupfoot .pzdraft"));
+
+    button("Save", bar()).click();
+    await until(() => sent.some((s) => s.url.endsWith("/groups/order")));
+    await until(() => !bar());
+    out.saved = sent.filter((s) => s.method !== "POST" || !s.url.endsWith("/preview")).map((s) => `${s.method} ${s.url} ${JSON.stringify(s.body)}`);
+    out.sheetOnSave = Boolean(sheet());
+    out.copies = all(".pzhint span").map(text).filter((t) => t.includes("remove the copies"));
+
+    button("Remove the copies").click();
+    const s = await until(sheet);
+    out.unpinSheet = text(s);
+    button("Remove the copies", s).click();
+    await until(() => sent.some((x) => x.url.endsWith("/unpin")));
+    out.unpin = sent.find((x) => x.url.endsWith("/unpin")).body;
+
+    await until(() => !sheet());
+    await sleep(100);
+    document.querySelector(".pzjournal").click();
+    await until(() => all(".pzentry").length > 0);
+    out.pageHidden = Boolean(document.querySelector(".pzstack[hidden]"));
+    out.entries = all(".pzentry").map(text);
+    button("Undo").click();
+    await until(() => sent.some((x) => x.url.endsWith("/undo")));
+    out.undo = sent.some((x) => x.url === "/api/profiles/journal/9/undo");
+    history.back();
+    await until(() => !document.querySelector(".pzstack[hidden]"));
+    out.backToPage = !document.querySelector(".pzstack[hidden]") && Boolean(row("Model"));
+    out.closed = closed;
+    return out;
+})();
+</script>

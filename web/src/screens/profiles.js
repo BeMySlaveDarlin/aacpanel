@@ -12,7 +12,7 @@ import { orderOf, useProfileMap } from "./profiles/state.js";
 export function Profiles() {
     const map = useProfileMap();
     const {
-        profiles, catalog, disk, error, gone,
+        profiles, catalog, disk, accounts, error, gone,
         names, current, pick, profile,
         open, toggle, form, setForm, loose, setLoose,
         apply, remove, reorder,
@@ -24,6 +24,7 @@ export function Profiles() {
             profiles=${profiles}
             catalog=${catalog}
             disk=${disk}
+            accounts=${accounts}
             order=${orderOf(profiles, form, reorder)}
             onClose=${() => setForm(null)}
             onDone=${apply}

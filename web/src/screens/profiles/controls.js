@@ -1,8 +1,8 @@
-// The rows of a project's settings page: one per launch parameter, each drawn
-// from the schema — options as chips, the model from a sheet, the environment
-// as KEY = value lines and the extra arguments as words. A row shows what the
-// project gets when it says nothing, marks its own value and the draft, and
-// says when a running session takes the change.
+// The rows of a settings page, a contour's or a project's: one per launch
+// parameter, each drawn from the schema — options as chips, the model from a
+// sheet, the environment as KEY = value lines and the extra arguments as words.
+// A row shows what its owner gets when it says nothing, marks its own value and
+// the draft, and says when a running session takes the change.
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -26,7 +26,7 @@ function windowShort(tokensN) {
     return `${Math.round(tokensN / 1000)}K`;
 }
 
-function catalogRows(catalog) {
+export function catalogRows(catalog) {
     return (catalog && catalog.state === "ok" && catalog.models) || [];
 }
 
@@ -80,8 +80,8 @@ export function struck(param, value, trait, modelName) {
 
 // Row is the frame of one parameter: its name, when a running session takes
 // a change, the draft mark and the way back to what the layers below give.
-export function Row({ param, draft, project, eff, transport, off, onUnset, children, foot }) {
-    const mine = own(draft, project, param.key);
+export function Row({ param, draft, owner, eff, transport, off, onUnset, children, foot }) {
+    const mine = own(draft, owner, param.key);
     const live = liveOf(param, transport);
     return html`
         <div class="pzrow" data-off=${off ? "1" : "0"} data-draft=${touched(draft, param.key) ? "1" : "0"}>
@@ -91,7 +91,7 @@ export function Row({ param, draft, project, eff, transport, off, onUnset, child
                 ${live && !off && html`<span class="pzlive" data-live=${live}>${live}</span>`}
                 ${mine !== null && !off && html`
                     <button class="pzback" type="button" onClick=${onUnset}
-                            aria-label=${`use what ${param.label} is below this project`}>
+                            aria-label=${`${param.label}: use the value from below`}>
                         ${belowText(param, eff)}
                     </button>
                 `}
@@ -116,7 +116,7 @@ function belowText(param, eff) {
 }
 
 // Options renders an enum or a switch as chips: every value visible, the
-// chosen one filled when it is the project's own and dashed when it comes
+// chosen one filled when it is the owner's own and dashed when it comes
 // from below, a value the model does not take struck through with why.
 export function Options({ param, eff, mine, options, why, onPick }) {
     const chosen = mine !== null ? mine : eff.value;
@@ -206,7 +206,7 @@ export function ModelSheet({ open, param, eff, mine, catalog, contour, onPick, o
                             <span class="pzlinename">${below.layer === "claude"
                                 ? "Leave it to claude"
                                 : `Use ${sourceOf(below.layer)}'s value (${label(param, below.value)})`}</span>
-                            <span class="pzhelp">${below.layer === "claude" ? param.unset : "the project follows it when it changes"}</span>
+                            <span class="pzhelp">${below.layer === "claude" ? param.unset : "followed when it changes there"}</span>
                         </span>
                     </button>
                 </div>
@@ -217,7 +217,7 @@ export function ModelSheet({ open, param, eff, mine, catalog, contour, onPick, o
 }
 
 // TextRow edits a text: empty is "+ Add"; a text the layers below give is
-// shown as what the project gets.
+// shown as what the owner gets.
 export function TextRow({ param, eff, mine, onSet }) {
     const [editing, setEditing] = useState(false);
     const text = mine === null ? "" : String(mine);
@@ -237,16 +237,16 @@ export function TextRow({ param, eff, mine, onSet }) {
     `;
 }
 
-// EnvRows are the variables as KEY = value lines: the project's own with a
+// EnvRows are the variables as KEY = value lines: the owner's own with a
 // cross, the ones from below dashed; a key typed again here overrides it.
-export function EnvRows({ eff, mine, onSet }) {
+export function EnvRows({ eff, mine, layer, onSet }) {
     const [key, setKey] = useState("");
     const [value, setValue] = useState("");
     const [adding, setAdding] = useState(false);
     const ownEnv = mine || {};
     const all = eff.value && typeof eff.value === "object" ? eff.value : {};
     const from = eff.from || {};
-    const below = Object.keys(all).filter((k) => !(k in ownEnv) && from[k] !== "project");
+    const below = Object.keys(all).filter((k) => !(k in ownEnv) && from[k] !== layer);
     const add = () => {
         const k = key.trim();
         if (!k) return;
@@ -290,12 +290,12 @@ export function EnvRows({ eff, mine, onSet }) {
     `;
 }
 
-// ArgTokens are the extra arguments a word each: the project's list replaces
-// the contour's whole, so the contour's words are shown dashed until then.
-export function ArgTokens({ eff, mine, onSet }) {
+// ArgTokens are the extra arguments a word each: the owner's list replaces
+// the one from below whole, so those words are shown dashed until then.
+export function ArgTokens({ eff, mine, layer, onSet }) {
     const [text, setText] = useState("");
     const list = Array.isArray(mine) ? mine : [];
-    const below = mine === null && Array.isArray(eff.value) && eff.layer !== "project" ? eff.value : [];
+    const below = mine === null && Array.isArray(eff.value) && eff.layer !== layer ? eff.value : [];
     const add = () => {
         const words = tokens(text);
         if (words.length === 0) return;

@@ -11,6 +11,7 @@ export function useProfileMap() {
     const [profiles, setProfiles] = useState(null);
     const [catalog, setCatalog] = useState(null);
     const [disk, setDisk] = useState(null);
+    const [accounts, setAccounts] = useState([]);
     const [error, setError] = useState("");
     const [open, setOpen] = useState(() => new Set());
     const [form, setForm] = useState(null);
@@ -29,6 +30,7 @@ export function useProfileMap() {
             setProfiles(body.profiles || []);
             setCatalog(body.models || null);
             setDisk(body.disk || null);
+            setAccounts(body.accounts || []);
             setError("");
         } catch (err) {
             setError(err.message);
@@ -47,6 +49,7 @@ export function useProfileMap() {
         setProfiles(data.profiles);
         setCatalog(data.models || null);
         if (data.disk) setDisk(data.disk);
+        if (data.accounts) setAccounts(data.accounts);
         setError("");
         if (data.profile) pick(data.profile.name);
         const reveal = [];
@@ -96,7 +99,7 @@ export function useProfileMap() {
     const profile = (profiles || []).find((p) => p.name === current) || null;
 
     return {
-        profiles, catalog, disk, error, gone,
+        profiles, catalog, disk, accounts, error, gone,
         names, current, pick, profile,
         open, toggle,
         form, setForm,

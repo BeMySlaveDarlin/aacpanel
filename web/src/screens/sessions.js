@@ -7,6 +7,7 @@ import { liveOf, ownName } from "../catchup.js";
 import { NotRecorded, Stale, Trouble } from "../ui/trouble.js";
 import { plural } from "../format.js";
 import { Icon } from "../ui/icons.js";
+import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
 import { Chat } from "./chat.js";
 import { Ghost, LiveRow, PastRow } from "./sessions/card.js";
@@ -58,6 +59,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     const stale = ageSec === null || ageSec === undefined;
 
     const [past, setPast] = useState(false);
+    const [settings, setSettings] = useState(0);
 
     const [shown, setShown] = useState([]);
 
@@ -101,6 +103,8 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             onOpenChat=${(talk) => setChat({ name: talk.name, id: talk.live ? null : talk.id })}
         />`;
     }
+
+    if (settings) return html`<${ContourDoor} id=${settings} onClose=${() => setSettings(0)} />`;
 
     if (past) {
         return html`<${Past}
@@ -178,6 +182,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
                     onProject=${setProject}
                     onChat=${openChat}
                     onPast=${() => setPast(true)}
+                    onSettings=${setSettings}
                 />
             `}
         />
@@ -199,7 +204,7 @@ export function ghostsOf(profiles, opening) {
     return out;
 }
 
-function Page({ name, profile, limits, stale, sessions, opening, recent, places, notes, blind, exec, wait, onProject, onChat, onPast }) {
+function Page({ name, profile, limits, stale, sessions, opening, recent, places, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
     const live = sessions.slice().sort((a, b) => Number(Boolean(b.home)) - Number(Boolean(a.home)));
 
     const filler = fillTo(recent, live, opening, MIN_CARDS);
@@ -258,6 +263,12 @@ function Page({ name, profile, limits, stale, sessions, opening, recent, places,
         `}
 
         <${PastButton} onOpen=${onPast} />
+        ${profile && html`
+            <button class="crumb wide" type="button" onClick=${() => onSettings(profile.id)}>
+                contour settings
+                <span class="chev">${Icon.chevron()}</span>
+            </button>
+        `}
     `;
 }
 

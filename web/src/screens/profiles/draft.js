@@ -148,16 +148,18 @@ export function liveOf(param, transport) {
     return live[transport || "tmux"] || "";
 }
 
-// pins returns the project's own values that repeat what the contour, the
-// account or the panel would give anyway: pinned, they stop following a
-// change down there, and the page offers to take the pin out.
+// pins returns the owner's own values that repeat what the contour or the
+// account would give anyway: pinned, they stop following a change down there,
+// and the page offers to take the pin out. A value equal to the panel's own
+// default is not offered: that default moves only with a release, and a value
+// set against it is a choice, not a copy.
 export function pins(params, draft, project, contourEffective) {
     const out = [];
     for (const param of params) {
         const mine = own(draft, project, param.key);
         if (mine === null) continue;
         const below = valueOf(contourEffective, param.key);
-        if (below.layer === "claude" || !same(mine, below.value)) continue;
+        if (below.layer === "claude" || below.layer === "panel" || !same(mine, below.value)) continue;
         out.push({
             key: param.key,
             text: `${param.label} ${label(param, mine)} here is the same as ${sourceOf(below.layer)} — remove the pin?`,
