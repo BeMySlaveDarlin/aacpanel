@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:600px} .dkbody{height:600px} #phone{width:390px} #chat{height:700px;display:flex;flex-direction:column}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody" id="desk"></div></div>
+<div id="phone"></div>
+<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section></div></div>
+<script type="module">
+// Sessions the panel did not start: the runs a session started inside its
+// work fold under it in both lists, one typed into a terminal by hand stands
+// on its own with a mark, and the conversation of either is only read — no
+// terminal, no window, no move, no composer, no end.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items: [{ role: "ai", pos: 1, text: "Running the suite." }], first: 1, last: 1, total: 1, moreBefore: false, state: null });
+    if (u === "/api/term") return json({ available: true });
+    if (u.startsWith("/api/session/switch")) return json({ to: "stream" });
+    if (u.startsWith("/api/session/window")) return json({ state: "closed" });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const parent = { session: "rotation", sessionId: "p1" };
+const sessions = [
+    { session: "rotation", sessionId: "p1", contour: 4, transport: "stream", status: "busy", pct: 60, cwd: "/srv/rotation" },
+    { session: "rotation-25", sessionId: "k1", contour: 4, outside: true, parent, status: "busy", pct: 3, cwd: "/srv/rotation" },
+    { session: "rotation-e8", sessionId: "k2", contour: 4, outside: true, parent, status: "waiting", waitingFor: "Bash", pct: 1, cwd: "/srv/rotation" },
+    { session: "typed", sessionId: "t1", contour: 4, outside: true, status: "idle", pct: 9, cwd: "/srv/typed" },
+];
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.switch", "window.open", "session.send", "session.set"] };
+const profileMap = [{ id: 4, profile: "Evirma", name: "Evirma", groups: [] }];
+render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: 1, sessions, profileMap, limits: null }, profiles: { profiles: [] }, limits: null,
+    current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+}))), document.getElementById("desk"));
+render(h(ToastHost, null, h(GateHost, null, html`
+    <section class="pjblock"><${LiveLines} list=${sessions} named=${() => true} notes=${null} checked=${null} wait=${null}
+                                           onOpen=${() => {}} onMore=${() => {}} /></section>
+    <${SessionSheet} session=${sessions[1]} exec=${exec} onClose=${() => {}} onOpen=${() => {}} />
+`)), document.getElementById("phone"));
+render(h(ToastHost, null, h(GateHost, null, h(Chat, {
+    name: "rotation-25", id: "k1", live: sessions[1], exec, snapshot: { sessions }, onBack() {}, onUsage() {},
+}))), document.getElementById("chat"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
+
+window.done = (async () => {
+    await document.fonts.ready;
+    await sleep(400);
+    const desk = document.getElementById("desk");
+    const phone = document.getElementById("phone");
+    const chat = document.getElementById("chat");
+    const out = {};
+    out.deskRows = names(desk, ".dksess .dkname");
+    out.deskFold = text(desk.querySelector(".dkkin"));
+    out.deskTyped = text(Array.from(desk.querySelectorAll(".dksess")).find((r) => text(r.querySelector(".dkname")) === "typed"));
+    out.deskTypedActs = (Array.from(desk.querySelectorAll(".dksess")).find((r) => text(r.querySelector(".dkname")) === "typed") || document.body)
+        .querySelectorAll(".dkrowacts .dkact").length;
+    desk.querySelector(".dkkin").click();
+    await sleep(100);
+    out.deskOpen = names(desk, ".dksess .dkname");
+    out.deskKids = names(desk, ".dksess.dkkid .dkname");
+
+    out.phoneRows = names(phone, ".pjblock .pjrow .pjsess");
+    out.phoneFold = text(phone.querySelector(".pjkin"));
+    out.phoneTags = names(phone, ".pjblock .pjrow .pjtag");
+    phone.querySelector(".pjkin").click();
+    await sleep(100);
+    out.phoneOpen = names(phone, ".pjblock .pjrow .pjsess");
+    out.sheet = Array.from(document.querySelectorAll(".pjsheet .pjact")).map((b) => ({ text: text(b.querySelector("b")), off: b.disabled }));
+
+    for (let i = 0; i < 40 && !chat.querySelector(".outsidenote"); i++) await sleep(50);
+    out.tabs = names(chat, ".dktabs .dktab");
+    out.place = text(chat.querySelector(".dkplace"));
+    out.composer = Boolean(chat.querySelector(".composer"));
+    out.note = text(chat.querySelector(".outsidenote"));
+    const face = chat.querySelector(".dkplace");
+    if (face) face.click();
+    await sleep(150);
+    out.panel = names(document, ".dkpanel .toollabel");
+    return out;
+})();
+</script>

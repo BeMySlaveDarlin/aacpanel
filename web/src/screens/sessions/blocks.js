@@ -16,6 +16,7 @@ import { hostLabel } from "../../actions/registry.js";
 import { knows, whyNot } from "../../exec.js";
 import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { sessionsOf } from "./of.js";
+import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
 import { stamp, when } from "./card.js";
 
 // The order of the list: who waits for the person, who works, who is quiet.
@@ -182,26 +183,53 @@ export function ProjectBlock({ block, exec, wait, notes, checked, onOpen, onMore
                     </button>
                 `}
             </div>
-            ${block.live.map((s) => html`
-                <${LiveLine} key=${s.session} session=${s} named=${block.live.length > 1 || s.session !== (project && project.session)}
-                             notes=${notes && notes.get(s.session)} checked=${checked} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
-            `)}
+            <${LiveLines} list=${block.live} named=${(s) => block.live.length > 1 || s.session !== (project && project.session)}
+                          notes=${notes} checked=${checked} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
             ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
             ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
         </section>
     `;
 }
 
+// LiveLines lays out the live sessions of a project: the runs a session
+// started inside its work fold under it, and the fold says whether one of
+// them waits for the person.
+export function LiveLines({ list, named, notes, checked, wait, onOpen, onMore }) {
+    const { own, kids } = kinOf(list);
+    const line = (s, kid = false) => html`
+        <${LiveLine} key=${s.session} session=${s} named=${kid || named(s)} kid=${kid}
+                     notes=${notes && notes.get(s.session)} checked=${checked} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
+    `;
+    return own.map((s) => html`
+        ${line(s)}
+        ${kids.has(s.session) && html`<${KinFold} key=${`kin:${s.session}`} kids=${kids.get(s.session)} line=${line} />`}
+    `);
+}
+
+function KinFold({ kids, line }) {
+    const [open, setOpen] = useState(false);
+    const waiting = kids.filter((s) => stateOf(s).tone === "wait").length;
+    return html`
+        <button class="pjkin" type="button" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>
+            <span class=${`pjkinchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
+            <span>${kinLabel(kids.length)}</span>
+            ${waiting > 0 && html`<span class="pjkinwait">· ${waiting} waiting</span>`}
+        </button>
+        ${open && kids.map((s) => line(s, true))}
+    `;
+}
+
 // LiveLine is a live session inside its project: what it is doing, where it
 // lives, how full it is, and the button of what can be done to it.
-export function LiveLine({ session, named, notes, checked, wait, onOpen, onMore }) {
+export function LiveLine({ session, named, kid = false, notes, checked, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const closing = wait ? wait.of("close", session.session) : null;
     const restarting = wait ? wait.of("restart", session.session) : null;
     const busy = closing || restarting;
-    const stream = session.transport === "stream";
+    const place = placeOf(session);
+    const tag = { feed: Icon.feed, console: Icon.terminal, outside: Icon.exit }[place];
     return html`
-        <div class="pjrow">
+        <div class=${`pjrow${kid ? " pjkid" : ""}`}>
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
                     onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
                 ${named && html`<span class="pjsess">${session.session}</span>`}
@@ -210,7 +238,7 @@ export function LiveLine({ session, named, notes, checked, wait, onOpen, onMore 
                     ${state.since && html`<span class="pjsince"> · ${state.since}</span>`}
                 </span>
             </button>
-            <span class="pjtag">${stream ? Icon.feed() : Icon.terminal()}${stream ? "feed" : "console"}</span>
+            <span class="pjtag">${tag()}${place}</span>
             <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
             <button class="pjmore" type="button" aria-label=${`what to do with session ${session.session}`}
                     onClick=${() => onMore(session)}>${Icon.more()}</button>
@@ -278,7 +306,12 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
     const lines = [];
     lines.push({ key: "open", icon: Icon.feed(), text: "Open the conversation", note: "the feed of this session",
         press: act(async () => onOpen && onOpen(session.session, session.sessionId)) });
-    if (way.to === "console" || way.to === "stream") {
+    // A claude the panel did not start is only read: nothing else is offered.
+    if (session.outside) {
+        lines.push({ key: "outside", icon: Icon.exit(), text: "Outside the panel", note: outsideNote(session), why: "",
+            press: null });
+    }
+    if (!session.outside && (way.to === "console" || way.to === "stream")) {
         const to = way.to;
         lines.push({ key: "move", icon: to === "stream" ? Icon.feed() : Icon.terminal(),
             text: to === "stream" ? "Move to the feed" : "Move to the console",
@@ -286,7 +319,7 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
             why: whyNot(exec, "session.switch"),
             press: act(async () => moveSession({ run, exec, name, to })) });
     }
-    if (!stream) {
+    if (!stream && !session.outside) {
         lines.push({ key: "window", icon: Icon.monitor(), text: `Open a window on ${hostLabel()}`,
             note: "a terminal on the host's desktop",
             why: knows(exec, "window.open") ? "" : whyNot(exec, "window.open"),
@@ -306,18 +339,18 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
         why: knows(exec, "session.close") ? "" : whyNot(exec, "session.close"),
         press: act(async () => run("session.close", name, {})),
     };
-    lines.push(restartLine || closeLine);
+    if (!session.outside) lines.push(restartLine || closeLine);
     return html`
         <${Sheet} open=${true} onClose=${onClose} label=${`actions of session ${name}`}>
             <div class="pjsheet">
                 <div class="pjsheethead">
                     <span class="pjsheetname">${name}</span>
-                    <span class="pjsheetsub">${[stream ? "feed" : "console", session.model ? session.model.replace(/^claude-/, "") : "",
+                    <span class="pjsheetsub">${[placeOf(session), session.model ? session.model.replace(/^claude-/, "") : "",
                         session.effort || "", session.noRequests ? "" : `${Math.round(session.pct || 0)}%`].filter(Boolean).join(" · ")}</span>
                 </div>
                 ${lines.map((l) => html`
                     <button key=${l.key} class=${`pjact${l.danger ? " pjdanger" : ""}`} type="button"
-                            disabled=${Boolean(l.why)} onClick=${l.press}>
+                            disabled=${Boolean(l.why) || !l.press} onClick=${l.press}>
                         <span class="pjacticon">${l.icon}</span>
                         <span class="pjactbody"><b>${l.text}</b><span>${l.why || l.note}</span></span>
                     </button>

@@ -13,6 +13,11 @@ import held
 
 SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
 
+# What a process of the panel's own sessions is started under: the server of
+# tmux for a console, the holder for a session on the stream.
+TMUX_SERVER = "tmux: server"
+HOLDER = "aacpanel-exec"
+
 
 def proc_start(pid):
     """Returns the start time of a process in ticks, from /proc/<pid>/stat."""
@@ -21,6 +26,45 @@ def proc_start(pid):
             return f.read().rsplit(")", 1)[1].split()[19]
     except (OSError, IndexError):
         return None
+
+
+def parent_pid(pid):
+    """Returns the parent of a process, or None when it is gone."""
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return int(f.read().rsplit(")", 1)[1].split()[1])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _comm(pid):
+    try:
+        with open(f"/proc/{pid}/comm") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def lineage(pid, owners):
+    """Says what a session's process was started under.
+
+    The first parent up the chain that tells decides: another live session —
+    this one is a run inside its work; the server of tmux or the holder of the
+    stream — a session of the panel. A chain that reaches the top with none of
+    them is a claude started outside the panel, in a terminal of its own.
+    `owners` maps the pids of the live sessions to what names them.
+    """
+    seen = set()
+    at = parent_pid(pid) if pid else None
+    while at and at > 1 and at not in seen:
+        seen.add(at)
+        owner = owners.get(at)
+        if owner:
+            return {"outside": True, "parent": dict(owner)}
+        if _comm(at) in (TMUX_SERVER, HOLDER):
+            return {}
+        at = parent_pid(at)
+    return {"outside": True} if pid else {}
 
 
 def _oneshot(pid, sid=None):
@@ -94,7 +138,7 @@ def live_sessions():
             continue
         name = data.get("name") or os.path.basename(cwd.rstrip("/")) or cwd
         out.append({
-            "name": name, "sessionId": sid, "cwd": cwd,
+            "name": name, "sessionId": sid, "cwd": cwd, "pid": pid,
             "transcript": chat.transcript_path(sid),
             "procStartedAt": started_at(pid),
         })
@@ -193,6 +237,13 @@ def _row(live):
 
 def sessions():
     """Returns the live sessions as {"sessions": [...], "notes": []}, the fullest first."""
-    rows = [_row(live) for live in live_sessions()]
+    lives = live_sessions()
+    owners = {live["pid"]: {"session": live["name"], "sessionId": live["sessionId"]}
+              for live in lives if live.get("pid")}
+    rows = []
+    for live in lives:
+        row = _row(live)
+        row.update(lineage(live.get("pid"), owners))
+        rows.append(row)
     rows.sort(key=lambda r: -r["pct"])
     return {"sessions": rows, "notes": []}

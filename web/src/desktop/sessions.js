@@ -12,6 +12,7 @@ import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contoursOf } from "../screens/sessions/map.js";
+import { kinLabel, kinOf } from "../screens/sessions/kin.js";
 
 // ContourPick chooses which contours the column shows.
 export function ContourPick({ names, picks, onToggle, onAll }) {
@@ -76,7 +77,7 @@ function GhostLine({ task }) {
     `;
 }
 
-function SessionLine({ s, group, current, onPick, index, exec, wait }) {
+function SessionLine({ s, group, current, onPick, index, exec, wait, kid = false }) {
     const run = useAction();
     const status = s.status || "idle";
     const waiting = status === "waiting" || Boolean(s.waitingFor);
@@ -91,7 +92,7 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
 
     return html`
         <button
-            class=${`dksess${current === s.session ? " on" : ""}`}
+            class=${`dksess${current === s.session ? " on" : ""}${kid ? " dkkid" : ""}`}
             type="button"
             style=${`--fill:${Math.min(100, s.pct || 0)}%`}
             onClick=${() => onPick({ name: s.session, id: s.sessionId })}
@@ -101,6 +102,7 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
                 <span class="dksessmain">
                     <span class="dkname">${s.session}</span>
                     ${s.home && html`<span class="dktag">home</span>`}
+                    ${s.outside && !kid && html`<span class="dktag">outside</span>`}
                     <span class="dknum">${s.limitKnown === false ? "—" : pct(s.pct)}</span>
                     <span class="dkhint">${index < 9 ? index + 1 : ""}</span>
                 </span>
@@ -118,7 +120,7 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
                 </span>
             </span>
             <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
-                ${!s.home && html`
+                ${!s.home && !s.outside && html`
                     <i
                         class=${`dkact danger${can ? "" : " off"}`}
                         data-tip=${closing
@@ -147,6 +149,21 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
             </span>
             <span class=${`dksessbar ${fill(s.pct || 0)}`}><i style=${`width:${Math.min(100, s.pct || 0)}%`}></i></span>
         </button>
+    `;
+}
+
+// KinFold holds the runs a session started inside its work, folded under it;
+// the fold says whether one of them waits for the person.
+function KinFold({ kids, line }) {
+    const [open, setOpen] = useState(false);
+    const waiting = kids.filter((s) => s.ask || s.status === "waiting" || s.waitingFor).length;
+    return html`
+        <button class="dkkin" type="button" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>
+            <span class=${`dkkinchev${open ? " open" : ""}`}><${Icon.chevron} /></span>
+            <span>${kinLabel(kids.length)}</span>
+            ${waiting > 0 && html`<span class="dkkinwait">· ${waiting} waiting</span>`}
+        </button>
+        ${open && kids.map((s) => line(s, true))}
     `;
 }
 
@@ -272,7 +289,7 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
         return map;
     }, [shown]);
 
-    const flat = useMemo(() => [...byProfile].flatMap(([, list]) => list), [byProfile]);
+    const flat = useMemo(() => [...byProfile].flatMap(([, list]) => kinOf(list).own), [byProfile]);
 
     useEffect(() => {
         if (onOrder) onOrder(flat.map((s) => ({ name: s.session, id: s.sessionId })));
@@ -295,19 +312,27 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
                             <span class="dkcontournum">${list.length} live</span>
                             <${ContourLimits} limits=${limits} name=${profile} profiles=${map} />
                         </div>
-                        ${list.map((s) => {
-                            const found = s.project === undefined ? place(s.cwd) : s.project;
-                            return html`<${SessionLine}
-                                key=${s.session}
-                                s=${s}
-                                group=${found ? found.group : ""}
-                                current=${current}
-                                onPick=${onPick}
-                                index=${flat.indexOf(s)}
-                                exec=${exec}
-                                wait=${wait}
-                            />`;
-                        })}
+                        ${(() => {
+                            const { own, kids } = kinOf(list);
+                            const line = (s, kid = false) => {
+                                const found = s.project === undefined ? place(s.cwd) : s.project;
+                                return html`<${SessionLine}
+                                    key=${s.session}
+                                    s=${s}
+                                    group=${found ? found.group : ""}
+                                    current=${current}
+                                    onPick=${onPick}
+                                    index=${kid ? 99 : flat.indexOf(s)}
+                                    exec=${exec}
+                                    wait=${wait}
+                                    kid=${kid}
+                                />`;
+                            };
+                            return own.map((s) => html`
+                                ${line(s)}
+                                ${kids.has(s.session) && html`<${KinFold} key=${`kin:${s.session}`} kids=${kids.get(s.session)} line=${line} />`}
+                            `);
+                        })()}
                     </section>
                 `)}
                 ${shown.length === 0 && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}

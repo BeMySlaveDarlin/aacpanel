@@ -365,5 +365,72 @@ class LiveSessions(unittest.TestCase):
         self.assertEqual(got[0]["name"], "aacpanel")
 
 
+class Lineage(unittest.TestCase):
+    """What a session's process was started under, read up the chain of parents."""
+
+    def table(self, rows):
+        # rows: pid -> (parent, comm)
+        for name, fake in (("parent_pid", lambda pid: rows.get(pid, (None, ""))[0]),
+                           ("_comm", lambda pid: rows.get(pid, (None, ""))[1])):
+            self.addCleanup(setattr, ctx, name, getattr(ctx, name))
+            setattr(ctx, name, fake)
+
+    def test_a_claude_started_by_a_run_inside_another_session_names_it(self):
+        self.table({500: (400, "claude"), 400: (300, "python3"), 300: (200, "bash"),
+                    200: (100, "claude"), 100: (1, "aacpanel-exec")})
+        got = ctx.lineage(500, {200: {"session": "evirma", "sessionId": UUID_A}})
+        self.assertEqual(got, {"outside": True, "parent": {"session": "evirma", "sessionId": UUID_A}})
+
+    def test_a_console_of_the_panel_is_not_outside(self):
+        self.table({500: (40, "claude"), 40: (1, "tmux: server")})
+        self.assertEqual(ctx.lineage(500, {}), {})
+
+    def test_a_session_on_the_stream_is_not_outside(self):
+        self.table({500: (40, "claude"), 40: (1, "aacpanel-exec")})
+        self.assertEqual(ctx.lineage(500, {}), {})
+
+    def test_a_claude_typed_into_a_terminal_is_outside_with_no_parent(self):
+        self.table({500: (60, "claude"), 60: (50, "bash"), 50: (1, "konsole")})
+        self.assertEqual(ctx.lineage(500, {}), {"outside": True})
+
+    def test_the_nearest_session_up_the_chain_is_the_parent(self):
+        self.table({500: (200, "claude"), 200: (100, "claude"), 100: (1, "tmux: server")})
+        owners = {200: {"session": "inner", "sessionId": UUID_A}, 100: {"session": "outer", "sessionId": UUID_B}}
+        self.assertEqual(ctx.lineage(500, owners)["parent"]["session"], "inner")
+
+    def test_a_loop_in_the_chain_ends(self):
+        self.table({500: (60, "claude"), 60: (70, "x"), 70: (60, "y")})
+        self.assertEqual(ctx.lineage(500, {}), {"outside": True})
+
+    def test_the_chain_of_real_processes_is_read(self):
+        shell = subprocess.Popen(["bash", "-c", "sleep 60 & wait"])
+        self.addCleanup(shell.wait)
+        self.addCleanup(shell.terminate)
+        child = None
+        for _ in range(50):
+            kids = [int(p) for p in os.listdir("/proc") if p.isdigit() and ctx.parent_pid(int(p)) == shell.pid]
+            if kids:
+                child = kids[0]
+                break
+            time.sleep(0.05)
+        self.assertIsNotNone(child, "the shell did not start its child")
+        self.addCleanup(lambda: subprocess.run(["kill", str(child)], check=False))
+        got = ctx.lineage(child, {shell.pid: {"session": "outer", "sessionId": UUID_A}})
+        self.assertEqual(got.get("parent", {}).get("session"), "outer")
+
+    def test_the_snapshot_rows_carry_where_a_session_came_from(self):
+        self.table({500: (200, "claude"), 200: (100, "claude"), 100: (1, "aacpanel-exec")})
+        lives = [{"name": "evirma", "sessionId": UUID_A, "cwd": "/x", "pid": 200, "transcript": "", "procStartedAt": None},
+                 {"name": "evirma-e8", "sessionId": UUID_B, "cwd": "/x", "pid": 500, "transcript": "", "procStartedAt": None}]
+        for name, fake in (("live_sessions", lambda: [dict(x) for x in lives]),
+                           ("_row", lambda live: {"session": live["name"], "sessionId": live["sessionId"], "pct": 0.0})):
+            self.addCleanup(setattr, ctx, name, getattr(ctx, name))
+            setattr(ctx, name, fake)
+        rows = {r["session"]: r for r in ctx.sessions()["sessions"]}
+        self.assertNotIn("outside", rows["evirma"])
+        self.assertEqual(rows["evirma-e8"].get("parent"), {"session": "evirma", "sessionId": UUID_A})
+        self.assertTrue(rows["evirma-e8"].get("outside"))
+
+
 if __name__ == "__main__":
     unittest.main()

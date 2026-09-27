@@ -115,6 +115,9 @@ type LiveSession struct {
 	// Transport is "stream" for a session its holder keeps on the stream, and
 	// empty for a terminal.
 	Transport string `json:"transport"`
+	// Outside is a claude the panel did not start: in no pane of tmux and on
+	// no stream, so neither side can take it over.
+	Outside bool `json:"outside"`
 }
 
 // Worktrees maps the git worktrees the agent saw on disk to their main

@@ -610,6 +610,10 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 	if live.SessionID == "" || live.CWD == "" {
 		return switchWay{}, fmt.Errorf("session %q has no conversation to carry over yet", name)
 	}
+	if live.Outside {
+		return switchWay{}, fmt.Errorf("session %q was started outside the panel: it lives in no pane of tmux "+
+			"and on no stream, so there is no side to move it from", name)
+	}
 	want, projectID, err := s.launchProject(ctx, nil, live.CWD, "")
 	if err != nil {
 		return switchWay{}, err

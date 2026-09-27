@@ -21,6 +21,7 @@ import { copyText } from "./copy.js";
 import { shortPath } from "./head.js";
 import { useRemote } from "./remote.js";
 import { moveSession, stops } from "./switch.js";
+import { outsideNote } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
 
 // MoreButton opens the tools of the session from the header on a phone.
@@ -107,6 +108,23 @@ function Watch({ view, note, onPick }) {
 // its own, and two layers over the run fight for the way back.
 export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, way, work, onDone, onWindow, onLook }) {
     const run = useAction();
+    // A claude the panel did not start is only read: it has no side to move
+    // from, no window, no bridge, and the panel does not end what it did not
+    // begin.
+    if (live.outside) {
+        return html`
+            <section class="toolsec">
+                <div class="cmdsechead"><span>Where it lives</span></div>
+                <ul class="mcplist toollist"><${Place} live=${live} win=${win} /></ul>
+            </section>
+            <section class="toolsec">
+                <div class="cmdsechead"><span>Session</span></div>
+                <ul class="mcplist toollist">
+                    <${SessionLines} name=${name} live=${live} exec=${exec} cwd=${cwd} onDone=${onDone} onLook=${onLook} />
+                </ul>
+            </section>
+        `;
+    }
     return html`
         <section class="toolsec">
             <div class="cmdsechead"><span>Where it lives</span></div>
@@ -141,14 +159,15 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
 // Place says where the session lives now.
 function Place({ live, win }) {
     const stream = live.transport === "stream";
-    const note = stream
-        ? `the panel's feed: no terminal and no window on ${hostLabel()} here`
+    const note = live.outside ? outsideNote(live)
+        : stream ? `the panel's feed: no terminal and no window on ${hostLabel()} here`
         : `tmux on ${hostLabel()}${win.kind === "open" ? " · a window shows it" : ""}`;
+    const label = live.outside ? "Outside the panel" : stream ? "On the stream" : "In the console";
     return html`
         <li class="toolline">
             <span class="toolicon">${Icon.pin()}</span>
             <span class="toolbody">
-                <span class="toollabel">${stream ? "On the stream" : "In the console"}</span>
+                <span class="toollabel">${label}</span>
                 <span class="toolnote">${note}</span>
             </span>
         </li>
@@ -210,7 +229,9 @@ function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
     const toast = useToast();
     const id = live.sessionId || "";
     const resume = id ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
-    const renameWhy = live.transport !== "stream"
+    const renameWhy = live.outside
+        ? "the panel did not start this session and cannot rename it"
+        : live.transport !== "stream"
         ? "a session in the console is renamed on its own screen, /rename with keys"
         : knows(exec, "session.rename") ? "" : whyNot(exec, "session.rename");
     const row = (icon, label, note, press, aside = "", off = "") => html`
@@ -328,7 +349,7 @@ export function SessionButton(props) {
                     aria-label="the session: where it lives, Remote Control and what can be done to it"
                     onClick=${() => onOpen(!open)}>
                 <span class="dkplaceicon">${Icon.pin()}</span>
-                <span>${stream ? "stream" : "console"}</span>
+                <span>${live.outside ? "outside" : stream ? "stream" : "console"}</span>
                 ${!stream && win.kind === "open" && html`<span class="dkplacewin">window</span>`}
                 ${live.remote && html`<span class="dkrc">RC</span>`}
                 <span class="dkplacechev">${Icon.chevron()}</span>

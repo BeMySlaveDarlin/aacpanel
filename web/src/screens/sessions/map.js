@@ -14,7 +14,7 @@ import { knows, whyNot } from "../../exec.js";
 import { sessionsOf } from "./of.js";
 
 export { sessionsOf };
-import { GhostLine, LiveLine, PastLine, SessionSheet } from "./blocks.js";
+import { GhostLine, LiveLines, PastLine, SessionSheet } from "./blocks.js";
 import { useSessionsArchive } from "../../history.js";
 import { ProjectDoor } from "../profiles/door.js";
 
@@ -209,10 +209,8 @@ export function Project({ project, sessions, notes, checked, exec, wait, onBack,
 
         <section class="pjblock">
             <div class="pjhead"><span class="pjname">live</span><span class="pjgroup">${own.length || ""}</span></div>
-            ${own.map((s) => html`
-                <${LiveLine} key=${s.session} session=${s} named=${own.length > 1 || s.session !== project.session}
-                             notes=${notes && notes.get(s.session)} checked=${checked} wait=${wait} onOpen=${onChat} onMore=${(x) => setActing(x.session)} />
-            `)}
+            <${LiveLines} list=${own} named=${(s) => own.length > 1 || s.session !== project.session}
+                          notes=${notes} checked=${checked} wait=${wait} onOpen=${onChat} onMore=${(x) => setActing(x.session)} />
             ${opening && html`<${GhostLine} task=${opening} />`}
             ${own.length === 0 && !opening && html`<p class="pjempty">There are no sessions of this project right now.</p>`}
         </section>

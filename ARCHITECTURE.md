@@ -707,6 +707,16 @@ checks.
 session names are reused between runs, and yesterday's conversation under the
 same name is a different conversation.
 
+**Where a session came from is read up the chain of its process's parents.**
+The first one that tells decides: another live session — this one is a run
+inside its work, a program of that session starting claude; the server of tmux
+or the holder of the stream — a session of the panel; the top of the chain
+with none of them — a claude typed into a terminal by hand. The panel only
+reads a session it did not start: it has no pane to attach to, no side to move
+from, nothing to write into, and the panel does not end what it did not begin.
+A run folds under the session that started it, so a suite that raises a dozen
+claudes does not push the sessions of the person off the list.
+
 **The archive is ordered by when a conversation last spoke, not by when its
 file was last written to.** Claude appends a title, a mode or a snapshot of file
 history to a transcript long after the talk ended, and the file goes fresh with

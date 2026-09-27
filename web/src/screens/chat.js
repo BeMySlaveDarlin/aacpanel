@@ -41,6 +41,7 @@ import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
 import { DeskHead } from "./chat/deskhead.js";
 import { useWindow } from "./chat/window.js";
 import { MoveScreen, sidesOf, useMove, useSwitchWay } from "./chat/switch.js";
+import { outsideNote } from "./sessions/kin.js";
 import { TakeBack } from "./chat/takeback.js";
 import { Term, useTermAvailable } from "./chat/term.js";
 import { useViewPick } from "./chat/viewpick.js";
@@ -86,7 +87,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     const wide = useWide();
     const still = useAsOf();
     const term = useTermAvailable();
-    const canTerm = term.ok && Boolean(live);
+    // A claude the panel did not start lives in no pane of tmux: there is no
+    // screen of it to attach to.
+    const canTerm = term.ok && Boolean(live) && !live.outside;
     const [picked, pickView] = useViewPick(canTerm, wide);
 
     // Which side the session lives on decides what the pair of views does: see
@@ -378,7 +381,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             <div class="composerbox">
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""} />
-                ${state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
+                ${live.outside
+                    ? html`<p class="outsidenote">${outsideNote(live)}</p>`
+                    : state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
                     && !hidesAsk(answer, state.work.ask.toolUseId)
                     ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${live.transport === "stream"}
                                    onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))} />`

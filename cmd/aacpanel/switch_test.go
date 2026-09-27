@@ -134,3 +134,24 @@ func TestSessionSwitchRefusesTheWayThatIsNotOpenPG(t *testing.T) {
 		})
 	}
 }
+
+// A claude the panel did not start has no side to leave: neither the way nor
+// the move is offered, and nothing reaches the executor.
+func TestSessionSwitchRefusesASessionStartedOutsidePG(t *testing.T) {
+	srv, fake, dir := switchServer(t, "stream", "")
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"aacpanel-2","sessionId":"`+switchSID+
+		`","cwd":"`+dir+`","outside":true}]}`))
+
+	if to, reason := switchWayOf(t, srv); to != "" || !strings.Contains(reason, "started outside the panel") {
+		t.Errorf("the way is %q (%q), expected none, saying the session was started outside the panel", to, reason)
+	}
+	w := post(t, srv, `{"kind":"session.switch","target":"aacpanel-2","params":{"to":"stream"}}`)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "started outside the panel") {
+		t.Fatalf("status %d, body %q; expected 400 saying the session was started outside the panel", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		t.Fatalf("the request went to the executor after all: %+v", got)
+	default:
+	}
+}

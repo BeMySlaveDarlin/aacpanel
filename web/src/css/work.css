@@ -152,6 +152,17 @@
 
 .composerbox { flex: 0 0 auto; display: flex; flex-direction: column; }
 
+/* Where the composer stands for a session the panel did not start: why there
+   is nothing to write into. */
+.outsidenote {
+    margin: 0;
+    padding: .6rem .75rem;
+    border-radius: var(--r-card);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    font-size: var(--t-sm);
+    color: var(--ink-faint);
+}
+
 .workbar.status {
     margin-top: 0;
     margin-bottom: 0;
