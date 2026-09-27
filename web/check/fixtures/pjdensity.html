@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} #root{padding:0 .7rem}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="pfcol" id="root"></div>
+<script type="module">
+// The phone's list of a contour: a section heading, a working project with a
+// live session and its last conversation, and quiet projects under it — laid
+// out without spans between the blocks and the rows.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { ProjectBlock } from "/src/screens/sessions/blocks.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const project = (id, name) => ({ id, name, session: name, path: `/srv/${name}` });
+const past = (name) => ({ sessionId: `${name}-past`, name, prompts: ["what was it about"], startedAt: "2026-09-27T10:00:00Z", lastAt: "2026-09-27T11:00:00Z", pctMax: 40, messages: 12 });
+const live = { session: "aacpanel", sessionId: "s1", status: "busy", pct: 47, transport: "stream", lastRequestAt: new Date().toISOString() };
+const blocks = [
+    { key: "a", name: "aacpanel", group: "Infra", project: project(1, "aacpanel"), live: [live], ghosts: [], past: past("aacpanel"), rank: 1 },
+    { key: "b", name: "person", group: "Combine", project: project(2, "person"), live: [], ghosts: [], past: past("person"), rank: 2 },
+    { key: "c", name: "blog", group: "Sites", project: project(3, "blog"), live: [], ghosts: [], past: past("blog"), rank: 2 },
+];
+const exec = { available: true, kinds: ["session.open", "session.resume"] };
+render(h(ToastHost, null, h(GateHost, null, html`
+    <div class="grouphead pjsection">working<span class="pjcount">1</span></div>
+    <${ProjectBlock} block=${blocks[0]} exec=${exec} wait=${null} notes=${null} checked=${null} onOpen=${() => {}} onMore=${() => {}} onProject=${() => {}} />
+    <div class="grouphead pjsection">quiet</div>
+    ${blocks.slice(1).map((b) => html`<${ProjectBlock} key=${b.key} block=${b} exec=${exec} wait=${null} notes=${null} checked=${null}
+                                                      onOpen=${() => {}} onMore=${() => {}} onProject=${() => {}} />`)}
+`)), document.getElementById("root"));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    await new Promise((r) => setTimeout(r, 200));
+    const box = (el) => el.getBoundingClientRect();
+    const blocksEl = [...document.querySelectorAll(".pjblock")];
+    const heads = [...document.querySelectorAll(".grouphead")];
+    return {
+        between: Math.round(box(blocksEl[2]).top - box(blocksEl[1]).bottom),
+        beforeSection: Math.round(box(heads[1]).top - box(blocksEl[0]).bottom),
+        underSection: Math.round(box(blocksEl[1]).top - box(heads[1]).bottom),
+        head: Math.round(box(blocksEl[0].querySelector(".pjhead")).height),
+        rows: [...blocksEl[0].querySelectorAll(".pjrow")].map((r) => Math.round(box(r).height)),
+        button: Math.round(box(document.querySelector(".pjresume")).height),
+    };
+})();
+</script>
