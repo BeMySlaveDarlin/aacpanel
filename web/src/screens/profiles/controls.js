@@ -8,6 +8,7 @@ import { useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { Sheet } from "../../ui/sheet.js";
+import { Popover } from "../../ui/popover.js";
 import { COMMANDS } from "../../actions/registry.js";
 import { label, liveOf, outcome, own, sourceOf, tokens, touched } from "./draft.js";
 
@@ -172,47 +173,64 @@ export function ModelRow({ param, eff, mine, catalog, onOpen }) {
     `;
 }
 
-// ModelSheet is the list of models: a check, the name and what choosing it
+// ModelSheet is the list of models as a sheet, on the phone.
+export function ModelSheet({ open, param, onClose, ...rest }) {
+    return html`
+        <${Sheet} open=${open} onClose=${onClose} label=${param.label}>
+            <${ModelList} param=${param} ...${rest} />
+        <//>
+    `;
+}
+
+// ModelPopover is the same list dropped from the model's row on a wide
+// screen, with the draft's bar at its foot.
+export function ModelPopover({ open, param, onClose, ...rest }) {
+    return html`
+        <${Popover} open=${open} onClose=${onClose} label=${param.label}>
+            <${ModelList} param=${param} ...${rest} />
+        <//>
+    `;
+}
+
+// ModelList is the list of models: a check, the name and what choosing it
 // means; the last row goes back to what the layers below give. The draft's
-// bar is at its foot — Save there saves the whole draft, not the model alone.
-export function ModelSheet({ open, param, eff, mine, catalog, contour, onPick, onClose, bar }) {
+// bar is at its foot: Save there saves the whole draft, not the model alone.
+function ModelList({ param, eff, mine, catalog, contour, onPick, bar }) {
     const rows = modelRows(catalog);
     const fromCatalogue = catalogRows(catalog).length > 0;
     const below = eff.below || { layer: "claude", value: null };
     return html`
-        <${Sheet} open=${open} onClose=${onClose} label=${param.label}>
-            <div class="pzsheet">
-                <h3>${param.label}</h3>
-                <p class="pzhelp">${fromCatalogue
-                    ? `aliases follow the newest of a family; the catalogue of the host pins a version`
-                    : `account ${contour}: the catalogue was not read — aliases, not checked against this account`}</p>
-                <div class="pzlist" role="listbox" aria-label=${param.label}>
-                    ${rows.map((r) => html`
-                        <button key=${r.value} class="pzline" type="button" role="option"
-                                aria-selected=${mine === r.value ? "true" : "false"}
-                                onClick=${() => onPick(r.value)}>
-                            <span class="pzcheck">${mine === r.value ? Icon.check() : ""}</span>
-                            <span class="pzlinebody">
-                                <span class="pzlinename">${r.name}</span>
-                                <span class="pzhelp">${r.meaning}</span>
-                            </span>
-                        </button>
-                    `)}
-                    <button class="pzline" type="button" role="option"
-                            aria-selected=${mine === null ? "true" : "false"}
-                            onClick=${() => onPick(null)}>
-                        <span class="pzcheck">${mine === null ? Icon.check() : ""}</span>
+        <div class="pzsheet">
+            <h3>${param.label}</h3>
+            <p class="pzhelp">${fromCatalogue
+                ? "aliases follow the newest of a family; the catalogue of the host pins a version"
+                : `account ${contour}: the catalogue was not read — aliases, not checked against this account`}</p>
+            <div class="pzlist" role="listbox" aria-label=${param.label}>
+                ${rows.map((r) => html`
+                    <button key=${r.value} class="pzline" type="button" role="option"
+                            aria-selected=${mine === r.value ? "true" : "false"}
+                            onClick=${() => onPick(r.value)}>
+                        <span class="pzcheck">${mine === r.value ? Icon.check() : ""}</span>
                         <span class="pzlinebody">
-                            <span class="pzlinename">${below.layer === "claude"
-                                ? "Leave it to claude"
-                                : `Use ${sourceOf(below.layer)}'s value (${label(param, below.value)})`}</span>
-                            <span class="pzhelp">${below.layer === "claude" ? param.unset : "followed when it changes there"}</span>
+                            <span class="pzlinename">${r.name}</span>
+                            <span class="pzhelp">${r.meaning}</span>
                         </span>
                     </button>
-                </div>
-                ${bar}
+                `)}
+                <button class="pzline" type="button" role="option"
+                        aria-selected=${mine === null ? "true" : "false"}
+                        onClick=${() => onPick(null)}>
+                    <span class="pzcheck">${mine === null ? Icon.check() : ""}</span>
+                    <span class="pzlinebody">
+                        <span class="pzlinename">${below.layer === "claude"
+                            ? "Leave it to claude"
+                            : `Use ${sourceOf(below.layer)}'s value (${label(param, below.value)})`}</span>
+                        <span class="pzhelp">${below.layer === "claude" ? param.unset : "followed when it changes there"}</span>
+                    </span>
+                </button>
             </div>
-        <//>
+            ${bar}
+        </div>
     `;
 }
 

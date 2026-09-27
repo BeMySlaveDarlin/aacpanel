@@ -1,0 +1,132 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .deskshell{position:static;height:100%} .dkbody{height:100%}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody withpanel"><aside class="dkleft"></aside><section class="dkcenter"></section><div id="root"></div></div></div>
+<script type="module">
+// The settings of the map on a wide screen: the pencil of a group opens the
+// three columns — the tree, the group, a project picked on it. A pick in the
+// tree over a page with changes asks; Escape reaches only the top page; the
+// model is picked from a popover by its row; a project dropped on a group of
+// the tree moves there through its sheet.
+import { h, render } from "preact";
+import { RightPanel } from "/src/desktop/panels.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const real = window.fetch.bind(window);
+const base = [
+    ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
+    ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
+    ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", "Continue", "panel"],
+    ["env", null, "claude"], ["args", null, "claude"],
+].map(([key, value, layer]) => ({ key, value, layer }));
+const project = (id, name) => ({ id, groupId: 3, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id, launch: {},
+    effective: base, line: { words: [{ text: "claude" }, { text: "-n" }, { text: name }] } });
+const personal = { id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", auth: "builtin", contextGuard: true,
+    account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 }, effective: base,
+    groups: [
+        { id: 3, profileId: 3, name: "home", projects: [project(11, "alpha"), project(12, "beta")] },
+        { id: 5, profileId: 3, name: "pets", projects: [] },
+    ] };
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    const method = (init && init.method) || "GET";
+    if (u === "/api/profiles/schema") return real(u);
+    if (u.endsWith("/preview")) return json({ effective: base, line: { words: [{ text: "claude" }] }, problems: [] });
+    if (method !== "GET") sent.push({ method, url: u, body: init.body ? JSON.parse(init.body) : null });
+    return json({ profiles: [personal], models: null, disk: { state: "ok", roots: [], dirs: [] }, accounts: [] });
+};
+window.EventSource = class { constructor() {} addEventListener() {} close() {} };
+
+render(h(ToastHost, null, h(GateHost, null, h(RightPanel, {
+    tab: "projects", title: "Projects", profiles: { profiles: [personal] }, picks: [], names: ["personal"],
+    archPicks: [], setArchPicks() {}, exec: { available: true, kinds: ["session.open"] }, onOpen() {}, onClose() {}, onOpened() {},
+}))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel) => Array.from(document.querySelectorAll(sel));
+const button = (label, scope = document) => Array.from(scope.querySelectorAll("button")).find((b) => text(b) === label);
+const cols = () => all(".dkcols .dkcol");
+const heads = () => cols().map((c) => text(c.querySelector(".phead h2")));
+const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+
+window.done = (async () => {
+    const out = {};
+    const pen = await until(() => all(".dkproj .dkact")[1]);
+    pen.click();
+    await until(() => cols().length === 2 && heads()[0]);
+    out.tree = all(".dktreeitem").map(text);
+    out.opened = heads();
+
+    (await until(() => all(".dkcols .pzgroupmain")[0])).click();
+    await until(() => heads()[1] === "alpha" && cols()[1].querySelector(".pzrow"));
+    out.withProject = heads();
+    const right = cols()[1];
+    Array.from(right.querySelectorAll(".pzrow")).find((r) => text(r.querySelector(".pzname")) === "Effort")
+        .querySelectorAll(".pzopt")[4].click();
+    await until(() => right.querySelector(".pzbar"));
+    all(".dktreegroup").find((b) => text(b).startsWith("pets")).click();
+    const ask = await until(() => document.querySelector(".sheet.on .pzleave"));
+    out.ask = text(ask.querySelector("h3"));
+    button("Stay", ask).click();
+    await until(() => !document.querySelector(".sheet.on"));
+    out.afterStay = heads();
+    // The sheet leaves the stack of layers a moment after it leaves the page.
+    await sleep(150);
+
+    key("Escape");
+    const leave = await until(() => document.querySelector(".sheet.on .pzleave"));
+    out.escapeAsks = text(leave.querySelector("h3"));
+    out.escapeOpen = heads();
+    button("Discard", leave).click();
+    await until(() => heads()[1] === "");
+    out.afterDiscard = heads();
+
+    (await until(() => all(".dkcols .pzgroupmain")[0])).click();
+    await until(() => heads()[1] === "alpha" && cols()[1].querySelector(".pzpick"));
+    const modelRow = cols()[1].querySelector(".pzpick");
+    modelRow.click();
+    const pop = await until(() => cols()[1].querySelector(".pzanchor .dkpop"));
+    out.popover = Boolean(pop) && !document.querySelector(".sheet.on");
+    button("sonnet", pop) ? button("sonnet", pop).click() : Array.from(pop.querySelectorAll(".pzline")).find((b) => text(b).startsWith("sonnet")).click();
+    await until(() => pop.querySelector(".pzbar"));
+    out.popBar = text(pop.querySelector(".pzbarsay"));
+    key("Escape");
+    await until(() => !cols()[1].querySelector(".dkpop"));
+    out.popClosedPageStays = heads()[1] === "alpha";
+    button("Discard", cols()[1].querySelector(".pzbar")).click();
+    await until(() => !cols()[1].querySelector(".pzbar"));
+
+    const handle = cols()[0].querySelectorAll(".pzgroup .pzhandle")[1];
+    const from = handle.getBoundingClientRect();
+    const pets = Array.from(document.querySelectorAll(".dktreegroup")).find((b) => text(b).startsWith("pets"));
+    const to = pets.getBoundingClientRect();
+    const fire = (type, x, y) => handle.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 9, clientX: x, clientY: y }));
+    const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
+    const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
+    fire("pointerdown", x0, y0);
+    for (let i = 1; i <= 8; i++) fire("pointermove", x0 + (x1 - x0) * i / 8, y0 + (y1 - y0) * i / 8);
+    fire("pointerup", x1, y1);
+    const sheet = await until(() => all(".sheet.on").find((s) => button("Save", s)));
+    out.moveSheet = text(sheet);
+    button("Save", sheet).click();
+    await until(() => sent.some((s) => s.method === "PATCH"));
+    out.move = sent.find((s) => s.method === "PATCH");
+    out.orderKept = !sent.some((s) => s.url.endsWith("/order")) && !cols()[0].querySelector(".pzgroupfoot .pzdraft");
+    return out;
+})();
+</script>

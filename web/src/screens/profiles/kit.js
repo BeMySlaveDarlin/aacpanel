@@ -2,7 +2,7 @@
 // is asked of the service as it changes, where the session lives as two
 // cards, a row per launch parameter, the one bar of the draft, the question
 // before a draft is left and the frame of the page on a wide screen.
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Sheet } from "../../ui/sheet.js";
@@ -169,12 +169,17 @@ export function modelHolds({ schema, draft, owner, effective, trait, model }) {
 }
 
 // LaunchRow is one launch parameter drawn by its kind.
-export function LaunchRow({ p, mine, catalog, trait, model, strike, note, onSet, onModel }) {
+export function LaunchRow({ p, mine, catalog, trait, model, strike, note, onSet, onModel, picker }) {
     const { param, eff } = p;
     let control = null;
     let foot = null;
     if (param.kind === "model") {
-        control = html`<${ModelRow} param=${param} eff=${eff} mine=${mine} catalog=${catalog} onOpen=${onModel} />`;
+        control = html`
+            <div class="pzanchor">
+                <${ModelRow} param=${param} eff=${eff} mine=${mine} catalog=${catalog} onOpen=${onModel} />
+                ${picker}
+            </div>
+        `;
     } else if (param.kind === "enum" || param.kind === "bool") {
         const why = (value) => struck(param, value, trait, model.value);
         control = html`<${Options} param=${param} eff=${eff} mine=${mine} options=${optionsOf(param)} why=${why}
@@ -203,10 +208,19 @@ export function LaunchRow({ p, mine, catalog, trait, model, strike, note, onSet,
 // useDraft holds a page's draft and asks before it is left behind: by the
 // arrow, by Escape on a wide screen, and — through hold, which the page gives
 // its back handler — by the back gesture. A sheet open over the page takes
-// the key first.
-export function useDraft(onClose, sheetOpen) {
+// the key first, and of pages standing side by side only the top one takes
+// it: the page puts its back handler's isTop into topRef. onDirty hears how
+// many changes the draft holds, for a frame that must not drop them unasked.
+export function useDraft(onClose, sheetOpen, onDirty) {
     const [draft, setDraft] = useState(emptyDraft);
     const [leaving, setLeaving] = useState(false);
+    const topRef = useRef(null);
+    const changes = count(draft);
+    // Told before the frame is painted: a pick made the moment the bar shows
+    // must already find the frame knowing about the draft.
+    useLayoutEffect(() => {
+        if (onDirty) onDirty(changes);
+    }, [changes]);
     const leave = () => {
         if (sheetOpen || leaving) return;
         if (count(draft) > 0) setLeaving(true);
@@ -223,12 +237,14 @@ export function useDraft(onClose, sheetOpen) {
     useEffect(() => {
         if (!wide) return undefined;
         const onKey = (event) => {
-            if (event.key === "Escape" && !event.defaultPrevented) leaveRef.current();
+            if (event.key !== "Escape" || event.defaultPrevented) return;
+            if (topRef.current && !topRef.current()) return;
+            leaveRef.current();
         };
         document.addEventListener("keydown", onKey);
         return () => document.removeEventListener("keydown", onKey);
     }, [wide]);
-    return { draft, setDraft, leaving, setLeaving, leave, hold };
+    return { draft, setDraft, leaving, setLeaving, leave, hold, topRef };
 }
 
 // LeaveSheet asks what to do with a draft the person is leaving.
@@ -265,12 +281,13 @@ export function Layer({ label: name, children }) {
 // DragRows lays items out in the given order, each with a handle that drags
 // it to another place: the new order is handed back as the finger passes
 // the middle of a neighbour, so the rows move under the hand.
-export function DragRows({ items, order, onOrder, name, row }) {
+export function DragRows({ items, order, onOrder, name, row, onDrop }) {
     const rows = order.map((id) => items.find((it) => it.id === id)).filter(Boolean);
     const refs = useRef(new Map());
     const drag = useRef(null);
     const [dragging, setDragging] = useState(0);
     const [dy, setDy] = useState(0);
+    const [dx, setDx] = useState(0);
 
     const down = (event, id) => {
         event.preventDefault();
@@ -279,9 +296,10 @@ export function DragRows({ items, order, onOrder, name, row }) {
         } catch {
             // A pointer the browser no longer tracks: the moves still come to the handle.
         }
-        drag.current = { id, y: event.clientY, list: order.slice() };
+        drag.current = { id, x: event.clientX, y: event.clientY, list: order.slice(), start: order.slice() };
         setDragging(id);
         setDy(0);
+        setDx(0);
     };
     const move = (event) => {
         const d = drag.current;
@@ -301,11 +319,22 @@ export function DragRows({ items, order, onOrder, name, row }) {
             onOrder(list);
         }
         setDy(shift);
+        if (onDrop) setDx(event.clientX - d.x);
     };
-    const up = () => {
+    // A row let go over a drop place outside the list, a group in the tree
+    // of a wide screen, goes there, and the list keeps its order.
+    const up = (event) => {
+        const d = drag.current;
         drag.current = null;
         setDragging(0);
         setDy(0);
+        setDx(0);
+        if (!d || !onDrop || !event || typeof document.elementFromPoint !== "function") return;
+        const under = document.elementFromPoint(event.clientX, event.clientY);
+        const place = under && under.closest("[data-drop]");
+        if (!place) return;
+        if (d.list.join() !== d.start.join()) onOrder(d.start);
+        onDrop(d.id, place.dataset.drop);
     };
 
     return html`
@@ -313,7 +342,7 @@ export function DragRows({ items, order, onOrder, name, row }) {
             ${rows.map((it) => html`
                 <div class="pzgroup" key=${it.id} ref=${(el) => (el ? refs.current.set(it.id, el) : refs.current.delete(it.id))}
                      data-dragging=${dragging === it.id ? "1" : "0"}
-                     style=${dragging === it.id ? `transform: translateY(${dy}px)` : ""}>
+                     style=${dragging === it.id ? `transform: translate(${dx}px, ${dy}px)` : ""}>
                     <button class="pzhandle" type="button" aria-label=${`move ${name(it)}`}
                             onPointerDown=${(e) => down(e, it.id)} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up}>
                         <span></span><span></span><span></span>

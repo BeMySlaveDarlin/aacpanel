@@ -89,7 +89,12 @@ export function useBackClose(open, onClose, hold) {
         };
     }, [open]);
 
-    return useCallback(() => closeFrom(mine.current), []);
+    const closer = useCallback(() => closeFrom(mine.current), []);
+    // isTop says whether this layer is the one a back gesture or Escape is
+    // for: several layers stand side by side on a wide screen, and a key
+    // meant for the rightmost must not close the ones under it too.
+    closer.isTop = () => stack[stack.length - 1] === mine.current;
+    return closer;
 }
 
 // BackHead renders the header of a layer page: the exit arrow and its title.

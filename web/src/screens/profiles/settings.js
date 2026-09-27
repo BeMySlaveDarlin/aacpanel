@@ -7,13 +7,14 @@
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { useWide } from "../../ui/wide.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { LaunchLine } from "../../ui/launchline.js";
 import { useAction } from "../../actions/gate.js";
 import {
     body, count, emptyDraft, field, fieldOf, fieldProblems, overlay, own, pins, put, touched, valueOf, weighty,
 } from "./draft.js";
-import { ModelSheet, traitOf } from "./controls.js";
+import { ModelPopover, ModelSheet, traitOf } from "./controls.js";
 import { paramOf, useSchema } from "./schema.js";
 import {
     Bar, LAUNCH_ORDER, LaunchRow, Layer, LeaveSheet, Where, launchAsk, modelHolds, problemOf, useDraft, usePreview,
@@ -38,14 +39,15 @@ function Account({ contour, effective, stream }) {
     `;
 }
 
-export function ProjectSettings({ project, contour, group, catalog, onClose, onDone, onRemove }) {
+export function ProjectSettings({ project, contour, group, catalog, onClose, onDone, onRemove, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [modelOpen, setModelOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState("");
-    const { draft, setDraft, leaving, setLeaving, leave, hold } = useDraft(onClose, modelOpen);
-    useBackClose(true, onClose, hold);
+    const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, modelOpen, onDirty);
+    topRef.current = useBackClose(true, onClose, hold).isTop;
+    const wide = useWide();
     const preview = usePreview("project", project.id,
         `${JSON.stringify(project.launch || {})}:${project.session}:${project.path}`,
         launchAsk(draft, ["session", "path"]));
@@ -130,6 +132,17 @@ export function ProjectSettings({ project, contour, group, catalog, onClose, onD
         onUnset: () => set(key, null),
     });
 
+    const modelPicker = () => html`<${ModelPopover}
+        open=${modelOpen}
+        param=${paramOf(schema, "model")}
+        eff=${effOf("model")}
+        mine=${own(draft, project, "model")}
+        catalog=${catalog}
+        contour=${contour.name}
+        onPick=${(value) => set("model", value)}
+        onClose=${() => setModelOpen(false)}
+        bar=${bar()}
+    />`;
     const bar = () => html`<${Bar} changes=${changes} problem=${problem} busy=${busy}
         onSave=${save} onDiscard=${() => { setConflict(""); setDraft(emptyDraft()); }} onExit=${runExit} />`;
 
@@ -162,7 +175,7 @@ export function ProjectSettings({ project, contour, group, catalog, onClose, onD
             if (!p.param) return null;
             const mine = own(draft, project, key);
             return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}
-                strike=${strikes[key]} onSet=${(value) => set(key, value)} onModel=${() => setModelOpen(true)} />`;
+                strike=${strikes[key]} picker=${key === "model" && wide ? modelPicker() : null} onSet=${(value) => set(key, value)} onModel=${() => setModelOpen(true)} />`;
         })}
 
         <div class="pfsub">project</div>
@@ -227,7 +240,8 @@ export function ProjectSettings({ project, contour, group, catalog, onClose, onD
 
         ${bar()}
 
-        <${ModelSheet}
+        ${!wide && html`
+            <${ModelSheet}
             open=${modelOpen}
             param=${paramOf(schema, "model")}
             eff=${effOf("model")}
@@ -238,6 +252,7 @@ export function ProjectSettings({ project, contour, group, catalog, onClose, onD
             onClose=${() => setModelOpen(false)}
             bar=${bar()}
         />
+        `}
 
         <${LeaveSheet}
             open=${leaving}

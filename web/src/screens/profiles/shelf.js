@@ -9,6 +9,8 @@ import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Icon } from "../../ui/icons.js";
 import { Sheet } from "../../ui/sheet.js";
+import { Popover } from "../../ui/popover.js";
+import { useWide } from "../../ui/wide.js";
 import { ownLabel } from "../../ui/own.js";
 import { useAction } from "../../actions/gate.js";
 import { plural } from "../../format.js";
@@ -80,7 +82,7 @@ export function contourMove(group, from, to, routed) {
 }
 
 // ForAll is the sheet that says one value for every project of the shelf.
-function ForAll({ open, schema, catalog, projects, onClose, onSay }) {
+function ForAll({ open, schema, catalog, projects, onClose, onSay, within }) {
     const [key, setKey] = useState("");
     const params = (schema.params || []).filter((p) => FOR_ALL.includes(p.key));
     const param = params.find((p) => p.key === key);
@@ -90,7 +92,7 @@ function ForAll({ open, schema, catalog, projects, onClose, onSay }) {
                 : param.kind === "int" ? [70, 80, 90].map((n) => ({ value: n, label: `${n}%` }))
                     : param.options || [];
     return html`
-        <${Sheet} open=${open} onClose=${onClose} label="set for all projects">
+        <${within} open=${open} onClose=${onClose} label="set for all projects">
             <div class="pzsheet">
                 <h3>Set for all ${projects.length} ${plural(projects.length, "project", "projects")}</h3>
                 <p class="pzhelp">the value is written into each project of the shelf; a project moved off it keeps it</p>
@@ -114,14 +116,15 @@ function ForAll({ open, schema, catalog, projects, onClose, onSay }) {
     `;
 }
 
-export function GroupSettings({ group, contour, profiles, disk, catalog, onClose, onDone, onRemove, onForm }) {
+export function GroupSettings({ group, contour, profiles, disk, catalog, onClose, onDone, onRemove, onForm, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState("");
     const [forAll, setForAll] = useState(false);
-    const { draft, setDraft, leaving, setLeaving, leave, hold } = useDraft(onClose, forAll);
-    useBackClose(true, onClose, hold);
+    const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, forAll, onDirty);
+    topRef.current = useBackClose(true, onClose, hold).isTop;
+    const wide = useWide();
     const changes = count(draft);
     const projects = group.projects || [];
     const baseOrder = projects.map((p) => p.id);
@@ -188,6 +191,14 @@ export function GroupSettings({ group, contour, profiles, disk, catalog, onClose
         const result = await run("disk.hide", dir.path);
         if (result && result.ok) onDone(result.data);
     };
+    // A project dropped on a group of the tree, on a wide screen, moves there.
+    const dropOn = async (projectId, target) => {
+        const to = (contour.groups || []).find((g) => String(g.id) === String(target));
+        const p = projects.find((x) => x.id === projectId);
+        if (!to || !p || to.id === group.id) return;
+        const result = await run("project.edit", p.name, { id: p.id, fields: { groupId: to.id }, moveTo: to.name });
+        if (result && result.ok) onDone(result.data);
+    };
     const moveAll = async (to) => {
         const result = await run("group.move", group.name, { id: group.id, to: to.id, toName: to.name, n: projects.length });
         if (result && result.ok) onDone(result.data);
@@ -238,6 +249,7 @@ export function GroupSettings({ group, contour, profiles, disk, catalog, onClose
             items=${projects}
             order=${order}
             onOrder=${(ids) => setField("order", ids, { order: baseOrder })}
+            onDrop=${wide ? dropOn : null}
             name=${(p) => `project ${p.name}`}
             row=${(p) => html`
                 <button class="pzgroupmain" type="button"
@@ -258,9 +270,13 @@ export function GroupSettings({ group, contour, profiles, disk, catalog, onClose
             <p class="pzhelp pzsummary">${said.length > 0
                 ? `set otherwise than the contour: ${said.join(" · ")}`
                 : "every project takes what the contour says"}</p>
-            <button class="btn" type="button" onClick=${() => setForAll(true)}>
-                Set for all ${projects.length} ${plural(projects.length, "project", "projects")}…
-            </button>
+            <div class="pzanchor">
+                <button class="btn" type="button" onClick=${() => setForAll(!forAll)}>
+                    Set for all ${projects.length} ${plural(projects.length, "project", "projects")}…
+                </button>
+                ${wide && html`<${ForAll} open=${forAll} schema=${schema} catalog=${catalog} projects=${projects}
+                    onClose=${() => setForAll(false)} onSay=${say} within=${Popover} />`}
+            </div>
         `}
 
         ${found.length > 0 && html`
@@ -303,8 +319,8 @@ export function GroupSettings({ group, contour, profiles, disk, catalog, onClose
 
         ${bar}
 
-        <${ForAll} open=${forAll} schema=${schema} catalog=${catalog} projects=${projects}
-            onClose=${() => setForAll(false)} onSay=${say} />
+        ${!wide && html`<${ForAll} open=${forAll} schema=${schema} catalog=${catalog} projects=${projects}
+            onClose=${() => setForAll(false)} onSay=${say} within=${Sheet} />`}
 
         <${LeaveSheet}
             open=${leaving}

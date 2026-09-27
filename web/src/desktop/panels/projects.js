@@ -8,6 +8,7 @@ import { knows, whyNot } from "../../exec.js";
 import { useAction } from "../../actions/gate.js";
 import { useProfileMap, orderOf } from "../../screens/profiles/state.js";
 import { EditLayer } from "../../screens/profiles/forms.js";
+import { SettingsColumns, pickOf } from "../settings.js";
 import { dotOf } from "../../screens/profiles/pick.js";
 
 function ProjectRow({ project, profile, group, gone, exec, onForm, onRemove, onOpened }) {
@@ -91,11 +92,12 @@ function GroupRow({ profile, group, expanded, onToggle, onForm, onRemove, gone, 
 }
 
 export function Projects({ picks, exec, onOpened }) {
+    const map = useProfileMap();
     const {
         profiles, catalog, disk, accounts, error, gone,
         open, toggle, form, setForm,
         apply, remove, reorder,
-    } = useProfileMap();
+    } = map;
     const [query, setQuery] = useState("");
 
     const shown = (profiles || []).filter((p) => picks.length === 0 || picks.includes(p.name));
@@ -103,7 +105,11 @@ export function Projects({ picks, exec, onOpened }) {
     if (error) return html`<p class="dkempty dkfail">${error}</p>`;
     if (profiles === null) return html`<p class="dkempty">loading…</p>`;
 
-    const editing = form && html`<${EditLayer}
+    // A contour, a group or a project that exists opens in the columns; the
+    // rest — adding something — in its own dialog.
+    const pick = pickOf(form);
+    const editing = pick ? html`<${SettingsColumns} key=${JSON.stringify(pick)} map=${map} start=${pick} onClose=${() => setForm(null)} />`
+        : form && html`<${EditLayer}
         form=${form}
         profiles=${profiles}
         catalog=${catalog}

@@ -6,13 +6,14 @@
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { useWide } from "../../ui/wide.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { PERSONAL } from "../../contour.js";
 import { plural } from "../../format.js";
 import { body, count, field, fieldOf, label, overlay, own, pins, put, touched, valueOf } from "./draft.js";
-import { ModelSheet, catalogRows, traitOf } from "./controls.js";
+import { ModelPopover, ModelSheet, catalogRows, traitOf } from "./controls.js";
 import { paramOf, useSchema } from "./schema.js";
 import { authState } from "./pick.js";
 import { hooksWarning } from "./page.js";
@@ -206,14 +207,15 @@ function Files({ contour, draft, catalog, setField }) {
     `;
 }
 
-export function ContourSettings({ contour, catalog, order, onClose, onDone, onRemove, onForm, onJournal }) {
+export function ContourSettings({ contour, catalog, order, onClose, onDone, onRemove, onForm, onJournal, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [modelOpen, setModelOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState("");
-    const { draft, setDraft, leaving, setLeaving, leave, hold } = useDraft(onClose, modelOpen);
-    useBackClose(true, onClose, hold);
+    const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, modelOpen, onDirty);
+    topRef.current = useBackClose(true, onClose, hold).isTop;
+    const wide = useWide();
     const preview = usePreview("contour", contour.id, JSON.stringify(contour.launch || {}), launchAsk(draft));
     const changes = count(draft);
     const groups = (contour.groups || []).filter((g) => g && g.id);
@@ -303,6 +305,17 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
         onUnset: () => set(key, null),
     });
 
+    const modelPicker = () => html`<${ModelPopover}
+        open=${modelOpen}
+        param=${paramOf(schema, "model")}
+        eff=${effOf("model")}
+        mine=${own(draft, contour, "model")}
+        catalog=${catalog}
+        contour=${contour.name}
+        onPick=${(value) => set("model", value)}
+        onClose=${() => setModelOpen(false)}
+        bar=${bar()}
+    />`;
     const bar = () => html`<${Bar} changes=${changes} problem=${problem} busy=${busy}
         onSave=${save} onDiscard=${() => { setConflict(""); setDraft({ fields: {}, launch: {} }); }} onExit=${runExit} />`;
 
@@ -353,7 +366,7 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
             if (!p.param) return null;
             const mine = own(draft, contour, key);
             return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}
-                strike=${strikes[key]} note=${touched(draft, key) ? followers(contour, key) : ""}
+                strike=${strikes[key]} picker=${key === "model" && wide ? modelPicker() : null} note=${touched(draft, key) ? followers(contour, key) : ""}
                 onSet=${(value) => set(key, value)} onModel=${() => setModelOpen(true)} />`;
         })}
         ${pinned.map((h) => html`
@@ -396,7 +409,8 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
 
         ${bar()}
 
-        <${ModelSheet}
+        ${!wide && html`
+            <${ModelSheet}
             open=${modelOpen}
             param=${paramOf(schema, "model")}
             eff=${effOf("model")}
@@ -407,6 +421,7 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
             onClose=${() => setModelOpen(false)}
             bar=${bar()}
         />
+        `}
 
         <${LeaveSheet}
             open=${leaving}
