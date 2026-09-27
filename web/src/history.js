@@ -80,9 +80,10 @@ export function useSessionsHistory(period, page = {}) {
     return state.kind === "ready" ? { kind: "ready", sessions: state.data } : state;
 }
 
-export function useSessionsArchive({ limit, offset, skip, profile, contour } = {}) {
+export function useSessionsArchive({ limit, offset, skip, profile, contour, project } = {}) {
     const query = new URLSearchParams();
     if (limit) query.set("limit", limit);
+    if (project) query.set("project", project);
     if (offset) query.set("offset", offset);
     if (skip && skip.length) query.set("skip", skip.join(","));
     if (contour) query.set("contour", contour);

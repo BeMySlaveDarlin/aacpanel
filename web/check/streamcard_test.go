@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// A session on the stream is marked on its card on the phone, right after the
-// name, and the percentage stays at the edge; a console session carries no
-// mark.
+// On the phone every live session says where it lives on its row — the feed or
+// the console — right before its percentage, and the percentage stands just
+// before the button of what can be done to it, whatever the length of the name.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
 		Name      string `json:"name"`
@@ -24,17 +24,15 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	}
 	for _, c := range got {
 		stream := !strings.HasSuffix(c.Name, "aacpanel")
-		if stream && (c.Mark != "stream" || !c.Shown) {
-			t.Errorf("%s: the stream session has no visible mark on the phone: %+v", c.Name, c)
+		want := map[bool]string{true: "feed", false: "console"}[stream]
+		if c.Mark != want || !c.Shown {
+			t.Errorf("%s: the row does not say %q where it can be seen: %+v", c.Name, want, c)
 		}
-		if !stream && c.Mark != "" {
-			t.Errorf("%s: a console session is marked %q", c.Name, c.Mark)
+		if c.Gap < 0 || c.Gap > 16 {
+			t.Errorf("%s: the mark stands %dpx from the percentage — it floats in the middle of the row", c.Name, c.Gap)
 		}
-		if stream && (c.Gap < 0 || c.Gap > 16) {
-			t.Errorf("%s: the mark stands %dpx from the name — it floats in the middle of the line", c.Name, c.Gap)
-		}
-		if !c.PctInside || c.PctRight > 1 {
-			t.Errorf("%s: the percentage left the edge of the line (%dpx short): %+v", c.Name, c.PctRight, c)
+		if !c.PctInside || c.PctRight > 16 {
+			t.Errorf("%s: the percentage left its place before the actions button (%dpx short): %+v", c.Name, c.PctRight, c)
 		}
 		if c.Overflow > 0 {
 			t.Errorf("the page scrolls sideways by %dpx", c.Overflow)

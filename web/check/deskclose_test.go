@@ -7,20 +7,20 @@ import (
 )
 
 // The home session of the host is the one the panel itself lives next to: the
-// panel does not close it, just as it does not stop its own container. The phone
-// card leaves the session without a close button at all; the desktop row keeps
+// panel does not close it, just as it does not stop its own container. The
+// phone's sheet of a session leaves the line out for it; the desktop row keeps
 // the same rule — not a disabled button with a hint, no button.
 func TestDesktopHidesCloseForTheHomeSession(t *testing.T) {
 	files := srcFiles(t)
 
-	const phone = "src/screens/sessions/card.js"
+	const phone = "src/screens/sessions/blocks.js"
 	card := stripComments(files[phone])
 	if card == "" {
 		t.Fatalf("%s not found — the phone rule the desktop mirrors is left unchecked", phone)
 	}
-	action := jsUntil(t, phone, card, "const action =", `"session.close"`)
+	action := jsUntil(t, phone, card, "const closeLine =", `"session.close"`)
 	if !regexp.MustCompile(`!session\.home\s*&&`).MatchString(action) {
-		t.Errorf("%s: the phone card offers to close the home session — the panel does not close the main session of the host, just as it does not stop its own container", phone)
+		t.Errorf("%s: the phone sheet offers to close the home session — the panel does not close the main session of the host, just as it does not stop its own container", phone)
 	}
 
 	const desk = "src/desktop/sessions.js"
@@ -49,12 +49,12 @@ func TestHomeSessionRestartsFromScratchOnBothShells(t *testing.T) {
 	files := srcFiles(t)
 	homeOnly := regexp.MustCompile(`[^!]s(?:ession)?\.home\s*&&`)
 
-	const phone = "src/screens/sessions/card.js"
+	const phone = "src/screens/sessions/blocks.js"
 	card := stripComments(files[phone])
 	if card == "" {
 		t.Fatalf("%s not found — the test looks in the wrong place", phone)
 	}
-	restart := jsUntil(t, phone, card, "const restart =", "`;")
+	restart := jsUntil(t, phone, card, "const restartLine =", "};")
 	if !homeOnly.MatchString(restart) {
 		t.Errorf("%s: the restart button is not gated on the home session — every session would get a restart it cannot have", phone)
 	}
@@ -64,7 +64,7 @@ func TestHomeSessionRestartsFromScratchOnBothShells(t *testing.T) {
 		}
 	}
 	if strings.Contains(restart, `"session.close"`) {
-		t.Errorf("%s: the home card offers to close the home session under the restart button", phone)
+		t.Errorf("%s: the home sheet offers to close the home session under the restart line", phone)
 	}
 	if !strings.Contains(card, `knows(exec, "session.restart")`) {
 		t.Errorf("%s: the restart button does not ask whether the host can do it — on a host with an old executor it silently does nothing", phone)

@@ -361,3 +361,204 @@
 }
 
 .sidescroll { display: contents; }
+
+/* The sessions of a contour as blocks of their projects: the name of the
+   project heads a block, its live sessions are rows under it, and its last
+   conversation closes it. The sections read who waits for the person, who
+   works, who is quiet. */
+.grouphead.pjsection { display: flex; align-items: center; gap: .5rem; }
+.grouphead.pjwaits { color: var(--wait); }
+.pjcount { color: var(--ink-dim); letter-spacing: 0; }
+
+.pjblock {
+    margin: 0 0 .6rem;
+    border-radius: var(--r-card);
+    background: var(--glass);
+    border: var(--hair) solid var(--edge);
+    box-shadow: var(--gloss), var(--hairline);
+    overflow: hidden;
+}
+.pjblock.pjquiet { background: none; box-shadow: none; }
+
+.pjhead { display: flex; align-items: center; gap: .45rem; min-height: 2.75rem; padding: .3rem .5rem .3rem .75rem; }
+.pjname {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--t-base);
+    font-weight: 600;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+}
+span.pjname { cursor: default; }
+.pjgroup { flex: none; font-size: var(--t-sm); color: var(--ink-faint); white-space: nowrap; }
+.pjnew {
+    margin-left: auto;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    min-height: 2.25rem;
+    padding: 0 .6rem;
+    border-radius: var(--r-pill);
+    border: var(--hair) solid var(--line);
+    background: none;
+    font: inherit;
+    font-size: var(--t-xs);
+    font-weight: 600;
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.pjnew svg { width: var(--i-sm); height: var(--i-sm); }
+.pjnew:disabled { opacity: .45; cursor: default; }
+
+.pjrow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 3rem;
+    padding: .25rem .35rem .25rem .75rem;
+    border-top: var(--hair) solid var(--line);
+}
+.pjrow > .ctxbar.edge { top: auto; bottom: 0; }
+.pjopen {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .12rem;
+    padding: .3rem 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.pjsess { font-size: var(--t-xs); color: var(--ink-faint); font-family: var(--mono); }
+.pjstate { display: flex; align-items: center; gap: .45rem; max-width: 100%; font-size: var(--t-sm); font-weight: 600; white-space: nowrap; overflow: hidden; }
+.pjstate .pjtext { overflow: hidden; text-overflow: ellipsis; }
+.pjsince { font-weight: 400; opacity: .85; overflow: hidden; text-overflow: ellipsis; }
+.pjdot { flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
+.pj-wait { color: var(--wait); }
+.pj-wait .pjdot { box-shadow: 0 0 10px currentColor; }
+.pj-busy { color: var(--accent); }
+.pj-idle { color: var(--ink-faint); font-weight: 500; }
+.pj-idle .pjdot { background: none; box-shadow: inset 0 0 0 1.2px currentColor; }
+.pjtag {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .22rem;
+    padding: .18rem .34rem;
+    border-radius: var(--r-pill);
+    border: var(--hair) solid var(--line);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1;
+    color: var(--ink-dim);
+}
+.pjtag svg { width: var(--i-sm); height: var(--i-sm); }
+.pjpct { flex: none; font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-dim); }
+.pjmore {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.pjmore svg { width: var(--i-md); height: var(--i-md); }
+.pjbusy {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    background: rgba(6, 7, 15, .72);
+    font-size: var(--t-sm);
+    color: var(--ink-dim);
+}
+.pjnote { padding: 0 .75rem .45rem; font-size: var(--t-xs); color: var(--warn); }
+.pjghost { color: var(--ink-dim); }
+
+.pjpast .pjabout {
+    max-width: 100%;
+    font-size: var(--t-sm);
+    color: var(--ink-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pjpast .pjabout.pjnone { color: var(--ink-faint); font-style: italic; }
+.pjwhen { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
+.pjresume {
+    flex: none;
+    min-height: 2.25rem;
+    padding: 0 .7rem;
+    border-radius: var(--r-pill);
+    border: var(--hair) solid color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    font: inherit;
+    font-size: var(--t-xs);
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+}
+.pjresume:disabled { opacity: .45; cursor: default; }
+.pjlink {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: .35rem;
+    min-height: 2.5rem;
+    padding: 0 .75rem;
+    border: 0;
+    border-top: var(--hair) solid var(--line);
+    background: none;
+    font: inherit;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    cursor: pointer;
+}
+.pjlink .chev { margin-left: auto; }
+.pjempty { margin: 0; padding: .6rem .75rem; border-top: var(--hair) solid var(--line); font-size: var(--t-sm); color: var(--ink-faint); }
+
+/* What can be done to a session from the list: each line says what follows. */
+.pjsheet { display: flex; flex-direction: column; }
+.pjsheethead { display: flex; flex-direction: column; gap: .15rem; padding: 0 .2rem .6rem; }
+.pjsheetname { font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.pjsheetsub { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); }
+.pjact {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-height: 3.25rem;
+    padding: .55rem .2rem;
+    border: 0;
+    border-top: var(--hair) solid var(--line);
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.pjact:disabled { opacity: .5; cursor: default; }
+.pjacticon svg { width: var(--i-md); height: var(--i-md); color: var(--ink-dim); }
+.pjactbody { display: flex; flex-direction: column; gap: .1rem; }
+.pjactbody b { font-size: var(--t-md); font-weight: 600; color: var(--ink); }
+.pjactbody span { font-size: var(--t-xs); color: var(--ink-faint); }
+.pjact.pjdanger b, .pjact.pjdanger .pjacticon svg { color: var(--crit); }

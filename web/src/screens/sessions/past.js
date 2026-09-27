@@ -1,4 +1,5 @@
-// The session archive: a page with the list of conversations and the fill chart.
+// The session archive: the conversations of a contour by project, the fill
+// chart over them, and every project of the contour to start a session in.
 
 import { useEffect, useState } from "preact/hooks";
 
@@ -9,12 +10,40 @@ import { Icon } from "../../ui/icons.js";
 import { area, Chart } from "../../chart.js";
 import { bucketText, PERIODS, useSessionsArchive, useSessionsHistory } from "../../history.js";
 import { Chips } from "../../ui/chips.js";
-import { PastRow, stamp, when } from "./card.js";
-import { PastActions } from "./actions.js";
+import { PastLine } from "./blocks.js";
+import { Groups } from "./map.js";
+import { useAction } from "../../actions/gate.js";
+import { knows, whyNot } from "../../exec.js";
 
-const PAGE = 20;
+// A page is read in conversations and shown in projects: the more of them a
+// page holds, the fewer projects are cut between two pages.
+const PAGE = 60;
 
-export function Past({ profile = "", contour = 0, onBack, exec, onDone, chat }) {
+// How many conversations of a project stand under it on the page; the rest is
+// on the project's own screen.
+const PER_PROJECT = 3;
+
+// byProject lays a page of the archive out by project, in the order their
+// freshest conversation stands.
+export function byProject(rows) {
+    const out = new Map();
+    for (const row of rows || []) {
+        const key = row.project ? `p${row.project.id}` : `d:${row.cwd || row.name}`;
+        if (!out.has(key)) {
+            out.set(key, {
+                key,
+                name: (row.project && row.project.name) || row.name,
+                group: (row.project && row.project.group) || (row.home ? "the home session" : ""),
+                project: row.project || null,
+                rows: [],
+            });
+        }
+        out.get(key).rows.push(row);
+    }
+    return [...out.values()];
+}
+
+export function Past({ profile = "", contour = 0, map = null, sessions = [], onBack, onProject, exec, chat }) {
     useBackClose(true, onBack);
 
     const [period, setPeriod] = useState("7d");
@@ -34,7 +63,7 @@ export function Past({ profile = "", contour = 0, onBack, exec, onDone, chat }) 
     return html`
         <${BackHead} onBack=${onBack} label="to sessions">
             <h2>Session archive</h2>
-            <span class="where">${profile ? `${profile} · ` : ""}one conversation per line · fresh on top</span>
+            <span class="where">${profile ? `${profile} · ` : ""}by project, the latest on top</span>
         <//>
 
         <section class="card">
@@ -61,13 +90,8 @@ export function Past({ profile = "", contour = 0, onBack, exec, onDone, chat }) 
                 <p class="sub">up to ${crowd} ${plural(crowd, "session", "sessions")} ran at once</p>
             `}
 
-            ${rows.map((row) => html`
-                <${PastRow}
-                    key=${row.sessionId}
-                    row=${row}
-                    onOpen=${chat}
-                    action=${html`<${PastActions} row=${row} exec=${exec} onDone=${onDone} />`}
-                />
+            ${byProject(rows).map((block) => html`
+                <${ArchiveBlock} key=${block.key} block=${block} map=${map} exec=${exec} onOpen=${chat} onProject=${onProject} />
             `)}
 
             ${archive && html`<${Pager}
@@ -77,7 +101,56 @@ export function Past({ profile = "", contour = 0, onBack, exec, onDone, chat }) 
                 onGo=${setOffset}
             />`}
         </section>
+
+        ${map && html`<${Groups} profile=${map} sessions=${sessions} onOpen=${onProject} exec=${exec} />`}
     `;
+}
+
+// ArchiveBlock is one project of the archive: its latest conversations, a new
+// session in it, and the way to all of them on its own screen.
+function ArchiveBlock({ block, map, exec, onOpen, onProject }) {
+    const run = useAction();
+    const ready = knows(exec, "session.open");
+    const own = mapProject(map, block.project);
+    const shown = block.rows.slice(0, PER_PROJECT);
+    const rest = block.rows.length - shown.length;
+    return html`
+        <section class="pjblock pjquiet">
+            <div class="pjhead">
+                ${own && onProject
+                    ? html`<button class="pjname" type="button" aria-label=${`project ${block.name}`}
+                                   onClick=${() => onProject({ ...own.project, profile: map.profile, contour: map.id, group: own.group })}>${block.name}</button>`
+                    : html`<span class="pjname">${block.name}</span>`}
+                ${block.group && html`<span class="pjgroup">${block.group}</span>`}
+                ${own && html`
+                    <button class="pjnew" type="button" disabled=${!ready}
+                            aria-label=${`new session in project ${block.name}`}
+                            title=${ready ? "" : whyNot(exec, "session.open")}
+                            onClick=${() => run("session.open", own.project.session, { project: own.project.id })}>
+                        ${Icon.plus()}<span>New</span>
+                    </button>
+                `}
+            </div>
+            ${shown.map((row) => html`<${PastLine} key=${row.sessionId} row=${row} project=${own && own.project} exec=${exec} onOpen=${onOpen} />`)}
+            ${rest > 0 && html`
+                <button class="pjlink" type="button" disabled=${!(own && onProject)}
+                        onClick=${() => own && onProject({ ...own.project, profile: map.profile, contour: map.id, group: own.group })}>
+                    ${rest} more ${plural(rest, "conversation", "conversations")} on this page
+                    <span class="chev">${Icon.chevron()}</span>
+                </button>
+            `}
+        </section>
+    `;
+}
+
+// mapProject finds the project of an archive row in the contour's map.
+function mapProject(map, ref) {
+    if (!map || !ref) return null;
+    for (const group of map.groups || []) {
+        const project = (group.projects || []).find((p) => p.id === ref.id);
+        if (project) return { project, group: group.name };
+    }
+    return null;
 }
 
 function Pager({ offset, shown, total, onGo }) {

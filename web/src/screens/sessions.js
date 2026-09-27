@@ -3,19 +3,18 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../html.js";
-import { liveOf, ownName } from "../catchup.js";
+import { liveOf } from "../catchup.js";
 import { NotRecorded, Stale, Trouble } from "../ui/trouble.js";
 import { plural } from "../format.js";
 import { Icon } from "../ui/icons.js";
 import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
 import { Chat } from "./chat.js";
-import { Ghost, LiveRow, PastRow } from "./sessions/card.js";
-import { PastActions } from "./sessions/actions.js";
+import { blocksOf, ProjectBlock, RANK, SessionSheet } from "./sessions/blocks.js";
 import { ProfileLimits } from "./sessions/limits.js";
 import { pageNames, Pages, useProfilePage } from "./sessions/pages.js";
 import { Past } from "./sessions/past.js";
-import { Groups, pagesOf, placesOf, Project } from "./sessions/map.js";
+import { pagesOf, Project } from "./sessions/map.js";
 
 // splitNotes sorts the collector notes by whom they are addressed to.
 export function splitNotes(notes, sessions) {
@@ -41,11 +40,10 @@ export function sessionChips() {
     return null;
 }
 
-const MIN_CARDS = 5;
-
-// The strip shows MIN_CARDS of them and drops the conversations that said
-// nothing, so it asks the archive for more than it shows.
-const RECENT_ASK = MIN_CARDS * 4;
+// The last conversations the page lays out by project: the quiet projects
+// under the live ones, each with its last conversation. The ones that said
+// nothing are dropped, so the page asks the archive for more than it shows.
+const RECENT_ASK = 20;
 
 // Sessions renders the sessions tab.
 export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage }) {
@@ -106,11 +104,29 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
 
     if (settings) return html`<${ContourDoor} id=${settings} onClose=${() => setSettings(0)} />`;
 
+    // A project opened from the archive comes back to the archive: the project
+    // is looked at before it.
+    const sessionsNow = (snapshot && snapshot.sessions) || [];
+    if (project) {
+        return html`<${Project}
+            project=${project}
+            sessions=${sessionsNow}
+            notes=${splitNotes((snapshot && snapshot.sessionNotes) || [], sessionsNow).own}
+            exec=${exec}
+            wait=${wait}
+            onBack=${() => setProject(null)}
+            onChat=${openChat}
+        />`;
+    }
+
     if (past) {
         return html`<${Past}
             profile=${profile}
             contour=${contour}
+            map=${profiles.find((p) => p.profile === profile) || null}
+            sessions=${sessionsNow}
             onBack=${() => setPast(false)}
+            onProject=${setProject}
             exec=${exec}
             chat=${openChat}
         />`;
@@ -124,21 +140,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     }
 
     const sessions = (snapshot && snapshot.sessions) || [];
-    const places = placesOf(profiles, sessions);
     const notes = splitNotes((snapshot && snapshot.sessionNotes) || [], sessions);
-
-    if (project) {
-        return html`<${Project}
-            project=${project}
-            sessions=${sessions}
-            notes=${notes.own}
-            exec=${exec}
-            wait=${wait}
-            onBack=${() => setProject(null)}
-            onChat=${openChat}
-        />`;
-    }
-
     const blind = sessions.length === 0 && notes.common.length > 0;
 
     const byPage = pagesOf(profiles, sessions, names);
@@ -174,7 +176,6 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
                     sessions=${profiles.length > 0 ? byPage.get(name) || [] : sessions}
                     opening=${profiles.length > 0 ? ghosts.get(name) || [] : wait.opening()}
                     recent=${name === profile ? recent : []}
-                    places=${places}
                     notes=${notes.own}
                     blind=${blind}
                     exec=${exec}
@@ -204,71 +205,46 @@ export function ghostsOf(profiles, opening) {
     return out;
 }
 
-function Page({ name, profile, limits, stale, sessions, opening, recent, places, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
-    const live = sessions.slice().sort((a, b) => Number(Boolean(b.home)) - Number(Boolean(a.home)));
+// The sections of a contour's page, in the order the list is read.
+const SECTIONS = [
+    { rank: RANK.wait, title: "needs you", tone: " pjwaits" },
+    { rank: RANK.busy, title: "working", tone: "" },
+    { rank: RANK.quiet, title: "quiet", tone: "" },
+];
 
-    const filler = fillTo(recent, live, opening, MIN_CARDS);
-
-    const homeRow = live.some((s) => s.home)
-        ? null
-        : recent.find((row) => row.home) || null;
-    const rest = homeRow ? filler.filter((row) => row.sessionId !== homeRow.sessionId) : filler;
-
+function Page({ name, profile, limits, stale, sessions, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
+    const [acting, setActing] = useState("");
+    const blocks = blocksOf({ profile, sessions, recent, opening });
+    const acted = acting ? sessions.find((s) => s.session === acting) || null : null;
+    const toProject = (project, group) => onProject({ ...project, profile: name, contour: profile ? profile.id : 0, group });
     return html`
         <${ProfileLimits} limits=${limits} profile=${name} contour=${profile ? profile.id : 0} stale=${stale} />
-
-        ${live.length === 0 && opening.length === 0 && filler.length === 0
+        ${blocks.length === 0
             ? !blind && html`<p class="empty">There are no live sessions.</p>`
-            : html`
-                <div class="grouphead">recent sessions</div>
-                ${live.map((s) => html`
-                    <${LiveRow}
-                        key=${s.session}
-                        session=${s}
-                        where=${profile ? places.get(s.session) || null : undefined}
-                        notes=${notes.get(s.session)}
-                        exec=${exec}
-                                    wait=${wait}
-                        onOpen=${onChat}
-                    />
-                `)}
-                ${opening.map((task) => html`<${Ghost} key=${task.target} task=${task} />`)}
-                ${homeRow && html`
-                    <${PastRow}
-                        key=${`home-${homeRow.sessionId}`}
-                        row=${homeRow}
-                        dim
-                        onOpen=${onChat}
-                        action=${html`<${PastActions} row=${homeRow} exec=${exec} />`}
-                    />
-                `}
-                ${rest.map((row) => html`
-                    <${PastRow}
-                        key=${`past-${row.sessionId}`}
-                        row=${row}
-                        dim
-                        onOpen=${onChat}
-                        action=${html`<${PastActions} row=${row} exec=${exec} />`}
-                    />
-                `)}
-            `}
-
-        ${profile && html`
-            <${Groups}
-                profile=${profile}
-                sessions=${sessions}
-                onOpen=${onProject}
-                exec=${exec}
-            />
-        `}
-
-        <${PastButton} onOpen=${onPast} />
+            : SECTIONS.map((section) => {
+                const list = blocks.filter((b) => b.rank === section.rank);
+                if (list.length === 0) return null;
+                return html`
+                    <div class=${`grouphead pjsection${section.tone}`} key=${section.title}>
+                        ${section.title}${section.rank !== RANK.quiet && html`<span class="pjcount">${list.length}</span>`}
+                    </div>
+                    ${list.map((block) => html`
+                        <${ProjectBlock} key=${block.key} block=${block} exec=${exec} wait=${wait} notes=${notes}
+                                         onOpen=${onChat} onMore=${(s) => setActing(s.session)} onProject=${toProject} />
+                    `)}
+                `;
+            })}
+        <button class="crumb wide" type="button" onClick=${onPast}>
+            all projects and the archive
+            <span class="chev">${Icon.chevron()}</span>
+        </button>
         ${profile && html`
             <button class="crumb wide" type="button" onClick=${() => onSettings(profile.id)}>
                 contour settings
                 <span class="chev">${Icon.chevron()}</span>
             </button>
         `}
+        <${SessionSheet} session=${acted} exec=${exec} onClose=${() => setActing("")} onOpen=${onChat} />
     `;
 }
 
@@ -281,26 +257,12 @@ function PastButton({ onOpen }) {
     `;
 }
 
-// fillTo returns what to fill the list up to the wanted length with.
 // spoken drops the conversations that never said a word. A transcript can hold
 // nothing but a snapshot of file history or a summary, and a card for one names
 // a talk that never happened. The archive counts and pages every conversation
 // it has; which of them are worth a card is the screen's question.
 export function spoken(rows) {
     return (rows || []).filter((row) => (row.messages || 0) > 0);
-}
-
-export function fillTo(archive, live, opening, want) {
-    const rising = opening || [];
-    const need = want - live.length - rising.length;
-    if (need <= 0) return [];
-    const taken = new Set(live.map((s) => s.sessionId).filter(Boolean));
-    const names = new Set(live.map((s) => s.session));
-    return (archive || [])
-        .filter((row) => !(row.sessionId && taken.has(row.sessionId)))
-        .filter((row) => !names.has(row.name))
-        .filter((row) => !rising.some((task) => ownName(row.name, task.target)))
-        .slice(0, need);
 }
 
 const NOTES_SHOWN = 3;

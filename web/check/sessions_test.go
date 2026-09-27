@@ -134,20 +134,14 @@ func TestArchivedSessionCardDiffersFromLive(t *testing.T) {
 	}
 
 	body := screenSrc(t, sessionsFile)
-	card := jsBlock(t, sessionsFile, body, "export function PastRow(")
-	if !strings.Contains(card, "\n            peak\n") {
-		t.Errorf("%s: PastRow does not mark its number as a peak unconditionally — "+
-			"on the archive page the peak glows as a fill happening right now again", sessionsFile)
+	line := jsBlock(t, sessionsFile, body, "export function PastLine(")
+	if !strings.Contains(line, "peak ${Math.round(row.pctMax") {
+		t.Errorf("%s: the last conversation of a project does not name its number a peak — "+
+			"on the list a closed conversation reads as a fill happening right now again", sessionsFile)
 	}
-	if strings.Contains(card, "peak=$") {
-		t.Errorf("%s: the peak flag in PastRow became conditional — how a value looks cannot depend on "+
-			"what stands next to it", sessionsFile)
-	}
-
-	shell := jsBlock(t, sessionsFile, body, "function SessionCard(")
-	if !strings.Contains(shell, `<div class="rowacts">`) {
-		t.Errorf("%s: SessionCard does not reserve the room for actions itself — "+
-			"a card with no buttons becomes wider than a card with buttons again", sessionsFile)
+	if strings.Contains(line, "ContextBar") {
+		t.Errorf("%s: the last conversation of a project draws a bar of the context — a closed "+
+			"conversation has no fill, and a bar under it reads as a live one", sessionsFile)
 	}
 }
 

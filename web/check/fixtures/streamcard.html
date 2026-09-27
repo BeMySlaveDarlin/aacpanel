@@ -4,11 +4,11 @@
 <div id="root" class="page"></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// Live cards of the sessions list at the width of a phone: two sessions on the
-// stream — one with a long name, one with no requests yet — and one in a
-// console, which carries no mark.
+// Live rows of the sessions list at the width of a phone, each in the block of
+// its project: two sessions on the stream — one with a long name, one with no
+// requests yet — and one in a console.
 import { h, render } from "preact";
-import { LiveRow } from "/src/screens/sessions/card.js";
+import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
@@ -23,30 +23,30 @@ const rows = [
     { ...base, session: "aacpanel", sessionId: "b" },
     { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },
 ];
-const exec = { available: true, kinds: ["session.close"] };
-const where = { profile: "personal", group: "Services" };
+const exec = { available: true, kinds: ["session.close", "session.open"] };
+const blocks = blocksOf({ profile: null, sessions: rows });
 
 render(
-    h(ToastHost, null, h(GateHost, null, rows.map((s) =>
-        h(LiveRow, { key: s.session, session: s, where, exec, onOpen: () => {} })))),
+    h(ToastHost, null, h(GateHost, null, blocks.map((block) =>
+        h(ProjectBlock, { key: block.key, block, exec, onOpen: () => {}, onMore: () => {} })))),
     document.getElementById("root"));
 
 window.done = (async () => {
     await new Promise((r) => setTimeout(r, 200));
-    const cards = Array.from(document.querySelectorAll(".srow"));
-    return cards.map((card) => {
-        const r1 = card.querySelector(".r1").getBoundingClientRect();
-        const name = card.querySelector(".nm").getBoundingClientRect();
-        const mark = card.querySelector(".smark");
-        const box = mark ? mark.getBoundingClientRect() : null;
-        const pct = card.querySelector(".pct").getBoundingClientRect();
+    const blocks = Array.from(document.querySelectorAll(".pjblock"));
+    return blocks.map((block) => {
+        const row = block.querySelector(".pjrow").getBoundingClientRect();
+        const tag = block.querySelector(".pjtag");
+        const box = tag.getBoundingClientRect();
+        const pct = block.querySelector(".pjpct").getBoundingClientRect();
+        const more = block.querySelector(".pjmore").getBoundingClientRect();
         return {
-            name: card.querySelector(".nm").textContent.trim(),
-            mark: mark ? mark.textContent : "",
-            shown: Boolean(box && box.width > 0 && box.height > 0),
-            gap: box ? Math.round(box.left - name.right) : -1,
-            pctInside: pct.right <= r1.right + 0.5,
-            pctRight: Math.round(r1.right - pct.right),
+            name: block.querySelector(".pjname").textContent.trim(),
+            mark: tag.textContent.trim(),
+            shown: box.width > 0 && box.height > 0 && box.right <= row.right,
+            gap: Math.round(pct.left - box.right),
+            pctInside: pct.right <= more.left + 0.5,
+            pctRight: Math.round(more.left - pct.right),
             overflow: document.scrollingElement.scrollWidth - window.innerWidth,
         };
     });

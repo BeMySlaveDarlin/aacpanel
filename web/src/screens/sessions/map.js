@@ -11,11 +11,11 @@ import { plural } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
-import { ownName } from "../../catchup.js";
 import { sessionsOf } from "./of.js";
 
 export { sessionsOf };
-import { Ghost, LiveRow } from "./card.js";
+import { GhostLine, LiveLine, PastLine, SessionSheet } from "./blocks.js";
+import { useSessionsArchive } from "../../history.js";
 import { ProjectDoor } from "../profiles/door.js";
 
 // contoursOf returns which profile each session lives in.
@@ -117,7 +117,7 @@ export function Groups({ profile, sessions, onOpen, exec }) {
                             const differs = p.own || [];
                             return html`
                                 <div class="prow ${own.length > 0 ? "live" : ""}" key=${p.path}>
-                                    <button class="pmain" type="button" onClick=${() => onOpen({ ...p, profile: profile.profile, group: group.name })}>
+                                    <button class="pmain" type="button" onClick=${() => onOpen({ ...p, profile: profile.profile, contour: profile.id, group: group.name })}>
                                         <div class="r1">
                                             <span class="nm">${p.name}</span>
                                             <span class="dot ${own.length > 0 ? "ok" : "off"}"></span>
@@ -164,15 +164,25 @@ function openLabel(more, stream) {
     return more ? "Open one more console" : "Open the console";
 }
 
+// How many conversations of the project a press shows more of.
+const PROJECT_PAGE = 10;
+
 export function Project({ project, sessions, notes, exec, wait, onBack, onChat }) {
     useBackClose(true, onBack);
     const [settings, setSettings] = useState(false);
+    const [acting, setActing] = useState("");
+    const [shown, setShown] = useState(PROJECT_PAGE);
 
     const run = useAction();
     const own = sessionsOf(project, sessions);
     const ready = knows(exec, "session.open");
     const why = whyNot(exec, "session.open");
     const opening = wait ? wait.of("open", project.session) : null;
+    const past = useSessionsArchive({ limit: shown, project: project.id, contour: project.contour, profile: project.profile });
+    const archive = past.kind === "ready" ? past.archive : null;
+    const live = new Set(own.map((s) => s.sessionId).filter(Boolean));
+    const earlier = ((archive && archive.rows) || []).filter((row) => (row.messages || 0) > 0 && !live.has(row.sessionId));
+    const acted = acting ? own.find((s) => s.session === acting) || null : null;
     if (settings) return html`<${ProjectDoor} id=${project.id} sessions=${sessions} onClose=${() => setSettings(false)} />`;
     return html`
         <${BackHead} onBack=${onBack} label="to the projects">
@@ -197,13 +207,29 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
         </div>
         ${!ready && html`<p class="hint warn">${why}</p>`}
 
-        ${opening && html`<${Ghost} task=${opening} />`}
-
-        ${own.length === 0
-            ? !opening && html`<p class="empty">There are no sessions of this project right now.</p>`
-            : own.map((s) => html`
-                <${LiveRow} key=${s.session} session=${s} notes=${notes && notes.get(s.session)}
-                    exec=${exec} wait=${wait} onOpen=${onChat} />
+        <section class="pjblock">
+            <div class="pjhead"><span class="pjname">live</span><span class="pjgroup">${own.length || ""}</span></div>
+            ${own.map((s) => html`
+                <${LiveLine} key=${s.session} session=${s} named=${own.length > 1 || s.session !== project.session}
+                             notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onChat} onMore=${(x) => setActing(x.session)} />
             `)}
+            ${opening && html`<${GhostLine} task=${opening} />`}
+            ${own.length === 0 && !opening && html`<p class="pjempty">There are no sessions of this project right now.</p>`}
+        </section>
+
+        <section class="pjblock pjquiet">
+            <div class="pjhead"><span class="pjname">conversations</span>${archive && html`<span class="pjgroup">${archive.total}</span>`}</div>
+            ${past.kind === "loading" && html`<p class="pjempty">Reading the transcripts…</p>`}
+            ${(past.kind === "failed" || past.kind === "unavailable") && html`<p class="pjempty">${past.error}</p>`}
+            ${archive && earlier.length === 0 && html`<p class="pjempty">No conversation of this project is kept on disk.</p>`}
+            ${earlier.map((row) => html`<${PastLine} key=${row.sessionId} row=${row} project=${project} exec=${exec} onOpen=${onChat} />`)}
+            ${archive && archive.total > shown && html`
+                <button class="pjlink" type="button" onClick=${() => setShown(shown + PROJECT_PAGE)}>
+                    ${Math.min(PROJECT_PAGE, archive.total - shown)} more
+                    <span class="chev">${Icon.chevron()}</span>
+                </button>
+            `}
+        </section>
+        <${SessionSheet} session=${acted} exec=${exec} onClose=${() => setActing("")} onOpen=${onChat} />
     `;
 }
