@@ -319,6 +319,9 @@ func (s *Store) UndoDelete(ctx context.Context, entryID int64) (p ProfileProject
 	if err != nil {
 		return p, s.pathTaken(ctx, err, kept.Path)
 	}
+	if err := sessionTaken(ctx, tx, p); err != nil {
+		return ProfileProject{}, err
+	}
 	if _, err := tx.Exec(ctx, `UPDATE profile_journal SET undone_at = now() WHERE id = $1`, entryID); err != nil {
 		return p, err
 	}

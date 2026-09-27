@@ -496,6 +496,15 @@ keys keep each other's work. A draft is answered without being written:
 by the launcher's own code word by word, and `POST /api/profiles/{id}/preview`
 what a contour's projects would start with.
 
+**A session name is the machine's, not the contour's.** tmux keeps one
+namespace for every session, and a project with no session name of its own
+answers to the name of its directory. A save that would make two projects answer
+to one name — a new project, a changed name or directory, a deleted project taken
+back — is refused with the project that holds it: the second of the two would
+come up as `name-2` while the panel waits for it under the name, and each
+project's screen would count the other's sessions as its own. A pair already in
+the map stays editable until one of them is renamed.
+
 **A group is a shelf, not a level of the launch.** What is said for all its
 projects is written into each (`POST /api/groups/{id}/set`), and a full group
 moves its projects onto another of the contour before it can be deleted

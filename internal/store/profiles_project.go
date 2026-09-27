@@ -56,6 +56,9 @@ func (s *Store) CreateProject(ctx context.Context, groupID int, e ProjectEdit) (
 	if err != nil {
 		return p, s.pathTaken(ctx, noParent(err, "there is no group %d", groupID), path)
 	}
+	if err := sessionTaken(ctx, tx, p); err != nil {
+		return ProfileProject{}, err
+	}
 	if _, err := journal(ctx, tx, journalRow{entity: journalProject, id: p.ID, name: p.Name, op: OpCreate,
 		changes: changesOf(nil, normalized(projectFields(p)))}); err != nil {
 		return ProfileProject{}, err
@@ -154,6 +157,13 @@ func (s *Store) UpdateProject(ctx context.Context, id int, e ProjectEdit) (p Pro
 			pathVal = *path
 		}
 		return p, s.pathTaken(ctx, missing(err, "there is no project %d", id), pathVal)
+	}
+	// Only a save that changes what the session answers to is held to it: a pair
+	// already in the map must stay editable until somebody renames one of them.
+	if session != nil || path != nil {
+		if err := sessionTaken(ctx, tx, p); err != nil {
+			return ProfileProject{}, err
+		}
 	}
 	if changes := changesOf(normalized(projectFields(before)), normalized(projectFields(p))); len(changes) > 0 {
 		if _, err := journal(ctx, tx, journalRow{entity: journalProject, id: p.ID, name: p.Name, op: OpUpdate,

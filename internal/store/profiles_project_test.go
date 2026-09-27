@@ -154,3 +154,101 @@ func TestProjectNeverMovesToAnotherContourPG(t *testing.T) {
 		t.Errorf("after the refusals the project lies in group %d, and it lay in %d", got, from.ID)
 	}
 }
+
+func TestProjectSessionNameIsUniqueAcrossTheMapPG(t *testing.T) {
+	s, root := profileStore(t)
+	ctx := t.Context()
+
+	algo := mustProfile(t, s, "algo", filepath.Join(root, "Algo"), 0)
+	algoGroup := mustGroup(t, s, algo.ID, "Common", 0)
+	mustProject(t, s, algoGroup.ID, "ai-platform", filepath.Join(root, "Algo", "ai-platform"), 0)
+
+	work := mustProfile(t, s, "work", filepath.Join(root, "Work"), 1)
+	workGroup := mustGroup(t, s, work.ID, "Common", 0)
+
+	_, err := s.CreateProject(ctx, workGroup.ID, ProjectEdit{
+		Name: strp("bot-platform"), Path: strp(filepath.Join(root, "Work", "ai-platform")), Sort: intp(0)})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("a project whose directory answers to a taken session name gave %v, ErrConflict was expected", err)
+	}
+	for _, want := range []string{`"ai-platform"`, `project "ai-platform"`, `contour "algo"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal %q does not say %s", err.Error(), want)
+		}
+	}
+
+	bot, err := s.CreateProject(ctx, workGroup.ID, ProjectEdit{
+		Name: strp("bot-platform"), Path: strp(filepath.Join(root, "Work", "ai-platform")),
+		Session: strp("bot-platform"), Sort: intp(0)})
+	if err != nil {
+		t.Fatalf("the same directory under a session name of its own was refused: %v", err)
+	}
+
+	if _, err := s.UpdateProject(ctx, bot.ID, ProjectEdit{Session: strp("")}); !errors.Is(err, ErrConflict) {
+		t.Errorf("clearing the session name back to the directory's gave %v, ErrConflict was expected", err)
+	}
+	if _, err := s.UpdateProject(ctx, bot.ID, ProjectEdit{Session: strp("ai-platform")}); !errors.Is(err, ErrConflict) {
+		t.Errorf("naming the session like the other project's gave %v, ErrConflict was expected", err)
+	}
+	if got := mustTree(t, s); projectSession(got, bot.ID) != "bot-platform" {
+		t.Errorf("a refused save changed the session name to %q", projectSession(got, bot.ID))
+	}
+}
+
+func TestAPairAlreadyInTheMapStaysEditablePG(t *testing.T) {
+	s, root := profileStore(t)
+	ctx := t.Context()
+
+	p := mustProfile(t, s, "personal", root, 0)
+	g := mustGroup(t, s, p.ID, "services", 0)
+	first := mustProject(t, s, g.ID, "first", filepath.Join(root, "first"), 0)
+	second := mustProject(t, s, g.ID, "second", filepath.Join(root, "second"), 1)
+	pool, err := s.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE profile_projects SET session_name = 'twin' WHERE id = ANY($1)`,
+		[]int{first.ID, second.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.UpdateProject(ctx, first.ID, ProjectEdit{Name: strp("first, renamed")}); err != nil {
+		t.Errorf("a pair that came into the map before the rule blocks every save of its projects: %v", err)
+	}
+	if _, err := s.UpdateProject(ctx, first.ID, ProjectEdit{Session: strp("first")}); err != nil {
+		t.Errorf("renaming one of the pair apart was refused: %v", err)
+	}
+}
+
+func TestUndoDoesNotBringBackATakenSessionNamePG(t *testing.T) {
+	s, root := profileStore(t)
+	ctx := t.Context()
+
+	p := mustProfile(t, s, "personal", root, 0)
+	g := mustGroup(t, s, p.ID, "services", 0)
+	gone := mustProject(t, s, g.ID, "gone", filepath.Join(root, "gone"), 0)
+	entry, err := s.DeleteProject(ctx, gone.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateProject(ctx, g.ID, ProjectEdit{
+		Name: strp("heir"), Path: strp(filepath.Join(root, "heir")), Session: strp("gone"), Sort: intp(0)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UndoDelete(ctx, entry); !errors.Is(err, ErrConflict) {
+		t.Errorf("taking back a project whose session name is taken since gave %v, ErrConflict was expected", err)
+	}
+}
+
+func projectSession(tree []Profile, id int) string {
+	for _, p := range tree {
+		for _, g := range p.Groups {
+			for _, project := range g.Projects {
+				if project.ID == id {
+					return project.Session
+				}
+			}
+		}
+	}
+	return ""
+}
