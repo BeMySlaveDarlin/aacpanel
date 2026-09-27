@@ -247,13 +247,9 @@ func (s *Server) termJournal(r *http.Request, name string) termEntry {
 	if deviceID == 0 {
 		return quiet
 	}
-	deviceName := s.passkey.DeviceName(r.Context(), deviceID)
-	if deviceName == "" {
-		deviceName = "unknown device"
-	}
 	id, err := s.db.LogAttempt(r.Context(), store.Action{
 		DeviceID:   deviceRef(deviceID),
-		DeviceName: deviceName,
+		DeviceName: s.deviceName(r),
 		Kind:       "term.attach",
 		Target:     name,
 	})

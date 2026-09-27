@@ -289,3 +289,22 @@ func TestLocalPanelRefusesFrames(t *testing.T) {
 			rec.Header().Get("X-Frame-Options"), rec.Header().Get("Content-Security-Policy"))
 	}
 }
+
+func TestTheLocalListenerSignsForTheMachine(t *testing.T) {
+	s := &Server{}
+	var got string
+	h := localOnly("8777", nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = s.deviceName(r)
+	}))
+	r := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8777/api/actions", nil)
+	r.Host = "127.0.0.1:8777"
+	h.ServeHTTP(httptest.NewRecorder(), r)
+	if got != "this machine" {
+		t.Errorf("a request over the local listener is journaled as %q, not as the machine itself", got)
+	}
+
+	outside := httptest.NewRequest(http.MethodPost, "https://panel.example/api/actions", nil)
+	if name := s.deviceName(outside); name != "unknown device" {
+		t.Errorf("a request from outside without a device is journaled as %q", name)
+	}
+}

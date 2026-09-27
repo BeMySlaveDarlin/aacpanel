@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -17,8 +18,27 @@ func localOnly(port string, panel func(string) bool, next http.Handler) http.Han
 			log.Printf("the local panel rejected %s %s: %s", r.Method, r.URL.Path, reason)
 			return
 		}
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), localKey{}, true)))
 	})
+}
+
+type localKey struct{}
+
+// deviceName names who made a request, for the journals: the device it signed
+// in with; with none, over the local listener, the machine itself — its
+// monitor or a script of one of its sessions, as nobody signs in there.
+func (s *Server) deviceName(r *http.Request) string {
+	var id int64
+	if s.auth != nil {
+		id = s.auth.CurrentDevice(r)
+	}
+	if name := s.passkey.DeviceName(r.Context(), id); name != "" {
+		return name
+	}
+	if local, _ := r.Context().Value(localKey{}).(bool); local && id == 0 {
+		return "this machine"
+	}
+	return "unknown device"
 }
 
 func crossSite(r *http.Request, port string, panel func(string) bool) string {

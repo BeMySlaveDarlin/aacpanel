@@ -240,10 +240,7 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deviceID := s.auth.CurrentDevice(r)
-	deviceName := s.passkey.DeviceName(r.Context(), deviceID)
-	if deviceName == "" {
-		deviceName = "unknown device"
-	}
+	deviceName := s.deviceName(r)
 
 	var journalID int64
 	var logged bool

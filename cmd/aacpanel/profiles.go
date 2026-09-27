@@ -280,14 +280,7 @@ func (s *Server) apiUndoJournal(w http.ResponseWriter, r *http.Request) {
 // request, as the actions journal names it.
 func (s *Server) mapActor(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		name := ""
-		if s.auth != nil {
-			name = s.passkey.DeviceName(r.Context(), s.auth.CurrentDevice(r))
-		}
-		if name == "" {
-			name = "unknown device"
-		}
-		next(w, r.WithContext(store.WithActor(r.Context(), name)))
+		next(w, r.WithContext(store.WithActor(r.Context(), s.deviceName(r))))
 	}
 }
 
