@@ -2,7 +2,7 @@
 // ask this rather than the markup, so that a row nobody draws shows up as a
 // row with no place at all.
 import { rows, weld } from "../../src/screens/chat/feed.js";
-import { episodes, isWaiting, marksCalls } from "../../src/screens/chat/episodes.js";
+import { episodes, isWaiting } from "../../src/screens/chat/episodes.js";
 import { items as roles } from "./feedroles.js";
 
 const keyOf = (item) => `${item.role}:${item.pos}`;
@@ -10,10 +10,10 @@ const keyOf = (item) => `${item.role}:${item.pos}`;
 // places returns, for every item of the feed given — or of the feed of every
 // role when none is — the places it was put in, and the shape of each
 // episode. An item folded into a run is found by its calls or its thinking.
-export function places(given, busy = true, marks = null) {
+export function places(given, busy = true) {
     const items = given || roles;
     const list = rows(weld(items));
-    const eps = episodes(list, busy, marks == null ? marksCalls(items) : marks);
+    const eps = episodes(list, busy);
     const found = new Map();
     const put = (key, place) => {
         if (!found.has(key)) found.set(key, []);

@@ -52,20 +52,12 @@ export function isReport(row) {
 
 const ms = (iso) => (iso ? Date.parse(iso) : NaN);
 
-// marksCalls reports whether the host says of a call whether it is still out
-// or has failed. Without it the last call of a busy session is taken to be
-// the one running, which is all a feed without the marks can tell.
-export function marksCalls(items) {
-    return (items || []).some((item) => item.role === "tools"
-        && (item.calls || []).some((call) => "open" in call || "failed" in call));
-}
-
 // episodes cuts the rows at every input of the person and at the end of a
 // turn. A report followed by more work closes its episode too: the work after
 // it gets one of its own, headed as having gone on without the person. The
 // last episode of a busy session is open: it has no outcome yet, and what it
 // does now is its last step.
-export function episodes(list, busy = false, marks = false) {
+export function episodes(list, busy = false) {
     const out = [];
     let ep = null;
     let report = -1;
@@ -103,7 +95,7 @@ export function episodes(list, busy = false, marks = false) {
         ep.entries.push(row);
         if (isReport(row)) report = ep.entries.length - 1;
     }
-    return out.map((one, n) => finish(one, busy && n === out.length - 1 && !one.turn, marks));
+    return out.map((one, n) => finish(one, busy && n === out.length - 1 && !one.turn));
 }
 
 function keyOf(ep) {
@@ -114,7 +106,7 @@ function keyOf(ep) {
 // finish lays an episode out: the log of its work — what was said on the way
 // and the run it led to, one step a run — what came of it, what it handed
 // over, and the files its replies named.
-function finish(ep, open, marks) {
+function finish(ep, open) {
     const log = [];
     let said = [];
     const shown = [];
@@ -174,7 +166,7 @@ function finish(ep, open, marks) {
     // before the step going on now.
     const last = open ? lastStep(log) : -1;
     done.settled = last >= 0 ? log.slice(0, last) : log;
-    done.now = open ? nowOf(done, last, marks) : null;
+    done.now = open ? nowOf(done, last) : null;
     return done;
 }
 
@@ -266,10 +258,10 @@ const later = (a, b) => (a.pos - b.pos) || ((a.index || 0) - (b.index || 0));
 
 // nowOf is what an open episode does now: the last call of its last step,
 // whether it is still out, since when, what the session said last and the
-// latest thought it had. A call is running when the host says it is still
-// out; a host that marks nothing leaves the last call running until anything
-// arrives after it.
-function nowOf(ep, last, marks) {
+// latest thought it had. A call is running only while the host says it is
+// still out: the last call of a busy session may well have come back, and the
+// session be thinking over its result.
+function nowOf(ep, last) {
     const step = last >= 0 ? ep.log[last] : null;
     let call = null;
     let kind = "other";
@@ -290,8 +282,7 @@ function nowOf(ep, last, marks) {
     const latest = minds[minds.length - 1] || null;
     const lastAt = ep.to;
     const callAt = call ? ms(call.at) : NaN;
-    const running = Boolean(call) && (call.open === true
-        || (!marks && Number.isFinite(callAt) && (lastAt == null || callAt >= lastAt)));
+    const running = Boolean(call) && call.open === true;
     return {
         step,
         call,

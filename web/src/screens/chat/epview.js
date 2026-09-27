@@ -12,28 +12,23 @@ import { Icon } from "../../ui/icons.js";
 import { plural } from "../../format.js";
 import { Row } from "./rows.js";
 import { SumBadges } from "./badges.js";
-import { DELIVERIES, firstPara, isInput, lineCount, marksCalls, sumOf } from "./episodes.js";
+import { DELIVERIES, firstPara, isInput, lineCount, sumOf } from "./episodes.js";
 import { KIND_NAMES, kindIcon, stampText } from "./labels.js";
 import { COMMAND_TITLES } from "./command.js";
 import { bare } from "./feed.js";
 import { nearEnd } from "./feedwindow.js";
 
 // useEpisodes keeps what the reader opened in the feed of one conversation:
-// the bands unfolded, the reports read whole, the layer of work. It also
-// remembers whether the host has ever said of a call whether it is still out:
-// a call that no longer says so has come back.
-export function useEpisodes(name, id, items) {
+// the bands unfolded, the reports read whole, the layer of work.
+export function useEpisodes(name, id) {
     const [opened, setOpened] = useState(() => new Set());
     const [whole, setWhole] = useState(() => new Set());
     const [work, setWork] = useState(null);
-    const marks = useRef(false);
     useEffect(() => {
         setOpened(new Set());
         setWhole(new Set());
         setWork(null);
-        marks.current = false;
     }, [name, id]);
-    if (!marks.current && marksCalls(items)) marks.current = true;
     const flip = (set, key) => {
         const next = new Set(set);
         if (next.has(key)) next.delete(key);
@@ -44,7 +39,6 @@ export function useEpisodes(name, id, items) {
         opened,
         whole,
         work,
-        marks: marks.current,
         unfold: useCallback((key) => setOpened((was) => flip(was, key)), []),
         readWhole: useCallback((key) => setWhole((was) => flip(was, key)), []),
         openWork: setWork,

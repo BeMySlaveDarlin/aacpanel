@@ -130,9 +130,8 @@ func TestNoItemOfTheFeedIsLostToAnEpisode(t *testing.T) {
 }
 
 // A call is running only while the host says it is still out. A call whose
-// result came back leaves the session thinking; a host that marks no call at
-// all leaves the last one running until anything arrives after it; and a
-// session that is not busy has nothing going on at all.
+// result came back, or one the host says nothing about, leaves the session
+// thinking; and a session that is not busy has nothing going on at all.
 func TestTheCallRunningNowIsTheOneTheHostSaysIsOut(t *testing.T) {
 	var roles []map[string]any
 	raw := runModuleJS(t, "check/fixtures/feedroles.js", "roleItems", [][]any{{}})
@@ -169,13 +168,17 @@ func TestTheCallRunningNowIsTheOneTheHostSaysIsOut(t *testing.T) {
 		[]any{strip("open"), true},
 		[]any{strip("open", "failed"), true},
 		[]any{roles, false},
+		[]any{roles, true},
 	)
 	last := func(p episodePlaces) *nowPlace { return p.Eps[len(p.Eps)-1].Now }
 	if now := last(got[0]); now == nil || now.Running {
 		t.Errorf("a call the host no longer says is out is still running: %+v", now)
 	}
-	if now := last(got[1]); now == nil || !now.Running {
-		t.Errorf("a host that marks no call leaves the last call not running: %+v", now)
+	if now := last(got[1]); now == nil || now.Running {
+		t.Errorf("a call the host says nothing about is taken for running: %+v", now)
+	}
+	if now := last(got[3]); now == nil || !now.Running {
+		t.Errorf("the call the host says is still out is not running: %+v", now)
 	}
 	if now := last(got[2]); now != nil || got[2].Eps[len(got[2].Eps)-1].Open {
 		t.Errorf("a session that is not busy has an exchange going on: %+v", now)

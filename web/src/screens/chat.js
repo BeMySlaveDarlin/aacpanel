@@ -68,7 +68,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
     // What the reader unfolded in the feed, and the work layer open over it.
-    const feedView = useEpisodes(name, id, state.items);
+    const feedView = useEpisodes(name, id);
     // The pages this conversation published and the panel kept a copy of. The
     // shelf is asked for once: a card looks itself up in it rather than asking
     // per artifact.
@@ -285,7 +285,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     // without its result in a conversation that ended is not running.
     const busy = Boolean(live) && live.status === "busy";
     const list = rows(feed);
-    const eps = episodes(list, busy, feedView.marks);
+    const eps = episodes(list, busy);
     // Messages the session has not read yet stand after all it did, in an
     // episode of their own — the one they will open once read.
     const waiting = list.filter(isWaiting);
