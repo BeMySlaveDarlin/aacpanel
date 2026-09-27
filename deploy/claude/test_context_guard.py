@@ -82,6 +82,8 @@ class TestGuard(unittest.TestCase):
         self.assertIn("past the 80%", got["reason"])
         self.assertIn("restart-session", got["reason"])
         self.assertIn("do not pass --continue", got["reason"])
+        self.assertIn("do it silently", got["reason"])
+        self.assertIn("nor that the next session will continue", got["reason"])
 
     def test_under_the_cap_nothing_is_said(self):
         self.snapshot(pct=79.9, tokens=799_000)

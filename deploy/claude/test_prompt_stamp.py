@@ -53,6 +53,29 @@ def snapshot(**overrides):
     return data
 
 
+def run_main(xdg, state_dir, payload, event):
+    """Runs the stamp as the hook runs it; returns what it added to the context."""
+    was = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "AACP_STATE_DIR", "CLAUDE_PROJECT_DIR")}
+    os.environ.update({"XDG_STATE_HOME": xdg, "AACP_STATE_DIR": state_dir})
+    os.environ.pop("CLAUDE_PROJECT_DIR", None)
+    out = io.StringIO()
+    try:
+        sys.stdin = io.StringIO(json.dumps(payload))
+        sys.argv = ["prompt-stamp.py", event]
+        with contextlib.redirect_stdout(out):
+            stamp.main()
+    finally:
+        sys.stdin = sys.__stdin__
+        for k, v in was.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    if not out.getvalue():
+        return ""
+    return json.loads(out.getvalue())["hookSpecificOutput"]["additionalContext"]
+
+
 class TestLines(unittest.TestCase):
     def test_context_belongs_to_this_session(self):
         line = stamp.line_context(snapshot(), "mine")
@@ -99,6 +122,43 @@ class TestLines(unittest.TestCase):
                 said[cwd] = json.loads(out.getvalue())["hookSpecificOutput"]["additionalContext"]
             self.assertIn("finalize from 600k", said["/srv/proj/Algo/lms"])
             self.assertIn("finalize from 800k", said["/srv/elsewhere"])
+
+    def test_with_auto_restart_the_cap_is_where_the_restart_comes(self):
+        line = stamp.line_context(snapshot(), "mine", 80, True)
+        self.assertIn("auto restart at 800k", line)
+        self.assertIn("leave it out of replies", line)
+        self.assertNotIn("finalize", line, "a session that restarts itself is still told to wrap up")
+
+    def test_past_the_cap_with_auto_restart_is_no_alarm(self):
+        self.assertIsNone(stamp.line_alarms(snapshot(), "other", 80, True),
+                          "the guard stops the session itself, yet the stamp raises an alarm")
+
+    def test_a_project_that_restarts_its_sessions_says_so_in_the_stamp(self):
+        with tempfile.TemporaryDirectory() as xdg, tempfile.TemporaryDirectory() as state_dir:
+            os.makedirs(os.path.join(xdg, "aacpanel"))
+            with open(os.path.join(xdg, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
+                f.write("/srv/proj\t80\t1\n")
+            with open(os.path.join(state_dir, "state.json"), "w", encoding="utf-8") as f:
+                json.dump(snapshot(), f)
+            said = run_main(xdg, state_dir, {"session_id": "other", "cwd": "/srv/proj/app"}, "UserPromptSubmit")
+            self.assertIn("auto restart at 800k", said)
+            self.assertNotIn("CONTEXT past the cap", said)
+
+    def test_a_step_of_the_context_is_not_retold_where_the_guard_restarts(self):
+        with tempfile.TemporaryDirectory() as xdg, tempfile.TemporaryDirectory() as state_dir:
+            os.makedirs(os.path.join(xdg, "aacpanel"))
+            with open(os.path.join(xdg, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
+                f.write("/srv/proj\t80\t1\n")
+            data = snapshot()
+            with open(os.path.join(state_dir, "state.json"), "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            payload = {"session_id": "mine", "cwd": "/srv/proj"}
+            self.assertTrue(run_main(xdg, state_dir, payload, "PostToolBatch"), "the first stamp of a turn said nothing")
+            data["sessions"][0].update({"tokens": 610_000, "pct": 61.0})
+            with open(os.path.join(state_dir, "state.json"), "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            self.assertEqual(run_main(xdg, state_dir, payload, "PostToolBatch"), "",
+                             "a step of the context spoke up in the middle of a turn that restarts itself")
 
     def test_a_window_that_is_not_a_round_million_stays_in_thousands(self):
         data = snapshot()

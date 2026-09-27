@@ -294,7 +294,7 @@ the panel's eyes.
 
 | What | Where | What for |
 |---|---|---|
-| `deploy/claude/prompt-stamp.py` | the `UserPromptSubmit` and `PostToolBatch` hooks | the session knows today's date, how much context is left and where its project's context cap falls, with an alarm past it, the limits of its account and the load of the machine |
+| `deploy/claude/prompt-stamp.py` | the `UserPromptSubmit` and `PostToolBatch` hooks | the session knows today's date, how much context is left and where its project's context cap falls, with an alarm past it — or, where the project restarts its sessions, where the restart comes, with no alarm and no word to the person — the limits of its account and the load of the machine |
 | `deploy/claude/cost-snapshot.py` | the `Stop` and `SubagentStop` hooks | a line per turn in `<account>/logs/cost.jsonl`: where the tokens went |
 | `deploy/claude/artifact-copy.py` | the `PostToolUse` hook on `Artifact` | the panel keeps a copy of every page a session publishes and shows it without the account it went out under; without the hook the card has only its link |
 | `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
@@ -341,8 +341,11 @@ follows every `cd` of the agent: a session started by hand in a project is
 guarded like one the panel brought up, and a change in the panel holds from the
 next turn. The cap alone
 restarts nothing — the prompt stamp names it as the point to wrap up. With Auto
-restart on, a session past it is told to finalize and restart itself. The
-switch does nothing where the account does not have the hook.
+restart on, the stamp names it as where the restart comes instead, raises no
+alarm and does not speak up between prompts as the context grows, and a session
+past it is told to finalize and restart itself silently, without a word to the
+person about the context. The switch does nothing where the account does not
+have the hook.
 
 ```json
 {"hooks": {"Stop": [

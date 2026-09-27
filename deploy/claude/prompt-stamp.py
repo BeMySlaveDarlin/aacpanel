@@ -51,12 +51,13 @@ def past_cap(state, session_id, cap):
     return isinstance(pct, (int, float)) and bool(s.get("limit")) and pct >= cap
 
 
-def line_context(state, session_id, cap=guards.CAP_DEFAULT):
+def line_context(state, session_id, cap=guards.CAP_DEFAULT, restart=False):
     """Returns the context fill line of this session, with where its cap falls in its window.
 
     The share is of the window, the hard limit; the cap stands beside it as a number of
     its own — a share of the cap read as a share of the window says "wrap up" a quarter
-    too early.
+    too early. Where the project restarts its sessions itself, the cap is not a point for
+    the session to act on or to talk about: the guard wraps it up when it comes.
     """
     s = session_of(state, session_id)
     if s is None:
@@ -65,7 +66,8 @@ def line_context(state, session_id, cap=guards.CAP_DEFAULT):
     tokens, limit = s.get("tokens"), s.get("limit")
     if pct is None or not limit:
         return None
-    note = f"finalize from {round(limit * cap / 100 / 1000)}k"
+    at = round(limit * cap / 100 / 1000)
+    note = f"auto restart at {at}k, automatic: leave it out of replies" if restart else f"finalize from {at}k"
     if not s.get("limitKnown", True):
         note += " · the model window is not exact"
     return f"Context:  {round(tokens / 1000)}k/{window(limit)} ({pct:.0f}%) · {note}"
@@ -127,10 +129,14 @@ def line_disks(state):
     return "          Disks " + " · ".join(said)
 
 
-def line_alarms(state, session_id="", cap=guards.CAP_DEFAULT):
-    """Returns the alarms line, empty when there is nothing to say."""
+def line_alarms(state, session_id="", cap=guards.CAP_DEFAULT, restart=False):
+    """Returns the alarms line, empty when there is nothing to say.
+
+    Past the cap of a project that restarts its sessions there is no alarm: the guard
+    stops the session at the end of the turn, and an alarm would only be retold.
+    """
     alarms = []
-    if session_id and past_cap(state, session_id, cap):
+    if session_id and not restart and past_cap(state, session_id, cap):
         alarms.append("CONTEXT past the cap")
     host = state.get("host") or {}
     for d in (host.get("disks") or []):
@@ -145,7 +151,7 @@ def line_alarms(state, session_id="", cap=guards.CAP_DEFAULT):
     return "Alarms:   " + " · ".join(alarms)
 
 
-def stamp(state, session_id, config_dir, with_date, cap=guards.CAP_DEFAULT):
+def stamp(state, session_id, config_dir, with_date, cap=guards.CAP_DEFAULT, restart=False):
     """Returns every line of the stamp, top to bottom."""
     lines = []
     if with_date:
@@ -156,8 +162,8 @@ def stamp(state, session_id, config_dir, with_date, cap=guards.CAP_DEFAULT):
         return lines
 
     age = time.time() - (state.get("at") or 0)
-    for line in (line_context(state, session_id, cap), line_limits(state, config_dir),
-                 line_resources(state), line_disks(state), line_alarms(state, session_id, cap)):
+    for line in (line_context(state, session_id, cap, restart), line_limits(state, config_dir),
+                 line_resources(state), line_disks(state), line_alarms(state, session_id, cap, restart)):
         if line:
             lines.append(line)
     if age > STALE_SEC and len(lines) > (1 if with_date else 0):
@@ -204,20 +210,23 @@ def main():
     except (ValueError, OSError, AttributeError):
         pass
 
-    # The cap of the project the session works in, as the panel's map says it.
+    # The cap of the project the session works in, as the panel's map says it, and
+    # whether the project restarts its sessions there.
     guard = guards.of(guards.where(payload))
-    cap = guard[0] if guard else guards.CAP_DEFAULT
+    cap, restart = guard if guard else (guards.CAP_DEFAULT, False)
 
     state = read_state(os.path.join(state_dir, "state.json"))
     config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or ""
-    lines = stamp(state, session_id, config_dir, with_date=event == "UserPromptSubmit", cap=cap)
+    lines = stamp(state, session_id, config_dir, with_date=event == "UserPromptSubmit", cap=cap, restart=restart)
 
     if event != "UserPromptSubmit":
+        # A step of the context speaks up between prompts so that a session can wrap up
+        # in time; where the guard restarts the session, there is nothing to wrap up for.
         pct = None
         for s in (state or {}).get("sessions", []):
-            if s.get("sessionId") == session_id:
+            if s.get("sessionId") == session_id and not restart:
                 pct = s.get("pct")
-        if not throttle(state_dir, session_id, pct, line_alarms(state or {}, session_id, cap)):
+        if not throttle(state_dir, session_id, pct, line_alarms(state or {}, session_id, cap, restart)):
             return
         lines = [l for l in lines if not l.startswith("[")]
 
