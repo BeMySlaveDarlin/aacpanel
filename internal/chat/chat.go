@@ -157,6 +157,11 @@ type ToolCall struct {
 	Pos   int64  `json:"pos"`
 	Index int    `json:"index"`
 	Use   string `json:"use,omitempty"`
+	// Open is a call whose result has not come and whose turn is not over:
+	// the call the session is running now. Failed is a call whose result came
+	// as an error. Each is absent rather than false when it does not hold.
+	Open   bool `json:"open,omitempty"`
+	Failed bool `json:"failed,omitempty"`
 }
 
 // ThinkSpot is one thinking block inside a run: where it stood and how long it took.

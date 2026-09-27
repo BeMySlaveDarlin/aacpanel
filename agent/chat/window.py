@@ -3,6 +3,7 @@ from .cards import mark_outside
 from .disk import attach_files
 from .limits import DEFAULT_LIMIT, MAX_LIMIT
 from .locate import transcript_cwd
+from .records import MARKS
 from . import tail
 
 
@@ -54,11 +55,25 @@ def settled(window, limit, rows):
 
 
 def fold(rows, limit, before, after):
-    """Folds parsed records into a window of at most this many rows."""
+    """Folds parsed records into a window of at most this many rows.
+
+    A window after a position holds what the reader does not have yet, and a
+    record past the position may settle a call the reader already has. So
+    the rows up to the position are folded as well, the way they were folded
+    for the reader, and kept only to find such a call in them: a group of
+    calls a later record changed goes out again whole, under the position
+    the reader knows it by, ahead of the new rows.
+    """
     window = []
     total = 0
     more_before = False
     last_pos = None
+    # After a position: the rows the reader already has, whether the fold has
+    # reached the rows past it, and the groups among the known ones that a
+    # record past it changed.
+    known = []
+    crossed = False
+    touched = []
 
     def place(item):
         for i, was in enumerate(window):
@@ -70,29 +85,64 @@ def fold(rows, limit, before, after):
                 return True
         return False
 
+    def find_call(use):
+        """Returns the group holding the call with this id, the rows it is in and the call."""
+        if not use:
+            return None, None, None
+        for rows_of in (window, known):
+            for was in reversed(rows_of):
+                if was["role"] != "tools":
+                    continue
+                for call in was["calls"]:
+                    if call["use"] == use:
+                        return was, rows_of, call
+        return None, None, None
+
+    def touch(group, rows_of):
+        if rows_of is known and not any(group is was for was in touched):
+            touched.append(group)
+
+    def settle(mark):
+        # The mark only changes the call it names, wherever it stands in the
+        # window: the result of a call is often a few rows after the call.
+        group, rows_of, call = find_call(mark.get("use"))
+        if call is None:
+            return
+        call.pop("open", None)
+        if mark.get("failed"):
+            call["failed"] = True
+        touch(group, rows_of)
+
+    def open_calls():
+        return any(c.get("open") for was in window if was["role"] == "tools" for c in was["calls"])
+
     def drop_call(use):
         # A delivery is shown once. Whether anything reached the human is
         # known only from the answer, so the call goes into the run first and
         # leaves it when its card is drawn; a call that failed gets no card
         # and stays, with the error readable in its details.
         nonlocal total
-        if not use:
+        was, rows_of, _ = find_call(use)
+        if was is None:
             return
-        for i, was in enumerate(window):
-            if was["role"] != "tools":
-                continue
-            calls = [c for c in was["calls"] if c["use"] != use]
-            if len(calls) == len(was["calls"]):
-                continue
-            if calls:
-                was["calls"] = calls
-            else:
-                del window[i]
-                total -= 1
+        calls = [c for c in was["calls"] if c["use"] != use]
+        if calls:
+            was["calls"] = calls
+            touch(was, rows_of)
             return
+        # A group left with no calls leaves the window. One the reader already
+        # has cannot be taken back from its screen, only drawn again, so there
+        # it stays as it was.
+        rows_of[:] = [row for row in rows_of if row is not was]
+        touched[:] = [row for row in touched if row is not was]
+        if rows_of is window:
+            total -= 1
 
     def keep(item):
         nonlocal total
+        if item["role"] in MARKS:
+            settle(item)
+            return
         if place(item):
             return
         if item["role"] == "sent":
@@ -131,6 +181,8 @@ def fold(rows, limit, before, after):
                     "use": item.get("use", "")}
             if item.get("edited"):
                 call["edited"] = item["edited"]
+            if item.get("open"):
+                call["open"] = True
             kind = item.get("kind", "other")
             for group in groups:
                 if group["role"] == "tools" and group["kind"] == kind:
@@ -165,7 +217,13 @@ def fold(rows, limit, before, after):
     for line_pos, items in rows:
         if after is not None:
             if line_pos <= after:
+                for item in items:
+                    keep(item)
+                if len(window) > limit:
+                    window = window[-limit:]
                 continue
+            if not crossed:
+                known, window, total, crossed = window, [], 0, True
             for item in items:
                 keep(item)
             last_pos = line_pos
@@ -174,10 +232,14 @@ def fold(rows, limit, before, after):
             continue
 
         if before is not None and line_pos >= before:
-            if not any(item.get("state") == "queued" for item in window):
+            # The page is done, but what it holds may still change: a message
+            # queued in it is delivered later, a call in it answered later.
+            if not open_calls() and not any(item.get("state") == "queued" for item in window):
                 break
             for item in items:
-                if item["pos"] != line_pos:
+                if item["role"] in MARKS:
+                    settle(item)
+                elif item["pos"] != line_pos:
                     place(item)
             continue
 
@@ -191,8 +253,11 @@ def fold(rows, limit, before, after):
     cwd = rows.cwd
     if not cwd and not rows.head:
         cwd = transcript_cwd(rows.path)
+    if after is not None and not crossed:
+        known, window, total = window, [], 0
     attach_files(window, cwd)
     mark_outside(window, cwd)
     if after is not None:
-        return {"items": window, "moreBefore": False, "total": total, "last": last_pos}
+        again = [was for was in known if any(was is group for group in touched)]
+        return {"items": again + window, "moreBefore": False, "total": total, "last": last_pos}
     return {"items": window, "moreBefore": more_before, "total": total, "last": last_pos}

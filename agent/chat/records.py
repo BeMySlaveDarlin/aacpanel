@@ -3,10 +3,11 @@ import html
 import re
 
 import sesstate
+from sesstate.feed import TURN_ENDS
 
 from . import commands
 from .cards import artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card, wake_item
-from .harness import classify, service, strip_panel_note, unwrap_pasted
+from .harness import classify, interrupted, service, strip_panel_note, unwrap_pasted
 from .mail import peer_name, peer_pid
 from .notices import hook_call, system_notice
 from .limits import MAX_TEXT, cut
@@ -59,6 +60,44 @@ def shell(text, at, pos):
     return item
 
 
+# Marks of what became of a call, for the fold and never for the screen: the
+# fold finds the call by its id among the rows it holds and changes it there.
+# A result says the call is over and whether it failed; a cutoff says the turn
+# the call was made in is over and no result is coming any more.
+RESULT = "result"
+CUTOFF = "cutoff"
+MARKS = (RESULT, CUTOFF)
+
+
+def result_mark(use, block, at, pos):
+    """Returns the mark of a call whose result has come."""
+    mark = {"role": RESULT, "use": use, "at": at, "pos": pos}
+    if block.get("is_error"):
+        mark["failed"] = True
+    return mark
+
+
+def cutoff(calls, at, pos):
+    """Returns a mark for every call the turn now over left without a result.
+
+    A call is shown running until its result comes, and a turn can end before
+    it: the person stops the answer, or the session dies in the middle of a
+    call and the next prompt starts over. The entry stays, marked, so a result
+    that does come later still settles the call and a card of permissions
+    still names it; it is replaced rather than changed, because a throwaway
+    read of a record still being written works on a shallow copy of calls.
+    """
+    if not calls:
+        return []
+    marks = []
+    for use, call in list(calls.items()):
+        if not use or call.get("cut"):
+            continue
+        calls[use] = dict(call, cut=True)
+        marks.append({"role": CUTOFF, "use": use, "at": at, "pos": pos})
+    return marks
+
+
 # A brief is published by running a script, not by a tool of its own: the
 # document is a file of tens of kilobytes, and that does not go on a command
 # line. Which shell call did it is read from what the call printed and never
@@ -75,8 +114,11 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     a published brief is drawn from the answer, and the answer is another
     record. Shelf reads a published brief by its name, for what the card says
     about it. Calls are all the calls still waiting, for what a card of
-    permissions says a call was about; permits are the answers a person gave
-    to permissions, by call, and the card stands by the result of the call.
+    permissions says a call was about and for whether a call is still
+    running: a reader that keeps them gets a call marked open and a mark when
+    its result comes or its turn ends without one. Permits are the answers a
+    person gave to permissions, by call, and the card stands by the result of
+    the call.
     """
     if not isinstance(record, dict) or (record.get("isSidechain") and not sidechain):
         return []
@@ -89,11 +131,14 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     at = record.get("timestamp") or ""
 
     if kind == "system":
+        # claude may write the end of a turn a moment before the last result
+        # of it: the result that follows still settles its call.
+        ended = cutoff(calls, at, pos) if record.get("subtype") in TURN_ENDS else []
         said = system_notice(record, at, pos)
         if said is not None:
-            return said
+            return said + ended
         if record.get("subtype") != "local_command":
-            return []
+            return ended
         cards = commands.answer(record, (record.get("content") or "").strip(), at, pos)
         if cards is not None:
             return cards
@@ -152,11 +197,14 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
                 links = []
                 allowed = []
+                settled = []
                 for b in content:
                     if not isinstance(b, dict) or b.get("type") != "tool_result":
                         continue
                     use = b.get("tool_use_id") or ""
                     call = calls.pop(use, None) if calls is not None else None
+                    if use and call is not None:
+                        settled.append(result_mark(use, b, at, pos))
                     if permits and use in permits:
                         allowed.append(permit_row(permits[use], call))
                     if asks is not None and use in asks:
@@ -184,7 +232,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     # The person answered before the call ran, so the answer
                     # stands before whatever its result brought.
                     links.insert(0, permit_card(allowed, at, pos))
-                return links
+                # The marks go last: a card that takes the place of its call
+                # takes the call out first, and the mark then finds nothing.
+                return links + settled
             for i, b in enumerate(content):
                 if not isinstance(b, dict) or b.get("type") != "image":
                     continue
@@ -230,6 +280,8 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return out
         if role == "note":
             out.append({"role": "note", "text": shown, "at": at, "pos": pos})
+            if interrupted(text):
+                out += cutoff(calls, at, pos)
             return out
         body, trimmed = cut(shown, MAX_TEXT)
         # A slash command that went through the queue comes back as a record
@@ -240,15 +292,16 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         # A message that went through the queue comes back as a prompt of its
         # own: marked queued in a terminal, and sdk on the stream, where every
         # message goes through the queue. Its bubble is the one the queue drew.
+        # A prompt of the person starts a turn, so the one before it is over.
         if record.get("promptSource") in ("queued", "sdk") and pending is not None and pending.seen(text):
             item = pending.by_text(text)
-            return [delivered(item)] if item else []
+            return ([delivered(item)] if item else []) + cutoff(calls, at, pos)
         if pending is not None:
             pending.remember(text, pos)
         if (record.get("origin") or {}).get("kind") == "peer":
             return out
         out.append({"role": "me", "text": body, "cut": trimmed, "at": at, "pos": pos})
-        return out
+        return out + cutoff(calls, at, pos)
 
     if kind == "attachment":
         block = record.get("attachment") or {}
@@ -374,6 +427,8 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                         "arg": tool_arg(block.get("input")), "at": at,
                         "use": block.get("id") or "",
                         "pos": pos, "index": i}
+                if calls is not None and call["use"]:
+                    call["open"] = True
                 edited = edited_path(name, block.get("input"))
                 if edited:
                     call["edited"] = edited

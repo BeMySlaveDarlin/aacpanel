@@ -5,8 +5,12 @@ from .limits import MAX_NOTE, MAX_TEXT, cut
 from .mail import mails
 
 
+# What claude writes when the person stops an answer: the turn is over there,
+# whatever it was still doing.
+INTERRUPTED = "[Request interrupted"
+
 NOTES = (
-    ("[Request interrupted", "the human interrupted the answer"),
+    (INTERRUPTED, "the human interrupted the answer"),
     ("This session is being continued from a previous conversation",
      "the context was compacted, the conversation continues from a summary"),
 )
@@ -153,6 +157,11 @@ def service(text, at, pos):
         return [{**done, "at": at, "pos": pos}] if done else []
 
     return None
+
+
+def interrupted(text):
+    """Reports whether the prompt is claude's mark of an answer the person stopped."""
+    return INTERRUPTED in text[:200]
 
 
 def classify(text):

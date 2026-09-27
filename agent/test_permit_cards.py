@@ -121,7 +121,8 @@ class Permits(unittest.TestCase):
         self.assertEqual([i["role"] for _, items in piece.rows for i in items], ["tool"])
         self.keep({"use": "t1", "tool": "Bash", "decision": "allow"})
         piece.read_on(os.path.getsize(self.path))
-        self.assertEqual([i["role"] for _, items in piece.rows for i in items], ["tool", "permitted"])
+        self.assertEqual([i["role"] for _, items in piece.rows for i in items],
+                         ["tool", "permitted", chat.records.RESULT])
 
 
 class Kept(unittest.TestCase):
