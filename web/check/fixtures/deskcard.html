@@ -1,0 +1,302 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>
+html,body{margin:0}
+#col .deskshell{position:static;height:900px} #col .dkbody{height:900px}
+#talk .deskshell{position:static;height:600px} #talk .dkbody{height:600px}
+#talk .dkbody:not(.withpanel) > .dkright{display:none}
+#phone{width:390px}
+</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script>document.documentElement.style.setProperty("--ui-scale", "1.2");</script>
+<div id="col"><div class="deskshell"><div class="dkbody" id="root"></div></div></div>
+<div id="talk"><div class="deskshell"><div class="dkbody withpanel" id="body">
+    <aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section><aside class="dkright"></aside>
+</div></div></div>
+<div id="phone"></div>
+<script type="module">
+// The card of a session in the desktop column: live and closed apart. The
+// live sessions of a contour keep their places and keys whatever they do; the
+// state is said in the words of the phone, with a quiet line of what the
+// session runs on under it; the one action of a row comes under the pointer
+// and on the open row; the heading counts who waits and opens a new session;
+// the closed conversations stand on a shelf below. Then the header of the
+// conversation in two lines, with the right panel open and without, and the
+// time of a closed conversation on the phone.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { PastLine } from "/src/screens/sessions/blocks.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const now = Date.now();
+const iso = (min) => new Date(now - min * 60e3).toISOString();
+const P = (id, name, group, path) => ({ id, name, group, session: name, path });
+const projects = {
+    11: P(11, "aacpanel", "Pets", "/srv/aacpanel"), 12: P(12, "person", "Pets", "/srv/person"),
+    13: P(13, "blog", "Pets", "/srv/blog"), 14: P(14, "atlas", "Host", "/home/u"),
+    21: P(21, "lms", "LMS", "/srv/lms"), 22: P(22, "lms-admin", "LMS", "/srv/lms-admin"),
+    23: P(23, "ai-platform", "Platform", "/srv/ai-platform"),
+};
+const group = (name, ids) => ({ name, projects: ids.map((id) => { const { group: _, ...p } = projects[id]; return p; }) });
+const profileMap = [
+    { id: 3, profile: "personal", name: "personal", groups: [group("Pets", [11, 12, 13]), group("Host", [14])] },
+    { id: 1, profile: "Algorithmics", name: "Algorithmics", groups: [group("LMS", [21, 22]), group("Platform", [23])] },
+];
+const accounts = [
+    { name: "personal", account: { permissionMode: "auto" } },
+    { name: "algo", account: { permissionMode: "bypassPermissions" } },
+];
+const limits = { contours: [
+    { profile: "personal", contour: 3, ageSec: 30, fiveHour: { pct: 20, resetsAt: now / 1000 + 3600 }, sevenDay: { pct: 30, resetsAt: now / 1000 + 86400 } },
+    { profile: "algo", contour: 1, ageSec: 30, fiveHour: { pct: 40, resetsAt: now / 1000 + 3600 }, sevenDay: { pct: 50, resetsAt: now / 1000 + 86400 } },
+] };
+const S = (o) => ({
+    transport: "stream", model: "claude-opus-5-5", effort: "xhigh", limit: 1000000, limitKnown: true,
+    startedAt: iso(185), lastRequestAt: iso(5), compacts: 0, mode: "auto", sessionId: `id-${o.session}`,
+    cwd: o.project ? o.project.path : `/srv/${o.session}`, tokens: Math.round(o.pct * 10000), ...o,
+});
+// The collector lists sessions by how full they are.
+const first = [
+    S({ session: "person", profile: "personal", contour: 3, project: projects[12], status: "waiting", waitingFor: "input needed",
+        ask: { count: 2, header: "Palette" }, pct: 63 }),
+    S({ session: "aacpanel", profile: "personal", contour: 3, project: projects[11], status: "busy", work: { agents: 2, tasks: 0 },
+        pct: 41.8, remote: "https://claude.ai/code/session_x", compacts: 2 }),
+    S({ session: "ai-platform", profile: "algo", contour: 1, project: projects[23], status: "waiting", waitingFor: "dialog open",
+        pct: 37, mode: "plan" }),
+    S({ session: "lms", profile: "algo", contour: 1, project: projects[21], status: "busy", work: { agents: 1, tasks: 0 },
+        pct: 26, mode: "bypassPermissions" }),
+    S({ session: "atlas", profile: "personal", contour: 3, project: projects[14], home: true, status: "idle", pct: 10,
+        remote: "https://claude.ai/code/session_y" }),
+    S({ session: "scratch", profile: "personal", contour: 3, project: null, transport: "tmux", status: "idle", pct: 5 }),
+];
+// A minute later every one of them stands otherwise, and the list comes in
+// another order.
+const later = [
+    { ...first[5], pct: 81, status: "busy" },
+    { ...first[4], pct: 90 },
+    { ...first[3], status: "idle" },
+    { ...first[2], status: "busy", waitingFor: null },
+    { ...first[1], status: "waiting", waitingFor: "input needed", ask: { count: 1, header: "Scope" } },
+    { ...first[0], status: "idle", ask: null, waitingFor: null },
+];
+const task = { kind: "open", target: "lms-admin", since: now - 7000, before: first.map((s) => s.session), seen: 0, params: { project: 22 } };
+const wait = { opening: () => [task], of: () => null };
+
+const closed = (o) => ({ model: "claude-opus-5-5", pctMax: 40, startedAt: iso(o.min + 60), lastAt: iso(o.min), ...o });
+const archive = [
+    closed({ sessionId: "c-person-e8", name: "person-e8", profile: "personal", project: projects[12], messages: 3, min: 70,
+             prompts: ["Review this change for security vulnerabilities"] }),
+    closed({ sessionId: "c-person", name: "person", profile: "personal", project: projects[12], messages: 50, min: 125,
+             prompts: ["the palette of the avatar, warmer and fewer greys"] }),
+    closed({ sessionId: "c-blog", name: "blog", profile: "personal", project: projects[13], messages: 0, min: 180, prompts: [] }),
+    closed({ sessionId: "c-career", name: "career", profile: "personal", project: null, cwd: "/srv/career", messages: 10, min: 300,
+             prompts: ["a cover letter for the platform role, shorter"] }),
+    closed({ sessionId: "c-lms-admin", name: "lms-admin", profile: "algo", project: projects[22], messages: 20, min: 26 * 60,
+             prompts: ["migrate the admin filters to the new router"] }),
+];
+
+const asked = [];
+const sent = [];
+const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true, detail: "done" });
+    }
+    if (u.startsWith("/api/sessions/archive")) {
+        asked.push(new URL(u, location.origin).search);
+        return json({ rows: archive, total: archive.length, limit: 30, offset: 0 });
+    }
+    if (u.startsWith("/api/chat?")) return json({ items: [{ role: "ai", pos: 1, text: "Running the suite." }], first: 1, last: 1, total: 1, moreBefore: false, state: null });
+    if (u === "/api/term") return json({ available: true });
+    if (u.startsWith("/api/session/switch")) return json({ to: "console" });
+    if (u.startsWith("/api/session/window")) return json({ state: "closed" });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.resume", "session.open", "session.switch",
+    "window.open", "session.send", "session.set"] };
+const picked = [];
+const orders = [];
+let archiveOpened = 0;
+const column = (sessions, current, currentId = "") => render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: now / 1000, sessions, profileMap, limits, profiles: accounts, host: { home: "/home/u" } },
+    profiles: { profiles: [] }, limits, current, currentId, onPick: (t) => picked.push(t), picks: [], setPicks() {},
+    onNames() {}, onOrder: (o) => orders.push(o.map((t) => t.name).join(",")), onArchive: () => { archiveOpened++; }, exec, wait,
+}))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+// words reads a line made of several pieces the way it reads on the screen.
+const words = (el) => (el ? Array.from(el.children).map(text).filter(Boolean).join(" ") : "");
+const root = () => document.getElementById("root");
+const rowOf = (name) => Array.from(root().querySelectorAll(".dklive")).find((r) => text(r.querySelector(".dkname")) === name);
+const lay = () => Array.from(root().querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((sec) => ({
+    name: text(sec.querySelector(".dkcontourname")),
+    waits: text(sec.querySelector(".dkwaitn")),
+    rows: Array.from(sec.querySelectorAll(".dklive")).map((r) => `${text(r.querySelector(".dkkey"))}:${text(r.querySelector(".dkname"))}`),
+}));
+const say = (name) => words(rowOf(name) && rowOf(name).querySelector(".dksay"));
+const facts = (name) => {
+    const d = rowOf(name) && rowOf(name).querySelector(".dkdetail");
+    if (!d) return { all: [], shown: [], lines: 0 };
+    const spans = Array.from(d.children);
+    const top = spans.length ? spans[0].offsetTop : 0;
+    const size = parseFloat(getComputedStyle(d).fontSize);
+    return {
+        all: spans.map(text),
+        shown: spans.filter((s) => s.offsetTop === top).map(text),
+        lines: Math.round(d.getBoundingClientRect().height / (size * 1.4)),
+        // A fact on the line stands whole inside it: what does not fit is
+        // not cut, it is gone.
+        cut: spans.filter((sp) => sp.offsetTop === top && sp !== spans[0]
+            && sp.getBoundingClientRect().right > d.getBoundingClientRect().right + 0.5).map(text),
+    };
+};
+const acts = (name) => {
+    const box = rowOf(name) && rowOf(name).querySelector(".dkrowacts");
+    return box ? { visible: getComputedStyle(box).visibility, icons: box.querySelectorAll(".dkact").length } : null;
+};
+
+// The rules that bring the action out under the pointer, read from the
+// stylesheet: headless moves no pointer, so the hover itself is not seen.
+function hoverRules() {
+    const out = { hidden: false, shown: false, resume: false };
+    for (const sheet of document.styleSheets) {
+        for (const rule of sheet.cssRules) {
+            if (!(rule instanceof CSSMediaRule) || !rule.conditionText.includes("hover: hover")) continue;
+            for (const inner of rule.cssRules) {
+                const sel = inner.selectorText || "";
+                if (sel === ".deskshell .dklive > .dkrowacts" && inner.style.visibility === "hidden") out.hidden = true;
+                if (sel.includes(".dklive:hover > .dkrowacts") && sel.includes(".dklive.on > .dkrowacts") && inner.style.visibility === "visible") out.shown = true;
+                if (sel.includes(".dkclosed:hover .dkresume") && inner.style.display === "inline-flex") out.resume = true;
+            }
+        }
+    }
+    return out;
+}
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = { pointer: matchMedia("(hover: hover) and (pointer: fine)").matches };
+
+    column(first, "aacpanel");
+    for (let i = 0; i < 60 && !root().querySelector(".dkshelf .dkclosed"); i++) await sleep(50);
+    await sleep(100);
+    out.before = lay();
+    out.orderBefore = orders[orders.length - 1];
+    out.ghost = (() => {
+        const g = root().querySelector(".dkghost");
+        const sec = g && g.closest("section");
+        return g ? { section: text(sec.querySelector(".dkcontourname")), key: text(g.querySelector(".dkkey")),
+                     last: g === Array.from(sec.querySelectorAll(".dklive")).pop(), say: words(g.querySelector(".dksay")) } : null;
+    })();
+    out.says = Object.fromEntries(["person", "aacpanel", "ai-platform", "lms", "atlas"].map((n) => [n, say(n)]));
+    out.tones = Object.fromEntries(["person", "aacpanel", "atlas"].map((n) => [n, rowOf(n).dataset.tone]));
+    out.edge = getComputedStyle(rowOf("person")).boxShadow;
+    out.noEdge = getComputedStyle(rowOf("atlas")).boxShadow;
+    out.facts = Object.fromEntries(["aacpanel", "ai-platform", "lms", "atlas", "scratch"].map((n) => [n, facts(n)]));
+    out.marks = Object.fromEntries(["aacpanel", "atlas", "scratch", "lms"].map((n) => [n,
+        Array.from(rowOf(n).querySelectorAll(".dkmark, .dkrc, .dkhome")).map(text)]));
+    out.columnText = text(root().querySelector(".dkscroll"));
+    out.acts = { open: acts("aacpanel"), other: acts("person"), home: acts("atlas"), console: acts("scratch") };
+    out.homeAct = (rowOf("atlas").querySelector(".dkrowacts .dkact") || {}).getAttribute?.("aria-label") || "";
+    out.rules = hoverRules();
+
+    // The shelf.
+    out.asked = [...asked];
+    out.shelf = Array.from(root().querySelectorAll(".dkshelf .dkclosed")).map((r) => ({
+        name: text(r.querySelector(".dkclname")), contour: text(r.querySelector(".dkclcontour")),
+        when: text(r.querySelector(".dkclwhen")), about: text(r.querySelector(".dkabout")),
+        dot: Boolean(r.querySelector(".dkdot, .dkkey, .dksessbar")),
+        resume: getComputedStyle(r.querySelector(".dkresume")).display,
+    }));
+    root().querySelector(".dkshelfall").click();
+    out.archiveOpened = archiveOpened;
+    Array.from(root().querySelectorAll(".dkclosed")).pop().click();
+    out.pickedClosed = picked[picked.length - 1];
+
+    // The new session of a contour.
+    const plus = root().querySelector(".dkscroll > section .dknew");
+    out.plusHidden = getComputedStyle(plus).visibility;
+    plus.click();
+    await sleep(100);
+    out.menu = Array.from(root().querySelectorAll(".dknewpop .dknewgroup, .dknewpop .dknewrow")).map((el) =>
+        el.classList.contains("dknewgroup") ? `[${text(el)}]` : words(el));
+    Array.from(root().querySelectorAll(".dknewrow")).find((b) => text(b.querySelector(".dkname")) === "blog").click();
+    await sleep(150);
+    const ok = document.querySelector(".btnrow .btn.primary");
+    if (ok) ok.click();
+    await sleep(250);
+    out.opened = sent.slice();
+
+    // A minute later: every state has changed, the list comes in another order.
+    column(later, "aacpanel");
+    await sleep(150);
+    out.after = lay();
+    out.orderAfter = orders[orders.length - 1];
+    out.saysAfter = { aacpanel: say("aacpanel"), person: say("person") };
+
+    // A closed conversation open: its row carries Resume in place of its time.
+    sent.length = 0;
+    column(first, "lms-admin", "c-lms-admin");
+    await sleep(120);
+    const open = root().querySelector(".dkclosed.on");
+    out.openClosed = open ? { name: text(open.querySelector(".dkclname")),
+        resume: getComputedStyle(open.querySelector(".dkresume")).display,
+        when: getComputedStyle(open.querySelector(".dkclwhen")).display } : null;
+    if (open) {
+        open.querySelector(".dkresume").click();
+        await sleep(150);
+        const yes = document.querySelector(".btnrow .btn.primary");
+        if (yes) yes.click();
+        await sleep(250);
+    }
+    out.resumed = sent.slice();
+    out.pickedAfterResume = picked.length;
+
+    // The header of a conversation, the right panel open and closed.
+    const live = { ...first[3], session: "lms", cwd: "/home/u/Projects/Algo/lms", remote: "https://claude.ai/code/session_z" };
+    render(h(ToastHost, null, h(GateHost, null, h(Chat, {
+        name: "lms", id: live.sessionId, live, exec, snapshot: { sessions: [live] }, onBack() {}, onUsage() {},
+    }))), document.getElementById("chat"));
+    const chat = document.getElementById("chat");
+    for (let i = 0; i < 40 && !chat.querySelector(".dkplace"); i++) await sleep(50);
+    await sleep(100);
+    const head = () => {
+        const top = chat.querySelector(".dkheadtop").getBoundingClientRect();
+        const name = chat.querySelector(".dkwhoname").getBoundingClientRect();
+        const sub = chat.querySelector(".dkwhosub").getBoundingClientRect();
+        const label = chat.querySelector(".dkheadname").getBoundingClientRect();
+        // What the name takes in ink: its halves, not the box that holds them.
+        const inked = Array.from(chat.querySelectorAll(".dkheadname .midname > *"))
+            .reduce((sum, el) => sum + el.getBoundingClientRect().width, 0);
+        const tools = Array.from(chat.querySelector(".dkheadtop").children).slice(1).map((el) => el.getBoundingClientRect());
+        return {
+            width: Math.round(top.width),
+            overflow: Math.max(0, ...tools.map((b) => Math.round(b.right - top.right))),
+            twoLines: sub.top >= name.bottom - 1,
+            gap: Math.round(label.width - inked),
+            sub: words(chat.querySelector(".dkwhosub")),
+            place: text(chat.querySelector(".dkplace")),
+        };
+    };
+    out.withPanel = head();
+    document.getElementById("body").classList.remove("withpanel");
+    await sleep(100);
+    out.withoutPanel = head();
+
+    // The time of a closed conversation on the phone.
+    render(h(ToastHost, null, h(GateHost, null, html`<${PastLine} row=${archive[1]} project=${null} exec=${exec} onOpen=${() => {}} />`)),
+        document.getElementById("phone"));
+    await sleep(50);
+    out.phoneWhen = text(document.querySelector("#phone .pjwhen"));
+    return out;
+})();
+</script>

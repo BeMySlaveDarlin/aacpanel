@@ -86,7 +86,12 @@ export function useSessionsArchive({ limit, offset, skip, profile, contour, proj
     if (project) query.set("project", project);
     if (offset) query.set("offset", offset);
     if (skip && skip.length) query.set("skip", skip.join(","));
-    if (contour) query.set("contour", contour);
+    // Contours given as lists are asked for in one request: those of the map
+    // by the id of their entry, the rest by the name the collector gave them.
+    if (Array.isArray(contour) || Array.isArray(profile)) {
+        for (const id of contour || []) query.append("contour", id);
+        for (const name of profile || []) query.append("profile", name);
+    } else if (contour) query.set("contour", contour);
     else if (profile) query.set("profile", profile);
     const state = useEndpoint(`/api/sessions/archive?${query}`, "the session archive");
     return state.kind === "ready" ? { kind: "ready", archive: state.data } : state;

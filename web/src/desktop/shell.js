@@ -276,6 +276,7 @@ export function DesktopShell({
             setPicks=${setPicks}
             onNames=${setNames}
             onOrder=${setOrder}
+            onArchive=${() => setPanel("archive")}
             exec=${exec}
             wait=${wait}
         />`;

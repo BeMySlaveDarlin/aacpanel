@@ -1,7 +1,9 @@
-// The conversation header on the wide screen: one line of who the session is
-// and how it stands, then what it is looked at with and the one control for
-// the session itself. The line gives way from its end of least use: the path
-// first, then the middle of the name; the tools never shrink.
+// The conversation header on the wide screen: who the session is on the left,
+// in two lines — the dot and the name, and under them how it stands, how full
+// it is and where it works — and on the right, in one line, what it is looked
+// at with and the one control for the session itself. The left gives way from
+// its end of least use: the path loses its head first, the name its middle
+// next; the tools never shrink.
 
 import { html } from "../../html.js";
 import { ContextBar } from "../../ui/bar.js";
@@ -17,15 +19,25 @@ export function DeskHead({ name, live, archive, pct, move, tools }) {
     return html`
         <div class="dkhead">
             <div class="dkheadtop">
-                <span class=${`dkdot ${state.tone ? `dk${state.tone}` : ""}`.trim()} title=${state.say}></span>
-                <span class="dkheadname dkchatname"><${MidName} text=${name} /></span>
-                ${state.word && html`<span class="dkword" data-tone=${state.tone}>${state.word}</span>`}
-                ${pct != null && html`
-                    <span class="dkpct" data-fill=${live ? fill(pct) : "peak"}>${share(pct)}${live ? "" : " peak"}</span>
-                `}
-                <span class="dkheadpath" title=${cwd || undefined}>
-                    <bdi>${cwd ? shortPath(cwd) : "the conversation directory is unknown"}</bdi>
-                </span>
+                <div class="dkwho">
+                    <div class="dkwhoname">
+                        <span class=${`dkdot ${state.tone ? `dk${state.tone}` : ""}`.trim()} title=${state.say}></span>
+                        <span class="dkheadname dkchatname"><${MidName} text=${name} /></span>
+                    </div>
+                    <div class="dkwhosub">
+                        ${state.word && html`
+                            <span class="dkword" data-tone=${state.tone}>${state.word}</span>
+                            <span class="dkheadsep">·</span>
+                        `}
+                        ${pct != null && html`
+                            <span class="dkpct" data-fill=${live ? fill(pct) : "peak"}>${share(pct)}${live ? "" : " peak"}</span>
+                            <span class="dkheadsep">·</span>
+                        `}
+                        <span class="dkheadpath" title=${cwd || undefined}>
+                            <bdi>${cwd ? shortPath(cwd) : "the conversation directory is unknown"}</bdi>
+                        </span>
+                    </div>
+                </div>
                 ${tools}
             </div>
             <${ContextBar} pct=${pct} peak=${!live} />

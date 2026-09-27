@@ -149,29 +149,40 @@ type deskSection struct {
 	Fits    bool       `json:"fits"`
 	OneLine bool       `json:"oneLine"`
 	Live    []string   `json:"live"`
-	Past    []struct {
-		Name  string `json:"name"`
-		About string `json:"about"`
-	} `json:"past"`
+	Closed  int        `json:"closed"`
+	Empty   string     `json:"empty"`
+	Bottom  float64    `json:"bottom"`
+}
+
+type deskShelfRow struct {
+	Name    string `json:"name"`
+	Contour string `json:"contour"`
+	About   string `json:"about"`
+	When    string `json:"when"`
 }
 
 // Every contour shown in the sessions column at a desk has its section: a
 // heading with its name and two rings of its limit — the share of each window
 // inside, the window beside, no count of live sessions — which a press opens
-// into the details of both windows, each with when it resets; its live
-// sessions; and its latest closed conversations up to three cards, a contour
-// with no live session included.
-func TestDeskColumnShowsEveryContourWithItsLimitAndThreeCards(t *testing.T) {
+// into the details of both windows, each with when it resets; and its live
+// sessions, or a word that nothing lives in it. No closed conversation stands
+// among them: the closed ones of every contour shown share a shelf below all
+// the contours, asked for in one request that leaves the live ones out,
+// newest first, each with its contour and what it was about.
+func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built: whether the heading holds its rings is the stylesheet's business too — run make front first")
 	}
 	var got struct {
-		Sections  []deskSection `json:"sections"`
-		Asked     []string      `json:"asked"`
-		Pop       []string      `json:"pop"`
-		Closed    bool          `json:"closed"`
-		OldNote   string        `json:"oldNote"`
-		NoteOnTop bool          `json:"noteOnTop"`
+		Sections  []deskSection  `json:"sections"`
+		Asked     []string       `json:"asked"`
+		Shelf     []deskShelfRow `json:"shelf"`
+		ShelfTop  float64        `json:"shelfTop"`
+		ShelfLast bool           `json:"shelfLast"`
+		Pop       []string       `json:"pop"`
+		Closed    bool           `json:"closed"`
+		OldNote   string         `json:"oldNote"`
+		NoteOnTop bool           `json:"noteOnTop"`
 	}
 	runWideFixture(t, "desklimits.html", &got)
 
@@ -189,8 +200,8 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndThreeCards(t *testing.T) {
 		if !sec.Fits || !sec.OneLine {
 			t.Errorf("%q: the rings do not fit the heading on one line (fits %v, one line %v)", sec.Name, sec.Fits, sec.OneLine)
 		}
-		if cards := len(sec.Live) + len(sec.Past); cards < 3 {
-			t.Errorf("%q shows %d cards (live %v, closed %d), expected at least three", sec.Name, cards, sec.Live, len(sec.Past))
+		if sec.Closed != 0 {
+			t.Errorf("%q holds %d closed conversations among its live sessions — the closed ones stand on the shelf", sec.Name, sec.Closed)
 		}
 	}
 	if len(algo.Rings) == 2 && (algo.Rings[0].Level != "crit" || !strings.HasPrefix(algo.Rings[0].Text, "93")) {
@@ -199,22 +210,39 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndThreeCards(t *testing.T) {
 	if !strings.Contains(evirma.Head, "1 h ago") {
 		t.Errorf("the heading of numbers an hour old reads %q — how old they are has to show without a press", evirma.Head)
 	}
-	if len(evirma.Live) != 0 || len(evirma.Past) != 3 || !evirma.Old {
-		t.Errorf("the contour with no live session shows live %v, %d closed, dimmed %v: expected three closed and old numbers dimmed",
-			evirma.Live, len(evirma.Past), evirma.Old)
+	if len(evirma.Live) != 0 || evirma.Empty != "nothing live" || !evirma.Old {
+		t.Errorf("the contour with no live session shows live %v, says %q, dimmed %v: expected a word that nothing lives there and old numbers dimmed",
+			evirma.Live, evirma.Empty, evirma.Old)
 	}
-	if len(algo.Live) != 1 || len(algo.Past) != 2 {
-		t.Errorf("a contour with one live session shows live %v and %d closed, expected two closed", algo.Live, len(algo.Past))
+	if strings.Join(algo.Live, ",") != "lms" || strings.Join(personal.Live, ",") != "aacpanel,atlas,blog" {
+		t.Errorf("the contours hold live %v and %v, expected lms and the three of personal", algo.Live, personal.Live)
 	}
-	if len(personal.Live) != 3 || len(personal.Past) != 0 {
-		t.Errorf("a contour with three live sessions shows live %v and %d closed, expected none closed", personal.Live, len(personal.Past))
+
+	if len(got.Asked) != 1 {
+		t.Fatalf("the shelf asked the archive %d times (%v), expected one request for every contour shown", len(got.Asked), got.Asked)
 	}
-	if len(evirma.Past) > 0 && !strings.Contains(evirma.Past[0].About, "what conversation 0 of contour 4 was about") {
-		t.Errorf("a closed card says %q — it has to say what the conversation was about", evirma.Past[0].About)
+	for _, want := range []string{"contour=4", "contour=1", "contour=3", "skip=lms%2Caacpanel%2Catlas%2Cblog"} {
+		if !strings.Contains(got.Asked[0], want) {
+			t.Errorf("the shelf asked %q without %s — every contour shown goes by the id of its entry, and the live conversations are left out", got.Asked[0], want)
+		}
 	}
-	for _, q := range got.Asked {
-		if strings.Contains(q, "contour=3") && !strings.Contains(q, "skip=") {
-			t.Errorf("the archive of a contour with live sessions is asked without leaving them out: %s", q)
+	if !got.ShelfLast || len(got.Sections) > 0 && got.ShelfTop < got.Sections[2].Bottom {
+		t.Errorf("the shelf stands at %.0f, last %v: it goes under all the contours", got.ShelfTop, got.ShelfLast)
+	}
+	var names []string
+	for _, row := range got.Shelf {
+		names = append(names, row.Name)
+	}
+	if want := "old-1-0,old-3-0,old-4-0,old-1-1,old-3-1,old-4-1"; strings.Join(names, ",") != want {
+		t.Errorf("the shelf shows %v, expected the six newest of all the contours, newest first: %s", names, want)
+	}
+	if len(got.Shelf) > 0 {
+		first := got.Shelf[0]
+		if first.Contour != "Algorithmics and every project of it" {
+			t.Errorf("a closed conversation of the contour the collector calls algo is labelled %q — the shelf names contours the way the map does", first.Contour)
+		}
+		if !strings.Contains(first.About, "what conversation 0 of contour 1 was about") || first.When != "1 h ago" {
+			t.Errorf("a closed conversation says %q, %q — what it was about, and when in words of the screen", first.About, first.When)
 		}
 	}
 

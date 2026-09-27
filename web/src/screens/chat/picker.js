@@ -63,6 +63,13 @@ export function modeLoud(mode) {
     return Object.hasOwn(LOUD_MODES, mode || "");
 }
 
+// usualMode is the mode a session of a contour starts in when nothing else is
+// asked for: the one its account keeps, or claude's own.
+export function usualMode(accounts, profile) {
+    const found = (accounts || []).find((a) => a.name === profile);
+    return (found && found.account && found.account.permissionMode) || "default";
+}
+
 export function effortName(effort) {
     return EFFORT_NAMES[effort] || effort || "effort";
 }

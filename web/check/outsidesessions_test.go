@@ -7,11 +7,12 @@ import (
 )
 
 // A claude the panel did not start is shown for what it is. The runs a session
-// started inside its work fold under it in the desktop column and in the
-// phone's list, and the fold says one of them waits for the person; a claude
-// typed into a terminal by hand stands on its own, marked, with nothing to
-// press. The conversation of either is only read: no terminal, no window, no
-// move, no Remote Control, no end, and a note where the composer was.
+// started inside its work stand under it: on the phone in a fold that says one
+// of them waits for the person, in the desktop column with the waiting one
+// outside the fold and the rest in it; a claude typed into a terminal by hand
+// stands on its own, marked, with nothing to press. The conversation of either
+// is only read: no terminal, no window, no move, no Remote Control, no end,
+// and a note where the composer was.
 func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
@@ -39,16 +40,17 @@ func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 	}
 	runWideFixture(t, "outsidesessions.html", &got)
 
-	if strings.Join(got.DeskRows, ",") != "rotation,typed" {
-		t.Errorf("the desktop column shows %v folded, expected the session and the one typed by hand, its runs under a fold", got.DeskRows)
+	if strings.Join(got.DeskRows, ",") != "rotation,rotation-e8,typed" {
+		t.Errorf("the desktop column shows %v folded, expected the session, its run that waits for the person "+
+			"outside the fold, and the one typed by hand", got.DeskRows)
 	}
-	if !strings.Contains(got.DeskFold, "2 runs started by it") || !strings.Contains(got.DeskFold, "1 waiting") {
-		t.Errorf("the fold reads %q: it has to count the runs and say one waits", got.DeskFold)
+	if got.DeskFold != "1 more run" {
+		t.Errorf("the fold reads %q: with the waiting run standing outside it, it counts the runs it still holds", got.DeskFold)
 	}
 	if !strings.Contains(got.DeskTyped, "outside") || got.DeskTypedActs != 0 {
 		t.Errorf("the session typed by hand reads %q with %d actions: it is marked outside and has nothing to press", got.DeskTyped, got.DeskTypedActs)
 	}
-	if strings.Join(got.DeskKids, ",") != "rotation-25,rotation-e8" || len(got.DeskOpen) != 4 {
+	if strings.Join(got.DeskKids, ",") != "rotation-e8,rotation-25" || len(got.DeskOpen) != 4 {
 		t.Errorf("the open fold shows runs %v among %v", got.DeskKids, got.DeskOpen)
 	}
 
