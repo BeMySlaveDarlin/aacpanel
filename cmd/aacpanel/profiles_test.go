@@ -424,6 +424,8 @@ var profileRoutes = []struct {
 	{"POST /api/profiles", func(s *Server) http.HandlerFunc { return s.apiCreateProfile }},
 	{"PATCH /api/profiles/{id}", func(s *Server) http.HandlerFunc { return s.apiUpdateProfile }},
 	{"DELETE /api/profiles/{id}", func(s *Server) http.HandlerFunc { return s.apiDeleteProfile }},
+	{"POST /api/profiles/{id}/preview", func(s *Server) http.HandlerFunc { return s.apiPreviewContour }},
+	{"POST /api/profiles/{id}/unpin", func(s *Server) http.HandlerFunc { return s.apiUnpin }},
 	{"PUT /api/profiles/order", func(s *Server) http.HandlerFunc { return s.apiReorderProfiles }},
 	{"POST /api/profiles/{id}/groups", func(s *Server) http.HandlerFunc { return s.apiCreateGroup }},
 	{"PUT /api/profiles/{id}/groups/order", func(s *Server) http.HandlerFunc { return s.apiReorderGroups }},
@@ -1096,4 +1098,36 @@ func TestProjectAddMakesTheDirectoryTogetherWithTheMapEntryPG(t *testing.T) {
 			}
 		}
 	})
+}
+
+// The router's registry is the host's word on an account: a contour of the
+// map standing for a routed account carries its prefix, and the accounts the
+// map has no contour for yet are offered for a new one.
+func TestContourCarriesTheRouteAndTheRestAreOfferedPG(t *testing.T) {
+	srv, root := profilesServer(t)
+	work := filepath.Join(root, "work")
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"profiles":[
+		{"name":"personal","configDir":"`+root+`","auth":"builtin","routed":true,"prefix":"*"},
+		{"name":"work","configDir":"`+work+`","auth":"token","routed":true,"prefix":"/srv/proj/Labs/"},
+		{"name":"acme","configDir":"/srv/acme/.claude","auth":"builtin"}
+	]}`))
+	mux := profilesMux(srv)
+	profilePost(t, mux, "/api/profiles", `{"name":"personal","configDir":"`+root+`"}`)
+
+	body := profileGet(t, mux, "/api/profiles")
+	personal := treeOf(t, body)[0].(map[string]any)
+	if route, _ := personal["route"].(map[string]any); route == nil || route["prefix"] != "*" {
+		t.Errorf("the contour of a routed account carries route %v, meant the prefix *", personal["route"])
+	}
+	accounts, _ := body["accounts"].([]any)
+	got := []string{}
+	for _, raw := range accounts {
+		a := raw.(map[string]any)
+		route, _ := a["route"].(map[string]any)
+		prefix, _ := route["prefix"].(string)
+		got = append(got, a["name"].(string)+"|"+prefix)
+	}
+	if strings.Join(got, " ") != "work|/srv/proj/Labs/ acme|" {
+		t.Errorf("the accounts offered for a new contour are %v, meant work with its prefix and acme unrouted", got)
+	}
 }

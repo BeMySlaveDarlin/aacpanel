@@ -37,28 +37,34 @@ def config_dirs():
 
 
 def _rows():
+    return [(name, d, token) for name, d, token, _ in _routed_rows()]
+
+
+def _routed_rows():
+    """Returns the contours with the registry's word on each: the directory
+    prefix it routes by, or None for one the registry does not hold."""
     reg, order = {}, []
     for parts in _entries():
         d = os.path.expanduser(parts[2])
         if d in reg:
             continue
-        reg[d] = (parts[0], parts[3] if len(parts) > 3 else "")
+        reg[d] = (parts[0], parts[3] if len(parts) > 3 else "", parts[1])
         order.append(d)
 
     rows, seen = [], set()
 
-    def put(d, name, token):
+    def put(d, name, token, prefix):
         if d in seen:
             return
         seen.add(d)
-        rows.append((name, d, token))
+        rows.append((name, d, token, prefix))
 
     for d in _env_dirs():
-        name, token = reg.get(d, (_name_of(d), "-"))
-        put(d, name, token)
+        name, token, prefix = reg.get(d, (_name_of(d), "-", None))
+        put(d, name, token, prefix)
     for d in order:
-        name, token = reg[d]
-        put(d, name, token)
+        name, token, prefix = reg[d]
+        put(d, name, token, prefix)
     return rows
 
 
@@ -149,7 +155,7 @@ def described():
     """Returns the profiles with the state of their authorization and hooks."""
     base = _hooks_of(HOME)
     out = []
-    for name, conf, token in _rows():
+    for name, conf, token, prefix in _routed_rows():
         if not os.path.isdir(conf):
             continue
         if not token or token == "-":
@@ -157,6 +163,11 @@ def described():
         else:
             auth = "token" if os.path.isfile(os.path.expanduser(token)) else "missing"
         row = {"name": name, "configDir": conf, "auth": auth}
+        # The registry of the router holds the account: the directory a
+        # session starts in picks it, by this prefix ("*" for the rest).
+        if prefix is not None:
+            row["routed"] = True
+            row["prefix"] = prefix
         if conf != HOME:
             row["hooks"] = _hooks_state(base, conf)
         settings = _settings_of(conf)

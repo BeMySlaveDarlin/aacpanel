@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -277,4 +278,75 @@ func TestProjectPreviewAnswersTheDraftAndWritesNothingPG(t *testing.T) {
 	if launch, _ := json.Marshal(stored["launch"]); string(launch) != `{"effort":"high"}` || stored["session"] != "" {
 		t.Errorf("the preview wrote the draft: launch %s, session %q", launch, stored["session"])
 	}
+}
+
+// Raised to the contour, a value is taken out of the projects that store the
+// same one — each change journaled — and left in the ones that store another;
+// a contour answers a draft of its own launch with what its projects would
+// start with, writing nothing.
+func TestContourUnpinsCopiesAndPreviewsItsDraftPG(t *testing.T) {
+	srv, root := profilesServer(t)
+	mux := profilesMux(srv)
+	call := func(method, path, body string, want int) map[string]any {
+		t.Helper()
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
+		if w.Code != want {
+			t.Fatalf("%s %s: %d %s", method, path, w.Code, w.Body.String())
+		}
+		var out map[string]any
+		json.Unmarshal(w.Body.Bytes(), &out)
+		return out
+	}
+	contour := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/profiles",
+		`{"name":"personal","configDir":"`+root+`","launch":{"remoteControl":true}}`, http.StatusOK), "profile"))
+	group := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/profiles/"+contour+"/groups", `{"name":"s"}`, http.StatusOK), "group"))
+	for i, launch := range []string{`{"remoteControl":true,"effort":"high"}`, `{"remoteControl":false}`, `{}`} {
+		dir := filepath.Join(root, "p"+strconv.Itoa(i))
+		call(http.MethodPost, "/api/groups/"+group+"/projects",
+			`{"name":"p`+strconv.Itoa(i)+`","path":"`+dir+`","launch":`+launch+`}`, http.StatusOK)
+	}
+
+	preview := call(http.MethodPost, "/api/profiles/"+contour+"/preview",
+		`{"launchSet":{"transport":"stream","effort":"ultra"}}`, http.StatusOK)
+	layers := map[string]string{}
+	for _, raw := range preview["effective"].([]any) {
+		v := raw.(map[string]any)
+		layers[v["key"].(string)] = v["layer"].(string)
+	}
+	if layers["transport"] != "contour" || layers["remoteControl"] != "contour" {
+		t.Errorf("the contour's draft lays %v", layers)
+	}
+	if problems, _ := preview["problems"].([]any); len(problems) != 1 || problems[0].(map[string]any)["key"] != "effort" {
+		t.Errorf("the contour's draft names problems %v, meant the effort", preview["problems"])
+	}
+
+	body := call(http.MethodPost, "/api/profiles/"+contour+"/unpin", `{"key":"remoteControl"}`, http.StatusOK)
+	if body["unpinned"] != float64(1) {
+		t.Errorf("unpinned %v projects, meant the one storing the contour's value", body["unpinned"])
+	}
+	launches := []string{}
+	for _, raw := range treeOf(t, body)[0].(map[string]any)["groups"].([]any)[0].(map[string]any)["projects"].([]any) {
+		l, _ := json.Marshal(raw.(map[string]any)["launch"])
+		launches = append(launches, string(l))
+	}
+	if strings.Join(launches, " ") != `{"effort":"high"} {"remoteControl":false} {}` {
+		t.Errorf("after unpinning the projects store %v", launches)
+	}
+	if transport := preview["effective"]; transport == nil {
+		t.Fatal("no effective")
+	}
+	tree := call(http.MethodGet, "/api/profiles", "", http.StatusOK)
+	if launch, _ := json.Marshal(treeOf(t, tree)[0].(map[string]any)["launch"]); string(launch) != `{"remoteControl":true}` {
+		t.Errorf("the preview wrote the contour's draft: %s", launch)
+	}
+	journal := call(http.MethodGet, "/api/profiles/journal", "", http.StatusOK)["journal"].([]any)
+	last := journal[0].(map[string]any)
+	change, _ := json.Marshal(last["changes"])
+	if last["name"] != "p0" || last["op"] != "update" || !strings.Contains(string(change), `"launch.remoteControl"`) {
+		t.Errorf("the unpin is journaled as %v %v %s", last["name"], last["op"], change)
+	}
+
+	call(http.MethodPost, "/api/profiles/"+contour+"/unpin", `{"key":"effort"}`, http.StatusBadRequest)
+	call(http.MethodPost, "/api/profiles/"+contour+"/unpin", `{"key":"nonsense"}`, http.StatusBadRequest)
 }

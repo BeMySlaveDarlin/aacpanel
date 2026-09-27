@@ -80,11 +80,11 @@ func changed(stored json.RawMessage, set map[string]any, unset []string) (map[st
 	return obj, nil
 }
 
-// DraftLaunch returns what a change of some keys would leave of a project's
-// launch parameters, and what in it the launch would refuse — as a list to
+// DraftLaunch returns what a change of some keys would leave of the launch
+// parameters of a contour or a project, and what in it the launch would refuse — as a list to
 // show rather than an error, since a draft is allowed to be wrong until it is
 // saved.
-func DraftLaunch(stored json.RawMessage, set map[string]any, unset []string) (json.RawMessage, []schema.Problem, error) {
+func DraftLaunch(stored json.RawMessage, set map[string]any, unset []string, level schema.Level) (json.RawMessage, []schema.Problem, error) {
 	if _, err := launchOps(nil, set, unset); err != nil {
 		return nil, nil, err
 	}
@@ -96,7 +96,7 @@ func DraftLaunch(stored json.RawMessage, set map[string]any, unset []string) (js
 	if err != nil {
 		return nil, nil, err
 	}
-	return raw, schema.Check(schema.LevelProject, obj), nil
+	return raw, schema.Check(level, obj), nil
 }
 
 // launchOps says whether an edit changes some keys of the launch, and refuses

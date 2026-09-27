@@ -383,7 +383,8 @@ func (s *Server) writeProfiles(w http.ResponseWriter, r *http.Request, extra map
 		return
 	}
 	s.fillMap(list)
-	body := map[string]any{"profiles": list, "models": s.modelCatalog(), "disk": s.diskReport(r.Context(), list)}
+	body := map[string]any{"profiles": list, "models": s.modelCatalog(), "disk": s.diskReport(r.Context(), list),
+		"accounts": s.unmappedAccounts(list)}
 	for k, v := range extra {
 		body[k] = sameEntry(list, v)
 	}
@@ -399,6 +400,9 @@ func (s *Server) fillMap(list []store.Profile) {
 		st := states.of(list[i])
 		list[i].Auth, list[i].Hooks = st.Auth, st.Hooks
 		list[i].Account, list[i].ContextGuard = st.Account, st.ContextGuard
+		if st.Routed {
+			list[i].Route = &store.ProfileRoute{Prefix: st.Prefix}
+		}
 	}
 	store.FillEffective(list)
 	for i := range list {
@@ -408,6 +412,46 @@ func (s *Server) fillMap(list []store.Profile) {
 			}
 		}
 	}
+}
+
+// hostAccount is an account of the host the map has no contour for yet.
+type hostAccount struct {
+	Name      string              `json:"name"`
+	ConfigDir string              `json:"configDir"`
+	Auth      string              `json:"auth,omitempty"`
+	Route     *store.ProfileRoute `json:"route,omitempty"`
+}
+
+// unmappedAccounts returns the accounts the collector found on the host that
+// no contour of the map stands for: a new contour is taken from them, since an
+// account is set up on the host — its directory, its token, the registry.
+func (s *Server) unmappedAccounts(list []store.Profile) []hostAccount {
+	out := []hostAccount{}
+	if s.host == nil {
+		return out
+	}
+	// A contour with no directory of its own stands for the account of its
+	// name, as the map reads the host.
+	mapped, named := map[string]bool{}, map[string]bool{}
+	for _, p := range list {
+		if dir := cleanDir(p.ConfigDir); dir != "" {
+			mapped[dir] = true
+		} else {
+			named[p.Name] = true
+		}
+	}
+	for _, c := range s.host.Contours() {
+		dir := cleanDir(c.ConfigDir)
+		if dir == "" || mapped[dir] || named[c.Name] {
+			continue
+		}
+		a := hostAccount{Name: c.Name, ConfigDir: c.ConfigDir, Auth: c.Auth}
+		if c.Routed {
+			a.Route = &store.ProfileRoute{Prefix: c.Prefix}
+		}
+		out = append(out, a)
+	}
+	return out
 }
 
 // fillLine puts on a project the command its next launch runs, built by the
@@ -458,7 +502,7 @@ func (s *Server) apiPreviewProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("there is no project %d", id), http.StatusNotFound)
 		return
 	}
-	draft, problems, err := store.DraftLaunch(project.Launch, body.LaunchSet, body.LaunchUnset)
+	draft, problems, err := store.DraftLaunch(project.Launch, body.LaunchSet, body.LaunchUnset, schema.LevelProject)
 	if err != nil {
 		profilesError(w, err)
 		return
@@ -470,12 +514,77 @@ func (s *Server) apiPreviewProject(w http.ResponseWriter, r *http.Request) {
 	if body.Path != nil {
 		project.Path = *body.Path
 	}
-	project.Effective = store.EffectiveOf(*contour, draft)
+	project.Effective = store.EffectiveOf(*contour, contour.Launch, draft)
 	fillLine(*contour, project)
 	if problems == nil {
 		problems = []schema.Problem{}
 	}
 	writeJSON(w, map[string]any{"effective": project.Effective, "line": project.Line, "problems": problems})
+}
+
+// apiPreviewContour answers what the projects of a contour would start with
+// where they say nothing, if a draft of the contour's edit were saved, and
+// what the launch would refuse of it. Nothing is written.
+func (s *Server) apiPreviewContour(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	id, ok := s.profileID(w, r, "profile")
+	if !ok {
+		return
+	}
+	var body store.ProfileEdit
+	if !decodeProfileBody(w, r, &body) {
+		return
+	}
+	list, err := s.db.Profiles(r.Context())
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	s.fillMap(list)
+	var contour *store.Profile
+	for i := range list {
+		if list[i].ID == id {
+			contour = &list[i]
+		}
+	}
+	if contour == nil {
+		http.Error(w, fmt.Sprintf("there is no contour %d", id), http.StatusNotFound)
+		return
+	}
+	draft, problems, err := store.DraftLaunch(contour.Launch, body.LaunchSet, body.LaunchUnset, schema.LevelContour)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	if problems == nil {
+		problems = []schema.Problem{}
+	}
+	writeJSON(w, map[string]any{"effective": store.EffectiveOf(*contour, draft, nil), "problems": problems})
+}
+
+type unpinBody struct {
+	Key string `json:"key"`
+}
+
+// apiUnpin takes out of a contour's projects the copies of a value the
+// contour itself now stores.
+func (s *Server) apiUnpin(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.profileID(w, r, "profile")
+	if !ok {
+		return
+	}
+	var body unpinBody
+	if !decodeProfileBody(w, r, &body) {
+		return
+	}
+	n, err := s.db.Unpin(r.Context(), id, body.Key)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	s.writeProfiles(w, r, map[string]any{"unpinned": n})
 }
 
 func findProject(list []store.Profile, id int) (*store.Profile, *store.ProfileProject) {

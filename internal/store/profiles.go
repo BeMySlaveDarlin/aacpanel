@@ -47,9 +47,19 @@ type Profile struct {
 	// as the collector read them on the host; absent where it did not.
 	Account      map[string]string `json:"account,omitempty"`
 	ContextGuard *bool             `json:"contextGuard,omitempty"`
+	// Route is set where the router's registry on the host holds the account:
+	// the directory a session starts in picks it there, so the account fields
+	// of the map only mirror the registry.
+	Route *ProfileRoute `json:"route,omitempty"`
 	// Effective is what the contour's projects start with where they say
 	// nothing themselves, parameter by parameter, with the layer of each.
 	Effective []schema.Value `json:"effective"`
+}
+
+// ProfileRoute is what the router's registry says of an account: the
+// directory prefix it routes by, "*" for every directory no other one takes.
+type ProfileRoute struct {
+	Prefix string `json:"prefix"`
 }
 
 // ProfileGroup is a group of projects inside a profile.
@@ -249,10 +259,11 @@ func FillEffective(list []Profile) {
 	}
 }
 
-// EffectiveOf returns the effective values a project of a contour would have
-// with the given launch parameters of its own; nil where either does not parse.
-func EffectiveOf(contour Profile, project json.RawMessage) []schema.Value {
-	base, err := launchObject(contour.Launch, "the profile")
+// EffectiveOf returns the effective values of a contour's launch parameters
+// with a project's laid over them — the given ones rather than the stored, so
+// a draft of either can be answered; nil where one does not parse.
+func EffectiveOf(contour Profile, launch, project json.RawMessage) []schema.Value {
+	base, err := launchObject(launch, "the profile")
 	if err != nil {
 		return nil
 	}

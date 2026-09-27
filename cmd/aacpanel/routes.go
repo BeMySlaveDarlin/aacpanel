@@ -122,6 +122,8 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("POST /api/profiles", g.page(s.mapActor(s.apiCreateProfile)))
 	mux.Handle("PATCH /api/profiles/{id}", g.page(s.mapActor(s.apiUpdateProfile)))
 	mux.Handle("DELETE /api/profiles/{id}", g.page(s.mapActor(s.apiDeleteProfile)))
+	mux.Handle("POST /api/profiles/{id}/preview", g.page(s.apiPreviewContour))
+	mux.Handle("POST /api/profiles/{id}/unpin", g.page(s.mapActor(s.apiUnpin)))
 	mux.Handle("PUT /api/profiles/order", g.page(s.apiReorderProfiles))
 	mux.Handle("POST /api/profiles/{id}/groups", g.page(s.mapActor(s.apiCreateGroup)))
 	mux.Handle("PUT /api/profiles/{id}/groups/order", g.page(s.apiReorderGroups))

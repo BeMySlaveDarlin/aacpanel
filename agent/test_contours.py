@@ -153,6 +153,19 @@ class Contours(unittest.TestCase):
         by = {p["name"]: p for p in contours.described()}
         self.assertEqual(by["work"]["auth"], "missing")
 
+    def test_the_registry_says_which_accounts_it_routes_and_by_what(self):
+        work = self.contour()
+        acme = os.path.join(self.root, "acme")
+        os.makedirs(os.path.join(acme, "sessions"))
+        os.environ["AACP_CLAUDE_HOME"] = os.pathsep.join([self.home, acme])
+        self.addCleanup(os.environ.pop, "AACP_CLAUDE_HOME", None)
+        by = {p["name"]: p for p in contours.described()}
+        self.assertEqual((by["work"].get("routed"), by["work"].get("prefix")), (True, "/srv/proj/Labs/"))
+        self.assertEqual((by["personal"].get("routed"), by["personal"].get("prefix")), (True, "*"))
+        self.assertNotIn("routed", by["acme"], "a directory from the environment alone is not the router's")
+        self.assertNotIn("prefix", by["acme"])
+        self.assertEqual(by["work"]["configDir"], work)
+
     def test_without_a_registry_only_the_personal_one_is_described(self):
         self.assertEqual([(p["name"], p["configDir"], p["auth"]) for p in contours.described()],
                          [("personal", self.home, "builtin")])

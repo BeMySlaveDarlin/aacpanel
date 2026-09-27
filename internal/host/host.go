@@ -199,6 +199,11 @@ type ContourState struct {
 	// ContextGuard says whether the account runs the context guard hook; nil
 	// where its settings were not read.
 	ContextGuard *bool
+	// Routed says the router's registry holds the account: a session started
+	// in a directory under Prefix goes into it, whatever the map says; "*" is
+	// the prefix of the rest.
+	Routed bool
+	Prefix string
 }
 
 // Contours returns the host contours from the agent snapshot, in snapshot order.
@@ -215,6 +220,8 @@ func (h *Reader) Contours() []ContourState {
 			Hooks        string            `json:"hooks"`
 			Account      map[string]string `json:"account"`
 			ContextGuard *bool             `json:"contextGuard"`
+			Routed       bool              `json:"routed"`
+			Prefix       string            `json:"prefix"`
 		} `json:"profiles"`
 	}
 	if err := json.Unmarshal(payload, &snapshot); err != nil {
@@ -225,7 +232,8 @@ func (h *Reader) Contours() []ContourState {
 		if c.Name == "" && c.ConfigDir == "" {
 			continue
 		}
-		row := ContourState{Name: c.Name, ConfigDir: c.ConfigDir, Account: c.Account, ContextGuard: c.ContextGuard}
+		row := ContourState{Name: c.Name, ConfigDir: c.ConfigDir, Account: c.Account, ContextGuard: c.ContextGuard,
+			Routed: c.Routed, Prefix: c.Prefix}
 		switch c.Auth {
 		case AuthBuiltin, AuthToken, AuthMissing:
 			row.Auth = c.Auth
