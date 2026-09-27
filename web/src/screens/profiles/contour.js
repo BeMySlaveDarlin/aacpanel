@@ -233,14 +233,14 @@ function Files({ contour, draft, catalog, setField }) {
             ${routed && html`
                 <div class="kv"><span class="k">config directory</span><span class="v pfpath">${contour.configDir}</span></div>
                 <div class="kv"><span class="k">routed by</span><span class="v pfpath">${contour.route.prefix === "*" ? "every directory no other contour takes" : contour.route.prefix}</span></div>
-                <div class="kv"><span class="k">launched with</span><span class="v pfpath">${contour.claudeBin || html`<span class="pfnone">what the launcher finds</span>`}</span></div>
+                <div class="kv"><span class="k">claude at</span><span class="v pfpath">${contour.claudeBin || html`<span class="pfnone">what the launcher finds</span>`}</span></div>
             `}
         </div>
         ${warn && html`<p class="pfhelp warn">${warn}</p>`}
         ${routed
-            ? html`<p class="pfhelp">the account and its files are the host's: the router's registry holds them, and a session
-                started ${contour.route.prefix === "*" ? "in a directory no other contour takes" : `under ${contour.route.prefix}`}
-                goes into this account whatever the map says — they are changed on the host, not here</p>`
+            ? html`<p class="pfhelp">${"the account and its files are the host's: the router's registry holds them, and a session "
+                + `started ${contour.route.prefix === "*" ? "in a directory no other contour takes" : `under ${contour.route.prefix}`} `
+                + "goes into this account whatever the map says — they are changed on the host, not here"}</p>`
             : html`
                 ${fieldRow("configDir", "Config directory", "~/.claude", "the token, the settings and the conversation archive of this contour live there")}
                 ${fieldRow("prefix", "Path prefix", "/srv/proj", "the wrapper picks the contour by it for the directory it was called from")}

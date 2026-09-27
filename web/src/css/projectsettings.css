@@ -201,9 +201,11 @@
 .pzgroup {
     display: flex; align-items: center; gap: .2rem;
     border-bottom: var(--hair) solid var(--line);
-    background: var(--bg);
 }
-.pzgroup[data-dragging="1"] { position: relative; z-index: 2; box-shadow: var(--drop); border-radius: var(--r-card); }
+.pzgroup[data-dragging="1"] {
+    position: relative; z-index: 2; background: var(--toast-bg);
+    box-shadow: var(--drop); border-radius: var(--r-card);
+}
 .pzhandle {
     flex: none; width: 2.2rem; align-self: stretch;
     display: grid; place-content: center; gap: 3px;
