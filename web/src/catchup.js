@@ -23,16 +23,34 @@ export function answerAction(kind, target, ok) {
     if (kind && target && held) held.answer(kind, target, ok);
 }
 
-// liveOf finds the live session a conversation on screen belongs to: by its
-// name, and failing that by its conversation. A restarted session keeps its
-// name and starts a new conversation; a renamed one keeps its conversation and
-// changes its name — the two ways together keep the screen on the session.
+// liveOf finds the live session a conversation on screen belongs to. A
+// conversation is known by its id first: the session holding it is its own,
+// under whatever name it goes now. By the name alone it is found only when it
+// has no id yet, or when it was seen live and follows its session (see follow).
+// A closed conversation opened beside a live session of the same name belongs
+// to nothing: its feed is not that session's, and whatever is typed under it
+// would go into a conversation that is not on the screen.
 export function liveOf(sessions, target) {
     const list = sessions || [];
-    if (!target) return null;
-    return list.find((s) => s.session === target.name)
-        || (target.id ? list.find((s) => s.sessionId === target.id) : null)
-        || null;
+    if (!target || target.archived) return null;
+    if (target.id) {
+        const own = list.find((s) => s.sessionId === target.id);
+        if (own || !target.follow) return own || null;
+    }
+    return list.find((s) => s.session === target.name) || null;
+}
+
+// follow keeps an open conversation on its session and returns the target to
+// show, the same object when nothing moved. A renamed session keeps its
+// conversation and changes its name; a restarted one keeps its name and starts
+// a new conversation, and a conversation once seen live goes on to the new one
+// — or the screen goes on showing the old feed under the live session's head.
+export function follow(sessions, target) {
+    const live = liveOf(sessions, target);
+    if (!live) return target;
+    const id = live.sessionId || target.id || null;
+    if (target.follow && live.session === target.name && id === target.id) return target;
+    return { ...target, name: live.session, id, follow: true };
 }
 
 export function ownName(name, session) {

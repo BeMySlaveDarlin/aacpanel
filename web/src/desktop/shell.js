@@ -7,7 +7,7 @@ import { terminalOnScreen, typing } from "../ui/focus.js";
 import { attachTips } from "./tip.js";
 import { logout } from "../auth.js";
 import { Chat } from "../screens/chat.js";
-import { liveOf } from "../catchup.js";
+import { follow, liveOf } from "../catchup.js";
 import { ChatEmpty } from "../screens/chat/empty.js";
 import { Alerts } from "../screens/alerts.js";
 import { Briefs } from "../screens/briefs.js";
@@ -114,12 +114,12 @@ export function DesktopShell({
     // The note about an action belongs to the section and the conversation it was taken in.
     const hideToast = useToastHide();
     useEffect(() => { hideToast(); }, [section, chat, hideToast]);
-    // A session renamed while its conversation is open is followed to its new
-    // name: every request of the screen goes by the name.
+    // The open conversation follows its session: to a new name when it is
+    // renamed, to a new conversation when it is restarted.
     useEffect(() => {
-        if (!chat || chat.archived) return;
-        const live = liveOf((snapshot && snapshot.sessions) || [], chat);
-        if (live && live.session !== chat.name) setChat({ ...chat, name: live.session });
+        if (!chat) return;
+        const next = follow((snapshot && snapshot.sessions) || [], chat);
+        if (next !== chat) setChat(next);
     }, [snapshot, chat]);
     const [picks, setPicks] = useState([]);
     const [names, setNames] = useState([]);
@@ -260,7 +260,7 @@ export function DesktopShell({
             return html`<div class="dkpage"><${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => goSection("home")} /></div>`;
         }
         if (!chat) return html`<${ChatEmpty} />`;
-        const live = chat.archived ? null : liveOf((snapshot && snapshot.sessions) || [], chat);
+        const live = liveOf((snapshot && snapshot.sessions) || [], chat);
         return html`<section class="dkcenter dkchat">
             <${Chat}
                 name=${chat.name}

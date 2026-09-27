@@ -3,7 +3,7 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../html.js";
-import { liveOf } from "../catchup.js";
+import { follow, liveOf } from "../catchup.js";
 import { NotRecorded, Stale, Trouble } from "../ui/trouble.js";
 import { plural } from "../format.js";
 import { Icon } from "../ui/icons.js";
@@ -86,12 +86,14 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     const recentState = useSessionsArchive({ limit: RECENT_ASK, profile, contour });
     const recent = recentState.kind === "ready" ? spoken(recentState.archive.rows) : [];
 
-    // A session renamed while its conversation is open is followed to its new
-    // name: every request of the screen goes by the name.
+    // The open conversation follows its session: to a new name when it is
+    // renamed, to a new conversation when it is restarted.
     const chatLive = chat ? liveOf((snapshot && snapshot.sessions) || [], chat) : null;
     useEffect(() => {
-        if (chat && chatLive && chatLive.session !== chat.name) setChat({ ...chat, name: chatLive.session });
-    }, [chat, chatLive]);
+        if (!chat) return;
+        const next = follow((snapshot && snapshot.sessions) || [], chat);
+        if (next !== chat) setChat(next);
+    }, [chat, snapshot]);
 
     if (chat) {
         return html`<${Chat}
