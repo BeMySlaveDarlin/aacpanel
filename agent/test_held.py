@@ -92,11 +92,14 @@ class LiveStream(Runtime):
                                       "-p", "--input-format", "stream-json", "--session-id", SID])
         self.addCleanup(self.proc.wait)
         self.addCleanup(self.proc.terminate)
-        # The kernel fills the command line of a new process a moment after
-        # exec returns to its parent; read in that moment it is empty. claude
-        # writes its session file long after, so only a test can land there.
+        # Popen comes back while the child is still inside exec: for a moment
+        # its command line is read through the parent's memory, then it is
+        # empty. claude writes its session file long after, so only a test can
+        # land there. The runner's own command line may carry "-p" as well, so
+        # the wait is for what only the child has.
         deadline = time.monotonic() + 5
-        while b"-p" not in self.cmdline() and time.monotonic() < deadline:
+        while SID.encode() not in self.cmdline():
+            self.assertLess(time.monotonic(), deadline, "the child never showed its own command line")
             time.sleep(0.01)
         with open(os.path.join(self.sessions_dir, f"{self.proc.pid}.json"), "w", encoding="utf-8") as f:
             json.dump({"pid": self.proc.pid, "sessionId": SID, "cwd": "/opt/x", "name": "held",

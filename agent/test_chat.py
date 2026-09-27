@@ -2086,13 +2086,22 @@ class TaskLook(unittest.TestCase):
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
         import time
-        for _ in range(200):
+        # Popen comes back while the child is still inside exec: for a moment
+        # its environ is read through the parent's memory, then it is empty.
+        # The parent's own environment may carry CLAUDE_CODE_TMPDIR as well,
+        # so the wait is for the child's value, not for the name.
+        want = b"CLAUDE_CODE_TMPDIR=" + theirs.encode()
+
+        def settled():
             try:
                 with open(f"/proc/{proc.pid}/environ", "rb") as f:
-                    if b"CLAUDE_CODE_TMPDIR=" in f.read():
-                        break
+                    return want in f.read().split(b"\0")
             except OSError:
-                pass
+                return False
+
+        deadline = time.monotonic() + 5
+        while not settled():
+            self.assertLess(time.monotonic(), deadline, "the child never showed its own environment")
             time.sleep(0.01)
         live = test_barrier.tmp_path()
         self.addCleanup(shutil.rmtree, live, ignore_errors=True)
