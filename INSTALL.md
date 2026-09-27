@@ -139,6 +139,13 @@ touch the button in the panel), the directories of several claude accounts
 (`AACP_CLAUDE_HOME`), your own launch wrapper (`AACP_CLAUDE`), the roots to walk
 the disk with (`AACP_PROJECT_SCAN`), the port checks (`AACP_PROBE_PORTS`).
 
+`AACP_CLAUDE_REGISTRY` points at the registry of a contour router, if the
+machine has one: a line an account, `name | prefix | config dir | token file`,
+where the prefix is the directory a session must start under to go into that
+account and `*` takes every directory no other line does. The collector reads
+the accounts from it after `AACP_CLAUDE_HOME`, and a new contour on the map is
+taken from them — without a registry a contour's paths are typed by hand.
+
 ---
 
 ## 6. Secrets and variables in `.env`
