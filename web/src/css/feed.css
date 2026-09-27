@@ -252,7 +252,6 @@
 }
 .mtools:active { background: var(--glass); }
 
-.mrow { display: flex; flex-wrap: wrap; gap: .3rem; align-self: flex-start; }
 .mtools:active { border-color: var(--edge); color: var(--ink); }
 .mticon { display: flex; width: 15px; height: 15px; }
 .mticon svg { width: 100%; height: 100%; }
@@ -283,24 +282,18 @@
 .mtools.mtfail .mtnum { color: var(--crit); }
 .mthink .mtnum { color: var(--ink-dim); font-weight: 600; }
 
-/* A thought reads two steps smaller than the answer: the same prose, quieter. */
-.msg.mmind {
-    align-self: flex-start;
-    position: relative;
-    padding-left: 1.5rem;
-    font-size: var(--t-sm);
-    color: var(--ink-dim);
-}
-.mmind .mmicon {
-    position: absolute;
-    left: 0;
-    top: .15rem;
-    display: flex;
-    width: 14px;
-    height: 14px;
+/* A thought is set as an answer is: the same face, size and ink. What marks
+   it is a hairline on its left and the word over the first of a run of
+   thoughts; a run of them has one line, unbroken (see .feedrow.r-mind). */
+.mmtag {
+    margin: 0 0 var(--s1);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.3;
+    letter-spacing: .06em;
+    text-transform: uppercase;
     color: var(--ink-faint);
 }
-.mmind .mmicon svg { width: 100%; height: 100%; }
 
 .msg.me.failed { box-shadow: var(--hairline), inset 2px 0 0 var(--crit); }
 .mclock { display: inline-flex; width: 11px; height: 11px; vertical-align: -1px; margin-right: .2rem; }
@@ -349,3 +342,254 @@ code.path {
 }
 .mshellerr { color: var(--crit); background: var(--crit-bg); }
 .mshellout + .mshellerr { margin-top: .15rem; }
+
+
+/* ---- the feed and its timeline ----
+
+   One grid in the scroll box of the feed: the column of prose and, beside it,
+   the timeline of the work, so the two scroll as one. The rows of the column
+   are parted by one gap, a paragraph's; a turn of the person opens with more
+   air. */
+.feedgrid {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    align-items: start;
+    padding-top: var(--s2);
+}
+.feedcol {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+    min-width: 0;
+}
+.feedrow {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    min-width: 0;
+}
+.feedrow.r-me { margin-top: calc(var(--s4) - var(--s3)); }
+.feedcol > .feedrow:first-child { margin-top: 0; }
+.feedrow .mstamp { margin-top: calc(-1 * var(--s1)); }
+.feedcol .msg p { margin: 0 0 var(--s3); }
+.feedcol .msg > :last-child,
+.feedcol .msg > :last-child > :last-child { margin-bottom: 0; }
+
+.feedrow.r-mind {
+    padding-left: var(--s3);
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--ink-faint) 55%, transparent);
+}
+.feedrow.r-mind + .feedrow.r-mind {
+    margin-top: calc(-1 * var(--s3));
+    padding-top: var(--s3);
+}
+
+/* The phone: a strip as wide as a finger, a hairline down its middle and a
+   mark at the height of the row its work led to. */
+.rail {
+    position: relative;
+    align-self: stretch;
+}
+.rail::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    border-left: var(--hair) solid var(--line);
+}
+.railmark {
+    position: absolute;
+    left: 50%;
+    width: 30px;
+    height: 34px;
+    margin-left: -15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: var(--glass), var(--void);
+    box-shadow: var(--hairline), inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink-dim);
+    font: inherit;
+    cursor: pointer;
+}
+/* The finger gets the whole width of the strip, not the mark alone. */
+.railmark::after { content: ""; position: absolute; inset: -3px -5px; }
+.railmark:active { background: var(--glass-2), var(--void); }
+.rmicon { display: flex; width: 14px; height: 14px; }
+.rmicon svg { width: 100%; height: 100%; }
+.rmnum {
+    font-size: var(--t-xs);
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-dim);
+}
+/* Marks that ran into each other and became one carry a second edge. */
+.railmark.merged {
+    box-shadow: var(--hairline), inset 0 0 0 var(--hair) var(--edge),
+        0 3px 0 -1px var(--void), 0 3px 0 -.5px var(--edge);
+}
+.railmark.failed { box-shadow: var(--hairline), inset 0 0 0 1px var(--crit); }
+.railmark.failed .rmnum { color: var(--crit); }
+
+:is(.railmark, .tlcall).k-bash :is(.rmicon, .tlicon) { color: var(--accent); }
+:is(.railmark, .tlcall).k-files :is(.rmicon, .tlicon) { color: var(--accent-2); }
+:is(.railmark, .tlcall):is(.k-web, .k-browser) :is(.rmicon, .tlicon) { color: var(--warn); }
+:is(.railmark, .tlcall):is(.k-agents, .k-skill) :is(.rmicon, .tlicon) { color: var(--ctx-3); }
+:is(.railmark, .tlcall):is(.k-ask, .k-artifact) :is(.rmicon, .tlicon) { color: var(--crit); }
+:is(.railmark, .tlcall):is(.k-mcp, .k-other, .k-time, .k-hook) :is(.rmicon, .tlicon) { color: var(--ink-dim); }
+.railmark:is(.k-think, .k-turn) .rmicon { color: var(--ink-faint); }
+
+/* The desk: a column of entries beside the prose — when, what the work was,
+   its calls by name, the files it touched. */
+@media (min-width: 1100px) {
+    .feedgrid.desk {
+        grid-template-columns: minmax(0, 1fr) 16.5rem;
+        column-gap: 1.6rem;
+    }
+}
+.tline {
+    position: relative;
+    align-self: stretch;
+    border-left: var(--hair) solid var(--line);
+}
+.tlentry {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .12rem;
+    padding: 0 0 0 .9rem;
+    border: 0;
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.tlentry::before {
+    content: "";
+    position: absolute;
+    left: -3.5px;
+    top: .42rem;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    box-shadow: 0 0 0 3px var(--void);
+}
+.tlentry.k-bash::before { background: var(--accent); }
+.tlentry.k-files::before { background: var(--accent-2); }
+.tlentry:is(.k-agents, .k-skill)::before { background: var(--ctx-3); }
+.tlentry:is(.k-web, .k-browser)::before { background: var(--warn); }
+.tlentry.failed::before { background: var(--crit); }
+.tlhead {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    min-width: 0;
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    white-space: nowrap;
+}
+.tltime { flex: none; font-family: var(--mono); color: var(--ink-faint); }
+.tlsum { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 600; }
+.tldur { flex: none; font-family: var(--mono); color: var(--ink-faint); }
+.tlcall {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    color: var(--ink-dim);
+    white-space: nowrap;
+}
+.tlcall.failed .tlarg { color: var(--crit); }
+.tlicon { flex: none; display: flex; width: .8rem; height: .8rem; }
+.tlicon svg { width: 100%; height: 100%; }
+.tlarg { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tlmore { padding-left: 1.2rem; font-size: var(--t-xs); line-height: 1.5; color: var(--ink-faint); }
+.tlfiles { display: flex; gap: .3rem; min-width: 0; overflow: hidden; margin-top: .15rem; }
+.tlfile {
+    flex: none;
+    padding: .05rem .35rem;
+    border-radius: var(--r-small);
+    background: var(--glass);
+    box-shadow: var(--hairline);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    line-height: 1.45;
+    color: var(--ink-faint);
+    white-space: nowrap;
+}
+.tlfile.wrote { color: var(--accent-2); }
+.tlentry:active .tlsum { color: var(--accent); }
+/* A run that only thought is the quietest entry: a word and its time. */
+.tlentry.k-think .tlsum { color: var(--ink-faint); font-weight: 400; }
+.tlentry.k-think::before { width: 5px; height: 5px; left: -2.5px; top: .5rem; }
+
+/* ---- cards of what arrives: the build of the files sent to the person ---- */
+
+.sent .senthead { min-width: 0; }
+.sentat { padding-left: var(--s2); }
+.sentcap code:not(.hl) {
+    font-family: var(--code);
+    font-size: .82em;
+    color: var(--accent-2);
+    background: rgba(150, 170, 255, .10);
+    border-radius: var(--r-small);
+    padding: .06em .3em;
+    overflow-wrap: anywhere;
+}
+.sentcap a { color: var(--accent); }
+
+/* A letter: who wrote it under the head, its first lines, and a row that
+   opens the rest. */
+.mletterwho {
+    margin-top: calc(-1 * var(--s1));
+    font-size: var(--t-sm);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+.mletterbody.closed {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.mletterbody.closed p { margin: 0; }
+.mletterbody .mdh { margin: var(--s3) 0 var(--s2); font-size: var(--t-md); }
+.mletterbody .mdh:first-child { margin-top: 0; }
+.mletterbody :is(.mdcode, .mdtab) { margin: var(--s2) 0; }
+.mletter.out .sentico { color: var(--ink-dim); }
+/* A hook of the session speaking at the end of a turn is not a
+   correspondent: its mark takes the colour the panel warns in. */
+.mletter.k-hook .sentico { color: var(--warn); }
+.mletterlost { flex: none; color: var(--warn); font-size: var(--t-xs); }
+.mletterwhy { margin: 0; white-space: pre-line; }
+.mlettermore .mfico { color: var(--ink-faint); }
+.mlettermore .mfname { font-weight: 500; color: var(--ink-dim); }
+
+/* Tasks done: a row per task, its tag saying what ran and how it ended. */
+.mtask { width: 100%; }
+div.mtask { cursor: default; }
+.mtask .mfname { line-height: 1.35; }
+.mtask .mfnote { margin-top: .1rem; font-family: var(--mono); letter-spacing: .01em; }
+.mtask .crgo { width: 12px; height: 12px; }
+.mtask.s-ok .mftag { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+.mtask.s-crit .mftag { color: var(--crit); background: color-mix(in srgb, var(--crit) 18%, transparent); }
+.mtask.s-crit .mfnote { color: var(--crit); }
+.mtask.s-faint .mftag { color: var(--ink-faint); background: var(--glass-2); }
+.mtasks.failed > .senthead .sentico { color: var(--crit); }

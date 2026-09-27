@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="root"></section></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Runs of work between short replies at a desk: the entries of the column
+// would run into each other, and each stands under the one in its way.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
+
+document.documentElement.style.setProperty("--ui-scale", "1.2");
+const at = (s) => `2026-09-26T10:00:${String(s).padStart(2, "0")}Z`;
+const items = [{ role: "me", text: "go", pos: 1, at: at(0) }];
+let pos = 2;
+for (let n = 0; n < 4; n++) {
+    items.push({ role: "tools", kind: "bash", run: pos, pos, at: at(n * 10 + 1), calls: [
+        { name: "Bash", arg: `make step${n}`, pos, index: 0, at: at(n * 10 + 1) },
+        { name: "Bash", arg: "git status --short", pos, index: 1, at: at(n * 10 + 2) },
+        { name: "Bash", arg: "go vet ./...", pos, index: 2, at: at(n * 10 + 3) },
+        { name: "Bash", arg: "ls", pos, index: 3, at: at(n * 10 + 3) },
+    ] });
+    items.push({ role: "tools", kind: "files", run: pos, pos: pos + 1, at: at(n * 10 + 4), calls: [
+        { name: "Edit", arg: "/srv/proj/web/src/md.js", pos: pos + 1, index: 0, at: at(n * 10 + 4) },
+        { name: "Read", arg: "/srv/proj/web/src/hl.js", pos: pos + 1, index: 1, at: at(n * 10 + 5) },
+    ] });
+    items.push({ role: "ai", text: `Step ${n} is done.`, pos: pos + 2, at: at(n * 10 + 9) });
+    pos += 3;
+}
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${true} onOpen=${() => {}}
+    row=${(item) => html`<${Row} item=${item} session="lab" id="1" />`} /></div>`,
+    document.getElementById("root"));
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+(async () => {
+    await document.fonts.ready;
+    const end = performance.now() + 3000;
+    const ready = () => document.querySelectorAll(".tlentry").length === 4;
+    while (!ready() && performance.now() < end) await frame();
+    for (let i = 0; i < 6; i++) await frame();
+    const col = Array.from(document.querySelector(".feedcol").children);
+    const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+    window.done = {
+        entries: Array.from(document.querySelectorAll(".tlentry")).map((e) => ({
+            top: e.getBoundingClientRect().top,
+            bottom: e.getBoundingClientRect().bottom,
+            time: text(e.querySelector(".tltime")),
+            sum: text(e.querySelector(".tlsum")),
+            took: text(e.querySelector(".tldur")),
+            calls: Array.from(e.querySelectorAll(".tlarg")).map(text),
+            more: text(e.querySelector(".tlmore")),
+            files: Array.from(e.querySelectorAll(".tlfile")).map((f) => f.textContent + (f.classList.contains("wrote") ? "*" : "")),
+        })),
+        rows: col.map((r) => r.getBoundingClientRect().top),
+        colRight: document.querySelector(".feedcol").getBoundingClientRect().right,
+        lineLeft: document.querySelector(".tline").getBoundingClientRect().left,
+    };
+})();
+</script>

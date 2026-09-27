@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A reply that asks the person to run a command, names a file and shows a
+// block: a tap on the command copies it, a tap on the file opens it, a tap in
+// the block is the block's own business.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { fromInline, INLINE_TIP_MS } from "/src/screens/chat/copy.js";
+
+const copied = [];
+let refuse = false;
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: (text) => (refuse ? Promise.reject(new Error("denied")) : (copied.push(text), Promise.resolve())),
+} });
+
+const opened = [];
+const text = "Restart it with `systemctl --user restart panel-exec`, then read `web/src/md.js`.\n\n```sh\nmake check\n```";
+render(html`
+    <div class="chatfeed" onClick=${(event) => {
+        if (fromInline(event)) return;
+        const hit = event.target.closest && event.target.closest(".path");
+        if (hit) opened.push(hit.dataset.path);
+    }}>
+        <${Row} item=${{ role: "ai", text, pos: 1, at: "2026-09-26T10:28:00Z" }} session="lab" id="1" />
+    </div>`, document.getElementById("root"));
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const tap = (el) => {
+    const r = el.getClientRects()[0];
+    el.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+    return r;
+};
+
+(async () => {
+    await document.fonts.ready;
+    const chip = document.querySelector("code.copyable");
+    const path = document.querySelector("code.path");
+    const block = document.querySelector(".mdcode code");
+    const at = tap(chip);
+    await frame();
+    await frame();
+    const tip = document.querySelector(".copiedtip");
+    const tr = tip ? tip.getBoundingClientRect() : null;
+    const first = {
+        copied: copied.slice(),
+        tip: tip ? tip.textContent : "",
+        tipBottom: tr ? tr.bottom : 0,
+        chipTop: at.top,
+        tipMiddle: tr ? tr.left + tr.width / 2 : 0,
+        chipMiddle: at.left + at.width / 2,
+        marked: chip.classList.contains("copied"),
+    };
+    await new Promise((r) => setTimeout(r, INLINE_TIP_MS + 100));
+    const gone = { tips: document.querySelectorAll(".copiedtip").length, marked: chip.classList.contains("copied") };
+    tap(path);
+    tap(block);
+    await frame();
+    const after = { copied: copied.slice(), opened: opened.slice(), tips: document.querySelectorAll(".copiedtip").length };
+    refuse = true;
+    tap(chip);
+    await frame();
+    await frame();
+    const bad = document.querySelector(".copiedtip");
+    window.done = { first, gone, after, refused: bad ? { text: bad.textContent, bad: bad.classList.contains("bad") } : null };
+})();
+</script>

@@ -1,6 +1,9 @@
 package check
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 type badgeShot struct {
 	Badges []struct {
@@ -9,23 +12,42 @@ type badgeShot struct {
 		H    float64 `json:"h"`
 		IW   float64 `json:"iw"`
 		IH   float64 `json:"ih"`
+		Top  float64 `json:"top"`
 	} `json:"badges"`
+	Rows     []float64 `json:"rows"`
+	InColumn int       `json:"inColumn"`
 }
 
-// Every badge of a run is drawn the same height with the same icon, whatever
-// kind of call it counts: a class of a card elsewhere in the panel once made
-// one of them larger than the rest.
-func TestEveryBadgeOfARunIsTheSameSize(t *testing.T) {
+// Every mark on the timeline is drawn the same size with the same icon,
+// whatever it counts — a kind of call, thinking, the end of a turn — and
+// stands at the height of the row its work led to. The kind of a published
+// page is one more kind among them, whatever a card of a page looks like.
+func TestEveryMarkOfTheTimelineIsTheSameSize(t *testing.T) {
 	var got badgeShot
 	runFixture(t, "toolbadges.html", &got)
-	if len(got.Badges) < 10 {
-		t.Fatalf("badges drawn: %+v", got.Badges)
+	if len(got.Badges) < 12 {
+		t.Fatalf("marks drawn: %+v", got.Badges)
+	}
+	if got.InColumn != 0 {
+		t.Errorf("%d badges stand in the column of prose: the work is on the timeline", got.InColumn)
 	}
 	first := got.Badges[0]
-	for _, b := range got.Badges {
-		if b.H != first.H || b.IW != first.IW || b.IH != first.IH {
-			t.Errorf("the %s badge is %.1fx%.1f with a %.1fx%.1f icon; the %s one is %.1fx%.1f with %.1fx%.1f",
+	kinds := map[string]bool{}
+	for i, b := range got.Badges {
+		kinds[b.Kind] = true
+		if b.W != first.W || b.H != first.H || b.IW != first.IW || b.IH != first.IH {
+			t.Errorf("the %s mark is %.1fx%.1f with a %.1fx%.1f icon; the %s one is %.1fx%.1f with %.1fx%.1f",
 				b.Kind, b.W, b.H, b.IW, b.IH, first.Kind, first.W, first.H, first.IW, first.IH)
+		}
+		// Mark i stands beside row 2i+1... in the column: the rows are the replies,
+		// one after every mark, and the person's message after the turn.
+		if i < len(got.Rows) && math.Abs(b.Top-got.Rows[i]) > 1 {
+			t.Errorf("the %s mark stands at %.1f, the row its work led to at %.1f", b.Kind, b.Top, got.Rows[i])
+		}
+	}
+	for _, want := range []string{"artifact", "hook", "think", "turn"} {
+		if !kinds[want] {
+			t.Errorf("no %s mark among %v", want, kinds)
 		}
 	}
 }

@@ -1,22 +1,24 @@
 // Feed entries: what a row of the conversation looks like.
 
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, useExec, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
-import { render } from "../../md.js";
+import { dedent, leadOf, render } from "../../md.js";
 import { plural, stopwatch } from "../../format.js";
 import { resend } from "./again.js";
 import { idParam } from "./api.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, SentCard } from "./files.js";
 import { Photo, shotName } from "./photo.js";
-import { callWord, countCalls, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
+import { shortTokens, stampText, tokenWord } from "./labels.js";
 
-// Row renders one row of the feed.
-export function Row({ item, session, id, onCalls, onTurn, onFile, onBrief, onCommand, copies, onPage, onTask }) {
+// Row renders one row of the feed: what is said and what arrives. A run of
+// calls and the end of a turn are not rows — they stand on the timeline
+// beside the feed (see timeline.js).
+export function Row({ item, session, id, onFile, onBrief, onCommand, copies, onPage, onTask }) {
     if (item.role === "shots") {
         const shots = item.shots || [];
         if (!shots.length) return null;
@@ -34,68 +36,28 @@ export function Row({ item, session, id, onCalls, onTurn, onFile, onBrief, onCom
     if (item.role === "note") {
         return html`<div class="mnote">${item.text}</div>`;
     }
-    if (item.role === "taskdone" || item.role === "notice") {
-        return html`<${Line} item=${item} onTask=${onTask} />`;
+    // A background task done is a card of the build of the files sent to the
+    // person; tasks that ended side by side come as one card with a row each.
+    if (item.role === "tasks" || item.role === "taskdone") {
+        return html`<${TaskCard} list=${item.list || [item]} onTask=${onTask} />`;
     }
-    // The end of a turn is a badge under its last answer: how long it took
-    // and when it ended are a tap away, with the calls it made. Its number is
-    // the calls the tap opens, as on every badge beside it; the agents it left
-    // at work are said in words, since a second bare number would read as calls.
-    if (item.role === "turn") {
-        const count = item.calls || 0;
-        const said = [turnTook(item), count > 0 && countCalls(count), turnLeft(item)].filter(Boolean).join(" · ");
-        return html`
-            <div class="mrow">
-                <button class="mtools mturn" type="button" onClick=${() => onTurn && onTurn(item)}
-                        title=${said} aria-label=${`the turn: ${said}`}>
-                    <span class="mticon">${Icon.hourglass()}</span>
-                    ${count > 0 && html`<span class="mtnum">${count}</span>`}
-                    ${item.agents > 0 && html`<span class="mtleft">· ${item.agents} at work</span>`}
-                </button>
-            </div>
-        `;
+    if (item.role === "notice") {
+        return html`<${Line} item=${item} />`;
     }
+    // A thought is set as an answer is: the same face, size and ink. What
+    // marks it is a hairline on its left, and the word over the first thought
+    // of a run of them.
     if (item.role === "mind") {
         return html`
-            <div class="msg mmind">
-                <span class="mmicon" role="img" aria-label="thinking">${Icon.thinking()}</span>
+            <div class="msg ai mmind">
+                ${item.head !== false && html`<div class="mmtag">thinking</div>`}
                 ${render(item.text)}
                 ${item.cut && html`<p class="hint warn">The thinking is longer than shown — cut.</p>`}
             </div>
         `;
     }
-    if (item.role === "toolrow") {
-        const groups = (item.groups || []).filter((group) => (group.calls || []).length);
-        const think = item.think;
-        if (!groups.length && !think) return null;
-        return html`
-            <div class="mrow">
-                ${think && html`
-                    <button class="mtools mthink" type="button" onClick=${onCalls}
-                          title=${`thinking: ${think.count}${think.tokens ? ` · ${shortTokens(think.tokens)} ${tokenWord(think.tokens)}` : ""}`}
-                          aria-label=${`thinking blocks: ${think.count}`}>
-                        <span class="mticon">${Icon.thinking()}</span>
-                        <span class="mtnum">${think.count}</span>
-                    </button>
-                `}
-                ${groups.map((group) => {
-                    const label = KIND_NAMES[group.kind] || KIND_NAMES.other;
-                    const count = group.calls.length;
-                    return html`
-                        <button class=${`mtools k-${group.kind}`} type="button" key=${group.kind} onClick=${onCalls}
-                                title=${label}
-                                aria-label=${`${label}: ${count} ${callWord(count)}`}>
-                            <span class="mticon">${kindIcon(group.kind)}</span>
-                            <span class="mtnum">${count}</span>
-                        </button>
-                    `;
-                })}
-            </div>
-            ${(item.lines || []).map((line) => html`<${Line} key=${`${line.role}-${line.pos}`} item=${line} onTask=${onTask} under />`)}
-        `;
-    }
     if (item.role === "mail") {
-        return html`<${Mail} item=${item} />`;
+        return html`<${Letter} item=${item} />`;
     }
 
     if (item.role === "wake") {
@@ -291,36 +253,66 @@ function Wake({ item }) {
 // What a letter is: a session next door, a subagent of this one, or a hook of
 // the session speaking at the end of a turn. All three arrive among the
 // prompts wrapped in a preamble nobody reads twice, so all three are drawn the
-// same way — a line that says who, and the words themselves under it.
+// same way — a card of the build of the files sent to the person: who and
+// when on its head, the first lines of the letter, and the rest opened by a
+// row under them.
 const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook" };
 
 const MAIL_WHO = { session: "neighbour session", agent: "subagent", hook: "stop hook" };
 
+const MAIL_LABEL = {
+    agent: ["from subagent", "to subagent"],
+    session: ["from session", "to session"],
+    hook: ["stop hook", "stop hook"],
+};
+
+function sizeOf(text) {
+    const n = text.length;
+    return n >= 1000 ? `${(n / 1000).toFixed(1)}k chars` : `${n} chars`;
+}
+
 // A letter sent is drawn when it is sent, and whether it reached anyone comes
 // later, from claude's answer: one that reached nobody says so on its head and
 // gives claude's reason once opened.
-function Mail({ item }) {
+function Letter({ item }) {
     const [open, setOpen] = useState(false);
+    const cap = useRef(null);
+    const [clamped, setClamped] = useState(false);
     const kind = MAIL_KINDS[item.source] || "agent";
     const out = item.dir === "out";
     const lost = out && item.undelivered;
-    const who = item.from || MAIL_WHO[kind];
+    const text = dedent(item.text);
+    const lead = leadOf(text);
+    // A letter of one long paragraph has nothing after its lead and still
+    // more than the lines the card shows closed.
+    useLayoutEffect(() => {
+        const el = cap.current;
+        if (el && !open) setClamped(el.scrollHeight > el.clientHeight + 1);
+    }, [text, open]);
+    // A letter that went nowhere always opens: its reason is inside.
+    const more = text.trim() !== lead.trim() || clamped || Boolean(lost);
+    const who = kind === "hook" ? "" : (item.whoName || item.from || MAIL_WHO[kind]);
     return html`
-        <div class=${`mmail ${kind}${open ? " open" : ""}${out ? " out" : ""}`}>
-            <button class="mmhead" type="button" onClick=${() => setOpen(!open)}
-                    aria-expanded=${open ? "true" : "false"}>
-                <span class="mmico">${Icon.envelope()}</span>
-                <span class="mmdir">${out ? "to:" : "from:"}</span>
-                <span class="mmfrom">${who}</span>
-                ${!out && html`<span class="mmkind">${kind}</span>`}
-                ${lost && html`<span class="mmlost" title=${item.undelivered}>not delivered</span>`}
-                ${!open && html`<span class="mmpeek">${peek(item.text)}</span>`}
-                ${item.at && html`<span class="mmat">${stampText(item.at)}</span>`}
-            </button>
-            ${open && html`
-                ${lost && html`<p class="hint warn mmwhy">${item.undelivered}</p>`}
-                <div class="mmbody">${render(item.text)}</div>
-                ${item.cut && html`<p class="hint warn">The letter is longer than shown — cut.</p>`}
+        <div class=${`sent mletter k-${kind}${out ? " out" : ""}${open ? " open" : ""}`}>
+            <div class="senthead">
+                <span class="sentico">${kind === "hook" ? Icon.hook() : Icon.envelope()}</span>
+                <span class="sentlabel">${MAIL_LABEL[kind][out ? 1 : 0]}</span>
+                ${lost && html`<span class="mletterlost" title=${item.undelivered}>not delivered</span>`}
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            ${who && html`<div class="mletterwho" title=${item.from || ""}>${who}</div>`}
+            ${open && lost && html`<p class="hint warn mletterwhy">${item.undelivered}</p>`}
+            <div class=${`sentcap mletterbody${open ? "" : " closed"}`} ref=${cap}>${render(open ? text : lead)}</div>
+            ${open && item.cut && html`<p class="hint warn">The letter is longer than shown — cut.</p>`}
+            ${more && html`
+                <div class="mflist">
+                    <button class="mfile mlettermore" type="button" onClick=${() => setOpen(!open)}
+                            aria-expanded=${open ? "true" : "false"}>
+                        <span class="mfico">${open ? Icon.close() : Icon.file()}</span>
+                        <span class="mfname">${open ? "Fold the letter" : lost ? "Why it was not delivered" : "The whole letter"}</span>
+                        <span class="mfsize">${sizeOf(text)}</span>
+                    </button>
+                </div>
             `}
         </div>
     `;
@@ -349,39 +341,84 @@ function doneExit(summary) {
     return code && code[1] !== "0" ? `exit ${code[1]}` : "";
 }
 
-// Line is what arrives beside the conversation. A background task done is a
-// pill: the name it ran under, how it ended, how long it took and what an
-// agent spent. A warning of claude or the recap after an absence is a line,
-// since its words do not fit a pill.
-function Line({ item, onTask, under = false }) {
-    const where = under ? " under" : "";
-    if (item.role === "taskdone") {
-        const aside = [
-            item.ms > 0 && stopwatch(item.ms / 1000),
-            item.tokens > 0 && `${shortTokens(item.tokens)} ${tokenWord(item.tokens)}`,
-            doneExit(item.summary),
-        ].filter(Boolean);
-        const said = item.summary || "a background task ended";
-        const body = html`
-            <span class="mdonemark" aria-hidden="true">${DONE_MARKS[item.status] || "–"}</span>
-            <span class="mdonename">${doneName(item.summary)}</span>
-            ${aside.length > 0 && html`<span class="mdoneaside">${aside.join(" · ")}</span>`}
-        `;
-        const cls = `mdone s-${DONE_TONES[item.status] || "faint"}${where}`;
-        // A task that names itself opens what it left behind: an agent its
-        // conversation, a command its output.
-        if (item.task && onTask) {
-            return html`
-                <button type="button" class=${cls} aria-label=${`${said} — open`}
-                        onClick=${() => onTask({ id: item.task, name: doneName(item.summary), agent: isAgent(item) })}>
-                    ${body}<span class="mdonego">${Icon.chevron()}</span>
-                </button>
-            `;
-        }
-        return html`<div class=${cls} role="note" aria-label=${said}>${body}</div>`;
-    }
+const TASK_TAGS = { agent: "AGENT", command: "BASH", monitor: "MON", other: "TASK" };
+
+const TASK_WORDS = {
+    agent: { completed: "agent finished", failed: "agent failed", killed: "agent stopped", stopped: "agent stopped" },
+    command: { completed: "command finished", failed: "command failed", killed: "command stopped", stopped: "command stopped" },
+    monitor: { completed: "monitor ended", failed: "monitor failed", killed: "monitor stopped", stopped: "monitor stopped" },
+    other: { completed: "task finished", failed: "task failed", killed: "task stopped", stopped: "task stopped" },
+};
+
+const TASK_ICONS = { agent: Icon.robot, command: Icon.terminal, monitor: Icon.monitor, other: Icon.tools };
+
+// taskKind is what ran in the background: claude names an agent, a command
+// and a monitor in the first word of its sentence about them.
+function taskKind(item) {
+    const said = item.summary || "";
+    if (isAgent(item)) return "agent";
+    if (/^Monitor\b/.test(said)) return "monitor";
+    if (/^Background command\b/.test(said)) return "command";
+    return "other";
+}
+
+// TaskCard is the background tasks that ended side by side: the head says
+// what ended, a row per task says what it was, how it ended and what it took.
+// A task that names itself opens what it left behind: an agent its
+// conversation, a command its output.
+function TaskCard({ list, onTask }) {
+    const first = list[0];
+    const kind = taskKind(first);
+    const failed = list.some((t) => t.status === "failed");
+    const label = list.length > 1
+        ? `${list.length} tasks ended`
+        : (TASK_WORDS[kind][first.status] || "task ended");
+    const icon = list.length > 1 ? Icon.list() : TASK_ICONS[kind]();
+    const at = list[list.length - 1].at;
     return html`
-        <div class=${`mside s-${item.level || "info"}${where}`}>
+        <div class=${`sent mtasks${failed ? " failed" : ""}`}>
+            <div class="senthead">
+                <span class="sentico">${icon}</span>
+                <span class="sentlabel">${label}</span>
+                ${at && html`<span class="sentat">${stampText(at)}</span>`}
+            </div>
+            <div class="mflist">
+                ${list.map((item) => {
+                    const aside = [
+                        item.ms > 0 && stopwatch(item.ms / 1000),
+                        item.tokens > 0 && `${shortTokens(item.tokens)} ${tokenWord(item.tokens)}`,
+                        doneExit(item.summary),
+                    ].filter(Boolean).join(" · ");
+                    const name = doneName(item.summary);
+                    const said = item.summary || "a background task ended";
+                    const body = html`
+                        <span class="mftag">${DONE_MARKS[item.status] ? `${DONE_MARKS[item.status]} ` : ""}${TASK_TAGS[taskKind(item)]}</span>
+                        <span class="mfname">
+                            ${name}
+                            ${aside && html`<span class="mfnote">${aside}</span>`}
+                        </span>
+                    `;
+                    const cls = `mfile tagged mtask s-${DONE_TONES[item.status] || "faint"}`;
+                    if (item.task && onTask) {
+                        return html`
+                            <button class=${cls} type="button" key=${item.pos} aria-label=${`${said} — open`}
+                                    onClick=${() => onTask({ id: item.task, name, agent: isAgent(item) })}>
+                                ${body}<span class="crgo">${Icon.chevron()}</span>
+                            </button>
+                        `;
+                    }
+                    return html`<div class=${cls} key=${item.pos} role="note" aria-label=${said}>${body}</div>`;
+                })}
+            </div>
+        </div>
+    `;
+}
+
+// Line is a warning of claude or the recap after an absence: a line of its
+// own, its dot saying how loud it is.
+function Line({ item }) {
+    return html`
+        <div class=${`mside s-${item.level || "info"}`}>
             <span class="msidedot" aria-hidden="true"></span>
             <span class="msidetext">
                 ${item.from && html`<b class="msidefrom">${item.from}</b>`}${item.text}

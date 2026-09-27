@@ -4,31 +4,64 @@
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// A run with a call of every kind: each badge is drawn the same size.
+// A run of every kind of call, a run that only thought and the end of a turn,
+// each after a reply of its own: every mark on the timeline is drawn the same
+// size with the same icon, and stands at the height of the reply it led to.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
 import { KIND_NAMES } from "/src/screens/chat/labels.js";
 
+const at = "2026-09-26T10:00:00Z";
 const kinds = Object.keys(KIND_NAMES).concat(["hook"]);
-const groups = kinds.map((kind, n) => ({
-    role: "tools", kind, run: 10, pos: 10 + n, at: "2026-09-26T10:00:00Z",
-    calls: [{ name: kind, arg: "x", seq: n, pos: 10 + n, index: 0, use: `u${n}` }],
-}));
-const row = { role: "toolrow", run: 10, pos: 10, groups };
+const long = "A reply long enough to part the marks. ".repeat(4);
+const items = [];
+let pos = 1;
+for (const kind of kinds) {
+    items.push({ role: "tools", kind, run: pos, pos, at, calls: [{ name: kind, arg: "x", pos, index: 0 }] });
+    pos += 1;
+    items.push({ role: "ai", text: `${kind}: ${long}`, pos, at });
+    pos += 1;
+}
+items.push({ role: "think", run: pos, pos, at, count: 2, tokens: 40, spots: [] });
+pos += 1;
+items.push({ role: "ai", text: `after thinking: ${long}`, pos, at });
+pos += 1;
+items.push({ role: "turn", ms: 64000, pos, at });
+pos += 1;
+items.push({ role: "me", text: "next", pos, at });
 
-render(html`<div class="chatfeed"><${Row} item=${row} session="lab" id="1" onCalls=${() => {}} /></div>`,
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${false} onOpen=${() => {}}
+    row=${(item) => html`<${Row} item=${item} session="lab" id="1" />`} /></div>`,
     document.getElementById("root"));
 
+// The column is measured again when the fonts come in and its rows change
+// height: the page waits, three seconds at most, for every mark to stand at
+// the row after it, and the test says whether it came to that.
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const aligned = () => {
+    const marks = Array.from(document.querySelectorAll(".railmark"));
+    const rows = Array.from(document.querySelector(".feedcol").children);
+    return marks.length > 0 && marks.every((m, i) => rows[i]
+        && Math.abs(m.getBoundingClientRect().top - rows[i].getBoundingClientRect().top) <= 1);
+};
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
-    const badges = Array.from(document.querySelectorAll(".mtools")).map((b) => {
+    await document.fonts.ready;
+    const end = performance.now() + 3000;
+    while (!aligned() && performance.now() < end) await frame();
+    const col = document.querySelector(".feedcol");
+    const marks = Array.from(document.querySelectorAll(".railmark")).map((b) => {
         const box = b.getBoundingClientRect();
         const svg = b.querySelector("svg");
         const icon = svg ? svg.getBoundingClientRect() : { width: 0, height: 0 };
         const kind = Array.from(b.classList).find((c) => c.startsWith("k-")) || "";
-        return { kind: kind.slice(2), w: box.width, h: box.height, iw: icon.width, ih: icon.height };
+        return { kind: kind.slice(2), w: box.width, h: box.height, iw: icon.width, ih: icon.height, top: box.top };
     });
-    window.done = { badges };
+    // The row each mark led to: the reply after its run.
+    const rowsTop = Array.from(col.children).filter((r) => !r.classList.contains("r-me") || true)
+        .map((r) => r.getBoundingClientRect().top);
+    window.done = { badges: marks, rows: rowsTop, inColumn: col.querySelectorAll(".mtools, .railmark").length };
 })();
 </script>

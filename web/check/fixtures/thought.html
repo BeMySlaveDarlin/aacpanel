@@ -4,18 +4,22 @@
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// A thought beside the answer it led to: the same prose, two steps smaller.
+// Two thoughts with a run of calls between them, and the answer they led to.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
 
 const at = "2026-09-26T10:28:00Z";
 const items = [
     { role: "mind", text: "The test reads the source; the size needs a fixture.", pos: 1, at },
-    { role: "ai", text: "Writing a fixture that measures it.", pos: 2, at },
+    { role: "tools", kind: "bash", run: 2, pos: 2, at, calls: [{ name: "Bash", arg: "make front", pos: 2, index: 0 }] },
+    { role: "mind", text: "The bundle is built; now the fixture itself.", pos: 3, at },
+    { role: "ai", text: "Writing a fixture that measures it.", pos: 4, at },
 ];
-render(html`<div class="chatfeed">${items.map((item) =>
-    html`<${Row} key=${item.pos} item=${item} session="lab" id="1" />`)}</div>`,
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${false} onOpen=${() => {}}
+    row=${(item) => html`<${Row} item=${item} session="lab" id="1" />`} /></div>`,
     document.getElementById("root"));
 
 const until = async (ok, ms = 3000) => {
@@ -24,21 +28,24 @@ const until = async (ok, ms = 3000) => {
 };
 
 (async () => {
-    await until(() => document.querySelector(".mmind p") && document.querySelector(".msg.ai p"));
-    const px = (el) => parseFloat(getComputedStyle(el).fontSize);
-    const root = getComputedStyle(document.documentElement);
-    const rem = parseFloat(root.fontSize);
-    const token = (name) => parseFloat(root.getPropertyValue(name)) * rem;
-    const mind = document.querySelector(".mmind p");
-    const icon = document.querySelector(".mmind .mmicon").getBoundingClientRect();
-    const line = mind.getClientRects()[0];
-    const lineHeight = parseFloat(getComputedStyle(mind).lineHeight);
+    await until(() => document.querySelectorAll(".mmind p").length === 2 && document.querySelector(".msg.ai:not(.mmind) p"));
+    const style = (el) => getComputedStyle(el);
+    const minds = Array.from(document.querySelectorAll(".mmind p"));
+    const answer = document.querySelector(".msg.ai:not(.mmind) p");
+    const rowsOf = Array.from(document.querySelectorAll(".feedrow.r-mind")).map((r) => r.getBoundingClientRect());
     window.done = {
-        mind: px(mind),
-        answer: px(document.querySelector(".msg.ai p")),
-        sm: token("--t-sm"),
-        base: token("--t-base"),
-        iconOff: Math.abs((icon.top + icon.height / 2) - (line.top + lineHeight / 2)),
+        mind: parseFloat(style(minds[0]).fontSize),
+        answer: parseFloat(style(answer).fontSize),
+        mindColour: style(minds[0]).color,
+        answerColour: style(answer).color,
+        mindFont: style(minds[0]).fontFamily,
+        answerFont: style(answer).fontFamily,
+        mindItalic: style(minds[0]).fontStyle,
+        icons: document.querySelectorAll(".mmind svg").length,
+        tags: Array.from(document.querySelectorAll(".mmtag")).map((t) => t.textContent),
+        rule: style(document.querySelector(".feedrow.r-mind")).boxShadow,
+        answerRule: style(document.querySelector(".feedrow.r-ai")).boxShadow,
+        gap: rowsOf.length === 2 ? rowsOf[1].top - rowsOf[0].bottom : null,
     };
 })();
 </script>

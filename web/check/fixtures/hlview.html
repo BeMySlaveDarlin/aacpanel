@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Code near the screen is coloured, code far below it is not until the feed
+// comes to it, and code coloured once is not coloured again.
+import { render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { stats } from "/src/hl.js";
+
+const at = "2026-09-26T10:28:00Z";
+const near = "```go\nfunc near() int {\n\treturn 1\n}\n```";
+const far = "```js\nconst far = (x) => x + 1;\nexport default far;\n```";
+const spacer = Array.from({ length: 60 }, (_, n) => `Line ${n} of a long answer that stands between the two blocks.`).join("\n\n");
+
+let flip;
+function Feed() {
+    const [shown, setShown] = useState(true);
+    flip = setShown;
+    return html`
+        <div class="chatfeed" style="height: 600px">
+            <${Row} item=${{ role: "ai", text: `Near:\n\n${near}`, pos: 1, at }} />
+            <${Row} item=${{ role: "ai", text: `The same again:\n\n${near}`, pos: 2, at }} />
+            <${Row} item=${{ role: "ai", text: spacer, pos: 3, at }} />
+            ${shown && html`<${Row} key="far" item=${{ role: "ai", text: `Far:\n\n${far}`, pos: 4, at }} />`}
+        </div>
+    `;
+}
+render(html`<${Feed} />`, document.getElementById("root"));
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await frame();
+};
+const codes = () => Array.from(document.querySelectorAll(".mdcode code"));
+const lit = () => codes().map((c) => c.classList.contains("hl") && c.querySelectorAll("span").length > 0);
+
+(async () => {
+    await until(() => codes().length === 3 && lit()[0] && lit()[1]);
+    for (let i = 0; i < 5; i++) await frame();
+    const first = { lit: lit(), runs: stats.runs, hits: stats.hits, text: codes()[2].textContent };
+    const feed = document.querySelector(".chatfeed");
+    feed.scrollTop = feed.scrollHeight;
+    await until(() => lit()[2]);
+    const scrolled = { lit: lit(), runs: stats.runs };
+    // Taken off the screen and put back, the far block is coloured on its
+    // first frame, from what was kept, and nothing is coloured anew.
+    flip(false);
+    await frame();
+    flip(true);
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    const again = { lit: lit(), runs: stats.runs, sync: codes()[2].classList.contains("hl") };
+    window.done = { first, scrolled, again, text: codes()[2].textContent };
+})();
+</script>

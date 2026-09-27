@@ -1,0 +1,100 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The blocks of an answer: a command of one line, a block of several, a table
+// with a column of numbers and a list.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+
+const at = "2026-09-26T10:28:00Z";
+const text = [
+    "Run it:",
+    "",
+    "```sh",
+    "sudo systemctl restart panel-agent@u && journalctl --user -u panel-agent -n 40 --no-pager",
+    "```",
+    "",
+    "The steps:",
+    "",
+    "```go",
+    "func (w *wizard) scanRoots() []string {",
+    "\tvar out []string",
+    "\treturn out",
+    "}",
+    "```",
+    "",
+    "| step | took | lines |",
+    "|---|---|---|",
+    "| build | 12s | 3261 |",
+    "| check | 45s | 1 |",
+    "",
+    "- first",
+    "- second",
+].join("\n");
+render(html`<div class="chatfeed"><${Row} item=${{ role: "ai", text, pos: 1, at }} session="lab" id="1" /></div>`,
+    document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
+(async () => {
+    await until(() => document.querySelectorAll(".mdcode").length === 2 && document.querySelector(".mdtab"));
+    await document.fonts.ready;
+    const box = (el) => el.getBoundingClientRect();
+    const [one, many] = document.querySelectorAll(".mdcode");
+    const block = (el) => {
+        const b = box(el);
+        const pre = box(el.querySelector("pre"));
+        const btn = box(el.querySelector(".mdcopy"));
+        const code = el.querySelector("code");
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        const lines = Array.from(range.getClientRects());
+        return {
+            height: b.height, preHeight: pre.height,
+            btnInside: btn.top >= b.top && btn.right <= b.right + 0.5 && btn.bottom <= b.bottom,
+            btnTop: btn.top - b.top, btnRight: b.right - btn.right,
+            textRight: Math.max(...lines.map((r) => r.right)),
+            btnLeft: btn.left,
+            firstLineTop: lines.length ? lines[0].top : 0,
+            btnBottom: btn.bottom,
+            position: getComputedStyle(el.querySelector(".mdcopy")).position,
+            opacity: parseFloat(getComputedStyle(el.querySelector(".mdcopy")).opacity),
+        };
+    };
+    const tab = document.querySelector(".mdtab");
+    const th = Array.from(tab.querySelectorAll("th"));
+    const td = Array.from(tab.querySelectorAll("tbody tr:first-child td"));
+    const cs = (el) => getComputedStyle(el);
+    window.done = {
+        one: block(one),
+        many: block(many),
+        oneClass: one.className,
+        table: {
+            plate: cs(tab).backgroundImage,
+            headWeight: parseInt(cs(th[0]).fontWeight, 10),
+            bodyWeight: parseInt(cs(td[0]).fontWeight, 10),
+            headGround: cs(th[0]).backgroundColor,
+            bodyGround: cs(td[0]).backgroundColor,
+            vertical: [...th, ...td].map((c) => cs(c).borderLeftWidth + "/" + cs(c).borderRightWidth),
+            rowRule: cs(tab.querySelector("tbody tr + tr td")).boxShadow,
+            align: td.map((c) => cs(c).textAlign),
+            fonts: td.map((c) => cs(c).fontFamily),
+            btnInside: (() => { const b = box(tab), k = box(tab.querySelector(".mdcopy")); return k.top >= b.top && k.bottom <= b.bottom; })(),
+            height: box(tab).height,
+            tableHeight: box(tab.querySelector(".mdtable")).height,
+        },
+        list: {
+            buttons: document.querySelectorAll(".mdlist .mdcopy, .mdlist + .mdcopy").length,
+            wrapped: Boolean(document.querySelector(".mdlist").parentElement.classList.contains("msg")),
+        },
+        bars: document.querySelectorAll(".mdbar, .mdtools, .mdblock").length,
+    };
+})();
+</script>

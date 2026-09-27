@@ -4,7 +4,7 @@
 export const QUOTE_LINES = 2;
 export const QUOTE_CHARS = 240;
 
-export const QUOTABLE = ".msg, .mmbody, .callpre";
+export const QUOTABLE = ".msg, .mmbody, .mletterbody, .callpre";
 
 // quoteOf returns a markdown quote of the selected text, or an empty string.
 export function quoteOf(raw) {

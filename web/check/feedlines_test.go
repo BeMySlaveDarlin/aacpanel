@@ -8,22 +8,29 @@ import (
 )
 
 type feedLinesShot struct {
-	Badges []string `json:"badges"`
-	Pills  []struct {
-		Mark       string `json:"mark"`
-		Name       string `json:"name"`
-		Aside      string `json:"aside"`
-		Said       string `json:"said"`
-		MarkColour string `json:"markColour"`
-	} `json:"pills"`
-	FeedLeft float64 `json:"feedLeft"`
-	Plates   []struct {
-		Tag   string  `json:"tag"`
+	Marks   []string `json:"marks"`
+	ColLeft float64  `json:"colLeft"`
+	Cards   []struct {
+		Rows  int     `json:"rows"`
+		Head  string  `json:"head"`
 		Left  float64 `json:"left"`
 		Width float64 `json:"width"`
-	} `json:"plates"`
-	TurnLeft float64 `json:"turnLeft"`
-	Opened   []struct {
+	} `json:"cards"`
+	Tasks []struct {
+		Tag       string `json:"tag"`
+		Name      string `json:"name"`
+		Aside     string `json:"aside"`
+		Said      string `json:"said"`
+		TagColour string `json:"tagColour"`
+		Node      string `json:"node"`
+	} `json:"tasks"`
+	Turn      string `json:"turn"`
+	TurnNum   string `json:"turnNum"`
+	TurnIcon  bool   `json:"turnIcon"`
+	TurnOpens []int  `json:"turnOpens"`
+	Worked    bool   `json:"worked"`
+	Badges    int    `json:"badges"`
+	Opened    []struct {
 		ID    string `json:"id"`
 		Name  string `json:"name"`
 		Agent bool   `json:"agent"`
@@ -33,83 +40,76 @@ type feedLinesShot struct {
 		Dot    string `json:"dot"`
 		Colour string `json:"colour"`
 	} `json:"lines"`
-	Turn      string   `json:"turn"`
-	TurnNum   string   `json:"turnNum"`
-	TurnSays  string   `json:"turnLeftSay"`
-	TurnIcon  bool     `json:"turnIcon"`
-	TurnOpens []int    `json:"turnOpens"`
-	Worked    bool     `json:"worked"`
-	Under     []string `json:"under"`
 }
 
-// What a terminal prints beside the conversation is in the feed as well: a
-// hook's message adds to a badge of its run, a background task done is a plate
-// under the run it ended in — one width for all, read from the left, opening
-// what the task left behind — the end of a turn is a badge under its last
-// answer that opens the calls of the turn with how long it took, and a
+// What a terminal prints beside the conversation is in the feed as well. A
+// hook's message counts on the mark of its run on the timeline; background
+// tasks done are cards of the build of the files sent to the person — the
+// ones that ended side by side share one card, a row each, one width for all,
+// opening what the task left behind; the end of a turn is a mark on the
+// timeline that opens the calls of the turn and says how long it took; a
 // warning of claude is a line of its own.
 func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 	var got feedLinesShot
 	runFixture(t, "feedlines.html", &got)
 
-	if strings.Join(got.Badges, " | ") != "commands: 1 call | hooks: 1 call" {
-		t.Errorf("the run's badges: %v", got.Badges)
+	if strings.Join(got.Marks, " | ") != "1 command · 1 hook — open the calls" {
+		t.Errorf("the marks of the run: %v", got.Marks)
 	}
-	if len(got.Pills) != 3 {
-		t.Fatalf("plates drawn: %+v", got.Pills)
+	if got.Badges != 0 {
+		t.Errorf("%d badges of calls stand in the column: the work belongs on the timeline", got.Badges)
 	}
-	agent, failed := got.Pills[0], got.Pills[1]
-	if agent.Mark != "✓" || agent.Name != "Commit the notes" || agent.Aside != "24s · 33k tokens" {
-		t.Errorf("an agent done reads %q %q %q", agent.Mark, agent.Name, agent.Aside)
+	if len(got.Cards) != 2 || got.Cards[0].Rows != 2 || got.Cards[1].Rows != 1 {
+		t.Fatalf("the tasks done are drawn as %+v: the two that ended side by side share a card, the one after a reply has its own", got.Cards)
 	}
-	if !strings.Contains(agent.Said, `Agent "Commit the notes" finished`) {
-		t.Errorf("the pill does not say in words what happened: %q", agent.Said)
+	if got.Cards[0].Head != "2 tasks ended" || got.Cards[1].Head != "command finished" {
+		t.Errorf("the cards are headed %q and %q", got.Cards[0].Head, got.Cards[1].Head)
 	}
-	if failed.Mark != "✗" || failed.Name != "make check" || failed.Aside != "exit 2" {
-		t.Errorf("a failed command reads %q %q %q", failed.Mark, failed.Name, failed.Aside)
-	}
-	if failed.MarkColour == agent.MarkColour {
-		t.Errorf("a failed task is marked in the colour of a finished one: %s", failed.MarkColour)
-	}
-	for i, p := range got.Plates {
-		if p.Left-got.FeedLeft > 1 || p.Width != got.Plates[0].Width {
-			t.Errorf("plate %d starts at %.1f (the feed at %.1f) and is %.1f wide against %.1f",
-				i, p.Left, got.FeedLeft, p.Width, got.Plates[0].Width)
+	for i, c := range got.Cards {
+		if c.Left-got.ColLeft > 1 || c.Width != got.Cards[0].Width {
+			t.Errorf("card %d starts at %.1f (the column at %.1f) and is %.1f wide against %.1f", i, c.Left, got.ColLeft, c.Width, got.Cards[0].Width)
 		}
 	}
-	if got.TurnLeft-got.FeedLeft > 1 {
-		t.Errorf("the badge of the turn starts at %.1f, the feed at %.1f", got.TurnLeft, got.FeedLeft)
+	if len(got.Tasks) != 3 {
+		t.Fatalf("task rows drawn: %+v", got.Tasks)
 	}
-	tags := []string{}
-	for _, p := range got.Plates {
-		tags = append(tags, p.Tag)
+	agent, failed := got.Tasks[0], got.Tasks[1]
+	if agent.Tag != "✓ AGENT" || agent.Name != "Commit the notes" || agent.Aside != "24s · 33k tokens" {
+		t.Errorf("an agent done reads %q %q %q", agent.Tag, agent.Name, agent.Aside)
 	}
-	if strings.Join(tags, ",") != "BUTTON,BUTTON,DIV" {
-		t.Errorf("the plates are %v: a task that names itself opens, one that does not is not a button", tags)
+	if !strings.Contains(agent.Said, `Agent "Commit the notes" finished`) {
+		t.Errorf("the row does not say in words what happened: %q", agent.Said)
+	}
+	if failed.Tag != "✗ BASH" || failed.Name != "make check" || failed.Aside != "exit 2" {
+		t.Errorf("a failed command reads %q %q %q", failed.Tag, failed.Name, failed.Aside)
+	}
+	if failed.TagColour == agent.TagColour {
+		t.Errorf("a failed task is tagged in the colour of a finished one: %s", failed.TagColour)
+	}
+	nodes := []string{}
+	for _, task := range got.Tasks {
+		nodes = append(nodes, task.Node)
+	}
+	if strings.Join(nodes, ",") != "BUTTON,BUTTON,DIV" {
+		t.Errorf("the rows are %v: a task that names itself opens, one that does not is not a button", nodes)
 	}
 	if len(got.Opened) != 2 || got.Opened[0].ID != "a515a204cce27a85c" || !got.Opened[0].Agent ||
 		got.Opened[1].ID != "bg3me3whb" || got.Opened[1].Agent || got.Opened[1].Name != "make check" {
-		t.Errorf("tapping the plates opened %+v: the agent its conversation, the command its output", got.Opened)
-	}
-	if len(got.Under) != 2 {
-		t.Errorf("the tasks done inside the run do not hang under its badges: %v", got.Under)
+		t.Errorf("tapping the rows opened %+v: the agent its conversation, the command its output", got.Opened)
 	}
 	if got.Worked {
-		t.Errorf("the length of a turn is printed in the feed: it belongs to the calls the badge opens")
+		t.Errorf("the length of a turn is printed in the column: it belongs to the timeline and the calls it opens")
 	}
 	if !got.TurnIcon || got.TurnNum != "2" {
-		t.Errorf("the badge of the turn is not an hourglass with the calls it opens: icon %v, number %q — "+
-			"a number on a badge is the calls behind it, as on every badge beside it", got.TurnIcon, got.TurnNum)
-	}
-	if got.TurnSays != "· 3 at work" {
-		t.Errorf("the agents the turn left at work read %q: in words, so they are not taken for calls", got.TurnSays)
+		t.Errorf("the mark of the turn is not an hourglass with the calls it opens: icon %v, number %q — "+
+			"a number on a mark is the calls behind it, as on every mark beside it", got.TurnIcon, got.TurnNum)
 	}
 	if !strings.Contains(got.Turn, "worked 2m 49s") || !strings.Contains(got.Turn, "2 calls") ||
 		!strings.Contains(got.Turn, "3 background agents were still at work") {
-		t.Errorf("the badge of the turn says %q: how long it took, the calls and what it left at work", got.Turn)
+		t.Errorf("the mark of the turn says %q: how long it took, the calls and what it left at work", got.Turn)
 	}
 	if len(got.TurnOpens) != 1 || got.TurnOpens[0] != 7 {
-		t.Errorf("tapping the badge of the turn opened %v: the calls of that turn", got.TurnOpens)
+		t.Errorf("tapping the mark of the turn opened %v: the calls of that turn", got.TurnOpens)
 	}
 	if len(got.Lines) != 3 {
 		t.Fatalf("lines drawn: %+v", got.Lines)

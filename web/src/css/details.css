@@ -132,8 +132,8 @@
     line-height: 1.4;
 }
 
-/* A letter carries a rail on the left in the colour of who wrote it; the peek
-   takes a line of its own under the sender rather than a stub beside it. */
+/* A wake-up carries a rail on the left; the peek takes a line of its own under
+   the head rather than a stub beside it. */
 .mmail {
     align-self: stretch;
     display: flex;
@@ -161,11 +161,7 @@
 .mmail.open .mmhead { padding-bottom: .3rem; }
 .mmico { display: flex; width: 15px; height: 15px; color: var(--accent); flex: none; align-self: center; }
 .mmico svg { width: 100%; height: 100%; }
-.mmdir { color: var(--ink-faint); font-weight: 500; font-size: var(--t-xs); flex: none; }
 .mmfrom { font-weight: 600; color: var(--ink); flex: none; }
-.mmkind { color: var(--ink-faint); font-size: var(--t-xs); flex: none; }
-.mmlost { color: var(--warn); font-size: var(--t-xs); flex: none; }
-.mmwhy { margin: 0; padding: 0 .9rem .4rem .7rem; white-space: pre-line; }
 .mmpeek {
     flex: 1 0 100%;
     min-width: 0;
@@ -175,16 +171,9 @@
     color: var(--ink-faint);
 }
 .mmat { margin-left: auto; color: var(--ink-faint); font-size: var(--t-xs); flex: none; }
-.mmail.out .mmico { color: var(--ink-dim); }
 .mmail.wake { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ink-faint) 70%, transparent); }
 .mmail.wake .mmico { color: var(--ink-dim); }
 .mmail.wake .mmfrom { color: var(--ink-dim); }
-.mmail.out { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 65%, transparent); }
-/* A hook of the session speaking at the end of a turn is not a correspondent:
-   the rail takes the colour the panel warns in, so a blocked turn is told
-   apart from a letter at a glance. */
-.mmail.hook { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--warn) 70%, transparent); }
-.mmail.hook .mmico { color: var(--warn); }
 .mmbody { font-size: var(--t-md); line-height: 1.5; padding: 0 .9rem .7rem .7rem; }
 .mmbody.doc { padding: 0 0 .7rem; overflow-wrap: anywhere; }
 .mmbody > :first-child { margin-top: 0; }

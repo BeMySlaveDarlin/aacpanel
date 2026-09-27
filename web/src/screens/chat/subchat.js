@@ -8,6 +8,8 @@ import { Sheet } from "../../ui/sheet.js";
 import { rows, runCalls, turnCalls, weld } from "./feed.js";
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { Row } from "./rows.js";
+import { callsOf, FeedGrid } from "./timeline.js";
+import { useWide } from "../../ui/wide.js";
 import { Calls } from "./calls.js";
 import { Look, LOOK_NAMES, WORK_LISTS } from "./look.js";
 import { Marquee } from "./head.js";
@@ -33,6 +35,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
     const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({ name: session, id, live });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
+    const wide = useWide();
 
     useBackClose(true, onBack);
 
@@ -59,6 +62,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
             ref=${feedRef}
             onClick=${(event) => {
                 if (codecopy.fromClick(event, toast)) return;
+                if (codecopy.fromInline(event)) return;
                 const hit = event.target.closest && event.target.closest(".path");
                 if (hit) setLook({ kind: "file", path: hit.dataset.path });
             }}
@@ -76,15 +80,18 @@ export function SubChat({ session, id, agent, live, onBack }) {
                 <div class="mearlier" ref=${topRef}>there is more above</div>
             `}
             ${state.note && html`<p class="hint warn">${state.note}</p>`}
-            ${rows(feed).map((item, n) => html`<${Row}
-                key=${`${item.pos}-${n}`}
-                item=${item}
-                session=${session}
-                id=${id}
-                onCalls=${() => setCalls({ list: runCalls(feed, item.run) })}
-                onTurn=${(turn) => setCalls({ list: turnCalls(feed, turn.pos), turn })}
-                onFile=${(file) => setLook({ kind: "file", ...file })}
-            />`)}
+            <${FeedGrid}
+                rows=${rows(feed)}
+                wide=${wide}
+                onOpen=${(g) => setCalls(callsOf(g, feed, runCalls, turnCalls))}
+                row=${(item, n) => html`<${Row}
+                    key=${`${item.pos}-${n}`}
+                    item=${item}
+                    session=${session}
+                    id=${id}
+                    onFile=${(file) => setLook({ kind: "file", ...file })}
+                />`}
+            />
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
 

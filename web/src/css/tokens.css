@@ -152,6 +152,18 @@
     --t-2xl: 1.53rem;
     --t-3xl: 2rem;
 
+    /* The scale of space of the feed, four steps and no fifth, taken from
+       the cards it already had: the gap inside a card of files, its side
+       padding, the margin of a paragraph.
+         --s1  a label and what it labels
+         --s2  the parts of one card; a block and the text over it
+         --s3  one row of the feed and the next; a paragraph
+         --s4  the air before a new turn of the person */
+    --s1: .25rem;
+    --s2: .4rem;
+    --s3: .8rem;
+    --s4: 1.4rem;
+
     /* Icon sizes, by where the icon sits: inside text, on a row, on a tile.
        In rem, so an icon grows with the text it stands beside: a mark left in
        pixels shrinks against its own label as the scale goes up. */

@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<div id="root"></div>
+<div class="shell"><div class="body" id="root"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // Two letters an agent sent with the same words: the first to a name nobody
@@ -19,30 +19,30 @@ const items = [
       text: "salta" },
 ];
 
-render(h("div", { class: "feed" }, items.map((item) => h(Row, { item, key: item.pos }))),
+render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: item.pos }))),
     document.getElementById("root"));
 
 (async () => {
   try {
     await new Promise((r) => setTimeout(r, 200));
-    const letters = Array.from(document.querySelectorAll(".mmail"));
+    const letters = Array.from(document.querySelectorAll(".mletter"));
     const rows = letters.map((el) => {
-        const mark = el.querySelector(".mmlost");
+        const mark = el.querySelector(".mletterlost");
         return {
-            from: (el.querySelector(".mmfrom") || {}).textContent || "",
+            from: (el.querySelector(".mletterwho") || {}).textContent || "",
             mark: mark ? mark.textContent : "",
             markColor: mark ? getComputedStyle(mark).color : "",
-            peek: (el.querySelector(".mmpeek") || {}).textContent || "",
-            why: (el.querySelector(".mmwhy") || {}).textContent || "",
+            peek: ((el.querySelector(".mletterbody") || {}).textContent || "").trim(),
+            why: (el.querySelector(".mletterwhy") || {}).textContent || "",
         };
     });
-    const quietColor = getComputedStyle(document.querySelector(".mmdir")).color;
+    const quietColor = getComputedStyle(document.querySelector(".sentlabel")).color;
     // Opened, the refused letter gives claude's reason above its words.
-    letters[0].querySelector(".mmhead").click();
+    letters[0].querySelector(".mlettermore").click();
     await new Promise((r) => setTimeout(r, 120));
     const opened = {
-        why: (letters[0].querySelector(".mmwhy") || {}).textContent || "",
-        body: (letters[0].querySelector(".mmbody") || {}).textContent || "",
+        why: (letters[0].querySelector(".mletterwhy") || {}).textContent || "",
+        body: (letters[0].querySelector(".mletterbody") || {}).textContent || "",
     };
     window.done = { rows, quietColor, opened };
   } catch (err) {

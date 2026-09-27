@@ -15,6 +15,7 @@ import { SubChat, subFeedId } from "./chat/subchat.js";
 import { RepoView } from "./repo/view.js";
 import { onShelf, sealed, signal } from "./repo/notes.js";
 import { Row } from "./chat/rows.js";
+import { callsOf, FeedGrid } from "./chat/timeline.js";
 import { CommandSheet } from "./chat/command.js";
 import { McpSheet } from "./chat/mcp.js";
 import { StatusSheet } from "./chat/status.js";
@@ -329,6 +330,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             ref=${feedRef}
             onClick=${(event) => {
                 if (codecopy.fromClick(event, toast)) return;
+                if (codecopy.fromInline(event)) return;
                 const hit = event.target.closest && event.target.closest(".path");
                 if (hit) setLook({ kind: "file", path: hit.dataset.path });
             }}
@@ -350,30 +352,33 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 <div class="mearlier" ref=${topRef}>there is more above</div>
             `}
             ${state.note && html`<p class="hint warn">${state.note}</p>`}
-            ${rows(feed).map((item, n) => html`<${Row}
-                key=${`${item.pos}-${n}`}
-                item=${item}
-                session=${name}
-                id=${id}
-                copies=${copies}
-                onPage=${(card) => setLook({ kind: "artifact", card })}
-                onCalls=${() => setCalls({ list: runCalls(feed, item.run) })}
-                onTurn=${(turn) => setCalls({ list: turnCalls(feed, turn.pos), turn })}
-                onFile=${(file) => setLook({ kind: "file", ...file })}
-                onBrief=${openBrief}
-                onCommand=${(row) => setLook({ kind: "command", item: row })}
-                onTask=${(task) => (task.agent
-                    ? openAgent({ id: task.id, name: task.name, kind: "background" })
-                    : setLook({ kind: "task", id: task.id, text: task.name }))}
-            />`)}
-            ${pending.map((row) => html`
-                <${Row} key=${`local-${row.key}`} item=${row} />
-                ${row.state === "queued" && live && live.transport === "stream" && html`
-                    <${TakeBack} key=${`back-${row.key}`} row=${row} name=${name} exec=${exec}
-                                 onGone=${(key) => setLocal((was) => was.filter((l) => l.key !== key))}
-                                 onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />
-                `}
-            `)}
+            <${FeedGrid}
+                rows=${rows(feed)}
+                wide=${wide}
+                onOpen=${(g) => setCalls(callsOf(g, feed, runCalls, turnCalls))}
+                row=${(item, n) => html`<${Row}
+                    key=${`${item.pos}-${n}`}
+                    item=${item}
+                    session=${name}
+                    id=${id}
+                    copies=${copies}
+                    onPage=${(card) => setLook({ kind: "artifact", card })}
+                    onFile=${(file) => setLook({ kind: "file", ...file })}
+                    onBrief=${openBrief}
+                    onCommand=${(row) => setLook({ kind: "command", item: row })}
+                    onTask=${(task) => (task.agent
+                        ? openAgent({ id: task.id, name: task.name, kind: "background" })
+                        : setLook({ kind: "task", id: task.id, text: task.name }))}
+                />`}
+                tail=${pending.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
+                    <${Row} item=${row} />
+                    ${row.state === "queued" && live && live.transport === "stream" && html`
+                        <${TakeBack} row=${row} name=${name} exec=${exec}
+                                     onGone=${(key) => setLocal((was) => was.filter((l) => l.key !== key))}
+                                     onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />
+                    `}
+                ` }))}
+            />
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
         `}

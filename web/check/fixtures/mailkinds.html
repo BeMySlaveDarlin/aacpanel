@@ -1,51 +1,49 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<div id="root"></div>
+<div class="shell"><div class="body" id="root"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // The three kinds of letter a session gets among the prompts: a neighbour
 // session, a subagent of its own, and a hook of the session speaking at the end
-// of a turn. All three are drawn as letters; what differs is the word on the
-// head, the rail and, for the hook, its colour.
+// of a turn. All three are cards of the build of the files sent to the person;
+// what differs is the word on the head, who signs it and, for the hook, the
+// colour of its mark. The report of the subagent is long and comes indented.
 import { h, render } from "preact";
 import { Row } from "/src/screens/chat/rows.js";
-
 const at = "2026-09-17T20:17:00Z";
 const items = [
     { role: "mail", from: "harness-rework", source: "session", pos: 10, at,
       text: "Four sets green; waiting on adapter-contracts." },
     { role: "mail", from: "aecca89632fbfe14e", source: "agent", pos: 20, at,
-      text: "Both commands went through, nothing skipped." },
+      text: "  ## Result\n  \n  Both commands went through, nothing skipped.\n  \n  | step | took |\n  |---|---|\n  | build | 12s |\n  | check | 45s |" },
     { role: "mail", from: "router", source: "hook", pos: 30, at,
       text: "the router did not pass: ask the question first." },
 ];
-
-render(h("div", { class: "feed" }, items.map((item) => h(Row, { item, key: item.pos }))),
+render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: item.pos }))),
     document.getElementById("root"));
-
 (async () => {
   try {
     await new Promise((r) => setTimeout(r, 200));
-    const rows = Array.from(document.querySelectorAll(".mmail")).map((el) => {
-        const head = el.querySelector(".mmhead");
-        const rail = getComputedStyle(el).boxShadow;
-        return {
-            cls: el.className,
-            from: (el.querySelector(".mmfrom") || {}).textContent || "",
-            kind: (el.querySelector(".mmkind") || {}).textContent || "",
-            peek: (el.querySelector(".mmpeek") || {}).textContent || "",
-            rail,
-            open: el.classList.contains("open"),
-        };
-    });
-    // A letter opens on a press and shows the words themselves.
-    const first = document.querySelector(".mmail .mmhead");
-    first.click();
+    const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+    const rows = Array.from(document.querySelectorAll(".mletter")).map((el) => ({
+        cls: el.className,
+        label: text(el.querySelector(".sentlabel")),
+        from: text(el.querySelector(".mletterwho")),
+        peek: text(el.querySelector(".mletterbody")),
+        icon: getComputedStyle(el.querySelector(".sentico")).color,
+        more: Boolean(el.querySelector(".mlettermore")),
+        tables: el.querySelectorAll(".mdtab").length,
+    }));
+    // The report opens on a press of the row under it and shows the rest,
+    // its table drawn as a table: the indent it came with is gone.
+    const report = document.querySelectorAll(".mletter")[1];
+    report.querySelector(".mlettermore").click();
     await new Promise((r) => setTimeout(r, 120));
     const opened = {
-        open: document.querySelector(".mmail").classList.contains("open"),
-        body: (document.querySelector(".mmail .mmbody") || {}).textContent || "",
+        open: report.classList.contains("open"),
+        body: text(report.querySelector(".mletterbody")),
+        tables: report.querySelectorAll(".mdtab").length,
     };
     window.done = { rows, opened };
   } catch (err) {

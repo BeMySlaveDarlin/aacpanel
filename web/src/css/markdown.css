@@ -1,4 +1,9 @@
-/* Markdown of model answers: quotes, code, headings, tables. */
+/* Markdown of model answers: quotes, code, headings, tables.
+
+   A block is one of two kinds. Code is recessed: it lies on the code ground,
+   text to copy rather than to read around. A table is raised, a plate of
+   glass like the cards of the feed. Either carries its copy button over its
+   top right corner, quiet and always there, and neither has a bar of its own. */
 
 .msg code {
     font-family: var(--code);
@@ -14,13 +19,14 @@
 
 .msg b { font-weight: 700; }
 
-.mdh { font-family: var(--sans); font-weight: 700; color: var(--ink); margin: .9rem 0 .45rem; line-height: 1.3; }
+.mdh { font-family: var(--sans); font-weight: 700; color: var(--ink); margin: var(--s3) 0 var(--s2); line-height: 1.3; }
 .mdh1 { font-size: var(--t-lg); }
 .mdh2 { font-size: var(--t-base); }
 .mdh3 { font-size: var(--t-md); color: var(--ink-dim); }
+.msg > .mdh:first-child { margin-top: 0; }
 
-.mdlist { margin: .2rem 0 .8rem; padding-left: 1.3rem; }
-.mdlist li { margin-bottom: .45rem; }
+.mdlist { margin: 0 0 var(--s3); padding-left: 1.3rem; }
+.mdlist li { margin-bottom: var(--s1); }
 .mdlist li::marker { color: var(--ink-faint); }
 
 .mdrule { height: 1px; background: var(--line); margin: .6rem 0; }
@@ -32,31 +38,50 @@
     color: var(--ink-dim);
 }
 
+/* Code in a line is copied by a tap; a path opens its file instead. The word
+   "copied" stands over the line the finger touched. */
+code.copyable { cursor: copy; transition: background-color .2s; }
+code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent); color: var(--ink); }
+.copiedtip {
+    position: fixed;
+    z-index: 60;
+    transform: translate(-50%, -100%);
+    padding: .3rem .55rem;
+    border-radius: var(--r-pill);
+    background: var(--toast-bg);
+    box-shadow: var(--toast-drop), inset 0 0 0 var(--hair) var(--edge);
+    font: 600 var(--t-xs)/1 var(--sans);
+    letter-spacing: .02em;
+    color: var(--ok);
+    white-space: nowrap;
+    pointer-events: none;
+}
+.copiedtip.bad { color: var(--crit); }
+
+/* ---- code ---- */
+
 .mdcode {
-    background: var(--code-bg);
-    border: var(--hair) solid var(--line);
+    position: relative;
+    margin: var(--s2) 0 var(--s3);
     border-radius: var(--r-card);
-    margin: .35rem 0 .5rem;
+    background: var(--code-bg);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
     overflow: hidden;
 }
 
-.mdbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: .5rem;
-    padding: .1rem .25rem .1rem .55rem;
-    border-bottom: var(--hair) solid var(--line);
-    min-height: 1.6rem;
+.mdcode pre {
+    margin: 0;
+    padding: .6rem .8rem;
+    overflow-x: auto;
+    tab-size: 4;
 }
 
-.mdlang {
-    font-family: var(--code);
-    font-size: var(--t-xs);
-    color: var(--ink-faint);
-}
+.mdcode code { font-size: var(--t-sm); line-height: 1.55; color: var(--ink-dim); white-space: pre; }
 
-.mdcode pre { margin: 0; padding: .5rem .55rem; overflow-x: auto; }
+/* One line is a command to run: it keeps the room of the button at its end
+   and wraps rather than sliding under it. */
+.mdcode.oneline pre { padding-right: 2.8rem; }
+.mdcode.oneline code { color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .mdcopy {
     flex: 0 0 auto;
@@ -74,36 +99,98 @@
 
 .mdcopy svg { width: var(--i-sm); height: var(--i-sm); }
 .mdcopy:active { background: rgba(var(--tint), .12); color: var(--ink); }
-.mdcode code { font-size: var(--t-sm); line-height: 1.5; color: var(--ink-dim); white-space: pre; }
+
+/* The copy button of a block lies over its corner: half seen through, with
+   the text under it blurred rather than struck through. */
+:is(.mdcode, .mdtab) > .mdcopy {
+    position: absolute;
+    top: .3rem;
+    right: .3rem;
+    z-index: 1;
+    height: 1.9rem;
+    background: color-mix(in srgb, var(--void) 62%, transparent);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    color: var(--ink-dim);
+    opacity: .78;
+}
+:is(.mdcode, .mdtab) > .mdcopy:active { opacity: 1; color: var(--ink); background: var(--glass-2); }
+:is(.mdcode, .mdtab) > .mdcopy svg { width: var(--i-sm); height: var(--i-sm); }
+
+/* The colours of code are the tokens of the panel and nothing of their own. */
+.hl-com, .hl-op, .hl-meta { color: var(--ink-faint); }
+.hl-kw, .hl-typ, .hl-hunk { color: var(--ctx-3); }
+.hl-str { color: var(--accent-2); }
+.hl-num, .hl-lit { color: var(--cat-skills); }
+.hl-fn, .hl-cmd { color: var(--ink); }
+.hl-cmd { font-weight: 600; }
+.hl-key, .hl-var { color: var(--accent); }
+.hl-flag { color: var(--ink-dim); }
+.hl-add { color: var(--ok); }
+.hl-del { color: var(--crit); }
+
+/* ---- tables ---- */
+
+.mdtab {
+    position: relative;
+    margin: var(--s2) 0 var(--s3);
+    border-radius: var(--r-card);
+    background: var(--glass);
+    box-shadow: var(--hairline), inset 0 0 0 var(--hair) var(--line);
+    overflow: hidden;
+}
 
 /* A table has a width of its own, and it is the one block of an answer that
-   can want more than the screen. Three rules keep it readable. A column has a
-   ceiling, so one long sentence cannot set the width of the table; a cell
-   wraps at that ceiling; and a word is broken only when the word itself — a
-   path, a URL — is wider than its column, which is what used to push the page
-   sideways. What is still wider than the screen scrolls inside its own box,
-   never taking the page along. */
-.mdtable { overflow-x: auto; overscroll-behavior-x: contain; max-width: 100%; margin: .35rem 0 .5rem; }
+   can want more than the screen. A column has a ceiling, so one long sentence
+   cannot set the width of the table; a cell wraps at that ceiling; and a word
+   is broken only when the word itself — a path, a URL — is wider than its
+   column. What is still wider than the plate scrolls inside it, never taking
+   the page along. A table of two or three columns fits the width instead. */
+.mdtable { overflow-x: auto; overscroll-behavior-x: contain; max-width: 100%; }
 .mdtable table {
     border-collapse: collapse;
-    font-size: var(--t-base);
-    line-height: 1.42;
+    font-size: var(--t-sm);
+    line-height: 1.45;
     /* By what is in it, not by what is around it: a table left to itself
        shrinks to its box and rations the width away from whichever column can
        wrap, so a column of prose beside a column of paths becomes a ladder. */
     width: max-content;
+    min-width: 100%;
 }
+.mdtab.mdfit table { width: 100%; }
 .mdtable th, .mdtable td {
-    border: var(--hair) solid var(--line);
-    padding: .34rem .55rem;
+    border: 0;
+    padding: .45rem .8rem .45rem 0;
     text-align: left;
-    max-width: 24em;
+    vertical-align: top;
+    max-width: 22em;
     /* Broken only where a word alone is wider than its column. Breaking
        anywhere instead counts a column as one letter wide when the widths are
        worked out, and a table of five columns comes out a ladder of letters. */
     overflow-wrap: break-word;
 }
-.mdtable th { color: var(--ink-faint); font-weight: 600; }
+.mdtable :is(th, td):first-child { padding-left: .8rem; }
+.mdtable th:last-child { padding-right: 2.8rem; }
+.mdtable thead th {
+    background: rgba(var(--tint), .06);
+    box-shadow: inset 0 calc(-1 * var(--hair)) 0 var(--edge);
+    color: var(--ink);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.mdtab.mdfit thead th { white-space: normal; }
+.mdtable td { color: var(--ink-dim); }
+.mdtable td b { color: var(--ink); }
+.mdtable tbody tr + tr td { box-shadow: inset 0 var(--hair) 0 var(--line); }
+.mdtable :is(th, td).mdnum { text-align: right; }
+.mdtable td.mdnum {
+    font-family: var(--mono);
+    font-size: .9em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--ink);
+}
 
 @media (min-width: 1100px) {
     .deskshell .mdtable {
@@ -113,12 +200,3 @@
 }
 
 .msg a { color: var(--accent); }
-
-.mdblock { margin: .35rem 0 .5rem; }
-.mdblock > .mdtable, .mdblock > .mdlist { margin-top: 0; }
-
-.mdtools {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: .1rem;
-}

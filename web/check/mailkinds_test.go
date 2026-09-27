@@ -6,65 +6,80 @@ import (
 )
 
 type mailRow struct {
-	Cls  string `json:"cls"`
-	From string `json:"from"`
-	Kind string `json:"kind"`
-	Peek string `json:"peek"`
-	Rail string `json:"rail"`
-	Open bool   `json:"open"`
+	Cls    string `json:"cls"`
+	Label  string `json:"label"`
+	From   string `json:"from"`
+	Peek   string `json:"peek"`
+	Icon   string `json:"icon"`
+	More   bool   `json:"more"`
+	Tables int    `json:"tables"`
 }
 
 type mailShot struct {
+	Error  string    `json:"error"`
 	Rows   []mailRow `json:"rows"`
 	Opened struct {
-		Open bool   `json:"open"`
-		Body string `json:"body"`
+		Open   bool   `json:"open"`
+		Body   string `json:"body"`
+		Tables int    `json:"tables"`
 	} `json:"opened"`
 }
 
 // A session next door, a subagent of this session and a hook of it all arrive
 // among the prompts wrapped in a preamble that says the same thing every time.
-// The feed draws the three as letters — one line saying who, the words under
-// it — so what is read is what was said rather than the wrapping.
+// The feed draws the three as cards of the build of the files sent to the
+// person — who and when on the head, the first lines of the letter under it,
+// the rest behind a row — so what is read is what was said rather than the
+// wrapping.
 func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 	var shot mailShot
 	runFixture(t, "mailkinds.html", &shot)
+	if shot.Error != "" {
+		t.Fatal(shot.Error)
+	}
 
 	if len(shot.Rows) != 3 {
 		t.Fatalf("%d letters drawn, wanted three: %+v", len(shot.Rows), shot.Rows)
 	}
-	for i, want := range []struct{ kind, from string }{
-		{"session", "harness-rework"},
-		{"agent", "aecca89632fbfe14e"},
-		{"hook", "router"},
+	for i, want := range []struct{ kind, label, from, peek string }{
+		{"session", "from session", "harness-rework", "Four sets green"},
+		{"agent", "from subagent", "aecca89632fbfe14e", "Both commands went through, nothing skipped."},
+		{"hook", "stop hook", "", "the router did not pass"},
 	} {
 		got := shot.Rows[i]
-		if got.Kind != want.kind {
-			t.Errorf("letter %d is headed %q, wanted %q", i, got.Kind, want.kind)
+		if !strings.Contains(got.Cls, "sent") || !strings.Contains(got.Cls, "k-"+want.kind) {
+			t.Errorf("letter %d carries the classes %q: not a card, or its kind is lost", i, got.Cls)
+		}
+		if got.Label != want.label {
+			t.Errorf("letter %d is headed %q, wanted %q", i, got.Label, want.label)
 		}
 		if got.From != want.from {
-			t.Errorf("letter %d comes from %q, wanted %q", i, got.From, want.from)
+			t.Errorf("letter %d is signed %q, wanted %q", i, got.From, want.from)
 		}
-		if !strings.Contains(got.Cls, want.kind) {
-			t.Errorf("letter %d carries the classes %q, and %q is not among them — the rail cannot differ",
-				i, got.Cls, want.kind)
-		}
-		if got.Peek == "" {
-			t.Errorf("letter %d shows no peek: a closed letter says nothing about itself", i)
+		if !strings.HasPrefix(got.Peek, want.peek) {
+			t.Errorf("letter %d closed says %q: a closed letter says what it is about", i, got.Peek)
 		}
 	}
+	if report := shot.Rows[1]; !report.More || report.Tables != 0 || strings.Contains(report.Peek, "Result") {
+		t.Errorf("the closed report shows %q with %d tables, a row to open it: %v — its lead is the first paragraph after the heading",
+			report.Peek, report.Tables, report.More)
+	}
+	if shot.Rows[0].More {
+		t.Error("a letter said whole on its card still offers a row to open it")
+	}
 
-	// The hook is not a correspondent, and its rail says so.
-	if shot.Rows[2].Rail == shot.Rows[0].Rail {
-		t.Errorf("the hook and the neighbour session are drawn with the same rail (%q) — "+
-			"a blocked turn reads as a letter", shot.Rows[2].Rail)
+	// The hook is not a correspondent, and its mark says so.
+	if shot.Rows[2].Icon == shot.Rows[0].Icon {
+		t.Errorf("the hook and the neighbour session are marked in the same colour (%q) — "+
+			"a blocked turn reads as a letter", shot.Rows[2].Icon)
 	}
 
 	if !shot.Opened.Open {
-		t.Fatal("a press did not open the letter")
+		t.Fatal("a press on the row did not open the letter")
 	}
-	if !strings.Contains(shot.Opened.Body, "adapter-contracts") {
-		t.Errorf("the opened letter does not carry what was said: %q", shot.Opened.Body)
+	if !strings.Contains(shot.Opened.Body, "45s") || shot.Opened.Tables != 1 {
+		t.Errorf("the opened report shows %q with %d tables: the indent it came with broke its table",
+			shot.Opened.Body, shot.Opened.Tables)
 	}
 }
 
@@ -101,8 +116,8 @@ func TestALetterThatReachedNobodySaysSo(t *testing.T) {
 	if lost.MarkColor == "" || lost.MarkColor == shot.QuietColor {
 		t.Errorf("the mark of the refused letter is drawn in %q, the colour of the quiet words beside it", lost.MarkColor)
 	}
-	if lost.Peek != "salta" {
-		t.Errorf("the closed refused letter peeks %q instead of its words", lost.Peek)
+	if lost.Peek != "salta" || lost.From != "coordinator" {
+		t.Errorf("the closed refused letter to %q says %q instead of its words", lost.From, lost.Peek)
 	}
 	if lost.Why != "" {
 		t.Errorf("the reason stands on a closed letter: %q", lost.Why)

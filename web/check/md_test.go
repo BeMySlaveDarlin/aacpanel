@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"aacpanel/internal/webbuild"
@@ -20,49 +21,47 @@ func TestMarkdownListSurvivesBlankLinesBetweenItems(t *testing.T) {
 		{
 			"items through a blank line — one list",
 			"## What is missing\n1. **A live session.** There is no profile.\n\n2. **Permissions.** This one is live.\n\n3. **Node 22.** Check it.",
-			`<div class="mdh mdh2">What is missing</div>` + listBlock(
-				"1. **A live session.** There is no profile.\n2. **Permissions.** This one is live.\n3. **Node 22.** Check it.",
-				`<ol class="mdlist" start="1"><li><b>A live session.</b> There is no profile.</li>`+
-					`<li><b>Permissions.</b> This one is live.</li><li><b>Node 22.</b> Check it.</li></ol>`),
+			`<div class="mdh mdh2">What is missing</div>` + plainList(`<ol class="mdlist" start="1"><li><b>A live session.</b> There is no profile.</li>`+
+				`<li><b>Permissions.</b> This one is live.</li><li><b>Node 22.</b> Check it.</li></ol>`),
 		},
 		{
 			"a tight list — the same",
 			"1. a\n2. b\n3. c",
-			listBlock("1. a\n2. b\n3. c", `<ol class="mdlist" start="1"><li>a</li><li>b</li><li>c</li></ol>`),
+			plainList(`<ol class="mdlist" start="1"><li>a</li><li>b</li><li>c</li></ol>`),
 		},
 		{
 			"several blank lines in a row — one list",
 			"1. a\n\n\n\n2. b\n\n",
-			listBlock("1. a\n2. b", `<ol class="mdlist" start="1"><li>a</li><li>b</li></ol>`),
+			plainList(`<ol class="mdlist" start="1"><li>a</li><li>b</li></ol>`),
 		},
 		{
 			"a list that does not start at one gets start",
 			"3. c\n4. d",
-			listBlock("3. c\n4. d", `<ol class="mdlist" start="3"><li>c</li><li>d</li></ol>`),
+			plainList(`<ol class="mdlist" start="3"><li>c</li><li>d</li></ol>`),
 		},
 		{
 			"a bulleted list through a blank line — one list",
 			"- a\n\n- b",
-			listBlock("- a\n- b", `<ul class="mdlist"><li>a</li><li>b</li></ul>`),
+			plainList(`<ul class="mdlist"><li>a</li><li>b</li></ul>`),
 		},
 		{
 			"a paragraph between items — two lists, the numbering continues",
 			"1. a\n\na paragraph between\n\n2. b",
-			listBlock("1. a", `<ol class="mdlist" start="1"><li>a</li></ol>`) + `<p>a paragraph between</p>` +
-				listBlock("2. b", `<ol class="mdlist" start="2"><li>b</li></ol>`),
+			plainList(`<ol class="mdlist" start="1"><li>a</li></ol>`) + `<p>a paragraph between</p>` +
+				plainList(`<ol class="mdlist" start="2"><li>b</li></ol>`),
 		},
 		{
 			"bullets under a numbered item — a list of their own, the numbering continues",
 			"1. Step\n   - detail\n   - detail\n2. Step",
-			listBlock("1. Step", `<ol class="mdlist" start="1"><li>Step</li></ol>`) +
-				listBlock("   - detail\n   - detail", `<ul class="mdlist"><li>detail</li><li>detail</li></ul>`) +
-				listBlock("2. Step", `<ol class="mdlist" start="2"><li>Step</li></ol>`),
+			plainList(`<ol class="mdlist" start="1"><li>Step</li></ol>`) +
+				plainList(`<ul class="mdlist"><li>detail</li><li>detail</li></ul>`) +
+				plainList(`<ol class="mdlist" start="2"><li>Step</li></ol>`),
 		},
 		{
 			"a list of another kind through a blank line — not the same list",
 			"1. a\n\n- b",
-			listBlock("1. a", `<ol class="mdlist" start="1"><li>a</li></ol>`) +
-				listBlock("- b", `<ul class="mdlist"><li>b</li></ul>`),
+			plainList(`<ol class="mdlist" start="1"><li>a</li></ol>`) +
+				plainList(`<ul class="mdlist"><li>b</li></ul>`),
 		},
 	}
 	texts := make([]string, 0, len(cases))
@@ -77,24 +76,27 @@ func TestMarkdownListSurvivesBlankLinesBetweenItems(t *testing.T) {
 	}
 }
 
-func TestCodeBlockCarriesCopyButton(t *testing.T) {
+// A block of code is the code and its copy button, with no bar over it: the
+// button lies over the corner (see feedblocks_test.go). The code element is
+// drawn by a component, so it is its text that stands in the pre here.
+func TestCodeBlockCarriesItsCopyButtonWithoutABar(t *testing.T) {
 	cases := []struct {
 		name, in, want string
 	}{
 		{
-			"a block with a language: bar, button, code",
-			"```go\nfmt.Println(1)\n```",
-			`<div class="mdcode">` + bar("go") + `<pre><code>fmt.Println(1)</code></pre></div>`,
+			"a block with a language: the code and the button",
+			"```go\nfmt.Println(1)\nfmt.Println(2)\n```",
+			`<div class="mdcode"><pre>fmt.Println(1)` + "\n" + `fmt.Println(2)</pre>` + copyBtn("", "Copy the code") + `</div>`,
 		},
 		{
-			"a block with no language: bar and button all the same",
+			"a block of one line is a command: it says so for the room of its button",
 			"```\ndocker compose up -d\n```",
-			`<div class="mdcode">` + bar("") + `<pre><code>docker compose up -d</code></pre></div>`,
+			`<div class="mdcode oneline"><pre>docker compose up -d</pre>` + copyBtn("", "Copy the code") + `</div>`,
 		},
 		{
 			"an unclosed block runs to the end and carries a button too",
 			"```sh\ncd /srv",
-			`<div class="mdcode">` + bar("sh") + `<pre><code>cd /srv</code></pre></div>`,
+			`<div class="mdcode oneline"><pre>cd /srv</pre>` + copyBtn("", "Copy the code") + `</div>`,
 		},
 	}
 
@@ -110,28 +112,35 @@ func TestCodeBlockCarriesCopyButton(t *testing.T) {
 	}
 }
 
-func TestTableAndListCopyTheirMarkdown(t *testing.T) {
+// A table copies its markdown whole; a list is prose, copied by selecting it,
+// and carries no button.
+func TestATableCopiesItsMarkdownAndAListIsProse(t *testing.T) {
 	cases := []struct {
 		name, in, want string
 	}{
 		{
 			"table: data-md keeps the header, the separator and the rows",
 			"| # | what |\n|---|---|\n| 374 | the map |",
-			tableBlock("| # | what |\n|---|---|\n| 374 | the map |",
-				`<div class="mdtable"><table><thead><tr><th>#</th><th>what</th></tr></thead>`+
-					`<tbody><tr><td>374</td><td>the map</td></tr></tbody></table></div>`),
+			`<div class="mdtab mdfit"><div class="mdtable"><table><thead><tr><th class="mdnum">#</th><th>what</th></tr></thead>` +
+				`<tbody><tr><td class="mdnum">374</td><td>the map</td></tr></tbody></table></div>` +
+				copyBtn("| # | what |\n|---|---|\n| 374 | the map |", "Copy the table") + `</div>`,
 		},
 		{
-			"list: the bullets stay in place in data-md",
+			"a table of more than three columns keeps its own width",
+			"| a | b | c | d |\n|---|---|---|---|\n| w | x | y | z |",
+			`<div class="mdtab"><div class="mdtable"><table><thead><tr><th>a</th><th>b</th><th>c</th><th>d</th></tr></thead>` +
+				`<tbody><tr><td>w</td><td>x</td><td>y</td><td>z</td></tr></tbody></table></div>` +
+				copyBtn("| a | b | c | d |\n|---|---|---|---|\n| w | x | y | z |", "Copy the table") + `</div>`,
+		},
+		{
+			"list: no button, no block around it",
 			"- bring up libvirtd\n- unpack the image",
-			listBlock("- bring up libvirtd\n- unpack the image",
-				`<ul class="mdlist"><li>bring up libvirtd</li><li>unpack the image</li></ul>`),
+			`<ul class="mdlist"><li>bring up libvirtd</li><li>unpack the image</li></ul>`,
 		},
 		{
-			"a numbered list is copied with its own numbers",
+			"a numbered list keeps its own numbers",
 			"3. third\n4. fourth",
-			listBlock("3. third\n4. fourth",
-				`<ol class="mdlist" start="3"><li>third</li><li>fourth</li></ol>`),
+			`<ol class="mdlist" start="3"><li>third</li><li>fourth</li></ol>`,
 		},
 	}
 
@@ -147,19 +156,76 @@ func TestTableAndListCopyTheirMarkdown(t *testing.T) {
 	}
 }
 
-func bar(lang string) string {
-	return `<div class="mdbar"><span class="mdlang">` + lang + `</span>` +
-		copyBtn("", "Copy the code") + `</div>`
+// A column of numbers is told by what its cells hold, not by its name: every
+// cell that says something starts with a number and carries nothing but what
+// numbers are written with and short units; a dash is no cell at all. Such a
+// column is set right in the code face, and so is one the markdown aligns
+// right itself.
+func TestANumberColumnIsToldByWhatItHolds(t *testing.T) {
+	cases := []struct {
+		name  string
+		cells []string
+		want  bool
+	}{
+		{"counts", []string{"3261", "**1**"}, true},
+		{"a diff of lines and a dash", []string{"—", "`+37 / −3308`"}, true},
+		{"durations and sizes with units", []string{"28m 1s", "12 KB", "6.2 ms"}, true},
+		{"a unit in another script is a unit too", []string{"345 \u041a\u0411", "7 \u043c\u0441"}, true},
+		{"task numbers are names", []string{"#657", "#673"}, false},
+		{"a number with words after it is a phrase", []string{"345 dialogs", "12 files"}, false},
+		{"one phrase among numbers spoils the column", []string{"12", "3 of 5"}, false},
+		{"a column of dashes says nothing", []string{"—", "-"}, false},
+	}
+	texts := make([]string, 0, len(cases)+1)
+	for _, c := range cases {
+		md := "| n |\n|---|\n"
+		for _, cell := range c.cells {
+			md += "| " + cell + " |\n"
+		}
+		texts = append(texts, md)
+	}
+	texts = append(texts, "| name | n |\n|---|--:|\n| a | many |")
+	got := runMarkdownJS(t, texts)
+	for i, c := range cases {
+		if numeric := strings.Contains(got[i], `<th class="mdnum">`); numeric != c.want {
+			t.Errorf("%s %q: numeric %v, want %v:\n  %s", c.name, c.cells, numeric, c.want, got[i])
+		}
+	}
+	last := got[len(cases)]
+	if !strings.Contains(last, `<th class="mdnum">n</th>`) || strings.Contains(last, `<th class="mdnum">name</th>`) {
+		t.Errorf("a column the markdown aligns right is not set right, or the one beside it is: %s", last)
+	}
 }
 
-func listBlock(md, inner string) string {
-	return `<div class="mdblock"><div class="mdtools">` +
-		copyBtn(md, "Copy the list") + `</div>` + inner + `</div>`
+// A letter a subagent writes arrives two spaces in as a whole, and its tables
+// and fences do not start a line; the indent the letter came with is taken
+// off before it is read. Its lead is the first paragraph after the headings.
+func TestALetterLosesTheIndentItCameWith(t *testing.T) {
+	got := runModuleJS(t, "src/md.js", "dedent", [][]any{
+		{"  ## Result\n  \n  | a | b |\n  |---|---|\n    nested"},
+		{"flush\n  indented"},
+		{""},
+	})
+	want := []string{"## Result\n\n| a | b |\n|---|---|\n  nested", "flush\n  indented", ""}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("dedent %d: %q, want %q", i, got[i], want[i])
+		}
+	}
+	leads := runModuleJS(t, "src/md.js", "leadOf", [][]any{
+		{"## Result\n\nDone, both green.\nNothing skipped.\n\n| a |\n|---|"},
+		{"| a |\n|---|\n| 1 |"},
+	})
+	if leads[0] != "Done, both green.\nNothing skipped." {
+		t.Errorf("the lead of a letter under a heading is %q", leads[0])
+	}
+	if leads[1] != "| a |" {
+		t.Errorf("a letter that opens with a table leads with %q", leads[1])
+	}
 }
 
-func tableBlock(md, inner string) string {
-	return `<div class="mdblock"><div class="mdtools">` +
-		copyBtn(md, "Copy the table") + `</div>` + inner + `</div>`
+func plainList(inner string) string {
+	return inner
 }
 
 func copyBtn(md, label string) string {

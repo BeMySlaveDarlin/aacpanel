@@ -18,11 +18,14 @@ func TestFeedsWireCodeCopy(t *testing.T) {
 		if !strings.Contains(src, "codecopy.fromClick(event, toast)") {
 			t.Errorf("%s: the feed does not call code copying — the button in the block is drawn but dead", feed)
 		}
+		if !strings.Contains(src, "codecopy.fromInline(event)") {
+			t.Errorf("%s: the feed does not copy code in a line on a tap — the command the agent asks to run is to be selected by hand", feed)
+		}
 	}
 
-	block := cssBlockFile(t, "src/css/markdown.css", ".mdbar")
-	if !strings.Contains(block, "display: flex") {
-		t.Error(".mdbar has no display: flex — the copy button slides under the block language")
+	block := cssBlockFile(t, "src/css/markdown.css", ":is(.mdcode, .mdtab) > .mdcopy")
+	if !strings.Contains(block, "position: absolute") {
+		t.Error("the copy button of a block is not laid over its corner — it takes a bar of its own over every block again")
 	}
 }
 
@@ -107,7 +110,7 @@ func TestOwnReplyKeepsLineBreaks(t *testing.T) {
 	if !regexp.MustCompile(`render\(\s*item\.text\s*,\s*\{\s*breaks:\s*mine\s*\}`).MatchString(row) {
 		t.Errorf("%s: the reply is rendered without hard breaks — three paragraphs become one again", chatFile)
 	}
-	mail := jsBlock(t, chatFile, screen, "function Mail(")
+	mail := jsBlock(t, chatFile, screen, "function Letter(")
 	if strings.Contains(mail, "breaks") {
 		t.Errorf("%s: the mail asks for hard breaks — the rule about a person reply spread onto foreign markup", chatFile)
 	}
