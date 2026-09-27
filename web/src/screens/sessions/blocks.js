@@ -29,6 +29,15 @@ export const QUIET_MAX = 5;
 // restart opens with. The card is named by the last one that says something.
 const ABOUT_MIN = 12;
 
+// unchecked says why a session on the stream runs a claude the feed was not
+// checked on: claude updates itself, and a new version can change a request
+// the feed depends on without a word. Empty when there is nothing to say.
+export function unchecked(session, checked) {
+    if (session.transport !== "stream" || !session.version) return "";
+    if (checked === session.version) return "";
+    return `claude ${session.version} is not checked for the feed`;
+}
+
 // stateOf says what a live session is doing, in the words and the tone of the
 // row that shows it.
 export function stateOf(s) {
@@ -151,7 +160,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
 
 // ProjectBlock is one project: its name, a new session in it, its live
 // sessions and its last conversation.
-export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProject }) {
+export function ProjectBlock({ block, exec, wait, notes, checked, onOpen, onMore, onProject }) {
     const run = useAction();
     const project = block.project;
     const canNew = project && !block.home;
@@ -175,7 +184,7 @@ export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProje
             </div>
             ${block.live.map((s) => html`
                 <${LiveLine} key=${s.session} session=${s} named=${block.live.length > 1 || s.session !== (project && project.session)}
-                             notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
+                             notes=${notes && notes.get(s.session)} checked=${checked} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
             `)}
             ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
             ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
@@ -185,7 +194,7 @@ export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProje
 
 // LiveLine is a live session inside its project: what it is doing, where it
 // lives, how full it is, and the button of what can be done to it.
-export function LiveLine({ session, named, notes, wait, onOpen, onMore }) {
+export function LiveLine({ session, named, notes, checked, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const closing = wait ? wait.of("close", session.session) : null;
     const restarting = wait ? wait.of("restart", session.session) : null;
@@ -208,7 +217,7 @@ export function LiveLine({ session, named, notes, wait, onOpen, onMore }) {
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
         </div>
-        ${(notes || []).map((note) => html`<div class="pjnote" key=${note}>${note}</div>`)}
+        ${[...(notes || []), unchecked(session, checked)].filter(Boolean).map((note) => html`<div class="pjnote" key=${note}>${note}</div>`)}
     `;
 }
 
