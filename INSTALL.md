@@ -540,6 +540,7 @@ The rest is optional and one at a time, because it is data:
 | the panel does not open | `docker compose logs aacpanel`, `docker compose ps` |
 | the screens are empty, "the collector is not writing" | `journalctl -u "aacpanel-agent@$USER" -f`; most often a wrong `AACP_REPO` |
 | "the executor is unavailable" | `journalctl --user -u aacpanel-exec -f`; linger; the socket must belong to the uid from `AACP_UID` |
+| the panel is down and a session in the feed is needed | `~/bin/aacpanel-exec -sessions` names the sessions on the stream, `~/bin/aacpanel-exec -console <name>` moves one into tmux under the same account, then `tmux attach -t <name>`; the holders outlive a restart of the executor |
 | the token is accepted, but the sign-in screen comes back empty | a cookie with `Secure` was dropped over http: an address without a certificate needs `AACP_SECURE=0` |
 | the "cookie without Secure" chip in the header | the panel is opened over https while `AACP_SECURE=0` stayed: remove the line and recreate the container |
 | a session opens without a window | an empty `AACP_TERMINAL` or a machine without `DISPLAY`; the button in the conversation header will open a window where there are graphics |
