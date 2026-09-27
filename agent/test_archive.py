@@ -628,3 +628,88 @@ class Threads(unittest.TestCase):
         with open(self.index.path, encoding="utf-8") as f:
             saved = json.load(f)
         self.assertGreaterEqual(len(saved["scanned"]), 4000, "the written index lost what it had")
+
+
+class Prompts(unittest.TestCase):
+    """What a card says the conversation was about: the person's own last words."""
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+
+    def scan(self, *records):
+        path = os.path.join(self.dir.name, f"{UUID_A}.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            for record in records:
+                f.write(line(record))
+        return archive.scan(path)["prompts"]
+
+    def said(self, text, **extra):
+        return {"type": "user", "timestamp": "2026-09-27T10:00:00Z", "message": {"content": text}, **extra}
+
+    def test_the_last_words_of_the_person_are_kept_in_order(self):
+        got = self.scan(*(self.said(f"message number {n}") for n in range(6)))
+        self.assertEqual(got, [f"message number {n}" for n in range(2, 6)],
+                         "the card keeps the last four the person wrote, oldest first")
+
+    def test_what_the_harness_wrote_is_not_the_person(self):
+        got = self.scan(
+            self.said("reshoot the landing scenes"),
+            self.said("<command-name>/model</command-name>"),
+            self.said("caveat", isMeta=True),
+            self.said("the alarm fired", scheduledTaskId="t1"),
+            self.said("a letter from a neighbour", origin={"kind": "peer"}),
+            {"type": "user", "message": {"content": [{"type": "tool_result", "content": "ok"}]}},
+            self.said("<system-reminder>be brief</system-reminder>"),
+        )
+        self.assertEqual(got, ["reshoot the landing scenes"])
+
+    def test_text_blocks_are_joined_and_the_whitespace_folded(self):
+        got = self.scan({"type": "user", "message": {"content": [
+            {"type": "text", "text": "first\n\n  line"}, {"type": "image"}, {"type": "text", "text": "second"}]}})
+        self.assertEqual(got, ["first line second"])
+
+    def test_a_long_message_is_cut_with_a_mark(self):
+        got = self.scan(self.said("x" * 1000))
+        self.assertEqual(len(got[0]), archive.PROMPT_MAX)
+        self.assertTrue(got[0].endswith("…"))
+
+
+class Under(unittest.TestCase):
+    """The archive of one project: the conversations that ran in its directory or below it."""
+
+    def setUp(self):
+        self.root = test_barrier.tmp_dir()
+        self.addCleanup(self.root.cleanup)
+        self.projects = os.path.join(self.root.name, "projects")
+        self.old = archive.PROJECTS
+        archive.PROJECTS = self.projects
+        self.addCleanup(lambda: setattr(archive, "PROJECTS", self.old))
+        self.index = archive.Index(os.path.join(self.root.name, "index.json"))
+
+    def put(self, slug, uuid, cwd):
+        os.makedirs(os.path.join(self.projects, slug), exist_ok=True)
+        with open(os.path.join(self.projects, slug, f"{uuid}.jsonl"), "w", encoding="utf-8") as f:
+            f.write(line({"type": "user", "timestamp": "2026-09-27T10:00:00Z", "cwd": cwd,
+                          "message": {"content": "hello there"}}))
+
+    def ids(self, under):
+        page = self.index.page(limit=50, under=under)
+        return sorted(r["sessionId"][:1] for r in page["rows"]), page["total"]
+
+    def test_the_project_its_subdirectories_and_nothing_beside_it(self):
+        self.put("-opt-p-ai-platform", "11111111-1111-4111-8111-111111111111", "/opt/p/ai-platform")
+        self.put("-opt-p-ai-platform-docs", "22222222-2222-4222-8222-222222222222", "/opt/p/ai-platform/docs")
+        self.put("-opt-p-ai-platform-x", "33333333-3333-4333-8333-333333333333", "/opt/p/ai-platform-x")
+        self.put("-opt-p-other", "44444444-4444-4444-8444-444444444444", "/opt/p/other")
+        self.assertEqual(self.ids("/opt/p/ai-platform"), (["1", "2"], 2),
+                         "a sibling whose name starts the same came into the project, or its subdirectory stayed out")
+
+    def test_the_directory_is_named_the_way_claude_names_it(self):
+        self.put("-opt-Born-born-shop-ru", "55555555-5555-4555-8555-555555555555", "/opt/Born/born-shop.ru")
+        self.assertEqual(self.ids("/opt/Born/born-shop.ru/"), (["5"], 1))
+
+    def test_without_a_directory_the_whole_archive_is_returned(self):
+        self.put("-opt-p-a", "11111111-1111-4111-8111-111111111111", "/opt/p/a")
+        self.put("-opt-p-b", "22222222-2222-4222-8222-222222222222", "/opt/p/b")
+        self.assertEqual(self.ids(None)[1], 2)

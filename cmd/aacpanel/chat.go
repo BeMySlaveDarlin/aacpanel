@@ -454,6 +454,14 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	picks = append(picks, byID...)
+	if raw := q.Get("project"); raw != "" {
+		under, err := s.projectDir(r.Context(), raw)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Under = under
+	}
 	if len(picks) == 1 {
 		req.Profile = picks[0]
 	} else if len(picks) > 1 {
@@ -467,6 +475,31 @@ func (s *Server) apiSessionsArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	s.placeArchive(r.Context(), page.Rows)
 	writeJSON(w, page)
+}
+
+// projectDir returns the directory of a project of the map by its id.
+func (s *Server) projectDir(ctx context.Context, raw string) (string, error) {
+	id, err := strconv.Atoi(raw)
+	if err != nil || id <= 0 {
+		return "", fmt.Errorf("project %q is not an id of the map", raw)
+	}
+	if s.db == nil {
+		return "", errors.New("the archive of a project needs the map, and the database is not configured")
+	}
+	list, err := s.db.Profiles(ctx)
+	if err != nil {
+		return "", fmt.Errorf("the map is unavailable: %w", err)
+	}
+	for _, profile := range list {
+		for _, group := range profile.Groups {
+			for _, p := range group.Projects {
+				if p.ID == id {
+					return p.Path, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("there is no project %d in the map — refresh the page", id)
 }
 
 func (s *Server) placeArchive(ctx context.Context, rows []chat.ArchiveRow) {

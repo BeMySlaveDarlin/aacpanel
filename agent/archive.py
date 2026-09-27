@@ -204,7 +204,8 @@ class Index:
         sid = os.path.basename(path)[:-len(".jsonl")]
         with self.lock:
             was = self.scanned.get(sid)
-            if was and was.get("size") == size and was.get("mtime") == mtime:
+            # A parse from before the prompts were kept is read again once.
+            if was and was.get("size") == size and was.get("mtime") == mtime and "prompts" in was:
                 if was.get("profile") != profile:
                     was["profile"] = profile
                     self.dirty = True
@@ -245,14 +246,23 @@ class Index:
         at = seconds(seen.get("lastAt"))
         return mtime if at is None else at
 
-    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None):
-        """Returns a page of the archive for the named profiles, the freshest first."""
+    def page(self, limit=DEFAULT_LIMIT, offset=0, skip=(), profile=None, profiles=None, under=None):
+        """Returns a page of the archive for the named profiles, the freshest first.
+
+        With a directory, only the conversations that ran in it or below it: the
+        directory claude keeps a transcript under names the one it ran in, so a
+        directory of the project itself is taken by its name, and one below it,
+        whose name another directory beside the project could share, by what
+        the transcript says.
+        """
         limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
         offset = max(0, int(offset or 0))
         skip = set(skip or ())
 
         wanted = [p for p in (profiles or ()) if p] or ([profile] if profile else [])
         picked = resolve_profiles(wanted)
+        under = (under or "").rstrip("/")
+        own = slug_of(under) if under else ""
 
         files = []
         for contour, root in picked:
@@ -269,6 +279,8 @@ class Index:
                 if st.st_size < 2:
                     continue
                 sid = name[:-len(".jsonl")]
+                if own and not self.ran_under(path, st.st_size, st.st_mtime, contour, under, own):
+                    continue
                 files.append((self.when(sid, path, st.st_size, st.st_mtime),
                               st.st_mtime, st.st_size, path, contour))
         files.sort(key=lambda f: (f[0], f[1], f[3]), reverse=True)
@@ -282,6 +294,53 @@ class Index:
         return {"rows": rows, "total": len(files), "limit": limit, "offset": offset}
 
 
+    def ran_under(self, path, size, mtime, contour, under, own):
+        """Reports whether a transcript ran in a directory or below it."""
+        slug = os.path.basename(os.path.dirname(path))
+        if slug == own:
+            return True
+        if not slug.startswith(own + "-"):
+            return False
+        cwd = (self.entry(path, size, mtime, contour).get("cwd") or "").rstrip("/")
+        return cwd == under or cwd.startswith(under + "/")
+
+
+def slug_of(directory):
+    """Returns the name claude keeps the transcripts of a directory under."""
+    return re.sub(r"[/._]", "-", directory.rstrip("/"))
+
+
+# How many of the person's last messages a card keeps, and how much of each:
+# the screen names the conversation by the last one that says something, and
+# the very last is often a short "go on".
+PROMPTS_KEPT = 4
+PROMPT_MAX = 240
+
+
+def prompt_of(record):
+    """Returns what the person wrote in a record, or an empty string."""
+    # Imported here: the feed imports the archive, and the other way round at
+    # the top of the file would be a circle.
+    from chat.harness import strip_panel_note, unwrap_pasted
+
+    if record.get("type") != "user" or record.get("isMeta") or record.get("scheduledTaskId"):
+        return ""
+    if (record.get("origin") or {}).get("kind") == "peer":
+        return ""
+    content = (record.get("message") or {}).get("content")
+    if isinstance(content, list):
+        if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
+            return ""
+        content = " ".join(b.get("text") or "" for b in content if isinstance(b, dict) and b.get("type") == "text")
+    if not isinstance(content, str):
+        return ""
+    text = strip_panel_note(unwrap_pasted(content.strip())).strip()
+    if not text or text.startswith("<") or "system-reminder" in text[:200] or text.startswith("[Request interrupted"):
+        return ""
+    text = " ".join(text.split())
+    return text if len(text) <= PROMPT_MAX else text[:PROMPT_MAX - 1].rstrip() + "…"
+
+
 def scan(path):
     """Returns everything the archive card needs, in one pass over the transcript."""
     out = {
@@ -290,6 +349,7 @@ def scan(path):
         "tokens": 0, "tokensMax": 0, "tokensIn": 0, "tokensOut": 0,
         "messages": 0, "compacts": 0,
         "stale": False,
+        "prompts": [],
     }
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -314,6 +374,9 @@ def scan(path):
                 out["stale"] = out["tokens"] > 0
             if record.get("type") in ("user", "assistant"):
                 out["messages"] += 1
+            said = prompt_of(record)
+            if said:
+                out["prompts"] = (out["prompts"] + [said])[-PROMPTS_KEPT:]
             out["effort"] = record.get("effort") or out["effort"]
             out["mode"] = record.get("permissionMode") or out["mode"]
             message = record.get("message") or {}
@@ -370,4 +433,5 @@ def present(found, names):
         "lastAt": found.get("lastAt") or "",
         "lastRequestAt": found.get("lastRequestAt") or "",
         "noRequests": not found.get("lastRequestAt"),
+        "prompts": list(found.get("prompts") or []),
     }

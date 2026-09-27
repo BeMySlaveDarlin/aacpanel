@@ -112,6 +112,9 @@ type ArchiveRow struct {
 	LastAt        string          `json:"lastAt,omitempty"`
 	LastRequestAt string          `json:"lastRequestAt,omitempty"`
 	NoRequests    bool            `json:"noRequests,omitempty"`
+	// Prompts are the person's last messages, oldest first: the screen names
+	// the conversation by the last one that says something.
+	Prompts []string `json:"prompts,omitempty"`
 }
 
 // ArchiveProject is the map project the conversation ran in. Session is the
@@ -413,6 +416,9 @@ type ArchiveReq struct {
 	Skip     []string `json:"skip,omitempty"`
 	Profile  string   `json:"profile,omitempty"`
 	Profiles []string `json:"profiles,omitempty"`
+	// Under keeps only the conversations that ran in a directory or below it:
+	// the archive of one project.
+	Under string `json:"under,omitempty"`
 }
 
 // ImageRef says where to find an attachment.

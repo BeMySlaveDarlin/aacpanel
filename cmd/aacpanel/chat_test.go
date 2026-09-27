@@ -921,3 +921,43 @@ func TestDownloadLeavesThePathCheckToTheCollector(t *testing.T) {
 			"of one, and with the wrong one the check means nothing", req.Session)
 	}
 }
+
+func TestArchiveOfAProjectAsksForItsDirectoryPG(t *testing.T) {
+	page := map[string]any{
+		"ok":      true,
+		"archive": map[string]any{"total": 0, "limit": 5, "offset": 0, "rows": []map[string]any{}},
+	}
+	agent := startAgent(t, page)
+	srv, root := profilesServer(t)
+	srv.host = hostWith(t, liveSnapshot)
+	srv.chat = chat.New(agent.path)
+	mux := profilesMux(srv)
+
+	profile := idOf(t, profilePost(t, mux, "/api/profiles", `{"name":"personal","configDir":"`+root+`"}`), "profile")
+	group := idOf(t, profilePost(t, mux, "/api/profiles/"+strconv.Itoa(profile)+"/groups", `{"name":"Services"}`), "group")
+	dir := filepath.Join(root, "aacpanel")
+	project := idOf(t, profilePost(t, mux, "/api/groups/"+strconv.Itoa(group)+"/projects",
+		`{"name":"aacpanel","path":"`+dir+`"}`), "project")
+
+	t.Run("an id turns into the project's directory", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		srv.apiSessionsArchive(w, httptest.NewRequest(http.MethodGet,
+			"/api/sessions/archive?limit=5&project="+strconv.Itoa(project), nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("response %d: %s", w.Code, w.Body.String())
+		}
+		req := <-agent.got
+		if req.Archive == nil || req.Archive.Under != dir {
+			t.Fatalf("the archive went out as %+v, expected it to be cut under %q", req.Archive, dir)
+		}
+	})
+
+	t.Run("an unknown project is a refusal, not the whole archive", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		srv.apiSessionsArchive(w, httptest.NewRequest(http.MethodGet,
+			"/api/sessions/archive?limit=5&project="+strconv.Itoa(project+1000), nil))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("response %d, expected 400: %s", w.Code, w.Body.String())
+		}
+	})
+}

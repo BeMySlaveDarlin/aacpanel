@@ -133,6 +133,7 @@ def _answer(request):
                 profile=want_archive.get("profile"),
                 profiles=[p for p in (want_archive.get("profiles") or ())
                           if isinstance(p, str) and p],
+                under=want_archive.get("under") if isinstance(want_archive.get("under"), str) else None,
             )
         except OSError as e:
             return {"ok": False, "error": f"the archive was not read: {e}"}
