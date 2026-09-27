@@ -41,9 +41,10 @@ listening, the next stops it, and what was heard stays in the field to be read
 over before it goes; with words in it the button sends, and only a press held
 talks. The recognition is the browser's own, which in Chrome means the recording
 goes to Google: it is the one thing a page of the panel sends out of the
-machine, and the switch says so before it is flipped. The host reaches out on its
-own for two things: notifications through the push service, and each account's
-model catalogue from the Anthropic API with that account's token.
+machine, and the switch says so before it is flipped. The panel reaches out on
+its own for three things: notifications through the push service, each account's
+model catalogue from the Anthropic API with that account's token, and the probes
+of external services it watches — liveness checks without a login.
 
 ## How it works
 
