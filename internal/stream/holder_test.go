@@ -66,6 +66,14 @@ func fakeClaude() int {
 				ultra = on && model != "haiku"
 			case "side_question":
 				body = map[string]any{"response": "tangerine", "synthetic": false}
+			case "get_usage":
+				// As claude -p 2.1.282 answers for an account with a
+				// subscription: shares of the windows and when they reset.
+				body = map[string]any{"subscription_type": "max", "rate_limits_available": true,
+					"rate_limits": map[string]any{
+						"five_hour":      map[string]any{"utilization": 42, "resets_at": "2026-09-24T22:30:00.055291+00:00"},
+						"seven_day":      map[string]any{"utilization": 7, "resets_at": "2026-10-01T17:00:00.055310+00:00"},
+						"seven_day_opus": nil}}
 			case "get_settings":
 				body = map[string]any{
 					"effective": map[string]any{"env": map[string]any{"GITLAB_TOKEN": "glpat-secret"},
@@ -219,6 +227,7 @@ func start(t *testing.T, mutate func(*Spec)) *rig {
 	t.Setenv("STREAM_FAKE_CLAUDE", "1")
 	logPath := run + "/claude.log"
 	t.Setenv("FAKE_LOG", logPath)
+	t.Setenv("AACP_RATE_SNAPSHOT", run+"/rate-limits.json")
 
 	spec := Spec{Name: "demo", Dir: run, SessionID: NewSessionID(), Argv: []string{os.Args[0], "-test.run=^$"}}
 	if mutate != nil {
@@ -1070,5 +1079,66 @@ func TestAQuestionAsideIsWaitedForLonger(t *testing.T) {
 	if replyWait("side_question")+10*time.Second > 2*time.Minute {
 		t.Errorf("the socket waits %s for a question aside — the panel gives up on the executor at two minutes",
 			replyWait("side_question")+10*time.Second)
+	}
+}
+
+// A contour on the stream runs no status line, so the holder renews the
+// snapshot of its subscription limits itself, from claude's own answer — in
+// the form the status line writes, which the collector reads.
+func TestTheHolderRenewsTheLimitsOfItsContour(t *testing.T) {
+	r := start(t, nil)
+	path := os.Getenv("AACP_RATE_SNAPSHOT")
+	var snap struct {
+		At       int64 `json:"at"`
+		FiveHour struct {
+			Pct      float64 `json:"pct"`
+			ResetsAt int64   `json:"resetsAt"`
+		} `json:"fiveHour"`
+		SevenDay struct {
+			Pct      float64 `json:"pct"`
+			ResetsAt int64   `json:"resetsAt"`
+		} `json:"sevenDay"`
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		b, err := os.ReadFile(path)
+		if err == nil && json.Unmarshal(b, &snap) == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no snapshot of the limits after the handshake: %v", err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if snap.FiveHour.Pct != 42 || snap.SevenDay.Pct != 7 {
+		t.Errorf("the windows read %v and %v, claude said 42 and 7", snap.FiveHour.Pct, snap.SevenDay.Pct)
+	}
+	five, _ := time.Parse(time.RFC3339, "2026-09-24T22:30:00Z")
+	if snap.FiveHour.ResetsAt != five.Unix() || snap.SevenDay.ResetsAt == 0 {
+		t.Errorf("the resets read %d and %d, expected seconds of claude's times", snap.FiveHour.ResetsAt, snap.SevenDay.ResetsAt)
+	}
+	if time.Since(time.Unix(snap.At, 0)) > time.Minute {
+		t.Errorf("the snapshot is stamped %d, not now", snap.At)
+	}
+	_ = r
+}
+
+func TestLimitsAreWrittenOnlyForAnAccountThatHasThem(t *testing.T) {
+	now := time.Unix(1790000000, 0)
+	for name, body := range map[string]string{
+		"an API key":                    `{"subtype":"success","response":{"rate_limits_available":false,"rate_limits":null}}`,
+		"limits said to be unavailable": `{"subtype":"success","response":{"rate_limits_available":false,"rate_limits":{"five_hour":{"utilization":3}}}}`,
+		"no five-hour window":           `{"subtype":"success","response":{"rate_limits_available":true,"rate_limits":{"five_hour":null}}}`,
+		"an answer of nothing":          `{"subtype":"success","response":{}}`,
+		"not an answer at all":          `oops`,
+	} {
+		if snap, ok := limitsOf(json.RawMessage(body), now); ok {
+			t.Errorf("%s: a snapshot was made: %s", name, snap)
+		}
+	}
+	snap, ok := limitsOf(json.RawMessage(`{"subtype":"success","response":{"rate_limits_available":true,
+		"rate_limits":{"five_hour":{"utilization":9.5,"resets_at":"bad"},"seven_day":null}}}`), now)
+	if !ok || string(snap) != `{"at":1790000000,"fiveHour":{"pct":9.5,"resetsAt":null},"sevenDay":{"pct":null,"resetsAt":null}}`+"\n" {
+		t.Errorf("a five-hour window alone reads %q (%v)", snap, ok)
 	}
 }

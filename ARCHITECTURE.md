@@ -780,13 +780,15 @@ session answers to is refused: two sessions would answer to one name. The
 open conversation follows the session by its conversation to the new name. A
 terminal is renamed on its own screen, `/rename` with keys.
 
-**There is nowhere else to get the subscription limits from.** The 5h/7d
-percentages do not lie on disk and are not handed out by any API — the only one
-claude tells them to is the status line, in the payload on stdin. That is why
-the snapshot is written by a script that the install puts first in the status
-line chain. Hence a consequence visible in the interface: the numbers live only
-while at least one claude session is running, and the header honestly shows the
-age of the snapshot instead of yesterday's percentages.
+**The subscription limits come from claude alone.** The 5h/7d percentages do
+not lie on disk and no API hands them out: claude tells them to the status line
+of a terminal, in the payload on stdin, and to whoever asks it `get_usage` on
+the stream. So one snapshot per contour has two writers — a script the install
+puts first in the status line chain, and the holder of each session on the
+stream after the handshake and after every turn, at most once in twenty seconds
+a contour. Hence a consequence visible in the interface: the numbers are renewed
+only while a session of the contour answers, and the screens show the age of
+the snapshot instead of yesterday's percentages.
 
 **The snapshot is parsed block by block, and a failed block is visible.** One
 field handed over as a fraction where an integer is expected does not bring down

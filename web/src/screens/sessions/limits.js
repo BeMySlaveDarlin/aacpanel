@@ -65,7 +65,7 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
             ${stale
                 ? html`<p class="limits-note">the limits are the last known ones, the agent is silent</p>`
                 : staleLimits(c) && html`
-                    <p class="limits-note calm">the numbers are ${agoText(c.ageSec)}, the contour has no sessions</p>
+                    <p class="limits-note calm">the numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers</p>
                 `}
         </div>
     `;

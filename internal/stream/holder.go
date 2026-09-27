@@ -42,6 +42,9 @@ const (
 	// it says after that is not the holder's to keep.
 	stderrKeep = 4 << 10
 	startGrace = time.Minute
+	// How often the snapshot of a contour's subscription limits is renewed at
+	// most: every holder of the contour writes the one file.
+	limitsEvery = 20 * time.Second
 )
 
 // Holder keeps one claude session on the stream protocol.
@@ -68,6 +71,9 @@ type Holder struct {
 	// late — an answer arriving as the session ends — goes where the holder
 	// began, or nowhere, never wherever the environment points by then.
 	statePath string
+	// Where the snapshot of the subscription limits of this claude's contour
+	// is kept, fixed at the start for the same reason.
+	limitsPath string
 	// Set when the holder has cleaned up: nothing is written after that, or
 	// a state file would outlive the session it describes.
 	finished bool
@@ -92,11 +98,12 @@ func Run(ctx context.Context, spec Spec) error {
 	logFile, _ := os.OpenFile(LogPath(spec.SessionID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 
 	h := &Holder{
-		spec:      spec,
-		waiters:   map[string]chan json.RawMessage{},
-		stderr:    &tail{limit: stderrKeep},
-		log:       logFile,
-		statePath: StatePath(spec.SessionID),
+		spec:       spec,
+		waiters:    map[string]chan json.RawMessage{},
+		stderr:     &tail{limit: stderrKeep},
+		log:        logFile,
+		statePath:  StatePath(spec.SessionID),
+		limitsPath: LimitsPath(),
 		state: State{
 			Protocol:  Protocol,
 			Name:      spec.Name,
@@ -255,6 +262,7 @@ func (h *Holder) handshake() {
 			h.logf("the opening message was not sent: %v", err)
 		}
 	}
+	h.keepLimits()
 }
 
 // ------------------------------------------------------------ reading claude
@@ -360,7 +368,104 @@ func (h *Holder) handle(ev event) {
 		h.state.Compacting = nil
 		h.mu.Unlock()
 		h.saveSummary()
+		// Asked aside: the answer comes back through this same reader.
+		go h.keepLimits()
 	}
+}
+
+// LimitsPath is where the snapshot of the subscription limits of a contour is
+// kept: the file the status line writes in the contour's own directory.
+func LimitsPath() string {
+	if p := os.Getenv("AACP_RATE_SNAPSHOT"); p != "" {
+		return p
+	}
+	dir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if dir == "" {
+		home, _ := os.UserHomeDir()
+		dir = filepath.Join(home, ".claude")
+	}
+	return filepath.Join(dir, "rate-limits.json")
+}
+
+// keepLimits renews the snapshot of the subscription limits from claude's own
+// account of them. In a terminal the status line writes it; claude -p runs
+// no status line, and a contour whose sessions are all on the stream would
+// keep the numbers its last console left.
+func (h *Holder) keepLimits() {
+	defer func() {
+		if p := recover(); p != nil {
+			h.logf("the limits were not renewed: %v\n%s", p, debug.Stack())
+		}
+	}()
+	if h.limitsPath == "" {
+		return
+	}
+	if st, err := os.Stat(h.limitsPath); err == nil && time.Since(st.ModTime()) < limitsEvery {
+		return
+	}
+	resp, err := h.control(context.Background(), "get_usage", nil, controlWait)
+	if err != nil {
+		h.logf("claude did not say its limits: %v", err)
+		return
+	}
+	snap, ok := limitsOf(resp, time.Now())
+	if !ok {
+		return
+	}
+	tmp := fmt.Sprintf("%s.tmp.%d", h.limitsPath, os.Getpid())
+	if err := os.WriteFile(tmp, snap, 0o600); err != nil {
+		h.logf("the limits were not written: %v", err)
+		return
+	}
+	if err := os.Rename(tmp, h.limitsPath); err != nil {
+		_ = os.Remove(tmp)
+		h.logf("the limits were not written: %v", err)
+	}
+}
+
+type usageWindow struct {
+	Utilization *float64 `json:"utilization"`
+	ResetsAt    string   `json:"resets_at"`
+}
+
+// limitsOf reads claude's answer to get_usage into the snapshot the status
+// line writes: the share of each window spent and when it resets, in seconds.
+// An account without limits — an API key — has nothing to write.
+func limitsOf(resp json.RawMessage, now time.Time) ([]byte, bool) {
+	var body struct {
+		Response struct {
+			Available bool `json:"rate_limits_available"`
+			Limits    struct {
+				Five  *usageWindow `json:"five_hour"`
+				Seven *usageWindow `json:"seven_day"`
+			} `json:"rate_limits"`
+		} `json:"response"`
+	}
+	if json.Unmarshal(resp, &body) != nil {
+		return nil, false
+	}
+	five, seven := body.Response.Limits.Five, body.Response.Limits.Seven
+	if !body.Response.Available || five == nil || five.Utilization == nil {
+		return nil, false
+	}
+	part := func(w *usageWindow) map[string]any {
+		out := map[string]any{"pct": nil, "resetsAt": nil}
+		if w == nil {
+			return out
+		}
+		if w.Utilization != nil {
+			out["pct"] = *w.Utilization
+		}
+		if at, err := time.Parse(time.RFC3339Nano, w.ResetsAt); err == nil {
+			out["resetsAt"] = at.Unix()
+		}
+		return out
+	}
+	snap, err := json.Marshal(map[string]any{"at": now.Unix(), "fiveHour": part(five), "sevenDay": part(seven)})
+	if err != nil {
+		return nil, false
+	}
+	return append(snap, '\n'), true
 }
 
 func (h *Holder) onRequest(ev event) {
