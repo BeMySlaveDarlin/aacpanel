@@ -21,6 +21,8 @@ const blocks = [
     { key: "a", name: "aacpanel", group: "Infra", project: project(1, "aacpanel"), live: [live], ghosts: [], past: past("aacpanel"), rank: 1 },
     { key: "b", name: "person", group: "Combine", project: project(2, "person"), live: [], ghosts: [], past: past("person"), rank: 2 },
     { key: "c", name: "blog", group: "Sites", project: project(3, "blog"), live: [], ghosts: [], past: past("blog"), rank: 2 },
+    { key: "d", name: "atlas", group: "Host", project: project(4, "atlas"), rank: 2, ghosts: [], past: past("atlas"),
+      live: [{ session: "atlas", sessionId: "s4", status: "idle", pct: 9, transport: "stream", lastRequestAt: new Date(Date.now() - 600000).toISOString() }] },
 ];
 const exec = { available: true, kinds: ["session.open", "session.resume"] };
 render(h(ToastHost, null, h(GateHost, null, html`
@@ -44,6 +46,10 @@ window.done = (async () => {
         head: Math.round(box(blocksEl[0].querySelector(".pjhead")).height),
         rows: [...blocksEl[0].querySelectorAll(".pjrow")].map((r) => Math.round(box(r).height)),
         button: Math.round(box(document.querySelector(".pjresume")).height),
+        // A quiet block with a live session against one with only its past.
+        idleBlock: (() => { const cs = getComputedStyle(blocksEl[3]); return { bg: cs.backgroundColor + " " + cs.backgroundImage, border: cs.borderTopStyle }; })(),
+        pastBlock: (() => { const cs = getComputedStyle(blocksEl[1]); return { bg: cs.backgroundColor + " " + cs.backgroundImage, border: cs.borderTopStyle }; })(),
+        idleDot: getComputedStyle(blocksEl[3].querySelector(".pjdot")).backgroundColor,
     };
 })();
 </script>

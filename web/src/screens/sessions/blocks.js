@@ -167,7 +167,7 @@ export function ProjectBlock({ block, exec, wait, notes, checked, onOpen, onMore
     const canNew = project && !block.home;
     const ready = knows(exec, "session.open");
     return html`
-        <section class=${`pjblock${block.rank === RANK.quiet ? " pjquiet" : ""}`}>
+        <section class=${`pjblock${block.live.length === 0 && block.ghosts.length === 0 ? " pjquiet" : ""}`}>
             <div class="pjhead">
                 ${project && onProject
                     ? html`<button class="pjname" type="button" aria-label=${`project ${block.name}`}

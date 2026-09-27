@@ -378,7 +378,10 @@
     box-shadow: var(--gloss), var(--hairline);
     overflow: hidden;
 }
-.pjblock.pjquiet { background: none; box-shadow: none; }
+/* A block with nothing alive in it — only its last conversation — is drawn
+   flat, on a dashed edge; a block with a live session keeps its glass however
+   idle the session is. */
+.pjblock.pjquiet { background: none; box-shadow: none; border-style: dashed; }
 
 .pjhead { display: flex; align-items: center; gap: .45rem; min-height: 2.35rem; padding: .15rem .4rem .15rem .75rem; }
 .pjname {
@@ -474,7 +477,7 @@ span.pjname { cursor: default; }
 .pj-wait .pjdot { box-shadow: 0 0 10px currentColor; }
 .pj-busy { color: var(--accent); }
 .pj-idle { color: var(--ink-faint); font-weight: 500; }
-.pj-idle .pjdot { background: none; box-shadow: inset 0 0 0 1.2px currentColor; }
+.pj-idle .pjdot { background: var(--ok); opacity: .75; }
 .pjtag {
     flex: none;
     display: inline-flex;
