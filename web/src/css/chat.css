@@ -56,6 +56,19 @@
     color: var(--ink-faint);
 }
 .chatsub .sep { color: rgba(150, 170, 255, .3); margin: 0 .35rem; }
+/* Where the session works takes what is left of the line. A path too long for
+   it keeps its end, which names the project: the line is laid out right to
+   left around a path kept left to right. */
+.chatpath {
+    flex: 1 1 0;
+    min-width: 0;
+    direction: rtl;
+    text-align: left;
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .phead.talk .chatsub .sep { margin: 0; }
 
 /* The tools of a session on a phone: a line per tool with its word, how it

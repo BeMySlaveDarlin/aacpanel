@@ -41,7 +41,23 @@ window.done = (async () => {
     const out = {};
     const head = document.querySelector(".chathead");
     out.headUse = Boolean(head && head.querySelector(".deckuse"));
-    out.path = Boolean(head && /Projects/.test(head.textContent));
+    // Where the session works stands in the line under the name: the home as
+    // a tilde, and a path too long for the line cut at its start, so its end
+    // — the project — stays in sight on the line of the state.
+    const path = head && head.querySelector(".chatpath");
+    out.headPath = path ? path.textContent.trim() : "";
+    if (path) {
+        const box = path.getBoundingClientRect();
+        const text = path.querySelector("bdi").firstChild;
+        const range = document.createRange();
+        range.setStart(text, text.length - 1);
+        range.setEnd(text, text.length);
+        const last = range.getBoundingClientRect();
+        out.headPathCut = path.scrollWidth > path.clientWidth;
+        out.headTailShown = last.width > 0 && last.left >= box.left - 1 && last.right <= box.right + 1;
+        const word = head.querySelector(".talkword").getBoundingClientRect();
+        out.headPathOnLine = Math.abs((box.top + box.bottom) / 2 - (word.top + word.bottom) / 2) < 4;
+    }
     out.deck = Boolean(document.querySelector(".deck"));
     const use = document.querySelector(".deck .deckuse");
     out.deckUse = Boolean(use);

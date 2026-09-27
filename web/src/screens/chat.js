@@ -34,7 +34,7 @@ import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } 
 import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
 import { SideChat, useSideChat } from "./chat/sidechat.js";
-import { MidName, stateOf } from "./chat/head.js";
+import { MidName, shortPath, stateOf } from "./chat/head.js";
 import { MoreButton, SessionButton, SessionTools, ViewTabs } from "./chat/sessiontools.js";
 import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
@@ -310,6 +310,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                         <span class="sep">·</span>
                     `}
                     <span class="talkword" data-tone=${stand.tone}>${stand.word || (archive ? "peak" : "")}</span>
+                    ${here && html`
+                        <span class="sep">·</span>
+                        <span class="chatpath" title=${here}><bdi>${shortPath(here)}</bdi></span>
+                    `}
                 </div>
             </div>
         <//>
