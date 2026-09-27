@@ -13,6 +13,7 @@ import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { ownName } from "../../catchup.js";
 import { Ghost, LiveRow } from "./card.js";
+import { ProjectDoor } from "../profiles/door.js";
 
 // sessionsOf returns the sessions of one project. The service says which
 // project a live session belongs to — by its directory, a worktree of the
@@ -172,12 +173,14 @@ function openLabel(more, stream) {
 
 export function Project({ project, sessions, notes, exec, wait, onBack, onChat }) {
     useBackClose(true, onBack);
+    const [settings, setSettings] = useState(false);
 
     const run = useAction();
     const own = sessionsOf(project, sessions);
     const ready = knows(exec, "session.open");
     const why = whyNot(exec, "session.open");
     const opening = wait ? wait.of("open", project.session) : null;
+    if (settings) return html`<${ProjectDoor} id=${project.id} onClose=${() => setSettings(false)} />`;
     return html`
         <${BackHead} onBack=${onBack} label="to the projects">
             <h2>${project.name}</h2>
@@ -197,6 +200,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
                     await run("session.open", project.session, { project: project.id });
                 }}
             >${openLabel(own.length > 0, onStream(project.line))}</button>
+            <button class="btn" type="button" onClick=${() => setSettings(true)}>Settings</button>
         </div>
         ${!ready && html`<p class="hint warn">${why}</p>`}
 

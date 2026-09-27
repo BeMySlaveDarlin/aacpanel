@@ -70,6 +70,14 @@ var ceremonies = map[string]ceremony{
 		paths:   []string{"/api/session/btw"},
 		methods: []string{"POST"},
 	},
+	// The preview of a project's draft changes nothing: the service lays the
+	// draft over the stored project and answers the command and what the
+	// launch would refuse, writing nothing. It goes as a POST only because a
+	// draft — an environment, a list of words — does not fit a line of a query.
+	"src/screens/profiles/settings.js": {
+		paths:   []string{"/api/projects/"},
+		methods: []string{"POST"},
+	},
 }
 
 type ceremony struct {
@@ -165,7 +173,11 @@ var instantActions = map[string]bool{
 	"session.rename": true,
 	// Remote Control is a switch in the header: it says which way it stands,
 	// and the same press puts it back.
-	"session.remote":  true,
+	"session.remote": true,
+	// The draft of a project's settings is saved from the bar that counts its
+	// changes, with Discard beside it; a new directory or group goes through
+	// project.edit and its sheet.
+	"project.save":    true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -573,6 +585,16 @@ func TestFieldConflictActionsMatchFormsScreen(t *testing.T) {
 	}
 	if len(hasForm) == 0 {
 		t.Fatal("not a single form (TITLES) found in forms.js — the test guards the wrong place")
+	}
+	// The settings page of a project is a form of its own: a refusal on the
+	// name comes back into its bar, where Save was pressed.
+	const settingsFile = "src/screens/profiles/settings.js"
+	settings := withoutComments(srcFiles(t)[settingsFile])
+	if !strings.Contains(settings, "status === 409") {
+		t.Errorf("%s does not take a 409 back into the page — a refusal on the name has nowhere to show", settingsFile)
+	}
+	for _, m := range regexp.MustCompile(`"(project\.[a-zA-Z]+)"`).FindAllStringSubmatch(settings, -1) {
+		hasForm[m[1]] = true
 	}
 
 	ids := regexp.MustCompile(`(?m)^\s{4}"([a-z]+\.[a-zA-Z]+)":`).FindAllStringSubmatch(body, -1)

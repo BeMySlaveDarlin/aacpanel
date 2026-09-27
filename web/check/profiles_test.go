@@ -65,9 +65,18 @@ func TestProfileMapRowsCarryTheirOwnActions(t *testing.T) {
 }
 
 func TestProfileEditIsALayerNotASheet(t *testing.T) {
-	screen := screenSrc(t, profilesFile)
-	if strings.Contains(screen, "ui/sheet.js") {
-		t.Errorf("%s: the map screen opens a sheet again — the edit form lives as a layer", profilesFile)
+	// The map screen and the edit layer are pages; the settings page of a
+	// project has sheets of its own — the list of models and the question
+	// before a draft is left — but is not one itself.
+	for _, path := range []string{profilesFile, "src/screens/profiles/forms.js", "src/screens/profiles/door.js"} {
+		if strings.Contains(srcFiles(t)[path], "ui/sheet.js") {
+			t.Errorf("%s: the map screen opens a sheet again — the edit form lives as a layer", path)
+		}
+	}
+	const settingsFile = "src/screens/profiles/settings.js"
+	layer := jsBlock(t, settingsFile, srcFiles(t)[settingsFile], "export function ProjectLayer(")
+	if strings.Contains(layer, "Sheet") {
+		t.Errorf("%s: the settings page of a project is put into a sheet — it lives as a layer", settingsFile)
 	}
 	forms := srcFiles(t)["src/screens/profiles/forms.js"]
 	if !strings.Contains(forms, "useBackClose(") || !strings.Contains(forms, "<${BackHead}") {
@@ -208,9 +217,16 @@ func TestDeleteButtonSaysWhatTheSheetWillSay(t *testing.T) {
 		t.Fatal("no DANGER found in forms.js — the test guards the wrong place")
 	}
 	found := regexp.MustCompile(`(?m)^\s+([a-z]+): "([^"]+)"`).FindAllStringSubmatch(block[1], -1)
-	if len(found) != 3 {
-		t.Fatalf("%d delete levels, expected three (contour, group, project)", len(found))
+	if len(found) != 2 {
+		t.Fatalf("%d delete levels in the forms, expected two (contour, group)", len(found))
 	}
+	// A project is deleted from its settings page.
+	settings := srcFiles(t)["src/screens/profiles/settings.js"]
+	own := regexp.MustCompile(`const DELETE = "([^"]+)";`).FindStringSubmatch(settings)
+	if own == nil || !strings.Contains(settings, "${DELETE}") {
+		t.Fatal("the settings page of a project names its delete button otherwise than by DELETE — the test guards the wrong place")
+	}
+	found = append(found, []string{"", "project", own[1]})
 	for _, m := range found {
 		want := regexp.MustCompile(`"` + m[1] + `\.remove":\s*"([^"]+)"`).FindStringSubmatch(registry)
 		if want == nil {
@@ -224,39 +240,37 @@ func TestDeleteButtonSaysWhatTheSheetWillSay(t *testing.T) {
 	}
 }
 
+// Moving a project to another group of its contour is a field of its
+// settings page: what the move does on the host is seen by the fixture of the
+// page (TestTheProjectSettingsPageKeepsADraft); here — that the page and the
+// form for a new project know nothing of moving into a foreign contour.
 func TestProjectMoveRidesTheEditAction(t *testing.T) {
+	const settingsFile = "src/screens/profiles/settings.js"
+	settings := srcFiles(t)[settingsFile]
+	if settings == "" {
+		t.Fatalf("%s not found", settingsFile)
+	}
+	if !strings.Contains(settings, "contour.groups") {
+		t.Error("the group chips of the settings page are built from something other than the contour of the project")
+	}
 	forms := srcFiles(t)["src/screens/profiles/forms.js"]
-	if forms == "" {
-		t.Fatal("src/screens/profiles/forms.js not found")
-	}
-	body := jsBlock(t, "src/screens/profiles/forms.js", forms, "function ProjectForm(")
-
-	if !strings.Contains(body, "groupId: Number(group)") {
-		t.Error("the project form does not put the chosen group into the body — the server never learns about the move")
-	}
-	if !strings.Contains(body, "editing && group ? { groupId:") {
-		t.Error("the group goes into the body on creation too: there the handler address names it, and " +
+	add := stripComments(jsBlock(t, "src/screens/profiles/forms.js", forms, "function ProjectForm("))
+	if strings.Contains(add, "groupId:") && !strings.Contains(add, "groupId: form.group.id") {
+		t.Error("the group goes into the body on creation: there the handler address names it, and " +
 			"two names for one group drift apart on the very first edit")
 	}
-	if !strings.Contains(body, "moveTo") {
-		t.Error("the confirmation sheet never learns about the move — it will name only the save")
-	}
-
-	if !strings.Contains(body, "form.profile.groups") {
-		t.Error("the group list in the form is built from something other than the contour of the project")
-	}
-
-	code := stripComments(body)
-	for _, gone := range []string{
-		"moveProfile", "moveContour",
-		"toProfile", "toContour",
-		"fromProfile", "fromContour",
-		"optgroup",
-	} {
-		if strings.Contains(code, gone) {
-			t.Errorf("the project form still knows about moving into a foreign contour (%q): "+
-				"the record on the map moves while the sessions, the launch history and the transcripts "+
-				"stay in the previous contour", gone)
+	for _, code := range []string{stripComments(settings), add} {
+		for _, gone := range []string{
+			"moveProfile", "moveContour",
+			"toProfile", "toContour",
+			"fromProfile", "fromContour",
+			"optgroup",
+		} {
+			if strings.Contains(code, gone) {
+				t.Errorf("the project page still knows about moving into a foreign contour (%q): "+
+					"the record on the map moves while the sessions, the launch history and the transcripts "+
+					"stay in the previous contour", gone)
+			}
 		}
 	}
 

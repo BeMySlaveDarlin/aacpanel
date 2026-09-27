@@ -208,3 +208,73 @@ func TestProfilesAnswerTheLaunchLinePG(t *testing.T) {
 		t.Errorf("the line reads %q, meant %q", strings.Join(got, " "), want)
 	}
 }
+
+// A draft of a project's edit is answered with what the launch would be if it
+// were saved — the command by the launcher's own code, the effective values
+// and what the launch would refuse — and nothing of it is written.
+func TestProjectPreviewAnswersTheDraftAndWritesNothingPG(t *testing.T) {
+	srv, root := profilesServer(t)
+	mux := profilesMux(srv)
+	call := func(method, path, body string, want int) map[string]any {
+		t.Helper()
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
+		if w.Code != want {
+			t.Fatalf("%s %s: %d %s", method, path, w.Code, w.Body.String())
+		}
+		var out map[string]any
+		json.Unmarshal(w.Body.Bytes(), &out)
+		return out
+	}
+	text := func(body map[string]any) string {
+		line, _ := body["line"].(map[string]any)
+		words, _ := line["words"].([]any)
+		got := []string{}
+		for _, raw := range words {
+			w := raw.(map[string]any)
+			layer, _ := w["layer"].(string)
+			got = append(got, w["text"].(string)+"/"+layer)
+		}
+		return strings.Join(got, " ")
+	}
+	profile := idOf(t, call(http.MethodPost, "/api/profiles",
+		`{"name":"personal","configDir":"`+root+`","launch":{"remoteControl":true}}`, http.StatusOK), "profile")
+	group := idOf(t, call(http.MethodPost, "/api/profiles/"+strconv.Itoa(profile)+"/groups", `{"name":"s"}`, http.StatusOK), "group")
+	project := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/groups/"+strconv.Itoa(group)+"/projects",
+		`{"name":"aacpanel","path":"`+root+`/aacpanel","launch":{"effort":"high"}}`, http.StatusOK), "project"))
+	preview := "/api/projects/" + project + "/preview"
+
+	got := call(http.MethodPost, preview, `{"session":"panel","launchUnset":["effort"],"launchSet":{"model":"sonnet"}}`, http.StatusOK)
+	if want := "claude/ -n/ panel/ --remote-control/contour panel/contour --model/project sonnet/project"; text(got) != want {
+		t.Errorf("the draft's line reads %q, meant %q", text(got), want)
+	}
+	if problems, _ := got["problems"].([]any); problems == nil || len(problems) != 0 {
+		t.Errorf("a draft the launch takes answers problems %v, meant an empty list", got["problems"])
+	}
+	layers := map[string]string{}
+	for _, raw := range got["effective"].([]any) {
+		v := raw.(map[string]any)
+		layers[v["key"].(string)] = v["layer"].(string)
+	}
+	if layers["model"] != "project" || layers["effort"] != "claude" || layers["remoteControl"] != "contour" {
+		t.Errorf("the draft's effective layers are %v", layers)
+	}
+
+	bad := call(http.MethodPost, preview, `{"launchSet":{"effort":"ultra","env":{"CLAUDE_CONFIG_DIR":"/x"}}}`, http.StatusOK)
+	keys := []string{}
+	for _, raw := range bad["problems"].([]any) {
+		keys = append(keys, raw.(map[string]any)["key"].(string))
+	}
+	if strings.Join(keys, " ") != "effort env" {
+		t.Errorf("a draft the launch would refuse names %v, meant effort and env", keys)
+	}
+
+	call(http.MethodPost, preview, `{"launchSet":{"effort":"low"},"launchUnset":["effort"]}`, http.StatusBadRequest)
+	call(http.MethodPost, "/api/projects/999999/preview", `{}`, http.StatusNotFound)
+
+	tree := call(http.MethodGet, "/api/profiles", "", http.StatusOK)
+	stored := treeOf(t, tree)[0].(map[string]any)["groups"].([]any)[0].(map[string]any)["projects"].([]any)[0].(map[string]any)
+	if launch, _ := json.Marshal(stored["launch"]); string(launch) != `{"effort":"high"}` || stored["session"] != "" {
+		t.Errorf("the preview wrote the draft: launch %s, session %q", launch, stored["session"])
+	}
+}

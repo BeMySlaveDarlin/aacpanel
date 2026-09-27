@@ -84,7 +84,8 @@ export function GateHost({ children }) {
 
         if (ACTIONS[id].instant) {
             const result = await send(id, target, params);
-            if (!result.ok) toast("Not done", result.error, true);
+            const onField = ACTIONS[id].fieldConflict && result.status === 409;
+            if (!result.ok && !onField) toast("Not done", result.error, true);
             return result;
         }
 

@@ -50,19 +50,32 @@ export function drift(line, live) {
     return out;
 }
 
+// nameOf returns the session's name in the command: the word after -n.
+function nameOf(words) {
+    const at = words.findIndex((w) => !w.key && w.text === "-n");
+    return at >= 0 && words[at + 1] ? words[at + 1].text : "";
+}
+
 // onStream says whether the line starts a session on the stream.
 export function onStream(line) {
     return Boolean(line && (line.words || []).some((w) => w.key === STREAM));
 }
 
-export function LaunchLine({ line }) {
+// changed names the parameters a draft has changed and not saved: their words
+// are shown inverted. The session's name is a parameter too — the command's
+// -n and the Remote Control name carry it.
+export function LaunchLine({ line, changed }) {
     if (!line || !(line.words || []).length) return null;
     const then = line.then || [];
+    const words = fold(line.words);
+    const named = changed && changed.has("session");
+    const name = named ? nameOf(words) : "";
     return html`
         <div class="lline">
             <code class="lwords">
-                ${fold(line.words).map((w, i) => html`
+                ${words.map((w, i) => html`
                     <span class="lw" key=${i} data-layer=${w.layer || ""}
+                          data-draft=${changed && (changed.has(w.key) || (named && !w.key && w.text === name && i > 0)) ? "1" : "0"}
                           title=${w.key ? `${w.key}${w.layer ? ` · ${w.layer}` : ""}` : undefined}>${w.text}</span>
                 `)}
             </code>

@@ -597,11 +597,32 @@ export const ACTIONS = {
             body: (target, params) => params.fields,
         },
     },
+    // Saving the draft of a project's settings page: the bar it is pressed on
+    // says how many changes there are, Discard stands beside it, and a draft
+    // the launch would refuse never gets this far. What needs a sheet of its
+    // own — a new directory, another group — goes as project.edit.
+    "project.save": {
+        title: (target) => `Save project "${target}"?`,
+        effect: () => "The new values go into the launch of the next sessions.",
+        done: (target) => `Project "${target}" saved`,
+        ok: "Save",
+        instant: true,
+        journaled: false,
+        fieldConflict: true,
+        send: {
+            verb: "PATCH",
+            path: (target, params) => `/api/projects/${params.id}`,
+            body: (target, params) => params.fields,
+        },
+    },
     "project.edit": {
         title: (target) => `Save project "${target}"?`,
         effect: (params) => (params.moveTo
             ? `The project moves to group "${params.moveTo}" and lands at its end. `
             : "")
+            + (params.pathFrom
+                ? `The conversations of ${params.pathFrom} stay in the archive and no longer resume from this project. `
+                : "")
             + "The new values go into the launch of the next sessions. Live consoles of this project will not change.",
         done: (target) => `Project "${target}" saved`,
         ok: "Save",
@@ -738,6 +759,7 @@ const NAMES = {
     "group.edit": "Edit group",
     "group.remove": "Delete group",
     "project.add": "Create project",
+    "project.save": "Save project",
     "project.edit": "Edit project",
     "project.remove": "Delete project",
     "project.restore": "Restore project",

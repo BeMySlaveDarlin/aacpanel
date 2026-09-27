@@ -1,0 +1,197 @@
+/* The settings page of a project: the command on top, where the session lives
+   as two cards, a row per launch parameter, one bar of the draft at the foot.
+   What the project sets itself is filled, what it gets from below is dashed,
+   what the draft changed and did not save is marked. */
+
+.pzpage { display: flex; flex-direction: column; min-height: 100%; }
+
+.pzlineblock { display: flex; flex-direction: column; gap: .15rem; }
+.pzacct {
+    display: flex; flex-direction: column; gap: .1rem;
+    font-size: var(--t-xs); color: var(--ink-faint);
+}
+.lw[data-draft="1"] {
+    background: var(--ink); color: var(--bg); text-decoration: none;
+    border-radius: 2px; padding: 0 .15em;
+}
+
+.pzdraft {
+    font-size: var(--t-xs); font-weight: 500; color: var(--wait);
+    margin-left: .35rem;
+}
+
+/* Where it lives: two cards, the chosen one lit, the inherited one dashed. */
+.pzwhere { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .4rem; }
+.pzcard {
+    display: flex; flex-direction: column; gap: .3rem; align-items: stretch;
+    text-align: left; font: inherit; color: var(--ink-dim);
+    padding: .65rem .7rem; border: 0; border-radius: var(--r-card);
+    background: none; box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    cursor: pointer; min-width: 0;
+}
+.pzcard[aria-pressed="true"] {
+    color: var(--ink);
+    background: var(--accent-bg);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.pzcard[aria-pressed="true"][data-inherited="1"] {
+    background: none;
+    box-shadow: none;
+    outline: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+    outline-offset: -1px;
+}
+.pzcardhead { display: flex; align-items: baseline; flex-wrap: wrap; gap: .2rem .4rem; }
+.pzcardname { font-weight: 600; font-size: var(--t-md); }
+.pzcardfrom { font-size: var(--t-xs); color: var(--ink-faint); }
+.pzsaid {
+    margin: .1rem 0 0; padding-left: 1rem;
+    font-size: var(--t-xs); color: var(--ink-dim);
+    display: flex; flex-direction: column; gap: .15rem;
+}
+
+/* A row per parameter. */
+.pzrow {
+    display: flex; flex-direction: column; gap: .35rem;
+    padding: .6rem 0; border-bottom: var(--hair) solid var(--line);
+}
+.pzrow[data-off="1"] .pzname { color: var(--ink-faint); }
+.pzrowhead { display: flex; align-items: baseline; gap: .4rem; min-width: 0; }
+.pzname { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+.pzlive {
+    font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint);
+    border: var(--hair) solid var(--line); border-radius: var(--r-pill); padding: 0 .3rem;
+}
+.pzlive[data-live="now"] { color: var(--ok); }
+.pzback {
+    margin-left: auto; flex: none;
+    font: inherit; font-size: var(--t-xs); color: var(--accent);
+    background: none; border: 0; padding: .1rem 0; cursor: pointer;
+}
+.pzhelp { font-size: var(--t-xs); color: var(--ink-faint); }
+.pzhelp.warn { color: var(--warn); }
+.pzfrom { color: var(--ink-dim); }
+
+.pzopts { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.pzopt {
+    font: inherit; font-size: var(--t-sm); font-weight: 500;
+    padding: .38rem .75rem; border: 0; border-radius: var(--r-pill);
+    background: none; color: var(--ink-dim);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    cursor: pointer;
+}
+.pzopt[aria-pressed="true"] {
+    background: var(--accent-bg); color: var(--accent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.pzopt[aria-pressed="true"][data-inherited="1"] {
+    background: none; box-shadow: none;
+    outline: 1px dashed color-mix(in srgb, var(--accent) 65%, transparent);
+    outline-offset: -1px;
+}
+.pzopt[data-struck="1"] { text-decoration: line-through; color: var(--ink-faint); }
+.pzpct { width: 5.5rem; }
+
+.pzpick {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .1rem .5rem;
+    font: inherit; text-align: left; color: var(--ink);
+    padding: .5rem .6rem; border: 0; border-radius: var(--r-card);
+    background: none; box-shadow: inset 0 0 0 var(--hair) var(--edge); cursor: pointer;
+}
+.pzpick .chev { grid-column: 2; grid-row: 1 / span 2; }
+.pzpickval { font-size: var(--t-sm); font-weight: 500; }
+.pzpickval[data-inherited="1"] { color: var(--ink-dim); font-weight: 400; }
+
+.pzadd {
+    font: inherit; font-size: var(--t-sm); color: var(--accent);
+    background: none; border: 0; padding: .2rem 0; cursor: pointer; align-self: flex-start;
+}
+.pztext { width: 0; min-width: 100%; resize: vertical; font-family: var(--code); font-size: var(--t-sm); }
+
+.pzkv { display: flex; flex-direction: column; gap: .3rem; }
+.pzkvrow {
+    display: flex; align-items: center; gap: .35rem; min-width: 0;
+    font-size: var(--t-sm);
+}
+.pzkvrow[data-inherited="1"] { opacity: .8; }
+.pzkvrow[data-inherited="1"] .pzkvk,
+.pzkvrow[data-inherited="1"] .pzkvv { text-decoration: underline dashed; text-underline-offset: 3px; }
+.pzkvk { font-family: var(--code); color: var(--ink); }
+.pzkveq { color: var(--ink-faint); }
+.pzkvv { font-family: var(--code); color: var(--ink-dim); overflow-wrap: anywhere; min-width: 0; flex: 1; }
+.pzkvadd { display: grid; grid-template-columns: 1fr 1fr auto; gap: .35rem; }
+.pzkvadd .search { min-width: 0; }
+
+.pztokens { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.pztoken {
+    display: inline-flex; align-items: center; gap: .2rem;
+    font-size: var(--t-sm); padding: .15rem .2rem .15rem .5rem;
+    border-radius: var(--r-pill); box-shadow: inset 0 0 0 var(--hair) var(--edge);
+}
+.pztoken[data-inherited="1"] { box-shadow: none; outline: 1px dashed var(--edge); outline-offset: -1px; padding-right: .5rem; }
+.pztoken code { font-family: var(--code); }
+.pztokenadd { display: inline-flex; gap: .35rem; flex: 1 1 8rem; min-width: 8rem; }
+.pztokenadd .search { flex: 1; min-width: 0; }
+
+.pzx {
+    display: grid; place-items: center; width: 1.6rem; height: 1.6rem;
+    border: 0; background: none; color: var(--ink-faint); cursor: pointer; flex: none;
+}
+.pzx svg { width: var(--i-sm); height: var(--i-sm); }
+
+.pzhint {
+    display: flex; align-items: center; gap: .6rem; margin-top: .4rem;
+    font-size: var(--t-sm); color: var(--ink-dim);
+}
+.pzhint span { flex: 1; min-width: 0; }
+
+.pzdanger {
+    display: flex; flex-direction: column; gap: .4rem; align-items: flex-start;
+    margin-top: 1.4rem; padding: .75rem;
+    border-radius: var(--r-card);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--crit) 45%, transparent);
+    background: color-mix(in srgb, var(--crit) 6%, transparent);
+}
+.pzdangertitle { font-size: var(--t-sm); font-weight: 600; color: var(--crit); }
+
+/* The one bar of the draft. It stays at the foot while there is a draft, and
+   a draft the launch would refuse turns it into the reason and the way out. */
+.pzbar {
+    position: sticky; bottom: 0; z-index: 3;
+    display: flex; align-items: center; flex-wrap: wrap; gap: .45rem .5rem;
+    margin: 1rem -.2rem 0; padding: .6rem .6rem calc(.6rem + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--r-card);
+    background: var(--toast-bg);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    box-shadow: var(--drop), inset 0 0 0 var(--hair) var(--edge);
+}
+.pzbarsay { flex: 1 1 8rem; min-width: 0; font-size: var(--t-sm); color: var(--ink); }
+.pzbar .btn { flex: none; }
+/* Held, the reason takes the whole first line and the presses sit under it
+   on the right: a reason squeezed beside three buttons is read a word a line. */
+.pzbar[data-blocked="1"] .pzbarsay { flex-basis: 100%; color: var(--warn); }
+.pzbar[data-blocked="1"] .btn:first-of-type { margin-left: auto; }
+
+/* The model sheet: a check, the name and what choosing it means. */
+.pzsheet { display: flex; flex-direction: column; gap: .5rem; }
+.pzsheet h3 { margin: 0; font-size: var(--t-md); }
+.pzlist { display: flex; flex-direction: column; }
+.pzline {
+    display: grid; grid-template-columns: 1.4rem 1fr; gap: .4rem; align-items: start;
+    font: inherit; text-align: left; color: var(--ink);
+    padding: .5rem .2rem; border: 0; background: none; cursor: pointer;
+    border-bottom: var(--hair) solid var(--line);
+}
+.pzcheck { color: var(--accent); display: grid; place-items: center; min-height: 1.2rem; }
+.pzcheck svg { width: var(--i-sm); height: var(--i-sm); }
+.pzlinebody { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.pzlinename { font-size: var(--t-sm); font-weight: 500; }
+.pzsheet .pzbar { position: static; margin: .4rem 0 0; }
+
+.pzleave { display: flex; flex-direction: column; gap: .6rem; }
+.pzleave h3 { margin: 0; font-size: var(--t-md); }
+.pzleave .btnrow { justify-content: flex-end; }
+
+@media (max-width: 380px) {
+    .pzwhere { grid-template-columns: 1fr; }
+}

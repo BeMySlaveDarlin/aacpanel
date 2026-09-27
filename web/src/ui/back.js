@@ -27,7 +27,14 @@ if (typeof window !== "undefined") {
             return;
         }
         const top = stack[stack.length - 1];
-        if (top) top.close();
+        if (!top) return;
+        // A layer holding something unsaved asks before it goes: the entry
+        // the gesture took is given back, so the layer stays where it was.
+        if (top.hold()) {
+            window.history.pushState({ overlay: true, depth: stack.length }, "");
+            return;
+        }
+        top.close();
     });
 }
 
@@ -38,16 +45,20 @@ function closeFrom(layer) {
 }
 
 // useBackClose registers a layer opened above the screen with the back gesture.
-export function useBackClose(open, onClose) {
+// hold, when given, is asked first: true keeps the layer open — it has put up
+// its own question about what would be lost.
+export function useBackClose(open, onClose, hold) {
     const close = useRef(onClose);
     close.current = onClose;
+    const keep = useRef(hold);
+    keep.current = hold;
 
     const mine = useRef(null);
 
     useEffect(() => {
         if (!open) return undefined;
 
-        const layer = { close: () => close.current() };
+        const layer = { close: () => close.current(), hold: () => Boolean(keep.current && keep.current()) };
         mine.current = layer;
         stack.push(layer);
         const depth = stack.length;

@@ -1,0 +1,237 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The settings page of a project: rows drawn from the service's schema, every
+// change into a draft with one bar, the command re-asked of the service as the
+// draft changes, a draft the launch refuses holding Save with the way out, a
+// plain Save without a sheet and a new directory or group with one, and the question
+// before a draft is left behind.
+import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { ProjectSettings } from "/src/screens/profiles/settings.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const real = window.fetch.bind(window);
+
+const account = { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" };
+const contourEff = [
+    { key: "transport", value: null, layer: "claude" },
+    { key: "model", value: "opus[1m]", layer: "account" },
+    { key: "effort", value: "xhigh", layer: "account" },
+    { key: "permissionMode", value: "auto", layer: "account" },
+    { key: "remoteControl", value: null, layer: "claude" },
+    { key: "intent", value: null, layer: "claude" },
+    { key: "contextCap", value: 80, layer: "contour" },
+    { key: "autoRestart", value: false, layer: "panel" },
+    { key: "restartIntent", value: "Continue", layer: "contour" },
+    { key: "env", value: null, layer: "claude" },
+    { key: "args", value: null, layer: "claude" },
+];
+
+// effectiveOf lays a project's own launch over the contour's values, as the
+// service does it for the keys this page shows.
+function effectiveOf(launch) {
+    return contourEff.map((v) => (v.key in launch ? { key: v.key, value: launch[v.key], layer: "project" } : v));
+}
+
+function lineOf(launch, session) {
+    const eff = Object.fromEntries(effectiveOf(launch).map((v) => [v.key, v]));
+    const words = [{ text: "claude" }];
+    if (eff.transport.value === "stream") {
+        for (const w of ["-p", "--input-format", "stream-json"]) words.push({ text: w, key: "transport", layer: "project" });
+    }
+    words.push({ text: "-n" }, { text: session });
+    for (const [key, flag] of [["model", "--model"], ["effort", "--effort"], ["permissionMode", "--permission-mode"]]) {
+        if (eff[key].layer === "project") words.push({ text: flag, key, layer: "project" }, { text: String(eff[key].value), key, layer: "project" });
+    }
+    if (eff.remoteControl.value === true && eff.transport.value !== "stream") {
+        words.push({ text: "--remote-control", key: "remoteControl", layer: eff.remoteControl.layer }, { text: session, key: "remoteControl", layer: eff.remoteControl.layer });
+    }
+    return { words };
+}
+
+let project = {
+    id: 4, groupId: 3, name: "host session", path: "/srv/proj/home", session: "atlas", base: "", sort: 0,
+    launch: { remoteControl: true, permissionMode: "auto" },
+};
+project.effective = effectiveOf(project.launch);
+project.line = lineOf(project.launch, "atlas");
+const contour = () => ({
+    id: 3, name: "personal", auth: "builtin", contextGuard: true, account, launch: { contextCap: 80, restartIntent: "Continue" },
+    effective: contourEff,
+    groups: [{ id: 3, name: "home", projects: [project] }, { id: 5, name: "pets", projects: [] }],
+});
+
+const previews = [];
+const patches = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u === "/api/profiles/schema") return real(u);
+    if (u === "/api/projects/4/preview") {
+        const body = JSON.parse(init.body);
+        previews.push(body);
+        const launch = { ...project.launch, ...(body.launchSet || {}) };
+        for (const k of body.launchUnset || []) delete launch[k];
+        const problems = [];
+        if ((launch.args || []).includes("-p")) problems.push({ key: "args", why: "-p: the panel decides where the session lives" });
+        return json({ effective: effectiveOf(launch), line: lineOf(launch, body.session || project.session), problems });
+    }
+    if (u === "/api/projects/4" && init && init.method === "PATCH") {
+        const body = JSON.parse(init.body);
+        patches.push(body);
+        const launch = { ...project.launch, ...(body.launchSet || {}) };
+        for (const k of body.launchUnset || []) delete launch[k];
+        project = { ...project, ...body, launch };
+        delete project.launchSet;
+        delete project.launchUnset;
+        project.effective = effectiveOf(launch);
+        project.line = lineOf(launch, project.session);
+        return json({ profiles: [contour()], project });
+    }
+    return json({});
+};
+
+const catalog = { state: "ok", models: [
+    { id: "claude-opus-5-5", name: "Claude Opus 5.5", window: 1000000 },
+    { id: "claude-sonnet-5", name: "Claude Sonnet 5", window: 1000000 },
+    { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", window: 200000 },
+] };
+
+const done = [];
+let closed = 0;
+function Harness() {
+    const [, setTick] = useState(0);
+    const c = contour();
+    return html`<${ProjectSettings}
+        project=${project}
+        contour=${c}
+        group=${c.groups[0]}
+        profiles=${[c]}
+        catalog=${catalog}
+        order=${null}
+        onClose=${() => { closed += 1; }}
+        onDone=${(data) => { done.push(Boolean(data && data.profiles)); setTick((n) => n + 1); }}
+        onRemove=${async () => ({ ok: false })}
+    />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Harness))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel) => Array.from(document.querySelectorAll(sel));
+const row = (name) => all(".pzrow").find((r) => text(r.querySelector(".pzname")) === name);
+const chip = (name, label) => Array.from((row(name) || document).querySelectorAll(".pzopt")).find((b) => text(b) === label);
+const bar = () => document.querySelector("#root > * .pzbar, .pzbar");
+const card = (label) => all(".pzcard").find((c) => text(c.querySelector(".pzcardname")) === label);
+const live = (name) => text((row(name) || document).querySelector(".pzlive"));
+const drafted = () => all(".lw[data-draft='1']").map((w) => w.textContent);
+const typeInto = async (el, value) => {
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(60);
+};
+
+window.done = (async () => {
+    const out = {};
+    await until(() => all(".pzrow").length > 0);
+    out.rows = all(".pzrow").map((r) => text(r.querySelector(".pzname")));
+    out.consoleInherited = card("Console") && card("Console").dataset.inherited;
+    out.account = all(".pzacct span").map(text);
+    out.hints = all(".pzhint span").map(text);
+    out.rcOwn = chip("Remote Control", "On") && chip("Remote Control", "On").dataset.inherited;
+    out.effortInherited = chip("Effort", "Extra") && chip("Effort", "Extra").dataset.inherited;
+    out.effortFrom = text((row("Effort") || document).querySelector(".pzfrom"));
+    out.barAtStart = Boolean(bar());
+
+    chip("Effort", "Low").click();
+    await until(() => bar());
+    row("Effort").querySelector(".pzback").click();
+    await until(() => !bar());
+    out.backIsNoChange = !bar();
+
+    chip("Effort", "Max").click();
+    await until(() => bar());
+    out.barAfterOne = text(bar().querySelector(".pzbarsay"));
+    out.effortRowDraft = row("Effort").dataset.draft;
+    await until(() => drafted().length > 0);
+    out.draftedWords = drafted();
+    out.permLiveTmux = live("Permissions");
+
+    card("Feed").click();
+    await until(() => text(bar().querySelector(".pzbarsay")) === "2 changes");
+    out.barAfterTwo = text(bar().querySelector(".pzbarsay"));
+    await until(() => live("Permissions") === "now");
+    out.permLiveStream = live("Permissions");
+    out.feedSays = all(".pzcard[aria-pressed='true'] .pzsaid li").map(text);
+
+    const add = row("Extra arguments").querySelector(".pztokenadd input");
+    await typeInto(add, "-p");
+    add.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await until(() => bar() && bar().dataset.blocked === "1");
+    out.blocked = text(bar().querySelector(".pzbarsay"));
+    out.saveDisabled = bar().querySelector(".btn.primary").disabled;
+    const way = Array.from(bar().querySelectorAll(".btn")).find((b) => text(b) === "Undo the change");
+    out.exit = text(way);
+    way.click();
+    await until(() => bar() && bar().dataset.blocked === "0");
+    out.afterExit = text(bar().querySelector(".pzbarsay"));
+
+    Array.from(document.querySelectorAll(".pzhint .btn")).find((b) => text(b) === "Remove").click();
+    await until(() => text(bar().querySelector(".pzbarsay")) === "3 changes");
+    out.pinRemoved = text((row("Permissions") || document).querySelector(".pzfrom"));
+    bar().querySelector(".btn.primary").click();
+    await until(() => patches.length > 0);
+    await until(() => !bar());
+    out.patch = patches[0];
+    out.sheetOnPlainSave = Boolean(document.querySelector(".sheet.on"));
+    out.done = done;
+    out.barAfterSave = Boolean(bar());
+
+    const path = all(".pffield").find((f) => text(f.querySelector(".pflabel")).startsWith("Directory")).querySelector("input");
+    await typeInto(path, "/srv/proj/elsewhere");
+    const pets = all(".pffield").find((f) => text(f.querySelector(".pflabel")).startsWith("Group"));
+    Array.from(pets.querySelectorAll(".pzopt")).find((b) => text(b) === "pets").click();
+    await until(() => bar() && text(bar().querySelector(".pzbarsay")) === "2 changes");
+    out.pathSays = text(path.parentElement.querySelector(".pfhelp"));
+    bar().querySelector(".btn.primary").click();
+    const sheet = await until(() => document.querySelector(".sheet.on"));
+    out.pathSheet = text(sheet);
+    const cancel = Array.from(sheet.querySelectorAll(".btn")).find((b) => text(b) === "Cancel");
+    if (cancel) cancel.click();
+    await sleep(300);
+
+    history.back();
+    const asked = await until(() => document.querySelector(".sheet.on .pzleave"));
+    out.gestureAsks = Boolean(asked);
+    out.closedByGesture = closed;
+    document.querySelector(".sheet.on .sheetclose, .sheet.on [aria-label='close']").click();
+    await until(() => !document.querySelector(".sheet.on .pzleave"));
+    await sleep(100);
+
+    document.querySelector(".pback").click();
+    const leave = await until(() => document.querySelector(".sheet.on .pzleave"));
+    out.leave = text(leave && leave.querySelector("h3"));
+    out.closedBeforeDiscard = closed;
+    Array.from(leave.querySelectorAll(".btn")).find((b) => text(b) === "Discard").click();
+    await sleep(50);
+    out.closedAfterDiscard = closed;
+    out.previews = previews.length;
+    return out;
+})();
+</script>

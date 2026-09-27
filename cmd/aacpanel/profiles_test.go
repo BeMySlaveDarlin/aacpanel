@@ -433,6 +433,7 @@ var profileRoutes = []struct {
 	{"PUT /api/groups/{id}/projects/order", func(s *Server) http.HandlerFunc { return s.apiReorderProjects }},
 	{"PATCH /api/projects/{id}", func(s *Server) http.HandlerFunc { return s.apiUpdateProject }},
 	{"DELETE /api/projects/{id}", func(s *Server) http.HandlerFunc { return s.apiDeleteProject }},
+	{"POST /api/projects/{id}/preview", func(s *Server) http.HandlerFunc { return s.apiPreviewProject }},
 	{"POST /api/disk/hidden", func(s *Server) http.HandlerFunc { return s.apiHideDir }},
 	{"DELETE /api/disk/hidden", func(s *Server) http.HandlerFunc { return s.apiShowDir }},
 }

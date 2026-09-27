@@ -382,14 +382,7 @@ func (s *Server) writeProfiles(w http.ResponseWriter, r *http.Request, extra map
 		profilesError(w, err)
 		return
 	}
-	states := s.contourStates()
-	for i := range list {
-		st := states.of(list[i])
-		list[i].Auth, list[i].Hooks = st.Auth, st.Hooks
-		list[i].Account, list[i].ContextGuard = st.Account, st.ContextGuard
-	}
-	store.FillEffective(list)
-	fillLines(list)
+	s.fillMap(list)
 	body := map[string]any{"profiles": list, "models": s.modelCatalog(), "disk": s.diskReport(r.Context(), list)}
 	for k, v := range extra {
 		body[k] = sameEntry(list, v)
@@ -397,32 +390,105 @@ func (s *Server) writeProfiles(w http.ResponseWriter, r *http.Request, extra map
 	writeJSON(w, body)
 }
 
-// fillLines puts on every project the command its next launch runs, built by
-// the launcher's own code and started by nobody, each word marked with the
-// layer its parameter came from.
-func fillLines(list []store.Profile) {
+// fillMap puts on the map what the host says of each contour's account, the
+// effective values of every entry and the command every project's next launch
+// runs.
+func (s *Server) fillMap(list []store.Profile) {
+	states := s.contourStates()
+	for i := range list {
+		st := states.of(list[i])
+		list[i].Auth, list[i].Hooks = st.Auth, st.Hooks
+		list[i].Account, list[i].ContextGuard = st.Account, st.ContextGuard
+	}
+	store.FillEffective(list)
 	for i := range list {
 		for g := range list[i].Groups {
 			for p := range list[i].Groups[g].Projects {
-				project := &list[i].Groups[g].Projects[p]
-				launch, err := store.EffectiveLaunch(list[i].Launch, project.Launch)
-				if err != nil {
-					continue
-				}
-				line := launcher.Preview(sessionNameOf(*project), launch)
-				layers := map[string]string{}
-				for _, v := range project.Effective {
-					layers[v.Key] = v.Layer
-				}
-				for _, words := range [][]schema.Word{line.Words, line.Then} {
-					for w := range words {
-						words[w].Layer = layers[words[w].Key]
-					}
-				}
-				project.Line = &line
+				fillLine(list[i], &list[i].Groups[g].Projects[p])
 			}
 		}
 	}
+}
+
+// fillLine puts on a project the command its next launch runs, built by the
+// launcher's own code and started by nobody, each word marked with the layer
+// its parameter came from.
+func fillLine(contour store.Profile, project *store.ProfileProject) {
+	launch, err := store.EffectiveLaunch(contour.Launch, project.Launch)
+	if err != nil {
+		return
+	}
+	line := launcher.Preview(sessionNameOf(*project), launch)
+	layers := map[string]string{}
+	for _, v := range project.Effective {
+		layers[v.Key] = v.Layer
+	}
+	for _, words := range [][]schema.Word{line.Words, line.Then} {
+		for w := range words {
+			words[w].Layer = layers[words[w].Key]
+		}
+	}
+	project.Line = &line
+}
+
+// apiPreviewProject answers what a project would launch with if a draft of
+// its edit were saved: its effective values, the command and what the launch
+// would refuse. Nothing is written: the screen asks as the draft changes, so
+// the command it shows is built by the launcher's own code and not guessed.
+func (s *Server) apiPreviewProject(w http.ResponseWriter, r *http.Request) {
+	if !s.profilesReady(w) {
+		return
+	}
+	id, ok := s.profileID(w, r, "project")
+	if !ok {
+		return
+	}
+	var body store.ProjectEdit
+	if !decodeProfileBody(w, r, &body) {
+		return
+	}
+	list, err := s.db.Profiles(r.Context())
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	s.fillMap(list)
+	contour, project := findProject(list, id)
+	if project == nil {
+		http.Error(w, fmt.Sprintf("there is no project %d", id), http.StatusNotFound)
+		return
+	}
+	draft, problems, err := store.DraftLaunch(project.Launch, body.LaunchSet, body.LaunchUnset)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	project.Launch = draft
+	if body.Session != nil {
+		project.Session = *body.Session
+	}
+	if body.Path != nil {
+		project.Path = *body.Path
+	}
+	project.Effective = store.EffectiveOf(*contour, draft)
+	fillLine(*contour, project)
+	if problems == nil {
+		problems = []schema.Problem{}
+	}
+	writeJSON(w, map[string]any{"effective": project.Effective, "line": project.Line, "problems": problems})
+}
+
+func findProject(list []store.Profile, id int) (*store.Profile, *store.ProfileProject) {
+	for i := range list {
+		for g := range list[i].Groups {
+			for p := range list[i].Groups[g].Projects {
+				if list[i].Groups[g].Projects[p].ID == id {
+					return &list[i], &list[i].Groups[g].Projects[p]
+				}
+			}
+		}
+	}
+	return nil, nil
 }
 
 // sameEntry returns the entry of the map an answer names beside it, as the

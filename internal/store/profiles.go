@@ -236,13 +236,7 @@ func FillEffective(list []Profile) {
 		if err != nil {
 			continue
 		}
-		var account map[string]any
-		for k, v := range list[i].Account {
-			if account == nil {
-				account = map[string]any{}
-			}
-			account[k] = v
-		}
+		account := accountOf(list[i])
 		list[i].Effective = schema.Effective(account, contour, nil)
 		for g := range list[i].Groups {
 			for p := range list[i].Groups[g].Projects {
@@ -253,4 +247,29 @@ func FillEffective(list []Profile) {
 			}
 		}
 	}
+}
+
+// EffectiveOf returns the effective values a project of a contour would have
+// with the given launch parameters of its own; nil where either does not parse.
+func EffectiveOf(contour Profile, project json.RawMessage) []schema.Value {
+	base, err := launchObject(contour.Launch, "the profile")
+	if err != nil {
+		return nil
+	}
+	own, err := launchObject(project, "the project")
+	if err != nil {
+		return nil
+	}
+	return schema.Effective(accountOf(contour), base, own)
+}
+
+func accountOf(p Profile) map[string]any {
+	var account map[string]any
+	for k, v := range p.Account {
+		if account == nil {
+			account = map[string]any{}
+		}
+		account[k] = v
+	}
+	return account
 }

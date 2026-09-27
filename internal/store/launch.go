@@ -50,7 +50,21 @@ func launchChange(ctx context.Context, tx pgx.Tx, table string, id int, set map[
 	if err != nil {
 		return nil, err
 	}
-	obj, err := launchObject(cur, "the stored row")
+	obj, err := changed(cur, set, unset)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	return checkLaunch(raw, level)
+}
+
+// changed returns the stored launch parameters with the named keys removed
+// and the given ones laid over.
+func changed(stored json.RawMessage, set map[string]any, unset []string) (map[string]any, error) {
+	obj, err := launchObject(stored, "the stored row")
 	if err != nil {
 		return nil, err
 	}
@@ -63,11 +77,26 @@ func launchChange(ctx context.Context, tx pgx.Tx, table string, id int, set map[
 	for key, value := range set {
 		obj[key] = value
 	}
+	return obj, nil
+}
+
+// DraftLaunch returns what a change of some keys would leave of a project's
+// launch parameters, and what in it the launch would refuse — as a list to
+// show rather than an error, since a draft is allowed to be wrong until it is
+// saved.
+func DraftLaunch(stored json.RawMessage, set map[string]any, unset []string) (json.RawMessage, []schema.Problem, error) {
+	if _, err := launchOps(nil, set, unset); err != nil {
+		return nil, nil, err
+	}
+	obj, err := changed(stored, set, unset)
+	if err != nil {
+		return nil, nil, err
+	}
 	raw, err := json.Marshal(obj)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return checkLaunch(raw, level)
+	return raw, schema.Check(schema.LevelProject, obj), nil
 }
 
 // launchOps says whether an edit changes some keys of the launch, and refuses

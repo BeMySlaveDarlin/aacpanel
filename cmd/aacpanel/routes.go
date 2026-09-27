@@ -130,6 +130,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("POST /api/groups/{id}/projects", g.page(s.mapActor(s.apiCreateProject)))
 	mux.Handle("PUT /api/groups/{id}/projects/order", g.page(s.apiReorderProjects))
 	mux.Handle("PATCH /api/projects/{id}", g.page(s.mapActor(s.apiUpdateProject)))
+	mux.Handle("POST /api/projects/{id}/preview", g.page(s.apiPreviewProject))
 	mux.Handle("DELETE /api/projects/{id}", g.page(s.mapActor(s.apiDeleteProject)))
 	mux.Handle("POST /api/disk/hidden", g.page(s.apiHideDir))
 	mux.Handle("DELETE /api/disk/hidden", g.page(s.apiShowDir))

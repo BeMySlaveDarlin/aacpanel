@@ -65,6 +65,14 @@ func runWideFixture(t *testing.T, fixture string, into any) {
 
 func runFixtureOn(t *testing.T, fixture, screen, pointer string, into any) {
 	t.Helper()
+	runFixtureServing(t, fixture, screen, pointer, nil, into)
+}
+
+// runFixtureServing is runFixtureOn with answers of the service's own next to
+// the tree: a fixture that draws from what the service says asks the real
+// code for it rather than carrying a copy that would go stale.
+func runFixtureServing(t *testing.T, fixture, screen, pointer string, serve map[string]http.Handler, into any) {
+	t.Helper()
 	chrome := chromeBinary()
 	if chrome == "" {
 		t.Skip("no Chrome on this machine: the fixture runs the components in a real engine")
@@ -78,6 +86,9 @@ func runFixtureOn(t *testing.T, fixture, screen, pointer string, into any) {
 	// its storage is there for the next one.
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
+	for pattern, h := range serve {
+		mux.Handle(pattern, h)
+	}
 	mux.HandleFunc("/fixture.html", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(page)

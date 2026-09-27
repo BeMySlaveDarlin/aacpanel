@@ -9,6 +9,7 @@ import { useAction } from "../../actions/gate.js";
 import { LaunchFields, clean } from "./launch.js";
 import { DiskPicker, diskNote } from "./disk.js";
 import { PERSONAL } from "../../contour.js";
+import { ProjectLayer, locate } from "./settings.js";
 
 const TITLES = {
     "profile.add": ["New profile", "its own token, its own config directory, its own projects"],
@@ -16,11 +17,30 @@ const TITLES = {
     "group.add": ["New group", "a shelf inside the profile: projects are laid out on it"],
     "group.edit": ["Group", "the name shows on the map and in the launch list"],
     "project.add": ["New project", "something the panel can bring up as a console"],
-    "project.edit": ["Project", "the change applies to the sessions launched next"],
 };
 
-// EditLayer renders one layer for all six cases: there is always one open form.
-export function EditLayer({ form, profiles, catalog, disk, order, onClose, onDone, onRemove }) {
+// EditLayer renders the one open form. A project that exists opens its
+// settings page; the rest — a contour, a group, a new project — a form.
+export function EditLayer(props) {
+    const { form, profiles } = props;
+    if (form.kind === "project" && form.mode === "edit") {
+        const found = locate(profiles, form.project.id);
+        return html`<${ProjectLayer}
+            project=${found.project || form.project}
+            contour=${found.contour || form.profile}
+            group=${found.group || form.group}
+            profiles=${profiles}
+            catalog=${props.catalog}
+            order=${props.order}
+            onClose=${props.onClose}
+            onDone=${props.onDone}
+            onRemove=${props.onRemove}
+        />`;
+    }
+    return html`<${FormLayer} ...${props} />`;
+}
+
+function FormLayer({ form, profiles, catalog, disk, order, onClose, onDone, onRemove }) {
     useBackClose(true, onClose);
     const wide = useWide();
     const [title, sub] = TITLES[`${form.kind}.${form.mode}`] || ["", ""];
@@ -91,7 +111,6 @@ function Body({ form, profiles, catalog, disk, onClose, onDone }) {
 const DANGER = {
     profile: "Delete profile",
     group: "Delete group",
-    project: "Delete project",
 };
 
 function Tail({ form, order, onRemove, onClose }) {
@@ -329,15 +348,13 @@ function GroupForm({ form, profiles, onClose, onDone }) {
     `;
 }
 
+// ProjectForm adds a project; one that exists opens its settings page.
 function ProjectForm({ form, catalog, disk, onClose, onDone }) {
-    const editing = form.mode === "edit";
-    const was = form.project || {};
-    const [name, setName] = useState(was.name || "");
-    const [path, setPath] = useState(was.path || "");
-    const [session, setSession] = useState(was.session || "");
-    const [base, setBase] = useState(was.base || "");
-    const [launch, setLaunch] = useState(was.launch || {});
-    const [group, setGroup] = useState(String((form.group && form.group.id) || ""));
+    const [name, setName] = useState("");
+    const [path, setPath] = useState("");
+    const [session, setSession] = useState("");
+    const [base, setBase] = useState("");
+    const [launch, setLaunch] = useState({});
     const { busy, problem, nameProblem, clearNameProblem, save } = useSave(onClose, onDone);
     const [picking, setPicking] = useState(false);
     const [picked, setPicked] = useState("");
@@ -353,15 +370,11 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
         setPicking(false);
     };
 
-    const id = editing ? "project.edit" : "project.add";
-    const groups = (form.profile.groups || []).filter((g) => g && g.id);
-    const moved = editing && group !== String(was.groupId || (form.group && form.group.id) || "");
     const fields = {
         name: name.trim(),
         path: path.trim(),
         session: session.trim(),
         base: base.trim(),
-        ...(editing && group ? { groupId: Number(group) } : {}),
         launch: clean(launch),
     };
     const check = () => {
@@ -399,19 +412,6 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
             <${DiskPicker} disk=${disk} group=${form.group} profile=${form.profile} onPick=${pick} />
         `}
 
-        ${editing && groups.length > 1 && html`
-            <label class="pffield">
-                <span class="pflabel">Group</span>
-                <select class="search" value=${group} onChange=${(e) => setGroup(e.target.value)}>
-                    ${groups.map((g) => html`
-                        <option key=${g.id} value=${String(g.id)}>${g.name}</option>
-                    `)}
-                </select>
-                <span class="pfhelp">changing the group is the move itself; shelves of another
-                    contour are not offered here, a group moves there whole</span>
-            </label>
-        `}
-
         <label class="pffield">
             <span class="pflabel">Session name</span>
             <input class="search" spellcheck="false" placeholder="after the directory name"
@@ -435,21 +435,14 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
         <${Buttons}
             busy=${busy}
             problem=${problem}
-            ok=${editing ? "Save" : "Add"}
+            ok="Add"
             onClose=${onClose}
             onSave=${() => save(
-                id,
+                "project.add",
                 fields.name,
-                editing
-                    ? { id: was.id, fields, moveTo: moved ? nameOfGroup(groups, group) : "" }
-                    : { groupId: form.group.id, group: form.group.name, profile: form.profile.name, fields },
+                { groupId: form.group.id, group: form.group.name, profile: form.profile.name, fields },
                 check,
             )}
         />
     `;
-}
-
-function nameOfGroup(groups, id) {
-    const own = groups.find((g) => String(g.id) === String(id));
-    return own ? own.name : "";
 }
