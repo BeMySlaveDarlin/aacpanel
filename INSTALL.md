@@ -299,7 +299,7 @@ the panel's eyes.
 | `deploy/claude/artifact-copy.py` | the `PostToolUse` hook on `Artifact` | the panel keeps a copy of every page a session publishes and shows it without the account it went out under; without the hook the card has only its link |
 | `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
 | `deploy/claude/context-guard.py` | the `Stop` hook | past its context cap a session with Auto restart finalizes and restarts itself; the cap and the switch are set in the panel, per contour or per project |
-| `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session in place |
+| `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session as its project from the map, through the panel's local listener; in its own tmux pane when the panel does not answer |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
 | `deploy/claude/skills/notify/` | `<account>/skills/` | `/notify`: the session calls the person to it, and the line arrives on their phone |
 | `deploy/claude/skills/brief/` | `<account>/skills/` | `/brief`: the session publishes a long piece the person walks through in the panel, and the answers come back as a message |
@@ -354,7 +354,11 @@ It speaks only at the end of a turn, when the session is free: no question and
 no permission prompt can be open then, and nothing is typed into the session
 from outside. The fill comes from the collector's snapshot, the same one the
 stamp reads, and a model whose window is not known does not trigger it. The
-restart goes through the restart-session skill, so that one is installed too.
+restart goes through the restart-session skill, so that one is installed too;
+the skill asks the panel over its local listener (`deploy/claude/restart-via-panel.py`,
+`AACP_PANEL_URL`) to bring the session back as its project. With the local
+listener off, a session in the feed cannot restart itself, and one in the
+console restarts in its own pane without the map's parameters.
 The turn after the block is the finalization itself and is never blocked again;
 a session that ignored it is told again at the end of its next turn.
 
