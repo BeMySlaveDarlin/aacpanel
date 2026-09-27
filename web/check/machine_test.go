@@ -136,98 +136,97 @@ func TestLimitsStalenessHasOneOwner(t *testing.T) {
 	}
 }
 
-type deskMeter struct {
+type deskRing struct {
 	Text  string `json:"text"`
 	Level string `json:"level"`
-	Tip   string `json:"tip"`
 }
 
-type deskContourHead struct {
-	Name    string      `json:"name"`
-	Meters  []deskMeter `json:"meters"`
-	Fits    bool        `json:"fits"`
-	OneLine bool        `json:"oneLine"`
+type deskSection struct {
+	Name    string     `json:"name"`
+	Head    string     `json:"head"`
+	Rings   []deskRing `json:"rings"`
+	Old     bool       `json:"old"`
+	Fits    bool       `json:"fits"`
+	OneLine bool       `json:"oneLine"`
+	Live    []string   `json:"live"`
+	Past    []struct {
+		Name  string `json:"name"`
+		About string `json:"about"`
+	} `json:"past"`
 }
 
-type deskQuiet struct {
-	Head string `json:"head"`
-	Rows []struct {
-		Name   string `json:"name"`
-		Meters int    `json:"meters"`
-		Old    bool   `json:"old"`
-		Tip    string `json:"tip"`
-	} `json:"rows"`
-	Height int `json:"height"`
-}
-
-// The limit of a contour stands in its heading in the sessions column, beside
-// the sessions spending it, rather than in a block under the list that grows
-// by a contour's worth of lines with each contour. When a window resets is
-// said on the line only once it runs out; a contour with no live session has
-// no heading and keeps one line under the list.
-func TestDeskLimitsStandInTheContourHeading(t *testing.T) {
+// Every contour shown in the sessions column at a desk has its section: a
+// heading with its name and two rings of its limit — the share of each window
+// inside, the window beside, no count of live sessions — which a press opens
+// into the details of both windows, each with when it resets; its live
+// sessions; and its latest closed conversations up to three cards, a contour
+// with no live session included.
+func TestDeskColumnShowsEveryContourWithItsLimitAndThreeCards(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
-		t.Skip("web/dist/bundle.css is not built: whether the heading holds its limits is the stylesheet's business too — run make front first")
+		t.Skip("web/dist/bundle.css is not built: whether the heading holds its rings is the stylesheet's business too — run make front first")
 	}
 	var got struct {
-		Heads   []deskContourHead `json:"heads"`
-		Quiet   *deskQuiet        `json:"quiet"`
-		AllLive struct {
-			Heads int        `json:"heads"`
-			Quiet *deskQuiet `json:"quiet"`
-		} `json:"allLive"`
+		Sections  []deskSection `json:"sections"`
+		Asked     []string      `json:"asked"`
+		Pop       []string      `json:"pop"`
+		Closed    bool          `json:"closed"`
+		OldNote   string        `json:"oldNote"`
+		NoteOnTop bool          `json:"noteOnTop"`
 	}
 	runWideFixture(t, "desklimits.html", &got)
 
-	if len(got.Heads) != 2 {
-		t.Fatalf("the column shows %d contour headings, expected the two with live sessions: %+v", len(got.Heads), got.Heads)
+	if len(got.Sections) != 3 {
+		t.Fatalf("the column shows %d contours, expected all three of the map, with live sessions or without: %+v", len(got.Sections), got.Sections)
 	}
-	for _, head := range got.Heads {
-		if len(head.Meters) != 2 {
-			t.Errorf("%q: the heading holds %d windows of the limit, expected five hours and seven days", head.Name, len(head.Meters))
-			continue
+	evirma, algo, personal := got.Sections[0], got.Sections[1], got.Sections[2]
+	for _, sec := range got.Sections {
+		if len(sec.Rings) != 2 || !strings.HasSuffix(sec.Rings[0].Text, "5h") || !strings.HasSuffix(sec.Rings[1].Text, "7d") {
+			t.Errorf("%q: the heading holds rings %+v, expected five hours and seven days", sec.Name, sec.Rings)
 		}
-		if !head.Fits || !head.OneLine {
-			t.Errorf("%q: the limit does not fit the heading on one line (fits %v, one line %v) — a long name has to give way",
-				head.Name, head.Fits, head.OneLine)
+		if strings.Contains(sec.Head, "live") {
+			t.Errorf("%q: the heading still counts live sessions: %q", sec.Name, sec.Head)
 		}
-	}
-	algo, personal := got.Heads[0], got.Heads[1]
-	if len(algo.Meters) == 2 {
-		five := algo.Meters[0]
-		if five.Level != "crit" || !strings.Contains(five.Text, "93%") || !strings.Contains(five.Text, "1 h") {
-			t.Errorf("a five-hour window at 93%% reads %q (%s): it has to be marked and say when it resets", five.Text, five.Level)
+		if !sec.Fits || !sec.OneLine {
+			t.Errorf("%q: the rings do not fit the heading on one line (fits %v, one line %v)", sec.Name, sec.Fits, sec.OneLine)
+		}
+		if cards := len(sec.Live) + len(sec.Past); cards < 3 {
+			t.Errorf("%q shows %d cards (live %v, closed %d), expected at least three", sec.Name, cards, sec.Live, len(sec.Past))
 		}
 	}
-	if len(personal.Meters) == 2 {
-		five := personal.Meters[0]
-		if strings.Contains(five.Text, " h") || five.Level != "" {
-			t.Errorf("a window at 12%% reads %q (%s): the reset time belongs in the tip until the window runs out", five.Text, five.Level)
-		}
-		if !strings.Contains(five.Tip, "resets in 4 h") {
-			t.Errorf("the tip of a window at 12%% says %q — when it resets is said there always", five.Tip)
+	if len(algo.Rings) == 2 && (algo.Rings[0].Level != "crit" || !strings.HasPrefix(algo.Rings[0].Text, "93")) {
+		t.Errorf("a five-hour window at 93%% reads %+v: it has to be marked", algo.Rings[0])
+	}
+	if len(evirma.Live) != 0 || len(evirma.Past) != 3 || !evirma.Old {
+		t.Errorf("the contour with no live session shows live %v, %d closed, dimmed %v: expected three closed and old numbers dimmed",
+			evirma.Live, len(evirma.Past), evirma.Old)
+	}
+	if len(algo.Live) != 1 || len(algo.Past) != 2 {
+		t.Errorf("a contour with one live session shows live %v and %d closed, expected two closed", algo.Live, len(algo.Past))
+	}
+	if len(personal.Live) != 3 || len(personal.Past) != 0 {
+		t.Errorf("a contour with three live sessions shows live %v and %d closed, expected none closed", personal.Live, len(personal.Past))
+	}
+	if len(evirma.Past) > 0 && !strings.Contains(evirma.Past[0].About, "what conversation 0 of contour 4 was about") {
+		t.Errorf("a closed card says %q — it has to say what the conversation was about", evirma.Past[0].About)
+	}
+	for _, q := range got.Asked {
+		if strings.Contains(q, "contour=3") && !strings.Contains(q, "skip=") {
+			t.Errorf("the archive of a contour with live sessions is asked without leaving them out: %s", q)
 		}
 	}
 
-	q := got.Quiet
-	if q == nil || q.Head != "no live sessions" || len(q.Rows) != 1 || q.Rows[0].Name != "Evirma" {
-		t.Fatalf("the contour with no live session is not under the list on a line of its own: %+v", q)
+	if len(got.Pop) != 2 || !strings.Contains(got.Pop[0], "Five hours") || !strings.Contains(got.Pop[0], "93%") ||
+		!strings.Contains(got.Pop[0], "resets in 1 h") || !strings.Contains(got.Pop[1], "Seven days") || !strings.Contains(got.Pop[1], "resets in 5 d") {
+		t.Errorf("the details of the limit read %q: both windows, each with its share and when it resets", got.Pop)
 	}
-	if q.Rows[0].Meters != 2 {
-		t.Errorf("the quiet contour shows %d windows of its limit", q.Rows[0].Meters)
+	if !got.Closed {
+		t.Error("Escape does not put the details down")
 	}
-	if !q.Rows[0].Old || !strings.Contains(q.Rows[0].Tip, "from 1 h ago") {
-		t.Errorf("numbers an hour old are not dimmed with their age in the tip: old %v, tip %q", q.Rows[0].Old, q.Rows[0].Tip)
+	if !got.NoteOnTop {
+		t.Error("the details of a contour drop under the heading of the next one")
 	}
-	if q.Height > 90 {
-		t.Errorf("one quiet contour takes %d px under the list — the block the limits left grew back", q.Height)
-	}
-
-	if got.AllLive.Heads != 3 {
-		t.Fatalf("with a session in every contour the column shows %d headings — the check looks in the wrong place", got.AllLive.Heads)
-	}
-	if got.AllLive.Quiet != nil {
-		t.Errorf("every contour has a live session, and a block of limits still stands under the list: %+v", got.AllLive.Quiet)
+	if !strings.Contains(got.OldNote, "from 1 h ago") {
+		t.Errorf("the details of numbers an hour old say %q — they have to say how old they are", got.OldNote)
 	}
 }
 

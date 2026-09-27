@@ -216,6 +216,7 @@ export function DesktopShell({
             profiles=${profiles}
             limits=${snapshot && snapshot.limits}
             current=${chat && chat.name}
+            currentId=${chat && chat.id}
             onPick=${setChat}
             picks=${picks}
             setPicks=${setPicks}

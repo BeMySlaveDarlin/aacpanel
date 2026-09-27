@@ -375,7 +375,6 @@
         text-overflow: ellipsis;
     }
 
-    .dkcontournum { flex: none; margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; }
 
     /* A row of the column: the hotkey, the name and a mark of waiting, over a
        thin bar of the context. The open row is the one row with a fill; the
@@ -586,54 +585,106 @@
         border-top: var(--hair) solid var(--line);
     }
 
-    /* The limit of a contour in its heading, per window: a caption, a bar as
-       thin as the bar of the context, the share, and the time it resets only
-       once the window runs out. Numbers the snapshot has not renewed are
-       dimmed. */
-    .dkmeters { flex: none; display: flex; align-items: center; gap: .55rem; margin-left: .2rem; }
+    /* The limit of a contour in its heading: two rings filled by the share
+       spent, the share inside, the window beside; a press drops the details.
+       Numbers the snapshot has not renewed are dimmed. */
+    .dkcontour.dklimhead { padding: .3rem .45rem .3rem .55rem; }
 
-    .dkmeters.dkold { opacity: .55; }
+    .dklimhead .dkcontourname { font-size: var(--t-base); }
 
-    .dkmeters.dknone { font-size: var(--t-xs); color: var(--ink-faint); }
+    .dkringsctl { position: relative; flex: none; margin-left: auto; display: flex; }
 
-    .dkmeter {
+    .dkrings {
         display: flex;
         align-items: center;
-        gap: .25rem;
-        font-size: var(--t-xs);
-        font-variant-numeric: tabular-nums;
-        color: var(--ink-faint);
-        white-space: nowrap;
+        gap: .55rem;
+        padding: .1rem .2rem;
+        border: 0;
+        border-radius: var(--r-small);
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
     }
 
-    .dkmeterbar { width: 1.5rem; height: 3px; border-radius: var(--r-small); background: var(--line); overflow: hidden; }
+    .dkrings:hover { background: var(--glass); }
 
-    .dkmeterbar i { display: block; height: 100%; background: var(--accent); }
+    .dkrings.dkold { opacity: .55; }
 
-    .dkmeterpct { min-width: 1.9rem; text-align: right; color: var(--ink-dim); }
+    .dkrings.dknone { margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); cursor: default; }
 
-    .dkmeter.dkwarn .dkmeterpct { color: var(--warn); }
+    .dkring { display: flex; align-items: center; gap: .25rem; }
 
-    .dkmeter.dkwarn .dkmeterbar i { background: var(--warn); }
-
-    .dkmeter.dkcrit .dkmeterpct { color: var(--crit); }
-
-    .dkmeter.dkcrit .dkmeterbar i { background: var(--crit); }
-
-    /* The contours with no live session: a caption once, a line each. */
-    .dkquiet { padding: .4rem .55rem .5rem; }
-
-    .dkquiethead {
-        padding-bottom: .1rem;
-        font-size: var(--t-xs);
-        letter-spacing: .06em;
-        text-transform: uppercase;
-        color: var(--ink-faint);
+    /* The dial is a ring cut out of a conic fill: the share of the window
+       from the top, clockwise, over the track. */
+    .dkringdial {
+        --ring: var(--accent);
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 2.1rem;
+        height: 2.1rem;
     }
 
-    .dkquietrow { display: flex; align-items: center; gap: .45rem; padding: .15rem 0; }
+    .dkringdial::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: conic-gradient(var(--ring) calc(var(--share) * 1%), var(--line) 0);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    }
 
-    .dkquietname { margin-right: auto; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); }
+    .dkring.dkwarn .dkringdial { --ring: var(--warn); }
+
+    .dkring.dkcrit .dkringdial { --ring: var(--crit); }
+
+    .dkringdial b { position: relative; font-size: var(--t-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+
+    .dkring.dkwarn b { color: var(--warn); }
+
+    .dkring.dkcrit b { color: var(--crit); }
+
+    .dkringlabel { font-size: var(--t-xs); color: var(--ink-faint); }
+
+    .dkringsctl .dkpop { width: 17rem; }
+
+    /* Headings stick one over another on the same level: the one with its
+       details open stands above the next, or they drop under it. */
+    .dkcontour.dklimhead:has(.dkpop) { z-index: 5; }
+
+    .dklimpop { display: flex; flex-direction: column; gap: .6rem; }
+
+    .dklimpophead { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+
+    .dklimwin { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .25rem .5rem; align-items: baseline; }
+
+    .dklimwintitle { font-size: var(--t-sm); color: var(--ink-dim); }
+
+    .dklimwinpct { font-size: var(--t-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+    .dklimwin.dkwarn .dklimwinpct { color: var(--warn); }
+
+    .dklimwin.dkcrit .dklimwinpct { color: var(--crit); }
+
+    .dklimwinbar { grid-column: 1 / -1; height: 3px; border-radius: var(--r-small); background: var(--line); overflow: hidden; }
+
+    .dklimwinbar i { display: block; height: 100%; background: var(--accent); }
+
+    .dklimwin.dkwarn .dklimwinbar i { background: var(--warn); }
+
+    .dklimwin.dkcrit .dklimwinbar i { background: var(--crit); }
+
+    .dklimwinreset { grid-column: 1 / -1; font-size: var(--t-xs); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+    .dklimpopnote { margin: 0; font-size: var(--t-xs); color: var(--ink-faint); }
+
+    /* A closed conversation standing where a live session is missing: the
+       same row, quieter. */
+    .dksess.dkpast .dkname { color: var(--ink-dim); }
+
+    .dksess.dkpast .dknum { font-weight: 400; color: var(--ink-faint); }
 
     .dkpage {
         min-width: 0;

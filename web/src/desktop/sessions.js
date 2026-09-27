@@ -1,5 +1,5 @@
 // The left column of the sessions section: contour picker, live sessions by contour with their limits.
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
@@ -13,6 +13,14 @@ import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contoursOf } from "../screens/sessions/map.js";
 import { kinLabel, kinOf } from "../screens/sessions/kin.js";
+import { aboutOf } from "../screens/sessions/blocks.js";
+import { stamp, when } from "../screens/sessions/card.js";
+import { useSessionsArchive } from "../history.js";
+import { Popover } from "../ui/popover.js";
+
+// How many cards a contour shows at least: the live sessions, and its latest
+// closed conversations for the places they leave.
+const MIN_CARDS = 3;
 
 // ContourPick chooses which contours the column shows.
 export function ContourPick({ names, picks, onToggle, onAll }) {
@@ -180,60 +188,141 @@ function resetIn(part) {
     return `${Math.max(1, Math.round(left / 60000))} min`;
 }
 
-// Meter is one window of a contour's limit: a bar and the share spent. When
-// it resets is said on the line only once the window runs out — before that
-// nobody plans around it — and in the tip always.
-function Meter({ label, span, part, old }) {
+// Ring is one window of a contour's limit: a circle filled by the share spent,
+// the share inside it and the window beside it.
+function Ring({ label, part }) {
+    const value = Math.round((part && part.pct) || 0);
+    const level = value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
+    return html`
+        <span class=${`dkring ${level}`.trim()}>
+            <span class="dkringdial" style=${`--share:${Math.min(100, value)}`}><b>${value}</b></span>
+            <span class="dkringlabel">${label}</span>
+        </span>
+    `;
+}
+
+// Window is one window of a limit in the details: the share, a bar and when
+// it starts over.
+function Window({ title, part }) {
     const value = Math.round((part && part.pct) || 0);
     const level = value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
     const left = resetIn(part);
-    const tip = old || (left ? `The ${span} window resets in ${left}` : "When the window resets, the snapshot does not say");
     return html`
-        <span class=${`dkmeter ${level}`.trim()} data-tip=${tip} data-tipside="left">
-            <span class="dkmeterlabel">${label}</span>
-            <span class="dkmeterbar"><i style=${`width:${Math.min(100, value)}%`}></i></span>
-            <span class="dkmeterpct">${value}%</span>
-            ${level && left && html`<span class="dkmeterreset">${left}</span>`}
-        </span>
+        <div class=${`dklimwin ${level}`.trim()}>
+            <span class="dklimwintitle">${title}</span>
+            <span class="dklimwinpct">${value}%</span>
+            <span class="dklimwinbar"><i style=${`width:${Math.min(100, value)}%`}></i></span>
+            <span class="dklimwinreset">${left ? `resets in ${left}` : "when it resets, the snapshot does not say"}</span>
+        </div>
     `;
 }
 
-// ContourLimits is the subscription limit of a contour, beside its name: the
-// limit belongs to the contour, and the sessions spending it stand right
-// under. Numbers the snapshot has not renewed for a while are dimmed and say
-// how old they are.
+// ContourLimits is the subscription limit of a contour in its heading: two
+// rings, and the details of both windows under them on a press. Numbers the
+// snapshot has not renewed for a while are dimmed and say how old they are.
 export function ContourLimits({ limits, name, profiles }) {
+    const [open, setOpen] = useState(false);
+    const close = useCallback(() => setOpen(false), []);
     const id = ((profiles || []).find((p) => p.profile === name) || {}).id || 0;
     const c = contourOf(limits, name, id);
-    if (!c) return html`<span class="dkmeters dknone">no numbers yet</span>`;
+    if (!c) return html`<span class="dkrings dknone">no numbers yet</span>`;
     const old = staleLimits(c)
-        ? `The numbers are from ${agoText(c.ageSec)}: statusLine writes them while a session of the contour answers`
+        ? `The numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers`
         : "";
     return html`
-        <span class=${`dkmeters${old ? " dkold" : ""}`}>
-            <${Meter} label="5h" span="five-hour" part=${c.fiveHour} old=${old} />
-            <${Meter} label="7d" span="seven-day" part=${c.sevenDay} old=${old} />
+        <span class="dkringsctl">
+            <button class=${`dkrings${old ? " dkold" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
+                    aria-label=${`the limits of contour ${name}`} onClick=${() => setOpen(!open)}>
+                <${Ring} label="5h" part=${c.fiveHour} />
+                <${Ring} label="7d" part=${c.sevenDay} />
+            </button>
+            <${Popover} open=${open} onClose=${close} label=${`the limits of contour ${name}`}>
+                <div class="dklimpop">
+                    <div class="dklimpophead">${name}</div>
+                    <${Window} title="Five hours" part=${c.fiveHour} />
+                    <${Window} title="Seven days" part=${c.sevenDay} />
+                    ${old && html`<p class="dklimpopnote">${old}</p>`}
+                </div>
+            <//>
         </span>
     `;
 }
 
-// QuietLimits holds the limits of the shown contours with no live session:
-// they have no heading in the list to stand beside, and one line each under
-// it is all they are worth until work starts there.
-export function QuietLimits({ limits, names, picks, profiles, live }) {
-    const shown = (picks && picks.length ? names.filter((n) => picks.includes(n)) : names)
-        .filter((name) => !live.has(name));
-    if (shown.length === 0) return null;
+// PastLine is a closed conversation of a contour standing where a live
+// session is missing: what it was about and when, opened from the archive,
+// resumed with a press.
+function PastLine({ row, on, onPick, exec }) {
+    const run = useAction();
+    const about = aboutOf(row, null);
+    const ready = knows(exec, "session.resume");
+    const group = row.project && row.project.group;
     return html`
-        <div class="dklimits dkquiet">
-            <div class="dkquiethead">no live sessions</div>
-            ${shown.map((name) => html`
-                <div class="dkquietrow" key=${name}>
-                    <span class="dkquietname">${name}</span>
-                    <${ContourLimits} limits=${limits} name=${name} profiles=${profiles} />
-                </div>
+        <button class=${`dksess dkpast${on ? " on" : ""}`} type="button"
+                onClick=${() => onPick({ name: row.name, id: row.sessionId, archived: true, row })}>
+            <span class="dkdot dkoff dkside"></span>
+            <span class="dksessbody">
+                <span class="dksessmain">
+                    <span class="dkname">${row.name}</span>
+                    <span class="dknum">${when(stamp(row.lastAt))}</span>
+                </span>
+                <span class="dksesssub">
+                    ${group && html`<span class="dkgroup dkchip">${group}</span>`}
+                    <span class="dklast">${about ? `«${about}»` : "closed"}</span>
+                </span>
+            </span>
+            <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
+                <i class=${`dkact${ready ? "" : " off"}`}
+                   aria-label="resume the conversation"
+                   data-tip=${ready ? undefined : whyNot(exec, "session.resume")}
+                   data-tipside="left"
+                   onClick=${async () => {
+                       if (!ready) return;
+                       await run("session.resume", row.name, { session: row.sessionId });
+                   }}><${Icon.resume} /></i>
+            </span>
+        </button>
+    `;
+}
+
+// ContourSection is one contour in the column: its heading with the limit,
+// its live sessions with the runs they started folded under them, and its
+// latest closed conversations for the places up to MIN_CARDS the live ones
+// leave.
+function ContourSection({ name, id, list, limits, map, place, current, currentId, onPick, flat, exec, wait }) {
+    const { own, kids } = kinOf(list);
+    const need = Math.max(0, MIN_CARDS - own.length);
+    const skip = list.map((s) => s.sessionId).filter(Boolean);
+    const past = useSessionsArchive({ limit: MIN_CARDS, contour: id, profile: name, skip });
+    const rows = need > 0 && past.kind === "ready" ? ((past.archive && past.archive.rows) || []).slice(0, need) : [];
+    const line = (s, kid = false) => {
+        const found = s.project === undefined ? place(s.cwd) : s.project;
+        return html`<${SessionLine}
+            key=${s.session}
+            s=${s}
+            group=${found ? found.group : ""}
+            current=${current}
+            onPick=${onPick}
+            index=${kid ? 99 : flat.indexOf(s)}
+            exec=${exec}
+            wait=${wait}
+            kid=${kid}
+        />`;
+    };
+    return html`
+        <section>
+            <div class="dkcontour dklimhead">
+                <span class="dkcontourname">${name}</span>
+                <${ContourLimits} limits=${limits} name=${name} profiles=${map} />
+            </div>
+            ${own.map((s) => html`
+                ${line(s)}
+                ${kids.has(s.session) && html`<${KinFold} key=${`kin:${s.session}`} kids=${kids.get(s.session)} line=${line} />`}
             `)}
-        </div>
+            ${rows.map((row) => html`<${PastLine} key=${row.sessionId} row=${row} on=${currentId === row.sessionId}
+                                                  onPick=${onPick} exec=${exec} />`)}
+            ${own.length === 0 && rows.length === 0 && past.kind !== "loading"
+                && html`<p class="dkempty">nothing has been said in this contour yet</p>`}
+        </section>
     `;
 }
 
@@ -261,7 +350,7 @@ function groupOf(profiles) {
     };
 }
 
-export function SessionColumn({ snapshot, profiles, limits, current, onPick, picks, setPicks, onNames, onOrder, exec, wait }) {
+export function SessionColumn({ snapshot, profiles, limits, current, currentId, onPick, picks, setPicks, onNames, onOrder, exec, wait }) {
     const all = (snapshot && snapshot.sessions) || [];
 
     const map = (snapshot && snapshot.profileMap) || [];
@@ -289,7 +378,15 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
         return map;
     }, [shown]);
 
-    const flat = useMemo(() => [...byProfile].flatMap(([, list]) => kinOf(list).own), [byProfile]);
+    // Every contour shown has its section, with live sessions or without:
+    // those of the map in its order, then any a session names that the map
+    // does not.
+    const sections = useMemo(() => {
+        const wanted = picks.length ? names.filter((n) => picks.includes(n)) : names;
+        return [...wanted, ...[...byProfile.keys()].filter((n) => !wanted.includes(n))];
+    }, [names.join("\n"), picks.join("\n"), byProfile]);
+
+    const flat = useMemo(() => sections.flatMap((n) => kinOf(byProfile.get(n) || []).own), [sections, byProfile]);
 
     useEffect(() => {
         if (onOrder) onOrder(flat.map((s) => ({ name: s.session, id: s.sessionId })));
@@ -305,39 +402,15 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
             />
             <div class="dkscroll">
                 ${ghosts.map((task) => html`<${GhostLine} key=${`+${task.target}`} task=${task} />`)}
-                ${[...byProfile].map(([profile, list]) => html`
-                    <section key=${profile}>
-                        <div class="dkcontour">
-                            <span class="dkcontourname">${profile}</span>
-                            <span class="dkcontournum">${list.length} live</span>
-                            <${ContourLimits} limits=${limits} name=${profile} profiles=${map} />
-                        </div>
-                        ${(() => {
-                            const { own, kids } = kinOf(list);
-                            const line = (s, kid = false) => {
-                                const found = s.project === undefined ? place(s.cwd) : s.project;
-                                return html`<${SessionLine}
-                                    key=${s.session}
-                                    s=${s}
-                                    group=${found ? found.group : ""}
-                                    current=${current}
-                                    onPick=${onPick}
-                                    index=${kid ? 99 : flat.indexOf(s)}
-                                    exec=${exec}
-                                    wait=${wait}
-                                    kid=${kid}
-                                />`;
-                            };
-                            return own.map((s) => html`
-                                ${line(s)}
-                                ${kids.has(s.session) && html`<${KinFold} key=${`kin:${s.session}`} kids=${kids.get(s.session)} line=${line} />`}
-                            `);
-                        })()}
-                    </section>
+                ${sections.map((name) => html`
+                    <${ContourSection} key=${name} name=${name}
+                                       id=${(map.find((p) => p.profile === name) || {}).id || 0}
+                                       list=${byProfile.get(name) || []} limits=${limits} map=${map} place=${place}
+                                       current=${current} currentId=${currentId} onPick=${onPick} flat=${flat}
+                                       exec=${exec} wait=${wait} />
                 `)}
-                ${shown.length === 0 && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}
+                ${sections.length === 0 && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}
             </div>
-            <${QuietLimits} limits=${limits} names=${names} picks=${picks} profiles=${map} live=${new Set(byProfile.keys())} />
         </aside>
     `;
 }

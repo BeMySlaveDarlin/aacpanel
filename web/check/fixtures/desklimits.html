@@ -6,11 +6,10 @@
 <script>document.documentElement.style.setProperty("--ui-scale", "1.2");</script>
 <div class="deskshell"><div class="dkbody" id="root"></div></div>
 <script type="module">
-// The limits of the contours in the sessions column at a desk: each in the
-// heading of its contour, the time a window resets said only once it runs out,
-// and the contours with no live session on one line each under the list.
+// The sessions column at a desk: every contour has its section — a heading
+// with two rings of its limit that open the details of both windows, its
+// live sessions, and its latest closed conversations up to three cards.
 import { h, render } from "preact";
-import { useState } from "preact/hooks";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
@@ -28,61 +27,78 @@ const profileMap = [
     { id: 3, profile: "personal", name: "personal", groups: [] },
 ];
 const session = (name, contour) => ({ session: name, sessionId: name, contour, status: "idle", pct: 20, cwd: `/srv/${name}` });
-const quiet = [session("lms", 1), session("aacpanel", 3)];
-const busy = [session("rotation", 4), ...quiet];
+const sessions = [session("lms", 1), session("aacpanel", 3), session("atlas", 3), session("blog", 3)];
+const asked = [];
+const closed = (contour, n) => Array.from({ length: n }, (_, i) => ({
+    sessionId: `c${contour}-${i}`, name: `old-${contour}-${i}`, cwd: `/srv/old${i}`,
+    prompts: [`what conversation ${i} of contour ${contour} was about`], lastAt: new Date(Date.now() - (i + 1) * 3600e3).toISOString(),
+    pctMax: 30, messages: 10, project: { id: i, name: `old${i}`, group: "Backend", session: `old${i}`, path: `/srv/old${i}` },
+}));
+window.fetch = async (url) => {
+    const u = new URL(String(url), location.href);
+    if (u.pathname === "/api/sessions/archive") {
+        asked.push(u.search);
+        const contour = Number(u.searchParams.get("contour"));
+        return new Response(JSON.stringify({ rows: closed(contour, 3), total: 3, limit: 3, offset: 0 }), { headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
 
-let set = null;
-function Host() {
-    const [sessions, setSessions] = useState(quiet);
-    set = setSessions;
-    return h(SessionColumn, {
-        snapshot: { at: now, sessions, profileMap, limits }, profiles: { profiles: [] }, limits,
-        current: "aacpanel", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {},
-        exec: { available: true, kinds: [] }, wait: null,
-    });
-}
-render(h(ToastHost, null, h(GateHost, null, h(Host))), document.getElementById("root"));
+render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: now, sessions, profileMap, limits }, profiles: { profiles: [] }, limits,
+    current: "aacpanel", currentId: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {},
+    exec: { available: true, kinds: ["session.resume", "session.close"] }, wait: null,
+}))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const heads = () => Array.from(document.querySelectorAll(".dkcontour")).map((head) => {
+const sections = () => Array.from(document.querySelectorAll(".dkscroll > section")).map((sec) => {
+    const head = sec.querySelector(".dkcontour");
     const box = head.getBoundingClientRect();
-    const meters = head.querySelector(".dkmeters");
-    const mbox = meters ? meters.getBoundingClientRect() : null;
+    const rings = head.querySelector(".dkrings");
+    const rbox = rings ? rings.getBoundingClientRect() : null;
     return {
         name: text(head.querySelector(".dkcontourname")),
-        meters: Array.from(head.querySelectorAll(".dkmeter")).map((m) => ({
-            text: text(m), level: m.classList.contains("dkcrit") ? "crit" : m.classList.contains("dkwarn") ? "warn" : "",
-            tip: m.dataset.tip || "",
+        head: text(head),
+        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => ({
+            text: text(r), level: r.classList.contains("dkcrit") ? "crit" : r.classList.contains("dkwarn") ? "warn" : "",
         })),
-        fits: Boolean(mbox) && mbox.right <= box.right + 0.5 && mbox.left >= box.left,
-        oneLine: Math.round(box.height) < 40,
+        old: Boolean(head.querySelector(".dkrings.dkold")),
+        fits: Boolean(rbox) && rbox.right <= box.right + 0.5 && rbox.left >= box.left,
+        oneLine: (() => {
+            const nb = head.querySelector(".dkcontourname").getBoundingClientRect();
+            return Boolean(rbox) && Math.abs((nb.top + nb.bottom) / 2 - (rbox.top + rbox.bottom) / 2) < 6 && box.height < 70;
+        })(),
+        tall: Math.round(box.height),
+        live: Array.from(sec.querySelectorAll(".dksess:not(.dkpast) .dkname")).map(text),
+        past: Array.from(sec.querySelectorAll(".dksess.dkpast")).map((r) => ({ name: text(r.querySelector(".dkname")), about: text(r.querySelector(".dklast")) })),
     };
 });
-const quietSeen = () => {
-    const box = document.querySelector(".dkquiet");
-    if (!box) return null;
-    return {
-        head: text(box.querySelector(".dkquiethead")),
-        rows: Array.from(box.querySelectorAll(".dkquietrow")).map((row) => ({
-            name: text(row.querySelector(".dkquietname")),
-            meters: row.querySelectorAll(".dkmeter").length,
-            old: Boolean(row.querySelector(".dkmeters.dkold")),
-            tip: (row.querySelector(".dkmeter") || { dataset: {} }).dataset.tip || "",
-        })),
-        height: Math.round(box.getBoundingClientRect().height),
-    };
-};
 
 window.done = (async () => {
     await document.fonts.ready;
-    for (let i = 0; i < 50 && !document.querySelector(".dkcontour"); i++) await sleep(50);
-    await sleep(100);
-    const out = { heads: heads(), quiet: quietSeen() };
-    set(busy);
-    for (let i = 0; i < 50 && document.querySelectorAll(".dkcontour").length < 3; i++) await sleep(50);
-    await sleep(100);
-    out.allLive = { heads: heads().length, quiet: quietSeen() };
+    for (let i = 0; i < 60 && document.querySelectorAll(".dksess.dkpast").length < 5; i++) await sleep(50);
+    await sleep(150);
+    const out = { sections: sections(), asked };
+    const algo = Array.from(document.querySelectorAll(".dkrings"))[1];
+    algo.click();
+    await sleep(120);
+    const pop = document.querySelector(".dklimpop");
+    out.pop = pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await sleep(80);
+    out.closed = !document.querySelector(".dklimpop");
+    Array.from(document.querySelectorAll(".dkrings"))[0].click();
+    await sleep(120);
+    out.oldNote = text(document.querySelector(".dklimpopnote"));
+    // The details of the first contour drop over the heading of the next:
+    // what stands at the middle of the note is the note, not that heading.
+    const note = document.querySelector(".dklimpopnote");
+    if (note) {
+        const nb = note.getBoundingClientRect();
+        const hit = document.elementFromPoint(nb.left + nb.width / 2, nb.top + nb.height / 2);
+        out.noteOnTop = Boolean(hit && note.contains(hit));
+    }
     return out;
 })();
 </script>
