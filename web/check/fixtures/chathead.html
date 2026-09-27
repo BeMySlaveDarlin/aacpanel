@@ -51,6 +51,18 @@ window.done = (async () => {
         out.deckUseLeftGap = round(box.left - deck.left);
         out.deckUseFirst = document.querySelector(".deck").firstElementChild === use;
     }
+    // On a wide screen the chips of what is in flight stand at the right end
+    // of the composer's band: how many, how tall beside the model's words.
+    const band = document.querySelector(".composer .cstrip");
+    const work = band && band.querySelector(".cwork");
+    out.stripChips = work ? work.querySelectorAll(".wchip").length : 0;
+    if (work) {
+        const chip = work.querySelector(".wchip").getBoundingClientRect();
+        const words = band.querySelector(".pkchip");
+        out.stripChipTall = round(chip.height);
+        out.stripWordsTall = words ? round(words.getBoundingClientRect().height) : 0;
+        out.stripChipsRight = round(band.getBoundingClientRect().right - work.getBoundingClientRect().right);
+    }
     out.wide = document.documentElement.scrollWidth > innerWidth || innerWidth > visualViewport.width + 1;
     const more = document.querySelector(".phead .pmore");
     if (more) {

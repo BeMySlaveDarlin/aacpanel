@@ -395,16 +395,20 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
                                      onScreen=${screenLook}
                                      onSide=${onStream ? sideChat.ask : null}
                                      strip=${wide
-                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} lead=${commandsChip} />`
+                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} lead=${commandsChip} />
+                                             ${view !== "term" && html`<div class="cwork">
+                                                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
+                                                 <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
+                                             </div>`}`
                                          : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} lead=${commandsChip} />`}
                                      focus=${`${name}|${id || ""}|${view}`} />
                     `}
             </div>
         `}
 
-        ${live && view !== "term" && html`
+        ${live && view !== "term" && !wide && html`
             <div class="deck">
-                ${!wide && live.tokensIn > 0 && html`
+                ${live.tokensIn > 0 && html`
                     <button class="deckuse" type="button" aria-label="tokens in and out of this session, open usage"
                             onClick=${onUsage}>
                         <span class="deckin"><i aria-hidden="true">↑</i>${tokens(live.tokensIn)}</span>

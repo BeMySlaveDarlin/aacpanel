@@ -225,6 +225,13 @@
 .cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: 2.5rem; padding: 0 .55rem; font-size: var(--t-sm); color: var(--ink-dim); }
 .cstrip .pkchip svg { width: var(--i-sm); height: var(--i-sm); }
 .cstrip .pickfile { width: 2.5rem; height: 2.5rem; }
+/* On a wide screen what the session has in flight stands at the right end of
+   the band rather than in a row of its own under the frame: the band has room
+   to spare there, and the chips grow to the height of the words beside them. */
+.cstrip .cwork { flex: none; display: flex; align-items: center; gap: .35rem; margin-left: auto; }
+.cstrip .cwork .wchips { gap: .35rem; }
+.cstrip .cwork .wchip { height: 2.5rem; padding: 0 .65rem; gap: .4rem; font-size: var(--t-md); }
+.cstrip .cwork .wchip svg { width: var(--i-md); height: var(--i-md); }
 /* The panel's commands follow the paperclip: not a setting like the words
    after it, so not one of them, but the same height and hover, and as wide as
    the paperclip. */
