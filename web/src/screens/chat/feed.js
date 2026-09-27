@@ -63,11 +63,20 @@ export function unarrived(local, items) {
 export function merge(items, incoming) {
     if (!incoming.length) return items;
     const out = items.slice();
-    for (const item of incoming) {
+    for (const raw of incoming) {
+        // A call already shown comes again when what the host knows of it
+        // changes — its result arrived, it failed: the new object takes the
+        // place of the one shown, wherever the run folded it, and only the
+        // calls never seen go on to be placed.
+        const item = raw.role === "tools" ? renew(out, raw) : raw;
+        if (!item) continue;
         const i = out.findIndex((was) => was.pos === item.pos
-            && (was.role === item.role || was.role === item.fixes));
+            && (was.role === item.role || was.role === item.fixes)
+            && (item.role !== "tools" || was.kind === item.kind));
         if (i >= 0) {
-            out[i] = item;
+            out[i] = item.role === "tools"
+                ? { ...item, run: out[i].run, calls: [...out[i].calls, ...(item.calls || [])] }
+                : item;
             continue;
         }
         if (item.role === "think" && tail(out).length) {
@@ -85,10 +94,7 @@ export function merge(items, incoming) {
             const at = tail(out).findIndex((was) => was.role === "tools" && was.kind === item.kind);
             if (at >= 0) {
                 const was = tail(out)[at];
-                const seen = new Set(was.calls.map((call) => `${call.pos}-${call.index}`));
-                const fresh = (item.calls || []).filter((call) => !seen.has(`${call.pos}-${call.index}`));
-                if (!fresh.length) continue;
-                out[out.indexOf(was)] = { ...was, calls: [...was.calls, ...fresh] };
+                out[out.indexOf(was)] = { ...was, calls: [...was.calls, ...(item.calls || [])] };
                 continue;
             }
             out.push({ ...item, run });
@@ -97,6 +103,32 @@ export function merge(items, incoming) {
         out.push(item);
     }
     return out;
+}
+
+const callKey = (call) => `${call.pos}-${call.index}`;
+
+// renew puts the calls of an arriving tools item that the feed already shows
+// in place of the shown ones, and returns the item with the calls still to be
+// placed — or null when none are left.
+function renew(out, item) {
+    const fresh = new Map((item.calls || []).map((call) => [callKey(call), call]));
+    if (!fresh.size) return item;
+    for (let i = out.length - 1; i >= 0 && fresh.size; i--) {
+        const was = out[i];
+        if (was.role !== "tools" || !(was.calls || []).some((call) => fresh.has(callKey(call)))) continue;
+        out[i] = {
+            ...was,
+            calls: was.calls.map((call) => {
+                const next = fresh.get(callKey(call));
+                if (!next) return call;
+                fresh.delete(callKey(call));
+                return next;
+            }),
+        };
+    }
+    const left = (item.calls || []).filter((call) => fresh.has(callKey(call)));
+    if (!left.length) return null;
+    return left.length === (item.calls || []).length ? item : { ...item, calls: left };
 }
 
 // rows returns the feed ready for display, folding one run into a single row.
