@@ -587,6 +587,52 @@ func (s *Server) apiUnpin(w http.ResponseWriter, r *http.Request) {
 	s.writeProfiles(w, r, map[string]any{"unpinned": n})
 }
 
+type shelfSetBody struct {
+	Key   string `json:"key"`
+	Value any    `json:"value"`
+}
+
+// apiSetForGroup writes one launch value into every project of a group, or
+// takes it out of all of them.
+func (s *Server) apiSetForGroup(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.profileID(w, r, "group")
+	if !ok {
+		return
+	}
+	var body shelfSetBody
+	if !decodeProfileBody(w, r, &body) {
+		return
+	}
+	n, err := s.db.SetForGroup(r.Context(), id, body.Key, body.Value)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	s.writeProfiles(w, r, map[string]any{"changed": n})
+}
+
+type shelfMoveBody struct {
+	To int `json:"to"`
+}
+
+// apiMoveShelf moves every project of a group onto another of its contour.
+func (s *Server) apiMoveShelf(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.profileID(w, r, "group")
+	if !ok {
+		return
+	}
+	var body shelfMoveBody
+	if !decodeProfileBody(w, r, &body) {
+		return
+	}
+	n, err := s.db.MoveShelf(r.Context(), id, body.To)
+	if err != nil {
+		profilesError(w, err)
+		return
+	}
+	s.writeProfiles(w, r, map[string]any{"moved": n})
+}
+
 func findProject(list []store.Profile, id int) (*store.Profile, *store.ProfileProject) {
 	for i := range list {
 		for g := range list[i].Groups {

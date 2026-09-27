@@ -431,6 +431,8 @@ var profileRoutes = []struct {
 	{"PUT /api/profiles/{id}/groups/order", func(s *Server) http.HandlerFunc { return s.apiReorderGroups }},
 	{"PATCH /api/groups/{id}", func(s *Server) http.HandlerFunc { return s.apiUpdateGroup }},
 	{"DELETE /api/groups/{id}", func(s *Server) http.HandlerFunc { return s.apiDeleteGroup }},
+	{"POST /api/groups/{id}/set", func(s *Server) http.HandlerFunc { return s.apiSetForGroup }},
+	{"POST /api/groups/{id}/move", func(s *Server) http.HandlerFunc { return s.apiMoveShelf }},
 	{"POST /api/groups/{id}/projects", func(s *Server) http.HandlerFunc { return s.apiCreateProject }},
 	{"PUT /api/groups/{id}/projects/order", func(s *Server) http.HandlerFunc { return s.apiReorderProjects }},
 	{"PATCH /api/projects/{id}", func(s *Server) http.HandlerFunc { return s.apiUpdateProject }},

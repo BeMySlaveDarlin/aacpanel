@@ -350,3 +350,81 @@ func TestContourUnpinsCopiesAndPreviewsItsDraftPG(t *testing.T) {
 	call(http.MethodPost, "/api/profiles/"+contour+"/unpin", `{"key":"effort"}`, http.StatusBadRequest)
 	call(http.MethodPost, "/api/profiles/"+contour+"/unpin", `{"key":"nonsense"}`, http.StatusBadRequest)
 }
+
+// What is said for a whole group is written into each of its projects — a
+// project already storing it left alone, each change journaled — and taken out
+// of all of them the same way; a group's projects move onto another group of
+// the contour after the ones there, and not onto a foreign contour's.
+func TestAShelfSetsForAllAndMovesWholePG(t *testing.T) {
+	srv, root := profilesServer(t)
+	mux := profilesMux(srv)
+	call := func(method, path, body string, want int) map[string]any {
+		t.Helper()
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
+		if w.Code != want {
+			t.Fatalf("%s %s: %d %s", method, path, w.Code, w.Body.String())
+		}
+		var out map[string]any
+		json.Unmarshal(w.Body.Bytes(), &out)
+		return out
+	}
+	contour := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/profiles", `{"name":"personal","configDir":"`+root+`"}`, http.StatusOK), "profile"))
+	other := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/profiles", `{"name":"work","configDir":"`+root+`/w"}`, http.StatusOK), "profile"))
+	shelf := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/profiles/"+contour+"/groups", `{"name":"a"}`, http.StatusOK), "group"))
+	next := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/profiles/"+contour+"/groups", `{"name":"b"}`, http.StatusOK), "group"))
+	foreign := strconv.Itoa(idOf(t, call(http.MethodPost, "/api/profiles/"+other+"/groups", `{"name":"c"}`, http.StatusOK), "group"))
+	call(http.MethodPost, "/api/groups/"+next+"/projects", `{"name":"z","path":"`+root+`/z"}`, http.StatusOK)
+	for i, launch := range []string{`{"effort":"high"}`, `{}`, `{"effort":"low"}`} {
+		n := strconv.Itoa(i)
+		call(http.MethodPost, "/api/groups/"+shelf+"/projects", `{"name":"p`+n+`","path":"`+root+`/p`+n+`","launch":`+launch+`}`, http.StatusOK)
+	}
+	launches := func(body map[string]any, group string) []string {
+		out := []string{}
+		for _, g := range treeOf(t, body)[0].(map[string]any)["groups"].([]any) {
+			gm := g.(map[string]any)
+			if strconv.Itoa(int(gm["id"].(float64))) != group {
+				continue
+			}
+			for _, raw := range gm["projects"].([]any) {
+				p := raw.(map[string]any)
+				l, _ := json.Marshal(p["launch"])
+				out = append(out, p["name"].(string)+string(l))
+			}
+		}
+		return out
+	}
+
+	body := call(http.MethodPost, "/api/groups/"+shelf+"/set", `{"key":"effort","value":"high"}`, http.StatusOK)
+	if body["changed"] != float64(2) || strings.Join(launches(body, shelf), " ") != `p0{"effort":"high"} p1{"effort":"high"} p2{"effort":"high"}` {
+		t.Errorf("set for all changed %v: %v", body["changed"], launches(body, shelf))
+	}
+	body = call(http.MethodPost, "/api/groups/"+shelf+"/set", `{"key":"effort","value":null}`, http.StatusOK)
+	if body["changed"] != float64(3) || strings.Join(launches(body, shelf), " ") != `p0{} p1{} p2{}` {
+		t.Errorf("clear for all changed %v: %v", body["changed"], launches(body, shelf))
+	}
+	call(http.MethodPost, "/api/groups/"+shelf+"/set", `{"key":"effort","value":"ultra"}`, http.StatusBadRequest)
+	call(http.MethodPost, "/api/groups/"+shelf+"/set", `{"key":"room","value":"x"}`, http.StatusBadRequest)
+	journal := call(http.MethodGet, "/api/profiles/journal", "", http.StatusOK)["journal"].([]any)
+	if len(journal) < 5 || journal[0].(map[string]any)["op"] != "update" {
+		t.Errorf("the shelf's changes are not journaled a project each: %d entries", len(journal))
+	}
+
+	ids := []string{}
+	for _, g := range treeOf(t, body)[0].(map[string]any)["groups"].([]any) {
+		if gm := g.(map[string]any); strconv.Itoa(int(gm["id"].(float64))) == shelf {
+			for _, raw := range gm["projects"].([]any) {
+				ids = append(ids, strconv.Itoa(int(raw.(map[string]any)["id"].(float64))))
+			}
+		}
+	}
+	call(http.MethodPut, "/api/groups/"+shelf+"/projects/order", `{"ids":[`+ids[2]+`,`+ids[0]+`,`+ids[1]+`]}`, http.StatusOK)
+	call(http.MethodPost, "/api/groups/"+shelf+"/move", `{"to":`+foreign+`}`, http.StatusBadRequest)
+	call(http.MethodPost, "/api/groups/"+shelf+"/move", `{"to":`+shelf+`}`, http.StatusBadRequest)
+	body = call(http.MethodPost, "/api/groups/"+shelf+"/move", `{"to":`+next+`}`, http.StatusOK)
+	if body["moved"] != float64(3) || len(launches(body, shelf)) != 0 ||
+		strings.Join(launches(body, next), " ") != `z{} p2{} p0{} p1{}` {
+		t.Errorf("the move left %v and made %v", launches(body, shelf), launches(body, next))
+	}
+	call(http.MethodDelete, "/api/groups/"+shelf, "", http.StatusOK)
+}
