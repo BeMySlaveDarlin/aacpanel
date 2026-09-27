@@ -516,7 +516,7 @@ a { color: var(--accent); }
 .cmds .line::before { content: "$ "; color: var(--ink-faint); }
 .cmds .typed { vertical-align: top; }
 .cmds .t1 { width: 12em; }
-.cmds .t2 { width: 16.8em; }
+.cmds .t2 { width: 22.8em; }
 .cmds .t3 { width: 21.6em; }
 
 /* The end of the page is the mark it opened with: the orbit, large and quiet,
@@ -566,8 +566,8 @@ a { color: var(--accent); }
 
 
     [data-chapter="install"] .cmds .t1 > span { animation: type 1s steps(20, end) .4s both; }
-    [data-chapter="install"] .cmds .t2 > span { animation: type 1.3s steps(28, end) 1.8s both; }
-    [data-chapter="install"] .cmds .t3 > span { animation: type 1.6s steps(36, end) 3.5s both; }
+    [data-chapter="install"] .cmds .t2 > span { animation: type 1.7s steps(38, end) 1.8s both; }
+    [data-chapter="install"] .cmds .t3 > span { animation: type 1.6s steps(36, end) 3.9s both; }
 }
 
 @keyframes type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -1% 0 0); } }

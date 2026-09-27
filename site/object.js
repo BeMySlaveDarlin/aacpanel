@@ -9,14 +9,16 @@ const cv = document.getElementById("object");
 const NODES = `service|the service|s|core;exec|the executor|x|core;agent|the collector|c|core;pg|Postgres|s|infra;proxy|docker socket proxy|s|infra;edge|the edge|s|infra;phone|the phone|s|infra;desk|the desktop|s|infra;push|Web Push|s|infra;passkeys|passkeys|s|infra;
 docker|docker|x|infra;tmux|tmux + claude|x|infra;actions|named actions|x|infra;transcripts|transcripts|c|infra;snapshot|the snapshot|c|infra;hist|history and charts|s|f;alerts|alerts and rules|s|f;devices|devices|s|f;settings|settings|s|f;map|the profile map|s|f;
 contours|contours|s|f;stacks|containers by stack|s|f;logs|logs|s|f;updown|bring up / down|x|f;window|the window|x|f;stop|stop|x|f;composer|the composer|x|f;files|files both ways|x|f;term|the terminal|x|f;slash|slash commands|x|f;
-permit|permission prompts|x|f;ask|questions|x|f;journal|the journal|x|f;sessions|sessions|c|f;feed|the feed|c|f;archive|session archive|c|f;machine|the machine|c|f;probes|probes|c|f;usage|usage|c|f`
+permit|permission prompts|x|f;ask|questions|x|f;journal|the journal|x|f;sessions|sessions|c|f;feed|the feed|c|f;archive|session archive|c|f;machine|the machine|c|f;probes|probes|c|f;usage|usage|c|f;
+stream|console or feed|x|f;pages|settings pages|s|f;cap|context cap|c|f;rc|Remote Control|x|f`
     .split(";").map((rec, i) => { const [id, name, arm, kind] = rec.trim().split("|"); return { id, name, arm, kind, i, near: [] }; });
 const BY = Object.fromEntries(NODES.map((n) => [n.id, n]));
 // Edge pairs for the hover graph; both ends learn the other.
 `service-exec service-agent exec-agent pg-service proxy-service proxy-docker edge-service phone-edge desk-edge push-service push-phone passkeys-service docker-exec tmux-exec tmux-agent actions-service
-actions-exec transcripts-agent transcripts-tmux snapshot-agent snapshot-service hist-service hist-pg alerts-service alerts-push devices-service devices-push settings-service map-service map-exec contours-map stacks-service
+actions-exec transcripts-agent transcripts-tmux snapshot-agent snapshot-service hist-service hist-pg alerts-service alerts-push devices-service devices-push settings-service map-service map-exec contours-map pages-map pages-service stacks-service
 stacks-proxy logs-service logs-proxy updown-exec updown-docker window-exec stop-exec composer-exec composer-tmux files-exec files-service term-exec term-service slash-exec permit-exec permit-service
-ask-agent ask-exec ask-service journal-exec journal-pg sessions-agent sessions-service feed-agent feed-service archive-agent archive-transcripts machine-agent machine-service probes-agent usage-agent usage-transcripts`
+ask-agent ask-exec ask-service journal-exec journal-pg sessions-agent sessions-service feed-agent feed-service archive-agent archive-transcripts machine-agent machine-service probes-agent usage-agent usage-transcripts
+stream-exec stream-tmux stream-feed cap-agent cap-exec cap-map rc-exec rc-tmux`
     .trim().split(/\s+/).forEach((pair) => { const [a, b] = pair.split("-"); BY[a].near.push(BY[b]); BY[b].near.push(BY[a]); });
 
 const TAU = Math.PI * 2, FLAT = 0.55, ARMS = 3, SPIN = 1.4, SPREAD = 0.22, RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -71,7 +73,7 @@ function armPoint(r, k, out) {                              // Bruno Simon's arm
     out.y = Math.sin(a) * rr + Math.pow(r(), 3) * (r() < .5 ? 1 : -1) * SPREAD * rr;
     return out;
 }
-// the 39 stars of the first magnitude, laid on the same three arms
+// the stars of the first magnitude, one per node, laid on the same three arms
 const r = prng(7717), AI = { s: 0, x: 1, c: 2 }, put = (n, rr, j) => {
     const a = AI[n.arm] / ARMS * TAU + rr * SPIN * Math.PI + j;
     n.gx = Math.cos(a) * rr; n.gy = Math.sin(a) * rr;
