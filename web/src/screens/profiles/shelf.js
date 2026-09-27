@@ -226,7 +226,9 @@ export function GroupSettings({ group, contour, profiles, disk, catalog, onClose
                                 onClick=${() => setField("profileId", p.id, { profileId: contour.id })}>${p.name}</button>
                     `)}
                 </div>
-                <span class=${move ? "pfhelp warn" : "pfhelp"}>${move ? move.said : "the group moves to another contour whole, with its projects"}</span>
+                <span class=${move ? "pfhelp warn" : "pfhelp"}>${move ? move.said : routed
+                    ? "the directory picks the account on this machine: the group stays where its projects' directories put it"
+                    : "the group moves to another contour whole, with its projects"}</span>
             </div>
         `}
 
