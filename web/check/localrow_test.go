@@ -130,12 +130,8 @@ func TestASentMessageIsEchoedInPlace(t *testing.T) {
 	}
 	runFixture(t, "feed.html", &got)
 
-	// A sent message opens an exchange of its own at once, and the exchange
-	// two back folds into a band then: the own bubbles drawn in full stay as
-	// many, and the echo later has nothing left to fold.
-	if got.Queued.Count != got.Before.Count || !strings.Contains(got.Queued.Cls, "queued") {
-		t.Fatalf("after the send the feed shows %d own messages in full against %d, the last one %q — the local row is not drawn, "+
-			"or it did not fold the exchange two back and the echo will (%v)",
+	if got.Queued.Count != got.Before.Count+1 || !strings.Contains(got.Queued.Cls, "queued") {
+		t.Fatalf("after the send the feed shows %d own messages against %d, the last one %q — the local row is not drawn (%v)",
 			got.Queued.Count, got.Before.Count, got.Queued.Cls, got.Debug)
 	}
 	if got.Queued.Stamp != "queued" {

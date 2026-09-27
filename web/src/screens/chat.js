@@ -11,8 +11,6 @@ import { Permit } from "./chat/permit.js";
 import { ago, tokens } from "../format.js";
 import { closed, rows, runCalls, turnCalls, unarrived, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
-import { episodes, isWaiting } from "./chat/episodes.js";
-import { Episodes, Process, tiersOf, useEpisodes, WorkLayer } from "./chat/epview.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { RepoView } from "./repo/view.js";
 import { onShelf, sealed, signal } from "./repo/notes.js";
@@ -67,8 +65,6 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
-    // What the reader unfolded in the feed, and the work layer open over it.
-    const feedView = useEpisodes(name, id);
     // The pages this conversation published and the panel kept a copy of. The
     // shelf is asked for once: a card looks itself up in it rather than asking
     // per artifact.
@@ -281,43 +277,6 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     }
 
     const feed = weld(state.items);
-    // The last episode is open only while the session is at it: a call left
-    // without its result in a conversation that ended is not running.
-    const busy = Boolean(live) && live.status === "busy";
-    const list = rows(feed);
-    const eps = episodes(list, busy);
-    // Messages the session has not read yet stand after all it did, in an
-    // episode of their own — the one they will open once read.
-    const waiting = list.filter(isWaiting);
-    const unread = waiting.length + pending.length > 0;
-    const tiers = tiersOf(eps, feedView.opened, unread ? 1 : 0);
-    const feedClick = (event) => {
-        if (codecopy.fromClick(event, toast)) return;
-        const hit = event.target.closest && event.target.closest(".path");
-        if (hit) setLook({ kind: "file", path: hit.dataset.path });
-    };
-    const ctx = {
-        rowProps: {
-            session: name,
-            id,
-            copies,
-            onPage: (card) => setLook({ kind: "artifact", card }),
-            onTurn: (turn) => setCalls({ list: turnCalls(feed, turn.pos), turn }),
-            onFile: (file) => setLook({ kind: "file", ...file }),
-            onBrief: openBrief,
-            onCommand: (row) => setLook({ kind: "command", item: row }),
-            onTask: (task) => (task.agent
-                ? openAgent({ id: task.id, name: task.name, kind: "background" })
-                : setLook({ kind: "task", id: task.id, text: task.name })),
-        },
-        // A badge of a piece of work opens the calls of every run it adds up.
-        onRuns: (runs) => setCalls({ list: runCalls(feed, runs) }),
-        openWork: feedView.openWork,
-        unfold: feedView.unfold,
-        readWhole: feedView.readWhole,
-        whole: feedView.whole,
-        onFeedClick: feedClick,
-    };
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
     const stand = stateOf(live, still, move);
@@ -331,43 +290,6 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                      onView=${pickView} onRepo=${openRepo} onMove=${() => setPanel(true)} />
         ${live && html`<${SessionButton} ...${tools} open=${panel} onOpen=${setPanel} />`}
     `;
-    // The feed itself. On a desk the process of its work stands beside it.
-    const feedBox = html`
-        <div class="chatfeed" ref=${feedRef} onClick=${feedClick} onScroll=${onScroll}>
-            ${state.kind === "loading" && html`<p class="hint">Reading the conversation…</p>`}
-            ${state.kind === "failed" && html`
-                <p class="hint crit">${state.error}</p>
-                <p class="hint">The feed is parsed by aacpanel-agent on the host: without it the chat is
-                unavailable, while the other screens work.</p>
-            `}
-            ${state.kind === "fresh" && html`
-                <p class="empty">The conversation has not started yet — the feed appears with the first message.</p>
-            `}
-            ${state.kind === "ready" && state.items.length === 0 && html`
-                <p class="empty">Nothing has been said in this conversation yet.</p>
-            `}
-            ${more && html`
-                <div class="mearlier" ref=${topRef}>there is more above</div>
-            `}
-            ${state.note && html`<p class="hint warn">${state.note}</p>`}
-            <${Episodes} eps=${eps} tiers=${tiers} wide=${wide} ctx=${ctx} />
-            ${unread && html`
-                <section class="ep t0 epwait">
-                    ${waiting.map((row) => html`<${Row} key=${`wait-${row.pos}`} ...${ctx.rowProps} item=${row} />`)}
-                    ${pending.map((row) => html`
-                        <${Row} key=${`local-${row.key}`} item=${row} />
-                        ${row.state === "queued" && live && live.transport === "stream" && html`
-                            <${TakeBack} key=${`back-${row.key}`} row=${row} name=${name} exec=${exec}
-                                         onGone=${(key) => setLocal((was) => was.filter((l) => l.key !== key))}
-                                         onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />
-                        `}
-                    `)}
-                </section>
-            `}
-            ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
-        </div>
-    `;
-
     const commandsChip = html`<${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />`;
 
     return html`
@@ -402,9 +324,59 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             : view === "term"
             ? html`<${Term} name=${name} />`
             : html`
-        ${wide ? html`<div class="chatwork">${feedBox}<${Process} eps=${eps} tiers=${tiers} ctx=${ctx} /></div>` : feedBox}
+        <div
+            class="chatfeed"
+            ref=${feedRef}
+            onClick=${(event) => {
+                if (codecopy.fromClick(event, toast)) return;
+                const hit = event.target.closest && event.target.closest(".path");
+                if (hit) setLook({ kind: "file", path: hit.dataset.path });
+            }}
+            onScroll=${onScroll}
+        >
+            ${state.kind === "loading" && html`<p class="hint">Reading the conversation…</p>`}
+            ${state.kind === "failed" && html`
+                <p class="hint crit">${state.error}</p>
+                <p class="hint">The feed is parsed by aacpanel-agent on the host: without it the chat is
+                unavailable, while the other screens work.</p>
+            `}
+            ${state.kind === "fresh" && html`
+                <p class="empty">The conversation has not started yet — the feed appears with the first message.</p>
+            `}
+            ${state.kind === "ready" && state.items.length === 0 && html`
+                <p class="empty">Nothing has been said in this conversation yet.</p>
+            `}
+            ${more && html`
+                <div class="mearlier" ref=${topRef}>there is more above</div>
+            `}
+            ${state.note && html`<p class="hint warn">${state.note}</p>`}
+            ${rows(feed).map((item, n) => html`<${Row}
+                key=${`${item.pos}-${n}`}
+                item=${item}
+                session=${name}
+                id=${id}
+                copies=${copies}
+                onPage=${(card) => setLook({ kind: "artifact", card })}
+                onCalls=${() => setCalls({ list: runCalls(feed, item.run) })}
+                onTurn=${(turn) => setCalls({ list: turnCalls(feed, turn.pos), turn })}
+                onFile=${(file) => setLook({ kind: "file", ...file })}
+                onBrief=${openBrief}
+                onCommand=${(row) => setLook({ kind: "command", item: row })}
+                onTask=${(task) => (task.agent
+                    ? openAgent({ id: task.id, name: task.name, kind: "background" })
+                    : setLook({ kind: "task", id: task.id, text: task.name }))}
+            />`)}
+            ${pending.map((row) => html`
+                <${Row} key=${`local-${row.key}`} item=${row} />
+                ${row.state === "queued" && live && live.transport === "stream" && html`
+                    <${TakeBack} key=${`back-${row.key}`} row=${row} name=${name} exec=${exec}
+                                 onGone=${(key) => setLocal((was) => was.filter((l) => l.key !== key))}
+                                 onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />
+                `}
+            `)}
+            ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
+        </div>
         `}
-
         ${live && feedShown && !hasWork(state.work, live.status === "busy" || Boolean(live.compacting)) && live.lastRequestAt && html`
             <p class="lastreq">request ${ago(live.lastRequestAt)}</p>
         `}
@@ -473,10 +445,6 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             files=${files}
             onFiles=${(picked) => setFiles((was) => [...was, ...picked])}
         />`}
-
-        <${Sheet} open=${Boolean(feedView.work) && !wide} onClose=${() => feedView.openWork(null)} label="work" inner start="full">
-            ${feedView.work && html`<${WorkLayer} eps=${eps} at=${feedView.work} ctx=${ctx} />`}
-        <//>
 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>
             <${Calls} session=${name} id=${id} calls=${calls ? calls.list : []} turn=${calls && calls.turn}

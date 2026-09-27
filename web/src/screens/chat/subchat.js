@@ -81,7 +81,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
                 item=${item}
                 session=${session}
                 id=${id}
-                onCalls=${() => setCalls({ list: runCalls(feed, [item.run]) })}
+                onCalls=${() => setCalls({ list: runCalls(feed, item.run) })}
                 onTurn=${(turn) => setCalls({ list: turnCalls(feed, turn.pos), turn })}
                 onFile=${(file) => setLook({ kind: "file", ...file })}
             />`)}

@@ -40,18 +40,16 @@ const wide = [
     "| #564 | the service worker will not step aside for a new version | web/src/sw.js | the owner | yesterday |",
 ].join("\n");
 
-// The person's table opens the exchange and the three answers are what came
-// of it: the feed draws them whole, the way it draws the last exchange.
 const items = [
-    { role: "me", pos: 5, text: wide, at: new Date(Date.now() - 400000).toISOString() },
     { role: "ai", pos: 10, text: `Here is what fits:\n\n${narrow}`, at: new Date(Date.now() - 300000).toISOString() },
     { role: "ai", pos: 20, text: `And here is what does not:\n\n${wide}`, at: new Date(Date.now() - 200000).toISOString() },
     { role: "ai", pos: 25, text: `A table of two columns:\n\n${longcell}`, at: new Date(Date.now() - 150000).toISOString() },
+    { role: "me", pos: 30, text: wide, at: new Date(Date.now() - 100000).toISOString() },
 ];
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 window.fetch = async (url) => {
     const u = String(url);
-    if (u.startsWith("/api/chat?")) return json({ items, first: 5, last: 25, total: items.length, moreBefore: false, state: null });
+    if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 30, total: items.length, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
     return new Response("", { status: 404 });
 };
@@ -80,7 +78,7 @@ window.done = (async () => {
     for (let i = 0; i < 50 && !document.querySelector(".chatfeed .mdtable"); i++) await new Promise((r) => setTimeout(r, 100));
     const feed = document.querySelector(".chatfeed");
     const bubbles = Array.from(document.querySelectorAll(".chatfeed .msg"));
-    const at = { mine: bubbles[0], narrow: bubbles[1], wide: bubbles[2], longcell: bubbles[3] };
+    const at = { narrow: bubbles[0], wide: bubbles[1], longcell: bubbles[2], mine: bubbles[bubbles.length - 1] };
     const of = (id) => {
         const bubble = at[id];
         const box = bubble.querySelector(".mdtable");

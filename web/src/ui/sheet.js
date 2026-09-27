@@ -40,19 +40,16 @@ function scrollsSideways(node, sheet) {
 // document says so: on a wide screen the rest of them are dialogs the width of
 // a question, and a piece read for forty minutes in that window is a column of
 // four words.
-//
-// A sheet opens at half the screen, or at the stop it is given: one that holds
-// a long log opens full rather than making the reader drag it up every time.
-export function Sheet({ open, onClose, children, label, inner = false, side = false, doc = false, start = "half" }) {
+export function Sheet({ open, onClose, children, label, inner = false, side = false, doc = false }) {
     const wide = useWide();
-    const [stop, setStop] = useState(start);
+    const [stop, setStop] = useState("half");
     const [dragging, setDragging] = useState(false);
     const drag = useRef(null);
     const sheetRef = useRef(null);
     const trackingRef = useRef(null);
 
     useEffect(() => {
-        if (open) setStop(start);
+        if (open) setStop("half");
     }, [open]);
 
     const stopTracking = () => {
