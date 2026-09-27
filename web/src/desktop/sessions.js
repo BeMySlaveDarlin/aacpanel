@@ -111,6 +111,7 @@ function SessionLine({ s, group, current, onPick, index, exec, wait, kid = false
                     <span class="dkname">${s.session}</span>
                     ${s.home && html`<span class="dktag">home</span>`}
                     ${s.outside && !kid && html`<span class="dktag">outside</span>`}
+                    ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
                     <span class="dknum">${s.limitKnown === false ? "—" : pct(s.pct)}</span>
                     <span class="dkhint">${index < 9 ? index + 1 : ""}</span>
                 </span>

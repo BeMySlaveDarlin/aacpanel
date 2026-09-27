@@ -830,6 +830,7 @@
     .dkplacewin { color: var(--ink-faint); }
 
     .dkrc {
+        flex: none;
         display: flex;
         align-items: center;
         gap: .25rem;

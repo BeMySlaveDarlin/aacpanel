@@ -32,7 +32,8 @@ window.EventSource = class { constructor() { this.readyState = 1; } addEventList
 
 const parent = { session: "rotation", sessionId: "p1" };
 const sessions = [
-    { session: "rotation", sessionId: "p1", contour: 4, transport: "stream", status: "busy", pct: 60, cwd: "/srv/rotation" },
+    { session: "rotation", sessionId: "p1", contour: 4, transport: "stream", status: "busy", pct: 60, cwd: "/srv/rotation",
+      remote: "https://claude.ai/code/session_01abc" },
     { session: "rotation-25", sessionId: "k1", contour: 4, outside: true, parent, status: "busy", pct: 3, cwd: "/srv/rotation" },
     { session: "rotation-e8", sessionId: "k2", contour: 4, outside: true, parent, status: "waiting", waitingFor: "Bash", pct: 1, cwd: "/srv/rotation" },
     { session: "typed", sessionId: "t1", contour: 4, outside: true, status: "idle", pct: 9, cwd: "/srv/typed" },
@@ -64,6 +65,9 @@ window.done = (async () => {
     const chat = document.getElementById("chat");
     const out = {};
     out.deskRows = names(desk, ".dksess .dkname");
+    out.deskRemote = Array.from(desk.querySelectorAll(".dksess"))
+        .filter((r) => r.querySelector(".dksessmain .dkrc"))
+        .map((r) => `${text(r.querySelector(".dkname"))}:${text(r.querySelector(".dkrc"))}`);
     out.deskFold = text(desk.querySelector(".dkkin"));
     out.deskTyped = text(Array.from(desk.querySelectorAll(".dksess")).find((r) => text(r.querySelector(".dkname")) === "typed"));
     out.deskTypedActs = (Array.from(desk.querySelectorAll(".dksess")).find((r) => text(r.querySelector(".dkname")) === "typed") || document.body)

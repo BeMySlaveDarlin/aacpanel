@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // Live rows of the sessions list at the width of a phone, each in the block of
-// its project: two sessions on the stream — one with a long name, one with no
-// requests yet — and one in a console.
+// its project: two sessions on the stream — one with a long name and Remote
+// Control up, one with no requests yet — and one in a console.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -19,7 +19,8 @@ const base = {
     lastRequestAt: new Date(Date.now() - 120e3).toISOString(),
 };
 const rows = [
-    { ...base, session: "evirma-fingerprint-rotation-second", sessionId: "a", transport: "stream" },
+    { ...base, session: "evirma-fingerprint-rotation-second", sessionId: "a", transport: "stream",
+      remote: "https://claude.ai/code/session_01abc" },
     { ...base, session: "aacpanel", sessionId: "b" },
     { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },
 ];
@@ -40,8 +41,12 @@ window.done = (async () => {
         const box = tag.getBoundingClientRect();
         const pct = block.querySelector(".pjpct").getBoundingClientRect();
         const more = block.querySelector(".pjmore").getBoundingClientRect();
+        const rc = block.querySelector(".pjrc");
+        const rcBox = rc ? rc.getBoundingClientRect() : null;
         return {
             name: block.querySelector(".pjname").textContent.trim(),
+            rc: rc ? rc.textContent.trim() : "",
+            rcShown: Boolean(rcBox) && rcBox.width > 0 && rcBox.left >= row.left && rcBox.right <= box.left,
             mark: tag.textContent.trim(),
             shown: box.width > 0 && box.height > 0 && box.right <= row.right,
             gap: Math.round(pct.left - box.right),

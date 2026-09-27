@@ -84,3 +84,15 @@ func TestSessionsThePanelDidNotStartAreOnlyRead(t *testing.T) {
 		t.Errorf("the session panel lists %v — no window, move, Remote Control or end for a session the panel did not start", got.Panel)
 	}
 }
+
+// A live session with Remote Control up says so on its row of the desktop
+// column, the way the session's own tools say it; the others say nothing.
+func TestADeskRowSaysRemoteControlIsUp(t *testing.T) {
+	var got struct {
+		DeskRemote []string `json:"deskRemote"`
+	}
+	runWideFixture(t, "outsidesessions.html", &got)
+	if strings.Join(got.DeskRemote, ",") != "rotation:RC" {
+		t.Errorf("the rows saying Remote Control is up are %v, expected only the session that has it", got.DeskRemote)
+	}
+}
