@@ -261,9 +261,11 @@ function weldThink(was, more) {
     };
 }
 
-// runCalls returns every call of one run, in event order.
-export function runCalls(items, run) {
-    return callsOf(items, (item) => item.run === run);
+// runCalls returns every call of the runs given, in event order: the runs of
+// one badge, or of every badge a piece of work sums up.
+export function runCalls(items, runs) {
+    const pick = new Set(runs);
+    return callsOf(items, (item) => pick.has(item.run));
 }
 
 // turnCalls returns every call of the turn that ended at this position: the

@@ -13,7 +13,8 @@ import { idParam } from "./api.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, SentCard } from "./files.js";
 import { Photo, shotName } from "./photo.js";
-import { callWord, countCalls, KIND_NAMES, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
+import { countCalls, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
+import { failedOf, KindBadge, ThinkBadge } from "./badges.js";
 
 // Row renders one row of the feed.
 export function Row({ item, session, id, onCalls, onTurn, onFile, onBrief, onCommand, copies, onPage, onTask }) {
@@ -70,26 +71,11 @@ export function Row({ item, session, id, onCalls, onTurn, onFile, onBrief, onCom
         if (!groups.length && !think) return null;
         return html`
             <div class="mrow">
-                ${think && html`
-                    <button class="mtools mthink" type="button" onClick=${onCalls}
-                          title=${`thinking: ${think.count}${think.tokens ? ` · ${shortTokens(think.tokens)} ${tokenWord(think.tokens)}` : ""}`}
-                          aria-label=${`thinking blocks: ${think.count}`}>
-                        <span class="mticon">${Icon.thinking()}</span>
-                        <span class="mtnum">${think.count}</span>
-                    </button>
-                `}
-                ${groups.map((group) => {
-                    const label = KIND_NAMES[group.kind] || KIND_NAMES.other;
-                    const count = group.calls.length;
-                    return html`
-                        <button class=${`mtools k-${group.kind}`} type="button" key=${group.kind} onClick=${onCalls}
-                                title=${label}
-                                aria-label=${`${label}: ${count} ${callWord(count)}`}>
-                            <span class="mticon">${kindIcon(group.kind)}</span>
-                            <span class="mtnum">${count}</span>
-                        </button>
-                    `;
-                })}
+                ${think && html`<${ThinkBadge} count=${think.count} tokens=${think.tokens} onCalls=${onCalls} />`}
+                ${groups.map((group) => html`
+                    <${KindBadge} key=${group.kind} kind=${group.kind} count=${group.calls.length}
+                                  failed=${failedOf(group.calls)} onCalls=${onCalls} />
+                `)}
             </div>
             ${(item.lines || []).map((line) => html`<${Line} key=${`${line.role}-${line.pos}`} item=${line} onTask=${onTask} under />`)}
         `;
