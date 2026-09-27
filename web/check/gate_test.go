@@ -180,6 +180,7 @@ var instantActions = map[string]bool{
 	// or account path goes through the .edit action and its sheet.
 	"project.save":    true,
 	"profile.save":    true,
+	"group.save":      true,
 	"profile.reorder": true,
 	"group.reorder":   true,
 	"project.reorder": true,
@@ -595,12 +596,13 @@ func TestFieldConflictActionsMatchFormsScreen(t *testing.T) {
 		"src/screens/profiles/settings.js",
 		"src/screens/profiles/contour.js",
 		"src/screens/profiles/newcontour.js",
+		"src/screens/profiles/shelf.js",
 	} {
 		page := withoutComments(srcFiles(t)[file])
 		if !strings.Contains(page, "status === 409") {
 			t.Errorf("%s does not take a 409 back into the page — a refusal on the name has nowhere to show", file)
 		}
-		for _, m := range regexp.MustCompile(`"((?:project|profile)\.(?:save|edit|add))"`).FindAllStringSubmatch(page, -1) {
+		for _, m := range regexp.MustCompile(`"((?:project|profile|group)\.(?:save|edit|add))"`).FindAllStringSubmatch(page, -1) {
 			hasForm[m[1]] = true
 		}
 	}

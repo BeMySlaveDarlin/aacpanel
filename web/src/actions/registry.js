@@ -595,6 +595,53 @@ export const ACTIONS = {
             body: (target, params) => params.fields,
         },
     },
+    // Saving the name of a group from the bar of its page; a move to another
+    // contour goes as group.edit, with its sheet and the consent.
+    "group.save": {
+        title: (target) => `Save group "${target}"?`,
+        effect: () => "The name is visible on the map and in the launch list.",
+        done: (target) => `Group "${target}" saved`,
+        ok: "Save",
+        instant: true,
+        journaled: false,
+        fieldConflict: true,
+        send: {
+            verb: "PATCH",
+            path: (target, params) => `/api/groups/${params.id}`,
+            body: (target, params) => params.fields,
+        },
+    },
+    "group.set": {
+        title: (target, params) => (params.value === null
+            ? `Let all projects of "${target}" follow the contour's ${params.what}?`
+            : `Set ${params.what} for all projects of "${target}"?`),
+        effect: (params) => (params.value === null
+            ? `Every project of the group that stores its own ${params.what} lets it go and takes the contour's.`
+            : `${count(params.n, "project", "projects")} of the group store ${params.what} themselves from now on; `
+              + "a project that already does is left as it is, and one moved off the group keeps it.")
+            + " Live sessions keep what they started with.",
+        done: (target) => `Group "${target}" updated`,
+        ok: (params) => (params.value === null ? "Follow the contour" : "Set for all"),
+        journaled: false,
+        send: {
+            verb: "POST",
+            path: (target, params) => `/api/groups/${params.id}/set`,
+            body: (target, params) => ({ key: params.key, value: params.value }),
+        },
+    },
+    "group.move": {
+        title: (target, params) => `Move the projects of "${target}" to "${params.toName}"?`,
+        effect: (params) => `${count(params.n, "project", "projects")} go onto group "${params.toName}" after the ones there, `
+            + "keeping what they store; the emptied group can then be deleted. Live sessions are not touched.",
+        done: (target, params) => `Projects moved to "${params.toName}"`,
+        ok: "Move",
+        journaled: false,
+        send: {
+            verb: "POST",
+            path: (target, params) => `/api/groups/${params.id}/move`,
+            body: (target, params) => ({ to: params.to }),
+        },
+    },
     "group.remove": {
         title: (target) => `Delete group "${target}"?`,
         effect: (params) => (params.projects > 0
@@ -792,6 +839,9 @@ const NAMES = {
     "project.add": "Create project",
     "profile.save": "Save profile",
     "profile.unpin": "Remove copies from projects",
+    "group.save": "Save group",
+    "group.set": "Set for the whole group",
+    "group.move": "Move projects to another group",
     "project.save": "Save project",
     "project.edit": "Edit project",
     "project.remove": "Delete project",

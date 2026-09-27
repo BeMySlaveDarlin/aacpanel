@@ -38,7 +38,7 @@ function Account({ contour, effective, stream }) {
     `;
 }
 
-export function ProjectSettings({ project, contour, group, catalog, order, onClose, onDone, onRemove }) {
+export function ProjectSettings({ project, contour, group, catalog, onClose, onDone, onRemove }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [modelOpen, setModelOpen] = useState(false);
@@ -213,16 +213,6 @@ export function ProjectSettings({ project, contour, group, catalog, order, onClo
                     <button class="btn" type="button" onClick=${() => set(h.key, null)}>Remove</button>
                 </div>
             `)}
-        `}
-
-        ${order && html`
-            <div class="pfsub">place in the group</div>
-            <div class="pforder">
-                <span class="pfhelp">${order.index + 1} of ${order.total}</span>
-                <button class="btn" type="button" disabled=${order.index === 0} onClick=${() => order.move("up")}>Up</button>
-                <button class="btn" type="button" disabled=${order.index === order.total - 1}
-                        onClick=${() => order.move("down")}>Down</button>
-            </div>
         `}
 
         <div class="pzdanger">

@@ -3,7 +3,7 @@
 // the account says — with the map's hints about values its projects all repeat,
 // the account and its files as the host has them, the journal of the map and
 // the deletion of an empty contour. One draft and one bar, as on a project.
-import { useRef, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { BackHead, useBackClose } from "../../ui/back.js";
@@ -17,7 +17,7 @@ import { paramOf, useSchema } from "./schema.js";
 import { authState } from "./pick.js";
 import { hooksWarning } from "./page.js";
 import {
-    Bar, LAUNCH_ORDER, LaunchRow, Layer, LeaveSheet, Where, launchAsk, modelHolds, problemOf, useDraft, usePreview,
+    Bar, DragRows, LAUNCH_ORDER, LaunchRow, Layer, LeaveSheet, Where, launchAsk, modelHolds, problemOf, useDraft, usePreview,
 } from "./kit.js";
 
 // The button says what the confirmation sheet will say: profile.remove.
@@ -127,69 +127,23 @@ function fieldIssues(draft, contour) {
 // Groups lists the contour's groups in their order; a handle drags a group
 // to another place, and the new order goes into the draft.
 function Groups({ groups, order, onOrder, onOpen, onAdd, moved }) {
-    const rows = order.map((id) => groups.find((g) => g.id === id)).filter(Boolean);
-    const refs = useRef(new Map());
-    const drag = useRef(null);
-    const [dragging, setDragging] = useState(0);
-    const [dy, setDy] = useState(0);
-
-    const down = (event, id) => {
-        event.preventDefault();
-        try {
-            event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-            // A pointer the browser no longer tracks: the moves still come to the handle.
-        }
-        drag.current = { id, y: event.clientY, list: order.slice() };
-        setDragging(id);
-        setDy(0);
-    };
-    const move = (event) => {
-        const d = drag.current;
-        if (!d) return;
-        let shift = event.clientY - d.y;
-        const at = d.list.indexOf(d.id);
-        const next = shift > 0 ? d.list[at + 1] : d.list[at - 1];
-        const el = next !== undefined && refs.current.get(next);
-        const height = el ? el.getBoundingClientRect().height : 0;
-        if (el && Math.abs(shift) > height / 2) {
-            const list = d.list.slice();
-            list.splice(at, 1);
-            list.splice(shift > 0 ? at + 1 : at - 1, 0, d.id);
-            d.list = list;
-            d.y += shift > 0 ? height : -height;
-            shift = event.clientY - d.y;
-            onOrder(list);
-        }
-        setDy(shift);
-    };
-    const up = () => {
-        drag.current = null;
-        setDragging(0);
-        setDy(0);
-    };
-
     return html`
-        <div class="pzgroups">
-            ${rows.map((g) => html`
-                <div class="pzgroup" key=${g.id} ref=${(el) => (el ? refs.current.set(g.id, el) : refs.current.delete(g.id))}
-                     data-dragging=${dragging === g.id ? "1" : "0"}
-                     style=${dragging === g.id ? `transform: translateY(${dy}px)` : ""}>
-                    <button class="pzhandle" type="button" aria-label=${`move group ${g.name}`}
-                            onPointerDown=${(e) => down(e, g.id)} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up}>
-                        <span></span><span></span><span></span>
-                    </button>
-                    <button class="pzgroupmain" type="button" onClick=${() => onOpen(g)}>
-                        <span class="pzgroupname">${g.name}</span>
-                        <span class="count">${(g.projects || []).length}</span>
-                        <span class="chev">${Icon.chevron()}</span>
-                    </button>
-                </div>
-            `)}
-            <div class="pzgroupfoot">
-                ${moved && html`<span class="pzdraft">order not saved</span>`}
-                <button class="pzadd" type="button" onClick=${onAdd}>+ Group</button>
-            </div>
+        <${DragRows}
+            items=${groups}
+            order=${order}
+            onOrder=${onOrder}
+            name=${(g) => `group ${g.name}`}
+            row=${(g) => html`
+                <button class="pzgroupmain" type="button" onClick=${() => onOpen(g)}>
+                    <span class="pzgroupname">${g.name}</span>
+                    <span class="count">${(g.projects || []).length}</span>
+                    <span class="chev">${Icon.chevron()}</span>
+                </button>
+            `}
+        />
+        <div class="pzgroupfoot">
+            ${moved && html`<span class="pzdraft">order not saved</span>`}
+            <button class="pzadd" type="button" onClick=${onAdd}>+ Group</button>
         </div>
     `;
 }
@@ -252,7 +206,7 @@ function Files({ contour, draft, catalog, setField }) {
     `;
 }
 
-export function ContourSettings({ contour, catalog, onClose, onDone, onRemove, onForm, onJournal }) {
+export function ContourSettings({ contour, catalog, order, onClose, onDone, onRemove, onForm, onJournal }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [modelOpen, setModelOpen] = useState(false);
@@ -264,7 +218,7 @@ export function ContourSettings({ contour, catalog, onClose, onDone, onRemove, o
     const changes = count(draft);
     const groups = (contour.groups || []).filter((g) => g && g.id);
     const baseOrder = groups.map((g) => g.id);
-    const order = fieldOf(draft, { order: baseOrder }, "order") || baseOrder;
+    const groupOrder = fieldOf(draft, { order: baseOrder }, "order") || baseOrder;
 
     const auth = authState(contour);
     const projects = projectsOf(contour);
@@ -364,7 +318,7 @@ export function ContourSettings({ contour, catalog, onClose, onDone, onRemove, o
         ${groups.length === 0 && html`<p class="pfhelp">no groups yet: a group is a shelf to put projects on</p>`}
         <${Groups}
             groups=${groups}
-            order=${order}
+            order=${groupOrder}
             moved=${touched(draft, "order")}
             onOrder=${setOrder}
             onOpen=${(group) => onForm({ kind: "group", mode: "edit", profile: contour, group })}
@@ -411,6 +365,16 @@ export function ContourSettings({ contour, catalog, onClose, onDone, onRemove, o
 
         <div class="pfsub">account and files</div>
         <${Files} contour=${contour} draft=${draft} catalog=${catalog} setField=${setField} />
+
+        ${order && html`
+            <div class="pfsub">place among the contours</div>
+            <div class="pforder">
+                <span class="pfhelp">${order.index + 1} of ${order.total}</span>
+                <button class="btn" type="button" disabled=${order.index === 0} onClick=${() => order.move("up")}>Up</button>
+                <button class="btn" type="button" disabled=${order.index === order.total - 1}
+                        onClick=${() => order.move("down")}>Down</button>
+            </div>
+        `}
 
         <button class="pfloose pzjournal" type="button" onClick=${onJournal}>
             <span class="pfloosetext">changes of the map</span>

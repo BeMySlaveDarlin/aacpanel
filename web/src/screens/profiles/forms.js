@@ -11,6 +11,7 @@ import { DiskPicker, diskNote } from "./disk.js";
 import { PERSONAL } from "../../contour.js";
 import { ProjectLayer, locate } from "./settings.js";
 import { ContourLayer } from "./contour.js";
+import { GroupLayer } from "./shelf.js";
 import { JournalLayer } from "./journal.js";
 import { NewContourLayer } from "./newcontour.js";
 
@@ -27,6 +28,7 @@ const TITLES = {
 export function EditLayer(props) {
     const { form, profiles } = props;
     if (form.kind === "profile" && form.mode === "edit") return html`<${ContourEdit} ...${props} />`;
+    if (form.kind === "group" && form.mode === "edit") return html`<${GroupEdit} ...${props} />`;
     if (form.kind === "profile" && form.mode === "add" && !form.manual) return html`<${NewContourDoor} ...${props} />`;
     if (form.kind === "project" && form.mode === "edit") {
         const found = locate(profiles, form.project.id);
@@ -55,6 +57,7 @@ function ContourEdit(props) {
             <${ContourLayer}
                 contour=${contour}
                 catalog=${props.catalog}
+                order=${props.order}
                 onClose=${props.onClose}
                 onDone=${props.onDone}
                 onRemove=${props.onRemove}
@@ -63,7 +66,31 @@ function ContourEdit(props) {
             />
         </div>
         ${over && over.journal && html`<${JournalLayer} onClose=${() => setOver(null)} onDone=${props.onDone} />`}
-        ${over && !over.journal && html`<${FormLayer} ...${props} form=${over} order=${null} onClose=${() => setOver(null)} />`}
+        ${over && !over.journal && html`<${EditLayer} ...${props} form=${over} order=${null} onClose=${() => setOver(null)} />`}
+    `;
+}
+
+// GroupEdit is the page of a group, with a project's page or the form of a
+// new one laid over it, so its draft waits underneath.
+function GroupEdit(props) {
+    const [over, setOver] = useState(null);
+    const contour = (props.profiles || []).find((p) => p.id === props.form.profile.id) || props.form.profile;
+    const group = (contour.groups || []).find((g) => g.id === props.form.group.id) || props.form.group;
+    return html`
+        <div class="pzstack" hidden=${Boolean(over)}>
+            <${GroupLayer}
+                group=${group}
+                contour=${contour}
+                profiles=${props.profiles}
+                disk=${props.disk}
+                catalog=${props.catalog}
+                onClose=${props.onClose}
+                onDone=${props.onDone}
+                onRemove=${props.onRemove}
+                onForm=${setOver}
+            />
+        </div>
+        ${over && html`<${EditLayer} ...${props} form=${over} order=${null} onClose=${() => setOver(null)} />`}
     `;
 }
 
@@ -81,7 +108,7 @@ function NewContourDoor(props) {
     />`;
 }
 
-function FormLayer({ form, profiles, catalog, disk, order, onClose, onDone, onRemove }) {
+function FormLayer({ form, profiles, catalog, disk, onClose, onDone }) {
     useBackClose(true, onClose);
     const wide = useWide();
     const [title, sub] = TITLES[`${form.kind}.${form.mode}`] || ["", ""];
@@ -98,7 +125,6 @@ function FormLayer({ form, profiles, catalog, disk, order, onClose, onDone, onRe
     const body = html`
         <${Body} key=${keyOf(form)} form=${form} profiles=${profiles} catalog=${catalog} disk=${disk}
                  onClose=${onClose} onDone=${onDone} />
-        <${Tail} form=${form} order=${order} onRemove=${onRemove} onClose=${onClose} />
     `;
 
     if (wide) {
@@ -147,51 +173,6 @@ function Body({ form, profiles, catalog, disk, onClose, onDone }) {
     }
     return html`<${ProjectForm} form=${form} catalog=${catalog} disk=${disk}
                                 onClose=${onClose} onDone=${onDone} />`;
-}
-
-const DANGER = {
-    group: "Delete group",
-};
-
-function Tail({ form, order, onRemove, onClose }) {
-    if (form.mode !== "edit") return null;
-
-    const spec = {
-        kind: form.kind,
-        profile: form.profile,
-        group: form.group,
-        project: form.project,
-    };
-
-    return html`
-        ${order && html`
-            <div class="pfsub">place in the list</div>
-            <div class="pforder">
-                <span class="pfhelp">${order.index + 1} of ${order.total}</span>
-                <button
-                    class="btn"
-                    type="button"
-                    disabled=${order.index === 0}
-                    onClick=${() => order.move("up")}
-                >Up</button>
-                <button
-                    class="btn"
-                    type="button"
-                    disabled=${order.index === order.total - 1}
-                    onClick=${() => order.move("down")}
-                >Down</button>
-            </div>
-        `}
-
-        <button
-            class="pfdanger"
-            type="button"
-            onClick=${async () => {
-                const result = await onRemove(spec);
-                if (result && result.ok) onClose();
-            }}
-        >${DANGER[form.kind]}</button>
-    `;
 }
 
 function Buttons({ busy, problem, ok, onClose, onSave }) {

@@ -83,8 +83,10 @@ func TestProfileEditIsALayerNotASheet(t *testing.T) {
 		t.Errorf("src/screens/profiles/forms.js: the edit layer has no header with an arrow or no " +
 			"back handler")
 	}
-	if !strings.Contains(forms, `class="pfdanger"`) {
-		t.Errorf("src/screens/profiles/forms.js: there is no delete on the edit page")
+	for _, file := range []string{"src/screens/profiles/contour.js", "src/screens/profiles/shelf.js", "src/screens/profiles/settings.js"} {
+		if !strings.Contains(srcFiles(t)[file], `class="pzdanger"`) {
+			t.Errorf("%s: there is no delete in its own card on the page", file)
+		}
 	}
 	if strings.Contains(forms, "btn danger") {
 		t.Errorf("src/screens/profiles/forms.js: delete is a red button in the common row again — " +
@@ -208,21 +210,13 @@ func jsonTags(t *testing.T, name string) map[string]bool {
 
 func TestDeleteButtonSaysWhatTheSheetWillSay(t *testing.T) {
 	registry := srcFiles(t)[registryFile]
-	forms := srcFiles(t)["src/screens/profiles/forms.js"]
-	if registry == "" || forms == "" {
-		t.Fatal("the action registry or the edit form is not found")
+	if registry == "" {
+		t.Fatal("the action registry is not found")
 	}
-	block := regexp.MustCompile(`(?s)const DANGER = \{(.*?)\n\};`).FindStringSubmatch(forms)
-	if block == nil {
-		t.Fatal("no DANGER found in forms.js — the test guards the wrong place")
-	}
-	found := regexp.MustCompile(`(?m)^\s+([a-z]+): "([^"]+)"`).FindAllStringSubmatch(block[1], -1)
-	if len(found) != 1 {
-		t.Fatalf("%d delete levels in the forms, expected one (group)", len(found))
-	}
-	// A contour and a project are deleted from their settings pages.
+	// A contour, a group and a project are deleted from their own pages.
 	for level, file := range map[string]string{
 		"profile": "src/screens/profiles/contour.js",
+		"group":   "src/screens/profiles/shelf.js",
 		"project": "src/screens/profiles/settings.js",
 	} {
 		page := srcFiles(t)[file]
@@ -230,25 +224,18 @@ func TestDeleteButtonSaysWhatTheSheetWillSay(t *testing.T) {
 		if own == nil || !strings.Contains(page, "${DELETE}") {
 			t.Fatalf("%s names its delete button otherwise than by DELETE — the test guards the wrong place", file)
 		}
-		found = append(found, []string{"", level, own[1]})
-	}
-	for _, m := range found {
-		want := regexp.MustCompile(`"` + m[1] + `\.remove":\s*"([^"]+)"`).FindStringSubmatch(registry)
+		want := regexp.MustCompile(`"` + level + `\.remove":\s*"([^"]+)"`).FindStringSubmatch(registry)
 		if want == nil {
-			t.Errorf("the registry has no label for %s.remove — the button names an action that does not exist", m[1])
+			t.Errorf("the registry has no label for %s.remove — the button names an action that does not exist", level)
 			continue
 		}
-		if m[2] != want[1] {
+		if own[1] != want[1] {
 			t.Errorf("the button says %q while the confirmation sheet will say %q — that reads as "+
-				"two different deletions in a row", m[2], want[1])
+				"two different deletions in a row", own[1], want[1])
 		}
 	}
 }
 
-// Moving a project to another group of its contour is a field of its
-// settings page: what the move does on the host is seen by the fixture of the
-// page (TestTheProjectSettingsPageKeepsADraft); here — that the page and the
-// form for a new project know nothing of moving into a foreign contour.
 func TestProjectMoveRidesTheEditAction(t *testing.T) {
 	const settingsFile = "src/screens/profiles/settings.js"
 	settings := srcFiles(t)[settingsFile]

@@ -261,3 +261,66 @@ export function Layer({ label: name, children }) {
         </div>
     `;
 }
+
+// DragRows lays items out in the given order, each with a handle that drags
+// it to another place: the new order is handed back as the finger passes
+// the middle of a neighbour, so the rows move under the hand.
+export function DragRows({ items, order, onOrder, name, row }) {
+    const rows = order.map((id) => items.find((it) => it.id === id)).filter(Boolean);
+    const refs = useRef(new Map());
+    const drag = useRef(null);
+    const [dragging, setDragging] = useState(0);
+    const [dy, setDy] = useState(0);
+
+    const down = (event, id) => {
+        event.preventDefault();
+        try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+            // A pointer the browser no longer tracks: the moves still come to the handle.
+        }
+        drag.current = { id, y: event.clientY, list: order.slice() };
+        setDragging(id);
+        setDy(0);
+    };
+    const move = (event) => {
+        const d = drag.current;
+        if (!d) return;
+        let shift = event.clientY - d.y;
+        const at = d.list.indexOf(d.id);
+        const next = shift > 0 ? d.list[at + 1] : d.list[at - 1];
+        const el = next !== undefined && refs.current.get(next);
+        const height = el ? el.getBoundingClientRect().height : 0;
+        if (el && Math.abs(shift) > height / 2) {
+            const list = d.list.slice();
+            list.splice(at, 1);
+            list.splice(shift > 0 ? at + 1 : at - 1, 0, d.id);
+            d.list = list;
+            d.y += shift > 0 ? height : -height;
+            shift = event.clientY - d.y;
+            onOrder(list);
+        }
+        setDy(shift);
+    };
+    const up = () => {
+        drag.current = null;
+        setDragging(0);
+        setDy(0);
+    };
+
+    return html`
+        <div class="pzgroups">
+            ${rows.map((it) => html`
+                <div class="pzgroup" key=${it.id} ref=${(el) => (el ? refs.current.set(it.id, el) : refs.current.delete(it.id))}
+                     data-dragging=${dragging === it.id ? "1" : "0"}
+                     style=${dragging === it.id ? `transform: translateY(${dy}px)` : ""}>
+                    <button class="pzhandle" type="button" aria-label=${`move ${name(it)}`}
+                            onPointerDown=${(e) => down(e, it.id)} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up}>
+                        <span></span><span></span><span></span>
+                    </button>
+                    ${row(it)}
+                </div>
+            `)}
+        </div>
+    `;
+}

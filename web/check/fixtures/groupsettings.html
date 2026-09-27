@@ -1,0 +1,184 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The page of a group, opened as the map opens it: its projects with what each
+// sets otherwise than the contour, the shelf summed up, a value set for all of
+// them through a sheet, the directories lying next to them offered and hidden,
+// its projects moved onto another shelf, a project's page laid over it. Where
+// the router picks the account by directory, another contour holds Save with
+// the way back; where it does not, the move goes through its sheet.
+import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { EditLayer } from "/src/screens/profiles/forms.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const real = window.fetch.bind(window);
+const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
+
+const base = [
+    ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
+    ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
+    ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", "Continue", "panel"],
+    ["env", null, "claude"], ["args", null, "claude"],
+].map(([key, value, layer]) => ({ key, value, layer }));
+const effectiveOf = (launch) => base.map((v) => (v.key in launch ? { key: v.key, value: launch[v.key], layer: "project" } : v));
+const project = (id, name, launch) => ({
+    id, groupId: 3, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id, launch,
+    effective: effectiveOf(launch), line: { words: [{ text: "claude" }, { text: "-n" }, { text: name }] },
+});
+const personal = {
+    id: 3, name: "personal", configDir: "/home/u/.claude", prefix: "", auth: "builtin", contextGuard: true,
+    account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 }, effective: base,
+    ...(mode === "free" ? {} : { route: { prefix: "*" } }),
+    groups: [
+        { id: 3, profileId: 3, name: "home", projects: [
+            project(11, "alpha", { remoteControl: true, transport: "stream" }), project(12, "beta", {}), project(13, "gamma", { effort: "high" }),
+        ] },
+        { id: 5, profileId: 3, name: "pets", projects: [] },
+    ],
+};
+const work = { id: 9, name: "work", configDir: "/home/u/.claude-profiles/work", prefix: "/srv/work", auth: "token", launch: {},
+    effective: base, groups: [], ...(mode === "free" ? {} : { route: { prefix: "/srv/work/" } }) };
+const disk = { state: "ok", roots: ["/srv/proj"], dirs: [
+    { path: "/srv/proj/eps", kind: "project", git: true },
+    { path: "/elsewhere/x", kind: "project", claude: true },
+    { path: "/srv/proj/delta", kind: "project", claude: true },
+] };
+
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    const method = (init && init.method) || "GET";
+    if (u === "/api/profiles/schema") return real(u);
+    const body = init && init.body ? JSON.parse(init.body) : null;
+    if (method !== "GET" && !u.endsWith("/preview")) sent.push({ method, url: u, body });
+    if (u.endsWith("/preview")) return json({ effective: base, line: { words: [{ text: "claude" }] }, problems: [] });
+    return json({ profiles: [personal, work] });
+};
+
+let closed = 0;
+function Harness() {
+    const [, tick] = useState(0);
+    return html`<${EditLayer}
+        form=${{ kind: "group", mode: "edit", profile: personal, group: personal.groups[0] }}
+        profiles=${[personal, work]}
+        catalog=${null}
+        disk=${disk}
+        accounts=${[]}
+        order=${null}
+        onClose=${() => { closed += 1; }}
+        onDone=${() => tick((n) => n + 1)}
+        onRemove=${async () => ({ ok: false })}
+    />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Harness))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel) => Array.from(document.querySelectorAll(sel));
+const visible = (el) => Boolean(el) && !el.closest("[hidden]");
+const bar = () => all(".pzbar").find((b) => visible(b) && !b.closest(".sheet"));
+const button = (label, scope = document) => Array.from(scope.querySelectorAll("button")).find((b) => visible(b) && text(b) === label);
+const sheet = () => document.querySelector(".sheet.on");
+const field = (title) => all(".pffield").find((f) => visible(f) && text(f.querySelector(".pflabel")).startsWith(title));
+const confirm = async (label) => {
+    const s = await until(() => all(".sheet.on").find((x) => button(label, x)));
+    const said = text(s);
+    button(label, s).click();
+    await until(() => !sheet());
+    await sleep(60);
+    return said;
+};
+const typeInto = async (el, value) => {
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(60);
+};
+
+window.done = mode === "free" ? (async () => {
+    await until(() => field("Contour"));
+    button("work", field("Contour")).click();
+    await until(() => bar());
+    const out = { said: text(field("Contour").querySelector(".pfhelp")), bar: text(bar().querySelector(".pzbarsay")) };
+    button("Save", bar()).click();
+    out.sheet = await confirm("Save");
+    await until(() => sent.length > 0);
+    out.sent = sent[0];
+    return out;
+})() : (async () => {
+    const out = {};
+    await until(() => all(".pzgroupname").length > 0);
+    out.rows = all(".pzgroup").map((r) => `${text(r.querySelector(".pzgroupname"))}:${all(".ownchip").filter((c) => r.contains(c)).map(text).join(",")}`);
+    out.summary = text(document.querySelector(".pzsummary"));
+    out.nearby = all(".pznearpath").map(text);
+    out.danger = text(document.querySelector(".pzdanger"));
+
+    button("work", field("Contour")).click();
+    await until(() => bar() && bar().dataset.blocked === "1");
+    out.blocked = text(bar().querySelector(".pzbarsay"));
+    button("Back to personal", bar()).click();
+    await until(() => !bar());
+    out.backClears = !bar();
+
+    const handle = all(".pzgroup .pzhandle")[2];
+    const box = handle.getBoundingClientRect();
+    const fire = (type, dy) => handle.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 3,
+        clientY: box.top + box.height / 2 + dy, clientX: box.left + 5 }));
+    fire("pointerdown", 0);
+    for (let step = 1; step <= 6; step++) fire("pointermove", -box.height * 0.4 * step);
+    fire("pointerup", -box.height * 2.4);
+    await until(() => bar());
+    await typeInto(field("Name").querySelector("input"), "house");
+    await until(() => text(bar().querySelector(".pzbarsay")) === "2 changes");
+    out.order = all(".pzgroupname").map(text);
+    button("Save", bar()).click();
+    await until(() => sent.length >= 2);
+    out.saved = sent.map((s) => `${s.method} ${s.url} ${JSON.stringify(s.body)}`);
+    out.sheetOnSave = Boolean(sheet());
+    sent.length = 0;
+
+    button("Set for all 3 projects…").click();
+    const s = await until(sheet);
+    button("Effort", s).click();
+    await until(() => button("Max", s));
+    button("Max", s).click();
+    out.setSheet = await confirm("Set for all");
+    out.set = sent.shift();
+
+    button("Add", document.querySelector(".pznear")).click();
+    out.addSheet = await confirm("Add");
+    out.add = sent.shift();
+    button("Hide", all(".pznear")[1]).click();
+    await until(() => sent.length > 0);
+    out.hide = sent.shift();
+
+    button("pets", document.querySelector(".pzdanger")).click();
+    out.moveSheet = await confirm("Move");
+    out.move = sent.shift();
+
+    all(".pzgroupmain")[0].click();
+    await until(() => document.querySelector(".pzstack[hidden]") && all(".pzrow").some(visible));
+    out.projectOver = text(all(".phead h2").find(visible));
+    history.back();
+    await until(() => !document.querySelector(".pzstack[hidden]"));
+    out.backToShelf = all(".pzgroupname").some(visible);
+    out.closed = closed;
+    return out;
+})();
+</script>

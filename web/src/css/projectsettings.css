@@ -250,3 +250,13 @@ p.pznote { margin: .3rem 0 0; }
 .pzaccountname { font-size: var(--t-md); font-weight: 600; }
 .pzfacts .kv .k { flex: none; }
 .pzfacts .kv .v { min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: right; }
+
+/* The shelf as a whole, and what lies next to it on disk. */
+.pzsummary { margin: .3rem 0 .5rem; color: var(--ink-dim); }
+.pzgroupmain .pown { flex: 0 1 auto; justify-content: flex-end; min-width: 0; }
+.pznear {
+    display: flex; flex-direction: column; gap: .2rem;
+    padding: .55rem 0; border-bottom: var(--hair) solid var(--line);
+}
+.pznearpath { font-family: var(--code); font-size: var(--t-xs); color: var(--ink); overflow-wrap: anywhere; }
+.pzneardo { display: flex; gap: .4rem; justify-content: flex-end; }
