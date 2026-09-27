@@ -79,13 +79,13 @@ export function SettingsColumns({ map, start, sessions, onClose }) {
     return html`
         <div class="dkscrim dkcolscrim">
             <div class="dkcols" role="dialog" aria-modal="true" aria-label="settings of the map">
+                <button class="dkclose dkcolsclose" type="button" aria-label="close" onClick=${() => {
+                    if (dirty.middle + dirty.right > 0) setAsking({ to: null, changes: dirty.middle + dirty.right });
+                    else onClose();
+                }}>${Icon.close()}</button>
                 <nav class="dkcoltree" aria-label="contours and groups">
                     <div class="dkcoltreehead">
                         <span>Settings</span>
-                        <button class="dkclose" type="button" aria-label="close" onClick=${() => {
-                            if (dirty.middle + dirty.right > 0) setAsking({ to: null, changes: dirty.middle + dirty.right });
-                            else onClose();
-                        }}>${Icon.close()}</button>
                     </div>
                     ${(profiles || []).map((p) => html`
                         <div class="dktreecontour" key=${p.id}>

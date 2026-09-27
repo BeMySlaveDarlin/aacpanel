@@ -2063,12 +2063,16 @@
         background: var(--tipbg);
         box-shadow: var(--drop);
         overflow: hidden;
+        position: relative;
     }
+    /* The close of the whole window stands in its corner, over the last
+       column, whose heading leaves it the room. */
+    .dkcolsclose { position: absolute; top: .5rem; right: .6rem; z-index: 3; }
+    .dkcols > .dkcol:last-of-type { padding-right: 2.9rem; }
     .dkcoltree, .dkcol { min-height: 0; overflow-y: auto; padding: .4rem .9rem .9rem; }
     .dkcol { border-left: var(--hair) solid var(--line); position: relative; }
     .dkcoltree { padding: .4rem .5rem; display: flex; flex-direction: column; gap: .1rem; }
     .dkcoltreehead { display: flex; align-items: center; gap: .5rem; padding: .3rem .4rem .5rem; font-weight: 600; }
-    .dkcoltreehead .dkclose { margin-left: auto; }
     .dktreecontour { display: flex; flex-direction: column; margin-bottom: .4rem; }
     .dktreeitem {
         display: flex; align-items: center; gap: .4rem;

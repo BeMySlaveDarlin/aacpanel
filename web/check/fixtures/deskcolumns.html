@@ -75,6 +75,17 @@ window.done = (async () => {
     (await until(() => all(".dkcols .pzgroupmain")[0])).click();
     await until(() => heads()[1] === "alpha" && cols()[1].querySelector(".pzrow"));
     out.withProject = heads();
+    // The close of the window stands in its corner, out of the tree, and the
+    // heading of the last column keeps clear of it.
+    const box = (el) => el.getBoundingClientRect();
+    const close = document.querySelector(".dkcols .dkcolsclose");
+    const dialog = box(document.querySelector(".dkcols"));
+    const head = cols()[1].querySelector(".phead");
+    out.close = close ? {
+        right: Math.round(dialog.right - box(close).right), top: Math.round(box(close).top - dialog.top),
+        inTree: Boolean(close.closest(".dkcoltree")),
+        clear: head ? box(head).right <= box(close).left + 1 : false,
+    } : null;
     const right = cols()[1];
     Array.from(right.querySelectorAll(".pzrow")).find((r) => text(r.querySelector(".pzname")) === "Effort")
         .querySelectorAll(".pzopt")[4].click();
