@@ -44,6 +44,15 @@ const (
 	startGrace = time.Minute
 )
 
+// handshakeFields is what the holder tells claude of the panel as it greets
+// it. The panel stops a background task on its own, by stop_task, and saying
+// so is what keeps a stop of the turn to the turn, as Esc in the terminal
+// does: without it claude takes an interrupt for the only stop a person has
+// and kills every background agent with the turn, with no word of it to the
+// model. The reason an interrupt carries changes nothing of that. It is said
+// once, at the greeting: claude keeps what the first client declared.
+var handshakeFields = map[string]any{"perTaskStopAffordance": true}
+
 // Holder keeps one claude session on the stream protocol.
 type Holder struct {
 	spec  Spec
@@ -219,7 +228,7 @@ func (h *Holder) handshake() {
 			h.logf("the handshake failed inside the holder: %v\n%s", p, debug.Stack())
 		}
 	}()
-	resp, err := h.control(context.Background(), "initialize", nil, initWait)
+	resp, err := h.control(context.Background(), "initialize", handshakeFields, initWait)
 	if err != nil {
 		h.logf("claude did not answer the handshake: %v", err)
 		return

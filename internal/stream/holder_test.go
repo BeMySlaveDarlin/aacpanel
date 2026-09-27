@@ -332,6 +332,30 @@ func TestTheHandshakeIsAnsweredAndTheSessionIsHeld(t *testing.T) {
 	}
 }
 
+// A stop from the panel stops the turn and leaves the background agents
+// running, as Esc in the terminal does. Claude spares them only for a client
+// that said at the greeting it stops a task on its own; without it an
+// interrupt, whatever its reason, kills them all with the turn.
+func TestTheHandshakeSaysThePanelStopsATaskOnItsOwn(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	for _, line := range strings.Split(r.received(), "\n") {
+		var msg struct {
+			Type    string         `json:"type"`
+			Request map[string]any `json:"request"`
+		}
+		if json.Unmarshal([]byte(line), &msg) != nil || msg.Type != "control_request" || msg.Request["subtype"] != "initialize" {
+			continue
+		}
+		if msg.Request["perTaskStopAffordance"] != true {
+			t.Fatalf("the handshake does not say the panel stops a task on its own, "+
+				"and a stop of the turn would kill every background agent: %s", line)
+		}
+		return
+	}
+	t.Fatalf("claude was never greeted:\n%s", r.received())
+}
+
 // What the session was started with stays with its holder: the console is
 // started from it when the panel that knows the project is down.
 func TestTheHolderKeepsWhatTheSessionWasStartedWith(t *testing.T) {
