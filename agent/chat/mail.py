@@ -6,7 +6,7 @@ import re
 import contours
 import ctx
 
-from .limits import MAX_RESULT, cut
+from .limits import MAX_NOTE, MAX_RESULT, cut
 
 
 MAIL_RE = re.compile(
@@ -68,6 +68,28 @@ def report_of(body):
     if at < 0:
         return body
     return body[at + len(HANDBACK_AT):].strip()
+
+
+def undelivered(said, failed):
+    """Returns why a letter reached nobody, empty when it went or the answer does not say.
+
+    The call succeeds either way: claude answers a letter it could not deliver
+    with a report of its own, and only that report says the letter went
+    nowhere. A call that failed outright delivered nothing either.
+    """
+    said = (said or "").strip()
+    if failed:
+        return cut(said, MAX_NOTE)[0] or "the call failed"
+    if not said.startswith("{"):
+        return ""
+    try:
+        data = json.loads(said)
+    except ValueError:
+        return ""
+    if not isinstance(data, dict) or data.get("success") is not False:
+        return ""
+    why = str(data.get("message") or "").strip()
+    return cut(why, MAX_NOTE)[0] or "the letter was not delivered"
 
 
 def agent_mail(path, name):

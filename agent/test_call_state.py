@@ -55,6 +55,26 @@ def calls_of(items):
             for item in items if item["role"] == "tools" for c in item["calls"]]
 
 
+# What claude answers a letter it could not deliver, and one it could.
+REASON = ("No agent named 'coordinator' is reachable.\n"
+          "Check the spelling, or use the agent ID from a background agent's spawn result.")
+UNREACHABLE = json.dumps({"success": False, "message": REASON})
+QUEUED = json.dumps({"success": True, "message": "Message queued for the main conversation's next turn."})
+
+
+def letter(use, to="coordinator", text="salta"):
+    """Returns an answer of the model that sends a letter."""
+    return {"type": "assistant", "timestamp": AT, "cwd": CWD,
+            "message": {"content": [{"type": "tool_use", "id": use, "name": "SendMessage",
+                                     "input": {"to": to, "message": text}}]}}
+
+
+def letters_of(items):
+    """Returns every letter sent in the window as (id, why it reached nobody)."""
+    return [(i.get("use"), i.get("undelivered")) for i in items
+            if i["role"] == "mail" and i.get("dir") == "out"]
+
+
 class Parse(unittest.TestCase):
     def test_a_reader_that_keeps_calls_gets_a_call_open(self):
         got = chat.parse(call("t1"), 0, calls={})
@@ -276,6 +296,58 @@ class Before(Window):
         self.assertEqual([i["role"] for i in page["items"]], ["me", "tools"],
                          "the page took in rows from past its end")
         self.assertEqual(calls_of(page["items"]), [("t1", None, True)])
+
+    def test_a_page_that_ends_on_a_letter_sees_its_refusal_past_the_page(self):
+        self.write(prompt("go"), letter("t1"))
+        edge = self.write(result("t1", text=UNREACHABLE))
+        self.write(*[prompt(f"prompt {n}") for n in range(3)])
+        page = chat.feed(self.path, limit=10, before=edge)
+        self.assertEqual(letters_of(page["items"]), [("t1", REASON)],
+                         "the page stopped at its end with the letter still on its way")
+
+
+class Letters(Window):
+    def test_a_letter_that_reached_nobody_says_why(self):
+        self.write(prompt("go"), letter("t1"), result("t1", text=UNREACHABLE))
+        self.assertEqual(letters_of(chat.feed(self.path)["items"]), [("t1", REASON)],
+                         "a refused letter is drawn as one sent")
+
+    def test_a_delivered_letter_carries_no_mark(self):
+        self.write(prompt("go"), letter("t1", to="main"), result("t1", text=QUEUED))
+        got = [i for i in chat.feed(self.path)["items"] if i["role"] == "mail"]
+        self.assertEqual(letters_of(got), [("t1", None)])
+        self.assertNotIn("open", got[0], "the answer came, the letter is not on its way any more")
+
+    def test_a_call_that_failed_delivered_nothing(self):
+        said = "<tool_use_error>InputValidationError: to is required</tool_use_error>"
+        self.write(prompt("go"), letter("t1"), result("t1", error=True, text=said))
+        self.assertEqual(letters_of(chat.feed(self.path)["items"]), [("t1", said)])
+
+    def test_a_letter_with_no_answer_yet_is_not_called_lost(self):
+        self.write(prompt("go"), letter("t1"))
+        self.assertEqual(letters_of(chat.feed(self.path)["items"]), [("t1", None)])
+
+    def test_the_answer_of_another_call_is_not_read_as_a_letter(self):
+        self.write(prompt("go"), call("t1"), result("t1", text=UNREACHABLE))
+        got = chat.feed(self.path)["items"]
+        self.assertEqual(calls_of(got), [("t1", None, None)])
+        self.assertNotIn("undelivered", json.dumps(got))
+
+    def test_two_letters_alike_are_two_letters(self):
+        self.write(prompt("go"), letter("t1"), result("t1", text=UNREACHABLE),
+                   letter("t2"), result("t2", text=QUEUED))
+        self.assertEqual(letters_of(chat.feed(self.path)["items"]), [("t1", REASON), ("t2", None)],
+                         "the second try is folded into the first, and the feed says it failed")
+
+    def test_a_refusal_past_the_position_sends_the_letter_again(self):
+        self.write(prompt("go"), letter("t1"))
+        first = chat.feed(self.path, limit=40)
+        sent = first["items"][-1]
+        self.write(result("t1", text=UNREACHABLE))
+        more = chat.feed(self.path, limit=40, after=first["last"])
+        self.assertEqual([(i["role"], i["pos"]) for i in more["items"]], [("mail", sent["pos"])],
+                         "the reader finds the letter by its position and role and redraws it")
+        self.assertEqual(letters_of(more["items"]), [("t1", REASON)])
 
 
 if __name__ == "__main__":

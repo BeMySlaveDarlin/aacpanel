@@ -86,11 +86,16 @@ def fold(rows, limit, before, after):
         return False
 
     def find_call(use):
-        """Returns the group holding the call with this id, the rows it is in and the call."""
+        """Returns the group holding the call with this id, the rows it is in and the call.
+
+        A letter is a call that stands as a row of its own: it is its own group.
+        """
         if not use:
             return None, None, None
         for rows_of in (window, known):
             for was in reversed(rows_of):
+                if was["role"] == "mail" and was.get("use") == use:
+                    return was, rows_of, was
                 if was["role"] != "tools":
                     continue
                 for call in was["calls"]:
@@ -111,10 +116,13 @@ def fold(rows, limit, before, after):
         call.pop("open", None)
         if mark.get("failed"):
             call["failed"] = True
+        if mark.get("undelivered"):
+            call["undelivered"] = mark["undelivered"]
         touch(group, rows_of)
 
     def open_calls():
-        return any(c.get("open") for was in window if was["role"] == "tools" for c in was["calls"])
+        return any(c.get("open") for was in window if was["role"] == "tools" for c in was["calls"]) \
+            or any(was.get("open") for was in window if was["role"] == "mail")
 
     def drop_call(use):
         # A delivery is shown once. Whether anything reached the human is
@@ -156,8 +164,11 @@ def fold(rows, limit, before, after):
                     total -= 1
                     break
         if item["role"] == "mail":
+            # A letter that arrives twice is shown once; two letters sent are
+            # two calls, however alike their words.
             if any(was["role"] == "mail" and was["from"] == item["from"]
-                   and was["text"] == item["text"] for was in window):
+                   and was["text"] == item["text"] and was.get("use") == item.get("use")
+                   for was in window):
                 return
         if item["role"] == "think":
             groups = run_tail()

@@ -296,10 +296,14 @@ const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook" };
 
 const MAIL_WHO = { session: "neighbour session", agent: "subagent", hook: "stop hook" };
 
+// A letter sent is drawn when it is sent, and whether it reached anyone comes
+// later, from claude's answer: one that reached nobody says so on its head and
+// gives claude's reason once opened.
 function Mail({ item }) {
     const [open, setOpen] = useState(false);
     const kind = MAIL_KINDS[item.source] || "agent";
     const out = item.dir === "out";
+    const lost = out && item.undelivered;
     const who = item.from || MAIL_WHO[kind];
     return html`
         <div class=${`mmail ${kind}${open ? " open" : ""}${out ? " out" : ""}`}>
@@ -309,10 +313,12 @@ function Mail({ item }) {
                 <span class="mmdir">${out ? "to:" : "from:"}</span>
                 <span class="mmfrom">${who}</span>
                 ${!out && html`<span class="mmkind">${kind}</span>`}
+                ${lost && html`<span class="mmlost" title=${item.undelivered}>not delivered</span>`}
                 ${!open && html`<span class="mmpeek">${peek(item.text)}</span>`}
                 ${item.at && html`<span class="mmat">${stampText(item.at)}</span>`}
             </button>
             ${open && html`
+                ${lost && html`<p class="hint warn mmwhy">${item.undelivered}</p>`}
                 <div class="mmbody">${render(item.text)}</div>
                 ${item.cut && html`<p class="hint warn">The letter is longer than shown — cut.</p>`}
             `}

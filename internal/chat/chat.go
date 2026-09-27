@@ -31,6 +31,8 @@ type Item struct {
 	Dir    string     `json:"dir,omitempty"`
 	Count  int        `json:"count,omitempty"`
 	Tokens int        `json:"tokens,omitempty"`
+	// Undelivered is why a letter sent reached nobody, in claude's words.
+	Undelivered string `json:"undelivered,omitempty"`
 	// How long a turn or a background task took, and how loud a line is.
 	MS int64 `json:"ms,omitempty"`
 	// Agents is how many agents a turn left working in the background.

@@ -2598,6 +2598,80 @@ class Harness(unittest.TestCase):
         self.assertEqual([i["role"] for i in got], ["mail"])
 
 
+class HarnessNudges(unittest.TestCase):
+    """What claude tells a model on its own, under a key in brackets: never a person."""
+
+    HANDBACK = ("[handback-send-enforce] Your report has not been delivered. "
+                "Call SubagentHandback({message: <your full report>}) now, then stop.")
+
+    def meta(self, text, **fields):
+        return {"type": "user", "isMeta": True, "timestamp": "2026-09-27T20:27:46.963Z",
+                "message": {"content": text}, **fields}
+
+    def test_a_nudge_to_hand_the_report_back_is_a_note(self):
+        got = chat.parse(self.meta(self.HANDBACK, isSidechain=True), 0, chat.Pending(), sidechain=True)
+        self.assertEqual([(i["role"], i["text"]) for i in got], [("note", self.HANDBACK)],
+                         "the harness speaks in the feed of an agent as the person who started it")
+
+    def test_another_key_of_the_harness_reads_the_same(self):
+        text = "[structured-output-enforce] Answer with the structured output tool."
+        got = chat.parse(self.meta(text), 0)
+        self.assertEqual([i["role"] for i in got], ["note"])
+
+    def test_a_person_typing_such_a_key_wrote_a_message(self):
+        got = chat.parse({"type": "user", "timestamp": "2026-09-27T20:27:46.963Z",
+                          "message": {"content": self.HANDBACK}}, 0)
+        self.assertEqual([i["role"] for i in got], ["me"])
+
+    def test_a_bracket_that_is_not_a_key_is_no_nudge(self):
+        got = chat.parse(self.meta("[Deploy watch] check the queue of the bot"), 0)
+        self.assertNotIn("note", [i["role"] for i in got])
+
+    def test_a_long_nudge_is_cut_honestly(self):
+        got = chat.parse(self.meta("[handback-send-enforce] " + "x" * 5000), 0)
+        self.assertTrue(got[0]["text"].endswith("…"))
+        self.assertLess(len(got[0]["text"]), 1100)
+
+
+class CoordinatorLetters(unittest.TestCase):
+    """What the session that started a subagent sends it: a letter, not the person."""
+
+    def framed(self, said, **fields):
+        return {"type": "user", "isMeta": True, "origin": {"kind": "coordinator"},
+                "timestamp": "2026-09-27T20:27:56.718Z",
+                "message": {"content": "The coordinator sent a message while you were working:\n"
+                                       f"{said}\n\nAddress this before completing your current task."},
+                **fields}
+
+    def test_a_letter_between_turns_is_mail_from_the_coordinator(self):
+        got = chat.parse(self.framed("The word for step 2: atlas", isSidechain=True), 0,
+                         chat.Pending(), sidechain=True)
+        self.assertEqual([(i["role"], i["from"], i["source"], i["text"]) for i in got],
+                         [("mail", "coordinator", "session", "The word for step 2: atlas")])
+        self.assertNotIn("dir", got[0], "the letter came in, it was not sent")
+
+    def test_the_letter_keeps_its_paragraphs(self):
+        got = chat.parse(self.framed("first\n\nsecond"), 0)
+        self.assertEqual(got[0]["text"], "first\n\nsecond")
+
+    def test_a_letter_queued_mid_turn_is_mail_too(self):
+        record = {"type": "attachment", "isSidechain": True, "timestamp": "2026-09-27T20:27:56.718Z",
+                  "attachment": {"type": "queued_command", "isMeta": True,
+                                 "origin": {"kind": "coordinator"},
+                                 "prompt": "An addition from the owner: keep the old names."}}
+        got = chat.parse(record, 0, chat.Pending(), sidechain=True)
+        self.assertEqual([(i["role"], i["from"], i["text"]) for i in got],
+                         [("mail", "coordinator", "An addition from the owner: keep the old names.")])
+        self.assertNotIn("state", got[0], "a letter is not a prompt waiting in the queue")
+
+    def test_the_same_words_without_the_mark_are_a_prompt(self):
+        record = self.framed("pasted by a person")
+        del record["origin"]
+        del record["isMeta"]
+        got = chat.parse(record, 0)
+        self.assertEqual([i["role"] for i in got], ["me"])
+
+
 class TaskDone(unittest.TestCase):
     NOTE = ("<task-notification>\n<task-id>b0sel847n</task-id>\n"
             "<tool-use-id>toolu_01VbcX</tool-use-id>\n"

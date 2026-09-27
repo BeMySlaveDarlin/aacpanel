@@ -164,6 +164,44 @@ def interrupted(text):
     return INTERRUPTED in text[:200]
 
 
+# A nudge claude gives the model on its own — hand the report back, answer in
+# the shape asked for — begins with a key of the harness in brackets. The words
+# after the key change from version to version; the shape of the key does not,
+# and a person's bracket reads otherwise. Only a record claude marked as its own
+# is asked, so a person typing such a key still wrote a message.
+NUDGE_RE = re.compile(r"\A\[[a-z]+(?:-[a-z]+)+\]")
+
+
+def nudge(text):
+    """Returns the note for a nudge of the harness, or None when the text is not one."""
+    if not NUDGE_RE.match(text):
+        return None
+    body, trimmed = cut(text, MAX_NOTE)
+    return body + "…" if trimmed else body
+
+
+# What the session that started a subagent sends it reaches the subagent as a
+# prompt, and the record, not the words, says who it came from. Between turns
+# the words come framed: a line naming the sender before them and a request to
+# address them after. Mid-turn they arrive bare, queued for the next tool round.
+COORDINATOR = "coordinator"
+COORDINATOR_HEAD_RE = re.compile(r"\AThe coordinator sent a message[^\n]*:\n")
+COORDINATOR_TAIL_RE = re.compile(r"\n\nAddress this before[^\n]*\Z")
+
+
+def coordinator_letter(origin, text, at, pos):
+    """Returns the letter from the session that started this agent, or None when the record is not one."""
+    if not isinstance(origin, dict) or origin.get("kind") != COORDINATOR:
+        return None
+    said = COORDINATOR_HEAD_RE.sub("", text, count=1)
+    said = COORDINATOR_TAIL_RE.sub("", said, count=1).strip()
+    if not said:
+        return []
+    body, trimmed = cut(said, MAX_TEXT)
+    return [{"role": "mail", "from": COORDINATOR, "source": "session",
+             "text": body, "cut": trimmed, "at": at, "pos": pos}]
+
+
 def classify(text):
     """Returns what the prompt is as (role, what to show)."""
     head = text[:200]

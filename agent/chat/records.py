@@ -7,8 +7,9 @@ from sesstate.feed import TURN_ENDS
 
 from . import commands
 from .cards import artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card, wake_item
-from .harness import classify, interrupted, service, strip_panel_note, unwrap_pasted
-from .mail import peer_name, peer_pid
+from .harness import (classify, coordinator_letter, interrupted, nudge, service,
+                      strip_panel_note, unwrap_pasted)
+from .mail import peer_name, peer_pid, undelivered
 from .notices import hook_call, system_notice
 from .limits import MAX_TEXT, cut
 from .queue import delivered, withdrawn
@@ -204,7 +205,12 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     use = b.get("tool_use_id") or ""
                     call = calls.pop(use, None) if calls is not None else None
                     if use and call is not None:
-                        settled.append(result_mark(use, b, at, pos))
+                        mark = result_mark(use, b, at, pos)
+                        if call.get("letter"):
+                            lost = undelivered(sesstate.result_text(b), b.get("is_error"))
+                            if lost:
+                                mark["undelivered"] = lost
+                        settled.append(mark)
                     if permits and use in permits:
                         allowed.append(permit_row(permits[use], call))
                     if asks is not None and use in asks:
@@ -249,6 +255,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         else:
             text = content if isinstance(content, str) else ""
         text = unwrap_pasted(text.strip())
+        letter = coordinator_letter(record.get("origin"), text, at, pos) if text else None
+        if letter is not None:
+            return out + letter
         if not text or "system-reminder" in text[:200]:
             return out
         # Only a record the harness wrote can be an answer: a person pasting
@@ -283,6 +292,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             if interrupted(text):
                 out += cutoff(calls, at, pos)
             return out
+        said = nudge(text) if record.get("isMeta") else None
+        if said is not None:
+            return out + [{"role": "note", "text": said, "at": at, "pos": pos}]
         body, trimmed = cut(shown, MAX_TEXT)
         # A slash command that went through the queue comes back as a record
         # of the command, with no mark of the queue on it: it is the prompt the
@@ -327,6 +339,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return []
         if shots:
             out.append({"role": "shots", "at": at, "pos": pos, "shots": shots})
+        letter = coordinator_letter(block.get("origin"), text, at, pos) if text else None
+        if letter is not None:
+            return out + letter
         service_items = service_once(text, at, pos, pending, read=True)
         if service_items is not None:
             return out + service_items
@@ -416,11 +431,19 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     body, trimmed = cut(str(said).strip(), MAX_TEXT)
                     if body:
                         to = str(data.get("to") or data.get("recipient") or "")
-                        out.append({"role": "mail", "dir": "out",
-                                    "from": peer_name(to),
-                                    "source": "session" if peer_pid(to) else "agent",
-                                    "text": body, "cut": trimmed,
-                                    "at": at, "pos": pos})
+                        letter = {"role": "mail", "dir": "out",
+                                  "from": peer_name(to),
+                                  "source": "session" if peer_pid(to) else "agent",
+                                  "text": body, "cut": trimmed,
+                                  "use": block.get("id") or "",
+                                  "at": at, "pos": pos}
+                        # Whether the letter reached anyone is known only
+                        # from the answer: the letter waits for it as a call
+                        # does, and the fold marks it when it comes.
+                        if calls is not None and letter["use"]:
+                            calls[letter["use"]]["letter"] = True
+                            letter["open"] = True
+                        out.append(letter)
                         continue
                 call = {"role": "tool", "name": tool_label(name, block.get("input")),
                         "kind": tool_kind(name),

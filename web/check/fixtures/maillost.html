@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Two letters an agent sent with the same words: the first to a name nobody
+// answers to, the second to the session that started it. claude refused the
+// first and queued the second.
+import { h, render } from "preact";
+import { Row } from "/src/screens/chat/rows.js";
+
+const at = "2026-09-27T20:28:05Z";
+const why = "No agent named 'coordinator' is reachable.\nCheck the spelling, or use the agent ID from a background agent's spawn result.";
+const items = [
+    { role: "mail", dir: "out", from: "coordinator", source: "agent", use: "toolu_1", pos: 10, at,
+      text: "salta", undelivered: why },
+    { role: "mail", dir: "out", from: "main", source: "agent", use: "toolu_2", pos: 20, at,
+      text: "salta" },
+];
+
+render(h("div", { class: "feed" }, items.map((item) => h(Row, { item, key: item.pos }))),
+    document.getElementById("root"));
+
+(async () => {
+  try {
+    await new Promise((r) => setTimeout(r, 200));
+    const letters = Array.from(document.querySelectorAll(".mmail"));
+    const rows = letters.map((el) => {
+        const mark = el.querySelector(".mmlost");
+        return {
+            from: (el.querySelector(".mmfrom") || {}).textContent || "",
+            mark: mark ? mark.textContent : "",
+            markColor: mark ? getComputedStyle(mark).color : "",
+            peek: (el.querySelector(".mmpeek") || {}).textContent || "",
+            why: (el.querySelector(".mmwhy") || {}).textContent || "",
+        };
+    });
+    const quietColor = getComputedStyle(document.querySelector(".mmdir")).color;
+    // Opened, the refused letter gives claude's reason above its words.
+    letters[0].querySelector(".mmhead").click();
+    await new Promise((r) => setTimeout(r, 120));
+    const opened = {
+        why: (letters[0].querySelector(".mmwhy") || {}).textContent || "",
+        body: (letters[0].querySelector(".mmbody") || {}).textContent || "",
+    };
+    window.done = { rows, quietColor, opened };
+  } catch (err) {
+    window.done = { error: String(err && err.stack || err) };
+  }
+})();
+</script>

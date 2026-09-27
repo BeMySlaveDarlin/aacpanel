@@ -164,6 +164,8 @@
 .mmdir { color: var(--ink-faint); font-weight: 500; font-size: var(--t-xs); flex: none; }
 .mmfrom { font-weight: 600; color: var(--ink); flex: none; }
 .mmkind { color: var(--ink-faint); font-size: var(--t-xs); flex: none; }
+.mmlost { color: var(--warn); font-size: var(--t-xs); flex: none; }
+.mmwhy { margin: 0; padding: 0 .9rem .4rem .7rem; white-space: pre-line; }
 .mmpeek {
     flex: 1 0 100%;
     min-width: 0;
