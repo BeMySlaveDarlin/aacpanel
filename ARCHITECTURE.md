@@ -749,8 +749,10 @@ when there is no time to study it.
 **One thing is allowed out, and only by hand.** Dictation into the composer is
 the browser's own recognition, and in Chrome that means the recording goes to
 Google. It is off until the person turns it on for that device, the switch says
-where the sound goes before they do, and nothing else in the panel crosses the
-machine. The recognition is not done here because doing it here is a model on
+where the sound goes before they do, and nothing else a page sends crosses the
+machine. The host's own traffic out is the push service carrying notifications
+and the model catalogue of each account, read from the Anthropic API with that
+account's token. The recognition is not done here because doing it here is a model on
 the host, and that is a different feature with a different price.
 
 The panel installs as a PWA. The service worker goes to the network with a cap
