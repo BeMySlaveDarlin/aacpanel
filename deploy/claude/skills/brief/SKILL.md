@@ -46,23 +46,32 @@ lede: |
 summary:                      # up to four counters across the top
   - {n: "3", label: still open}
 lineage:                      # where each question came from
-  - {from: did not close, to: "**07** the configuration directory"}
+  - {from: did not close, to: "**07** where the settings live"}
 sections:                     # blocks that ask nothing
   - {title: Where this came from, body: The tail of yesterday.}
 questions:
   - id: r1
-    chips: [{tone: stuck, text: "did not close · decision 07"}]
-    title: The configuration directory
-    ask: You picked one directory. **The CLI may not offer that.**
-    facts:                    # what the choice rests on, with sources
-      - {text: "`--setting-sources user` reads the directory whole", src: stack 5}
-      - {text: "`--restricted` ignores user settings", src: help 2.1.270, flag: true}
+    chips: [{tone: stuck, text: "did not close · #412"}]   # task numbers go here only
+    title: Every role needs settings of its own
+    ask: |
+      **Why.** You asked for one settings folder shared by every role. The
+      program reads that folder whole, so a reviewer would get the builder's
+      permissions. A mistake there lets a review edit code it was only meant
+      to read.
+
+      **What.** Each role starts with only its own settings. Done when a
+      reviewer started by hand cannot write to the project.
+
+      **Choice.** Pass the settings at start, or keep a folder per role.
+    facts:                    # what the choice rests on, each with its source
+      - {text: "The program reads the settings folder whole and cannot skip parts of it.", src: "stack 5"}
+      - {text: "The locked-down start mode ignores the settings of the account.", src: "help, 2.1.270", flag: true}
     kind: pick                # pick · multi · text · none
     options:
-      - {key: A, label: Curate through `--settings`, note: argv carries the role, not the directory}
-      - {key: B, label: A directory per role, note: a copy of the token in each}
+      - {key: A, label: Pass settings at start, note: "One folder stays; the command line of each role grows longer. About a day of work."}
+      - {key: B, label: A folder per role, note: "Simple to read, but the subscription token is copied into every folder and has to be renewed in each."}
     read:                     # your reading, marked on screen as a proposal
-      - Option A is what you described, with argv as the carrier.
+      - I would take A. It keeps one place for the token and costs a day; B trades that day for a chore every renewal.
     capture: {note: {placeholder: The fallback}}
     answered: {pick: C}       # what you already know was decided
 closing:
@@ -90,6 +99,47 @@ The half that is not questions is the half that earns it:
   choose or refuse.
 - **`flag: true`** marks the fact that changes the answer. Two or three in a
   document, not half of them.
+
+## How the text reads
+
+The person reads a brief on a phone, between other things. They do not keep in
+their head the numbers of decisions, the paths or the names in the code, and a
+brief written in them comes back unanswered.
+
+- **No identifiers in the prose.** `title`, `ask`, option notes, `read`,
+  `sections`, `lede` and `closing` carry no numbers of decisions or findings,
+  no requirement codes, no paths or file names, no names of functions and
+  variables, no commit hashes, no names of waves or zones. A task number goes
+  into `chips` and nowhere else; an address goes into `facts[].src`, where it
+  lets the fact be checked.
+- **The thing, not its jargon.** Say what a thing does: not "the hook" but "a
+  command Claude runs itself before every step of an agent". A term that cannot
+  be avoided is explained once, in brackets, where the card first uses it.
+- **Plain sentences.** Short, with verbs and particulars. None of the filler of
+  generated text — "key", "it is worth noting", "it should be stressed",
+  "within the scope of", "the given", "allows", "ensures", "thus", "overall",
+  "critical", "comprehensive", or their counterparts in the language of the
+  brief. No chains of nouns, no arrows or symbols in place of words, no dash
+  where a sentence would do.
+- **Consequences in people, time and money**, not in properties of the code:
+  "the tests spend the subscription", "the agent hangs for three hours", "on the
+  customer's Mac the run fails at the first step".
+- **A title names the problem** the way a person would put it — "New work has
+  to start from the customer's latest code" — not the mechanism behind it.
+- **`ask` reads Why, What, Choice**: three short paragraphs under these bold
+  headings, in the language of the brief. Why the question arose, in three or
+  four sentences; what gets decided and how one tells it is done, in one or
+  two; the choice, in one line. Under 780 characters: the panel cuts at 800.
+  The rest goes into `facts`, at most six to a card, each a whole sentence a
+  person would say.
+- **Each option's `note` is its price on this card**: what we get, how much
+  work it is, what stays broken, what exactly the argument is about.
+- **`read` is two or three plain sentences**: what you would pick and why.
+- **Check before publishing.** Take the text fields — everything but `src` and
+  `chips` — and grep them for identifiers: file extensions, `snake_case` names,
+  hashes of nine hex digits and more, the numbering the project gives its
+  decisions. Nothing should match. Then read two or three cards whole, as the
+  person will.
 
 ## The rules the panel keeps
 
