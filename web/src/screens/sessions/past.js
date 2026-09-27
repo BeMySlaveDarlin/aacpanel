@@ -51,6 +51,8 @@ export function Past({ profile = "", contour = 0, map = null, sessions = [], onB
     const state = useSessionsArchive({ limit: PAGE, offset, profile, contour });
     const archive = state.kind === "ready" ? state.archive : null;
     const rows = (archive && archive.rows) || [];
+    // A conversation that is live is on the list of sessions, not in the archive.
+    const live = new Set(sessions.map((s) => s.sessionId).filter(Boolean));
     const crowdState = useSessionsHistory(period, { limit: 1 });
     const history = crowdState.kind === "ready" ? crowdState.sessions : null;
     const peaks = peakSeries(history);
@@ -90,7 +92,7 @@ export function Past({ profile = "", contour = 0, map = null, sessions = [], onB
                 <p class="sub">up to ${crowd} ${plural(crowd, "session", "sessions")} ran at once</p>
             `}
 
-            ${byProject(rows).map((block) => html`
+            ${byProject(rows.filter((row) => !live.has(row.sessionId))).map((block) => html`
                 <${ArchiveBlock} key=${block.key} block=${block} map=${map} exec=${exec} onOpen=${chat} onProject=${onProject} />
             `)}
 
@@ -112,6 +114,8 @@ function ArchiveBlock({ block, map, exec, onOpen, onProject }) {
     const run = useAction();
     const ready = knows(exec, "session.open");
     const own = mapProject(map, block.project);
+    // The home session is restarted from the list, never opened a second time.
+    const canNew = own && !block.rows.some((row) => row.home);
     const shown = block.rows.slice(0, PER_PROJECT);
     const rest = block.rows.length - shown.length;
     return html`
@@ -122,7 +126,7 @@ function ArchiveBlock({ block, map, exec, onOpen, onProject }) {
                                    onClick=${() => onProject({ ...own.project, profile: map.profile, contour: map.id, group: own.group })}>${block.name}</button>`
                     : html`<span class="pjname">${block.name}</span>`}
                 ${block.group && html`<span class="pjgroup">${block.group}</span>`}
-                ${own && html`
+                ${canNew && html`
                     <button class="pjnew" type="button" disabled=${!ready}
                             aria-label=${`new session in project ${block.name}`}
                             title=${ready ? "" : whyNot(exec, "session.open")}
