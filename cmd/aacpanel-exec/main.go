@@ -278,17 +278,18 @@ func run(socket, dockerHost, self string) error {
 	return nil
 }
 
-// keepLimits renews the snapshot of the subscription limits of the contours
-// on the stream once a minute: claude -p runs no status line to write it. A
-// failure is logged when it changes, not every minute it lasts.
+// keepLimits looks once a minute for a contour whose snapshot of the
+// subscription limits has aged past its interval, and renews it with a probe:
+// claude -p runs no status line to write it. A failure is logged when it
+// changes, not every minute it lasts.
 func keepLimits(ctx context.Context) {
 	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
 	said := ""
 	renew := func() {
-		c, cancel := context.WithTimeout(ctx, 45*time.Second)
+		c, cancel := context.WithTimeout(ctx, 3*time.Minute)
 		defer cancel()
-		failed := strings.Join(stream.RenewLimits(c, time.Now()), "; ")
+		failed := strings.Join(executor.RenewLimits(c, time.Now(), executor.LimitsInterval()), "; ")
 		if failed != said && failed != "" {
 			log.Printf("the subscription limits were not renewed: %s", failed)
 		}

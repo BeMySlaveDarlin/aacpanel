@@ -1,115 +1,164 @@
 package stream
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
 	"time"
 )
 
 // The subscription limits of a contour are known to claude alone: a terminal
-// hands them to its status line, which writes the contour's snapshot; claude
-// -p runs no status line. So the executor asks a live session of each contour
-// on the stream with get_usage and writes the same snapshot — any holder
-// passes the request on, whatever version it runs.
+// hands them to its status line, which writes the contour's snapshot, and
+// claude -p runs no status line. So a contour whose snapshot has aged is
+// asked by a probe of its own: a claude -p on haiku, started in the contour,
+// says one word and tells the limits of the account with the answer. It keeps
+// no session and no transcript, loads no MCP server and no tool, and leaves
+// the sessions of the contour alone.
 
-// LimitsEvery is how often a contour's snapshot is renewed at most: a
-// terminal of the contour may have just written it.
-const LimitsEvery = 45 * time.Second
-
-// limitsFile is the snapshot of a contour, in the contour's own directory.
-const limitsFile = "rate-limits.json"
-
-// RenewLimits renews the snapshot of the subscription limits of every contour
-// that has a session on the stream, asking one of its sessions. It returns
-// what went wrong, one line a contour.
-func RenewLimits(ctx context.Context, now time.Time) []string {
-	byDir := map[string]string{}
-	var order []string
-	for _, sid := range heldSessions() {
-		sum, ok := Held(sid, 0)
-		if !ok || sum.PID <= 0 {
-			continue
-		}
-		dir := configDirOf(sum.PID)
-		if dir == "" {
-			continue
-		}
-		if _, seen := byDir[dir]; !seen {
-			byDir[dir] = sid
-			order = append(order, dir)
-		}
-	}
-	var failed []string
-	for _, dir := range order {
-		path := filepath.Join(dir, limitsFile)
-		if st, err := os.Stat(path); err == nil && now.Sub(st.ModTime()) < LimitsEvery {
-			continue
-		}
-		reply, err := Ask(ctx, byDir[dir], Request{Op: OpControl, Subtype: "get_usage"})
-		if err == nil && !reply.OK {
-			err = fmt.Errorf("%s", reply.Error)
-		}
-		if err != nil {
-			failed = append(failed, fmt.Sprintf("%s: %v", dir, err))
-			continue
-		}
-		snap, ok := limitsOf(reply.Response, now)
-		if !ok {
-			continue
-		}
-		if err := writeAtomic(path, snap); err != nil {
-			failed = append(failed, fmt.Sprintf("%s: %v", dir, err))
-		}
-	}
-	return failed
+// ProbeArgs are what the probe starts claude with, after the binary.
+var ProbeArgs = []string{
+	"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+	"--model", "haiku", "--no-session-persistence", "--strict-mcp-config", "--setting-sources", "project",
+	"--max-turns", "1", "--tools", "", "--system-prompt", "Reply with one word.",
 }
 
-// heldSessions lists the conversations the directory of the stream holds a
-// state file for.
-func heldSessions() []string {
-	entries, err := os.ReadDir(Dir())
+// probeWait is how long a probe may take: a claude starts in a second or
+// two, and the answer to one word is shorter still.
+const probeWait = 60 * time.Second
+
+type limitWindow struct {
+	Utilization *float64 `json:"utilization"`
+	ResetsAt    *int64   `json:"resetsAt"`
+}
+
+// ProbeLimits starts a probe in dir with bin and returns the snapshot of the
+// contour's limits in the form the status line writes.
+func ProbeLimits(ctx context.Context, bin, dir string, now time.Time) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, probeWait)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, ProbeArgs...)
+	cmd.Dir = dir
+	cmd.Env = probeEnv(os.Environ())
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	var out []string
-	for _, e := range entries {
-		name := e.Name()
-		if id, ok := strings.CutSuffix(name, ".json"); ok && uuidLike(id) {
-			out = append(out, id)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("the probe did not start: %w", err)
+	}
+	defer func() {
+		_ = stdin.Close()
+		_ = cmd.Wait()
+	}()
+
+	send := func(obj any) error {
+		line, _ := json.Marshal(obj)
+		_, err := stdin.Write(append(line, '\n'))
+		return err
+	}
+	if err := send(map[string]any{"type": "control_request", "request_id": "limits-1",
+		"request": map[string]any{"subtype": "initialize"}}); err != nil {
+		return nil, err
+	}
+	var five, seven *limitWindow
+	sc := bufio.NewScanner(stdout)
+	sc.Buffer(make([]byte, 1<<16), 1<<22)
+	for sc.Scan() {
+		var ev struct {
+			Type     string `json:"type"`
+			Response struct {
+				RequestID string `json:"request_id"`
+			} `json:"response"`
+			Info struct {
+				Windows struct {
+					Five  *limitWindow `json:"five_hour"`
+					Seven *limitWindow `json:"seven_day"`
+				} `json:"unifiedWindows"`
+			} `json:"rate_limit_info"`
 		}
+		if json.Unmarshal(sc.Bytes(), &ev) != nil {
+			continue
+		}
+		switch ev.Type {
+		case "control_response":
+			if ev.Response.RequestID == "limits-1" {
+				if err := send(map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": "ok"}}); err != nil {
+					return nil, err
+				}
+			}
+		case "rate_limit_event":
+			if ev.Info.Windows.Five != nil {
+				five, seven = ev.Info.Windows.Five, ev.Info.Windows.Seven
+			}
+		case "result":
+			if five == nil || five.Utilization == nil {
+				return nil, errors.New("claude answered and said nothing of the limits")
+			}
+			return snapshotOf(five, seven, now), nil
+		}
+	}
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("the probe did not answer in %s", probeWait)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("the probe's answer was not read: %w", err)
+	}
+	if tail := strings.TrimSpace(stderr.String()); tail != "" {
+		line, _, _ := strings.Cut(tail, "\n")
+		return nil, fmt.Errorf("the probe ended before it answered: %.300s", line)
+	}
+	return nil, errors.New("the probe ended before it answered")
+}
+
+// probeEnv is the environment of the probe: the wrapper of the contours picks
+// the account and the directory by where it starts, so nothing of the session
+// the executor runs beside is passed on.
+func probeEnv(env []string) []string {
+	var out []string
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(name, "CLAUDE_CODE_") || name == "CLAUDECODE" || name == "CLAUDE_CONFIG_DIR" {
+			continue
+		}
+		out = append(out, kv)
 	}
 	return out
 }
 
-// configDirOf is the directory of the contour a claude runs in. The wrapper
-// of the contours sets it for claude, not for the holder, so it is read from
-// claude's own environment; a claude without one runs in the default.
-func configDirOf(pid int) string {
-	raw, err := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
-	if err != nil {
-		return ""
-	}
-	home := ""
-	for kv := range bytes.SplitSeq(raw, []byte{0}) {
-		if v, ok := bytes.CutPrefix(kv, []byte("CLAUDE_CONFIG_DIR=")); ok && len(v) > 0 {
-			return string(v)
+// snapshotOf writes the windows as the status line does: the share spent in
+// percent and when the window resets, in seconds.
+func snapshotOf(five, seven *limitWindow, now time.Time) []byte {
+	part := func(w *limitWindow) map[string]any {
+		out := map[string]any{"pct": nil, "resetsAt": nil}
+		if w == nil {
+			return out
 		}
-		if v, ok := bytes.CutPrefix(kv, []byte("HOME=")); ok {
-			home = string(v)
+		if w.Utilization != nil {
+			out["pct"] = math.Round(*w.Utilization*1000) / 10
 		}
+		if w.ResetsAt != nil {
+			out["resetsAt"] = *w.ResetsAt
+		}
+		return out
 	}
-	if home == "" {
-		return ""
-	}
-	return filepath.Join(home, ".claude")
+	snap, _ := json.Marshal(map[string]any{"at": now.Unix(), "fiveHour": part(five), "sevenDay": part(seven)})
+	return append(snap, '\n')
 }
 
-func writeAtomic(path string, data []byte) error {
+// WriteSnapshot puts a snapshot where the collector reads it, in one rename.
+func WriteSnapshot(path string, data []byte) error {
 	tmp := fmt.Sprintf("%s.tmp.%d", path, os.Getpid())
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
@@ -119,49 +168,4 @@ func writeAtomic(path string, data []byte) error {
 		return err
 	}
 	return nil
-}
-
-type usageWindow struct {
-	Utilization *float64 `json:"utilization"`
-	ResetsAt    string   `json:"resets_at"`
-}
-
-// limitsOf reads claude's answer to get_usage into the snapshot the status
-// line writes: the share of each window spent and when it resets, in seconds.
-// An account without limits — an API key — has nothing to write.
-func limitsOf(resp json.RawMessage, now time.Time) ([]byte, bool) {
-	var body struct {
-		Response struct {
-			Available bool `json:"rate_limits_available"`
-			Limits    struct {
-				Five  *usageWindow `json:"five_hour"`
-				Seven *usageWindow `json:"seven_day"`
-			} `json:"rate_limits"`
-		} `json:"response"`
-	}
-	if json.Unmarshal(resp, &body) != nil {
-		return nil, false
-	}
-	five, seven := body.Response.Limits.Five, body.Response.Limits.Seven
-	if !body.Response.Available || five == nil || five.Utilization == nil {
-		return nil, false
-	}
-	part := func(w *usageWindow) map[string]any {
-		out := map[string]any{"pct": nil, "resetsAt": nil}
-		if w == nil {
-			return out
-		}
-		if w.Utilization != nil {
-			out["pct"] = *w.Utilization
-		}
-		if at, err := time.Parse(time.RFC3339Nano, w.ResetsAt); err == nil {
-			out["resetsAt"] = at.Unix()
-		}
-		return out
-	}
-	snap, err := json.Marshal(map[string]any{"at": now.Unix(), "fiveHour": part(five), "sevenDay": part(seven)})
-	if err != nil {
-		return nil, false
-	}
-	return append(snap, '\n'), true
 }

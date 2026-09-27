@@ -66,14 +66,6 @@ func fakeClaude() int {
 				ultra = on && model != "haiku"
 			case "side_question":
 				body = map[string]any{"response": "tangerine", "synthetic": false}
-			case "get_usage":
-				// As claude -p 2.1.282 answers for an account with a
-				// subscription: shares of the windows and when they reset.
-				body = map[string]any{"subscription_type": "max", "rate_limits_available": true,
-					"rate_limits": map[string]any{
-						"five_hour":      map[string]any{"utilization": 42, "resets_at": "2026-09-24T22:30:00.055291+00:00"},
-						"seven_day":      map[string]any{"utilization": 7, "resets_at": "2026-10-01T17:00:00.055310+00:00"},
-						"seven_day_opus": nil}}
 			case "get_settings":
 				body = map[string]any{
 					"effective": map[string]any{"env": map[string]any{"GITLAB_TOKEN": "glpat-secret"},
@@ -197,6 +189,13 @@ func fakeClaude() int {
 				out(map[string]any{"type": "user", "uuid": h["uuid"], "message": h["message"]})
 			}
 			held = nil
+			if os.Getenv("FAKE_LIMITS") == "1" {
+				// As claude -p 2.1.283 tells the limits with an answer.
+				out(map[string]any{"type": "rate_limit_event", "rate_limit_info": map[string]any{
+					"status": "allowed", "rateLimitType": "seven_day", "unifiedWindows": map[string]any{
+						"five_hour": map[string]any{"utilization": 0.14, "resetsAt": 1790527800},
+						"seven_day": map[string]any{"utilization": 0.265, "resetsAt": 1790874000}}}})
+			}
 			out(map[string]any{"type": "assistant", "message": map[string]any{"content": []any{
 				map[string]any{"type": "text", "text": "ok"}}}})
 			result()
@@ -1081,76 +1080,43 @@ func TestAQuestionAsideIsWaitedForLonger(t *testing.T) {
 	}
 }
 
-// A contour on the stream runs no status line, so the executor renews the
-// snapshot of its subscription limits through a holder of the contour, from
-// claude's own answer — in the form the status line writes, in the directory
-// of the contour claude runs in, and not again before the snapshot has aged.
-func TestLimitsAreRenewedThroughAHolderOfTheContour(t *testing.T) {
-	cfg := t.TempDir()
-	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
-	r := start(t, nil)
-	r.waitFor("the handshake", func(s State) bool { return s.PID > 0 })
-	path := filepath.Join(cfg, "rate-limits.json")
-
-	now := time.Now()
-	if failed := RenewLimits(context.Background(), now); len(failed) > 0 {
-		t.Fatalf("the renewal failed: %v", failed)
-	}
-	b, err := os.ReadFile(path)
+// A contour on the stream runs no status line, so a probe of its own asks
+// claude for the limits: one word on haiku, and the windows claude tells with
+// the answer become the snapshot in the form the status line writes.
+func TestAProbeTellsTheLimitsOfTheAccount(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "claude.log")
+	t.Setenv("STREAM_FAKE_CLAUDE", "1")
+	t.Setenv("FAKE_LOG", logPath)
+	t.Setenv("FAKE_LIMITS", "1")
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "the-token-of-the-session-beside")
+	now := time.Unix(1790000000, 0)
+	snap, err := ProbeLimits(context.Background(), os.Args[0], t.TempDir(), now)
 	if err != nil {
-		t.Fatalf("no snapshot in the directory of the contour: %v", err)
+		t.Fatalf("the probe failed: %v", err)
 	}
-	var snap struct {
-		At       int64 `json:"at"`
-		FiveHour struct {
-			Pct      float64 `json:"pct"`
-			ResetsAt int64   `json:"resetsAt"`
-		} `json:"fiveHour"`
-		SevenDay struct {
-			Pct      float64 `json:"pct"`
-			ResetsAt int64   `json:"resetsAt"`
-		} `json:"sevenDay"`
+	if string(snap) != `{"at":1790000000,"fiveHour":{"pct":14,"resetsAt":1790527800},"sevenDay":{"pct":26.5,"resetsAt":1790874000}}`+"\n" {
+		t.Errorf("the snapshot reads %s", snap)
 	}
-	if err := json.Unmarshal(b, &snap); err != nil {
-		t.Fatalf("the snapshot does not parse: %v: %s", err, b)
+	sent, _ := os.ReadFile(logPath)
+	if !strings.Contains(string(sent), `"subtype":"initialize"`) || !strings.Contains(string(sent), `"content":"ok"`) {
+		t.Errorf("the probe did not greet claude and say one word: %s", sent)
 	}
-	if snap.FiveHour.Pct != 42 || snap.SevenDay.Pct != 7 {
-		t.Errorf("the windows read %v and %v, claude said 42 and 7", snap.FiveHour.Pct, snap.SevenDay.Pct)
+	if strings.Contains(strings.Join(probeEnv([]string{"CLAUDE_CODE_OAUTH_TOKEN=x", "CLAUDE_CONFIG_DIR=/y", "HOME=/h"}), " "), "CLAUDE") {
+		t.Error("the probe carries the account of the session beside it: the wrapper picks the contour's own")
 	}
-	five, _ := time.Parse(time.RFC3339, "2026-09-24T22:30:00Z")
-	if snap.FiveHour.ResetsAt != five.Unix() || snap.SevenDay.ResetsAt == 0 || snap.At != now.Unix() {
-		t.Errorf("the snapshot reads at %d, resets %d and %d", snap.At, snap.FiveHour.ResetsAt, snap.SevenDay.ResetsAt)
-	}
-
-	if err := os.WriteFile(path, []byte("fresh"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	RenewLimits(context.Background(), time.Now())
-	if b, _ := os.ReadFile(path); string(b) != "fresh" {
-		t.Errorf("a snapshot a moment old was written over: %s", b)
-	}
-	RenewLimits(context.Background(), time.Now().Add(LimitsEvery+time.Second))
-	if b, _ := os.ReadFile(path); string(b) == "fresh" {
-		t.Error("a snapshot past its age was not renewed")
+	for _, flag := range []string{"--no-session-persistence", "--strict-mcp-config", "haiku"} {
+		if !strings.Contains(strings.Join(ProbeArgs, " "), flag) {
+			t.Errorf("the probe is started without %s", flag)
+		}
 	}
 }
 
-func TestLimitsAreWrittenOnlyForAnAccountThatHasThem(t *testing.T) {
-	now := time.Unix(1790000000, 0)
-	for name, body := range map[string]string{
-		"an API key":                    `{"subtype":"success","response":{"rate_limits_available":false,"rate_limits":null}}`,
-		"limits said to be unavailable": `{"subtype":"success","response":{"rate_limits_available":false,"rate_limits":{"five_hour":{"utilization":3}}}}`,
-		"no five-hour window":           `{"subtype":"success","response":{"rate_limits_available":true,"rate_limits":{"five_hour":null}}}`,
-		"an answer of nothing":          `{"subtype":"success","response":{}}`,
-		"not an answer at all":          `oops`,
-	} {
-		if snap, ok := limitsOf(json.RawMessage(body), now); ok {
-			t.Errorf("%s: a snapshot was made: %s", name, snap)
-		}
-	}
-	snap, ok := limitsOf(json.RawMessage(`{"subtype":"success","response":{"rate_limits_available":true,
-		"rate_limits":{"five_hour":{"utilization":9.5,"resets_at":"bad"},"seven_day":null}}}`), now)
-	if !ok || string(snap) != `{"at":1790000000,"fiveHour":{"pct":9.5,"resetsAt":null},"sevenDay":{"pct":null,"resetsAt":null}}`+"\n" {
-		t.Errorf("a five-hour window alone reads %q (%v)", snap, ok)
+func TestAProbeWithoutTheLimitsSaysSo(t *testing.T) {
+	t.Setenv("STREAM_FAKE_CLAUDE", "1")
+	t.Setenv("FAKE_LOG", filepath.Join(t.TempDir(), "claude.log"))
+	t.Setenv("FAKE_LIMITS", "")
+	if _, err := ProbeLimits(context.Background(), os.Args[0], t.TempDir(), time.Now()); err == nil ||
+		!strings.Contains(err.Error(), "said nothing of the limits") {
+		t.Errorf("an answer without the limits reads %v", err)
 	}
 }

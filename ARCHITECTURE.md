@@ -782,14 +782,18 @@ terminal is renamed on its own screen, `/rename` with keys.
 
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line
-of a terminal, in the payload on stdin, and to whoever asks it `get_usage` on
-the stream. So one snapshot per contour has two writers — a script the install
-puts first in the status line chain, and the executor, which once a minute asks
-a live session of each contour on the stream through its holder and writes the
-snapshot into the directory the contour's claude runs in (the wrapper of the
-contours sets it for claude, not for the holder). Hence a consequence visible
-in the interface: the numbers live only while a session of the contour is up,
-and the screens show the age of the snapshot beside old percentages.
+of a terminal, in the payload on stdin, and with every answer it gives on the
+stream. So one snapshot per contour has two writers — a script the install
+puts first in the status line chain, and a probe the executor starts for a
+contour whose snapshot has aged past ten minutes (`AACP_LIMITS_EVERY`): a
+`claude -p` on haiku, started in the root of the contour so the wrapper picks
+its account, says one word and hands over the windows claude tells with the
+answer. The probe keeps no session and no transcript and loads no MCP server
+or tool; the sessions of the contour are not asked anything. Its price is a
+claude start and a word on haiku a contour every interval, a share of the very
+limit it reads — which is why the interval is the host's to set, and a contour
+with a terminal open keeps its snapshot fresh and is not probed. The screens
+show the age of the snapshot beside old percentages.
 
 **The snapshot is parsed block by block, and a failed block is visible.** One
 field handed over as a fraction where an integer is expected does not bring down
