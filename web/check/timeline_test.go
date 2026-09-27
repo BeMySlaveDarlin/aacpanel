@@ -95,13 +95,14 @@ func TestTheFeedSplitsIntoTheColumnAndTheTimeline(t *testing.T) {
 		map[string]any{"role": "ai", "text": "c", "pos": 6},
 		run(7, done(8, "agent1")),
 		done(9, "agent2"),
+		run(95, done(96, "agent4")),
 		map[string]any{"role": "mail", "from": "agent1", "source": "agent", "text": "report", "pos": 10},
 		run(11),
 		done(12, "agent3"),
 		map[string]any{"role": "turn", "pos": 13, "ms": 1000},
 	}
 	got := runModuleJS(t, "src/screens/chat/timeline.js", "book", [][]any{{rows}})
-	want := "me mind mind~ ai tasks[tt] mail(Port the feed) tasks[t] | t@1 t@2 t@4 t@6 t@7!"
+	want := "me mind mind~ ai tasks[tt] tasks[t] mail(Port the feed) tasks[t] | t@1 t@2 t@4 t@5 t@7 t@8!"
 	if s := roles(t, got[0]); strings.TrimSpace(s) != want {
 		t.Errorf("the feed splits into\n  %s\nwant\n  %s", s, want)
 	}
