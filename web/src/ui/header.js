@@ -116,7 +116,7 @@ export function HostMenu({ open, onClose, hostName = "host", installable = false
             <button class="item" type="button" onClick=${() => onPage("settings")}>Settings</button>
             <button class="item" type="button" onClick=${() => onPage("devices")}>Devices</button>
             <button class="item" type="button" onClick=${() => onPage("journal")}>Journal</button>
-            <button class="item" type="button" onClick=${() => onPage("usage")}>Usage</button>
+            <button class="item" type="button" onClick=${() => onPage("briefs")}>Briefs</button>
             <button class="item danger" type="button" onClick=${logout}>Sign out</button>
         <//>
     `;

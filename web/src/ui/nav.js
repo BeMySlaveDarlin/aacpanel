@@ -8,7 +8,7 @@ export const TABS = [
 ];
 
 export const PAGES = [
-    { id: "briefs", label: "Briefs", icon: Icon.file },
+    { id: "usage", label: "Usage", icon: Icon.pie },
     { id: "profiles", label: "Profiles", icon: Icon.cube },
 ];
 

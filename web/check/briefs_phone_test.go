@@ -5,28 +5,44 @@ import (
 	"testing"
 )
 
-// The bottom menu is where a screen lives when it is opened often. Briefs are
-// read and answered every day; the journal is opened when something went wrong,
-// which is rare, so it moves under the logo and briefs take its column.
-func TestBriefsSitInTheBottomMenuAndTheJournalUnderTheLogo(t *testing.T) {
+// The bottom menu is where a screen lives when it is opened often: usage
+// stands there, and briefs are under the logo with the journal — one door
+// each, and the briefs opened from the sheet carry their own way back.
+func TestUsageSitsInTheBottomMenuAndBriefsUnderTheLogo(t *testing.T) {
 	files := srcFiles(t)
 	nav := stripComments(files["src/ui/nav.js"])
 	if nav == "" {
 		t.Fatal("src/ui/nav.js not found — the test looks in the wrong place")
 	}
-	if !strings.Contains(nav, `id: "briefs"`) {
-		t.Error("briefs are not in the bottom menu: they are reached only through the sheet under the logo")
+	if !strings.Contains(nav, `id: "usage"`) {
+		t.Error("usage is not in the bottom menu")
 	}
-	if strings.Contains(nav, `id: "journal"`) {
-		t.Error("the journal is still in the bottom menu, which has five columns and all of them are taken")
+	for _, gone := range []string{`id: "briefs"`, `id: "journal"`} {
+		if strings.Contains(nav, gone) {
+			t.Errorf("%s is in the bottom menu, which has five columns and all of them are taken", gone)
+		}
 	}
 
 	sheet := shellSheet(t, files)
-	if !strings.Contains(sheet, `onPage("journal")`) {
-		t.Error("the journal left the bottom menu and got no entry in the sheet: there is no way into it at all")
+	for _, page := range []string{"briefs", "journal"} {
+		if !strings.Contains(sheet, `onPage("`+page+`")`) {
+			t.Errorf("%s has no entry in the sheet under the logo: there is no way into it at all", page)
+		}
 	}
-	if strings.Contains(sheet, `onPage("briefs")`) {
-		t.Error("briefs are in the bottom menu and in the sheet at once: one screen, two doors")
+	if strings.Contains(sheet, `onPage("usage")`) {
+		t.Error("usage is in the bottom menu and in the sheet at once: one screen, two doors")
+	}
+
+	shell := stripComments(files["src/mobile/shell.js"])
+	at := strings.Index(shell, "<${Briefs}")
+	if at < 0 {
+		t.Fatal("the shell has no page branch that draws the briefs")
+	}
+	if tail := shell[at:min(len(shell), at+200)]; !strings.Contains(tail, "onBack") {
+		t.Error("the briefs are opened from the sheet without a way to close them: the navigation bar is not drawn over them")
+	}
+	if !strings.Contains(stripComments(files["src/screens/briefs.js"]), "BackHead") {
+		t.Error("the briefs have no head with a back button for when they are opened out of the bottom menu")
 	}
 }
 

@@ -5,6 +5,7 @@ import { html } from "../html.js";
 import { Brief } from "./brief.js";
 import { drop, shelf, state } from "../data/briefs.js";
 import { useToast } from "../ui/toasts.js";
+import { BackHead } from "../ui/back.js";
 
 function when(at) {
     if (!at) return "";
@@ -60,7 +61,7 @@ function Card({ card, snapshot, onOpen, onDrop, asking, onAsk }) {
     `;
 }
 
-export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave }) {
+export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave, onBack }) {
     const [cards, setCards] = useState(null);
     // Which card is being asked about, so only one question stands at a time.
     const [asking, setAsking] = useState("");
@@ -119,10 +120,17 @@ export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave }) {
 
     return html`
         <div class="bshelf">
-            <header class="bshelf-h">
-                <h2>Briefs</h2>
-                <span class=${`bshelf-s${error ? " crit" : ""}`}>${say}</span>
-            </header>
+            ${onBack
+                ? html`
+                    <${BackHead} onBack=${onBack} label="back">
+                        <h2>Briefs</h2>
+                        <span class=${`where bshelf-s${error ? " crit" : ""}`}>${say}</span>
+                    <//>`
+                : html`
+                    <header class="bshelf-h">
+                        <h2>Briefs</h2>
+                        <span class=${`bshelf-s${error ? " crit" : ""}`}>${say}</span>
+                    </header>`}
 
             ${cards && !cards.length && !error && html`
                 <p class="bshelf-none">

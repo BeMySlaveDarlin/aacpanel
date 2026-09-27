@@ -244,10 +244,10 @@ func TestTheHostMenuCarriesThemeAndInstall(t *testing.T) {
 	var got appBar
 	runFixture(t, "appbar.html", &got)
 	m := got.Menu
-	if strings.Join(m.Items, "|") != "Install the appnot installed yet|Settings|Devices|Journal|Usage|Sign out" {
+	if strings.Join(m.Items, "|") != "Install the appnot installed yet|Settings|Devices|Journal|Briefs|Sign out" {
 		t.Errorf("the menu reads %q", m.Items)
 	}
-	if strings.Join(m.ItemsInstalled, "|") != "Settings|Devices|Journal|Usage|Sign out" {
+	if strings.Join(m.ItemsInstalled, "|") != "Settings|Devices|Journal|Briefs|Sign out" {
 		t.Errorf("an installed app still offers the install: %q", m.ItemsInstalled)
 	}
 	if strings.Join(m.Theme, ",") != "Dark:true,Light:false" || strings.Join(m.ThemeLight, ",") != "Dark:false,Light:true" {

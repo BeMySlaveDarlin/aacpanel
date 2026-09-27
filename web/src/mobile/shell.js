@@ -158,7 +158,7 @@ export function MobileShell({
                     : page === "journal"
                     ? html`<${Journal} onBack=${() => setPage(null)} />`
                     : page === "briefs"
-                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec}
+                    ? html`<${Briefs} snapshot=${snapshot} exec=${exec} onBack=${() => setPage(null)}
                         open=${openBrief} onOpen=${setOpenBrief}
                         onSession=${(name) => { setOpenBrief(null); goHome(name, null); }} />`
                     : page === "alerts"

@@ -17,34 +17,22 @@ import (
 
 const phoneUsage = "src/screens/usage.js"
 
-func TestUsageOpensFromTheLogoSheet(t *testing.T) {
+func TestUsageOpensFromTheBottomMenu(t *testing.T) {
 	files := srcFiles(t)
 	shell := files["src/mobile/shell.js"]
 	if shell == "" {
 		t.Fatal("src/mobile/shell.js not found — the test looks in the wrong place")
 	}
-
-	sheet := shellSheet(t, files)
-	if !strings.Contains(sheet, `onPage("usage")`) {
-		t.Error("the logo sheet has no entry for the usage screen — there is no way into it at all: " +
-			"it is kept out of the bottom menu on purpose")
-	}
-	if strings.Index(sheet, `onPage("devices")`) > strings.Index(sheet, `onPage("usage")`) {
-		t.Error("the usage screen sits above devices in the sheet — a rarely used entry landed at the top of the list")
-	}
-
 	body := stripComments(shell)
 	at := strings.Index(body, `page === "usage"`)
 	if at < 0 {
-		t.Fatal("the shell has no page branch for the usage screen — the sheet entry is drawn and opens nothing")
+		t.Fatal("the shell has no page branch for the usage screen — the menu button is drawn and opens nothing")
 	}
 	if tail := body[at:min(len(body), at+200)]; !strings.Contains(tail, "<${Usage}") {
 		t.Error("the usage branch opens something other than the usage screen")
 	}
-
-	if strings.Contains(stripComments(files["src/ui/nav.js"]), "usage") {
-		t.Error("the usage screen got into the bottom menu: it has five columns and all are taken, " +
-			"and a sixth turns the navigation bar into a list of screens")
+	if !strings.Contains(stripComments(files["src/ui/nav.js"]), `id: "usage"`) {
+		t.Error("the usage screen is not in the bottom menu")
 	}
 }
 
