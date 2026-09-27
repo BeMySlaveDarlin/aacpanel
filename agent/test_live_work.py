@@ -70,3 +70,23 @@ class CallOnTheCard(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StreamChecked(unittest.TestCase):
+    """The version of claude the stream contract last passed on, as the snapshot carries it."""
+
+    def test_the_kept_version_is_read_and_nothing_else(self):
+        from collect import live
+        d = test_barrier.tmp_dir()
+        self.addCleanup(d.cleanup)
+        old = os.environ.get("AACP_OWNER_STATE")
+        os.environ["AACP_OWNER_STATE"] = d.name
+        self.addCleanup(lambda: os.environ.pop("AACP_OWNER_STATE", None) if old is None else os.environ.update(AACP_OWNER_STATE=old))
+        self.assertIsNone(live.stream_checked(), "no contract has passed, yet a version is claimed")
+        os.makedirs(os.path.join(d.name, "aacpanel"))
+        with open(os.path.join(d.name, "aacpanel", "stream-contract.json"), "w", encoding="utf-8") as f:
+            f.write('{"version": "2.1.283", "at": "2026-09-27T12:00:00Z", "extra": 1}')
+        self.assertEqual(live.stream_checked(), {"version": "2.1.283", "at": "2026-09-27T12:00:00Z"})
+        with open(os.path.join(d.name, "aacpanel", "stream-contract.json"), "w", encoding="utf-8") as f:
+            f.write('not json')
+        self.assertIsNone(live.stream_checked())

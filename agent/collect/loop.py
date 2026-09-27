@@ -19,6 +19,7 @@ import usage_link
 import agent
 
 from .limits import limits
+from .live import stream_checked
 from .metrics import cpu_jiffies, disks, mem_info, net_counters, net_link, read
 from .procs import proc_sample, proc_top
 from .thermal import temperatures
@@ -127,6 +128,7 @@ def main():
             "sessions": sess_snapshot["sessions"],
             "sessionNotes": sess_snapshot["notes"],
             "sessionsAt": sess_snapshot["at"],
+            "streamChecked": stream_checked(),
             "projects": disk,
             "procs": procs,
             "limits": limits(),
