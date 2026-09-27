@@ -647,7 +647,9 @@
 
 /* Now: the call going out and how long it has been out, its command, and the
    badges of its run; between calls, the thinking and since when. */
-.nowbar { display: flex; flex-direction: column; gap: .3rem; padding: .5rem .7rem .55rem; min-width: 0; }
+/* The bar it stands in is a row (it is a status as well), so the now takes the
+   whole of it: the time and the badges keep to the far end whatever is said. */
+.nowbar { flex: 1 1 auto; display: flex; flex-direction: column; gap: .3rem; padding: .5rem .7rem .55rem; min-width: 0; text-align: left; }
 .nowtop { display: flex; align-items: center; gap: .45rem; min-width: 0; font-size: var(--t-sm); }
 .nowdot {
     flex: none;

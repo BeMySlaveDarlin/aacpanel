@@ -4,6 +4,7 @@
 <style>html,body{margin:0}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="composerbox" id="root"></div>
+<div class="composerbox" id="think"></div>
 <script type="module">
 // The bar above the composer of a session at work: a command going out ten
 // seconds ago, a read that failed before it in the same run.
@@ -22,6 +23,13 @@ const feed = [
 let opened = "";
 render(html`<${WorkStatus} work=${null} busy=${true} compacting="" feed=${feed}
     onCalls=${(run) => { opened = String(run); }} />`, document.getElementById("root"));
+// A turn that has only thought so far: short words, one badge, no call.
+const thinking = [
+    { role: "me", text: "and now?", at: ago(8), pos: 1 },
+    { role: "think", run: 3, pos: 3, at: ago(4), count: 1, tokens: 300 },
+];
+render(html`<${WorkStatus} work=${null} busy=${true} compacting="" feed=${thinking} onCalls=${() => {}} />`,
+    document.getElementById("think"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
@@ -29,15 +37,25 @@ window.done = (async () => {
     const out = {};
     try {
         for (let i = 0; i < 50 && !document.querySelector(".nowbar"); i++) await sleep(20);
-        out.top = text(document.querySelector(".nowtop"));
-        out.arg = text(document.querySelector(".nowarg"));
-        const badges = Array.from(document.querySelectorAll(".nowchips .mtools"));
+        const root = document.getElementById("root");
+        out.top = text(root.querySelector(".nowtop"));
+        out.arg = text(root.querySelector(".nowarg"));
+        const badges = Array.from(root.querySelectorAll(".nowchips .mtools"));
         out.badges = badges.length;
         out.failed = badges.filter((b) => b.classList.contains("mtfail")).length;
         if (badges[0]) badges[0].click();
         out.opened = opened;
         out.old = /handling the request/.test(document.getElementById("root").textContent);
         out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
+        // The time and the badges keep to the far end of the bar, however
+        // little the bar says.
+        const think = document.getElementById("think");
+        const bar = think.querySelector(".workbar").getBoundingClientRect();
+        const el = think.querySelector(".nowel");
+        const chips = think.querySelector(".nowchips");
+        out.thinkTop = text(think.querySelector(".nowtop"));
+        out.thinkTimeGap = el ? Math.round(bar.right - el.getBoundingClientRect().right) : -1;
+        out.thinkChipsGap = chips ? Math.round(bar.right - chips.getBoundingClientRect().right) : -1;
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

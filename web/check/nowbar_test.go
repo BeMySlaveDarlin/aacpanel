@@ -110,14 +110,17 @@ func TestTheBarSaysTheCallGoingOutNow(t *testing.T) {
 // place of a line that said only that the request was being handled.
 func TestTheBarAboveTheComposerSaysWhatIsGoingOn(t *testing.T) {
 	var got struct {
-		Top      string `json:"top"`
-		Arg      string `json:"arg"`
-		Badges   int    `json:"badges"`
-		Failed   int    `json:"failed"`
-		Opened   string `json:"opened"`
-		Old      bool   `json:"old"`
-		Overflow int    `json:"overflow"`
-		Error    string `json:"error"`
+		Top           string `json:"top"`
+		Arg           string `json:"arg"`
+		Badges        int    `json:"badges"`
+		Failed        int    `json:"failed"`
+		Opened        string `json:"opened"`
+		Old           bool   `json:"old"`
+		Overflow      int    `json:"overflow"`
+		ThinkTop      string `json:"thinkTop"`
+		ThinkTimeGap  int    `json:"thinkTimeGap"`
+		ThinkChipsGap int    `json:"thinkChipsGap"`
+		Error         string `json:"error"`
 	}
 	runFixture(t, "nowbar.html", &got)
 	if got.Error != "" {
@@ -142,5 +145,12 @@ func TestTheBarAboveTheComposerSaysWhatIsGoingOn(t *testing.T) {
 	}
 	if got.Overflow > 0 {
 		t.Errorf("the bar pushes the phone %dpx sideways", got.Overflow)
+	}
+	if !strings.Contains(got.ThinkTop, "thinking") {
+		t.Errorf("a turn that has only thought says %q", got.ThinkTop)
+	}
+	if got.ThinkTimeGap < 0 || got.ThinkTimeGap > 24 || got.ThinkChipsGap < 0 || got.ThinkChipsGap > 24 {
+		t.Errorf("with little said, the time stands %dpx and the badges %dpx off the far end of the bar — the bar shrank to its words",
+			got.ThinkTimeGap, got.ThinkChipsGap)
 	}
 }
