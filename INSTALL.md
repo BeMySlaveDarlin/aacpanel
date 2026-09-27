@@ -38,7 +38,7 @@ claude account, `loginctl enable-linger` for your user.
 | docker + compose v2 | `docker compose version` | the service and the database will not come up |
 | docker without sudo | `docker version` — the call itself, not `command -v` | half the steps will need rights |
 | Go | `go version` | the executor cannot be built |
-| tmux | `tmux -V` | **no session will open**: the conversation lives in tmux, the window is only attached to it |
+| tmux | `tmux -V` | **no session will open**, in the console or in the feed: a console lives in tmux and the window is only attached to it, and a feed session goes into tmux when it is moved to the console |
 | python3 | `python3 -V` | the collector will not start, the panel is blind |
 | jq | `jq --version` | the subscription percentages in the header are empty |
 | curl, git | `curl -V`, `git --version` | the checks below are browser-only |
