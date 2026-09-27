@@ -248,3 +248,5 @@ p.pznote { margin: .3rem 0 0; }
     box-shadow: inset 0 0 0 var(--hair) var(--edge); cursor: pointer;
 }
 .pzaccountname { font-size: var(--t-md); font-weight: 600; }
+.pzfacts .kv .k { flex: none; }
+.pzfacts .kv .v { min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: right; }
