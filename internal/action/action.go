@@ -15,8 +15,9 @@ const (
 	SessionOpen      Kind = "session.open"
 	SessionResume    Kind = "session.resume"
 	SessionClose     Kind = "session.close"
-	// SessionRestart closes the host's main session and starts it again in the
-	// same directory with an empty context.
+	// SessionRestart closes a session the gentle way and starts it again with
+	// an empty context: as its project from the map when one holds its
+	// directory, the host's main session as it was otherwise.
 	SessionRestart Kind = "session.restart"
 	SessionKill    Kind = "session.kill"
 	SessionSend    Kind = "session.send"

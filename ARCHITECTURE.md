@@ -464,13 +464,13 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Twenty-six actions, and the list is closed.
+Twenty-nine actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
@@ -481,13 +481,15 @@ What is deliberately not on the list: removing containers, images and volumes,
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no
-stop. `session.restart` ends it the gentle way — the same wait for the
-transcript — and starts a new one in the same directory under the same name
-with an empty context; the old transcript stays in the archive. Only the main
-session: its launch is fixed by the home directory and its name, while a project
-session carries launch parameters that live in the profile map, and a restart
-without them would silently bring it up in another setup, possibly under another
-account. A project session is closed here and opened again from the map.
+stop. `session.restart` ends a session the gentle way — the same wait for the
+transcript — and starts a new one with an empty context; the old transcript
+stays in the archive. A session whose working directory belongs to a project
+of the map comes back as that project: its launch, its contour, and the
+message after a restart as its first — a restart without them would bring it up
+in another setup, possibly under another account. A session no project holds
+is restarted only if it is the host's main one. The button is on the main
+session; a project session asks for its own restart through the local listener,
+naming its conversation, which is how the context guard brings it back.
 
 **A conversation is resumed where it ran, with the parameters of the project
 it belongs to.** Its transcript is kept by the directory it ran in, so a
