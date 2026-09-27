@@ -31,9 +31,11 @@ export function inline(text) {
                 ? html`<code class="path" data-path=${body}>${body}</code>`
                 : html`<code>${body}</code>`);
         } else if (token.startsWith("**")) {
-            out.push(html`<b>${token.slice(2, -2)}</b>`);
+            // What is set in bold or italics is text like any other: an address
+            // or a link in it is followed, not shown as dead words.
+            out.push(html`<b>${inline(token.slice(2, -2))}</b>`);
         } else if (token.startsWith("*")) {
-            out.push(html`<i>${token.slice(1, -1)}</i>`);
+            out.push(html`<i>${inline(token.slice(1, -1))}</i>`);
         } else {
             const cut = token.indexOf("](");
             const label = token.slice(1, cut);
