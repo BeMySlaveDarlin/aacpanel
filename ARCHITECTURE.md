@@ -20,8 +20,8 @@ a socket-proxy with `POST` switched off — starting or removing a container thi
 way is physically impossible. The claude transcripts do not reach the container
 at all: another process reads them and hands out only numbers. The service passes
 the executor **a structure, not a string for a shell**, and even full capture of
-the container yields exactly the list of actions written down in
-`internal/action/action.go`.
+the container yields exactly the lists of actions and questions written down in
+`internal/action`.
 
 ---
 
@@ -119,19 +119,25 @@ rather than drawing it empty.
                   ▼       ▼          ▼          ▼
           socket-proxy  snapshot  chat.sock  sock / term.sock
            (GET-only)  state.json usage.sock
+                                  review.sock
                   │       ▲          ▲          ▲
                   ▼       │          │          │
             docker.sock   └── aacpanel-agent    └── aacpanel-exec
                                  (host)                (host)
+                                    │  ◄── seen.sock ───  │
                                     │                     │
                             /proc, claude           docker, tmux, claude,
-                            transcripts, ask.sock   the terminal window
+                            transcripts;            the terminal window,
+                            ask, brief, page,       the holders of the
+                            notify.sock for the     stream sessions
+                            scripts of sessions
 ```
 
 **The snapshot.** The collector writes the state of the machine as a file into
 the state directory; that directory is mounted into the service read-only.
 Everything else that only the host knows goes through it as well: the socket of
-the conversation feed, the socket of token usage collection.
+the conversation feed, the socket of token usage collection, the shelf of
+readings.
 
 **The action socket.** `0600` owned by the session owner — behind it is the
 whole list of actions on the host, and its permissions must not be loosened.
@@ -139,6 +145,33 @@ That is why the service in the container runs under the same uid (`user:` in
 compose). What is mounted is the **directory**, not the socket itself: a
 bind-mount of a file is tied to the inode, and a restart of the executor would
 silently break the link until the container was recreated.
+
+**Questions go down the same socket.** Besides actions, the service asks the
+executor what it can do here, which permission a session is standing on,
+whether it has a window open, its models, its MCP servers, what it says about
+itself, its commands, one of its read-only screens of settings, and a question
+aside. A question changes nothing on the host and is written to no journal, but
+its list is closed the same way (`internal/action/validate.go`): an unknown one
+is refused without being parsed.
+
+One question does write: the service hands the executor the context guard of
+every place the map knows — the cap and whether a session past it restarts —
+and the executor keeps them in `~/.local/state/aacpanel/guards.tsv`, where the
+context guard hook and the prompt stamp read them. That file is the only thing
+it touches, and it is replaced whole. The guards go out at the start of the
+service, after every change of the map and every five minutes, and every
+fifteen seconds while they fail: an executor that was down when the map changed
+catches up on its own, and a deploy does not leave the host unguarded while the
+database migrates.
+
+**The delivery socket.** The executor has no access to transcripts, yet typing
+into a console is blind without them: whether the message landed, whether the
+turn is over, which permission mode the session was last in — only the
+transcript says. So it asks the collector over `seen.sock`, in the collector's
+runtime directory: it names the conversation and a mark cut from the message,
+and gets back a fact — found, seen, queued, ended, a mode — never a line of the
+conversation. The reader of the conversation answers yes or no; the one that
+types does not read.
 
 **The question socket.** The claude hook reports a session's question through
 `ask.sock`, and that one lives in the collector's separate runtime directory,
@@ -406,6 +439,20 @@ executor refuses to move it to the feed: the conversation would end under the
 eyes of whoever reads it there. The pair then only picks what to watch the
 console with. A project that lives in the console keeps the pair as a choice
 of the device.
+
+**Remote Control is a second way in, past the panel.** It is claude's bridge
+to claude.ai: while it is up, the session is reached from the Claude app and
+the web under the account it runs in. Where the launch parameters ask for it, a
+console gets it as a flag of the start, and a stream session from its holder,
+which asks claude for it as a control request right after the handshake and
+before the project's opening message. From the panel it is switched with
+`session.remote`: on the stream that is the same request, and its answer is the
+proof; in a console it is `/remote-control` typed into the terminal, the dialog
+that disconnects is walked by reading the screen after every key, and the
+switch is known to have landed when claude writes the id of the bridge into the
+file of the session or takes it out. What the bridge lets in is decided by
+claude.ai, not by the panel's door: whoever holds the account reaches the
+session, which is why it is off unless the map turns it on.
 
 **A stream session is reached from the host when the panel is down.** A tmux
 session is reached with `tmux attach` whatever happens to the panel; a stream
@@ -849,6 +896,15 @@ at the entrance to the listener: origin, host and `Sec-Fetch-Site`. It is
 published on the machine's loopback and nowhere else, and that address will not
 become a variable: the whole point of the port is that it cannot be reached from
 anywhere but the machine itself.
+
+The check keeps out a page in a browser, not a program. Any process on the
+machine, run by any of its users, reaches every action through this port with
+no sign-in — and the scripts of the sessions rely on exactly that: a session
+asks for its own restart here, and learns here that a brief is waiting to be
+sent. A request with no device behind it is written into the journal as made by
+"this machine". On a machine whose other users must not drive its sessions,
+this port is the one to close — `AACP_LOCAL_ADDR` set empty — and the price is
+those scripts and the monitor at the machine itself.
 
 ### The address map
 
