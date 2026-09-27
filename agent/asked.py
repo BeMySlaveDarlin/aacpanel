@@ -148,7 +148,7 @@ class Book:
                 return None
         return gone
 
-    def answered(self, session, tool_ids, ended=""):
+    def answered(self, session, tool_ids, ended="", prompted=""):
         """Drops the question that has been answered or that the turn outlived.
 
         A turn does not end while its question waits: the answer comes back to
@@ -156,13 +156,16 @@ class Book:
         the question arrived means the question never stood on the screen — the
         hook reported a call the conversation did not make — or it went with an
         interrupted turn. Kept, it would offer the panel a dialog to answer, and
-        the keys would go into the composer."""
+        the keys would go into the composer. A prompt sent after the question
+        says the same: a real question holds the turn, so a new message means
+        it was never on the screen — claude asks one of its own on the side,
+        for the suggestion of the next prompt, and no transcript records it."""
         with self._lock:
             ask = self._asks.get(session)
             if not ask:
                 return False
             done = bool(ask.get("toolUseId")) and ask["toolUseId"] in tool_ids
-            if not (done or _outlived(ask.get("at"), ended)):
+            if not (done or _outlived(ask.get("at"), ended) or _outlived(ask.get("at"), prompted)):
                 return False
             before = dict(self._asks)
             self._asks.pop(session, None)

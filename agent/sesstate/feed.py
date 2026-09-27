@@ -31,6 +31,9 @@ class State:
         # When the conversation last ended a turn: a question asked before it
         # is no longer waiting.
         self.ended = ""
+        # When the person last sent a prompt: a question asked before it is
+        # not waiting either — a real one holds the turn until it is answered.
+        self.prompted = ""
         self.flows = {}
         self.flow_ids = {}
         self.arts = {}
@@ -83,6 +86,17 @@ def _agent_seen(agent):
                agent.get("doneAt") or "")
 
 
+def _is_prompt(record):
+    """Says whether a user record is a message rather than a tool's result."""
+    content = (record.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return bool(content.strip())
+    if not isinstance(content, list):
+        return False
+    kinds = {b.get("type") for b in content if isinstance(b, dict)}
+    return "text" in kinds and "tool_result" not in kinds
+
+
 def _feed_record(state, record, raw):
     kind = record.get("type")
 
@@ -95,6 +109,9 @@ def _feed_record(state, record, raw):
 
     if kind == "system" and record.get("subtype") in TURN_ENDS and at > state.ended:
         state.ended = at
+
+    if kind == "user" and not record.get("isSidechain") and at > state.prompted and _is_prompt(record):
+        state.prompted = at
 
     if is_wakeup(record):
         state.tasks.pop(WAKE_ID, None)

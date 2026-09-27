@@ -129,6 +129,19 @@ class Store(unittest.TestCase):
         self.assertTrue(self.book.answered(ask["sessionId"], set(), "2026-09-26T15:47:07.105Z"))
         self.assertIsNone(self.book.of(ask["sessionId"]))
 
+    def test_a_prompt_sent_after_the_question_clears_it(self):
+        # claude asks a question of its own on the side, for the suggestion
+        # of the next prompt, once the turn is over: the hook reports it, the
+        # screen never shows it, and the next turn may run for half an hour.
+        # The prompt that started that turn is what says it was not standing.
+        ask = asked.clean(PROBE)
+        ask["at"] = "2026-09-27T09:19:40Z"
+        self.book.put(ask)
+        self.assertFalse(self.book.answered(ask["sessionId"], set(), "2026-09-27T09:19:34.735Z", "2026-09-27T09:19:20.000Z"),
+                         "a prompt before the question took it away")
+        self.assertTrue(self.book.answered(ask["sessionId"], set(), "2026-09-27T09:19:34.735Z", "2026-09-27T09:21:02.410Z"))
+        self.assertIsNone(self.book.of(ask["sessionId"]))
+
     def test_a_turn_end_before_the_question_keeps_it(self):
         ask = asked.clean(PROBE)
         ask["at"] = "2026-09-26T15:42:30Z"

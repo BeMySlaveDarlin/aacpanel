@@ -247,7 +247,7 @@ def _answer(request):
         found = state.snapshot() if state else None
         if found is not None:
             if session:
-                asked.BOOK.answered(session, set(state.answered), state.ended)
+                asked.BOOK.answered(session, set(state.answered), state.ended, state.prompted)
             ask = asked.BOOK.of(session)
             if ask:
                 found = {**found, "ask": ask}

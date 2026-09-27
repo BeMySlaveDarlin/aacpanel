@@ -163,3 +163,23 @@ class Answered(Transcript):
         second = sesstate.read(path, first)
         self.assertEqual(second.ended, "2026-09-26T15:47:07.105Z",
                          "the next turn end was not noticed on the next read")
+
+    def test_the_last_prompt_is_kept_and_a_tool_result_is_not_one(self):
+        path = os.path.join(self.dir.name, "t.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(line({"type": "user", "timestamp": "2026-09-27T09:10:00.000Z",
+                          "message": {"role": "user", "content": "go on"}}))
+            f.write(line({"type": "user", "timestamp": "2026-09-27T09:11:00.000Z",
+                          "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "ok"}]}}))
+            f.write(line({"type": "user", "timestamp": "2026-09-27T09:11:30.000Z",
+                          "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_2", "content": "ok"},
+                                                                  {"type": "text", "text": "a note the tool's result carries"}]}}))
+            f.write(line({"type": "user", "timestamp": "2026-09-27T09:12:00.000Z", "isSidechain": True,
+                          "message": {"role": "user", "content": "a subagent's own prompt"}}))
+        first = sesstate.read(path)
+        self.assertEqual(first.prompted, "2026-09-27T09:10:00.000Z",
+                         "a tool's result or a subagent's prompt was taken for the person's")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line({"type": "user", "timestamp": "2026-09-27T09:21:02.410Z",
+                          "message": {"role": "user", "content": [{"type": "text", "text": "next"}]}}))
+        self.assertEqual(sesstate.read(path, first).prompted, "2026-09-27T09:21:02.410Z")
