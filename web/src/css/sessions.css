@@ -476,10 +476,20 @@ span.pjname { cursor: default; }
     cursor: pointer;
 }
 .pjsess { font-size: var(--t-xs); color: var(--ink-faint); font-family: var(--mono); }
-.pjstate { display: flex; align-items: center; gap: .45rem; max-width: 100%; font-size: var(--t-sm); font-weight: 600; white-space: nowrap; overflow: hidden; }
-.pjstate .pjtext { overflow: hidden; text-overflow: ellipsis; }
-.pjsince { font-weight: 400; opacity: .85; overflow: hidden; text-overflow: ellipsis; }
-.pjdot { flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
+/* The row of a session is as tall as what it says: the state whole, on two
+   lines at most, and when and what else under it on a line of its own. A row
+   cut to one line left the state a letter and an ellipsis. */
+.pjstate { display: flex; align-items: flex-start; gap: .45rem; max-width: 100%; font-size: var(--t-sm); font-weight: 600; }
+.pjstate .pjtext {
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+.pjsince { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
+.pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.65em - .25rem); border-radius: 50%; background: currentColor; }
 .pj-wait { color: var(--wait); }
 .pj-wait .pjdot { box-shadow: 0 0 10px currentColor; }
 .pj-busy { color: var(--accent); }

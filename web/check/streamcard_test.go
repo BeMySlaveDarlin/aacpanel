@@ -10,21 +10,27 @@ import (
 // before the button of what can be done to it, whatever the length of the name.
 // A session with Remote Control up says so before where it lives, and only it.
 // A tap anywhere on the row opens the conversation, but on the row's button of
-// what can be done to it, which opens that.
+// what can be done to it, which opens that. The state stands whole, and when
+// and what else on a line of its own under it, not cut to fit one line.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
-		Name      string `json:"name"`
-		Mark      string `json:"mark"`
-		TapPct    string `json:"tapPct"`
-		TapTag    string `json:"tapTag"`
-		TapMore   string `json:"tapMore"`
-		RC        string `json:"rc"`
-		RCShown   bool   `json:"rcShown"`
-		Shown     bool   `json:"shown"`
-		Gap       int    `json:"gap"`
-		PctInside bool   `json:"pctInside"`
-		PctRight  int    `json:"pctRight"`
-		Overflow  int    `json:"overflow"`
+		Name       string `json:"name"`
+		Mark       string `json:"mark"`
+		State      string `json:"state"`
+		StateCut   bool   `json:"stateCut"`
+		Since      string `json:"since"`
+		SinceCut   bool   `json:"sinceCut"`
+		SinceBelow bool   `json:"sinceBelow"`
+		TapPct     string `json:"tapPct"`
+		TapTag     string `json:"tapTag"`
+		TapMore    string `json:"tapMore"`
+		RC         string `json:"rc"`
+		RCShown    bool   `json:"rcShown"`
+		Shown      bool   `json:"shown"`
+		Gap        int    `json:"gap"`
+		PctInside  bool   `json:"pctInside"`
+		PctRight   int    `json:"pctRight"`
+		Overflow   int    `json:"overflow"`
 	}
 	runFixture(t, "streamcard.html", &got)
 	if len(got) != 3 {
@@ -51,6 +57,19 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		}
 		if c.TapMore != "more:"+session {
 			t.Errorf("%s: a tap on the button of what can be done does %q", session, c.TapMore)
+		}
+		wantState, wantSince := "idle", "2 min ago"
+		switch session {
+		case "aacpanel":
+			wantSince = "2 min ago · 1 background task"
+		case "person":
+			wantState, wantSince = "no requests yet", ""
+		}
+		if c.State != wantState || c.StateCut {
+			t.Errorf("%s: the state reads %q (cut %v), expected %q whole", session, c.State, c.StateCut, wantState)
+		}
+		if c.Since != wantSince || (wantSince != "" && (c.SinceCut || !c.SinceBelow)) {
+			t.Errorf("%s: under the state stands %q (cut %v, on a line of its own %v), expected %q", session, c.Since, c.SinceCut, c.SinceBelow, wantSince)
 		}
 		remote := strings.HasPrefix(c.Name, "evirma")
 		if remote && (c.RC != "RC" || !c.RCShown) {

@@ -238,8 +238,8 @@ export function LiveLine({ session, named, kid = false, notes, checked, wait, on
                 ${named && html`<span class="pjsess">${session.session}</span>`}
                 <span class=${`pjstate pj-${state.tone}`}>
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
-                    ${state.since && html`<span class="pjsince"> · ${state.since}</span>`}
                 </span>
+                ${state.since && html`<span class="pjsince">${state.since}</span>`}
             </button>
             ${session.remote && html`<span class="pjrc" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
             <span class="pjtag">${tag()}${place}</span>

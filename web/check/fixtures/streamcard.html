@@ -21,7 +21,7 @@ const base = {
 const rows = [
     { ...base, session: "evirma-fingerprint-rotation-second", sessionId: "a", transport: "stream",
       remote: "https://claude.ai/code/session_01abc" },
-    { ...base, session: "aacpanel", sessionId: "b" },
+    { ...base, session: "aacpanel", sessionId: "b", work: { tasks: 1 } },
     { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },
 ];
 const exec = { available: true, kinds: ["session.close", "session.open"] };
@@ -33,6 +33,10 @@ render(
         h(ProjectBlock, { key: block.key, block, exec,
             onOpen: (name) => pressed.push(`open:${name}`), onMore: (s) => pressed.push(`more:${s.session}`) })))),
     document.getElementById("root"));
+
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const cut = (el) => Boolean(el) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
+const below = (el, over) => Boolean(el && over) && el.getBoundingClientRect().top >= over.getBoundingClientRect().bottom - 1;
 
 // A tap lands where the finger is: on whatever the page has at that point.
 const tapAt = (el) => {
@@ -55,6 +59,11 @@ window.done = (async () => {
         const rc = block.querySelector(".pjrc");
         const rcBox = rc ? rc.getBoundingClientRect() : null;
         return {
+            state: text(block.querySelector(".pjtext")),
+            stateCut: cut(block.querySelector(".pjtext")),
+            since: text(block.querySelector(".pjsince")),
+            sinceCut: cut(block.querySelector(".pjsince")),
+            sinceBelow: below(block.querySelector(".pjsince"), block.querySelector(".pjstate")),
             tapPct: tapAt(block.querySelector(".pjpct")),
             tapTag: tapAt(tag),
             tapMore: tapAt(block.querySelector(".pjmore")),
