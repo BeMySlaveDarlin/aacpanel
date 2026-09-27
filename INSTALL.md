@@ -442,9 +442,11 @@ The code lives five minutes and works once. Then open the panel at your address,
 enrol a passkey (or sign in with the token) — and the second device is already
 enrolled with a code from the panel itself.
 
-The "profile → group → project" map is set up from the phone after signing in,
-on the "profiles" screen: until there is a first profile the projects screen is
-empty, and creating a profile is the first thing done there.
+The "contour → group → project" map is set up from the phone after signing in,
+on the "profiles" screen: until there is a first contour the projects screen is
+empty, and taking one is the first thing done there — a contour is taken from
+an account the machine already has, found by the collector; its paths are typed
+by hand only on a machine without a contour router.
 
 What cannot be checked with a command:
 
