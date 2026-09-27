@@ -31,13 +31,19 @@ make build      # go build ./...
 make image      # the service image
 ```
 
-The executor is built separately and installed by hand:
+The executor is built separately and installed by hand, beside the running
+file and renamed over it:
 
 ```bash
-systemctl --user stop aacpanel-exec      # otherwise "text file busy"
-go build -o ~/bin/aacpanel-exec ./cmd/aacpanel-exec
-systemctl --user start aacpanel-exec
+go build -o ~/bin/aacpanel-exec.new ./cmd/aacpanel-exec
+mv ~/bin/aacpanel-exec.new ~/bin/aacpanel-exec
+systemctl --user restart aacpanel-exec
 ```
+
+The holders of feed sessions run the same file (`aacpanel-exec -hold`), so
+stopping the unit does not free it, and a build over it answers "text file
+busy". The rename leaves a live holder on the copy it started with until its
+session ends.
 
 **Changing the list of actions requires this rebuild.** The service travels as
 an image, the executor as a binary: while it is the old one, the button is there
@@ -82,8 +88,9 @@ has no user systemd manager to run inside. The workflow counts what it skipped
 and prints the reasons, so a green tick is not read as "everything was checked".
 
 The database is a service container there, and a run where the tests with a
-database quietly skipped is failed on purpose: without `AACP_TEST_DSN` forty of
-them pass by doing nothing, and the run stays green.
+database quietly skipped is failed on purpose: without `AACP_TEST_DSN` every
+test with a database — well over a hundred — passes by doing nothing, and the
+run stays green.
 
 Separately, outside `check`, because they need what not every machine has — live transcripts, a signed-in claude and the tokens it spends:
 
@@ -214,6 +221,10 @@ for".
 | `TestDesktopRulesStayInsideMediaQuery` | a desktop rule does not touch the phone |
 | `TestMigrationsHaveUniqueNumbers` | no two migrations take the same number: a duplicate stops the service from coming up |
 | `TestActionTextsPromiseNoSpecificEnvironment` | action texts do not promise somebody else's environment |
+| `TestTheLauncherTakesEveryKeyOfTheSchema` | the launcher reads exactly the launch parameters the schema lists: a key one of them knows and the other does not is saved and then never launched |
+| `TestPreviewIsTheCommandTheLaunchRuns` | the command a settings page shows is the one the launch runs, built by the same code |
+| `TestProfilesSchemaNeedsNoDatabase` | the schema is answered with the database down: the screens are drawn from it |
+| `TestSchemaIsWellFormed` | every parameter of the schema names its levels, what an absent value leaves to and when a live session takes a change |
 | `TestAnEmptyListTravelsAsAnEmptyList` | a list that is empty is still sent: dropped by `omitempty` it reaches the screen as `undefined`, and a reader counting its length takes the panel down with it |
 
 ### A reply keeps its shape
