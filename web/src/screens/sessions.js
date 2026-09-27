@@ -157,7 +157,6 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     const live = new Map([...byPage].map(([name, own]) => [name, own.length]));
 
     return html`
-        <div class="sidescroll">
         <${Stale} ageSec=${ageSec} />
         <${NotRecorded} faults=${faults} blocks=${["sessions"]} />
         <${Notes} list=${notes.common} />
@@ -197,8 +196,6 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
                 />
             `}
         />
-
-        </div>
     `;
 }
 

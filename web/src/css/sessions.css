@@ -90,6 +90,11 @@
 .srow.acts > .sopen, .srow.acts > .sbody { grid-area: 1 / 1 / 2 / 2; }
 .srow.acts .rowacts { align-self: center; }
 
+/* The pages run down to the bottom menu. A sideways swipe is the pages' own
+   scroll and is caught only over their box, so the empty room under a short
+   list has to be theirs rather than the body's. The room the body keeps under
+   its content moves into the page, where the list scrolls. */
+.body:has(> .pfpager) { padding-bottom: 0; }
 .body > .pfpager { flex: 1 1 auto; }
 
 .pfpager {
@@ -165,7 +170,7 @@
     display: flex;
     flex-direction: column;
     gap: .32rem;
-    padding-bottom: 1rem;
+    padding-bottom: 2.6rem;
 }
 
 .pflimits {
@@ -359,8 +364,6 @@
     }
 
 }
-
-.sidescroll { display: contents; }
 
 /* The sessions of a contour as blocks of their projects: the name of the
    project heads a block, its live sessions are rows under it, and its last

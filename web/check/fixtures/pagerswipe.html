@@ -1,0 +1,178 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell" id="shell"></div>
+<script type="module">
+// The contour pages of the phone between the body's top and the bottom menu.
+// A short contour leaves empty room under its list; a sideways swipe begun
+// there has to reach the pages as one begun on the list does, while a long
+// contour still scrolls down to its last row and a row still takes the tap.
+// Headless has no touch gestures, so a swipe is followed the way the browser
+// routes one: the element under the finger, then the nearest box above it
+// that scrolls sideways — that box is scrolled by a page, and the pager's own
+// scroll handler decides which contour is current.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Sessions } from "/src/screens/sessions.js";
+import { Nav } from "/src/ui/nav.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    return json({});
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const run = (session, contour, i) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream",
+    pct: 10 + i, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
+const profileMap = [
+    { id: 1, profile: "personal", name: "personal", groups: [] },
+    { id: 2, profile: "Evirma", name: "Evirma", groups: [] },
+    { id: 3, profile: "algo", name: "algo", groups: [] },
+];
+const exec = { available: true, kinds: ["session.send"] };
+const wait = { opening: () => [], of: () => null };
+const shell = document.getElementById("shell");
+
+const show = (mine) => {
+    const sessions = [
+        ...Array.from({ length: mine }, (_, i) => run(`mine-${i}`, 1, i)),
+        run("harness", 2, 0),
+        run("lms", 3, 0),
+    ];
+    const snapshot = { at: mine, sessions, profileMap, limits: null };
+    render(h(ToastHost, null, h(GateHost, null, html`
+        <main class="body">
+            <${Sessions} snapshot=${snapshot} error=${null} ageSec=${1} exec=${exec} wait=${wait} faults=${[]}
+                         onLayer=${() => {}} onUsage=${() => {}} />
+        </main>
+        <${Nav} current="sessions" onSelect=${() => {}} home=${null} />
+    `)), shell);
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (what, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = what();
+        if (got) return got;
+        await sleep(30);
+    }
+    return null;
+};
+const current = () => {
+    const on = document.querySelector(".pftab.on");
+    return on ? on.firstChild.textContent.trim() : "";
+};
+const scrolls = (el, axis) => {
+    const style = getComputedStyle(el);
+    const overflow = axis === "x" ? style.overflowX : style.overflowY;
+    if (overflow !== "auto" && overflow !== "scroll") return false;
+    return axis === "x" ? el.scrollWidth > el.clientWidth : el.scrollHeight > el.clientHeight;
+};
+// scrollerAt is the box a gesture begun at the point moves along the axis.
+const scrollerAt = (x, y, axis) => {
+    for (let el = document.elementFromPoint(x, y); el && el !== document.documentElement; el = el.parentElement) {
+        if (scrolls(el, axis)) return el;
+    }
+    return null;
+};
+const tapped = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const button = el && el.closest("button");
+    return button ? button.textContent.replace(/\s+/g, " ").trim() : "";
+};
+// swipe moves the sideways box under the point by one page and says which
+// contour the pager settles on.
+const swipe = async (x, y, by) => {
+    const before = current();
+    const box = scrollerAt(x, y, "x");
+    if (!box) return { box: "", page: current() };
+    box.scrollBy({ left: by * box.clientWidth, behavior: "instant" });
+    await until(() => current() !== before, 1500);
+    return { box: box.className, page: current() };
+};
+const pageOf = (name) => {
+    const pages = document.querySelector(".pfpages");
+    const i = profileMap.findIndex((p) => p.profile === name);
+    return pages && pages.children[i];
+};
+const lastRow = (page) => {
+    const crumbs = page.querySelectorAll(".crumb");
+    return crumbs[crumbs.length - 1].getBoundingClientRect();
+};
+
+window.done = (async () => {
+    const out = {};
+    try {
+        await document.fonts.ready;
+        const x = Math.round(window.innerWidth / 2);
+
+        // Every contour short, as on the phone: the room under the lists runs
+        // down to the menu.
+        localStorage.setItem("aacpanel.sessions.profile", "Evirma");
+        show(2);
+        await until(() => current() === "Evirma" && pageOf("Evirma") && pageOf("Evirma").querySelector(".crumb"));
+        await sleep(200);
+
+        const navTop = document.querySelector("nav.tabs").getBoundingClientRect().top;
+        const last = lastRow(pageOf("Evirma"));
+        out.start = current();
+        out.lastRowBottom = last.bottom;
+        out.navTop = navTop;
+
+        const onRow = Math.round(last.top + last.height / 2);
+        out.row = { y: onRow, tap: tapped(x, onRow), sideways: (scrollerAt(x, onRow, "x") || {}).className || "" };
+
+        const mid = Math.round((last.bottom + navTop) / 2);
+        const low = Math.round(navTop - 3);
+        out.empty = [];
+        for (const y of [mid, low]) {
+            const hit = document.elementFromPoint(x, y);
+            out.empty.push({
+                y,
+                tap: tapped(x, y),
+                under: hit ? hit.className || hit.tagName : "",
+                sideways: (scrollerAt(x, y, "x") || {}).className || "",
+            });
+        }
+
+        // A swipe from the middle of the room turns to the next contour, one
+        // from just above the menu turns back.
+        out.forward = await swipe(x, mid, 1);
+        out.back = await swipe(x, low, -1);
+
+        // One long contour scrolls down on its own page to its last row, and
+        // the row there still takes the tap.
+        render(null, shell);
+        localStorage.setItem("aacpanel.sessions.profile", "personal");
+        show(14);
+        await until(() => current() === "personal" && pageOf("personal") && pageOf("personal").querySelector(".crumb"));
+        await sleep(200);
+        const tall = pageOf("personal");
+        const pages = document.querySelector(".pfpages");
+        const listY = Math.round((tall.getBoundingClientRect().top + navTop) / 2);
+        const down = scrollerAt(x, listY, "y");
+        out.down = down ? down.className : "";
+        out.tallBefore = lastRow(tall).bottom;
+        const sidewaysAt = pages.scrollLeft;
+        if (down) down.scrollTop = down.scrollHeight;
+        await sleep(100);
+        out.pagesMoved = pages.scrollLeft - sidewaysAt;
+        const end = lastRow(tall);
+        out.tallEnd = { bottom: end.bottom, navTop, tap: tapped(x, Math.round(end.top + end.height / 2)) };
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>
