@@ -645,3 +645,51 @@
     overflow-wrap: anywhere;
 }
 
+/* Now: the call going out and how long it has been out, its command, and the
+   badges of its run; between calls, the thinking and since when. */
+.nowbar { display: flex; flex-direction: column; gap: .3rem; padding: .5rem .7rem .55rem; min-width: 0; }
+.nowtop { display: flex; align-items: center; gap: .45rem; min-width: 0; font-size: var(--t-sm); }
+.nowdot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .nowdot { animation: none; } }
+.nowword { font-weight: 800; color: var(--accent); }
+.nowkind { display: flex; flex: none; width: 15px; height: 15px; color: var(--ink-dim); }
+.nowkind svg { width: 100%; height: 100%; }
+.nowkind.k-bash { color: var(--accent); }
+.nowkind.k-files { color: var(--accent-2); }
+/* A long name of a call gives way before the time does: the kind is said by the icon too. */
+.nowname { flex: 0 1 auto; min-width: 2.5rem; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nowkindname { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--ink-faint); }
+.nowel {
+    flex: none;
+    margin-left: auto;
+    display: flex;
+    align-items: baseline;
+    gap: .3rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--t-lg);
+    color: var(--ink);
+}
+.nowel span { font-family: var(--sans); font-size: var(--t-xs); color: var(--ink-faint); }
+.nowrow { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.nowargbox { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: .4rem; }
+.nowlast { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
+.nowlast b { font-weight: 600; color: var(--ink-dim); }
+.nowarg {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    color: var(--ink-dim);
+}
+.nowchips { flex: none; display: flex; align-items: center; gap: .3rem; }

@@ -15,17 +15,20 @@ import { Look, LOOK_NAMES } from "./look.js";
 import { state as briefState, waiting } from "../../data/briefs.js";
 import { key as pageKey, merge } from "../../data/artifacts.js";
 import { markOpened, unopened } from "../../data/opened.js";
+import { NowBar, nowOf } from "./now.js";
 
-// WorkStatus renders what is happening to the session right now. A compaction
-// is said whatever else the session reports: claude writes nothing to the
-// conversation while it compacts, and "handling the request" would be all the
-// feed shows for minutes.
-export function WorkStatus({ work, busy, compacting }) {
+// WorkStatus renders what is happening to the session right now: the call
+// going out and for how long, or the thinking between calls. A compaction is
+// said whatever else the session reports: claude writes nothing to the
+// conversation while it compacts, and the call before it would stand there for
+// minutes as if it were still going.
+export function WorkStatus({ work, busy, compacting, feed, onCalls }) {
     if (compacting) return html`<${Compacting} key=${compacting} since=${compacting} />`;
     if (!busy) return null;
+    const now = nowOf(feed);
     return html`
         <div class="workbar status">
-            <div class="workhead"><span class="working">handling the request</span></div>
+            <${NowBar} now=${now} onCalls=${() => now.run != null && onCalls && onCalls(now.run)} />
         </div>
     `;
 }

@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="composerbox" id="root"></div>
+<script type="module">
+// The bar above the composer of a session at work: a command going out ten
+// seconds ago, a read that failed before it in the same run.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { WorkStatus } from "/src/screens/chat/work.js";
+
+const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+const feed = [
+    { role: "me", text: "run the checks", at: ago(40), pos: 1 },
+    { role: "tools", kind: "files", run: 5, pos: 5, at: ago(30),
+      calls: [{ name: "Read", arg: "web/check/nowbar_test.go", pos: 5, index: 0, at: ago(30), failed: true }] },
+    { role: "tools", kind: "bash", run: 5, pos: 6, at: ago(10),
+      calls: [{ name: "Bash", arg: "go test ./web/check/", pos: 6, index: 0, at: ago(10), open: true }] },
+];
+let opened = "";
+render(html`<${WorkStatus} work=${null} busy=${true} compacting="" feed=${feed}
+    onCalls=${(run) => { opened = String(run); }} />`, document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+window.done = (async () => {
+    const out = {};
+    try {
+        for (let i = 0; i < 50 && !document.querySelector(".nowbar"); i++) await sleep(20);
+        out.top = text(document.querySelector(".nowtop"));
+        out.arg = text(document.querySelector(".nowarg"));
+        const badges = Array.from(document.querySelectorAll(".nowchips .mtools"));
+        out.badges = badges.length;
+        out.failed = badges.filter((b) => b.classList.contains("mtfail")).length;
+        if (badges[0]) badges[0].click();
+        out.opened = opened;
+        out.old = /handling the request/.test(document.getElementById("root").textContent);
+        out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

@@ -278,6 +278,9 @@
 }
 
 .mthink { color: var(--ink-faint); }
+/* A badge with a call the host reported as failed: the list it opens says which. */
+.mtools.mtfail { box-shadow: inset 0 0 0 1px var(--crit); }
+.mtools.mtfail .mtnum { color: var(--crit); }
 .mthink .mtnum { color: var(--ink-dim); font-weight: 600; }
 
 /* A thought reads two steps smaller than the answer: the same prose, quieter. */

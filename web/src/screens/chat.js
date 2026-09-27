@@ -384,7 +384,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
         ${live && feedShown && html`
             <div class="composerbox">
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
-                               compacting=${live.transport === "stream" ? live.compacting || "" : ""} />
+                               compacting=${live.transport === "stream" ? live.compacting || "" : ""}
+                               feed=${feed} onCalls=${(run) => setCalls({ list: runCalls(feed, run) })} />
                 ${live.outside
                     ? html`<p class="outsidenote">${outsideNote(live)}</p>`
                     : state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
