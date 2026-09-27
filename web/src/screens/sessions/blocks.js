@@ -82,9 +82,11 @@ export function aboutOf(row, project) {
 
 // blocksOf lays the sessions of a contour out as blocks of their projects:
 // every live session in the block of its project (a session no project holds
-// gets a block of its own), the consoles being raised beside them, and each
-// block's last conversation that is not live. Projects with nothing live come
-// last and at most QUIET_MAX of them.
+// gets a block of its own), the consoles being raised beside them, and the
+// last conversation of a block with nothing live. A block with a live session
+// shows none of its past: the way into the project is the live session, and a
+// closed conversation beside it reads as that session. Projects with nothing
+// live come last and at most QUIET_MAX of them.
 export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) {
     const projects = [];
     for (const group of (profile && profile.groups) || []) {
@@ -138,6 +140,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
                 home: Boolean(row.home),
             });
         }
+        if (block.live.length > 0) continue;
         if (!block.past) block.past = row;
     }
 
@@ -159,8 +162,8 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
         || a.name.localeCompare(b.name));
 }
 
-// ProjectBlock is one project: its name, a new session in it, its live
-// sessions and its last conversation.
+// ProjectBlock is one project: its name, a new session in it, and its live
+// sessions or, with none, its last conversation.
 export function ProjectBlock({ block, exec, wait, notes, checked, onOpen, onMore, onProject }) {
     const run = useAction();
     const project = block.project;

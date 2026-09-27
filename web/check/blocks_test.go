@@ -7,9 +7,9 @@ import (
 
 // The sessions of a contour are laid out by project, and the list is read in
 // the order of what needs the person: a project whose session asks stands
-// above one that works, and that above the quiet ones. A project with nothing
-// live closes the list with its last conversation, and not more of them than
-// the page is meant to hold.
+// above one that works, and that above the quiet ones. A project with a live
+// session shows none of its past; one with nothing live closes the list with
+// its last conversation, and not more of them than the page is meant to hold.
 func TestSessionsAreLaidOutByProjectInTheOrderOfWhatWaits(t *testing.T) {
 	now := "2026-09-27T10:00:00Z"
 	profile := map[string]any{"groups": []any{
@@ -52,8 +52,8 @@ func TestSessionsAreLaidOutByProjectInTheOrderOfWhatWaits(t *testing.T) {
 	if strings.Join(order[:3], ",") != "person,aacpanel,stray" {
 		t.Errorf("the list reads %v — the project that asks comes first, the working one next, then the quiet", order)
 	}
-	if past["aacpanel"] != "a0" {
-		t.Errorf("the last conversation of aacpanel is %q — the live one itself was taken for its past", past["aacpanel"])
+	if p, ok := past["aacpanel"]; ok {
+		t.Errorf("aacpanel has a live session and still shows its past %q — a closed conversation beside it reads as the session", p)
 	}
 	if past["proxy"] != "x0" {
 		t.Errorf("a project with nothing live lost its last conversation: %v", past)
