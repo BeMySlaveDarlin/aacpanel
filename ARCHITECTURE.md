@@ -423,6 +423,51 @@ a terminal.
 
 ---
 
+## The map
+
+The map is contours, their groups and the projects on them. What a session of a
+project starts with is not a set of form fields but a schema
+(`internal/schema/schema.go`): each launch parameter says where it may be kept
+(a contour, a project), what its options mean, what an absent value leaves to,
+how a project's value lies over the contour's, and when a running session takes
+a change — now, on a move between the console and the feed, or at the next
+start. The screens are drawn from it (`GET /api/profiles/schema`, answered
+without the database), the launcher reads exactly its keys, and a test holds
+the two lists equal. Retired keys are named with the reason, not silently
+dropped.
+
+**Effective values carry their layer.** A project's value comes from the
+project, its contour, the account, the panel's own default or claude
+(`internal/schema/effective.go`). The account layer is what the collector reads
+from the account's `settings.json` — the model, the effort and the default mode,
+never the environment — so a bare command is not read as "nothing set".
+
+**A save refuses what the launcher would refuse** (`internal/schema/check.go`);
+a change goes as `launchSet` and `launchUnset`, so two screens saving different
+keys keep each other's work. A draft is answered without being written:
+`POST /api/projects/{id}/preview` gives the command the next launch runs, built
+by the launcher's own code word by word, and `POST /api/profiles/{id}/preview`
+what a contour's projects would start with.
+
+**A group is a shelf, not a level of the launch.** What is said for all its
+projects is written into each (`POST /api/groups/{id}/set`), and a full group
+moves its projects onto another of the contour before it can be deleted
+(`/move`). A value raised to the contour can be taken out of the projects that
+store the same (`POST /api/profiles/{id}/unpin`). Each of these is one
+transaction.
+
+**The map keeps a journal of its own** (`internal/store/profiles_journal.go`):
+every create, save and delete of a contour, a group or a project is written in
+the same transaction, field by field, with who made it; a deleted project can be
+taken back from it (`GET /api/profiles/journal`, `POST
+/api/profiles/journal/{id}/undo`). A save that changed nothing writes nothing.
+
+**A contour stands for an account the host already has.** Where a contour
+router holds the accounts, the collector reads its registry and marks each
+account with the directory prefix that routes a session into it; a new contour
+is taken from the accounts the map has none for, and a routed contour's paths
+are the host's, shown and not edited.
+
 ## The path of an action
 
 Between a tap on the phone and a command on the host there is one road, and no
@@ -826,9 +871,11 @@ stays the base.
   metrics collection travels to a remote machine.
 - **`POST` on the socket-proxy.** Never: that is where the point of the split
   disappears.
-- **Editing settings from the screen.** The list of settings is shown, but
-  read-only: their cost of change differs — from "right away" to "recreate the
-  container" — and one identical button would deceive the human.
+- **Editing the panel's own settings from the screen.** The list of
+  `host.env` and `.env` settings is shown, but read-only: their cost of change
+  differs — from "right away" to "recreate the container" — and one identical
+  button would deceive the human. The map of contours, groups and projects is
+  edited from the screen; that is data, not the panel's setup.
 - **Power and the graphics card.** These sources will not be there where the
   panel travels: the UPS watchdog is the machine's own system housekeeping, and
   polling the graphics card twice a minute wakes a laptop's discrete card for a
