@@ -26,11 +26,22 @@ const rows = [
 ];
 const exec = { available: true, kinds: ["session.close", "session.open"] };
 const blocks = blocksOf({ profile: null, sessions: rows });
+const pressed = [];
 
 render(
     h(ToastHost, null, h(GateHost, null, blocks.map((block) =>
-        h(ProjectBlock, { key: block.key, block, exec, onOpen: () => {}, onMore: () => {} })))),
+        h(ProjectBlock, { key: block.key, block, exec,
+            onOpen: (name) => pressed.push(`open:${name}`), onMore: (s) => pressed.push(`more:${s.session}`) })))),
     document.getElementById("root"));
+
+// A tap lands where the finger is: on whatever the page has at that point.
+const tapAt = (el) => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    pressed.length = 0;
+    if (hit) hit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    return pressed.join(",");
+};
 
 window.done = (async () => {
     await new Promise((r) => setTimeout(r, 200));
@@ -44,6 +55,9 @@ window.done = (async () => {
         const rc = block.querySelector(".pjrc");
         const rcBox = rc ? rc.getBoundingClientRect() : null;
         return {
+            tapPct: tapAt(block.querySelector(".pjpct")),
+            tapTag: tapAt(tag),
+            tapMore: tapAt(block.querySelector(".pjmore")),
             name: block.querySelector(".pjname").textContent.trim(),
             rc: rc ? rc.textContent.trim() : "",
             rcShown: Boolean(rcBox) && rcBox.width > 0 && rcBox.left >= row.left && rcBox.right <= box.left,

@@ -9,10 +9,15 @@ import (
 // the console — right before its percentage, and the percentage stands just
 // before the button of what can be done to it, whatever the length of the name.
 // A session with Remote Control up says so before where it lives, and only it.
+// A tap anywhere on the row opens the conversation, but on the row's button of
+// what can be done to it, which opens that.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
 		Name      string `json:"name"`
 		Mark      string `json:"mark"`
+		TapPct    string `json:"tapPct"`
+		TapTag    string `json:"tapTag"`
+		TapMore   string `json:"tapMore"`
 		RC        string `json:"rc"`
 		RCShown   bool   `json:"rcShown"`
 		Shown     bool   `json:"shown"`
@@ -36,6 +41,16 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		}
 		if !c.PctInside || c.PctRight > 16 {
 			t.Errorf("%s: the percentage left its place before the actions button (%dpx short): %+v", c.Name, c.PctRight, c)
+		}
+		session := c.Name
+		if !strings.HasPrefix(session, "evirma") && session != "aacpanel" && session != "person" {
+			t.Fatalf("an unknown block %q", session)
+		}
+		if c.TapPct != "open:"+session || c.TapTag != "open:"+session {
+			t.Errorf("%s: a tap on the percentage opens %q and on where it lives %q — the whole row opens the conversation", session, c.TapPct, c.TapTag)
+		}
+		if c.TapMore != "more:"+session {
+			t.Errorf("%s: a tap on the button of what can be done does %q", session, c.TapMore)
 		}
 		remote := strings.HasPrefix(c.Name, "evirma")
 		if remote && (c.RC != "RC" || !c.RCShown) {

@@ -434,6 +434,10 @@ span.pjname { cursor: default; }
     border-top: var(--hair) solid var(--line);
 }
 .pjrow > .ctxbar.edge { top: auto; bottom: 0; }
+/* The whole row opens the conversation, not only its words: the open button
+   reaches over the row, and the buttons in the row stand above it. */
+.pjopen::after { content: ""; position: absolute; inset: 0; }
+.pjmore, .pjresume { position: relative; z-index: 1; }
 /* The runs a session started inside its work: a fold under it, and the runs
    themselves a step in when it is open. */
 .pjrow.pjkid { padding-left: 1.6rem; }
