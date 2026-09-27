@@ -10,7 +10,6 @@ import { Chat } from "../screens/chat.js";
 import { follow, liveOf } from "../catchup.js";
 import { ChatEmpty } from "../screens/chat/empty.js";
 import { Alerts } from "../screens/alerts.js";
-import { Briefs } from "../screens/briefs.js";
 import { HeadLoad } from "./load.js";
 import { Devices } from "../screens/devices.js";
 import { Settings } from "../screens/settings.js";
@@ -28,8 +27,51 @@ export const SECTIONS = [
     { id: "containers", label: "Containers", icon: Icon.containers },
     { id: "machine", label: "Machine", icon: Icon.cpu },
     { id: "devices", label: "Devices", icon: Icon.skill },
-    { id: "briefs", label: "Briefs", icon: Icon.file },
 ];
+
+// The pages stand over a section rather than beside it: each has a way back,
+// and it leads to the section the page was opened over.
+const PAGES = ["devices", "alerts"];
+
+// Every section the shell can stand on. A kept section that is not among them
+// opens home.
+const PLACES = ["home", ...SECTIONS.map((s) => s.id), "alerts"];
+
+const PLACE_KEY = "aacpanel.desktop.place";
+
+// talkOf keeps what names a conversation and drops what it was drawn from: an
+// archive row is a copy of a list as it stood then, and the conversation opens
+// by its id without one.
+function talkOf(chat) {
+    if (!chat || typeof chat.name !== "string" || !chat.name) return null;
+    const talk = { name: chat.name, id: typeof chat.id === "string" && chat.id ? chat.id : null };
+    if (chat.follow === true) talk.follow = true;
+    if (chat.archived === true) talk.archived = true;
+    return talk;
+}
+
+// lastPlace reads where the shell stood when the page was left, so a reload
+// comes back to the same section and the same conversation instead of home.
+// With nothing kept — the first visit — it is home.
+function lastPlace() {
+    const first = { section: "home", from: "", chat: null };
+    try {
+        const kept = JSON.parse(localStorage.getItem(PLACE_KEY) || "null");
+        if (!kept || typeof kept !== "object") return first;
+        const section = PLACES.includes(kept.section) ? kept.section : "home";
+        const from = PAGES.includes(section) && PLACES.includes(kept.from) && !PAGES.includes(kept.from) ? kept.from : "";
+        return { section, from, chat: talkOf(kept.chat) };
+    } catch {
+        return first;
+    }
+}
+
+function keepPlace(section, from, chat) {
+    try {
+        localStorage.setItem(PLACE_KEY, JSON.stringify({ section, from, chat: talkOf(chat) }));
+    } catch {
+    }
+}
 
 function useJSON(url) {
     const [state, setState] = useState({ data: null, error: "" });
@@ -103,9 +145,14 @@ export function DesktopShell({
     snapshot, tree, treeError, hostError, ageSec, history, faults, alerts, openAlerts,
     exec, onRefresh, wait, theme, onTheme, updateReady, updating, onApplyUpdate, route, jump, onJumped,
 }) {
-    const [section, setSection] = useState("home");
-    const [chat, setChat] = useState(null);
-    const [openBrief, setOpenBrief] = useState(null);
+    // Read once, as the shell starts: afterwards the state is the truth and
+    // storage only follows it.
+    const [start] = useState(lastPlace);
+    // from is the section an open page goes back to, empty on a section.
+    const [place, setPlace] = useState({ section: start.section, from: start.from });
+    const { section, from } = place;
+    const [chat, setChat] = useState(start.chat);
+    useEffect(() => { keepPlace(section, from, chat); }, [section, from, chat]);
     const [stack, setStack] = useState(null);
     const [cont, setCont] = useState(null);
     const [cat, setCat] = useState("cpu");
@@ -147,10 +194,17 @@ export function DesktopShell({
     const current = stacks.find((s) => s.name === stack) || stacks[0] || null;
     const container = current ? (current.containers || []).find((c) => c.id === cont) || null : null;
 
+    // A page opened from another page goes back to the section under both:
+    // two pages of the header replace each other, and neither is where the
+    // person came from.
     const goSection = useCallback((id) => {
-        setSection(id);
+        setPlace((cur) => ({
+            section: id,
+            from: PAGES.includes(id) ? (PAGES.includes(cur.section) ? cur.from : cur.section) : "",
+        }));
         setPanel((cur) => ((PANELS[id] || []).some((p) => p.id === cur) ? cur : null));
     }, []);
+    const goBack = useCallback(() => goSection(from || "home"), [goSection, from]);
 
     useEffect(() => {
         const onKey = (e) => {
@@ -194,8 +248,8 @@ export function DesktopShell({
 
     const openChat = useCallback((target) => {
         setChat(target);
-        setSection("sessions");
-    }, []);
+        goSection("sessions");
+    }, [goSection]);
     useEffect(() => {
         if (!jump) return;
         openChat({ name: jump.name, id: jump.id });
@@ -250,14 +304,9 @@ export function DesktopShell({
                 cat=${cat}
             />`;
         }
-        if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${() => goSection("sessions")} /></div>`;
-        if (section === "briefs") {
-            return html`<div class="dkpage"><${Briefs} snapshot=${snapshot} exec=${exec}
-                open=${openBrief} onOpen=${setOpenBrief}
-                onSession=${(name) => openChat({ name, id: null })} /></div>`;
-        }
+        if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${goBack} /></div>`;
         if (section === "alerts") {
-            return html`<div class="dkpage"><${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${() => goSection("home")} /></div>`;
+            return html`<div class="dkpage"><${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${goBack} /></div>`;
         }
         if (!chat) return html`<${ChatEmpty} />`;
         const live = liveOf((snapshot && snapshot.sessions) || [], chat);
