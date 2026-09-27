@@ -67,6 +67,8 @@ phone ──https──► aacpanel (container)
                     ├──► Postgres (history, profile map, journal, devices)
                     ├──► host snapshot  ◄── aacpanel-agent (host)
                     └──► unix socket    ──► aacpanel-exec (host) ──► docker, tmux, claude
+                                                       │
+                                                       └──► aacpanel-exec -hold ──► claude -p (the feed)
 ```
 
 The service passes the executor a structure, not a string for a shell. An
@@ -143,6 +145,10 @@ transcripts, writes a snapshot that the container mounts read-only.
 | `internal/action/` | the protocol between the service and the executor: the closed list of actions |
 | `internal/executor/` | the actions themselves: containers, stacks, sessions, windows |
 | `internal/launcher/` | starting a claude session: environment, tmux, window |
+| `internal/stream/` | the holder of a session in the feed: `claude -p` on the stream protocol |
+| `internal/schema/` | the launch parameters of the map as data: levels, options, effective values with their layers |
+| `internal/contours/` | the layout of claude contours: accounts and their directories |
+| `internal/repo/` | the repository of a project for a screen: tree, files, history, notes |
 | `internal/auth/` | passkeys, enrolment codes, cookie, token |
 | `internal/store/` | Postgres: pool, migrations, partitions, writing metrics |
 | `internal/chat/`, `internal/usage/` | the conversation feed and token usage |
