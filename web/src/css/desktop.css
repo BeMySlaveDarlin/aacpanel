@@ -365,9 +365,17 @@
 
     section:first-child > .dkcontour { border-top: 0; }
 
-    .dkcontourname { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+    .dkcontourname {
+        min-width: 0;
+        font-size: var(--t-sm);
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 
-    .dkcontournum { margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); }
+    .dkcontournum { flex: none; margin-left: auto; font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; }
 
     /* A row of the column: the hotkey, the name and a mark of waiting, over a
        thin bar of the context. The open row is the one row with a fill; the
@@ -540,64 +548,62 @@
 
     .dkempty { padding: .5rem .55rem; font-size: var(--t-sm); color: var(--ink-faint); }
 
-    /* The limits under the column: a caption in the faint ink over a bar as
-       thin as the bar of the context, one pair per window. */
+    /* A block under a column: the usage of docker in its section, the limits
+       of the contours with no live session in the sessions. */
     .dklimits {
         flex: none;
         padding: .5rem .6rem .6rem;
         border-top: var(--hair) solid var(--line);
-
-        --dklim-mute: .55;
     }
 
-    .dklimit {
+    /* The limit of a contour in its heading, per window: a caption, a bar as
+       thin as the bar of the context, the share, and the time it resets only
+       once the window runs out. Numbers the snapshot has not renewed are
+       dimmed. */
+    .dkmeters { flex: none; display: flex; align-items: center; gap: .55rem; margin-left: .2rem; }
+
+    .dkmeters.dkold { opacity: .55; }
+
+    .dkmeters.dknone { font-size: var(--t-xs); color: var(--ink-faint); }
+
+    .dkmeter {
         display: flex;
-        flex-direction: column;
-        gap: .3rem;
-        padding: .4rem 0;
-        border-top: var(--hair) solid var(--line);
-    }
-
-    .dklimit:first-child { border-top: 0; padding-top: .1rem; }
-
-    .dklimits.dkfocus .dklimit:not(.dkon) { opacity: var(--dklim-mute); }
-
-    .dklimit.dkold { opacity: var(--dklim-mute); }
-
-    .dklimnone { font-size: var(--t-xs); color: var(--ink-faint); }
-
-    .dklimname { font-size: var(--t-xs); color: var(--ink-dim); }
-
-    .dklimbars { display: flex; flex-direction: column; gap: .3rem; }
-
-    .dklimline { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .4rem; }
-
-    .dklimlabel { font-size: var(--t-xs); color: var(--ink-faint); }
-
-    .dklimbar {
-        flex: 1 0 100%;
-        order: 1;
-        height: 3px;
-        border-radius: var(--r-small);
-        background: var(--line);
-        overflow: hidden;
-    }
-
-    .dklimbar i { display: block; height: 100%; background: var(--accent); }
-
-    .dklimline.dkwarn .dklimbar i { background: var(--warn); }
-
-    .dklimline.dkcrit .dklimbar i { background: var(--crit); }
-
-    .dklimpct {
+        align-items: center;
+        gap: .25rem;
         font-size: var(--t-xs);
         font-variant-numeric: tabular-nums;
         color: var(--ink-faint);
+        white-space: nowrap;
     }
 
-    .dklimpct.dkwarn { color: var(--warn); }
+    .dkmeterbar { width: 1.5rem; height: 3px; border-radius: var(--r-small); background: var(--line); overflow: hidden; }
 
-    .dklimpct.dkcrit { color: var(--crit); }
+    .dkmeterbar i { display: block; height: 100%; background: var(--accent); }
+
+    .dkmeterpct { min-width: 1.9rem; text-align: right; color: var(--ink-dim); }
+
+    .dkmeter.dkwarn .dkmeterpct { color: var(--warn); }
+
+    .dkmeter.dkwarn .dkmeterbar i { background: var(--warn); }
+
+    .dkmeter.dkcrit .dkmeterpct { color: var(--crit); }
+
+    .dkmeter.dkcrit .dkmeterbar i { background: var(--crit); }
+
+    /* The contours with no live session: a caption once, a line each. */
+    .dkquiet { padding: .4rem .55rem .5rem; }
+
+    .dkquiethead {
+        padding-bottom: .1rem;
+        font-size: var(--t-xs);
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+    }
+
+    .dkquietrow { display: flex; align-items: center; gap: .45rem; padding: .15rem 0; }
+
+    .dkquietname { margin-right: auto; font-size: var(--t-sm); font-weight: 600; color: var(--ink-dim); }
 
     .dkpage {
         min-width: 0;
@@ -1583,15 +1589,6 @@
     .deskshell .dkc-acts { opacity: 0; }
     .deskshell .dkc-acts.shown { opacity: 1; }
 }
-@media (min-width: 1100px) {
-.dklimreset {
-        margin-left: auto;
-        font-size: var(--t-xs);
-        color: var(--ink-faint);
-        font-variant-numeric: tabular-nums;
-    }
-}
-
 @media (min-width: 1100px) {
     .dkentry {
         display: flex;

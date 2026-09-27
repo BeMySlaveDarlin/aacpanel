@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .deskshell{position:static;height:100%} .dkbody{height:100%}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script>document.documentElement.style.setProperty("--ui-scale", "1.2");</script>
+<div class="deskshell"><div class="dkbody" id="root"></div></div>
+<script type="module">
+// The limits of the contours in the sessions column at a desk: each in the
+// heading of its contour, the time a window resets said only once it runs out,
+// and the contours with no live session on one line each under the list.
+import { h, render } from "preact";
+import { useState } from "preact/hooks";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const now = Math.floor(Date.now() / 1000);
+const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
+const limits = { contours: [
+    { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 4.5), sevenDay: part(24, 100) },
+    { profile: "algo", contour: 1, ageSec: 30, fiveHour: part(93, 1.5), sevenDay: part(57, 120) },
+    { profile: "evirma", contour: 4, ageSec: 3600, fiveHour: part(7, 2), sevenDay: part(41, 72) },
+] };
+const profileMap = [
+    { id: 4, profile: "Evirma", name: "Evirma", groups: [] },
+    { id: 1, profile: "Algorithmics and every project of it", name: "Algorithmics and every project of it", groups: [] },
+    { id: 3, profile: "personal", name: "personal", groups: [] },
+];
+const session = (name, contour) => ({ session: name, sessionId: name, contour, status: "idle", pct: 20, cwd: `/srv/${name}` });
+const quiet = [session("lms", 1), session("aacpanel", 3)];
+const busy = [session("rotation", 4), ...quiet];
+
+let set = null;
+function Host() {
+    const [sessions, setSessions] = useState(quiet);
+    set = setSessions;
+    return h(SessionColumn, {
+        snapshot: { at: now, sessions, profileMap, limits }, profiles: { profiles: [] }, limits,
+        current: "aacpanel", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {},
+        exec: { available: true, kinds: [] }, wait: null,
+    });
+}
+render(h(ToastHost, null, h(GateHost, null, h(Host))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const heads = () => Array.from(document.querySelectorAll(".dkcontour")).map((head) => {
+    const box = head.getBoundingClientRect();
+    const meters = head.querySelector(".dkmeters");
+    const mbox = meters ? meters.getBoundingClientRect() : null;
+    return {
+        name: text(head.querySelector(".dkcontourname")),
+        meters: Array.from(head.querySelectorAll(".dkmeter")).map((m) => ({
+            text: text(m), level: m.classList.contains("dkcrit") ? "crit" : m.classList.contains("dkwarn") ? "warn" : "",
+            tip: m.dataset.tip || "",
+        })),
+        fits: Boolean(mbox) && mbox.right <= box.right + 0.5 && mbox.left >= box.left,
+        oneLine: Math.round(box.height) < 40,
+    };
+});
+const quietSeen = () => {
+    const box = document.querySelector(".dkquiet");
+    if (!box) return null;
+    return {
+        head: text(box.querySelector(".dkquiethead")),
+        rows: Array.from(box.querySelectorAll(".dkquietrow")).map((row) => ({
+            name: text(row.querySelector(".dkquietname")),
+            meters: row.querySelectorAll(".dkmeter").length,
+            old: Boolean(row.querySelector(".dkmeters.dkold")),
+            tip: (row.querySelector(".dkmeter") || { dataset: {} }).dataset.tip || "",
+        })),
+        height: Math.round(box.getBoundingClientRect().height),
+    };
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 50 && !document.querySelector(".dkcontour"); i++) await sleep(50);
+    await sleep(100);
+    const out = { heads: heads(), quiet: quietSeen() };
+    set(busy);
+    for (let i = 0; i < 50 && document.querySelectorAll(".dkcontour").length < 3; i++) await sleep(50);
+    await sleep(100);
+    out.allLive = { heads: heads().length, quiet: quietSeen() };
+    return out;
+})();
+</script>

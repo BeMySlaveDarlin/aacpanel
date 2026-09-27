@@ -136,38 +136,98 @@ func TestLimitsStalenessHasOneOwner(t *testing.T) {
 	}
 }
 
-func TestLimitsFooterDimsTheOthers(t *testing.T) {
-	const cssPath = "src/css/desktop.css"
-	raw, err := os.ReadFile(webPath(cssPath))
-	if err != nil {
-		t.Fatalf("%s: %v", cssPath, err)
-	}
-	css := cssWithoutComments(string(raw))
+type deskMeter struct {
+	Text  string `json:"text"`
+	Level string `json:"level"`
+	Tip   string `json:"tip"`
+}
 
-	if n := strings.Count(css, "dkon"); n != 1 {
-		t.Errorf("%s: `dkon` is mentioned %d time(s) while it has exactly one place — the rule about "+
-			"neighbours. The selected contour gets painted again, and in the desktop palette that "+
-			"reads backwards: the accent is darker than the base color, so the highlighted row looks muted", cssPath, n)
+type deskContourHead struct {
+	Name    string      `json:"name"`
+	Meters  []deskMeter `json:"meters"`
+	Fits    bool        `json:"fits"`
+	OneLine bool        `json:"oneLine"`
+}
+
+type deskQuiet struct {
+	Head string `json:"head"`
+	Rows []struct {
+		Name   string `json:"name"`
+		Meters int    `json:"meters"`
+		Old    bool   `json:"old"`
+		Tip    string `json:"tip"`
+	} `json:"rows"`
+	Height int `json:"height"`
+}
+
+// The limit of a contour stands in its heading in the sessions column, beside
+// the sessions spending it, rather than in a block under the list that grows
+// by a contour's worth of lines with each contour. When a window resets is
+// said on the line only once it runs out; a contour with no live session has
+// no heading and keeps one line under the list.
+func TestDeskLimitsStandInTheContourHeading(t *testing.T) {
+	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
+		t.Skip("web/dist/bundle.css is not built: whether the heading holds its limits is the stylesheet's business too — run make front first")
+	}
+	var got struct {
+		Heads   []deskContourHead `json:"heads"`
+		Quiet   *deskQuiet        `json:"quiet"`
+		AllLive struct {
+			Heads int        `json:"heads"`
+			Quiet *deskQuiet `json:"quiet"`
+		} `json:"allLive"`
+	}
+	runWideFixture(t, "desklimits.html", &got)
+
+	if len(got.Heads) != 2 {
+		t.Fatalf("the column shows %d contour headings, expected the two with live sessions: %+v", len(got.Heads), got.Heads)
+	}
+	for _, head := range got.Heads {
+		if len(head.Meters) != 2 {
+			t.Errorf("%q: the heading holds %d windows of the limit, expected five hours and seven days", head.Name, len(head.Meters))
+			continue
+		}
+		if !head.Fits || !head.OneLine {
+			t.Errorf("%q: the limit does not fit the heading on one line (fits %v, one line %v) — a long name has to give way",
+				head.Name, head.Fits, head.OneLine)
+		}
+	}
+	algo, personal := got.Heads[0], got.Heads[1]
+	if len(algo.Meters) == 2 {
+		five := algo.Meters[0]
+		if five.Level != "crit" || !strings.Contains(five.Text, "93%") || !strings.Contains(five.Text, "1 h") {
+			t.Errorf("a five-hour window at 93%% reads %q (%s): it has to be marked and say when it resets", five.Text, five.Level)
+		}
+	}
+	if len(personal.Meters) == 2 {
+		five := personal.Meters[0]
+		if strings.Contains(five.Text, " h") || five.Level != "" {
+			t.Errorf("a window at 12%% reads %q (%s): the reset time belongs in the tip until the window runs out", five.Text, five.Level)
+		}
+		if !strings.Contains(five.Tip, "resets in 4 h") {
+			t.Errorf("the tip of a window at 12%% says %q — when it resets is said there always", five.Tip)
+		}
 	}
 
-	dim := cssBlockFile(t, cssPath, ".dklimits.dkfocus .dklimit:not(.dkon)")
-	if !strings.Contains(dim, "opacity: var(--dklim-mute)") {
-		t.Errorf("%s: neighbouring contours dim by something other than the shared value — a second number "+
-			"diverges from the dimming of a stale snapshot, and the shade stops meaning one thing", cssPath)
+	q := got.Quiet
+	if q == nil || q.Head != "no live sessions" || len(q.Rows) != 1 || q.Rows[0].Name != "Evirma" {
+		t.Fatalf("the contour with no live session is not under the list on a line of its own: %+v", q)
 	}
-	old := cssBlockFile(t, cssPath, ".dklimit.dkold")
-	if !strings.Contains(old, "opacity: var(--dklim-mute)") {
-		t.Errorf("%s: a stale snapshot dims by a number of its own instead of the shared value of the footer", cssPath)
+	if q.Rows[0].Meters != 2 {
+		t.Errorf("the quiet contour shows %d windows of its limit", q.Rows[0].Meters)
+	}
+	if !q.Rows[0].Old || !strings.Contains(q.Rows[0].Tip, "from 1 h ago") {
+		t.Errorf("numbers an hour old are not dimmed with their age in the tip: old %v, tip %q", q.Rows[0].Old, q.Rows[0].Tip)
+	}
+	if q.Height > 90 {
+		t.Errorf("one quiet contour takes %d px under the list — the block the limits left grew back", q.Height)
 	}
 
-	const footer = "src/desktop/sessions.js"
-	js := stripComments(srcFiles(t)[footer])
-	if !strings.Contains(js, "dkfocus") {
-		t.Errorf("%s: the footer does not tell the styles that there is a selection — there is nothing to dim the neighbours with", footer)
+	if got.AllLive.Heads != 3 {
+		t.Fatalf("with a session in every contour the column shows %d headings — the check looks in the wrong place", got.AllLive.Heads)
 	}
-	if !strings.Contains(js, "shown.includes(active)") {
-		t.Errorf("%s: the selection flag is set without asking whether the selected contour is shown. "+
-			"The contour filter may hide it — and then the whole footer goes dim", footer)
+	if got.AllLive.Quiet != nil {
+		t.Errorf("every contour has a live session, and a block of limits still stands under the list: %+v", got.AllLive.Quiet)
 	}
 }
 

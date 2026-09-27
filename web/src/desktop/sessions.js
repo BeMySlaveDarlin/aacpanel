@@ -1,4 +1,4 @@
-// The left column of the sessions section: contour picker, live sessions, limits.
+// The left column of the sessions section: contour picker, live sessions by contour with their limits.
 import { useEffect, useMemo, useState } from "preact/hooks";
 
 import { html } from "../html.js";
@@ -150,68 +150,72 @@ function SessionLine({ s, group, current, onPick, index, exec, wait }) {
     `;
 }
 
-// FooterLimits renders the subscription limits of the shown contours.
-export function FooterLimits({ limits, names, picks, active, profiles }) {
-    const known = names && names.length ? names : ((limits && limits.contours) || []).map((c) => c.profile);
-    const shown = picks && picks.length ? known.filter((n) => picks.includes(n)) : known;
-    if (shown.length === 0) return null;
+// resetIn says when a window of a limit starts over, or nothing when the
+// snapshot does not say.
+function resetIn(part) {
+    const at = part && part.resetsAt;
+    if (!at) return "";
+    const left = at * 1000 - Date.now();
+    if (left <= 0) return "any moment";
+    const hours = Math.floor(left / 3600000);
+    if (hours >= 48) return `${Math.round(hours / 24)} d`;
+    if (hours >= 1) return `${hours} h`;
+    return `${Math.max(1, Math.round(left / 60000))} min`;
+}
 
-    const focus = Boolean(active) && shown.includes(active);
-
-    const resetIn = (part) => {
-        const at = part && part.resetsAt;
-        if (!at) return "";
-        const left = at * 1000 - Date.now();
-        if (left <= 0) return "any moment";
-        const hours = Math.floor(left / 3600000);
-        if (hours >= 48) return `${Math.round(hours / 24)} d`;
-        if (hours >= 1) return `${hours} h`;
-        return `${Math.max(1, Math.round(left / 60000))} min`;
-    };
-
-    const bar = (label, part) => {
-        const value = Math.round((part && part.pct) || 0);
-        const level = value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
-        const left = resetIn(part);
-        return html`
-            <span class=${`dklimline ${level}`.trim()}>
-                <span class="dklimlabel">${label}</span>
-                <span class="dklimbar"><i style=${`width:${Math.min(100, value)}%`}></i></span>
-                <span class=${`dklimpct ${level}`.trim()}>${value}%</span>
-                <span
-                    class="dklimreset"
-                    data-tip=${left ? `The window resets in ${left}` : "When the window resets, the snapshot does not say"}
-                    data-tipside="left"
-                >${left || "—"}</span>
-            </span>
-        `;
-    };
-
+// Meter is one window of a contour's limit: a bar and the share spent. When
+// it resets is said on the line only once the window runs out — before that
+// nobody plans around it — and in the tip always.
+function Meter({ label, span, part, old }) {
+    const value = Math.round((part && part.pct) || 0);
+    const level = value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
+    const left = resetIn(part);
+    const tip = old || (left ? `The ${span} window resets in ${left}` : "When the window resets, the snapshot does not say");
     return html`
-        <div class=${`dklimits${focus ? " dkfocus" : ""}`}>
-            ${shown.map((name) => {
-                const id = ((profiles || []).find((p) => p.profile === name) || {}).id || 0;
-                const c = contourOf(limits, name, id);
-                const old = c && staleLimits(c);
-                return html`
-                    <div
-                        class=${`dklimit${name === active ? " dkon" : ""}${old ? " dkold" : ""}`}
-                        key=${name}
-                        data-tip=${old ? `The numbers are ${agoText(c.ageSec)}: the snapshot is written by statusLine, and the contour has no sessions` : ""}
-                        data-tipside="left"
-                    >
-                        <span class="dklimname">${name}</span>
-                        ${c
-                            ? html`
-                                <span class="dklimbars">
-                                    ${bar("5 h", c.fiveHour)}
-                                    ${bar("7 d", c.sevenDay)}
-                                </span>
-                            `
-                            : html`<span class="dklimnone">no numbers yet</span>`}
-                    </div>
-                `;
-            })}
+        <span class=${`dkmeter ${level}`.trim()} data-tip=${tip} data-tipside="left">
+            <span class="dkmeterlabel">${label}</span>
+            <span class="dkmeterbar"><i style=${`width:${Math.min(100, value)}%`}></i></span>
+            <span class="dkmeterpct">${value}%</span>
+            ${level && left && html`<span class="dkmeterreset">${left}</span>`}
+        </span>
+    `;
+}
+
+// ContourLimits is the subscription limit of a contour, beside its name: the
+// limit belongs to the contour, and the sessions spending it stand right
+// under. Numbers the snapshot has not renewed for a while are dimmed and say
+// how old they are.
+export function ContourLimits({ limits, name, profiles }) {
+    const id = ((profiles || []).find((p) => p.profile === name) || {}).id || 0;
+    const c = contourOf(limits, name, id);
+    if (!c) return html`<span class="dkmeters dknone">no numbers yet</span>`;
+    const old = staleLimits(c)
+        ? `The numbers are from ${agoText(c.ageSec)}: statusLine writes them while a session of the contour answers`
+        : "";
+    return html`
+        <span class=${`dkmeters${old ? " dkold" : ""}`}>
+            <${Meter} label="5h" span="five-hour" part=${c.fiveHour} old=${old} />
+            <${Meter} label="7d" span="seven-day" part=${c.sevenDay} old=${old} />
+        </span>
+    `;
+}
+
+// QuietLimits holds the limits of the shown contours with no live session:
+// they have no heading in the list to stand beside, and one line each under
+// it is all they are worth until work starts there.
+export function QuietLimits({ limits, names, picks, profiles, live }) {
+    const shown = (picks && picks.length ? names.filter((n) => picks.includes(n)) : names)
+        .filter((name) => !live.has(name));
+    if (shown.length === 0) return null;
+    return html`
+        <div class="dklimits dkquiet">
+            <div class="dkquiethead">no live sessions</div>
+            ${shown.map((name) => html`
+                <div class="dkquietrow" key=${name}>
+                    <span class="dkquietname">${name}</span>
+                    <${ContourLimits} limits=${limits} name=${name} profiles=${profiles} />
+                </div>
+            `)}
         </div>
     `;
 }
@@ -270,10 +274,6 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
 
     const flat = useMemo(() => [...byProfile].flatMap(([, list]) => list), [byProfile]);
 
-    const activeContour = useMemo(() => {
-        const found = all.find((s) => s.session === current);
-        return found ? pageOf(found) : "";
-    }, [all, current]);
     useEffect(() => {
         if (onOrder) onOrder(flat.map((s) => ({ name: s.session, id: s.sessionId })));
     }, [flat.map((s) => s.session).join("\n")]);
@@ -293,6 +293,7 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
                         <div class="dkcontour">
                             <span class="dkcontourname">${profile}</span>
                             <span class="dkcontournum">${list.length} live</span>
+                            <${ContourLimits} limits=${limits} name=${profile} profiles=${map} />
                         </div>
                         ${list.map((s) => {
                             const found = s.project === undefined ? place(s.cwd) : s.project;
@@ -311,7 +312,7 @@ export function SessionColumn({ snapshot, profiles, limits, current, onPick, pic
                 `)}
                 ${shown.length === 0 && ghosts.length === 0 && html`<p class="dkempty">there are no live sessions</p>`}
             </div>
-            <${FooterLimits} limits=${limits} names=${names} picks=${picks} active=${activeContour} profiles=${map} />
+            <${QuietLimits} limits=${limits} names=${names} picks=${picks} profiles=${map} live=${new Set(byProfile.keys())} />
         </aside>
     `;
 }
