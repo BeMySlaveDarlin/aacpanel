@@ -10,8 +10,8 @@ import (
 )
 
 // schemaAnswer serves what GET /api/profiles/schema answers, from the schema
-// the service is built with.
-func schemaAnswer() map[string]http.Handler {
+// the service is built with, and what the models take as the host says it.
+func schemaAnswer(traits map[string]any) map[string]http.Handler {
 	return map[string]http.Handler{
 		"/api/profiles/schema": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -19,9 +19,37 @@ func schemaAnswer() map[string]http.Handler {
 				"params":  schema.Params(),
 				"retired": schema.RetiredKeys(),
 				"layers":  []string{schema.LayerClaude, schema.LayerPanel, schema.LayerAccount, schema.LayerContour, schema.LayerProject},
-				"traits":  map[string]any{},
+				"traits":  traits,
 			})
 		}),
+	}
+}
+
+// A model that takes no effort and no Auto strikes them out: the project's
+// own effort holds Save with the way out, the account's Auto is said to start
+// as Manual and holds nothing.
+func TestTheProjectSettingsPageStrikesWhatTheModelDoesNotTake(t *testing.T) {
+	var got struct {
+		Struck     []string `json:"struck"`
+		Blocked    string   `json:"blocked"`
+		Exit       string   `json:"exit"`
+		AutoStruck string   `json:"autoStruck"`
+		AutoSays   string   `json:"autoSays"`
+	}
+	serve := schemaAnswer(map[string]any{
+		"claude-haiku-4-5-20251001": map[string]any{"effort": false, "autoMode": false},
+	})
+	serve["/mode"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("haiku")) })
+	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, serve, &got)
+
+	if len(got.Struck) != 5 {
+		t.Errorf("a model with no effort strikes %v, meant every effort", got.Struck)
+	}
+	if got.Blocked != "Haiku has no effort — High would not start" || got.Exit != "Remove Effort" {
+		t.Errorf("the project's own effort on such a model reads %q with the way out %q", got.Blocked, got.Exit)
+	}
+	if got.AutoStruck != "1" || got.AutoSays != "Haiku has no Auto: Auto from the account would start as Manual" {
+		t.Errorf("the account's Auto on such a model: struck %q, said %q", got.AutoStruck, got.AutoSays)
 	}
 }
 
@@ -68,7 +96,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 		ClosedAfterDiscard  int            `json:"closedAfterDiscard"`
 		Previews            int            `json:"previews"`
 	}
-	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(), &got)
+	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
 	want := []string{"Model", "Effort", "Permissions", "Remote Control", "First message", "Context cap",
 		"Auto restart", "Message after a restart", "Environment", "Extra arguments"}

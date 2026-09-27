@@ -57,9 +57,12 @@ function lineOf(launch, session) {
     return { words };
 }
 
+// The test names the case it runs: the whole draft by default, or a model
+// that takes no effort and no Auto.
+const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
 let project = {
     id: 4, groupId: 3, name: "host session", path: "/srv/proj/home", session: "atlas", base: "", sort: 0,
-    launch: { remoteControl: true, permissionMode: "auto" },
+    launch: mode === "haiku" ? { model: "haiku", effort: "high" } : { remoteControl: true, permissionMode: "auto" },
 };
 project.effective = effectiveOf(project.launch);
 project.line = lineOf(project.launch, "atlas");
@@ -147,7 +150,17 @@ const typeInto = async (el, value) => {
     await sleep(60);
 };
 
-window.done = (async () => {
+window.done = mode === "haiku" ? (async () => {
+    await until(() => all(".pzrow").length > 0);
+    await sleep(300);
+    return {
+        struck: Array.from(row("Effort").querySelectorAll(".pzopt[data-struck='1']")).map(text),
+        blocked: text(bar() && bar().querySelector(".pzbarsay")),
+        exit: text(bar() && Array.from(bar().querySelectorAll(".btn")).find((b) => !b.classList.contains("primary") && text(b) !== "Discard")),
+        autoStruck: (chip("Permissions", "Auto") || {}).dataset.struck,
+        autoSays: all(".pzrow").filter((r) => text(r.querySelector(".pzname")) === "Permissions").map((r) => text(r.querySelector(".pzhelp.warn")))[0] || "",
+    };
+})() : (async () => {
     const out = {};
     await until(() => all(".pzrow").length > 0);
     out.rows = all(".pzrow").map((r) => text(r.querySelector(".pzname")));
