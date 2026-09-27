@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .deskshell{position:static;height:100%} .dkbody{height:100%}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><div id="root" style="display:contents"></div></div></div>
+<script type="module">
+// The head of a stack at a desk: its facts — cpu, memory, disk — each a value
+// and a caption apart from each other, and the facts apart from each other.
+import { h, render } from "preact";
+import { ContainersCenter } from "/src/desktop/containers.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const container = (name) => ({ name, service: name, state: "running", status: "Up 2 days", cpu: 0, mem: 64 << 20 });
+const tree = { running: 3, total: 3, stacks: [{
+    name: "tg-shadow", running: 3, total: 3, hasStats: true, hasDisk: true,
+    cpu: 0, mem: 192 << 20, disk: 21 << 20,
+    containers: [container("bot"), container("db"), container("worker")],
+}] };
+render(h(ToastHost, null, h(GateHost, null, h(ContainersCenter, {
+    tree, stack: "tg-shadow", current: null, onPick() {}, exec: { available: true, kinds: [] }, onDone() {}, onLogs() {},
+}))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 50 && !document.querySelector(".dkfact"); i++) await sleep(50);
+    const facts = Array.from(document.querySelectorAll(".dkheadbot .dkfact")).filter((f) => f.querySelector("b"));
+    const inner = facts.map((f) => Math.round(f.querySelector("span").getBoundingClientRect().left
+        - f.querySelector("b").getBoundingClientRect().right));
+    const between = facts.slice(1).map((f, i) => Math.round(f.getBoundingClientRect().left
+        - facts[i].getBoundingClientRect().right));
+    const bot = document.querySelector(".dkheadbot");
+    return {
+        facts: facts.map((f) => f.textContent.replace(/\s+/g, " ").trim()),
+        inner,
+        between,
+        row: bot ? getComputedStyle(bot).display : "",
+    };
+})();
+</script>

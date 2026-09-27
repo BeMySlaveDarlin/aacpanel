@@ -654,6 +654,17 @@
 
     .dkpct[data-fill="peak"] { color: var(--ink-faint); }
 
+    /* The second line of a head that has facts to tell, as the stack does. */
+    .dkheadbot { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem 1rem; margin-top: .35rem; min-width: 0; }
+
+    /* A fact of the head is a value in the ink and a caption in the faint ink,
+       parted from the next fact by space alone. */
+    .dkfact { display: flex; align-items: baseline; gap: .28rem; }
+
+    .dkfact b { font-size: var(--t-md); font-weight: 600; color: var(--ink); }
+
+    .dkfact span { font-size: var(--t-sm); color: var(--ink-faint); }
+
     /* A path too long for the line keeps its end, which names the project: the
        line is laid out right to left around a path kept left to right. */
     .dkheadpath {
