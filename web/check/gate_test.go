@@ -510,11 +510,11 @@ func TestSendCarriesHTTPStatusToCaller(t *testing.T) {
 	if body == "" {
 		t.Fatalf("%s not found", gateFile)
 	}
-	block := jsBlock(t, gateFile, body, "async function send(")
+	block := jsBlock(t, gateFile, body, "async function post(")
 
 	fails := regexp.MustCompile(`return \{ ok: false,[^}]*\}`).FindAllString(block, -1)
 	if len(fails) == 0 {
-		t.Fatal("not a single failure found in send() — the test guards the wrong place")
+		t.Fatal("not a single failure found in post() — the test guards the wrong place")
 	}
 	for _, ret := range fails {
 		if strings.Contains(ret, "the network is unavailable") {
@@ -716,7 +716,7 @@ func TestSessionActionsWaitForTheSnapshot(t *testing.T) {
 		t.Error("the wait is cleared by something other than a flag: then it is cleared by timeout, " +
 			"that is, the panel simply waits a minute and shows what was there")
 	}
-	if !strings.Contains(catch, "Date.now() - task.since > CATCH_UP_LIMIT") {
+	if !strings.Contains(catch, "now - task.answered > CATCH_UP_LIMIT") || !strings.Contains(catch, "expired(task, Date.now())") {
 		t.Error("the wait has no ceiling: the executor answers ok even when the console died " +
 			"at startup — the panel will poll the snapshot forever")
 	}

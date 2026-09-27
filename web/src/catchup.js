@@ -7,8 +7,20 @@ export const CATCH_UP_LIMIT = 60000;
 
 let held = null;
 
-export function noteAction(kind, target) {
-    if (kind && target && held) held(kind, target);
+// noteAction starts the wait for what a confirmed action changes, as the
+// person presses: the executor answers once the whole of it is done, and a
+// move or a start takes seconds the screen would otherwise spend saying
+// nothing. Until the executor answers the wait is in flight and does not run
+// out.
+export function noteAction(kind, target, params) {
+    if (kind && target && held) held.start(kind, target, params);
+}
+
+// answerAction lands a wait in flight: an action done leaves it to the
+// snapshot and to the ceiling from now on, a refused one takes it away —
+// nothing is coming to wait for.
+export function answerAction(kind, target, ok) {
+    if (kind && target && held) held.answer(kind, target, ok);
 }
 
 // liveOf finds the live session a conversation on screen belongs to: by its
@@ -39,6 +51,11 @@ function identity(s) {
     return `${(s && s.sessionId) || ""}|${(s && s.startedAt) || ""}|${(s && s.transport) || ""}`;
 }
 
+// expired says the snapshot never showed what the executor reported done.
+function expired(task, now) {
+    return !task.flying && now - task.answered > CATCH_UP_LIMIT;
+}
+
 export function settled(task, names, at = 0, ids = {}) {
     if (at && task.seen && at <= task.seen) return false;
     if (task.kind === "close") return !names.includes(task.target);
@@ -58,14 +75,16 @@ export function useCatchUp(snapshot, refresh) {
     latest.current = { alive, at, refresh };
 
     useEffect(() => {
-        const start = (kind, target) => {
+        const start = (kind, target, params) => {
             const now = latest.current;
             setWaits((prev) => ({
                 ...prev,
                 [waitKey(kind, target)]: {
                     kind,
                     target,
+                    params: params || {},
                     since: Date.now(),
+                    flying: true,
                     seen: now.at,
                     before: now.alive.map((s) => s.session),
                     was: identity(now.alive.find((s) => s.session === target)),
@@ -73,8 +92,21 @@ export function useCatchUp(snapshot, refresh) {
             }));
             if (now.refresh) now.refresh();
         };
-        held = start;
-        return () => { if (held === start) held = null; };
+        const answer = (kind, target, ok) => {
+            const key = waitKey(kind, target);
+            setWaits((prev) => {
+                const task = prev[key];
+                if (!task || !task.flying) return prev;
+                const next = { ...prev };
+                if (ok) next[key] = { ...task, flying: false, answered: Date.now() };
+                else delete next[key];
+                return next;
+            });
+            if (ok && latest.current.refresh) latest.current.refresh();
+        };
+        const hooks = { start, answer };
+        held = hooks;
+        return () => { if (held === hooks) held = null; };
     }, []);
 
     const busy = Object.keys(waits).length > 0;
@@ -94,7 +126,7 @@ export function useCatchUp(snapshot, refresh) {
             const next = {};
             let changed = false;
             for (const [key, task] of Object.entries(prev)) {
-                if (settled(task, names, at, ids) || Date.now() - task.since > CATCH_UP_LIMIT) {
+                if (settled(task, names, at, ids) || expired(task, Date.now())) {
                     changed = true;
                     continue;
                 }

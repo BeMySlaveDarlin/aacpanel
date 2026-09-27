@@ -58,8 +58,12 @@ func TestTerminalIsItsOwnComposer(t *testing.T) {
 	}
 	body := stripComments(src)
 
-	composer := strings.Count(body, `live && view !== "term" && html`)
-	deck := strings.Count(body, `live && view !== "term" && !wide && html`)
+	if !strings.Contains(body, `const feedShown = !move && view !== "term";`) {
+		t.Errorf("%s: what stands under the feed is not asked from the view and the move together — "+
+			"it stays under a terminal or under a session between its sides", chatFile)
+	}
+	composer := strings.Count(body, `live && feedShown && html`)
+	deck := strings.Count(body, `live && feedShown && !wide && html`)
 	band := strings.Count(body, "view !== \"term\" && html`<div class=\"cwork\">")
 	if composer != 1 || deck != 1 || band != 1 {
 		t.Errorf("%s: the composer (%d), the deck under it (%d) and the work in its band (%d) are not all drawn "+
@@ -398,7 +402,7 @@ func TestTheRequestLineStaysOutOfTheTerminal(t *testing.T) {
 	if src == "" {
 		t.Fatalf("%s not found", jsFile)
 	}
-	if !strings.Contains(src, `${live && view !== "term" && !hasWork(`) {
+	if !strings.Contains(src, `${live && feedShown && !hasWork(`) {
 		t.Errorf("%s: the request line is drawn without asking which view is open", jsFile)
 	}
 }

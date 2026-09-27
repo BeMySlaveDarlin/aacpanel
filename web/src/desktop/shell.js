@@ -267,6 +267,7 @@ export function DesktopShell({
                 live=${live}
                 snapshot=${snapshot}
                 exec=${exec}
+                wait=${wait}
                 archive=${chat.archived ? chat.row : null}
                 onBack=${() => setChat(null)}
                 onUsage=${() => { setChat(null); goSection("home"); }}

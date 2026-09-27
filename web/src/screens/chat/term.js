@@ -363,7 +363,6 @@ export function Term({ name }) {
                     setState({ kind: "closed" });
                 }
             };
-            if (alive) setState({ kind: "closed" });
         })();
 
         return () => {
@@ -419,7 +418,12 @@ export function Term({ name }) {
             <div class="termscreen" ref=${box}></div>
             ${state.kind === "live" && !wide && html`
                 <${TermKeys} send=${type} ctrl=${ctrl} onCtrl=${holdCtrl} />`}
-            ${state.kind === "loading" && html`<p class="hint">Opening the terminal…</p>`}
+            ${state.kind === "loading" && html`
+                <div class="viewwait" role="status">
+                    <span class="spin"></span>
+                    <p class="viewwaittitle">Opening the terminal</p>
+                </div>
+            `}
             ${state.kind === "failed" && html`
                 <div class="termnote">
                     <p class="hint crit">${state.error}</p>

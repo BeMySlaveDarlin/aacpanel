@@ -40,7 +40,7 @@ import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
 import { DeskHead } from "./chat/deskhead.js";
 import { useWindow } from "./chat/window.js";
-import { sidesOf, useSwitchWay } from "./chat/switch.js";
+import { MoveScreen, sidesOf, useMove, useSwitchWay } from "./chat/switch.js";
 import { TakeBack } from "./chat/takeback.js";
 import { Term, useTermAvailable } from "./chat/term.js";
 import { useViewPick } from "./chat/viewpick.js";
@@ -49,7 +49,7 @@ import { useWide } from "../ui/wide.js";
 import { useAsOf } from "../ui/asof.js";
 
 
-export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat }) {
+export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, onUsage, onOpenChat }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
     // where it was. Sending the reader to a page of their own instead costs
@@ -98,6 +98,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
         ? sidesOf({ live, way, held: win.kind === "open", picked, canTerm, exec })
         : { view: picked, pair: false, moves: "", tip: "", why: "" };
     const view = sides.view;
+    // A session between its sides has neither: the screen shows the move
+    // until the other side is up.
+    const move = useMove(wait, name, live, way);
+    const feedShown = !move && view !== "term";
     // The session panel of the wide screen: a view that is reached only by a
     // move opens it on the move.
     const [panel, setPanel] = useState(false);
@@ -272,7 +276,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
     const feed = weld(state.items);
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
-    const stand = stateOf(live, still);
+    const stand = stateOf(live, still, move);
     const openRepo = here ? () => setRepo(true) : null;
     const tools = {
         name, live, archive, pct, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
@@ -287,7 +291,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
 
     return html`
         ${wide
-            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} tools=${deskTools} />`
+            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} move=${move} tools=${deskTools} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
                      foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
@@ -308,7 +312,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
         <//>
         `}
 
-        ${view === "term"
+        ${move
+            ? html`<${MoveScreen} move=${move} />`
+            : view === "term"
             ? html`<${Term} name=${name} />`
             : html`
         <div
@@ -364,11 +370,11 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
         </div>
         `}
-        ${live && view !== "term" && !hasWork(state.work, live.status === "busy" || Boolean(live.compacting)) && live.lastRequestAt && html`
+        ${live && feedShown && !hasWork(state.work, live.status === "busy" || Boolean(live.compacting)) && live.lastRequestAt && html`
             <p class="lastreq">request ${ago(live.lastRequestAt)}</p>
         `}
 
-        ${live && view !== "term" && html`
+        ${live && feedShown && html`
             <div class="composerbox">
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""} />
@@ -406,7 +412,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
             </div>
         `}
 
-        ${live && view !== "term" && !wide && html`
+        ${live && feedShown && !wide && html`
             <div class="deck">
                 ${live.tokensIn > 0 && html`
                     <button class="deckuse" type="button" aria-label="tokens in and out of this session, open usage"
@@ -477,7 +483,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, onBack, onUsage,
                 : html`<${Look} session=${name} id=${id} look=${look} />`)}
         <//>
 
-        ${onStream && view !== "term" && html`<${SideChat} chat=${sideChat} wide=${wide} feedRef=${feedRef} />`}
+        ${onStream && feedShown && html`<${SideChat} chat=${sideChat} wide=${wide} feedRef=${feedRef} />`}
 
         <${QuoteTip} quote=${quote} onQuote=${takeQuote} />
     `;

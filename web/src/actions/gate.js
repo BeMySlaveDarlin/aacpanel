@@ -3,7 +3,7 @@ import { createContext } from "preact";
 import { useCallback, useContext, useMemo, useRef, useState } from "preact/hooks";
 
 import { ACTIONS, known } from "./registry.js";
-import { noteAction } from "../catchup.js";
+import { answerAction, noteAction } from "../catchup.js";
 import { html } from "../html.js";
 import { Sheet } from "../ui/sheet.js";
 import { useToast } from "../ui/toasts.js";
@@ -12,7 +12,18 @@ const ENDPOINT = "/api/actions";
 
 const GateContext = createContext(null);
 
+// send carries an action to the host with its wait around it: the wait starts
+// as the action leaves, so the screen shows the consequence under way rather
+// than the old state, and a refusal takes it back.
 async function send(id, target, params) {
+    const watch = ACTIONS[id].watch;
+    noteAction(watch, target, params);
+    const result = await post(id, target, params);
+    answerAction(watch, target, result.ok);
+    return result;
+}
+
+async function post(id, target, params) {
     const spec = ACTIONS[id].send;
     const url = spec ? spec.path(target, params) : ENDPOINT;
 
@@ -46,8 +57,6 @@ async function send(id, target, params) {
         const text = (await response.text()).trim();
         return { ok: false, error: explain(text, response.status), status: response.status };
     }
-
-    noteAction(ACTIONS[id].watch, target);
 
     const body = await response.text();
     try {

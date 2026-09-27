@@ -2,14 +2,15 @@
 // move between them: the same conversation, closed on one side and resumed on
 // the other.
 
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
+import { html } from "../../html.js";
 import { knows, whyNot } from "../../exec.js";
 import { plural } from "../../format.js";
 import { hostLabel } from "../../actions/registry.js";
 import { liveWork } from "./work.js";
 
-const asking = { to: "", reason: "asking the panel where this session can move" };
+const asking = { to: "", reason: "asking the panel where this session can move", pending: true };
 
 // stops names what runs inside the process and ends with it. A resumed
 // conversation does not bring it back, so the person reads it before pressing.
@@ -93,4 +94,41 @@ export function sidesOf({ live, way, held, picked, canTerm, exec }) {
         ? `Watch the console as a feed — the window on ${hostLabel()} holds the session there`
         : "";
     return { view: picked, pair: canTerm, moves: "", tip, why: "" };
+}
+
+// useMove says the session is between its sides: from the press until the
+// snapshot shows it on the other side and the panel has said what the pair of
+// views does there. Neither view is worth showing meanwhile — the one being
+// left closes under the person, the one being reached is not up yet — so the
+// screen shows the move. A move that failed, or a session that did not come
+// back, ends it at once: the note of the gate says why.
+export function useMove(wait, name, live, way) {
+    const task = wait && name ? wait.of("switch", name) : null;
+    const held = useRef(null);
+    if (task) {
+        held.current = { to: task.params && task.params.to === "console" ? "console" : "stream", since: task.since };
+    } else if (held.current && (!live || !way.pending)) {
+        held.current = null;
+    }
+    return held.current;
+}
+
+// MoveScreen stands where the view was while the session moves.
+export function MoveScreen({ move }) {
+    const [, tick] = useState(0);
+    useEffect(() => {
+        const timer = setInterval(() => tick((n) => n + 1), 1000);
+        return () => clearInterval(timer);
+    }, []);
+    const sec = Math.max(0, Math.round((Date.now() - move.since) / 1000));
+    const toConsole = move.to === "console";
+    return html`
+        <div class="viewwait" role="status" aria-live="polite">
+            <span class="spin"></span>
+            <p class="viewwaittitle">${toConsole ? "Moving to the console" : "Moving to the feed"}</p>
+            <p class="viewwaitsub">${toConsole
+                ? "the stream closes and the same conversation comes up in the console"
+                : "the console closes and the same conversation comes up on the stream"} · ${sec} s</p>
+        </div>
+    `;
 }

@@ -243,12 +243,12 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 	}
 
 	gate := stripComments(files["src/actions/gate.js"])
-	if !strings.Contains(gate, "noteAction(ACTIONS[id].watch, target)") {
+	if !strings.Contains(gate, "const watch = ACTIONS[id].watch;") || !strings.Contains(gate, "noteAction(watch, target, params)") {
 		t.Error("the gate does not start the wait from the declared consequence: then every button " +
 			"starts it itself again, and the next button forgets again")
 	}
-	if at := strings.Index(gate, "noteAction("); at >= 0 && !strings.Contains(gate[:at], "if (!response.ok)") {
-		t.Error("the wait starts before the response is checked: the panel will wait for the " +
+	if !strings.Contains(gate, "answerAction(watch, target, result.ok)") {
+		t.Error("the gate does not tell the wait how the action ended: the panel will wait for the " +
 			"consequences of a refused action")
 	}
 
@@ -344,7 +344,7 @@ export function useEffect(fn, deps) {
 `
 	const probe = `
 import { readFileSync } from "node:fs";
-import { useCatchUp, noteAction } from %CATCHUP%;
+import { useCatchUp, noteAction, answerAction } from %CATCHUP%;
 import { __render, __unmount } from %SHIM%;
 
 let asked = 0;
@@ -362,6 +362,36 @@ const task = wait.of("open", "kiosk");
 
 wait = __render(() => useCatchUp(after, refresh));
 wait = __render(() => useCatchUp(after, refresh));
+const settledOpen = wait.of("open", "kiosk") === null;
+
+noteAction("switch", "aacpanel", { to: "console" });
+wait = __render(() => useCatchUp(after, refresh));
+const moving = wait.of("switch", "aacpanel");
+answerAction("switch", "aacpanel", false);
+wait = __render(() => useCatchUp(after, refresh));
+const refused = wait.of("switch", "aacpanel") === null;
+
+const realNow = Date.now;
+let fake = realNow();
+Date.now = () => fake;
+noteAction("switch", "home", { to: "stream" });
+wait = __render(() => useCatchUp(after, refresh));
+// Each snapshot is drawn twice: the wait is cleared by an effect of the first
+// drawing, and only the second one reads what it left.
+const draw = (snap) => {
+    __render(() => useCatchUp(snap, refresh));
+    return __render(() => useCatchUp(snap, refresh));
+};
+fake += 5 * 60 * 1000;
+wait = draw({ ...after, at: 1100 });
+const flyingKept = Boolean(wait.of("switch", "home"));
+answerAction("switch", "home", true);
+wait = draw({ ...after, at: 1110 });
+const landedKept = Boolean(wait.of("switch", "home"));
+fake += 61 * 1000;
+wait = draw({ ...after, at: 1200 });
+const landedExpired = wait.of("switch", "home") === null;
+Date.now = realNow;
 
 const answer = JSON.stringify({
     beforeAction,
@@ -369,7 +399,13 @@ const answer = JSON.stringify({
     seen: task ? task.seen : -1,
     before: task ? task.before : [],
     asked,
-    settled: wait.of("open", "kiosk") === null,
+    settled: settledOpen,
+    movingTo: moving && moving.params ? moving.params.to : "",
+    movingFlies: Boolean(moving && moving.flying),
+    refused,
+    flyingKept,
+    landedKept,
+    landedExpired,
 });
 __unmount();
 process.stdout.write(answer);
@@ -429,12 +465,18 @@ process.stdout.write(answer);
 	}
 
 	var got struct {
-		BeforeAction bool     `json:"beforeAction"`
-		Started      bool     `json:"started"`
-		Seen         int      `json:"seen"`
-		Before       []string `json:"before"`
-		Asked        int      `json:"asked"`
-		Settled      bool     `json:"settled"`
+		BeforeAction  bool     `json:"beforeAction"`
+		Started       bool     `json:"started"`
+		Seen          int      `json:"seen"`
+		Before        []string `json:"before"`
+		Asked         int      `json:"asked"`
+		Settled       bool     `json:"settled"`
+		MovingTo      string   `json:"movingTo"`
+		MovingFlies   bool     `json:"movingFlies"`
+		Refused       bool     `json:"refused"`
+		FlyingKept    bool     `json:"flyingKept"`
+		LandedKept    bool     `json:"landedKept"`
+		LandedExpired bool     `json:"landedExpired"`
 	}
 	if err := json.Unmarshal(out, &got); err != nil {
 		t.Fatalf("the node reply did not parse: %v: %s", err, out)
@@ -459,5 +501,22 @@ process.stdout.write(answer);
 	if !got.Settled {
 		t.Error("the snapshot caught up but the wait did not clear: the ghost stays in the column " +
 			"next to the real row of the same console")
+	}
+	if got.MovingTo != "console" || !got.MovingFlies {
+		t.Errorf("a move pressed is not in flight with where it goes (to %q, in flight %v): the conversation "+
+			"cannot say which side it is moving to while the executor works", got.MovingTo, got.MovingFlies)
+	}
+	if !got.Refused {
+		t.Error("a refused action left its wait behind: the screen keeps showing a move that is not happening")
+	}
+	if !got.FlyingKept {
+		t.Error("a wait in flight ran out while the executor was still working: the move screen goes away " +
+			"in the middle of the move")
+	}
+	if !got.LandedKept {
+		t.Error("a wait just answered is taken for expired: the ceiling counts from the press, not from the answer")
+	}
+	if !got.LandedExpired {
+		t.Error("an answered wait outlived the ceiling: the panel polls for a consequence the snapshot never shows")
 	}
 }

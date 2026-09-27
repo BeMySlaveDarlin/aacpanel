@@ -232,6 +232,33 @@ a.mcprow.toolrow { text-decoration: none; }
 
 .chatfeed > * { flex: 0 0 auto; }
 
+/* The place of a view that is not there yet — a session moving between its
+   sides, a terminal being opened: one spinner in the middle, what is going on
+   under it, and nothing that reads as an error. */
+.viewwait {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    padding: 2rem 1rem;
+    text-align: center;
+}
+
+.viewwait .spin { width: 22px; height: 22px; margin-bottom: .2rem; }
+
+.viewwaittitle { margin: 0; font-size: var(--t-md); font-weight: 600; color: var(--ink); }
+
+.viewwaitsub {
+    margin: 0;
+    max-width: 22rem;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
 /* The jump to the end of a scrolled-up feed. It is the last child of the feed
    and sticks to the feed's bottom edge: that edge is what stays above the
    composer, the chips and whatever else stands under the feed on any screen,

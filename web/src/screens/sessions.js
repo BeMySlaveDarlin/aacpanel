@@ -100,6 +100,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             snapshot=${snapshot}
             live=${chatLive}
             exec=${exec}
+            wait=${wait}
             archive=${recent.find((r) => r.sessionId === chat.id) || null}
             onBack=${() => setChat(null)}
             onUsage=${onUsage}

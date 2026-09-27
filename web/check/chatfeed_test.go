@@ -390,7 +390,7 @@ func TestChatHeadDotSeparatesBusyFromWaiting(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat/head.js")
 
 	waits := strings.Index(src, `tone: "waiting"`)
-	busy := strings.Index(src, `tone: "busy"`)
+	busy := strings.Index(src, `word: "answering"`)
 	if waits < 0 || busy < 0 {
 		t.Fatal("the chat header does not tell a busy session from one waiting for an answer — " +
 			"the dot does not say whether you are being called to the machine")

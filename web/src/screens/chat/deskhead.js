@@ -11,8 +11,8 @@ import { MidName, shortPath, stateOf } from "./head.js";
 
 // DeskHead renders the conversation header on the wide screen; the tools come
 // ready from the conversation.
-export function DeskHead({ name, live, archive, pct, tools }) {
-    const state = stateOf(live, useAsOf());
+export function DeskHead({ name, live, archive, pct, move, tools }) {
+    const state = stateOf(live, useAsOf(), move);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
         <div class="dkhead">
