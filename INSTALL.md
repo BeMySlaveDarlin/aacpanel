@@ -396,7 +396,7 @@ of a name, and the launcher's, given on the command line, takes the place of
 the account's.
 
 A session the panel starts is allowed the checklist, `brief_publish`,
-`brief_delete` and `notify`, and asks the person before `session_restart` and
+`brief_delete`, `notify` and `session_restart`, and asks the person before
 `send_to_session` as before any tool nobody allowed. A session started by hand
 is allowed nothing of the server until its account says so, in
 `permissions.allow` of `<account>/settings.json`:
@@ -404,13 +404,14 @@ is allowed nothing of the server until its account says so, in
 ```json
 {"permissions": {"allow": [
   "mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish",
-  "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify"]}}
+  "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
+  "mcp__aacpanel__session_restart"]}}
 ```
 
-These four are the ones the panel allows. `mcp__aacpanel__session_restart`
-beside them keeps the restart past the context cap from waiting on a prompt,
-in the panel's sessions as well; the price is that the model then restarts a
-session without asking whenever it decides to.
+These five are the ones the panel allows. The restart is among them because
+the restart past the context cap is done with nobody at the screen; the price
+is that the model restarts its own session without asking whenever it decides
+to, while its agents and background commands still hold the restart off.
 
 **The checklist reminder.** The checklist tool needs nothing installed: every
 session the panel starts gets it from the launcher, unless the Panel tools

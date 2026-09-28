@@ -98,15 +98,19 @@ func call(t *testing.T, tool mcp.Tool, bind mcp.Bind, args any) (string, bool) {
 	return tool.Call(context.Background(), bind, raw)
 }
 
-// Both tools ask the person before they act, as claude asks of any tool, and
-// say when to reach for them in a line the model reads without the
+// The restart is allowed, since the restart past the context cap is done with
+// nobody at the screen; the letter asks the person, as claude asks of any
+// tool. Both say when to reach for them in a line the model reads without the
 // description, since the tools of a server are deferred.
-func TestTheToolsAskThePersonAndSayWhenToReachForThem(t *testing.T) {
+func TestTheLetterAsksThePersonAndBothSayWhenToReachForThem(t *testing.T) {
 	h := Host{}
+	if !Restart(h).Allowed {
+		t.Error("session_restart asks the person: the restart past the context cap would wait on a prompt")
+	}
+	if Letter(h).Allowed {
+		t.Error("send_to_session is allowed: it would put words before another agent without asking the person")
+	}
 	for _, tool := range []mcp.Tool{Restart(h), Letter(h)} {
-		if tool.Allowed {
-			t.Errorf("%s is allowed: it would act without asking the person", tool.Name)
-		}
 		if tool.Instructions == "" || strings.Contains(tool.Instructions, "\n") || !strings.Contains(tool.Instructions, tool.Name) {
 			t.Errorf("%s says when to reach for it as %q", tool.Name, tool.Instructions)
 		}

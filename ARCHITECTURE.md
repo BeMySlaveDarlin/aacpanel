@@ -874,9 +874,11 @@ refused. That is also why a letter is a kind of its own and not a field of
 in, where one that does not know the kind refuses it. The letter does not
 claim the sender's permission class, which the panel does not know for sure,
 so a recipient that runs without permission prompts and has no
-`crossSessionInbound` setting holds it for its person. Neither tool is allowed:
-one ends the work of a session, the other puts words before another agent, and
-claude asks the person before either, as it does for any tool.
+`crossSessionInbound` setting holds it for its person. The restart is allowed:
+the restart past the context cap is done with nobody at the screen, and the
+tool touches only the session that calls it and waits out its work. The letter
+is not: it puts words before another agent, and claude asks the person first,
+as it does for any tool.
 
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line

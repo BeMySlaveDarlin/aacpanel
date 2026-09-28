@@ -29,13 +29,14 @@ func TestEveryToolHasANameOfItsOwn(t *testing.T) {
 
 // What the launcher allows is what the tools mark allowed, under the names
 // claude gives them and a permission rule knows them by: none of them waits
-// on the person.
+// on the person, and the letter to another session is not among them.
 func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 	want := []string{
 		"mcp__aacpanel__checklist",
 		"mcp__aacpanel__brief_publish",
 		"mcp__aacpanel__brief_delete",
 		"mcp__aacpanel__notify",
+		"mcp__aacpanel__session_restart",
 	}
 	if got := Allowed(); !slices.Equal(got, want) {
 		t.Errorf("allowed %v", got)

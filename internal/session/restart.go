@@ -48,6 +48,10 @@ func Restart(h Host) mcp.Tool {
 		Description:  RestartDescription,
 		InputSchema:  restartSchema(),
 		Instructions: RestartInstructions,
+		// The restart past the context cap is done by the session alone,
+		// with nobody at the screen to answer a prompt; the tool restarts
+		// only the session that calls it and waits out its work.
+		Allowed: true,
 		Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 			return restart(ctx, h, bind, args)
 		},
