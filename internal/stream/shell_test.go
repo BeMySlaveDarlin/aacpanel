@@ -9,6 +9,21 @@ import (
 
 const shellID = "22222222-3333-4444-8555-666666666666"
 
+// recordedShell is a command run once through claude -p 2.1.283 on the stream,
+// and recordedShellLines what claude wrote for it after it had the command,
+// word for word but for the ids: the fake plays them back for this command.
+// The echo of the command is escaped for markup, the streams and the exit code
+// come as a message of their own, the end names the command by its id, and a
+// status follows that changes nothing; no turn of the model starts.
+const recordedShell = `printf 'out\n'; printf 'err\n' >&2; exit 3`
+
+var recordedShellLines = []string{
+	`{"type":"user","message":{"role":"user","content":"<bash-input>printf 'out\\n'; printf 'err\\n' &gt;&amp;2; exit 3</bash-input>"},"session_id":"{session}","parent_tool_use_id":null,"uuid":"0b1c2d3e-4f50-4617-8829-3a4b5c6d7e8f","timestamp":"2026-01-01T00:00:00.795Z","isReplay":true}`,
+	`{"type":"user","message":{"role":"user","content":"<bash-stdout>out</bash-stdout><bash-stderr>err</bash-stderr><bash-exit-code>3</bash-exit-code>"},"session_id":"{session}","parent_tool_use_id":null,"uuid":"1c2d3e4f-5061-4728-939a-4b5c6d7e8f90","timestamp":"2026-01-01T00:00:00.796Z","isReplay":true}`,
+	`{"type":"command_lifecycle","command_uuid":"{command}","state":"completed","uuid":"2d3e4f50-6172-4839-a4ab-5c6d7e8f9001","session_id":"{session}"}`,
+	`{"type":"system","subtype":"status","status":null,"permissionMode":"default","uuid":"3e4f5061-7283-494a-b5bc-6d7e8f900112","session_id":"{session}"}`,
+}
+
 // lines returns what claude read, one message a line, of one type.
 func (r *rig) lines(kind string) []map[string]any {
 	r.t.Helper()
@@ -89,6 +104,31 @@ func TestAShellCommandIsRunByClaudeAndItsOutputJoinsTheConversation(t *testing.T
 	s := r.waitFor("the command to be over", func(s State) bool { return len(s.Shells) == 0 && !s.Busy })
 	if len(s.Queue) != 0 {
 		t.Errorf("the output stays in the queue after claude read it: %+v", s.Queue)
+	}
+}
+
+// What claude itself writes for a command is read as it is: the escaped echo
+// is not the output, the output goes into the conversation under the command
+// as typed, and nothing else reaches claude.
+func TestTheLinesClaudeWritesForACommandPassItsOutputOn(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+
+	if reply := r.ask(Request{Op: OpShell, Text: recordedShell, UUID: shellID}); !reply.OK {
+		t.Fatalf("the command was answered %+v", reply)
+	}
+	msg := r.passedFor(recordedShell)
+	want := "<bash-input>" + recordedShell + "</bash-input>" +
+		"<bash-stdout>out</bash-stdout><bash-stderr>err</bash-stderr><bash-exit-code>3</bash-exit-code>"
+	if got := content(msg); got != want {
+		t.Errorf("the conversation got\n%s\nwhere the terminal writes\n%s", got, want)
+	}
+	if prompts := r.lines("user"); len(prompts) != 1 {
+		t.Errorf("claude read %d messages where the output is the only one: %+v", len(prompts), prompts)
+	}
+	s := r.waitFor("the command to be over", func(s State) bool { return len(s.Shells) == 0 && !s.Busy })
+	if s.Compacting != nil || s.Mode != "default" {
+		t.Errorf("the status after the command changed the session: compacting %v, mode %q", s.Compacting, s.Mode)
 	}
 }
 

@@ -67,11 +67,19 @@ func fakeClaude() int {
 		}
 		switch msg["type"] {
 		case "bash_command":
-			// Claude echoes the command at once and runs it with no turn:
-			// no init, no result.
 			command, _ := msg["command"].(string)
+			if command == recordedShell {
+				ids := strings.NewReplacer("{session}", fmt.Sprint(msg["session_id"]), "{command}", fmt.Sprint(msg["uuid"]))
+				for _, line := range recordedShellLines {
+					fmt.Println(ids.Replace(line))
+				}
+				continue
+			}
+			// Claude echoes the command at once, escaped for markup, and runs
+			// it with no turn: no init, no result.
+			escaped := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(command)
 			out(map[string]any{"type": "user", "uuid": NewSessionID(), "isReplay": true, "parent_tool_use_id": nil,
-				"message": map[string]any{"role": "user", "content": "<bash-input>" + command + "</bash-input>"}})
+				"message": map[string]any{"role": "user", "content": "<bash-input>" + escaped + "</bash-input>"}})
 			if strings.HasPrefix(command, "sleep") {
 				sleeping = append(sleeping, msg)
 				continue
