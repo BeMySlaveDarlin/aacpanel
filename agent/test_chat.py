@@ -1409,6 +1409,9 @@ class Socket(unittest.TestCase):
 class Briefs(unittest.TestCase):
     """A brief published from a session leaves a card in the run."""
 
+    SHELF = {"seven": {"title": "Seven questions after twelve", "eyebrow": "after the review",
+                       "questions": [{"kind": "pick"}, {"kind": "pick"}, {"kind": "none"}]}}
+
     def parse(self, raw, briefs, shelf=None):
         return chat.parse(json.loads(raw), 0, briefs=briefs, shelf=shelf)
 
@@ -1422,41 +1425,91 @@ class Briefs(unittest.TestCase):
             {"type": "tool_result", "tool_use_id": use, "content": text},
         ]}, "timestamp": "2026-09-16T10:00:04Z"})
 
-    def test_publishing_gives_a_card_with_what_the_document_is(self):
-        shelf = {"seven": {"title": "Seven questions after twelve", "eyebrow": "after the review",
-                           "questions": [{"kind": "pick"}, {"kind": "pick"}, {"kind": "none"}]}}
-        waiting = set()
-        self.parse(self.call("deploy/claude/brief.py briefs/seven.yaml"), waiting)
+    def tool(self, doc=None, use="toolu_brief"):
+        args = {"doc": doc or {"id": "seven", "title": "Seven questions after twelve"}}
+        return line({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "mcp__aacpanel__brief_publish", "id": use, "input": args},
+        ]}, "timestamp": "2026-09-16T10:00:00Z"})
+
+    def tool_answer(self, text, error=False, use="toolu_brief"):
+        block = {"type": "tool_result", "tool_use_id": use, "content": [{"type": "text", "text": text}]}
+        if error:
+            block["is_error"] = True
+        return line({"type": "user", "message": {"content": [block]}, "timestamp": "2026-09-16T10:00:04Z"})
+
+    def test_the_panel_tool_gives_a_card_with_what_the_document_is(self):
+        waiting = {}
+        self.parse(self.tool(), waiting)
+        got = self.parse(self.tool_answer(
+            "Published as seven. The answers arrive in this session as a message when the person sends "
+            "them, possibly hours from now: do not wait for them."), waiting, self.SHELF.get)
+        self.assertEqual([(i["role"], i["id"], i["title"], i["eyebrow"], i["questions"]) for i in got],
+                         [("brief", "seven", "Seven questions after twelve", "after the review", 2)])
+        self.assertEqual(waiting, {}, "the call stays waiting after its answer")
+
+    def test_a_reading_the_panel_tool_published_is_a_card_too(self):
+        waiting = {}
+        self.parse(self.tool({"id": "findings", "title": "Findings"}), waiting)
+        got = self.parse(self.tool_answer("Published as findings: the person reads it in the panel."), waiting)
+        self.assertEqual([(i["role"], i["id"], i["title"]) for i in got], [("brief", "findings", "findings")])
+
+    def test_a_check_by_the_panel_tool_is_not_publishing(self):
+        waiting = {}
+        self.parse(self.tool(), waiting)
+        got = self.parse(self.tool_answer(
+            "Seven questions after twelve: 3 questions, 2 of them ask something. Nothing was published; "
+            "call again without check to publish it."), waiting, self.SHELF.get)
+        self.assertEqual([i["role"] for i in got], [])
+
+    def test_a_refusal_of_the_panel_tool_gives_no_card(self):
+        waiting = {}
+        self.parse(self.tool(), waiting)
+        got = self.parse(self.tool_answer("The brief was not published: the collector refused it.", error=True),
+                         waiting, self.SHELF.get)
+        self.assertEqual([i["role"] for i in got], [])
+
+    def test_a_shell_call_is_not_read_by_the_words_of_the_tool(self):
+        """A command that prints the tool's words published nothing: cat of a transcript, say."""
+        waiting = {}
+        self.parse(self.call("cat notes.txt"), waiting)
+        got = self.parse(self.answer("Published as seven: the person reads it in the panel."),
+                         waiting, self.SHELF.get)
+        self.assertEqual([i["role"] for i in got], [])
+
+    def test_a_shell_call_that_published_gives_a_card_with_what_the_document_is(self):
+        shelf = self.SHELF
+        waiting = {}
+        self.parse(self.call("brief.py briefs/seven.yaml"), waiting)
         got = self.parse(self.answer("OK published as seven: the person sees it in the panel"),
                          waiting, shelf.get)
         self.assertEqual([(i["role"], i["id"], i["title"], i["eyebrow"], i["questions"]) for i in got],
                          [("brief", "seven", "Seven questions after twelve", "after the review", 2)])
 
     def test_a_brief_the_shelf_does_not_know_is_still_a_card(self):
-        waiting = set()
+        waiting = {}
         self.parse(self.call("./brief.py doc.json"), waiting)
         got = self.parse(self.answer("OK published as doc: the person sees it in the panel"), waiting)
         self.assertEqual([(i["role"], i["id"], i["title"]) for i in got], [("brief", "doc", "doc")])
 
     def test_a_call_that_published_nothing_gives_no_card(self):
-        waiting = set()
-        self.parse(self.call("deploy/claude/brief.py briefs/seven.yaml"), waiting)
+        waiting = {}
+        self.parse(self.call("brief.py briefs/seven.yaml"), waiting)
         got = self.parse(self.answer("STOP the panel's collector is not listening on /run/x.sock"),
                          waiting)
         self.assertEqual([i["role"] for i in got], [])
 
     def test_reading_a_document_is_not_publishing_it(self):
-        waiting = set()
-        self.parse(self.call("deploy/claude/brief.py --check briefs/seven.yaml"), waiting)
+        waiting = {}
+        self.parse(self.call("brief.py --check briefs/seven.yaml"), waiting)
         got = self.parse(self.answer("OK Seven questions: 2 questions, 1 of them ask something\n"
                                      ".. nothing was published; drop --check to send it"), waiting)
         self.assertEqual([i["role"] for i in got], [])
 
     def test_a_check_and_a_publish_in_one_command_still_give_a_card(self):
-        """This is how a session actually publishes: check first, then send, one line."""
-        waiting = set()
-        self.parse(self.call("S=/tmp/s && python3 deploy/claude/brief.py --check $S/doc.yaml && "
-                             "python3 deploy/claude/brief.py $S/doc.yaml"), waiting)
+        """A shell call that checks the document and publishes it in one line."""
+        waiting = {}
+        self.parse(self.call("S=/tmp/s && python3 brief.py --check $S/doc.yaml && "
+                             "python3 brief.py $S/doc.yaml"), waiting)
         got = self.parse(self.answer(
             "OK Seven questions: 5 questions, 5 of them ask something\n"
             ".. nothing was published; drop --check to send it\n"
@@ -1465,7 +1518,7 @@ class Briefs(unittest.TestCase):
         self.assertEqual([(i["role"], i["id"]) for i in got], [("brief", "seven")])
 
     def test_a_shell_call_that_published_nothing_stays_a_plain_call(self):
-        waiting = set()
+        waiting = {}
         self.parse(self.call("ls -la"), waiting)
         got = self.parse(self.answer("total 8\ndrwxr-xr-x 2 u u 4096 Sep 16 21:00 ."), waiting)
         self.assertEqual([i["role"] for i in got], [])

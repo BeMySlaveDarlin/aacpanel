@@ -216,6 +216,8 @@ func publish(ctx context.Context, socket, guide string, bind mcp.Bind, raw json.
 	if !got.OK {
 		return "The brief was not published: " + refusal(got, "the collector refused it") + ".", true
 	}
+	// The feed draws the card of the brief from the start of this answer,
+	// "Published as <id>" and a colon or a full stop (agent/chat/cards.py).
 	if asking == 0 {
 		return "Published as " + got.ID + ": the person reads it in the panel.", false
 	}

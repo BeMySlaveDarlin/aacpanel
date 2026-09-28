@@ -91,9 +91,9 @@ class Clean(unittest.TestCase):
         self.assertEqual(got["closing"], ["Ten of twelve closed for good."])
 
     def test_the_directory_is_the_session_s_own_not_the_caller_s(self):
-        # The script is run from wherever the agent last cd'd to, and that is
-        # usually the repository the script lives in rather than the project
-        # the conversation is about.
+        # A publisher started from a shell runs wherever the agent last cd'd
+        # to, and that is often another repository than the project the
+        # conversation is about.
         with live({"sessionId": "s-1", "cwd": "/srv/real-work"}):
             got = briefs.clean(published())
         self.assertEqual(got["cwd"], "/srv/real-work")
