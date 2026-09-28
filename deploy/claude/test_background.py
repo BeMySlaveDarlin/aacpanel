@@ -91,7 +91,8 @@ class TestWhatIsAtWork(unittest.TestCase):
         self.assertEqual(background.words(2, 1), "2 agents and 1 background task")
         self.assertEqual(background.words(1, 0), "1 agent")
         line = background.wait_line(0, 3)
-        self.assertIn("3 background tasks of this session are at work", line)
+        self.assertIn("3 background tasks of this session are at work, and a restart ends them", line)
+        self.assertIn("1 agent of this session is at work, and a restart ends it", background.wait_line(1, 0))
         self.assertIn("Do not restart now", line)
         self.assertIn("--anyway", line)
 

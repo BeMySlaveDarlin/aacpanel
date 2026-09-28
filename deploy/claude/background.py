@@ -15,11 +15,12 @@ import os
 import sys
 import time
 
-# The collector writes the snapshot every few seconds. A turn that began with
-# the news that the last agent is done can end before the snapshot has read
-# that news: work the snapshot shows is looked at again in one written after
-# the look began, or in the last one when none comes in time.
-FRESH_WAIT = 10.0
+# The collector reads the sessions every six seconds and writes them out on
+# its next five-second tick, so a snapshot on disk can be eleven seconds old.
+# A turn that began with the news that the last agent is done can end before
+# the snapshot has read that news: work the snapshot shows is looked at again
+# in one read after the look began, or in the last one when none comes in time.
+FRESH_WAIT = 15.0
 STEP = 0.5
 
 
@@ -90,9 +91,9 @@ def words(agents, tasks):
 
 def wait_line(agents, tasks):
     """Returns what a restart that waits says to the session asking for it."""
-    verb = "is" if agents + tasks == 1 else "are"
-    return (f"{words(agents, tasks)} of this session {verb} at work, and a restart ends them "
-            "with the session. Do not restart now. A restart you started on your own: end the "
+    one = agents + tasks == 1
+    return (f"{words(agents, tasks)} of this session {'is' if one else 'are'} at work, and a restart "
+            f"ends {'it' if one else 'them'} with the session. Do not restart now. A restart you started on your own: end the "
             "turn, and it is asked for again once they are done. A restart the person asked "
             "for: tell them what is at work, and restart with --anyway only when they say so.")
 
