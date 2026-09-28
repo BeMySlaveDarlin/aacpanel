@@ -90,9 +90,9 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 		warns = append(warns, modeWarn)
 	}
 
-	params, planWarn := withPlan(params)
-	if planWarn != "" {
-		warns = append(warns, planWarn)
+	params, toolsWarn := withTools(params)
+	if toolsWarn != "" {
+		warns = append(warns, toolsWarn)
 	}
 
 	name, err := freeName(spec.Session, takenNames())

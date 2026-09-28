@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"aacpanel/internal/mcp"
 )
 
 const sid = "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d"
@@ -15,9 +17,9 @@ const sid = "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d"
 var t0 = time.Date(2026, 9, 28, 10, 0, 0, 0, time.UTC)
 
 // lab is the place most tests keep a plan in.
-var lab = Place{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab"}
+var lab = mcp.Place{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab"}
 
-func bound(id string, pid int) Binding { return Binding{Place: lab, SessionID: id, PID: pid} }
+func bound(id string, pid int) mcp.Binding { return mcp.Binding{Place: lab, SessionID: id, PID: pid} }
 
 func keep(t *testing.T, dir string, at time.Time, items ...Item) *Plan {
 	t.Helper()
@@ -71,7 +73,7 @@ func TestThePlanBelongsToThePlaceAndOutlivesTheConversation(t *testing.T) {
 	keep(t, dir, t0, Item{Text: "read the code", Status: Done}, Item{Text: "write the tests", Status: Active})
 
 	const restarted = "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e"
-	if on := Read(dir, Place{ConfigDir: "/srv/claude/", Dir: "/srv/proj/./lab"}); on == nil || on.SessionID != sid {
+	if on := Read(dir, mcp.Place{ConfigDir: "/srv/claude/", Dir: "/srv/proj/./lab"}); on == nil || on.SessionID != sid {
 		t.Fatalf("the place written another way does not find its plan: %+v", on)
 	}
 	got, err := Keep(dir, bound(restarted, 5151), []Item{{Text: "read the code", Status: Done},
@@ -86,7 +88,7 @@ func TestThePlanBelongsToThePlaceAndOutlivesTheConversation(t *testing.T) {
 		t.Errorf("the restart left a second file: %v", entries)
 	}
 
-	for _, other := range []Place{{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab-2"}, {ConfigDir: "/srv/claude-work", Dir: "/srv/proj/lab"}} {
+	for _, other := range []mcp.Place{{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab-2"}, {ConfigDir: "/srv/claude-work", Dir: "/srv/proj/lab"}} {
 		if on := Read(dir, other); on != nil {
 			t.Errorf("%+v reads the plan of another place: %+v", other, on)
 		}
@@ -99,10 +101,10 @@ func TestTheNameOfThePlanIsTheHashOfThePlace(t *testing.T) {
 	if got := Name(lab); got != "d2ba143628e62863dae2533062199cf6.json" {
 		t.Errorf("the plan of %+v is named %q", lab, got)
 	}
-	if Name(Place{ConfigDir: "/srv/claude//", Dir: "/srv/proj/lab/"}) != Name(lab) {
+	if Name(mcp.Place{ConfigDir: "/srv/claude//", Dir: "/srv/proj/lab/"}) != Name(lab) {
 		t.Error("a place written with slashes to spare is another place")
 	}
-	for _, p := range []Place{{ConfigDir: "srv/claude", Dir: "/srv/proj/lab"}, {ConfigDir: "/srv/claude"}, {}} {
+	for _, p := range []mcp.Place{{ConfigDir: "srv/claude", Dir: "/srv/proj/lab"}, {ConfigDir: "/srv/claude"}, {}} {
 		if Name(p) != "" {
 			t.Errorf("%+v is taken for a place", p)
 		}
@@ -186,9 +188,9 @@ func TestCleanSqueezesTheTextAndRefusesWhatItDoesNotTake(t *testing.T) {
 func TestKeepWritesOnlyForAPlace(t *testing.T) {
 	dir := t.TempDir()
 	one := []Item{{Text: "x", Status: Active}}
-	for name, b := range map[string]Binding{
-		"a relative directory":       {Place: Place{ConfigDir: "/srv/claude", Dir: "proj/lab"}, SessionID: sid},
-		"no account":                 {Place: Place{Dir: "/srv/proj/lab"}, SessionID: sid},
+	for name, b := range map[string]mcp.Binding{
+		"a relative directory":       {Place: mcp.Place{ConfigDir: "/srv/claude", Dir: "proj/lab"}, SessionID: sid},
+		"no account":                 {Place: mcp.Place{Dir: "/srv/proj/lab"}, SessionID: sid},
 		"no place at all":            {SessionID: sid},
 		"a conversation that climbs": {Place: lab, SessionID: "../escape"},
 	} {
@@ -199,7 +201,7 @@ func TestKeepWritesOnlyForAPlace(t *testing.T) {
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 		t.Errorf("something was written for them: %v", entries)
 	}
-	if p, err := Keep(dir, Binding{Place: lab, PID: 7}, one, "", t0); err != nil || p.SessionID != "" || Read(dir, lab) == nil {
+	if p, err := Keep(dir, mcp.Binding{Place: lab, PID: 7}, one, "", t0); err != nil || p.SessionID != "" || Read(dir, lab) == nil {
 		t.Errorf("a session with no conversation yet: %+v %v", p, err)
 	}
 }
@@ -233,7 +235,7 @@ func filed(t *testing.T, dir, id, at string, items ...Item) {
 
 // transcriptOf puts the transcript of a conversation where claude keeps it:
 // under the account, in the directory of the project.
-func transcriptOf(t *testing.T, place Place, id string) {
+func transcriptOf(t *testing.T, place mcp.Place, id string) {
 	t.Helper()
 	project := filepath.Join(place.ConfigDir, "projects", projectSlug(place.Dir))
 	if err := os.MkdirAll(project, 0o755); err != nil {
@@ -250,12 +252,12 @@ func transcriptOf(t *testing.T, place Place, id string) {
 // the files taken over go, and a plan of another place stays where it is.
 func TestAPlanFiledUnderAConversationIsTakenOverByItsPlace(t *testing.T) {
 	dir, config := t.TempDir(), t.TempDir()
-	here := Place{ConfigDir: config, Dir: "/srv/proj/lab"}
+	here := mcp.Place{ConfigDir: config, Dir: "/srv/proj/lab"}
 	const older, newer, elsewhere = "11111111-1111-4111-8111-111111111111",
 		"22222222-2222-4222-8222-222222222222", "33333333-3333-4333-8333-333333333333"
 	transcriptOf(t, here, older)
 	transcriptOf(t, here, newer)
-	transcriptOf(t, Place{ConfigDir: config, Dir: "/srv/proj/other"}, elsewhere)
+	transcriptOf(t, mcp.Place{ConfigDir: config, Dir: "/srv/proj/other"}, elsewhere)
 	filed(t, dir, older, "2026-09-28T09:00:00Z", Item{Text: "the old plan", Status: Active})
 	filed(t, dir, newer, "2026-09-28T10:00:00Z", Item{Text: "read the code", Status: Done, Since: "2026-09-28T09:30:00Z"},
 		Item{Text: "write the tests", Status: Active, Since: "2026-09-28T09:45:00Z"})
@@ -285,7 +287,7 @@ func TestAPlanFiledUnderAConversationIsTakenOverByItsPlace(t *testing.T) {
 	}
 
 	// A place with nothing filed under its conversations has no plan.
-	if none := Adopt(dir, Place{ConfigDir: config, Dir: "/srv/proj/empty"}); none != nil {
+	if none := Adopt(dir, mcp.Place{ConfigDir: config, Dir: "/srv/proj/empty"}); none != nil {
 		t.Errorf("an empty place took over %+v", none)
 	}
 }

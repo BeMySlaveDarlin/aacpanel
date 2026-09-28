@@ -367,7 +367,7 @@ The turn after the block is the finalization itself and is never blocked again;
 a session that ignored it is told again at the end of its next turn.
 
 **The plan reminder.** The plan tool needs nothing installed: every session the
-panel starts gets it from the launcher, unless the Plan tool parameter of its
+panel starts gets it from the launcher, unless the Panel tools parameter of its
 contour or project is off. The hook is the soft half of it, in the account
 settings:
 
