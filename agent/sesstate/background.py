@@ -49,8 +49,15 @@ def ended(state, agent_id, status, at):
 
 
 def woken(state, to):
-    """Brings an agent back to work: a letter to one that is over resumes it."""
+    """Brings an agent back to work: a letter to one that is over resumes it.
+
+    A letter names the agent by the name it was sent off with as often as by
+    its id; of two sent off under one name the later is the one written to.
+    """
     agent = state.bg.get(to)
+    if agent is None and to:
+        named = [a for a in state.bg.values() if a.get("name") == to]
+        agent = max(named, key=lambda a: a.get("at") or "") if named else None
     if agent is None or agent["status"] == ACTIVE:
         return
     agent["status"] = ACTIVE

@@ -69,6 +69,29 @@ class BackgroundAgents(Transcript):
         agent = got["agents"][0]
         self.assertEqual((agent["status"], agent.get("doneAt")), ("active", None))
 
+    def test_a_letter_by_name_puts_it_back_to_work(self):
+        named = (call("Agent", "toolu_1", at="2026-08-25T10:01:00Z", description="Review",
+                      prompt="review", subagent_type="general-purpose", name="review-302",
+                      run_in_background=True)
+                 + result("toolu_1", "Agent launched.", status="async_launched",
+                          agentId=AGENT, description="Review", isAsync=True))
+        letter = call("SendMessage", "toolu_2", at="2026-08-25T10:50:00Z", to="review-302", message="re-check")
+        got = self.state(named, agent_notification(AGENT), letter)
+        self.assertEqual(got["agents"][0]["status"], "active",
+                         "a letter names the agent by its name, and the agent at work again stood as done")
+        answered = self.state(named, agent_notification(AGENT), letter,
+                              result("toolu_2", '{"success":true}', success=True,
+                                     message="Resuming agent review-302", resumedAgentId=AGENT))
+        self.assertEqual(answered["agents"][0]["status"], "active")
+        self.assertEqual(work_of(answered)["agents"], 1, "the card counts no agent at work while one works")
+
+    def test_the_answer_to_a_letter_names_the_agent_it_resumed(self):
+        letter = (call("SendMessage", "toolu_2", at="2026-08-25T10:50:00Z", to="someone-else", message="go")
+                  + result("toolu_2", '{"success":true}', success=True, message="Resuming agent",
+                           resumedAgentId=AGENT))
+        got = self.state(async_agent("toolu_1", AGENT), agent_notification(AGENT), letter)
+        self.assertEqual(got["agents"][0]["status"], "active")
+
     def test_one_at_work_stands_above_one_that_is_over(self):
         got = self.state(async_agent("toolu_1", "a1111111111111111", at="2026-08-25T10:00:00Z"),
                          async_agent("toolu_2", "a2222222222222222", at="2026-08-25T09:00:00Z"),

@@ -179,7 +179,8 @@ def _feed_record(state, record, raw):
                 agent = state.agents.get(data.get("to"))
                 if agent is not None:
                     agent["status"] = "active"
-                    state.pending[block.get("id")] = {"kind": "mail", "to": agent["name"]}
+                state.pending[block.get("id")] = {"kind": "mail", "to": data.get("to"),
+                                                  "teammate": agent is not None}
             continue
 
         if block.get("type") != "tool_result":
@@ -208,8 +209,12 @@ def _feed_record(state, record, raw):
         if started["kind"] == "mail":
             # The only letter the tool refuses to an agent of this session is one
             # to an agent that is gone.
-            if result.get("success") is False:
+            if result.get("success") is False and started.get("teammate"):
                 _lose(state, started["to"])
+            # A letter that resumed an agent says which one, whatever the
+            # letter called it.
+            if result.get("resumedAgentId"):
+                background.woken(state, result["resumedAgentId"])
             continue
         if started["kind"] == "flow":
             if result.get("status") == "async_launched":
