@@ -1,1 +1,1 @@
-ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS checksum text;
+ALTER TABLE schema_version DROP COLUMN IF EXISTS checksum;

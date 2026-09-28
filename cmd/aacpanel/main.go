@@ -310,11 +310,7 @@ func run() error {
 	defer stop()
 
 	if db != nil {
-		go func() {
-			if err := db.Run(ctx); err != nil {
-				log.Fatalf("aacpanel: %v", err)
-			}
-		}()
+		go db.Run(ctx)
 		go writer.Run(ctx)
 		go recordHost(ctx, srv.host, writer)
 		go watchcfg.Apply(ctx, db)

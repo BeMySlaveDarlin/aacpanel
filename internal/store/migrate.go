@@ -2,9 +2,6 @@ package store
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -13,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"aacpanel/deploy/migrations"
@@ -23,14 +19,18 @@ const advisoryLockKey int64 = 0x6d6f6e69
 
 const migrateTimeout = 5 * time.Minute
 
+// schemaVersionDDL shapes the log of applied migrations. A file whose number is
+// in the log is never run again and never compared with anything, so the log
+// keeps no trace of a file's text. The shape is set here, at every start, and
+// not by a migration: a migration runs once, and a database that has run every
+// file already has to come to the same table as a fresh one.
 const schemaVersionDDL = `
 CREATE TABLE IF NOT EXISTS schema_version (
     version    integer     PRIMARY KEY,
     name       text        NOT NULL,
-    applied_at timestamptz NOT NULL DEFAULT now(),
-    checksum   text
+    applied_at timestamptz NOT NULL DEFAULT now()
 );
-ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS checksum text;`
+ALTER TABLE schema_version DROP COLUMN IF EXISTS checksum;`
 
 var fileName = regexp.MustCompile(`^(\d{3})_([a-z0-9_]+)\.sql$`)
 
@@ -38,11 +38,12 @@ type migration struct {
 	version int
 	name    string
 	sql     string
-	sum     string
 }
 
-// ErrSchemaMismatch means a migration file changed after it was applied.
-var ErrSchemaMismatch = errors.New("the schema does not match the migrations")
+type logged struct {
+	version int
+	name    string
+}
 
 func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	list, err := loadMigrations(migrations.FS)
@@ -74,42 +75,30 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("the schema_version table: %w", err)
 	}
 
-	applied, err := appliedSums(ctx, conn)
+	applied, err := appliedLog(ctx, conn)
 	if err != nil {
 		return fmt.Errorf("reading schema_version: %w", err)
 	}
 
-	var backfill []migration
-
 	for _, m := range list {
-		sum, done := applied[m.version]
-		switch {
-		case !done:
-			if err := apply(ctx, conn, m); err != nil {
-				return fmt.Errorf("%03d_%s: %w", m.version, m.name, err)
+		if i := slices.IndexFunc(applied, func(l logged) bool { return l.version == m.version }); i >= 0 {
+			if l := applied[i]; l.name != m.name {
+				log.Printf("store: migration %03d is logged as %s but the file is %03d_%s: "+
+					"the number was reused, the file will not run", m.version, l.name, m.version, m.name)
 			}
-			log.Printf("store: migration %03d_%s applied", m.version, m.name)
-		case sum == nil:
-			backfill = append(backfill, m)
-		case *sum != m.sum:
-			return fmt.Errorf(
-				"%w: the file %03d_%s.sql changed after it was applied (%s… in the database, %s… in the file). "+
-					"Either restore the previous content or roll the difference out as a separate migration: "+
-					"the changed file cannot be applied silently, the schema is already a different one",
-				ErrSchemaMismatch, m.version, m.name, (*sum)[:8], m.sum[:8])
+			continue
 		}
+		if err := apply(ctx, conn, m); err != nil {
+			return fmt.Errorf("%03d_%s: %w", m.version, m.name, err)
+		}
+		log.Printf("store: migration %03d_%s applied", m.version, m.name)
 	}
 
-	if len(backfill) > 0 {
-		if err := fillSums(ctx, conn, backfill); err != nil {
-			return fmt.Errorf("filling in the checksums: %w", err)
-		}
-		log.Printf("store: checksums filled in for %d migrations applied earlier", len(backfill))
-	}
-
-	for v := range applied {
-		if !slices.ContainsFunc(list, func(m migration) bool { return m.version == v }) {
-			log.Printf("store: the database holds migration %03d that the binary does not have — the database is newer than the code", v)
+	for _, l := range applied {
+		if !slices.ContainsFunc(list, func(m migration) bool { return m.version == l.version }) {
+			log.Printf("store: migration %03d_%s is logged as applied but has no file: "+
+				"it was removed from the tree, or the database is newer than the code; left as it is",
+				l.version, l.name)
 		}
 	}
 	return nil
@@ -129,50 +118,29 @@ func apply(ctx context.Context, conn *pgxpool.Conn, m migration) error {
 		return err
 	}
 	if _, err := tx.Exec(ctx,
-		"INSERT INTO schema_version (version, name, checksum) VALUES ($1, $2, $3)",
-		m.version, m.name, m.sum); err != nil {
+		"INSERT INTO schema_version (version, name) VALUES ($1, $2)",
+		m.version, m.name); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-func appliedSums(ctx context.Context, conn *pgxpool.Conn) (map[int]*string, error) {
-	var hasColumn bool
-	if err := conn.QueryRow(ctx, `SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_name = 'schema_version' AND column_name = 'checksum')`).Scan(&hasColumn); err != nil {
-		return nil, err
-	}
-
-	query := "SELECT version, NULL::text FROM schema_version"
-	if hasColumn {
-		query = "SELECT version, checksum FROM schema_version"
-	}
-	rows, err := conn.Query(ctx, query)
+func appliedLog(ctx context.Context, conn *pgxpool.Conn) ([]logged, error) {
+	rows, err := conn.Query(ctx, "SELECT version, name FROM schema_version ORDER BY version")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	out := map[int]*string{}
+	var out []logged
 	for rows.Next() {
-		var version int
-		var sum *string
-		if err := rows.Scan(&version, &sum); err != nil {
+		var l logged
+		if err := rows.Scan(&l.version, &l.name); err != nil {
 			return nil, err
 		}
-		out[version] = sum
+		out = append(out, l)
 	}
 	return out, rows.Err()
-}
-
-func fillSums(ctx context.Context, conn *pgxpool.Conn, list []migration) error {
-	batch := &pgx.Batch{}
-	for _, m := range list {
-		batch.Queue("UPDATE schema_version SET checksum = $2 WHERE version = $1 AND checksum IS NULL",
-			m.version, m.sum)
-	}
-	return conn.SendBatch(ctx, batch).Close()
 }
 
 func loadMigrations(fsys fs.FS) ([]migration, error) {
@@ -198,11 +166,7 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 		if err != nil {
 			return nil, err
 		}
-		sum := sha256.Sum256(body)
-		out = append(out, migration{
-			version: version, name: parts[2],
-			sql: string(body), sum: hex.EncodeToString(sum[:]),
-		})
+		out = append(out, migration{version: version, name: parts[2], sql: string(body)})
 	}
 
 	slices.SortFunc(out, func(a, b migration) int { return a.version - b.version })

@@ -1,9 +1,9 @@
 // Package migrations holds the SQL schema migrations built into the binary.
 //
 // The files lie next to it and are named NNN_name.sql: the number sets the order
-// and goes into the table schema_version, the name is for the human. There is
-// one rule: an applied file is not edited, a change of schema is always a new
-// number.
+// and goes into the table schema_version, the name is for the human. A file
+// whose number is logged there is never run again, so an applied file is not
+// edited: a change of schema is always a new number.
 //
 // They are embedded on purpose: the image is distroless, there is no deploy
 // directory inside it, and the migrations have to travel together with the code
