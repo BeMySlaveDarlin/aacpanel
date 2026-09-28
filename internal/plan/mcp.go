@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // The server and its one tool, as a session sees them: the model calls
@@ -36,9 +38,73 @@ const Description = "The plan of the current work, shown to the person in the pa
 	"the terminal does not show it. Send the whole list every time, in order, each step with its status: " +
 	"pending, active (being worked on now; one at a time), done, or dropped (no longer needed, kept for the record). " +
 	"Update it when a step starts or ends and when the plan changes. Whether to keep a plan and what makes a step " +
-	"is yours to decide: a question or a one-step task needs none. An empty list clears the plan. " +
+	"is yours to decide: a question or a one-step task needs none. An empty list clears the plan; " +
+	"a call without items changes nothing and returns the plan as it stands. " +
+	"The plan belongs to the place the session works in and outlives a restart of the session. " +
 	"note is an optional short line about the plan as a whole, such as what it waits on. " +
 	"The plan belongs to the main conversation: a subagent does not call this."
+
+// standingStep bounds the step the instructions quote: they stand in the
+// system prompt of the whole session.
+const standingStep = 100
+
+// standing is what the instructions add when the place already has a plan:
+// a session started again here — afresh or going on with its conversation —
+// learns of it before its first word, since the person sees it all along.
+// It says how far the plan got and the step it stands at, and how to read
+// the rest; the length is bounded whatever the plan holds.
+func standing(p *Plan) string {
+	if p == nil || len(p.Items) == 0 {
+		return ""
+	}
+	finished, at := progress(p)
+	var b strings.Builder
+	fmt.Fprintf(&b, " This place already has a plan, most likely from before a restart of this session "+
+		"(last sent %s): %d of %d steps finished", p.At, finished, len(p.Items))
+	switch {
+	case at == nil:
+		b.WriteString(", nothing left to do")
+	case at.Status == Active:
+		fmt.Fprintf(&b, ", the current step: “%s”", clip(at.Text, standingStep))
+	default:
+		fmt.Fprintf(&b, ", the next step: “%s”", clip(at.Text, standingStep))
+	}
+	b.WriteString(". The person sees it as it stands. If the work goes on, call the plan tool without items " +
+		"to read the plan whole and keep it with the tool; if it no longer applies, clear it with an empty list.")
+	return b.String()
+}
+
+// progress counts the steps finished — done or dropped — and finds the step
+// the plan stands at: the one at work, or else the first still to do.
+func progress(p *Plan) (int, *Item) {
+	finished := 0
+	var active, next *Item
+	for i := range p.Items {
+		switch p.Items[i].Status {
+		case Done, Dropped:
+			finished++
+		case Active:
+			if active == nil {
+				active = &p.Items[i]
+			}
+		case Pending:
+			if next == nil {
+				next = &p.Items[i]
+			}
+		}
+	}
+	if active != nil {
+		return finished, active
+	}
+	return finished, next
+}
+
+func clip(s string, runes int) string {
+	if utf8.RuneCountInString(s) <= runes {
+		return s
+	}
+	return string([]rune(s)[:runes-1]) + "…"
+}
 
 // InputSchema is what the tool takes, as JSON Schema.
 func InputSchema() map[string]any {
@@ -47,7 +113,7 @@ func InputSchema() map[string]any {
 		"properties": map[string]any{
 			"items": map[string]any{
 				"type":        "array",
-				"description": "Every step of the plan, in order.",
+				"description": "Every step of the plan, in order. Left out, the call reads the plan and changes nothing.",
 				"maxItems":    MaxItems,
 				"items": map[string]any{
 					"type": "object",
@@ -61,7 +127,6 @@ func InputSchema() map[string]any {
 			},
 			"note": map[string]any{"type": "string", "maxLength": MaxNote, "description": "One short line about the plan as a whole."},
 		},
-		"required":             []string{"items"},
 		"additionalProperties": false,
 	}
 }
@@ -76,10 +141,10 @@ var Protocols = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
 type Server struct {
 	// Dir is where the plans lie.
 	Dir string
-	// Session names the conversation of the claude this server serves, read
-	// anew on every call: /clear starts another conversation in the same
-	// process.
-	Session func() (id string, pid int, err error)
+	// Bind finds where the claude this server serves works and the
+	// conversation it is in, anew on every call: /clear starts another
+	// conversation in the same process.
+	Bind func() (Binding, error)
 	// Now is the clock of the times a plan carries.
 	Now func() time.Time
 }
@@ -172,8 +237,19 @@ func (s *Server) initialize(params json.RawMessage) map[string]any {
 		"protocolVersion": version,
 		"capabilities":    map[string]any{"tools": map[string]any{}},
 		"serverInfo":      map[string]any{"name": ServerName, "title": "aacpanel", "version": "1"},
-		"instructions":    Instructions,
+		"instructions":    s.instructions(),
 	}
+}
+
+// instructions are the server's word to the session, with what the place's
+// plan stands at when there is one. A place not known yet is said nothing of:
+// the tool finds it again on every call.
+func (s *Server) instructions() string {
+	b, err := s.Bind()
+	if err != nil {
+		return Instructions
+	}
+	return Instructions + standing(Adopt(s.Dir, b.Place))
 }
 
 func tool() map[string]any {
@@ -208,14 +284,20 @@ func (s *Server) call(id json.RawMessage, params json.RawMessage) *reply {
 			return done(id, toolText("The plan was not kept: the arguments are not the plan's ("+err.Error()+").", true))
 		}
 	}
-	if args.Items == nil {
-		return done(id, toolText("The plan was not kept: items is required — the whole list, or an empty one to clear the plan.", true))
-	}
-	session, pid, err := s.Session()
+	b, err := s.Bind()
 	if err != nil {
+		if args.Items == nil {
+			return done(id, toolText("The plan was not read: "+err.Error(), true))
+		}
 		return done(id, toolText("The plan was not kept: "+err.Error(), true))
 	}
-	kept, err := Keep(s.Dir, session, pid, args.Items, args.Note, s.Now())
+	// A plan filed under a conversation of the place is taken over before
+	// anything else: a step sent again keeps the time it had there.
+	current := Adopt(s.Dir, b.Place)
+	if args.Items == nil {
+		return done(id, toolText(listing(current), false))
+	}
+	kept, err := Keep(s.Dir, b, args.Items, args.Note, s.Now())
 	if err != nil {
 		var refused Refusal
 		if errors.As(err, &refused) {
@@ -232,13 +314,27 @@ func summary(p *Plan) string {
 	if p == nil {
 		return "The plan is cleared."
 	}
-	finished := 0
-	for _, it := range p.Items {
-		if it.Status == Done || it.Status == Dropped {
-			finished++
-		}
-	}
+	finished, _ := progress(p)
 	return fmt.Sprintf("The plan is kept: %d of %d steps finished.", finished, len(p.Items))
+}
+
+// listing is the plan read whole, for a call without items: a session that
+// goes on with a plan it did not send sends the list back with its own
+// changes, and needs the steps as they stand to do it.
+func listing(p *Plan) string {
+	if p == nil || len(p.Items) == 0 {
+		return "There is no plan in this place."
+	}
+	finished, _ := progress(p)
+	var b strings.Builder
+	fmt.Fprintf(&b, "The plan, last sent %s: %d of %d steps finished.", p.At, finished, len(p.Items))
+	for i, it := range p.Items {
+		fmt.Fprintf(&b, "\n%d. [%s] %s", i+1, it.Status, it.Text)
+	}
+	if p.Note != "" {
+		b.WriteString("\nNote: " + p.Note)
+	}
+	return b.String()
 }
 
 func toolText(text string, isError bool) map[string]any {

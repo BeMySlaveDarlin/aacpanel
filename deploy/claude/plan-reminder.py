@@ -2,17 +2,28 @@
 """Plan reminder: at the end of a turn a session that keeps a plan is asked once whether it changed.
 
 The plan is the model's own list of steps, kept through the panel's plan tool
-and shown to the person. A turn that did work — called tools — and left the
-plan as it was may have left it behind: the end of that turn is held once, and
-the model is told to update the plan if it changed and otherwise to end the
-turn. The turn after the hold is never held again. A plan with nothing left
-to do asks nothing, and neither does one another process wrote: the same
-conversation resumed without the tool cannot update it.
+and shown to the person. It belongs to the place the session works in — the
+config directory of the account and the directory claude runs in — so a
+session started again there, afresh or going on with its conversation, finds
+it. A turn that did work — called tools — and left the plan as it was may
+have left it behind: the end of that turn is held once, and the model is told
+to update the plan if it changed, to clear it if it no longer applies, and
+otherwise to end the turn. The turn after the hold is never held again.
+
+A plan with nothing left to do asks nothing, and neither does a session that
+has no plan tool: a claude started by hand in the same place cannot update
+the plan. A session has the tool when it sent the plan itself, or when it
+was started with the tool allowed, as the panel starts every session — which
+is how a session started again after a restart is asked about the plan the
+one before it left.
 """
 
 import datetime
+import hashlib
 import json
 import os
+import posixpath
+import re
 import sys
 
 UNFINISHED = ("pending", "active")
@@ -37,18 +48,35 @@ def plans_dir():
     return os.path.join(base, "aacpanel", "plans")
 
 
-def read_plan(session_id):
-    """Returns the plan of a conversation and when its file was written, or (None, None)."""
-    if not session_id or "/" in session_id or session_id.startswith("."):
+def _clean(path):
+    """Returns a path in the form the executor names a plan by, or None when it is not absolute."""
+    if not isinstance(path, str) or not path.startswith("/"):
+        return None
+    path = posixpath.normpath(path)
+    return "/" + path.lstrip("/") if path.startswith("//") else path
+
+
+def plan_name(config_dir, cwd):
+    """Returns the file name of the plan of a place: the hash of its two paths the executor computes."""
+    config_dir, cwd = _clean(config_dir), _clean(cwd)
+    if config_dir is None or cwd is None:
+        return None
+    return hashlib.sha256(os.fsencode(config_dir) + b"\0" + os.fsencode(cwd)).hexdigest()[:32] + ".json"
+
+
+def read_plan(config_dir, cwd):
+    """Returns the plan of a place and when its file was written, or (None, None)."""
+    name = plan_name(config_dir, cwd)
+    if name is None:
         return None, None
-    path = os.path.join(plans_dir(), session_id + ".json")
+    path = os.path.join(plans_dir(), name)
     try:
         written = os.stat(path).st_mtime
         with open(path, encoding="utf-8") as f:
             plan = json.load(f)
     except (OSError, ValueError):
         return None, None
-    if not isinstance(plan, dict) or plan.get("sessionId") != session_id:
+    if not isinstance(plan, dict) or plan.get("configDir") != _clean(config_dir) or plan.get("dir") != _clean(cwd):
         return None, None
     return plan, written
 
@@ -59,12 +87,20 @@ def unfinished(plan):
     return any(isinstance(it, dict) and it.get("status") in UNFINISHED for it in items)
 
 
-def _parent(pid):
+def _stat(pid):
     try:
         with open(os.path.join(PROC, str(pid), "stat"), encoding="utf-8") as f:
             line = f.read()
-        return int(line[line.rindex(")") + 1:].split()[1])
-    except (OSError, ValueError, IndexError):
+        return line[line.rindex(")") + 1:].split()
+    except (OSError, ValueError):
+        return []
+
+
+def _parent(pid):
+    fields = _stat(pid)
+    try:
+        return int(fields[1])
+    except (IndexError, ValueError):
         return None
 
 
@@ -75,6 +111,52 @@ def ancestors():
         out.append(pid)
         pid = _parent(pid)
     return out
+
+
+def config_dir():
+    """Returns the config directory of the claude running the hook: the one it passes on, or its default."""
+    return os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".claude")
+
+
+def session_of(pid):
+    """Returns the file claude keeps of a process of its, or None when the file is not that process's."""
+    try:
+        with open(os.path.join(config_dir(), "sessions", f"{pid}.json"), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get("pid") != pid or data.get("kind") not in (None, "", "interactive"):
+        return None
+    fields = _stat(pid)
+    if len(fields) < 20 or not data.get("procStart") or str(data["procStart"]) != fields[19]:
+        return None
+    return data
+
+
+def claude(session_id):
+    """Returns the pid of the claude running the hook and the file it keeps of itself, or (None, None).
+
+    It is the nearest process above the hook whose file names the
+    conversation the hook is for: a claude run inside the work of a session
+    has no file of its own, and the session above it is not the one whose
+    turn ends.
+    """
+    for pid in ancestors():
+        data = session_of(pid)
+        if data is not None:
+            return (pid, data) if data.get("sessionId") == session_id else (None, None)
+    return None, None
+
+
+def has_tool(pid):
+    """Says whether a claude process was started with the plan tool allowed, as the panel starts every session."""
+    try:
+        with open(os.path.join(PROC, str(pid), "cmdline"), "rb") as f:
+            args = f.read().split(b"\0")
+    except OSError:
+        return False
+    word = TOOL.encode()
+    return any(word in re.split(rb"[\s,=]+", arg) for arg in args)
 
 
 def _stamp(record):
@@ -148,10 +230,10 @@ def turn(path):
 
 def reason():
     """Returns what the model is told instead of stopping."""
-    return (f"This session keeps a plan in the panel, and this turn did work without touching it. "
-            f"If the plan changed — a step started, ended or was dropped, or the steps themselves "
-            f"changed — send it with the plan tool ({TOOL}). If it did not change, end the turn now, "
-            f"without a word about this.")
+    return (f"The panel shows the person a plan of the work in this place, and this turn did work "
+            f"without touching it. If the plan changed — a step started, ended or was dropped, or the "
+            f"steps themselves changed — send it with the plan tool ({TOOL}); if it no longer applies, "
+            f"clear it with an empty list. If it did not change, end the turn now, without a word about this.")
 
 
 def main():
@@ -164,10 +246,13 @@ def main():
     # The turn that follows a hold is the answer to it: it is never held again.
     if payload.get("stop_hook_active"):
         return
-    plan, written = read_plan(payload.get("session_id") or "")
+    pid, session = claude(payload.get("session_id") or "")
+    if pid is None:
+        return
+    plan, written = read_plan(config_dir(), session.get("cwd"))
     if plan is None or not unfinished(plan):
         return
-    if plan.get("pid") not in ancestors():
+    if plan.get("pid") != pid and not has_tool(pid):
         return
     began, called = turn(payload.get("transcript_path") or "")
     if not called or began is None or written >= began:

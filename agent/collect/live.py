@@ -71,19 +71,35 @@ def session_births():
     return out
 
 
+def _alive(data):
+    """Says whether the process a session file names is really the one alive."""
+    pid = data.get("pid")
+    if not pid:
+        return False
+    start = ctx.proc_start(pid)
+    if start is None or (data.get("procStart") and str(data["procStart"]) != start):
+        return False
+    return not archive.background(data)
+
+
 def live_session_files():
     """Returns the parsed files of the sessions whose process is really alive."""
-    out = []
-    for _, _, data in session_files():
-        pid = data.get("pid")
-        if not pid:
+    return [data for _, _, data in session_files() if _alive(data)]
+
+
+def live_session_places():
+    """Maps the sessionId of a live session to its place: the config directory of its account and its directory.
+
+    The plan of a session is kept by its place, and the executor finds the
+    place in this same file: the directory the file lies under and the
+    directory it names.
+    """
+    out = {}
+    for _, config_dir, data in session_files():
+        sid, cwd = data.get("sessionId"), data.get("cwd")
+        if not sid or not isinstance(cwd, str) or not cwd or not _alive(data):
             continue
-        start = ctx.proc_start(pid)
-        if start is None or (data.get("procStart") and str(data["procStart"]) != start):
-            continue
-        if archive.background(data):
-            continue
-        out.append(data)
+        out[sid] = (config_dir or os.path.dirname((agent.CLAUDE_SESSIONS or "").rstrip("/")), cwd)
     return out
 
 
@@ -216,6 +232,7 @@ def sessions():
     stamps = live_session_status_at()
     remotes = live_session_remote()
     versions = live_session_version()
+    places = live_session_places()
     seen_transcripts = set()
     for s in data.get("sessions", []):
         transcript = s.get("transcript") or ""
@@ -230,7 +247,10 @@ def sessions():
         note = notes.BOARD.of(sid) if sid else None
         if note:
             s["note"] = {"text": note.get("text") or "", "at": note.get("at") or ""}
-        plan = plans.of(sid) if sid else None
+        # The plan is the place's: a session started again where another
+        # left one shows it at once, under a conversation of its own.
+        place = places.get(sid) if sid else None
+        plan = plans.of(*place) if place else None
         if plan:
             s["plan"] = plan
         wait = waits.get(s.get("session") or "")

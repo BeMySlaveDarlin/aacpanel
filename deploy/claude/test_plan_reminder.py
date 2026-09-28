@@ -24,11 +24,20 @@ def load(name):
 reminder = load("plan-reminder")
 
 SESSION = "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d"
+BEFORE = "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e"
+LAB = "/srv/proj/lab"
+
+# The claude running the hook, as the fake /proc shows it.
+CLAUDE = 4242
+START = "5555"
 
 # The turn under test begins here; the plan is written a minute before it or
 # half a minute into it.
 BEGAN = "2026-09-28T10:00:00.000Z"
 BEGAN_AT = datetime.datetime(2026, 9, 28, 10, 0, tzinfo=datetime.timezone.utc).timestamp()
+
+WITH_TOOL = ["/srv/bin/claude", "--mcp-config", '{"mcpServers":{}}', "--allowedTools", reminder.TOOL, "-n", "lab"]
+BY_HAND = ["/srv/bin/claude", "--resume", SESSION]
 
 
 def prompt(text, at=BEGAN):
@@ -53,20 +62,44 @@ def answer(text="done", at="2026-09-28T10:00:40.000Z"):
 class TestReminder(unittest.TestCase):
 
     def setUp(self):
-        self.xdg = tempfile.TemporaryDirectory()
-        self.addCleanup(self.xdg.cleanup)
-        self.transcript = os.path.join(self.xdg.name, "transcript.jsonl")
-        # The claude that runs the hook is above it; here the test is that
-        # process, and its parent stands for claude.
-        self.claude = os.getppid()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.xdg = os.path.join(self.tmp.name, "state")
+        self.config = os.path.join(self.tmp.name, "claude")
+        self.proc = os.path.join(self.tmp.name, "proc")
+        self.transcript = os.path.join(self.tmp.name, "transcript.jsonl")
+        for name, value in (("PROC", self.proc), ("ancestors", lambda: [self.shell, CLAUDE])):
+            self.addCleanup(setattr, reminder, name, getattr(reminder, name))
+            setattr(reminder, name, value)
+        # A shell stands between claude and the hook, and has no file of a session.
+        self.shell = 4300
+        self.process(self.shell, CLAUDE, "900", ["sh", "-c", "hook"])
+        self.claude(WITH_TOOL)
 
-    def plan(self, *statuses, pid=None, written=BEGAN_AT - 60):
-        root = os.path.join(self.xdg.name, "aacpanel", "plans")
+    def process(self, pid, parent, start, args):
+        root = os.path.join(self.proc, str(pid))
         os.makedirs(root, exist_ok=True)
-        path = os.path.join(root, SESSION + ".json")
+        fields = ["S", str(parent)] + ["0"] * 17 + [start]
+        with open(os.path.join(root, "stat"), "w", encoding="utf-8") as f:
+            f.write(f"{pid} (claude) {' '.join(fields)}\n")
+        with open(os.path.join(root, "cmdline"), "wb") as f:
+            f.write(b"\0".join(a.encode() for a in args) + b"\0")
+
+    def claude(self, args, session=SESSION, start=START, cwd=LAB):
+        """Puts the claude running the hook in place: its process and the file it keeps of itself."""
+        self.process(CLAUDE, 1, START, args)
+        os.makedirs(os.path.join(self.config, "sessions"), exist_ok=True)
+        with open(os.path.join(self.config, "sessions", f"{CLAUDE}.json"), "w", encoding="utf-8") as f:
+            json.dump({"pid": CLAUDE, "sessionId": session, "cwd": cwd, "procStart": start,
+                       "kind": "interactive"}, f)
+
+    def plan(self, *statuses, pid=CLAUDE, session=SESSION, written=BEGAN_AT - 60, cwd=LAB):
+        root = os.path.join(self.xdg, "aacpanel", "plans")
+        os.makedirs(root, exist_ok=True)
+        path = os.path.join(root, reminder.plan_name(self.config, cwd))
         items = [{"text": f"step {i}", "status": s} for i, s in enumerate(statuses)]
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"sessionId": SESSION, "pid": self.claude if pid is None else pid,
+            json.dump({"configDir": self.config, "dir": cwd, "sessionId": session, "pid": pid,
                        "at": "2026-09-28T09:59:00Z", "items": items}, f)
         os.utime(path, (written, written))
 
@@ -78,19 +111,21 @@ class TestReminder(unittest.TestCase):
     def run_hook(self, payload=None):
         payload = {"hook_event_name": "Stop", "session_id": SESSION, "transcript_path": self.transcript,
                    "stop_hook_active": False, **(payload or {})}
-        was = os.environ.get("XDG_STATE_HOME")
+        was = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "CLAUDE_CONFIG_DIR")}
         out = io.StringIO()
         try:
-            os.environ["XDG_STATE_HOME"] = self.xdg.name
+            os.environ["XDG_STATE_HOME"] = self.xdg
+            os.environ["CLAUDE_CONFIG_DIR"] = self.config
             sys.stdin = io.StringIO(json.dumps(payload))
             with contextlib.redirect_stdout(out):
                 reminder.main()
         finally:
             sys.stdin = sys.__stdin__
-            if was is None:
-                os.environ.pop("XDG_STATE_HOME", None)
-            else:
-                os.environ["XDG_STATE_HOME"] = was
+            for k, v in was.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
         text = out.getvalue().strip()
         return json.loads(text) if text else None
 
@@ -106,9 +141,70 @@ class TestReminder(unittest.TestCase):
         self.assertEqual(got and got["decision"], "block")
         self.assertIn("If the plan changed", got["reason"])
         self.assertIn(reminder.TOOL, got["reason"])
+        self.assertIn("clear it with an empty list", got["reason"])
         self.assertIn("If it did not change, end the turn now", got["reason"])
         self.assertIsNone(self.run_hook({"stop_hook_active": True}),
                           "the turn that answers the hold was held again: a loop of reminders")
+
+    def test_a_session_started_again_in_the_place_is_asked_about_the_plan_it_found(self):
+        # The plan was sent by the process before the restart, in another
+        # conversation; this one has the tool from the panel.
+        self.plan("done", "active", pid=CLAUDE + 1, session=BEFORE)
+        self.worked()
+        got = self.run_hook()
+        self.assertEqual(got and got["decision"], "block",
+                         "a session started again with the tool is never asked about the plan of its place")
+
+    def test_a_session_without_the_tool_is_not_asked_about_a_plan_it_did_not_send(self):
+        # A claude started by hand in the same place cannot update the plan.
+        self.claude(BY_HAND)
+        self.plan("active", pid=CLAUDE + 1, session=BEFORE)
+        self.worked()
+        self.assertIsNone(self.run_hook())
+
+    def test_a_session_that_sent_the_plan_is_asked_whatever_it_was_started_with(self):
+        self.claude(BY_HAND)
+        self.plan("active")
+        self.worked()
+        self.assertEqual(self.run_hook()["decision"], "block")
+
+    def test_the_tool_is_told_by_the_arguments_of_claude(self):
+        for args, has in ((WITH_TOOL, True), (BY_HAND, False),
+                          (["claude", "--allowedTools=Bash," + reminder.TOOL], True),
+                          (["claude", "--allowedTools", reminder.TOOL + "_old"], False),
+                          (["claude", reminder.TOOL + "x"], False)):
+            self.claude(args)
+            self.assertEqual(reminder.has_tool(CLAUDE), has, args)
+
+    def test_a_plan_of_another_place_asks_nothing(self):
+        self.plan("active", cwd="/srv/proj/other")
+        self.worked()
+        self.assertIsNone(self.run_hook())
+
+    def test_a_file_that_names_another_place_is_not_the_plan_whatever_its_name(self):
+        self.plan("active")
+        path = os.path.join(self.xdg, "aacpanel", "plans", reminder.plan_name(self.config, LAB))
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({**data, "dir": "/srv/proj/other"}, f)
+        os.utime(path, (BEGAN_AT - 60, BEGAN_AT - 60))
+        self.worked()
+        self.assertIsNone(self.run_hook())
+
+    def test_a_claude_whose_file_names_another_conversation_is_not_the_one_whose_turn_ends(self):
+        # A claude run inside the work of a session has no file of its own:
+        # the nearest file above it is the session's, of another conversation.
+        self.claude(WITH_TOOL, session=BEFORE)
+        self.plan("active")
+        self.worked()
+        self.assertIsNone(self.run_hook())
+
+    def test_a_file_a_dead_process_with_the_same_pid_left_is_not_the_claude(self):
+        self.claude(WITH_TOOL, start="1234")
+        self.plan("active")
+        self.worked()
+        self.assertIsNone(self.run_hook())
 
     def test_a_plan_touched_in_the_turn_is_not_asked_about(self):
         self.plan("done", "active", written=BEGAN_AT + 30)
@@ -127,12 +223,6 @@ class TestReminder(unittest.TestCase):
         self.assertIsNone(self.run_hook())
 
     def test_without_a_plan_nothing_is_said(self):
-        self.worked()
-        self.assertIsNone(self.run_hook())
-
-    def test_a_plan_another_process_wrote_asks_nothing(self):
-        # The conversation resumed by hand, outside the panel, has no plan tool.
-        self.plan("active", pid=os.getpid())
         self.worked()
         self.assertIsNone(self.run_hook())
 
@@ -167,7 +257,7 @@ class TestReminder(unittest.TestCase):
 
     def test_a_transcript_that_is_not_there_asks_nothing(self):
         self.plan("active")
-        self.assertIsNone(self.run_hook({"transcript_path": os.path.join(self.xdg.name, "none.jsonl")}))
+        self.assertIsNone(self.run_hook({"transcript_path": os.path.join(self.tmp.name, "none.jsonl")}))
 
     def test_a_broken_payload_is_not_a_crash(self):
         try:
@@ -177,6 +267,25 @@ class TestReminder(unittest.TestCase):
         finally:
             sys.stdin = sys.__stdin__
         self.assertEqual(out.getvalue(), "")
+
+
+class TestPlace(unittest.TestCase):
+
+    def test_the_name_of_the_plan_is_the_one_the_executor_computes(self):
+        # Pinned beside the executor's own test of the same place.
+        self.assertEqual(reminder.plan_name("/srv/claude", LAB), "d2ba143628e62863dae2533062199cf6.json")
+        self.assertEqual(reminder.plan_name("/srv/claude/", LAB + "/"), reminder.plan_name("/srv/claude", LAB))
+        self.assertIsNone(reminder.plan_name("/srv/claude", "proj/lab"))
+
+    def test_the_ancestors_are_read_up_the_chain_of_parents(self):
+        with tempfile.TemporaryDirectory() as proc:
+            for pid, parent in ((os.getppid(), 777), (777, 1)):
+                os.makedirs(os.path.join(proc, str(pid)))
+                with open(os.path.join(proc, str(pid), "stat"), "w", encoding="utf-8") as f:
+                    f.write(f"{pid} (a (b) c) S {parent} 0 0\n")
+            self.addCleanup(setattr, reminder, "PROC", reminder.PROC)
+            reminder.PROC = proc
+            self.assertEqual(reminder.ancestors(), [os.getppid(), 777])
 
 
 if __name__ == "__main__":

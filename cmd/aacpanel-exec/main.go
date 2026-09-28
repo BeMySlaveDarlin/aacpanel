@@ -190,19 +190,16 @@ func runHold() int {
 }
 
 // runPlan serves the plan tool to one claude: its parent, which started it
-// as an MCP server. The conversation is the one that process is in when the
-// model calls the tool, and the plans nobody has touched for a month are
-// swept once at the start.
+// as an MCP server. The plan is the one of the place that process works in,
+// found when the model calls the tool, and the plans nobody has touched for a
+// month are swept once at the start.
 func runPlan(in io.Reader, out io.Writer, parent int) int {
 	dir := plan.Dir()
 	plan.Sweep(dir, time.Now())
 	srv := &plan.Server{
-		Dir: dir,
-		Now: time.Now,
-		Session: func() (string, int, error) {
-			id, err := launcher.Conversation(parent)
-			return id, parent, err
-		},
+		Dir:  dir,
+		Now:  time.Now,
+		Bind: func() (plan.Binding, error) { return launcher.Where(parent) },
 	}
 	if err := srv.Serve(in, out); err != nil {
 		fmt.Fprintf(os.Stderr, "aacpanel-exec: the plan tool: %v\n", err)
