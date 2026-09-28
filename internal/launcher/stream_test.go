@@ -110,15 +110,11 @@ func fakeHolder(t *testing.T, script string) string {
 	return spec
 }
 
-func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
-	shortRuntime(t)
-	proc := fakeProc(t)
-	specPath := fakeHolder(t, "sleep 5")
-	wrapper := machineClaude(t)
-	dir := t.TempDir()
-
-	// The holder starts claude; here the test plays both, as soon as it has
-	// read which conversation the holder was handed.
+// playHolder plays the holder's claude: the holder starts it, and here the
+// test puts it into the process table as soon as it has read which
+// conversation the holder was handed.
+func playHolder(t *testing.T, proc, specPath string) {
+	t.Helper()
 	go func() {
 		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 			raw, err := os.ReadFile(specPath)
@@ -139,6 +135,15 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 			return
 		}
 	}()
+}
+
+func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
+	shortRuntime(t)
+	proc := fakeProc(t)
+	specPath := fakeHolder(t, "sleep 5")
+	wrapper := machineClaude(t)
+	dir := t.TempDir()
+	playHolder(t, proc, specPath)
 
 	contour := t.TempDir()
 	rep, err := Run(context.Background(), Spec{

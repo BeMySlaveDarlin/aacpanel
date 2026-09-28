@@ -8,6 +8,7 @@ import contours
 import ctx
 import held
 import notes
+import plans
 
 import agent
 from sesstate.wake import TASK_WAKE
@@ -229,6 +230,9 @@ def sessions():
         note = notes.BOARD.of(sid) if sid else None
         if note:
             s["note"] = {"text": note.get("text") or "", "at": note.get("at") or ""}
+        plan = plans.of(sid) if sid else None
+        if plan:
+            s["plan"] = plan
         wait = waits.get(s.get("session") or "")
         if wait:
             s["waitingFor"] = wait

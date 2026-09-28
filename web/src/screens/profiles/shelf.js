@@ -24,7 +24,7 @@ import { Bar, DragRows, Layer, LeaveSheet, useDraft } from "./kit.js";
 const DELETE = "Delete group";
 
 // What can be said for a whole shelf: a choice, not a text a project owns.
-const FOR_ALL = ["transport", "model", "effort", "permissionMode", "remoteControl", "contextCap", "autoRestart"];
+const FOR_ALL = ["transport", "model", "effort", "permissionMode", "remoteControl", "planTool", "contextCap", "autoRestart"];
 
 // deviations returns what a project sets otherwise than its contour gives:
 // what it inherits is the contour's by definition, so a value that differs is

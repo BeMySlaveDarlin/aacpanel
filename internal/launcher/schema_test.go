@@ -3,6 +3,7 @@ package launcher
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"testing"
 
 	"aacpanel/internal/schema"
@@ -70,6 +71,10 @@ func TestTheLauncherTakesEveryKeyOfTheSchema(t *testing.T) {
 func TestPreviewIsTheCommandTheLaunchRuns(t *testing.T) {
 	raw := json.RawMessage(`{"model":"opus","effort":"high","remoteControl":true,"intent":"go","args":["--verbose"]}`)
 	p, _ := parseParams(raw)
+	// The configuration of the plan tool names the executor's path on the
+	// host, which the panel's container does not know: the preview holds a
+	// stand-in in its place, and every other word is the launch's.
+	p.plan = planPreview
 	line := Preview("panel", raw)
 	if got, want := texts(line.Words), append([]string{"claude"}, claudeArgs("panel", "", p)...); !reflect.DeepEqual(got, want) {
 		t.Errorf("the preview reads %v, the launch runs %v", got, want)
@@ -79,8 +84,12 @@ func TestPreviewIsTheCommandTheLaunchRuns(t *testing.T) {
 		keys[w.Text] = w.Key
 	}
 	if keys["--effort"] != keyEffort || keys["--remote-control"] != keyRemoteControl || keys["go"] != keyIntent ||
-		keys["--verbose"] != keyArgs || keys["-n"] != "" {
+		keys["--verbose"] != keyArgs || keys["-n"] != "" || keys["--mcp-config"] != keyPlanTool ||
+		keys[planPreview] != keyPlanTool || keys["mcp__aacpanel__plan"] != keyPlanTool {
 		t.Errorf("the words name their parameters as %v", keys)
+	}
+	if off := texts(Preview("panel", json.RawMessage(`{"planTool":false}`)).Words); slices.Contains(off, "--mcp-config") {
+		t.Errorf("a project with the plan tool off previews it: %v", off)
 	}
 
 	stream := Preview("panel", json.RawMessage(`{"transport":"stream","remoteControl":true,"intent":"go"}`))

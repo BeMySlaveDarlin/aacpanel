@@ -30,6 +30,7 @@ func TestCheckPassesWhatTheMapHolds(t *testing.T) {
 		`{"permissionMode": "bypassPermissions"}`,
 		`{"model": "opus[1m]", "contextCap": 80, "autoRestart": true, "restartIntent": "Continue"}`,
 		`{"autoRestart": false, "restartIntent": ""}`,
+		`{"planTool": false}`,
 		`{"model": "claude-opus-5-5"}`,
 		`{"env": {"FOO": "bar"}, "args": ["--verbose", "--add-dir=/opt/x"]}`,
 	} {
@@ -54,6 +55,7 @@ func TestCheckNamesWhatTheLaunchWouldNotTake(t *testing.T) {
 		"cap under the floor":  {`{"contextCap": 20}`, "contextCap", "outside 50–95"},
 		"cap a fraction":       {`{"contextCap": 80.5}`, "contextCap", "whole number"},
 		"restart as a word":    {`{"autoRestart": "on"}`, "autoRestart", "on or off"},
+		"plan tool as a word":  {`{"planTool": "off"}`, "planTool", "on or off"},
 		"message too long":     {`{"intent": "` + strings.Repeat("é", 501) + `"}`, "intent", "longer than 500"},
 		"message with a bell":  {`{"intent": "go\u0007"}`, "intent", "forbidden character"},
 		"env as a list":        {`{"env": ["FOO=bar"]}`, "env", "an object"},

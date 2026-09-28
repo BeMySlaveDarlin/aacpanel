@@ -39,8 +39,8 @@ func TestTheContourSettingsPage(t *testing.T) {
 	}
 	runFixtureServing(t, "contoursettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	if len(got.Rows) != 10 || got.Rows[0] != "Model" {
-		t.Errorf("the contour's rows are %v, meant the ten a project has", got.Rows)
+	if len(got.Rows) != 11 || got.Rows[0] != "Model" {
+		t.Errorf("the contour's rows are %v, meant the eleven a project has", got.Rows)
 	}
 	if strings.Join(got.Groups, " ") != "home pets" {
 		t.Errorf("the groups read %v", got.Groups)

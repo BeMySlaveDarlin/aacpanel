@@ -171,6 +171,14 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNextStart},
 	},
 	{
+		Key: "planTool", Label: "Plan tool", Kind: KindBool,
+		Levels: []Level{LevelContour, LevelProject}, Default: true,
+		Help: "the session gets the panel's tool for the plan of its work, and the panel shows the plan; " +
+			"the model decides whether to keep one. A session started by hand outside the panel does not have it",
+		Unset: "On", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
+	},
+	{
 		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax,
 		Levels: []Level{LevelContour, LevelProject}, Default: CapDefault, Host: true,
 		Help: "the share of the model's window a session works up to: the prompt stamp names it, and past it " +

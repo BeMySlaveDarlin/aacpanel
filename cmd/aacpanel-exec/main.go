@@ -20,6 +20,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/executor"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/plan"
 	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
 )
@@ -51,7 +52,14 @@ func main() {
 	console := flag.String("console", "",
 		"move a live session on the stream to the console, without the panel: the running executor "+
 			"starts it in tmux with what it was started with, and tmux attach reaches it")
+	servePlan := flag.Bool(strings.TrimPrefix(plan.Flag, "-"), false,
+		"serve the panel's plan tool over MCP on stdin and stdout to the claude that started this. "+
+			"Not a panel action: the launcher names it in the MCP configuration of every session it starts")
 	flag.Parse()
+
+	if *servePlan {
+		os.Exit(runPlan(os.Stdin, os.Stdout, os.Getppid()))
+	}
 
 	if *hold {
 		os.Exit(runHold())
@@ -176,6 +184,28 @@ func runHold() int {
 	defer stop()
 	if err := stream.Run(ctx, spec); err != nil {
 		fmt.Fprintf(os.Stderr, "aacpanel-exec: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+// runPlan serves the plan tool to one claude: its parent, which started it
+// as an MCP server. The conversation is the one that process is in when the
+// model calls the tool, and the plans nobody has touched for a month are
+// swept once at the start.
+func runPlan(in io.Reader, out io.Writer, parent int) int {
+	dir := plan.Dir()
+	plan.Sweep(dir, time.Now())
+	srv := &plan.Server{
+		Dir: dir,
+		Now: time.Now,
+		Session: func() (string, int, error) {
+			id, err := launcher.Conversation(parent)
+			return id, parent, err
+		},
+	}
+	if err := srv.Serve(in, out); err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: the plan tool: %v\n", err)
 		return 1
 	}
 	return 0

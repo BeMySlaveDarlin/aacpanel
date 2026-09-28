@@ -299,6 +299,7 @@ the panel's eyes.
 | `deploy/claude/artifact-copy.py` | the `PostToolUse` hook on `Artifact` | the panel keeps a copy of every page a session publishes and shows it without the account it went out under; without the hook the card has only its link |
 | `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
 | `deploy/claude/context-guard.py` | the `Stop` hook | past its context cap a session with Auto restart finalizes and restarts itself; the cap and the switch are set in the panel, per contour or per project |
+| `deploy/claude/plan-reminder.py` | the `Stop` hook | a session that keeps a plan with the panel's plan tool and did work without touching it is asked once, at the end of the turn, to update the plan if it changed |
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session as its project from the map, through the panel's local listener; in its own tmux pane when the panel does not answer |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
 | `deploy/claude/skills/notify/` | `<account>/skills/` | `/notify`: the session calls the person to it, and the line arrives on their phone |
@@ -364,6 +365,24 @@ listener off, a session in the feed cannot restart itself, and one in the
 console restarts in its own pane without the map's parameters.
 The turn after the block is the finalization itself and is never blocked again;
 a session that ignored it is told again at the end of its next turn.
+
+**The plan reminder.** The plan tool needs nothing installed: every session the
+panel starts gets it from the launcher, unless the Plan tool parameter of its
+contour or project is off. The hook is the soft half of it, in the account
+settings:
+
+```json
+{"hooks": {"Stop": [
+  {"hooks": [{"type": "command", "command": "python3 <repo>/deploy/claude/plan-reminder.py", "timeout": 5}]}
+]}}
+```
+
+It holds the end of a turn only when the session has a plan with steps pending
+or at work, the turn called tools, and the plan was not written during it; the
+model is told to send the plan if it changed and otherwise to end the turn, and
+the turn after the hold is never held. Its price is one short turn more when the
+model forgot. A plan written by another process of the conversation — resumed by
+hand, without the tool — asks nothing.
 
 ---
 
