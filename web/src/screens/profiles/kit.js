@@ -14,7 +14,7 @@ import {
 import { paramOf } from "./schema.js";
 
 export const LAUNCH_ORDER = [
-    "model", "effort", "permissionMode", "remoteControl", "intent", "planTool",
+    "model", "effort", "permissionMode", "remoteControl", "intent", "panelTools",
     "contextCap", "autoRestart", "restartIntent", "env", "args",
 ];
 

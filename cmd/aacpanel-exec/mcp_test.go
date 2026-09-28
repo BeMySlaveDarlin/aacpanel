@@ -3,12 +3,14 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"aacpanel/internal/mcp"
 	"aacpanel/internal/plan"
 )
 
@@ -39,13 +41,13 @@ func fakeClaude(t *testing.T, proc, config string, pid int, start, id string) {
 	}
 }
 
-// talk runs the plan mode for one claude over the lines given and returns
+// talk runs the MCP server for one claude over the lines given and returns
 // its replies.
 func talk(t *testing.T, parent int, lines ...string) []map[string]any {
 	t.Helper()
 	var out strings.Builder
-	if code := runPlan(strings.NewReader(strings.Join(lines, "\n")+"\n"), &out, parent); code != 0 {
-		t.Fatalf("the plan mode ended with %d", code)
+	if code := runMCP(strings.NewReader(strings.Join(lines, "\n")+"\n"), &out, parent); code != 0 {
+		t.Fatalf("the MCP server ended with %d", code)
 	}
 	var replies []map[string]any
 	scan := bufio.NewScanner(strings.NewReader(out.String()))
@@ -61,13 +63,38 @@ func talk(t *testing.T, parent int, lines ...string) []map[string]any {
 
 const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"2.1.283"}}}`
 
-// The plan mode as a session runs it: claude starts the executor with -plan,
-// shakes hands and calls the tool, and the plan lands under the place of the
-// claude that is the server's parent — the config directory it keeps the
-// file of itself in and the directory that file names. A session started
-// again in the place, another process in another conversation, is told of
-// the plan at its handshake.
-func TestThePlanModeKeepsThePlanOfItsParentsPlace(t *testing.T) {
+// noPlan is the server's word to a session in a place with no plan, to the
+// byte: it stands in the system prompt of every session the panel starts.
+const noPlan = "The panel shows the person this session's plan on their phone and desk. " +
+	"When the work has several steps, keep it with the plan tool: the whole list every time, " +
+	"updated when a step starts or ends and when the plan changes. A short task needs no plan."
+
+// Both flags start the one server: the launcher writes -mcp into the MCP
+// configuration of a session, and a live session whose configuration names
+// -plan starts the same server when it reconnects to it.
+func TestThePlanAndMCPFlagsStartOneServer(t *testing.T) {
+	if mcp.Flag != "-mcp" {
+		t.Errorf("the launcher writes %s", mcp.Flag)
+	}
+	for _, args := range [][]string{{"-mcp"}, {"-plan"}, {"-plan", "-mcp"}, {}} {
+		set := flag.NewFlagSet("aacpanel-exec", flag.ContinueOnError)
+		on := mcpFlags(set)
+		if err := set.Parse(args); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if *on != (len(args) > 0) {
+			t.Errorf("%v start the server: %v", args, *on)
+		}
+	}
+}
+
+// The server as a session runs it: claude starts the executor with the flag
+// of its configuration, shakes hands and calls the plan tool, and the plan
+// lands under the place of the claude that is the server's parent — the
+// config directory it keeps the file of itself in and the directory that file
+// names. A session started again in the place, another process in another
+// conversation, is told of the plan at its handshake.
+func TestTheServerKeepsThePlanOfItsParentsPlace(t *testing.T) {
 	const (
 		first     = "9e3f0a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b"
 		restarted = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
@@ -86,14 +113,14 @@ func TestThePlanModeKeepsThePlanOfItsParentsPlace(t *testing.T) {
 	if len(replies) != 2 {
 		t.Fatalf("meant two replies, one to the handshake and one to the call: %v", replies)
 	}
-	if res, _ := replies[0]["result"].(map[string]any); res == nil || res["instructions"] != plan.Instructions {
-		t.Errorf("a place with no plan was told of one: %v", replies[0])
+	if res, _ := replies[0]["result"].(map[string]any); res == nil || res["instructions"] != noPlan {
+		t.Errorf("a place with no plan was told otherwise: %v", replies[0])
 	}
 	if res, _ := replies[1]["result"].(map[string]any); res == nil || res["isError"] != nil {
 		t.Fatalf("the call answered %v", replies[1])
 	}
 
-	lab := plan.Place{ConfigDir: config, Dir: "/srv/proj/lab"}
+	lab := mcp.Place{ConfigDir: config, Dir: "/srv/proj/lab"}
 	got := plan.Read(filepath.Join(state, "aacpanel", "plans"), lab)
 	if got == nil || got.PID != 4242 || got.SessionID != first || len(got.Items) != 2 || got.Items[1].Status != plan.Active {
 		t.Fatalf("the plan on disk is %+v", got)
@@ -103,7 +130,8 @@ func TestThePlanModeKeepsThePlanOfItsParentsPlace(t *testing.T) {
 	replies = talk(t, 5151, handshake)
 	res, _ := replies[0]["result"].(map[string]any)
 	said, _ := res["instructions"].(string)
-	if !strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
+	if !strings.HasPrefix(said, noPlan+" This place already has a plan") ||
+		!strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
 		t.Errorf("the session started again was not told of the plan of its place: %q", said)
 	}
 }

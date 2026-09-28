@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"aacpanel/internal/mcp"
 )
 
 // The statuses of a step. A dropped step stays in the list: the person reads
@@ -56,45 +58,18 @@ type Item struct {
 	Since string `json:"since,omitempty"`
 }
 
-// Place is where a session works: the config directory of its account and
-// the directory claude runs in. A plan belongs to the place rather than to a
-// conversation: a restart starts another conversation in the same place, or
-// goes on with the old one, and not always under the old id.
-type Place struct {
-	ConfigDir string
-	Dir       string
-}
-
-// clean puts a place in the one form every reader of a plan names its file
-// by: both paths absolute and cleaned, or no place at all.
-func (p Place) clean() (Place, bool) {
-	if !filepath.IsAbs(p.ConfigDir) || !filepath.IsAbs(p.Dir) {
-		return Place{}, false
-	}
-	return Place{ConfigDir: filepath.Clean(p.ConfigDir), Dir: filepath.Clean(p.Dir)}, true
-}
-
 // Name is the file of the plan of a place, or empty for a place that is not
 // one. A path does not make a file name, so the name is a hash of the two
 // paths — the collector and the reminder hook compute the same; the file
 // holds the paths themselves, and a reader takes it only for the place it
 // names.
-func Name(p Place) string {
-	where, ok := p.clean()
+func Name(p mcp.Place) string {
+	where, ok := p.Clean()
 	if !ok {
 		return ""
 	}
 	sum := sha256.Sum256([]byte(where.ConfigDir + "\x00" + where.Dir))
 	return hex.EncodeToString(sum[:16]) + ".json"
-}
-
-// Binding is what the server learns of the claude it serves: where it
-// works, the conversation it is in — empty while claude has not written the
-// file of itself yet — and its process.
-type Binding struct {
-	Place     Place
-	SessionID string
-	PID       int
 }
 
 // Plan is what lies on disk for one place.
@@ -175,8 +150,8 @@ func oneLine(s string) string {
 // rename, so the collector reads the old plan or the new one, never half of
 // each. A step that keeps its text and its status keeps the time it took
 // it, across a restart of the session as well.
-func Keep(dir string, b Binding, items []Item, note string, now time.Time) (*Plan, error) {
-	where, ok := b.Place.clean()
+func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (*Plan, error) {
+	where, ok := b.Place.Clean()
 	if !ok {
 		return nil, fmt.Errorf("the place of the session is not known: %q under the account %q", b.Place.Dir, b.Place.ConfigDir)
 	}
@@ -255,8 +230,8 @@ func write(dir, path string, p *Plan) error {
 }
 
 // Read returns the plan of a place, or nil when there is none.
-func Read(dir string, place Place) *Plan {
-	where, ok := place.clean()
+func Read(dir string, place mcp.Place) *Plan {
+	where, ok := place.Clean()
 	if !ok {
 		return nil
 	}
@@ -279,8 +254,8 @@ func Read(dir string, place Place) *Plan {
 // newest of them becomes the plan of the place, and the files taken over go.
 // A place that already has a plan takes over nothing, and a file no place
 // took over goes with the sweep.
-func Adopt(dir string, place Place) *Plan {
-	where, ok := place.clean()
+func Adopt(dir string, place mcp.Place) *Plan {
+	where, ok := place.Clean()
 	if !ok {
 		return nil
 	}

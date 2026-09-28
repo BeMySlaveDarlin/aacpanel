@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"aacpanel/internal/plan"
+	"aacpanel/internal/mcp"
 )
 
 func claudePIDs() []int {
@@ -104,7 +104,7 @@ func sessionOf(path string, pid int) (sessionFile, bool) {
 // A process with no file of itself yet — a server asked as the session
 // starts — is placed by its environment and its working directory, where
 // claude starts and which it writes into the file, and has no conversation.
-func Where(pid int) (plan.Binding, error) {
+func Where(pid int) (mcp.Binding, error) {
 	var dirs []string
 	add := func(dir string) {
 		if dir != "" && !slices.Contains(dirs, dir) {
@@ -121,13 +121,13 @@ func Where(pid int) (plan.Binding, error) {
 	for _, dir := range dirs {
 		file, ok := sessionOf(filepath.Join(dir, "sessions", strconv.Itoa(pid)+".json"), pid)
 		if ok && file.SessionID != "" && file.Cwd != "" {
-			return plan.Binding{Place: plan.Place{ConfigDir: dir, Dir: file.Cwd}, SessionID: file.SessionID, PID: pid}, nil
+			return mcp.Binding{Place: mcp.Place{ConfigDir: dir, Dir: file.Cwd}, SessionID: file.SessionID, PID: pid}, nil
 		}
 	}
 
 	cwd, err := os.Readlink(filepath.Join(procRoot(), strconv.Itoa(pid), "cwd"))
 	if err != nil {
-		return plan.Binding{}, fmt.Errorf("where claude process %d works is not known: there is no live file "+
+		return mcp.Binding{}, fmt.Errorf("where claude process %d works is not known: there is no live file "+
 			"of its session in %s, and its working directory is not to be read", pid, strings.Join(dirs, ", "))
 	}
 	config := own
@@ -141,7 +141,7 @@ func Where(pid int) (plan.Binding, error) {
 		}
 		config = filepath.Join(home, ".claude")
 	}
-	return plan.Binding{Place: plan.Place{ConfigDir: config, Dir: cwd}, PID: pid}, nil
+	return mcp.Binding{Place: mcp.Place{ConfigDir: config, Dir: cwd}, PID: pid}, nil
 }
 
 func envValue(environ []string, name string) string {

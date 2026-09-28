@@ -780,13 +780,24 @@ session answers to is refused: two sessions would answer to one name. The
 open conversation follows the session by its conversation to the new name. A
 terminal is renamed on its own screen, `/rename` with keys.
 
+**A session gets the panel's tools from one MCP server.** Every session the
+launcher starts, in a console or on the stream, gets the executor as the MCP
+server `aacpanel` (`aacpanel-exec -mcp`), and the tools the server marks
+allowed are allowed by name, so a call of one never waits on a person; the
+`panelTools` launch parameter turns them off for a contour or a project, and a
+session started by hand does not have them. The list of tools lives in one
+place, `internal/toolset`: the executor serves it and the launcher takes the
+allowed names from it, so a session is never allowed a tool the server does not
+have. The server's word to a session — in its system prompt — is a lead and a
+line from every tool, since a tool of a server is often deferred and its
+description unread. `-plan` starts the same server: a live session keeps the
+MCP configuration it was started with, and reconnecting to the server runs the
+binary on disk with the flag written there.
+
 **The plan of a session is the model's own, kept by a tool of the panel.**
-Every session the launcher starts, in a console or on the stream, gets the
-executor in its plan mode (`aacpanel-exec -plan`) as an MCP server with one
-tool, `plan`, and the tool allowed, so an update never waits on a person; the
-`planTool` launch parameter turns it off for a contour or a project, and a
-session started by hand does not have it. The model decides whether to keep a
-plan and what a step is, and sends the whole list each time. The plan belongs
+The tool is `plan` on the panel's server, allowed, so an update never waits on
+a person. The model decides whether to keep a plan and what a step is, and
+sends the whole list each time. The plan belongs
 to the place a session works in, not to its conversation: the config directory
 of the account and the directory claude runs in. A session started again there
 — afresh, or going on with its conversation under an id old or new — finds the

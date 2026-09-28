@@ -7,8 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"aacpanel/internal/plan"
+	"aacpanel/internal/mcp"
 	"aacpanel/internal/schema"
+	"aacpanel/internal/toolset"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 	keyArgs           = "args"
 	keyIntent         = "intent"
 	keyTransport      = "transport"
-	keyPlanTool       = "planTool"
+	keyPanelTools     = "panelTools"
 )
 
 // How a session is kept. A terminal in tmux is the default; the stream is
@@ -41,13 +42,14 @@ type Params struct {
 	Args           []string
 	Intent         string
 	Transport      string
-	// PlanTool is off only where the map says so: the panel's default is on.
-	PlanTool *bool
+	// PanelTools is off only where the map says so: the panel's default is on.
+	PanelTools *bool
 
-	// plan is the MCP configuration that hands the session the plan tool. The
-	// launch sets it, not the map: it names the executor's own path on the
-	// host, which a preview drawn in the panel's container does not know.
-	plan string
+	// tools is the MCP configuration that hands the session the panel's
+	// tools. The launch sets it, not the map: it names the executor's own
+	// path on the host, which a preview drawn in the panel's container does
+	// not know.
+	tools string
 }
 
 func parseParams(raw json.RawMessage) (Params, []string) {
@@ -110,14 +112,14 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 					p.Transport, TransportTmux, TransportStream))
 				p.Transport = ""
 			}
-		case keyRemoteControl, keyPlanTool:
+		case keyRemoteControl, keyPanelTools:
 			var on bool
 			if err := json.Unmarshal(obj[key], &on); err != nil {
 				warns = append(warns, fmt.Sprintf("parameter %s is not true/false — skipped", key))
 				break
 			}
-			if key == keyPlanTool {
-				p.PlanTool = &on
+			if key == keyPanelTools {
+				p.PanelTools = &on
 			} else {
 				p.RemoteControl = &on
 			}
@@ -155,7 +157,7 @@ func streamWords(name, sessionID, resume string, p Params) []schema.Word {
 		"--replay-user-messages", "--permission-prompt-tool", "stdio"} {
 		out = append(out, schema.Word{Text: w, Key: keyTransport})
 	}
-	out = append(out, planWords(p)...)
+	out = append(out, toolWords(p)...)
 	out = append(out, schema.Word{Text: "-n"}, schema.Word{Text: name})
 	out = append(out, flagWords(p)...)
 	if resume != "" {
@@ -171,7 +173,7 @@ func streamArgs(name, sessionID, resume string, p Params) []string {
 }
 
 func claudeWords(name, resume string, p Params) []schema.Word {
-	out := planWords(p)
+	out := toolWords(p)
 	out = append(out, schema.Word{Text: "-n"}, schema.Word{Text: name})
 	// Remote control is on only when the map says so: the screen shows an
 	// unset switch as off, and a launch that quietly turned it on would
@@ -208,48 +210,54 @@ func flagWords(p Params) []schema.Word {
 	return out
 }
 
-// planWords hand a session the panel's plan tool: the executor in its plan
-// mode as an MCP server, and the tool allowed — a list of steps that asked a
-// person before every update would not be kept. Both flags take a list of
-// values, so the words go before the session's name: the name is a flag and
-// ends the list, where a prompt after them would be read as one more server.
-func planWords(p Params) []schema.Word {
-	if p.plan == "" {
+// toolWords hand a session the panel's tools: the executor as the panel's MCP
+// server, and the tools the list marks allowed named to claude as allowed, so
+// a call of one never waits on a person. Both flags take a list of values, so
+// the words go before the session's name: the name is a flag and ends the
+// list, where a prompt after them would be read as one more server.
+func toolWords(p Params) []schema.Word {
+	if p.tools == "" {
 		return nil
 	}
-	return []schema.Word{
-		{Text: "--mcp-config", Key: keyPlanTool}, {Text: p.plan, Key: keyPlanTool},
-		{Text: "--allowedTools", Key: keyPlanTool}, {Text: plan.Qualified, Key: keyPlanTool},
+	out := []schema.Word{{Text: "--mcp-config", Key: keyPanelTools}, {Text: p.tools, Key: keyPanelTools}}
+	allowed := toolset.Allowed()
+	if len(allowed) == 0 {
+		return out
 	}
+	out = append(out, schema.Word{Text: "--allowedTools", Key: keyPanelTools})
+	for _, name := range allowed {
+		out = append(out, schema.Word{Text: name, Key: keyPanelTools})
+	}
+	return out
 }
 
-// planOn says whether the launch hands the session the plan tool.
-func planOn(p Params) bool { return p.PlanTool == nil || *p.PlanTool }
+// toolsOn says whether the launch hands the session the panel's tools.
+func toolsOn(p Params) bool { return p.PanelTools == nil || *p.PanelTools }
 
-// planServer is how a session reaches the plan tool: this very binary in its
-// plan mode. A test puts a path of its own here.
-var planServer = os.Executable
+// toolServer is how a session reaches the panel's tools: this very binary as
+// the panel's MCP server. A test puts a path of its own here.
+var toolServer = os.Executable
 
-// planPreview stands in a preview for the configuration a launch writes.
-const planPreview = "<the plan tool of the panel>"
+// toolsPreview stands in a preview for the configuration a launch writes.
+const toolsPreview = "<the panel's tools>"
 
-// withPlan puts the plan tool's configuration into the parameters of a
-// launch, or says why the session starts without it.
-func withPlan(p Params) (Params, string) {
-	if !planOn(p) {
+// withTools puts the configuration of the panel's tools into the parameters
+// of a launch, or says why the session starts without them.
+func withTools(p Params) (Params, string) {
+	if !toolsOn(p) {
 		return p, ""
 	}
-	path, err := planServer()
+	path, err := toolServer()
 	if err != nil {
-		return p, "the session starts without the plan tool: the executor does not know its own path: " + err.Error()
+		return p, "the session starts without the panel's tools: the executor does not know its own path: " + err.Error()
 	}
 	config, err := json.Marshal(map[string]any{"mcpServers": map[string]any{
-		plan.ServerName: map[string]any{"type": "stdio", "command": path, "args": []string{plan.Flag}},
+		mcp.ServerName: map[string]any{"type": "stdio", "command": path, "args": []string{mcp.Flag}},
 	}})
 	if err != nil {
-		return p, "the session starts without the plan tool: " + err.Error()
+		return p, "the session starts without the panel's tools: " + err.Error()
 	}
-	p.plan = string(config)
+	p.tools = string(config)
 	return p, ""
 }
 
@@ -275,8 +283,8 @@ func texts(words []schema.Word) []string {
 // says what its holder does past the handshake.
 func Preview(name string, launch json.RawMessage) schema.Line {
 	p, warns := parseParams(launch)
-	if planOn(p) {
-		p.plan = planPreview
+	if toolsOn(p) {
+		p.tools = toolsPreview
 	}
 	line := schema.Line{Warnings: warns}
 	if p.Transport == TransportStream {
