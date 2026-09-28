@@ -244,9 +244,6 @@ def sessions():
                 s["profile"], config_dir = found
                 if config_dir:
                     s["configDir"] = config_dir
-        note = notes.BOARD.of(sid) if sid else None
-        if note:
-            s["note"] = {"text": note.get("text") or "", "at": note.get("at") or ""}
         # The checklist is the place's: a session started again where another
         # left one shows it at once, under a conversation of its own.
         place = places.get(sid) if sid else None

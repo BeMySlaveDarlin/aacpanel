@@ -279,6 +279,15 @@ collector, which takes one call a minute from a session and cuts the line to a
 length a phone shows; a call the panel has not carried away within a few minutes
 goes stale, because a call is for now and a log of them is not worth keeping.
 
+A call does not travel in the snapshot. The panel keeps a request for the calls
+waiting on the chat socket, and the collector answers it the moment it takes
+one, so the push is in the queue within a second of the tool saying the person
+was called; the snapshot is written on a tick and read on a slower one, and a
+call standing in it would reach the phone up to a minute late. The price is a
+thread of the collector held by the waiting request and a fresh request every
+few seconds while nobody calls. Whether the phone is looking at that session is
+still asked when the push is sent.
+
 ---
 
 ## Sessions on the stream

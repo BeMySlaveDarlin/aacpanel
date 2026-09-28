@@ -114,8 +114,8 @@ class Sweep(unittest.TestCase):
 
     def test_a_call_stays_long_enough_for_the_panel_to_look(self):
         self.assertGreater(notes.MAX_AGE, 60,
-                           "the panel reads the snapshot every twenty seconds; a window this "
-                           "narrow drops calls it never had a chance to carry")
+                           "a panel that is restarting takes the standing calls when it is back; "
+                           "a window this narrow drops calls it never had a chance to carry")
 
 
 class Socket(unittest.TestCase):
@@ -156,6 +156,100 @@ class Socket(unittest.TestCase):
         reply = self.serve(json.dumps({"sessionId": SESSION, "text": ""}).encode())
         self.assertFalse(reply.get("ok"))
         self.assertIn("word", reply.get("error", ""))
+
+
+class Wake(unittest.TestCase):
+    """The panel waits on the chat socket for the next call, and a call answers it."""
+
+    # As long as the panel waits for a call before it asks again.
+    PANEL_WAIT = 8
+
+    def setUp(self):
+        from chat import server
+        self.server = server
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+        self.board = notes.Board(os.path.join(self.dir.name, "notes.json"))
+        self.addCleanup(setattr, notes, "BOARD", notes.BOARD)
+        notes.BOARD = self.board
+
+    def call(self, session, text):
+        here, there = socket.socketpair()
+        with here:
+            here.sendall(json.dumps({"sessionId": session, "text": text}).encode())
+            here.shutdown(socket.SHUT_WR)
+            with muted():
+                notes.handle(there, self.board)
+            return json.loads(here.recv(4096).decode("utf-8"))
+
+    def wait_in_thread(self, after):
+        got = {}
+
+        def run():
+            got["reply"] = self.server.answer({"notes": {"after": after, "wait": self.PANEL_WAIT}})
+            got["at"] = time.monotonic()
+
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        return thread, got
+
+    def test_a_call_answers_the_waiting_panel_at_once(self):
+        seq = self.server.answer({"notes": {"wait": 0}})["seq"]
+        thread, got = self.wait_in_thread(seq)
+        time.sleep(0.3)
+        self.assertNotIn("reply", got, "the collector answered with no call made: the panel would ask in a loop")
+
+        made = time.monotonic()
+        self.assertTrue(self.call(SESSION, "stuck on the migration").get("ok"))
+        thread.join(self.PANEL_WAIT + 2)
+
+        self.assertIn("reply", got, "the waiting request never came back")
+        took = got["at"] - made
+        self.assertLess(took, 1.0,
+                        f"the call reached the panel {took:.1f} s after the collector took it: "
+                        "the request waited out its time instead of being answered by the call")
+        self.assertTrue(got["reply"]["ok"], got["reply"])
+        self.assertEqual([(n["sessionId"], n["text"]) for n in got["reply"]["notes"]],
+                         [(SESSION, "stuck on the migration")])
+        self.assertGreater(got["reply"]["seq"], seq, "the count did not move, and the next wait would not wait")
+
+    def test_a_panel_behind_the_count_is_answered_at_once(self):
+        self.assertTrue(self.call(SESSION, "come here").get("ok"))
+        started = time.monotonic()
+        reply = self.server.answer({"notes": {"wait": self.PANEL_WAIT}})
+        self.assertLess(time.monotonic() - started, 1.0,
+                        "a panel that has just started waited for a call that is already standing")
+        self.assertEqual([n["text"] for n in reply["notes"]], ["come here"])
+
+    def test_an_idle_board_answers_when_the_wait_is_out(self):
+        seq, _ = self.board.wait(None, 0)
+        started = time.monotonic()
+        again, standing = self.board.wait(seq, 0.2)
+        self.assertGreaterEqual(time.monotonic() - started, 0.2)
+        self.assertEqual((again, standing), (seq, []))
+
+    def test_a_refused_call_wakes_nobody(self):
+        self.assertTrue(self.call(SESSION, "come here").get("ok"))
+        seq, _ = self.board.wait(None, 0)
+        self.assertFalse(self.call(SESSION, "come here again").get("ok"))
+        again, standing = self.board.wait(seq, 0.2)
+        self.assertEqual(again, seq, "a call the collector refused counts as taken")
+        self.assertEqual([n["text"] for n in standing], ["come here"])
+
+    def test_the_wait_is_capped(self):
+        self.addCleanup(setattr, notes, "MAX_WAIT", notes.MAX_WAIT)
+        notes.MAX_WAIT = 0.2
+        seq, _ = self.board.wait(None, 0)
+        started = time.monotonic()
+        self.board.wait(seq, 3600)
+        self.assertLess(time.monotonic() - started, 2, "a request asking for an hour holds a thread for an hour")
+
+    def test_a_request_that_is_not_a_number_is_answered_at_once(self):
+        started = time.monotonic()
+        reply = self.server.answer({"notes": {"after": True, "wait": "forever"}})
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertTrue(reply["ok"], reply)
+        self.assertEqual(reply["notes"], [])
 
 
 if __name__ == "__main__":

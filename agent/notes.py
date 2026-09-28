@@ -22,9 +22,15 @@ MAX_REQUEST = 8 * 1024
 # called faster than that; a session that has more to say says it in the next one.
 MIN_GAP = 60
 
-# A call nobody carried away in this long is not news any more. The panel looks
-# at the snapshot every twenty seconds, so the window is wide with room to spare.
+# A call nobody carried away in this long is not news any more. The panel takes
+# a call the moment it is made; the window is for a panel that is restarting and
+# for a session the snapshot does not show yet.
 MAX_AGE = 5 * 60
+
+# The longest the panel's request for the calls waits here for a new one. Each
+# waiting request holds a thread of the chat socket, so a client asking for an
+# hour does not get one.
+MAX_WAIT = 30
 
 STAMP = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -60,6 +66,10 @@ class Board:
         self.path = path
         self._notes = {}
         self._lock = threading.Lock()
+        # The count of calls taken, which the panel waits on: a call wakes it
+        # at once, instead of standing until the next snapshot is read.
+        self._seq = 0
+        self._taken = threading.Condition(self._lock)
         self.load()
 
     def load(self):
@@ -105,7 +115,22 @@ class Board:
             self._notes[note["sessionId"]] = note
             if not self._commit(before):
                 return False, "the call was not saved: the store is unavailable"
+            self._seq += 1
+            self._taken.notify_all()
         return True, ""
+
+    def wait(self, after, timeout):
+        """Returns the count of calls taken and the standing calls.
+
+        Returns at once when the count is not after, and otherwise as soon as a
+        call is taken or the timeout is out. The list is whole every time: the
+        panel tells a new call from one it carried by its session and stamp,
+        so a wake it missed costs one timeout and never a call.
+        """
+        timeout = min(max(timeout, 0), MAX_WAIT)
+        with self._taken:
+            self._taken.wait_for(lambda: self._seq != after, timeout)
+            return self._seq, [dict(n) for n in self._notes.values()]
 
     def of(self, session):
         """Returns the call of this conversation, or None."""

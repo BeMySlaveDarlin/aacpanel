@@ -382,6 +382,11 @@ type Reply struct {
 	Next    int64        `json:"next,omitempty"`
 	TooBig  bool         `json:"tooBig,omitempty"`
 	Mtime   string       `json:"mtime,omitempty"`
+
+	// Notes are the calls standing on the collector, and Seq the count of
+	// calls it has taken.
+	Notes []SessionNote `json:"notes,omitempty"`
+	Seq   *int64        `json:"seq,omitempty"`
 }
 
 // Letter is one message from a subagent.
@@ -417,6 +422,7 @@ type Req struct {
 	Pages     *PagesReq   `json:"pages,omitempty"`
 	Page      string      `json:"page,omitempty"`
 	DropBrief *DropBrief  `json:"dropBrief,omitempty"`
+	Notes     *NotesReq   `json:"notes,omitempty"`
 	Task      *TaskRef    `json:"task,omitempty"`
 	File      string      `json:"file,omitempty"`
 	Raw       string      `json:"raw,omitempty"`
