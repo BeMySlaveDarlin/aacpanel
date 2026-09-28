@@ -66,6 +66,14 @@ class Parse(unittest.TestCase):
         got = self.items(user("[Request interrupted by user]"))
         self.assertEqual([(i["role"], i["text"]) for i in got], [("note", "the human interrupted the answer")])
 
+    def test_in_the_feed_of_an_agent_the_interruption_is_its_stop(self):
+        for mark in ("[Request interrupted by user]", "[Request interrupted by user for tool use]"):
+            raw = line({"type": "user", "isSidechain": True, "timestamp": "2026-08-23T10:00:00Z",
+                        "message": {"content": [text_block(mark)]}})
+            got = chat.parse(json.loads(raw), 0, sidechain=True)
+            self.assertEqual([(i["role"], i["text"]) for i in got], [("note", "the agent was stopped")],
+                             f"nobody types into an agent: {mark} there is its stop, not a person cutting an answer")
+
     def test_harness_mechanics_stay_out_of_the_feed(self):
         for text in (
             "Base directory for this skill: /home/u/.claude/plugins/x",

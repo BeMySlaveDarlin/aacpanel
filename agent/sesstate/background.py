@@ -67,13 +67,23 @@ def older_than(state, born):
 
 
 def fill(state, metas):
-    """Fills the agents with what their files say: the model, the context, the last word."""
+    """Fills the agents with what their files say: the model, the context, the last word.
+
+    An agent at work that its files say was stopped is over, stopped when its
+    conversation last moved: claude tells the session nothing of such a stop,
+    and no notification of the task follows it.
+    """
+    stopped = []
     for agent_id, agent in state.bg.items():
         known = metas.get(agent_id)
         if not known:
             continue
         for key in ("model", "last", "tokens", "limit", "limitKnown"):
             agent[key] = known[key]
+        if known.get("stopped") and agent["status"] == ACTIVE:
+            stopped.append((agent_id, known["last"]))
+    for agent_id, at in stopped:
+        ended(state, agent_id, STOPPED, at)
 
 
 def _prune(state):

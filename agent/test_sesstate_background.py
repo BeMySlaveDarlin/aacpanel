@@ -16,6 +16,11 @@ from test_sesstate_tasks import agent_notification, async_agent  # noqa: E402
 AGENT = "a3333333333333333"
 
 
+def stopped_by(mark, at="2026-08-25T10:05:30Z"):
+    return line({"type": "user", "timestamp": at, "isSidechain": True,
+                 "message": {"role": "user", "content": [{"type": "text", "text": mark}]}})
+
+
 def request(tokens, model="claude-sonnet-5", at="2026-08-25T10:05:00Z"):
     return line({"type": "assistant", "timestamp": at,
                  "message": {"model": model, "content": [{"type": "text", "text": "ok"}],
@@ -159,6 +164,50 @@ class Files(Transcript):
         self.assertEqual([(t["id"], t["agent"]) for t in got["tasks"]],
                          [("b00000009", "Scouting the restore")],
                          "five agents of one type would name their shells alike")
+
+    def talk_at(self, agent_id, when):
+        path = os.path.join(self.folder, f"agent-{agent_id}.jsonl")
+        os.utime(path, (when, when))
+
+    def test_one_its_file_says_was_stopped_is_stopped_when_it_last_moved(self):
+        self.files(AGENT, request(35600), stoppedByUser=True)
+        self.talk_at(AGENT, calendar.timegm((2026, 8, 25, 10, 20, 0)))
+        got = self.state(async_agent("toolu_1", AGENT))
+        self.assertEqual([(a["status"], a["doneAt"]) for a in got["agents"]],
+                         [("stopped", "2026-08-25T10:20:00Z")],
+                         "claude stopped the agent with the turn and said nothing to the session: "
+                         "it still counts as working")
+        self.assertEqual(work_of(got)["agents"], 0, "the card of the session counts a stopped agent at work")
+
+    def test_one_whose_conversation_ends_in_a_stop_is_stopped(self):
+        for mark in ("[Request interrupted by user]", "[Request interrupted by user for tool use]"):
+            self.files(AGENT, request(35600), stopped_by(mark),
+                       line({"type": "attachment", "timestamp": "2026-08-25T10:06:00Z"}))
+            got = self.state(async_agent("toolu_1", AGENT))
+            self.assertEqual(got["agents"][0]["status"], "stopped",
+                             f"an agent whose last word is {mark} is taken as working")
+
+    def test_one_given_work_past_the_mark_is_at_work(self):
+        self.files(AGENT, request(35600), stopped_by("[Request interrupted by user]"),
+                   line({"type": "user", "timestamp": "2026-08-25T10:07:00Z",
+                         "message": {"content": "go on"}}),
+                   request(36000, at="2026-08-25T10:07:30Z"))
+        got = self.state(async_agent("toolu_1", AGENT))
+        self.assertEqual(got["agents"][0]["status"], "active",
+                         "a stop the agent has written past is taken for its end")
+
+    def test_a_letter_does_not_bring_a_stopped_one_back(self):
+        self.files(AGENT, request(35600), stoppedByUser=True)
+        got = self.state(async_agent("toolu_1", AGENT),
+                         call("SendMessage", "toolu_2", at="2026-08-25T10:50:00Z",
+                              to=AGENT, message="carry on"))
+        self.assertEqual(got["agents"][0]["status"], "stopped",
+                         "claude refuses a letter to an agent it stopped, and the panel put it back to work")
+
+    def test_one_that_finished_keeps_its_end_whatever_its_file_says(self):
+        self.files(AGENT, request(35600), stoppedByUser=True)
+        got = self.state(async_agent("toolu_1", AGENT), agent_notification(AGENT))
+        self.assertEqual(got["agents"][0]["status"], "completed")
 
     def test_its_file_does_not_stand_in_for_a_teammate_of_the_same_name(self):
         self.files(AGENT, request(35600), agentType="alpha")

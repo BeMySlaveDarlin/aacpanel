@@ -164,6 +164,12 @@ def interrupted(text):
     return INTERRUPTED in text[:200]
 
 
+# The same mark in the conversation of an agent: nobody types into it, so the
+# mark says the agent was stopped — with the turn that ran it, by a stop of its
+# task, or at a call a person refused — and it does no more.
+AGENT_STOPPED = "the agent was stopped"
+
+
 # A nudge claude gives the model on its own — hand the report back, answer in
 # the shape asked for — begins with a key of the harness in brackets. The words
 # after the key change from version to version; the shape of the key does not,

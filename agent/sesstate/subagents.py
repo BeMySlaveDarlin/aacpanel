@@ -101,14 +101,37 @@ def _stamp(mtime):
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(mtime))
 
 
-def _request_of(line):
-    """Returns (tokens, model) of a record that holds a request, else None."""
+def _record_of(line):
+    """Returns the record a line of a transcript holds, or None."""
     try:
         record = json.loads(line)
     except ValueError:
         return None
-    if not isinstance(record, dict):
-        return None
+    return record if isinstance(record, dict) else None
+
+
+# The prompt claude writes into the conversation of an agent it stopped: the
+# agent was cut off with the turn that ran it, by a stop of its task, or by a
+# call a person refused, and nothing it would still do is written after it.
+STOP_MARK = "[Request interrupted by user"
+
+
+def _stop_mark(record):
+    """Says whether a word of a conversation is claude's mark of a stop."""
+    if record.get("type") != "user":
+        return False
+    content = (record.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return content.lstrip().startswith(STOP_MARK)
+    if not isinstance(content, list):
+        return False
+    return any(isinstance(b, dict) and b.get("type") == "text"
+               and str(b.get("text") or "").lstrip().startswith(STOP_MARK)
+               for b in content)
+
+
+def _request_of(record):
+    """Returns (tokens, model) of a record that holds a request, else None."""
     message = record.get("message")
     if not isinstance(message, dict):
         return None
@@ -124,8 +147,14 @@ def _request_of(line):
 
 
 def last_request(path, size):
-    """Returns (tokens, model) of the last request in a transcript, read from its end."""
+    """Returns (tokens, model) of the last request in a transcript and whether it ends stopped.
+
+    Both are read from the end. The last word decides the stop — a prompt or
+    an answer, not the attachments claude adds around them: a stopped agent
+    that was given work again has written past the mark.
+    """
     span = CONTEXT_TAIL
+    stopped = None
     while True:
         start = max(0, size - span)
         try:
@@ -133,36 +162,42 @@ def last_request(path, size):
                 f.seek(start)
                 data = f.read(size - start)
         except OSError:
-            return 0, ""
+            return 0, "", False
         lines = data.split(b"\n")
         if start > 0:
             # The first piece is the end of a line cut at the seek: a wider
             # read brings it whole.
             lines = lines[1:]
         for line in reversed(lines):
-            found = _request_of(line.decode("utf-8", "replace"))
+            record = _record_of(line.decode("utf-8", "replace"))
+            if record is None:
+                continue
+            if stopped is None and record.get("type") in ("user", "assistant"):
+                stopped = _stop_mark(record)
+            found = _request_of(record)
             if found is not None:
-                return found
+                return (*found, bool(stopped))
         if start == 0:
-            return 0, ""
+            return 0, "", bool(stopped)
         span *= 4
 
 
 def _context(talk, stat, fallback_model):
-    """Returns the context fields of an agent: tokens, limit, limitKnown, and the model it runs on."""
+    """Returns the context fields of an agent: tokens, limit, limitKnown, the model it runs on
+    and whether its conversation ends in a stop."""
     key = (stat.st_mtime_ns, stat.st_size)
     with _context_lock:
         hit = _context_cache.get(talk)
     if hit and hit[0] == key:
-        tokens, model = hit[1]
+        tokens, model, cut = hit[1]
     else:
-        tokens, model = last_request(talk, stat.st_size)
+        tokens, model, cut = last_request(talk, stat.st_size)
         with _context_lock:
-            _context_cache[talk] = (key, (tokens, model))
+            _context_cache[talk] = (key, (tokens, model, cut))
     limit, known = models.limit_for(model or fallback_model)
     if tokens > limit:
         limit, known = models.DEFAULT_LIMIT_TOKENS, False
-    return {"tokens": tokens, "limit": limit, "limitKnown": known, "ran": model}
+    return {"tokens": tokens, "limit": limit, "limitKnown": known, "ran": model, "cut": cut}
 
 
 def _meta_files(path):
@@ -214,6 +249,9 @@ def _meta_of(agent_id, meta_path):
         "color": str(data.get("color") or ""),
         "id": agent_id,
         "kind": kind,
+        # claude marks an agent it stopped, with the turn that ran it or by a
+        # stop of its task, and resumes it no more: a letter to it is refused.
+        "stopped": data.get("stoppedByUser") is True,
     }
     with _meta_lock:
         _meta_cache[meta_path] = (key, meta)
@@ -243,7 +281,11 @@ def _talk_of(meta_path):
 
 
 def _metas(path):
-    """Yields what the files of every subagent say, with its last activity and context."""
+    """Yields what the files of every subagent say, with its last activity and context.
+
+    An agent is stopped when its file says so or its conversation ends in the
+    mark of a stop: claude writes the news of neither to the session.
+    """
     for agent_id, meta_path in _meta_files(path):
         meta = _meta_of(agent_id, meta_path)
         if meta is None:
@@ -254,8 +296,10 @@ def _metas(path):
         except OSError:
             yield dict(meta, last="", tokens=0, limit=0, limitKnown=False, ran="")
             continue
-        yield dict(meta, last=_stamp(talk_stat.st_mtime),
-                   **_context(talk, talk_stat, meta["model"]))
+        context = _context(talk, talk_stat, meta["model"])
+        cut = context.pop("cut")
+        yield dict(meta, last=_stamp(talk_stat.st_mtime), **context,
+                   stopped=meta["stopped"] or cut)
 
 
 def agent_meta(path):

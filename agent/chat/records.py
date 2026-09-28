@@ -7,8 +7,8 @@ from sesstate.feed import TURN_ENDS
 
 from . import commands
 from .cards import artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card, wake_item
-from .harness import (classify, coordinator_letter, interrupted, nudge, service,
-                      strip_panel_note, unwrap_pasted)
+from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted, nudge,
+                      service, strip_panel_note, unwrap_pasted)
 from .mail import peer_name, peer_pid, undelivered
 from .notices import hook_call, system_notice
 from .limits import MAX_TEXT, cut
@@ -288,8 +288,11 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         if role == "skip":
             return out
         if role == "note":
+            stop = interrupted(text)
+            if stop and sidechain:
+                shown = AGENT_STOPPED
             out.append({"role": "note", "text": shown, "at": at, "pos": pos})
-            if interrupted(text):
+            if stop:
                 out += cutoff(calls, at, pos)
             return out
         said = nudge(text) if record.get("isMeta") else None
