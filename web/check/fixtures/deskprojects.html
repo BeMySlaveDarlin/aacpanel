@@ -1,0 +1,174 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs","xterm":"/vendor/xterm.mjs","xterm-fit":"/vendor/xterm-fit.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The Projects button of the sessions section at a desk opens the settings of
+// the map in three columns straight away, with no list in a panel before them,
+// and they open again where they were left. The tree finds a group or a
+// project by name and adds a contour; a project page starts a new session of
+// it from its heading and deletes it at its foot.
+import { h, render } from "preact";
+import { DesktopShell } from "/src/desktop/shell.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+localStorage.setItem("aacpanel.desktop.place", JSON.stringify({ section: "sessions", from: "", chat: null }));
+
+const base = [
+    ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
+    ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
+    ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", null, "claude"],
+    ["env", null, "claude"], ["args", null, "claude"],
+].map(([key, value, layer]) => ({ key, value, layer }));
+const project = (id, groupId, name) => ({ id, groupId, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id,
+    launch: {}, effective: base, line: { words: [{ text: "claude" }, { text: "-n" }, { text: name }] } });
+const contour = (id, name, groups) => ({ id, name, configDir: `/home/u/.claude-${id}`, prefix: "", auth: "builtin",
+    contextGuard: true, account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 },
+    effective: base, groups: groups.map(([gid, gname, projects]) => ({ id: gid, profileId: id, name: gname, projects })) });
+let profiles = [
+    contour(3, "personal", [[31, "Home", [project(11, 31, "atlas")]],
+        [32, "Pets", [project(12, 32, "aacpanel"), project(13, 32, "blog"), project(14, 32, "person")]]]),
+    contour(4, "Evirma", [[41, "Common", [project(21, 41, "ai-platform")]], [42, "Harness", [project(22, 42, "harness-rework")]]]),
+    contour(1, "Algorithmics", [[11, "LMS", [project(31, 11, "lms")]]]),
+];
+const profileMap = profiles.map((p) => ({ id: p.id, profile: p.name, name: p.name,
+    groups: p.groups.map((g) => ({ id: g.id, name: g.name, projects: g.projects.map((x) => ({ id: x.id, name: x.name, path: x.path, session: x.session })) })) }));
+const now = Math.floor(Date.now() / 1000);
+const snapshot = { at: now, hostName: "atlas", sessions: [], profileMap, limits: { contours: [] } };
+
+const sent = [];
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const real = window.fetch.bind(window);
+window.fetch = async (url, init) => {
+    const u = new URL(String(url), location.href);
+    const method = (init && init.method) || "GET";
+    if (u.pathname === "/api/profiles/schema") return real(u.pathname);
+    if (u.pathname.endsWith("/preview")) return json({ effective: base, line: { words: [{ text: "claude" }] }, problems: [] });
+    if (method !== "GET") {
+        const body = init.body ? JSON.parse(init.body) : null;
+        sent.push({ method, url: u.pathname, body });
+        if (method === "DELETE" && u.pathname.startsWith("/api/projects/")) {
+            const id = Number(u.pathname.split("/").pop());
+            profiles = profiles.map((p) => ({ ...p, groups: p.groups.map((g) => ({ ...g, projects: g.projects.filter((x) => x.id !== id) })) }));
+            return json({ profiles, models: null });
+        }
+        return json({ ok: true, detail: "done" });
+    }
+    if (u.pathname === "/api/profiles") return json({ profiles, models: null, disk: { state: "ok", roots: [], dirs: [] }, accounts: [] });
+    if (u.pathname === "/api/sessions/archive") return json({ rows: [], total: 0, limit: 30, offset: 0 });
+    if (u.pathname.startsWith("/api/usage")) return new Response("", { status: 503 });
+    if (u.pathname === "/api/probes") return json({ probes: [] });
+    if (u.pathname.startsWith("/api/history")) return json({ rows: [] });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() {} addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.open", "session.close", "session.resume"] };
+render(h(ToastHost, null, h(GateHost, null, h(DesktopShell, {
+    snapshot, tree: { stacks: [] }, treeError: null, hostError: null, ageSec: 10, history: null, faults: null,
+    alerts: { reload() {}, items: [] }, openAlerts: 0, exec, onRefresh() {}, wait: null, theme: "space", onTheme() {},
+    updateReady: false, updating: false, onApplyUpdate() {}, route: null, jump: null, onJumped() {},
+}))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 4000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel, scope = document) => Array.from(scope.querySelectorAll(sel));
+const button = (label, scope = document) => all("button", scope).find((b) => text(b) === label);
+const projectsButton = () => document.querySelector('.dktop button[aria-label="Projects"]');
+const cols = () => all(".dkcols .dkcol");
+const heads = () => cols().map((c) => text(c.querySelector(".phead h2")));
+const confirm = async (label) => {
+    const sheet = await until(() => all(".sheet.on").find((s) => button(label, s)));
+    if (sheet) button(label, sheet).click();
+    return Boolean(sheet);
+};
+const find = (query) => {
+    const input = document.querySelector(".dkcoltree .dktreefind");
+    if (!input) return false;
+    input.value = query;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+};
+
+// Each step reads what it finds and stops the page at the first thing that
+// is not there, so the test says what was missing rather than the script.
+window.done = (async () => {
+    const out = {};
+    await until(() => projectsButton());
+    projectsButton().click();
+    await until(() => heads()[0]);
+    out.opened = heads();
+    out.panel = Boolean(document.querySelector(".dkright"));
+    out.active = projectsButton().classList.contains("on");
+    out.tree = all(".dktreeitem").map(text);
+    out.adds = text(document.querySelector(".dkcoltree .dktreeadd"));
+
+    if (!document.querySelector(".dkcols")) return out;
+
+    // The tree finds a project by its name and opens it.
+    if (!find("blo")) return out;
+    const found = await until(() => document.querySelector(".dktreeproject"));
+    out.found = all(".dktreeitem").map(text);
+    if (!found) return out;
+    found.click();
+    await until(() => heads()[1] === "blog");
+    out.foundOpens = heads();
+    find("nothing like it");
+    out.none = text(await until(() => document.querySelector(".dktreenone")));
+    find("");
+    await until(() => !document.querySelector(".dktreenone"));
+
+    // The page of a project starts a new session of it from its heading, and
+    // a session that starts closes the settings.
+    const start = await until(() => cols()[1] && cols()[1].querySelector(".phead .dkcolstart"));
+    if (!start) return out;
+    out.start = text(start);
+    start.click();
+    out.startAsked = await confirm("Open");
+    await until(() => sent.some((s) => s.body && s.body.kind === "session.open"));
+    out.startSent = (sent.find((s) => s.body && s.body.kind === "session.open") || {}).body || null;
+    await until(() => !document.querySelector(".dkcols"));
+    out.closedAfterStart = !document.querySelector(".dkcols") && !projectsButton().classList.contains("on");
+
+    // The settings open again where they were left.
+    projectsButton().click();
+    await until(() => heads()[1]);
+    out.reopened = heads();
+
+    // The project is deleted at the foot of its page; the page goes, the group stays.
+    const del = cols()[1] && button("Delete project", cols()[1]);
+    if (!del) return out;
+    del.click();
+    out.deleteAsked = await confirm("Delete");
+    await until(() => sent.some((s) => s.method === "DELETE"));
+    out.deleteSent = sent.find((s) => s.method === "DELETE") || null;
+    await until(() => heads()[1] === "");
+    out.afterDelete = heads();
+    out.treeAfterDelete = all(".dktreegroup").map(text);
+
+    // A new contour is added from the foot of the tree.
+    const add = document.querySelector(".dkcoltree .dktreeadd");
+    if (add) add.click();
+    const layer = await until(() => document.querySelector('[role="dialog"][aria-label="new contour"]'), 1000);
+    out.newContour = layer ? text(layer.querySelector("h2")) : "";
+    if (layer) layer.querySelector(".pback").click();
+    await until(() => !document.querySelector('[role="dialog"][aria-label="new contour"]'));
+
+    // The cross of the window closes it.
+    document.querySelector(".dkcols .dkcolsclose").click();
+    await until(() => !document.querySelector(".dkcols"));
+    out.closed = !document.querySelector(".dkcols");
+    return out;
+})();
+</script>

@@ -1354,29 +1354,11 @@
 
     .dkclose svg { width: var(--i-sm); height: var(--i-sm); }
 
-    .dkrow {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        width: 100%;
-        height: 2.6rem;
-        padding: 0 .7rem;
-        border: 0;
-        font: inherit;
-        border-bottom: var(--hair) solid var(--line);
-        background: transparent;
-        color: var(--ink);
-        text-align: left;
-        cursor: pointer;
-    }
-
     .dklog.bad .dkname { color: var(--crit); }
 
     .dkacts { margin-left: auto; display: flex; gap: .25rem; }
 
     .dkrowacts { flex: none; display: flex; gap: .25rem; margin-left: .1rem; }
-
-    .dkitem .dkname { padding-left: 1.1rem; color: var(--ink-dim); font-size: var(--t-sm); }
 
     .dkpager {
         display: flex;
@@ -1422,7 +1404,7 @@
         flex-direction: column;
     }
 
-    .dkarch .dkname, .dkproj .dkname, .dklog .dkname { font-size: var(--t-md); font-weight: 400; }
+    .dkarch .dkname, .dklog .dkname { font-size: var(--t-md); font-weight: 400; }
 
     .dkarch {
         position: relative;
@@ -1766,57 +1748,6 @@
 
     .dkdot.dkwarn { background: var(--warn); }
 
-    .dkchev { flex: none; display: grid; place-items: center; color: var(--ink-faint); }
-
-    .dkchev svg { width: var(--i-sm); height: var(--i-sm); }
-
-    .dkchev.down svg { transform: rotate(90deg); }
-
-    .dkproj .dkname { font-weight: 500; }
-
-    .dkitem .dkname { flex: none; max-width: 16rem; }
-
-    .dkpath {
-        flex: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-family: var(--mono);
-        font-size: var(--t-sm);
-        color: var(--ink-faint);
-    }
-
-    .dkmiss {
-        flex: none;
-        font-family: var(--mono);
-        font-size: var(--t-sm);
-        line-height: 1;
-        color: var(--warn);
-    }
-
-    .dkgone .dkname { color: var(--warn); }
-
-    .dkadd {
-        flex: none;
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-        width: 100%;
-        height: 2.2rem;
-        padding: 0 .7rem;
-        border: 0;
-        border-top: var(--hair) solid var(--line);
-        background: transparent;
-        color: var(--accent);
-        font: inherit;
-        font-size: var(--t-md);
-        text-align: left;
-        cursor: pointer;
-    }
-
-    .dkadd svg { width: var(--i-sm); height: var(--i-sm); }
-
     .dkloose {
         margin: .5rem .6rem;
         width: auto;
@@ -1827,24 +1758,7 @@
 
     .dkloose .dknum { margin-left: auto; color: var(--accent); }
 
-.dkfind {
-        flex: 1;
-        min-width: 8rem;
-        max-width: 18rem;
-        height: 1.9rem;
-        padding: 0 .5rem;
-        border: 0;
-        border-radius: var(--r-small);
-        background: none;
-        box-shadow: inset 0 0 0 var(--hair) var(--edge);
-        color: var(--ink);
-        font: inherit;
-        font-size: var(--t-sm);
-    }
-
     .dkwarnline { margin: .35rem 0 0; font-size: var(--t-sm); color: var(--warn); }
-
-    .dkunder { padding-left: 2.4rem; }
 
     .dkfail { color: var(--crit); }
 
@@ -1907,14 +1821,12 @@
     .dkact:hover { color: var(--ink); }
     .dkact.danger:hover { color: var(--crit); }
     .dkclose:hover { color: var(--ink); background: var(--glass); }
-    .dkrow:hover { background: var(--glass); }
     .dkpagebtn:not(:disabled):hover { color: var(--ink); }
     .dkarch:hover { background: var(--glass); }
     .dkcat:not(.on):hover { background: var(--glass); }
     .dkjump:hover { background: var(--glass); }
     .feedjump:hover { color: var(--ink); background: var(--glass-2); }
     .dkact.off:hover { color: var(--ink-faint); }
-    .dkadd:hover { background: var(--glass); }
 
 .deskshell .dkscroll,
     .deskshell .dktable,
@@ -1993,14 +1905,6 @@
     .dkentrymeta .ok { color: var(--ok); }
     .dkentrymeta .warn { color: var(--warn); }
     .dkentrymeta .crit { color: var(--crit); }
-}
-
-@media (min-width: 1100px) {
-.dkdotcell { flex: none; display: grid; place-items: center; width: .5rem; }
-
-    .dkproj .dkname { font-size: var(--t-md); }
-
-    .dkitem { height: 2.3rem; }
 }
 
 @media (min-width: 1100px) {
@@ -2379,6 +2283,35 @@
     .dktreeitem[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); }
     .dktreeitem:hover { background: var(--glass); }
     .dktreename { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* What a query finds: the field over the tree, and the projects it names a
+       step in under their group, each a way straight to its page. */
+    .dktreefind {
+        height: 1.9rem;
+        margin: 0 .1rem .4rem;
+        padding: 0 .5rem;
+        border: 0;
+        border-radius: var(--r-small);
+        background: none;
+        box-shadow: inset 0 0 0 var(--hair) var(--edge);
+        color: var(--ink);
+        font: inherit;
+        font-size: var(--t-sm);
+    }
+    .dktreeproject { padding-left: 2rem; }
+    .dktreenone { padding: .4rem; }
+    /* A new contour closes the tree, under the last one. */
+    .dktreeadd {
+        display: flex; align-items: center; gap: .4rem; margin-top: .2rem;
+        font: inherit; font-size: var(--t-sm); text-align: left; color: var(--accent);
+        padding: .4rem .5rem; border: 0; border-top: var(--hair) solid var(--line); background: none; cursor: pointer;
+    }
+    .dktreeadd:hover { background: var(--glass); }
+    .dktreeadd svg { width: var(--i-sm); height: var(--i-sm); }
+    .dkcolstart { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
+    .dkcolstart svg { width: var(--i-sm); height: var(--i-sm); color: var(--accent); }
+    .dkcolstart.off { opacity: .55; cursor: default; }
+    /* While the map loads, or when it cannot, the window holds one line. */
+    .dkcols.dkcolsnote { grid-template-columns: minmax(0, 1fr); place-items: center; }
     .dkcolhint { margin-top: 3rem; text-align: center; }
     .dkcol .pzbar { margin-left: 0; margin-right: 0; }
     .pzanchor { position: relative; }

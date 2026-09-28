@@ -41,7 +41,9 @@ function Account({ contour, effective, stream }) {
     `;
 }
 
-export function ProjectSettings({ project, contour, group, catalog, sessions, onClose, onDone, onRemove, onDirty }) {
+// tools, when given, stand at the right of the heading: the columns of a desk
+// put the start of a new session of the project there.
+export function ProjectSettings({ project, contour, group, catalog, sessions, tools, onClose, onDone, onRemove, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [modelOpen, setModelOpen] = useState(false);
@@ -59,7 +61,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, on
     const groups = (contour.groups || []).filter((g) => g && g.id);
     const groupNow = fieldOf(draft, project, "groupId") ?? project.groupId;
     const head = html`
-        <${BackHead} onBack=${leave} label="back">
+        <${BackHead} onBack=${leave} label="back" tools=${tools}>
             <h2>${fieldOf(draft, project, "name") || project.name}</h2>
             <span class="where">${contour.name} · ${(groups.find((g) => g.id === groupNow) || group || {}).name || ""}</span>
         <//>

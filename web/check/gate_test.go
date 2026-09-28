@@ -772,8 +772,9 @@ func TestSessionActionsWaitForTheSnapshot(t *testing.T) {
 	if strings.Contains(panels, "onDone=${onClose}") {
 		t.Error("a successful session start still means close the panel: nobody hurries the snapshot")
 	}
-	if !strings.Contains(panels, "onOpened=${onOpened}") {
-		t.Error("the projects panel does not tell the shell that the console came up: the panel stays " +
-			"open over the list that already holds the answer to the press")
+	columns := stripComments(files["src/desktop/settings.js"])
+	if !strings.Contains(columns, "if (done && done.ok) onStarted();") || !strings.Contains(columns, "onStarted=${leaveAll}") {
+		t.Error("the settings of the map do not close once the console came up: they stay " +
+			"open over the column that already holds the answer to the press")
 	}
 }

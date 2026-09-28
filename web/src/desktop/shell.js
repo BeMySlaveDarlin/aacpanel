@@ -20,6 +20,7 @@ import { routeChip } from "../ui/route.js";
 import { useToastHide } from "../ui/toasts.js";
 import { Home } from "./home.js";
 import { PANELS, RightPanel } from "./panels.js";
+import { MapSettings } from "./settings.js";
 import { MAX, MIN, useScale } from "./scale.js";
 
 export const SECTIONS = [
@@ -175,6 +176,10 @@ export function DesktopShell({
     // the archive having no filter at all.
     const [archPicks, setArchPicks] = useState([]);
     const [settings, setSettings] = useState(false);
+    // The settings of the map open over the shell and come back where they
+    // were left, for as long as the page lives.
+    const [mapOpen, setMapOpen] = useState(false);
+    const [mapAt, setMapAt] = useState(null);
     const [order, setOrder] = useState([]);
 
     const zoom = useScale();
@@ -210,7 +215,7 @@ export function DesktopShell({
         const onKey = (e) => {
             if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
             if (typing()) return;
-            if (settings) return;
+            if (settings || mapOpen) return;
             if (terminalOnScreen()) return;
 
             if (e.key === "Escape") {
@@ -244,7 +249,7 @@ export function DesktopShell({
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [section, order, chat, panel, settings]);
+    }, [section, order, chat, panel, settings, mapOpen]);
 
     const openChat = useCallback((target) => {
         setChat(target);
@@ -255,8 +260,6 @@ export function DesktopShell({
         openChat({ name: jump.name, id: jump.id });
         onJumped();
     }, [jump, openChat, onJumped]);
-
-    const onOpened = useCallback(() => setPanel(null), []);
 
     const left = () => {
         if (section === "containers") {
@@ -369,8 +372,8 @@ export function DesktopShell({
                         <${IconButton}
                             key=${it.id}
                             item=${it}
-                            active=${panel === it.id}
-                            onClick=${() => setPanel((cur) => (cur === it.id ? null : it.id))}
+                            active=${it.layer ? mapOpen : panel === it.id}
+                            onClick=${() => (it.layer ? setMapOpen(true) : setPanel((cur) => (cur === it.id ? null : it.id)))}
                         />
                     `)}
                 </nav>
@@ -414,21 +417,29 @@ export function DesktopShell({
                         tab=${panel}
                         title=${panelTitle}
                         profiles=${profiles}
-                        picks=${picks}
                         names=${names}
                         archPicks=${archPicks}
                         setArchPicks=${setArchPicks}
                         container=${container}
                         exec=${exec}
-                        sessions=${snapshot && snapshot.sessions}
                         onOpen=${openChat}
                         onClose=${() => setPanel(null)}
-                        onOpened=${onOpened}
                     />
                 `}
             </div>
 
             ${settings && html`<${Settings} onClose=${() => setSettings(false)} />`}
+
+            ${mapOpen && html`
+                <${MapSettings}
+                    picks=${picks}
+                    last=${mapAt}
+                    exec=${exec}
+                    sessions=${snapshot && snapshot.sessions}
+                    onPick=${setMapAt}
+                    onClose=${() => setMapOpen(false)}
+                />
+            `}
 
             ${updateReady && html`
                 <div class="update" role="status">
