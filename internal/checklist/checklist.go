@@ -1,11 +1,11 @@
-// Package plan keeps the plan a session makes of its work: the list of steps
-// the model sends through the panel's plan tool, one file a place — the
-// account a session runs in and the directory it works in. A session started
-// again in the same place, afresh or going on with its conversation, finds
-// the plan where it was left. The collector reads the file into the row of a
-// session of the place and into the state of its conversation; nothing else
-// writes it.
-package plan
+// Package checklist keeps the checklist a session makes of its work: the list
+// of steps the model sends through the panel's checklist tool, one file a
+// place — the account a session runs in and the directory it works in. A
+// session started again in the same place, afresh or going on with its
+// conversation, finds the checklist where it was left. The collector reads
+// the file into the row of a session of the place and into the state of its
+// conversation; nothing else writes it.
+package checklist
 
 import (
 	"crypto/sha256"
@@ -36,16 +36,16 @@ const (
 // Statuses are the statuses a step takes, in the order the tool names them.
 var Statuses = []string{Pending, Active, Done, Dropped}
 
-// A plan is a line of steps a person reads on a phone, not a document: past
-// these the tool refuses, and the model shortens the plan rather than having
-// it cut without a word.
+// A checklist is a line of steps a person reads on a phone, not a document:
+// past these the tool refuses, and the model shortens the checklist rather
+// than having it cut without a word.
 const (
 	MaxItems = 40
 	MaxText  = 200
 	MaxNote  = 300
 )
 
-// Stamp is how every time of a plan is written: UTC, to the second.
+// Stamp is how every time of a checklist is written: UTC, to the second.
 const Stamp = "2006-01-02T15:04:05Z"
 
 // Item is one step.
@@ -58,8 +58,8 @@ type Item struct {
 	Since string `json:"since,omitempty"`
 }
 
-// Name is the file of the plan of a place, or empty for a place that is not
-// one. A path does not make a file name, so the name is a hash of the two
+// Name is the file of the checklist of a place, or empty for a place that is
+// not one. A path does not make a file name, so the name is a hash of the two
 // paths — the collector and the reminder hook compute the same; the file
 // holds the paths themselves, and a reader takes it only for the place it
 // names.
@@ -72,14 +72,14 @@ func Name(p mcp.Place) string {
 	return hex.EncodeToString(sum[:16]) + ".json"
 }
 
-// Plan is what lies on disk for one place.
-type Plan struct {
+// Checklist is what lies on disk for one place.
+type Checklist struct {
 	ConfigDir string `json:"configDir"`
 	Dir       string `json:"dir"`
-	// SessionID and PID are the conversation and the claude process that
-	// sent the plan last. The place is the plan's key; these say who holds it
-	// now: the feed of a conversation that is over shows the plan only while
-	// it is the one that sent it last, and a process that sent it has the
+	// SessionID and PID are the conversation and the claude process that sent
+	// the checklist last. The place is the checklist's key; these say who holds
+	// it now: the feed of a conversation that is over shows the checklist only
+	// while it is the one that sent it last, and a process that sent it has the
 	// tool to send it again.
 	SessionID string `json:"sessionId,omitempty"`
 	PID       int    `json:"pid"`
@@ -88,8 +88,8 @@ type Plan struct {
 	Items     []Item `json:"items"`
 }
 
-// Dir is where the plans lie: the owner's state, beside the rest of what the
-// panel keeps on the host.
+// Dir is where the checklists lie: the owner's state, beside the rest of what
+// the panel keeps on the host.
 func Dir() string {
 	base := os.Getenv("XDG_STATE_HOME")
 	if base == "" {
@@ -99,17 +99,18 @@ func Dir() string {
 		}
 		base = filepath.Join(home, ".local", "state")
 	}
-	return filepath.Join(base, "aacpanel", "plans")
+	return filepath.Join(base, "aacpanel", "checklists")
 }
 
 var conversationID = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z-]*$`)
 
-// filedName is the name of a plan filed under a conversation: its id, which
-// claude makes a UUID. The name of a place's plan is a hash and never one.
+// filedName is the name of a checklist filed under a conversation: its id,
+// which claude makes a UUID. The name of a place's checklist is a hash and
+// never one.
 var filedName = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\.json$`)
 
-// Refusal is a plan the tool does not keep, with what to change: the model
-// reads it and sends the plan again.
+// Refusal is a checklist the tool does not keep, with what to change: the model
+// reads it and sends the checklist again.
 type Refusal struct{ Why string }
 
 func (r Refusal) Error() string { return r.Why }
@@ -118,7 +119,7 @@ func (r Refusal) Error() string { return r.Why }
 // what of them the tool does not take.
 func Clean(items []Item, note string) ([]Item, string, error) {
 	if len(items) > MaxItems {
-		return nil, "", Refusal{fmt.Sprintf("the plan has %d steps, at most %d are kept: join the small ones", len(items), MaxItems)}
+		return nil, "", Refusal{fmt.Sprintf("the checklist has %d steps, at most %d are kept: join the small ones", len(items), MaxItems)}
 	}
 	out := make([]Item, 0, len(items))
 	for i, it := range items {
@@ -145,12 +146,12 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// Keep writes the plan of a place and returns what was written; an empty
-// list removes the plan and returns nil. The file is replaced whole by a
-// rename, so the collector reads the old plan or the new one, never half of
-// each. A step that keeps its text and its status keeps the time it took
+// Keep writes the checklist of a place and returns what was written; an empty
+// list removes the checklist and returns nil. The file is replaced whole by a
+// rename, so the collector reads the old checklist or the new one, never half
+// of each. A step that keeps its text and its status keeps the time it took
 // it, across a restart of the session as well.
-func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (*Plan, error) {
+func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (*Checklist, error) {
 	where, ok := b.Place.Clean()
 	if !ok {
 		return nil, fmt.Errorf("the place of the session is not known: %q under the account %q", b.Place.Dir, b.Place.ConfigDir)
@@ -165,7 +166,7 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 	path := filepath.Join(dir, Name(where))
 	if len(items) == 0 {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("the plan was not cleared: %w", err)
+			return nil, fmt.Errorf("the checklist was not cleared: %w", err)
 		}
 		return nil, nil
 	}
@@ -181,7 +182,7 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 			items[i].Since = at
 		}
 	}
-	p := &Plan{ConfigDir: where.ConfigDir, Dir: where.Dir, SessionID: b.SessionID, PID: b.PID,
+	p := &Checklist{ConfigDir: where.ConfigDir, Dir: where.Dir, SessionID: b.SessionID, PID: b.PID,
 		At: stamp, Note: note, Items: items}
 	if err := write(dir, path, p); err != nil {
 		return nil, err
@@ -189,7 +190,7 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 	return p, nil
 }
 
-func sinceOf(p *Plan) map[string]string {
+func sinceOf(p *Checklist) map[string]string {
 	out := map[string]string{}
 	if p == nil {
 		return out
@@ -203,34 +204,34 @@ func sinceOf(p *Plan) map[string]string {
 	return out
 }
 
-func write(dir, path string, p *Plan) error {
+func write(dir, path string, p *Checklist) error {
 	body, err := json.Marshal(p)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("the plans directory: %w", err)
+		return fmt.Errorf("the checklists directory: %w", err)
 	}
-	tmp, err := os.CreateTemp(dir, ".plan-*")
+	tmp, err := os.CreateTemp(dir, ".checklist-*")
 	if err != nil {
-		return fmt.Errorf("the plan was not written: %w", err)
+		return fmt.Errorf("the checklist was not written: %w", err)
 	}
 	defer os.Remove(tmp.Name())
 	if _, err := tmp.Write(body); err != nil {
 		tmp.Close()
-		return fmt.Errorf("the plan was not written: %w", err)
+		return fmt.Errorf("the checklist was not written: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("the plan was not written: %w", err)
+		return fmt.Errorf("the checklist was not written: %w", err)
 	}
 	if err := os.Rename(tmp.Name(), path); err != nil {
-		return fmt.Errorf("the plan was not written: %w", err)
+		return fmt.Errorf("the checklist was not written: %w", err)
 	}
 	return nil
 }
 
-// Read returns the plan of a place, or nil when there is none.
-func Read(dir string, place mcp.Place) *Plan {
+// Read returns the checklist of a place, or nil when there is none.
+func Read(dir string, place mcp.Place) *Checklist {
 	where, ok := place.Clean()
 	if !ok {
 		return nil
@@ -239,22 +240,22 @@ func Read(dir string, place mcp.Place) *Plan {
 	if err != nil {
 		return nil
 	}
-	var p Plan
+	var p Checklist
 	if json.Unmarshal(raw, &p) != nil || p.ConfigDir != where.ConfigDir || p.Dir != where.Dir {
 		return nil
 	}
 	return &p
 }
 
-// Adopt returns the plan of a place, taking over first a plan filed under a
-// conversation of the place. Such a file is named by the conversation and
-// names no place: the plan server a live session was started with may still
+// Adopt returns the checklist of a place, taking over first a checklist filed
+// under a conversation of the place. Such a file is named by the conversation
+// and names no place: the server a live session was started with may still
 // write one. Its place is told by the transcript of its conversation, which
-// claude keeps under the account in the directory of the project; the
-// newest of them becomes the plan of the place, and the files taken over go.
-// A place that already has a plan takes over nothing, and a file no place
+// claude keeps under the account in the directory of the project; the newest
+// of them becomes the checklist of the place, and the files taken over go. A
+// place that already has a checklist takes over nothing, and a file no place
 // took over goes with the sweep.
-func Adopt(dir string, place mcp.Place) *Plan {
+func Adopt(dir string, place mcp.Place) *Checklist {
 	where, ok := place.Clean()
 	if !ok {
 		return nil
@@ -267,7 +268,7 @@ func Adopt(dir string, place mcp.Place) *Plan {
 		return nil
 	}
 	project := filepath.Join(where.ConfigDir, "projects", projectSlug(where.Dir))
-	var newest *Plan
+	var newest *Checklist
 	var taken []string
 	for _, e := range entries {
 		if e.IsDir() || !filedName.MatchString(e.Name()) {
@@ -281,7 +282,7 @@ func Adopt(dir string, place mcp.Place) *Plan {
 		if err != nil {
 			continue
 		}
-		var p Plan
+		var p Checklist
 		if json.Unmarshal(raw, &p) != nil || p.SessionID != id || p.Dir != "" || len(p.Items) == 0 {
 			continue
 		}
@@ -315,12 +316,12 @@ func projectSlug(dir string) string {
 	}, dir)
 }
 
-// MaxAge is how long a plan nobody wrote to stays on disk. A place whose
-// plan has not been touched for this long has moved on, and a directory
-// that is gone leaves its plan behind.
+// MaxAge is how long a checklist nobody wrote to stays on disk. A place whose
+// checklist has not been touched for this long has moved on, and a directory
+// that is gone leaves its checklist behind.
 const MaxAge = 30 * 24 * time.Hour
 
-// Sweep removes the plans older than MaxAge, and what a write that never
+// Sweep removes the checklists older than MaxAge, and what a write that never
 // finished left behind, and says how many went.
 func Sweep(dir string, now time.Time) int {
 	entries, err := os.ReadDir(dir)
@@ -329,7 +330,7 @@ func Sweep(dir string, now time.Time) int {
 	}
 	gone := 0
 	for _, e := range entries {
-		if e.IsDir() || !(strings.HasSuffix(e.Name(), ".json") || strings.HasPrefix(e.Name(), ".plan-")) {
+		if e.IsDir() || !(strings.HasSuffix(e.Name(), ".json") || strings.HasPrefix(e.Name(), ".checklist-")) {
 			continue
 		}
 		info, err := e.Info()

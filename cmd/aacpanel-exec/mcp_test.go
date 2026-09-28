@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"aacpanel/internal/checklist"
 	"aacpanel/internal/mcp"
-	"aacpanel/internal/plan"
 )
 
 // fakeClaude puts a live claude process into a fake /proc, with the file it
@@ -63,14 +63,14 @@ func talk(t *testing.T, parent int, lines ...string) []map[string]any {
 
 const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"2.1.283"}}}`
 
-// noPlan is how the server's word to a session in a place with no plan
-// begins, to the byte: the lead and the plan's line stand in the system prompt
+// noChecklist is how the server's word to a session in a place with no
+// checklist begins, to the byte: the lead and the checklist's line stand in the system prompt
 // of every session the panel starts, and the lines of the other tools follow.
-const noPlan = "The panel is how the person follows this session from their phone and desk; " +
+const noChecklist = "The panel is how the person follows this session from their phone and desk; " +
 	"its tools reach them there, and the terminal does not show what they do.\n" +
-	"When the work has several steps, keep it with the plan tool, which the person sees " +
-	"in the panel: the whole list every time, updated when a step starts or ends and when the plan changes. " +
-	"A short task needs no plan."
+	"When the work has several steps, keep it with the checklist tool, which the person sees " +
+	"in the panel: the whole list every time, updated when a step starts or ends and when the checklist changes. " +
+	"A short task needs no checklist."
 
 // Both flags start the one server: the launcher writes -mcp into the MCP
 // configuration of a session, and a live session whose configuration names
@@ -92,12 +92,12 @@ func TestThePlanAndMCPFlagsStartOneServer(t *testing.T) {
 }
 
 // The server as a session runs it: claude starts the executor with the flag
-// of its configuration, shakes hands and calls the plan tool, and the plan
-// lands under the place of the claude that is the server's parent — the
-// config directory it keeps the file of itself in and the directory that file
-// names. A session started again in the place, another process in another
-// conversation, is told of the plan at its handshake.
-func TestTheServerKeepsThePlanOfItsParentsPlace(t *testing.T) {
+// of its configuration, shakes hands and calls the checklist tool, and the
+// checklist lands under the place of the claude that is the server's parent —
+// the config directory it keeps the file of itself in and the directory that
+// file names. A session started again in the place, another process in
+// another conversation, is told of the checklist at its handshake.
+func TestTheServerKeepsTheChecklistOfItsParentsPlace(t *testing.T) {
 	const (
 		first     = "9e3f0a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b"
 		restarted = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
@@ -111,32 +111,32 @@ func TestTheServerKeepsThePlanOfItsParentsPlace(t *testing.T) {
 
 	replies := talk(t, 4242, handshake,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plan","arguments":{"items":[{"text":"read the code","status":"done"},{"text":"write the tests","status":"active"}]}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"checklist","arguments":{"items":[{"text":"read the code","status":"done"},{"text":"write the tests","status":"active"}]}}}`,
 	)
 	if len(replies) != 2 {
 		t.Fatalf("meant two replies, one to the handshake and one to the call: %v", replies)
 	}
 	hello, _ := replies[0]["result"].(map[string]any)
 	told, _ := hello["instructions"].(string)
-	if !strings.HasPrefix(told, noPlan+"\n") || strings.Contains(told, "already has a plan") {
-		t.Errorf("a place with no plan was told otherwise: %v", replies[0])
+	if !strings.HasPrefix(told, noChecklist+"\n") || strings.Contains(told, "already has a checklist") {
+		t.Errorf("a place with no checklist was told otherwise: %v", replies[0])
 	}
 	if res, _ := replies[1]["result"].(map[string]any); res == nil || res["isError"] != nil {
 		t.Fatalf("the call answered %v", replies[1])
 	}
 
 	lab := mcp.Place{ConfigDir: config, Dir: "/srv/proj/lab"}
-	got := plan.Read(filepath.Join(state, "aacpanel", "plans"), lab)
-	if got == nil || got.PID != 4242 || got.SessionID != first || len(got.Items) != 2 || got.Items[1].Status != plan.Active {
-		t.Fatalf("the plan on disk is %+v", got)
+	got := checklist.Read(filepath.Join(state, "aacpanel", "checklists"), lab)
+	if got == nil || got.PID != 4242 || got.SessionID != first || len(got.Items) != 2 || got.Items[1].Status != checklist.Active {
+		t.Fatalf("the checklist on disk is %+v", got)
 	}
 
 	fakeClaude(t, proc, config, 5151, "7777", restarted)
 	replies = talk(t, 5151, handshake)
 	res, _ := replies[0]["result"].(map[string]any)
 	said, _ := res["instructions"].(string)
-	if !strings.HasPrefix(said, noPlan+" This place already has a plan") ||
+	if !strings.HasPrefix(said, noChecklist+" This place already has a checklist") ||
 		!strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
-		t.Errorf("the session started again was not told of the plan of its place: %q", said)
+		t.Errorf("the session started again was not told of the checklist of its place: %q", said)
 	}
 }

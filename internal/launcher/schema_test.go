@@ -85,7 +85,7 @@ func TestPreviewIsTheCommandTheLaunchRuns(t *testing.T) {
 	}
 	if keys["--effort"] != keyEffort || keys["--remote-control"] != keyRemoteControl || keys["go"] != keyIntent ||
 		keys["--verbose"] != keyArgs || keys["-n"] != "" || keys["--mcp-config"] != keyPanelTools ||
-		keys[toolsPreview] != keyPanelTools || keys["mcp__aacpanel__plan"] != keyPanelTools {
+		keys[toolsPreview] != keyPanelTools || keys["mcp__aacpanel__checklist"] != keyPanelTools {
 		t.Errorf("the words name their parameters as %v", keys)
 	}
 	if off := texts(Preview("panel", json.RawMessage(`{"panelTools":false}`)).Words); slices.Contains(off, "--mcp-config") {

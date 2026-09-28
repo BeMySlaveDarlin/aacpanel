@@ -69,7 +69,7 @@ type rpcError struct {
 }
 
 // maxLine bounds one message. The arguments of a call are the bulk of one: a
-// plan at its limits is some ten kilobytes, a brief at the collector's
+// checklist at its limits is some ten kilobytes, a brief at the collector's
 // ceiling four megabytes. A longer line ends the server and takes every tool
 // from the session, so the bound stands above the largest call a tool takes.
 const maxLine = 8 << 20

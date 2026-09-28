@@ -32,7 +32,7 @@ func TestEveryToolHasANameOfItsOwn(t *testing.T) {
 // on the person.
 func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 	want := []string{
-		"mcp__aacpanel__plan",
+		"mcp__aacpanel__checklist",
 		"mcp__aacpanel__brief_publish",
 		"mcp__aacpanel__brief_delete",
 		"mcp__aacpanel__notify",

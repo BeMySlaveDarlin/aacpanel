@@ -251,11 +251,11 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 			          "at": "2026-08-25T10:05:00Z", "count": 7}],
 			"sent": [{"path": "/opt/p/cv/resume.pdf", "file": "resume.pdf", "size": 89537,
 			          "media": "application/pdf", "at": "2026-08-25T10:06:00Z", "count": 2}],
-			"plan": {"items": [{"text": "Read the code", "status": "done", "since": "2026-08-25T10:02:00Z"},
-			                   {"text": "Write the tests", "status": "active", "since": "2026-08-25T10:04:00Z"},
-			                   {"text": "Mutate", "status": "pending"},
-			                   {"text": "A second collector", "status": "dropped"}],
-			         "at": "2026-08-25T10:04:00Z", "note": "waits on the test base"},
+			"checklist": {"items": [{"text": "Read the code", "status": "done", "since": "2026-08-25T10:02:00Z"},
+			                        {"text": "Write the tests", "status": "active", "since": "2026-08-25T10:04:00Z"},
+			                        {"text": "Mutate", "status": "pending"},
+			                        {"text": "A second collector", "status": "dropped"}],
+			              "at": "2026-08-25T10:04:00Z", "note": "waits on the test base"},
 			"ask": {
 				"sessionId": "567f4d24-cd5f-48fa-bdc1-04c89d203494",
 				"toolUseId": "toolu_01AaBbCcDdEeFfGgHhJjKkLm",
@@ -321,8 +321,8 @@ func TestStateReplyKeepsEveryField(t *testing.T) {
 	if got := reply.State.Ask.Questions[0].Options[1].Preview; got != "+---+\n| A |\n+---+" {
 		t.Errorf("the option preview is lost or reshaped: %q", got)
 	}
-	if p := reply.State.Plan; p == nil || len(p.Items) != 4 || p.Items[1].Since == "" || p.Note == "" {
-		t.Errorf("the plan of the session arrived incomplete: %+v", p)
+	if p := reply.State.Checklist; p == nil || len(p.Items) != 4 || p.Items[1].Since == "" || p.Note == "" {
+		t.Errorf("the checklist of the session arrived incomplete: %+v", p)
 	}
 
 	var was, now any

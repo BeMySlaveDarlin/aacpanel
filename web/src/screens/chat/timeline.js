@@ -21,7 +21,7 @@ import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { stopwatch } from "../../format.js";
 import { callWord, countCalls, KIND_NAMES, kindIcon, stampText, turnLeft, turnTook } from "./labels.js";
-import { PlanBlock } from "./plan.js";
+import { ChecklistBlock } from "./checklist.js";
 
 const WORK = new Set(["toolrow", "turn"]);
 
@@ -371,10 +371,10 @@ function DeskEntry({ g, y, onOpen, entryRef }) {
     `;
 }
 
-// The plan of the work stands first in the column and is held at its top
-// while the feed scrolls: the entries under it are the past of the plan, and
-// the plan is what the eye comes to the column for.
-function DeskColumn({ groups, plan, onOpen }) {
+// The checklist of the work stands first in the column and is held at its top
+// while the feed scrolls: the entries under it are the past of the checklist,
+// and the checklist is what the eye comes to the column for.
+function DeskColumn({ groups, checklist, onOpen }) {
     const refs = useRef([]);
     const [heights, setHeights] = useState([]);
     useLayoutEffect(() => {
@@ -384,7 +384,7 @@ function DeskColumn({ groups, plan, onOpen }) {
     const ys = stack(groups.map((g) => g.y), heights);
     return html`
         <div class="tline" aria-label="timeline of the work">
-            <${PlanBlock} plan=${plan} />
+            <${ChecklistBlock} checklist=${checklist} />
             ${groups.map((g, n) => html`
                 <${DeskEntry} key=${g.at} g=${g} y=${ys[n]} onOpen=${onOpen}
                               entryRef=${(el) => { refs.current[n] = el; }} />
@@ -397,8 +397,9 @@ function DeskColumn({ groups, plan, onOpen }) {
 // row of the column; tail is what follows the rows — the messages on their
 // way, as { key, role, node } — set as rows are, so a message keeps its place
 // when the transcript echoes it; onOpen gets a group of marks when one is
-// tapped; plan is the plan of the work, drawn at the top of the desk column.
-export function FeedGrid({ rows, wide, row, tail, plan, onOpen }) {
+// tapped; checklist is the checklist of the work, drawn at the top of the desk
+// column.
+export function FeedGrid({ rows, wide, row, tail, checklist, onOpen }) {
     const { prose, marks } = useMemo(() => book(rows), [rows]);
     const col = useRef(null);
     const geo = useGeometry(col, prose.length);
@@ -417,7 +418,7 @@ export function FeedGrid({ rows, wide, row, tail, plan, onOpen }) {
                 ${(tail || []).map((t) => html`<div class=${`feedrow r-${t.role}`} key=${t.key}>${t.node}</div>`)}
             </div>
             ${wide
-                ? html`<${DeskColumn} groups=${groups} plan=${plan} onOpen=${onOpen} />`
+                ? html`<${DeskColumn} groups=${groups} checklist=${checklist} onOpen=${onOpen} />`
                 : html`
                     <div class="rail" aria-label="timeline of the work" style=${`min-height:${floor}px`}>
                         ${groups.map((g) => html`<${RailStack} key=${g.at} g=${g} onOpen=${onOpen} />`)}

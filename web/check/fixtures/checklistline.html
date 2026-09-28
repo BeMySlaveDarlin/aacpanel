@@ -10,10 +10,10 @@
 <div class="composerbox" id="none"></div>
 <div class="composerbox" id="busynone"></div>
 <script type="module">
-// The bar over the composer of a phone with the plan of the work: a session
-// running a command on the fourth of seven steps, the same plan with the
-// session quiet, a plan all behind, a plan of forty steps, and two sessions
-// that keep no plan — one quiet, one at work.
+// The bar over the composer of a phone with the checklist of the work: a
+// session running a command on the fourth of seven steps, the same checklist
+// with the session quiet, a checklist all behind, a checklist of forty steps,
+// and two sessions that keep no checklist — one quiet, one at work.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { WorkStatus } from "/src/screens/chat/work.js";
@@ -25,7 +25,7 @@ const feed = [
       calls: [{ name: "Bash", arg: "go test ./web/check/", pos: 5, index: 0, at: ago(10), open: true }] },
 ];
 const step = (text, status, sec) => (sec == null ? { text, status } : { text, status, since: ago(sec) });
-const plan = {
+const checklist = {
     items: [
         step("read the code", "done", 3000), step("find where it is drawn", "done", 2400),
         step("write the fixtures", "done", 1800),
@@ -37,7 +37,7 @@ const plan = {
     note: "waits on the test base",
 };
 const over = {
-    items: [...plan.items.slice(0, 6).map((s) => ({ ...s, status: "done", since: ago(60) })),
+    items: [...checklist.items.slice(0, 6).map((s) => ({ ...s, status: "done", since: ago(60) })),
             { text: "a second collector", status: "dropped" }],
     at: ago(60),
 };
@@ -48,37 +48,37 @@ const long = {
 };
 const opened = [];
 const put = (id, props) => render(html`<${WorkStatus} work=${null} compacting="" feed=${feed} onCalls=${() => {}}
-    onPlan=${() => opened.push(id)} ...${props} />`, document.getElementById(id));
-put("busy", { busy: true, plan });
-put("idle", { busy: false, plan });
-put("over", { busy: false, plan: over });
-put("long", { busy: true, plan: long });
-put("none", { busy: false, plan: null });
-put("busynone", { busy: true, plan: null });
+    onChecklist=${() => opened.push(id)} ...${props} />`, document.getElementById(id));
+put("busy", { busy: true, checklist });
+put("idle", { busy: false, checklist });
+put("over", { busy: false, checklist: over });
+put("long", { busy: true, checklist: long });
+put("none", { busy: false, checklist: null });
+put("busynone", { busy: true, checklist: null });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const box = (el) => (el ? el.getBoundingClientRect() : null);
 const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await sleep(20); };
 
-// What one bar says of the plan and where it stands in the bar.
+// What one bar says of the checklist and where it stands in the bar.
 const read = (id) => {
     const root = document.getElementById(id);
     const bar = root.querySelector(".workbar.status");
-    const line = root.querySelector(".planline");
+    const line = root.querySelector(".ckline");
     const kids = bar ? Array.from(bar.children) : [];
-    const step = root.querySelector(".planstep");
+    const step = root.querySelector(".ckstep");
     return {
         bar: Boolean(bar),
         line: Boolean(line),
         first: Boolean(line) && kids[0] === line,
         kids: kids.map((k) => k.className),
-        word: text(root.querySelector(".planword")),
-        num: text(root.querySelector(".plannum")),
+        word: text(root.querySelector(".ckword")),
+        num: text(root.querySelector(".cknum")),
         step: text(step),
         stepWidth: step ? Math.round(box(step).width) : 0,
-        ticks: Array.from(root.querySelectorAll(".planticks i")).map((i) => i.className),
-        ticksRight: line ? Math.round(box(line).right - box(root.querySelector(".planticks")).right) : -1,
+        ticks: Array.from(root.querySelectorAll(".ckticks i")).map((i) => i.className),
+        ticksRight: line ? Math.round(box(line).right - box(root.querySelector(".ckticks")).right) : -1,
         lineAbove: Boolean(line && root.querySelector(".nowbar")) && box(line).bottom <= box(root.querySelector(".nowbar")).top + 1,
         inside: Boolean(line && bar) && box(line).left >= box(bar).left - 0.5 && box(line).right <= box(bar).right + 0.5,
         oneLine: Boolean(line) && box(line).height < 44,
@@ -89,10 +89,10 @@ const read = (id) => {
 window.done = (async () => {
     const out = {};
     try {
-        await until(() => document.querySelectorAll(".planline").length >= 4);
+        await until(() => document.querySelectorAll(".ckline").length >= 4);
         for (const id of ["busy", "idle", "over", "long", "none", "busynone"]) out[id] = read(id);
-        document.querySelector("#idle .planline").click();
-        document.querySelector("#busy .planline").click();
+        document.querySelector("#idle .ckline").click();
+        document.querySelector("#busy .ckline").click();
         out.opened = opened.join(",");
         out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
     } catch (err) {

@@ -299,7 +299,7 @@ the panel's eyes.
 | `deploy/claude/artifact-copy.py` | the `PostToolUse` hook on `Artifact` | the panel keeps a copy of every page a session publishes and shows it without the account it went out under; without the hook the card has only its link |
 | `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
 | `deploy/claude/context-guard.py` | the `Stop` hook | past its context cap a session with Auto restart finalizes and restarts itself; the cap and the switch are set in the panel, per contour or per project |
-| `deploy/claude/plan-reminder.py` | the `Stop` hook | a session that keeps a plan with the panel's plan tool and did work without touching it is asked once, at the end of the turn, to update the plan if it changed |
+| `deploy/claude/checklist-reminder.py` | the `Stop` hook | a session that keeps a checklist with the panel's checklist tool and did work without touching it is asked once, at the end of the turn, to update the checklist if it changed |
 | `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session as its project from the map, through the panel's local listener; in its own tmux pane when the panel does not answer |
 | `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
 | `deploy/claude/skills/notify/` | `<account>/skills/` | `/notify`: the session calls the person to it, and the line arrives on their phone |
@@ -367,33 +367,35 @@ The turn after the block is the finalization itself and is never blocked again;
 a session that ignored it is told again at the end of its next turn.
 
 **Panel tools.** Every session the panel starts gets them from the launcher
-unless the Panel tools parameter of its contour or project is off: the plan, the
-brief (`brief_publish`, `brief_delete`) and the call to the person (`notify`),
-which do what the brief and notify skills do with nothing installed. Rules of
+unless the Panel tools parameter of its contour or project is off: the
+checklist, the brief (`brief_publish`, `brief_delete`) and the call to the
+person (`notify`), which do what the brief and notify skills do with nothing
+installed. Rules of
 the machine's own for the text of a brief go into
 `${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md`: the brief tool gives
 them to a session after the shipped ones, and without the file there are none.
 
-**The plan reminder.** The plan tool needs nothing installed: every session the
-panel starts gets it from the launcher, unless the Panel tools parameter of its
-contour or project is off. The hook is the soft half of it, in the account
-settings:
+**The checklist reminder.** The checklist tool needs nothing installed: every
+session the panel starts gets it from the launcher, unless the Panel tools
+parameter of its contour or project is off. The hook is the soft half of it,
+in the account settings:
 
 ```json
 {"hooks": {"Stop": [
-  {"hooks": [{"type": "command", "command": "python3 <repo>/deploy/claude/plan-reminder.py", "timeout": 5}]}
+  {"hooks": [{"type": "command", "command": "python3 <repo>/deploy/claude/checklist-reminder.py", "timeout": 5}]}
 ]}}
 ```
 
 It holds the end of a turn only when the place of the session — the account and
-the directory — has a plan with steps pending or at work, the turn called tools,
-and the plan was not written during it; the model is told to send the plan if it
-changed, to clear it if it no longer applies, and otherwise to end the turn, and
-the turn after the hold is never held. Its price is one short turn more when the
-model forgot. Only a session with the plan tool is asked: one that sent the plan
-itself, or one started with the tool allowed, as the panel starts every session —
-so a session started again after a restart is asked about the plan it found. A
-claude started by hand in the same place, without the tool, is asked nothing.
+the directory — has a checklist with steps pending or at work, the turn called
+tools, and the checklist was not written during it; the model is told to send
+the checklist if it changed, to clear it if it no longer applies, and otherwise
+to end the turn, and the turn after the hold is never held. Its price is one
+short turn more when the model forgot. Only a session with the checklist tool is
+asked: one that sent the checklist itself, or one started with the tool allowed,
+as the panel starts every session — so a session started again after a restart
+is asked about the checklist it found. A claude started by hand in the same
+place, without the tool, is asked nothing.
 
 ---
 
