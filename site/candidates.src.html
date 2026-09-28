@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aacpanel — scenes offered for the landing</title>
+<link rel="stylesheet" href="candidates.css">
+<style>
+@font-face { font-family: Inter; font-style: normal; font-weight: 400; font-display: swap;
+             src: url(fonts/inter-400-latin.woff2) format("woff2"); }
+@font-face { font-family: Inter; font-style: normal; font-weight: 600 800; font-display: swap;
+             src: url(fonts/inter-600-latin.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap;
+             src: url(fonts/jetbrains-mono-400-latin.woff2) format("woff2"); }
+html { font-size: 16px; }
+body { margin: 0; background: #05060c; color: #cfd6f5;
+       font: 14px/1.5 Inter, system-ui, sans-serif; }
+h1 { font-size: 18px; font-weight: 600; margin: 24px 20px 4px; }
+p.note { margin: 0 20px 18px; color: #8189b3; font-size: 13px; max-width: 62ch; }
+.rig { display: flex; flex-wrap: wrap; gap: 22px; padding: 18px 20px 60px; align-items: flex-start; }
+.cap { font: 12px/1.6 "JetBrains Mono", ui-monospace, monospace; color: #8189b3; padding: 0 0 6px; max-width: 330px; }
+.cap b { color: #cfd6f5; font-weight: 400; }
+/* the frame the landing draws around a scene: the screen is 393 css px of panel
+   at a 15px root, so the font size of .screen is 15/393 of the frame width */
+.frame { width: 330px; flex: none; }
+.frame .screen { width: 100%; aspect-ratio: 393 / 852;
+                 border-radius: 22px; box-shadow: 0 0 0 1px rgba(255,255,255,.09),
+                 0 18px 50px rgba(0,0,0,.5); }
+.frame.wide { width: 100%; max-width: 1180px; }
+.frame.wide .screen { width: 100%; aspect-ratio: 1600 / 1000; border-radius: 12px;
+                      box-shadow: 0 0 0 1px rgba(255,255,255,.09), 0 18px 50px rgba(0,0,0,.5); }
+</style></head><body>
+<h1>Scenes offered for the landing</h1>
+<p class="note">Shot from the panel as it is now, on the stand. None of them is on the page yet; each names the chapter it would stand in.</p>
+<div class="rig">
+<div><div class="cap"><b>The model is picked from a list, as the console names it</b><br>for: A session is a conversation</div><div class="frame"><div class="screen">{{scene:new-model}}</div></div></div>
+<div><div class="cap"><b>The permission mode, from the same composer</b><br>for: A session is a conversation</div><div class="frame"><div class="screen">{{scene:new-mode}}</div></div></div>
+<div><div class="cap"><b>The checklist the session keeps through the panel</b><br>for: A session is a conversation</div><div class="frame"><div class="screen">{{scene:new-checklist}}</div></div></div>
+<div><div class="cap"><b>A permission answered from the page, and the question before it, in the feed</b><br>for: The cards in the feed</div><div class="frame"><div class="screen">{{scene:new-permitted}}</div></div></div>
+<div><div class="cap"><b>Background work: commands, an alarm, the agents</b><br>for: Subagents, and the archive</div><div class="frame"><div class="screen">{{scene:new-work}}</div></div></div>
+<div><div class="cap"><b>Where a session lives, its window, Remote Control</b><br>for: The session&#x27;s own terminal</div><div class="frame"><div class="screen">{{scene:new-session}}</div></div></div>
+<div><div class="cap"><b>The repository of the project: its changes, its files, its notes</b><br>for: a chapter of its own</div><div class="frame"><div class="screen">{{scene:new-repo}}</div></div></div>
+<div><div class="cap"><b>A brief: the questions a session left to answer later</b><br>for: a chapter of its own</div><div class="frame"><div class="screen">{{scene:new-brief}}</div></div></div>
+<div><div class="cap"><b>The settings of a contour: what its projects start with</b><br>for: About half an hour on a fresh machine</div><div class="frame"><div class="screen">{{scene:new-contour}}</div></div></div>
+<div><div class="cap"><b>The page of a project: the command of its next launch, where it lives, what it starts with</b><br>for: About half an hour on a fresh machine</div><div class="frame"><div class="screen">{{scene:new-project}}</div></div></div>
+</div>
+<script>
+const eye = new IntersectionObserver((rows) => {
+    for (const row of rows) if (row.isIntersecting) row.target.classList.add("seen");
+}, { rootMargin: "80px" });
+for (const frame of document.querySelectorAll(".frame")) eye.observe(frame);
+</script>
+</body></html>
