@@ -191,20 +191,20 @@ type Work struct {
 	Artifacts []Artifact  `json:"artifacts,omitempty"`
 	Docs      []Doc       `json:"docs,omitempty"`
 	Sent      []Sent      `json:"sent,omitempty"`
-	Plan      *Plan       `json:"plan,omitempty"`
+	Checklist *Checklist  `json:"checklist,omitempty"`
 }
 
-// Plan is the list of steps the session keeps of its work through the
-// panel's plan tool, as it last sent it, with a line about it as a whole.
-type Plan struct {
-	Items []PlanItem `json:"items"`
-	At    string     `json:"at"`
-	Note  string     `json:"note,omitempty"`
+// Checklist is the list of steps the session keeps of its work through the
+// panel's checklist tool, as it last sent it, with a line about it as a whole.
+type Checklist struct {
+	Items []ChecklistItem `json:"items"`
+	At    string          `json:"at"`
+	Note  string          `json:"note,omitempty"`
 }
 
-// PlanItem is one step: pending, active, done or dropped. Since is when a
+// ChecklistItem is one step: pending, active, done or dropped. Since is when a
 // step at work or done took its status.
-type PlanItem struct {
+type ChecklistItem struct {
 	Text   string `json:"text"`
 	Status string `json:"status"`
 	Since  string `json:"since,omitempty"`

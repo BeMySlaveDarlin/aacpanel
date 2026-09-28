@@ -29,7 +29,7 @@ import { Brief } from "./brief.js";
 import { index, shelf as pageShelf } from "../data/artifacts.js";
 import { shelf as briefShelf } from "../data/briefs.js";
 import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
-import { PlanSheet } from "./chat/plan.js";
+import { ChecklistSheet } from "./chat/checklist.js";
 import { Composer, deliver, outcome } from "./chat/composer.js";
 import { knows, whyNot } from "../exec.js";
 import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } from "./chat/answered.js";
@@ -279,9 +279,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     }
 
     const feed = weld(state.items);
-    // The plan of the work: on a phone a line over the composer, at a desk a
-    // block at the top of the timeline column, where the room is.
-    const plan = (state.work && state.work.plan) || null;
+    // The checklist of the work: on a phone a line over the composer, at a
+    // desk a block at the top of the timeline column, where the room is.
+    const checklist = (state.work && state.work.checklist) || null;
 
     const pct = live ? live.pct : (archive ? archive.pctMax : null);
     const stand = stateOf(live, still, move);
@@ -359,7 +359,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             <${FeedGrid}
                 rows=${rows(feed)}
                 wide=${wide}
-                plan=${plan}
+                checklist=${checklist}
                 onOpen=${(g, badge) => setCalls(callsOf(g, feed, runCalls, turnCalls, badge))}
                 row=${(item, n) => html`<${Row}
                     key=${`${item.pos}-${n}`}
@@ -397,7 +397,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                turnOver=${Boolean(live.turnOver)}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""}
                                feed=${feed} onCalls=${(run) => setCalls({ list: runCalls(feed, run) })}
-                               plan=${wide ? null : plan} onPlan=${() => setLook({ kind: "plan" })}
+                               checklist=${wide ? null : checklist}
+                               onChecklist=${() => setLook({ kind: "checklist" })}
                                onOpen=${(what) => setLook(what)} />
                 ${live.outside
                     ? html`<p class="outsidenote">${outsideNote(live)}</p>`
@@ -476,8 +477,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 ? html`<${ArtifactPage} card=${look.card} />`
                 : look.kind === "command"
                 ? html`<${CommandSheet} item=${look.item} />`
-                : look.kind === "plan"
-                ? html`<${PlanSheet} plan=${plan} />`
+                : look.kind === "checklist"
+                ? html`<${ChecklistSheet} checklist=${checklist} />`
                 : look.kind === "mcp"
                 ? html`<${McpSheet} name=${name} exec=${exec} />`
                 : look.kind === "status"

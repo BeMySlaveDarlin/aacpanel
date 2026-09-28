@@ -5,9 +5,9 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // Live rows of the sessions list on a phone: a session at work on the fourth
-// of seven steps of its plan, a quiet one whose plan is all behind it, one
-// that asks the person something while its plan is half done, and one that
-// keeps no plan.
+// of seven steps of its checklist, a quiet one whose checklist is all behind
+// it, one that asks the person something while its checklist is half done,
+// and one that keeps no checklist.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -26,9 +26,9 @@ const steps = (done, active, pending) => [
     ...Array.from({ length: pending }, (_, i) => ({ text: `later ${i + 1}`, status: "pending" })),
 ];
 const rows = [
-    { ...base, session: "busy", sessionId: "a", status: "busy", plan: { items: steps(3, 1, 3), at: base.startedAt } },
-    { ...base, session: "done", sessionId: "b", plan: { items: [...steps(6, 0, 0), { text: "gone", status: "dropped" }], at: base.startedAt } },
-    { ...base, session: "asks", sessionId: "c", ask: { header: "Which way", count: 1 }, plan: { items: steps(1, 0, 2), at: base.startedAt } },
+    { ...base, session: "busy", sessionId: "a", status: "busy", checklist: { items: steps(3, 1, 3), at: base.startedAt } },
+    { ...base, session: "done", sessionId: "b", checklist: { items: [...steps(6, 0, 0), { text: "gone", status: "dropped" }], at: base.startedAt } },
+    { ...base, session: "asks", sessionId: "c", ask: { header: "Which way", count: 1 }, checklist: { items: steps(1, 0, 2), at: base.startedAt } },
     { ...base, session: "plain", sessionId: "d" },
 ];
 const exec = { available: true, kinds: ["session.close", "session.open"] };
@@ -50,18 +50,18 @@ window.done = (async () => {
     for (const block of document.querySelectorAll(".pjblock")) {
         const state = block.querySelector(".pjstate");
         const said = block.querySelector(".pjtext");
-        const plan = block.querySelector(".pjplan");
+        const checklist = block.querySelector(".pjchecklist");
         const a = said.getBoundingClientRect();
-        const b = plan ? plan.getBoundingClientRect() : null;
+        const b = checklist ? checklist.getBoundingClientRect() : null;
         out[text(block.querySelector(".pjname"))] = {
             state: text(said),
             stateCut: cut(said),
             stateLines: Math.round(a.height / parseFloat(getComputedStyle(said).lineHeight)),
-            plan: text(plan),
-            inState: Boolean(plan) && plan.parentElement === state,
+            checklist: text(checklist),
+            inState: Boolean(checklist) && checklist.parentElement === state,
             sameLine: Boolean(b) && Math.abs(b.top - a.top) < 2 && b.left >= a.right,
-            planWidth: b ? Math.round(b.width) : 0,
-            planInside: Boolean(b) && b.right <= block.querySelector(".pjtag").getBoundingClientRect().left + 0.5,
+            checklistWidth: b ? Math.round(b.width) : 0,
+            checklistInside: Boolean(b) && b.right <= block.querySelector(".pjtag").getBoundingClientRect().left + 0.5,
         };
     }
     out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;

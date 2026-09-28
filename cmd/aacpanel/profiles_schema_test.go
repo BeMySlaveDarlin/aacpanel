@@ -204,7 +204,7 @@ func TestProfilesAnswerTheLaunchLinePG(t *testing.T) {
 		layer, _ := w["layer"].(string)
 		got = append(got, w["text"].(string)+"/"+layer)
 	}
-	want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel mcp__aacpanel__plan/panel " +
+	want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel mcp__aacpanel__checklist/panel " +
 		"-n/ aacpanel/ --remote-control/contour aacpanel/contour --effort/project high/project"
 	if strings.Join(got, " ") != want {
 		t.Errorf("the line reads %q, meant %q", strings.Join(got, " "), want)
@@ -247,7 +247,7 @@ func TestProjectPreviewAnswersTheDraftAndWritesNothingPG(t *testing.T) {
 	preview := "/api/projects/" + project + "/preview"
 
 	got := call(http.MethodPost, preview, `{"session":"panel","launchUnset":["effort"],"launchSet":{"model":"sonnet"}}`, http.StatusOK)
-	if want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel mcp__aacpanel__plan/panel " +
+	if want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel mcp__aacpanel__checklist/panel " +
 		"-n/ panel/ --remote-control/contour panel/contour --model/project sonnet/project"; text(got) != want {
 		t.Errorf("the draft's line reads %q, meant %q", text(got), want)
 	}

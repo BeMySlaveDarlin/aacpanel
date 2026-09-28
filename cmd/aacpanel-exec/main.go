@@ -18,10 +18,10 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/checklist"
 	"aacpanel/internal/executor"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
-	"aacpanel/internal/plan"
 	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
 	"aacpanel/internal/toolset"
@@ -189,10 +189,10 @@ func runHold() int {
 	return 0
 }
 
-// planFlag starts the same server as mcp.Flag. A live session keeps the MCP
-// configuration it was started with, and a reconnect of the server starts the
-// binary on disk with the flag written there: a session started with this
-// flag keeps the panel's tools until it ends.
+// planFlag starts the same server as mcp.Flag. A session's MCP configuration
+// keeps the flag it was started with, and a reconnect of the server starts the
+// binary on disk with that flag: a session whose configuration names this one
+// keeps the panel's tools until it ends.
 const planFlag = "-plan"
 
 // mcpFlags defines the flags that start the executor as the panel's MCP
@@ -208,10 +208,10 @@ func mcpFlags(set *flag.FlagSet) *bool {
 
 // runMCP serves the panel's tools to one claude: its parent, which started it
 // as an MCP server. The place that process works in is found anew on every
-// call of a tool, and the plans nobody has touched for a month are swept once
-// at the start.
+// call of a tool, and the checklists nobody has touched for a month are swept
+// once at the start.
 func runMCP(in io.Reader, out io.Writer, parent int) int {
-	plan.Sweep(plan.Dir(), time.Now())
+	checklist.Sweep(checklist.Dir(), time.Now())
 	srv := toolset.Server(func() (mcp.Binding, error) { return launcher.Where(parent) })
 	if err := srv.Serve(context.Background(), in, out); err != nil {
 		fmt.Fprintf(os.Stderr, "aacpanel-exec: the MCP server: %v\n", err)

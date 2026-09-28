@@ -5,9 +5,10 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
-// A session on a phone at work on the fourth of seven steps of its plan, one
-// step of it dropped along the way: the line of the plan heads the card over
-// the composer, and a tap on it opens the whole plan in a sheet.
+// A session on a phone at work on the fourth of seven steps of its checklist,
+// one step of it dropped along the way: the line of the checklist heads the
+// card over the composer, and a tap on it opens the whole checklist in a
+// sheet.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -18,11 +19,11 @@ import { ToastHost } from "/src/ui/toasts.js";
 const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.toISOString(); };
 const today = (iso) => new Date(iso).toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const items = [
-    { role: "me", text: "go on with the plan", at: at(10, 0), pos: 1 },
+    { role: "me", text: "go on with the checklist", at: at(10, 0), pos: 1 },
     { role: "tools", kind: "bash", run: 5, pos: 5, at: at(10, 20),
       calls: [{ name: "Bash", arg: "make check", pos: 5, index: 0, at: at(10, 20), open: true }] },
 ];
-const plan = {
+const checklist = {
     items: [
         { text: "read the code", status: "done", since: at(10, 4) },
         { text: "a second collector", status: "dropped" },
@@ -40,7 +41,7 @@ window.fetch = async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) {
         return json({ items, first: 1, last: 5, total: items.length, moreBefore: false,
-                      state: { tasks: [], agents: [], workflows: [], plan } });
+                      state: { tasks: [], agents: [], workflows: [], checklist } });
     }
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u.startsWith("/api/session/")) return json({ to: "" });
@@ -64,27 +65,27 @@ const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await sleep
 window.done = (async () => {
     const out = {};
     try {
-        await until(() => document.querySelector(".composerbox .nowbar") && document.querySelector(".composerbox .planline"));
+        await until(() => document.querySelector(".composerbox .nowbar") && document.querySelector(".composerbox .ckline"));
         const bar = document.querySelector(".composerbox .workbar.status");
-        out.lineFirst = Boolean(bar) && bar.firstElementChild === bar.querySelector(".planline");
-        out.line = text(document.querySelector(".composerbox .planline"));
-        document.querySelector(".composerbox .planline").click();
-        await until(() => document.querySelector(".sheet.on .planlist"));
+        out.lineFirst = Boolean(bar) && bar.firstElementChild === bar.querySelector(".ckline");
+        out.line = text(document.querySelector(".composerbox .ckline"));
+        document.querySelector(".composerbox .ckline").click();
+        await until(() => document.querySelector(".sheet.on .cklist"));
         const sheet = document.querySelector(".sheet.on");
         out.title = text(sheet.querySelector(".sheethead h2"));
         out.sub = text(sheet.querySelector(".sheethead .chatsub"));
         out.label = sheet.getAttribute("aria-label");
-        const note = sheet.querySelector(".plannote");
-        const list = sheet.querySelector(".planlist");
+        const note = sheet.querySelector(".cknote");
+        const list = sheet.querySelector(".cklist");
         out.note = text(note);
         out.noteOnTop = Boolean(note && list) && note.getBoundingClientRect().bottom <= list.getBoundingClientRect().top + 0.5;
-        out.steps = Array.from(sheet.querySelectorAll(".plstep")).map((li) => ({
+        out.steps = Array.from(sheet.querySelectorAll(".ckitem")).map((li) => ({
             cls: li.className,
-            text: text(li.querySelector(".pltext")),
-            at: text(li.querySelector(".plat")),
-            tick: Boolean(li.querySelector(".plmark svg")),
-            struck: getComputedStyle(li.querySelector(".pltext")).textDecorationLine,
-            tag: li.querySelector(".pltext").tagName.toLowerCase(),
+            text: text(li.querySelector(".cktext")),
+            at: text(li.querySelector(".ckat")),
+            tick: Boolean(li.querySelector(".ckmark svg")),
+            struck: getComputedStyle(li.querySelector(".cktext")).textDecorationLine,
+            tag: li.querySelector(".cktext").tagName.toLowerCase(),
         }));
         out.times = { done1: today(at(10, 4)), done2: today(at(10, 9)), active: today(at(10, 18)) };
         out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;

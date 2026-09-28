@@ -10,8 +10,8 @@ package toolset
 import (
 	"time"
 
+	"aacpanel/internal/checklist"
 	"aacpanel/internal/mcp"
-	"aacpanel/internal/plan"
 )
 
 // lead is the server's first sentence to a session: the tools reach the
@@ -21,7 +21,7 @@ const lead = "The panel is how the person follows this session from their phone 
 
 func tools() []mcp.Tool {
 	return []mcp.Tool{
-		plan.Tool(plan.Dir(), time.Now),
+		checklist.Tool(checklist.Dir(), time.Now),
 	}
 }
 

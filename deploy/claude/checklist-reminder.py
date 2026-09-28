@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Plan reminder: at the end of a turn a session that keeps a plan is asked once whether it changed.
+"""Checklist reminder: at the end of a turn a session that keeps a checklist is asked once whether it changed.
 
-The plan is the model's own list of steps, kept through the panel's plan tool
-and shown to the person. It belongs to the place the session works in — the
-config directory of the account and the directory claude runs in — so a
-session started again there, afresh or going on with its conversation, finds
-it. A turn that did work — called tools — and left the plan as it was may
-have left it behind: the end of that turn is held once, and the model is told
-to update the plan if it changed, to clear it if it no longer applies, and
-otherwise to end the turn. The turn after the hold is never held again.
+The checklist is the model's own list of steps, kept through the panel's
+checklist tool and shown to the person. It belongs to the place the session
+works in — the config directory of the account and the directory claude runs
+in — so a session started again there, afresh or going on with its
+conversation, finds it. A turn that did work — called tools — and left the
+checklist as it was may have left it behind: the end of that turn is held
+once, and the model is told to update the checklist if it changed, to clear
+it if it no longer applies, and otherwise to end the turn. The turn after the
+hold is never held again.
 
-A plan with nothing left to do asks nothing, and neither does a session that
-has no plan tool: a claude started by hand in the same place cannot update
-the plan. A session has the tool when it sent the plan itself, or when it
-was started with the tool allowed, as the panel starts every session — which
-is how a session started again after a restart is asked about the plan the
-one before it left.
+A checklist with nothing left to do asks nothing, and neither does a session
+that has no checklist tool: a claude started by hand in the same place cannot
+update the checklist. A session has the tool when it sent the checklist
+itself, or when it was started with the tool allowed, as the panel starts
+every session — which is how a session started again after a restart is asked
+about the checklist the one before it left.
 """
 
 import datetime
@@ -28,11 +29,11 @@ import sys
 
 UNFINISHED = ("pending", "active")
 
-TOOL = "mcp__aacpanel__plan"
+TOOL = "mcp__aacpanel__checklist"
 
 # How much of the tail of the transcript is read for the turn. A turn longer
 # than this is taken from the oldest record read, which is all the question
-# needs: whether the turn called tools, and whether the plan is older.
+# needs: whether the turn called tools, and whether the checklist is older.
 TAIL = 4 * 1024 * 1024
 
 # How far up the chain of its parents the hook looks for the claude running
@@ -42,48 +43,48 @@ ANCESTORS = 6
 PROC = "/proc"
 
 
-def plans_dir():
-    """Returns where the panel's executor keeps the plans."""
+def checklists_dir():
+    """Returns where the panel's executor keeps the checklists."""
     base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    return os.path.join(base, "aacpanel", "plans")
+    return os.path.join(base, "aacpanel", "checklists")
 
 
 def _clean(path):
-    """Returns a path in the form the executor names a plan by, or None when it is not absolute."""
+    """Returns a path in the form the executor names a checklist by, or None when it is not absolute."""
     if not isinstance(path, str) or not path.startswith("/"):
         return None
     path = posixpath.normpath(path)
     return "/" + path.lstrip("/") if path.startswith("//") else path
 
 
-def plan_name(config_dir, cwd):
-    """Returns the file name of the plan of a place: the hash of its two paths the executor computes."""
+def checklist_name(config_dir, cwd):
+    """Returns the file name of the checklist of a place: the hash of its two paths the executor computes."""
     config_dir, cwd = _clean(config_dir), _clean(cwd)
     if config_dir is None or cwd is None:
         return None
     return hashlib.sha256(os.fsencode(config_dir) + b"\0" + os.fsencode(cwd)).hexdigest()[:32] + ".json"
 
 
-def read_plan(config_dir, cwd):
-    """Returns the plan of a place and when its file was written, or (None, None)."""
-    name = plan_name(config_dir, cwd)
+def read_checklist(config_dir, cwd):
+    """Returns the checklist of a place and when its file was written, or (None, None)."""
+    name = checklist_name(config_dir, cwd)
     if name is None:
         return None, None
-    path = os.path.join(plans_dir(), name)
+    path = os.path.join(checklists_dir(), name)
     try:
         written = os.stat(path).st_mtime
         with open(path, encoding="utf-8") as f:
-            plan = json.load(f)
+            found = json.load(f)
     except (OSError, ValueError):
         return None, None
-    if not isinstance(plan, dict) or plan.get("configDir") != _clean(config_dir) or plan.get("dir") != _clean(cwd):
+    if not isinstance(found, dict) or found.get("configDir") != _clean(config_dir) or found.get("dir") != _clean(cwd):
         return None, None
-    return plan, written
+    return found, written
 
 
-def unfinished(plan):
-    """Says whether a step of the plan is still to do or at work."""
-    items = plan.get("items") if isinstance(plan.get("items"), list) else []
+def unfinished(checklist):
+    """Says whether a step of the checklist is still to do or at work."""
+    items = checklist.get("items") if isinstance(checklist.get("items"), list) else []
     return any(isinstance(it, dict) and it.get("status") in UNFINISHED for it in items)
 
 
@@ -149,7 +150,7 @@ def claude(session_id):
 
 
 def has_tool(pid):
-    """Says whether a claude process was started with the plan tool allowed, as the panel starts every session."""
+    """Says whether a claude process was started with the checklist tool allowed, as the panel starts every session."""
     try:
         with open(os.path.join(PROC, str(pid), "cmdline"), "rb") as f:
             args = f.read().split(b"\0")
@@ -230,9 +231,9 @@ def turn(path):
 
 def reason():
     """Returns what the model is told instead of stopping."""
-    return (f"The panel shows the person a plan of the work in this place, and this turn did work "
-            f"without touching it. If the plan changed — a step started, ended or was dropped, or the "
-            f"steps themselves changed — send it with the plan tool ({TOOL}); if it no longer applies, "
+    return (f"The panel shows the person a checklist of the work in this place, and this turn did work "
+            f"without touching it. If the checklist changed — a step started, ended or was dropped, or the "
+            f"steps themselves changed — send it with the checklist tool ({TOOL}); if it no longer applies, "
             f"clear it with an empty list. If it did not change, end the turn now, without a word about this.")
 
 
@@ -249,10 +250,10 @@ def main():
     pid, session = claude(payload.get("session_id") or "")
     if pid is None:
         return
-    plan, written = read_plan(config_dir(), session.get("cwd"))
-    if plan is None or not unfinished(plan):
+    checklist, written = read_checklist(config_dir(), session.get("cwd"))
+    if checklist is None or not unfinished(checklist):
         return
-    if plan.get("pid") != pid and not has_tool(pid):
+    if checklist.get("pid") != pid and not has_tool(pid):
         return
     began, called = turn(payload.get("transcript_path") or "")
     if not called or began is None or written >= began:

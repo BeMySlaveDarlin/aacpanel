@@ -69,7 +69,7 @@ type rpcError struct {
 }
 
 // maxLine bounds one message. The arguments of a call are the bulk of one,
-// and a plan at its limits is some ten kilobytes.
+// and a checklist at its limits is some ten kilobytes.
 const maxLine = 1 << 20
 
 // Serve answers messages from in until it ends. ctx is handed to every call

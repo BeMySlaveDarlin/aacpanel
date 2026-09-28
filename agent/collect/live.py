@@ -4,11 +4,11 @@ import os
 
 import archive
 import asked
+import checklists
 import contours
 import ctx
 import held
 import notes
-import plans
 
 import agent
 from sesstate.wake import TASK_WAKE
@@ -90,7 +90,7 @@ def live_session_files():
 def live_session_places():
     """Maps the sessionId of a live session to its place: the config directory of its account and its directory.
 
-    The plan of a session is kept by its place, and the executor finds the
+    The checklist of a session is kept by its place, and the executor finds the
     place in this same file: the directory the file lies under and the
     directory it names.
     """
@@ -247,12 +247,12 @@ def sessions():
         note = notes.BOARD.of(sid) if sid else None
         if note:
             s["note"] = {"text": note.get("text") or "", "at": note.get("at") or ""}
-        # The plan is the place's: a session started again where another
+        # The checklist is the place's: a session started again where another
         # left one shows it at once, under a conversation of its own.
         place = places.get(sid) if sid else None
-        plan = plans.of(*place) if place else None
-        if plan:
-            s["plan"] = plan
+        checklist = checklists.of(*place) if place else None
+        if checklist:
+            s["checklist"] = checklist
         wait = waits.get(s.get("session") or "")
         if wait:
             s["waitingFor"] = wait

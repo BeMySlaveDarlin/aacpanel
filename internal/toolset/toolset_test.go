@@ -18,10 +18,10 @@ func TestEveryToolHasANameOfItsOwn(t *testing.T) {
 	}
 }
 
-// What the launcher allows is what the tools mark allowed: the plan tool,
+// What the launcher allows is what the tools mark allowed: the checklist tool,
 // under the name claude gives it and a permission rule knows it by.
 func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
-	if got := Allowed(); !slices.Equal(got, []string{"mcp__aacpanel__plan"}) {
+	if got := Allowed(); !slices.Equal(got, []string{"mcp__aacpanel__checklist"}) {
 		t.Errorf("allowed %v", got)
 	}
 }

@@ -98,7 +98,7 @@ func sessionOf(path string, pid int) (sessionFile, bool) {
 // in. The config directory is the one the process was started with — its own
 // CLAUDE_CONFIG_DIR, read from its environment — and after it the ones the
 // contours name; the collector finds the session in the same file, so the
-// place it shows a plan by is this one. The file is read anew on every call:
+// place it shows a checklist by is this one. The file is read anew on every call:
 // /clear starts another conversation in the same process.
 //
 // A process with no file of itself yet — a server asked as the session

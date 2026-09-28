@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_barrier  # noqa: E402,F401
 import asked  # noqa: E402
 import chat  # noqa: E402
+import checklists  # noqa: E402
 import notes  # noqa: E402
-import plans  # noqa: E402
 import sesstate  # noqa: E402
 from collect import live  # noqa: E402
 
@@ -20,7 +20,7 @@ RESTARTED = "ef015678-1111-4111-8111-111111111111"
 CONFIG = "/srv/claude"
 LAB = "/srv/proj/lab"
 
-PLAN = {
+CHECKLIST = {
     "configDir": CONFIG, "dir": LAB,
     "sessionId": SESSION, "pid": 4242, "at": "2026-09-28T10:25:00Z", "note": "waits on the test base",
     "items": [
@@ -43,8 +43,8 @@ SHAPE = {
 }
 
 
-class PlanOnDisk(unittest.TestCase):
-    """The executor's plan server writes the file; the collector reads it."""
+class ChecklistOnDisk(unittest.TestCase):
+    """The executor's server writes the file; the collector reads it."""
 
     def setUp(self):
         self.dir = test_barrier.tmp_dir()
@@ -55,9 +55,9 @@ class PlanOnDisk(unittest.TestCase):
                         else os.environ.__setitem__("XDG_STATE_HOME", old))
 
     def put(self, data, config=CONFIG, cwd=LAB):
-        root = os.path.join(self.dir.name, "aacpanel", "plans")
+        root = os.path.join(self.dir.name, "aacpanel", "checklists")
         os.makedirs(root, exist_ok=True)
-        with open(os.path.join(root, plans.name_of(config, cwd)), "w", encoding="utf-8") as f:
+        with open(os.path.join(root, checklists.name_of(config, cwd)), "w", encoding="utf-8") as f:
             f.write(data if isinstance(data, str) else json.dumps(data))
 
 
@@ -65,54 +65,54 @@ class Name(unittest.TestCase):
     def test_the_name_is_the_hash_the_executor_computes(self):
         # Pinned beside the executor's own test of the same place: the two
         # sides name one file.
-        self.assertEqual(plans.name_of(CONFIG, LAB), "d2ba143628e62863dae2533062199cf6.json")
-        self.assertEqual(plans.name_of("/srv/claude/", "//srv/proj/./lab/"), plans.name_of(CONFIG, LAB),
+        self.assertEqual(checklists.name_of(CONFIG, LAB), "d2ba143628e62863dae2533062199cf6.json")
+        self.assertEqual(checklists.name_of("/srv/claude/", "//srv/proj/./lab/"), checklists.name_of(CONFIG, LAB),
                          "a place written another way is another file")
 
     def test_a_place_that_is_not_one_has_no_file(self):
         for config, cwd in (("srv/claude", LAB), (CONFIG, ""), (None, LAB), (CONFIG, 5)):
-            self.assertIsNone(plans.name_of(config, cwd), (config, cwd))
+            self.assertIsNone(checklists.name_of(config, cwd), (config, cwd))
 
 
-class Of(PlanOnDisk):
-    def test_the_plan_is_read_in_the_shape_the_screens_take(self):
-        self.put(PLAN)
-        self.assertEqual(plans.of(CONFIG, LAB), SHAPE,
+class Of(ChecklistOnDisk):
+    def test_the_checklist_is_read_in_the_shape_the_screens_take(self):
+        self.put(CHECKLIST)
+        self.assertEqual(checklists.of(CONFIG, LAB), SHAPE,
                          "the place, the process and the conversation are the host's; the screens take the steps")
 
     def test_a_step_the_screens_cannot_draw_is_left_out(self):
-        self.put({**PLAN, "items": [{"text": "  ", "status": "active"}, {"text": "x", "status": "in_progress"},
+        self.put({**CHECKLIST, "items": [{"text": "  ", "status": "active"}, {"text": "x", "status": "in_progress"},
                                     "a line", {"text": "kept", "status": "pending", "since": 5}]})
-        self.assertEqual(plans.of(CONFIG, LAB)["items"], [{"text": "kept", "status": "pending"}])
+        self.assertEqual(checklists.of(CONFIG, LAB)["items"], [{"text": "kept", "status": "pending"}])
 
-    def test_a_plan_with_no_step_left_is_no_plan(self):
-        self.put({**PLAN, "items": [{"text": "x", "status": "unknown"}]})
-        self.assertIsNone(plans.of(CONFIG, LAB), "an empty plan row on a card says there is a plan")
+    def test_a_checklist_with_no_step_left_is_no_checklist(self):
+        self.put({**CHECKLIST, "items": [{"text": "x", "status": "unknown"}]})
+        self.assertIsNone(checklists.of(CONFIG, LAB), "an empty checklist row on a card says there is a checklist")
 
     def test_without_a_note_there_is_no_note(self):
-        self.put({**PLAN, "note": ""})
-        self.assertNotIn("note", plans.of(CONFIG, LAB))
+        self.put({**CHECKLIST, "note": ""})
+        self.assertNotIn("note", checklists.of(CONFIG, LAB))
 
-    def test_only_the_file_of_this_place_is_its_plan(self):
-        self.put({**PLAN, "dir": "/srv/proj/other"})
-        self.assertIsNone(plans.of(CONFIG, LAB), "a file naming another place was read")
-        self.put({**PLAN, "configDir": "/srv/claude-work"})
-        self.assertIsNone(plans.of(CONFIG, LAB), "a file of another account was read")
+    def test_only_the_file_of_this_place_is_its_checklist(self):
+        self.put({**CHECKLIST, "dir": "/srv/proj/other"})
+        self.assertIsNone(checklists.of(CONFIG, LAB), "a file naming another place was read")
+        self.put({**CHECKLIST, "configDir": "/srv/claude-work"})
+        self.assertIsNone(checklists.of(CONFIG, LAB), "a file of another account was read")
         self.put("not json")
-        self.assertIsNone(plans.of(CONFIG, LAB))
-        self.put(PLAN)
-        self.assertIsNone(plans.of(CONFIG, "/srv/proj/lab-2"))
-        self.assertIsNone(plans.of("/srv/claude-work", LAB))
-        self.assertIsNone(plans.of(CONFIG, "srv/proj/lab"), "a relative path was taken for a place")
+        self.assertIsNone(checklists.of(CONFIG, LAB))
+        self.put(CHECKLIST)
+        self.assertIsNone(checklists.of(CONFIG, "/srv/proj/lab-2"))
+        self.assertIsNone(checklists.of("/srv/claude-work", LAB))
+        self.assertIsNone(checklists.of(CONFIG, "srv/proj/lab"), "a relative path was taken for a place")
 
-    def test_a_conversation_named_sees_the_plan_only_while_it_sent_it_last(self):
-        self.put(PLAN)
-        self.assertEqual(plans.of(CONFIG, LAB, sid=SESSION), SHAPE)
-        self.assertIsNone(plans.of(CONFIG, LAB, sid=RESTARTED))
+    def test_a_conversation_named_sees_the_checklist_only_while_it_sent_it_last(self):
+        self.put(CHECKLIST)
+        self.assertEqual(checklists.of(CONFIG, LAB, sid=SESSION), SHAPE)
+        self.assertIsNone(checklists.of(CONFIG, LAB, sid=RESTARTED))
 
 
-class PlanOnTheCard(PlanOnDisk):
-    """The plan reaches the snapshot, which is all the panel reads of a session."""
+class ChecklistOnTheCard(ChecklistOnDisk):
+    """The checklist reaches the snapshot, which is all the panel reads of a session."""
 
     def setUp(self):
         super().setUp()
@@ -132,27 +132,28 @@ class PlanOnTheCard(PlanOnDisk):
     def only(self):
         return live.sessions()["sessions"][0]
 
-    def test_a_session_that_keeps_a_plan_carries_it(self):
-        self.put(PLAN)
-        self.assertEqual(self.only().get("plan"), SHAPE)
+    def test_a_session_that_keeps_a_checklist_carries_it(self):
+        self.put(CHECKLIST)
+        self.assertEqual(self.only().get("checklist"), SHAPE)
 
-    def test_a_session_without_a_plan_carries_nothing(self):
-        self.assertNotIn("plan", self.only(), "an empty plan on every card draws a row of nothing")
+    def test_a_session_without_a_checklist_carries_nothing(self):
+        self.assertNotIn("checklist", self.only(), "an empty checklist on every card draws a row of nothing")
 
-    def test_a_session_started_again_in_the_place_shows_the_plan_at_once(self):
+    def test_a_session_started_again_in_the_place_shows_the_checklist_at_once(self):
         # The restart is another conversation in the same place; it has not
-        # sent the plan yet, and the card shows what the one before it left.
-        self.put(PLAN)
+        # sent the checklist yet, and the card shows what the one before it
+        # left.
+        self.put(CHECKLIST)
         self.rows = {"sessions": [{"session": "lab", "sessionId": RESTARTED, "cwd": LAB}]}
         self.places = {RESTARTED: (CONFIG, LAB)}
-        self.assertEqual(self.only().get("plan"), SHAPE)
+        self.assertEqual(self.only().get("checklist"), SHAPE)
 
     def test_a_session_of_another_place_does_not_show_it(self):
-        self.put(PLAN)
+        self.put(CHECKLIST)
         self.places = {SESSION: (CONFIG, "/srv/proj/other")}
-        self.assertNotIn("plan", self.only())
+        self.assertNotIn("checklist", self.only())
         self.places = {}
-        self.assertNotIn("plan", self.only(), "a session not placed showed a plan")
+        self.assertNotIn("checklist", self.only(), "a session not placed showed a checklist")
 
 
 class LivePlaces(unittest.TestCase):
@@ -173,8 +174,8 @@ class LivePlaces(unittest.TestCase):
         self.assertEqual(live.live_session_places(), {SESSION: (CONFIG, LAB)})
 
 
-class PlanInTheConversation(PlanOnDisk):
-    """The state of an open conversation carries the plan the feed draws."""
+class ChecklistInTheConversation(ChecklistOnDisk):
+    """The state of an open conversation carries the checklist the feed draws."""
 
     def setUp(self):
         super().setUp()
@@ -196,28 +197,28 @@ class PlanInTheConversation(PlanOnDisk):
     def state(self):
         return chat.answer({"session": SESSION, "limit": 20, "state": True})["state"]
 
-    def test_the_state_carries_the_plan(self):
-        self.put(PLAN)
-        self.assertEqual(self.state().get("plan"), SHAPE)
+    def test_the_state_carries_the_checklist(self):
+        self.put(CHECKLIST)
+        self.assertEqual(self.state().get("checklist"), SHAPE)
 
-    def test_a_live_conversation_shows_the_plan_its_place_keeps_whoever_sent_it(self):
-        self.put({**PLAN, "sessionId": RESTARTED})
-        self.assertEqual(self.state().get("plan"), SHAPE)
+    def test_a_live_conversation_shows_the_checklist_its_place_keeps_whoever_sent_it(self):
+        self.put({**CHECKLIST, "sessionId": RESTARTED})
+        self.assertEqual(self.state().get("checklist"), SHAPE)
 
-    def test_a_conversation_without_a_plan_carries_none(self):
-        self.assertNotIn("plan", self.state())
+    def test_a_conversation_without_a_checklist_carries_none(self):
+        self.assertNotIn("checklist", self.state())
 
-    def test_a_conversation_that_is_over_shows_the_plan_only_while_it_sent_it_last(self):
+    def test_a_conversation_that_is_over_shows_the_checklist_only_while_it_sent_it_last(self):
         # Placed by its transcript: the account the transcript lies under and
         # the directory it names.
         self.places = {}
-        self.put({**PLAN, "configDir": self.dir.name}, config=self.dir.name)
-        self.assertEqual(self.state().get("plan"), SHAPE)
-        self.put({**PLAN, "configDir": self.dir.name, "sessionId": RESTARTED}, config=self.dir.name)
-        self.assertNotIn("plan", self.state(), "an old conversation showed the plan a later session keeps")
+        self.put({**CHECKLIST, "configDir": self.dir.name}, config=self.dir.name)
+        self.assertEqual(self.state().get("checklist"), SHAPE)
+        self.put({**CHECKLIST, "configDir": self.dir.name, "sessionId": RESTARTED}, config=self.dir.name)
+        self.assertNotIn("checklist", self.state(), "an old conversation showed the checklist a later session keeps")
 
-    def test_a_window_of_the_feed_alone_reads_no_plan(self):
-        self.put(PLAN)
+    def test_a_window_of_the_feed_alone_reads_no_checklist(self):
+        self.put(CHECKLIST)
         self.assertNotIn("state", chat.answer({"session": SESSION, "limit": 20}))
 
 

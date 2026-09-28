@@ -5,14 +5,14 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="deskshell"><div class="shell no-nav"><main class="body" id="root"></main></div></div>
 <script type="module">
-// A session at a desk at work on the fourth of seven steps of its plan, with a
-// feed long enough to scroll: the plan stands at the top of the timeline
-// column and stays there while the feed scrolls, and a person folds it to one
-// line and finds it folded the next time the conversation is drawn.
+// A session at a desk at work on the fourth of seven steps of its checklist,
+// with a feed long enough to scroll: the checklist stands at the top of the
+// timeline column and stays there while the feed scrolls, and a person folds
+// it to one line and finds it folded the next time the conversation is drawn.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
-import { PLAN_KEY } from "/src/screens/chat/plan.js";
+import { CHECKLIST_KEY } from "/src/screens/chat/checklist.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
@@ -28,7 +28,7 @@ for (let n = 0; n < 30; n++) {
     items.push({ role: "ai", text: `Step ${n} is done: the build is green and the next one is up.`, at: ago(t - 60), pos: pos++ });
 }
 const step = (text, status, sec) => (sec == null ? { text, status } : { text, status, since: ago(sec) });
-const plan = {
+const checklist = {
     items: [
         step("read the code", "done", 3000), step("find where it is drawn", "done", 2400),
         step("write the fixtures", "done", 1800), step("mutate the lines of the feature", "active", 900),
@@ -42,7 +42,7 @@ window.fetch = async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) {
         return json({ items, first: 1, last: pos - 1, total: items.length, moreBefore: false,
-                      state: { tasks: [], agents: [], workflows: [], plan } });
+                      state: { tasks: [], agents: [], workflows: [], checklist } });
     }
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u.startsWith("/api/session/")) return json({ to: "" });
@@ -70,17 +70,17 @@ const top = (el) => el.getBoundingClientRect().top;
 window.done = (async () => {
     const out = {};
     try {
-        await until(() => document.querySelector(".tline .plancol") && document.querySelectorAll(".tlentry").length >= 30);
+        await until(() => document.querySelector(".tline .ckcol") && document.querySelectorAll(".tlentry").length >= 30);
         for (let i = 0; i < 4; i++) await frame();
         const feed = document.querySelector(".chatfeed");
         const line = document.querySelector(".tline");
-        const block = () => document.querySelector(".tline .plancol");
+        const block = () => document.querySelector(".tline .ckcol");
         out.first = line.firstElementChild === block();
-        out.inComposer = Boolean(document.querySelector(".composerbox .planline"));
+        out.inComposer = Boolean(document.querySelector(".composerbox .ckline"));
         out.nowBar = Boolean(document.querySelector(".composerbox .nowbar"));
-        out.head = text(block().querySelector(".planhead"));
-        out.steps = block().querySelectorAll(".plstep").length;
-        out.note = text(block().querySelector(".plannote"));
+        out.head = text(block().querySelector(".ckhead"));
+        out.steps = block().querySelectorAll(".ckitem").length;
+        out.note = text(block().querySelector(".cknote"));
         out.scrolls = feed.scrollHeight - feed.clientHeight;
 
         feed.scrollTop = 0;
@@ -102,35 +102,35 @@ window.done = (async () => {
         if (covered) {
             const c = covered.getBoundingClientRect();
             const hit = document.elementFromPoint(c.left + 30, c.top + 4);
-            out.coveredHit = hit ? (block().contains(hit) ? "plan" : hit.className) : "";
+            out.coveredHit = hit ? (block().contains(hit) ? "checklist" : hit.className) : "";
         }
 
         const tallOpen = block().getBoundingClientRect().height;
-        block().querySelector(".planhead").click();
+        block().querySelector(".ckhead").click();
         await until(() => block().classList.contains("folded"));
         await frame();
         out.folded = {
-            head: text(block().querySelector(".planhead")),
-            step: text(block().querySelector(".planstep")),
-            steps: block().querySelectorAll(".plstep").length,
-            expanded: block().querySelector(".planhead").getAttribute("aria-expanded"),
+            head: text(block().querySelector(".ckhead")),
+            step: text(block().querySelector(".ckstep")),
+            steps: block().querySelectorAll(".ckitem").length,
+            expanded: block().querySelector(".ckhead").getAttribute("aria-expanded"),
             shorter: block().getBoundingClientRect().height < tallOpen / 3,
-            oneLine: block().querySelector(".planhead").getBoundingClientRect().height < 30,
-            kept: localStorage.getItem(PLAN_KEY),
+            oneLine: block().querySelector(".ckhead").getBoundingClientRect().height < 30,
+            kept: localStorage.getItem(CHECKLIST_KEY),
         };
 
         // The conversation drawn again, as when it is opened the next time.
         render(null, root);
         await sleep(50);
         draw();
-        await until(() => document.querySelector(".tline .plancol"));
+        await until(() => document.querySelector(".tline .ckcol"));
         out.again = {
             folded: block().classList.contains("folded"),
-            steps: block().querySelectorAll(".plstep").length,
+            steps: block().querySelectorAll(".ckitem").length,
         };
-        block().querySelector(".planhead").click();
+        block().querySelector(".ckhead").click();
         await until(() => !block().classList.contains("folded"));
-        out.unfolded = { steps: block().querySelectorAll(".plstep").length, kept: localStorage.getItem(PLAN_KEY) };
+        out.unfolded = { steps: block().querySelectorAll(".ckitem").length, kept: localStorage.getItem(CHECKLIST_KEY) };
         out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
     } catch (err) {
         out.error = String((err && err.stack) || err);

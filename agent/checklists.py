@@ -1,11 +1,11 @@
-"""The plan of a session: the list of steps the model keeps through the panel's plan tool.
+"""The checklist of a session: the list of steps the model keeps through the panel's checklist tool.
 
 The executor serves the tool to every session the panel starts and writes one
 file a place: the config directory of the account and the directory the
-session runs in, so a session started again there finds the plan it left.
-The collector reads it into the row of a session of the place and into the
-state of its conversation, in the small shape the screens take: every step
-with its status and, for a step at work or done, since when.
+session runs in, so a session started again there finds the checklist it
+left. The collector reads it into the row of a session of the place and into
+the state of its conversation, in the small shape the screens take: every
+step with its status and, for a step at work or done, since when.
 """
 import hashlib
 import json
@@ -15,10 +15,10 @@ import posixpath
 STATUSES = ("pending", "active", "done", "dropped")
 
 
-def plans_dir():
-    """Returns where the executor keeps the plans: the owner's state."""
+def checklists_dir():
+    """Returns where the executor keeps the checklists: the owner's state."""
     base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    return os.path.join(base, "aacpanel", "plans")
+    return os.path.join(base, "aacpanel", "checklists")
 
 
 def _clean(path):
@@ -34,7 +34,7 @@ def _clean(path):
 
 
 def name_of(config_dir, cwd):
-    """Returns the file name of the plan of a place, or None for a place that is not one.
+    """Returns the file name of the checklist of a place, or None for a place that is not one.
 
     The name is a hash of the two paths, the one the executor computes.
     """
@@ -50,17 +50,17 @@ def _text(value):
 
 
 def of(config_dir, cwd, sid=None):
-    """Returns the plan of a place for the screens, or None when it keeps none.
+    """Returns the checklist of a place for the screens, or None when it keeps none.
 
-    With a conversation named, the plan is its only while that conversation
-    sent it last: the feed of a conversation that is over shows the plan it
-    left, and not one a later session of the place keeps.
+    With a conversation named, the checklist is its only while that
+    conversation sent it last: the feed of a conversation that is over shows
+    the checklist it left, and not one a later session of the place keeps.
     """
     name = name_of(config_dir, cwd)
     if name is None:
         return None
     try:
-        with open(os.path.join(plans_dir(), name), encoding="utf-8") as f:
+        with open(os.path.join(checklists_dir(), name), encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
         return None
@@ -82,8 +82,8 @@ def of(config_dir, cwd, sid=None):
         items.append(step)
     if not items:
         return None
-    plan = {"items": items, "at": _text(data.get("at"))}
+    checklist = {"items": items, "at": _text(data.get("at"))}
     note = _text(data.get("note"))
     if note:
-        plan["note"] = note
-    return plan
+        checklist["note"] = note
+    return checklist

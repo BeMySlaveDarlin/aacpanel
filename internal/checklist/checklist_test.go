@@ -1,4 +1,4 @@
-package plan
+package checklist
 
 import (
 	"encoding/json"
@@ -16,12 +16,12 @@ const sid = "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d"
 
 var t0 = time.Date(2026, 9, 28, 10, 0, 0, 0, time.UTC)
 
-// lab is the place most tests keep a plan in.
+// lab is the place most tests keep a checklist in.
 var lab = mcp.Place{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab"}
 
 func bound(id string, pid int) mcp.Binding { return mcp.Binding{Place: lab, SessionID: id, PID: pid} }
 
-func keep(t *testing.T, dir string, at time.Time, items ...Item) *Plan {
+func keep(t *testing.T, dir string, at time.Time, items ...Item) *Checklist {
 	t.Helper()
 	p, err := Keep(dir, bound(sid, 4242), items, "", at)
 	if err != nil {
@@ -50,7 +50,7 @@ func TestAStepKeepsItsTimeWhileItsTextAndStatusStay(t *testing.T) {
 	}
 	if got.At != t2.Format(Stamp) || got.PID != 4242 || got.SessionID != sid ||
 		got.ConfigDir != lab.ConfigDir || got.Dir != lab.Dir {
-		t.Errorf("the plan is stamped %+v", got)
+		t.Errorf("the checklist is stamped %+v", got)
 	}
 	if on := Read(dir, lab); on == nil || len(on.Items) != 4 || on.Items[1].Since != t1.Format(Stamp) {
 		t.Errorf("the file holds %+v", on)
@@ -63,18 +63,18 @@ func TestAStepKeepsItsTimeWhileItsTextAndStatusStay(t *testing.T) {
 	}
 }
 
-// The plan is the place's, not the conversation's: a session started again in
-// the place — another conversation, another process — reads the plan the one
-// before it left and goes on with it, the times of its steps kept, and the
-// plan then says who sent it last. Another directory, or the same directory
-// under another account, is another place.
-func TestThePlanBelongsToThePlaceAndOutlivesTheConversation(t *testing.T) {
+// The checklist is the place's, not the conversation's: a session started
+// again in the place — another conversation, another process — reads the
+// checklist the one before it left and goes on with it, the times of its
+// steps kept, and the checklist then says who sent it last. Another
+// directory, or the same directory under another account, is another place.
+func TestTheChecklistBelongsToThePlaceAndOutlivesTheConversation(t *testing.T) {
 	dir := t.TempDir()
 	keep(t, dir, t0, Item{Text: "read the code", Status: Done}, Item{Text: "write the tests", Status: Active})
 
 	const restarted = "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e"
 	if on := Read(dir, mcp.Place{ConfigDir: "/srv/claude/", Dir: "/srv/proj/./lab"}); on == nil || on.SessionID != sid {
-		t.Fatalf("the place written another way does not find its plan: %+v", on)
+		t.Fatalf("the place written another way does not find its checklist: %+v", on)
 	}
 	got, err := Keep(dir, bound(restarted, 5151), []Item{{Text: "read the code", Status: Done},
 		{Text: "write the tests", Status: Done}, {Text: "mutate", Status: Active}}, "", t0.Add(time.Hour))
@@ -82,7 +82,7 @@ func TestThePlanBelongsToThePlaceAndOutlivesTheConversation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.SessionID != restarted || got.PID != 5151 || got.Items[0].Since != t0.Format(Stamp) {
-		t.Errorf("the plan after a restart is %+v", got)
+		t.Errorf("the checklist after a restart is %+v", got)
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
 		t.Errorf("the restart left a second file: %v", entries)
@@ -90,16 +90,16 @@ func TestThePlanBelongsToThePlaceAndOutlivesTheConversation(t *testing.T) {
 
 	for _, other := range []mcp.Place{{ConfigDir: "/srv/claude", Dir: "/srv/proj/lab-2"}, {ConfigDir: "/srv/claude-work", Dir: "/srv/proj/lab"}} {
 		if on := Read(dir, other); on != nil {
-			t.Errorf("%+v reads the plan of another place: %+v", other, on)
+			t.Errorf("%+v reads the checklist of another place: %+v", other, on)
 		}
 	}
 }
 
 // The name of the file is a hash of the place: the collector and the hook
 // compute it too, from the same two paths, so it is pinned here.
-func TestTheNameOfThePlanIsTheHashOfThePlace(t *testing.T) {
+func TestTheNameOfTheChecklistIsTheHashOfThePlace(t *testing.T) {
 	if got := Name(lab); got != "d2ba143628e62863dae2533062199cf6.json" {
-		t.Errorf("the plan of %+v is named %q", lab, got)
+		t.Errorf("the checklist of %+v is named %q", lab, got)
 	}
 	if Name(mcp.Place{ConfigDir: "/srv/claude//", Dir: "/srv/proj/lab/"}) != Name(lab) {
 		t.Error("a place written with slashes to spare is another place")
@@ -111,31 +111,31 @@ func TestTheNameOfThePlanIsTheHashOfThePlace(t *testing.T) {
 	}
 }
 
-// A file whose place is not the one asked for is not its plan, whatever
+// A file whose place is not the one asked for is not its checklist, whatever
 // its name.
-func TestAFileOfAnotherPlaceIsNotThePlan(t *testing.T) {
+func TestAFileOfAnotherPlaceIsNotTheChecklist(t *testing.T) {
 	dir := t.TempDir()
-	body, _ := json.Marshal(Plan{ConfigDir: "/srv/claude", Dir: "/srv/proj/other", At: t0.Format(Stamp),
+	body, _ := json.Marshal(Checklist{ConfigDir: "/srv/claude", Dir: "/srv/proj/other", At: t0.Format(Stamp),
 		Items: []Item{{Text: "x", Status: Active}}})
 	if err := os.WriteFile(filepath.Join(dir, Name(lab)), body, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if on := Read(dir, lab); on != nil {
-		t.Errorf("the plan of another place was read: %+v", on)
+		t.Errorf("the checklist of another place was read: %+v", on)
 	}
 }
 
-func TestAnEmptyListClearsThePlan(t *testing.T) {
+func TestAnEmptyListClearsTheChecklist(t *testing.T) {
 	dir := t.TempDir()
 	keep(t, dir, t0, Item{Text: "one", Status: Active})
 	if p := keep(t, dir, t0); p != nil {
-		t.Errorf("an empty list was kept as a plan: %+v", p)
+		t.Errorf("an empty list was kept as a checklist: %+v", p)
 	}
 	if _, err := os.Stat(filepath.Join(dir, Name(lab))); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("the file of a cleared plan is still there: %v", err)
+		t.Errorf("the file of a cleared checklist is still there: %v", err)
 	}
 	if p := keep(t, dir, t0); p != nil {
-		t.Errorf("clearing a plan that is not there failed: %+v", p)
+		t.Errorf("clearing a checklist that is not there failed: %+v", p)
 	}
 }
 
@@ -170,7 +170,7 @@ func TestCleanSqueezesTheTextAndRefusesWhatItDoesNotTake(t *testing.T) {
 				t.Errorf("refused with %v, meant a refusal saying %q", err, c.says)
 			}
 			if Read(dir, lab) != nil {
-				t.Error("a refused plan was written")
+				t.Error("a refused checklist was written")
 			}
 		})
 	}
@@ -181,10 +181,10 @@ func TestCleanSqueezesTheTextAndRefusesWhatItDoesNotTake(t *testing.T) {
 	}
 }
 
-// A place that is not one — a path that is not absolute — keeps no plan, and
-// a conversation id that is not one is not written into a plan either. A
-// session whose conversation is not known yet keeps its plan all the same:
-// the place is the key.
+// A place that is not one — a path that is not absolute — keeps no checklist,
+// and a conversation id that is not one is not written into a checklist
+// either. A session whose conversation is not known yet keeps its checklist
+// all the same: the place is the key.
 func TestKeepWritesOnlyForAPlace(t *testing.T) {
 	dir := t.TempDir()
 	one := []Item{{Text: "x", Status: Active}}
@@ -195,7 +195,7 @@ func TestKeepWritesOnlyForAPlace(t *testing.T) {
 		"a conversation that climbs": {Place: lab, SessionID: "../escape"},
 	} {
 		if _, err := Keep(dir, b, one, "", t0); err == nil {
-			t.Errorf("%s: the plan was kept", name)
+			t.Errorf("%s: the checklist was kept", name)
 		}
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
@@ -207,8 +207,8 @@ func TestKeepWritesOnlyForAPlace(t *testing.T) {
 }
 
 // The file is replaced by a rename, and nothing of the write is left beside it.
-func TestKeepLeavesOnlyThePlan(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "plans")
+func TestKeepLeavesOnlyTheChecklist(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "checklists")
 	keep(t, dir, t0, Item{Text: "one", Status: Active})
 	keep(t, dir, t0, Item{Text: "one", Status: Done})
 	entries, err := os.ReadDir(dir)
@@ -216,12 +216,12 @@ func TestKeepLeavesOnlyThePlan(t *testing.T) {
 		t.Errorf("the directory holds %v %v", entries, err)
 	}
 	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
-		t.Errorf("the plans directory is open to others: %v %v", info.Mode(), err)
+		t.Errorf("the checklists directory is open to others: %v %v", info.Mode(), err)
 	}
 }
 
-// filed writes a plan the way a server that keeps one plan a conversation
-// does: named by the conversation, with no place in it.
+// filed writes a checklist the way a server that keeps one checklist a
+// conversation does: named by the conversation, with no place in it.
 func filed(t *testing.T, dir, id, at string, items ...Item) {
 	t.Helper()
 	body, _ := json.Marshal(map[string]any{"sessionId": id, "pid": 99, "at": at, "items": items})
@@ -246,11 +246,12 @@ func transcriptOf(t *testing.T, place mcp.Place, id string) {
 	}
 }
 
-// A plan filed under a conversation is taken over by its place: the one
+// A checklist filed under a conversation is taken over by its place: the one
 // whose project holds the transcript of that conversation, under the same
-// account. The newest of them becomes the plan of the place, with its times;
-// the files taken over go, and a plan of another place stays where it is.
-func TestAPlanFiledUnderAConversationIsTakenOverByItsPlace(t *testing.T) {
+// account. The newest of them becomes the checklist of the place, with its
+// times; the files taken over go, and a checklist of another place stays
+// where it is.
+func TestAChecklistFiledUnderAConversationIsTakenOverByItsPlace(t *testing.T) {
 	dir, config := t.TempDir(), t.TempDir()
 	here := mcp.Place{ConfigDir: config, Dir: "/srv/proj/lab"}
 	const older, newer, elsewhere = "11111111-1111-4111-8111-111111111111",
@@ -258,7 +259,7 @@ func TestAPlanFiledUnderAConversationIsTakenOverByItsPlace(t *testing.T) {
 	transcriptOf(t, here, older)
 	transcriptOf(t, here, newer)
 	transcriptOf(t, mcp.Place{ConfigDir: config, Dir: "/srv/proj/other"}, elsewhere)
-	filed(t, dir, older, "2026-09-28T09:00:00Z", Item{Text: "the old plan", Status: Active})
+	filed(t, dir, older, "2026-09-28T09:00:00Z", Item{Text: "the old checklist", Status: Active})
 	filed(t, dir, newer, "2026-09-28T10:00:00Z", Item{Text: "read the code", Status: Done, Since: "2026-09-28T09:30:00Z"},
 		Item{Text: "write the tests", Status: Active, Since: "2026-09-28T09:45:00Z"})
 	filed(t, dir, elsewhere, "2026-09-28T11:00:00Z", Item{Text: "another place", Status: Active})
@@ -269,7 +270,7 @@ func TestAPlanFiledUnderAConversationIsTakenOverByItsPlace(t *testing.T) {
 		t.Fatalf("the place took over %+v", got)
 	}
 	if on := Read(dir, here); on == nil || on.At != "2026-09-28T10:00:00Z" {
-		t.Errorf("the plan taken over is not on disk as the place's: %+v", on)
+		t.Errorf("the checklist taken over is not on disk as the place's: %+v", on)
 	}
 	for id, left := range map[string]bool{older: false, newer: false, elsewhere: true} {
 		if _, err := os.Stat(filepath.Join(dir, id+".json")); (err == nil) != left {
@@ -277,16 +278,16 @@ func TestAPlanFiledUnderAConversationIsTakenOverByItsPlace(t *testing.T) {
 		}
 	}
 
-	// A place with a plan of its own takes nothing over.
+	// A place with a checklist of its own takes nothing over.
 	filed(t, dir, older, "2026-09-28T12:00:00Z", Item{Text: "late", Status: Active})
 	if again := Adopt(dir, here); again == nil || again.SessionID != newer {
-		t.Errorf("a place with a plan took another over: %+v", again)
+		t.Errorf("a place with a checklist took another over: %+v", again)
 	}
 	if _, err := os.Stat(filepath.Join(dir, older+".json")); err != nil {
 		t.Errorf("a file the place did not take over went: %v", err)
 	}
 
-	// A place with nothing filed under its conversations has no plan.
+	// A place with nothing filed under its conversations has no checklist.
 	if none := Adopt(dir, mcp.Place{ConfigDir: config, Dir: "/srv/proj/empty"}); none != nil {
 		t.Errorf("an empty place took over %+v", none)
 	}
@@ -296,10 +297,10 @@ func TestSweepTakesOnlyWhatIsOld(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Now()
 	for name, age := range map[string]time.Duration{
-		"old.json":      MaxAge + time.Hour,
-		"fresh.json":    time.Hour,
-		".plan-123":     MaxAge + time.Hour,
-		"old-other.txt": MaxAge + time.Hour,
+		"old.json":       MaxAge + time.Hour,
+		"fresh.json":     time.Hour,
+		".checklist-123": MaxAge + time.Hour,
+		"old-other.txt":  MaxAge + time.Hour,
 	} {
 		path := filepath.Join(dir, name)
 		if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
@@ -310,9 +311,9 @@ func TestSweepTakesOnlyWhatIsOld(t *testing.T) {
 		}
 	}
 	if gone := Sweep(dir, now); gone != 2 {
-		t.Errorf("%d files swept, meant the old plan and the unfinished write", gone)
+		t.Errorf("%d files swept, meant the old checklist and the unfinished write", gone)
 	}
-	for name, left := range map[string]bool{"old.json": false, ".plan-123": false, "fresh.json": true, "old-other.txt": true} {
+	for name, left := range map[string]bool{"old.json": false, ".checklist-123": false, "fresh.json": true, "old-other.txt": true} {
 		if _, err := os.Stat(filepath.Join(dir, name)); (err == nil) != left {
 			t.Errorf("%s: left %v, meant %v", name, err == nil, left)
 		}

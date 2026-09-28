@@ -794,30 +794,31 @@ description unread. `-plan` starts the same server: a live session keeps the
 MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there.
 
-**The plan of a session is the model's own, kept by a tool of the panel.**
-The tool is `plan` on the panel's server, allowed, so an update never waits on
-a person. The model decides whether to keep a plan and what a step is, and
-sends the whole list each time. The plan belongs
-to the place a session works in, not to its conversation: the config directory
-of the account and the directory claude runs in. A session started again there
-— afresh, or going on with its conversation under an id old or new — finds the
-plan where it was left, is told at the handshake how far it got and the step it
-stands at, reads it whole with a call that sends no list, and keeps it or clears
-it. The server finds the place through its parent: claude keeps a file of
-itself under `sessions/<pid>.json` of its config directory, which names the
-conversation and the directory, read on every call, since `/clear` starts
-another conversation in the same process; before claude has written the file,
-the process's own environment and working directory place it. The plan is one
-file a place under `aacpanel/plans/` in the owner's state, named by a hash of
-the two paths and holding them, replaced whole, with the conversation and the
-process that sent it last; the collector carries it in the row of every live
-session of the place and in the state of its conversation — the steps with
-their statuses, since when a step at work or done holds its status, and when
-the list was last sent — and the feed of a conversation that is over shows it
-only while that conversation sent it last. The price is one plan a place: two
-sessions in one directory under one account share it. Nothing makes the model
-keep it true: a `Stop` hook, where the account has it, holds a turn that did
-work past an unfinished plan it did not touch, once, to ask whether it changed.
+**The checklist of a session is the model's own, kept by a tool of the
+panel.** The tool is `checklist` on the panel's server, allowed, so an update
+never waits on a person. The model decides whether to keep a checklist and
+what a step is, and sends the whole list each time. The checklist belongs to
+the place a session works in, not to its conversation: the config directory of
+the account and the directory claude runs in. A session started again there —
+afresh, or going on with its conversation under an id old or new — finds the
+checklist where it was left, is told at the handshake how far it got and the
+step it stands at, reads it whole with a call that sends no list, and keeps it
+or clears it. The server finds the place through its parent: claude keeps a
+file of itself under `sessions/<pid>.json` of its config directory, which
+names the conversation and the directory, read on every call, since `/clear`
+starts another conversation in the same process; before claude has written the
+file, the process's own environment and working directory place it. The
+checklist is one file a place under `aacpanel/checklists/` in the owner's
+state, named by a hash of the two paths and holding them, replaced whole, with
+the conversation and the process that sent it last; the collector carries it
+in the row of every live session of the place and in the state of its
+conversation — the steps with their statuses, since when a step at work or
+done holds its status, and when the list was last sent — and the feed of a
+conversation that is over shows it only while that conversation sent it last.
+The price is one checklist a place: two sessions in one directory under one
+account share it. Nothing makes the model keep it true: a `Stop` hook, where
+the account has it, holds a turn that did work past an unfinished checklist it
+did not touch, once, to ask whether it changed.
 
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line
