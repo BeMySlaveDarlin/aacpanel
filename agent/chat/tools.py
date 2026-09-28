@@ -47,6 +47,27 @@ def tool_kind(name):
 ARG_KEYS = ("command", "file_path", "pattern", "path", "url", "query", "description",
             "action", "text")
 
+# The calls whose gist stands under a key of their own: the task a stop or a
+# read of output aims at, whom a letter goes to, what a skill was asked. The
+# keys above find nothing in them, and the call would read as one made with no
+# arguments at all.
+ARG_KEYS_BY_TOOL = {
+    "TaskStop": ("task_id", "shell_id"),
+    "TaskOutput": ("task_id", "bash_id"),
+    "BashOutput": ("bash_id",),
+    "KillShell": ("shell_id",),
+    "SendMessage": ("to", "recipient"),
+    "Skill": ("args",),
+    "ScheduleWakeup": ("reason", "prompt"),
+    "CronCreate": ("cron",),
+    "CronDelete": ("id",),
+    "SendUserFile": ("files", "caption"),
+    "SubagentHandback": ("message",),
+    "PushNotification": ("message",),
+    "SendFeedback": ("title",),
+    "StructuredOutput": ("summary",),
+}
+
 # The calls that change a file. What a command changes is known to nobody but
 # git, so Bash is not here: the feed shows the command itself instead.
 EDITING = ("Write", "Edit", "MultiEdit", "NotebookEdit")
@@ -60,12 +81,15 @@ def edited_path(name, data):
     return path.strip() if isinstance(path, str) else ""
 
 
-def tool_arg(data):
+def tool_arg(data, name=""):
     """Returns one line about the call: with what and over what."""
     if not isinstance(data, dict):
         return ""
-    for key in ARG_KEYS:
+    for key in (*ARG_KEYS_BY_TOOL.get(name, ()), *ARG_KEYS):
         value = data.get(key)
+        # A list of names — the files a delivery carries — is said as one line.
+        if isinstance(value, list):
+            value = ", ".join(v.strip() for v in value if isinstance(v, str) and v.strip())
         if isinstance(value, str) and value.strip():
             return one_line(value)
     return ""

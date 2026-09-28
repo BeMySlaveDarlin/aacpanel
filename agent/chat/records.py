@@ -403,7 +403,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                 name = block.get("name") or "?"
                 if calls is not None:
                     calls[block.get("id") or ""] = {"tool": tool_label(name, block.get("input")),
-                                                    "subject": tool_arg(block.get("input"))}
+                                                    "subject": tool_arg(block.get("input"), name)}
                 if name == "ScheduleWakeup" and pending is not None:
                     data = block.get("input")
                     if isinstance(data, dict):
@@ -450,7 +450,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                         continue
                 call = {"role": "tool", "name": tool_label(name, block.get("input")),
                         "kind": tool_kind(name),
-                        "arg": tool_arg(block.get("input")), "at": at,
+                        "arg": tool_arg(block.get("input"), name), "at": at,
                         "use": block.get("id") or "",
                         "pos": pos, "index": i}
                 if calls is not None and call["use"]:

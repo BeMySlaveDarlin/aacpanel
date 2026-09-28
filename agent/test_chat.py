@@ -310,6 +310,37 @@ class Parse(unittest.TestCase):
         self.assertEqual(got[1]["name"], "Bash")
         self.assertEqual(got[1]["arg"], "ls -la")
 
+    def test_a_call_that_aims_at_a_task_says_which(self):
+        cases = (
+            (tool_block("TaskStop", task_id="p20-audit"), "p20-audit"),
+            (tool_block("TaskStop", shell_id="b00000007"), "b00000007"),
+            (tool_block("TaskOutput", task_id="a1b2c3", block=False, timeout=30000), "a1b2c3"),
+            (tool_block("SendMessage", to="lighthouse", summary="stop"), "lighthouse"),
+            (tool_block("Skill", skill="finalize", args="wrap the session"), "wrap the session"),
+            (tool_block("SendUserFile", files=["/srv/proj/a.png", "/srv/proj/b.png"], caption="shots"),
+             "/srv/proj/a.png, /srv/proj/b.png"),
+            (tool_block("CronDelete", id="c-17"), "c-17"),
+        )
+        for block, want in cases:
+            got = self.items(assistant(block))
+            self.assertEqual([(i["role"], i["arg"]) for i in got], [("tool", want)],
+                             f"{block['name']} reads as a call made with no arguments")
+
+    def test_a_letter_is_about_whom_it_goes_to(self):
+        calls = {}
+        block = dict(tool_block("SendMessage", to="lighthouse", summary="stop", message="wrap up"),
+                     id="toolu_1")
+        chat.parse(json.loads(assistant(block)), 0, calls=calls)
+        self.assertEqual(calls["toolu_1"]["subject"], "lighthouse",
+                         "a permission for a letter says nothing of where it goes")
+
+    def test_a_call_with_nothing_to_aim_at_has_no_argument(self):
+        self.assertEqual(self.items(assistant(tool_block("ListAgents")))[0]["arg"], "")
+
+    def test_the_keys_of_one_tool_do_not_leak_into_another(self):
+        got = self.items(assistant(tool_block("Grep", pattern="needle", to="nobody")))
+        self.assertEqual(got[0]["arg"], "needle")
+
     def test_a_multiline_command_stays_one_line(self):
         raw = assistant(tool_block("Bash", command="cd /tmp\nls"))
         self.assertNotIn("\n", self.items(raw)[0]["arg"])
