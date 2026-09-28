@@ -20,6 +20,7 @@ type fproc struct {
 	ppid  int
 	env   []string
 	start string
+	cwd   string
 }
 
 func fakeProc(t *testing.T, procs ...fproc) string {
@@ -48,6 +49,11 @@ func fakeProc(t *testing.T, procs ...fproc) string {
 		}
 		fields = append(fields, start)
 		write("stat", fmt.Sprintf("%d (%s) %s\n", p.pid, p.comm, strings.Join(fields, " ")))
+		if p.cwd != "" {
+			if err := os.Symlink(p.cwd, filepath.Join(dir, "cwd")); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	t.Setenv(procEnv, root)
 	return root

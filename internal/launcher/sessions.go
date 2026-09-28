@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"aacpanel/internal/plan"
 )
 
 func claudePIDs() []int {
@@ -69,6 +71,7 @@ type sessionFile struct {
 	Kind      string `json:"kind"`
 	ProcStart string `json:"procStart"`
 	SessionID string `json:"sessionId"`
+	Cwd       string `json:"cwd"`
 }
 
 // sessionOf reads the file of a session, and only as that process's: a file
@@ -89,34 +92,63 @@ func sessionOf(path string, pid int) (sessionFile, bool) {
 	return file, ok && file.ProcStart != "" && file.ProcStart == start
 }
 
-// Conversation returns the conversation a live claude process is in, from
-// the file claude keeps of itself: sessions/<pid>.json in its config
-// directory. That directory is the one the process was started with — its
-// own CLAUDE_CONFIG_DIR, read from its environment — and after it the ones
-// the contours name. The id is read anew on every call: /clear starts another
-// conversation in the same process.
-func Conversation(pid int) (string, error) {
+// Where returns where a live claude process works and the conversation it is
+// in, from the file claude keeps of itself: sessions/<pid>.json in its config
+// directory, which names the conversation and the directory the session runs
+// in. The config directory is the one the process was started with — its own
+// CLAUDE_CONFIG_DIR, read from its environment — and after it the ones the
+// contours name; the collector finds the session in the same file, so the
+// place it shows a plan by is this one. The file is read anew on every call:
+// /clear starts another conversation in the same process.
+//
+// A process with no file of itself yet — a server asked as the session
+// starts — is placed by its environment and its working directory, where
+// claude starts and which it writes into the file, and has no conversation.
+func Where(pid int) (plan.Binding, error) {
 	var dirs []string
 	add := func(dir string) {
 		if dir != "" && !slices.Contains(dirs, dir) {
 			dirs = append(dirs, dir)
 		}
 	}
-	for _, kv := range procEnviron(pid) {
-		if dir, ok := strings.CutPrefix(kv, "CLAUDE_CONFIG_DIR="); ok {
-			add(dir)
-		}
-	}
+	environ := procEnviron(pid)
+	own := envValue(environ, "CLAUDE_CONFIG_DIR")
+	add(own)
 	add(os.Getenv("CLAUDE_CONFIG_DIR"))
 	for _, root := range projectRoots() {
 		add(root)
 	}
 	for _, dir := range dirs {
 		file, ok := sessionOf(filepath.Join(dir, "sessions", strconv.Itoa(pid)+".json"), pid)
-		if ok && file.SessionID != "" {
-			return file.SessionID, nil
+		if ok && file.SessionID != "" && file.Cwd != "" {
+			return plan.Binding{Place: plan.Place{ConfigDir: dir, Dir: file.Cwd}, SessionID: file.SessionID, PID: pid}, nil
 		}
 	}
-	return "", fmt.Errorf("the conversation of claude process %d is not known: "+
-		"there is no live file of its session in %s", pid, strings.Join(dirs, ", "))
+
+	cwd, err := os.Readlink(filepath.Join(procRoot(), strconv.Itoa(pid), "cwd"))
+	if err != nil {
+		return plan.Binding{}, fmt.Errorf("where claude process %d works is not known: there is no live file "+
+			"of its session in %s, and its working directory is not to be read", pid, strings.Join(dirs, ", "))
+	}
+	config := own
+	if config == "" {
+		config = os.Getenv("CLAUDE_CONFIG_DIR")
+	}
+	if config == "" {
+		home := envValue(environ, "HOME")
+		if home == "" {
+			home, _ = os.UserHomeDir()
+		}
+		config = filepath.Join(home, ".claude")
+	}
+	return plan.Binding{Place: plan.Place{ConfigDir: config, Dir: cwd}, PID: pid}, nil
+}
+
+func envValue(environ []string, name string) string {
+	for _, kv := range environ {
+		if value, ok := strings.CutPrefix(kv, name+"="); ok {
+			return value
+		}
+	}
+	return ""
 }

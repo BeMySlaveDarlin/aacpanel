@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"aacpanel/internal/plan"
 	"aacpanel/internal/stream"
 )
 
@@ -151,10 +152,11 @@ func sessionFileAt(t *testing.T, config string, pid int, start, id string) {
 	}
 }
 
-// The plan server finds its conversation through its parent: the file claude
-// keeps of itself, in the config directory the process was started with, and
-// only while the file is that process's.
-func TestConversationIsReadFromTheFileOfTheProcess(t *testing.T) {
+// The plan server finds where its parent works through the file claude keeps
+// of itself — in the config directory the process was started with, and only
+// while the file is that process's: the place is that directory and the one
+// the file names, and the conversation is the file's too.
+func TestWhereIsReadFromTheFileOfTheProcess(t *testing.T) {
 	const id = "8d2e9f3a-4b5c-4d6e-8f7a-9b0c1d2e3f4a"
 	contour, personal := t.TempDir(), t.TempDir()
 	contourDirs(t, personal)
@@ -165,13 +167,16 @@ func TestConversationIsReadFromTheFileOfTheProcess(t *testing.T) {
 	)
 
 	sessionFileAt(t, contour, 300, "5555", id)
-	if got, err := Conversation(300); err != nil || got != id {
-		t.Errorf("the conversation of a process in a contour: %q %v", got, err)
+	want := plan.Binding{Place: plan.Place{ConfigDir: contour, Dir: "/srv/proj/lab"}, SessionID: id, PID: 300}
+	if got, err := Where(300); err != nil || got != want {
+		t.Errorf("a process in a contour: %+v %v", got, err)
 	}
 
+	// The file a dead process with the same pid left is not this one's, and a
+	// process without a working directory to read is placed nowhere.
 	sessionFileAt(t, contour, 300, "4444", id)
-	if got, err := Conversation(300); err == nil {
-		t.Errorf("the file a dead process with the same pid left was taken: %q", got)
+	if got, err := Where(300); err == nil {
+		t.Errorf("the file a dead process with the same pid left was taken: %+v", got)
 	} else if !strings.Contains(err.Error(), contour) {
 		t.Errorf("the refusal does not say where it looked: %v", err)
 	}
@@ -179,11 +184,37 @@ func TestConversationIsReadFromTheFileOfTheProcess(t *testing.T) {
 	// A process that names no directory of its own is looked for in the
 	// directories of the contours.
 	sessionFileAt(t, personal, 301, "6666", id)
-	if got, err := Conversation(301); err != nil || got != id {
-		t.Errorf("the conversation of a process in the personal directory: %q %v", got, err)
+	if got, err := Where(301); err != nil || got.Place.ConfigDir != personal || got.SessionID != id {
+		t.Errorf("a process in the personal directory: %+v %v", got, err)
 	}
 
-	if _, err := Conversation(302); err == nil {
-		t.Error("a process that is not there has a conversation")
+	if _, err := Where(302); err == nil {
+		t.Error("a process that is not there is placed")
+	}
+}
+
+// A session asked before claude has written the file of itself — the
+// handshake at its very start — is placed by what the process says of
+// itself: the config directory it was started with, or the default under its
+// home, and its working directory. It has no conversation yet.
+func TestWhereWithoutAFileIsReadFromTheProcess(t *testing.T) {
+	contour := t.TempDir()
+	contourDirs(t, t.TempDir())
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	fakeProc(t,
+		fproc{pid: 400, comm: "claude", env: []string{"HOME=/home/u", "CLAUDE_CONFIG_DIR=" + contour}, cwd: "/srv/proj/lab"},
+		fproc{pid: 401, comm: "claude", env: []string{"HOME=/home/u"}, cwd: "/srv/proj/home"},
+	)
+	if got, err := Where(400); err != nil || got != (plan.Binding{Place: plan.Place{ConfigDir: contour, Dir: "/srv/proj/lab"}, PID: 400}) {
+		t.Errorf("a process in a contour: %+v %v", got, err)
+	}
+	if got, err := Where(401); err != nil || got != (plan.Binding{Place: plan.Place{ConfigDir: "/home/u/.claude", Dir: "/srv/proj/home"}, PID: 401}) {
+		t.Errorf("a process with the default directory: %+v %v", got, err)
+	}
+
+	// Once the file is there, it is what places the process.
+	sessionFileAt(t, contour, 400, "1000", "8d2e9f3a-4b5c-4d6e-8f7a-9b0c1d2e3f4a")
+	if got, err := Where(400); err != nil || got.SessionID == "" {
+		t.Errorf("the file written, the process is still placed without it: %+v %v", got, err)
 	}
 }

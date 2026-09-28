@@ -786,14 +786,25 @@ executor in its plan mode (`aacpanel-exec -plan`) as an MCP server with one
 tool, `plan`, and the tool allowed, so an update never waits on a person; the
 `planTool` launch parameter turns it off for a contour or a project, and a
 session started by hand does not have it. The model decides whether to keep a
-plan and what a step is, and sends the whole list each time. The server finds
-its conversation through its parent: claude keeps a file of itself under
-`sessions/<pid>.json` of its config directory, read on every call, since
-`/clear` starts another conversation in the same process. The plan is one file
-a conversation under `aacpanel/plans/` in the owner's state, replaced whole;
-the collector carries it in the row of the session and in the state of the
-conversation — the steps with their statuses, since when a step at work or
-done holds its status, and when the list was last sent. Nothing makes the model
+plan and what a step is, and sends the whole list each time. The plan belongs
+to the place a session works in, not to its conversation: the config directory
+of the account and the directory claude runs in. A session started again there
+— afresh, or going on with its conversation under an id old or new — finds the
+plan where it was left, is told at the handshake how far it got and the step it
+stands at, reads it whole with a call that sends no list, and keeps it or clears
+it. The server finds the place through its parent: claude keeps a file of
+itself under `sessions/<pid>.json` of its config directory, which names the
+conversation and the directory, read on every call, since `/clear` starts
+another conversation in the same process; before claude has written the file,
+the process's own environment and working directory place it. The plan is one
+file a place under `aacpanel/plans/` in the owner's state, named by a hash of
+the two paths and holding them, replaced whole, with the conversation and the
+process that sent it last; the collector carries it in the row of every live
+session of the place and in the state of its conversation — the steps with
+their statuses, since when a step at work or done holds its status, and when
+the list was last sent — and the feed of a conversation that is over shows it
+only while that conversation sent it last. The price is one plan a place: two
+sessions in one directory under one account share it. Nothing makes the model
 keep it true: a `Stop` hook, where the account has it, holds a turn that did
 work past an unfinished plan it did not touch, once, to ask whether it changed.
 

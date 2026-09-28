@@ -253,11 +253,31 @@ def _answer(request):
             ask = asked.BOOK.of(session)
             if ask:
                 found = {**found, "ask": ask}
-            plan = plans.of(session)
+            plan = conversation_plan(session, path)
             if plan:
                 found = {**found, "plan": plan}
             reply["state"] = found
     return reply
+
+
+def conversation_plan(session, path):
+    """Returns the plan the feed of a conversation shows, or None.
+
+    A plan is kept by the place a session works in. A live conversation shows
+    the plan of its place whoever sent it — a session started again there
+    goes on with it. A conversation that is over is placed by its transcript,
+    which lies under the config directory of its account and names the
+    directory it ran in, and shows the plan only while it sent it last.
+    """
+    from collect.live import live_session_places
+    try:
+        place = live_session_places().get(session)
+    except OSError:
+        place = None
+    if place:
+        return plans.of(*place)
+    config_dir = os.path.dirname(os.path.dirname(os.path.dirname(path)))
+    return plans.of(config_dir, transcript_cwd(path), sid=session)
 
 
 def serve(sock):

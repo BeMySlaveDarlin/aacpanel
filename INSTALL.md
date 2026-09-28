@@ -377,12 +377,15 @@ settings:
 ]}}
 ```
 
-It holds the end of a turn only when the session has a plan with steps pending
-or at work, the turn called tools, and the plan was not written during it; the
-model is told to send the plan if it changed and otherwise to end the turn, and
+It holds the end of a turn only when the place of the session — the account and
+the directory — has a plan with steps pending or at work, the turn called tools,
+and the plan was not written during it; the model is told to send the plan if it
+changed, to clear it if it no longer applies, and otherwise to end the turn, and
 the turn after the hold is never held. Its price is one short turn more when the
-model forgot. A plan written by another process of the conversation — resumed by
-hand, without the tool — asks nothing.
+model forgot. Only a session with the plan tool is asked: one that sent the plan
+itself, or one started with the tool allowed, as the panel starts every session —
+so a session started again after a restart is asked about the plan it found. A
+claude started by hand in the same place, without the tool, is asked nothing.
 
 ---
 
