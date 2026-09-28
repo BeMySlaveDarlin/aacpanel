@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """What of a session is still at work in the background, as the panel's collector sees it.
 
-A restart ends the session and everything it runs: its agents and the commands
-and watchers it sent to the background. The context guard and a restart asked
+A restart ends the session and everything it runs: its agents, its workflows
+and the commands and watchers it sent to the background. The context guard and a restart asked
 for by hand both wait while any of that is at work. A wake-up the session set
 itself runs nothing and is not waited for.
 
@@ -43,14 +43,14 @@ def _count(v):
 
 
 def of(state, session_id):
-    """Returns (agents, tasks) of the session at work in the snapshot, wake-ups left out."""
+    """Returns (agents, tasks, workflows) of the session at work in the snapshot, wake-ups left out."""
     for s in (state or {}).get("sessions") or []:
         if not isinstance(s, dict) or s.get("sessionId") != session_id:
             continue
         work = s.get("work") if isinstance(s.get("work"), dict) else {}
         tasks = _count(work.get("tasks")) - _count(work.get("wakes"))
-        return _count(work.get("agents")), max(tasks, 0)
-    return 0, 0
+        return _count(work.get("agents")), max(tasks, 0), _count(work.get("workflows"))
+    return 0, 0, 0
 
 
 def _written(state):
@@ -59,12 +59,12 @@ def _written(state):
 
 
 def at_work(session_id, path=None, wait=None, clock=time.time, sleep=time.sleep):
-    """Returns (agents, tasks) of the session still at work."""
+    """Returns (agents, tasks, workflows) of the session still at work."""
     since = clock()
     state = read_state(path)
-    agents, tasks = of(state, session_id)
-    if not (agents or tasks):
-        return 0, 0
+    work = of(state, session_id)
+    if not any(work):
+        return work
     end = since + (FRESH_WAIT if wait is None else wait)
     while clock() < end:
         sleep(STEP)
@@ -72,27 +72,31 @@ def at_work(session_id, path=None, wait=None, clock=time.time, sleep=time.sleep)
         written = _written(state)
         if written is not None and written > since:
             return of(state, session_id)
-    return agents, tasks
+    return work
 
 
 def _plural(n, one, many):
     return f"{n} {one if n == 1 else many}"
 
 
-def words(agents, tasks):
+def words(agents, tasks, flows=0):
     """Returns the work in words: 2 agents and 1 background task."""
     parts = []
     if agents:
         parts.append(_plural(agents, "agent", "agents"))
+    if flows:
+        parts.append(_plural(flows, "workflow", "workflows"))
     if tasks:
         parts.append(_plural(tasks, "background task", "background tasks"))
-    return " and ".join(parts)
+    if len(parts) < 2:
+        return "".join(parts)
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
-def wait_line(agents, tasks):
+def wait_line(agents, tasks, flows=0):
     """Returns what a restart that waits says to the session asking for it."""
-    one = agents + tasks == 1
-    return (f"{words(agents, tasks)} of this session {'is' if one else 'are'} at work, and a restart "
+    one = agents + tasks + flows == 1
+    return (f"{words(agents, tasks, flows)} of this session {'is' if one else 'are'} at work, and a restart "
             f"ends {'it' if one else 'them'} with the session. Do not restart now. A restart you started on your own: end the "
             "turn, and it is asked for again once they are done. A restart the person asked "
             "for: tell them what is at work, and restart with --anyway only when they say so.")
@@ -102,9 +106,9 @@ def main():
     session = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     if not session:
         return 0
-    agents, tasks = at_work(session)
-    if agents or tasks:
-        print(f"WAIT {wait_line(agents, tasks)}")
+    work = at_work(session)
+    if any(work):
+        print(f"WAIT {wait_line(*work)}")
         return 2
     return 0
 

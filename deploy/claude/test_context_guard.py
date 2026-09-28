@@ -94,7 +94,7 @@ class TestGuard(unittest.TestCase):
 
     def test_past_the_cap_the_restart_waits_for_the_work_in_the_background(self):
         self.patch_wait(0.3)
-        for work in ({"agents": 1, "tasks": 0}, {"agents": 0, "tasks": 2}):
+        for work in ({"agents": 1, "tasks": 0}, {"agents": 0, "tasks": 2}, {"workflows": 1}):
             self.snapshot(work=work, at=time.time() - 3)
             self.assertIsNone(self.run_hook(), f"a restart past the cap ends the work at {work}")
 

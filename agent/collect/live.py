@@ -184,7 +184,8 @@ def work_of(busy):
 
     A wake-up the session set itself stands among its tasks, the way the panel
     lists it; the count of them rides along, since a wake-up runs nothing and
-    a restart of the session must not wait for it.
+    a restart of the session must not wait for it. A workflow that runs is
+    work of its own, whether or not an agent of it is counted yet.
     """
     live = [t for t in busy["tasks"] if not t.get("done")]
     work = {
@@ -194,6 +195,9 @@ def work_of(busy):
     wakes = sum(1 for t in live if t.get("kind") == TASK_WAKE)
     if wakes:
         work["wakes"] = wakes
+    flows = sum(1 for f in busy.get("workflows") or [] if f.get("status") == "running")
+    if flows:
+        work["workflows"] = flows
     return work
 
 
@@ -294,7 +298,7 @@ def sessions():
                 }
             if busy:
                 work = work_of(busy)
-                if work["tasks"] or work["agents"]:
+                if work["tasks"] or work["agents"] or work.get("workflows"):
                     s["work"] = work
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)

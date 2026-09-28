@@ -6,8 +6,8 @@ project's parameters — the console or the feed, the model, the account — and
 the message after a restart as its first. The session is named by its
 conversation: from inside it the name the panel calls it by is not known.
 
-Nothing is asked while the session's agents or background commands are at
-work: the restart would end them. --anyway asks all the same, for the person
+Nothing is asked while the session's agents, workflows or background commands
+are at work: the restart would end them. --anyway asks all the same, for the person
 who said so.
 
 Exit 0: the panel took the restart, or is doing it. Exit 1: it refused or did
@@ -73,9 +73,9 @@ def main(argv=None):
         say("STOP", "CLAUDE_CODE_SESSION_ID is empty - this is not running inside a session")
         return 1
     if not args.anyway:
-        agents, tasks = background.at_work(conversation)
-        if agents or tasks:
-            say("WAIT", background.wait_line(agents, tasks))
+        work = background.at_work(conversation)
+        if any(work):
+            say("WAIT", background.wait_line(*work))
             return 2
     taken, what = ask(args.url, conversation)
     if not taken:

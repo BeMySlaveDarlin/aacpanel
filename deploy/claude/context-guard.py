@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Context guard: past its cap a session with Auto restart is told to wrap up and restart itself.
 
-Not while its agents or the commands it sent to the background are at work: a
-restart would end them. The news that one of them is done starts a turn of its
+Not while its agents, workflows or the commands it sent to the background are
+at work: a restart would end them. The news that one of them is done starts a turn of its
 own, and the end of that turn asks again.
 """
 
@@ -70,9 +70,7 @@ def main():
     pct = fill(read_state(os.path.join(state_dir, "state.json")), payload.get("session_id") or "")
     if pct is None or pct < cap:
         return
-    agents, tasks = background.at_work(payload.get("session_id") or "",
-                                       os.path.join(state_dir, "state.json"))
-    if agents or tasks:
+    if any(background.at_work(payload.get("session_id") or "", os.path.join(state_dir, "state.json"))):
         return
     json.dump({"decision": "block", "reason": reason(pct, cap)}, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")

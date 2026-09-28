@@ -59,12 +59,13 @@ export function stateOf(s) {
 }
 
 // stopsOf names what a close or a restart of a live session ends with it: its
-// background tasks and agents at work, as the snapshot counts them.
+// background tasks, agents and workflows at work, as the snapshot counts them.
 export function stopsOf(s) {
     const w = (s && s.work) || {};
     const out = [];
     if (w.tasks > 0) out.push(`${w.tasks} ${plural(w.tasks, "background task", "background tasks")}`);
     if (w.agents > 0) out.push(`${w.agents} ${plural(w.agents, "agent", "agents")}`);
+    if (w.workflows > 0) out.push(`${w.workflows} ${plural(w.workflows, "workflow", "workflows")}`);
     return out.join(", ");
 }
 

@@ -18,7 +18,7 @@ import { ToastHost } from "/src/ui/toasts.js";
 const sessions = [
     { session: "atlas", sessionId: "h1", contour: 4, home: true, status: "idle", pct: 40, cwd: "/home/me",
       work: { agents: 2, tasks: 1 } },
-    { session: "lab", sessionId: "l1", contour: 4, status: "idle", pct: 20, cwd: "/srv/lab", work: { agents: 0, tasks: 3 } },
+    { session: "lab", sessionId: "l1", contour: 4, status: "idle", pct: 20, cwd: "/srv/lab", work: { agents: 0, tasks: 3, workflows: 1 } },
     { session: "quiet", sessionId: "q1", contour: 4, status: "idle", pct: 10, cwd: "/srv/quiet" },
 ];
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.switch", "window.open", "session.send"] };

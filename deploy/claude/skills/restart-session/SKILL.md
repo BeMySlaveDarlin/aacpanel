@@ -42,8 +42,8 @@ trade.
 | see what would happen, changing nothing | `--dry-run` |
 
 **Nothing restarts while the background is at work.** A restart ends the
-session and everything it runs: its agents, subagents and the commands and
-watchers it sent to the background. While the panel sees any of them at work,
+session and everything it runs: its agents, subagents, workflows and the
+commands and watchers it sent to the background. While the panel sees any of them at work,
 the script restarts nothing and answers `WAIT` with what is at work (exit 2). A
 wake-up the session set itself runs nothing and does not hold the restart.
 
