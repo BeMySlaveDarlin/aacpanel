@@ -15,7 +15,7 @@ import { useAction } from "../../actions/gate.js";
 import { hostLabel } from "../../actions/registry.js";
 import { knows, whyNot } from "../../exec.js";
 import { moveSession, useSwitchWay } from "../chat/switch.js";
-import { planShort } from "../chat/plan.js";
+import { checklistShort } from "../chat/checklist.js";
 import { sessionsOf } from "./of.js";
 import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
 import { stamp, when } from "./card.js";
@@ -235,12 +235,12 @@ function KinFold({ kids, line }) {
 }
 
 // LiveLine is a live session inside its project: what it is doing and where
-// it is in the plan of its work, where it lives, how full it is, and the
-// button of what can be done to it. The plan takes what room the state leaves
-// on its line and gives way first: the state is read whole.
+// it is in the checklist of its work, where it lives, how full it is, and the
+// button of what can be done to it. The checklist takes what room the state
+// leaves on its line and gives way first: the state is read whole.
 export function LiveLine({ session, named, kid = false, notes, checked, wait, onOpen, onMore }) {
     const state = stateOf(session);
-    const plan = planShort(session.plan);
+    const steps = checklistShort(session.checklist);
     const closing = wait ? wait.of("close", session.session) : null;
     const restarting = wait ? wait.of("restart", session.session) : null;
     const busy = closing || restarting;
@@ -251,9 +251,9 @@ export function LiveLine({ session, named, kid = false, notes, checked, wait, on
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
                     onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
                 ${named && html`<span class="pjsess">${session.session}</span>`}
-                <span class=${`pjstate pj-${state.tone}${plan ? " planned" : ""}`}>
+                <span class=${`pjstate pj-${state.tone}${steps ? " checklisted" : ""}`}>
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
-                    ${plan && html`<span class="pjplan">${plan}</span>`}
+                    ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 </span>
                 ${state.since && html`<span class="pjsince">${state.since}</span>`}
             </button>

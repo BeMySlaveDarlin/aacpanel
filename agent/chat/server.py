@@ -7,9 +7,9 @@ import threading
 import archive
 import asked
 import briefs
+import checklists
 import held
 import pages
-import plans
 import reviews
 import sesstate
 
@@ -253,21 +253,22 @@ def _answer(request):
             ask = asked.BOOK.of(session)
             if ask:
                 found = {**found, "ask": ask}
-            plan = conversation_plan(session, path)
-            if plan:
-                found = {**found, "plan": plan}
+            checklist = conversation_checklist(session, path)
+            if checklist:
+                found = {**found, "checklist": checklist}
             reply["state"] = found
     return reply
 
 
-def conversation_plan(session, path):
-    """Returns the plan the feed of a conversation shows, or None.
+def conversation_checklist(session, path):
+    """Returns the checklist the feed of a conversation shows, or None.
 
-    A plan is kept by the place a session works in. A live conversation shows
-    the plan of its place whoever sent it — a session started again there
-    goes on with it. A conversation that is over is placed by its transcript,
-    which lies under the config directory of its account and names the
-    directory it ran in, and shows the plan only while it sent it last.
+    A checklist is kept by the place a session works in. A live conversation
+    shows the checklist of its place whoever sent it — a session started again
+    there goes on with it. A conversation that is over is placed by its
+    transcript, which lies under the config directory of its account and names
+    the directory it ran in, and shows the checklist only while it sent it
+    last.
     """
     from collect.live import live_session_places
     try:
@@ -275,9 +276,9 @@ def conversation_plan(session, path):
     except OSError:
         place = None
     if place:
-        return plans.of(*place)
+        return checklists.of(*place)
     config_dir = os.path.dirname(os.path.dirname(os.path.dirname(path)))
-    return plans.of(config_dir, transcript_cwd(path), sid=session)
+    return checklists.of(config_dir, transcript_cwd(path), sid=session)
 
 
 def serve(sock):

@@ -71,9 +71,11 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.SessionClose:
 		return e.sessionClose(ctx, req.Target)
 	case action.SessionRestart:
-		return e.sessionRestart(ctx, req.Target, req.Project)
+		return e.sessionRestart(ctx, req.Target, req.Resume, req.Project)
 	case action.SessionSend:
 		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID)
+	case action.SessionLetter:
+		return e.sessionLetter(ctx, req.Target, req.From, req.Text)
 	case action.SessionUnqueue:
 		return e.sessionUnqueue(ctx, req.Target, req.MessageID)
 	case action.SessionAnswer:

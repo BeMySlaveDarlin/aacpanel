@@ -1,0 +1,78 @@
+{
+  "about": "What of a session is at work, read from the collector's snapshot: background.py and the panel's session_restart tool (internal/session) both run these cases. work is [agents, background tasks, workflows].",
+  "work": [
+    {
+      "what": "agents and background commands are at work",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": {"agents": 2, "tasks": 1}}]},
+      "work": [2, 1, 0]
+    },
+    {
+      "what": "a wake-up is no work: a loop that sets them would never restart",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": {"agents": 0, "tasks": 2, "wakes": 1}}]},
+      "work": [0, 1, 0]
+    },
+    {
+      "what": "more wake-ups than tasks leave no task",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": {"tasks": 1, "wakes": 3}}]},
+      "work": [0, 0, 0]
+    },
+    {
+      "what": "a running workflow is work",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": {"agents": 0, "tasks": 0, "workflows": 1}}]},
+      "work": [0, 0, 1]
+    },
+    {
+      "what": "the work of another session is not this one's",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "other", "work": {"agents": 3}}]},
+      "work": [0, 0, 0]
+    },
+    {
+      "what": "no snapshot is nothing at work",
+      "session": "mine",
+      "state": null,
+      "work": [0, 0, 0]
+    },
+    {
+      "what": "a session with no work counted",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine"}]},
+      "work": [0, 0, 0]
+    },
+    {
+      "what": "work that is not a record counts for nothing",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": [1, 2]}]},
+      "work": [0, 0, 0]
+    },
+    {
+      "what": "a count that is not a whole number above nought counts for nothing",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": {"agents": true, "tasks": 1.5, "workflows": "2"}}]},
+      "work": [0, 0, 0]
+    },
+    {
+      "what": "a count below nought counts for nothing",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": {"agents": -1, "tasks": 2}}]},
+      "work": [0, 2, 0]
+    },
+    {
+      "what": "a row that is not a session is passed over",
+      "session": "mine",
+      "state": {"sessions": ["mine", {"sessionId": "mine", "work": {"agents": 1}}]},
+      "work": [1, 0, 0]
+    }
+  ],
+  "words": [
+    {"work": [2, 1, 0], "words": "2 agents and 1 background task"},
+    {"work": [1, 0, 0], "words": "1 agent"},
+    {"work": [0, 3, 0], "words": "3 background tasks"},
+    {"work": [1, 2, 1], "words": "1 agent, 1 workflow and 2 background tasks"},
+    {"work": [0, 0, 2], "words": "2 workflows"}
+  ]
+}

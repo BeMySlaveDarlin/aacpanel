@@ -22,6 +22,10 @@ func TestResumeIdentifier(t *testing.T) {
 		{"not hexadecimal", Request{ID: "1", Kind: SessionResume, Target: "aacpanel", Resume: "z29e01f1-748c-4a99-9fd6-e3d8827ed5d1"}, false},
 		{"open with a uuid", Request{ID: "1", Kind: SessionOpen, Target: "aacpanel", Resume: uuid}, false},
 		{"open without a uuid", Request{ID: "1", Kind: SessionOpen, Target: "aacpanel"}, true},
+		{"a restart going on with its conversation", Request{ID: "1", Kind: SessionRestart, Target: "aacpanel", Resume: uuid}, true},
+		{"a restart starting anew", Request{ID: "1", Kind: SessionRestart, Target: "aacpanel"}, true},
+		{"a restart going on with a command", Request{ID: "1", Kind: SessionRestart, Target: "aacpanel", Resume: "$(rm -rf /)"}, false},
+		{"a close with a uuid", Request{ID: "1", Kind: SessionClose, Target: "aacpanel", Resume: uuid}, false},
 	}
 
 	for _, c := range cases {
@@ -463,6 +467,48 @@ func TestAMessageIDNamesASentOrQueuedMessage(t *testing.T) {
 		{"taking back nothing", Request{ID: "1", Kind: SessionUnqueue, Target: "a"}, false},
 		{"a message id that is not a uuid", Request{ID: "1", Kind: SessionUnqueue, Target: "a", MessageID: "$(rm)"}, false},
 		{"a message id riding another action", Request{ID: "1", Kind: SessionClose, Target: "a", MessageID: id}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.req.Validate()
+			if c.ok && err != nil {
+				t.Errorf("a sound request is rejected: %v", err)
+			}
+			if !c.ok && err == nil {
+				t.Error("the request is accepted, though it must not be")
+			}
+		})
+	}
+}
+
+// A letter names the conversation it comes from, as a uuid, and nothing else
+// carries one: a message of the person that named a sender would be taken
+// for a letter. Its text is held to what any message is, and it does not wait
+// in the queue of the stream to be taken back from there; a slash in it runs
+// no command, since the model reads it inside the envelope.
+func TestALetterNamesTheConversationItComesFrom(t *testing.T) {
+	const id = "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1"
+	cases := []struct {
+		name string
+		req  Request
+		ok   bool
+	}{
+		{"a letter", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi", From: id}, true},
+		{"a letter that starts with a slash", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "/clear the cache", From: id}, true},
+		{"a letter from nobody", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi"}, false},
+		{"a letter from a command", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi", From: "$(rm)"}, false},
+		{"a letter with a message id", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi", From: id, MessageID: id}, false},
+		{"a message that names a sender", Request{ID: "1", Kind: SessionSend, Target: "a", Text: "hi", From: id}, false},
+		{"a sender riding another action", Request{ID: "1", Kind: SessionRestart, Target: "a", From: id}, false},
+		{"a letter without text", Request{ID: "1", Kind: SessionLetter, Target: "a", From: id}, false},
+		{"a letter longer than a message", Request{ID: "1", Kind: SessionLetter, Target: "a",
+			Text: strings.Repeat("x", TextMax+1), From: id}, false},
+		{"a letter with a control character", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "a\x1bb", From: id}, false},
+		{"a letter to a path", Request{ID: "1", Kind: SessionLetter, Target: "../a", Text: "hi", From: id}, false},
+	}
+	err := Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi"}.Validate()
+	if err == nil || !strings.Contains(err.Error(), "without the conversation it comes from") {
+		t.Errorf("a letter from nobody is refused as %v, not for having no sender", err)
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -1,41 +1,54 @@
-/* Session permission: the console asks, the card answers with a keypress. */
+/* Session permission: the console asks, the dock answers with a keypress. */
 
-/* The card stands where the sheet of the reference does, and is drawn in its
-   material: glass, soft top corners, the grip. */
+/* A permission and a question take the same place and are answered the same
+   way, so they are one kind of dock to the eye: this one is the sheet a
+   question opens in (sheet.css), with the eyebrow, the title and the answer
+   rows of the question itself (ask.css). On a phone it runs from edge to edge
+   of the screen, its top corners rounded and its bottom square on the row
+   under it, as the sheet stands on the bottom of the screen.
+
+   The sheet is not taken whole. It lies over the conversation, blurs what is
+   under it and is dragged between heights and away; this dock stands in the
+   flow where the composer stood, with nothing under it to blur, and nothing
+   takes it away but an answer — a permission swiped off the screen would
+   leave the session waiting on a question nobody sees. So it has no handle
+   either: the sheets of the panel carry one only where a drag works, and a
+   handle that does not move under the thumb is a promise broken. */
 .permit {
+    margin: .5rem calc(-1 * var(--body-inline, 0px)) calc(-1 * var(--deck-gap, 0px));
+    padding: .6rem .9rem .8rem;
+    background: var(--sheet-bg);
+    border-radius: var(--r-card) var(--r-card) 0 0;
+    box-shadow: var(--gloss);
+}
+
+/* The title of a permission is the tool it is asked for, and a tool of a
+   server is one long word: it breaks rather than pushing past the edge. */
+.permittool { overflow-wrap: anywhere; }
+
+.permitsaid {
     display: flex;
     flex-direction: column;
     gap: .45rem;
-    padding: .5rem .75rem .8rem;
-    background: var(--glass);
-    border-radius: var(--r-sheet) var(--r-sheet) var(--r-card) var(--r-card);
-    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
+    margin-top: .5rem;
 }
 
-
-/* The quiet line says who asks; the tool comes under it as a plate. */
-.permithead {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: .3rem;
+/* At a desk a question opens in a window the width of a question, framed and
+   lifted off the page, and the permission takes that window's frame and width
+   under the conversation it belongs to. */
+@media (min-width: 1100px) {
+    .permit {
+        width: min(560px, 100%);
+        margin: .5rem auto 0;
+        padding: 1rem 1.15rem 1.15rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        box-shadow: var(--drop);
+    }
 }
 
-.permitwhat {
-    order: -1;
-    font-size: var(--t-xs);
-    color: var(--ink-faint);
-}
-
-.permittool {
-    padding: .1rem .4rem;
-    border-radius: var(--r-small);
-    background: color-mix(in srgb, var(--accent-2) 12%, transparent);
-    font-family: var(--code);
-    font-size: var(--t-xs);
-    color: var(--accent-2);
-}
-
+/* The request is a tool's input, and it is drawn the way the sheet of a call
+   draws the arguments of one: the code face at the smallest step. */
 .permitaction {
     margin: 0;
     padding: .45rem .6rem;
@@ -45,23 +58,20 @@
     background: var(--code-bg);
     box-shadow: inset 0 0 0 var(--hair) var(--line);
     font-family: var(--code);
-    font-size: var(--t-sm);
-    line-height: 1.45;
+    font-size: var(--t-xs);
+    line-height: 1.5;
     color: var(--ink);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    overflow-x: auto;
-    /* A whole edit can be hundreds of lines: it scrolls in its own box, and the
-       answer under it stays within reach of the thumb. */
-    max-height: 50vh;
-    overflow-y: auto;
 }
 
 /* The note under the command: a hook, a rule or a classifier asked for the
-   confirmation, and these are its words — the human confirms going by them. */
+   confirmation, and these are its words — the human confirms going by them.
+   Its bar is as tall as its words: a padding above and under them would show
+   the line past the fold. */
 .permitnote {
     margin: 0;
-    padding: .3rem .6rem;
+    padding: 0 .6rem;
     border-left: 2px solid var(--warn);
     font-family: inherit;
     font-size: var(--t-sm);
@@ -71,49 +81,47 @@
     overflow-wrap: anywhere;
 }
 
-.permitopts {
-    display: flex;
-    flex-direction: column;
-    gap: .35rem;
+/* Folded, the request is its first eight lines and the note its first two.
+   Eight is what the half of a phone screen a question's sheet takes leaves to
+   the request beside the head, the note, one warning and two answers: the
+   answers stay on the screen with the start of what they answer. Code is cut
+   by a fade, as a capped list of attachments is, and not by an ellipsis that
+   reads as three dots of the code; the note is prose and takes the ellipsis. */
+.permitsaid:not(.open) .permitaction {
+    max-height: calc(8 * 1.5em + .9rem);
+    overflow: hidden;
+}
+.permitsaid.hides .permitaction {
+    mask-image: linear-gradient(180deg, #000 calc(100% - 26px), rgba(0, 0, 0, .18));
+}
+.permitsaid:not(.open) .permitnote {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
 }
 
-/* An answer is a hairline whose number is the accent; the one being sent is the
-   one filled thing. */
-.permitopt {
-    display: flex;
-    align-items: baseline;
-    gap: .5rem;
-    width: 100%;
-    min-height: 44px;
-    padding: .55rem .65rem;
-    border: var(--hair) solid var(--line);
-    border-radius: var(--r-card);
-    background: none;
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--t-md);
-    line-height: 1.3;
-    text-align: left;
-    cursor: pointer;
+/* Opened, a whole edit can be hundreds of lines: it scrolls in its own box, as
+   an opened list of attachments does, and the answer under it stays within
+   reach of the thumb. */
+.permitsaid.open .permitaction {
+    max-height: max(40dvh, 150px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
-.permitopt:active { background: var(--glass); }
-.permitopt.on {
-    background: var(--accent-bg);
-    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-}
-.permitopt:disabled { cursor: default; }
-.permitopt:disabled:not(.on) { opacity: .5; }
+/* A warning about what is shown stands apart from what it warns about. */
+.permitsaid + .hint { margin-top: .45rem; }
 
-.permitn {
-    flex: none;
-    font-family: var(--code);
-    color: var(--accent);
-}
+/* The ring of an answer holds the number the console gives it, in the ink of
+   the words beside it until the ring is filled. The cross of the way out
+   stands where a number stands and is the size of one: an icon of the scale
+   is wider than the ring. */
+.askpick .permitn { line-height: 1; font-weight: 600; color: var(--ink-dim); }
+.askopt.on .permitn { color: var(--on-accent); }
+.permitn svg { width: 1em; height: 1em; }
 
-.permitn svg { width: var(--i-sm); height: var(--i-sm); vertical-align: -.2em; }
-
-.permittext { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.permittext { overflow-wrap: anywhere; }
 
 /* The mark of a lasting answer: small, to the right, the second colour. */
 .permitlast {

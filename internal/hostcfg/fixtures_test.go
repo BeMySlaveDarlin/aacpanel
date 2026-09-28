@@ -220,7 +220,8 @@ func TestHostEnvExampleIsATemplate(t *testing.T) {
 
 // Cyrillic that is not text for a human. A key arrives from data written
 // earlier, and translating it would part the code from that data; a trigger
-// phrase is how a skill recognises a request said in Russian.
+// phrase is how a tool of the panel's server recognises a request said in
+// Russian.
 var (
 	cyrillicKeys = map[string][]string{
 		// The unit of an alert, as it was written into the database before.
@@ -233,6 +234,14 @@ var (
 		"agent/chat/harness.py": {`^\[владелец[^\]\n]*\]\s*`},
 		"agent/test_chat.py":    {`[владелец · отправлено с телефона через панель aacpanel]`},
 
+		// What a person says in Russian when a tool of the panel's server is
+		// what they want: the tool's line in the server's word names it, since
+		// the model sees that line and not the tool's description.
+		"internal/session/restart.go":  {`«перезапустись», «перезапусти сессию»`},
+		"internal/session/letter.go":   {`«напиши в lms», «передай сессии»`},
+		"internal/collector/brief.go":  {`"бриф", "опросник", "скинь в панель", "отвечу потом"`},
+		"internal/collector/notify.go": {`"позови меня", "пингани", "дай знать на телефон"`},
+
 		// The range of letters a check walks over, and a file name as the desktop
 		// of a machine in another locale writes it — data the code has to accept.
 		"internal/settings/settings_test.go": {`'а' && r <= 'я'`, `'А' && r <= 'Я'`, `'ё'`, `'Ё'`},
@@ -240,11 +249,6 @@ var (
 	}
 
 	cyrillicLines = map[string][]string{
-		"deploy/claude/skills/restart-session/SKILL.md":       {"description:"},
-		"deploy/claude/skills/cross-profile-message/SKILL.md": {"description:"},
-		"deploy/claude/skills/notify/SKILL.md":                {"description:"},
-		"deploy/claude/skills/brief/SKILL.md":                 {"description:"},
-
 		// The rows of the table above: the check names what it allows, so the
 		// allowed spelling is written out here in full.
 		"internal/hostcfg/fixtures_test.go": {`"agent/`, `"internal/`, `"web/`},

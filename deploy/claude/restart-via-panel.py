@@ -11,7 +11,7 @@ are at work: the restart would end them. --anyway asks all the same, for the per
 who said so.
 
 Exit 0: the panel took the restart, or is doing it. Exit 1: it refused or did
-not answer — the caller restarts the old way. Exit 2: the background is at work
+not answer — the caller restarts some other way. Exit 2: the background is at work
 — the caller does not restart at all.
 """
 

@@ -60,7 +60,7 @@ render(
     document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const yes = () => Array.from(document.querySelectorAll(".permitopt"))
+const yes = () => Array.from(document.querySelectorAll(".permit .askpick"))
     .find((b) => (b.querySelector(".permitn") || {}).textContent === "1");
 
 window.done = (async () => {

@@ -103,7 +103,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	want := []string{"Model", "Effort", "Permissions", "Remote Control", "First message", "Plan tool", "Context cap",
+	want := []string{"Model", "Effort", "Permissions", "Remote Control", "First message", "Panel tools", "Context cap",
 		"Auto restart", "Message after a restart", "Environment", "Extra arguments"}
 	if strings.Join(got.Rows, "|") != strings.Join(want, "|") {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)

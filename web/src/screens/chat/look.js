@@ -9,7 +9,7 @@ import { useToast } from "../../ui/toasts.js";
 import * as copy from "./copy.js";
 import { render } from "../../md.js";
 import { FileBody } from "./filebody.js";
-import { isPage, PAGE_WHOLE, pickView } from "./kinds.js";
+import { isPage, PAGE_WHOLE, PAGE_WINDOW, pickView } from "./kinds.js";
 import { bytes } from "../../format.js";
 import { idParam } from "./api.js";
 import { stampText } from "./labels.js";
@@ -33,7 +33,7 @@ export const LOOK_NAMES = {
     commands: "commands",
     rename: "rename",
     tools: "tools of the session",
-    plan: "plan",
+    checklist: "checklist",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);
@@ -44,9 +44,12 @@ export function pageLook(look) {
     return Boolean(look) && look.kind === "file" && isPage(look.path);
 }
 
-function fileURL(base, path, offset) {
+// fileURL asks for a window of a file: a page by the window of a page, since
+// it is drawn only once it is read whole, and any other file by the default.
+function fileURL(base, path, offset, name) {
     const at = offset > 0 ? `&offset=${offset}` : "";
-    return `/api/chat/file?${base}&path=${encodeURIComponent(path)}${at}`;
+    const span = isPage(name) ? `&bytes=${PAGE_WINDOW}` : "";
+    return `/api/chat/file?${base}&path=${encodeURIComponent(path)}${at}${span}`;
 }
 
 function saveURL(base, path) {
@@ -78,7 +81,7 @@ export function Look({ session, id, look, onBack }) {
             const url = task
                 ? `/api/chat/task?${base}&task=${encodeURIComponent(look.id)}`
                 : file
-                    ? fileURL(base, look.path, 0)
+                    ? fileURL(base, look.path, 0, look.path)
                     : `/api/chat/agent?${base}&name=${encodeURIComponent(look.name)}`;
             try {
                 const r = await fetch(url);
@@ -101,7 +104,7 @@ export function Look({ session, id, look, onBack }) {
         if (!state.next || more.busy) return;
         setMore({ busy: true, error: "" });
         try {
-            const r = await fetch(fileURL(base, look.path, state.next));
+            const r = await fetch(fileURL(base, look.path, state.next, state.name || look.path));
             if (!r.ok) throw new Error((await r.text()).trim() || `response ${r.status}`);
             const data = await r.json();
             setState((was) => ({

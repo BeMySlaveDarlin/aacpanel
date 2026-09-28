@@ -40,12 +40,23 @@
        document; this holds the text inside it, and the two are not the same
        number — the tables, the options and the dock take the column whole. */
     --brief-measure: 66ch;
+    /* The strips that ride along with the text — the head and the dock — run
+       the full width of whatever the document was opened in, and this is the
+       padding that puts what they carry over the column all the same. A strip
+       held to the column instead stands inside a wider window with a gap at
+       each end, and its square corner shows against the window's round one.
+       The percentage is taken at the strip, of the width of the document. */
+    --brief-gutter: max(16px, calc((100% - var(--brief-col)) / 2 + 16px));
 
     color: var(--ink);
     font-size: var(--t-base);
     line-height: 1.6;
     background: transparent;
     min-height: 100%;
+    /* At the end of the text the dock comes to rest this far above the bottom
+       edge, and no further: a longer tail shows up as a band of empty paper
+       under the buttons. */
+    padding-bottom: 8px;
 }
 
 /* Literata is loaded only where a brief is open. It is the one thing the paper
@@ -95,10 +106,9 @@
 .brief-page {
     max-width: var(--brief-col);
     margin: 0 auto;
-    /* No tail under the dock: the dock sticks to the bottom of the page, and
-       whatever the page keeps after it shows up as a band of empty paper below
-       the buttons. The air the last question needs is the dock's own padding. */
-    padding: 0 16px 8px;
+    /* Nothing under the last question: the dock follows the page, and the air
+       the last question needs is the dock's own padding. */
+    padding: 0 16px;
 }
 
 /* The way out of a document. A brief runs for screens, so an exit drawn once at
@@ -109,12 +119,10 @@
     position: sticky;
     top: 0;
     z-index: 3;
-    max-width: var(--brief-col);
-    margin: 0 auto;
-    /* The same gutter the text below it takes, so the arrow stands over the
-       column rather than over the edge of whatever window the document was
-       opened in. */
-    padding: .35rem 16px;
+    margin: 0;
+    /* The strip spans the window; the gutter puts the arrow over the column
+       rather than over the edge of whatever window the document was opened in. */
+    padding: .35rem var(--brief-gutter);
     background: var(--paper-over);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
@@ -465,12 +473,13 @@
 .bclose b { color: var(--paper-ink); }
 
 /* The dock carries the only two acts a brief has. It stays put: someone who has
-   answered four of seven and scrolled into the fifth must not hunt for it. */
+   answered four of seven and scrolled into the fifth must not hunt for it.
+   It stands after the page rather than inside it, so it can run the width of
+   the window the way the head does; the page is held to the column. */
 .bdock {
     position: sticky;
     bottom: 0;
-    margin: 0 -16px;
-    padding: 8px 16px calc(9px + env(safe-area-inset-bottom, 0px));
+    padding: 8px var(--brief-gutter) calc(9px + env(safe-area-inset-bottom, 0px));
     background: var(--paper-over);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
@@ -712,7 +721,6 @@
 .bcard.is-fresh .bcard-bar, .bcard.is-read .bcard-bar { background: transparent; }
 
 @media (min-width: 900px) {
-    .brief-page { padding-bottom: 8px; }
     .bmast { padding: 34px 0 26px; }
     .bq-n { font-size: 2.3em; }
     .bq h3 { font-size: var(--t-2xl); }

@@ -83,6 +83,14 @@ def session_tmpdir(session):
 
 MAX_FILE = 64 * 1024
 
+# MAX_WINDOW is the largest window of text one request is given, and only a
+# reader that asks for it gets it: a page is drawn once it is read whole, and
+# by the default window that would be a request for every 64 KB of it. The
+# reply carries the text escaped for JSON, six bytes at most for one on disk,
+# so a window this size stays under the reply cap of the service whatever
+# the file holds.
+MAX_WINDOW = 1024 * 1024
+
 MAX_MEDIA = 4 * 1024 * 1024
 
 IMAGE_MEDIA = {
@@ -306,7 +314,11 @@ def trim_utf8(data):
 
 
 def read_file(path_in_repo, cwd, offset=0, limit=MAX_FILE):
-    """Returns a chunk of a project file by a path from the feed, or None when it cannot be read."""
+    """Returns a chunk of a project file by a path from the feed, or None when it cannot be read.
+
+    A chunk of text is MAX_FILE long unless the reader asks for more, and
+    never longer than MAX_WINDOW.
+    """
     real = sesstate.inside(path_in_repo, cwd)
     if not real:
         return None
@@ -329,7 +341,7 @@ def read_file(path_in_repo, cwd, offset=0, limit=MAX_FILE):
                     "name": os.path.basename(real),
                     "data": base64.b64encode(raw).decode("ascii")}
         start = max(0, min(int(offset or 0), size))
-        want = max(1, min(int(limit or MAX_FILE), MAX_FILE))
+        want = max(1, min(int(limit or MAX_FILE), MAX_WINDOW))
         with open(real, "rb") as f:
             f.seek(start)
             data = f.read(want)

@@ -16,7 +16,7 @@ import { state as briefState, waiting } from "../../data/briefs.js";
 import { key as pageKey, merge } from "../../data/artifacts.js";
 import { markOpened, unopened } from "../../data/opened.js";
 import { NowBar, nowOf, WaitBar } from "./now.js";
-import { PlanLine, planOf } from "./plan.js";
+import { ChecklistLine, checklistOf } from "./checklist.js";
 
 // WorkStatus renders what is happening to the session right now: the call
 // going out and for how long, or the thinking between calls. A compaction is
@@ -29,14 +29,16 @@ import { PlanLine, planOf } from "./plan.js";
 // an answer that has already ended. The bar says that work instead, and says
 // nothing when the panel sees none of it at work.
 //
-// The plan the session keeps heads the bar as its first line, and stands alone
-// above the composer when there is nothing else to say: where the session is in
-// its work belongs beside what it is doing this moment, and a quiet session is
-// still somewhere in its plan.
-export function WorkStatus({ work, busy, turnOver, compacting, feed, plan, onCalls, onOpen, onPlan }) {
-    const line = planOf(plan) ? html`<${PlanLine} plan=${plan} onOpen=${onPlan} />` : null;
+// The checklist the session keeps heads the bar as its first line, and stands
+// alone above the composer when there is nothing else to say: where the session
+// is in its work belongs beside what it is doing this moment, and a quiet
+// session is still somewhere in its checklist.
+export function WorkStatus({ work, busy, turnOver, compacting, feed, checklist, onCalls, onOpen, onChecklist }) {
+    const line = checklistOf(checklist)
+        ? html`<${ChecklistLine} checklist=${checklist} onOpen=${onChecklist} />`
+        : null;
     const bar = (card) => ((card || line)
-        ? html`<div class=${`workbar status${line ? " planned" : ""}`}>${line}${card}</div>`
+        ? html`<div class=${`workbar status${line ? " checklisted" : ""}`}>${line}${card}</div>`
         : null);
     if (compacting) return bar(html`<${Compacting} key=${compacting} since=${compacting} />`);
     if (!busy) return bar(null);

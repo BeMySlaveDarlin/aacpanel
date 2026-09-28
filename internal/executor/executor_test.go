@@ -1020,6 +1020,17 @@ type fakeSession struct {
 func sessionFiles(t *testing.T, files ...fakeSession) {
 	t.Helper()
 	root := t.TempDir()
+	sessionFilesIn(t, root, files...)
+	t.Setenv(sessionsEnv, root)
+}
+
+// sessionFilesIn writes the files claude keeps of its live sessions into the
+// sessions directory root of one account.
+func sessionFilesIn(t *testing.T, root string, files ...fakeSession) {
+	t.Helper()
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for _, f := range files {
 		status := f.status
 		if status == "" {
@@ -1054,7 +1065,6 @@ func sessionFiles(t *testing.T, files ...fakeSession) {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv(sessionsEnv, root)
 }
 
 type signalLog struct {

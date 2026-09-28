@@ -278,12 +278,13 @@ func TestEveryFeedFieldTheCollectorSendsHasAPlace(t *testing.T) {
 	}
 }
 
-// The plan of a session is read by the collector into the shape the screens
-// take. A key it puts into the plan or into a step that Plan or PlanItem does
-// not declare is dropped between the two without a word, and the sheet of the
-// plan loses its times or its note with nobody able to say where.
-func TestEveryPlanFieldTheCollectorSendsHasAPlace(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "agent", "plans.py"))
+// The checklist of a session is read by the collector into the shape the
+// screens take. A key it puts into the checklist or into a step that Checklist
+// or ChecklistItem does not declare is dropped between the two without a word,
+// and the sheet of the checklist loses its times or its note with nobody able
+// to say where.
+func TestEveryChecklistFieldTheCollectorSendsHasAPlace(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "agent", "checklists.py"))
 	if err != nil {
 		t.Fatalf("the collector source is out of reach: %v", err)
 	}
@@ -296,8 +297,8 @@ func TestEveryPlanFieldTheCollectorSendsHasAPlace(t *testing.T) {
 
 	var sent []string
 	for _, re := range []*regexp.Regexp{
-		regexp.MustCompile(`"([a-zA-Z]+)":`),                     // inside a literal
-		regexp.MustCompile(`(?:step|plan)\["([a-zA-Z]+)"\]\s*=`), // added afterwards
+		regexp.MustCompile(`"([a-zA-Z]+)":`),                          // inside a literal
+		regexp.MustCompile(`(?:step|checklist)\["([a-zA-Z]+)"\]\s*=`), // added afterwards
 	} {
 		for _, m := range re.FindAllStringSubmatch(body, -1) {
 			sent = append(sent, m[1])
@@ -308,7 +309,7 @@ func TestEveryPlanFieldTheCollectorSendsHasAPlace(t *testing.T) {
 	}
 
 	known := map[string]bool{}
-	for _, typ := range []reflect.Type{reflect.TypeOf(Plan{}), reflect.TypeOf(PlanItem{})} {
+	for _, typ := range []reflect.Type{reflect.TypeOf(Checklist{}), reflect.TypeOf(ChecklistItem{})} {
 		for i := 0; i < typ.NumField(); i++ {
 			if name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]; name != "" && name != "-" {
 				known[name] = true
@@ -317,7 +318,7 @@ func TestEveryPlanFieldTheCollectorSendsHasAPlace(t *testing.T) {
 	}
 	for _, key := range sent {
 		if !known[key] {
-			t.Errorf("the collector sends the field %q of a plan and Plan has nowhere to put it: "+
+			t.Errorf("the collector sends the field %q of a checklist and Checklist has nowhere to put it: "+
 				"the value is dropped between the two, silently", key)
 		}
 	}

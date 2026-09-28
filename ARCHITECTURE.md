@@ -130,7 +130,8 @@ rather than drawing it empty.
                             transcripts;            the terminal window,
                             ask, brief, page,       the holders of the
                             notify.sock for the     stream sessions
-                            scripts of sessions
+                            hooks and tools of
+                            sessions
 ```
 
 **The snapshot.** The collector writes the state of the machine as a file into
@@ -197,6 +198,17 @@ person typed into it — the picks, the notes, the mark that it was sent. The
 brief itself carries whatever the session was talking about, and that belongs
 on the host with the transcripts, not in the store of a service exposed to the
 internet.
+
+**The answers belong to one publication.** A brief is named by its id and
+born when it first goes on the shelf; a reissue under the same id keeps the
+birth and the answers. A session removes its brief through the collector,
+which does not tell the panel, so the draft of a removed brief stays in the
+database — and a brief published again under the same id is born anew: the
+answers typed into the first do not show in it, on its screen, on the shelf or
+in what goes to the session, and the mark that the first was sent does not
+lock it. The draft names the birth it was typed into, and the collector puts
+the birth on every card of the shelf, so the list tells the two apart without
+opening either.
 
 **The answers travel back as an ordinary message.** The text is built by the
 service, so that what the person reads before sending and what the session
@@ -588,7 +600,7 @@ Thirty actions, and the list is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
@@ -600,8 +612,9 @@ What is deliberately not on the list: removing containers, images and volumes,
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no
 stop. `session.restart` ends a session the gentle way — the same wait for the
-transcript — and starts a new one with an empty context; the old transcript
-stays in the archive. A session whose working directory belongs to a project
+transcript — and starts a new one with an empty context, or, asked to go on,
+resuming the conversation it closed; the old transcript stays in the archive.
+A session whose working directory belongs to a project
 of the map comes back as that project: its launch, its contour, and the
 message after a restart as its first — a restart without them would bring it up
 in another setup, possibly under another account. A session no project holds
@@ -797,33 +810,92 @@ session answers to is refused: two sessions would answer to one name. The
 open conversation follows the session by its conversation to the new name. A
 terminal is renamed on its own screen, `/rename` with keys.
 
-**The plan of a session is the model's own, kept by a tool of the panel.**
-Every session the launcher starts, in a console or on the stream, gets the
-executor in its plan mode (`aacpanel-exec -plan`) as an MCP server with one
-tool, `plan`, and the tool allowed, so an update never waits on a person; the
-`planTool` launch parameter turns it off for a contour or a project, and a
-session started by hand does not have it. The model decides whether to keep a
-plan and what a step is, and sends the whole list each time. The plan belongs
-to the place a session works in, not to its conversation: the config directory
-of the account and the directory claude runs in. A session started again there
-— afresh, or going on with its conversation under an id old or new — finds the
-plan where it was left, is told at the handshake how far it got and the step it
-stands at, reads it whole with a call that sends no list, and keeps it or clears
-it. The server finds the place through its parent: claude keeps a file of
-itself under `sessions/<pid>.json` of its config directory, which names the
-conversation and the directory, read on every call, since `/clear` starts
-another conversation in the same process; before claude has written the file,
-the process's own environment and working directory place it. The plan is one
-file a place under `aacpanel/plans/` in the owner's state, named by a hash of
-the two paths and holding them, replaced whole, with the conversation and the
-process that sent it last; the collector carries it in the row of every live
-session of the place and in the state of its conversation — the steps with
-their statuses, since when a step at work or done holds its status, and when
-the list was last sent — and the feed of a conversation that is over shows it
-only while that conversation sent it last. The price is one plan a place: two
-sessions in one directory under one account share it. Nothing makes the model
-keep it true: a `Stop` hook, where the account has it, holds a turn that did
-work past an unfinished plan it did not touch, once, to ask whether it changed.
+**A session gets the panel's tools from one MCP server.** Every session the
+launcher starts, in a console or on the stream, gets the executor as the MCP
+server `aacpanel` (`aacpanel-exec -mcp`), and the tools the server marks
+allowed are allowed by name, so a call of one never waits on a person; the
+`panelTools` launch parameter turns them off for a contour or a project. A
+session started by hand has them where its account names the same server at
+the user level (`claude mcp add`, INSTALL), with nothing allowed until the
+account allows it; a session the launcher starts in such an account still has
+one server, since claude keeps one server of a name and the one on the command
+line takes the place of the account's. The list of tools lives in one
+place, `internal/toolset`: the executor serves it and the launcher takes the
+allowed names from it, so a session is never allowed a tool the server does not
+have. The server's word to a session — in its system prompt — is a lead and a
+line from every tool, since a tool of a server is often deferred and its
+description unread. `-plan` starts the same server: a live session keeps the
+MCP configuration it was started with, and reconnecting to the server runs the
+binary on disk with the flag written there. Beside the checklist the server carries
+the brief — `brief_publish`, whose call without a document returns the rules of
+writing one, and `brief_delete` — and the call to the person, `notify`. They
+speak to the collector's sockets under the conversation and the directory the
+server finds for its claude rather than any the model names, so a brief lands
+on the shelf of the session that published it and its answers go back to that
+session. The feed draws the card of a published brief from the tool's answer,
+which names the brief first, and never from what the call was given: a check
+publishes nothing, and neither does a call the collector refused.
+
+**The checklist of a session is the model's own, kept by a tool of the
+panel.** The tool is `checklist` on the panel's server, allowed, so an update
+never waits on a person. The model decides whether to keep a checklist and
+what a step is, and sends the whole list each time. The checklist belongs to
+the place a session works in, not to its conversation: the config directory of
+the account and the directory claude runs in. A session started again there —
+afresh, or going on with its conversation under an id old or new — finds the
+checklist where it was left, is told at the handshake how far it got and the
+step it stands at, reads it whole with a call that sends no list, and keeps it
+or clears it. The server finds the place through its parent: claude keeps a
+file of itself under `sessions/<pid>.json` of its config directory, which
+names the conversation and the directory, read on every call, since `/clear`
+starts another conversation in the same process; before claude has written the
+file, the process's own environment and working directory place it. The
+checklist is one file a place under `aacpanel/checklists/` in the owner's
+state, named by a hash of the two paths and holding them, replaced whole, with
+the conversation and the process that sent it last; the collector carries it
+in the row of every live session of the place and in the state of its
+conversation — the steps with their statuses, since when a step at work or
+done holds its status, and when the list was last sent — and the feed of a
+conversation that is over shows it only while that conversation sent it last.
+The price is one checklist a place: two sessions in one directory under one
+account share it. Nothing makes the model keep it true: a `Stop` hook, where
+the account has it, holds a turn that did work past an unfinished checklist it
+did not touch, once, to ask whether it changed.
+
+**A session restarts itself and writes to other sessions with tools of the
+panel.** Both go to the panel's local listener as actions of this machine and
+name the session by the conversation the server's parent runs, so the model
+cannot act as another session. `session_restart` asks for `session.restart`:
+the panel brings the session back as its project from the map, afresh or, with
+`continue`, resuming the same conversation — the executor checks it is the one
+the session runs, and a conversation on the stream nobody said a word in starts
+anew. Nothing is asked while the collector's snapshot shows the session's
+agents, workflows or background commands at work, since a restart ends them;
+the snapshot can be eleven seconds old, so work seen is read again in a
+snapshot written after the look began, the same rule and the same shared cases
+as the delivery's `background.py`. A session on the stream is closed only at
+the end of its turn, which cannot end while the call waits, so the panel's
+answer would come after the call: the tool waits three seconds and takes
+silence for a restart under way. `send_to_session` lists the live sessions of
+every account from the snapshot, and sends a letter as `session.letter` with
+the sender's conversation: the executor finds the sender and the recipient
+among the sessions of every contour and writes the letter to the recipient's
+message socket in the envelope claude uses between sessions, with the sender's
+name and the address of its socket, escaped as claude escapes one. The
+recipient's claude frames it as a message from another session, not typed by
+its person, and the recipient can answer to that address. Typed into a
+terminal or sent on the stream, the same words would reach the model as its
+person's, so a letter goes no other way: a recipient without a socket is
+refused. That is also why a letter is a kind of its own and not a field of
+`session.send`: an executor that did not know the field would type the letter
+in, where one that does not know the kind refuses it. The letter does not
+claim the sender's permission class, which the panel does not know for sure,
+so a recipient that runs without permission prompts and has no
+`crossSessionInbound` setting holds it for its person. The restart is allowed:
+the restart past the context cap is done with nobody at the screen, and the
+tool touches only the session that calls it and waits out its work. The letter
+is not: it puts words before another agent, and claude asks the person first,
+as it does for any tool.
 
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line
@@ -972,12 +1044,13 @@ anywhere but the machine itself.
 
 The check keeps out a page in a browser, not a program. Any process on the
 machine, run by any of its users, reaches every action through this port with
-no sign-in — and the scripts of the sessions rely on exactly that: a session
-asks for its own restart here, and learns here that a brief is waiting to be
-sent. A request with no device behind it is written into the journal as made by
-"this machine". On a machine whose other users must not drive its sessions,
-this port is the one to close — `AACP_LOCAL_ADDR` set empty — and the price is
-those scripts and the monitor at the machine itself.
+no sign-in — and the tools and hooks of the sessions rely on exactly that: a
+session asks for its own restart here, writes to another session here, and
+learns here that a brief is waiting to be sent. A request with no device behind
+it is written into the journal as made by "this machine". On a machine whose
+other users must not drive its sessions, this port is the one to close —
+`AACP_LOCAL_ADDR` set empty — and the price is those tools and hooks and the
+monitor at the machine itself.
 
 ### The address map
 

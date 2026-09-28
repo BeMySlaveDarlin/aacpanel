@@ -6,7 +6,8 @@ import sesstate
 from sesstate.feed import TURN_ENDS
 
 from . import commands
-from .cards import artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card, wake_item
+from .cards import (BRIEF_TOOL, artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card,
+                    wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted, nudge,
                       service, strip_panel_note, unwrap_pasted)
 from .mail import peer_name, peer_pid, undelivered
@@ -122,11 +123,11 @@ def cutoff(calls, at, pos):
     return marks
 
 
-# A brief is published by running a script, not by a tool of its own: the
-# document is a file of tens of kilobytes, and that does not go on a command
-# line. Which shell call did it is read from what the call printed and never
-# from the command, because one command does several things — a session checks
-# the document and publishes it in the same line, and both are shell.
+# A brief is published by the panel's brief_publish tool, or by a shell call
+# that hands a document to the collector. Whether a call published one is read
+# from its answer and never from what it was given: the tool also checks a
+# document without publishing it, and one command line may check a document
+# and publish it too.
 
 
 def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
@@ -258,8 +259,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                             links.append(card)
                         continue
                     if briefs is not None and use in briefs:
-                        briefs.discard(use)
-                        card = brief_card(sesstate.result_text(b), shelf, use, at, pos)
+                        card = brief_card(sesstate.result_text(b), briefs.pop(use), shelf, use, at, pos)
                         if card:
                             links.append(card)
                             continue
@@ -457,10 +457,10 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     if card:
                         out.append(card)
                         continue
-                if name == "Bash" and briefs is not None:
+                if name in ("Bash", BRIEF_TOOL) and briefs is not None:
                     # The call stays in the run as a call: whether a document
-                    # reached the shelf is known only from what it printed.
-                    briefs.add(block.get("id") or "")
+                    # reached the shelf is known only from its answer.
+                    briefs[block.get("id") or ""] = "tool" if name == BRIEF_TOOL else "shell"
                 if name == sesstate.SENT_TOOL and sent is not None:
                     # The call goes into the run as a call: whether anything
                     # reached the human is known only from the answer, and

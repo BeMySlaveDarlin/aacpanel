@@ -6,7 +6,12 @@ const PAGE = /\.(html?|xhtml)$/i;
 
 // PAGE_WHOLE is the largest page the panel draws: a page is read whole before
 // it is drawn, and past this it is saved and opened rather than waited for.
-export const PAGE_WHOLE = 2 << 20;
+export const PAGE_WHOLE = 8 << 20;
+
+// PAGE_WINDOW is how much of a page one read asks for: the largest window the
+// collector gives when asked, so that a page up to PAGE_WHOLE is a handful of
+// reads. Every other file is read by the default window, a press at a time.
+export const PAGE_WINDOW = 1 << 20;
 
 // isPage reports whether a file is a page the panel draws as a document.
 export function isPage(name) {

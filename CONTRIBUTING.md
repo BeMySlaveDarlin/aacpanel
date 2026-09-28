@@ -97,20 +97,7 @@ Separately, outside `check`, because they need what not every machine has — li
 ```bash
 make usage-replay    # incremental usage collection against a straight pass over live transcripts
 make stream-contract # the stream protocol of the installed claude, before sessions move to a new version
-make skills-diff     # whether the shipped skills have parted from the installed ones
 ```
-
-**A skill a machine keeps in a version of its own** is marked rather than
-argued with every time: `make skills-local SKILL=<name> WHY='why'` writes a
-`.local` beside the installed skill, and `skills-diff` then names it instead of
-printing a diff nobody is going to act on. A machine may well want its own: the
-shipped skill has to work anywhere and asks the panel where things are, while a
-local one can go straight to what that machine has.
-
-The mark records which delivery it was taken against. When the shipped skill
-moves on, the check says the mark is older than the delivery and asks for it to
-be made again — an ignore that never expires is an ignore that hides the next
-change too.
 
 ---
 
@@ -161,15 +148,15 @@ The exceptions are three, and every one of them is named by file in
 `TestRepositorySpeaksOneLanguage` (`internal/hostcfg`), which is what holds this
 rule. A handful of string constants are keys arriving from data written earlier
 rather than text meant for a human, and they keep their old spelling. The phrases
-by which a shipped skill recognises a request said in Russian are not text for a
-reader either. And an applied migration is untouchable down to a single
+by which a tool of the panel, in its line to a session, recognises a request
+said in Russian are not text for a reader either. And an applied migration is untouchable down to a single
 character, so whatever it says stays as it was written.
 
 **This check walks the list git keeps, not the working tree.** A new file
-enters it only once it is added, so a skill whose description carries the
-Russian phrases it is recognised by passes the whole of `make check` while it
-is untracked and fails on the next run. Adding an exception is a line beside
-the other skills, and the run after `git add` is the one that counts.
+enters it only once it is added, so a file carrying the Russian phrases a tool
+is recognised by passes the whole of `make check` while it is untracked and
+fails on the next run. Adding an exception is a line beside the other tools,
+and the run after `git add` is the one that counts.
 
 **The text of a refusal does not promise an environment the reader may not
 have.** A refusal names tmux, and a specific terminal comes second and as a

@@ -18,11 +18,13 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/checklist"
 	"aacpanel/internal/executor"
 	"aacpanel/internal/launcher"
-	"aacpanel/internal/plan"
+	"aacpanel/internal/mcp"
 	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
+	"aacpanel/internal/toolset"
 )
 
 const defaultDocker = "unix:///var/run/docker.sock"
@@ -52,13 +54,11 @@ func main() {
 	console := flag.String("console", "",
 		"move a live session on the stream to the console, without the panel: the running executor "+
 			"starts it in tmux with what it was started with, and tmux attach reaches it")
-	servePlan := flag.Bool(strings.TrimPrefix(plan.Flag, "-"), false,
-		"serve the panel's plan tool over MCP on stdin and stdout to the claude that started this. "+
-			"Not a panel action: the launcher names it in the MCP configuration of every session it starts")
+	serveMCP := mcpFlags(flag.CommandLine)
 	flag.Parse()
 
-	if *servePlan {
-		os.Exit(runPlan(os.Stdin, os.Stdout, os.Getppid()))
+	if *serveMCP {
+		os.Exit(runMCP(os.Stdin, os.Stdout, os.Getppid()))
 	}
 
 	if *hold {
@@ -189,20 +189,32 @@ func runHold() int {
 	return 0
 }
 
-// runPlan serves the plan tool to one claude: its parent, which started it
-// as an MCP server. The plan is the one of the place that process works in,
-// found when the model calls the tool, and the plans nobody has touched for a
-// month are swept once at the start.
-func runPlan(in io.Reader, out io.Writer, parent int) int {
-	dir := plan.Dir()
-	plan.Sweep(dir, time.Now())
-	srv := &plan.Server{
-		Dir:  dir,
-		Now:  time.Now,
-		Bind: func() (plan.Binding, error) { return launcher.Where(parent) },
-	}
-	if err := srv.Serve(in, out); err != nil {
-		fmt.Fprintf(os.Stderr, "aacpanel-exec: the plan tool: %v\n", err)
+// planFlag starts the same server as mcp.Flag. A session's MCP configuration
+// keeps the flag it was started with, and a reconnect of the server starts the
+// binary on disk with that flag: a session whose configuration names this one
+// keeps the panel's tools until it ends.
+const planFlag = "-plan"
+
+// mcpFlags defines the flags that start the executor as the panel's MCP
+// server; both set the one switch returned.
+func mcpFlags(set *flag.FlagSet) *bool {
+	on := set.Bool(strings.TrimPrefix(mcp.Flag, "-"), false,
+		"serve the panel's tools over MCP on stdin and stdout to the claude that started this. "+
+			"Not a panel action: the launcher names it in the MCP configuration of every session it starts")
+	set.BoolVar(on, strings.TrimPrefix(planFlag, "-"), false,
+		"the same as "+mcp.Flag+", for a session whose MCP configuration names this flag")
+	return on
+}
+
+// runMCP serves the panel's tools to one claude: its parent, which started it
+// as an MCP server. The place that process works in is found anew on every
+// call of a tool, and the checklists nobody has touched for a month are swept
+// once at the start.
+func runMCP(in io.Reader, out io.Writer, parent int) int {
+	checklist.Sweep(checklist.Dir(), time.Now())
+	srv := toolset.Server(func() (mcp.Binding, error) { return launcher.Where(parent) })
+	if err := srv.Serve(context.Background(), in, out); err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: the MCP server: %v\n", err)
 		return 1
 	}
 	return 0

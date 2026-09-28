@@ -174,8 +174,8 @@ func (r Request) Validate() error {
 		return badRequest("action %s takes no answers to questions", r.Kind)
 	}
 	switch {
-	case r.Kind == SessionSend, r.Kind == SessionFile:
-		if r.Kind == SessionSend && strings.TrimSpace(r.Text) == "" {
+	case r.Kind == SessionSend, r.Kind == SessionFile, r.Kind == SessionLetter:
+		if r.Kind != SessionFile && strings.TrimSpace(r.Text) == "" {
 			return badRequest("a message to the session without text")
 		}
 		if len([]rune(r.Text)) > TextMax {
@@ -184,7 +184,9 @@ func (r Request) Validate() error {
 		if err := safeText(r.Text); err != nil {
 			return err
 		}
-		if name, refused := refusedCommand(r.Text); refused {
+		// A letter reaches the model inside its envelope, where a slash is
+		// only a character: it runs no command.
+		if name, refused := refusedCommand(r.Text); refused && r.Kind != SessionLetter {
 			return badRequest("/%s is not sent from the panel: %s", name, Refused[name])
 		}
 	case r.Kind == SessionShell:
@@ -330,6 +332,16 @@ func (r Request) Validate() error {
 	} else if r.Kind == SessionUnqueue {
 		return badRequest("action %s without the message to take back", r.Kind)
 	}
+	if r.Kind == SessionLetter {
+		if r.From == "" {
+			return badRequest("a letter without the conversation it comes from: it would have no sender")
+		}
+		if !safeUUID(r.From) {
+			return badRequest("the conversation a letter comes from does not look like a uuid")
+		}
+	} else if r.From != "" {
+		return badRequest("action %s carries no letter", r.Kind)
+	}
 	if r.Kind == SessionSwitch {
 		if r.Switch == nil {
 			return badRequest("action %s without where to move the session", r.Kind)
@@ -352,7 +364,7 @@ func (r Request) Validate() error {
 		return badRequest("resuming a session without a conversation id")
 	}
 	if r.Resume != "" {
-		if r.Kind != SessionResume {
+		if r.Kind != SessionResume && r.Kind != SessionRestart {
 			return badRequest("action %s takes no conversation id", r.Kind)
 		}
 		if !safeUUID(r.Resume) {

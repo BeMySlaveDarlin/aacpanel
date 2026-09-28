@@ -91,9 +91,9 @@ class Clean(unittest.TestCase):
         self.assertEqual(got["closing"], ["Ten of twelve closed for good."])
 
     def test_the_directory_is_the_session_s_own_not_the_caller_s(self):
-        # The script is run from wherever the agent last cd'd to, and that is
-        # usually the repository the script lives in rather than the project
-        # the conversation is about.
+        # A publisher started from a shell runs wherever the agent last cd'd
+        # to, and that is often another repository than the project the
+        # conversation is about.
         with live({"sessionId": "s-1", "cwd": "/srv/real-work"}):
             got = briefs.clean(published())
         self.assertEqual(got["cwd"], "/srv/real-work")
@@ -272,6 +272,16 @@ class ShelfStore(unittest.TestCase):
         self.put(title="second")
         self.put(title="third")
         self.assertEqual(self.shelf.of("seven-after-twelve")["firstAt"], first)
+
+    def test_a_card_names_the_publication_it_stands_for(self):
+        """The panel keeps the answers of one publication. A brief removed and
+        published again under the same name is another document, and the card
+        is how the shelf tells the two apart without opening either."""
+        self.put()
+        first = self.shelf.of("seven-after-twelve")["at"]
+        self.assertEqual(self.shelf.cards()[0]["firstAt"], "")
+        self.put(title="second")
+        self.assertEqual(self.shelf.cards()[0]["firstAt"], first)
 
     def test_the_same_id_from_another_project_is_refused_rather_than_overwritten(self):
         self.put()

@@ -1,0 +1,248 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// A stream session asking for a permission: an MCP tool about to rewrite a
+// comment in the tracker, its whole input a long Russian text, and the reason
+// the console asks under it. First the same screen asks a question of two
+// short answers, so the dock of a permission can be measured against the dock
+// of a question — the sheet on a phone, the window at a desk; the permission
+// is what stays on the screen.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const comment = "Colleagues, after the call I am writing down what we agreed about the export of grades. " +
+    "First: the old router is switched off only after the new one has run a week without errors in production, " +
+    "until then both live side by side and write into one log. Second: the migration of the grades table goes " +
+    "in two steps, first we add the columns and fill them with a background job, then switch the reads, " +
+    "and only after that drop the old fields; a rollback at any step must take no more than five minutes. " +
+    "Third: teachers see the new reports from Monday, until then nothing is sent to them, " +
+    "so that nobody has to answer questions about an unfinished screen. Fourth: for the switch " +
+    "we freeze the releases of the neighbouring services, the list is agreed with the platform team. " +
+    "If you object to any point, write here before Thursday; on Friday morning " +
+    "we start the first step and go on by the plan with no side discussions in private chats.\n\n" +
+    "Links to the dashboard and the rollback plan come in a separate comment once the person on duty checks them.";
+
+const permission = {
+    tool: "mcp__atlassian__jira_edit_comment",
+    action: JSON.stringify({ comment, comment_id: "10234", issue_key: "LMS-13423" }, null, 2).split("\n"),
+    note: [
+        "Edit a comment on a Jira issue",
+        "asked because: Hook PreToolUse:mcp__atlassian__jira_edit_comment requires confirmation " +
+            "for this tool: a comment in the tracker is read by the whole team and by the customer, " +
+            "so every edit of one is confirmed by a person before it goes out",
+    ],
+    options: [{ n: 1, text: "Yes" }, { n: 2, text: "No" }],
+    fingerprint: "req-1",
+    tail: "",
+    raw: [],
+};
+
+const ask = {
+    sessionId: "s1",
+    toolUseId: "toolu_ask_short",
+    cwd: "/srv/proj",
+    questions: [{
+        text: "Push the branch now?",
+        header: "Push",
+        multi: false,
+        options: [{ label: "Yes" }, { label: "No" }],
+    }],
+};
+
+let asking = true;
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) {
+        return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: asking ? { ask } : {} });
+    }
+    if (u.startsWith("/api/session/permission")) return json({ state: "ok", permission });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.answer", "session.dismiss", "session.permit", "session.stop"] };
+const live = { status: "waiting", waitingFor: "permission", transport: "stream", pct: 12.4, tokens: 124000,
+    limit: 1000000, cwd: "/srv/proj" };
+const root = document.getElementById("root");
+const page = (id) => h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} key=${id} name="lms" id=${id} live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (test) => {
+    for (let i = 0; i < 80 && !test(); i += 1) await sleep(50);
+    return test();
+};
+
+const px = (value) => parseFloat(value) || 0;
+const border = (s, side) => {
+    const style = s.getPropertyValue(`border-${side}-style`);
+    return `${s.getPropertyValue(`border-${side}-width`)} ${style}` +
+        (style === "none" ? "" : ` ${s.getPropertyValue(`border-${side}-color`)}`);
+};
+const sides = ["top", "right", "bottom", "left"];
+const corners = ["top-left", "top-right", "bottom-right", "bottom-left"];
+
+// The container of a dock: its material and its frame, the corners over it
+// apart from the corners under it, and where it stands across the screen.
+const frame = (el) => {
+    const s = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return {
+        background: `${s.backgroundColor} ${s.backgroundImage}`,
+        border: sides.map((side) => border(s, side)).join(" | "),
+        radius: corners.slice(0, 2).map((c) => s.getPropertyValue(`border-${c}-radius`)).join(" "),
+        under: corners.slice(2).map((c) => s.getPropertyValue(`border-${c}-radius`)).join(" "),
+        padding: sides.map((side) => s.getPropertyValue(`padding-${side}`)).join(" "),
+        shadow: s.boxShadow,
+        left: Math.round(r.left),
+        right: Math.round(r.right),
+        width: Math.round(r.width),
+    };
+};
+
+// One answer of a dock: the row that carries the frame, the button in it, the
+// mark in front of the words and the words.
+const answer = (list, mark, words) => {
+    const row = list.firstElementChild;
+    const button = row.matches("button") ? row : row.querySelector("button");
+    const r = getComputedStyle(row);
+    const b = getComputedStyle(button);
+    const w = getComputedStyle(words);
+    const m = getComputedStyle(mark);
+    return {
+        row: {
+            background: `${r.backgroundColor} ${r.backgroundImage}`,
+            border: sides.map((side) => border(r, side)).join(" | "),
+            radius: corners.map((c) => r.getPropertyValue(`border-${c}-radius`)).join(" "),
+            height: Math.round(row.getBoundingClientRect().height),
+        },
+        button: {
+            padding: sides.map((side) => b.getPropertyValue(`padding-${side}`)).join(" "),
+            minHeight: b.minHeight,
+            gap: b.columnGap,
+        },
+        words: { size: w.fontSize, weight: w.fontWeight, lineHeight: w.lineHeight, color: w.color },
+        mark: { width: m.width, height: m.height, border: border(m, "top"), size: m.fontSize },
+        list: { gap: getComputedStyle(list).rowGap },
+        wordsTop: Math.round(words.getBoundingClientRect().top - row.getBoundingClientRect().top),
+        wordsBottom: Math.round(row.getBoundingClientRect().bottom - words.getBoundingClientRect().bottom),
+    };
+};
+
+// The type of a line of the head: the eyebrow over the title, and the title.
+const type = (el) => {
+    if (!el) return null;
+    const s = getComputedStyle(el);
+    return { size: s.fontSize, weight: s.fontWeight, lineHeight: s.lineHeight, spacing: s.letterSpacing, color: s.color };
+};
+
+// The size a tool's input is drawn at elsewhere in the conversation: the
+// output of a command in the feed, and the arguments of a call in its sheet.
+const codeSize = (cls) => {
+    const probe = document.createElement("pre");
+    probe.className = cls;
+    probe.textContent = "x";
+    root.append(probe);
+    const size = getComputedStyle(probe).fontSize;
+    probe.remove();
+    return size;
+};
+
+const clamped = (el) => el.scrollHeight > el.clientHeight + 1;
+
+window.done = (async () => {
+    await document.fonts.ready;
+    render(page("s1"), root);
+    if (!await until(() => document.querySelector(".sheet.on .askpick"))) throw new Error("the question did not open");
+    await sleep(350);
+    const sheet = document.querySelector(".sheet.on");
+    const askList = sheet.querySelector(".askopts");
+    const result = {
+        ask: {
+            frame: frame(sheet),
+            answer: answer(askList, askList.querySelector(".asktick"), askList.querySelector(".askname")),
+            eyebrow: type(sheet.querySelector(".asklabel")),
+            title: type(sheet.querySelector(".asktext")),
+        },
+    };
+
+    render(null, root);
+    asking = false;
+    render(page("s2"), root);
+    if (!await until(() => document.querySelector(".permit button"))) throw new Error("the permission did not show");
+    await sleep(200);
+
+    const dock = document.querySelector(".permit");
+    const list = dock.querySelector(".askopts");
+    const opts = [...list.children];
+    const request = dock.querySelector(".permitaction");
+    const note = dock.querySelector(".permitnote");
+    const rect = (el) => el.getBoundingClientRect();
+    const rs = getComputedStyle(request);
+    const ns = getComputedStyle(note);
+    result.permit = {
+        viewport: innerHeight,
+        width: innerWidth,
+        dock: { top: Math.round(rect(dock).top), bottom: Math.round(rect(dock).bottom), height: Math.round(rect(dock).height) },
+        headTop: Math.round(rect(dock.querySelector(".askhead")).top),
+        deckTop: document.querySelector(".deck") ? Math.round(rect(document.querySelector(".deck")).top) : null,
+        feedBottom: Math.round(rect(document.querySelector(".chatfeed")).bottom),
+        lastOption: { top: Math.round(rect(opts[opts.length - 1]).top), bottom: Math.round(rect(opts[opts.length - 1]).bottom) },
+        frame: frame(dock),
+        answer: answer(list, list.querySelector(".permitn"), list.querySelector(".askname")),
+        eyebrow: type(dock.querySelector(".asklabel")),
+        title: type(dock.querySelector(".asktext")),
+        titleOver: [...dock.querySelectorAll(".asktext")].some((el) => el.scrollWidth > el.clientWidth),
+        request: {
+            size: rs.fontSize,
+            lineHeight: px(rs.lineHeight),
+            padding: px(rs.paddingTop) + px(rs.paddingBottom),
+            height: request.clientHeight,
+            whole: request.scrollHeight,
+            text: request.textContent.includes("no side discussions in private chats"),
+        },
+        note: {
+            lineHeight: px(ns.lineHeight),
+            padding: px(ns.paddingTop) + px(ns.paddingBottom),
+            height: note.clientHeight,
+            whole: note.scrollHeight,
+            text: note.textContent.includes("confirmed by a person before it goes out"),
+        },
+        code: { shell: codeSize("mshellout"), call: codeSize("callpre") },
+    };
+
+    // What the fold hides is one press away: opened, the note is whole and
+    // the request either whole or scrolled in a box of its own, and the
+    // answers are still on the screen.
+    const unfold = dock.querySelector("[aria-expanded='false']");
+    result.permit.fold = Boolean(unfold);
+    if (unfold) {
+        unfold.click();
+        await sleep(150);
+        const r = getComputedStyle(request);
+        result.permit.open = {
+            noteWhole: !clamped(note),
+            requestWhole: !clamped(request) || r.overflowY === "auto" || r.overflowY === "scroll",
+            lastBottom: Math.round(rect(opts[opts.length - 1]).bottom),
+        };
+        const fold = dock.querySelector("[aria-expanded='true']");
+        if (fold) fold.click();
+        await sleep(150);
+    }
+    return result;
+})();
+</script>

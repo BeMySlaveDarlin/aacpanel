@@ -1,5 +1,5 @@
 // A session permission: the “Do you want to proceed?” dialog from the phone.
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -96,22 +96,24 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
                         : "there is a dialog on the session screen that the panel does not know — what it asks cannot be seen from here"}</p>`
                     : html`<p class="hint">the session is ${waitText(waitingFor)} — what is there, the panel did
                         not parse</p>`}
-                ${raw.length > 0 && html`<pre class="permitaction">${raw.join("\n")}</pre>`}
+                ${raw.length > 0 && html`<${Request} lines=${raw} note=${[]} />`}
                 ${state.escaped
                     ? html`<p class="hint">Esc sent — if there was a dialog, it is closed</p>`
                     : html`<p class="hint">it can only be answered in the console; from here — close the dialog
                         without confirming anything</p>`}
-                <div class="permitopts">
-                    <button
-                        class="permitopt"
-                        type="button"
-                        disabled=${sending > 0 || !canStop}
-                        title=${canStop ? "" : whyNot(exec, "session.stop")}
-                        onClick=${escape}
-                    >
-                        <span class="permitn">${Icon.close()}</span>
-                        <span class="permittext">Close the dialog — Esc</span>
-                    </button>
+                <div class="askopts">
+                    <div class=${`askopt${sending > 0 || !canStop ? " off" : ""}`}>
+                        <button
+                            class="askpick"
+                            type="button"
+                            disabled=${sending > 0 || !canStop}
+                            title=${canStop ? "" : whyNot(exec, "session.stop")}
+                            onClick=${escape}
+                        >
+                            <span class="asktick permitn">${Icon.close()}</span>
+                            <span class="askbody permittext"><span class="askname">Close the dialog — Esc</span></span>
+                        </button>
+                    </div>
                 </div>
                 <p class="hint warn">Esc cancels: the permission is not given, a held letter is not
                     delivered, and queued messages are dropped</p>
@@ -122,16 +124,12 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
 
     return html`
         <div class="permit">
-            <div class="permithead">
-                <span class="permittool">${perm.tool || "permission"}</span>
-                <span class="permitwhat">the console asks for permission</span>
+            <div class="askhead">
+                <span class="asklabel">Permission</span>
             </div>
+            <p class="asktext permittool">${perm.tool || "Do you want to proceed?"}</p>
 
-            <pre class="permitaction">${(perm.action || []).join("\n")}</pre>
-
-            ${(perm.note || []).length > 0 && html`
-                <pre class="permitnote">${perm.note.join("\n")}</pre>
-            `}
+            <${Request} lines=${perm.action || []} note=${perm.note || []} />
 
             ${perm.cut && html`
                 <p class="hint warn">the command is longer than shown — its beginning is above the console
@@ -143,25 +141,70 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
                     If the item you need is not here — answer in the console</p>
             `}
 
-            <div class="permitopts">
+            <div class="askopts">
                 ${(perm.options || []).map((o) => html`
-                    <button
+                    <div
                         key=${o.n}
-                        class=${`permitopt${o.lasting ? " lasting" : ""}${sending === o.n ? " on" : ""}`}
-                        type="button"
-                        disabled=${sending > 0 || !ready}
-                        title=${ready ? "" : whyNot(exec, "session.permit")}
-                        onClick=${() => press(o.n)}
+                        class=${`askopt${sending === o.n ? " on" : sending > 0 || !ready ? " off" : ""}`}
                     >
-                        <span class="permitn">${o.n}</span>
-                        <span class="permittext">${o.text}</span>
-                        ${o.lasting && html`<span class="permitlast">from now on</span>`}
-                    </button>
+                        <button
+                            class="askpick"
+                            type="button"
+                            disabled=${sending > 0 || !ready}
+                            title=${ready ? "" : whyNot(exec, "session.permit")}
+                            onClick=${() => press(o.n)}
+                        >
+                            <span class="asktick permitn">${o.n}</span>
+                            <span class="askbody permittext"><span class="askname">${o.text}</span></span>
+                            ${o.lasting && html`<span class="permitlast">from now on</span>`}
+                        </button>
+                    </div>
                 `)}
             </div>
 
             ${fail && html`<p class="hint crit">${fail}</p>`}
             ${!ready && html`<p class="hint warn">${whyNot(exec, "session.permit")}</p>`}
+        </div>
+    `;
+}
+
+// Request is what the console asks to do and why it asks, folded to the first
+// lines of each. The answers under it are what a person came to the dock for,
+// and a request can be a whole edit: drawn whole, it pushes them to the bottom
+// of the screen under a wall of code. The fold shows its button only when it
+// hides something, and opened, the request scrolls in a box of its own. What
+// the fold hides is measured again when the screen turns: text that fit across
+// a phone held sideways does not fit across one held upright.
+function Request({ lines, note }) {
+    const [open, setOpen] = useState(false);
+    const [hides, setHides] = useState({ request: false, note: false });
+    const box = useRef(null);
+    const text = lines.join("\n");
+    const why = note.join("\n");
+
+    useLayoutEffect(() => {
+        const el = box.current;
+        if (!el || open) return undefined;
+        const over = (pre) => Boolean(pre) && pre.scrollHeight > pre.clientHeight + 1;
+        const measure = () => setHides({
+            request: over(el.querySelector(".permitaction")),
+            note: over(el.querySelector(".permitnote")),
+        });
+        measure();
+        window.addEventListener("resize", measure);
+        return () => window.removeEventListener("resize", measure);
+    }, [text, why, open]);
+
+    return html`
+        <div ref=${box} class=${`permitsaid${open ? " open" : hides.request ? " hides" : ""}`}>
+            <pre class="permitaction">${text}</pre>
+            ${why && html`<pre class="permitnote">${why}</pre>`}
+            ${(hides.request || hides.note || open) && html`
+                <button class="mfmore" type="button" aria-expanded=${open ? "true" : "false"}
+                        onClick=${() => setOpen(!open)}>
+                    ${open ? "collapse" : "show all"}
+                </button>
+            `}
         </div>
     `;
 }

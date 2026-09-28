@@ -191,20 +191,20 @@ type Work struct {
 	Artifacts []Artifact  `json:"artifacts,omitempty"`
 	Docs      []Doc       `json:"docs,omitempty"`
 	Sent      []Sent      `json:"sent,omitempty"`
-	Plan      *Plan       `json:"plan,omitempty"`
+	Checklist *Checklist  `json:"checklist,omitempty"`
 }
 
-// Plan is the list of steps the session keeps of its work through the
-// panel's plan tool, as it last sent it, with a line about it as a whole.
-type Plan struct {
-	Items []PlanItem `json:"items"`
-	At    string     `json:"at"`
-	Note  string     `json:"note,omitempty"`
+// Checklist is the list of steps the session keeps of its work through the
+// panel's checklist tool, as it last sent it, with a line about it as a whole.
+type Checklist struct {
+	Items []ChecklistItem `json:"items"`
+	At    string          `json:"at"`
+	Note  string          `json:"note,omitempty"`
 }
 
-// PlanItem is one step: pending, active, done or dropped. Since is when a
+// ChecklistItem is one step: pending, active, done or dropped. Since is when a
 // step at work or done took its status.
-type PlanItem struct {
+type ChecklistItem struct {
 	Text   string `json:"text"`
 	Status string `json:"status"`
 	Since  string `json:"since,omitempty"`
@@ -461,7 +461,10 @@ var ErrNoSubagents = errors.New("the session collector on the host knows nothing
 const (
 	dialTimeout  = 2 * time.Second
 	replyTimeout = 10 * time.Second
-	maxReply     = 8 << 20
+	// maxReply is the largest reply read from the collector. The largest it
+	// sends are the windows of a file: text of up to 1 MB escaped for JSON,
+	// six bytes at most for one on disk, and a picture of up to 4 MB in base64.
+	maxReply = 8 << 20
 )
 
 // Client is the path to the socket.

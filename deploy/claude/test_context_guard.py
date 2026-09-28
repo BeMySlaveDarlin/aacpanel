@@ -87,8 +87,10 @@ class TestGuard(unittest.TestCase):
         self.assertEqual(got["decision"], "block")
         self.assertIn("84%", got["reason"])
         self.assertIn("past the 80%", got["reason"])
-        self.assertIn("restart-session", got["reason"])
-        self.assertIn("do not pass --continue", got["reason"])
+        self.assertIn("with session_restart, the tool of the panel's server", got["reason"])
+        self.assertIn("mcp__aacpanel__session_restart), without continue", got["reason"])
+        self.assertIn("Do not go on with this conversation", got["reason"])
+        self.assertNotIn("skill with no flags", got["reason"])
         self.assertIn("do it silently", got["reason"])
         self.assertIn("nor that the next session will continue", got["reason"])
 
