@@ -54,7 +54,7 @@ func TestPermitSaysWhenTheDialogIsCut(t *testing.T) {
 	if strings.Contains(got.Whole, cut) {
 		t.Errorf("a whole dialog is announced as cut:\n%s", got.Whole)
 	}
-	for _, want := range []string{"Collect the ids", `<span class="permitn">1</span>`, `<span class="permitn">2</span>`} {
+	for _, want := range []string{"Collect the ids", `<span class="asktick permitn">1</span>`, `<span class="asktick permitn">2</span>`} {
 		if !strings.Contains(got.Cut, want) {
 			t.Errorf("the tail of a cut dialog does not show %q — that is what the human decides by:\n%s", want, got.Cut)
 		}
