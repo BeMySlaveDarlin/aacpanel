@@ -24,12 +24,13 @@ type feedLinesShot struct {
 		TagColour string `json:"tagColour"`
 		Node      string `json:"node"`
 	} `json:"tasks"`
-	Turn      string `json:"turn"`
-	TurnNum   string `json:"turnNum"`
-	TurnIcon  bool   `json:"turnIcon"`
-	TurnOpens []int  `json:"turnOpens"`
-	Worked    bool   `json:"worked"`
-	Badges    int    `json:"badges"`
+	Turn      string   `json:"turn"`
+	TurnNum   string   `json:"turnNum"`
+	TurnIcon  bool     `json:"turnIcon"`
+	TurnOpens []int    `json:"turnOpens"`
+	HookOpens []string `json:"hookOpens"`
+	Worked    bool     `json:"worked"`
+	Badges    int      `json:"badges"`
 	Opened    []struct {
 		ID    string `json:"id"`
 		Name  string `json:"name"`
@@ -43,7 +44,8 @@ type feedLinesShot struct {
 }
 
 // What a terminal prints beside the conversation is in the feed as well. A
-// hook's message counts on the mark of its run on the timeline; background
+// hook's message is a badge of its own in the stack of its run on the
+// timeline, and the badge opens that message alone; background
 // tasks done are cards of the build of the files sent to the person — the
 // ones that ended side by side share one card, a row each, one width for all,
 // opening what the task left behind; the end of a turn is a mark on the
@@ -53,8 +55,11 @@ func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 	var got feedLinesShot
 	runFixture(t, "feedlines.html", &got)
 
-	if strings.Join(got.Marks, " | ") != "1 command · 1 hook — open the calls" {
-		t.Errorf("the marks of the run: %v", got.Marks)
+	if strings.Join(got.Marks, " | ") != "1 command — open the calls | 1 hook — open the calls" {
+		t.Errorf("the badges of the run: %v", got.Marks)
+	}
+	if strings.Join(got.HookOpens, " | ") != "PreToolUse:Bash hook" {
+		t.Errorf("tapping the badge of the hook opened %v: the calls of its kind alone", got.HookOpens)
 	}
 	if got.Badges != 0 {
 		t.Errorf("%d badges of calls stand in the column: the work belongs on the timeline", got.Badges)

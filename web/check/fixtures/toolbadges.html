@@ -5,7 +5,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // A run of every kind of call, a run that only thought and the end of a turn,
-// each after a reply of its own: every mark on the timeline is drawn the same
+// each after a reply of its own: every badge on the timeline is drawn the same
 // size with the same icon, and stands at the height of the reply it led to.
 import { render } from "preact";
 import { html } from "/src/html.js";
@@ -42,7 +42,7 @@ render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${
 // the row after it, and the test says whether it came to that.
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const aligned = () => {
-    const marks = Array.from(document.querySelectorAll(".railmark"));
+    const marks = Array.from(document.querySelectorAll(".railbadge"));
     const rows = Array.from(document.querySelector(".feedcol").children);
     return marks.length > 0 && marks.every((m, i) => rows[i]
         && Math.abs(m.getBoundingClientRect().top - rows[i].getBoundingClientRect().top) <= 1);
@@ -52,7 +52,7 @@ const aligned = () => {
     const end = performance.now() + 3000;
     while (!aligned() && performance.now() < end) await frame();
     const col = document.querySelector(".feedcol");
-    const marks = Array.from(document.querySelectorAll(".railmark")).map((b) => {
+    const marks = Array.from(document.querySelectorAll(".railbadge")).map((b) => {
         const box = b.getBoundingClientRect();
         const svg = b.querySelector("svg");
         const icon = svg ? svg.getBoundingClientRect() : { width: 0, height: 0 };
@@ -62,6 +62,6 @@ const aligned = () => {
     // The row each mark led to: the reply after its run.
     const rowsTop = Array.from(col.children).filter((r) => !r.classList.contains("r-me") || true)
         .map((r) => r.getBoundingClientRect().top);
-    window.done = { badges: marks, rows: rowsTop, inColumn: col.querySelectorAll(".mtools, .railmark").length };
+    window.done = { badges: marks, rows: rowsTop, inColumn: col.querySelectorAll(".mtools, .railbadge").length };
 })();
 </script>

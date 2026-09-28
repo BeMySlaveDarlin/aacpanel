@@ -108,35 +108,58 @@ func TestTheFeedSplitsIntoTheColumnAndTheTimeline(t *testing.T) {
 	}
 }
 
-// Two marks on the strip become one when the lower would stand closer to the
-// upper than a mark's height and the gap between marks, and not a pixel
-// sooner: a mark at 37px under another joins it, one at 38px stands alone.
-func TestMarksThatWouldRunIntoEachOtherBecomeOne(t *testing.T) {
-	mark := func(at int) map[string]any {
-		return map[string]any{"at": at, "rows": []any{map[string]any{"role": "toolrow", "run": at, "groups": []any{
-			map[string]any{"kind": "bash", "calls": []any{map[string]any{"name": "Bash", "pos": at}, map[string]any{"name": "Bash", "pos": at, "index": 1}}}}}}}
+// Every work stands on the strip as a stack of its own, a badge for each kind
+// of what it did — its thinking, its calls kind by kind in the order of the
+// labels, the end of its turn — and works close together are never summed
+// into one: a stack that would run into the one above stands under it, the gap
+// between them, and a stack is as tall as its badges.
+func TestEveryWorkIsAStackOfItsOwnOnTheStrip(t *testing.T) {
+	run := func(at int, kinds ...string) map[string]any {
+		groups := []any{}
+		for i, k := range kinds {
+			groups = append(groups, map[string]any{"kind": k, "calls": []any{
+				map[string]any{"name": k, "pos": at, "index": i}, map[string]any{"name": k, "pos": at, "index": i + 10}}})
+		}
+		return map[string]any{"role": "toolrow", "run": at, "groups": groups}
 	}
+	thought := func(r map[string]any) map[string]any {
+		r["think"] = map[string]any{"count": 2}
+		return r
+	}
+	mark := func(at int, rows ...any) map[string]any { return map[string]any{"at": at, "rows": rows} }
 	geo := map[string]any{"tops": []int{0, 37, 75, 200}, "bottoms": []int{30, 70, 190, 230}}
-	got := runModuleJS(t, "src/screens/chat/timeline.js", "railGroups", [][]any{
-		{[]any{mark(0), mark(1), mark(2), mark(3)}, geo},
-	})
+	got := runModuleJS(t, "src/screens/chat/timeline.js", "railStacks", [][]any{{[]any{
+		mark(0, thought(run(0, "bash"))),
+		mark(1, run(1, "bash")),
+		mark(2, run(2, "files", "bash")),
+		mark(3, run(3, "bash"), map[string]any{"role": "turn", "pos": 9, "calls": 3}),
+	}, geo}})
 	raw, _ := json.Marshal(got[0])
-	var groups []struct {
+	var stacks []struct {
 		Y      float64 `json:"y"`
-		Merged int     `json:"merged"`
-		Sum    struct {
-			Total int `json:"total"`
-		} `json:"sum"`
+		H      float64 `json:"h"`
+		Badges []struct {
+			Kind  string `json:"kind"`
+			Count int    `json:"count"`
+		} `json:"badges"`
 	}
-	if err := json.Unmarshal(raw, &groups); err != nil {
+	if err := json.Unmarshal(raw, &stacks); err != nil {
 		t.Fatal(err)
 	}
 	var b strings.Builder
-	for _, g := range groups {
-		b.WriteString(itoa(int(g.Y)) + "x" + itoa(g.Merged) + "=" + itoa(g.Sum.Total) + " ")
+	for _, s := range stacks {
+		b.WriteString(itoa(int(s.Y)) + "+" + itoa(int(s.H)) + ":")
+		for i, x := range s.Badges {
+			if i > 0 {
+				b.WriteString(",")
+			}
+			b.WriteString(x.Kind + itoa(x.Count))
+		}
+		b.WriteString(" ")
 	}
-	if s := strings.TrimSpace(b.String()); s != "0x2=4 75x1=2 200x1=2" {
-		t.Errorf("the marks at 0, 37, 75 and 200px lie on the strip as %s, want 0x2=4 75x1=2 200x1=2", s)
+	want := "0+64:think2,bash2 70+32:bash2 108+64:bash2,files2 200+64:bash2,turn3"
+	if s := strings.TrimSpace(b.String()); s != want {
+		t.Errorf("the works at 0, 37, 75 and 200px lie on the strip as\n  %s\nwant\n  %s", s, want)
 	}
 }
 

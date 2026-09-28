@@ -18,11 +18,11 @@ type badgeShot struct {
 	InColumn int       `json:"inColumn"`
 }
 
-// Every mark on the timeline is drawn the same size with the same icon,
+// Every badge on the timeline is drawn the same size with the same icon,
 // whatever it counts — a kind of call, thinking, the end of a turn — and
 // stands at the height of the row its work led to. The kind of a published
 // page is one more kind among them, whatever a card of a page looks like.
-func TestEveryMarkOfTheTimelineIsTheSameSize(t *testing.T) {
+func TestEveryBadgeOfTheTimelineIsTheSameSize(t *testing.T) {
 	var got badgeShot
 	runFixture(t, "toolbadges.html", &got)
 	if len(got.Badges) < 12 {

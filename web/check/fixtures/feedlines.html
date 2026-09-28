@@ -32,7 +32,7 @@ const opened = [];
 const sheets = [];
 const feed = weld(items);
 render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(feed)} wide=${false}
-    onOpen=${(g) => sheets.push(callsOf(g, feed, runCalls, turnCalls))}
+    onOpen=${(g, badge) => sheets.push(callsOf(g, feed, runCalls, turnCalls, badge))}
     row=${(item) => html`<${Row} item=${item} session="lab" id="1" onTask=${(task) => opened.push(task)} />`} /></div>`,
     document.getElementById("root"));
 
@@ -42,13 +42,13 @@ const until = async (ok, ms = 3000) => {
 };
 
 (async () => {
-    await until(() => document.querySelector(".railmark.k-turn") && document.querySelectorAll(".mtask").length === 3
+    await until(() => document.querySelector(".railbadge.k-turn") && document.querySelectorAll(".mtask").length === 3
         && document.querySelectorAll(".mside").length === 3);
     const text = (el) => (el ? el.innerText.replace(/\s+/g, " ").trim() : "");
     const col = document.querySelector(".feedcol");
-    const turn = document.querySelector(".railmark.k-turn");
+    const turn = document.querySelector(".railbadge.k-turn");
     window.done = {
-        marks: Array.from(document.querySelectorAll(".railmark:not(.k-turn)")).map((b) => b.getAttribute("aria-label")),
+        marks: Array.from(document.querySelectorAll(".railbadge:not(.k-turn)")).map((b) => b.getAttribute("aria-label")),
         colLeft: col.getBoundingClientRect().left,
         cards: Array.from(document.querySelectorAll(".mtasks")).map((el) => ({
             rows: el.querySelectorAll(".mtask").length,
@@ -65,11 +65,15 @@ const until = async (ok, ms = 3000) => {
             node: el.tagName,
         })),
         turn: turn.getAttribute("aria-label"),
-        turnNum: text(turn.querySelector(".rmnum")),
-        turnIcon: Boolean(turn.querySelector(".rmicon svg")),
+        turnNum: text(turn.querySelector(".rbnum")),
+        turnIcon: Boolean(turn.querySelector(".rbicon svg")),
         turnOpens: (() => { turn.click(); return sheets.map((s) => (s.turn ? s.turn.pos : -1)); })(),
+        hookOpens: (() => {
+            document.querySelector(".railbadge.k-hook").click();
+            return sheets[sheets.length - 1].list.map((c) => c.name);
+        })(),
         worked: col.innerText.includes("worked"),
-        badges: col.querySelectorAll(".mtools, .railmark").length,
+        badges: col.querySelectorAll(".mtools, .railbadge").length,
         opened: (() => { document.querySelectorAll("button.mtask").forEach((b) => b.click()); return opened; })(),
         lines: Array.from(document.querySelectorAll(".mside")).map((el) => ({
             text: text(el),

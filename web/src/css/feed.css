@@ -385,8 +385,10 @@ code.path {
     padding-top: var(--s3);
 }
 
-/* The phone: a strip as wide as a finger, a hairline down its middle and a
-   mark at the height of the row its work led to. */
+/* The phone: a strip as wide as a finger, a hairline down its middle and, at
+   the height of the row a work led to, the stack of that work — a badge for
+   each kind of what it did. The stack is as tall as its badges: its height
+   comes from the layout, the badges share it. */
 .rail {
     position: relative;
     align-self: stretch;
@@ -399,12 +401,21 @@ code.path {
     left: 50%;
     border-left: var(--hair) solid var(--line);
 }
-.railmark {
+.railstack {
     position: absolute;
     left: 50%;
     width: 30px;
-    height: 34px;
     margin-left: -15px;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--r-pill);
+    background: var(--glass), var(--void);
+    box-shadow: var(--hairline), inset 0 0 0 var(--hair) var(--edge);
+}
+.railbadge {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -413,39 +424,42 @@ code.path {
     padding: 0;
     border: 0;
     border-radius: var(--r-pill);
-    background: var(--glass), var(--void);
-    box-shadow: var(--hairline), inset 0 0 0 var(--hair) var(--edge);
+    background: none;
     color: var(--ink-dim);
     font: inherit;
     cursor: pointer;
 }
-/* The finger gets the whole width of the strip, not the mark alone. */
-.railmark::after { content: ""; position: absolute; inset: -3px -5px; }
-.railmark:active { background: var(--glass-2), var(--void); }
-.rmicon { display: flex; width: 14px; height: 14px; }
-.rmicon svg { width: 100%; height: 100%; }
-.rmnum {
+/* The badges of one stack part by a hairline short of its edges. */
+.railbadge + .railbadge::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 7px;
+    right: 7px;
+    border-top: var(--hair) solid var(--edge);
+}
+/* The finger gets the whole width of the strip, not the badge alone. */
+.railbadge::after { content: ""; position: absolute; inset: 0 -5px; }
+.railbadge:active { background: var(--glass-2); }
+.rbicon { display: flex; width: 14px; height: 14px; }
+.rbicon svg { width: 100%; height: 100%; }
+.rbnum {
     font-size: var(--t-xs);
     font-weight: 600;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--ink-dim);
 }
-/* Marks that ran into each other and became one carry a second edge. */
-.railmark.merged {
-    box-shadow: var(--hairline), inset 0 0 0 var(--hair) var(--edge),
-        0 3px 0 -1px var(--void), 0 3px 0 -.5px var(--edge);
-}
-.railmark.failed { box-shadow: var(--hairline), inset 0 0 0 1px var(--crit); }
-.railmark.failed .rmnum { color: var(--crit); }
+.railbadge.failed { box-shadow: inset 0 0 0 1px var(--crit); }
+.railbadge.failed .rbnum { color: var(--crit); }
 
-:is(.railmark, .tlcall).k-bash :is(.rmicon, .tlicon) { color: var(--accent); }
-:is(.railmark, .tlcall).k-files :is(.rmicon, .tlicon) { color: var(--accent-2); }
-:is(.railmark, .tlcall):is(.k-web, .k-browser) :is(.rmicon, .tlicon) { color: var(--warn); }
-:is(.railmark, .tlcall):is(.k-agents, .k-skill) :is(.rmicon, .tlicon) { color: var(--ctx-3); }
-:is(.railmark, .tlcall):is(.k-ask, .k-artifact) :is(.rmicon, .tlicon) { color: var(--crit); }
-:is(.railmark, .tlcall):is(.k-mcp, .k-other, .k-time, .k-hook) :is(.rmicon, .tlicon) { color: var(--ink-dim); }
-.railmark:is(.k-think, .k-turn) .rmicon { color: var(--ink-faint); }
+:is(.railbadge, .tlcall).k-bash :is(.rbicon, .tlicon) { color: var(--accent); }
+:is(.railbadge, .tlcall).k-files :is(.rbicon, .tlicon) { color: var(--accent-2); }
+:is(.railbadge, .tlcall):is(.k-web, .k-browser) :is(.rbicon, .tlicon) { color: var(--warn); }
+:is(.railbadge, .tlcall):is(.k-agents, .k-skill) :is(.rbicon, .tlicon) { color: var(--ctx-3); }
+:is(.railbadge, .tlcall):is(.k-ask, .k-artifact) :is(.rbicon, .tlicon) { color: var(--crit); }
+:is(.railbadge, .tlcall):is(.k-mcp, .k-other, .k-time, .k-hook) :is(.rbicon, .tlicon) { color: var(--ink-dim); }
+.railbadge:is(.k-think, .k-turn) .rbicon { color: var(--ink-faint); }
 
 /* The desk: a column of entries beside the prose — when, what the work was,
    its calls by name, the files it touched. */

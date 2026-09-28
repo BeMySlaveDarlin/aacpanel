@@ -83,7 +83,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
             <${FeedGrid}
                 rows=${rows(feed)}
                 wide=${wide}
-                onOpen=${(g) => setCalls(callsOf(g, feed, runCalls, turnCalls))}
+                onOpen=${(g, badge) => setCalls(callsOf(g, feed, runCalls, turnCalls, badge))}
                 row=${(item, n) => html`<${Row}
                     key=${`${item.pos}-${n}`}
                     item=${item}
