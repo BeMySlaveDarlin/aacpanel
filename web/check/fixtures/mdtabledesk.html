@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static} #feed{width:760px;padding:1rem}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div id="feed" class="msg"></div></div>
+<script type="module">
+// A table at a desk wider than the feed and taller than the screen: the bar
+// that scrolls it sideways has to be in sight while it is read, not under its
+// last row.
+import { render } from "preact";
+import { render as md } from "/src/md.js";
+
+const head = "| task | what it is about | where it lives | who asked | the state at noon | what is next |";
+const rows = [];
+for (let n = 0; n < 60; n += 1) {
+    rows.push(`| #${300 + n} | a row long enough to want its column wide, number ${n} | web/src/css/markdown.css | the owner | changes are ready, an audit runs | a check against the live panel |`);
+}
+render(md([head, "| --- | --- | --- | --- | --- | --- |", ...rows].join("\n")), document.getElementById("feed"));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const box = document.querySelector(".mdtable");
+    const th = box.querySelector("thead th");
+    box.scrollTop = 400;
+    await new Promise((r) => requestAnimationFrame(() => r()));
+    return {
+        view: innerHeight,
+        boxH: box.getBoundingClientRect().height,
+        wide: box.scrollWidth > box.clientWidth,
+        tall: box.scrollHeight > box.clientHeight,
+        headTop: th.getBoundingClientRect().top - box.getBoundingClientRect().top,
+    };
+})();
+</script>

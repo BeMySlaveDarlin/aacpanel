@@ -193,9 +193,22 @@ code.copyable.copied { background: color-mix(in srgb, var(--ok) 26%, transparent
 }
 
 @media (min-width: 1100px) {
+    /* At a desk a table is scrolled sideways by the bar at the bottom of its
+       plate, and a plate taller than the screen keeps that bar out of sight
+       until the table is read to its end. The plate stops short of the
+       screen and scrolls both ways inside, so the bar is in sight wherever
+       the table is read, and the head of the table stays over its rows. */
     .deskshell .mdtable {
+        max-height: min(70vh, 44rem);
+        overflow: auto;
         scrollbar-width: thin;
         scrollbar-color: var(--ink-faint) transparent;
+    }
+    .deskshell .mdtable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: linear-gradient(rgba(var(--tint), .06), rgba(var(--tint), .06)), var(--void);
     }
 }
 
