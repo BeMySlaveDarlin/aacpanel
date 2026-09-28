@@ -19,10 +19,9 @@ const LetterName = "send_to_session"
 
 // LetterInstructions is the tool's line in the server's word to every session
 // that has it.
-const LetterInstructions = "To write to another live Claude session of this machine, in any account — " +
-	"“tell the session in the work account”, «напиши в lms», «передай сессии» — or when SendMessage cannot " +
-	"reach a session that is alive, use send_to_session: without to it lists the sessions, with to and text it " +
-	"sends a letter from this session."
+const LetterInstructions = "To write to another live Claude session of this machine, in any account " +
+	"(“tell the session in the work account”, «напиши в lms», «передай сессии»), or when SendMessage cannot " +
+	"reach a live one, use send_to_session: without to it lists the sessions, with to and text it sends a letter."
 
 // LetterDescription is the tool's own word to the model.
 const LetterDescription = "Sends a letter to another live Claude session of this machine, in this account or " +

@@ -237,8 +237,10 @@ var (
 		// What a person says in Russian when a tool of the panel's server is
 		// what they want: the tool's line in the server's word names it, since
 		// the model sees that line and not the tool's description.
-		"internal/session/restart.go": {`«перезапустись», «перезапусти сессию»`},
-		"internal/session/letter.go":  {`«напиши в lms», «передай сессии»`},
+		"internal/session/restart.go":  {`«перезапустись», «перезапусти сессию»`},
+		"internal/session/letter.go":   {`«напиши в lms», «передай сессии»`},
+		"internal/collector/brief.go":  {`"бриф", "опросник", "скинь в панель", "отвечу потом"`},
+		"internal/collector/notify.go": {`"позови меня", "пингани", "дай знать на телефон"`},
 
 		// The range of letters a check walks over, and a file name as the desktop
 		// of a machine in another locale writes it — data the code has to accept.
@@ -247,9 +249,6 @@ var (
 	}
 
 	cyrillicLines = map[string][]string{
-		"internal/collector/brief.go":  {"`— or, in Russian,"},
-		"internal/collector/notify.go": {"`— or, in Russian,"},
-
 		// The rows of the table above: the check names what it allows, so the
 		// allowed spelling is written out here in full.
 		"internal/hostcfg/fixtures_test.go": {`"agent/`, `"internal/`, `"web/`},

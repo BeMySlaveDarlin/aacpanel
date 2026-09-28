@@ -18,10 +18,8 @@ const NotifyName = "notify"
 // notifyInstructions is the tool's line in the server's word to every
 // session, which says when to call; notifyDescription is read once the tool is
 // looked up and says when not to.
-const notifyInstructions = "When the work is blocked on something only the person can decide and they are away " +
-	"from the screen, or they asked to be called " +
-	`("call me", "ping me", "tell me when you need me" ` +
-	`— or, in Russian, "позови меня", "пингани", "дай знать на телефон"), ` +
+const notifyInstructions = "When the work is blocked on what only the person can decide and they are away, " +
+	`or they asked to be called ("call me", "ping me"; in Russian "позови меня", "пингани", "дай знать на телефон"), ` +
 	"call them with notify: one line to their phone, not a question."
 
 const notifyDescription = "Calls the person to this session: the line arrives on their phone as a push, and a " +

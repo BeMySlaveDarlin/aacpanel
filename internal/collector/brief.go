@@ -33,11 +33,10 @@ var rules string
 // publishInstructions is the tool's line in the server's word to every
 // session: the model sees it and the name, so it says when to reach for the
 // tool. publishDescription is read once the tool is looked up.
-const publishInstructions = "When what you have to ask does not fit a question in the console — more than four " +
-	"questions or options, an option that needs a paragraph, facts the choice rests on — or a finished analysis " +
-	"is worth reading on the phone, publish it as a brief with brief_publish; also when the person asks for one " +
-	`("send me a brief", "I will answer later" ` +
-	`— or, in Russian, "бриф", "опросник", "скинь в панель", "отвечу потом").`
+const publishInstructions = "When a question does not fit the console — over four questions or options, an " +
+	"option that needs a paragraph, facts the choice rests on — or a finished analysis is worth reading on the " +
+	"phone, publish a brief with brief_publish; also when the person asks for one " +
+	`("send me a brief", "I will answer later"; in Russian "бриф", "опросник", "скинь в панель", "отвечу потом").`
 
 const publishDescription = "Publishes a brief to the panel: a long piece the person reads on their phone or desk " +
 	"and walks through — questions with what each rests on, the options and their cost, a place to answer — or " +

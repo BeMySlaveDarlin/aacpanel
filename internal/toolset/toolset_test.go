@@ -8,9 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
+	"aacpanel/internal/checklist"
 	"aacpanel/internal/mcp"
 )
 
@@ -118,5 +121,49 @@ func TestEveryToolOfTheCollectorReachesItsOwnSocket(t *testing.T) {
 	case stray := <-calls:
 		t.Errorf("the socket of calls got a request of another tool: %v", stray)
 	default:
+	}
+}
+
+// instructionsMax is the most of a server's word claude keeps, counted as
+// JavaScript counts a string, in UTF-16 units: past it the word is cut.
+const instructionsMax = 2048
+
+// The server's word fits what claude keeps of it even when the place holds the
+// longest checklist the tool takes: cut, it loses the lines of the last tools,
+// and the model never learns when to reach for them.
+func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	here := mcp.Binding{Place: mcp.Place{ConfigDir: "/home/u/.claude", Dir: "/srv/proj"},
+		SessionID: "567f4d24-cd5f-48fa-bdc1-04c89d203494", PID: 4242}
+	// A step of letters outside the basic plane: each is two units to claude.
+	items := make([]checklist.Item, checklist.MaxItems)
+	for i := range items {
+		items[i] = checklist.Item{Text: strings.Repeat("𝔸", checklist.MaxText), Status: checklist.Done}
+	}
+	items[len(items)-1].Status = checklist.Active
+	if _, err := checklist.Keep(checklist.Dir(), here, items, "", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := Server(func() (mcp.Binding, error) { return here, nil })
+	var out strings.Builder
+	in := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n"
+	if err := srv.Serve(context.Background(), strings.NewReader(in), &out); err != nil {
+		t.Fatal(err)
+	}
+	var reply struct {
+		Result struct {
+			Instructions string `json:"instructions"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(out.String()), &reply); err != nil {
+		t.Fatalf("the server answered %q: %v", out.String(), err)
+	}
+	said := reply.Result.Instructions
+	if !strings.Contains(said, "39 of 40 steps finished") {
+		t.Fatalf("the word does not carry the checklist of the place: %q", said)
+	}
+	if n := len(utf16.Encode([]rune(said))); n > instructionsMax {
+		t.Errorf("the server's word is %d units, claude keeps %d:\n%s", n, instructionsMax, said)
 	}
 }

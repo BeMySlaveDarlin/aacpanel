@@ -15,9 +15,9 @@ const RestartName = "session_restart"
 
 // RestartInstructions is the tool's line in the server's word to every
 // session that has it.
-const RestartInstructions = "When the person asks to restart this session — “restart yourself”, " +
-	"«перезапустись», «перезапусти сессию» — or a change to settings, a hook, CLAUDE.md or an MCP server " +
-	"takes a new start to pick up, restart it with session_restart; continue keeps the conversation."
+const RestartInstructions = "When the person asks to restart this session (“restart yourself”, " +
+	"«перезапустись», «перезапусти сессию») or a change to settings, a hook, CLAUDE.md or an MCP server " +
+	"needs a new start, restart it with session_restart; continue keeps the conversation."
 
 // RestartDescription is the tool's own word to the model.
 const RestartDescription = "Restarts this session through the panel, as its project from the map: the same " +

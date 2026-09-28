@@ -18,8 +18,8 @@ import (
 
 // lead is the server's first sentence to a session: the tools reach the
 // person through the panel, and a line of every tool says when to reach for it.
-const lead = "The panel is how the person follows this session from their phone and desk; " +
-	"its tools reach them there, and the terminal does not show what they do."
+const lead = "The person follows this session in the panel, on their phone and desk: " +
+	"these tools reach them there, and the terminal does not show what they do."
 
 func tools() []mcp.Tool {
 	return []mcp.Tool{

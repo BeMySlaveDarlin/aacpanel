@@ -18,9 +18,8 @@ const ToolName = "checklist"
 
 // Instructions is the tool's line in the server's word to every session that
 // has it.
-const Instructions = "When the work has several steps, keep it with the checklist tool, which the person sees " +
-	"in the panel: the whole list every time, updated when a step starts or ends and when the checklist changes. " +
-	"A short task needs no checklist."
+const Instructions = "When the work has several steps, keep them with the checklist tool, which the person sees " +
+	"in the panel: the whole list every time, sent when a step starts or ends. A short task needs none."
 
 // Description is the tool's own word to the model.
 const Description = "The checklist of the current work, shown to the person in the panel on their phone and desk; " +
@@ -53,7 +52,7 @@ func Tool(dir string, now func() time.Time) mcp.Tool {
 
 // standingStep bounds the step the instructions quote: they stand in the
 // system prompt of the whole session.
-const standingStep = 100
+const standingStep = 60
 
 // standing is what the instructions add when the place already has a checklist:
 // a session started again here — afresh or going on with its conversation —
@@ -66,8 +65,8 @@ func standing(p *Checklist) string {
 	}
 	finished, at := progress(p)
 	var b strings.Builder
-	fmt.Fprintf(&b, "This place already has a checklist, most likely from before a restart of this session "+
-		"(last sent %s): %d of %d steps finished", p.At, finished, len(p.Items))
+	fmt.Fprintf(&b, "This place already has a checklist (last sent %s): %d of %d steps finished",
+		p.At, finished, len(p.Items))
 	switch {
 	case at == nil:
 		b.WriteString(", nothing left to do")
@@ -76,8 +75,8 @@ func standing(p *Checklist) string {
 	default:
 		fmt.Fprintf(&b, ", the next step: “%s”", clip(at.Text, standingStep))
 	}
-	b.WriteString(". The person sees it as it stands. If the work goes on, call the checklist tool without items " +
-		"to read the checklist whole and keep it with the tool; if it no longer applies, clear it with an empty list.")
+	b.WriteString(". The person sees it as it is. To go on with it, call the tool without items to read it " +
+		"whole; if it no longer applies, clear it with an empty list.")
 	return b.String()
 }
 
