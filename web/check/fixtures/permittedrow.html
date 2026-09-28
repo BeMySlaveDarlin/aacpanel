@@ -35,15 +35,21 @@ render(html`
     </div>
 `, document.getElementById("root"));
 
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    const root = document.getElementById("root");
+    await until(() => root.querySelectorAll(".permitted .askedrow").length === 4);
     const text = (el) => (el ? el.textContent.trim() : "");
-    const cards = Array.from(document.querySelectorAll(".permitted")).map((card) => ({
+    const cards = Array.from(root.querySelectorAll(".permitted")).map((card) => ({
         asked: card.classList.contains("asked"),
-        label: text(card.querySelector(".askedlabel")),
-        stamped: text(card.querySelector(".askedat")) !== "",
+        label: text(card.querySelector(".sentlabel")),
+        stamped: text(card.querySelector(".sentat")) !== "",
         rows: Array.from(card.querySelectorAll(".askedrow")).map((row) => ({
-            tool: text(row.querySelector(".askedtop")),
+            tool: text(row.querySelector(".mftag")),
             subject: text(row.querySelector(".askedsubj")),
             mono: row.querySelector(".askedsubj")
                 ? getComputedStyle(row.querySelector(".askedsubj")).fontFamily : "",

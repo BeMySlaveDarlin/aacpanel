@@ -1,4 +1,4 @@
-/* Details sheet: work rows, artifacts, closed question rounds and letters. */
+/* Details sheet: work rows, artifacts, briefs and letters. */
 
 .wrow.task, .wrow.agent, .wrow.doc, .wrow.wflow {
     width: 100%;
@@ -89,91 +89,7 @@
 
 .brico svg { width: 100%; height: 100%; }
 
-.asked {
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    gap: .35rem;
-    padding: .6rem .8rem .65rem .7rem;
-    border-radius: var(--r-card);
-    background: none;
-    box-shadow: inset 0 0 0 var(--hair) var(--edge);
-    overflow-wrap: anywhere;
-}
-.asked.off { opacity: .78; }
-.askedhead {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    font-size: var(--t-xs);
-    color: var(--ink-faint);
-}
-.askedico { display: flex; width: 15px; height: 15px; color: var(--accent); flex: none; }
-.askedico svg { width: 100%; height: 100%; }
-.askedlabel { font-weight: 500; color: var(--ink-faint); flex: none; }
-.askedwhy { color: var(--warn); flex: 1 1 auto; min-width: 0; }
-.askedat { margin-left: auto; font-size: var(--t-xs); flex: none; }
-.askedrow { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
-.askedtop {
-    font-family: var(--mono);
-    font-size: var(--t-xs);
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-}
-.askedq { font-size: var(--t-sm); color: var(--ink-dim); line-height: 1.4; }
-.askeda { font-size: var(--t-md); font-weight: 600; color: var(--ink); line-height: 1.35; }
-.askeda.skip { font-weight: 400; color: var(--ink-faint); }
-.askeda.denied { color: var(--crit); }
-.askedsubj {
-    font-family: var(--mono);
-    font-size: var(--t-sm);
-    color: var(--ink-dim);
-    line-height: 1.4;
-}
-
-/* A wake-up carries a rail on the left; the peek takes a line of its own under
-   the head rather than a stub beside it. */
-.mmail {
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    border-radius: var(--r-card);
-    background: rgba(var(--tint), .04);
-    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent-2) 70%, transparent);
-    overflow-wrap: anywhere;
-}
-.mmhead {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: .1rem .4rem;
-    width: 100%;
-    padding: .5rem .8rem .5rem .75rem;
-    border: 0;
-    background: none;
-    color: var(--ink-dim);
-    font: inherit;
-    font-size: var(--t-sm);
-    text-align: left;
-    cursor: pointer;
-}
-.mmail.open .mmhead { padding-bottom: .3rem; }
-.mmico { display: flex; width: 15px; height: 15px; color: var(--accent); flex: none; align-self: center; }
-.mmico svg { width: 100%; height: 100%; }
-.mmfrom { font-weight: 600; color: var(--ink); flex: none; }
-.mmpeek {
-    flex: 1 0 100%;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--ink-faint);
-}
-.mmat { margin-left: auto; color: var(--ink-faint); font-size: var(--t-xs); flex: none; }
-.mmail.wake { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ink-faint) 70%, transparent); }
-.mmail.wake .mmico { color: var(--ink-dim); }
-.mmail.wake .mmfrom { color: var(--ink-dim); }
+/* The body of a letter opened in a sheet and of a file read as a document. */
 .mmbody { font-size: var(--t-md); line-height: 1.5; padding: 0 .9rem .7rem .7rem; }
 .mmbody.doc { padding: 0 0 .7rem; overflow-wrap: anywhere; }
 .mmbody > :first-child { margin-top: 0; }

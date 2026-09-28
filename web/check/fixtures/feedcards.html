@@ -1,0 +1,150 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="stage"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Every card of what arrives in the feed beside the one the rest are built
+// after, the files sent to the person: a round of questions answered, one
+// nobody answered, permissions answered, a page published and published again,
+// a brief and a wake-up of two paragraphs. The feed is the real one — the grid
+// with its timeline — in the shell of a phone or of a desk, whichever the
+// screen is.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
+
+const wide = innerWidth >= 1100;
+document.getElementById("stage").innerHTML = wide
+    ? `<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="root"></section></div></div>`
+    : `<div class="shell"><div class="body" id="root"></div></div>`;
+if (wide) document.documentElement.style.setProperty("--ui-scale", "1.2");
+
+const at = (s) => `2026-09-28T05:24:${String(s).padStart(2, "0")}Z`;
+const url = "https://claude.ai/public/artifacts/9f3c2e1a";
+const items = [
+    { role: "ai", text: "Here is the board.", pos: 1, at: at(0) },
+    { role: "sent", use: "u-sent", pos: 2, at: at(1), text: "The board: now | A | B.",
+      files: [{ path: "/srv/proj/.claude/shots/board.html", name: "board.html", size: 24354, media: "text/html" }] },
+    { role: "asked", use: "u-ask", pos: 3, at: at(2), asked: [
+        { header: "Pushes", text: "Which screen do we build?", answer: ["The second one"] },
+        { header: "Plan: where", text: "Where is the plan drawn?" },
+        { header: "Plan: nudge", text: "Nudge the session about an open plan?", answer: ["At the end of a turn", "By a hook"] },
+    ] },
+    { role: "asked", use: "u-afk", pos: 4, at: at(3), status: "afk",
+      asked: [{ header: "Deploy", text: "Deploy now or after the run?" }] },
+    { role: "permitted", pos: 5, at: at(4), rows: [
+        { tool: "Bash", subject: "docker compose up -d", decision: "allow" },
+        { tool: "Bash", subject: "rm -rf web/dist", decision: "deny" },
+    ] },
+    { role: "artifact", use: "u-art1", pos: 6, at: at(5), title: "The round of the feed",
+      desc: "now | A | B on a live conversation", file: "feed-round.html", icon: "📖" },
+    { role: "artifactlink", use: "u-art1", pos: 7, at: at(5), url },
+    { role: "artifact", use: "u-art2", pos: 8, at: at(6), title: "The round of the feed",
+      label: "The round, again", note: "the desk added", file: "feed-round.html", icon: "📖" },
+    { role: "artifactlink", use: "u-art2", pos: 9, at: at(6), url },
+    { role: "brief", use: "u-brief", pos: 10, at: at(7), id: "cards-q",
+      title: "What stays on the head of a card", eyebrow: "after round five", questions: 7 },
+    { role: "wake", pos: 11, at: at(8), cut: false,
+      text: "Watch tick: is `make check` done?\n\nGreen: deploy the whole stack. Red: read the log and fix it first." },
+];
+
+const pages = [];
+const briefs = [];
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${wide} onOpen=${() => {}}
+    row=${(item) => html`<${Row} item=${item} session="lab" id="1"
+        onBrief=${(id) => briefs.push(id)} onPage=${(card) => pages.push(card.id)} />`} /></div>`,
+    document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
+(async () => {
+    const root = document.getElementById("root");
+    const cards = () => Array.from(root.querySelectorAll(".feedcol > .feedrow:not(.r-ai) > :first-child"));
+    await until(() => cards().length === 8 && root.querySelector(".mletter.k-wake"));
+    await document.fonts.ready;
+    const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+    const box = (el) => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, width: r.width, top: r.top };
+    };
+    const look = (el) => {
+        if (!el) return null;
+        const s = getComputedStyle(el);
+        return [s.backgroundImage, s.boxShadow, s.borderRadius, s.paddingLeft, s.paddingRight].join(" | ");
+    };
+    const shot = (el) => {
+        const head = el.firstElementChild;
+        const label = el.querySelector(":scope > .senthead > .sentlabel");
+        const plate = el.querySelector(":scope > .mflist");
+        return {
+            cls: el.className,
+            box: box(el),
+            look: look(el),
+            head: head ? head.className : "",
+            icon: Boolean(el.querySelector(":scope > .senthead > .sentico svg")),
+            label: text(label),
+            labelFont: label ? [getComputedStyle(label).fontFamily, getComputedStyle(label).textTransform].join(" | ") : "",
+            at: box(el.querySelector(":scope > .senthead > .sentat")),
+            plate: box(plate),
+            plateLook: plate ? [getComputedStyle(plate).backgroundImage, getComputedStyle(plate).borderRadius].join(" | ") : "",
+            rows: plate ? Array.from(plate.children).map((row) => ({ box: box(row), radius: getComputedStyle(row).borderRadius })) : [],
+        };
+    };
+    const [sent, asked, afk, permitted, page, again, brief, wake] = cards();
+    const out = {
+        wide,
+        cards: [sent, asked, afk, permitted, page, again, brief, wake].map(shot),
+        questions: Array.from(asked.querySelectorAll(".askedrow")).map((row) => ({
+            tag: text(row.querySelector(".mftag")),
+            tagCase: row.querySelector(".mftag") ? getComputedStyle(row.querySelector(".mftag")).textTransform : "",
+            tagColour: row.querySelector(".mftag") ? getComputedStyle(row.querySelector(".mftag")).color : "",
+            question: text(row.querySelector(".askedq")),
+            answer: text(row.querySelector(".askeda")),
+        })),
+        afk: {
+            why: text(afk.querySelector(".senthead .askedwhy")),
+            answer: text(afk.querySelector(".askeda")),
+        },
+        permits: Array.from(permitted.querySelectorAll(".askedrow")).map((row) => ({
+            tag: text(row.querySelector(".mftag")),
+            tagColour: getComputedStyle(row.querySelector(".mftag")).color,
+            subject: text(row.querySelector(".askedsubj")),
+            answer: text(row.querySelector(".askeda")),
+            answerColour: getComputedStyle(row.querySelector(".askeda")).color,
+        })),
+        page: {
+            title: text(page.querySelector(".artitle")),
+            desc: text(page.querySelector(".ardesc")),
+            link: (page.querySelector("a.artifact") || { getAttribute: () => "" }).getAttribute("href"),
+        },
+        again: {
+            title: text(again.querySelector(".artitle")),
+            desc: text(again.querySelector(".ardesc")),
+            meta: text(again.querySelector(".armeta")),
+        },
+        brief: {
+            title: text(brief.querySelector(".artitle")),
+            meta: text(brief.querySelector(".armeta")),
+            node: (brief.querySelector(".artifact") || {}).tagName || "",
+        },
+        wake: {
+            closed: text(wake.querySelector(".mletterbody")),
+            more: text(wake.querySelector(".mlettermore .mfname")),
+        },
+    };
+    brief.querySelector(".artifact").click();
+    wake.querySelector(".mlettermore").click();
+    await until(() => wake.classList.contains("open"));
+    out.wake.open = text(wake.querySelector(".mletterbody"));
+    out.wake.fold = text(wake.querySelector(".mlettermore .mfname"));
+    out.briefs = briefs;
+    window.done = out;
+})().catch((err) => { window.done = { error: String(err && err.stack || err) }; });
+</script>
