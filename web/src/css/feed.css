@@ -586,8 +586,23 @@ code.path {
 .mlettermore .mfico { color: var(--ink-faint); }
 .mlettermore .mfname { font-weight: 500; color: var(--ink-dim); }
 
-/* Tasks done: a row per task, its tag saying what ran and how it ended. */
+/* Tasks done: a row per task, its mark saying how it ended — the head says
+   what ran. The mark is one glyph in a square of its own, so the names start
+   on one line whichever mark stands before them. A head counting many kinds
+   wraps rather than pushing its time off the card. */
 .mtask { width: 100%; }
+.mtask .mftag {
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    font-size: var(--t-md);
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+}
+.mtasks .sentlabel { flex: 0 1 auto; min-width: 0; }
 div.mtask { cursor: default; }
 .mtask .mfname { line-height: 1.35; }
 .mtask .mfnote { margin-top: .1rem; font-family: var(--mono); letter-spacing: .01em; }

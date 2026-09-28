@@ -1,0 +1,123 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="stage"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Cards of background tasks done, in the feed as it draws them: one task of a
+// kind, tasks of one kind that ended alike and not, and tasks of several kinds.
+// The feed is the real one — the grid with its timeline — in the shell of a
+// phone or of a desk, whichever the screen is.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
+
+const wide = innerWidth >= 1100;
+document.getElementById("stage").innerHTML = wide
+    ? `<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="root"></section></div></div>`
+    : `<div class="shell"><div class="body" id="root"></div></div>`;
+if (wide) document.documentElement.style.setProperty("--ui-scale", "1.2");
+
+const at = "2026-09-28T13:16:00Z";
+let pos = 0;
+const said = (text) => ({ role: "ai", text, pos: ++pos, at });
+const agent = (name, status, words) => ({ role: "taskdone", use: `u${++pos}`, task: `a${pos}`, status,
+    summary: `Agent "${name}" ${words}`, ms: 257000, tokens: 360000, pos, at });
+const command = (name, status, words) => ({ role: "taskdone", use: `u${++pos}`, task: `b${pos}`, status,
+    summary: `Background command "${name}" ${words}`, pos, at });
+const monitor = (name, status, words) => ({ role: "taskdone", use: `u${++pos}`, task: `m${pos}`, status,
+    summary: `Monitor "${name}" ${words}`, pos, at });
+
+const items = [
+    said("One agent."),
+    agent("Review the sync of the core", "completed", "finished"),
+    said("An agent and a command."),
+    agent("Commit the notes", "completed", "finished"),
+    command("make check", "failed", "failed with exit code 2"),
+    said("Three agents."),
+    agent("Read the collector", "completed", "finished"),
+    agent("Read the executor", "completed", "finished"),
+    agent("Read the service", "completed", "finished"),
+    said("An agent stopped."),
+    agent("Shoot the landing", "stopped", "was stopped"),
+    said("Two commands."),
+    command("go test ./...", "failed", "failed with exit code 1"),
+    command("tail -f build.log", "killed", "was killed"),
+    said("Three kinds."),
+    agent("Sweep the tree", "completed", "finished"),
+    command("make front", "completed", "completed (exit code 0)"),
+    monitor("deploy log", "completed", "ended"),
+];
+
+const feed = weld(items);
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(feed)} wide=${wide}
+    onOpen=${() => {}}
+    row=${(item) => html`<${Row} item=${item} session="lab" id="1" onTask=${() => {}} />`} /></div>`,
+    document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
+// tone is the colour a custom property of the palette computes to where the
+// feed stands: a desk sets tones of its own.
+const tone = (name) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${name})`;
+    document.querySelector(".chatfeed").append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+};
+
+(async () => {
+    await until(() => document.querySelectorAll(".mtasks").length === 6 && document.querySelectorAll(".mtask").length === 12);
+    await document.fonts.ready;
+    const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+    const box = (el) => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    };
+    // apart counts the numbers of a head standing on another line than the
+    // kind they count.
+    const apart = (label) => {
+        const node = label.firstChild;
+        const top = (i) => {
+            const range = document.createRange();
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            return range.getBoundingClientRect().top;
+        };
+        return Array.from(node.textContent.matchAll(/(\d+)\s\S/g))
+            .filter((m) => Math.abs(top(m.index) - top(m.index + m[1].length + 1)) > 1).length;
+    };
+    window.done = {
+        wide,
+        tones: { ok: tone("--ok"), crit: tone("--crit"), faint: tone("--ink-faint") },
+        cards: Array.from(document.querySelectorAll(".mtasks")).map((card) => {
+            const label = card.querySelector(".sentlabel");
+            return {
+                head: text(label),
+                icon: card.querySelector(".senthead > .sentico").innerHTML,
+                headLines: Math.round(label.getBoundingClientRect().height / parseFloat(getComputedStyle(label).lineHeight)),
+                apart: apart(label),
+                headBox: box(card.querySelector(".senthead")),
+                labelBox: box(label),
+                atBox: box(card.querySelector(".sentat")),
+                box: box(card),
+                rows: Array.from(card.querySelectorAll(".mtask")).map((row) => ({
+                    mark: text(row.querySelector(".mftag")),
+                    markColour: getComputedStyle(row.querySelector(".mftag")).color,
+                    markWidth: row.querySelector(".mftag").getBoundingClientRect().width,
+                    markHeight: row.querySelector(".mftag").getBoundingClientRect().height,
+                    nameLeft: row.querySelector(".mfname").getBoundingClientRect().left,
+                    text: text(row),
+                })),
+            };
+        }),
+    };
+})();
+</script>
