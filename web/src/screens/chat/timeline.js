@@ -8,8 +8,9 @@
 // The timeline scrolls with the feed because it is in the feed: one scroll
 // box, two columns, and every mark stands at the height of its row.
 //   phone — a strip as wide as a finger; every work is a stack of badges,
-//           one for each kind of what it did, and a stack that would run
-//           into the one above stands under it; a badge opens its calls.
+//           one under another, one for each kind of what it did, and a stack
+//           that would run into the one above stands under it; a badge opens
+//           its calls.
 //   desk  — a column with the time, what the work was, its calls by name and
 //           the files it touched; an entry that would run into the one above
 //           it stands under it instead.
@@ -23,11 +24,12 @@ import { callWord, countCalls, KIND_NAMES, kindIcon, stampText, turnLeft, turnTo
 
 const WORK = new Set(["toolrow", "turn"]);
 
-// The height of a badge on the strip and the room between the stacks of two
-// works: the hairline of the strip shows through it, so the eye sees where
-// one work ends and the next begins.
-export const BADGE_H = 32;
-export const STACK_GAP = 6;
+// The height of a badge on the strip, the room between two badges of one
+// work and the wider room between the stacks of two works: the hairline of
+// the strip shows through both, so the eye sees where one work ends.
+export const BADGE_H = 26;
+export const BADGE_GAP = 4;
+export const STACK_GAP = 8;
 
 // The room between two entries of the desk column.
 export const ENTRY_GAP = 10;
@@ -259,7 +261,7 @@ export function railStacks(marks, geo) {
     const works = marks.map((m) => {
         const sum = sumOf(m.rows);
         const badges = badgesOf(sum);
-        return { at: m.at, rows: m.rows, sum, badges, h: badges.length * BADGE_H };
+        return { at: m.at, rows: m.rows, sum, badges, h: badges.length * (BADGE_H + BADGE_GAP) - BADGE_GAP };
     });
     const ys = stack(works.map((w) => anchorY(w, geo)), works.map((w) => w.h), STACK_GAP);
     return works.map((w, n) => ({ ...w, y: ys[n] }));
@@ -295,10 +297,11 @@ function badgeIcon(kind) {
 }
 
 // A stack is as tall as its badges say it is: the layout and the drawing
-// read the one number, so a stack cannot run into the next behind its back.
+// read the same numbers, so a stack cannot run into the next behind its back.
 function RailStack({ g, onOpen }) {
     return html`
-        <div class="railstack" role="group" style=${`top:${Math.round(g.y)}px;height:${g.h}px`}
+        <div class="railstack" role="group"
+             style=${`top:${Math.round(g.y)}px;height:${g.h}px;--badge-h:${BADGE_H}px;--badge-gap:${BADGE_GAP}px`}
              aria-label=${said(g.sum) || "work"}>
             ${g.badges.map((b) => {
                 const words = badgeSaid(b);

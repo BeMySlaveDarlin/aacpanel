@@ -68,6 +68,21 @@ const until = async (ok, ms = 3000) => {
         turnNum: text(turn.querySelector(".rbnum")),
         turnIcon: Boolean(turn.querySelector(".rbicon svg")),
         turnOpens: (() => { turn.click(); return sheets.map((s) => (s.turn ? s.turn.pos : -1)); })(),
+        plates: (() => {
+            const hook = document.querySelector(".railbadge.k-hook");
+            const [first, second] = Array.from(hook.parentElement.querySelectorAll(".railbadge"));
+            const box = (el) => el.getBoundingClientRect();
+            const own = (el) => getComputedStyle(el).backgroundImage !== "none";
+            const icon = box(first.querySelector(".rbicon"));
+            const num = box(first.querySelector(".rbnum"));
+            return {
+                apart: box(second).top - box(first).bottom,
+                own: own(first) && own(second),
+                stack: getComputedStyle(hook.parentElement).backgroundImage,
+                numRight: num.left - icon.right,
+                level: Math.abs((num.top + num.bottom) / 2 - (icon.top + icon.bottom) / 2),
+            };
+        })(),
         hookOpens: (() => {
             document.querySelector(".railbadge.k-hook").click();
             return sheets[sheets.length - 1].list.map((c) => c.name);

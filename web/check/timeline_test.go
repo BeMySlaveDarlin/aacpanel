@@ -112,7 +112,7 @@ func TestTheFeedSplitsIntoTheColumnAndTheTimeline(t *testing.T) {
 // of what it did — its thinking, its calls kind by kind in the order of the
 // labels, the end of its turn — and works close together are never summed
 // into one: a stack that would run into the one above stands under it, the gap
-// between them, and a stack is as tall as its badges.
+// between them, and a stack is as tall as its badges and the gaps between.
 func TestEveryWorkIsAStackOfItsOwnOnTheStrip(t *testing.T) {
 	run := func(at int, kinds ...string) map[string]any {
 		groups := []any{}
@@ -157,7 +157,7 @@ func TestEveryWorkIsAStackOfItsOwnOnTheStrip(t *testing.T) {
 		}
 		b.WriteString(" ")
 	}
-	want := "0+64:think2,bash2 70+32:bash2 108+64:bash2,files2 200+64:bash2,turn3"
+	want := "0+56:think2,bash2 64+26:bash2 98+56:bash2,files2 200+56:bash2,turn3"
 	if s := strings.TrimSpace(b.String()); s != want {
 		t.Errorf("the works at 0, 37, 75 and 200px lie on the strip as\n  %s\nwant\n  %s", s, want)
 	}

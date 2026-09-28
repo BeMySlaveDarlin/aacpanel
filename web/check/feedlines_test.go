@@ -29,9 +29,16 @@ type feedLinesShot struct {
 	TurnIcon  bool     `json:"turnIcon"`
 	TurnOpens []int    `json:"turnOpens"`
 	HookOpens []string `json:"hookOpens"`
-	Worked    bool     `json:"worked"`
-	Badges    int      `json:"badges"`
-	Opened    []struct {
+	Plates    struct {
+		Apart    float64 `json:"apart"`
+		Own      bool    `json:"own"`
+		Stack    string  `json:"stack"`
+		NumRight float64 `json:"numRight"`
+		Level    float64 `json:"level"`
+	} `json:"plates"`
+	Worked bool `json:"worked"`
+	Badges int  `json:"badges"`
+	Opened []struct {
 		ID    string `json:"id"`
 		Name  string `json:"name"`
 		Agent bool   `json:"agent"`
@@ -57,6 +64,14 @@ func TestWhatTheTerminalPrintsBesideTheConversationIsInTheFeed(t *testing.T) {
 
 	if strings.Join(got.Marks, " | ") != "1 command — open the calls | 1 hook — open the calls" {
 		t.Errorf("the badges of the run: %v", got.Marks)
+	}
+	if p := got.Plates; p.Apart < 2 || !p.Own || p.Stack != "none" {
+		t.Errorf("the badges of one run are not plates of their own one under another: %.1fpx apart, "+
+			"each with its own face %v, a face %q behind them all", p.Apart, p.Own, p.Stack)
+	}
+	if p := got.Plates; p.NumRight < 0 || p.Level > 1 {
+		t.Errorf("the number of a badge stands %.1fpx right of its icon and %.1fpx off its line: "+
+			"it belongs to the right of the icon, on the same line", p.NumRight, p.Level)
 	}
 	if strings.Join(got.HookOpens, " | ") != "PreToolUse:Bash hook" {
 		t.Errorf("tapping the badge of the hook opened %v: the calls of its kind alone", got.HookOpens)
