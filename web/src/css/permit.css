@@ -1,39 +1,50 @@
 /* Session permission: the console asks, the dock answers with a keypress. */
 
 /* A permission and a question take the same place and are answered the same
-   way, so they are one kind of dock to the eye: this one is drawn in the
-   material, the frame and the air of the sheet a question opens in, and it
-   takes the head row and the answer rows of the question itself (ask.css).
-   The sheet is not taken whole: it lies over the conversation, blurs what is
-   under it and is dragged between heights, and this dock stands in the flow
-   where the composer stood, with nothing under it to blur. */
+   way, so they are one kind of dock to the eye: this one is the sheet a
+   question opens in (sheet.css), with the eyebrow, the title and the answer
+   rows of the question itself (ask.css). On a phone it runs from edge to edge
+   of the screen, its top corners rounded and its bottom square on the row
+   under it, as the sheet stands on the bottom of the screen.
+
+   The sheet is not taken whole. It lies over the conversation, blurs what is
+   under it and is dragged between heights and away; this dock stands in the
+   flow where the composer stood, with nothing under it to blur, and nothing
+   takes it away but an answer — a permission swiped off the screen would
+   leave the session waiting on a question nobody sees. So it has no handle
+   either: the sheets of the panel carry one only where a drag works, and a
+   handle that does not move under the thumb is a promise broken. */
 .permit {
-    margin-top: .5rem;
+    margin: .5rem calc(-1 * var(--body-inline, 0px)) calc(-1 * var(--deck-gap, 0px));
     padding: .6rem .9rem .8rem;
     background: var(--sheet-bg);
-    border-radius: var(--r-card);
+    border-radius: var(--r-card) var(--r-card) 0 0;
     box-shadow: var(--gloss);
 }
 
-/* The tool asked about is the plate of the head row, after the quiet words;
-   a long name drops under them rather than pushing past the edge. */
-.permithead { flex-wrap: wrap; row-gap: .3rem; }
-
-.permittool {
-    min-width: 0;
-    padding: .1rem .4rem;
-    border-radius: var(--r-small);
-    background: color-mix(in srgb, var(--accent-2) 12%, transparent);
-    font-family: var(--code);
-    font-size: var(--t-xs);
-    color: var(--accent-2);
-    overflow-wrap: anywhere;
-}
+/* The title of a permission is the tool it is asked for, and a tool of a
+   server is one long word: it breaks rather than pushing past the edge. */
+.permittool { overflow-wrap: anywhere; }
 
 .permitsaid {
     display: flex;
     flex-direction: column;
     gap: .45rem;
+    margin-top: .5rem;
+}
+
+/* At a desk a question opens in a window the width of a question, framed and
+   lifted off the page, and the permission takes that window's frame and width
+   under the conversation it belongs to. */
+@media (min-width: 1100px) {
+    .permit {
+        width: min(560px, 100%);
+        margin: .5rem auto 0;
+        padding: 1rem 1.15rem 1.15rem;
+        border: var(--hair) solid var(--edge);
+        border-radius: var(--r-card);
+        box-shadow: var(--drop);
+    }
 }
 
 /* The request is a tool's input, and it is drawn the way the sheet of a call

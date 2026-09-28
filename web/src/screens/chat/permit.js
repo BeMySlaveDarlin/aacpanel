@@ -124,10 +124,10 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
 
     return html`
         <div class="permit">
-            <div class="askhead permithead">
-                <span class="asklabel">the console asks for permission</span>
-                <span class="permittool">${perm.tool || "permission"}</span>
+            <div class="askhead">
+                <span class="asklabel">Permission</span>
             </div>
+            <p class="asktext permittool">${perm.tool || "Do you want to proceed?"}</p>
 
             <${Request} lines=${perm.action || []} note=${perm.note || []} />
 

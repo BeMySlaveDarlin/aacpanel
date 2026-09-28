@@ -5,11 +5,12 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
-// A stream session asking for a permission on a phone: an MCP tool about to
-// rewrite a comment in the tracker, its whole input a long Russian text, and
-// the reason the console asks under it. First the same screen asks a question
-// of two short answers, so the dock of a permission can be measured against
-// the dock of a question; the permission is what stays on the screen.
+// A stream session asking for a permission: an MCP tool about to rewrite a
+// comment in the tracker, its whole input a long Russian text, and the reason
+// the console asks under it. First the same screen asks a question of two
+// short answers, so the dock of a permission can be measured against the dock
+// of a question — the sheet on a phone, the window at a desk; the permission
+// is what stays on the screen.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -95,15 +96,21 @@ const border = (s, side) => {
 const sides = ["top", "right", "bottom", "left"];
 const corners = ["top-left", "top-right", "bottom-right", "bottom-left"];
 
-// The container of a dock: its material and its frame.
+// The container of a dock: its material and its frame, the corners over it
+// apart from the corners under it, and where it stands across the screen.
 const frame = (el) => {
     const s = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
     return {
         background: `${s.backgroundColor} ${s.backgroundImage}`,
         border: sides.map((side) => border(s, side)).join(" | "),
-        radius: corners.map((c) => s.getPropertyValue(`border-${c}-radius`)).join(" "),
+        radius: corners.slice(0, 2).map((c) => s.getPropertyValue(`border-${c}-radius`)).join(" "),
+        under: corners.slice(2).map((c) => s.getPropertyValue(`border-${c}-radius`)).join(" "),
         padding: sides.map((side) => s.getPropertyValue(`padding-${side}`)).join(" "),
         shadow: s.boxShadow,
+        left: Math.round(r.left),
+        right: Math.round(r.right),
+        width: Math.round(r.width),
     };
 };
 
@@ -136,9 +143,11 @@ const answer = (list, mark, words) => {
     };
 };
 
-const head = (label) => {
-    const s = getComputedStyle(label);
-    return { size: s.fontSize, weight: s.fontWeight, color: s.color };
+// The type of a line of the head: the eyebrow over the title, and the title.
+const type = (el) => {
+    if (!el) return null;
+    const s = getComputedStyle(el);
+    return { size: s.fontSize, weight: s.fontWeight, lineHeight: s.lineHeight, spacing: s.letterSpacing, color: s.color };
 };
 
 // The size a tool's input is drawn at elsewhere in the conversation: the
@@ -166,7 +175,8 @@ window.done = (async () => {
         ask: {
             frame: frame(sheet),
             answer: answer(askList, askList.querySelector(".asktick"), askList.querySelector(".askname")),
-            head: head(sheet.querySelector(".asklabel")),
+            eyebrow: type(sheet.querySelector(".asklabel")),
+            title: type(sheet.querySelector(".asktext")),
         },
     };
 
@@ -186,12 +196,17 @@ window.done = (async () => {
     const ns = getComputedStyle(note);
     result.permit = {
         viewport: innerHeight,
-        dock: { top: Math.round(rect(dock).top), height: Math.round(rect(dock).height) },
-        headTop: Math.round(rect(dock.querySelector(".permithead")).top),
+        width: innerWidth,
+        dock: { top: Math.round(rect(dock).top), bottom: Math.round(rect(dock).bottom), height: Math.round(rect(dock).height) },
+        headTop: Math.round(rect(dock.querySelector(".askhead")).top),
+        deckTop: document.querySelector(".deck") ? Math.round(rect(document.querySelector(".deck")).top) : null,
+        feedBottom: Math.round(rect(document.querySelector(".chatfeed")).bottom),
         lastOption: { top: Math.round(rect(opts[opts.length - 1]).top), bottom: Math.round(rect(opts[opts.length - 1]).bottom) },
         frame: frame(dock),
         answer: answer(list, list.querySelector(".permitn"), list.querySelector(".askname")),
-        head: head(dock.querySelector(".asklabel")),
+        eyebrow: type(dock.querySelector(".asklabel")),
+        title: type(dock.querySelector(".asktext")),
+        titleOver: [...dock.querySelectorAll(".asktext")].some((el) => el.scrollWidth > el.clientWidth),
         request: {
             size: rs.fontSize,
             lineHeight: px(rs.lineHeight),
