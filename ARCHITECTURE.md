@@ -603,7 +603,7 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Thirty actions, and the list is closed.
+Thirty-one actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
