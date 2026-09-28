@@ -1,4 +1,7 @@
-// The alerts screen: what broke, what degraded, and how to turn notifications on.
+// The alerts screen: what broke, what degraded, and the way to what of it
+// reaches the phone.
+import { useState } from "preact/hooks";
+
 import { html } from "../html.js";
 import { BackHead } from "../ui/back.js";
 import { ago, bytes, pct } from "../format.js";
@@ -7,17 +10,21 @@ import { Trouble } from "../ui/trouble.js";
 import { SEVERITY } from "../alerts.js";
 import { BASIS, METRIC, sinceText, subjectText, useDegradations } from "../degradations.js";
 import { usePush } from "../push.js";
+import { Notifications } from "./notifications.js";
 import { useAction } from "../actions/gate.js";
 import { actionName } from "../actions/registry.js";
 
 export function Alerts({ alerts, onAction, onBack }) {
+    const [tuning, setTuning] = useState(false);
+    if (tuning) return html`<${Notifications} onBack=${() => setTuning(false)} />`;
+
     return html`
         <${BackHead} onBack=${onBack} label="to the settings">
             <h2>Alerts</h2>
             <span class="where">what broke and what of it reaches the phone</span>
         <//>
 
-        <${Notifications} />
+        <${Door} onOpen=${() => setTuning(true)} />
         <${Engine} state=${alerts} onAction=${onAction} />
         <${Degradations} />
     `;
@@ -149,62 +156,27 @@ function value(metric, n) {
     return pct(n);
 }
 
-function Notifications() {
+const PUSH_STATE = {
+    on: { tone: "ok", said: "on for this device" },
+    off: { tone: "off", said: "off on this device" },
+    denied: { tone: "crit", said: "blocked in this browser" },
+    unsupported: { tone: "off", said: "this browser cannot get them" },
+};
+
+// Door leads to the notifications screen and says how this device stands, so
+// whether a failure will be heard is answered where the failures are listed.
+function Door({ onOpen }) {
     const push = usePush();
-    const run = useAction();
-
-    const disable = async () => {
-        const result = await run("push.disable", "this device", {});
-        if (result.ok) await push.forget();
-    };
-
-    if (push.state === "unsupported") {
-        return html`
-            <div class="grouphead">notifications</div>
-            <p class="hint">The browser cannot do push — the panel has to be watched by hand.</p>
-        `;
-    }
+    const { tone, said } = PUSH_STATE[push.state] || PUSH_STATE.off;
 
     return html`
         <div class="grouphead">notifications</div>
-        <section class="card">
-            ${push.state === "denied"
-                ? html`
-                    <p class="numbers"><span class="dot crit"></span> blocked</p>
-                    <p class="hint">
-                        The permission was denied in the browser. It can only be given back in the site settings —
-                        the app cannot ask a second time.
-                    </p>
-                `
-                : push.state === "on"
-                    ? html`
-                        <p class="numbers"><span class="dot ok"></span> on for this device</p>
-                        <p class="hint">
-                            They arrive even when the app is closed. There is nothing to tune: once about the
-                            reason and once about it being over — there will be no reminders.
-                        </p>
-                        <div class="btnrow">
-                            <button class="btn" type="button" disabled=${push.busy} onClick=${disable}>Turn off</button>
-                            <button class="btn primary" type="button" disabled=${push.busy}
-                                    onClick=${() => run("push.test", "subscribed devices", {})}>
-                                Test
-                            </button>
-                        </div>
-                    `
-                    : html`
-                        <p class="numbers"><span class="dot off"></span> off</p>
-                        <p class="hint">
-                            The app will send a notification when something breaks: a container went down,
-                            the subscription limit is running out. Without them you only find out by opening the panel.
-                        </p>
-                        <div class="btnrow">
-                            <button class="btn primary" type="button" disabled=${push.busy} onClick=${push.enable}>
-                                ${push.busy ? "…" : "Turn notifications on"}
-                            </button>
-                        </div>
-                    `}
-
-            ${push.error && html`<p class="hint crit">${push.error}</p>`}
-        </section>
+        <button class="card nfdoor" type="button" onClick=${onOpen}>
+            <span class="nfbody">
+                <span class="nftitle"><span class=${`dot ${tone}`}></span>${said}</span>
+                <span class="nfsub">choose what reaches the phone — the same on every device</span>
+            </span>
+            <span class="chev">${Icon.chevron()}</span>
+        </button>
     `;
 }
