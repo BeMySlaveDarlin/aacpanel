@@ -11,6 +11,8 @@ import (
 // Alert is an alert for reading.
 type Alert struct {
 	ID        int64           `json:"id"`
+	RuleID    int64           `json:"ruleId"`
+	RuleKey   string          `json:"ruleKey"`
 	Rule      string          `json:"rule"`
 	Subject   string          `json:"subject"`
 	Severity  string          `json:"severity"`
@@ -54,7 +56,7 @@ func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err err
 
 	// GREATEST skips the NULLs, and opened_at is never NULL.
 	rows, err := pool.Query(ctx, `
-		SELECT a.id, r.name, a.subject, a.severity,
+		SELECT a.id, r.id, r.key, r.name, a.subject, a.severity,
 		       a.opened_at, a.closed_at, a.acknowledged_at, a.last_seen,
 		       a.value, a.worst, a.payload
 		FROM alerts a
@@ -72,7 +74,7 @@ func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err err
 		var a Alert
 		var opened, lastSeen time.Time
 		var closed, acked *time.Time
-		if err := r.Scan(&a.ID, &a.Rule, &a.Subject, &a.Severity,
+		if err := r.Scan(&a.ID, &a.RuleID, &a.RuleKey, &a.Rule, &a.Subject, &a.Severity,
 			&opened, &closed, &acked, &lastSeen, &a.Value, &a.Worst, &a.Payload); err != nil {
 			return a, err
 		}

@@ -170,6 +170,9 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("POST /api/push/subscription", g.page(s.passkey.Subscribe))
 	mux.Handle("DELETE /api/push/subscription", g.page(s.passkey.Unsubscribe))
 	mux.Handle("POST /api/push/test", g.page(s.apiPushTest))
+	mux.Handle("GET /api/push/prefs", g.page(s.apiPushPrefs))
+	mux.Handle("PUT /api/push/prefs", g.page(s.apiPushPrefsSave))
+	mux.Handle("POST /api/push/quiet", g.page(s.apiPushQuiet))
 
 	if g.term {
 		mux.Handle("GET /api/term", g.page(s.apiTermStatus))

@@ -44,6 +44,12 @@ type Message struct {
 	Tag      string
 	Severity Severity
 	Session  string
+
+	// Kind, Source and Back are what the person's choice is read against:
+	// what the push says, where from, and whether it says a fall is over.
+	Kind   string
+	Source Source
+	Back   bool
 }
 
 func (m Message) valid() error {
@@ -266,17 +272,7 @@ func (s *Sender) deliver(ctx context.Context, m Message) {
 		return
 	}
 
-	fields := map[string]any{
-		"title":    m.Title,
-		"body":     m.Body,
-		"tag":      m.Tag,
-		"severity": string(m.Severity),
-		"ts":       time.Now().Unix(),
-	}
-	if screen := m.screen(); screen != "" {
-		fields["url"] = screen
-	}
-	payload, err := json.Marshal(fields)
+	payload, err := payloadOf(m)
 	if err != nil {
 		log.Printf("notify: assembling the notification: %v", err)
 		return
@@ -290,6 +286,24 @@ func (s *Sender) deliver(ctx context.Context, m Message) {
 		}
 		s.deliverTo(ctx, sub, m, payload)
 	}
+}
+
+// payloadOf is the body of a push as the worker on the device reads it.
+func payloadOf(m Message) ([]byte, error) {
+	fields := map[string]any{
+		"title":    m.Title,
+		"body":     m.Body,
+		"tag":      m.Tag,
+		"severity": string(m.Severity),
+		"ts":       time.Now().Unix(),
+	}
+	if screen := m.screen(); screen != "" {
+		fields["url"] = screen
+	}
+	if q := quietOf(m.Kind, m.Source); q != nil {
+		fields["quiet"] = q
+	}
+	return json.Marshal(fields)
 }
 
 func (s *Sender) deliverTo(ctx context.Context, sub Subscription, m Message, payload []byte) {

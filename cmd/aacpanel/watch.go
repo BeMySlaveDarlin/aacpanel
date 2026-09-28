@@ -29,6 +29,8 @@ type watcher struct {
 	mu      sync.Mutex
 	did     map[string]time.Time
 	stackOf map[string]string
+	// stacks are the stacks of the last look, for the choice of pushes.
+	stacks []string
 }
 
 func newWatcher(s *Server, j notify.Journal) *watcher {
@@ -60,11 +62,31 @@ func (w *watcher) once(ctx context.Context) {
 	defer cancel()
 
 	cur := w.look(ctx)
+	prefs := w.srv.pushPrefs(ctx)
 	for _, m := range w.tracker.Step(ctx, notify.Look(w.prev, cur)) {
+		if !prefs.Allows(m) {
+			log.Printf("notify: quiet by choice: %s — %s", m.Title, m.Body)
+			continue
+		}
 		log.Printf("notify: %s — %s", m.Title, m.Body)
 		w.srv.push.Send(m)
 	}
 	w.prev = cur
+
+	stacks := make([]string, 0, len(cur.Stacks))
+	for _, s := range cur.Stacks {
+		stacks = append(stacks, s.Name)
+	}
+	w.mu.Lock()
+	w.stacks = stacks
+	w.mu.Unlock()
+}
+
+// Stacks returns the stacks the last look saw.
+func (w *watcher) Stacks() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]string(nil), w.stacks...)
 }
 
 // Expect records that the panel itself changed the state of the target.
@@ -122,13 +144,16 @@ type snapshot struct {
 	AgeSec         int64 `json:"ageSec"`
 	SessionsAgeSec int64 `json:"sessionsAgeSec"`
 	Sessions       []struct {
-		Name     string `json:"session"`
-		ID       string `json:"sessionId"`
-		CWD      string `json:"cwd"`
-		Profile  string `json:"profile"`
-		Status   string `json:"status"`
-		StatusAt int64  `json:"statusUpdatedAt"`
-		Waiting  string `json:"waitingFor"`
+		Name    string `json:"session"`
+		ID      string `json:"sessionId"`
+		CWD     string `json:"cwd"`
+		Profile string `json:"profile"`
+		// ConfigDir is the account's configuration directory: the key a
+		// contour is named by in the person's choice of pushes.
+		ConfigDir string `json:"configDir"`
+		Status    string `json:"status"`
+		StatusAt  int64  `json:"statusUpdatedAt"`
+		Waiting   string `json:"waitingFor"`
 		// How the session is kept: in tmux, or on the stream under a holder.
 		Transport string `json:"transport"`
 		Ask       *struct {
@@ -151,9 +176,10 @@ type limitsBlock struct {
 }
 
 type limitRow struct {
-	Profile  string       `json:"profile"`
-	FiveHour *limitWindow `json:"fiveHour"`
-	SevenDay *limitWindow `json:"sevenDay"`
+	Profile   string       `json:"profile"`
+	ConfigDir string       `json:"configDir"`
+	FiveHour  *limitWindow `json:"fiveHour"`
+	SevenDay  *limitWindow `json:"sevenDay"`
 }
 
 type limitWindow struct {
@@ -177,7 +203,7 @@ func (w *watcher) readSnapshot(cur *notify.World) {
 
 	for _, s := range snap.Sessions {
 		item := notify.Session{
-			ID: s.ID, Name: s.Name, Profile: s.Profile, CWD: s.CWD,
+			ID: s.ID, Name: s.Name, Profile: s.Profile, ConfigDir: s.ConfigDir, CWD: s.CWD,
 			Status: s.Status, StatusAt: s.StatusAt, WaitingFor: s.Waiting, Transport: s.Transport,
 		}
 		if s.Ask != nil {
@@ -200,13 +226,13 @@ func (w *watcher) readSnapshot(cur *notify.World) {
 	for _, row := range rows {
 		if row.FiveHour != nil {
 			cur.Limits = append(cur.Limits, notify.Limit{
-				Contour: row.Profile, Window: "5h",
+				Contour: row.Profile, ConfigDir: row.ConfigDir, Window: "5h",
 				Pct: pctInt(row.FiveHour.Pct), ResetsAt: row.FiveHour.ResetsAt,
 			})
 		}
 		if row.SevenDay != nil {
 			cur.Limits = append(cur.Limits, notify.Limit{
-				Contour: row.Profile, Window: "7d",
+				Contour: row.Profile, ConfigDir: row.ConfigDir, Window: "7d",
 				Pct: pctInt(row.SevenDay.Pct), ResetsAt: row.SevenDay.ResetsAt,
 			})
 		}
@@ -319,7 +345,8 @@ func (w *watcher) readStore(ctx context.Context, cur *notify.World) {
 
 func alertEvent(a store.Alert) notify.Alert {
 	out := notify.Alert{
-		ID: a.ID, Rule: a.Rule, Subject: a.Subject, Severity: a.Severity, Value: a.Value,
+		ID: a.ID, RuleID: a.RuleID, RuleKey: a.RuleKey, Rule: a.Rule, Subject: a.Subject, Severity: a.Severity,
+		Value: a.Value,
 	}
 	var payload struct {
 		Threshold float64 `json:"threshold"`

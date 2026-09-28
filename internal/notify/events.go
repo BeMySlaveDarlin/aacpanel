@@ -35,10 +35,12 @@ type Event struct {
 	GoneSeverity Severity `json:"goneSeverity,omitempty"`
 
 	Session string `json:"session,omitempty"`
+	Source  Source `json:"source,omitempty"`
 }
 
 func (e Event) raised() Message {
-	return Message{Title: e.Title, Body: e.Body, Tag: e.Key, Severity: e.Severity, Session: e.Session}
+	return Message{Title: e.Title, Body: e.Body, Tag: e.Key, Severity: e.Severity, Session: e.Session,
+		Kind: kindOf(e.Key), Source: e.Source}
 }
 
 func (e Event) gone() Message {
@@ -46,7 +48,8 @@ func (e Event) gone() Message {
 	if sev == "" {
 		sev = Info
 	}
-	return Message{Title: e.GoneTitle, Body: e.GoneBody, Tag: e.Key, Severity: sev, Session: e.Session}
+	return Message{Title: e.GoneTitle, Body: e.GoneBody, Tag: e.Key, Severity: sev, Session: e.Session,
+		Kind: kindOf(e.Key), Source: e.Source, Back: true}
 }
 
 // World is what the panel sees about the host at one moment.
@@ -79,6 +82,7 @@ type Session struct {
 	ID         string
 	Name       string
 	Profile    string
+	ConfigDir  string
 	CWD        string
 	Status     string
 	StatusAt   int64
@@ -122,6 +126,11 @@ func (s Session) key() string {
 	return "name:" + s.Name
 }
 
+// source is where the news of a session comes from.
+func (s Session) source() Source {
+	return Source{Contour: s.ConfigDir, Place: s.CWD, Name: s.Name}
+}
+
 func (s Session) where() string {
 	parts := make([]string, 0, 2)
 	if s.Profile != "" {
@@ -154,6 +163,8 @@ type Stack struct {
 // Alert is an open alert of the rules engine together with what opened it.
 type Alert struct {
 	ID        int64
+	RuleID    int64
+	RuleKey   string
 	Rule      string
 	Subject   string
 	Severity  string
@@ -177,10 +188,13 @@ type Probe struct {
 
 // Limit is the subscription window usage of one contour.
 type Limit struct {
-	Contour  string
-	Window   string
-	Pct      int
-	ResetsAt int64
+	Contour string
+	// ConfigDir is the contour's configuration directory, the key the
+	// person's choice names a contour by.
+	ConfigDir string
+	Window    string
+	Pct       int
+	ResetsAt  int64
 }
 
 // Report is what Look saw on this pass.
@@ -419,6 +433,7 @@ func freed(s Session, took time.Duration) Event {
 		Title:    "Turn finished · " + s.Name,
 		Body:     body,
 		Severity: Info,
+		Source:   s.source(),
 	}
 }
 
@@ -444,6 +459,7 @@ func closed(s Session) Event {
 		Title:    "Session closed · " + s.Name,
 		Body:     body,
 		Severity: Warning,
+		Source:   s.source(),
 	}
 }
 
@@ -452,11 +468,18 @@ func containers(r *Report, prev, cur World) {
 	for _, c := range prev.Containers {
 		was[c.Name] = c
 	}
+	// A stack that went down whole is one push, its own: the fall of each of
+	// its containers is the same news said once a container.
+	dark := map[string]bool{}
+	for _, s := range cur.Stacks {
+		dark[s.Name] = s.Total > 0 && s.Running == 0
+	}
 
 	for _, c := range cur.Containers {
 		before, seen := was[c.Name]
 		switch {
-		case !c.running() && seen && before.running() && !cur.PanelDid["container:"+c.Name]:
+		case !c.running() && seen && before.running() && !cur.PanelDid["container:"+c.Name] &&
+			!(c.Stack != "" && dark[c.Stack]):
 			r.raise(fell(c))
 		case !c.running():
 			r.Hold = append(r.Hold, "container:"+c.Name)
@@ -511,6 +534,7 @@ func fell(c Container) Event {
 		GoneTitle:    "Container up · " + c.Name,
 		GoneBody:     "Running again" + stackTail(c.Stack),
 		GoneSeverity: Info,
+		Source:       Source{Stack: c.Stack},
 	}
 }
 
@@ -524,6 +548,7 @@ func sick(c Container) Event {
 		GoneTitle:    "Container healthy · " + c.Name,
 		GoneBody:     "healthcheck passing again" + stackTail(c.Stack),
 		GoneSeverity: Info,
+		Source:       Source{Stack: c.Stack},
 	}
 }
 
@@ -537,6 +562,7 @@ func wentDark(s Stack) Event {
 		GoneTitle:    "Stack up · " + s.Name,
 		GoneBody:     fmt.Sprintf("%d of %d running.", s.Running, s.Total),
 		GoneSeverity: Info,
+		Source:       Source{Stack: s.Name},
 	}
 }
 
@@ -547,8 +573,18 @@ func stackTail(stack string) string {
 	return " · stack " + stack
 }
 
+// ruleStackDown is the rule that a whole stack is down: the stack itself
+// pushes that the moment it happens, and the rule would say it again minutes
+// later.
+const ruleStackDown = "stack.down"
+
 func alerts(r *Report, cur World) {
 	for _, a := range cur.Alerts {
+		if a.RuleKey == ruleStackDown {
+			// Forgotten without a word: one already told is not cleared later.
+			r.Drop = append(r.Drop, "alert:"+strconv.FormatInt(a.ID, 10))
+			continue
+		}
 		r.raise(tripped(a))
 	}
 }
@@ -574,6 +610,7 @@ func tripped(a Alert) Event {
 		GoneTitle:    "Alert cleared · " + a.Subject,
 		GoneBody:     a.Rule + " — back to normal.",
 		GoneSeverity: Info,
+		Source:       Source{Rule: a.RuleID, Name: a.Rule},
 	}
 }
 
@@ -704,6 +741,7 @@ func burning(now time.Time, l Limit, watch, key string) Event {
 		GoneTitle:    "Limit reset · " + l.Contour,
 		GoneBody:     "The " + windowText(l.Window) + " window has started over.",
 		GoneSeverity: Info,
+		Source:       Source{Contour: l.ConfigDir, Name: l.Contour},
 	}
 }
 
