@@ -25,7 +25,7 @@ const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
 const base = [
     ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
     ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
-    ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", "Continue", "panel"],
+    ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", null, "claude"],
     ["env", null, "claude"], ["args", null, "claude"],
 ].map(([key, value, layer]) => ({ key, value, layer }));
 const effectiveOf = (launch) => base.map((v) => (v.key in launch ? { key: v.key, value: launch[v.key], layer: "project" } : v));

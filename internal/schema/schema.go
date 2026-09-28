@@ -188,9 +188,9 @@ var params = []Param{
 	},
 	{
 		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: 500,
-		Levels: []Level{LevelContour, LevelProject}, Default: RestartIntentDefault, Host: true,
-		Help:  "the first message of the session an automatic restart brings up",
-		Unset: RestartIntentDefault, Merge: MergeOverride,
+		Levels: []Level{LevelContour, LevelProject}, Host: true,
+		Help:  "the first message of the session a restart brings up, automatic or asked for",
+		Unset: "the session comes back without a message and waits", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
@@ -241,10 +241,6 @@ const (
 	CapMax     = 95
 	CapDefault = 80
 )
-
-// RestartIntentDefault is the first message of a session an automatic
-// restart brings up, where no level names one.
-const RestartIntentDefault = "Continue"
 
 // Params returns the launch parameters in the order a page shows them.
 func Params() []Param {

@@ -49,16 +49,19 @@ func TestSessionRestartComesBackAsItsProjectPG(t *testing.T) {
 	}
 }
 
-// Where nobody names a message after a restart, the panel's own goes.
-func TestRestartLaunchSaysThePanelsDefault(t *testing.T) {
+// Where nobody names a message after a restart, the session comes back
+// without one — neither a message the panel makes up nor the one the project
+// opens with.
+func TestRestartLaunchWithoutAMessageSaysNothing(t *testing.T) {
 	raw, err := restartLaunch(json.RawMessage(`{"intent":"read the queue","model":"opus"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var launch map[string]any
 	json.Unmarshal(raw, &launch)
-	if launch["intent"] != "Continue" || launch["model"] != "opus" {
-		t.Errorf("the restart launch is %v", launch)
+	if launch["intent"] != "" || launch["model"] != "opus" {
+		t.Errorf("the restart launch is %v: with no message after a restart set, the session would be told %q",
+			launch, launch["intent"])
 	}
 	raw, _ = restartLaunch(json.RawMessage(`{"intent":"read the queue","restartIntent":""}`))
 	json.Unmarshal(raw, &launch)

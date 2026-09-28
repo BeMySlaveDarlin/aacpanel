@@ -47,7 +47,7 @@ func TestEffectiveNamesTheLayerOfEveryValue(t *testing.T) {
 		{"transport", nil, LayerClaude},
 		{"contextCap", CapDefault, LayerPanel},
 		{"autoRestart", false, LayerPanel},
-		{"restartIntent", RestartIntentDefault, LayerPanel},
+		{"restartIntent", nil, LayerClaude},
 	}
 	for _, c := range cases {
 		v := valueOf(t, got, c.key)

@@ -13,7 +13,6 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
-	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -673,7 +672,9 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 }
 
 // restartLaunch returns a project's launch with the message after a restart
-// as its first message, in place of the one the project opens with.
+// as its first message, in place of the one the project opens with. Where no
+// level names one, the session comes back without a message and waits: a
+// message nobody wrote would set it to work on its own.
 func restartLaunch(raw json.RawMessage) (json.RawMessage, error) {
 	launch := map[string]any{}
 	if len(raw) > 0 {
@@ -681,10 +682,7 @@ func restartLaunch(raw json.RawMessage) (json.RawMessage, error) {
 			return nil, err
 		}
 	}
-	intent, ok := launch["restartIntent"].(string)
-	if !ok {
-		intent = schema.RestartIntentDefault
-	}
+	intent, _ := launch["restartIntent"].(string)
 	launch["intent"] = intent
 	return json.Marshal(launch)
 }

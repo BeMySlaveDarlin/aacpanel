@@ -20,7 +20,7 @@ const real = window.fetch.bind(window);
 const base = [
     ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
     ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
-    ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", "Continue", "panel"],
+    ["contextCap", 80, "contour"], ["autoRestart", false, "panel"], ["restartIntent", null, "claude"],
     ["env", null, "claude"], ["args", null, "claude"],
 ].map(([key, value, layer]) => ({ key, value, layer }));
 const project = (id, name) => ({ id, groupId: 3, name, path: `/srv/proj/${name}`, session: name, base: "", sort: id, launch: {},

@@ -30,7 +30,7 @@ const contourEff = [
     { key: "intent", value: null, layer: "claude" },
     { key: "contextCap", value: 80, layer: "contour" },
     { key: "autoRestart", value: false, layer: "panel" },
-    { key: "restartIntent", value: "Continue", layer: "contour" },
+    { key: "restartIntent", value: "Carry on", layer: "contour" },
     { key: "env", value: null, layer: "claude" },
     { key: "args", value: null, layer: "claude" },
 ];
@@ -67,7 +67,7 @@ let project = {
 project.effective = effectiveOf(project.launch);
 project.line = lineOf(project.launch, "atlas");
 const contour = () => ({
-    id: 3, name: "personal", auth: "builtin", contextGuard: true, account, launch: { contextCap: 80, restartIntent: "Continue" },
+    id: 3, name: "personal", auth: "builtin", contextGuard: true, account, launch: { contextCap: 80, restartIntent: "Carry on" },
     effective: contourEff,
     groups: [{ id: 3, name: "home", projects: [project] }, { id: 5, name: "pets", projects: [] }],
 });

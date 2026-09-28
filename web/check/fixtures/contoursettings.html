@@ -27,7 +27,7 @@ const account = { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" };
 const layered = (launch) => [
     ["transport", null, "claude"], ["model", "opus[1m]", "account"], ["effort", "xhigh", "account"],
     ["permissionMode", "auto", "account"], ["remoteControl", null, "claude"], ["intent", null, "claude"],
-    ["contextCap", 80, "panel"], ["autoRestart", false, "panel"], ["restartIntent", "Continue", "panel"],
+    ["contextCap", 80, "panel"], ["autoRestart", false, "panel"], ["restartIntent", null, "claude"],
     ["env", null, "claude"], ["args", null, "claude"],
 ].map(([key, value, layer]) => (key in launch ? { key, value: launch[key], layer: "contour" } : { key, value, layer }));
 
