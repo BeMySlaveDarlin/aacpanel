@@ -11,7 +11,7 @@ import { Row } from "./rows.js";
 import { callsOf, FeedGrid } from "./timeline.js";
 import { useWide } from "../../ui/wide.js";
 import { Calls } from "./calls.js";
-import { Look, LOOK_NAMES, WORK_LISTS } from "./look.js";
+import { Look, LOOK_NAMES, pageLook, WORK_LISTS } from "./look.js";
 import { Marquee } from "./head.js";
 import { contextSay } from "./work.js";
 import { useToast } from "../../ui/toasts.js";
@@ -101,9 +101,10 @@ export function SubChat({ session, id, agent, live, onBack }) {
         <//>
 
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
-                  label=${look ? LOOK_NAMES[look.kind] : ""} inner>
+                  label=${look ? LOOK_NAMES[look.kind] : ""} inner doc=${pageLook(look)}>
             ${look && !WORK_LISTS.has(look.kind)
-                && html`<${Look} session=${session} id=${id} look=${look} />`}
+                && html`<${Look} session=${session} id=${id} look=${look}
+                                 onBack=${pageLook(look) ? () => setLook(null) : undefined} />`}
         <//>
     `;
 }

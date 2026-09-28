@@ -278,6 +278,10 @@
 
     .sheet.win.doc .sheetbody { padding: 0; }
 
+    /* A page stands at the full height of the window: a dialog as tall as
+       its contents would leave the frame of the page with no room to fill. */
+    .sheet.win.doc:has(.filehtml) { height: min(92dvh, 1200px); }
+
     .sheet.win.side,
     .shell.no-nav .sheet.win.side.inner {
         left: auto;

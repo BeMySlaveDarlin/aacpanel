@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0;height:100%} .shell{height:100%} .body{height:100%;display:flex;flex-direction:column}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><main class="body" id="root"></main></div>
+<script type="module">
+// A page sent to the person, larger than the window the collector reads a
+// file by: a tap on its card opens it as a document — the whole screen on a
+// phone, a wide window at a desk — read whole before it is drawn, with no
+// press for the rest of it.
+import { h, render } from "preact";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const WINDOW = 64 * 1024;
+const page = "<p id=\"first\">THE START</p>" + "<p>a line of the page</p>\n".repeat(9000) + "<p id=\"last\">THE END</p>";
+const size = new TextEncoder().encode(page).length;
+const at = "2026-09-28T05:00:00Z";
+const items = [
+    { role: "ai", text: "Here is the board.", pos: 1, at },
+    { role: "sent", pos: 2, at, files: [{ path: "/srv/lab/board.html", name: "board.html", size }] },
+];
+let reads = 0;
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat/file?")) {
+        reads += 1;
+        const offset = Number(new URL(u, location.href).searchParams.get("offset") || 0);
+        const text = page.slice(offset, offset + WINDOW);
+        const end = offset + text.length;
+        return json({ kind: "text", name: "board.html", size, text, offset, cut: end < size, next: end < size ? end : 0 });
+    }
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
+    if (u === "/api/term") return json({ available: true });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const live = { session: "lab", sessionId: "l1", status: "idle", pct: 10, cwd: "/srv/lab", transport: "stream" };
+const exec = { available: true, kinds: ["session.send"] };
+render(h(ToastHost, null, h(GateHost, null, h(Chat, {
+    name: "lab", id: "l1", live, exec, snapshot: { sessions: [live] }, onBack() {}, onUsage() {},
+}))), document.getElementById("root"));
+
+const until = async (ok, ms = 4000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
+window.done = (async () => {
+    await until(() => document.querySelector("button.mfile"));
+    document.querySelector("button.mfile").click();
+    await until(() => document.querySelector(".sheet.on .filehtml"));
+    await new Promise((r) => setTimeout(r, 300));
+    const sheet = document.querySelector(".sheet.on");
+    const frame = document.querySelector(".sheet.on .filehtml");
+    const box = (el) => (el ? el.getBoundingClientRect() : { width: 0, height: 0, top: 0 });
+    const doc = frame ? frame.getAttribute("srcdoc") || "" : "";
+    return {
+        whole: doc.includes("THE START") && doc.includes("THE END"),
+        reads,
+        more: document.querySelectorAll(".sheet.on .filemore").length,
+        doc: sheet ? sheet.classList.contains("doc") : false,
+        back: Boolean(sheet && sheet.querySelector(".pback")),
+        viewW: innerWidth,
+        viewH: innerHeight,
+        sheetW: box(sheet).width,
+        sheetH: box(sheet).height,
+        frameH: box(frame).height,
+    };
+})();
+</script>

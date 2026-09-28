@@ -9,6 +9,7 @@ import { useToast } from "../../ui/toasts.js";
 import * as copy from "./copy.js";
 import { render } from "../../md.js";
 import { FileBody } from "./filebody.js";
+import { isPage, PAGE_WHOLE, pickView } from "./kinds.js";
 import { bytes } from "../../format.js";
 import { idParam } from "./api.js";
 import { stampText } from "./labels.js";
@@ -34,6 +35,12 @@ export const LOOK_NAMES = {
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);
+
+// pageLook reports whether a look is a page: a page is read as a document, the
+// whole screen on a phone and a wide window at a desk, with its own way back.
+export function pageLook(look) {
+    return Boolean(look) && look.kind === "file" && isPage(look.path);
+}
 
 function fileURL(base, path, offset) {
     const at = offset > 0 ? `&offset=${offset}` : "";
@@ -106,6 +113,14 @@ export function Look({ session, id, look, onBack }) {
             setMore({ busy: false, error: String(e.message || e) });
         }
     };
+
+    // A page is drawn whole or not at all: half a document is a broken page,
+    // so the rest of it is read without a press, up to what the panel draws.
+    useEffect(() => {
+        if (!file || state.kind !== "ready" || !(state.next > 0) || more.busy || more.error) return;
+        if (pickView(state, state.name || look.path) !== "page" || state.size > PAGE_WHOLE) return;
+        loadMore();
+    }, [file, state.kind, state.next, more.busy, more.error]);
 
     const letters = state.letters || [];
     const who = html`

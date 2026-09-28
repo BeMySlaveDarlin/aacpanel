@@ -23,7 +23,7 @@ import { SetupSheet, SETUP_TITLES } from "./chat/setup.js";
 import { CommandsChip, CommandsSheet } from "./chat/commands.js";
 import { RenameSheet } from "./chat/rename.js";
 import { Calls } from "./chat/calls.js";
-import { Look, LOOK_NAMES, WORK_LISTS } from "./chat/look.js";
+import { Look, LOOK_NAMES, pageLook, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
 import { Brief } from "./brief.js";
 import { index, shelf as pageShelf } from "../data/artifacts.js";
@@ -461,7 +461,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
 
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}
                   label=${look ? (look.kind === "setup" ? SETUP_TITLES[look.part] : LOOK_NAMES[look.kind]) : ""} inner
-                  doc=${Boolean(look) && look.kind === "brief"}>
+                  doc=${Boolean(look) && (look.kind === "brief" || pageLook(look))}>
             ${look && (look.kind === "brief"
                 ? html`<${Brief} id=${look.id} snapshot=${snapshot} exec=${exec}
                                  onBack=${() => setLook(null)}
@@ -497,7 +497,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                     exec=${exec} onAgent=${openAgent}
                                     pages=${myPages} briefs=${myBriefs} onBrief=${openBrief}
                                     onPage=${(card) => setLook({ kind: "artifact", card })} />`
-                : html`<${Look} session=${name} id=${id} look=${look} />`)}
+                : html`<${Look} session=${name} id=${id} look=${look}
+                                 onBack=${pageLook(look) ? () => setLook(null) : undefined} />`)}
         <//>
 
         ${onStream && feedShown && html`<${SideChat} chat=${sideChat} wide=${wide} feedRef=${feedRef} />`}

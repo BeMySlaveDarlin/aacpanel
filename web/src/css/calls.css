@@ -165,6 +165,16 @@ button.filepic {
 .fileaudio audio { display: block; width: 100%; }
 .filepdf, .filehtml { height: 70dvh; }
 .filehtml { background: #fff; }
+/* A page opened as a document fills the document: the frame takes the room
+   left under its head and tabs rather than a height guessed for a sheet. */
+.sheet.doc .sheetbody:has(.filehtml),
+.sheet.doc .sheetbody:has(.filehtml) .callbody {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.sheet.doc .filehtml { flex: 1 1 auto; height: auto; min-height: 12rem; }
 
 /* A published page, drawn from the panel's copy of it. It is taller than a file
    preview because it is the thing being read, not a look at one, and it keeps

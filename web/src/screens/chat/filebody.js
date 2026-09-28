@@ -8,7 +8,7 @@ import { highlight } from "../../code.js";
 import { bytes } from "../../format.js";
 import { useWide } from "../../ui/wide.js";
 import { Photo } from "./photo.js";
-import { frameDoc, pickView, sheet } from "./kinds.js";
+import { frameDoc, PAGE_WHOLE, pickView, sheet } from "./kinds.js";
 
 // FileBody renders the contents of an open file. open is the address at which
 // the browser shows the file as a document of its own, for the kinds the
@@ -34,13 +34,17 @@ export function FileBody({ state, look, open, more, onMore }) {
     }
     const text = state.text || "";
     return html`
-        ${view === "page" && html`<${Page} text=${text} name=${name} />`}
+        ${view === "page" && (state.next > 0
+            ? html`<p class="hint">${state.size > PAGE_WHOLE
+                ? `Too large to draw here: ${bytes(state.size)}. Save it and open it in the browser.`
+                : `Reading the page… ${bytes(state.next)} of ${bytes(state.size)}`}</p>`
+            : html`<${Page} text=${text} name=${name} />`)}
         ${view === "doc" && html`<div class="mmbody doc">${render(text || "the file is empty")}</div>`}
         ${view === "sheet" && html`<${Sheet} text=${text} name=${name} />`}
         ${view === "code" && html`
             <pre class="callpre code">${text ? highlight(text, name) : "the file is empty"}</pre>
         `}
-        ${state.next > 0 && html`
+        ${state.next > 0 && view !== "page" && html`
             <div class="filemore">
                 <button class="btn" type="button" onClick=${onMore} disabled=${more.busy}>
                     ${more.busy ? "Reading…" : "Show more"}

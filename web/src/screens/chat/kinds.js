@@ -4,6 +4,15 @@ const MARKDOWN = /\.(md|markdown)$/i;
 
 const PAGE = /\.(html?|xhtml)$/i;
 
+// PAGE_WHOLE is the largest page the panel draws: a page is read whole before
+// it is drawn, and past this it is saved and opened rather than waited for.
+export const PAGE_WHOLE = 2 << 20;
+
+// isPage reports whether a file is a page the panel draws as a document.
+export function isPage(name) {
+    return PAGE.test(String(name || ""));
+}
+
 const SHEET = /\.(csv|tsv)$/i;
 
 // isExec reports whether the file is a program.
