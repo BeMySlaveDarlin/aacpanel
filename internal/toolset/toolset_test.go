@@ -1,8 +1,17 @@
 package toolset
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
+	"time"
+
+	"aacpanel/internal/mcp"
 )
 
 // The server calls a tool by its name and takes the first of the name: a
@@ -18,10 +27,95 @@ func TestEveryToolHasANameOfItsOwn(t *testing.T) {
 	}
 }
 
-// What the launcher allows is what the tools mark allowed: the plan tool,
-// under the name claude gives it and a permission rule knows it by.
+// What the launcher allows is what the tools mark allowed, under the names
+// claude gives them and a permission rule knows them by: none of them waits
+// on the person.
 func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
-	if got := Allowed(); !slices.Equal(got, []string{"mcp__aacpanel__plan"}) {
+	want := []string{
+		"mcp__aacpanel__plan",
+		"mcp__aacpanel__brief_publish",
+		"mcp__aacpanel__brief_delete",
+		"mcp__aacpanel__notify",
+	}
+	if got := Allowed(); !slices.Equal(got, want) {
 		t.Errorf("allowed %v", got)
+	}
+}
+
+// collectorSocket stands in for one socket of the collector, named to the
+// tools by the variable the scripts of the skills read: it answers every
+// request with ok and hands the request over. The directory is short, since
+// a unix socket's path holds 108 bytes.
+func collectorSocket(t *testing.T, env string) <-chan map[string]any {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", filepath.Join(dir, "s.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ln.Close()
+		os.RemoveAll(dir)
+	})
+	t.Setenv(env, ln.Addr().String())
+	got := make(chan map[string]any, 8)
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			raw, _ := io.ReadAll(conn)
+			var request map[string]any
+			_ = json.Unmarshal(raw, &request)
+			got <- request
+			_, _ = conn.Write([]byte(`{"ok":true,"id":"a-brief"}`))
+			conn.Close()
+		}
+	}()
+	return got
+}
+
+// Every tool of the collector reaches the socket of its own kind, the one its
+// script writes to: a call handed to the shelf of briefs would be refused
+// there as a brief without a title, and the person would never be called.
+func TestEveryToolOfTheCollectorReachesItsOwnSocket(t *testing.T) {
+	briefs := collectorSocket(t, "AACP_BRIEF_SOCKET")
+	calls := collectorSocket(t, "AACP_NOTIFY_SOCKET")
+	bind := func() (mcp.Binding, error) {
+		return mcp.Binding{Place: mcp.Place{ConfigDir: "/home/u/.claude", Dir: "/srv/proj"},
+			SessionID: "567f4d24-cd5f-48fa-bdc1-04c89d203494", PID: 4242}, nil
+	}
+	list := tools()
+	for _, c := range []struct {
+		tool, args string
+		socket     <-chan map[string]any
+	}{
+		{"brief_publish", `{"doc":{"id":"a-brief","title":"A brief"}}`, briefs},
+		{"brief_delete", `{"id":"a-brief"}`, briefs},
+		{"notify", `{"text":"stuck on the migration"}`, calls},
+	} {
+		at := slices.IndexFunc(list, func(t mcp.Tool) bool { return t.Name == c.tool })
+		if at < 0 {
+			t.Fatalf("there is no tool %s", c.tool)
+		}
+		if said, failed := list[at].Call(context.Background(), bind, json.RawMessage(c.args)); failed {
+			t.Errorf("%s answered %q", c.tool, said)
+		}
+		select {
+		case <-c.socket:
+		case <-time.After(2 * time.Second):
+			t.Errorf("%s did not reach its socket", c.tool)
+		}
+	}
+	select {
+	case stray := <-briefs:
+		t.Errorf("the shelf of briefs got a request of another tool: %v", stray)
+	case stray := <-calls:
+		t.Errorf("the socket of calls got a request of another tool: %v", stray)
+	default:
 	}
 }

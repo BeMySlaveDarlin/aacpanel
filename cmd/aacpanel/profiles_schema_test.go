@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"aacpanel/internal/host"
+	"aacpanel/internal/toolset"
 )
 
 // The schema is answered without a database: it is built into the service,
@@ -177,6 +178,16 @@ func TestProfilesAnswerTheAccountLayerPG(t *testing.T) {
 
 // Every project answers the command its next launch runs, each word marked
 // with the layer its parameter came from.
+// allowedWords are the tools the launcher allows as the line shows them, each
+// a word of the panel's layer.
+func allowedWords() string {
+	var words []string
+	for _, name := range toolset.Allowed() {
+		words = append(words, name+"/panel")
+	}
+	return strings.Join(words, " ")
+}
+
 func TestProfilesAnswerTheLaunchLinePG(t *testing.T) {
 	srv, root := profilesServer(t)
 	mux := profilesMux(srv)
@@ -204,8 +215,8 @@ func TestProfilesAnswerTheLaunchLinePG(t *testing.T) {
 		layer, _ := w["layer"].(string)
 		got = append(got, w["text"].(string)+"/"+layer)
 	}
-	want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel mcp__aacpanel__plan/panel " +
-		"-n/ aacpanel/ --remote-control/contour aacpanel/contour --effort/project high/project"
+	want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel " + allowedWords() +
+		" -n/ aacpanel/ --remote-control/contour aacpanel/contour --effort/project high/project"
 	if strings.Join(got, " ") != want {
 		t.Errorf("the line reads %q, meant %q", strings.Join(got, " "), want)
 	}
@@ -247,8 +258,8 @@ func TestProjectPreviewAnswersTheDraftAndWritesNothingPG(t *testing.T) {
 	preview := "/api/projects/" + project + "/preview"
 
 	got := call(http.MethodPost, preview, `{"session":"panel","launchUnset":["effort"],"launchSet":{"model":"sonnet"}}`, http.StatusOK)
-	if want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel mcp__aacpanel__plan/panel " +
-		"-n/ panel/ --remote-control/contour panel/contour --model/project sonnet/project"; text(got) != want {
+	if want := "claude/ --mcp-config/panel <the panel's tools>/panel --allowedTools/panel " + allowedWords() +
+		" -n/ panel/ --remote-control/contour panel/contour --model/project sonnet/project"; text(got) != want {
 		t.Errorf("the draft's line reads %q, meant %q", text(got), want)
 	}
 	if problems, _ := got["problems"].([]any); problems == nil || len(problems) != 0 {

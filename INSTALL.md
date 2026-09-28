@@ -366,6 +366,14 @@ console restarts in its own pane without the map's parameters.
 The turn after the block is the finalization itself and is never blocked again;
 a session that ignored it is told again at the end of its next turn.
 
+**Panel tools.** Every session the panel starts gets them from the launcher
+unless the Panel tools parameter of its contour or project is off: the plan, the
+brief (`brief_publish`, `brief_delete`) and the call to the person (`notify`),
+which do what the brief and notify skills do with nothing installed. Rules of
+the machine's own for the text of a brief go into
+`${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md`: the brief tool gives
+them to a session after the shipped ones, and without the file there are none.
+
 **The plan reminder.** The plan tool needs nothing installed: every session the
 panel starts gets it from the launcher, unless the Panel tools parameter of its
 contour or project is off. The hook is the soft half of it, in the account

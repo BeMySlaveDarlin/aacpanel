@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"aacpanel/internal/chat"
@@ -295,7 +298,7 @@ func TestBriefAndItsDraftPG(t *testing.T) {
 	}
 
 	// The shelf shows how far each brief has got without opening any of them.
-	done, err := db.BriefProgress(t.Context(), []string{"seven-after-twelve", "never-touched"})
+	done, err := db.BriefProgress(t.Context(), map[string]string{"seven-after-twelve": "", "never-touched": ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +316,7 @@ func TestBriefAndItsDraftPG(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("marking it sent: %d %s", w.Code, w.Body.String())
 	}
-	draft, err := db.BriefDraftOf(t.Context(), "seven-after-twelve")
+	draft, err := db.BriefDraftOf(t.Context(), "seven-after-twelve", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +379,7 @@ func TestASentBriefTakesNoMoreAnswersPG(t *testing.T) {
 		t.Errorf("a second send gave %d, expected 409", code)
 	}
 
-	draft, err := db.BriefDraftOf(t.Context(), "settled-after-sending")
+	draft, err := db.BriefDraftOf(t.Context(), "settled-after-sending", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +405,7 @@ func TestRemovingABriefTakesTheAnswersWithItPG(t *testing.T) {
 	agent := startAgent(t, map[string]any{"ok": true, "dropped": "brief-to-remove"})
 	srv := &Server{db: db, chat: chat.New(agent.path)}
 
-	if err := db.SaveBriefDraft(t.Context(), "brief-to-remove",
+	if err := db.SaveBriefDraft(t.Context(), "brief-to-remove", "2026-09-08T03:00:00Z",
 		map[string]store.BriefAnswer{"r1": {Picks: []string{"A"}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -425,7 +428,7 @@ func TestRemovingABriefTakesTheAnswersWithItPG(t *testing.T) {
 		t.Errorf("the panel named a directory (%q) and would be refused its own brief", req.DropBrief.CWD)
 	}
 
-	draft, err := db.BriefDraftOf(t.Context(), "brief-to-remove")
+	draft, err := db.BriefDraftOf(t.Context(), "brief-to-remove", "2026-09-08T03:00:00Z")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -485,5 +488,224 @@ func TestADraftHoldsAnAnswerForEveryQuestionADocumentMayCarry(t *testing.T) {
 	}
 	if _, err := cleanBriefAnswers(full); err != nil {
 		t.Errorf("a document answered in full was refused: %v", err)
+	}
+}
+
+// shelfAgent stands in for the collector with a shelf of one brief, which a
+// test swaps the way a session removes its brief and publishes it again: the
+// collector serves both and never tells the panel which happened.
+type shelfAgent struct {
+	path string
+	mu   sync.Mutex
+	doc  *chat.Brief
+}
+
+func startShelf(t *testing.T, doc *chat.Brief) *shelfAgent {
+	t.Helper()
+	a := &shelfAgent{path: socketPath(t, "chat.sock"), doc: doc}
+	ln, err := net.Listen("unix", a.path)
+	if err != nil {
+		t.Fatalf("the agent socket: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				body, _ := io.ReadAll(conn)
+				var req chat.Req
+				_ = json.Unmarshal(body, &req)
+				a.mu.Lock()
+				doc := *a.doc
+				a.mu.Unlock()
+				var reply any = map[string]any{"ok": false, "error": "the fake shelf answers the shelf and a brief"}
+				switch {
+				case req.Briefs != nil:
+					card := chat.BriefCard{ID: doc.ID, SessionID: doc.SessionID, Title: doc.Title,
+						At: doc.At, FirstAt: doc.FirstAt, Questions: len(doc.Questions)}
+					reply = map[string]any{"ok": true, "briefs": []chat.BriefCard{card}}
+				case req.Brief == doc.ID:
+					reply = map[string]any{"ok": true, "brief": &doc}
+				}
+				out, _ := json.Marshal(reply)
+				_, _ = conn.Write(out)
+			}()
+		}
+	}()
+	return a
+}
+
+func (a *shelfAgent) publish(doc *chat.Brief) {
+	a.mu.Lock()
+	a.doc = doc
+	a.mu.Unlock()
+}
+
+// briefDesk is the panel over a fake shelf and a real database, driven the
+// way the brief screen drives it.
+type briefDesk struct {
+	t   *testing.T
+	srv *Server
+	id  string
+}
+
+func openBriefDesk(t *testing.T, doc *chat.Brief) (*briefDesk, *shelfAgent) {
+	t.Helper()
+	db, err := store.New(testdb.DSN(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(db.Close)
+	if err := db.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	shelf := startShelf(t, doc)
+	return &briefDesk{t: t, srv: &Server{db: db, chat: chat.New(shelf.path)}, id: doc.ID}, shelf
+}
+
+func (d *briefDesk) request(method, body string, handler func(http.ResponseWriter, *http.Request)) *httptest.ResponseRecorder {
+	d.t.Helper()
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(method, "/api/briefs/"+d.id, strings.NewReader(body))
+	r.SetPathValue("id", d.id)
+	handler(w, r)
+	return w
+}
+
+func (d *briefDesk) save(answers string) int {
+	d.t.Helper()
+	return d.request(http.MethodPut, `{"answers":`+answers+`}`, d.srv.apiBriefDraft).Code
+}
+
+func (d *briefDesk) markSent() int {
+	d.t.Helper()
+	return d.request(http.MethodPost, "", d.srv.apiBriefSent).Code
+}
+
+func (d *briefDesk) open() (map[string]store.BriefAnswer, string) {
+	d.t.Helper()
+	w := d.request(http.MethodGet, "", d.srv.apiBrief)
+	if w.Code != http.StatusOK {
+		d.t.Fatalf("the brief opened with %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Draft store.BriefDraft `json:"draft"`
+		Reply string           `json:"reply"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		d.t.Fatal(err)
+	}
+	return body.Draft.Answers, body.Reply
+}
+
+// card is the row of the brief on the shelf: how far it got and whether it
+// went, which is also what a session starting in the project hears about.
+func (d *briefDesk) card() (answered int, sent bool) {
+	d.t.Helper()
+	w := httptest.NewRecorder()
+	d.srv.apiBriefs(w, httptest.NewRequest(http.MethodGet, "/api/briefs", nil))
+	if w.Code != http.StatusOK {
+		d.t.Fatalf("the shelf opened with %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Briefs []struct {
+			Answered int  `json:"answered"`
+			Sent     bool `json:"sent"`
+		} `json:"briefs"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil || len(body.Briefs) != 1 {
+		d.t.Fatalf("the shelf came back as %s (%v)", w.Body.String(), err)
+	}
+	return body.Briefs[0].Answered, body.Briefs[0].Sent
+}
+
+func publishedAt(id, at string) *chat.Brief {
+	doc := sampleBrief()
+	doc.ID, doc.At = id, at
+	return doc
+}
+
+// A session takes its brief off the shelf and publishes one under the same
+// name. The collector does both without the panel, and the new document is
+// another brief: the answers the person began on the first turn up nowhere —
+// not on its screen, not on the shelf, not in the text that would go into
+// the session. A reissue of the new one keeps what was given to it.
+func TestABriefRemovedAndPublishedAgainComesWithoutTheOldAnswersPG(t *testing.T) {
+	desk, shelf := openBriefDesk(t, publishedAt("published-twice", "2026-09-08T03:00:00Z"))
+
+	if code := desk.save(`{"r1":{"picks":["A"],"note":"lab first"},"r3":{"note":"k = 2"}}`); code != http.StatusOK {
+		t.Fatalf("the first answers were saved with %d", code)
+	}
+	if answers, _ := desk.open(); len(answers) != 2 {
+		t.Fatalf("the draft of the first publication came back as %+v", answers)
+	}
+
+	shelf.publish(publishedAt("published-twice", "2026-09-08T05:00:00Z"))
+
+	answers, reply := desk.open()
+	if len(answers) != 0 {
+		t.Errorf("the brief published again opened with the answers of the removed one: %+v", answers)
+	}
+	if !strings.Contains(reply, "Answered 0 of 4") || strings.Contains(reply, "lab first") {
+		t.Errorf("the text for the session carries the removed brief's answers:\n%s", reply)
+	}
+	if answered, sent := desk.card(); answered != 0 || sent {
+		t.Errorf("the shelf counts %d answers (sent %v) on a brief nobody has answered", answered, sent)
+	}
+
+	if code := desk.save(`{"r2":{"skip":true}}`); code != http.StatusOK {
+		t.Fatalf("an answer to the new brief was saved with %d", code)
+	}
+	reissue := publishedAt("published-twice", "2026-09-08T06:00:00Z")
+	reissue.FirstAt = "2026-09-08T05:00:00Z"
+	shelf.publish(reissue)
+	answers, _ = desk.open()
+	if len(answers) != 1 || !answers["r2"].Skip {
+		t.Errorf("a reissue of the new brief came back with %+v, not the one answer given to it", answers)
+	}
+	if answered, _ := desk.card(); answered != 1 {
+		t.Errorf("the shelf counts %d answers on the reissue, not the one given", answered)
+	}
+}
+
+// The mark that a brief went into its session belongs to that publication
+// too: the brief published again under its name is still to be answered, and
+// a mark carried over would lock its fields and hide it from the session
+// starting in the project.
+func TestTheSentMarkOfARemovedBriefDoesNotCarryOverPG(t *testing.T) {
+	desk, shelf := openBriefDesk(t, publishedAt("sent-then-published-again", "2026-09-08T03:00:00Z"))
+
+	if code := desk.save(`{"r1":{"picks":["B"]}}`); code != http.StatusOK {
+		t.Fatalf("the first answers were saved with %d", code)
+	}
+	if code := desk.markSent(); code != http.StatusOK {
+		t.Fatalf("the first brief was marked sent with %d", code)
+	}
+
+	shelf.publish(publishedAt("sent-then-published-again", "2026-09-08T05:00:00Z"))
+
+	if answered, sent := desk.card(); answered != 0 || sent {
+		t.Errorf("the brief published again stands on the shelf with %d answers, sent %v", answered, sent)
+	}
+	if code := desk.markSent(); code != http.StatusOK {
+		t.Fatalf("sending the new brief gave %d: the mark of the removed one held it", code)
+	}
+	if answers, _ := desk.open(); len(answers) != 0 {
+		t.Errorf("the mark of the new brief took the removed one's answers with it: %+v", answers)
+	}
+
+	shelf.publish(publishedAt("sent-then-published-again", "2026-09-08T07:00:00Z"))
+	if code := desk.save(`{"r1":{"picks":["A"]}}`); code != http.StatusOK {
+		t.Errorf("an answer to a third publication gave %d: the sent mark of the second held it", code)
+	}
+	if answered, sent := desk.card(); answered != 1 || sent {
+		t.Errorf("the third publication, answered once and never sent, stands with %d answers, sent %v", answered, sent)
+	}
+	if code := desk.save(`{"r1":{"picks":["B"]}}`); code != http.StatusOK {
+		t.Errorf("a second answer to the third publication gave %d: the draft took the old mark on", code)
 	}
 }

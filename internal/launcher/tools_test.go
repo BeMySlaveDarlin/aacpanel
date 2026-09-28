@@ -21,6 +21,12 @@ const toolsExec = "/srv/bin/aacpanel-exec"
 // lives at toolsExec: the flag is the one that starts the panel's MCP server.
 const toolsConfig = `{"mcpServers":{"aacpanel":{"args":["-mcp"],"command":"` + toolsExec + `","type":"stdio"}}}`
 
+// allowedTools are the tools the launcher allows, as the command line spells
+// them after --allowedTools.
+func allowedTools() string {
+	return strings.Join(toolset.Allowed(), " ")
+}
+
 func stubToolServer(t *testing.T) {
 	t.Helper()
 	was := toolServer
@@ -44,12 +50,12 @@ func withToolsOf(t *testing.T, launch string) Params {
 }
 
 // The panel's tools are on unless the map turns them off, in a console and on
-// the stream alike: the executor as the panel's MCP server, and the plan tool
-// allowed. Both flags take lists, so the name follows them and ends the list:
-// an opening message after them would be read as one more server.
+// the stream alike: the executor as the panel's MCP server, and the tools its
+// list marks allowed. Both flags take lists, so the name follows them and ends
+// the list: an opening message after them would be read as one more server.
 func TestTheArgumentsHandTheSessionThePanelsTools(t *testing.T) {
 	stubToolServer(t)
-	want := []string{"--mcp-config", toolsConfig, "--allowedTools", "mcp__aacpanel__plan", "-n", "home"}
+	want := append(append([]string{"--mcp-config", toolsConfig, "--allowedTools"}, toolset.Allowed()...), "-n", "home")
 
 	for launch, words := range map[string][]string{
 		`{}`:                                  {"-n", "home"},
@@ -145,7 +151,7 @@ func TestRunInAConsoleHandsThePanelsTools(t *testing.T) {
 				t.Fatal(err)
 			}
 			said := string(readFile(t, log))
-			has := strings.Contains(said, "--mcp-config "+toolsConfig+" --allowedTools mcp__aacpanel__plan -n aacpanel")
+			has := strings.Contains(said, "--mcp-config "+toolsConfig+" --allowedTools "+allowedTools()+" -n aacpanel")
 			if has != on || (!on && strings.Contains(said, "--mcp-config")) {
 				t.Errorf("panel tools %v, and tmux was called with %s", on, said)
 			}
@@ -171,7 +177,7 @@ func TestRunOnTheStreamHandsThePanelsTools(t *testing.T) {
 				t.Fatal(err)
 			}
 			argv := strings.Join(spec.Argv, " ")
-			has := strings.Contains(argv, "--mcp-config "+toolsConfig+" --allowedTools mcp__aacpanel__plan -n demo")
+			has := strings.Contains(argv, "--mcp-config "+toolsConfig+" --allowedTools "+allowedTools()+" -n demo")
 			if has != on || (!on && strings.Contains(argv, "--mcp-config")) {
 				t.Errorf("panel tools %v, and the holder was handed %s", on, argv)
 			}
