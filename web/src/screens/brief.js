@@ -403,47 +403,47 @@ export function Brief({ id, snapshot, exec, onBack, onSession }) {
                         ${doc.closing.map((p, i) => html`<div key=${i} class="bprose">${render(p)}</div>`)}
                     </div>
                 ` : null}
-
-                ${asking.length ? html`
-                    <div class="bdock">
-                        <div class="bdock-say">
-                            ${sentAt
-                                ? html`the answers have gone into <b>${name || "the session"}</b>`
-                                : !done
-                                ? "nothing answered yet · the draft saves itself"
-                                : done < asking.length
-                                ? html`answered <b>${done}</b> of <b>${asking.length}</b> · the rest may stay empty`
-                                : html`all <b>${asking.length}</b> answered`}
-                            ${!canSend && why ? html`<br />${why}` : null}
-                            ${standIn ? html`
-                                <br />the session that wrote this is gone · the answers go into
-                                ${route.near.length > 1 ? html`
-                                    <select
-                                        class="bwho"
-                                        value=${name}
-                                        onChange=${(e) => setPicked(e.target.value)}
-                                    >
-                                        ${route.near.map((s) => html`<option key=${s} value=${s}>${s}</option>`)}
-                                    </select>
-                                ` : html` <b>${name}</b>`}, working in the same directory
-                            ` : null}
-                        </div>
-                        <button type="button" class="bbtn" onClick=${() => setPeek(true)}>What goes</button>
-                        <button
-                            type="button"
-                            class=${`bbtn drop${dropping === "asking" ? " asking" : ""}`}
-                            disabled=${dropping === "going"}
-                            onClick=${remove}
-                        >${dropping === "going" ? "Removing…" : dropping === "asking" ? "Remove it?" : "Remove"}</button>
-                        <button
-                            type="button"
-                            class="bbtn go"
-                            disabled=${Boolean(sentAt) || !canSend || !done || sending}
-                            onClick=${send}
-                        >${sending ? "Sending…" : sentAt ? "Sent" : "Send answers"}</button>
-                    </div>
-                ` : null}
             </div>
+
+            ${asking.length ? html`
+                <div class="bdock">
+                    <div class="bdock-say">
+                        ${sentAt
+                            ? html`the answers have gone into <b>${name || "the session"}</b>`
+                            : !done
+                            ? "nothing answered yet · the draft saves itself"
+                            : done < asking.length
+                            ? html`answered <b>${done}</b> of <b>${asking.length}</b> · the rest may stay empty`
+                            : html`all <b>${asking.length}</b> answered`}
+                        ${!canSend && why ? html`<br />${why}` : null}
+                        ${standIn ? html`
+                            <br />the session that wrote this is gone · the answers go into
+                            ${route.near.length > 1 ? html`
+                                <select
+                                    class="bwho"
+                                    value=${name}
+                                    onChange=${(e) => setPicked(e.target.value)}
+                                >
+                                    ${route.near.map((s) => html`<option key=${s} value=${s}>${s}</option>`)}
+                                </select>
+                            ` : html` <b>${name}</b>`}, working in the same directory
+                        ` : null}
+                    </div>
+                    <button type="button" class="bbtn" onClick=${() => setPeek(true)}>What goes</button>
+                    <button
+                        type="button"
+                        class=${`bbtn drop${dropping === "asking" ? " asking" : ""}`}
+                        disabled=${dropping === "going"}
+                        onClick=${remove}
+                    >${dropping === "going" ? "Removing…" : dropping === "asking" ? "Remove it?" : "Remove"}</button>
+                    <button
+                        type="button"
+                        class="bbtn go"
+                        disabled=${Boolean(sentAt) || !canSend || !done || sending}
+                        onClick=${send}
+                    >${sending ? "Sending…" : sentAt ? "Sent" : "Send answers"}</button>
+                </div>
+            ` : null}
 
             <${Sheet} open=${peek} onClose=${() => setPeek(false)} label="what goes into the session">
                 <div class="shead">

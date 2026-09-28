@@ -2235,6 +2235,15 @@
        a reading width of its own; the document carries one, and two of them
        leave the text narrower than either asks for. */
     .dkpage > .brief { max-width: none; }
+
+    /* At a desk a brief opens in a window with rounded corners, and its two
+       strips are that window's edges: the head its top, the dock its bottom.
+       The dock takes the window's corners as the head does, and a document
+       that has a dock keeps no tail under it — at the end of the text the tail
+       would lift the dock and its round corners off the window's. */
+    .bdock { border-radius: 0 0 var(--r-card) var(--r-card); }
+
+    .brief:has(> .bdock) { padding-bottom: 0; }
 }
 
 @media (min-width: 1100px) {

@@ -1,0 +1,149 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<!-- A brief at a desk opens in two places: the page of the shelf, and the
+     window a conversation opens it in. Both are drawn at once, the window over
+     the page, on a screen wide enough for either to be wider than the reading
+     column, and each is measured on its own. -->
+<div class="shell deskshell" style="height:100vh;display:flex;flex-direction:column">
+  <header class="dktop"><button class="dkbrand" type="button">host</button></header>
+  <div class="dkbody">
+    <aside class="dkleft"></aside>
+    <div class="dkpage" id="shelf"></div>
+  </div>
+</div>
+<div id="layer"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+import { h, render } from "preact";
+import { Brief } from "/src/screens/brief.js";
+import { Sheet } from "/src/ui/sheet.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+// Long enough to scroll in either place: the strips are measured while the
+// text runs under them, not only where the document happens to end.
+const question = (n) => ({
+    id: `q${n}`, n: `0${n}`, title: `Question ${n}`, kind: "pick",
+    ask: "A strip narrower than the window it rides in leaves the window's corners showing past its ends.",
+    options: [
+        { key: "A", label: "Run the width of the window", note: "what it carries stays over the column" },
+        { key: "B", label: "Stay the width of the column", note: "a gap at each end" },
+    ],
+    capture: { note: { placeholder: "A note, if there is more to say" } },
+});
+
+const doc = {
+    id: "edges",
+    sessionId: "33333333-3333-4333-8333-333333333333",
+    cwd: "/srv/proj",
+    title: "The edges of the window",
+    eyebrow: "three questions",
+    lede: "The head and the dock ride along with the text, and they are the edges of the window it is read in.",
+    questions: [question(1), question(2), question(3)],
+};
+
+window.fetch = async (input, init) => {
+    const u = typeof input === "string" ? input : input.url;
+    const method = (init && init.method) || "GET";
+    if (u === "/api/briefs/edges" && method === "GET") {
+        return new Response(JSON.stringify({ brief: doc, draft: { answers: {} }, reply: "" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const snapshot = { sessions: [{ session: "lab", sessionId: doc.sessionId, cwd: doc.cwd }] };
+const exec = { available: true, kinds: ["session.send"] };
+const brief = () => h(Brief, { id: "edges", snapshot, exec, onBack: () => {} });
+
+render(h(ToastHost, null, h(GateHost, null, brief())), document.getElementById("shelf"));
+render(
+    h(ToastHost, null, h(GateHost, null,
+        h(Sheet, { open: true, onClose: () => {}, label: "brief", inner: true, doc: true }, brief()))),
+    document.getElementById("layer"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const px = (v) => Math.round(parseFloat(v) * 100) / 100;
+const round = (v) => Math.round(v * 100) / 100;
+
+// How far the strips stand from the edges of the window at one scroll of the
+// document: the head from its top, the dock from its bottom.
+function strips(place, edges) {
+    const head = place.querySelector(".brief > .phead").getBoundingClientRect();
+    const dock = place.querySelector(".bdock").getBoundingClientRect();
+    return { headTop: round(head.top - edges.top), dockBottom: round(edges.bottom - dock.bottom) };
+}
+
+async function measure(place, scroller, frameEl) {
+    const brief = place.querySelector(".brief");
+    const host = brief.parentElement;
+    const hs = getComputedStyle(host);
+    const hr = host.getBoundingClientRect();
+    const page = brief.querySelector(".brief-page");
+    const ps = getComputedStyle(page);
+    const pr = page.getBoundingClientRect();
+    const head = brief.querySelector(":scope > .phead");
+    const dock = brief.querySelector(".bdock");
+    const buttons = dock.querySelectorAll(".bbtn");
+    const rect = (el) => {
+        const r = el.getBoundingClientRect();
+        return { left: round(r.left), right: round(r.right) };
+    };
+    const out = {
+        // The box the document fills: the window's body, or the page of the
+        // shelf inside its own padding.
+        fill: {
+            left: round(hr.left + parseFloat(hs.borderLeftWidth) + parseFloat(hs.paddingLeft)),
+            right: round(hr.right - parseFloat(hs.borderRightWidth) - parseFloat(hs.paddingRight)),
+        },
+        head: rect(head),
+        dock: rect(dock),
+        // The page is held to the width of the column; the text inside it keeps
+        // a gutter, and the column is where the text starts and ends.
+        page: { left: round(pr.left), right: round(pr.right) },
+        column: {
+            left: round(pr.left + parseFloat(ps.paddingLeft)),
+            right: round(pr.right - parseFloat(ps.paddingRight)),
+        },
+        arrow: round(head.querySelector(".pback").getBoundingClientRect().left),
+        say: round(dock.querySelector(".bdock-say").getBoundingClientRect().left),
+        last: round(buttons[buttons.length - 1].getBoundingClientRect().right),
+        headRadius: px(getComputedStyle(head).borderTopLeftRadius),
+        dockRadius: px(getComputedStyle(dock).borderBottomLeftRadius),
+        frameRadius: frameEl ? px(getComputedStyle(frameEl).borderBottomLeftRadius) : null,
+        scrolls: scroller.scrollHeight - scroller.clientHeight,
+        at: {},
+    };
+    // The window's edges from the inside: the strips are drawn in it, so they
+    // stand on its border, not over it.
+    const inside = frameEl || host;
+    const is = getComputedStyle(inside);
+    const ir = inside.getBoundingClientRect();
+    const edges = {
+        top: ir.top + parseFloat(is.borderTopWidth),
+        bottom: ir.bottom - parseFloat(is.borderBottomWidth),
+    };
+    for (const [name, to] of [["top", 0], ["middle", 0.5], ["end", 1]]) {
+        scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) * to);
+        await frame();
+        out.at[name] = strips(place, edges);
+    }
+    scroller.scrollTop = 0;
+    await frame();
+    return out;
+}
+
+window.done = (async () => {
+    for (let i = 0; i < 60 && document.querySelectorAll(".bdock").length < 2; i++) await sleep(50);
+    await sleep(150);
+    const layer = document.querySelector("#layer .sheet.doc");
+    return {
+        window: innerWidth,
+        layer: await measure(layer, layer.querySelector(".sheetbody"), layer),
+        shelf: await measure(document.getElementById("shelf"), document.getElementById("shelf"), null),
+    };
+})();
+</script>
