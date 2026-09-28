@@ -12,6 +12,7 @@ import (
 
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/plan"
+	"aacpanel/internal/session"
 )
 
 // fakeClaude puts a live claude process into a fake /proc, with the file it
@@ -63,13 +64,21 @@ func talk(t *testing.T, parent int, lines ...string) []map[string]any {
 
 const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"2.1.283"}}}`
 
-// noPlan is the server's word to a session in a place with no plan, to the
-// byte: it stands in the system prompt of every session the panel starts.
-const noPlan = "The panel is how the person follows this session from their phone and desk; " +
+// planLine is the server's word up to the line of the plan tool, which the
+// plan of the place, where there is one, follows on the same line.
+const planLine = "The panel is how the person follows this session from their phone and desk; " +
 	"its tools reach them there, and the terminal does not show what they do.\n" +
 	"When the work has several steps, keep it with the plan tool, which the person sees " +
 	"in the panel: the whole list every time, updated when a step starts or ends and when the plan changes. " +
 	"A short task needs no plan."
+
+// sessionLines are the lines of the tools a session acts on itself and its
+// neighbours with, after the plan's.
+const sessionLines = "\n" + session.RestartInstructions + "\n" + session.LetterInstructions
+
+// noPlan is the server's word to a session in a place with no plan, to the
+// byte: it stands in the system prompt of every session the panel starts.
+const noPlan = planLine + sessionLines
 
 // Both flags start the one server: the launcher writes -mcp into the MCP
 // configuration of a session, and a live session whose configuration names
@@ -132,7 +141,7 @@ func TestTheServerKeepsThePlanOfItsParentsPlace(t *testing.T) {
 	replies = talk(t, 5151, handshake)
 	res, _ := replies[0]["result"].(map[string]any)
 	said, _ := res["instructions"].(string)
-	if !strings.HasPrefix(said, noPlan+" This place already has a plan") ||
+	if !strings.HasPrefix(said, planLine+" This place already has a plan") || !strings.HasSuffix(said, sessionLines) ||
 		!strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
 		t.Errorf("the session started again was not told of the plan of its place: %q", said)
 	}
