@@ -15,7 +15,7 @@ check: front
 # gofmt -l does not fix anything and says nothing through its exit code, so the
 # output is what gets checked.
 fmt:
-	@out=$$(gofmt -l .); test -z "$$out" || { echo "!! not gofmt-clean:"; echo "$$out"; exit 1; }
+	@out=$$(git ls-files -co --exclude-standard -z '*.go' | xargs -0 -r gofmt -l); test -z "$$out" || { echo "!! not gofmt-clean:"; echo "$$out"; exit 1; }
 
 vet:
 	go vet ./...
