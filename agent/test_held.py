@@ -191,6 +191,43 @@ class OnTheCard(Runtime):
         self.assertEqual((got["transport"], got["status"]), ("stream", "busy"))
         self.assertNotIn("waitingFor", got)
 
+    def claude_waits(self):
+        """claude's file of the session says it waits for input, from the moment a question was asked."""
+        live.live_session_status = lambda: {"held": "waiting"}
+        live.live_session_waits = lambda: {"held": "input needed"}
+        live.live_session_status_at = lambda: {"held": 1790000000000}
+
+    def test_a_waiting_claude_left_after_the_answer_is_idle_on_the_stream(self):
+        self.claude_waits()
+        self.hold(SID, 1, busy=False)
+        got = self.card()
+        self.assertEqual((got["transport"], got["status"]), ("stream", "idle"),
+                         "claude left waiting in its file after the answer went through the holder")
+        for key in ("waitingFor", "statusUpdatedAt", "turnOver"):
+            self.assertNotIn(key, got, f"the waiting claude left behind put {key} on the card")
+
+    def test_a_waiting_claude_left_after_the_answer_is_busy_while_the_holder_runs_a_turn(self):
+        self.claude_waits()
+        self.hold(SID, 1, busy=True)
+        got = self.card()
+        self.assertEqual(got["status"], "busy")
+        self.assertNotIn("waitingFor", got)
+        self.assertNotIn("turnOver", got)
+
+    def test_a_request_the_holder_holds_waits_with_the_holders_reason(self):
+        self.claude_waits()
+        self.hold(SID, 1, busy=True, waiting=["Bash"])
+        got = self.card()
+        self.assertEqual((got["status"], got["waitingFor"]), ("waiting", "dialog open"),
+                         "the reason of a session on the stream is the holder's, not claude's")
+
+    def test_a_waiting_claude_in_a_terminal_stays_waiting(self):
+        self.claude_waits()
+        got = self.card()
+        self.assertEqual((got["status"], got["waitingFor"], got["statusUpdatedAt"]),
+                         ("waiting", "input needed", 1790000000000),
+                         "in a terminal claude's file is the only word on what the session waits for")
+
     def test_a_session_in_a_terminal_is_not_marked(self):
         self.assertNotIn("transport", self.card())
 

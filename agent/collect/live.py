@@ -267,13 +267,22 @@ def sessions():
                 s["statusUpdatedAt"] = stamp
         hold = held.summary(sid) if sid else None
         if hold:
-            # On the stream the holder is who knows a person is waited for:
-            # claude writes busy or idle, and a request sits with the holder.
+            # On the stream the holder alone knows a person is waited for: a
+            # request sits with it until the answer goes through it. claude
+            # writes waiting to its own file too and can leave it there after
+            # the answer went through the holder, so a waiting the holder
+            # holds no request for is dropped, with the moment it names: the
+            # session is busy while the holder's turn runs and idle otherwise.
             s["transport"] = "stream"
             wait = held.waiting_for(hold)
             if wait:
                 s["status"] = "waiting"
                 s["waitingFor"] = wait
+            else:
+                s.pop("waitingFor", None)
+                if s.get("status") == "waiting":
+                    s["status"] = "busy" if hold.get("busy") is True else "idle"
+                    s.pop("statusUpdatedAt", None)
             # claude keeps a session busy while an agent it sent off works,
             # long after its own turn ended. The holder knows the turn by the
             # protocol: from the word that starts it to the result claude
