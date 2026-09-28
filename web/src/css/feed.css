@@ -592,8 +592,55 @@ div.mtask { cursor: default; }
 .mtask .mfname { line-height: 1.35; }
 .mtask .mfnote { margin-top: .1rem; font-family: var(--mono); letter-spacing: .01em; }
 .mtask .crgo { width: 12px; height: 12px; }
-.mtask.s-ok .mftag { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
-.mtask.s-crit .mftag { color: var(--crit); background: color-mix(in srgb, var(--crit) 18%, transparent); }
+:is(.mtask, .askedrow).s-ok .mftag { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+:is(.mtask, .askedrow).s-crit .mftag { color: var(--crit); background: color-mix(in srgb, var(--crit) 18%, transparent); }
 .mtask.s-crit .mfnote { color: var(--crit); }
-.mtask.s-faint .mftag { color: var(--ink-faint); background: var(--glass-2); }
+:is(.mtask, .askedrow).s-faint .mftag { color: var(--ink-faint); background: var(--glass-2); }
 .mtasks.failed > .senthead .sentico { color: var(--crit); }
+
+/* Questions answered and permissions answered: a row per question, its header
+   — or the tool asked about — as the tag over what was asked, and the answer
+   under it, the brightest words of the row. The rows say, they do not open. */
+.askedrow {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .25rem;
+    padding: .5rem .6rem .55rem;
+    cursor: default;
+}
+.askedrow:active { background: var(--glass); }
+.askedrow .mftag { text-transform: uppercase; }
+.askedq { font-size: var(--t-sm); line-height: 1.4; color: var(--ink-dim); }
+.askedsubj {
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    color: var(--ink-dim);
+}
+.askeda { font-size: var(--t-sm); font-weight: 600; line-height: 1.35; color: var(--ink); }
+.askeda.skip { font-weight: 400; color: var(--ink-faint); }
+.askeda.denied { color: var(--crit); }
+.askedwhy { flex: 1 1 auto; min-width: 0; color: var(--warn); }
+.asked.off { opacity: .78; }
+
+/* A page and a brief: the row the shelf lists them by is the row on the plate
+   of their card, set to the build of the row of a file. */
+.mflist > .artifact {
+    align-self: auto;
+    gap: .55rem;
+    padding: .5rem .6rem;
+    border-radius: 0;
+    background: var(--glass);
+    box-shadow: var(--hairline);
+}
+.mflist > .artifact:active { background: var(--glass-2); }
+.mflist > .artifact .arico { font-size: var(--t-lg); }
+.mflist > .artifact .artitle { font-size: var(--t-sm); line-height: 1.35; }
+.mflist > .artifact .ardesc { font-size: var(--t-xs); }
+.mflist > .artifact .brico { width: 16px; height: 16px; }
+.mflist > .artifact .crgo { width: 12px; height: 12px; }
+
+/* A wake-up is the session's own alarm, not a correspondent: its mark is the
+   quiet ink rather than the accent. */
+.mletter.k-wake .sentico { color: var(--ink-dim); }

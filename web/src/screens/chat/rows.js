@@ -61,15 +61,15 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, copies, onP
     }
 
     if (item.role === "wake") {
-        return html`<${Wake} item=${item} />`;
+        return html`<${Letter} item=${{ ...item, source: "wake" }} />`;
     }
 
     if (item.role === "artifact") {
-        return html`<${ArtifactCard} item=${item} copy=${copies && copies.of(item)} onOpen=${onPage} />`;
+        return html`<${PageCard} item=${item} copy=${copies && copies.of(item)} onOpen=${onPage} />`;
     }
 
     if (item.role === "brief") {
-        return html`<${BriefCard} item=${item} onOpen=${onBrief} />`;
+        return html`<${BriefDoc} item=${item} onOpen=${onBrief} />`;
     }
 
     if (item.role === "asked") {
@@ -231,32 +231,13 @@ function Shot({ src, name }) {
     `;
 }
 
-function Wake({ item }) {
-    const [open, setOpen] = useState(false);
-    return html`
-        <div class=${`mmail wake${open ? " open" : ""}`}>
-            <button class="mmhead" type="button" onClick=${() => setOpen(!open)}
-                    aria-expanded=${open ? "true" : "false"}>
-                <span class="mmico">${Icon.alerts()}</span>
-                <span class="mmfrom">wake-up</span>
-                ${!open && html`<span class="mmpeek">${peek(item.text)}</span>`}
-                ${item.at && html`<span class="mmat">${stampText(item.at)}</span>`}
-            </button>
-            ${open && html`
-                <div class="mmbody">${render(item.text)}</div>
-                ${item.cut && html`<p class="hint warn">The prompt is longer than shown — cut.</p>`}
-            `}
-        </div>
-    `;
-}
-
-// What a letter is: a session next door, a subagent of this one, or a hook of
-// the session speaking at the end of a turn. All three arrive among the
-// prompts wrapped in a preamble nobody reads twice, so all three are drawn the
-// same way — a card of the build of the files sent to the person: who and
-// when on its head, the first lines of the letter, and the rest opened by a
-// row under them.
-const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook" };
+// What a letter is: a session next door, a subagent of this one, a hook of the
+// session speaking at the end of a turn, or an alarm of the session waking it
+// up. All four arrive among the prompts, the first three wrapped in a preamble
+// nobody reads twice, so all four are drawn the same way — a card of the build
+// of the files sent to the person: who and when on its head, the first lines
+// of the letter, and the rest opened by a row under them.
+const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook", wake: "wake" };
 
 const MAIL_WHO = { session: "neighbour session", agent: "subagent", hook: "stop hook" };
 
@@ -264,7 +245,14 @@ const MAIL_LABEL = {
     agent: ["from subagent", "to subagent"],
     session: ["from session", "to session"],
     hook: ["stop hook", "stop hook"],
+    wake: ["wake-up", "wake-up"],
 };
+
+const MAIL_ICONS = { session: Icon.envelope, agent: Icon.envelope, hook: Icon.hook, wake: Icon.alerts };
+
+// What the row under a letter calls it: a wake-up is the prompt the session
+// set itself, not a letter anyone wrote.
+const MAIL_WORD = { session: "letter", agent: "letter", hook: "letter", wake: "prompt" };
 
 function sizeOf(text) {
     const n = text.length;
@@ -291,11 +279,12 @@ function Letter({ item }) {
     }, [text, open]);
     // A letter that went nowhere always opens: its reason is inside.
     const more = text.trim() !== lead.trim() || clamped || Boolean(lost);
-    const who = kind === "hook" ? "" : (item.whoName || item.from || MAIL_WHO[kind]);
+    const who = kind === "hook" || kind === "wake" ? "" : (item.whoName || item.from || MAIL_WHO[kind]);
+    const word = MAIL_WORD[kind];
     return html`
         <div class=${`sent mletter k-${kind}${out ? " out" : ""}${open ? " open" : ""}`}>
             <div class="senthead">
-                <span class="sentico">${kind === "hook" ? Icon.hook() : Icon.envelope()}</span>
+                <span class="sentico">${MAIL_ICONS[kind]()}</span>
                 <span class="sentlabel">${MAIL_LABEL[kind][out ? 1 : 0]}</span>
                 ${lost && html`<span class="mletterlost" title=${item.undelivered}>not delivered</span>`}
                 ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
@@ -303,13 +292,13 @@ function Letter({ item }) {
             ${who && html`<div class="mletterwho" title=${item.from || ""}>${who}</div>`}
             ${open && lost && html`<p class="hint warn mletterwhy">${item.undelivered}</p>`}
             <div class=${`sentcap mletterbody${open ? "" : " closed"}`} ref=${cap}>${render(open ? text : lead)}</div>
-            ${open && item.cut && html`<p class="hint warn">The letter is longer than shown — cut.</p>`}
+            ${open && item.cut && html`<p class="hint warn">The ${word} is longer than shown — cut.</p>`}
             ${more && html`
                 <div class="mflist">
                     <button class="mfile mlettermore" type="button" onClick=${() => setOpen(!open)}
                             aria-expanded=${open ? "true" : "false"}>
                         <span class="mfico">${open ? Icon.close() : Icon.file()}</span>
-                        <span class="mfname">${open ? "Fold the letter" : lost ? "Why it was not delivered" : "The whole letter"}</span>
+                        <span class="mfname">${open ? `Fold the ${word}` : lost ? "Why it was not delivered" : `The whole ${word}`}</span>
                         <span class="mfsize">${sizeOf(text)}</span>
                     </button>
                 </div>
@@ -433,26 +422,36 @@ const ROUND_NAMES = {
     failed: "the call never happened",
 };
 
+// AskedCard is a round of questions the person answered, a card of the build
+// of the files sent to them: the head says what it was and when, and each
+// question is a row on the plate — its header as the tag, the question, and
+// what was picked. A question left without an answer has its tag dimmed, so
+// the round reads at a glance.
 function AskedCard({ item }) {
     const rows = item.asked || [];
     const note = ROUND_NAMES[item.status];
     return html`
-        <div class=${`asked${item.status ? " off" : ""}`}>
-            <div class="askedhead">
-                <span class="askedico">${Icon.ask()}</span>
-                <span class="askedlabel">${rows.length > 1 ? "questions" : "question"}</span>
+        <div class=${`sent asked${item.status ? " off" : ""}`}>
+            <div class="senthead">
+                <span class="sentico">${Icon.ask()}</span>
+                <span class="sentlabel">${rows.length > 1 ? "questions" : "question"}</span>
                 ${note && html`<span class="askedwhy">${note}</span>`}
-                ${item.at && html`<span class="askedat">${stampText(item.at)}</span>`}
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
             </div>
-            ${rows.map((row, n) => html`
-                <div class="askedrow" key=${n}>
-                    ${row.header && html`<span class="askedtop">${row.header}</span>`}
-                    <span class="askedq">${row.text}</span>
-                    ${(row.answer || []).length
-                        ? html`<span class="askeda">${row.answer.join(" · ")}</span>`
-                        : !item.status && html`<span class="askeda skip">skipped</span>`}
-                </div>
-            `)}
+            <div class="mflist">
+                ${rows.map((row, n) => {
+                    const answer = row.answer || [];
+                    return html`
+                        <div class=${`mfile askedrow${answer.length ? "" : " s-faint"}`} key=${n}>
+                            ${row.header && html`<span class="mftag">${row.header}</span>`}
+                            <span class="askedq">${row.text}</span>
+                            ${answer.length
+                                ? html`<span class="askeda">${answer.join(" · ")}</span>`
+                                : !item.status && html`<span class="askeda skip">skipped</span>`}
+                        </div>
+                    `;
+                })}
+            </div>
         </div>
     `;
 }
@@ -465,28 +464,74 @@ function permitAnswer(row) {
 }
 
 // PermittedCard is what a person answered to the permissions of the calls
-// above it: the transcript has the calls and nothing of the question.
+// above it: the transcript has the calls and nothing of the question. It is
+// drawn as a round of questions is, the tool as the tag of its row, and the
+// tag takes the tone of the answer, as the tag of a task done takes the tone
+// of its end.
 function PermittedCard({ item }) {
     const rows = item.rows || [];
     return html`
-        <div class="asked permitted">
-            <div class="askedhead">
-                <span class="askedico">${Icon.hand()}</span>
-                <span class="askedlabel">${rows.length > 1 ? "permissions" : "permission"}</span>
-                ${item.at && html`<span class="askedat">${stampText(item.at)}</span>`}
+        <div class="sent asked permitted">
+            <div class="senthead">
+                <span class="sentico">${Icon.hand()}</span>
+                <span class="sentlabel">${rows.length > 1 ? "permissions" : "permission"}</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
             </div>
-            ${rows.map((row, n) => html`
-                <div class="askedrow" key=${n}>
-                    <span class="askedtop">${row.tool}</span>
-                    ${row.subject && html`<code class="askedsubj">${row.subject}</code>`}
-                    <span class=${`askeda${row.decision === "deny" ? " denied" : ""}`}>${permitAnswer(row)}</span>
-                </div>
-            `)}
+            <div class="mflist">
+                ${rows.map((row, n) => {
+                    const denied = row.decision === "deny";
+                    return html`
+                        <div class=${`mfile askedrow s-${denied ? "crit" : "ok"}`} key=${n}>
+                            <span class="mftag">${row.tool}</span>
+                            ${row.subject && html`<code class="askedsubj">${row.subject}</code>`}
+                            <span class=${`askeda${denied ? " denied" : ""}`}>${permitAnswer(row)}</span>
+                        </div>
+                    `;
+                })}
+            </div>
         </div>
     `;
 }
 
-// ArtifactCard renders a published artifact as a card.
+// PageCard is a page the session published, a card of the build of the files
+// sent to the person: the head says a page went out, or that one already out
+// was published again, and the page is the row on the plate that opens it —
+// the same row the shelf of pages lists it by.
+function PageCard({ item, copy, onOpen }) {
+    return html`
+        <div class="sent mpage">
+            <div class="senthead">
+                <span class="sentico">${Icon.artifact()}</span>
+                <span class="sentlabel">${item.again ? "page updated" : "page"}</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            <div class="mflist">
+                <${ArtifactCard} item=${item} copy=${copy} onOpen=${onOpen} />
+            </div>
+        </div>
+    `;
+}
+
+// BriefDoc is a brief the session published: the head says so, and the
+// document is the row on the plate that opens it, as the shelf of briefs has
+// it.
+function BriefDoc({ item, onOpen }) {
+    return html`
+        <div class="sent mbrief">
+            <div class="senthead">
+                <span class="sentico">${Icon.plan()}</span>
+                <span class="sentlabel">brief</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            <div class="mflist">
+                <${BriefCard} item=${item} onOpen=${onOpen} named=${false} />
+            </div>
+        </div>
+    `;
+}
+
+// ArtifactCard renders a published artifact as the row that opens it: on the
+// plate of its card in the feed and on the shelf of pages.
 //
 // A page goes out into the account its session works under, and the reader of
 // the panel is signed into one account at a time. Where the panel kept a copy
@@ -501,7 +546,6 @@ export function ArtifactCard({ item, copy, onOpen, onSeen }) {
                 <span class="ardesc">${item.again ? item.note : item.desc}</span>
             `}
             <span class="armeta">
-                ${item.again ? html`<span class="arnew">update</span>` : ""}
                 <span>${item.file}</span>
                 ${item.count > 1 && html`
                     <span>${item.count} ${plural(item.count, "version", "versions")}</span>
@@ -528,8 +572,10 @@ export function ArtifactCard({ item, copy, onOpen, onSeen }) {
 }
 
 // BriefCard renders a brief the session published: a document that waits for
-// the person rather than a message they read in passing.
-export function BriefCard({ item, onOpen }) {
+// the person rather than a message they read in passing. On the plate of its
+// card in the feed the head already names it a brief, and the row drops the
+// word (named false).
+export function BriefCard({ item, onOpen, named = true }) {
     const asks = item.questions > 0;
     // A card listed after the document was answered says where it stands, not
     // only how much it asked: "5 of 5" and "sent" are different states, and a
@@ -541,7 +587,7 @@ export function BriefCard({ item, onOpen }) {
             <span class="artitle">${item.title}</span>
             ${item.eyebrow && html`<span class="ardesc">${item.eyebrow}</span>`}
             <span class="armeta">
-                <span class="arnew">brief</span>
+                ${named && html`<span class="arnew">brief</span>`}
                 <span>${asks
                     ? `${item.questions} ${plural(item.questions, "question", "questions")}`
                     : "nothing to answer"}</span>
@@ -556,10 +602,4 @@ export function BriefCard({ item, onOpen }) {
     return html`
         <button type="button" class="artifact arbrief" onClick=${() => onOpen(item.id)}>${body}</button>
     `;
-}
-
-function peek(text) {
-    const line = (text || "").split("\n").map((s) => s.replace(/^[#>*\-\s]+/, "").trim())
-        .find((s) => s.length > 0) || "";
-    return line.length > 90 ? `${line.slice(0, 90)}…` : line;
 }
