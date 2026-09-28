@@ -32,6 +32,7 @@ export const LOOK_NAMES = {
     commands: "commands",
     rename: "rename",
     tools: "tools of the session",
+    plan: "plan",
 };
 
 export const WORK_LISTS = new Set(["tasks", "agents", "arts", "briefs", "workflows"]);

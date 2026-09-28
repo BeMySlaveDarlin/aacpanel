@@ -488,6 +488,12 @@ span.pjname { cursor: default; }
     overflow: hidden;
     overflow-wrap: anywhere;
 }
+/* Where the session is in the plan of its work: after the state, on its line,
+   in the room the state leaves. It grows from nothing, so the state never
+   wraps to make room for it, and it is cut before the state is. */
+.pjstate.planned { align-self: stretch; }
+.pjplan { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink-dim); }
+.pjplan::before { content: "·"; margin-right: .45rem; color: var(--ink-faint); }
 .pjsince { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
 .pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.65em - .25rem); border-radius: 50%; background: currentColor; }
 .pj-wait { color: var(--wait); }
