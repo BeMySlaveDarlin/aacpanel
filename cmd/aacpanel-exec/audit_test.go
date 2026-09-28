@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/executor"
 )
 
 func TestAuditedForwardsTheQuestion(t *testing.T) {
@@ -154,5 +156,26 @@ func TestAuditedForwardsTheGuards(t *testing.T) {
 	}
 	if err := any(audited{next: muteExec{}}).(action.GuardKeeper).KeepGuards(t.Context(), want); err == nil {
 		t.Error("an executor that keeps no guards said nothing instead of refusing")
+	}
+}
+
+// The journal wrapper stands between the socket and the executor, and the
+// server asks it, not the executor, what it can do: every question the
+// executor answers has to pass through the wrapper, or the panel is told
+// "this executor cannot" about a thing the executor does — as the side chat,
+// the commands and the setup of a session once were.
+func TestAuditedAnswersEveryQuestionTheExecutorAnswers(t *testing.T) {
+	askers := []reflect.Type{
+		reflect.TypeFor[action.Asker](), reflect.TypeFor[action.WindowAsker](), reflect.TypeFor[action.ModelsAsker](),
+		reflect.TypeFor[action.McpAsker](), reflect.TypeFor[action.StatusAsker](), reflect.TypeFor[action.CommandsAsker](),
+		reflect.TypeFor[action.SideAsker](), reflect.TypeFor[action.SetupAsker](), reflect.TypeFor[action.GuardKeeper](),
+		reflect.TypeFor[action.Capable](),
+	}
+	exec := reflect.TypeFor[*executor.Executor]()
+	wrap := reflect.TypeFor[audited]()
+	for _, asker := range askers {
+		if exec.Implements(asker) && !wrap.Implements(asker) {
+			t.Errorf("the executor is a %s and the wrapper is not: the panel is told the executor cannot", asker)
+		}
 	}
 }

@@ -387,6 +387,33 @@ func (a audited) Status(ctx context.Context, target string) (*action.Status, err
 	return asker.Status(ctx, target)
 }
 
+// Commands asks the wrapped executor which commands a session knows.
+func (a audited) Commands(ctx context.Context, target string) (*action.SessionCommands, error) {
+	asker, ok := a.next.(action.CommandsAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know the commands of a session")
+	}
+	return asker.Commands(ctx, target)
+}
+
+// Side asks a session a question aside through the wrapped executor.
+func (a audited) Side(ctx context.Context, target, question string, history []action.SideTurn) (*action.Side, error) {
+	asker, ok := a.next.(action.SideAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not ask a session questions aside")
+	}
+	return asker.Side(ctx, target, question, history)
+}
+
+// Setup asks the wrapped executor about a part of the setup of a session.
+func (a audited) Setup(ctx context.Context, target, part string) (*action.Setup, error) {
+	asker, ok := a.next.(action.SetupAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know the setup of a session")
+	}
+	return asker.Setup(ctx, target, part)
+}
+
 func (a audited) Execute(ctx context.Context, req action.Request) (string, error) {
 	log.Printf("audit phase=start action=%s target=%s device=%q request=%s",
 		req.Kind, req.Target, req.Device, req.ID)
