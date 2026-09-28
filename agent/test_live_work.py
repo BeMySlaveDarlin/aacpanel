@@ -44,10 +44,16 @@ class WorkOfASession(unittest.TestCase):
         self.assertEqual(got, {"tasks": 0, "agents": 0})
 
 
-class CallOnTheCard(unittest.TestCase):
-    """A call a session made reaches the snapshot, which is all the panel reads."""
+class CallOfASession(unittest.TestCase):
+    """A call waits on the board for the panel, which takes it from the chat socket.
+
+    The sessions pass keeps the board to the sessions that live; the card of a
+    session does not carry the call, since the snapshot is read on a tick and a
+    call is for now.
+    """
 
     SESSION = "abcd1234-0000-4000-8000-000000000000"
+    GONE = "abcd1234-0000-4000-8000-00000000dead"
 
     def setUp(self):
         self.dir = test_barrier.tmp_dir()
@@ -69,15 +75,22 @@ class CallOnTheCard(unittest.TestCase):
     def only(self):
         return live.sessions()["sessions"][0]
 
-    def test_a_session_that_called_carries_its_line(self):
-        self.board.put({"sessionId": self.SESSION, "text": "need you", "at": "2026-09-08T03:00:00Z"})
-        got = self.only()
-        self.assertEqual(got.get("note"), {"text": "need you", "at": "2026-09-08T03:00:00Z"},
-                         "the call is not on the card the panel reads, so no push is ever made")
+    def put(self, session):
+        ok, why = self.board.put(notes.clean({"sessionId": session, "text": "need you"}))
+        self.assertTrue(ok, why)
 
-    def test_a_session_that_did_not_call_carries_nothing(self):
-        self.assertNotIn("note", self.only(),
-                         "an empty call on every card makes the panel push about silence")
+    def test_the_call_of_a_live_session_stands_for_the_panel(self):
+        self.put(self.SESSION)
+        card = self.only()
+        self.assertIsNotNone(self.board.of(self.SESSION),
+                             "the sessions pass swept the call of a live session before the panel took it")
+        self.assertNotIn("note", card, "the card carries a copy of the call that nobody reads")
+
+    def test_the_call_of_a_session_gone_is_swept(self):
+        self.put(self.GONE)
+        self.only()
+        self.assertIsNone(self.board.of(self.GONE),
+                          "the call of a session that is gone stands on the board, and the panel pushes it")
 
 
 if __name__ == "__main__":

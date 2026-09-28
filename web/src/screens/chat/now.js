@@ -89,7 +89,8 @@ export function clock(sec) {
     return h > 0 ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
 }
 
-function useTick() {
+// useTick redraws its component every second, asking nothing: a clock.
+export function useTick() {
     const [, setNow] = useState(0);
     useEffect(() => {
         const timer = setInterval(() => setNow(Date.now()), 1000);

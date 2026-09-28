@@ -636,7 +636,6 @@ The rest is optional and one at a time, because it is data:
 | `Failed to connect to bus` from `systemctl --user` | linger is off, or you signed in without a logind session |
 | the feed is visible from the phone, but there is no switch to the terminal | that is by design: `AACP_TERM_PUBLIC=0` |
 | the projects screen is empty although there are projects on disk | not a single profile has been created: the button is on that same screen |
-| `the schema does not match the migrations` in the log | an applied migration file was changed; repeating does not cure it |
 | tailscale: the node does not sign in, dead nodes pile up in the admin console | signing in by the link from the log does not work, `TS_AUTHKEY` is needed before the container comes up |
 
 Boundaries that do not get fixed: passkeys, PWA and pushes work only in a secure

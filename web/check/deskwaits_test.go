@@ -207,6 +207,9 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		// standing where it stood, only its composer comes back.
 		"session.escape":  "",
 		"session.unqueue": "",
+		// A command runs beside the conversation: the session stays where it
+		// stood, and the card of the command follows it in the feed.
+		"session.shell":   "",
 		"session.file":    "",
 		"session.command": "",
 		// A setting changes the session in place: nothing leaves the list or joins it.

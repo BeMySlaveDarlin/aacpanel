@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .deskshell{position:static;height:100%}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div id="root"></div><i id="probe"></i></div>
+<script type="module">
+// The rings of a contour's limit at a desk, one pair a contour: the share
+// spent fills each ring in one colour that steps at the thresholds, and under
+// it stands how long until the window starts over, short and rounded up.
+import { h, render } from "preact";
+import { ContourLimits } from "/src/desktop/sessions.js";
+
+const at = (sec) => Date.now() / 1000 + sec;
+const M = 60, H = 3600, D = 86400;
+// Shares on both sides of each threshold, and times left on both sides of
+// each unit: a rounding up that reaches the next unit, a moment already
+// past, and a reset the snapshot does not know.
+const pairs = [
+    [{ pct: 20, resetsAt: at(2 * H + 13 * M) }, { pct: 60, resetsAt: at(4 * D + 3 * H) }],
+    [{ pct: 69, resetsAt: at(59 * M + 30) }, { pct: 70, resetsAt: at(23 * H + 10 * M) }],
+    [{ pct: 89, resetsAt: at(30) }, { pct: 90, resetsAt: at(36 * H) }],
+    [{ pct: 99, resetsAt: at(-90) }, { pct: 41 }],
+    [{ pct: 0 }, { pct: 85, resetsAt: at(46 * M + 20) }],
+];
+const limits = { contours: pairs.map(([fiveHour, sevenDay], i) => ({
+    profile: `c${i}`, contour: i + 1, ageSec: 30, fiveHour, sevenDay,
+})) };
+render(h("div", null, pairs.map((_, i) => h("div", { key: i },
+    h(ContourLimits, { limits, name: `c${i}`, profiles: [] })))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+// tone is the colour a token of the theme resolves to where the rings stand.
+const probe = document.getElementById("probe");
+const tone = (name) => {
+    probe.style.color = `var(${name})`;
+    return getComputedStyle(probe).color;
+};
+// stops reads the conic fill the dial is cut out of: each colour with the
+// position it runs to.
+const stops = (dial) => {
+    const image = getComputedStyle(dial, "::before").backgroundImage;
+    return { image, stops: Array.from(image.matchAll(/(rgba?\([^)]*\))\s*([^,)]*)/g))
+        .map((m) => ({ color: m[1], at: m[2].trim() })) };
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    for (let i = 0; i < 60 && document.querySelectorAll(".dkring").length < pairs.length * 2; i++) await sleep(50);
+    const rings = Array.from(document.querySelectorAll(".dkring")).map((r) => {
+        const fill = stops(r.querySelector(".dkringdial"));
+        return {
+            value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")),
+            image: fill.image, stops: fill.stops, ink: getComputedStyle(r.querySelector("b")).color,
+            tip: r.getAttribute("data-tip") || "",
+        };
+    });
+    const tones = { accent: tone("--accent"), warn: tone("--warn"), crit: tone("--crit"), ink: tone("--ink-dim") };
+    // The details of the third contour: a window of a minute and one of a
+    // day and a half.
+    document.querySelectorAll(".dkrings")[2].click();
+    await sleep(120);
+    const pop = document.querySelector(".dklimpop");
+    const details = pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await sleep(60);
+    document.querySelectorAll(".dkrings")[3].click();
+    await sleep(120);
+    const past = document.querySelector(".dklimpop");
+    return { rings, tones, details, past: past ? Array.from(past.querySelectorAll(".dklimwin")).map(text) : null };
+})();
+</script>

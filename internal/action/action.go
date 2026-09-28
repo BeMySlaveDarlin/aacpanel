@@ -42,6 +42,10 @@ const (
 	SessionFile Kind = "session.file"
 	// SessionCommand sends a slash command into a session.
 	SessionCommand Kind = "session.command"
+	// SessionShell runs a command typed after "!" in a session on the stream,
+	// as the composer of a terminal runs one: in the session's directory and
+	// with no turn of the model, its output going into the conversation.
+	SessionShell Kind = "session.shell"
 
 	// SessionPermit answers a permission prompt.
 	SessionPermit Kind = "session.permit"
@@ -87,7 +91,7 @@ const (
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
-	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
+	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }

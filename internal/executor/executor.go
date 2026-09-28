@@ -92,6 +92,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.sessionFile(ctx, req.Target, req.Text, req.Files)
 	case action.SessionCommand:
 		return e.sessionCommand(ctx, req.Target, req.Command)
+	case action.SessionShell:
+		return e.sessionShell(ctx, req.Target, req.Text, req.MessageID)
 	case action.SessionPermit:
 		return e.sessionPermit(ctx, req.Target, req.Permit)
 	case action.SessionSwitch:

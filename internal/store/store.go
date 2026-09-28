@@ -108,25 +108,20 @@ func (s *Store) Open(ctx context.Context) error {
 	return s.connect(ctx, true, false)
 }
 
-// Run connects to the database, applies the migrations and starts the housekeeping.
-func (s *Store) Run(ctx context.Context) error {
+// Run connects to the database, applies the migrations and starts the
+// housekeeping, retrying until it succeeds or ctx ends.
+func (s *Store) Run(ctx context.Context) {
 	delay := retryMin
 	for {
 		err := s.connect(ctx, true, true)
-		if err == nil {
-			return nil
-		}
-		if ctx.Err() != nil {
-			return nil
-		}
-		if errors.Is(err, ErrSchemaMismatch) {
-			return err
+		if err == nil || ctx.Err() != nil {
+			return
 		}
 		log.Printf("store: %v; retrying in %s", err, delay)
 
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-time.After(delay):
 		}
 		if delay *= 2; delay > retryMax {

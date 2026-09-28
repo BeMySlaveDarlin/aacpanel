@@ -313,6 +313,14 @@ export const ACTIONS = {
         instant: true,
         done: (target) => `Sent to ${target}`,
     },
+    // A command after "!" is typed and run with no sheet in between, as in
+    // the composer of a terminal: the press is the decision.
+    "session.shell": {
+        instant: true,
+        effect: "The session's shell runs the command in its directory beside the conversation; "
+            + "what it printed goes into the conversation when it ends, and the model answers it.",
+        done: (target) => `Running in ${target}`,
+    },
     "session.answer": {
         instant: true,
         done: (target) => `Answer sent to ${target}`,
@@ -808,6 +816,7 @@ const NAMES = {
     "session.resume": "Resume session",
     "session.switch": "Move between console and feed",
     "session.send": "Write to session",
+    "session.shell": "Run a shell command",
     // No screen sends a letter: a session writes one to another with a tool
     // of the panel's server, and the journal names it here.
     "session.letter": "Letter from another session",

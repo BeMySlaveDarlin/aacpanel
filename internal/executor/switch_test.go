@@ -97,6 +97,11 @@ func TestSwitchFromStreamStopsAtWhatItWouldLose(t *testing.T) {
 		{"a turn in progress", func(s *stream.State) { s.Busy = true }, true, "answering right now"},
 		{"a request waiting for a person", func(s *stream.State) { s.Pending = []stream.Pending{bash("r1", "")} }, true, "waiting for an answer (Bash)"},
 		{"messages in the queue", func(s *stream.State) { s.Queue = []stream.Queued{{UUID: "u1", Text: "next"}} }, true, "1 message in its queue"},
+		// A command started with "!" lives inside claude, and its output
+		// reaches the conversation only through the holder of this claude.
+		{"a shell command still running", func(s *stream.State) {
+			s.Shells = []stream.Shell{{UUID: "u2", Command: "make check"}}
+		}, true, "1 shell command started from the panel"},
 		{"background tasks nobody agreed to stop", func(s *stream.State) {
 			s.Tasks = []stream.Task{{ID: "b1", Description: "make check"}}
 		}, false, "1 background task that stop with the switch: make check"},

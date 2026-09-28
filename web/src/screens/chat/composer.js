@@ -11,6 +11,7 @@ import { WIDE } from "../../ui/wide.js";
 import { dictation, HOLD_MS, join, listen, speech } from "./dictate.js";
 import { clipName, FILES_MAX, intake, mb, PickFile } from "./tools.js";
 import { withQuote } from "./quote.js";
+import { shellOf } from "./shell.js";
 
 const MAX_COMPOSER = 112;
 
@@ -269,6 +270,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const canFile = knows(exec, "session.file");
     const fileWhy = whyNot(exec, "session.file");
     const canCmd = knows(exec, "session.command");
+    const canShell = knows(exec, "session.shell");
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
     const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
@@ -281,6 +283,9 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     // A question aside on the stream is the panel's to ask: it goes to the side
     // chat and never into the conversation.
     const side = stream && onSide && !pack.length ? parseSide(text) : null;
+    // A leading "!" on the stream is a command for the shell of the session,
+    // as it is in the composer of a terminal; a console takes it as typed.
+    const bang = stream && canShell && !pack.length ? shellOf(text) : null;
     const listing = canCmd && !pack.length && !(cmd && cmd.ready) && !lists && !opens && !(side && side.question);
     // On the stream the list is the session's own, every command and skill it
     // takes; until it has come, and in a console, the panel's own list stands.
@@ -297,7 +302,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const canTalk = hear.on && !cmd && !pack.length;
     const asMic = canTalk && !text.trim();
     const cantSend = !ready || sending
-        || (side ? false : cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
+        || (side ? false : bang ? !bang.command : cmd ? !(cmd.ready || lists || opens) : (pack.length ? !canFile : (!text.trim() && !canTalk)));
     const stopping = busy && !text.trim() && !pack.length;
 
     const stop = async () => {
@@ -324,6 +329,29 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         const result = await run("session.command", name, { command: cmd.command, arg: cmd.arg });
         setSending(false);
         if (result.ok) setText("");
+    };
+
+    // sendShell has claude run the command beside the conversation. The row is
+    // the page's own until the command ends and the transcript takes it over:
+    // going out, then running since the host took it, or why it did not start.
+    // It is not held back behind an answer the way a message is: it goes to
+    // the shell, not into the composer of the session.
+    const sendShell = async (body) => {
+        const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const runId = messageID(stream, pack);
+        setText("");
+        setSending(true);
+        if (onLocal) {
+            onLocal({ role: "shell", key, at: new Date().toISOString(), text: bang.command, sent: body,
+                      messageId: runId, state: "sending" });
+        }
+        const result = await run("session.shell", name, runId ? { text: bang.command, messageId: runId } : { text: bang.command });
+        setSending(false);
+        if (onLocalDone) {
+            onLocalDone(key, result.ok
+                ? { state: "running", since: new Date().toISOString() }
+                : { state: "failed", error: result.error || "the session did not take it" });
+        }
     };
 
     const paste = async (event) => {
@@ -361,6 +389,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         }
         taken.current = true;
         if (cmd) return sendCommand();
+        if (bang) return sendShell(body);
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");
         const messageId = messageID(stream, pack);
@@ -459,8 +488,8 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                     <button
                         class=${`iconbtn accent sendbtn${hear.live ? " hearing" : ""}`}
                         type="button"
-                        aria-label=${micLabel(asMic, hear.live, cmd, name, side)}
-                        title=${micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd)}
+                        aria-label=${micLabel(asMic, hear.live, cmd, name, side, bang)}
+                        title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang)}
                         disabled=${cantSend}
                         onClick=${() => { if (!hear.tap(asMic)) send(); }}
                         onPointerDown=${(e) => hear.down(e, asMic)}
@@ -545,22 +574,28 @@ function placeholder(ready, why, name, pack) {
     return pack.length > 1 ? "A caption for the files — optional" : "A caption for the file — optional";
 }
 
-function micLabel(asMic, live, cmd, name, side) {
+function micLabel(asMic, live, cmd, name, side, bang) {
     if (live) return `listening to what goes to session ${name} — press again to stop`;
     if (asMic) return `talk to session ${name}`;
     if (side) return `ask session ${name} aside`;
+    if (bang) return `run the command in session ${name}`;
     return cmd ? `send a command to session ${name}` : `send to session ${name}`;
 }
 
-function micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd) {
+function micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd, bang) {
     if (hear.live) return "listening — press again to stop, and the words stay in the field";
     if (asMic) return "press to talk";
-    const plain = hold ? "will go out when the session is free" : sendTitle(ready, why, canFile, fileWhy, pack, cmd);
+    const plain = hold ? "will go out when the session is free" : sendTitle(ready, why, canFile, fileWhy, pack, cmd, bang);
     return hear.on ? `${plain} · hold to talk` : plain;
 }
 
-function sendTitle(ready, why, canFile, fileWhy, pack, cmd) {
+function sendTitle(ready, why, canFile, fileWhy, pack, cmd, bang) {
     if (cmd) return cmd.ready ? "send the command" : "pick a command option";
+    if (bang) {
+        return bang.command
+            ? "run it in the session's directory — the output goes into the conversation"
+            : "type the command after the !";
+    }
     if (pack.length) {
         if (!canFile) return fileWhy;
         return pack.length > 1 ? `send ${pack.length} files — as one message` : "send the file";

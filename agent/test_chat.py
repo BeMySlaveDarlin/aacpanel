@@ -466,6 +466,54 @@ class ShellCommands(unittest.TestCase):
         items = chat.feed(self.path)["items"]
         self.assertEqual([i["role"] for i in items], ["tools", "shell", "shellout", "tools"])
 
+    RAN = ("<bash-input>make check</bash-input><bash-stdout>ok &amp; done</bash-stdout>"
+           "<bash-stderr></bash-stderr><bash-exit-code>0</bash-exit-code>")
+
+    def queued(self, text):
+        return line({"type": "queue-operation", "operation": "enqueue", "content": text,
+                     "timestamp": "2026-08-23T10:00:01Z"})
+
+    def dequeued(self):
+        return line({"type": "queue-operation", "operation": "dequeue",
+                     "timestamp": "2026-08-23T10:00:02Z"})
+
+    def read(self, text):
+        return line({"type": "user", "promptSource": "sdk", "timestamp": "2026-08-23T10:00:02Z",
+                     "message": {"role": "user", "content": text}})
+
+    def test_a_command_run_on_the_stream_comes_as_one_prompt(self):
+        got = self.items(user(self.RAN))
+        self.assertEqual([(i["role"], i["text"], i.get("code")) for i in got],
+                         [("shell", "make check", 0), ("shellout", "ok & done", 0)])
+        self.assertEqual({i["pos"] for i in got}, {0})
+        self.assertEqual(got[1]["command"], "make check", "the sheet of the output names its command")
+
+    def test_a_failed_command_says_how_it_ended(self):
+        got = self.items(user("<bash-input>false</bash-input><bash-stdout></bash-stdout>"
+                              "<bash-stderr>no such file</bash-stderr><bash-exit-code>127</bash-exit-code>"))
+        self.assertEqual([(i["role"], i.get("code"), i.get("err")) for i in got],
+                         [("shell", 127, None), ("shellout", 127, "no such file")])
+
+    def test_a_console_command_has_no_exit_code(self):
+        got = self.items(user("<bash-stdout>ok</bash-stdout><bash-stderr></bash-stderr>"))
+        self.assertNotIn("code", got[0])
+
+    def test_the_stream_draws_the_command_where_it_is_queued_and_once(self):
+        self.write(self.queued(self.RAN), self.dequeued(), self.read(self.RAN))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([(i["role"], i["text"]) for i in items],
+                         [("shell", "make check"), ("shellout", "ok & done")])
+        self.assertFalse([i for i in items if i.get("state")], "the command is not a message waiting in the queue")
+
+    def test_the_output_leaves_the_queue_in_its_turn(self):
+        self.write(self.queued("and then the docs"), self.queued(self.RAN),
+                   self.dequeued(), self.read("and then the docs"),
+                   self.dequeued(), self.read(self.RAN))
+        items = chat.feed(self.path)["items"]
+        self.assertEqual([(i["role"], i["text"], i.get("state")) for i in items],
+                         [("me", "and then the docs", None), ("shell", "make check", None),
+                          ("shellout", "ok & done", None)])
+
 
 class Queue(unittest.TestCase):
     def items(self, raw, pending=None):

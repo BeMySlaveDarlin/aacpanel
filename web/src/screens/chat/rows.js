@@ -13,12 +13,13 @@ import { idParam } from "./api.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, SentCard } from "./files.js";
 import { Photo, shotName } from "./photo.js";
+import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, stampText, tokenWord } from "./labels.js";
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, onCommand, copies, onPage, onTask }) {
+export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, copies, onPage, onTask }) {
     if (item.role === "shots") {
         const shots = item.shots || [];
         if (!shots.length) return null;
@@ -89,20 +90,10 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, copies, onP
     }
 
     if (item.role === "shell") {
-        return html`
-            <div class="mshell">
-                <span class="mshellmark" role="img" aria-label="shell command">!</span>
-                <code class="mshellcmd">${item.text}</code>
-            </div>
-        `;
+        return html`<${ShellCommand} item=${item} />`;
     }
     if (item.role === "shellout") {
-        if (!item.text && !item.err) return null;
-        return html`
-            ${item.text && html`<pre class="mshellout">${item.text}</pre>`}
-            ${item.err && html`<pre class="mshellerr">${item.err}</pre>`}
-            ${item.cut && html`<p class="hint warn">The output is longer than shown — cut.</p>`}
-        `;
+        return html`<${ShellOutput} item=${item} onOpen=${onShell} />`;
     }
 
     const failed = item.state === "failed";

@@ -261,10 +261,11 @@ function KinFold({ kids, line }) {
 }
 
 // leftOf is how long a window of a limit has before it starts over, rounded
-// up in the one unit it is said in: minutes under an hour, hours under two
-// days, days past that. Nothing when the snapshot does not say; nought once
-// the moment has passed and the snapshot has not caught up.
-function leftOf(part) {
+// up in the one unit it is said in: minutes under an hour, hours under
+// dayFrom of them, days past that. Rounding up that reaches the next unit is
+// said in it: 59.5 minutes are an hour. Nothing when the snapshot does not
+// say; nought once the moment has passed and the snapshot has not caught up.
+function leftOf(part, dayFrom) {
     const at = part && part.resetsAt;
     if (!at) return null;
     const left = at * 1000 - Date.now();
@@ -272,30 +273,47 @@ function leftOf(part) {
     const minutes = Math.ceil(left / 60000);
     if (minutes < 60) return { n: minutes, unit: "m" };
     const hours = Math.ceil(left / 3600000);
-    if (hours < 48) return { n: hours, unit: "h" };
+    if (hours < dayFrom) return { n: hours, unit: "h" };
     return { n: Math.ceil(left / 86400000), unit: "d" };
 }
 
-// resetIn says when a window of a limit starts over, or nothing when the
-// snapshot does not say.
+// resetIn says in the details when a window of a limit starts over, or
+// nothing when the snapshot does not say. The details keep hours up to two
+// days: they are where the finer figure is read.
 function resetIn(part) {
-    const left = leftOf(part);
+    const left = leftOf(part, 48);
     if (!left) return "";
     if (left.n === 0) return "any moment";
     return `${left.n} ${left.unit === "m" ? "min" : left.unit}`;
 }
 
-// Ring is one window of a contour's limit: a circle filled by the share spent
-// in one colour whatever the share, the share inside it, and under it how long
-// until the window starts over — or the window itself when that is not known.
+// shortLeft is the time left under a ring: a number and one letter, a day
+// from twenty-four hours on. A moment already past reads 0m: the name of the
+// window beside a countdown would read as hours left. Nothing when the
+// snapshot does not say.
+function shortLeft(part) {
+    const left = leftOf(part, 24);
+    if (!left) return "";
+    return left.n === 0 ? "0m" : `${left.n}${left.unit}`;
+}
+
+// limitLevel is the tone of a share of a limit: warning from 70, critical
+// from 90, the usual colour under that.
+function limitLevel(value) {
+    return value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
+}
+
+// Ring is one window of a contour's limit: a circle filled by the share spent,
+// the share inside it, and under it how long until the window starts over —
+// or the window itself when that is not known. The fill is one colour, which
+// steps at the thresholds of limitLevel.
 function Ring({ label, title, part }) {
     const value = Math.round((part && part.pct) || 0);
-    const left = leftOf(part);
     const when = resetIn(part);
     return html`
-        <span class="dkring" data-tip=${when ? `${title}: resets in ${when}` : title}>
+        <span class=${`dkring ${limitLevel(value)}`.trim()} data-tip=${when ? `${title}: resets in ${when}` : title}>
             <span class="dkringdial" style=${`--share:${Math.min(100, value)}`}><b>${value}</b></span>
-            <span class="dkringlabel">${left && left.n > 0 ? `${left.n}${left.unit}` : label}</span>
+            <span class="dkringlabel">${shortLeft(part) || label}</span>
         </span>
     `;
 }
@@ -304,7 +322,7 @@ function Ring({ label, title, part }) {
 // it starts over.
 function Window({ title, part }) {
     const value = Math.round((part && part.pct) || 0);
-    const level = value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
+    const level = limitLevel(value);
     const left = resetIn(part);
     return html`
         <div class=${`dklimwin ${level}`.trim()}>

@@ -266,6 +266,55 @@ func TestSessionSendKeepsTextOutOfJournalPG(t *testing.T) {
 	}
 }
 
+// A shell command reaches the executor whole and the journal by its length
+// only: it is a line of the conversation, and it may carry a secret.
+func TestSessionShellKeepsTheCommandOutOfJournalPG(t *testing.T) {
+	dsn := testdb.DSN(t)
+	db, err := store.New(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	client, exec := startFakeExec(t, action.Response{OK: true, Detail: "the command runs in aacpanel"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client, db: db}
+
+	const command = "DEPLOY_TOKEN=s3cret make deploy"
+	const id = "11111111-2222-4333-8444-555555555555"
+	w := post(t, srv, `{"kind":"session.shell","target":"aacpanel","params":{"text":"`+command+`","messageId":"`+id+`"}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	req := <-exec.got
+	if req.Kind != action.SessionShell || req.Text != command || req.MessageID != id || req.Target != "aacpanel" {
+		t.Errorf("the executor got %+v", req)
+	}
+
+	list, err := db.Actions(t.Context(), store.ActionsReq{Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) == 0 {
+		t.Fatal("the action did not reach the action log")
+	}
+	body, err := json.Marshal(list[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), "s3cret") {
+		t.Errorf("the command settled in the action log: %s", body)
+	}
+	if !strings.Contains(string(body), "chars") {
+		t.Errorf("the action log did not keep the length of the command: %s", body)
+	}
+	if w := post(t, srv, `{"kind":"session.shell","target":"aacpanel","params":{"text":"  "}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("an empty command is accepted: %d", w.Code)
+	}
+}
+
 func TestRunActionCarriesAnswerToExecutor(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "answer sent to aacpanel: Beta"})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}

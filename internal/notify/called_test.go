@@ -4,27 +4,40 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
+
+func call(text, at string) Note {
+	return Note{Session: sess().ID, Text: text, At: at}
+}
 
 // A session can call the person itself: not a question and not a request for a
 // permission, just a line for a phone. It reaches them once, it names the
-// session so a tap opens it, and it says nothing more when the panel looks
-// again while the call is still standing.
+// session so a tap opens it, and it says nothing more while the collector
+// still lists it.
 func TestASessionCallingReachesThePhoneOnce(t *testing.T) {
-	calm := sess()
-	calling := sess()
-	calling.Note = &Note{Text: "stuck on the migration, need you", At: "2026-09-08T03:00:00Z"}
+	var calls Calls
+	board := []Note{call("stuck on the migration, need you", "2026-09-08T03:00:00Z")}
 
-	r := Look(
-		World{Now: when, Sessions: []Session{calm}},
-		World{Now: when, Sessions: []Session{calling}},
-	)
-	e := only(t, r, "note:4d89ed41:2026-09-08T03:00:00Z")
+	news, waiting := calls.Fresh(when, board, []Session{sess()})
+	if waiting {
+		t.Error("a call of a session the snapshot shows is taken for one waiting for its session")
+	}
+	if len(news) != 1 {
+		t.Fatalf("%d pushes for one call: %+v", len(news), news)
+	}
+	e := news[0]
+	if e.Key != "note:4d89ed41:2026-09-08T03:00:00Z" {
+		t.Errorf("the call is keyed %q — the phone and the journal tell calls apart by the key", e.Key)
+	}
 	if e.Session != "aacpanel" {
 		t.Errorf("the call names the session as %q — a tap on the push opens nothing", e.Session)
 	}
 	if !strings.Contains(e.Body, "stuck on the migration, need you") {
 		t.Errorf("the line the session sent is not in the push: %q", e.Body)
+	}
+	if !strings.Contains(e.Body, "personal · aacpanel") {
+		t.Errorf("the push does not say where the session works: %q", e.Body)
 	}
 	if !strings.Contains(e.Title, "aacpanel") {
 		t.Errorf("the title does not say who is calling: %q", e.Title)
@@ -32,41 +45,32 @@ func TestASessionCallingReachesThePhoneOnce(t *testing.T) {
 	if e.Severity != Critical {
 		t.Errorf("a call arrives as %q — a session calls when it needs the person now", e.Severity)
 	}
-	if len(r.Hold) != 0 {
-		t.Errorf("the call is held like a standing condition: %v — it is one line, said once", r.Hold)
+	if kindOf(e.Key) != KindCall {
+		t.Errorf("the call is of the kind %q — the choice of pushes would take it for something else", kindOf(e.Key))
 	}
 
 	tracker := started(newJournal())
-	said := tracker.Step(context.Background(), r)
+	said := tracker.Step(context.Background(), Report{Raise: news})
 	if len(said) != 1 {
 		t.Fatalf("%d messages went out for one call", len(said))
 	}
-	again := tracker.Step(context.Background(), Look(
-		World{Now: when, Sessions: []Session{calling}},
-		World{Now: when, Sessions: []Session{calling}},
-	))
+	again, _ := calls.Fresh(when.Add(20*time.Second), board, []Session{sess()})
 	if len(again) != 0 {
-		t.Errorf("the same call went out again on the next look: %+v — the phone buzzes every twenty seconds", again)
+		t.Errorf("the same call went out again while the collector lists it: %+v — the phone buzzes on every answer", again)
 	}
 }
 
 // Two calls from one session are two lines, not one repeated: the panel keys
 // them by the moment they were made.
 func TestASecondCallIsItsOwnPush(t *testing.T) {
-	first := sess()
-	first.Note = &Note{Text: "need you", At: "2026-09-08T03:00:00Z"}
-	second := sess()
-	second.Note = &Note{Text: "still need you", At: "2026-09-08T03:02:00Z"}
+	var calls Calls
+	first, _ := calls.Fresh(when, []Note{call("need you", "2026-09-08T03:00:00Z")}, []Session{sess()})
+	second, _ := calls.Fresh(when.Add(2*time.Minute),
+		[]Note{call("still need you", "2026-09-08T03:02:00Z")}, []Session{sess()})
 
 	tracker := started(newJournal())
-	said := tracker.Step(context.Background(), Look(
-		World{Now: when, Sessions: []Session{sess()}},
-		World{Now: when, Sessions: []Session{first}},
-	))
-	said = append(said, tracker.Step(context.Background(), Look(
-		World{Now: when, Sessions: []Session{first}},
-		World{Now: when, Sessions: []Session{second}},
-	))...)
+	said := tracker.Step(context.Background(), Report{Raise: first})
+	said = append(said, tracker.Step(context.Background(), Report{Raise: second})...)
 
 	if len(said) != 2 {
 		t.Fatalf("%d messages for two calls: %+v", len(said), said)
@@ -77,5 +81,61 @@ func TestASecondCallIsItsOwnPush(t *testing.T) {
 	if said[0].Tag == said[1].Tag {
 		t.Errorf("both calls wear the tag %q — the phone takes the second for a correction of the "+
 			"first and replaces it, so the earlier line is gone before it was read", said[0].Tag)
+	}
+}
+
+// A session the snapshot does not show yet has no name to title the push
+// with and nothing for a tap to open: its call waits for it rather than going
+// out anonymous, and goes out once it shows.
+func TestACallWaitsForItsSessionToShow(t *testing.T) {
+	var calls Calls
+	board := []Note{call("need you", "2026-09-08T03:00:00Z")}
+
+	news, waiting := calls.Fresh(when, board, nil)
+	if len(news) != 0 {
+		t.Fatalf("a call of a session nobody sees went out: %+v", news)
+	}
+	if !waiting {
+		t.Fatal("the call of a session not in the snapshot is not said to wait — nobody would ask for it again soon")
+	}
+
+	news, waiting = calls.Fresh(when.Add(5*time.Second), board, []Session{sess()})
+	if len(news) != 1 || news[0].Session != "aacpanel" {
+		t.Fatalf("the call did not go out once its session showed: %+v", news)
+	}
+	if waiting {
+		t.Error("the call still waits after it went out")
+	}
+}
+
+// A carried call is remembered while the collector may still list it, and not
+// for ever: the memory would grow with every call of every session.
+func TestACarriedCallIsForgottenAfterTheCollectorDropsIt(t *testing.T) {
+	var calls Calls
+	calls.Fresh(when, []Note{call("need you", "2026-09-08T03:00:00Z")}, []Session{sess()})
+
+	calls.Fresh(when.Add(callMemory+time.Second), nil, []Session{sess()})
+	if len(calls.told) != 0 {
+		t.Errorf("a call gone from the board for longer than the collector keeps one is still remembered: %v", calls.told)
+	}
+}
+
+// A call goes out between two looks of the host. The report it comes in
+// carries nothing seen, so what the tracker holds from the last look stays
+// held: a container that is down is not declared up because a session called.
+func TestACallBetweenLooksLeavesTheHeldAlone(t *testing.T) {
+	ctx := context.Background()
+	tracker := started(newJournal())
+	down := alertEventFixture()
+	tracker.Step(ctx, holding(down))
+
+	var calls Calls
+	news, _ := calls.Fresh(when, []Note{call("need you", "2026-09-08T03:00:00Z")}, []Session{sess()})
+	said := tracker.Step(ctx, Report{Raise: news})
+	if len(said) != 1 || said[0].Back {
+		t.Fatalf("a call between two looks said %+v — only the call is news", said)
+	}
+	if again := tracker.Step(ctx, holding(down)); len(again) != 0 {
+		t.Errorf("the alert held before the call was announced again after it: %+v", again)
 	}
 }

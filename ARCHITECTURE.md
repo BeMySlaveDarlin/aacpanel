@@ -279,6 +279,15 @@ collector, which takes one call a minute from a session and cuts the line to a
 length a phone shows; a call the panel has not carried away within a few minutes
 goes stale, because a call is for now and a log of them is not worth keeping.
 
+A call does not travel in the snapshot. The panel keeps a request for the calls
+waiting on the chat socket, and the collector answers it the moment it takes
+one, so the push is in the queue within a second of the tool saying the person
+was called; the snapshot is written on a tick and read on a slower one, and a
+call standing in it would reach the phone up to a minute late. The price is a
+thread of the collector held by the waiting request and a fresh request every
+few seconds while nobody calls. Whether the phone is looking at that session is
+still asked when the push is sent.
+
 ---
 
 ## Sessions on the stream
@@ -378,6 +387,23 @@ picked, since the id claude resolves it to loses the context window. A clear
 is the exception: it starts a conversation under a new id, the holder keeps
 its session by the old one, and the session would drop off the panel. The
 holder refuses it whichever way it comes, and the composer does not offer it.
+
+**A command typed after "!" is claude's to run, not the model's**
+(`session.shell`). At a terminal the composer runs it in a shell of the
+session with no turn of the model, writes the command and what it printed
+into the conversation, and the model answers that. On the stream claude takes
+such a command as a line of its own kind and runs it the same way — in the
+session's directory, with its environment, beside an answer in progress — but
+keeps the output out of the conversation and hands it to its host alone. So
+the holder passes the output on to claude as a message in the terminal's
+shape once the command ends, cut the way a terminal cuts it for the model, and
+the model reads it and answers as it does there. Claude runs the command in a
+fresh shell each time: a `cd` does not outlast its line. The feed follows the
+command as a card: the page draws it going out and running, and once the
+output reaches the transcript the card says how the command ended, shows the
+last lines of what it printed and opens the whole. A running command holds off
+a switch — closing claude would stop it, and its output would never arrive. A
+console gets the line as typed, since its own composer runs the command.
 
 **A question on the stream is answered with structure, not with keys**, so the
 limits a terminal dialog puts on a layout do not hold there: a free answer and
@@ -577,13 +603,13 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Twenty-nine actions, and the list is closed.
+Thirty actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
@@ -672,10 +698,11 @@ the period, a process measured this second, straight from the snapshot — and i
 says which is which, because one of them has no past to show.
 
 **The schema travels with the service.** Migrations are applied when the image
-starts. An applied file is untouchable: its checksum is recorded in the
-database, and editing any character — a comment included — parts the file from
-the database, after which the service does not come up. That is why there are no
-comments in migration files at all.
+starts. The database logs the number of every file it has run, and a file whose
+number is logged is never run again or compared with anything: a change of
+schema is always a new file, and an edit to an applied one reaches only the
+databases set up after it. A logged number with no file — removed from the tree,
+or a database newer than the binary — is named in the log and stops nothing.
 
 **Two roles.** The service works under the application role: it has neither DDL
 nor `TRUNCATE`, and on the journal table only `INSERT`, `SELECT` and `UPDATE` of

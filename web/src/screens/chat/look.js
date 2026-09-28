@@ -27,6 +27,7 @@ export const LOOK_NAMES = {
     artifact: "published page",
     brief: "brief",
     command: "command output",
+    shell: "shell command",
     mcp: "MCP servers",
     status: "session info",
     commands: "commands",
