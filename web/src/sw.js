@@ -1,3 +1,4 @@
+import { quiet, quietOf } from "./quiet.js";
 import { renew } from "./renewal.js";
 
 const VERSION = __VERSION__;
@@ -97,16 +98,20 @@ self.addEventListener("push", (event) => {
     }
 
     const critical = payload.severity === "critical";
+    const button = quietOf(payload);
     event.waitUntil(self.registration.showNotification(payload.title || "aacpanel", {
         body: payload.body || "",
         tag: payload.tag || "aacpanel",
         renotify: true,
         requireInteraction: critical,
-        icon: "/static/icons/icon-192.png",
-        badge: "/static/icons/icon-192.png",
-        data: { severity: payload.severity, ts: payload.ts, url: screenOf(payload) },
+        icon: ICON,
+        badge: ICON,
+        actions: button ? [{ action: "quiet", title: button.label }] : [],
+        data: { severity: payload.severity, ts: payload.ts, url: screenOf(payload), quiet: button },
     }));
 });
+
+const ICON = "/static/icons/icon-192.png";
 
 // screenOf is the panel screen a tap on the notification opens — a path of
 // the panel and nothing else.
@@ -127,7 +132,12 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
     event.notification.close();
-    const url = (event.notification.data && event.notification.data.url) || "";
+    const data = event.notification.data || {};
+    if (event.action === "quiet" && data.quiet) {
+        event.waitUntil(quiet(data.quiet, ICON));
+        return;
+    }
+    const url = data.url || "";
 
     event.waitUntil((async () => {
         const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

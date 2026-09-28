@@ -75,6 +75,13 @@ var ceremonies = map[string]ceremony{
 	// and what the launch would refuse, writing nothing. It goes as a POST only
 	// because a draft — an environment, a list of words — does not fit a line
 	// of a query.
+	// The button on a push is pressed in the notification shade, where there
+	// is no page to hold a gate: the press is its own confirmation, and what
+	// it turns off is turned back on by a switch in the panel.
+	"src/quiet.js": {
+		paths:   []string{"/api/push/quiet"},
+		methods: []string{"POST"},
+	},
 	"src/screens/profiles/kit.js": {
 		paths:   []string{"/api/projects/", "/api/profiles/"},
 		methods: []string{"POST"},
