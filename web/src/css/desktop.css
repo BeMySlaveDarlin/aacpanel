@@ -844,8 +844,11 @@
     }
 
     /* The limit of a contour in its heading: two rings filled by the share
-       spent, the share inside, the window beside; a press drops the details.
-       Numbers the snapshot has not renewed are dimmed. */
+       spent, the share inside, how long until the window starts over beside;
+       a press drops the details. A ring keeps its one colour whatever the
+       share: how much is spent is said by the fill and the number, and the
+       heading does not change colour by the minute. Numbers the snapshot has
+       not renewed are dimmed. */
     .dkcontour.dklimhead { padding: .3rem .45rem .3rem .55rem; }
 
     .dklimhead .dkcontourname { font-size: var(--t-base); }
@@ -896,17 +899,11 @@
         mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
     }
 
-    .dkring.dkwarn .dkringdial { --ring: var(--warn); }
-
-    .dkring.dkcrit .dkringdial { --ring: var(--crit); }
-
     .dkringdial b { position: relative; font-size: var(--t-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 
-    .dkring.dkwarn b { color: var(--warn); }
-
-    .dkring.dkcrit b { color: var(--crit); }
-
-    .dkringlabel { font-size: var(--t-xs); color: var(--ink-faint); }
+    /* The time left is two letters or three: the label holds the room of
+       three, so the rings of every heading stand one under another. */
+    .dkringlabel { min-width: 2.1em; font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-faint); }
 
     .dkringsctl .dkpop { width: 17rem; }
 

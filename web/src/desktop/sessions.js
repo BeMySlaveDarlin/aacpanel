@@ -260,28 +260,42 @@ function KinFold({ kids, line }) {
     `;
 }
 
+// leftOf is how long a window of a limit has before it starts over, rounded
+// up in the one unit it is said in: minutes under an hour, hours under two
+// days, days past that. Nothing when the snapshot does not say; nought once
+// the moment has passed and the snapshot has not caught up.
+function leftOf(part) {
+    const at = part && part.resetsAt;
+    if (!at) return null;
+    const left = at * 1000 - Date.now();
+    if (left <= 0) return { n: 0, unit: "" };
+    const minutes = Math.ceil(left / 60000);
+    if (minutes < 60) return { n: minutes, unit: "m" };
+    const hours = Math.ceil(left / 3600000);
+    if (hours < 48) return { n: hours, unit: "h" };
+    return { n: Math.ceil(left / 86400000), unit: "d" };
+}
+
 // resetIn says when a window of a limit starts over, or nothing when the
 // snapshot does not say.
 function resetIn(part) {
-    const at = part && part.resetsAt;
-    if (!at) return "";
-    const left = at * 1000 - Date.now();
-    if (left <= 0) return "any moment";
-    const hours = Math.floor(left / 3600000);
-    if (hours >= 48) return `${Math.round(hours / 24)} d`;
-    if (hours >= 1) return `${hours} h`;
-    return `${Math.max(1, Math.round(left / 60000))} min`;
+    const left = leftOf(part);
+    if (!left) return "";
+    if (left.n === 0) return "any moment";
+    return `${left.n} ${left.unit === "m" ? "min" : left.unit}`;
 }
 
-// Ring is one window of a contour's limit: a circle filled by the share spent,
-// the share inside it and the window beside it.
-function Ring({ label, part }) {
+// Ring is one window of a contour's limit: a circle filled by the share spent
+// in one colour whatever the share, the share inside it, and under it how long
+// until the window starts over — or the window itself when that is not known.
+function Ring({ label, title, part }) {
     const value = Math.round((part && part.pct) || 0);
-    const level = value >= 90 ? "dkcrit" : value >= 70 ? "dkwarn" : "";
+    const left = leftOf(part);
+    const when = resetIn(part);
     return html`
-        <span class=${`dkring ${level}`.trim()}>
+        <span class="dkring" data-tip=${when ? `${title}: resets in ${when}` : title}>
             <span class="dkringdial" style=${`--share:${Math.min(100, value)}`}><b>${value}</b></span>
-            <span class="dkringlabel">${label}</span>
+            <span class="dkringlabel">${left && left.n > 0 ? `${left.n}${left.unit}` : label}</span>
         </span>
     `;
 }
@@ -319,8 +333,8 @@ export function ContourLimits({ limits, name, profiles }) {
             <button class=${`dkrings${old ? " dkold" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
                     aria-label=${`the limits of contour ${name}`} onClick=${() => setOpen(!open)}>
                 ${old && html`<span class="dkringsage">${agoText(c.ageSec)}</span>`}
-                <${Ring} label="5h" part=${c.fiveHour} />
-                <${Ring} label="7d" part=${c.sevenDay} />
+                <${Ring} label="5h" title="Five hours" part=${c.fiveHour} />
+                <${Ring} label="7d" title="Seven days" part=${c.sevenDay} />
             </button>
             <${Popover} open=${open} onClose=${close} label=${`the limits of contour ${name}`}>
                 <div class="dklimpop">

@@ -7,9 +7,10 @@
 <div class="deskshell"><div class="dkbody" id="root"></div></div>
 <script type="module">
 // The sessions column at a desk: every contour has its section — a heading
-// with two rings of its limit that open the details of both windows, and its
-// live sessions, or a word that nothing lives in it — and the closed
-// conversations of all of them stand on a shelf of their own below.
+// with two rings of its limit, each saying how long until its window starts
+// over, that open the details of both windows, and its live sessions, or a
+// word that nothing lives in it — and the closed conversations of all of them
+// stand on a shelf of their own below.
 import { h, render } from "preact";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -17,10 +18,12 @@ import { ToastHost } from "/src/ui/toasts.js";
 
 const now = Math.floor(Date.now() / 1000);
 const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
+// Windows that start over in minutes, hours and days, none of them on a
+// whole unit, and one whose reset the snapshot does not know.
 const limits = { contours: [
-    { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 4.5), sevenDay: part(24, 100) },
-    { profile: "algo", contour: 1, ageSec: 30, fiveHour: part(93, 1.5), sevenDay: part(57, 120) },
-    { profile: "evirma", contour: 4, ageSec: 3600, fiveHour: part(7, 2), sevenDay: part(41, 72) },
+    { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2.2), sevenDay: part(24, 100) },
+    { profile: "algo", contour: 1, ageSec: 30, fiveHour: part(93, 1.5), sevenDay: part(57, 118) },
+    { profile: "evirma", contour: 4, ageSec: 3600, fiveHour: part(7, 0.795), sevenDay: { pct: 41 } },
 ] };
 const profileMap = [
     { id: 4, profile: "Evirma", name: "Evirma", groups: [] },
@@ -67,9 +70,15 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
     return {
         name: text(head.querySelector(".dkcontourname")),
         head: text(head),
-        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => ({
-            text: text(r), level: r.classList.contains("dkcrit") ? "crit" : r.classList.contains("dkwarn") ? "warn" : "",
-        })),
+        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => {
+            const dial = r.querySelector(".dkringdial");
+            // The colour of the arc is the first colour of the conic fill.
+            const arc = (getComputedStyle(dial, "::before").backgroundImage.match(/rgba?\([^)]*\)/) || [""])[0];
+            return {
+                value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")),
+                arc, ink: getComputedStyle(r.querySelector("b")).color, tip: r.getAttribute("data-tip") || "",
+            };
+        }),
         old: Boolean(head.querySelector(".dkrings.dkold")),
         fits: Boolean(rbox) && rbox.right <= box.right + 0.5 && rbox.left >= box.left,
         oneLine: (() => {
