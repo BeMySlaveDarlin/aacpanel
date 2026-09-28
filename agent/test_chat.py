@@ -2228,6 +2228,22 @@ class ProjectFile(unittest.TestCase):
         self.assertTrue(got["cut"])
         self.assertEqual(len(got["text"]), chat.MAX_FILE)
 
+    def test_a_reader_that_asks_is_given_a_window_of_a_page(self):
+        with open(os.path.join(self.cwd, "board.html"), "w", encoding="utf-8") as f:
+            f.write("<p>a line of the page</p>\n" * 100000)
+        got = chat.read_file("board.html", self.cwd, limit=1 << 20)
+        self.assertGreater(len(got["text"]), (1 << 20) - 64, "the viewer reads a page by 1 MB")
+        self.assertEqual(got["next"], len(got["text"]))
+        self.assertTrue(got["text"].endswith("</p>\n"))
+
+    def test_the_window_asked_for_stops_at_its_ceiling(self):
+        with open(os.path.join(self.cwd, "big.txt"), "w", encoding="utf-8") as f:
+            f.write("x" * (chat.MAX_WINDOW * 3))
+        got = chat.read_file("big.txt", self.cwd, limit=chat.MAX_WINDOW * 8)
+        self.assertEqual(len(got["text"]), chat.MAX_WINDOW)
+        self.assertLessEqual(chat.MAX_WINDOW * 6, 8 << 20,
+                             "a window escaped for JSON has to fit the reply cap of the service")
+
     def test_a_long_file_is_read_to_the_end_in_chunks(self):
         path = os.path.join(self.cwd, "log.txt")
         with open(path, "w", encoding="utf-8") as f:
@@ -2411,6 +2427,23 @@ class RawOverTheSocket(unittest.TestCase):
         binary = chat.answer({"session": UUID, "file": "core.bin"})
         self.assertTrue(binary["binary"])
         self.assertNotIn("data", binary)
+
+    def test_the_window_of_a_file_is_the_one_asked_for(self):
+        with open(os.path.join(self.cwd, "board.html"), "w", encoding="utf-8") as f:
+            f.write("x" * (3 << 20))
+        plain = chat.answer({"session": UUID, "file": "board.html"})
+        self.assertEqual(len(plain["text"]), chat.MAX_FILE)
+        self.assertEqual(plain["next"], chat.MAX_FILE)
+
+        page = chat.answer({"session": UUID, "file": "board.html", "bytes": 1 << 20})
+        self.assertEqual(len(page["text"]), 1 << 20)
+        self.assertEqual(page["next"], 1 << 20)
+
+        rest = chat.answer({"session": UUID, "file": "board.html",
+                            "offset": 2 << 20, "bytes": 1 << 20})
+        self.assertEqual(len(rest["text"]), 1 << 20)
+        self.assertFalse(rest["cut"])
+        self.assertNotIn("next", rest)
 
 
 class RawRange(unittest.TestCase):

@@ -5,33 +5,49 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><main class="body" id="root"></main></div>
 <script type="module">
-// A page sent to the person, larger than the window the collector reads a
-// file by: a tap on its card opens it as a document — the whole screen on a
-// phone, a wide window at a desk — read whole before it is drawn, with no
-// press for the rest of it.
+// Pages sent to the person, a few megabytes each: a tap on the card of one
+// opens it as a document — the whole screen on a phone, a wide window at a
+// desk — read whole before it is drawn, by the window of a page and with no
+// press for the rest of it. A page past what the panel draws says to save it,
+// and a log next to them is read by the default window, a press at a time.
 import { h, render } from "preact";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
+// The file API answers as the collector does: the window it is asked for, the
+// default one when it is asked for none, and never more than its ceiling.
 const WINDOW = 64 * 1024;
-const page = "<p id=\"first\">THE START</p>" + "<p>a line of the page</p>\n".repeat(9000) + "<p id=\"last\">THE END</p>";
-const size = new TextEncoder().encode(page).length;
+const CEILING = 1024 * 1024;
+const line = "<p>" + "a line of the page ".repeat(50) + "</p>\n";
+const board = "<p id=\"first\">THE START</p>" + line.repeat(3200) + "<p id=\"last\">THE END</p>";
+const huge = "<p id=\"first\">THE START</p>" + line.repeat(9000) + "<p id=\"last\">THE END</p>";
+const log = "a line of the log\n".repeat(12000);
+const bodies = { "/srv/lab/board.html": board, "/srv/lab/huge.html": huge, "/srv/lab/notes.log": log };
+const sizeOf = (text) => new TextEncoder().encode(text).length;
 const at = "2026-09-28T05:00:00Z";
+const files = Object.entries(bodies).map(([path, text]) => ({ path, name: path.split("/").pop(), size: sizeOf(text) }));
 const items = [
     { role: "ai", text: "Here is the board.", pos: 1, at },
-    { role: "sent", pos: 2, at, files: [{ path: "/srv/lab/board.html", name: "board.html", size }] },
+    { role: "sent", pos: 2, at, files },
 ];
-let reads = 0;
+const asked = { "/srv/lab/board.html": [], "/srv/lab/huge.html": [], "/srv/lab/notes.log": [] };
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 window.fetch = async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat/file?")) {
-        reads += 1;
-        const offset = Number(new URL(u, location.href).searchParams.get("offset") || 0);
-        const text = page.slice(offset, offset + WINDOW);
+        const q = new URL(u, location.href).searchParams;
+        const path = q.get("path");
+        const body = bodies[path];
+        if (body === undefined) return new Response("no such file", { status: 404 });
+        asked[path].push(Number(q.get("bytes") || 0));
+        const offset = Number(q.get("offset") || 0);
+        const want = Math.min(Number(q.get("bytes")) || WINDOW, CEILING);
+        const text = body.slice(offset, offset + want);
         const end = offset + text.length;
-        return json({ kind: "text", name: "board.html", size, text, offset, cut: end < size, next: end < size ? end : 0 });
+        const size = body.length;
+        return json({ kind: "text", name: path.split("/").pop(), size, text, offset,
+            cut: end < size, next: end < size ? end : 0 });
     }
     if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
     if (u === "/api/term") return json({ available: true });
@@ -45,23 +61,38 @@ render(h(ToastHost, null, h(GateHost, null, h(Chat, {
     name: "lab", id: "l1", live, exec, snapshot: { sessions: [live] }, onBack() {}, onUsage() {},
 }))), document.getElementById("root"));
 
-const until = async (ok, ms = 4000) => {
+const until = async (ok, ms = 8000) => {
     const end = performance.now() + ms;
     while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
 };
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+const open = async (path) => {
+    const card = () => document.querySelector(`button.mfile[data-path="${path}"]`);
+    await until(card);
+    card().click();
+};
+const close = async () => {
+    const back = document.querySelector(".sheet.on .pback");
+    if (back) back.click();
+    await until(() => !document.querySelector(".sheet.on"));
+};
+const hint = () => {
+    const el = document.querySelector(".sheet.on .callbody p.hint");
+    return el ? el.textContent : "";
+};
 
 window.done = (async () => {
-    await until(() => document.querySelector("button.mfile"));
-    document.querySelector("button.mfile").click();
+    await open("/srv/lab/board.html");
     await until(() => document.querySelector(".sheet.on .filehtml"));
-    await new Promise((r) => setTimeout(r, 300));
+    await pause(300);
     const sheet = document.querySelector(".sheet.on");
     const frame = document.querySelector(".sheet.on .filehtml");
     const box = (el) => (el ? el.getBoundingClientRect() : { width: 0, height: 0, top: 0 });
     const doc = frame ? frame.getAttribute("srcdoc") || "" : "";
-    return {
+    const page = {
         whole: doc.includes("THE START") && doc.includes("THE END"),
-        reads,
+        size: board.length,
+        asked: asked["/srv/lab/board.html"],
         more: document.querySelectorAll(".sheet.on .filemore").length,
         doc: sheet ? sheet.classList.contains("doc") : false,
         back: Boolean(sheet && sheet.querySelector(".pback")),
@@ -71,5 +102,26 @@ window.done = (async () => {
         sheetH: box(sheet).height,
         frameH: box(frame).height,
     };
+
+    await close();
+    await open("/srv/lab/huge.html");
+    await until(() => hint().includes("Too large"));
+    await pause(300);
+    const over = {
+        size: huge.length,
+        said: hint(),
+        drawn: Boolean(document.querySelector(".sheet.on .filehtml")),
+        asked: asked["/srv/lab/huge.html"],
+    };
+
+    await close();
+    await open("/srv/lab/notes.log");
+    await until(() => document.querySelector(".sheet.on .filemore"));
+    await pause(300);
+    const other = {
+        more: document.querySelectorAll(".sheet.on .filemore").length,
+        asked: asked["/srv/lab/notes.log"],
+    };
+    return { ...page, over, other };
 })();
 </script>

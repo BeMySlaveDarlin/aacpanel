@@ -461,7 +461,10 @@ var ErrNoSubagents = errors.New("the session collector on the host knows nothing
 const (
 	dialTimeout  = 2 * time.Second
 	replyTimeout = 10 * time.Second
-	maxReply     = 8 << 20
+	// maxReply is the largest reply read from the collector. The largest it
+	// sends are the windows of a file: text of up to 1 MB escaped for JSON,
+	// six bytes at most for one on disk, and a picture of up to 4 MB in base64.
+	maxReply = 8 << 20
 )
 
 // Client is the path to the socket.

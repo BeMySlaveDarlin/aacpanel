@@ -11,7 +11,7 @@ PROJECTS_DIR = os.environ.get("AACP_CLAUDE_PROJECTS")
 
 from .cards import (ASK_REJECTED, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS,  # noqa: E402,F401
                     MAX_ASK_TEXT, artifact_card, ask_round, wake_item)
-from .disk import (MAX_FILE, MAX_FILES, MAX_MEDIA, MAX_PROBE, MAX_RAW,  # noqa: E402,F401
+from .disk import (MAX_FILE, MAX_FILES, MAX_MEDIA, MAX_PROBE, MAX_RAW, MAX_WINDOW,  # noqa: E402,F401
                    TASK_ID_RE, TASK_TAIL, attach_files, as_is, is_exec,
                    media_of, named_files, read_file, read_raw, task_output,
                    trim_utf8)
