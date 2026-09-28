@@ -173,8 +173,9 @@ var params = []Param{
 	{
 		Key: "panelTools", Label: "Panel tools", Kind: KindBool,
 		Levels: []Level{LevelContour, LevelProject}, Default: true,
-		Help: "the session gets the panel's tools over MCP: the checklist of its work, which the panel shows and " +
-			"the model decides whether to keep. A session started by hand outside the panel does not have them",
+		Help: "the session gets the panel's tools over MCP: the checklist of its work, briefs, a call to the " +
+			"phone, its own restart and letters to other sessions. A session started by hand outside the panel " +
+			"does not have them",
 		Unset: "On", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
