@@ -295,7 +295,7 @@ func TestTheInstructionsAreTheLeadAndTheLineOfEveryTool(t *testing.T) {
 	}
 
 	said := instructionsOf(t, &Server{Lead: "The panel is here.", Tools: []Tool{first, second}, Bind: placed})
-	if want := "The panel is here. Use first when it helps. Use second when it helps. The place holds two of second."; said != want {
+	if want := "The panel is here.\nUse first when it helps.\nUse second when it helps. The place holds two of second."; said != want {
 		t.Errorf("the instructions are %q, meant %q", said, want)
 	}
 	if len(asked) != 1 || asked[0] != lab {
@@ -303,7 +303,7 @@ func TestTheInstructionsAreTheLeadAndTheLineOfEveryTool(t *testing.T) {
 	}
 
 	said = instructionsOf(t, &Server{Lead: "The panel is here.", Tools: []Tool{first, second}, Bind: lost})
-	if want := "The panel is here. Use first when it helps. Use second when it helps."; said != want {
+	if want := "The panel is here.\nUse first when it helps.\nUse second when it helps."; said != want {
 		t.Errorf("a place not known: %q", said)
 	}
 

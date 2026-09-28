@@ -136,19 +136,22 @@ func (s *Server) initialize(params json.RawMessage) map[string]any {
 }
 
 // instructions are the server's word to the session: its lead, then the line
-// of every tool with what the place already holds for it. A place not known
-// yet is said nothing of: every call finds it again.
+// of every tool, each on a line of its own, with what the place already holds
+// for it. A place not known yet is said nothing of: every call finds it again.
 func (s *Server) instructions() string {
 	b, err := s.Bind()
-	parts := []string{s.Lead}
+	lines := []string{s.Lead}
 	for _, t := range s.Tools {
-		parts = append(parts, t.Instructions)
+		line := []string{t.Instructions}
 		if err == nil && t.Standing != nil {
-			parts = append(parts, t.Standing(b))
+			line = append(line, t.Standing(b))
 		}
+		lines = append(lines, strings.Join(slices.DeleteFunc(line, empty), " "))
 	}
-	return strings.Join(slices.DeleteFunc(parts, func(p string) bool { return p == "" }), " ")
+	return strings.Join(slices.DeleteFunc(lines, empty), "\n")
 }
+
+func empty(s string) bool { return s == "" }
 
 func (s *Server) list() []any {
 	out := make([]any, 0, len(s.Tools))

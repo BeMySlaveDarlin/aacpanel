@@ -17,10 +17,10 @@ import (
 const ToolName = "plan"
 
 // Instructions is the tool's line in the server's word to every session that
-// has it: the lead of the server says the panel shows the person the plan,
-// and this says how to keep it.
-const Instructions = "When the work has several steps, keep it with the plan tool: the whole list every time, " +
-	"updated when a step starts or ends and when the plan changes. A short task needs no plan."
+// has it.
+const Instructions = "When the work has several steps, keep it with the plan tool, which the person sees " +
+	"in the panel: the whole list every time, updated when a step starts or ends and when the plan changes. " +
+	"A short task needs no plan."
 
 // Description is the tool's own word to the model.
 const Description = "The plan of the current work, shown to the person in the panel on their phone and desk; " +

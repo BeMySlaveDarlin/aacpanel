@@ -65,9 +65,11 @@ const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"prot
 
 // noPlan is the server's word to a session in a place with no plan, to the
 // byte: it stands in the system prompt of every session the panel starts.
-const noPlan = "The panel shows the person this session's plan on their phone and desk. " +
-	"When the work has several steps, keep it with the plan tool: the whole list every time, " +
-	"updated when a step starts or ends and when the plan changes. A short task needs no plan."
+const noPlan = "The panel is how the person follows this session from their phone and desk; " +
+	"its tools reach them there, and the terminal does not show what they do.\n" +
+	"When the work has several steps, keep it with the plan tool, which the person sees " +
+	"in the panel: the whole list every time, updated when a step starts or ends and when the plan changes. " +
+	"A short task needs no plan."
 
 // Both flags start the one server: the launcher writes -mcp into the MCP
 // configuration of a session, and a live session whose configuration names

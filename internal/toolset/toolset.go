@@ -14,9 +14,10 @@ import (
 	"aacpanel/internal/plan"
 )
 
-// lead is the server's first sentence to a session: what of the session the
-// panel puts before the person, which the line of every tool goes on from.
-const lead = "The panel shows the person this session's plan on their phone and desk."
+// lead is the server's first sentence to a session: the tools reach the
+// person through the panel, and a line of every tool says when to reach for it.
+const lead = "The panel is how the person follows this session from their phone and desk; " +
+	"its tools reach them there, and the terminal does not show what they do."
 
 func tools() []mcp.Tool {
 	return []mcp.Tool{
