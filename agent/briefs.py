@@ -494,10 +494,6 @@ class Shelf:
                 # of kind "none" is a section with a number on it, and a shelf
                 # that counts it promises an answer the document has no room
                 # for — on the card, on the phone and in the progress it shows.
-                # Only the questions that ask something are counted: a block
-                # of kind "none" is a section with a number on it, and a shelf
-                # that counts it promises an answer the document has no room
-                # for — on the card, on the phone and in the progress it shows.
                 questions = [q for q in doc.get("questions") or []
                              if isinstance(q, dict) and q.get("kind", "pick") != "none"]
                 # When the document first went out names the publication the
