@@ -329,6 +329,21 @@ A holder's state file names the conversation and the pid of its claude, and
 a process that matches none is somebody else's run — seen in the archive, not
 on the list of live sessions.
 
+**A holder runs the program it was started with until its session ends.** It is
+the process claude's pipes belong to, so a new build of the executor reaches it
+only through a new start. An operation the running holder does not know is
+refused with what to do: the session was started before the panel could do
+this, and a restart, which keeps the conversation, brings it.
+
+**The stream is claude's control protocol, and part of it is not public.** Any
+release may change a request the feed leans on without a word, so
+`make stream-contract` runs every such request against the installed claude
+and, when all of them hold, leaves the version it ran on in the owner's state
+(`aacpanel/stream-contract.json`). A session on the stream running any other
+version is marked on its row as not checked for the feed. The check spends
+tokens on haiku and goes to the network, which is why it is not part of
+`make check`.
+
 **A model, an effort and a permission mode are picked from a list, not
 typed.** The list is the session's own where it has one — a session on the
 stream gives the models its claude named at the handshake, with the efforts
@@ -702,7 +717,10 @@ starts. The database logs the number of every file it has run, and a file whose
 number is logged is never run again or compared with anything: a change of
 schema is always a new file, and an edit to an applied one reaches only the
 databases set up after it. A logged number with no file — removed from the tree,
-or a database newer than the binary — is named in the log and stops nothing.
+or a database newer than the binary — is named in the log and stops nothing. A
+number logged under another name than its file's was reused: the log says so,
+and the file does not run. That is why the number of a removed file is retired
+for good.
 
 **Two roles.** The service works under the application role: it has neither DDL
 nor `TRUNCATE`, and on the journal table only `INSERT`, `SELECT` and `UPDATE` of
@@ -834,7 +852,11 @@ place, `internal/toolset`: the executor serves it and the launcher takes the
 allowed names from it, so a session is never allowed a tool the server does not
 have. The server's word to a session — in its system prompt — is a lead and a
 line from every tool, since a tool of a server is often deferred and its
-description unread. `-plan` starts the same server: a live session keeps the
+description unread. Claude keeps 2048 characters of that word, counted in
+UTF-16 units, and cuts the rest mid-sentence: the lead and every line fit it
+even when the place holds the longest checklist the tool takes, and a test
+holds that, so a new tool pays for its line out of the same budget. `-plan`
+starts the same server: a live session keeps the
 MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries
 the brief — `brief_publish`, whose call without a document returns the rules of
@@ -868,7 +890,8 @@ conversation — the steps with their statuses, since when a step at work or
 done holds its status, and when the list was last sent — and the feed of a
 conversation that is over shows it only while that conversation sent it last.
 The price is one checklist a place: two sessions in one directory under one
-account share it. Nothing makes the model keep it true: a `Stop` hook, where
+account share it. A checklist nobody has sent for thirty days is swept when a
+server starts. Nothing makes the model keep it true: a `Stop` hook, where
 the account has it, holds a turn that did work past an unfinished checklist it
 did not touch, once, to ask whether it changed.
 
@@ -933,6 +956,44 @@ on a screen.
 collector what lies on disk, compares that with its own scan points and orders
 the parsing of only what is new. There is only ever one round: the parsing runs
 into the processor of the machine the panel is watching.
+
+---
+
+## Pushes
+
+**A push is news, said once.** The service looks at the host every twenty
+seconds and compares the look with the one before it: a question, a session
+waiting on a permission, a brief on the shelf, a turn of ten minutes or longer
+that ended, a session gone without the panel closing it, a stack down whole, a
+container down or unhealthy while the rest of its stack runs, a rule tripped, a
+probe that stopped answering, a subscription limit past 80%, and a panel gone
+blind — the collector silent or the database out of reach. A reason is pushed
+when it appears and, where it has one, once more when it is gone; nothing
+reminds in between, and the push service collapses repeats under the reason's
+own topic rather than the phone. A call of a session travels apart, the moment
+the collector takes it (the call socket above). The rule that a whole stack is
+down pushes nothing: the stack pushes the same fall itself, sooner.
+
+**What is heard is the person's choice, kept once for every device**
+(`push_prefs`). A kind of news can be turned off; so can the long turns and the
+closings of the sessions of a contour or under a directory, the falls of a
+stack, the recoveries of containers apart from their falls, a rule, and the
+limits of a contour. Each list names what is off, so a kind the panel learns
+later is heard. A call and a blind panel are never held back: one was asked for
+by name, the other is a failure that would pass in silence. The choice is read
+before every push, and a choice that cannot be read holds nothing back.
+
+**A push that names its source carries a button that quiets it.** The
+notification shade holds no page, so the press is its own confirmation: the
+worker asks the panel it belongs to, with that panel's session, to turn the
+source off — the one request that changes anything without passing the gate of
+actions, and it changes only the choice — and says in a quiet push of its own
+whether the panel took it.
+
+**A push about a session does not go to the device where that session is on the
+screen.** The open conversation marks that it is being watched, and the mark goes
+stale in under a minute, so a phone put down gets the next push. A tap on a push
+about a session opens that session.
 
 ---
 
@@ -1079,8 +1140,8 @@ stays the base.
 
 ## What the panel does not have, and why
 
-- **Control of other machines.** Only its own host, now and later. At best
-  metrics collection travels to a remote machine.
+- **Control of other machines.** Only its own host. At most, metrics collection
+  could travel to a remote machine; its actions never would.
 - **`POST` on the socket-proxy.** Never: that is where the point of the split
   disappears.
 - **Editing the panel's own settings from the screen.** The list of
@@ -1103,12 +1164,9 @@ stays the base.
   construction. A watchdog outside would
   have to guess whether the session can take a keystroke right now, and a guess
   that lands in an open dialog is an answer given blind.
-- **Settings for notification delivery.** No quiet hours, no importance
-  threshold: the only setting is whether there is a subscription. One push when
-  a reason appears and one when it is gone, with no reminders; the server
-  collapses them, not the device. The only exception is that a push about a
-  session does not go to the device where that session is on the screen right
-  now.
+- **Quiet hours and reminders for pushes.** What is heard is chosen by kind and
+  by source; when is not a setting. A reason that stands is not pushed again
+  until it is gone and comes back.
 - **Safari.** The panel lives in one browser. That removes a class of
   workarounds, but building into the markup what is known to be dead there is
   not worth it either.

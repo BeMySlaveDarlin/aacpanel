@@ -6,9 +6,10 @@ Go, python3, docker with compose, `shellcheck`. Everything else arrives on its
 own: the front end is built with the same toolchain as the service, there is no
 npm in the project and there will not be.
 
-A database for the tests is not required — but without it dozens of tests are
-skipped **silently**: rollups, retention, the action journal, the profile map. A
-green run without it means only that the code compiled.
+A database for the tests is not required — but without it every test that needs
+one is skipped **silently**: rollups, retention, the action journal, the profile
+map, the choice of pushes. A green run without it means only that the code
+compiled.
 It can be brought up as a container:
 
 ```bash
@@ -67,7 +68,7 @@ others found:
 
 | Target | What it checks |
 |---|---|
-| `fmt` | `gofmt -l` — the format is not fixed but shown: one unnoticed file in the output drowns the next finding |
+| `fmt` | `gofmt -l` over the files the repository tracks or would add — the format is not fixed but shown: one unnoticed file in the output drowns the next finding |
 | `vet` | `go vet ./...` |
 | `front` | the bundle build: an error in a screen's markup is caught by no test — they work with ready structures |
 | `shellcheck` | the deployment and stand scripts; with no linter on the machine it is a skip said out loud, not silence |
@@ -89,8 +90,7 @@ and prints the reasons, so a green tick is not read as "everything was checked".
 
 The database is a service container there, and a run where the tests with a
 database quietly skipped is failed on purpose: without `AACP_TEST_DSN` every
-test with a database — well over a hundred — passes by doing nothing, and the
-run stays green.
+test with a database passes by doing nothing, and the run stays green.
 
 Separately, outside `check`, because they need what not every machine has — live transcripts, a signed-in claude and the tokens it spends:
 
@@ -111,9 +111,9 @@ needed, substitute a temporary one.
 This is not an agreement but a barrier: the Go tests run with a substituted
 `HOME` and `XDG_*`, the collector's tests with their own state directory, and a
 run whose directory was not substituted stops at the import without having run a
-single test. The price of the rule has already been paid: a test pretending to
-be a fresh machine wiped a real claude configuration together with the mark that
-onboarding had been done.
+single test. The price of going without it is real: a test pretending to be a
+fresh machine against the real home directory wipes the claude configuration
+together with the mark that onboarding was done.
 
 **The harness of the collector's tests names the place for temporary files
 explicitly.** `tempfile` without `dir=` asks the system for a place, and inside
@@ -214,6 +214,7 @@ for".
 | `TestPreviewIsTheCommandTheLaunchRuns` | the command a settings page shows is the one the launch runs, built by the same code |
 | `TestProfilesSchemaNeedsNoDatabase` | the schema is answered with the database down: the screens are drawn from it |
 | `TestSchemaIsWellFormed` | every parameter of the schema names its levels, what an absent value leaves to and when a live session takes a change |
+| `TestTheServersWordFitsWhatClaudeKeeps` | the word the panel's MCP server gives a session fits the 2048 characters claude keeps of it, even with the longest checklist: past them claude cuts it, and the lines of the last tools never reach the model |
 | `TestAnEmptyListTravelsAsAnEmptyList` | a list that is empty is still sent: dropped by `omitempty` it reaches the screen as `undefined`, and a reader counting its length takes the panel down with it |
 
 ### A reply keeps its shape
@@ -222,8 +223,8 @@ An empty list is an answer — "nothing changed", "the directory is empty" — a
 it travels as an empty list. `omitempty` on a slice drops it from the json
 altogether, and the screen that counts its length finds nothing to count: it
 dies in the middle of a draw, leaves what it had drawn standing, and every
-redraw after it lays another screen on top. This has taken the panel down once,
-with a tab that stopped answering and three copies of one screen on it.
+redraw after it lays another screen on top: a tab that stops answering, with
+three copies of one screen on it.
 
 The rule: `omitempty` is for a value that is absent, not for one that is empty.
 A list, a map and a count the screen reads keep their place in the reply.
@@ -243,11 +244,15 @@ change of schema ships as a new file under a new number. The cost, plainly:
 editing an applied file changes nothing on a database that has already run it.
 Only a database set up afterwards gets the new text, and the two part without a
 word. A number works the same way: a database that has logged it never runs a
-new file under it, so a number is not reused.
+new file under it, so a number is not reused. A start that finds a number
+logged under another name than its file's says in the service log that the
+number was reused and the file will not run.
 
 A number in the log with no file beside it — a file removed from the tree, or a
 database newer than the binary — is named in the service log at startup and
-stops nothing.
+stops nothing. Removing a file retires its number: it goes into
+`retiredMigrations` in `internal/store/store_test.go`, and
+`TestRetiredMigrationNumbersStayRetired` refuses a file that takes it again.
 
 **Grants are not written in a migration.** The rights of the application role
 are issued by the service at every startup: a migration is applied once in the

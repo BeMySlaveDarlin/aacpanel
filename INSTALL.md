@@ -25,8 +25,11 @@ and `id -g`, `<runtime>` is `$XDG_RUNTIME_DIR` (usually `/run/user/<uid>`),
 | `aacpanel-exec` | systemd user unit, the Go binary `<home>/bin/aacpanel-exec` | the panel only shows, not a single button |
 
 Smaller traces: the machine description `<state>/host.env`, the secrets in the
-repository's `.env`, the hook and the status line in the `settings.json` of every
-claude account, `loginctl enable-linger` for your user.
+repository's `.env`, the question hook and the status line in the
+`settings.json` of every claude account (with the hooks from `deploy/claude`
+you choose, §10), the panel's MCP server in the accounts whose sessions are
+started by hand, the executor's state in `<home>/.local/state/aacpanel` and
+`<home>/.local/state/aacpanel-stream`, `loginctl enable-linger` for your user.
 
 ---
 
@@ -40,15 +43,16 @@ claude account, `loginctl enable-linger` for your user.
 | Go | `go version` | the executor cannot be built |
 | tmux | `tmux -V` | **no session will open**, in the console or in the feed: a console lives in tmux and the window is only attached to it, and a feed session goes into tmux when it is moved to the console |
 | python3 | `python3 -V` | the collector will not start, the panel is blind |
-| jq | `jq --version` | the subscription percentages in the header are empty |
-| curl, git | `curl -V`, `git --version` | the checks below are browser-only |
+| jq | `jq --version` | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in a console shows only with its next request |
+| curl, git, openssl | `curl -V`, `git --version`, `openssl version` | the checks below are browser-only; the secrets in §6 are drawn by `openssl` |
 | claude | `claude --version` | there is nothing to show |
 | a terminal | `command -v konsole` (or your own) | there will be no windows onto sessions — the normal mode for a machine without graphics |
 
 On Debian and Ubuntu:
 
 ```bash
-sudo apt install docker.io docker-compose-v2 golang-go tmux python3 jq curl git
+sudo apt install docker.io golang-go tmux python3 jq curl git openssl
+sudo apt install docker-compose-v2   # Ubuntu; on Debian the package is docker-compose
 sudo usermod -aG docker "$USER"      # then log in again
 ```
 
@@ -137,7 +141,15 @@ The rest of the keys in the template are optional: whether to open a window
 together with a session (`AACP_TERMINAL_AUTO`; a disabled auto-start does not
 touch the button in the panel), the directories of several claude accounts
 (`AACP_CLAUDE_HOME`), your own launch wrapper (`AACP_CLAUDE`), the roots to walk
-the disk with (`AACP_PROJECT_SCAN`), the port checks (`AACP_PROBE_PORTS`).
+the disk with (`AACP_PROJECT_SCAN`), the port checks (`AACP_PROBE_PORTS`), how
+many processes parse transcripts for usage (`AACP_USAGE_WORKERS`).
+
+One key the executor reads is not in the template: `AACP_LIMITS_EVERY`, how old
+the snapshot of an account's subscription limits may grow before the executor
+renews it with a probe — a `claude -p` on haiku that says one word, a share of
+the very limit it reads. Ten minutes by default, in Go duration form (`30m`),
+never under a minute; an account with a terminal open keeps its snapshot fresh
+through the status line and is not probed.
 
 `AACP_CLAUDE_REGISTRY` points at the registry of a contour router, if the
 machine has one: a line an account, `name | prefix | config dir | token file`,
@@ -181,6 +193,12 @@ browser dropped the cookie silently.
 
 `AACP_TOKEN` is the second door next to the passkey. An empty value means there
 is no such door; on a domain that is how it should be.
+
+The local listener on `127.0.0.1:8777` is on unless `.env` says
+`AACP_LOCAL_ADDR=` (empty). It lets in any process of the machine without a
+sign-in, and the sessions rely on it: their restart, their letters to one
+another and the note about an unsent brief go through it. Close it only on a
+machine whose other users must not drive its sessions, and those go with it.
 
 ---
 
@@ -250,15 +268,15 @@ the owner.
 
 ## 10. Wiring up claude
 
-Two traces are mandatory — without them the panel is blind to questions and to
-limits. `settings.json` is edited **as JSON**, not as text: your own hooks are in
-that file and they must stay. The files are `<home>/.claude/settings.json` and
-one like it in every directory from `AACP_CLAUDE_HOME`, if there are several
-accounts.
+Two lines go into every account. `settings.json` is edited **as JSON**, not as
+text: your own hooks are in that file and they must stay. The files are
+`<home>/.claude/settings.json` and one like it in every account directory from
+`AACP_CLAUDE_HOME` or the contour registry, if there are several accounts.
 
-**The question hook.** A session reports a question to the panel only through
-it: the record of the call reaches the transcript after the answer, and without
-the hook the card will never arrive.
+**The question hook.** A session in the console reports a question to the panel
+only through it: the record of the call reaches the transcript after the
+answer, and without the hook the card never arrives. A session on the stream
+hands its question to its holder as a request, hook or not.
 
 ```json
 {"hooks": {"PreToolUse": [
@@ -267,10 +285,13 @@ the hook the card will never arrive.
 ]}}
 ```
 
-**The status line.** The subscription percentages arrive only in the status line
-payload, there is no other source, and every account has its own subscription.
-The script goes first in the chain and passes the payload on to the previous
-command:
+**The status line.** Claude says the 5-hour and weekly percentages of the
+subscription to the status line of a terminal, and every account has its own.
+The script writes them for its account, at most every twenty seconds, together
+with the model and the effort the console runs — what the list of sessions and a
+move to the feed read. Without it the limits come only from the executor's
+probe (§5, `AACP_LIMITS_EVERY`). The script goes first in the chain and passes
+the payload on to the previous command:
 
 ```json
 {"statusLine": {"type": "command",
@@ -313,6 +334,14 @@ systemctl --user daemon-reload && systemctl --user enable --now aacpanel-docker-
 
 An addition that a script of your own already does on this machine is not
 installed on top: two hooks on one event give two stamps in every message.
+
+`deploy/claude/restart-via-panel.py` is not a hook but the restart of the
+`session_restart` tool for a script or a skill run inside a session: it names
+the session by `CLAUDE_CODE_SESSION_ID`, asks the panel over its local listener
+to bring it back as its project, and asks nothing while the session's agents,
+workflows or background commands are at work (`--anyway` asks all the same). It
+exits 0 when the panel took the restart, 1 when it refused or did not answer, 2
+when the work of the session holds it off.
 
 **Copies of published pages.** The hook goes into the account settings of every
 account whose sessions publish artifacts, and it is the same line everywhere:
@@ -357,13 +386,14 @@ from outside. The fill comes from the collector's snapshot, the same one the
 stamp reads, and a model whose window is not known does not trigger it. The
 restart goes through the panel's `session_restart` tool, which asks the panel
 over its local listener (`AACP_PANEL_URL`) to bring the session back as its
-project. A session the panel started has the tool; one started by hand has it
-once its account has the panel's server (**Panel tools** below). With the
-local listener off, a session cannot restart itself. The tool is not among
-the ones the panel allows, so where the permission mode asks, the restart past
-the cap waits on a permission prompt until the account allows it.
-The turn after the block is the finalization itself and is never blocked again;
-a session that ignored it is told again at the end of its next turn.
+project, without `continue`, so the new session starts with an empty context.
+A session the panel started has the tool and is allowed it; one started by
+hand has it once its account has the panel's server, and is allowed it once
+the account says so (**Panel tools** below) — until then the restart past the
+cap waits on a permission prompt. With the local listener off, a session cannot
+restart itself. The turn after the block is the finalization itself and is
+never blocked again; a session that ignored it is told again at the end of its
+next turn.
 
 **Panel tools.** Every session the panel starts gets them from the launcher
 unless the Panel tools parameter of its contour or project is off: the
@@ -520,11 +550,13 @@ The code lives five minutes and works once. Then open the panel at your address,
 enrol a passkey (or sign in with the token) — and the second device is already
 enrolled with a code from the panel itself.
 
-The "contour → group → project" map is set up from the phone after signing in,
-on the "profiles" screen: until there is a first contour the projects screen is
-empty, and taking one is the first thing done there — a contour is taken from
-an account the machine already has, found by the collector; its paths are typed
-by hand only on a machine without a contour router.
+The "contour → group → project" map is set up after signing in, on the
+Profiles tab of the phone or from Projects in the sessions section at a desk:
+until there is a first contour the projects screen is empty, and taking one is
+the first thing done there — a contour is taken from an account the machine
+already has, found by the collector; its paths are typed by hand only on a
+machine without a contour router. A project lives in the console unless its
+launch parameters put it in the feed.
 
 What cannot be checked with a command:
 
@@ -533,10 +565,11 @@ What cannot be checked with a command:
 3. opening a session from the panel and seeing it in the list, and the window on
    the desktop;
 4. sending a message and seeing it in the feed;
-5. asking the session a question through `AskUserQuestion` and seeing the card on
-   the phone — the only check of the hook;
-6. the subscription percentages in the header — the only check of the status
-   line; they appear only while at least one claude session is alive.
+5. asking a session in the console a question through `AskUserQuestion` and
+   seeing the card on the phone — the only check of the question hook;
+6. the 5-hour and weekly limits of the account on the sessions screen: the
+   executor's probe writes them shortly after its start, and the status
+   line keeps them fresh while a terminal of the account is open.
 
 ---
 
@@ -555,7 +588,11 @@ What cannot be checked with a command:
   and starts again with a new node key. The tailnet needs MagicDNS and HTTPS.
   Check it from inside the container (`docker exec aacpanel-tailscale tailscale
   status`) or from a device in the tailnet: the node is in userspace mode and is
-  not visible from outside. Do not turn on `funnel`.
+  not visible from outside. Do not turn on `funnel`. Where the panel has a
+  domain, the node is a further way in and proxies to a listener of its own, so
+  the panel knows where a request came from and the address map offers it:
+  `AACP_TS_SERVE=./deploy/tailscale/serve-leg.json`, `AACP_TS_ADDR=:8778`,
+  `AACP_TS_URL=https://<node>.<tailnet>.ts.net`.
 - **Local network over TLS.** The panel can listen on the local network with a
   real certificate alongside the domain, and then both passkeys and PWA work
   there: `AACP_LAN_ADDR`, `AACP_LAN_URL`, `AACP_LAN_BIND`, `AACP_LAN_PORT` plus
@@ -581,8 +618,23 @@ The executor is built beside itself and renamed into place: the holders of
 sessions on the stream run from the same file, and building over a file a
 process runs from answers "text file busy". A rename leaves the running
 holders on the old copy until their sessions end, and the executor restarted
-after it is the new one. Compare `.env` with
-`.env.example` — the template's new keys are worth carrying over:
+after it is the new one. So a session on the stream takes what the new build
+brings to it only after its own restart, which keeps the conversation; until
+then an operation its holder does not know is refused with those words.
+
+Claude updates itself, and part of the stream protocol the feed leans on is not
+public. A session on the stream running a claude the stream contract has not
+passed on is marked on its row as not checked for the feed. The contract runs
+every request the feed needs against the installed claude, in a directory of
+its own, and on a pass leaves the version for the panel — a few minutes and a
+dozen short turns on haiku:
+
+```bash
+python3 deploy/claude/stream-contract.py     # exit 0: every required check holds
+```
+
+Compare `.env` with
+`.env.example` — keys of the template missing from `.env` are worth carrying over:
 
 ```bash
 diff <(grep -oE '^#?[A-Z_]+=' .env.example | tr -d '#') <(grep -oE '^[A-Z_]+=' .env) | grep '^<'
@@ -611,11 +663,17 @@ The rest is optional and one at a time, because it is data:
   history, the device passkeys;
 - `docker volume rm aacpanel_aacpanel-ts-state` — the tailnet node keys;
 - `<state>` — the snapshot, the session questions, the conversation index;
-- the hook and the status line in every `settings.json`; delete the repository
-  only after that — the hook calls a file from the tree, and every session's
-  question would fall over a path that no longer exists;
+- what §10 put into every `settings.json` — the question hook, the status
+  line, the hooks from `deploy/claude`, the rules allowing the panel's tools;
+  delete the repository only after that — the hooks call files from the tree,
+  and every session's question would fall over a path that is gone;
 - `claude mcp remove aacpanel -s user` in every account that has the panel's
-  server, or each session there starts with a server that fails to connect.
+  server, or each session there starts with a server that fails to connect;
+- `<home>/.local/state/aacpanel` and `<home>/.local/state/aacpanel-stream` —
+  the guards of the map, the checklists of sessions, the answers to permissions
+  kept for the feed;
+- `sudo loginctl disable-linger "$USER"`, unless something else of yours needs
+  user units without a login.
 
 ---
 
@@ -631,8 +689,10 @@ The rest is optional and one at a time, because it is data:
 | the "cookie without Secure" chip in the header | the panel is opened over https while `AACP_SECURE=0` stayed: remove the line and recreate the container |
 | a session opens without a window | an empty `AACP_TERMINAL` or a machine without `DISPLAY`; the button in the conversation header will open a window where there are graphics |
 | the window opened, but it is not on the screen | `DISPLAY` points at a service display; the right one is named by `systemctl --user show-environment` |
-| the subscription percentages are empty | no `jq`, no status line in this account, or no live session at all |
+| the limits of an account are empty or old | `journalctl --user -u aacpanel-exec` names a probe that failed; no `jq` or no status line leaves them to the probe alone |
 | there is a button, and the journal says "unknown action" | the executor was built from an old tree: §12 |
+| a session on the stream answers that it was started before the panel could do this | its holder runs the executor it was started with: restart the session, the conversation is kept |
+| a session's row says its claude is not checked for the feed | claude updated itself: the stream contract, §16 |
 | `Failed to connect to bus` from `systemctl --user` | linger is off, or you signed in without a logind session |
 | the feed is visible from the phone, but there is no switch to the terminal | that is by design: `AACP_TERM_PUBLIC=0` |
 | the projects screen is empty although there are projects on disk | not a single profile has been created: the button is on that same screen |

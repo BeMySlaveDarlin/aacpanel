@@ -182,4 +182,7 @@ That is a property of the stand, not of the agent.
 ## What the stand does not check
 
 The terminal window, GNOME and Wayland, logging in from a phone, a live claude
-with its TUI, dialogs and questions, tailscale and the domain.
+with its TUI, dialogs and questions, tailscale and the domain. Nor a session on
+the stream: the stand-in plays a console and nothing of `claude -p` with
+stream-json, so the holder, the feed and the panel's tools in a session are
+checked only where a real claude runs.

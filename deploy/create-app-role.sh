@@ -44,6 +44,6 @@ EOF
 
 echo
 echo "The role $role is ready. Next:"
-echo "  1. in .env: AACP_DB_DSN with the user $role and this password"
-echo "  2. in .env: AACP_DB_MIGRATE_DSN with the user $owner (migrations)"
-echo "  3. restart the service - at startup it issues the rights to the role"
+echo "  1. in .env: AACP_APP_ROLE=$role and AACP_APP_PASSWORD with this password, both"
+echo "     (compose builds the service DSN from them; migrations stay with $owner)"
+echo "  2. recreate the service: docker compose up -d aacpanel - at startup it issues the rights to the role"

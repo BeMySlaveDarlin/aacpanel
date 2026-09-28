@@ -25,8 +25,8 @@ go run ./cmd/webbuild   # builds the frontend bundle; also the only JS syntax ch
 ```
 
 **Tests that need a database are skipped without `AACP_TEST_DSN`, silently.** A
-green run without it means little — roughly forty tests never ran. Point it at a
-throwaway Postgres:
+green run without it means little — every test of the map, the journal, the
+rollups and the pushes never ran. Point it at a throwaway Postgres:
 
 ```sh
 AACP_TEST_DSN="postgres://user:pass@127.0.0.1:5432/db?sslmode=disable" make test
@@ -52,20 +52,20 @@ load time, because it would otherwise look into the live state directory.
 - **Everything in this repository is written in English** — API responses, the
   executor's log, startup errors, the comments in the code, the names of tests
   and what they report. `TestRepositorySpeaksOneLanguage` enforces this.
-- **Numbers in text must match the code.** Documentation here has lied before
-  about bundle size, the number of actions and the fonts in use. If you cannot
-  confirm a number, drop the claim instead of copying it.
+- **Numbers in text must match the code.** A bundle size, the number of actions
+  or the fonts in use drift away from the text silently. If you cannot confirm a
+  number, drop the claim instead of copying it.
 - **A test must fail when the line it guards is broken.** Before calling a test
   done, break that line on purpose and watch it go red. A test that stays green
   against broken code is worse than no test.
 
-## Things that have bitten us
+## Traps
 
-- **Cleaning up comments removed an `import` line.** For esbuild an unknown name
-  is just a free variable: the bundle built, every frontend test passed, and the
-  screen died in the browser. `TestHookCallersImportThem` guards this now, but
-  the lesson is broader — after a sweeping edit, verify machine-side that only
-  text changed, not that it "looks fine" in the diff.
+- **A removed `import` line breaks nothing a build sees.** For esbuild an unknown
+  name is just a free variable: the bundle builds, every frontend test passes,
+  and the screen dies in the browser. `TestHookCallersImportThem` guards the
+  preact hooks a screen calls, and the rule is broader — after a sweeping edit, verify machine-side
+  that only text changed, not that it "looks fine" in the diff.
 - **A backtick inside an HTML comment in an htm template closes the string
   early.** Guarded by `TestNoBacktickInsideMarkup`.
 - **Units of measure travel in data, not in code.** An alert carries the rule's

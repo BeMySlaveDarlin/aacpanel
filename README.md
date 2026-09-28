@@ -23,13 +23,14 @@ the project.
 
 | Screen | What is on it |
 |---|---|
-| **Sessions** | live sessions with the model and how full the context is; the conversation as a feed — messages, thinking, tool calls, subagent messages, attachments; the composer from the phone, typed or dictated; the `AskUserQuestion` card — answer with an option, answer in your own words, or dismiss it; an answer to a permission prompt; stopping the turn, a piece of background work or a subagent; slash commands from a closed list; the model, the effort and the mode picked from a list; Remote Control switched on and off; a queued message taken back; the session terminal; a window on the host desktop; an archive of closed conversations, with resume. A session lives in the console (tmux) or in the feed (`claude -p` under a holder) and moves between them |
+| **Sessions** | live sessions by contour and project — who waits for you, who works, who is quiet — with the model, how full the context is and what each one does; the conversation as a feed — messages, thinking, tool calls, letters from other sessions and subagents, attachments — with the timeline of its work beside it; the composer, typed or dictated, with files, a queue and a command after `!`; the question sheet — an option, several, your own words, a note, or dismiss it; the permission dock; stopping the turn, a piece of background work or a subagent, and the feeds of subagents and workflows; the checklist the session keeps; its briefs and published pages; slash commands and the screens of `/mcp`, `/status`, `/hooks` and the like; the model, the effort and the mode picked from a list; Remote Control switched on and off; the session terminal; a window on the host desktop; an archive of closed conversations, with resume. A session lives in the console (tmux) or in the feed (`claude -p` under a holder) and moves between them |
 | **Containers** | the "stack → containers" tree with processor, memory and size on disk; logs, starting and stopping a container, bringing a whole stack up and down |
 | **Machine** | processor, memory, disks, network, top processes, checks on ports and external services; history with rollups by minute and by hour, charts from half an hour to a month |
 | **Profile map** | "contour → group → project": where sessions may be opened, with what parameters, in which claude account. Each has a settings page drawn from a schema of the launch parameters, with the command the next launch runs; every change goes into a journal of the map that can take a deleted project back |
-| **Repository** | the code of a project, read from the conversation that writes it: the run of what the branch changed, the tree of the working tree, a file in windows, the diff of one file with the two layers told apart — what is already in a commit and what is not |
-| **Usage** | transcripts broken down: what went out over a day, by model, by tool, by account, by session |
-| **Alerts** | rules with thresholds, pushes to devices (Web Push, VAPID), acknowledged from the screen |
+| **Repository** | the code of a project, read from the conversation that writes it: the run of what the branch changed, the tree of the working tree, a file in windows, the diff of one file with the two layers told apart — what is in a commit and what is not — who wrote each line and in which conversation, and notes on lines handed to the session |
+| **Briefs** | long pieces a session publishes with questions in them, read and answered at whatever length it takes; the answers go back to the session as a message |
+| **Usage** | transcripts broken down: what went out over a day, by model, by tool, by account, by project and session; the 5-hour and weekly limits of every account |
+| **Alerts** | rules with thresholds and degradations against a container's own norm, acknowledged from the screen; pushes to devices (Web Push, VAPID), chosen by kind and by source, with a button in the push that quiets its source |
 | **Journal** | everything the panel did on the host: who, when, from which device, how it ended |
 
 The panel's own container is not shut down from here, and a push about a
@@ -70,6 +71,8 @@ phone ──https──► aacpanel (container)
                     └──► unix socket    ──► aacpanel-exec (host) ──► docker, tmux, claude
                                                        │
                                                        └──► aacpanel-exec -hold ──► claude -p (the feed)
+
+claude (any session) ──stdio──► aacpanel-exec -mcp: the panel's tools for the session
 ```
 
 The service passes the executor a structure, not a string for a shell. An
@@ -105,7 +108,7 @@ client goes for data to the nearest one that answered.
 | Go | not a single action on the host |
 | tmux | no session will open |
 | python3 | every screen is empty |
-| jq | the subscription percentages in the header are empty |
+| jq | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in a console shows only with its next request |
 | claude | there is nothing to show |
 | a terminal (`konsole`, `gnome-terminal`, `alacritty`…) | no windows; the normal mode for a machine without graphics |
 
@@ -145,8 +148,9 @@ transcripts, writes a snapshot that the container mounts read-only.
 | `cmd/webbuild/` | the front-end build |
 | `internal/action/` | the protocol between the service and the executor: the closed list of actions |
 | `internal/executor/` | the actions themselves: containers, stacks, sessions, windows |
-| `internal/launcher/` | starting a claude session: environment, tmux, window |
+| `internal/launcher/` | starting a claude session: environment, tmux, window, the panel's MCP server |
 | `internal/stream/` | the holder of a session in the feed: `claude -p` on the stream protocol |
+| `internal/mcp/`, `internal/toolset/` | the panel's MCP server and the one list of its tools: the checklist, the brief, the call, the restart, the letter |
 | `internal/schema/` | the launch parameters of the map as data: levels, options, effective values with their layers |
 | `internal/contours/` | the layout of claude contours: accounts and their directories |
 | `internal/repo/` | the repository of a project for a screen: tree, files, history, notes |
@@ -164,7 +168,7 @@ transcripts, writes a snapshot that the container mounts read-only.
 - [`INSTALL.md`](INSTALL.md) — the install step by step, from scratch.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — how it is built, the boundaries and what the panel does not have.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — build, checks, what is expected of a change.
-- [`AGENTS.md`](AGENTS.md) — the same for a coding agent, plus what has already bitten us here.
+- [`AGENTS.md`](AGENTS.md) — the same for a coding agent, plus the traps of this code.
 
 ## License
 
