@@ -122,6 +122,14 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 			params["message"] = id
 		}
 	}
+	// A session writing to another names its own conversation: the executor
+	// finds the sender by it and sends the letter from that session.
+	if req.Kind == action.SessionLetter {
+		text, _ := body.Params["text"].(string)
+		from, _ := body.Params["from"].(string)
+		req.Text, req.From = text, from
+		params = map[string]any{"chars": len([]rune(text)), "from": from}
+	}
 	if req.Kind == action.SessionUnqueue {
 		id, _ := body.Params["messageId"].(string)
 		req.MessageID = id
@@ -196,15 +204,21 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Kind == action.SessionRestart {
-		name, want, projectID, err := s.restartPlan(r.Context(), body.Target, body.Params)
+		plan, err := s.restartPlan(r.Context(), body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		req.Target, body.Target = name, name
-		if want != nil {
-			req.Project = want
-			params = map[string]any{"project": projectID, "path": want.Path}
+		req.Target, body.Target, req.Resume = plan.Name, plan.Name, plan.Resume
+		if plan.Project != nil {
+			req.Project = plan.Project
+			params = map[string]any{"project": plan.ProjectID, "path": plan.Project.Path}
+		}
+		if plan.Resume != "" {
+			if params == nil {
+				params = map[string]any{}
+			}
+			params["resume"] = plan.Resume
 		}
 	}
 
@@ -635,40 +649,66 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 	return switchWay{To: action.SwitchStream, Project: want, ProjectID: projectID}, nil
 }
 
+// restartWay is the session a restart is about, what it comes back as, and
+// the conversation it goes on with when it does not start anew.
+type restartWay struct {
+	Name      string
+	Project   *action.Project
+	ProjectID int
+	Resume    string
+}
+
 // restartPlan finds the session a restart is about and the project it comes
 // back with. A session restarting itself names its conversation, since it does
 // not know the name the panel calls it by. The project is the map's, found by
 // where the session works, and its first message is the one the map says to
 // send after a restart; a session no project of the map holds goes without
 // one, and the executor restarts it only if it is the host's main session.
-func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (string, *action.Project, int, error) {
+// With resume the new session goes on with the conversation the old one ran.
+func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (restartWay, error) {
+	conversation, _ := params["conversation"].(string)
+	resume, _ := params["resume"].(bool)
+	way := restartWay{Name: name}
 	if s.host == nil {
-		return name, nil, 0, nil
+		if resume {
+			if conversation == "" {
+				return restartWay{}, fmt.Errorf("the conversation of session %s is not known, so it cannot go on", name)
+			}
+			way.Resume = conversation
+		}
+		return way, nil
 	}
 	live, ok := s.host.LiveSession(name)
-	if conversation, _ := params["conversation"].(string); conversation != "" {
+	if conversation != "" {
 		if live, ok = s.host.LiveSessionOf(conversation); !ok {
-			return "", nil, 0, fmt.Errorf("no live session runs conversation %s", conversation)
+			return restartWay{}, fmt.Errorf("no live session runs conversation %s", conversation)
 		}
 		if name != "" && name != live.Name {
-			return "", nil, 0, fmt.Errorf("conversation %s runs in session %s, not in %s", conversation, live.Name, name)
+			return restartWay{}, fmt.Errorf("conversation %s runs in session %s, not in %s", conversation, live.Name, name)
 		}
-		name = live.Name
+		way.Name = live.Name
+	}
+	if resume {
+		if !ok || live.SessionID == "" {
+			return restartWay{}, fmt.Errorf("the conversation of session %s is not known, so it cannot go on", name)
+		}
+		way.Resume = live.SessionID
 	}
 	if !ok || live.CWD == "" {
-		return name, nil, 0, nil
+		return way, nil
 	}
 	want, projectID, err := s.launchProject(ctx, nil, live.CWD, "")
 	if err != nil || want == nil {
-		return name, nil, 0, err
+		return way, err
 	}
-	want.Session = name
+	want.Session = way.Name
 	launch, err := restartLaunch(want.Launch)
 	if err != nil {
-		return "", nil, 0, fmt.Errorf("session %s cannot be restarted from the map: %w", name, err)
+		return restartWay{}, fmt.Errorf("session %s cannot be restarted from the map: %w", way.Name, err)
 	}
 	want.Launch = launch
-	return name, want, projectID, nil
+	way.Project, way.ProjectID = want, projectID
+	return way, nil
 }
 
 // restartLaunch returns a project's launch with the message after a restart

@@ -15,12 +15,19 @@ const (
 	SessionOpen      Kind = "session.open"
 	SessionResume    Kind = "session.resume"
 	SessionClose     Kind = "session.close"
-	// SessionRestart closes a session the gentle way and starts it again with
-	// an empty context: as its project from the map when one holds its
-	// directory, the host's main session as it was otherwise.
+	// SessionRestart closes a session the gentle way and starts it again: as
+	// its project from the map when one holds its directory, the host's main
+	// session as it was otherwise. It starts with an empty context, or goes on
+	// with the conversation it closed when the request names it to resume.
 	SessionRestart Kind = "session.restart"
 	SessionKill    Kind = "session.kill"
 	SessionSend    Kind = "session.send"
+	// SessionLetter sends a letter from one live session to another: to the
+	// message socket of the recipient's claude, from the session that runs the
+	// conversation the request names. It is a kind of its own rather than a
+	// field of session.send: an executor that did not know the field would
+	// take the letter for a message and type it in as the person's words.
+	SessionLetter Kind = "session.letter"
 	// SessionAnswer answers the question a session is currently standing on.
 	SessionAnswer Kind = "session.answer"
 	// SessionDismiss drops the question and returns the session to an ordinary conversation.
@@ -79,7 +86,7 @@ const (
 // Kinds is the full list of what the executor can do.
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
-	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend,
+	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,

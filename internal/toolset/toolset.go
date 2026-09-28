@@ -13,6 +13,7 @@ import (
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/collector"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/session"
 )
 
 // lead is the server's first sentence to a session: the tools reach the
@@ -26,6 +27,8 @@ func tools() []mcp.Tool {
 		collector.BriefPublish(collector.BriefSocket(), collector.HostGuide()),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
+		session.Restart(session.Here()),
+		session.Letter(session.Here()),
 	}
 }
 

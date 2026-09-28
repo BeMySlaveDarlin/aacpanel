@@ -582,7 +582,7 @@ Twenty-nine actions, and the list is closed.
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
@@ -594,8 +594,9 @@ What is deliberately not on the list: removing containers, images and volumes,
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no
 stop. `session.restart` ends a session the gentle way — the same wait for the
-transcript — and starts a new one with an empty context; the old transcript
-stays in the archive. A session whose working directory belongs to a project
+transcript — and starts a new one with an empty context, or, asked to go on,
+resuming the conversation it closed; the old transcript stays in the archive.
+A session whose working directory belongs to a project
 of the map comes back as that project: its launch, its contour, and the
 message after a restart as its first — a restart without them would bring it up
 in another setup, possibly under another account. A session no project holds
@@ -836,6 +837,39 @@ The price is one checklist a place: two sessions in one directory under one
 account share it. Nothing makes the model keep it true: a `Stop` hook, where
 the account has it, holds a turn that did work past an unfinished checklist it
 did not touch, once, to ask whether it changed.
+
+**A session restarts itself and writes to other sessions with tools of the
+panel.** Both go to the panel's local listener as actions of this machine and
+name the session by the conversation the server's parent runs, so the model
+cannot act as another session. `session_restart` asks for `session.restart`:
+the panel brings the session back as its project from the map, afresh or, with
+`continue`, resuming the same conversation — the executor checks it is the one
+the session runs, and a conversation on the stream nobody said a word in starts
+anew. Nothing is asked while the collector's snapshot shows the session's
+agents, workflows or background commands at work, since a restart ends them;
+the snapshot can be eleven seconds old, so work seen is read again in a
+snapshot written after the look began, the same rule and the same shared cases
+as the delivery's `background.py`. A session on the stream is closed only at
+the end of its turn, which cannot end while the call waits, so the panel's
+answer would come after the call: the tool waits three seconds and takes
+silence for a restart under way. `send_to_session` lists the live sessions of
+every account from the snapshot, and sends a letter as `session.letter` with
+the sender's conversation: the executor finds the sender and the recipient
+among the sessions of every contour and writes the letter to the recipient's
+message socket in the envelope claude uses between sessions, with the sender's
+name and the address of its socket, escaped as claude escapes one. The
+recipient's claude frames it as a message from another session, not typed by
+its person, and the recipient can answer to that address. Typed into a
+terminal or sent on the stream, the same words would reach the model as its
+person's, so a letter goes no other way: a recipient without a socket is
+refused. That is also why a letter is a kind of its own and not a field of
+`session.send`: an executor that did not know the field would type the letter
+in, where one that does not know the kind refuses it. The letter does not
+claim the sender's permission class, which the panel does not know for sure,
+so a recipient that runs without permission prompts and has no
+`crossSessionInbound` setting holds it for its person. Neither tool is allowed:
+one ends the work of a session, the other puts words before another agent, and
+claude asks the person before either, as it does for any tool.
 
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line

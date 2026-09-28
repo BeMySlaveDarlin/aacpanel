@@ -15,6 +15,8 @@ type Request struct {
 
 	Device string `json:"device,omitempty"`
 
+	// Resume is the conversation to go on with: the one session.resume brings
+	// back, or the one session.restart closes and starts again.
 	Resume string `json:"resume,omitempty"`
 
 	Project *Project `json:"project,omitempty"`
@@ -36,6 +38,10 @@ type Request struct {
 	// MessageID names a message sent to a session on the stream, so that it can
 	// be taken back from the queue while it waits there.
 	MessageID string `json:"messageId,omitempty"`
+
+	// From is the conversation of the session a session.letter comes from:
+	// the sender is found by it, not by a name the request could make up.
+	From string `json:"from,omitempty"`
 
 	// Setting is what session.set changes.
 	Setting *Setting `json:"setting,omitempty"`

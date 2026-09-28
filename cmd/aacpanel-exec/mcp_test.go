@@ -64,8 +64,9 @@ func talk(t *testing.T, parent int, lines ...string) []map[string]any {
 const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"2.1.283"}}}`
 
 // noChecklist is how the server's word to a session in a place with no
-// checklist begins, to the byte: the lead and the checklist's line stand in the system prompt
-// of every session the panel starts, and the lines of the other tools follow.
+// checklist begins, to the byte: the lead and the checklist's line stand in the
+// system prompt of every session the panel starts, and the lines of the other
+// tools follow.
 const noChecklist = "The panel is how the person follows this session from their phone and desk; " +
 	"its tools reach them there, and the terminal does not show what they do.\n" +
 	"When the work has several steps, keep it with the checklist tool, which the person sees " +

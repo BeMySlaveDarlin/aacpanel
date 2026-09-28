@@ -24,6 +24,10 @@ def load(name):
 
 background = load("background")
 
+# The cases this script shares with the panel's session_restart tool, which
+# reads the same snapshot the same way.
+CASES = json.loads((HERE / "testdata" / "background.json").read_text(encoding="utf-8"))
+
 
 def snapshot(path, work=None, at=None, session="mine"):
     row = {"sessionId": session}
@@ -45,23 +49,14 @@ class TestWhatIsAtWork(unittest.TestCase):
         self.addCleanup(self.dir.cleanup)
         self.path = os.path.join(self.dir.name, "state.json")
 
-    def test_agents_and_background_commands_are_at_work(self):
-        snapshot(self.path, {"agents": 2, "tasks": 1})
-        self.assertEqual(background.of(background.read_state(self.path), "mine"), (2, 1, 0))
-
-    def test_a_wake_up_is_no_work(self):
-        snapshot(self.path, {"agents": 0, "tasks": 2, "wakes": 1})
-        self.assertEqual(background.of(background.read_state(self.path), "mine"), (0, 1, 0),
-                         "a wake-up runs nothing, and a loop that sets them would never restart")
-
-    def test_a_running_workflow_is_work(self):
-        snapshot(self.path, {"agents": 0, "tasks": 0, "workflows": 1})
-        self.assertEqual(background.of(background.read_state(self.path), "mine"), (0, 0, 1))
-
-    def test_another_session_or_none_is_nothing_at_work(self):
-        snapshot(self.path, {"agents": 3}, session="other")
-        self.assertEqual(background.of(background.read_state(self.path), "mine"), (0, 0, 0))
-        self.assertEqual(background.of(None, "mine"), (0, 0, 0))
+    def test_the_shared_cases_of_what_is_at_work(self):
+        self.assertTrue(CASES["work"], "the shared cases are empty: the test checks nothing")
+        for case in CASES["work"]:
+            with self.subTest(case["what"]):
+                with open(self.path, "w", encoding="utf-8") as f:
+                    json.dump(case["state"], f)
+                self.assertEqual(background.of(background.read_state(self.path), case["session"]),
+                                 tuple(case["work"]))
 
     def test_nothing_at_work_is_answered_at_once(self):
         snapshot(self.path, {"agents": 0, "tasks": 0}, at=1.0)
@@ -92,9 +87,11 @@ class TestWhatIsAtWork(unittest.TestCase):
         self.assertLess(time.time() - start, 2, "the look waited past its limit")
 
     def test_the_words_say_what_is_at_work(self):
-        self.assertEqual(background.words(2, 1), "2 agents and 1 background task")
-        self.assertEqual(background.words(1, 0), "1 agent")
-        self.assertEqual(background.words(1, 2, 1), "1 agent, 1 workflow and 2 background tasks")
+        self.assertTrue(CASES["words"], "the shared cases are empty: the test checks nothing")
+        for case in CASES["words"]:
+            agents, tasks, flows = case["work"]
+            with self.subTest(case["words"]):
+                self.assertEqual(background.words(agents, tasks, flows), case["words"])
         line = background.wait_line(0, 3)
         self.assertIn("3 background tasks of this session are at work, and a restart ends them", line)
         self.assertIn("1 agent of this session is at work, and a restart ends it", background.wait_line(1, 0))

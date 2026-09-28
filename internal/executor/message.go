@@ -186,6 +186,15 @@ func (e *Executor) sessionEscape(ctx context.Context, target string) (string, er
 }
 
 func deliver(ctx context.Context, socket, from, text string) error {
+	return writeLine(ctx, socket, map[string]any{
+		"type":    "user",
+		"message": map[string]any{"role": "user", "content": text},
+		"from":    from,
+	})
+}
+
+// writeLine writes one line of claude's message protocol to its socket.
+func writeLine(ctx context.Context, socket string, msg map[string]any) error {
 	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
 
@@ -196,11 +205,7 @@ func deliver(ctx context.Context, socket, from, text string) error {
 	}
 	defer conn.Close()
 
-	line, err := json.Marshal(map[string]any{
-		"type":    "user",
-		"message": map[string]any{"role": "user", "content": text},
-		"from":    from,
-	})
+	line, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}

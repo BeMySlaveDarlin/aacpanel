@@ -397,6 +397,12 @@ as the panel starts every session — so a session started again after a restart
 is asked about the checklist it found. A claude started by hand in the same
 place, without the tool, is asked nothing.
 
+**Restart and letters.** The tools `session_restart` and `send_to_session` come
+with the checklist tool and need nothing installed; they ask the panel over its local
+listener (`AACP_PANEL_URL`, `http://127.0.0.1:8777` by default), so with the
+listener off a session can neither restart itself through them nor write to
+another.
+
 ---
 
 ## 11. systemd units
