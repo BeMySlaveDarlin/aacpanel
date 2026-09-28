@@ -94,9 +94,17 @@ func TestEveryDesktopViewOpensSomething(t *testing.T) {
 	if panels == "" {
 		t.Fatal("src/desktop/panels.js not found")
 	}
-	for _, id := range regexp.MustCompile(`id: "([a-z]+)", label:`).FindAllStringSubmatch(panels, -1) {
-		if !strings.Contains(panels, `tab === "`+id[1]+`"`) {
-			t.Errorf("pane %q is declared, but there is no branch for it", id[1])
+	// A pane marked layer opens over the whole shell rather than as a panel:
+	// the shell has to tell it apart and draw what it opens.
+	for _, pane := range regexp.MustCompile(`\{ id: "([a-z]+)", label:[^}]*\}`).FindAllStringSubmatch(panels, -1) {
+		if strings.Contains(pane[0], "layer: true") {
+			if !strings.Contains(shell, "it.layer ? setMapOpen(true)") || !strings.Contains(shell, "<${MapSettings}") {
+				t.Errorf("pane %q opens over the shell, but the shell neither opens nor draws it", pane[1])
+			}
+			continue
+		}
+		if !strings.Contains(panels, `tab === "`+pane[1]+`"`) {
+			t.Errorf("pane %q is declared, but there is no branch for it", pane[1])
 		}
 	}
 }

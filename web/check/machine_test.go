@@ -137,8 +137,11 @@ func TestLimitsStalenessHasOneOwner(t *testing.T) {
 }
 
 type deskRing struct {
-	Text  string `json:"text"`
-	Level string `json:"level"`
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Arc   string `json:"arc"`
+	Ink   string `json:"ink"`
+	Tip   string `json:"tip"`
 }
 
 type deskSection struct {
@@ -162,8 +165,10 @@ type deskShelfRow struct {
 }
 
 // Every contour shown in the sessions column at a desk has its section: a
-// heading with its name and two rings of its limit — the share of each window
-// inside, the window beside, no count of live sessions — which a press opens
+// heading on a band of its own with its name and two rings of its limit — the share of each window
+// inside, in one colour whatever the share, and beside it how long until the
+// window starts over, short and rounded up (the window itself when the
+// snapshot does not know), no count of live sessions — which a press opens
 // into the details of both windows, each with when it resets; and its live
 // sessions, or a word that nothing lives in it. No closed conversation stands
 // among them: the closed ones of every contour shown share a shelf below all
@@ -183,16 +188,62 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		Closed    bool           `json:"closed"`
 		OldNote   string         `json:"oldNote"`
 		NoteOnTop bool           `json:"noteOnTop"`
+		Band      map[string]struct {
+			Apart int  `json:"apart"`
+			Solid bool `json:"solid"`
+		} `json:"band"`
 	}
 	runWideFixture(t, "desklimits.html", &got)
+
+	// The heading of a contour is a band of its own, not a row like the
+	// sessions under it, in either theme: the column reads as one block a
+	// contour. Its ground stays solid, so the rows scrolling under the sticky
+	// heading are not seen through it.
+	for _, theme := range []string{"dark", "sky"} {
+		b, ok := got.Band[theme]
+		if !ok {
+			t.Errorf("the fixture measured no heading in the %s theme", theme)
+			continue
+		}
+		if b.Apart < 12 {
+			t.Errorf("in the %s theme the heading of a contour is painted %d apart from a row of its sessions — it merges into them", theme, b.Apart)
+		}
+		if !b.Solid {
+			t.Errorf("in the %s theme the heading of a contour lets the rows scrolling under it show through", theme)
+		}
+	}
 
 	if len(got.Sections) != 3 {
 		t.Fatalf("the column shows %d contours, expected all three of the map, with live sessions or without: %+v", len(got.Sections), got.Sections)
 	}
 	evirma, algo, personal := got.Sections[0], got.Sections[1], got.Sections[2]
+	for sec, want := range map[*deskSection]string{
+		&evirma: "7:48m|41:7d", &algo: "93:2h|57:5d", &personal: "12:3h|24:5d",
+	} {
+		var rings []string
+		for _, r := range sec.Rings {
+			rings = append(rings, r.Value+":"+r.Label)
+		}
+		if strings.Join(rings, "|") != want {
+			t.Errorf("%q: the rings read %v, expected %s — the share inside, and beside it how long until the window starts over, "+
+				"rounded up, or the window when the snapshot does not know", sec.Name, rings, want)
+		}
+	}
 	for _, sec := range got.Sections {
-		if len(sec.Rings) != 2 || !strings.HasSuffix(sec.Rings[0].Text, "5h") || !strings.HasSuffix(sec.Rings[1].Text, "7d") {
+		if len(sec.Rings) != 2 {
 			t.Errorf("%q: the heading holds rings %+v, expected five hours and seven days", sec.Name, sec.Rings)
+			continue
+		}
+		for _, r := range sec.Rings {
+			first := got.Sections[0].Rings[0]
+			if r.Arc == "" || r.Arc != first.Arc || r.Ink != first.Ink {
+				t.Errorf("%q: a ring at %s%% is drawn in %s with the number in %s, one at %s%% in %s and %s — a ring keeps its colour whatever the share",
+					sec.Name, r.Value, r.Arc, r.Ink, first.Value, first.Arc, first.Ink)
+			}
+		}
+		if !strings.HasPrefix(sec.Rings[0].Tip, "Five hours") || !strings.HasPrefix(sec.Rings[1].Tip, "Seven days") {
+			t.Errorf("%q: the rings are tipped %q and %q — a label that says the time left has to name its window somewhere",
+				sec.Name, sec.Rings[0].Tip, sec.Rings[1].Tip)
 		}
 		if strings.Contains(sec.Head, "live") {
 			t.Errorf("%q: the heading still counts live sessions: %q", sec.Name, sec.Head)
@@ -203,9 +254,6 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		if sec.Closed != 0 {
 			t.Errorf("%q holds %d closed conversations among its live sessions — the closed ones stand on the shelf", sec.Name, sec.Closed)
 		}
-	}
-	if len(algo.Rings) == 2 && (algo.Rings[0].Level != "crit" || !strings.HasPrefix(algo.Rings[0].Text, "93")) {
-		t.Errorf("a five-hour window at 93%% reads %+v: it has to be marked", algo.Rings[0])
 	}
 	if !strings.Contains(evirma.Head, "1 h ago") {
 		t.Errorf("the heading of numbers an hour old reads %q — how old they are has to show without a press", evirma.Head)
@@ -247,7 +295,7 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 	}
 
 	if len(got.Pop) != 2 || !strings.Contains(got.Pop[0], "Five hours") || !strings.Contains(got.Pop[0], "93%") ||
-		!strings.Contains(got.Pop[0], "resets in 1 h") || !strings.Contains(got.Pop[1], "Seven days") || !strings.Contains(got.Pop[1], "resets in 5 d") {
+		!strings.Contains(got.Pop[0], "resets in 2 h") || !strings.Contains(got.Pop[1], "Seven days") || !strings.Contains(got.Pop[1], "resets in 5 d") {
 		t.Errorf("the details of the limit read %q: both windows, each with its share and when it resets", got.Pop)
 	}
 	if !got.Closed {

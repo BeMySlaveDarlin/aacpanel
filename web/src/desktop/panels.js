@@ -5,9 +5,8 @@ import { Archive } from "./panels/archive.js";
 import { Journal } from "./panels/journal.js";
 import { Logs } from "./panels/logs.js";
 import { Procs } from "./panels/procs.js";
-import { Projects } from "./panels/projects.js";
 
-export function RightPanel({ tab, title, profiles, picks, names, archPicks, setArchPicks, container, exec, sessions, onOpen, onClose, onOpened }) {
+export function RightPanel({ tab, title, profiles, names, archPicks, setArchPicks, container, exec, onOpen, onClose }) {
     return html`
         <aside class="dkright">
             <div class="dkpanelhead">
@@ -25,15 +24,17 @@ export function RightPanel({ tab, title, profiles, picks, names, archPicks, setA
             ${tab === "journal" && html`<${Journal} />`}
             ${tab === "logs" && html`<${Logs} container=${container} />`}
             ${tab === "procs" && html`<${Procs} />`}
-            ${tab === "projects" && html`<${Projects} picks=${picks} exec=${exec} sessions=${sessions} onOpened=${onOpened} />`}
         </aside>
     `;
 }
 
+// The buttons of a section beside its sections. Most open a panel at the
+// right; one marked layer opens over the whole shell instead — the map is
+// settings in three columns, too wide for a panel.
 export const PANELS = {
     sessions: [
         { id: "archive", label: "Session archive", icon: Icon.clock },
-        { id: "projects", label: "Projects", icon: Icon.cube },
+        { id: "projects", label: "Projects", icon: Icon.cube, layer: true },
         { id: "journal", label: "Action journal", icon: Icon.list },
     ],
     containers: [

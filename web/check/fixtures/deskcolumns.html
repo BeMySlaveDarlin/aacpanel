@@ -5,13 +5,13 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="deskshell"><div class="dkbody withpanel"><aside class="dkleft"></aside><section class="dkcenter"></section><div id="root"></div></div></div>
 <script type="module">
-// The settings of the map on a wide screen: the pencil of a group opens the
-// three columns — the tree, the group, a project picked on it. A pick in the
+// The settings of the map on a wide screen, left last on a group: they open
+// again there in three columns — the tree, the group, a project picked on it. A pick in the
 // tree over a page with changes asks; Escape reaches only the top page; the
 // model is picked from a popover by its row; a project dropped on a group of
 // the tree moves there through its sheet.
 import { h, render } from "preact";
-import { RightPanel } from "/src/desktop/panels.js";
+import { MapSettings } from "/src/desktop/settings.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
@@ -42,9 +42,9 @@ window.fetch = async (url, init) => {
 };
 window.EventSource = class { constructor() {} addEventListener() {} close() {} };
 
-render(h(ToastHost, null, h(GateHost, null, h(RightPanel, {
-    tab: "projects", title: "Projects", profiles: { profiles: [personal] }, picks: [], names: ["personal"],
-    archPicks: [], setArchPicks() {}, exec: { available: true, kinds: ["session.open"] }, onOpen() {}, onClose() {}, onOpened() {},
+render(h(ToastHost, null, h(GateHost, null, h(MapSettings, {
+    picks: [], last: { contour: 3, group: 3 }, exec: { available: true, kinds: ["session.open"] }, sessions: [],
+    onPick() {}, onClose() {},
 }))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -66,8 +66,6 @@ const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k,
 
 window.done = (async () => {
     const out = {};
-    const pen = await until(() => all(".dkproj .dkact")[1]);
-    pen.click();
     await until(() => cols().length === 2 && heads()[0]);
     out.tree = all(".dktreeitem").map(text);
     out.opened = heads();

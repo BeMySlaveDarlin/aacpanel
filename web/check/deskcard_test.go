@@ -15,10 +15,11 @@ type deskCardSection struct {
 }
 
 type deskCardFacts struct {
-	All   []string `json:"all"`
-	Shown []string `json:"shown"`
-	Lines int      `json:"lines"`
-	Cut   []string `json:"cut"`
+	All    []string `json:"all"`
+	Levels []string `json:"levels"`
+	Shown  []string `json:"shown"`
+	Lines  int      `json:"lines"`
+	Cut    []string `json:"cut"`
 }
 
 type deskCardRow struct {
@@ -221,18 +222,19 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 // words the panel uses elsewhere and in the order of what tells most: the
 // group of its project unless it is the name, the model and its effort, the
 // mode where it is not the one the account starts in (a mode that stops the
-// session asking is said always), the context in tokens, how long it has
-// been up, and its compactions. One line: what does not fit drops from the
-// end, a whole fact at a time.
+// session asking is said always), the context in tokens and right after them
+// how full it is, how long it has been up, and its compactions. One line:
+// what does not fit drops from the end, a whole fact at a time. The share is
+// quiet while there is room and loud when the context is nearly spent.
 func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	got := runDeskCard(t)
 
 	for name, want := range map[string]string{
-		"aacpanel":    "Pets|Opus 5.5 · Extra|418k of 1m|up 3 h|2 compactions",
-		"ai-platform": "Platform|Opus 5.5 · Extra|Plan|370k of 1m|up 3 h",
-		"lms":         "Opus 5.5 · Extra|Bypass|260k of 1m|up 3 h",
-		"atlas":       "Host|Opus 5.5 · Extra|100k of 1m|up 3 h",
-		"scratch":     "Opus 5.5 · Extra|50k of 1m|up 3 h",
+		"aacpanel":    "Pets|Opus 5.5 · Extra|418k of 1m|42%|up 3 h|2 compactions",
+		"ai-platform": "Platform|Opus 5.5 · Extra|Plan|370k of 1m|37%|up 3 h",
+		"lms":         "Opus 5.5 · Extra|Bypass|260k of 1m|26%|up 3 h",
+		"atlas":       "Host|Opus 5.5 · Extra|100k of 1m|10%|up 3 h",
+		"scratch":     "Opus 5.5 · Extra|50k of 1m|5%|up 3 h",
 	} {
 		f := got.Facts[name]
 		if strings.Join(f.All, "|") != want {
@@ -251,14 +253,30 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	if f := got.Facts["aacpanel"]; len(f.Shown) >= len(f.All) {
 		t.Errorf("the longest line shows all of %v — the fixture no longer checks what happens to a line too long for the column", f.All)
 	}
+	for name, want := range map[string]string{"aacpanel": "", "evirma-fingerprint-rotation-review": "crit"} {
+		f := got.Facts[name]
+		at := -1
+		for i, fact := range f.All {
+			if strings.HasSuffix(fact, "%") {
+				at = i
+			}
+		}
+		if at < 1 || !strings.Contains(f.All[at-1], " of ") {
+			t.Errorf("%s runs on %v — how full the context is stands right after its tokens", name, f.All)
+			continue
+		}
+		if len(f.Levels) != len(f.All) || f.Levels[at] != want {
+			t.Errorf("%s: the share %q carries the level %v, expected %q", name, f.All[at], f.Levels, want)
+		}
+	}
 }
 
 // A row does one thing besides opening and shows it on every row, not under
 // the pointer: a cross to close a session, a restart for the home one. The
-// share and the action hold a column of their own at the right of the row —
-// the share on the line of the name, the action on the line of the state —
-// and nothing of the row runs into them: not a long name, not its marks, not
-// the state or the line of what it runs on. The column stands as narrow as it
+// action stands in the top right corner of the row, on the line of the name
+// at the right edge, where no share of the context stands any more, and
+// nothing of the row runs into it: not a long name, not its marks, not the
+// state or the line of what it runs on. The column stands as narrow as it
 // gets, with the right panel open. One the panel did not start has no action,
 // which the fixture of such sessions holds.
 func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
@@ -272,7 +290,7 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 			t.Errorf("%s has %d actions, shown %v — every row the panel started shows its one action without the pointer", row.Name, row.Icons, row.Shown)
 		}
 		if len(row.Bad) > 0 {
-			t.Errorf("%s: %v — the share and the action keep a place of their own", row.Name, row.Bad)
+			t.Errorf("%s: %v — the action keeps the corner of its own", row.Name, row.Bad)
 		}
 	}
 	if got.HomeAct != "restart session atlas" {
