@@ -672,10 +672,11 @@ the period, a process measured this second, straight from the snapshot — and i
 says which is which, because one of them has no past to show.
 
 **The schema travels with the service.** Migrations are applied when the image
-starts. An applied file is untouchable: its checksum is recorded in the
-database, and editing any character — a comment included — parts the file from
-the database, after which the service does not come up. That is why there are no
-comments in migration files at all.
+starts. The database logs the number of every file it has run, and a file whose
+number is logged is never run again or compared with anything: a change of
+schema is always a new file, and an edit to an applied one reaches only the
+databases set up after it. A logged number with no file — removed from the tree,
+or a database newer than the binary — is named in the log and stops nothing.
 
 **Two roles.** The service works under the application role: it has neither DDL
 nor `TRUNCATE`, and on the journal table only `INSERT`, `SELECT` and `UPDATE` of

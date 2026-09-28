@@ -149,8 +149,9 @@ The exceptions are three, and every one of them is named by file in
 rule. A handful of string constants are keys arriving from data written earlier
 rather than text meant for a human, and they keep their old spelling. The phrases
 by which a tool of the panel, in its line to a session, recognises a request
-said in Russian are not text for a reader either. And an applied migration is untouchable down to a single
-character, so whatever it says stays as it was written.
+said in Russian are not text for a reader either. And the range of letters a
+check walks over and a file name as the desktop of a machine in another locale
+writes it are data the code has to accept.
 
 **This check walks the list git keeps, not the working tree.** A new file
 enters it only once it is added, so a file carrying the Russian phrases a tool
@@ -233,11 +234,19 @@ A list, a map and a count the screen reads keep their place in the reply.
 A number is taken by the creation of a file, not by an intention: two identical
 numbers bring down the loading of migrations entirely.
 
-**An applied file is untouchable.** Its checksum is recorded in the database,
-and editing any character — a comment included — parts the file from the
-database; after that the service does not come up, and repeating does not cure
-it. That is why there are no comments in migration files at all, and the
-explanation lives in the code next to whatever reads that table.
+**An applied migration is never run again.** The database logs the number and
+the name of every file it has run in `schema_version`, and at startup the
+service applies the files whose number is not there — in order, each in a
+transaction of its own. Nothing compares an applied file with anything, so a
+change of schema ships as a new file under a new number. The cost, plainly:
+editing an applied file changes nothing on a database that has already run it.
+Only a database set up afterwards gets the new text, and the two part without a
+word. A number works the same way: a database that has logged it never runs a
+new file under it, so a number is not reused.
+
+A number in the log with no file beside it — a file removed from the tree, or a
+database newer than the binary — is named in the service log at startup and
+stops nothing.
 
 **Grants are not written in a migration.** The rights of the application role
 are issued by the service at every startup: a migration is applied once in the
