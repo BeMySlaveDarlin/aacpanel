@@ -52,7 +52,7 @@ const until = async (ok, ms = 3000) => {
         colLeft: col.getBoundingClientRect().left,
         cards: Array.from(document.querySelectorAll(".mtasks")).map((el) => ({
             rows: el.querySelectorAll(".mtask").length,
-            head: el.querySelector(".sentlabel").textContent,
+            head: el.querySelector(".sentlabel").textContent.replace(/\s+/g, " "),
             left: el.getBoundingClientRect().left,
             width: el.getBoundingClientRect().width,
         })),

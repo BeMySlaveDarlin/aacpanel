@@ -307,9 +307,10 @@ function Letter({ item }) {
     `;
 }
 
-// The tone and the mark of a background task by how it ended.
+// The tone of a background task by how it ended, and its mark: a tick for one
+// that did its work, a cross for one that did not.
 const DONE_TONES = { completed: "ok", failed: "crit", killed: "faint", stopped: "faint" };
-const DONE_MARKS = { completed: "✓", failed: "✗" };
+const doneMark = (status) => (status === "completed" ? "✓" : "✗");
 
 // doneName is what a finished task was called: the name in the quotes of
 // claude's sentence about it, or the sentence when it has none.
@@ -330,14 +331,22 @@ function doneExit(summary) {
     return code && code[1] !== "0" ? `exit ${code[1]}` : "";
 }
 
-const TASK_TAGS = { agent: "AGENT", command: "BASH", monitor: "MON", other: "TASK" };
-
-const TASK_WORDS = {
-    agent: { completed: "agent finished", failed: "agent failed", killed: "agent stopped", stopped: "agent stopped" },
-    command: { completed: "command finished", failed: "command failed", killed: "command stopped", stopped: "command stopped" },
-    monitor: { completed: "monitor ended", failed: "monitor failed", killed: "monitor stopped", stopped: "monitor stopped" },
-    other: { completed: "task finished", failed: "task failed", killed: "task stopped", stopped: "task stopped" },
+// The words a head names tasks by, one of a kind and several.
+const TASK_NOUNS = {
+    agent: ["agent", "agents"],
+    command: ["command", "commands"],
+    monitor: ["monitor", "monitors"],
+    other: ["task", "tasks"],
 };
+
+// How a task ended, in the word of the head. A monitor watches until its
+// source runs dry: it ends rather than finishes.
+const TASK_ENDS = { completed: "finished", failed: "failed", killed: "stopped", stopped: "stopped" };
+
+function endWord(kind, status) {
+    if (kind === "monitor" && status === "completed") return "ended";
+    return TASK_ENDS[status] || "ended";
+}
 
 const TASK_ICONS = { agent: Icon.robot, command: Icon.terminal, monitor: Icon.monitor, other: Icon.tools };
 
@@ -351,24 +360,47 @@ function taskKind(item) {
     return "other";
 }
 
-// TaskCard is the background tasks that ended side by side: the head says
-// what ended, a row per task says what it was, how it ended and what it took.
-// A task that names itself opens what it left behind: an agent its
-// conversation, a command its output.
+// kindsOf counts the tasks of a card by kind, in the order their rows stand.
+function kindsOf(list) {
+    const kinds = new Map();
+    for (const item of list) {
+        const kind = taskKind(item);
+        kinds.set(kind, (kinds.get(kind) || 0) + 1);
+    }
+    return kinds;
+}
+
+// taskHead names what ended. Tasks of one kind are named by it, counted when
+// there are several, with how they ended: the one ending they share, or
+// "ended" when they ended apart. Tasks of several kinds are the kinds counted
+// alone — the marks of the rows say how each ended, and a phone has no room
+// on the head for more beside the time. A head that still does not fit wraps
+// between the kinds, never between a number and its kind.
+function taskHead(list, kinds) {
+    if (kinds.size > 1) {
+        return [...kinds].map(([kind, n]) => `${n}\u00a0${TASK_NOUNS[kind][n > 1 ? 1 : 0]}`).join(", ");
+    }
+    const [kind] = kinds.keys();
+    const alike = list.every((t) => t.status === list[0].status);
+    const verb = alike ? endWord(kind, list[0].status) : "ended";
+    return list.length > 1 ? `${list.length} ${TASK_NOUNS[kind][1]} ${verb}` : `${TASK_NOUNS[kind][0]} ${verb}`;
+}
+
+// TaskCard is the background tasks that ended side by side: the head names
+// what ended, a row per task marks how it ended and says what it was and
+// what it took. A task that names itself opens what it left behind: an agent
+// its conversation, a command its output.
 function TaskCard({ list, onTask }) {
-    const first = list[0];
-    const kind = taskKind(first);
+    const kinds = kindsOf(list);
+    const [kind] = kinds.keys();
     const failed = list.some((t) => t.status === "failed");
-    const label = list.length > 1
-        ? `${list.length} tasks ended`
-        : (TASK_WORDS[kind][first.status] || "task ended");
-    const icon = list.length > 1 ? Icon.list() : TASK_ICONS[kind]();
+    const icon = kinds.size > 1 ? Icon.list() : TASK_ICONS[kind]();
     const at = list[list.length - 1].at;
     return html`
         <div class=${`sent mtasks${failed ? " failed" : ""}`}>
             <div class="senthead">
                 <span class="sentico">${icon}</span>
-                <span class="sentlabel">${label}</span>
+                <span class="sentlabel">${taskHead(list, kinds)}</span>
                 ${at && html`<span class="sentat">${stampText(at)}</span>`}
             </div>
             <div class="mflist">
@@ -381,7 +413,7 @@ function TaskCard({ list, onTask }) {
                     const name = doneName(item.summary);
                     const said = item.summary || "a background task ended";
                     const body = html`
-                        <span class="mftag">${DONE_MARKS[item.status] ? `${DONE_MARKS[item.status]} ` : ""}${TASK_TAGS[taskKind(item)]}</span>
+                        <span class="mftag">${doneMark(item.status)}</span>
                         <span class="mfname">
                             ${name}
                             ${aside && html`<span class="mfnote">${aside}</span>`}
