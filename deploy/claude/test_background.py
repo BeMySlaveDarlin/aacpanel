@@ -6,7 +6,6 @@ import io
 import json
 import os
 import pathlib
-import subprocess
 import tempfile
 import threading
 import time
@@ -97,45 +96,6 @@ class TestWhatIsAtWork(unittest.TestCase):
         self.assertIn("1 agent of this session is at work, and a restart ends it", background.wait_line(1, 0))
         self.assertIn("Do not restart now", line)
         self.assertIn("--anyway", line)
-
-
-class TestRestartScriptWaits(unittest.TestCase):
-    """restart-session.sh stops before the panel and before tmux while work goes on."""
-
-    def setUp(self):
-        self.dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.dir.cleanup)
-        self.state = os.path.join(self.dir.name, "state")
-        os.makedirs(self.state)
-        # A tmux that records what it was asked and finds no pane: a script that
-        # got past the check ends there and restarts nothing real.
-        bin_dir = os.path.join(self.dir.name, "bin")
-        os.makedirs(bin_dir)
-        self.calls = os.path.join(self.dir.name, "tmux-calls")
-        fake = os.path.join(bin_dir, "tmux")
-        with open(fake, "w", encoding="utf-8") as f:
-            f.write(f'#!/bin/sh\necho "$@" >> {self.calls}\nexit 1\n')
-        os.chmod(fake, 0o755)
-        self.env = {**os.environ, "PATH": f"{bin_dir}:/usr/bin:/bin", "AACP_STATE_DIR": self.state,
-                    "CLAUDE_CODE_SESSION_ID": "mine", "AACP_PANEL_URL": "http://127.0.0.1:9"}
-
-    def run_script(self, *args):
-        return subprocess.run([str(HERE / "restart-session.sh"), *args], env=self.env,
-                              capture_output=True, text=True, timeout=30)
-
-    def test_work_at_work_stops_the_restart_the_old_way_included(self):
-        snapshot(os.path.join(self.state, "state.json"), {"agents": 1, "tasks": 0}, at=time.time() + 60)
-        for args in ((), ("--continue",)):
-            got = self.run_script(*args)
-            self.assertEqual(got.returncode, 2, f"{args}: {got.stdout}{got.stderr}")
-            self.assertIn("WAIT 1 agent of this session is at work", got.stdout)
-        self.assertFalse(os.path.exists(self.calls), "the script went on to tmux with an agent at work")
-
-    def test_anyway_goes_on(self):
-        snapshot(os.path.join(self.state, "state.json"), {"agents": 1, "tasks": 0}, at=time.time() + 60)
-        got = self.run_script("--anyway")
-        self.assertNotEqual(got.returncode, 2, got.stdout + got.stderr)
-        self.assertNotIn("WAIT", got.stdout)
 
 
 class TestCommand(unittest.TestCase):

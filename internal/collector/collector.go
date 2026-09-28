@@ -1,8 +1,8 @@
 // Package collector holds the panel's tools that hand what a session says to
 // the collector on the host: a brief for the person to walk through, and a
 // call to their phone. The collector takes both on sockets of its own in its
-// runtime directory — the same sockets the scripts of the shipped skills write
-// to — and answers every request with whether it took it and, if not, why.
+// runtime directory and answers every request with whether it took it and, if
+// not, why.
 package collector
 
 import (
@@ -20,8 +20,9 @@ import (
 	"aacpanel/internal/mcp"
 )
 
-// The sockets of the collector. A variable moves one the way it moves it for
-// the scripts of the skills, so a tool and a script reach the same collector.
+// The sockets of the collector, in its runtime directory. A variable moves
+// one, for a collector whose runtime directory is elsewhere and for a test
+// that stands in for it.
 const (
 	briefSocket  = "/run/aacpanel-agent/brief.sock"
 	notifySocket = "/run/aacpanel-agent/notify.sock"

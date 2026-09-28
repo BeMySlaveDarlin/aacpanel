@@ -41,21 +41,32 @@ def sent_card(result, use, at, pos):
     return card
 
 
-# What a brief published from the session leaves in the run.
-BRIEF_PUBLISHED_RE = re.compile(r"^OK published as ([A-Za-z0-9][A-Za-z0-9._-]{0,63}):", re.M)
+# The call that publishes a brief through the panel's server, by the name
+# claude gives it.
+BRIEF_TOOL = "mcp__aacpanel__brief_publish"
+
+# What a published brief leaves in the run, by the kind of call that published
+# it. The tool answers with the name first. A shell call prints a line of its
+# own among whatever else its command printed: one command line may check a
+# document and publish it too.
+BRIEF_BY = {
+    "tool": re.compile(r"Published as ([A-Za-z0-9][A-Za-z0-9._-]{0,63})[:.]").match,
+    "shell": re.compile(r"^OK published as ([A-Za-z0-9][A-Za-z0-9._-]{0,63}):", re.M).search,
+}
 
 
-def brief_card(text, shelf, use, at, pos):
+def brief_card(text, by, shelf, use, at, pos):
     """Returns a card for a brief the session published, or None when none went.
 
-    The card is built from the answer of the script, not from the command that
-    ran it: a call that did not reach the collector prints why and publishes
+    The card is built from the answer of the call, not from what the call was
+    given: a call that did not reach the collector says why and publishes
     nothing, and a card for it would send the reader to a document that is not
-    there. What the document is about comes from the shelf, which is where the
-    collector just put it; without the shelf the card still points at the brief
-    by its name.
+    there. By is the kind of call, a key of BRIEF_BY. What the document is
+    about comes from the shelf, which is where the collector just put it;
+    without the shelf the card still points at the brief by its name.
     """
-    found = BRIEF_PUBLISHED_RE.search(text or "")
+    read = BRIEF_BY.get(by)
+    found = read(text or "") if read else None
     if not found:
         return None
     brief_id = found.group(1)

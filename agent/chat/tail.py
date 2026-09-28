@@ -121,7 +121,7 @@ class Stream:
         self.cwd = ""
 
     def __iter__(self):
-        pending, asks, sent, briefs, calls = Pending(), {}, set(), set(), {}
+        pending, asks, sent, briefs, calls = Pending(), {}, set(), {}, {}
         size = os.path.getsize(self.path)
         permits = permits_of(self.path, self.sidechain)
         with open(self.path, "rb") as f:
@@ -171,7 +171,7 @@ class Piece:
         self.pending = Pending()
         self.asks = {}
         self.sent = set()
-        self.briefs = set()
+        self.briefs = {}
         self.calls = {}
 
     @classmethod
@@ -248,7 +248,7 @@ class Piece:
         if record is None:
             return []
         items = parse(record, self.pos, self.pending.clone(), dict(self.asks),
-                      self.sidechain, set(self.sent), set(self.briefs), shelf_of(),
+                      self.sidechain, set(self.sent), dict(self.briefs), shelf_of(),
                       dict(self.calls), permits_of(self.path, self.sidechain))
         return [(self.pos, items)] if items else []
 

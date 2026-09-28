@@ -300,10 +300,7 @@ the panel's eyes.
 | `deploy/claude/brief-waiting.py` | the `SessionStart` hook | a session that starts in a project where a brief is answered and unsent hears about it, since the session that asked is usually gone by then |
 | `deploy/claude/context-guard.py` | the `Stop` hook | past its context cap a session with Auto restart finalizes and restarts itself; the cap and the switch are set in the panel, per contour or per project |
 | `deploy/claude/checklist-reminder.py` | the `Stop` hook | a session that keeps a checklist with the panel's checklist tool and did work without touching it is asked once, at the end of the turn, to update the checklist if it changed |
-| `deploy/claude/skills/restart-session/` | `<account>/skills/` | `/restart-session`: restarting the session as its project from the map, through the panel's local listener; in its own tmux pane when the panel does not answer |
-| `deploy/claude/skills/cross-profile-message/` | `<account>/skills/` | a message to a session in another account; needed only where there are several accounts |
-| `deploy/claude/skills/notify/` | `<account>/skills/` | `/notify`: the session calls the person to it, and the line arrives on their phone |
-| `deploy/claude/skills/brief/` | `<account>/skills/` | `/brief`: the session publishes a long piece the person walks through in the panel, and the answers come back as a message |
+| the panel's MCP server | `<account>/.claude.json`, by `claude mcp add` | the panel's tools in a session started by hand, not by the panel: see **Panel tools** below |
 | `aacpanel-docker-gc.{service,timer}` | `<home>/.config/systemd/user/` | once a week: build cache older than two weeks and untagged images |
 
 Cleaning the cache:
@@ -358,22 +355,62 @@ It speaks only at the end of a turn, when the session is free: no question and
 no permission prompt can be open then, and nothing is typed into the session
 from outside. The fill comes from the collector's snapshot, the same one the
 stamp reads, and a model whose window is not known does not trigger it. The
-restart goes through the restart-session skill, so that one is installed too;
-the skill asks the panel over its local listener (`deploy/claude/restart-via-panel.py`,
-`AACP_PANEL_URL`) to bring the session back as its project. With the local
-listener off, a session in the feed cannot restart itself, and one in the
-console restarts in its own pane without the map's parameters.
+restart goes through the panel's `session_restart` tool, which asks the panel
+over its local listener (`AACP_PANEL_URL`) to bring the session back as its
+project. A session the panel started has the tool; one started by hand has it
+once its account has the panel's server (**Panel tools** below). With the
+local listener off, a session cannot restart itself. The tool is not among
+the ones the panel allows, so where the permission mode asks, the restart past
+the cap waits on a permission prompt until the account allows it.
 The turn after the block is the finalization itself and is never blocked again;
 a session that ignored it is told again at the end of its next turn.
 
 **Panel tools.** Every session the panel starts gets them from the launcher
 unless the Panel tools parameter of its contour or project is off: the
-checklist, the brief (`brief_publish`, `brief_delete`) and the call to the
-person (`notify`), which do what the brief and notify skills do with nothing
-installed. Rules of
-the machine's own for the text of a brief go into
-`${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md`: the brief tool gives
-them to a session after the shipped ones, and without the file there are none.
+checklist, the brief (`brief_publish`, `brief_delete`), the call to the person
+(`notify`), the restart of the session (`session_restart`) and the letter to
+another session (`send_to_session`). They are the tools of one MCP server, the
+executor started as `aacpanel-exec -mcp`. Rules of the machine's own for the
+text of a brief go into `${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md`:
+the brief tool gives them to a session after the shipped ones, and without the
+file there are none.
+
+A session started by hand, not by the panel, gets the same tools from its
+account. One command an account adds the server at the user level, for every
+project of that account; it only writes the command down, so it may go before
+the executor is built in §12, and the server comes up with the next session:
+
+```bash
+claude mcp add --scope user aacpanel -- <home>/bin/aacpanel-exec -mcp
+CLAUDE_CONFIG_DIR=<account> claude mcp add --scope user aacpanel -- <home>/bin/aacpanel-exec -mcp   # every other account
+claude mcp get aacpanel          # Scope: User config, and Connected once the executor is built
+```
+
+The name is `aacpanel` and no other: claude calls the tools
+`mcp__aacpanel__<tool>`, and the permission rules below name them so. Where the
+state directory is not `/var/lib/aacpanel`, the server is told it after the
+name, `-e AACP_STATE_DIR=<state>`. A second `add` of the same name is refused,
+so a new path goes in after `claude mcp remove aacpanel -s user`. A session the
+panel starts in such an account still has one server: claude keeps one server
+of a name, and the launcher's, given on the command line, takes the place of
+the account's.
+
+A session the panel starts is allowed the checklist, `brief_publish`,
+`brief_delete` and `notify`, and asks the person before `session_restart` and
+`send_to_session` as before any tool nobody allowed. A session started by hand
+is allowed nothing of the server until its account says so, in
+`permissions.allow` of `<account>/settings.json`:
+
+```json
+{"permissions": {"allow": [
+  "mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish",
+  "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify"]}}
+```
+
+These four are the ones the panel allows. `mcp__aacpanel__session_restart`
+beside them keeps the restart past the context cap from waiting on a prompt,
+in the panel's sessions as well; the price is that the model then restarts a
+session without asking whenever it decides to.
 
 **The checklist reminder.** The checklist tool needs nothing installed: every
 session the panel starts gets it from the launcher, unless the Panel tools
@@ -397,11 +434,10 @@ as the panel starts every session — so a session started again after a restart
 is asked about the checklist it found. A claude started by hand in the same
 place, without the tool, is asked nothing.
 
-**Restart and letters.** The tools `session_restart` and `send_to_session` come
-with the checklist tool and need nothing installed; they ask the panel over its local
-listener (`AACP_PANEL_URL`, `http://127.0.0.1:8777` by default), so with the
-listener off a session can neither restart itself through them nor write to
-another.
+**Restart and letters.** The tools `session_restart` and `send_to_session` ask
+the panel over its local listener (`AACP_PANEL_URL`, `http://127.0.0.1:8777` by
+default), so with the listener off a session can neither restart itself through
+them nor write to another.
 
 ---
 
@@ -576,7 +612,9 @@ The rest is optional and one at a time, because it is data:
 - `<state>` — the snapshot, the session questions, the conversation index;
 - the hook and the status line in every `settings.json`; delete the repository
   only after that — the hook calls a file from the tree, and every session's
-  question would fall over a path that no longer exists.
+  question would fall over a path that no longer exists;
+- `claude mcp remove aacpanel -s user` in every account that has the panel's
+  server, or each session there starts with a server that fails to connect.
 
 ---
 

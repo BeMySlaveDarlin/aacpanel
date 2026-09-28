@@ -304,11 +304,11 @@ def session_cwd(session_id):
     """Returns the directory of a live session, or "" when it is not among them.
 
     The directory a brief belongs to is the directory of the session, and that
-    is not the directory the publishing script was started in: a session that
-    runs it after a cd hands over the directory of the shell, and the document
-    then lands in the conversation of whatever repository the script lives in.
-    The registry of live sessions knows where each session itself works, and
-    every contour of the machine is read, not only the personal one.
+    is not always the directory the publisher hands over: a publisher started
+    from a shell hands over wherever the agent last went with cd, and the
+    document then lands in the conversation of that directory. The registry of
+    live sessions knows where each session itself works, and every contour of
+    the machine is read, not only the personal one.
     """
     if not session_id:
         return ""
@@ -346,7 +346,7 @@ def clean(payload):
     questions = [_question(q, i + 1, seen) for i, q in enumerate(raw_questions)]
 
     # What the session says about its own directory is a fallback, not the
-    # answer: it is the directory of the process that ran the script.
+    # answer: it is the directory of the process that published the brief.
     out = {
         "id": brief_id,
         "sessionId": session,

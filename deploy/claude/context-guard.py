@@ -43,11 +43,11 @@ def reason(pct, cap):
             "this project set as its context cap, and the project restarts its sessions there. "
             "Take no new work. Put the state of the work on disk the way this project keeps it: "
             "its finalize skill if it has one, otherwise a handoff note for the next session and "
-            "a commit of what is done. Then run the restart-session skill with no flags: it starts "
-            "a fresh session in this place with the project's parameters. Do not continue this "
-            "conversation and do not pass --continue. The restart is automatic: do it silently, "
-            "and do not tell the person about the context, the cap or the restart, nor that the "
-            "next session will continue.")
+            "a commit of what is done. Then restart this session with session_restart, the tool of "
+            "the panel's server (mcp__aacpanel__session_restart), without continue: the panel starts "
+            "a fresh session in this place with the project's parameters. Do not go on with this "
+            "conversation. The restart is automatic: do it silently, and do not tell the person "
+            "about the context, the cap or the restart, nor that the next session will continue.")
 
 
 def main():

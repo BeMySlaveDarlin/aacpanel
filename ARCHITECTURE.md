@@ -130,7 +130,8 @@ rather than drawing it empty.
                             transcripts;            the terminal window,
                             ask, brief, page,       the holders of the
                             notify.sock for the     stream sessions
-                            scripts of sessions
+                            hooks and tools of
+                            sessions
 ```
 
 **The snapshot.** The collector writes the state of the machine as a file into
@@ -796,8 +797,12 @@ terminal is renamed on its own screen, `/rename` with keys.
 launcher starts, in a console or on the stream, gets the executor as the MCP
 server `aacpanel` (`aacpanel-exec -mcp`), and the tools the server marks
 allowed are allowed by name, so a call of one never waits on a person; the
-`panelTools` launch parameter turns them off for a contour or a project, and a
-session started by hand does not have them. The list of tools lives in one
+`panelTools` launch parameter turns them off for a contour or a project. A
+session started by hand has them where its account names the same server at
+the user level (`claude mcp add`, INSTALL), with nothing allowed until the
+account allows it; a session the launcher starts in such an account still has
+one server, since claude keeps one server of a name and the one on the command
+line takes the place of the account's. The list of tools lives in one
 place, `internal/toolset`: the executor serves it and the launcher takes the
 allowed names from it, so a session is never allowed a tool the server does not
 have. The server's word to a session — in its system prompt — is a lead and a
@@ -807,10 +812,12 @@ MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries
 the brief — `brief_publish`, whose call without a document returns the rules of
 writing one, and `brief_delete` — and the call to the person, `notify`. They
-speak to the same sockets of the collector as the scripts of the skills, under
-the conversation and the directory the server finds for its claude rather than
-any the model names, so a brief published either way lands on the same shelf
-and its answers go back to the same session.
+speak to the collector's sockets under the conversation and the directory the
+server finds for its claude rather than any the model names, so a brief lands
+on the shelf of the session that published it and its answers go back to that
+session. The feed draws the card of a published brief from the tool's answer,
+which names the brief first, and never from what the call was given: a check
+publishes nothing, and neither does a call the collector refused.
 
 **The checklist of a session is the model's own, kept by a tool of the
 panel.** The tool is `checklist` on the panel's server, allowed, so an update
@@ -1018,12 +1025,13 @@ anywhere but the machine itself.
 
 The check keeps out a page in a browser, not a program. Any process on the
 machine, run by any of its users, reaches every action through this port with
-no sign-in — and the scripts of the sessions rely on exactly that: a session
-asks for its own restart here, and learns here that a brief is waiting to be
-sent. A request with no device behind it is written into the journal as made by
-"this machine". On a machine whose other users must not drive its sessions,
-this port is the one to close — `AACP_LOCAL_ADDR` set empty — and the price is
-those scripts and the monitor at the machine itself.
+no sign-in — and the tools and hooks of the sessions rely on exactly that: a
+session asks for its own restart here, writes to another session here, and
+learns here that a brief is waiting to be sent. A request with no device behind
+it is written into the journal as made by "this machine". On a machine whose
+other users must not drive its sessions, this port is the one to close —
+`AACP_LOCAL_ADDR` set empty — and the price is those tools and hooks and the
+monitor at the machine itself.
 
 ### The address map
 

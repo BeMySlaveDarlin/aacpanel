@@ -43,9 +43,9 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 }
 
 // collectorSocket stands in for one socket of the collector, named to the
-// tools by the variable the scripts of the skills read: it answers every
-// request with ok and hands the request over. The directory is short, since
-// a unix socket's path holds 108 bytes.
+// tools by the variable that moves it: it answers every request with ok and
+// hands the request over. The directory is short, since a unix socket's path
+// holds 108 bytes.
 func collectorSocket(t *testing.T, env string) <-chan map[string]any {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "b")
@@ -79,9 +79,9 @@ func collectorSocket(t *testing.T, env string) <-chan map[string]any {
 	return got
 }
 
-// Every tool of the collector reaches the socket of its own kind, the one its
-// script writes to: a call handed to the shelf of briefs would be refused
-// there as a brief without a title, and the person would never be called.
+// Every tool of the collector reaches the socket of its own kind: a call
+// handed to the shelf of briefs would be refused there as a brief without a
+// title, and the person would never be called.
 func TestEveryToolOfTheCollectorReachesItsOwnSocket(t *testing.T) {
 	briefs := collectorSocket(t, "AACP_BRIEF_SOCKET")
 	calls := collectorSocket(t, "AACP_NOTIFY_SOCKET")

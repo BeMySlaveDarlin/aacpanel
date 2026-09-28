@@ -12,9 +12,8 @@ import (
 )
 
 // A call without a document returns how a brief is written: the fields, the
-// rules of its text, the ceilings — and nothing of the script the skill runs,
-// which a session with the tool has no use for. Nothing reaches the
-// collector.
+// rules of its text, the ceilings — and nothing of a command line, which a
+// session with the tool has no use for. Nothing reaches the collector.
 func TestACallWithoutADocumentReturnsTheRules(t *testing.T) {
 	f := listen(t, answers(map[string]any{"ok": true, "id": "a"}))
 	tool := BriefPublish(f.path, "")
@@ -31,7 +30,7 @@ func TestACallWithoutADocumentReturnsTheRules(t *testing.T) {
 	}
 	for _, gone := range []string{"brief.py", "--check", "--delete", "SKILL", "STOP"} {
 		if strings.Contains(rules, gone) {
-			t.Errorf("the rules still speak of the script: %q", gone)
+			t.Errorf("the rules speak of a command line: %q", gone)
 		}
 	}
 	f.quiet(t)
@@ -133,9 +132,8 @@ func TestADocumentIsAnObject(t *testing.T) {
 	f.quiet(t)
 }
 
-// A check says what is in the document the way the script's check does —
-// the title, the questions and how many of them ask something — and
-// publishes nothing.
+// A check says what is in the document — the title, the questions and how
+// many of them ask something — and publishes nothing.
 func TestACheckCountsAndPublishesNothing(t *testing.T) {
 	f := listen(t, answers(map[string]any{"ok": true, "id": "a"}))
 	said, failed := callTool(t, BriefPublish(f.path, ""), bound(sid), `{"check":true,"doc":{"id":"a","title":"Three",`+
