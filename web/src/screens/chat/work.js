@@ -16,6 +16,7 @@ import { state as briefState, waiting } from "../../data/briefs.js";
 import { key as pageKey, merge } from "../../data/artifacts.js";
 import { markOpened, unopened } from "../../data/opened.js";
 import { NowBar, nowOf, WaitBar } from "./now.js";
+import { PlanLine, planOf } from "./plan.js";
 
 // WorkStatus renders what is happening to the session right now: the call
 // going out and for how long, or the thinking between calls. A compaction is
@@ -27,24 +28,24 @@ import { NowBar, nowOf, WaitBar } from "./now.js";
 // holds it busy while its agents run, and the thinking the bar would count is
 // an answer that has already ended. The bar says that work instead, and says
 // nothing when the panel sees none of it at work.
-export function WorkStatus({ work, busy, turnOver, compacting, feed, onCalls, onOpen }) {
-    if (compacting) return html`<${Compacting} key=${compacting} since=${compacting} />`;
-    if (!busy) return null;
+//
+// The plan the session keeps heads the bar as its first line, and stands alone
+// above the composer when there is nothing else to say: where the session is in
+// its work belongs beside what it is doing this moment, and a quiet session is
+// still somewhere in its plan.
+export function WorkStatus({ work, busy, turnOver, compacting, feed, plan, onCalls, onOpen, onPlan }) {
+    const line = planOf(plan) ? html`<${PlanLine} plan=${plan} onOpen=${onPlan} />` : null;
+    const bar = (card) => ((card || line)
+        ? html`<div class=${`workbar status${line ? " planned" : ""}`}>${line}${card}</div>`
+        : null);
+    if (compacting) return bar(html`<${Compacting} key=${compacting} since=${compacting} />`);
+    if (!busy) return bar(null);
     if (turnOver) {
         const waits = waitedOn(work);
-        if (!waits) return null;
-        return html`
-            <div class="workbar status">
-                <${WaitBar} waits=${waits} onOpen=${onOpen} />
-            </div>
-        `;
+        return bar(waits && html`<${WaitBar} waits=${waits} onOpen=${onOpen} />`);
     }
     const now = nowOf(feed);
-    return html`
-        <div class="workbar status">
-            <${NowBar} now=${now} onCalls=${() => now.run != null && onCalls && onCalls(now.run)} />
-        </div>
-    `;
+    return bar(html`<${NowBar} now=${now} onCalls=${() => now.run != null && onCalls && onCalls(now.run)} />`);
 }
 
 // compactPct is how far a compaction has got, the way the terminal shows it.
@@ -70,14 +71,12 @@ function Compacting({ since }) {
     peak.current = Math.max(peak.current, compactPct(sec));
     const pct = peak.current;
     return html`
-        <div class="workbar status">
-            <div class="workhead">
-                <span class="working">compacting the conversation… (${stopwatch(sec)})</span>
-                <span class="workpct">${pct}%</span>
-                <div class="worktrack" role="progressbar" aria-label="compacting the conversation"
-                     aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
-                    <i style=${`width:${pct}%`}></i>
-                </div>
+        <div class="workhead">
+            <span class="working">compacting the conversation… (${stopwatch(sec)})</span>
+            <span class="workpct">${pct}%</span>
+            <div class="worktrack" role="progressbar" aria-label="compacting the conversation"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}>
+                <i style=${`width:${pct}%`}></i>
             </div>
         </div>
     `;
