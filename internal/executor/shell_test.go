@@ -64,6 +64,24 @@ func TestAShellCommandTheHolderRefusesIsRefused(t *testing.T) {
 	}
 }
 
+// A session started before "!" existed keeps its old holder for its whole
+// life, and that holder answers with the bare name of an operation it does
+// not know: the person is told what to do about it instead.
+func TestAShellCommandToAnOlderHolderSaysToRestartTheSession(t *testing.T) {
+	f := onTheStream(t, false)
+	f.mu.Lock()
+	f.fails = map[string]string{stream.OpShell: stream.NoSuchOp + `: "shell"`}
+	f.mu.Unlock()
+	e, _ := newTest(t, "")
+	r := req(action.SessionShell, "demo")
+	r.Text = "ls"
+	_, err := e.Execute(context.Background(), r)
+	if err == nil || !strings.Contains(err.Error(), "restart the session") ||
+		!strings.Contains(err.Error(), "conversation is kept") || strings.Contains(err.Error(), "no such operation") {
+		t.Fatalf("an older holder's refusal reached the person as %v", err)
+	}
+}
+
 // A terminal runs "!" in its own composer, and the composer sends it there as
 // a message: a command meant for the stream that finds a console is refused
 // rather than typed into it.

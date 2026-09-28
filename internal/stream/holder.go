@@ -914,7 +914,7 @@ func (h *Holder) do(req Request) Reply {
 		h.closeStdin()
 		return Reply{OK: true}
 	}
-	return Reply{Error: fmt.Sprintf("there is no such operation: %q", req.Op)}
+	return Reply{Error: fmt.Sprintf("%s: %q", NoSuchOp, req.Op)}
 }
 
 func (h *Holder) snapshot() State {

@@ -41,6 +41,11 @@ func streamAsk(ctx context.Context, s liveSession, req stream.Request) (stream.R
 		return reply, fmt.Errorf("session %s is not answering on the stream: %w", s.Name, err)
 	}
 	if !reply.OK {
+		if strings.HasPrefix(reply.Error, stream.NoSuchOp) {
+			return reply, fmt.Errorf("session %s was started before the panel could do this on the stream, "+
+				"and it keeps the program it started with until it ends: restart the session "+
+				"(the conversation is kept) and try again", s.Name)
+		}
 		return reply, fmt.Errorf("session %s: %s", s.Name, reply.Error)
 	}
 	return reply, nil

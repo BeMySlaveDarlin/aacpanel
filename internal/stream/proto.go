@@ -130,6 +130,12 @@ const (
 	OpRespond = "respond"
 	OpControl = "control"
 	OpClose   = "close"
+	// NoSuchOp opens the refusal of an operation the holder does not know. A
+	// holder stays on the program it was started with for the life of its
+	// session, so one started before an operation existed answers with it,
+	// word for word, however new the rest of the panel is.
+	NoSuchOp = "there is no such operation"
+
 	// OpShell runs a shell command a person typed after "!", the way the
 	// composer of a terminal runs one: claude runs it with no turn of the
 	// model, and its output goes into the conversation when it ends.
