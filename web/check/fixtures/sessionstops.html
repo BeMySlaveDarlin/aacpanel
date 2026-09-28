@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:600px} .dkbody{height:600px}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody" id="desk"></div></div>
+<div id="phone"></div>
+<script type="module">
+// A close or a restart ends what the session runs with it: the line of the
+// phone's sheet and the tip of the desktop's button say so before the press,
+// and say nothing more when nothing runs.
+import { h, render } from "preact";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { SessionSheet } from "/src/screens/sessions/blocks.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const sessions = [
+    { session: "atlas", sessionId: "h1", contour: 4, home: true, status: "idle", pct: 40, cwd: "/home/me",
+      work: { agents: 2, tasks: 1 } },
+    { session: "lab", sessionId: "l1", contour: 4, status: "idle", pct: 20, cwd: "/srv/lab", work: { agents: 0, tasks: 3 } },
+    { session: "quiet", sessionId: "q1", contour: 4, status: "idle", pct: 10, cwd: "/srv/quiet" },
+];
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.switch", "window.open", "session.send"] };
+const profileMap = [{ id: 4, profile: "Home", name: "Home", groups: [] }];
+render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: 1, sessions, profileMap, limits: null }, profiles: { profiles: [] }, limits: null,
+    current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+}))), document.getElementById("desk"));
+
+const phone = document.getElementById("phone");
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const tip = (label) => {
+    const el = document.querySelector(`[aria-label="${label}"]`);
+    return el ? (el.getAttribute("data-tip") || "") : null;
+};
+
+window.done = (async () => {
+    const sheets = {};
+    for (const s of sessions) {
+        render(h(ToastHost, null, h(GateHost, null, h(SessionSheet, { session: s, exec, onClose() {}, onOpen() {} }))), phone);
+        await until(() => phone.querySelector(".pjact"));
+        const end = Array.from(phone.querySelectorAll(".pjact.pjdanger")).pop();
+        sheets[s.session] = end ? end.textContent.replace(/\s+/g, " ").trim() : "";
+        render(null, phone);
+    }
+    await until(() => tip("restart session atlas") !== null);
+    return {
+        sheets,
+        tips: {
+            atlas: tip("restart session atlas"),
+            lab: tip("close session lab"),
+            quiet: tip("close session quiet"),
+        },
+    };
+})();
+</script>

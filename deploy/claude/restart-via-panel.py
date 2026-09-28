@@ -6,8 +6,13 @@ project's parameters — the console or the feed, the model, the account — and
 the message after a restart as its first. The session is named by its
 conversation: from inside it the name the panel calls it by is not known.
 
+Nothing is asked while the session's agents or background commands are at
+work: the restart would end them. --anyway asks all the same, for the person
+who said so.
+
 Exit 0: the panel took the restart, or is doing it. Exit 1: it refused or did
-not answer — the caller restarts the old way.
+not answer — the caller restarts the old way. Exit 2: the background is at work
+— the caller does not restart at all.
 """
 
 import argparse
@@ -17,6 +22,10 @@ import socket
 import sys
 import urllib.error
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import background  # noqa: E402
 
 URL = os.environ.get("AACP_PANEL_URL", "http://127.0.0.1:8777")
 
@@ -55,12 +64,19 @@ def ask(url, conversation, wait=WAIT):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", default=URL, help="the panel's local address")
+    parser.add_argument("--anyway", action="store_true",
+                        help="restart even with agents or background commands at work")
     args = parser.parse_args(argv)
 
     conversation = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     if not conversation:
         say("STOP", "CLAUDE_CODE_SESSION_ID is empty - this is not running inside a session")
         return 1
+    if not args.anyway:
+        agents, tasks = background.at_work(conversation)
+        if agents or tasks:
+            say("WAIT", background.wait_line(agents, tasks))
+            return 2
     taken, what = ask(args.url, conversation)
     if not taken:
         say("STOP", what)

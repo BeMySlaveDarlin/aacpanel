@@ -58,6 +58,16 @@ export function stateOf(s) {
     return { tone: "idle", text: "idle", since: [s.lastRequestAt ? ago(s.lastRequestAt) : "", work].filter(Boolean).join(" · ") };
 }
 
+// stopsOf names what a close or a restart of a live session ends with it: its
+// background tasks and agents at work, as the snapshot counts them.
+export function stopsOf(s) {
+    const w = (s && s.work) || {};
+    const out = [];
+    if (w.tasks > 0) out.push(`${w.tasks} ${plural(w.tasks, "background task", "background tasks")}`);
+    if (w.agents > 0) out.push(`${w.agents} ${plural(w.agents, "agent", "agents")}`);
+    return out.join(", ");
+}
+
 // intentOf returns the first message a project opens with, as its launch line
 // names it: a conversation is not named by the words it was opened with.
 function intentOf(project) {
@@ -331,15 +341,17 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
     }
     // The home session is the one the panel lives beside: it is restarted from
     // scratch and never closed, the way the panel never stops its own container.
+    const lost = stopsOf(session);
+    const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
     const restartLine = session.home && {
         key: "restart", icon: Icon.refresh(), text: "Restart", danger: true,
-        note: "a new session with an empty context; this one stays in the archive",
+        note: ends("a new session with an empty context; this one stays in the archive"),
         why: knows(exec, "session.restart") ? "" : whyNot(exec, "session.restart"),
         press: act(async () => run("session.restart", name, {})),
     };
     const closeLine = !session.home && {
         key: "close", icon: Icon.close(), text: "Close", danger: true,
-        note: "the conversation stays in the archive",
+        note: ends("the conversation stays in the archive"),
         why: knows(exec, "session.close") ? "" : whyNot(exec, "session.close"),
         press: act(async () => run("session.close", name, {})),
     };

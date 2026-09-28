@@ -27,6 +27,12 @@ class WorkOfASession(unittest.TestCase):
         got = live.work_of({"tasks": [], "agents": [{"status": "reported"}, {"status": "active"}]})
         self.assertEqual(got, {"tasks": 0, "agents": 1})
 
+    def test_a_wake_up_is_a_task_that_says_so(self):
+        got = live.work_of({"tasks": [{"kind": "wake"}, {"kind": "bash"}, {"kind": "wake", "done": True}],
+                            "agents": []})
+        self.assertEqual(got, {"tasks": 2, "agents": 0, "wakes": 1},
+                         "a restart waits for the background of a session, and a wake-up runs nothing")
+
     def test_all_over_counts_nothing(self):
         got = live.work_of({"tasks": [{"done": True}], "agents": [{"status": "reported"}]})
         self.assertEqual(got, {"tasks": 0, "agents": 0})

@@ -8,6 +8,8 @@ import os
 import pathlib
 import sys
 import tempfile
+import threading
+import time
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -42,12 +44,17 @@ class TestGuard(unittest.TestCase):
         with open(os.path.join(self.xdg.name, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
             f.write("".join(line + "\n" for line in lines))
 
-    def snapshot(self, **row):
+    def snapshot(self, at=None, **row):
         session = {"sessionId": "mine", "tokens": 840_000, "limit": 1_000_000,
                    "pct": 84.0, "limitKnown": True}
         session.update(row)
-        with open(os.path.join(self.state_dir.name, "state.json"), "w", encoding="utf-8") as f:
-            json.dump({"sessions": [session]}, f)
+        data = {"sessions": [session]}
+        if at is not None:
+            data["sessionsAt"] = at
+        path = os.path.join(self.state_dir.name, "state.json")
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(path + ".tmp", path)
 
     def run_hook(self, payload=None, **env):
         payload = {"hook_event_name": "Stop", "session_id": "mine", "cwd": PROJECT,
@@ -84,6 +91,40 @@ class TestGuard(unittest.TestCase):
         self.assertIn("do not pass --continue", got["reason"])
         self.assertIn("do it silently", got["reason"])
         self.assertIn("nor that the next session will continue", got["reason"])
+
+    def test_past_the_cap_the_restart_waits_for_the_work_in_the_background(self):
+        self.patch_wait(0.3)
+        for work in ({"agents": 1, "tasks": 0}, {"agents": 0, "tasks": 2}):
+            self.snapshot(work=work, at=time.time() - 3)
+            self.assertIsNone(self.run_hook(), f"a restart past the cap ends the work at {work}")
+
+    def test_a_wake_up_does_not_hold_the_restart(self):
+        self.snapshot(work={"agents": 0, "tasks": 1, "wakes": 1})
+        self.assertEqual(self.run_hook()["decision"], "block",
+                         "a session that set itself a wake-up was never restarted")
+
+    def test_the_turn_that_heard_the_last_agent_is_done_restarts(self):
+        # The snapshot on disk was written before the news; the collector's
+        # next one knows the agent is done.
+        self.patch_wait(5)
+        self.snapshot(work={"agents": 1, "tasks": 0}, at=time.time() - 3)
+
+        def collector():
+            time.sleep(0.3)
+            self.snapshot(work={"agents": 0, "tasks": 0}, at=time.time())
+
+        t = threading.Thread(target=collector)
+        t.start()
+        self.addCleanup(t.join)
+        got = self.run_hook()
+        self.assertIsNotNone(got, "the turn that heard the last agent is done ended without the restart, "
+                                  "and nothing asks again until the person writes")
+        self.assertEqual(got["decision"], "block")
+
+    def patch_wait(self, seconds):
+        was = guard.background.FRESH_WAIT
+        guard.background.FRESH_WAIT = seconds
+        self.addCleanup(setattr, guard.background, "FRESH_WAIT", was)
 
     def test_under_the_cap_nothing_is_said(self):
         self.snapshot(pct=79.9, tokens=799_000)

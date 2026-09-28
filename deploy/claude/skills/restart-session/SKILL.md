@@ -2,7 +2,7 @@
 name: restart-session
 description: "Restarts this Claude Code session in place: the same tmux pane, the same directory, the same account. Use when the user says: \"restart the session\", \"restart yourself\", \"restart\", \"pick up the settings\", \"reread the settings\" — or, in Russian, \"перезапусти сессию\", \"перезапустись\", \"перезапусти себя\", \"рестарт\", \"подхвати настройки\", \"перечитай настройки\". Also after editing settings.json, CLAUDE.md, a hook or an MCP server, when the change is only picked up at startup. NOT about systemd units, docker containers or services — only about the agent session itself."
 user-invocable: true
-argument-hint: "[--continue]"
+argument-hint: "[--continue] [--anyway]"
 ---
 
 Restart this session. One command, no reconnaissance.
@@ -31,14 +31,27 @@ trade.
 ## The command
 
 ```bash
-<repo>/deploy/claude/restart-session.sh [--continue]
+<repo>/deploy/claude/restart-session.sh [--continue] [--anyway]
 ```
 
 | What is needed | Flags |
 |---|---|
 | restart, start with a clean context | no flags |
 | restart and continue the conversation from the same place | `--continue` |
+| restart with agents or background commands at work, the person said so | `--anyway` |
 | see what would happen, changing nothing | `--dry-run` |
+
+**Nothing restarts while the background is at work.** A restart ends the
+session and everything it runs: its agents, subagents and the commands and
+watchers it sent to the background. While the panel sees any of them at work,
+the script restarts nothing and answers `WAIT` with what is at work (exit 2). A
+wake-up the session set itself runs nothing and does not hold the restart.
+
+- **A restart you started on your own** — the context guard told you to: end
+  the turn right there. The news that the work is done starts a turn of its
+  own, and the guard asks again at its end.
+- **A restart the person asked for**: tell them what is at work, and wait or
+  stop it as they say. `--anyway` only on their word: it ends that work.
 
 **A clean restart goes through the panel first.** The script asks it to
 restart this session as its project from the map: the panel closes the session

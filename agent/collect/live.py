@@ -10,6 +10,7 @@ import held
 import notes
 
 import agent
+from sesstate.wake import TASK_WAKE
 
 
 def claude_config_dirs():
@@ -179,11 +180,21 @@ def _by_name(value_of):
 # heard from again, and one sent to the background keeps its place once it is
 # over; the card of a session says what it is doing now, not what it did.
 def work_of(busy):
-    """Returns how much of the session's work is still going on."""
-    return {
-        "tasks": sum(1 for t in busy["tasks"] if not t.get("done")),
+    """Returns how much of the session's work is still going on.
+
+    A wake-up the session set itself stands among its tasks, the way the panel
+    lists it; the count of them rides along, since a wake-up runs nothing and
+    a restart of the session must not wait for it.
+    """
+    live = [t for t in busy["tasks"] if not t.get("done")]
+    work = {
+        "tasks": len(live),
         "agents": sum(1 for a in busy["agents"] if a.get("status") == "active"),
     }
+    wakes = sum(1 for t in live if t.get("kind") == TASK_WAKE)
+    if wakes:
+        work["wakes"] = wakes
+    return work
 
 
 def sessions():

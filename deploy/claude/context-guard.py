@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Context guard: past its cap a session with Auto restart is told to wrap up and restart itself."""
+"""Context guard: past its cap a session with Auto restart is told to wrap up and restart itself.
+
+Not while its agents or the commands it sent to the background are at work: a
+restart would end them. The news that one of them is done starts a turn of its
+own, and the end of that turn asks again.
+"""
 
 import json
 import os
@@ -7,6 +12,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import background  # noqa: E402
 import guards  # noqa: E402
 
 
@@ -63,6 +69,10 @@ def main():
     state_dir = os.environ.get("AACP_STATE_DIR") or "/var/lib/aacpanel"
     pct = fill(read_state(os.path.join(state_dir, "state.json")), payload.get("session_id") or "")
     if pct is None or pct < cap:
+        return
+    agents, tasks = background.at_work(payload.get("session_id") or "",
+                                       os.path.join(state_dir, "state.json"))
+    if agents or tasks:
         return
     json.dump({"decision": "block", "reason": reason(pct, cap)}, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")

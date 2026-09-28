@@ -20,7 +20,7 @@ import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contoursOf } from "../screens/sessions/map.js";
 import { kinLabel, kinOf, outsideNote } from "../screens/sessions/kin.js";
-import { aboutOf, stateOf } from "../screens/sessions/blocks.js";
+import { aboutOf, stateOf, stopsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
 import { effortName, modeLoud, modeName, usualMode } from "../screens/chat/picker.js";
@@ -158,6 +158,9 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
     const said = closing ? "closing" : restarting ? "restarting" : state.text;
     const since = busy ? `${held(busy)} s` : state.since;
     const facts = factsOf(s, group, usual);
+    // What a close or a restart ends with the session, said before the press.
+    const lost = stopsOf(s);
+    const lostTip = lost ? `Stops ${lost}` : undefined;
     const full = s.pct || 0;
     const level = full >= 90 ? "crit" : full >= 70 ? "warn" : "";
 
@@ -197,7 +200,7 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                         aria-label=${`close session ${s.session}`}
                         data-tip=${closing
                             ? "The session is already closing"
-                            : known ? undefined : whyNot(exec, "session.close")}
+                            : known ? lostTip : whyNot(exec, "session.close")}
                         data-tipside="left"
                         onClick=${async () => {
                             if (!can) return;
@@ -211,7 +214,7 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                         aria-label=${`restart session ${s.session}`}
                         data-tip=${restarting
                             ? "The session is already restarting"
-                            : restartKnown ? undefined : whyNot(exec, "session.restart")}
+                            : restartKnown ? lostTip : whyNot(exec, "session.restart")}
                         data-tipside="left"
                         onClick=${async () => {
                             if (!canRestart) return;

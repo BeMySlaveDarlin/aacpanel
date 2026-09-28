@@ -3,9 +3,10 @@ set -euo pipefail
 
 usage() {
     cat >&2 <<'TXT'
-usage: restart-session.sh [--continue] [--dry-run]
+usage: restart-session.sh [--continue] [--anyway] [--dry-run]
 
   --continue   carry the current conversation into the new session (claude --continue)
+  --anyway     restart even with agents or background commands of the session at work
   --dry-run    show what would be done and exit
 TXT
     exit 2
@@ -13,23 +14,38 @@ TXT
 
 cont=0
 dry=0
+anyway=0
 for arg in "$@"; do
     case "$arg" in
         --continue) cont=1 ;;
+        --anyway)   anyway=1 ;;
         --dry-run)  dry=1 ;;
         -h|--help)  usage ;;
         *) echo "restart-session: unknown argument $arg" >&2; usage ;;
     esac
 done
 
+here=$(dirname "$(readlink -f "$0")")
+
+# A restart ends the session's agents and background commands with it: while
+# any of them is at work there is no restart, the old way included.
+if [ "$anyway" = "0" ]; then
+    if [ "$dry" = "1" ]; then
+        echo "before:   no restart while agents or background commands of this session are at work ($here/background.py)"
+    else
+        wait_rc=0
+        python3 "$here/background.py" || wait_rc=$?
+        [ "$wait_rc" = "2" ] && exit 2
+    fi
+fi
+
 # The panel restarts a session as its project from the map: the same setup,
 # a session on the feed included, which has no tmux pane to respawn. A
 # conversation carried over is not the panel's: that goes the old way.
 if [ "$cont" = "0" ]; then
-    here=$(dirname "$(readlink -f "$0")")
     if [ "$dry" = "1" ]; then
         echo "first:    the panel restarts this session as its project ($here/restart-via-panel.py)"
-    elif python3 "$here/restart-via-panel.py"; then
+    elif python3 "$here/restart-via-panel.py" --anyway; then
         exit 0
     else
         echo "restart-session: the panel did not take the restart - restarting in the same tmux pane" >&2
