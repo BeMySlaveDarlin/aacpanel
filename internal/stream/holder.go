@@ -70,6 +70,9 @@ type Holder struct {
 	waiters map[string]chan json.RawMessage
 	seq     int
 	closed  bool
+	// The output of the shell command claude has just ended, until the end
+	// of the command that comes right after it names which one it was.
+	printed string
 
 	stderr *tail
 	log    *os.File
@@ -115,6 +118,7 @@ func Run(ctx context.Context, spec Spec) error {
 			Pending:   []Pending{},
 			Queue:     []Queued{},
 			Tasks:     []Task{},
+			Shells:    []Shell{},
 			Launched:  spec.Launched,
 			Said:      spec.Resumed,
 		},
@@ -417,6 +421,7 @@ func (h *Holder) onUser(ev event) {
 	_ = json.Unmarshal(ev.Message, &msg)
 	var text string
 	_ = json.Unmarshal(msg.Content, &text)
+	h.shellPrinted(text)
 	if h.take(ev.UUID, text) {
 		h.saveSummary()
 	}
@@ -441,6 +446,9 @@ func (h *Holder) onCommand(ev event) {
 		h.take(ev.CommandUUID, "")
 		h.saveSummary()
 	case "completed":
+		if h.shellEnded(ev.CommandUUID) {
+			return
+		}
 		if h.take(ev.CommandUUID, "") {
 			h.saveSummary()
 		}
@@ -556,6 +564,18 @@ func (h *Holder) send(text, id string) (string, error) {
 		return "", fmt.Errorf("%s starts a conversation under a new id, and the session would drop off the panel: "+
 			"close it and open a new one instead", fields[0])
 	}
+	id, err := h.say(text, id, nil)
+	if err != nil {
+		return "", err
+	}
+	h.picked(text)
+	h.saveSummary()
+	return id, nil
+}
+
+// say writes a message to claude and keeps it in the queue until claude reads
+// it. Extra are fields of the message beside its text.
+func (h *Holder) say(text, id string, extra map[string]any) (string, error) {
 	if id == "" {
 		id = newUUID()
 	} else if !uuidLike(id) {
@@ -564,6 +584,9 @@ func (h *Holder) send(text, id string) (string, error) {
 	msg := map[string]any{
 		"type": "user", "session_id": h.spec.SessionID, "parent_tool_use_id": nil, "uuid": id,
 		"message": map[string]any{"role": "user", "content": text},
+	}
+	for key, value := range extra {
+		msg[key] = value
 	}
 	h.mu.Lock()
 	h.state.Queue = append(h.state.Queue, Queued{UUID: id, Text: text, Since: time.Now()})
@@ -578,7 +601,6 @@ func (h *Holder) send(text, id string) (string, error) {
 	h.mu.Lock()
 	h.state.Said = true
 	h.mu.Unlock()
-	h.picked(text)
 	h.saveSummary()
 	return id, nil
 }
@@ -838,6 +860,12 @@ func (h *Holder) do(req Request) Reply {
 			return Reply{Error: err.Error()}
 		}
 		return Reply{OK: true, UUID: id}
+	case OpShell:
+		id, err := h.shell(req.Text, req.UUID)
+		if err != nil {
+			return Reply{Error: err.Error()}
+		}
+		return Reply{OK: true, UUID: id}
 	case OpRespond:
 		if err := h.respond(req.RequestID, req.Response); err != nil {
 			return Reply{Error: err.Error()}
@@ -896,6 +924,7 @@ func (h *Holder) snapshot() State {
 	s.Pending = append([]Pending{}, h.state.Pending...)
 	s.Queue = append([]Queued{}, h.state.Queue...)
 	s.Tasks = append([]Task{}, h.state.Tasks...)
+	s.Shells = append([]Shell{}, h.state.Shells...)
 	return s
 }
 

@@ -35,29 +35,52 @@ def service_once(text, at, pos, pending, read=False):
 
 
 SHELL_IN_RE = re.compile(r"\A<bash-input>(.*)</bash-input>\Z", re.S)
-SHELL_OUT_RE = re.compile(
-    r"\A<bash-stdout>(.*)</bash-stdout>\s*<bash-stderr>(.*)</bash-stderr>\Z", re.S)
+SHELL_OUT = (r"<bash-stdout>(.*)</bash-stdout>\s*<bash-stderr>(.*)</bash-stderr>"
+             r"\s*(?:<bash-exit-code>(-?\d+)</bash-exit-code>)?")
+SHELL_OUT_RE = re.compile(r"\A" + SHELL_OUT + r"\Z", re.S)
+SHELL_RAN_RE = re.compile(r"\A<bash-input>(.*?)</bash-input>" + SHELL_OUT + r"\Z", re.S)
 
 
 def shell(text, at, pos):
-    """Returns the item for a command the human ran from the console, or None.
+    """Returns the items for a command the human ran with "!", or None.
 
-    The console writes the command and what it printed as two prompts of the
-    human: the command as typed, the streams escaped for markup.
+    A console writes the command and what it printed as two prompts of the
+    human: the command as typed, the streams escaped for markup. A session on
+    the stream gets both in one prompt the panel hands it when the command
+    ends, and the exit code after the streams.
     """
     found = SHELL_IN_RE.match(text)
     if found:
-        body, trimmed = cut(found.group(1).strip(), MAX_TEXT)
-        return {"role": "shell", "text": body, "cut": trimmed, "at": at, "pos": pos}
+        return [command_item(found.group(1), at, pos)]
     found = SHELL_OUT_RE.match(text)
+    if found:
+        return [output_item(found.group(1), found.group(2), found.group(3), at, pos)]
+    found = SHELL_RAN_RE.match(text)
     if not found:
         return None
-    body, trimmed = cut(html.unescape(found.group(1)).strip(), MAX_TEXT)
-    err, err_trimmed = cut(html.unescape(found.group(2)).strip(), MAX_TEXT)
+    ran = command_item(found.group(1), at, pos)
+    out = output_item(found.group(2), found.group(3), found.group(4), at, pos)
+    # The output names its command for the sheet that shows the whole of it.
+    out["command"] = ran["text"]
+    if "code" in out:
+        ran["code"] = out["code"]
+    return [ran, out]
+
+
+def command_item(command, at, pos):
+    body, trimmed = cut(command.strip(), MAX_TEXT)
+    return {"role": "shell", "text": body, "cut": trimmed, "at": at, "pos": pos}
+
+
+def output_item(stdout, stderr, code, at, pos):
+    body, trimmed = cut(html.unescape(stdout).strip(), MAX_TEXT)
+    err, err_trimmed = cut(html.unescape(stderr).strip(), MAX_TEXT)
     item = {"role": "shellout", "text": body, "cut": trimmed or err_trimmed,
             "at": at, "pos": pos}
     if err:
         item["err"] = err
+    if code is not None:
+        item["code"] = int(code)
     return item
 
 
@@ -170,6 +193,16 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         text = strip_panel_note(unwrap_pasted((record.get("content") or "").strip()))
         if not text:
             return []
+        # The output of a command run on the stream is drawn where it is
+        # queued: the command is over, and claude may read it long after, in
+        # the middle of an answer. It stays in the queue all the same, so the
+        # word that the queue handed it over finds it there.
+        ran = shell(text, at, pos)
+        if ran and len(ran) == 2:
+            if pending is not None:
+                pending.remember(text, pos)
+                pending.enqueue(ran[0])
+            return ran
         service_items = service_once(text, at, pos, pending)
         if service_items is not None:
             return service_items
@@ -268,7 +301,12 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                 return out + cards
         ran = shell(text, at, pos)
         if ran:
-            return out + [ran]
+            # The prompt the queue drew is already in the feed.
+            if len(ran) == 2 and record.get("promptSource") in ("queued", "sdk") \
+                    and pending is not None and pending.seen(text):
+                pending.by_text(text)
+                return out
+            return out + ran
         if sesstate.is_wakeup(record):
             if pending is not None and pending.shown_as_wake(text):
                 return out

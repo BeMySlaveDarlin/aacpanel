@@ -187,6 +187,16 @@ func (r Request) Validate() error {
 		if name, refused := refusedCommand(r.Text); refused {
 			return badRequest("/%s is not sent from the panel: %s", name, Refused[name])
 		}
+	case r.Kind == SessionShell:
+		if strings.TrimSpace(r.Text) == "" {
+			return badRequest("a shell command without the command")
+		}
+		if len([]rune(r.Text)) > TextMax {
+			return badRequest("the command is longer than %d characters", TextMax)
+		}
+		if err := safeText(r.Text); err != nil {
+			return err
+		}
 	case r.Text != "":
 		return badRequest("action %s takes no message text", r.Kind)
 	}
@@ -311,7 +321,7 @@ func (r Request) Validate() error {
 		}
 	}
 	if r.MessageID != "" {
-		if r.Kind != SessionSend && r.Kind != SessionUnqueue {
+		if r.Kind != SessionSend && r.Kind != SessionUnqueue && r.Kind != SessionShell {
 			return badRequest("action %s names no message", r.Kind)
 		}
 		if !safeUUID(r.MessageID) {

@@ -122,6 +122,18 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 			params["message"] = id
 		}
 	}
+	// A shell command is kept out of the journal as a message is: it is part
+	// of the conversation, where the transcript holds it, and a line like
+	// "TOKEN=… deploy" would otherwise settle in the log of actions.
+	if req.Kind == action.SessionShell {
+		text, _ := body.Params["text"].(string)
+		req.Text = text
+		params = map[string]any{"chars": len([]rune(text))}
+		if id, _ := body.Params["messageId"].(string); id != "" {
+			req.MessageID = id
+			params["message"] = id
+		}
+	}
 	if req.Kind == action.SessionUnqueue {
 		id, _ := body.Params["messageId"].(string)
 		req.MessageID = id

@@ -37,6 +37,26 @@ func fakeClaude() int {
 	in := bufio.NewScanner(os.Stdin)
 	in.Buffer(make([]byte, 1<<20), 1<<20)
 	var held []map[string]any
+	// Shell commands claude runs on and on, until a message wakes them.
+	var sleeping []map[string]any
+	// A command claude has ended, as claude -p 2.1.283 reports it: the output
+	// as a user message of its own, then the end of the command by its id.
+	shellDone := func(msg map[string]any) {
+		command, _ := msg["command"].(string)
+		out, err, code := "ran: "+command, "", 0
+		if command == "false" {
+			out, err, code = "", "it failed & said so", 1
+		}
+		out = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(out)
+		err = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(err)
+		fake := fmt.Sprintf("<bash-stdout>%s</bash-stdout><bash-stderr>%s</bash-stderr><bash-exit-code>%d</bash-exit-code>", out, err, code)
+		out2 := map[string]any{"type": "user", "uuid": NewSessionID(), "isReplay": true, "parent_tool_use_id": nil,
+			"message": map[string]any{"role": "user", "content": fake}}
+		b, _ := json.Marshal(out2)
+		fmt.Println(string(b))
+		b, _ = json.Marshal(map[string]any{"type": "command_lifecycle", "command_uuid": msg["uuid"], "state": "completed"})
+		fmt.Println(string(b))
+	}
 	model, ultra := "claude-sonnet-5", false
 	for in.Scan() {
 		line := in.Bytes()
@@ -46,6 +66,17 @@ func fakeClaude() int {
 			continue
 		}
 		switch msg["type"] {
+		case "bash_command":
+			// Claude echoes the command at once and runs it with no turn:
+			// no init, no result.
+			command, _ := msg["command"].(string)
+			out(map[string]any{"type": "user", "uuid": NewSessionID(), "isReplay": true, "parent_tool_use_id": nil,
+				"message": map[string]any{"role": "user", "content": "<bash-input>" + command + "</bash-input>"}})
+			if strings.HasPrefix(command, "sleep") {
+				sleeping = append(sleeping, msg)
+				continue
+			}
+			shellDone(msg)
 		case "control_request":
 			req := msg["request"].(map[string]any)
 			body := map[string]any{}
@@ -114,6 +145,12 @@ func fakeClaude() int {
 			case "slow":
 				held = append(held, msg)
 				continue
+			case "wake":
+				// The message itself is read and answered as any other.
+				for _, m := range sleeping {
+					shellDone(m)
+				}
+				sleeping = nil
 			case "/plugins":
 				// A command claude runs itself: no echo of the message, only
 				// the lifecycle of the command, as claude -p 2.1.282 writes it.

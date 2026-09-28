@@ -215,9 +215,9 @@ func (e *Executor) closeGently(ctx context.Context, s liveSession, proc agentPro
 }
 
 // leavingStream says what a session on the stream takes to the console, or
-// why it cannot go now. A turn in progress, a request waiting for a person and
-// messages in the queue stop the switch: each of them is lost in a way the
-// person did not choose. Background tasks stop it too, unless the person was
+// why it cannot go now. A turn in progress, a request waiting for a person,
+// messages in the queue and a shell command still running stop the switch:
+// each of them is lost in a way the person did not choose. Background tasks stop it too, unless the person was
 // shown them and agreed.
 func leavingStream(ctx context.Context, s liveSession, force bool) (carried, string, error) {
 	st, err := streamState(ctx, s)
@@ -238,6 +238,10 @@ func leavingStream(ctx context.Context, s liveSession, force bool) (carried, str
 	case len(st.Queue) > 0:
 		return carried{}, "", fmt.Errorf("session %s has %s in its queue: let it take them first — "+
 			"a switch would lose them", s.Name, plural(len(st.Queue), "message", "messages"))
+	case len(st.Shells) > 0:
+		return carried{}, "", fmt.Errorf("session %s runs %s started from the panel: a switch would stop it, "+
+			"and its output would never reach the conversation. Switch once it ends", s.Name,
+			plural(len(st.Shells), "shell command", "shell commands"))
 	case len(st.Tasks) > 0 && !force:
 		return carried{}, "", fmt.Errorf("session %s runs %s that stop with the switch: %s",
 			s.Name, plural(len(st.Tasks), "background task", "background tasks"), taskList(st.Tasks))

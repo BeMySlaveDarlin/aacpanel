@@ -95,6 +95,35 @@ func streamCommand(ctx context.Context, s liveSession, cmd *action.Command) (str
 	return fmt.Sprintf("%s sent to %s on the stream", line, s.Name), nil
 }
 
+// sessionShell has a session on the stream run a command typed after "!". A
+// terminal runs such a command itself, typed into its composer with the bang,
+// so a console is refused rather than typed into: the composer sends there a
+// message, and a command meant for the stream that finds a console has lost
+// the race with a switch.
+func (e *Executor) sessionShell(ctx context.Context, target, command, runID string) (string, error) {
+	s, err := findOneLiveSession(target)
+	if err != nil {
+		return "", err
+	}
+	if !onStream(s) {
+		return "", fmt.Errorf("session %s runs in a terminal now: send the command again, "+
+			"and its console runs it itself", s.Name)
+	}
+	st, err := streamState(ctx, s)
+	if err != nil {
+		return "", err
+	}
+	if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpShell, Text: command, UUID: runID}); err != nil {
+		return "", err
+	}
+	after := "the session reads it at once"
+	if st.Busy {
+		after = "the session is answering and reads it along the way"
+	}
+	return fmt.Sprintf("the command runs in %s beside the conversation; its output goes into the conversation "+
+		"when it ends, and %s", s.Name, after), nil
+}
+
 // sessionUnqueue takes a message back from the queue of a session on the
 // stream. A message the session has already read is not in the queue any more,
 // and the answer says so instead of pretending it was taken back.

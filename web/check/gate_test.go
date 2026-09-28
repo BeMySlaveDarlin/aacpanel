@@ -174,6 +174,11 @@ var instantActions = map[string]bool{
 	// Taking back a message the person sent is no more than not sending it:
 	// the message is the person's own, and it goes back into the composer.
 	"session.unqueue": true,
+	// A command typed after "!" runs on the press, as it does in the composer
+	// of a terminal: the person wrote the command out, and a sheet asking
+	// "really?" over it is a second press for the same thing. It runs where
+	// the session's own tools run, with the session's rights and no more.
+	"session.shell": true,
 	// A model, an effort or a mode picked from the list the session offers:
 	// the list is where the person chose, and a sheet asking "really?" over a
 	// row they have just tapped is a second press for the same thing. What is
@@ -207,6 +212,7 @@ var instantActions = map[string]bool{
 
 var instantExecActions = map[string]bool{
 	"session.send":    true,
+	"session.shell":   true,
 	"session.answer":  true,
 	"session.stop":    true,
 	"session.permit":  true,

@@ -11,7 +11,8 @@
 // keeps nothing of the conversation and passes nothing of it on: its socket
 // answers with the requests that wait for a person and with the state of the
 // session, and its state file carries no text at all. The feed is still read
-// off the transcript by the collector.
+// off the transcript by the collector. The one thing it carries is the output
+// of a command run with "!", and that goes from claude back to claude.
 package stream
 
 import (
@@ -129,6 +130,10 @@ const (
 	OpRespond = "respond"
 	OpControl = "control"
 	OpClose   = "close"
+	// OpShell runs a shell command a person typed after "!", the way the
+	// composer of a terminal runs one: claude runs it with no turn of the
+	// model, and its output goes into the conversation when it ends.
+	OpShell = "shell"
 )
 
 // Request is one question to a holder.
@@ -173,6 +178,14 @@ type Queued struct {
 	Since time.Time `json:"since"`
 }
 
+// Shell is a shell command a person started from the panel and claude still
+// runs: its output has not gone into the conversation yet.
+type Shell struct {
+	UUID    string    `json:"uuid"`
+	Command string    `json:"command"`
+	Since   time.Time `json:"since"`
+}
+
 // Task is a background task claude runs.
 type Task struct {
 	ID          string `json:"task_id"`
@@ -204,6 +217,9 @@ type State struct {
 	Pending []Pending `json:"pending"`
 	Queue   []Queued  `json:"queue"`
 	Tasks   []Task    `json:"tasks"`
+	// Shells are the shell commands started from the panel that have not
+	// ended yet, or whose output has not reached claude as a message.
+	Shells []Shell `json:"shells,omitempty"`
 	// Compacting is when a compaction of the conversation started, while it
 	// runs. Claude reports the start and the end and nothing between: how far
 	// it has got is not known to anybody.

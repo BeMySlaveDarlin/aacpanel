@@ -367,6 +367,23 @@ is the exception: it starts a conversation under a new id, the holder keeps
 its session by the old one, and the session would drop off the panel. The
 holder refuses it whichever way it comes, and the composer does not offer it.
 
+**A command typed after "!" is claude's to run, not the model's**
+(`session.shell`). At a terminal the composer runs it in a shell of the
+session with no turn of the model, writes the command and what it printed
+into the conversation, and the model answers that. On the stream claude takes
+such a command as a line of its own kind and runs it the same way — in the
+session's directory, with its environment, beside an answer in progress — but
+keeps the output out of the conversation and hands it to its host alone. So
+the holder passes the output on to claude as a message in the terminal's
+shape once the command ends, cut the way a terminal cuts it for the model, and
+the model reads it and answers as it does there. Claude runs the command in a
+fresh shell each time: a `cd` does not outlast its line. The feed follows the
+command as a card: the page draws it going out and running, and once the
+output reaches the transcript the card says how the command ended, shows the
+last lines of what it printed and opens the whole. A running command holds off
+a switch — closing claude would stop it, and its output would never arrive. A
+console gets the line as typed, since its own composer runs the command.
+
 **A question on the stream is answered with structure, not with keys**, so the
 limits a terminal dialog puts on a layout do not hold there: a free answer and
 "discuss" are open whatever the layout, a note can go beside a pick, and a
@@ -565,13 +582,13 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Twenty-nine actions, and the list is closed.
+Thirty actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |

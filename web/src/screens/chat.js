@@ -9,7 +9,7 @@ import { ContextBar } from "../ui/bar.js";
 import { Ask } from "./ask.js";
 import { Permit } from "./chat/permit.js";
 import { ago, tokens } from "../format.js";
-import { closed, rows, runCalls, turnCalls, unarrived, weld } from "./chat/feed.js";
+import { closed, lastPos, rows, runCalls, turnCalls, unarrived, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { RepoView } from "./repo/view.js";
@@ -17,6 +17,7 @@ import { onShelf, sealed, signal } from "./repo/notes.js";
 import { Row } from "./chat/rows.js";
 import { callsOf, FeedGrid } from "./chat/timeline.js";
 import { CommandSheet } from "./chat/command.js";
+import { ShellSheet } from "./chat/shell.js";
 import { McpSheet } from "./chat/mcp.js";
 import { StatusSheet } from "./chat/status.js";
 import { SetupSheet, SETUP_TITLES } from "./chat/setup.js";
@@ -371,6 +372,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                     onFile=${(file) => setLook({ kind: "file", ...file })}
                     onBrief=${openBrief}
                     onCommand=${(row) => setLook({ kind: "command", item: row })}
+                    onShell=${(row) => setLook({ kind: "shell", item: row })}
                     onTask=${(task) => (task.agent
                         ? openAgent({ id: task.id, name: task.name, kind: "background" })
                         : setLook({ kind: "task", id: task.id, text: task.name }))}
@@ -416,7 +418,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                      onFiles=${(picked) => setFiles((was) => [...was, ...picked])}
                                      onDropFile=${(i) => setFiles((was) => was.filter((_, n) => n !== i))}
                                      onDropFiles=${() => setFiles([])}
-                                     onLocal=${(row) => setLocal((was) => [...was, row])}
+                                     onLocal=${(row) => setLocal((was) => [...was, { ...row, after: lastPos(state.items) }])}
                                      onLocalDone=${(key, patch) => setLocal((was) =>
                                          was.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
                                      insert=${insert}
@@ -476,6 +478,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 ? html`<${ArtifactPage} card=${look.card} />`
                 : look.kind === "command"
                 ? html`<${CommandSheet} item=${look.item} />`
+                : look.kind === "shell"
+                ? html`<${ShellSheet} item=${look.item} />`
                 : look.kind === "plan"
                 ? html`<${PlanSheet} plan=${plan} />`
                 : look.kind === "mcp"

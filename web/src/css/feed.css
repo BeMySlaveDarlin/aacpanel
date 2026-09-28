@@ -307,9 +307,10 @@ code.path {
 }
 
 
-/* A shell command the person ran from the console with "!", and what it
-   printed: the command is a line in the code face with the mark in front of
-   it, the output a block under it, stderr in the critical colour. */
+/* A shell command the person ran with "!", and what it printed: the command
+   is a line in the code face with the mark in front of it and where it stands
+   at its right end, the output a block under it — its last lines, the whole
+   of it a tap away — stderr in the critical colour. */
 .mshell {
     align-self: stretch;
     display: flex;
@@ -325,7 +326,52 @@ code.path {
     overflow-wrap: anywhere;
 }
 .mshellmark { flex: none; color: var(--accent); font-weight: 600; }
-.mshellcmd { min-width: 0; white-space: pre-wrap; }
+.mshellcmd { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; }
+.mshell.failed { box-shadow: inset 2px 0 0 var(--crit); }
+/* Where the command stands: going out, running and for how long, or its exit
+   code — the tone of a success or a failure, and the mark beside the number. */
+.mshellat {
+    flex: none;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-faint);
+    white-space: nowrap;
+}
+.mshellat svg { width: var(--i-sm); height: var(--i-sm); }
+.mshellat .mclock { margin-right: 0; }
+.mshellat.run { color: var(--accent); }
+.mshellat.ok { color: var(--ok); }
+.mshellat.bad { color: var(--crit); }
+.mshelldot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .mshelldot { animation: none; } }
+.mshellabove { display: block; color: var(--ink-faint); }
+.mshellmore {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    margin: .1rem 0 0;
+    padding: .2rem 0;
+    border: 0;
+    background: none;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--accent);
+    cursor: pointer;
+}
+.mshellmore svg { width: var(--i-sm); height: var(--i-sm); }
 .mshellout, .mshellerr {
     align-self: stretch;
     margin: -.25rem 0 0;
@@ -342,6 +388,25 @@ code.path {
 }
 .mshellerr { color: var(--crit); background: var(--crit-bg); }
 .mshellout + .mshellerr { margin-top: .15rem; }
+
+/* The whole output of a command, in its sheet. */
+.shellsheet { display: flex; flex-direction: column; gap: .6rem; }
+.shellsheet .btn { align-self: flex-start; display: inline-flex; align-items: center; gap: .35rem; }
+.shellsheet .btn svg { width: var(--i-sm); height: var(--i-sm); }
+.shellwhole {
+    margin: 0;
+    padding: .6rem .7rem;
+    border-radius: var(--r-card);
+    background: var(--code-bg);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    color: var(--ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.shellwhole.err { color: var(--crit); background: var(--crit-bg); }
 
 
 /* ---- the feed and its timeline ----
