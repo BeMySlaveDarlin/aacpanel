@@ -451,9 +451,10 @@ code.path {
 }
 
 /* The phone: a strip as wide as a finger, a hairline down its middle and, at
-   the height of the row a work led to, the badges of that work one under
-   another — a plate for each kind of what it did, its icon and its number.
-   The sizes come from the layout, which reads the same ones. */
+   the height of the row a work led to, the badges of that work — or of the
+   works too close together for a stack each — one under another: a plate
+   for each kind of what they did, its icon and its number. The sizes come
+   from the layout, which reads the same ones. */
 .rail {
     position: relative;
     align-self: stretch;

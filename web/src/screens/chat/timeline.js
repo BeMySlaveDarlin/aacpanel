@@ -7,10 +7,10 @@
 //
 // The timeline scrolls with the feed because it is in the feed: one scroll
 // box, two columns, and every mark stands at the height of its row.
-//   phone — a strip as wide as a finger; every work is a stack of badges,
-//           one under another, one for each kind of what it did, and a stack
-//           that would run into the one above stands under it; a badge opens
-//           its calls.
+//   phone — a strip as wide as a finger; a work is a stack of badges, one
+//           under another, one for each kind of what it did; works too close
+//           together for a stack of each share one that sums them; a badge
+//           opens its calls.
 //   desk  — a column with the time, what the work was, its calls by name and
 //           the files it touched; an entry that would run into the one above
 //           it stands under it instead.
@@ -26,8 +26,8 @@ import { ChecklistBlock } from "./checklist.js";
 const WORK = new Set(["toolrow", "turn"]);
 
 // The height of a badge on the strip, the room between two badges of one
-// work and the wider room between the stacks of two works: the hairline of
-// the strip shows through both, so the eye sees where one work ends.
+// stack and the wider room between two stacks: the hairline of the strip
+// shows through both, so the eye sees where one stack ends.
 export const BADGE_H = 26;
 export const BADGE_GAP = 4;
 export const STACK_GAP = 8;
@@ -134,18 +134,29 @@ function kindSaid(k) {
     return `${k.count} ${k.count === 1 ? (ONE[k.kind] || "call") : (KIND_NAMES[k.kind] || KIND_NAMES.other)}`;
 }
 
+// turnOf is the ends of the turns of a group as one: the turn itself when
+// there is one; for several, how many they are, the time they worked and the
+// calls they made added up, and what the last of them left at work.
+function turnOf(turns) {
+    if (turns.length < 2) return turns[0];
+    const add = (key) => turns.reduce((n, t) => n + (t[key] || 0), 0);
+    return { ...turns[turns.length - 1], ms: add("ms"), calls: add("calls"), ends: turns.length };
+}
+
 // turnSaid is the end of a turn in words: how long it took, the calls it made
-// and what it left at work.
+// and what it left at work; the ends of several turns say how many they are.
 function turnSaid(t) {
-    return [turnTook(t), t.calls > 0 && countCalls(t.calls), turnLeft(t)].filter(Boolean).join(" · ");
+    return [t.ends > 1 && `${t.ends} turns`, turnTook(t), t.calls > 0 && countCalls(t.calls), turnLeft(t)]
+        .filter(Boolean).join(" · ");
 }
 
 // said is a group in words: its calls by kind, a run that only thought, the
-// end of a turn with how long it took, the calls it made and what it left.
+// end of its turns with how long they took, the calls they made and what
+// they left.
 export function said(sum) {
     const parts = sum.kinds.map(kindSaid);
     if (sum.think && !sum.kinds.length) parts.push("thinking");
-    for (const t of sum.turns) parts.push(turnSaid(t));
+    if (sum.turns.length) parts.push(turnSaid(turnOf(sum.turns)));
     return parts.join(" · ");
 }
 
@@ -240,32 +251,66 @@ export function anchorY(mark, geo) {
 const ORDER = Object.keys(KIND_NAMES);
 const rank = (kind) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORDER.indexOf("other"));
 
-// badgesOf is the stack of one work, top down: its thinking, its calls kind by
-// kind in the order of the labels, and the end of each turn it closed. A work
-// with none of these still stands as one badge, without a number.
+// badgesOf is the stack of a group of works, top down: its thinking, its
+// calls kind by kind in the order of the labels, and the end of the turns it
+// closed. A group with none of these still stands as one badge, without a
+// number.
 export function badgesOf(sum) {
     const out = [];
     if (sum.think) out.push({ kind: "think", count: sum.think, failed: 0 });
     for (const k of [...sum.kinds].sort((a, b) => rank(a.kind) - rank(b.kind))) {
         out.push({ kind: k.kind, count: k.count, failed: k.failed });
     }
-    for (const t of sum.turns) out.push({ kind: "turn", count: t.calls || 0, failed: 0, turn: t });
+    if (sum.turns.length) {
+        const turn = turnOf(sum.turns);
+        out.push({ kind: "turn", count: turn.calls || 0, failed: 0, turn, turns: sum.turns });
+    }
     if (!out.length) out.push({ kind: "think", count: 0, failed: 0 });
     return out;
 }
 
-// railStacks lays the works out on the strip, each a stack of its own: its
-// top at the height of the row the work led to, or under the stack above with
-// the gap between them when that one is still in the way. Works close
-// together are never summed into one.
+// kindsOf is the kinds of the badges badgesOf draws for a group, all but the
+// badge without a number of a group that did nothing else.
+function kindsOf(sum) {
+    return [sum.think && "think", ...sum.kinds.map((k) => k.kind), sum.turns.length && "turn"].filter(Boolean);
+}
+
+const stackH = (badges) => Math.max(1, badges) * (BADGE_H + BADGE_GAP) - BADGE_GAP;
+
+// railStacks lays the works out on the strip. A work is a stack of badges at
+// the height of the row it led to. A row can be shorter than a stack, and
+// stacks pushed under one another would drift far below the rows they belong
+// to, so a work whose stack would run into the stack above — its row starts
+// before that stack ends, with the gap after it — joins that stack instead.
+// The stack above ends where the lowest of its works would end standing
+// alone, or where their sum ends, whichever is further down; a chain of
+// works that run into each other is one stack. It counts what its works did
+// kind by kind and stands at the row of the first of them. The joining reads
+// the rows and the works, never a drawn stack, so a sum cannot undo itself;
+// no stack is pushed, and a work with room beside its row keeps a stack of
+// its own.
 export function railStacks(marks, geo) {
-    const works = marks.map((m) => {
+    const groups = [];
+    for (const m of marks) {
         const sum = sumOf(m.rows);
+        const kinds = kindsOf(sum);
+        const y = anchorY(m, geo);
+        const alone = y + stackH(kinds.length);
+        const g = groups[groups.length - 1];
+        if (g && y < Math.max(g.alone, g.y + stackH(g.kinds.size)) + STACK_GAP) {
+            g.marks.push(m);
+            g.alone = Math.max(g.alone, alone);
+            for (const k of kinds) g.kinds.add(k);
+            continue;
+        }
+        groups.push({ y, alone, marks: [m], sum, kinds: new Set(kinds) });
+    }
+    return groups.map((g) => {
+        const rows = g.marks.length === 1 ? g.marks[0].rows : g.marks.flatMap((m) => m.rows);
+        const sum = g.marks.length === 1 ? g.sum : sumOf(rows);
         const badges = badgesOf(sum);
-        return { at: m.at, rows: m.rows, sum, badges, h: badges.length * (BADGE_H + BADGE_GAP) - BADGE_GAP };
+        return { at: g.marks[0].at, y: g.y, rows, sum, badges, h: stackH(badges.length) };
     });
-    const ys = stack(works.map((w) => anchorY(w, geo)), works.map((w) => w.h), STACK_GAP);
-    return works.map((w, n) => ({ ...w, y: ys[n] }));
 }
 
 // stack lays the entries of the desk column out top down: each at the height
@@ -307,7 +352,7 @@ function RailStack({ g, onOpen }) {
             ${g.badges.map((b) => {
                 const words = badgeSaid(b);
                 return html`
-                    <button type="button" key=${b.kind === "turn" ? `turn-${b.turn.pos}` : b.kind}
+                    <button type="button" key=${b.kind}
                             class=${`railbadge k-${b.kind}${b.failed ? " failed" : ""}`}
                             onClick=${() => onOpen(g, b)} title=${words} aria-label=${`${words} — open the calls`}>
                         <span class="rbicon">${badgeIcon(b.kind)}</span>
@@ -405,8 +450,8 @@ export function FeedGrid({ rows, wide, row, tail, checklist, onOpen }) {
     const geo = useGeometry(col, prose.length);
     const groups = useMemo(() => (geo ? (wide ? deskGroups(marks, geo, prose) : railStacks(marks, geo)) : []),
         [marks, geo, wide, prose]);
-    // Stacks pushed under each other can reach past the last row: the strip
-    // is as tall as its lowest stack, so the feed scrolls to it.
+    // A stack can reach past the last row: the strip is as tall as its
+    // lowest stack, so the feed scrolls to it.
     const last = !wide && groups[groups.length - 1];
     const floor = last ? Math.ceil(last.y + last.h) : 0;
     return html`
@@ -430,10 +475,14 @@ export function FeedGrid({ rows, wide, row, tail, checklist, onOpen }) {
 
 // callsOf is what a tapped group opens: the calls of its runs, or, for the
 // end of a turn alone, the calls of that turn. A badge of a stack opens its
-// own part: the calls of its kind, its thoughts, the calls of its turn; a
-// badge whose part the feed does not list opens the whole work.
+// own part of every work the stack sums: the calls of its kind, its
+// thoughts, the calls of its turns; a badge whose part the feed does not list
+// opens the whole group.
 export function callsOf(g, feed, runCalls, turnCalls, badge) {
-    if (badge && badge.kind === "turn") return { list: turnCalls(feed, badge.turn.pos), turn: badge.turn };
+    if (badge && badge.kind === "turn") {
+        const list = badge.turns.flatMap((t) => turnCalls(feed, t.pos));
+        return { list, turn: badge.turn };
+    }
     const turn = g.rows.find((r) => r.role === "turn");
     const list = g.sum.runs.flatMap((run) => runCalls(feed, run))
         .sort((a, b) => (a.pos - b.pos) || ((a.index || 0) - (b.index || 0)));

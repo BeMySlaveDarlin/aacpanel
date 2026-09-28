@@ -108,12 +108,17 @@ func TestTheFeedSplitsIntoTheColumnAndTheTimeline(t *testing.T) {
 	}
 }
 
-// Every work stands on the strip as a stack of its own, a badge for each kind
+// Every work stands on the strip as a stack of badges, a badge for each kind
 // of what it did — its thinking, its calls kind by kind in the order of the
-// labels, the end of its turn — and works close together are never summed
-// into one: a stack that would run into the one above stands under it, the gap
-// between them, and a stack is as tall as its badges and the gaps between.
-func TestEveryWorkIsAStackOfItsOwnOnTheStrip(t *testing.T) {
+// labels, the end of its turns — at the row it led to, and a stack is as tall
+// as its badges and the gaps between. A work whose stack would run into the
+// stack above joins it: the stack above ends where the lowest of its works
+// would end alone, or where their sum ends, whichever is further down, and
+// the gap after it. The joined stack counts every kind of what its works
+// did, the ends of their turns as one, and says so. A work whose row starts
+// where the stack above and its gap end keeps a stack of its own, and no
+// stack is pushed off its row.
+func TestWorksCloseTogetherAreSummedIntoOneStackOnTheStrip(t *testing.T) {
 	run := func(at int, kinds ...string) map[string]any {
 		groups := []any{}
 		for i, k := range kinds {
@@ -126,18 +131,50 @@ func TestEveryWorkIsAStackOfItsOwnOnTheStrip(t *testing.T) {
 		r["think"] = map[string]any{"count": 2}
 		return r
 	}
+	turn := func(pos, calls, ms, agents int) map[string]any {
+		return map[string]any{"role": "turn", "pos": pos, "calls": calls, "ms": ms, "agents": agents}
+	}
 	mark := func(at int, rows ...any) map[string]any { return map[string]any{"at": at, "rows": rows} }
-	geo := map[string]any{"tops": []int{0, 37, 75, 200}, "bottoms": []int{30, 70, 190, 230}}
+	tops := []int{0, 37, 71, 110, 150, 300, 320, 350, 400, 410, 420, 430, 470, 600, 620, 630, 760}
+	bottoms := make([]int, len(tops))
+	for i, y := range tops {
+		bottoms[i] = y + 20
+	}
 	got := runModuleJS(t, "src/screens/chat/timeline.js", "railStacks", [][]any{{[]any{
+		// The one at 37 runs into the stack at 0, 56px and the gap tall.
 		mark(0, thought(run(0, "bash"))),
 		mark(1, run(1, "bash")),
+		// 71 is where the one at 37 would end alone, and the gap: room.
 		mark(2, run(2, "files", "bash")),
-		mark(3, run(3, "bash"), map[string]any{"role": "turn", "pos": 9, "calls": 3}),
-	}, geo}})
+		// A chain: each runs into the stack before it; their turns end as one.
+		mark(3, run(3, "bash"), turn(90, 3, 1000, 0)),
+		mark(4, run(4, "bash"), turn(91, 2, 2000, 1)),
+		// Room again, then works of one kind: their sum is one badge, and
+		// the one at 350 clears the end of the sum and its gap, but not
+		// where the one at 320 would end alone and the gap.
+		mark(5, run(5, "bash")),
+		mark(6, run(6, "bash")),
+		mark(7, run(7, "bash")),
+		// Short works of five kinds: the fifth clears where each of the four
+		// above would end alone, but not where their sum ends.
+		mark(8, run(8, "web")),
+		mark(9, run(9, "files")),
+		mark(10, run(10, "agents")),
+		mark(11, run(11, "mcp")),
+		mark(12, run(12, "skill")),
+		// Room again. A tall work comes second and a short one after it: the
+		// one at 760 clears where the last of them would end alone and where
+		// their sum ends, but not where the tall one would end alone.
+		mark(13, run(13, "bash")),
+		mark(14, run(14, "bash", "files", "web", "agents", "mcp")),
+		mark(15, run(15, "bash")),
+		mark(16, run(16, "skill")),
+	}, map[string]any{"tops": tops, "bottoms": bottoms}}})
 	raw, _ := json.Marshal(got[0])
 	var stacks []struct {
 		Y      float64 `json:"y"`
 		H      float64 `json:"h"`
+		Sum    any     `json:"sum"`
 		Badges []struct {
 			Kind  string `json:"kind"`
 			Count int    `json:"count"`
@@ -157,9 +194,15 @@ func TestEveryWorkIsAStackOfItsOwnOnTheStrip(t *testing.T) {
 		}
 		b.WriteString(" ")
 	}
-	want := "0+56:think2,bash2 64+26:bash2 98+56:bash2,files2 200+56:bash2,turn3"
+	want := "0+56:think2,bash4 71+86:bash6,files2,turn5 300+26:bash6 400+146:files2,web2,agents2,skill2,mcp2 600+176:bash6,files2,web2,agents2,skill2,mcp2"
 	if s := strings.TrimSpace(b.String()); s != want {
-		t.Errorf("the works at 0, 37, 75 and 200px lie on the strip as\n  %s\nwant\n  %s", s, want)
+		t.Errorf("the works at the rows %v lie on the strip as\n  %s\nwant\n  %s", tops, s, want)
+	}
+	if len(stacks) > 1 {
+		words := runModuleJS(t, "src/screens/chat/timeline.js", "said", [][]any{{stacks[1].Sum}})
+		if want := "6 commands · 2 files · 2 turns · worked 3s · 5 calls · 1 background agent was still at work"; words[0] != want {
+			t.Errorf("the joined stack says %q, want %q", words[0], want)
+		}
 	}
 }
 

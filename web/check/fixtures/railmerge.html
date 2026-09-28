@@ -1,0 +1,148 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body"><div class="chatfeed" id="crowd" style="flex: none"></div><div class="chatfeed" id="apart" style="flex: none"></div></div></div>
+<div id="sheet" hidden></div><div id="turnsheet" hidden></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Two feeds on a phone. In the first, five works in a row — each thought,
+// ran commands and read files — lie between replies of one line, so short
+// that a stack of three badges is taller than its row. In the second, the
+// same kind of work lies between replies long enough for a stack of each.
+// Tapping a badge of the first feed opens the calls sheet of what it counts;
+// the ends of two turns in one stack open the calls of both.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { rows, runCalls, turnCalls, weld } from "/src/screens/chat/feed.js";
+import { book, callsOf, FeedGrid, railStacks, said } from "/src/screens/chat/timeline.js";
+import { Calls } from "/src/screens/chat/calls.js";
+
+const at = "2026-09-26T10:00:00Z";
+const long = "A reply long enough to hold a stack of badges beside it, and a little more. ".repeat(4);
+
+// feedOf lays works out between replies: thinking, commands and files of
+// each work by count, a reply after each.
+function feedOf(works, reply) {
+    const items = [{ role: "me", text: "Collapse the badges.", pos: 1, at }];
+    let pos = 2;
+    works.forEach(([think, bash, files], n) => {
+        const run = pos;
+        items.push({ role: "think", run, pos: pos++, at, count: think, tokens: 40, spots: [] });
+        items.push({ role: "tools", kind: "bash", run, pos, at, calls: Array.from({ length: bash },
+            (_, i) => ({ name: "Bash", arg: `make step${n}.${i}`, pos, index: i })) });
+        pos += 1;
+        items.push({ role: "tools", kind: "files", run, pos, at, calls: Array.from({ length: files },
+            (_, i) => ({ name: "Read", arg: `/srv/proj/web/src/w${n}f${i}.js`, pos, index: i })) });
+        pos += 1;
+        items.push({ role: "ai", text: reply(n), pos: pos++, at });
+    });
+    return weld(items);
+}
+
+const crowd = feedOf([[2, 3, 3], [3, 3, 3], [2, 2, 2], [3, 3, 3], [1, 2, 1]],
+    (n) => ["Reading the feed.", "Found the rail.", "Summing the stacks.", "Running the checks.", "Done."][n]);
+const apart = feedOf([[1, 2, 1], [2, 1, 3], [1, 1, 1]], (n) => `Reply ${n}: ${long}`);
+
+const opened = [];
+const draw = (el, feed) => render(html`<${FeedGrid} rows=${rows(feed)} wide=${false}
+    onOpen=${(g, badge) => opened.push(callsOf(g, feed, runCalls, turnCalls, badge))}
+    row=${(item) => html`<${Row} item=${item} session="lab" id="1" />`} />`, el);
+draw(document.getElementById("crowd"), crowd);
+draw(document.getElementById("apart"), apart);
+
+// The page waits for the fonts, then for the rows and the stacks to stand
+// still for ten frames in a row, three seconds at most.
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+function read(id) {
+    const box = document.getElementById(id);
+    const col = box.querySelector(".feedcol");
+    const zero = col.getBoundingClientRect().top;
+    const rel = (el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top - zero, bottom: r.bottom - zero };
+    };
+    return {
+        rows: Array.from(col.children).map(rel),
+        stacks: Array.from(box.querySelectorAll(".railstack")).map((s) => ({
+            ...rel(s),
+            said: s.getAttribute("aria-label"),
+            badges: Array.from(s.querySelectorAll(".railbadge")).map((b) => ({
+                kind: (Array.from(b.classList).find((c) => c.startsWith("k-")) || "").slice(2),
+                count: text(b.querySelector(".rbnum")),
+                said: b.getAttribute("aria-label"),
+                ...rel(b),
+            })),
+        })),
+    };
+}
+
+// opens taps a badge of the first stack of a feed and draws the calls sheet
+// it opens, as the chat does: the names and arguments it lists, in order.
+function opens(id, kind) {
+    const badge = document.querySelector(`#${id} .railstack .railbadge.k-${kind}`);
+    if (!badge) return null;
+    badge.click();
+    const got = opened[opened.length - 1];
+    const sheet = document.getElementById("sheet");
+    render(html`<${Calls} session="lab" id="1" calls=${got.list} turn=${got.turn} onFile=${() => {}} />`, sheet);
+    return Array.from(sheet.querySelectorAll(".callnode")).map((n) =>
+        `${text(n.querySelector(".cnname"))} ${text(n.querySelector(".cnarg"))}`.trim());
+}
+
+// turnsOpen sums two turns into one stack — every row at the same height —
+// and taps the badge of their ends: the calls of both turns, in order, under
+// the head of the sheet.
+function turnsOpen() {
+    const feed = weld([
+        { role: "me", text: "go", pos: 1, at },
+        { role: "tools", kind: "bash", run: 2, pos: 2, at, calls: [{ name: "Bash", arg: "make a", pos: 2, index: 0 }] },
+        { role: "ai", text: "a", pos: 3, at },
+        { role: "turn", ms: 1000, pos: 4, at },
+        { role: "me", text: "ok", pos: 5, at },
+        { role: "tools", kind: "bash", run: 6, pos: 6, at, calls: [
+            { name: "Bash", arg: "make b", pos: 6, index: 0 }, { name: "Bash", arg: "make c", pos: 6, index: 1 }] },
+        { role: "ai", text: "b", pos: 7, at },
+        { role: "turn", ms: 2000, agents: 1, pos: 8, at },
+    ]);
+    const { marks } = book(rows(feed));
+    const zero = marks.map(() => 0);
+    const stacks = railStacks(marks, { tops: zero, bottoms: zero });
+    const g = stacks[0];
+    const badge = g.badges.find((b) => b.kind === "turn");
+    const got = callsOf(g, feed, runCalls, turnCalls, badge);
+    const sheet = document.getElementById("turnsheet");
+    render(html`<${Calls} session="lab" id="1" calls=${got.list} turn=${got.turn} onFile=${() => {}} />`, sheet);
+    return {
+        stacks: stacks.length,
+        said: said(g.sum),
+        count: badge.count,
+        list: Array.from(sheet.querySelectorAll(".callnode")).map((n) =>
+            `${text(n.querySelector(".cnname"))} ${text(n.querySelector(".cnarg"))}`.trim()),
+        head: text(sheet.querySelector(".chatsub")),
+    };
+}
+
+(async () => {
+    await document.fonts.ready;
+    const end = performance.now() + 3000;
+    let was = "";
+    let still = 0;
+    while (still < 10 && performance.now() < end) {
+        await frame();
+        const now = JSON.stringify([read("crowd"), read("apart")]);
+        still = now === was ? still + 1 : 0;
+        was = now;
+    }
+    window.done = {
+        crowd: read("crowd"),
+        apart: read("apart"),
+        bashOpens: opens("crowd", "bash"),
+        filesOpens: opens("crowd", "files"),
+        sheetHead: text(document.querySelector("#sheet .chatsub")),
+        turns: turnsOpen(),
+    };
+})();
+</script>
