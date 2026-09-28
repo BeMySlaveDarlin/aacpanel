@@ -100,25 +100,35 @@ export function orderOf(sessions, map) {
         || String(a.session).localeCompare(String(b.session)));
 }
 
+// levelOf says how loud the share of a context is: marked from seventy, loud
+// from ninety, quiet below.
+function levelOf(full) {
+    return full >= 90 ? "crit" : full >= 70 ? "warn" : "";
+}
+
 // factsOf is the quiet line under the state of a live session, in the words
 // the panel says them with elsewhere, most telling first: a column too narrow
-// for all of it drops them from the end, whole.
+// for all of it drops them from the end, whole. The share of the context
+// stands right after its tokens, in the tone of how full it is; a share the
+// session cannot know yet is left out rather than guessed.
 export function factsOf(s, group, usual = "default") {
     const out = [];
-    if (group && group.toLowerCase() !== String(s.session || "").toLowerCase()) out.push(group);
+    const say = (text, level = "") => out.push({ text, level });
+    if (group && group.toLowerCase() !== String(s.session || "").toLowerCase()) say(group);
     const model = [s.model ? modelTitle(s.model, { withWindow: false }) : "", s.effort ? effortName(s.effort) : ""]
         .filter(Boolean).join(" · ");
-    if (model) out.push(model);
+    if (model) say(model);
     // The usual mode goes without saying; one that stops the session asking
     // at all is said even where it is usual.
-    if (s.mode && (s.mode !== usual || modeLoud(s.mode))) out.push(modeName(s.mode));
+    if (s.mode && (s.mode !== usual || modeLoud(s.mode))) say(modeName(s.mode));
     if (s.tokens > 0) {
         const of = s.limit ? ` of ${s.limitKnown === false ? "~" : ""}${tokens(s.limit)}` : "";
-        out.push(`${tokens(s.tokens)}${of}`);
+        say(`${tokens(s.tokens)}${of}`);
+        if (s.limitKnown !== false && !s.noRequests) say(pct(s.pct || 0), levelOf(s.pct || 0));
     }
     const up = age(s.startedAt);
-    if (up) out.push(`up ${up}`);
-    if (s.compacts > 0) out.push(`${s.compacts} ${plural(s.compacts, "compaction", "compactions")}`);
+    if (up) say(`up ${up}`);
+    if (s.compacts > 0) say(`${s.compacts} ${plural(s.compacts, "compaction", "compactions")}`);
     return out;
 }
 
@@ -141,9 +151,9 @@ function GhostLine({ task }) {
 }
 
 // SessionLine is one live session: its key, name and the marks of what is
-// unusual about it, its state in the words of the phone, the quiet line of
-// what it runs on; and on the right, in a column of their own, how full it is
-// and under it the one thing done to it besides opening, on every row.
+// unusual about it, with the one thing done to it besides opening in the
+// corner on the line of the name; its state in the words of the phone; the
+// quiet line of what it runs on, how full its context is among it.
 function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid = false }) {
     const run = useAction();
     const closing = wait ? wait.of("close", s.session) : null;
@@ -162,7 +172,6 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
     const lost = stopsOf(s);
     const lostTip = lost ? `Stops ${lost}` : undefined;
     const full = s.pct || 0;
-    const level = full >= 90 ? "crit" : full >= 70 ? "warn" : "";
 
     return html`
         <button
@@ -187,7 +196,6 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                 `}
                 ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
             </span>
-            <span class="dknum" data-level=${level}>${s.limitKnown === false || s.noRequests ? "—" : pct(full)}</span>
             <span class="dksay">
                 <span class=${`dkdot ${DOT[tone]}`}></span>
                 <span class="dksaytext">${said}</span>
@@ -224,7 +232,7 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                 `}
             </span>
             ${facts.length > 0 && html`
-                <span class="dkdetail">${facts.map((fact, i) => html`<span key=${i}>${fact}</span>`)}</span>
+                <span class="dkdetail">${facts.map((fact, i) => html`<span key=${i} data-level=${fact.level || undefined}>${fact.text}</span>`)}</span>
             `}
             ${!s.noRequests && html`
                 <span class=${`dksessbar ${fill(full)}`}><i style=${`width:${Math.min(100, full)}%`}></i></span>

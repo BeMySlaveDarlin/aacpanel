@@ -22,8 +22,8 @@ html,body{margin:0}
 // The card of a session in the desktop column, with the right panel open:
 // live and closed apart. The live sessions of a contour keep their places and
 // keys whatever they do; the state is said in the words of the phone, with a
-// quiet line of what the session runs on under it; the share and the one
-// action of a row stand on every row in a column of their own; the heading
+// quiet line of what the session runs on under it, the share of its context
+// among it; the one action of a row stands on every row in its corner; the heading
 // counts who waits and opens a new session; the closed conversations stand on
 // a shelf below with their time and Resume. Then the header of the
 // conversation in two lines, with the right panel open and without, and the
@@ -160,6 +160,7 @@ const facts = (name) => {
     const size = parseFloat(getComputedStyle(d).fontSize);
     return {
         all: spans.map(text),
+        levels: spans.map((sp) => sp.dataset.level || ""),
         shown: spans.filter((s) => s.offsetTop === top).map(text),
         lines: Math.round(d.getBoundingClientRect().height / (size * 1.4)),
         // A fact on the line stands whole inside it: what does not fit is
@@ -172,31 +173,32 @@ const box = (el) => (el ? el.getBoundingClientRect() : null);
 const hit = (a, b) => Boolean(a && b && a.width > 0 && b.width > 0
     && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5);
 const clipped = (el) => Boolean(el) && el.scrollWidth > el.clientWidth + 1;
-// rows says of every live row whether its action stands and whether its
-// pieces stand clear of each other and inside the row.
+// rows says of every live row whether its action stands, whether it stands in
+// the top right corner — on the line of the name, at the right edge — and
+// whether the pieces of the row stand clear of each other and inside it.
 const rows = () => Array.from(root().querySelectorAll(".dklive:not(.dkghost)")).map((row) => {
     const r = box(row);
     const left = Array.from(row.querySelectorAll(".dksessmain > *")).map((el) => [el.className || "name", box(el)]);
-    const num = row.querySelector(".dknum");
     const icon = row.querySelector(".dkrowacts .dkact");
-    const pct = box(num);
     const act = box(icon);
+    const name = box(row.querySelector(".dkname"));
     const detail = box(row.querySelector(".dkdetail"));
     const say = box(row.querySelector(".dksay"));
     const bad = [];
-    if (hit(pct, act)) bad.push("share/action");
-    for (const [name, b] of left) {
-        if (hit(b, pct)) bad.push(`${name}/share`);
-        if (hit(b, act)) bad.push(`${name}/action`);
+    for (const [part, b] of left) {
+        if (hit(b, act)) bad.push(`${part}/action`);
     }
     if (hit(say, act)) bad.push("state/action");
-    if (hit(say, pct)) bad.push("state/share");
     if (hit(detail, act)) bad.push("detail/action");
-    if (hit(detail, pct)) bad.push("detail/share");
-    for (const [name, b] of [["share", pct], ["action", act], ["detail", detail]]) {
-        if (b && (b.right > r.right + 0.5 || b.bottom > r.bottom + 0.5)) bad.push(`${name} out of the row`);
+    for (const [part, b] of [["action", act], ["detail", detail]]) {
+        if (b && (b.right > r.right + 0.5 || b.bottom > r.bottom + 0.5)) bad.push(`${part} out of the row`);
     }
-    if (clipped(num)) bad.push("share cut");
+    if (act && name) {
+        const middle = (b) => (b.top + b.bottom) / 2;
+        if (Math.abs(middle(act) - middle(name)) > 4) bad.push("action off the line of the name");
+        if (r.right - act.right > 12) bad.push("action short of the right edge");
+    }
+    if (row.querySelector(":scope > .dknum")) bad.push("a share in the corner");
     const style = icon ? getComputedStyle(icon) : null;
     const shown = icon && getComputedStyle(row.querySelector(".dkrowacts")).visibility === "visible"
         && style.visibility === "visible" && style.display !== "none" && Number(style.opacity) === 1 && act.width > 0;
@@ -244,7 +246,8 @@ window.done = (async () => {
     out.tones = Object.fromEntries(["person", "aacpanel", "atlas"].map((n) => [n, rowOf(n).dataset.tone]));
     out.edge = getComputedStyle(rowOf("person")).boxShadow;
     out.noEdge = getComputedStyle(rowOf("atlas")).boxShadow;
-    out.facts = Object.fromEntries(["aacpanel", "ai-platform", "lms", "atlas", "scratch"].map((n) => [n, facts(n)]));
+    out.facts = Object.fromEntries(["aacpanel", "ai-platform", "lms", "atlas", "scratch", "evirma-fingerprint-rotation-review"]
+        .map((n) => [n, facts(n)]));
     out.marks = Object.fromEntries(["aacpanel", "atlas", "scratch", "lms"].map((n) => [n,
         Array.from(rowOf(n).querySelectorAll(".dkmark, .dkrc, .dkhome")).map(text)]));
     out.columnText = text(root().querySelector(".dkscroll"));

@@ -451,11 +451,11 @@
     .dksessbar.s4 i { background: var(--ctx-4); }
 
     /* A live session of the column: its key in a column of its own; the name
-       with the marks of what is unusual about it, its state in the words of
-       the phone; on the right, in a column of their own, how full it is and
-       under it the action of the row; a quiet line of what it runs on under
-       all of it. The bar of its context runs along the bottom edge, and a
-       session that waits for the person has an edge of its own on the left. */
+       with the marks of what is unusual about it, and the action of the row
+       in the corner beside it; its state in the words of the phone; a quiet
+       line of what it runs on under all of it, how full the context is among
+       it. The bar of its context runs along the bottom edge, and a session
+       that waits for the person has an edge of its own on the left. */
     .dksess.dklive {
         grid-template-columns: .8rem minmax(0, 1fr) auto;
         align-items: center;
@@ -467,9 +467,7 @@
 
     .dklive > .dksessmain { grid-column: 2; grid-row: 1; }
 
-    .dklive > .dksay { grid-column: 2; grid-row: 2; }
-
-    .dkghost > .dksay { grid-column: 2 / -1; }
+    .dklive > .dksay { grid-column: 2 / -1; grid-row: 2; }
 
     .dksess.dklive.dkkid { padding-left: 1.4rem; }
 
@@ -490,23 +488,6 @@
     .dklive.dkkid .dkname { font-family: var(--mono); font-size: var(--t-sm); font-weight: 400; color: var(--ink-dim); }
 
     .dkghost .dkname { color: var(--ink-dim); }
-
-    /* The right column of a row holds the share on the line of the name and
-       the action on the line of the state, at the same place on every row:
-       the numbers of the column read down one edge and the actions down the
-       same edge under them, and a long name or its marks push neither. */
-    .dklive > .dknum {
-        grid-column: 3;
-        grid-row: 1;
-        justify-self: end;
-        min-width: 2.4rem;
-        font-family: var(--mono);
-        white-space: nowrap;
-    }
-
-    .dklive .dknum[data-level="warn"] { font-weight: 600; color: var(--warn); }
-
-    .dklive .dknum[data-level="crit"] { font-weight: 600; color: var(--crit); }
 
     .dkhome { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 
@@ -578,9 +559,18 @@
 
     .dkdetail > span:first-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-    .dkdetail > span + span::before { content: "·"; margin: 0 .35em; }
+    .dkdetail > span + span::before { content: "·"; margin: 0 .35em; font-weight: 400; color: var(--ink-faint); }
 
-    .dklive > .dkrowacts { grid-column: 3; grid-row: 2; justify-self: end; margin: 0; }
+    /* How full the context is, among the facts right after its tokens: quiet
+       while there is room, marked from seventy, loud from ninety. */
+    .dkdetail > [data-level="warn"] { font-weight: 600; color: var(--warn); }
+
+    .dkdetail > [data-level="crit"] { font-weight: 600; color: var(--crit); }
+
+    /* The action of a row stands in its top right corner, on the line of the
+       name and at the same place on every row, so the actions read down one
+       edge; a long name or its marks give way to it. */
+    .dklive > .dkrowacts { grid-column: 3; grid-row: 1; justify-self: end; margin: 0; }
 
     .dklive > .dkrowacts .dkact { width: 1.7rem; height: 1.1rem; justify-content: end; }
 
