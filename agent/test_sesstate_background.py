@@ -85,6 +85,17 @@ class BackgroundAgents(Transcript):
         self.assertEqual(answered["agents"][0]["status"], "active")
         self.assertEqual(work_of(answered)["agents"], 1, "the card counts no agent at work while one works")
 
+    def test_a_letter_that_could_not_resume_the_agent_leaves_it_over(self):
+        over = self.state(async_agent("toolu_1", AGENT), agent_notification(AGENT))["agents"][0]
+        refused = (call("SendMessage", "toolu_2", at="2026-08-25T10:50:00Z", to=AGENT, message="next phase")
+                   + result("toolu_2", '{"success":false}', success=False,
+                            message="This agent cannot be resumed: its worktree no longer exists"))
+        got = self.state(async_agent("toolu_1", AGENT), agent_notification(AGENT), refused)
+        agent = got["agents"][0]
+        self.assertEqual((agent["status"], agent.get("doneAt")), (over["status"], over.get("doneAt")),
+                         "a letter the tool refused left the agent at work for good")
+        self.assertEqual(work_of(got)["agents"], 0, "the card counts an agent nobody resumed as at work")
+
     def test_the_answer_to_a_letter_names_the_agent_it_resumed(self):
         letter = (call("SendMessage", "toolu_2", at="2026-08-25T10:50:00Z", to="someone-else", message="go")
                   + result("toolu_2", '{"success":true}', success=True, message="Resuming agent",

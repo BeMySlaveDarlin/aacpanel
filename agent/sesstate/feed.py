@@ -175,12 +175,12 @@ def _feed_record(state, record, raw):
             elif name in MAYBE_BACKGROUND:
                 state.pending[block.get("id")] = _may_go_background(name, data, at)
             elif name == "SendMessage":
-                background.woken(state, data.get("to"))
+                was = background.woken(state, data.get("to"))
                 agent = state.agents.get(data.get("to"))
                 if agent is not None:
                     agent["status"] = "active"
                 state.pending[block.get("id")] = {"kind": "mail", "to": data.get("to"),
-                                                  "teammate": agent is not None}
+                                                  "teammate": agent is not None, "was": was}
             continue
 
         if block.get("type") != "tool_result":
@@ -211,6 +211,8 @@ def _feed_record(state, record, raw):
             # to an agent that is gone.
             if result.get("success") is False and started.get("teammate"):
                 _lose(state, started["to"])
+            if result.get("success") is False:
+                background.unwoken(state, started.get("was"))
             # A letter that resumed an agent says which one, whatever the
             # letter called it.
             if result.get("resumedAgentId"):

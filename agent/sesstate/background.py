@@ -53,15 +53,34 @@ def woken(state, to):
 
     A letter names the agent by the name it was sent off with as often as by
     its id; of two sent off under one name the later is the one written to.
+    Returns what the agent was before, so that a letter the tool refused can
+    put it back: the agent is shown at work as the letter goes, before the
+    answer says whether it was resumed at all.
     """
     agent = state.bg.get(to)
     if agent is None and to:
         named = [a for a in state.bg.values() if a.get("name") == to]
         agent = max(named, key=lambda a: a.get("at") or "") if named else None
     if agent is None or agent["status"] == ACTIVE:
-        return
+        return None
+    was = (agent["id"], agent["status"], agent.get("doneAt"))
     agent["status"] = ACTIVE
     agent.pop("doneAt", None)
+    return was
+
+
+def unwoken(state, was):
+    """Puts back an agent a refused letter showed at work: one that cannot be
+    resumed stays over, rather than working for good with nobody at work."""
+    if not was:
+        return
+    agent_id, status, done = was
+    agent = state.bg.get(agent_id)
+    if agent is None or agent["status"] != ACTIVE:
+        return
+    agent["status"] = status
+    if done is not None:
+        agent["doneAt"] = done
 
 
 def older_than(state, born):
