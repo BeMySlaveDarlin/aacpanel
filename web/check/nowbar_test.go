@@ -154,3 +154,101 @@ func TestTheBarAboveTheComposerSaysWhatIsGoingOn(t *testing.T) {
 			got.ThinkTimeGap, got.ThinkChipsGap)
 	}
 }
+
+// claude keeps a session on the stream busy while the agents it sent off work,
+// long after its own turn ended. The bar then says that work — how many are at
+// it and since when the first began — and opens its list, rather than counting
+// a thought that ended with the answer or naming the last call of that answer.
+// With nothing the panel sees at work it says nothing; the header says the
+// session waits on its agents rather than that it is answering.
+func TestTheBarOfATurnThatEndedSaysTheAgentsAtWork(t *testing.T) {
+	var got struct {
+		WaitTop     string   `json:"waitTop"`
+		WaitAll     string   `json:"waitAll"`
+		WaitButton  bool     `json:"waitIsButton"`
+		WaitFace    string   `json:"waitFace"`
+		WaitTimeGap int      `json:"waitTimeGap"`
+		FlowsTop    string   `json:"flowsTop"`
+		Opened      []string `json:"opened"`
+		None        string   `json:"none"`
+		GoingTop    string   `json:"goingTop"`
+		Overflow    int      `json:"overflow"`
+		HeadOver    string   `json:"headOver"`
+		HeadBusy    string   `json:"headBusy"`
+		HeadWaiting string   `json:"headWaiting"`
+		Error       string   `json:"error"`
+	}
+	runFixture(t, "waitbar.html", &got)
+	if got.Error != "" {
+		t.Fatalf("the fixture broke: %s", got.Error)
+	}
+	for _, want := range []string{"now", "2 agents working", "for", "6:4"} {
+		if !strings.Contains(got.WaitTop, want) {
+			t.Errorf("the bar of a session waiting on its agents says %q, without %q", got.WaitTop, want)
+		}
+	}
+	for _, stale := range []string{"thinking", "last call", "TaskStop"} {
+		if strings.Contains(got.WaitAll, stale) {
+			t.Errorf("the bar of a turn that ended still says %q: %q", stale, got.WaitAll)
+		}
+	}
+	if !got.WaitButton {
+		t.Error("the bar of the agents at work does not open their list")
+	}
+	if got.WaitFace != "rgba(0, 0, 0, 0) 0px" {
+		t.Errorf("the bar wears the face of a button of its own: %q", got.WaitFace)
+	}
+	if got.WaitTimeGap < 0 || got.WaitTimeGap > 24 {
+		t.Errorf("the time stands %dpx off the far end of the bar — the button shrank to its words", got.WaitTimeGap)
+	}
+	if !strings.Contains(got.FlowsTop, "1 workflow running") {
+		t.Errorf("with no agent at work and a workflow running the bar says %q", got.FlowsTop)
+	}
+	if strings.Join(got.Opened, ",") != "agents,workflows" {
+		t.Errorf("a tap on the bar opened %v, expected the agents, then the workflows", got.Opened)
+	}
+	if got.None != "" {
+		t.Errorf("with nothing at work that the panel sees, the bar still stands: %s", got.None)
+	}
+	if !strings.Contains(got.GoingTop, "thinking") {
+		t.Errorf("a turn going on no longer says it is thinking: %q", got.GoingTop)
+	}
+	if got.Overflow > 0 {
+		t.Errorf("the bar pushes the phone %dpx sideways", got.Overflow)
+	}
+	if got.HeadOver != "agents at work" || got.HeadBusy != "answering" || got.HeadWaiting != "waiting for you" {
+		t.Errorf("the header says %q past the end of the turn, %q in it, %q with a dialog open",
+			got.HeadOver, got.HeadBusy, got.HeadWaiting)
+	}
+}
+
+// The same on the screen of the conversation: the collector marks a session
+// on the stream whose turn is over, the screen hands the mark to the bar and
+// the header, the counter under the composer counts the agents at work and not
+// the one stopped, and a tap on the bar opens the list of the agents.
+func TestTheConversationWaitingOnItsAgentsSaysSo(t *testing.T) {
+	var got struct {
+		Bar      string `json:"bar"`
+		Word     string `json:"word"`
+		Robots   string `json:"robots"`
+		Sheet    string `json:"sheet"`
+		SheetSub string `json:"sheetSub"`
+		Error    string `json:"error"`
+	}
+	runFixture(t, "waitchat.html", &got)
+	if got.Error != "" {
+		t.Fatalf("the fixture broke: %s", got.Error)
+	}
+	if !strings.Contains(got.Bar, "2 agents working") || strings.Contains(got.Bar, "thinking") {
+		t.Errorf("the bar above the composer says %q", got.Bar)
+	}
+	if got.Word != "agents at work" {
+		t.Errorf("the header says %q", got.Word)
+	}
+	if got.Robots != "2" {
+		t.Errorf("the counter of agents says %q, expected the two at work", got.Robots)
+	}
+	if got.Sheet != "subagents" || !strings.Contains(got.SheetSub, "2 working") || !strings.Contains(got.SheetSub, "1 over") {
+		t.Errorf("a tap on the bar opened %q (%q), expected the list of the agents", got.Sheet, got.SheetSub)
+	}
+}

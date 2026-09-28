@@ -87,6 +87,11 @@ export function stateOf(live, still = null, move = null) {
         };
     }
     if (live.compacting) return { tone: "busy", say: "compacting the conversation", word: "compacting" };
+    // claude keeps a session busy while the agents it sent off work, after its
+    // own answer has ended: it is not answering then, it waits for them.
+    if (live.status === "busy" && live.turnOver) {
+        return { tone: "busy", say: "the answer is over, the work it sent off goes on", word: "agents at work" };
+    }
     if (live.status === "busy") return { tone: "busy", say: "handling the request", word: "answering" };
     if (!live.status) return { tone: "", say: "the session state is unknown", word: "" };
     return { tone: "idle", say: "waiting for a message", word: "idle" };

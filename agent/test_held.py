@@ -194,6 +194,22 @@ class OnTheCard(Runtime):
     def test_a_session_in_a_terminal_is_not_marked(self):
         self.assertNotIn("transport", self.card())
 
+    def test_busy_past_the_end_of_its_turn_is_marked(self):
+        self.hold(SID, 1, busy=False)
+        got = self.card()
+        self.assertEqual((got["status"], got.get("turnOver")), ("busy", True),
+                         "claude holds the session busy for the agents it sent off; the holder saw its turn end")
+
+    def test_busy_in_its_turn_is_not_marked(self):
+        for value in (True, None, 0, ""):
+            self.hold(SID, 1, busy=value)
+            self.assertNotIn("turnOver", self.card(), f"a holder saying busy {value!r} ended the turn")
+
+    def test_an_idle_session_is_not_marked(self):
+        live.live_session_status = lambda: {"held": "idle"}
+        self.hold(SID, 1, busy=False)
+        self.assertNotIn("turnOver", self.card())
+
 
 class Withdrawn(unittest.TestCase):
     def setUp(self):

@@ -695,3 +695,6 @@
     color: var(--ink-dim);
 }
 .nowchips { flex: none; display: flex; align-items: center; gap: .3rem; }
+/* The bar of a session waiting on its agents is one button: it opens their list. */
+.nowwait { width: 100%; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.nowwait .nowkind { color: var(--accent-2); }

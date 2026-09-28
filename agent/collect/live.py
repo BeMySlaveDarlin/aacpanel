@@ -238,6 +238,13 @@ def sessions():
             if wait:
                 s["status"] = "waiting"
                 s["waitingFor"] = wait
+            # claude keeps a session busy while an agent it sent off works,
+            # long after its own turn ended. The holder knows the turn by the
+            # protocol: from the word that starts it to the result claude
+            # writes at its end, however it ended — an answer, an error or
+            # a stop.
+            if s.get("status") == "busy" and hold.get("busy") is False:
+                s["turnOver"] = True
             if isinstance(hold.get("mode"), str) and hold["mode"]:
                 s["mode"] = hold["mode"]
             # The transcript names the model with the first answer, and the

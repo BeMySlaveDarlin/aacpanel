@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// A session on the stream whose turn ended in an answer minutes ago: claude
+// still holds it busy, because two agents it sent off are at work. A third
+// was stopped with an earlier turn.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+const items = [
+    { role: "me", text: "anything left running?", at: ago(420), pos: 1 },
+    { role: "tools", kind: "agents", run: 5, pos: 5, at: ago(410),
+      calls: [{ name: "TaskStop", arg: "audit", pos: 5, index: 0, at: ago(410) }] },
+    { role: "ai", text: "Nothing to stop.", at: ago(405), pos: 6 },
+];
+const agent = (name, status, sec, extra) => ({ name, status, at: ago(sec), kind: "background", id: `a-${name}`, ...extra });
+const work = {
+    tasks: [],
+    agents: [agent("audit2", "active", 400), agent("hooks2", "active", 100),
+             agent("audit", "stopped", 3000, { doneAt: ago(2900) })],
+    workflows: [],
+};
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) {
+        return json({ items, first: 1, last: 6, total: items.length, moreBefore: false, state: work });
+    }
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.send"] };
+const live = { status: "busy", turnOver: true, transport: "stream", pct: 56.9, tokens: 569000,
+               limit: 1000000, cwd: "/srv/proj" };
+function Page() {
+    return html`<${Chat} name="rework" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+window.done = (async () => {
+    const out = {};
+    try {
+        for (let i = 0; i < 80 && !document.querySelector(".composerbox .nowbar"); i += 1) await sleep(50);
+        out.bar = text(document.querySelector(".composerbox .workbar"));
+        out.word = text(document.querySelector(".talkword"));
+        const chips = Array.from(document.querySelectorAll(".deck .wchips .wchip"));
+        out.robots = chips.length > 1 ? text(chips[1].querySelector(".wnum")) : "";
+        const bar = document.querySelector(".composerbox .nowwait");
+        if (bar) bar.click();
+        for (let i = 0; i < 40 && !document.querySelector(".sheethead h2"); i += 1) await sleep(50);
+        out.sheet = text(document.querySelector(".sheethead h2"));
+        out.sheetSub = text(document.querySelector(".sheethead .chatsub"));
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

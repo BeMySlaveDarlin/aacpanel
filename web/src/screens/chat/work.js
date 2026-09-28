@@ -15,16 +15,30 @@ import { Look, LOOK_NAMES } from "./look.js";
 import { state as briefState, waiting } from "../../data/briefs.js";
 import { key as pageKey, merge } from "../../data/artifacts.js";
 import { markOpened, unopened } from "../../data/opened.js";
-import { NowBar, nowOf } from "./now.js";
+import { NowBar, nowOf, WaitBar } from "./now.js";
 
 // WorkStatus renders what is happening to the session right now: the call
 // going out and for how long, or the thinking between calls. A compaction is
 // said whatever else the session reports: claude writes nothing to the
 // conversation while it compacts, and the call before it would stand there for
 // minutes as if it were still going.
-export function WorkStatus({ work, busy, compacting, feed, onCalls }) {
+//
+// A session whose own turn is over is busy with the work it sent off: claude
+// holds it busy while its agents run, and the thinking the bar would count is
+// an answer that has already ended. The bar says that work instead, and says
+// nothing when the panel sees none of it at work.
+export function WorkStatus({ work, busy, turnOver, compacting, feed, onCalls, onOpen }) {
     if (compacting) return html`<${Compacting} key=${compacting} since=${compacting} />`;
     if (!busy) return null;
+    if (turnOver) {
+        const waits = waitedOn(work);
+        if (!waits) return null;
+        return html`
+            <div class="workbar status">
+                <${WaitBar} waits=${waits} onOpen=${onOpen} />
+            </div>
+        `;
+    }
     const now = nowOf(feed);
     return html`
         <div class="workbar status">
@@ -569,6 +583,25 @@ function AgentRow({ agent, reported, stop, onOpen }) {
 export function contextSay(agent) {
     if (!agent.limit) return `${tokens(agent.tokens)} of context`;
     return `${tokens(agent.tokens)} of ${agent.limitKnown ? "" : "~"}${tokens(agent.limit)}`;
+}
+
+// waitedOn is what a session waits on once its own turn is over: the agents
+// still at work or, with none, the workflow runs, and since when the first of
+// them has been at it. Null when nothing the panel sees is at work.
+export function waitedOn(work) {
+    const { agents, flows } = liveWork(work);
+    const list = agents.length > 0 ? agents : flows;
+    const n = list.length;
+    if (n === 0) return null;
+    const starts = list.map((one) => Date.parse(one.at || "")).filter(Number.isFinite);
+    return {
+        kind: agents.length > 0 ? "agents" : "workflows",
+        count: n,
+        word: agents.length > 0
+            ? `${n} ${plural(n, "agent", "agents")} working`
+            : `${n} ${plural(n, "workflow", "workflows")} running`,
+        since: starts.length > 0 ? Math.min(...starts) : NaN,
+    };
 }
 
 // hasWork reports whether there is anything to put above the composer.

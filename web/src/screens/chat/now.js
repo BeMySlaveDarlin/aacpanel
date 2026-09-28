@@ -152,3 +152,22 @@ export function NowBar({ now, onCalls }) {
         </div>
     `;
 }
+
+// WaitBar is the bar while a session waits on the work it sent off: its own
+// turn is over, and what holds it busy is that work, at it since the first of
+// it began. A tap opens its list.
+export function WaitBar({ waits, onOpen }) {
+    useTick();
+    const took = Number.isFinite(waits.since) ? clock((Date.now() - waits.since) / 1000) : "";
+    return html`
+        <button class="nowbar nowwait" type="button" onClick=${() => onOpen && onOpen({ kind: waits.kind })}>
+            <span class="nowtop">
+                <span class="nowdot"></span>
+                <span class="nowword">now</span>
+                <span class="nowkind">${waits.kind === "agents" ? Icon.robot() : Icon.flow()}</span>
+                <b class="nowname">${waits.word}</b>
+                ${took && html`<span class="nowel"><span>for</span> ${took}</span>`}
+            </span>
+        </button>
+    `;
+}
