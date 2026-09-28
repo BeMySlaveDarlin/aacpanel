@@ -16,17 +16,17 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
-const comment = "Коллеги, по итогам созвона фиксирую договорённости по выгрузке оценок. " +
-    "Первое: старый роутер отключаем только после того, как новый отработает неделю без ошибок на проде, " +
-    "до этого оба живут параллельно и пишут в один журнал. Второе: миграцию таблицы с оценками делаем " +
-    "в два шага — сначала добавляем колонки и заполняем их фоновой задачей, потом переключаем чтение, " +
-    "и только после этого удаляем старые поля; откат на любом шаге должен занимать не больше пяти минут. " +
-    "Третье: преподаватели видят новые отчёты с понедельника, до этого им ничего не рассылаем, " +
-    "чтобы не отвечать на вопросы про недоделанный экран. Четвёртое: на время переключения " +
-    "замораживаем релизы соседних сервисов, список согласован с командой платформы. " +
-    "Если по какому-то пункту есть возражения — пишите здесь до четверга, в пятницу утром " +
-    "начинаем первый шаг и дальше идём по плану без обсуждений в личке.\n\n" +
-    "Ссылки на дашборд и на план отката добавлю отдельным комментарием, когда их проверит дежурный.";
+const comment = "Colleagues, after the call I am writing down what we agreed about the export of grades. " +
+    "First: the old router is switched off only after the new one has run a week without errors in production, " +
+    "until then both live side by side and write into one log. Second: the migration of the grades table goes " +
+    "in two steps, first we add the columns and fill them with a background job, then switch the reads, " +
+    "and only after that drop the old fields; a rollback at any step must take no more than five minutes. " +
+    "Third: teachers see the new reports from Monday, until then nothing is sent to them, " +
+    "so that nobody has to answer questions about an unfinished screen. Fourth: for the switch " +
+    "we freeze the releases of the neighbouring services, the list is agreed with the platform team. " +
+    "If you object to any point, write here before Thursday; on Friday morning " +
+    "we start the first step and go on by the plan with no side discussions in private chats.\n\n" +
+    "Links to the dashboard and the rollback plan come in a separate comment once the person on duty checks them.";
 
 const permission = {
     tool: "mcp__atlassian__jira_edit_comment",
@@ -198,7 +198,7 @@ window.done = (async () => {
             padding: px(rs.paddingTop) + px(rs.paddingBottom),
             height: request.clientHeight,
             whole: request.scrollHeight,
-            text: request.textContent.includes("без обсуждений в личке"),
+            text: request.textContent.includes("no side discussions in private chats"),
         },
         note: {
             lineHeight: px(ns.lineHeight),
