@@ -793,10 +793,10 @@ func TestRunTakesClaudeFromContourMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	session := string(readFile(t, tmuxLog))
-	if !strings.Contains(session, wrapper+" -n aacpanel") {
+	if !strings.Contains(session, "env.sh "+wrapper+" ") {
 		t.Errorf("the session was not started by the profile wrapper: %s", session)
 	}
-	if strings.Contains(session, fromMachine+" -n aacpanel") {
+	if strings.Contains(session, "env.sh "+fromMachine+" ") {
 		t.Errorf("the machine variable beat the map — the profile no longer decides what starts it: %s", session)
 	}
 	if len(rep.Warnings) != 0 {
@@ -848,7 +848,7 @@ func TestRunWarnsWhenClaudeComesFromPATH(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(readFile(t, tmuxLog)), bin+" -n aacpanel") {
+	if !strings.Contains(string(readFile(t, tmuxLog)), "env.sh "+bin+" ") {
 		t.Errorf("without a wrapper the session must come up with the claude found in PATH — otherwise this test checks the wrong thing")
 	}
 	var said bool

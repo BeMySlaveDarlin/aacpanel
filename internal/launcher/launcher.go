@@ -90,6 +90,11 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 		warns = append(warns, modeWarn)
 	}
 
+	params, planWarn := withPlan(params)
+	if planWarn != "" {
+		warns = append(warns, planWarn)
+	}
+
 	name, err := freeName(spec.Session, takenNames())
 	if err != nil {
 		return Report{}, err

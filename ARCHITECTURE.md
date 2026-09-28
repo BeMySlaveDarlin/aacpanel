@@ -780,6 +780,23 @@ session answers to is refused: two sessions would answer to one name. The
 open conversation follows the session by its conversation to the new name. A
 terminal is renamed on its own screen, `/rename` with keys.
 
+**The plan of a session is the model's own, kept by a tool of the panel.**
+Every session the launcher starts, in a console or on the stream, gets the
+executor in its plan mode (`aacpanel-exec -plan`) as an MCP server with one
+tool, `plan`, and the tool allowed, so an update never waits on a person; the
+`planTool` launch parameter turns it off for a contour or a project, and a
+session started by hand does not have it. The model decides whether to keep a
+plan and what a step is, and sends the whole list each time. The server finds
+its conversation through its parent: claude keeps a file of itself under
+`sessions/<pid>.json` of its config directory, read on every call, since
+`/clear` starts another conversation in the same process. The plan is one file
+a conversation under `aacpanel/plans/` in the owner's state, replaced whole;
+the collector carries it in the row of the session and in the state of the
+conversation — the steps with their statuses, since when a step at work or
+done holds its status, and when the list was last sent. Nothing makes the model
+keep it true: a `Stop` hook, where the account has it, holds a turn that did
+work past an unfinished plan it did not touch, once, to ask whether it changed.
+
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line
 of a terminal, in the payload on stdin, and with every answer it gives on the

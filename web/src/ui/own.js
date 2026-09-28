@@ -4,6 +4,7 @@
 const ON_OFF = {
     remoteControl: ["RC", "no RC"],
     autoRestart: ["auto restart", "no auto restart"],
+    planTool: ["plan tool", "no plan tool"],
 };
 
 export function ownLabel(v) {

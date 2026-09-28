@@ -9,6 +9,7 @@ import asked
 import briefs
 import held
 import pages
+import plans
 import reviews
 import sesstate
 
@@ -252,6 +253,9 @@ def _answer(request):
             ask = asked.BOOK.of(session)
             if ask:
                 found = {**found, "ask": ask}
+            plan = plans.of(session)
+            if plan:
+                found = {**found, "plan": plan}
             reply["state"] = found
     return reply
 

@@ -278,6 +278,51 @@ func TestEveryFeedFieldTheCollectorSendsHasAPlace(t *testing.T) {
 	}
 }
 
+// The plan of a session is read by the collector into the shape the screens
+// take. A key it puts into the plan or into a step that Plan or PlanItem does
+// not declare is dropped between the two without a word, and the sheet of the
+// plan loses its times or its note with nobody able to say where.
+func TestEveryPlanFieldTheCollectorSendsHasAPlace(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "agent", "plans.py"))
+	if err != nil {
+		t.Fatalf("the collector source is out of reach: %v", err)
+	}
+	src := string(raw)
+	start := strings.Index(src, "def of(")
+	if start < 0 {
+		t.Fatal("the collector has no of() where the test looks for it")
+	}
+	body := src[start:]
+
+	var sent []string
+	for _, re := range []*regexp.Regexp{
+		regexp.MustCompile(`"([a-zA-Z]+)":`),                     // inside a literal
+		regexp.MustCompile(`(?:step|plan)\["([a-zA-Z]+)"\]\s*=`), // added afterwards
+	} {
+		for _, m := range re.FindAllStringSubmatch(body, -1) {
+			sent = append(sent, m[1])
+		}
+	}
+	if len(sent) < 5 {
+		t.Fatalf("only %d keys found in of(): the test reads the wrong place", len(sent))
+	}
+
+	known := map[string]bool{}
+	for _, typ := range []reflect.Type{reflect.TypeOf(Plan{}), reflect.TypeOf(PlanItem{})} {
+		for i := 0; i < typ.NumField(); i++ {
+			if name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]; name != "" && name != "-" {
+				known[name] = true
+			}
+		}
+	}
+	for _, key := range sent {
+		if !known[key] {
+			t.Errorf("the collector sends the field %q of a plan and Plan has nowhere to put it: "+
+				"the value is dropped between the two, silently", key)
+		}
+	}
+}
+
 // topKeys returns the keys of the Python dict literal the text begins with,
 // its own and not those of the dicts inside it.
 func topKeys(src string) []string {
