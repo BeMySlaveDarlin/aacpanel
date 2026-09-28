@@ -90,14 +90,15 @@ type Session struct {
 	// Transport is how the session is kept: "stream" is under a holder.
 	Transport string
 	Ask       *Ask
-	Note      *Note
 }
 
 // Note is a session calling for the person: a word it chose to send itself,
 // with nothing to answer and nothing to permit.
 type Note struct {
-	Text string
-	At   string
+	// Session is the conversation that calls, the ID of its session.
+	Session string
+	Text    string
+	At      string
 }
 
 // Brief is a document a session published for the person to walk through.
@@ -263,11 +264,6 @@ func sessions(r *Report, prev, cur World) {
 
 	for _, s := range cur.Sessions {
 		before, seen := was[s.key()]
-		// A call stands in the snapshot for minutes so the panel cannot miss it;
-		// what is worth a push is the moment it appeared, not the fact it is there.
-		if s.Note != nil && (!seen || before.Note == nil || before.Note.At != s.Note.At) {
-			r.once(called(s))
-		}
 		switch {
 		case s.Ask != nil:
 			r.raise(asked(s))
@@ -297,19 +293,66 @@ func sessions(r *Report, prev, cur World) {
 	}
 }
 
-func called(s Session) Event {
-	body := s.Note.Text
+// Called is the push of a call the session made.
+func Called(s Session, n Note) Event {
+	body := n.Text
 	if where := s.where(); where != "" {
 		body += " · " + where
 	}
 	return Event{
-		Key:      "note:" + s.key() + ":" + s.Note.At,
+		Key:      "note:" + s.key() + ":" + n.At,
 		Domain:   DomainSession,
 		Session:  s.Name,
 		Title:    s.Name + " is calling",
 		Body:     body,
 		Severity: Critical,
 	}
+}
+
+// callMemory is how long a carried call is remembered: longer than the
+// collector keeps a call standing, so one it still lists is not carried twice.
+const callMemory = 10 * time.Minute
+
+// Calls tells the calls worth a push from the ones already carried. A call is
+// news the moment it is made, not a state that stands: the collector lists it
+// for minutes, and it is carried once.
+type Calls struct {
+	told map[string]time.Time
+}
+
+// Fresh returns the push of every call on the board not carried yet whose
+// session the snapshot shows, and whether a call is left waiting for its
+// session to reach the snapshot: its name is what the push is titled with and
+// what a tap opens.
+func (c *Calls) Fresh(now time.Time, board []Note, sessions []Session) (news []Event, waiting bool) {
+	if c.told == nil {
+		c.told = map[string]time.Time{}
+	}
+	for key, at := range c.told {
+		if now.Sub(at) > callMemory {
+			delete(c.told, key)
+		}
+	}
+	live := make(map[string]Session, len(sessions))
+	for _, s := range sessions {
+		if s.ID != "" {
+			live[s.ID] = s
+		}
+	}
+	for _, n := range board {
+		s, ok := live[n.Session]
+		if !ok {
+			waiting = true
+			continue
+		}
+		e := Called(s, n)
+		if _, told := c.told[e.Key]; told {
+			continue
+		}
+		c.told[e.Key] = now
+		news = append(news, e)
+	}
+	return news, waiting
 }
 
 func asked(s Session) Event {

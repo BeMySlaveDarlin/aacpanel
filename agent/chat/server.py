@@ -9,6 +9,7 @@ import asked
 import briefs
 import checklists
 import held
+import notes
 import pages
 import reviews
 import sesstate
@@ -86,6 +87,20 @@ def _answer(request):
             cwd if isinstance(cwd, str) and cwd else None,
         )
         return {"ok": True, "dropped": brief_id} if ok else {"ok": False, "error": why}
+
+    # The calls of the sessions are taken on a socket of their own, which the
+    # service cannot reach; here the panel waits for the next one, and the
+    # collector answers the moment it takes it.
+    want_notes = request.get("notes")
+    if isinstance(want_notes, dict):
+        after = want_notes.get("after")
+        if isinstance(after, bool) or not isinstance(after, int):
+            after = None
+        wait = want_notes.get("wait")
+        if isinstance(wait, bool) or not isinstance(wait, (int, float)):
+            wait = 0
+        seq, standing = notes.BOARD.wait(after, wait)
+        return {"ok": True, "notes": standing, "seq": seq}
 
     # Reading a repository is reading, and the service in the container has no
     # rights on the host: git runs here or nowhere.

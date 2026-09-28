@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
 	"aacpanel/internal/store"
 )
@@ -18,13 +19,25 @@ const (
 	watchEvery   = 20 * time.Second
 	panelDidFor  = 5 * time.Minute
 	watchTimeout = 15 * time.Second
+
+	// callWait is how long a request for the calls of the sessions waits at
+	// the collector for the next one before it is asked again.
+	callWait = chat.MaxNoteWait
+	// callRetry is the pause after the collector did not answer, and the wait
+	// while a call waits for its session to reach the snapshot.
+	callRetry = 2 * time.Second
 )
 
 type watcher struct {
-	srv     *Server
+	srv *Server
+
+	// saying guards the tracker: the looks of the host and the calls of the
+	// sessions reach it from two goroutines.
+	saying  sync.Mutex
 	tracker *notify.Tracker
 
-	prev notify.World
+	prev  notify.World
+	calls notify.Calls
 
 	mu      sync.Mutex
 	did     map[string]time.Time
@@ -42,8 +55,11 @@ func newWatcher(s *Server, j notify.Journal) *watcher {
 	}
 }
 
-// Run collects the host view on a schedule.
+// Run collects the host view on a schedule, and carries the calls of the
+// sessions as they are made.
 func (w *watcher) Run(ctx context.Context) {
+	go w.carryCalls(ctx)
+
 	t := time.NewTicker(watchEvery)
 	defer t.Stop()
 
@@ -62,15 +78,7 @@ func (w *watcher) once(ctx context.Context) {
 	defer cancel()
 
 	cur := w.look(ctx)
-	prefs := w.srv.pushPrefs(ctx)
-	for _, m := range w.tracker.Step(ctx, notify.Look(w.prev, cur)) {
-		if !prefs.Allows(m) {
-			log.Printf("notify: quiet by choice: %s — %s", m.Title, m.Body)
-			continue
-		}
-		log.Printf("notify: %s — %s", m.Title, m.Body)
-		w.srv.push.Send(m)
-	}
+	w.say(ctx, notify.Look(w.prev, cur))
 	w.prev = cur
 
 	stacks := make([]string, 0, len(cur.Stacks))
@@ -80,6 +88,82 @@ func (w *watcher) once(ctx context.Context) {
 	w.mu.Lock()
 	w.stacks = stacks
 	w.mu.Unlock()
+}
+
+// say sends what a report is worth saying, as the person chose.
+func (w *watcher) say(ctx context.Context, r notify.Report) {
+	w.saying.Lock()
+	defer w.saying.Unlock()
+
+	prefs := w.srv.pushPrefs(ctx)
+	for _, m := range w.tracker.Step(ctx, r) {
+		if !prefs.Allows(m) {
+			log.Printf("notify: quiet by choice: %s — %s", m.Title, m.Body)
+			continue
+		}
+		log.Printf("notify: %s — %s", m.Title, m.Body)
+		w.srv.push.Send(m)
+	}
+}
+
+// carryCalls pushes the calls of the sessions as the collector takes them. A
+// request waits at the collector until a call comes, so a call reaches the
+// phone the moment it is made rather than at the next look of the host, which
+// comes on a tick and reads a snapshot that lags behind it.
+func (w *watcher) carryCalls(ctx context.Context) {
+	if !w.srv.chat.Available() {
+		return
+	}
+	var seq *int64
+	wait := callWait
+	down := false
+	for ctx.Err() == nil {
+		board, err := w.srv.chat.Notes(ctx, seq, wait)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			if !down {
+				log.Printf("notify: the calls of the sessions do not come: %v", err)
+				down = true
+			}
+			seq = nil
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(callRetry):
+			}
+			continue
+		}
+		if down {
+			log.Print("notify: the calls of the sessions come again")
+			down = false
+		}
+		seq = &board.Seq
+		wait = callWait
+		if w.carry(ctx, board.Notes) {
+			wait = callRetry
+		}
+	}
+}
+
+// carry pushes the calls of the board not carried yet and says whether one
+// waits for its session to reach the snapshot.
+func (w *watcher) carry(ctx context.Context, board []chat.SessionNote) bool {
+	if len(board) == 0 {
+		return false
+	}
+	notes := make([]notify.Note, 0, len(board))
+	for _, n := range board {
+		notes = append(notes, notify.Note{Session: n.SessionID, Text: n.Text, At: n.At})
+	}
+	var cur notify.World
+	w.readSnapshot(&cur)
+	news, waiting := w.calls.Fresh(time.Now(), notes, cur.Sessions)
+	if len(news) > 0 {
+		w.say(ctx, notify.Report{Raise: news})
+	}
+	return waiting
 }
 
 // Stacks returns the stacks the last look saw.
@@ -162,10 +246,6 @@ type snapshot struct {
 			Count  int    `json:"count"`
 			At     string `json:"at"`
 		} `json:"ask"`
-		Note *struct {
-			Text string `json:"text"`
-			At   string `json:"at"`
-		} `json:"note"`
 	} `json:"sessions"`
 	Limits *limitsBlock `json:"limits"`
 }
@@ -208,9 +288,6 @@ func (w *watcher) readSnapshot(cur *notify.World) {
 		}
 		if s.Ask != nil {
 			item.Ask = &notify.Ask{Header: s.Ask.Header, Text: s.Ask.Text, Count: s.Ask.Count, At: s.Ask.At}
-		}
-		if s.Note != nil {
-			item.Note = &notify.Note{Text: s.Note.Text, At: s.Note.At}
 		}
 		cur.Sessions = append(cur.Sessions, item)
 	}
