@@ -1,0 +1,144 @@
+/* The notifications screen: kinds of news with their switches, the places they
+   come from as chips, and the door to it on the alerts screen. */
+
+/* The groups keep the rhythm of the page they stand on. */
+.nfgroups, .nfgroup { display: flex; flex-direction: column; gap: var(--body-gap, .32rem); }
+
+/* A card of rows: the rows carry their own padding, so the card only frames
+   them. */
+.nfcard { display: flex; flex-direction: column; padding: .15rem .8rem; }
+
+/* A row is one button — the switch is the whole row, not the knob at its end,
+   so a thumb does not have to find a mark two centimetres wide. */
+.nfrow {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+    min-height: 2.9rem;
+    padding: .5rem 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.nfrow + .nfrow { border-top: var(--hair) solid var(--line); }
+.nfrow:disabled { cursor: default; color: var(--ink); }
+.nfrow[data-dim="1"] .nfbody { opacity: .55; }
+
+.nfbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .08rem; }
+.nftitle { display: flex; align-items: center; gap: .45rem; font-size: var(--t-md); }
+.nfsub { font-size: var(--t-xs); color: var(--ink-faint); }
+
+/* A line that only counts or lists what is behind the row stays one line: the
+   screen that opens from it names every item. */
+.nfline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nflock { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
+.nfmore { flex: none; font-size: var(--t-sm); color: var(--accent); }
+
+/* The switch: a track and a knob, lit when the news comes. One that cannot be
+   moved is drawn faint, whichever way it stands. */
+.nfsw {
+    flex: none;
+    position: relative;
+    width: 2.5rem;
+    height: 1.45rem;
+    border-radius: .73rem;
+    background: rgba(var(--tint), .14);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    transition: background .16s ease;
+}
+
+.nfsw::after {
+    content: "";
+    position: absolute;
+    top: .2rem;
+    left: .2rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    transition: transform .16s ease, background .16s ease;
+}
+
+.nfrow[aria-checked="true"] .nfsw {
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* The knob of a lit switch is white in both themes: the ink of the light
+   theme is a dark knob on a blue track, which reads as a hole. */
+.nfrow[aria-checked="true"] .nfsw::after {
+    transform: translateX(1.05rem);
+    background: #fff;
+}
+
+.nfrow[data-lock="1"] .nfsw { opacity: .5; }
+
+/* Where a kind comes from: a word over the chips, a heard place filled and a
+   quiet one struck through. */
+.nffrom { display: flex; flex-direction: column; gap: .25rem; padding: .1rem 0 .55rem; }
+.nffrom[data-idle="1"] { opacity: .45; }
+.nffromword { font-size: var(--t-xs); color: var(--ink-faint); }
+.nfchips { display: flex; flex-wrap: wrap; gap: .3rem; }
+
+.nfchip {
+    border: 0;
+    border-radius: var(--r-pill);
+    padding: .22rem .6rem;
+    background: var(--glass-2);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: var(--t-xs);
+    cursor: pointer;
+}
+
+.nfchip[aria-pressed="false"] {
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    color: var(--ink-faint);
+    text-decoration: line-through;
+}
+
+.nfchip.nfadd {
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--accent);
+}
+
+.nfdevice .btnrow { margin: 0 0 .6rem; }
+.nfdevice .btnrow > .btn { flex: none; }
+.nfdevice .hint { margin: 0 0 .5rem; }
+
+/* The rules sheet lists the rows with no card around them. */
+.nflist { padding: 0; }
+
+.nfpick .item:disabled { color: var(--ink-faint); cursor: default; }
+.nfpick .pickhint { min-width: 0; overflow-wrap: anywhere; }
+
+/* The door on the alerts screen: how this device stands, and the way in. */
+.nfdoor {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* At a desk the four groups stand two by two: one column of them is a strip of
+   switches a metre from the words they switch. */
+@media (min-width: 1100px) {
+    .nfgroups {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 1.2rem;
+        align-items: start;
+    }
+}

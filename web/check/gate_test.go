@@ -40,6 +40,13 @@ var ceremonies = map[string]ceremony{
 		paths:   []string{"/api/push/key", "/api/push/subscription"},
 		methods: []string{"POST"},
 	},
+	// Which pushes reach the person is the panel's own setting: a switch on
+	// the screen says which way it stands and the same press puts it back,
+	// and nothing on the machine runs or changes when it is flipped.
+	"src/data/pushprefs.js": {
+		paths:   []string{"/api/push/prefs"},
+		methods: []string{"PUT"},
+	},
 	"src/data/usage.js": {
 		paths:   []string{"/api/usage/"},
 		methods: []string{"POST"},

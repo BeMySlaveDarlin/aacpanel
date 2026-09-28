@@ -1,0 +1,252 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="frame"></div>
+<script type="module">
+// The choice of pushes, reached as the person reaches it: the alerts screen
+// with its door, then the screen of kinds. Every switch and chip is pressed
+// and what went to the service is written down; one save is refused, and the
+// screen has to take the press back. A phone gets the page of the phone; a
+// desk gets the page of the desktop shell, where the alerts stand as a page
+// over a section.
+import { h, render } from "preact";
+import { Alerts } from "/src/screens/alerts.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { WIDE } from "/src/ui/wide.js";
+
+const desk = window.matchMedia(WIDE).matches;
+document.getElementById("frame").outerHTML = desk
+    ? `<div class="deskshell" style="height:100vh;display:flex;flex-direction:column">
+           <header class="dktop"><button class="dkbrand" type="button">host</button></header>
+           <div class="dkbody full"><div class="dkpage" id="root"></div></div>
+       </div>`
+    : `<div class="shell no-nav"><main class="body" id="root"></main></div>`;
+
+// This browser holds a subscription the service already knows.
+const endpoint = "https://push.example.net/this-phone";
+Object.defineProperty(Notification, "permission", { get: () => "granted", configurable: true });
+Object.defineProperty(navigator.serviceWorker, "ready", {
+    get: () => Promise.resolve({ pushManager: { getSubscription: async () => ({ endpoint, unsubscribe: async () => true }) } }),
+    configurable: true,
+});
+
+const home = "/home/u/.claude";
+const work = "/home/u/.claude-profiles/work";
+const acme = "/home/u/.claude-profiles/acme";
+const sources = {
+    contours: [
+        { name: "personal", configDir: home, projects: [
+            { name: "panel", path: "/srv/proj/panel" },
+            { name: "person", path: "/srv/proj/person" },
+        ] },
+        { name: "work", configDir: work, projects: [{ name: "lms", path: "/srv/proj/work/lms" }] },
+        { name: "acme", configDir: acme, projects: [
+            { name: "harness", path: "/srv/proj/acme/harness" },
+            { name: "shop", path: "/srv/proj/acme/shop" },
+        ] },
+    ],
+    stacks: ["acme-dev", "acme-top", "home-assistant", "lms", "panel"],
+    rules: [
+        { id: 1, name: "Container eats CPU", key: "container.cpu", enabled: true },
+        { id: 3, name: "Host CPU is loaded", key: "host.cpu", enabled: true },
+        { id: 7, name: "Disk is filling up", key: "disk.filling", enabled: true },
+        { id: 12, name: "The claude limit is running out", key: "session.limit", enabled: false },
+        { id: 14, name: "The whole stack is down", key: "stack.down", enabled: true },
+    ],
+    probes: [{ id: 1, name: "API Anthropic" }, { id: 2, name: "API Google" }, { id: 3, name: "API Telegram" }],
+};
+let prefs = {
+    off: ["back", "gone"],
+    rules: [],
+    sessions: [acme, "/srv/proj/acme/harness"],
+    stacks: ["acme-dev", "acme-top", "lms"],
+    limits: [],
+};
+
+// What the service does with a choice: sorted lists without repeats.
+const clean = (p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, [...new Set(v)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))]));
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const puts = [];
+const asked = [];
+let refuse = false;
+window.fetch = async (input, init) => {
+    const u = typeof input === "string" ? input : input.url;
+    const method = (init && init.method) || "GET";
+    asked.push(`${method} ${u}`);
+    if (u === "/api/push/subscription" && method === "GET") return json({ endpoint });
+    if (u === "/api/devices") return json({ devices: [{ id: 4, name: "phone" }, { id: 5, name: "laptop" }], current: 4 });
+    if (u === "/api/degradations") return json({ degradations: [] });
+    if (u === "/api/push/prefs" && method === "GET") return json({ prefs, sources });
+    if (u === "/api/push/prefs" && method === "PUT") {
+        const body = JSON.parse(init.body);
+        puts.push(body);
+        if (refuse) {
+            refuse = false;
+            return new Response("the database is away", { status: 503 });
+        }
+        prefs = clean(body);
+        return json({ prefs });
+    }
+    return new Response("", { status: 404 });
+};
+
+const alerts = { kind: "ready", alerts: [], older: [], more: () => {} };
+render(h(ToastHost, null, h(GateHost, null, h(Alerts, { alerts, onAction: () => {}, onBack: () => {} }))),
+    document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 4000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(25);
+    }
+    return fn();
+};
+const root = document.getElementById("root");
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel, scope = root) => Array.from(scope.querySelectorAll(sel));
+const sheet = () => document.querySelector(".sheet.on");
+const row = (title, scope = root) => all(".nfrow", scope).find((r) => text(r.querySelector(".nftitle")) === title);
+const rowOf = (r) => ({
+    title: text(r.querySelector(".nftitle")),
+    sub: text(r.querySelector(".nfsub")),
+    role: r.getAttribute("role") || "",
+    on: r.getAttribute("aria-checked") || "",
+    disabled: r.disabled,
+    lock: text(r.querySelector(".nflock")),
+});
+const chips = (what) => {
+    const group = root.querySelector(`.nffrom[aria-label^="${what}:"]`);
+    return group ? all(".nfchip:not(.nfadd)", group).map((c) => `${text(c)}${c.getAttribute("aria-pressed") === "true" ? "" : " (off)"}`) : null;
+};
+const chip = (what, name) => all(`.nffrom[aria-label^="${what}:"] .nfchip`).find((c) => text(c) === name);
+// press clicks and waits for the save it causes, returning what was sent.
+const press = async (el) => {
+    const before = puts.length;
+    el.click();
+    await until(() => puts.length > before);
+    await sleep(30);
+    return puts[puts.length - 1];
+};
+
+window.done = (async () => {
+    const out = {};
+    // The door says how this device stands once the browser has answered.
+    const door = await until(() => /on for this device/.test(text(root.querySelector(".nfdoor"))) && root.querySelector(".nfdoor"));
+    out.alerts = {
+        door: text(door),
+        heads: all(".grouphead").map(text),
+        oldBlock: /nothing to tune|Turn notifications on/.test(text(root)),
+        buttons: all("button.btn").map(text),
+    };
+
+    door.click();
+    await until(() => row("A question"));
+    await sleep(60);
+    out.head = text(root.querySelector(".phead h2"));
+    out.heads = all(".grouphead").map(text);
+    const device = root.querySelector(".nfdevice");
+    out.device = {
+        row: device ? rowOf(device.querySelector(".nfrow")) : null,
+        buttons: device ? all("button.btn", device).map(text) : [],
+    };
+    out.rows = all(".nfgroups .nfrow").map(rowOf);
+    out.chips = { sessions: chips("sessions"), stacks: chips("stacks"), limits: chips("limits") };
+    out.idle = all(".nffrom").map((f) => f.getAttribute("data-idle"));
+    out.gets = asked.filter((a) => a.startsWith("GET /api/push/prefs")).length;
+
+    // At a desk the groups stand two by two; on a phone one under another.
+    const groups = all(".nfgroup").map((g) => g.getBoundingClientRect());
+    out.layout = groups.map((b) => ({ left: Math.round(b.left), top: Math.round(b.top), width: Math.round(b.width) }));
+    out.overflow = document.documentElement.scrollWidth > window.innerWidth
+        || all(".nfrow").some((r) => r.scrollWidth > r.clientWidth + 1);
+
+    // A kind turned off, then on again.
+    out.question = (await press(row("A question"))).off;
+    out.questionShown = row("A question").getAttribute("aria-checked");
+    out.questionBack = (await press(row("A question"))).off;
+    // Closed sessions come back; recoveries stay off.
+    out.gone = (await press(row("A session closed by itself"))).off;
+
+    // Chips of the places a session is heard from.
+    out.acmeOn = (await press(chip("sessions", "acme"))).sessions;
+    out.harnessOn = (await press(chip("sessions", "harness"))).sessions;
+    out.sessionChipsAfter = chips("sessions");
+    root.querySelector('.nffrom[aria-label^="sessions:"] .nfadd').click();
+    const projects = await until(sheet);
+    out.projectSheet = {
+        heads: all(".grouphead", projects).map(text),
+        items: all(".item", projects).map((b) => `${all("span", b).map(text).join(" | ")}${b.disabled ? " [disabled]" : ""}`),
+    };
+    out.projectPicked = (await press(all(".item", projects).find((b) => text(b).startsWith("panel")))).sessions;
+    await until(() => !sheet());
+    out.sessionChipsPicked = chips("sessions");
+
+    // Stacks: a quiet one heard again leaves the chips; a new one is quieted.
+    out.lmsOn = (await press(chip("stacks", "lms"))).stacks;
+    out.stackChipsAfter = chips("stacks");
+    root.querySelector('.nffrom[aria-label^="stacks:"] .nfadd').click();
+    const stacks = await until(sheet);
+    out.stackSheet = all(".item", stacks).map(text);
+    out.stackPicked = (await press(all(".item", stacks).find((b) => text(b) === "home-assistant"))).stacks;
+    await until(() => !sheet());
+    out.stackChipsPicked = chips("stacks");
+
+    // Limits by contour.
+    out.limitOff = (await press(chip("limits", "personal"))).limits;
+    out.limitChips = chips("limits");
+    out.limitKind = (await press(row("A claude limit past 80%"))).off;
+    out.idleAfter = all(".nffrom").map((f) => f.getAttribute("data-idle"));
+
+    // Rules, from their own list.
+    row("Rules").click();
+    const rules = await until(sheet);
+    await sleep(40);
+    // The sheet lays its scrim over the whole window, not the column of the page.
+    const scrim = document.querySelector(".scrim.on");
+    out.scrimCovers = Boolean(scrim) && scrim.getBoundingClientRect().width >= window.innerWidth - 1;
+    out.rules = all(".nfrow", rules).map((r) => ({ ...rowOf(r), dim: r.getAttribute("data-dim") || "" }));
+    out.ruleOff = (await press(row("Host CPU is loaded", rules))).rules;
+    out.ruleShown = row("Host CPU is loaded", rules).getAttribute("aria-checked");
+    rules.querySelector(".sheetclose").click();
+    await until(() => !sheet());
+    out.rulesRowAfter = text(row("Rules").querySelector(".nfsub"));
+
+    // A save the service refuses is taken back, with a note.
+    refuse = true;
+    const sent = await press(row("A brief is ready"));
+    out.refused = { sent: sent.off, shown: "" };
+    await until(() => row("A brief is ready").getAttribute("aria-checked") === "true");
+    out.refused.shown = row("A brief is ready").getAttribute("aria-checked");
+    const toast = await until(() => document.querySelector(".toast.on"));
+    out.refused.toast = text(toast);
+    out.refused.bad = Boolean(toast && toast.classList.contains("bad"));
+
+    // The locked kinds do not move.
+    const saves = puts.length;
+    row("A session calls you").click();
+    row("The panel went blind").click();
+    await sleep(80);
+    out.lockedPuts = puts.length - saves;
+    out.lockedShown = [row("A session calls you"), row("The panel went blind")].map((r) => r.getAttribute("aria-checked"));
+
+    // Send a test goes through the gate, which asks first.
+    device.querySelector("button.btn").click();
+    const gate = await until(sheet);
+    out.test = text(gate && gate.querySelector(".stitle"));
+    gate.querySelector(".btn:not(.primary)").click();
+    await until(() => !sheet());
+
+    // The way back leads to the alerts.
+    root.querySelector(".phead .pback").click();
+    out.back = Boolean(await until(() => root.querySelector(".nfdoor")));
+    out.final = prefs;
+    return out;
+})();
+</script>
