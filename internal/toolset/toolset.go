@@ -10,6 +10,7 @@ package toolset
 import (
 	"time"
 
+	"aacpanel/internal/collector"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/plan"
 )
@@ -22,6 +23,9 @@ const lead = "The panel is how the person follows this session from their phone 
 func tools() []mcp.Tool {
 	return []mcp.Tool{
 		plan.Tool(plan.Dir(), time.Now),
+		collector.BriefPublish(collector.BriefSocket(), collector.HostGuide()),
+		collector.BriefDelete(collector.BriefSocket()),
+		collector.Notify(collector.NotifySocket()),
 	}
 }
 

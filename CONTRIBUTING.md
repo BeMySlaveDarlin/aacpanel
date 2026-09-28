@@ -161,8 +161,8 @@ The exceptions are three, and every one of them is named by file in
 `TestRepositorySpeaksOneLanguage` (`internal/hostcfg`), which is what holds this
 rule. A handful of string constants are keys arriving from data written earlier
 rather than text meant for a human, and they keep their old spelling. The phrases
-by which a shipped skill recognises a request said in Russian are not text for a
-reader either. And an applied migration is untouchable down to a single
+by which a shipped skill, or a tool of the panel in its line to a session,
+recognises a request said in Russian are not text for a reader either. And an applied migration is untouchable down to a single
 character, so whatever it says stays as it was written.
 
 **This check walks the list git keeps, not the working tree.** A new file

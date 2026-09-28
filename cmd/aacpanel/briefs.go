@@ -52,18 +52,18 @@ func (s *Server) apiBriefs(w http.ResponseWriter, r *http.Request) {
 	// How far each one has got, in one query rather than one per card. With no
 	// database the shelf still lists: the documents are on the host, and only
 	// the progress column goes missing.
-	ids := make([]string, 0, len(cards))
+	births := make(map[string]string, len(cards))
 	for _, card := range cards {
-		ids = append(ids, card.ID)
+		births[card.ID] = card.Born()
 	}
 	done, sent := map[string]int{}, map[string]bool{}
 	if s.db != nil {
-		if got, err := s.db.BriefProgress(r.Context(), ids); err == nil {
+		if got, err := s.db.BriefProgress(r.Context(), births); err == nil {
 			done = got
 		} else {
 			log.Printf("the progress of the briefs was not read: %v", err)
 		}
-		if got, err := s.db.BriefsSent(r.Context(), ids); err == nil {
+		if got, err := s.db.BriefsSent(r.Context(), births); err == nil {
 			sent = got
 		}
 	}
@@ -120,7 +120,7 @@ func (s *Server) apiBrief(w http.ResponseWriter, r *http.Request) {
 	// draft is unavailable would hide what is still there.
 	draft := store.BriefDraft{Answers: map[string]store.BriefAnswer{}}
 	if s.db != nil {
-		got, err := s.db.BriefDraftOf(r.Context(), doc.ID)
+		got, err := s.db.BriefDraftOf(r.Context(), doc.ID, doc.Born())
 		if err != nil {
 			log.Printf("the draft of brief %s was not read: %v", doc.ID, err)
 		} else {
@@ -159,37 +159,39 @@ func (s *Server) apiBriefDraft(w http.ResponseWriter, r *http.Request) {
 	// would leave the panel showing one set of answers while the session holds
 	// another, and the screen that locks the fields is not where that is
 	// decided: a request does not have to come from that screen.
-	if was, err := s.db.BriefDraftOf(r.Context(), doc.ID); err == nil && was.SentAt != nil {
+	if was, err := s.db.BriefDraftOf(r.Context(), doc.ID, doc.Born()); err == nil && was.SentAt != nil {
 		http.Error(w, "the answers of this brief have already gone into the session: it is read from here on",
 			http.StatusConflict)
 		return
 	}
-	if err := s.db.SaveBriefDraft(r.Context(), doc.ID, answers); err != nil {
+	if err := s.db.SaveBriefDraft(r.Context(), doc.ID, doc.Born(), answers); err != nil {
 		http.Error(w, "the draft was not saved: "+err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-	draft, err := s.db.BriefDraftOf(r.Context(), doc.ID)
+	draft, err := s.db.BriefDraftOf(r.Context(), doc.ID, doc.Born())
 	if err != nil {
 		draft = store.BriefDraft{Answers: answers}
 	}
 	writeJSON(w, map[string]any{"draft": draft, "reply": briefReply(doc, draft)})
 }
 
+// apiBriefSent marks a brief sent. The document is read to learn which
+// publication the mark belongs to: a brief removed and published again under
+// the same name is another document.
 func (s *Server) apiBriefSent(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if !briefIDRE.MatchString(id) {
-		http.Error(w, "the name of a brief is lowercase letters, digits and dashes", http.StatusBadRequest)
+	doc, ok := s.briefDoc(w, r)
+	if !ok {
 		return
 	}
 	if s.db == nil {
 		http.Error(w, "the mark cannot be saved: the database is not configured", http.StatusServiceUnavailable)
 		return
 	}
-	if was, err := s.db.BriefDraftOf(r.Context(), id); err == nil && was.SentAt != nil {
+	if was, err := s.db.BriefDraftOf(r.Context(), doc.ID, doc.Born()); err == nil && was.SentAt != nil {
 		http.Error(w, "this brief was already sent", http.StatusConflict)
 		return
 	}
-	if err := s.db.MarkBriefSent(r.Context(), id); err != nil {
+	if err := s.db.MarkBriefSent(r.Context(), doc.ID, doc.Born()); err != nil {
 		http.Error(w, "the mark was not saved: "+err.Error(), http.StatusServiceUnavailable)
 		return
 	}

@@ -63,8 +63,9 @@ func talk(t *testing.T, parent int, lines ...string) []map[string]any {
 
 const handshake = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"claude-code","version":"2.1.283"}}}`
 
-// noPlan is the server's word to a session in a place with no plan, to the
-// byte: it stands in the system prompt of every session the panel starts.
+// noPlan is how the server's word to a session in a place with no plan
+// begins, to the byte: the lead and the plan's line stand in the system prompt
+// of every session the panel starts, and the lines of the other tools follow.
 const noPlan = "The panel is how the person follows this session from their phone and desk; " +
 	"its tools reach them there, and the terminal does not show what they do.\n" +
 	"When the work has several steps, keep it with the plan tool, which the person sees " +
@@ -115,7 +116,9 @@ func TestTheServerKeepsThePlanOfItsParentsPlace(t *testing.T) {
 	if len(replies) != 2 {
 		t.Fatalf("meant two replies, one to the handshake and one to the call: %v", replies)
 	}
-	if res, _ := replies[0]["result"].(map[string]any); res == nil || res["instructions"] != noPlan {
+	hello, _ := replies[0]["result"].(map[string]any)
+	told, _ := hello["instructions"].(string)
+	if !strings.HasPrefix(told, noPlan+"\n") || strings.Contains(told, "already has a plan") {
 		t.Errorf("a place with no plan was told otherwise: %v", replies[0])
 	}
 	if res, _ := replies[1]["result"].(map[string]any); res == nil || res["isError"] != nil {

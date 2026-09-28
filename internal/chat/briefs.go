@@ -17,7 +17,13 @@ type BriefCard struct {
 	Title     string `json:"title"`
 	Eyebrow   string `json:"eyebrow,omitempty"`
 	At        string `json:"at,omitempty"`
+	FirstAt   string `json:"firstAt,omitempty"`
 	Questions int    `json:"questions"`
+}
+
+// Born names the publication the card stands for, as Brief.Born does.
+func (c BriefCard) Born() string {
+	return born(c.FirstAt, c.At)
 }
 
 // BriefCount is one counter in the summary across the top.
@@ -110,6 +116,21 @@ type Brief struct {
 	Sections   []BriefSection  `json:"sections,omitempty"`
 	Questions  []BriefQuestion `json:"questions"`
 	Closing    []string        `json:"closing,omitempty"`
+}
+
+// Born names the publication of a brief: when the document first went on the
+// shelf. A reissue under the same name keeps it, and a brief removed and
+// published again under that name is born anew — another document, which
+// the answers typed into the first do not belong to.
+func (b *Brief) Born() string {
+	return born(b.FirstAt, b.At)
+}
+
+func born(firstAt, at string) string {
+	if firstAt != "" {
+		return firstAt
+	}
+	return at
 }
 
 // BriefsReq asks for the shelf, of one session or of the machine.

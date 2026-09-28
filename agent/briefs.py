@@ -500,6 +500,9 @@ class Shelf:
                 # for — on the card, on the phone and in the progress it shows.
                 questions = [q for q in doc.get("questions") or []
                              if isinstance(q, dict) and q.get("kind", "pick") != "none"]
+                # When the document first went out names the publication the
+                # panel keeps the answers of: a brief removed and published
+                # again under the same name is another document.
                 out.append({
                     "id": doc.get("id") or "",
                     "sessionId": doc.get("sessionId") or "",
@@ -507,6 +510,7 @@ class Shelf:
                     "title": doc.get("title") or "",
                     "eyebrow": doc.get("eyebrow") or "",
                     "at": doc.get("at") or "",
+                    "firstAt": doc.get("firstAt") or "",
                     "questions": len(questions),
                 })
         out.sort(key=lambda c: c["at"], reverse=True)

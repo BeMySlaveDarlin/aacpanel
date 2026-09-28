@@ -68,9 +68,11 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
-// maxLine bounds one message. The arguments of a call are the bulk of one,
-// and a plan at its limits is some ten kilobytes.
-const maxLine = 1 << 20
+// maxLine bounds one message. The arguments of a call are the bulk of one: a
+// plan at its limits is some ten kilobytes, a brief at the collector's
+// ceiling four megabytes. A longer line ends the server and takes every tool
+// from the session, so the bound stands above the largest call a tool takes.
+const maxLine = 8 << 20
 
 // Serve answers messages from in until it ends. ctx is handed to every call
 // of a tool.

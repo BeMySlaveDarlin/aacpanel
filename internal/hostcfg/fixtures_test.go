@@ -244,6 +244,8 @@ var (
 		"deploy/claude/skills/cross-profile-message/SKILL.md": {"description:"},
 		"deploy/claude/skills/notify/SKILL.md":                {"description:"},
 		"deploy/claude/skills/brief/SKILL.md":                 {"description:"},
+		"internal/collector/brief.go":                         {"`— or, in Russian,"},
+		"internal/collector/notify.go":                        {"`— or, in Russian,"},
 
 		// The rows of the table above: the check names what it allows, so the
 		// allowed spelling is written out here in full.

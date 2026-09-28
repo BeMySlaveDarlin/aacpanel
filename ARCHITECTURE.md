@@ -198,6 +198,17 @@ brief itself carries whatever the session was talking about, and that belongs
 on the host with the transcripts, not in the store of a service exposed to the
 internet.
 
+**The answers belong to one publication.** A brief is named by its id and
+born when it first goes on the shelf; a reissue under the same id keeps the
+birth and the answers. A session removes its brief through the collector,
+which does not tell the panel, so the draft of a removed brief stays in the
+database — and a brief published again under the same id is born anew: the
+answers typed into the first do not show in it, on its screen, on the shelf or
+in what goes to the session, and the mark that the first was sent does not
+lock it. The draft names the birth it was typed into, and the collector puts
+the birth on every card of the shelf, so the list tells the two apart without
+opening either.
+
 **The answers travel back as an ordinary message.** The text is built by the
 service, so that what the person reads before sending and what the session
 receives are one text; it goes into the session through `session.send`, the
@@ -792,7 +803,13 @@ have. The server's word to a session — in its system prompt — is a lead and 
 line from every tool, since a tool of a server is often deferred and its
 description unread. `-plan` starts the same server: a live session keeps the
 MCP configuration it was started with, and reconnecting to the server runs the
-binary on disk with the flag written there.
+binary on disk with the flag written there. Beside the plan the server carries
+the brief — `brief_publish`, whose call without a document returns the rules of
+writing one, and `brief_delete` — and the call to the person, `notify`. They
+speak to the same sockets of the collector as the scripts of the skills, under
+the conversation and the directory the server finds for its claude rather than
+any the model names, so a brief published either way lands on the same shelf
+and its answers go back to the same session.
 
 **The plan of a session is the model's own, kept by a tool of the panel.**
 The tool is `plan` on the panel's server, allowed, so an update never waits on

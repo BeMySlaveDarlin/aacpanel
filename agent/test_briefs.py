@@ -273,6 +273,16 @@ class ShelfStore(unittest.TestCase):
         self.put(title="third")
         self.assertEqual(self.shelf.of("seven-after-twelve")["firstAt"], first)
 
+    def test_a_card_names_the_publication_it_stands_for(self):
+        """The panel keeps the answers of one publication. A brief removed and
+        published again under the same name is another document, and the card
+        is how the shelf tells the two apart without opening either."""
+        self.put()
+        first = self.shelf.of("seven-after-twelve")["at"]
+        self.assertEqual(self.shelf.cards()[0]["firstAt"], "")
+        self.put(title="second")
+        self.assertEqual(self.shelf.cards()[0]["firstAt"], first)
+
     def test_the_same_id_from_another_project_is_refused_rather_than_overwritten(self):
         self.put()
         other = briefs.clean({"sessionId": "s-2", "cwd": "/srv/other", "doc": DOC})
