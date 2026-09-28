@@ -70,15 +70,9 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
     return {
         name: text(head.querySelector(".dkcontourname")),
         head: text(head),
-        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => {
-            const dial = r.querySelector(".dkringdial");
-            // The colour of the arc is the first colour of the conic fill.
-            const arc = (getComputedStyle(dial, "::before").backgroundImage.match(/rgba?\([^)]*\)/) || [""])[0];
-            return {
-                value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")),
-                arc, ink: getComputedStyle(r.querySelector("b")).color, tip: r.getAttribute("data-tip") || "",
-            };
-        }),
+        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => ({
+            value: text(r.querySelector("b")), label: text(r.querySelector(".dkringlabel")), tip: r.getAttribute("data-tip") || "",
+        })),
         old: Boolean(head.querySelector(".dkrings.dkold")),
         fits: Boolean(rbox) && rbox.right <= box.right + 0.5 && rbox.left >= box.left,
         oneLine: (() => {

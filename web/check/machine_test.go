@@ -139,8 +139,6 @@ func TestLimitsStalenessHasOneOwner(t *testing.T) {
 type deskRing struct {
 	Value string `json:"value"`
 	Label string `json:"label"`
-	Arc   string `json:"arc"`
-	Ink   string `json:"ink"`
 	Tip   string `json:"tip"`
 }
 
@@ -166,9 +164,9 @@ type deskShelfRow struct {
 
 // Every contour shown in the sessions column at a desk has its section: a
 // heading on a band of its own with its name and two rings of its limit — the share of each window
-// inside, in one colour whatever the share, and beside it how long until the
-// window starts over, short and rounded up (the window itself when the
-// snapshot does not know), no count of live sessions — which a press opens
+// inside, and beside it how long until the window starts over, short and
+// rounded up (the window itself when the snapshot does not know), no count of
+// live sessions — which a press opens
 // into the details of both windows, each with when it resets; and its live
 // sessions, or a word that nothing lives in it. No closed conversation stands
 // among them: the closed ones of every contour shown share a shelf below all
@@ -233,13 +231,6 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		if len(sec.Rings) != 2 {
 			t.Errorf("%q: the heading holds rings %+v, expected five hours and seven days", sec.Name, sec.Rings)
 			continue
-		}
-		for _, r := range sec.Rings {
-			first := got.Sections[0].Rings[0]
-			if r.Arc == "" || r.Arc != first.Arc || r.Ink != first.Ink {
-				t.Errorf("%q: a ring at %s%% is drawn in %s with the number in %s, one at %s%% in %s and %s — a ring keeps its colour whatever the share",
-					sec.Name, r.Value, r.Arc, r.Ink, first.Value, first.Arc, first.Ink)
-			}
 		}
 		if !strings.HasPrefix(sec.Rings[0].Tip, "Five hours") || !strings.HasPrefix(sec.Rings[1].Tip, "Seven days") {
 			t.Errorf("%q: the rings are tipped %q and %q — a label that says the time left has to name its window somewhere",
@@ -306,6 +297,88 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 	}
 	if !strings.Contains(got.OldNote, "from 1 h ago") {
 		t.Errorf("the details of numbers an hour old say %q — they have to say how old they are", got.OldNote)
+	}
+}
+
+// A ring of a contour's limit at a desk is filled by the share spent in one
+// flat colour: the usual one under 70, the warning from 70, the critical from
+// 90, with no blend of the share in it — two shares of one band are the same
+// colour and differ only by how far the fill runs. Under the ring stands how
+// long until its window starts over, rounded up to one whole unit: minutes
+// under an hour, hours under a day, days past that, a rounding that reaches
+// the next unit said in it, 0m for a moment already past, and the window
+// itself when the snapshot does not know. The details keep their words.
+func TestDeskLimitRingsStepTheirColourAndSayTheTimeLeft(t *testing.T) {
+	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
+		t.Skip("web/dist/bundle.css is not built: the colour of a ring is the stylesheet's business — run make front first")
+	}
+	type stop struct {
+		Color string `json:"color"`
+		At    string `json:"at"`
+	}
+	var got struct {
+		Rings []struct {
+			Value string `json:"value"`
+			Label string `json:"label"`
+			Image string `json:"image"`
+			Stops []stop `json:"stops"`
+			Ink   string `json:"ink"`
+		} `json:"rings"`
+		Tones   map[string]string `json:"tones"`
+		Details []string          `json:"details"`
+		Past    []string          `json:"past"`
+	}
+	runWideFixture(t, "deskrings.html", &got)
+
+	// Share and the time left of each ring, five hours then seven days a
+	// contour: 2h13m, 4d3h; 59m30s, 23h10m; 30s, 36h; past, unknown;
+	// unknown, 46m20s.
+	want := []struct {
+		value, label, tone string
+	}{
+		{"20", "3h", "accent"}, {"60", "5d", "accent"},
+		{"69", "1h", "accent"}, {"70", "1d", "warn"},
+		{"89", "1m", "warn"}, {"90", "2d", "crit"},
+		{"99", "0m", "crit"}, {"41", "7d", "accent"},
+		{"0", "5h", "accent"}, {"85", "47m", "warn"},
+	}
+	if len(got.Rings) != len(want) {
+		t.Fatalf("the fixture drew %d rings, expected %d: %+v", len(got.Rings), len(want), got.Rings)
+	}
+	for _, name := range []string{"accent", "warn", "crit", "ink"} {
+		if got.Tones[name] == "" {
+			t.Fatalf("the fixture did not resolve --%s: %v", name, got.Tones)
+		}
+	}
+	for i, w := range want {
+		r := got.Rings[i]
+		if r.Value != w.value || r.Label != w.label {
+			t.Errorf("ring %d reads %s under %s, expected %s under %s — the time left rounded up to one whole unit, "+
+				"a day from 24 hours, 0m once past, the window when unknown", i, r.Value, r.Label, w.value, w.label)
+		}
+		if len(r.Stops) != 2 || r.Stops[0].At != w.value+"%" || !strings.HasPrefix(r.Stops[1].At, "0") {
+			t.Errorf("ring %d at %s%% is filled by %q — one colour running to the share and the track from there, with no blend between",
+				i, w.value, r.Image)
+			continue
+		}
+		ink := got.Tones["ink"]
+		if w.tone != "accent" {
+			ink = got.Tones[w.tone]
+		}
+		if r.Stops[0].Color != got.Tones[w.tone] || r.Ink != ink {
+			t.Errorf("ring %d at %s%% is drawn in %s with the number in %s, expected the %s colour %s with the number in %s",
+				i, w.value, r.Stops[0].Color, r.Ink, w.tone, got.Tones[w.tone], ink)
+		}
+	}
+	if got.Tones["accent"] == got.Tones["warn"] || got.Tones["warn"] == got.Tones["crit"] {
+		t.Errorf("the theme gives the bands %v — three colours are needed for the steps to show", got.Tones)
+	}
+
+	if strings.Join(got.Details, "|") != "Five hours89%resets in 1 min|Seven days90%resets in 36 h" {
+		t.Errorf("the details read %q: they keep their words, hours up to two days", got.Details)
+	}
+	if strings.Join(got.Past, "|") != "Five hours99%resets in any moment|Seven days41%when it resets, the snapshot does not say" {
+		t.Errorf("the details of a moment past and of an unknown reset read %q", got.Past)
 	}
 }
 
