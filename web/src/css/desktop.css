@@ -851,6 +851,12 @@
        not renewed are dimmed. */
     .dkcontour.dklimhead { padding: .3rem .45rem .3rem .55rem; }
 
+    /* The heading of a contour among its sessions is a band of glass a step
+       denser than a row under the pointer, laid over the ground of the page so
+       the rows still scroll under it unseen: the column reads as one block a
+       contour, not as one list. The sky heading is frosted glass already. */
+    .dkcontour.dklimhead { background: var(--glass-2), var(--bg); }
+
     .dklimhead .dkcontourname { font-size: var(--t-base); }
 
     .dkringsctl { position: relative; flex: none; margin-left: auto; display: flex; }

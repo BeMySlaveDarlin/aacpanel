@@ -92,12 +92,55 @@ const sections = () => Array.from(document.querySelectorAll(".dkscroll > section
     };
 });
 
+// painted is the colour an element shows at rest, its own layers laid over
+// what its ancestors paint: a gradient counts as the mean of its stops, which
+// is enough to tell a band from the ground.
+const rgba = (c) => {
+    const m = /rgba?\(([^)]*)\)/.exec(c || "");
+    if (!m) return [0, 0, 0, 0];
+    const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+    return [r, g, b, a];
+};
+const over = (top, below) => {
+    const a = top[3] + below[3] * (1 - top[3]);
+    if (a === 0) return [0, 0, 0, 0];
+    const mix = (i) => (top[i] * top[3] + below[i] * below[3] * (1 - top[3])) / a;
+    return [mix(0), mix(1), mix(2), a];
+};
+const ownLayers = (el) => {
+    const cs = getComputedStyle(el);
+    const stops = (cs.backgroundImage.match(/rgba?\([^)]*\)/g) || []).map(rgba);
+    const image = stops.length
+        ? [0, 1, 2, 3].map((i) => stops.reduce((sum, c) => sum + c[i], 0) / stops.length)
+        : [0, 0, 0, 0];
+    return over(image, rgba(cs.backgroundColor));
+};
+const painted = (el) => (el ? over(ownLayers(el), painted(el.parentElement)) : [255, 255, 255, 1]);
+// band compares the heading of a contour with a row of its sessions: how far
+// apart they are painted, and whether the heading's own ground is solid
+// enough for the rows scrolling under it to stay unseen.
+const band = () => {
+    const head = document.querySelector(".dkcontour.dklimhead");
+    const row = document.querySelector(".dklive");
+    const a = painted(head);
+    const b = painted(row);
+    return {
+        apart: Math.round(Math.max(...[0, 1, 2].map((i) => Math.abs(a[i] - b[i])))),
+        solid: ownLayers(head)[3] === 1 || getComputedStyle(head).backdropFilter !== "none",
+    };
+};
+
 window.done = (async () => {
     await document.fonts.ready;
     for (let i = 0; i < 60 && !document.querySelector(".dkshelf .dkclosed"); i++) await sleep(50);
     await sleep(150);
     const shelf = document.querySelector(".dkshelf");
+    const dark = band();
+    document.documentElement.classList.add("sky");
+    const sky = band();
+    document.documentElement.classList.remove("sky");
     const out = {
+        band: { dark, sky },
         sections: sections(),
         asked,
         shelf: Array.from(document.querySelectorAll(".dkshelf .dkclosed")).map((r) => ({

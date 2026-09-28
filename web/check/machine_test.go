@@ -165,7 +165,7 @@ type deskShelfRow struct {
 }
 
 // Every contour shown in the sessions column at a desk has its section: a
-// heading with its name and two rings of its limit — the share of each window
+// heading on a band of its own with its name and two rings of its limit — the share of each window
 // inside, in one colour whatever the share, and beside it how long until the
 // window starts over, short and rounded up (the window itself when the
 // snapshot does not know), no count of live sessions — which a press opens
@@ -188,8 +188,30 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 		Closed    bool           `json:"closed"`
 		OldNote   string         `json:"oldNote"`
 		NoteOnTop bool           `json:"noteOnTop"`
+		Band      map[string]struct {
+			Apart int  `json:"apart"`
+			Solid bool `json:"solid"`
+		} `json:"band"`
 	}
 	runWideFixture(t, "desklimits.html", &got)
+
+	// The heading of a contour is a band of its own, not a row like the
+	// sessions under it, in either theme: the column reads as one block a
+	// contour. Its ground stays solid, so the rows scrolling under the sticky
+	// heading are not seen through it.
+	for _, theme := range []string{"dark", "sky"} {
+		b, ok := got.Band[theme]
+		if !ok {
+			t.Errorf("the fixture measured no heading in the %s theme", theme)
+			continue
+		}
+		if b.Apart < 12 {
+			t.Errorf("in the %s theme the heading of a contour is painted %d apart from a row of its sessions — it merges into them", theme, b.Apart)
+		}
+		if !b.Solid {
+			t.Errorf("in the %s theme the heading of a contour lets the rows scrolling under it show through", theme)
+		}
+	}
 
 	if len(got.Sections) != 3 {
 		t.Fatalf("the column shows %d contours, expected all three of the map, with live sessions or without: %+v", len(got.Sections), got.Sections)
