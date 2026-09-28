@@ -1,10 +1,13 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"log"
 	"os"
 	"slices"
 	"strconv"
@@ -88,6 +91,31 @@ func TestMigrationsHaveUniqueNumbers(t *testing.T) {
 		seen[n] = e.Name()
 	}
 	if len(seen) == 0 {
+		t.Fatal("no migrations were found — the test is meaningless")
+	}
+}
+
+// retiredMigrations are numbers whose files were removed: a database that
+// logged one would skip a new file under it without a word.
+var retiredMigrations = []int{23, 28, 34, 41}
+
+func TestRetiredMigrationNumbersStayRetired(t *testing.T) {
+	entries, err := os.ReadDir("../../deploy/migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, e := range entries {
+		m := fileName.FindStringSubmatch(strings.TrimSuffix(e.Name(), ".wip"))
+		if m == nil {
+			continue
+		}
+		found++
+		if n, _ := strconv.Atoi(m[1]); slices.Contains(retiredMigrations, n) {
+			t.Errorf("%s takes the retired number %03d: a database that logged it will never run this file, take a new number", e.Name(), n)
+		}
+	}
+	if found == 0 {
 		t.Fatal("no migrations were found — the test is meaningless")
 	}
 }
@@ -183,19 +211,28 @@ func TestMigrateStartsOverAnEditedAppliedFile(t *testing.T) {
 }
 
 // The log as a machine in service holds it: every file logged with a checksum
-// of its text in a column of its own, and numbers whose files are gone —
-// removed from the tree, or not yet in this binary. A start drops the column,
-// runs nothing and keeps every row, and so does the start after it.
+// of its text in a column of its own, numbers whose files are gone — removed
+// from the tree, or not yet in this binary — and a number logged under another
+// name than its file has. A start drops the column, runs nothing, names the
+// reused number and keeps every row, and so does the start after it.
 func TestMigrateOnAProductionLog(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	pool, schema := soloSchema(t, ctx)
+
+	logs := new(bytes.Buffer)
+	log.SetOutput(logs)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
 	list, err := loadMigrations(migrations.FS)
 	if err != nil {
 		t.Fatal(err)
 	}
 	rows := checksumLogOf(list)
+	reused := list[len(list)-1]
+	rows[len(list)-1].name = "logged_before"
+	reusedLine := fmt.Sprintf("migration %03d is logged as logged_before but the file is %03d_%s: "+
+		"the number was reused, the file will not run", reused.version, reused.version, reused.name)
 	last := list[len(list)-1].version
 	var gone []int
 	for v := 1; v <= last+1; v++ {
@@ -216,8 +253,12 @@ func TestMigrateOnAProductionLog(t *testing.T) {
 	slices.SortFunc(want, func(a, b logEntry) int { return a.version - b.version })
 
 	for start := 1; start <= 2; start++ {
+		logs.Reset()
 		if err := migrate(ctx, pool); err != nil {
 			t.Fatalf("start %d on a log with checksums: %v", start, err)
+		}
+		if n := strings.Count(logs.String(), reusedLine); n != 1 {
+			t.Errorf("start %d named the reused number %d times, once was expected:\n%s", start, n, logs.String())
 		}
 		if got := logColumns(t, ctx, pool, schema); !slices.Equal(got, []string{"version", "name", "applied_at"}) {
 			t.Errorf("start %d: schema_version has the columns %v, the checksum is still kept", start, got)

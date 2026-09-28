@@ -81,7 +81,11 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	for _, m := range list {
-		if slices.ContainsFunc(applied, func(l logged) bool { return l.version == m.version }) {
+		if i := slices.IndexFunc(applied, func(l logged) bool { return l.version == m.version }); i >= 0 {
+			if l := applied[i]; l.name != m.name {
+				log.Printf("store: migration %03d is logged as %s but the file is %03d_%s: "+
+					"the number was reused, the file will not run", m.version, l.name, m.version, m.name)
+			}
 			continue
 		}
 		if err := apply(ctx, conn, m); err != nil {

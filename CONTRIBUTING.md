@@ -208,6 +208,7 @@ for".
 | `TestEverySnapshotBlockIsVisibleOnScreen` | the failure of a snapshot block is named to the human on at least one screen |
 | `TestDesktopRulesStayInsideMediaQuery` | a desktop rule does not touch the phone |
 | `TestMigrationsHaveUniqueNumbers` | no two migrations take the same number: a duplicate stops the service from coming up |
+| `TestRetiredMigrationNumbersStayRetired` | the number of a removed migration never gets a file again: a database that logged it would skip the new file without a word |
 | `TestActionTextsPromiseNoSpecificEnvironment` | action texts do not promise somebody else's environment |
 | `TestTheLauncherTakesEveryKeyOfTheSchema` | the launcher reads exactly the launch parameters the schema lists: a key one of them knows and the other does not is saved and then never launched |
 | `TestPreviewIsTheCommandTheLaunchRuns` | the command a settings page shows is the one the launch runs, built by the same code |
