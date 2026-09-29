@@ -46,6 +46,12 @@ func fromRegistry(home string) []Contour {
 	if err != nil {
 		return nil
 	}
+	return ParseRegistry(raw, home)
+}
+
+// ParseRegistry reads a wrapper registry: a contour a line, as
+// profile|prefix|config directory, with # for a comment.
+func ParseRegistry(raw []byte, home string) []Contour {
 	var out []Contour
 	for _, line := range strings.Split(string(raw), "\n") {
 		line = strings.TrimSpace(line)

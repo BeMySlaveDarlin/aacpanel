@@ -65,7 +65,7 @@ func TestAMachineOfTheProfileGoesThrough(t *testing.T) {
 
 func TestRootIsRefused(t *testing.T) {
 	m := healthy()
-	m.euid = 0
+	m.EUID = 0
 	says(t, Inspect(m, clone), "✗ stop: run the installer as the user whose claude sessions the panel will manage, "+
 		"not as root: the executor refuses to run as root. As that user: ./install.sh")
 }
@@ -89,12 +89,12 @@ func TestTheFamilyIsToldByIDAndApt(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			m := healthy()
 			if c.osRelease == "" {
-				delete(m.files, "/etc/os-release")
+				delete(m.Files, "/etc/os-release")
 			} else {
-				m.files["/etc/os-release"] = c.osRelease
+				m.Files["/etc/os-release"] = c.osRelease
 			}
 			if c.noApt {
-				delete(m.path, "apt-get")
+				delete(m.Path, "apt-get")
 			}
 			stops := stopsOf(Inspect(m, clone))
 			if c.stop == "" && len(stops) > 0 {
@@ -114,14 +114,14 @@ func TestTheSystemStopsOnWhatThePanelCannotLiveOn(t *testing.T) {
 		stops string
 		warns string
 	}{
-		{"wsl", func(m *fake) { m.files["/proc/sys/kernel/osrelease"] = "5.15.153.1-microsoft-standard-WSL2\n" },
+		{"wsl", func(m *fake) { m.Files["/proc/sys/kernel/osrelease"] = "5.15.153.1-microsoft-standard-WSL2\n" },
 			"stop: WSL is not supported: the panel needs a systemd machine with the system docker daemon.", ""},
-		{"no systemd", func(m *fake) { m.files["/proc/1/comm"] = "docker-init\n" },
+		{"no systemd", func(m *fake) { m.Files["/proc/1/comm"] = "docker-init\n" },
 			"stop: systemd is not the init of this machine (PID 1 is docker-init): the collector and the executor are systemd units.", ""},
-		{"old systemd", func(m *fake) { m.cmds[key("systemctl", "--version")] = ok("systemd 245 (245.4-4ubuntu3)\n") },
+		{"old systemd", func(m *fake) { m.Cmds[key("systemctl", "--version")] = ok("systemd 245 (245.4-4ubuntu3)\n") },
 			"stop: systemd 245 is too old: the units of the panel need 249 or newer.", ""},
-		{"riscv", func(m *fake) { m.arch = "riscv64" }, "stop: riscv64 is not supported.", ""},
-		{"arm", func(m *fake) { m.arch = "aarch64" }, "",
+		{"riscv", func(m *fake) { m.Uname = "riscv64" }, "stop: riscv64 is not supported.", ""},
+		{"arm", func(m *fake) { m.Uname = "aarch64" }, "",
 			"warn: aarch64 is not tried on the stand: a step may fail here that goes through on x86_64."},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -154,41 +154,41 @@ func TestDocker(t *testing.T) {
 		edit func(*fake)
 		want string
 	}{
-		{"missing on ubuntu, apt lists never fetched", func(m *fake) { delete(m.path, "docker") },
+		{"missing on ubuntu, apt lists never fetched", func(m *fake) { delete(m.Path, "docker") },
 			"✗ stop: docker is needed: the panel, its database and the socket proxy run as containers. " +
 				"sudo apt install docker.io docker-compose-v2, then run again."},
 		{"missing on debian 13", func(m *fake) {
-			delete(m.path, "docker")
-			m.files["/etc/os-release"] = "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nID=debian\n"
-			m.cmds[policy] = ok("docker-compose:\n  Installed: (none)\n  Candidate: 2.26.1-4\n  Version table:\n")
+			delete(m.Path, "docker")
+			m.Files["/etc/os-release"] = "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nID=debian\n"
+			m.Cmds[policy] = ok("docker-compose:\n  Installed: (none)\n  Candidate: 2.26.1-4\n  Version table:\n")
 		}, "✗ stop: docker is needed: the panel, its database and the socket proxy run as containers. " +
 			"sudo apt install docker.io docker-compose, then run again."},
 		{"missing on debian 12, compose v1 only", func(m *fake) {
-			delete(m.path, "docker")
-			m.files["/etc/os-release"] = "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
-			m.cmds[policy] = ok("docker-compose:\n  Installed: (none)\n  Candidate: 1.29.2-3\n  Version table:\n")
+			delete(m.Path, "docker")
+			m.Files["/etc/os-release"] = "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+			m.Cmds[policy] = ok("docker-compose:\n  Installed: (none)\n  Candidate: 1.29.2-3\n  Version table:\n")
 		}, "✗ stop: apt has no docker compose v2 of " + MinCompose + " or newer here. Install docker from download.docker.com and run again."},
 		{"not in the group", func(m *fake) {
-			m.cmds[version] = fails("permission denied while trying to connect to the docker API at unix:///var/run/docker.sock")
+			m.Cmds[version] = fails("permission denied while trying to connect to the docker API at unix:///var/run/docker.sock")
 		}, `✗ stop: docker answers "permission denied": u is not in the docker group. sudo usermod -aG docker u, log out and in, run ./install.sh again.`},
 		{"daemon down", func(m *fake) {
-			m.cmds[version] = fails("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?")
+			m.Cmds[version] = fails("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?")
 		}, "✗ stop: the docker daemon does not answer: sudo systemctl enable --now docker"},
 		{"rootless", func(m *fake) {
-			m.cmds[info] = ok(`{"SecurityOptions":["name=seccomp,profile=builtin","name=rootless"],"OperatingSystem":"Ubuntu","DockerRootDir":"/home/u/.local/share/docker"}`)
+			m.Cmds[info] = ok(`{"SecurityOptions":["name=seccomp,profile=builtin","name=rootless"],"OperatingSystem":"Ubuntu","DockerRootDir":"/home/u/.local/share/docker"}`)
 		}, "✗ stop: rootless docker is not supported: the panel reads /var/run/docker.sock of the system daemon and mounts the state directory and /run/user/1000 into its container."},
 		{"desktop", func(m *fake) {
-			m.cmds[info] = ok(`{"OperatingSystem":"Docker Desktop","DockerRootDir":"/var/lib/docker"}`)
+			m.Cmds[info] = ok(`{"OperatingSystem":"Docker Desktop","DockerRootDir":"/var/lib/docker"}`)
 		}, "✗ stop: Docker Desktop docker is not supported: the panel reads /var/run/docker.sock of the system daemon and mounts the state directory and /run/user/1000 into its container."},
-		{"snap", func(m *fake) { m.path["docker"] = "/snap/bin/docker" },
+		{"snap", func(m *fake) { m.Path["docker"] = "/snap/bin/docker" },
 			"✗ stop: snap docker is not supported: the panel reads /var/run/docker.sock of the system daemon and mounts the state directory and /run/user/1000 into its container."},
-		{"no system socket", func(m *fake) { delete(m.stats, "/var/run/docker.sock") },
+		{"no system socket", func(m *fake) { delete(m.Stats, "/var/run/docker.sock") },
 			"✗ stop: this docker is not supported: the panel reads /var/run/docker.sock of the system daemon and mounts the state directory and /run/user/1000 into its container."},
-		{"old compose", func(m *fake) { m.cmds[compose] = ok("v2.17.3\n") },
+		{"old compose", func(m *fake) { m.Cmds[compose] = ok("v2.17.3\n") },
 			"✗ stop: docker compose 2.17.3 is older than " + MinCompose + "."},
-		{"compose five", func(m *fake) { m.cmds[compose] = ok("5.5.1\n") },
+		{"compose five", func(m *fake) { m.Cmds[compose] = ok("5.5.1\n") },
 			"✓ docker 27.5.1 · compose 5.5.1 · system daemon"},
-		{"no compose plugin", func(m *fake) { m.cmds[compose] = fails("docker: 'compose' is not a docker command.") },
+		{"no compose plugin", func(m *fake) { m.Cmds[compose] = fails("docker: 'compose' is not a docker command.") },
 			"✗ stop: docker compose is needed: the panel is a stack of compose services. sudo apt install docker-compose-v2, then run again."},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -203,7 +203,7 @@ func TestDocker(t *testing.T) {
 func TestAMissingProgramIsOfferedNotJustRefused(t *testing.T) {
 	m := healthy()
 	for _, name := range []string{"docker", "claude", "tmux", "jq"} {
-		delete(m.path, name)
+		delete(m.Path, name)
 	}
 	in := Inspect(m, clone)
 	var names []string
@@ -225,11 +225,11 @@ func TestAMissingProgramIsOfferedNotJustRefused(t *testing.T) {
 
 func TestClaudeOnANodeTheUnitCannotSee(t *testing.T) {
 	m := healthy()
-	m.files[home+"/.local/bin/claude"] = "#!/usr/bin/env node\nrequire('./cli.js')\n"
-	delete(m.stats, "/usr/bin/node")
-	m.path["node"] = home + "/.nvm/versions/node/v22.9.0/bin/node"
+	m.Files[home+"/.local/bin/claude"] = "#!/usr/bin/env node\nrequire('./cli.js')\n"
+	delete(m.Stats, "/usr/bin/node")
+	m.Path["node"] = home + "/.nvm/versions/node/v22.9.0/bin/node"
 	says(t, Inspect(m, clone), "✗ stop: claude runs on node from ~/.nvm/versions/node/v22.9.0/bin, which the executor's unit does not see: panel sessions would not start. Install claude natively.")
 
-	m.stats["/usr/bin/node"] = Stat{}
+	m.Stats["/usr/bin/node"] = Stat{}
 	says(t, Inspect(m, clone), "✓ claude 2.1.283 · ~/.local/bin/claude")
 }

@@ -1,0 +1,43 @@
+────────────────────────────────────────────────────────────
+  ■ Kit 
+
+ What goes into this install?
+ Space checks a part, Enter takes the list as it stands.
+
+   Always
+   [✔] Question relay     a session's questions reach your
+                          phone
+   [✔] Limits snapshot    5-hour and weekly limits, before
+                          your status line
+   [✔] Panel tools        checklist, briefs, a call to your
+                          phone, restart
+   Quiet — checked for you
+ ❯ [✔] Page copies        a published page opens on the
+                          phone under any account
+   [✔] Brief reminder     a session learns that an answered
+                          brief waits
+   [✔] Context cap        stops a session at the cap,
+                          restarts it with your line
+   [✔] Checklist nudge    reminds a session that forgot its
+                          checklist
+   [✔] Self-restart       a session may restart itself
+                          without asking you
+   On request
+   [ ] Prompt stamp       time, context, limits and load
+                          before every prompt
+   [ ] Cost snapshot      spend per session, written after
+                          every turn
+   [ ] Docker cleanup     weekly prune of unused images — of
+                          the whole machine
+   Ways in besides this machine
+   [ ] Tailscale          your phone from anywhere, through
+                          your tailnet
+   [ ] Home network, TLS  straight at home, with a
+                          certificate you issue
+   [ ] Own domain         behind your reverse proxy
+   For development
+   [ ] Test database      for make check: forty tests skip
+                          without it
+
+ Space to toggle · Enter to accept · ↑/↓ to move · Esc to go
+ back

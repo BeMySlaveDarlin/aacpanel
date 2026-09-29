@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"maps"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"aacpanel/internal/install"
 )
@@ -36,6 +39,49 @@ func TestTheCommandLine(t *testing.T) {
 		said := stdout.String() + stderr.String()
 		if status != c.status || !strings.Contains(said, c.says) {
 			t.Errorf("%q: status %d, said:\n%s\nwant %d and %q", c.args, status, said, c.status, c.says)
+		}
+	}
+}
+
+// TestTheFlagsAnswerTheQuestions: every flag of a question reaches the run,
+// a flag given twice gathers, a flag about an account keeps the account,
+// and a switch stands for its answer.
+func TestTheFlagsAnswerTheQuestions(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	var got *install.Run
+	var stdout, stderr bytes.Buffer
+	status := runWith([]string{"plan", "--plain", "--yes", "--host", "studio", "--no-windows",
+		"--project", "/srv/a", "--project", "/srv/b", "--contour", "~/.claude-work=job", "--claude-login", "later"}, env{
+		stdout: &stdout, stderr: &stderr,
+		terminal: func() bool { return false },
+		inspect: func(clone string) install.Inspection {
+			return install.Inspection{Facts: install.Facts{Account: install.Account{Name: "u", UID: 1000, Home: "/home/u"},
+				Clone: clone, Claude: "/usr/bin/claude", Mode: install.Fresh}}
+		},
+		survey: func(in install.Inspection, r *install.Run) *install.Survey {
+			got = r
+			return install.NewSurvey(&install.Table{Acct: in.Account}, in, r, time.Now())
+		},
+	})
+	if status != 0 || got == nil {
+		t.Fatalf("status %d:\n%s%s", status, stdout.String(), stderr.String())
+	}
+	want := map[string]string{"--host": "studio", "--terminal": "", "--project": "/srv/a,/srv/b",
+		"--contour " + home + "/.claude-work": "job", "--claude-login": "later"}
+	if !got.Yes || !maps.Equal(got.Answers, want) {
+		t.Errorf("the run got %v (yes %v), want %v", got.Answers, got.Yes, want)
+	}
+	if !strings.Contains(stdout.String(), "host studio (flag)") {
+		t.Errorf("the plan does not carry the flag's answer:\n%s", stdout.String())
+	}
+	stdout.Reset()
+	if status := run([]string{"plan", "-h"}, &stdout, &stdout, func() bool { return false }); status != 0 {
+		t.Errorf("plan -h ended with %d", status)
+	}
+	for _, f := range append(install.Flags, install.Flag{Name: "--no-windows"}) {
+		name := "  -" + strings.TrimPrefix(f.Name, "--")
+		if !strings.Contains(stdout.String(), name+" ") && !strings.Contains(stdout.String(), name+"\n") {
+			t.Errorf("plan -h does not list %s", f.Name)
 		}
 	}
 }

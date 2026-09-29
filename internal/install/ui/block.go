@@ -327,6 +327,16 @@ func (b *Block) updateSubmit(k tea.KeyPressMsg) Outcome {
 	return Open
 }
 
+// Replace puts q in place of the question at i, its answer and cursor back
+// at the start: an earlier answer changed what it offers.
+func (b *Block) Replace(i int, q Question) {
+	b.Questions[i] = q
+	b.Answers[i] = q.start()
+	b.cursor[i] = q.firstRow()
+	b.field[i] = Field{}
+	b.err[i] = ""
+}
+
 // Find is the question with the id, for Refresh to hide or reword it.
 func (b *Block) Find(id string) *Question {
 	for i := range b.Questions {
