@@ -31,6 +31,9 @@ func NewReport(s *Survey, r *Run, took time.Duration) Report {
 			rep.Changed = append(rep.Changed, name)
 		}
 	}
+	for _, what := range r.gone {
+		rep.Changed = append(rep.Changed, what+" taken away")
+	}
 	for _, e := range r.ChangedInRun() {
 		if e.Kind == string(Group) {
 			rep.Warnings = append(rep.Warnings, "docker came with this run: a terminal opened before it reaches docker only after you log out and in")

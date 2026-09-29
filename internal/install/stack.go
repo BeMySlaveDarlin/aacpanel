@@ -556,13 +556,18 @@ func (in *Install) gcOffStep() *Step {
 			}
 			// A directory with something else in it stays, and so does its
 			// line; the rest is gone from the machine and leaves the record.
-			return r.Manifest.Drop(func(e Entry) bool {
+			err := r.Manifest.Drop(func(e Entry) bool {
 				if slices.Contains(dirs, e) {
 					_, err := os.Stat(e.Target)
 					return errors.Is(err, fs.ErrNotExist)
 				}
 				return slices.Contains(enabled, e) || slices.Contains(units, e)
 			})
+			if err != nil {
+				return err
+			}
+			r.TookAway(gcTimer)
+			return nil
 		},
 		Verify: func(r *Run) error {
 			for _, name := range []string{gcService, gcTimer} {

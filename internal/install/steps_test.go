@@ -863,6 +863,10 @@ func TestALaterRunWithoutTheCleanupTakesItAway(t *testing.T) {
 	if !slices.Contains(g.m.Ran, "systemctl --user disable --now "+gcTimer) {
 		t.Errorf("the timer was not disabled: %q", g.m.Ran)
 	}
+	// Its lines leave the manifest, and the report still names the change.
+	if rep := NewReport(g.in.S, g.r, time.Minute); !slices.Contains(rep.Changed, gcTimer+" taken away") {
+		t.Errorf("the report says the run changed %q", rep.Changed)
+	}
 	want := []string{
 		"dir " + filepath.Join(g.home, ".config") + " created",
 		"dir " + filepath.Join(g.home, ".config/systemd") + " created",

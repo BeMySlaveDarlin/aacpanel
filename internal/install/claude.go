@@ -463,11 +463,18 @@ func (s *Survey) signInMind() []string {
 		if signed, _ := s.SignedIn(dir); signed {
 			continue
 		}
-		line := s.valueOr("claude", "claude")
-		if Expand(dir, s.Facts.Account.Home) != filepath.Join(s.Facts.Account.Home, ".claude") {
-			line = "CLAUDE_CONFIG_DIR=" + s.Facts.Short(dir) + " " + line
-		}
-		out = append(out, "claude is not signed in to "+s.Facts.Short(dir)+": "+line+" signs in, and its sessions start after that")
+		out = append(out, "claude is not signed in to "+s.Facts.Short(dir)+": "+s.signInLine(dir)+" signs in, and its sessions start after that")
 	}
 	return out
+}
+
+// signInLine is the command that signs an account in by hand, as the
+// answers so far name claude: ~/.claude without CLAUDE_CONFIG_DIR, which
+// would make claude keep a second .claude.json inside it.
+func (s *Survey) signInLine(dir string) string {
+	line := s.valueOr("claude", "claude")
+	if Expand(dir, s.Facts.Account.Home) != filepath.Join(s.Facts.Account.Home, ".claude") {
+		line = "CLAUDE_CONFIG_DIR=" + s.Facts.Short(dir) + " " + line
+	}
+	return line
 }

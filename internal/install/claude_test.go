@@ -375,6 +375,40 @@ func TestASignInThatDidNotHappenIsLeftToThePerson(t *testing.T) {
 	}
 }
 
+// TestSignInLaterNamesTheCommandThatSignsIn: the option Later names the
+// command a person signs in with, as the reminder at the end does — claude
+// as the answers name it, and ~/.claude without CLAUDE_CONFIG_DIR, which
+// would make claude keep a second .claude.json inside it.
+func TestSignInLaterNamesTheCommandThatSignsIn(t *testing.T) {
+	m := desktop()
+	delete(m.Files, home+"/.claude/.credentials.json")
+	m.Files[home+"/.claude-work/settings.json"] = "{}"
+	native := home + "/.local/bin/claude"
+	s := survey(m, &Run{Yes: true, Answers: map[string]string{
+		"--account": home + "/.claude," + home + "/.claude-work",
+		"--claude":  native,
+	}})
+	for _, b := range []BlockID{BlockP, BlockA, BlockB, BlockC} {
+		if _, err := s.Settle(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := map[string]string{
+		"login:" + home + "/.claude":      ": " + native,
+		"login:" + home + "/.claude-work": ": CLAUDE_CONFIG_DIR=~/.claude-work " + native,
+	}
+	qs := s.Questions(BlockL)
+	if len(qs) != len(want) {
+		t.Fatalf("block L asks %v", ids(qs))
+	}
+	for _, q := range qs {
+		i := slices.IndexFunc(q.Options, func(o Option) bool { return o.Value == "later" })
+		if i < 0 || !strings.HasSuffix(q.Options[i].Detail, want[q.ID]) {
+			t.Errorf("%s: Later says %+v, want it to end %q", q.ID, q.Options, want[q.ID])
+		}
+	}
+}
+
 // TestAnAccountTheWrapperSignsInIsSignedIn: an account of the wrapper's
 // registry with a token file has no .credentials.json and is signed in all
 // the same; one whose token file is gone is not.

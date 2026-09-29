@@ -113,6 +113,7 @@ type Run struct {
 
 	step     *Step
 	changed  []Entry
+	gone     []string
 	kept     []string
 	later    []string
 	stopping int32 // atomic: Stop comes from the screen while a step works
@@ -121,6 +122,11 @@ type Run struct {
 // Kept are the titles of the steps whose check found the machine done:
 // what the run left as it was.
 func (r *Run) Kept() []string { return append([]string(nil), r.kept...) }
+
+// TookAway notes what a step took off the machine, its lines dropped from
+// the manifest with it: a change of the run all the same, and the report
+// names it.
+func (r *Run) TookAway(what string) { r.gone = append(r.gone, what) }
 
 // Remind keeps a line for the end of the run: something left to the person
 // that a step found and could not do — a sign-in, a screen to visit.

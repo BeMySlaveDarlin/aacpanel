@@ -498,7 +498,7 @@ func (s *Survey) signIn() []Question {
 			Options: []Option{
 				{Value: "now", Label: "Yes — claude opens here, /exit brings you back", Source: "a person at the terminal"},
 				{Value: "later", Label: "Later", Source: "no terminal to sign in at",
-					Detail: "The account's sessions start once you sign in: CLAUDE_CONFIG_DIR=" + short + " claude"},
+					Detail: "The account's sessions start once you sign in: " + s.signInLine(dir)},
 			},
 			Flag: "--claude-login", Values: []string{"now", "later"}, Writes: []Target{{File: "claude settings", Key: dir}},
 		}
