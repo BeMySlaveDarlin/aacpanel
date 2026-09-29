@@ -759,6 +759,13 @@ func TestTheStackIsRecordedBeforeItComesUp(t *testing.T) {
 	if got := g.ran(true); !slices.Equal(got, wantRan) {
 		t.Errorf("ran %q, want %q", got, wantRan)
 	}
+	// An image built from the cache keeps its id only without the
+	// attestation BuildKit dates: else up recreates the panel every run.
+	for _, c := range g.m.Given {
+		if strings.Join(c.Argv, " ") == "docker compose build aacpanel" && !slices.Contains(c.Env, "BUILDX_NO_DEFAULT_ATTESTATIONS=1") {
+			t.Errorf("the image is built with the attestation of its time: %q", c.Env)
+		}
+	}
 	// Again: compose keeps what holds, and the manifest takes no line twice.
 	g.says([]string{"docker", "volume", "inspect", DBVolume}, "[]")
 	g.says([]string{"docker", "volume", "inspect", TSVolume}, "[]")

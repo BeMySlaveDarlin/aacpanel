@@ -472,8 +472,16 @@ func (in *Install) stackStep() *Step {
 				build = append(build, "--build-arg", "SKIP_VULNCHECK=1")
 				r.Say(Warn, "the image is built without the check of its dependencies: --skip-vulncheck")
 			}
-			for _, args := range [][]string{append(build, "aacpanel"), {"compose", "up", "-d"}} {
-				if _, err := r.Exec(Cmd{Argv: in.docker(args...), Dir: in.clone()}); err != nil {
+			// BuildKit gives an image a provenance attestation that carries
+			// the time of the build, and the id of the image changes with it:
+			// a build all from the cache would have up recreate the panel on
+			// every run. Without the attestation the same tree keeps its id.
+			for _, c := range []Cmd{
+				{Argv: in.docker(append(build, "aacpanel")...), Env: []string{"BUILDX_NO_DEFAULT_ATTESTATIONS=1"}},
+				{Argv: in.docker("compose", "up", "-d")},
+			} {
+				c.Dir = in.clone()
+				if _, err := r.Exec(c); err != nil {
 					why, fix := stackDiagnosis(err)
 					return fail(why, err, fix...)
 				}
