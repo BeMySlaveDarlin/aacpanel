@@ -116,7 +116,9 @@ func TestTheCheckWalksTheChain(t *testing.T) {
 	g.m.Pages["http://127.0.0.1:8777/api/profiles"] = `{"profiles":[]}`
 	*lines = nil
 	f := failedWith(t, g.do(g.in.CheckStep()), "2 links of the chain are broken")
-	for _, w := range []string{"✗ " + filepath.Join(g.state, "state.json") + " is 10m3s old: the collector does not write",
+	// The snapshot was 10m3s old, and the check gave the collector half a
+	// minute to write before it called it broken.
+	for _, w := range []string{"✗ " + filepath.Join(g.state, "state.json") + " is 10m33s old: the collector does not write",
 		"✗ the executor's socket belongs to uid 0, not ", "⚠ the map has no contour: the projects screen stays empty"} {
 		if !slices.ContainsFunc(*lines, func(l string) bool { return strings.HasPrefix(l, w) }) {
 			t.Errorf("the check never said %q:\n%s", w, strings.Join(*lines, "\n"))
@@ -124,6 +126,87 @@ func TestTheCheckWalksTheChain(t *testing.T) {
 	}
 	if len(f.Fix) != 2 {
 		t.Errorf("the stop names %q to look at", f.Fix)
+	}
+}
+
+// wakingClock is the clock of a run that does something of the machine's
+// own after it has slept a while: a collector that writes its first snapshot.
+type wakingClock struct {
+	*fakeClock
+	after time.Duration
+	slept time.Duration
+	wake  func(now time.Time)
+}
+
+func (c *wakingClock) Sleep(d time.Duration) {
+	c.fakeClock.Sleep(d)
+	if c.slept < c.after && c.slept+d >= c.after {
+		c.wake(c.Now())
+	}
+	c.slept += d
+}
+
+// TestTheCheckWaitsForACollectorJustStarted: after a boot the collector
+// starts late, and a check that comes a moment after it finds the snapshot
+// of before the boot; the collector writes within seconds, and the check
+// waits for that rather than calling it broken.
+func TestTheCheckWaitsForACollectorJustStarted(t *testing.T) {
+	g := newRig(t)
+	g.chainUp()
+	g.clock.t = g.clock.t.Add(2 * time.Minute)
+	state := filepath.Join(g.state, "state.json")
+	g.r.Clock = &wakingClock{fakeClock: g.clock, after: 8 * time.Second, wake: func(now time.Time) {
+		if err := os.Chtimes(state, now, now); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	lines := g.said()
+	if err := g.do(g.in.CheckStep()); err != nil {
+		t.Fatalf("a collector that writes 8 s into the check: %v\n%s", err, strings.Join(*lines, "\n"))
+	}
+	if !slices.Contains(*lines, "✓ state.json is 0s old") {
+		t.Errorf("the check said:\n%s", strings.Join(*lines, "\n"))
+	}
+}
+
+// TestTheCheckWaitsForAContainerOnItsWayUp: a container recreated a moment
+// before the check — the app role's step recreates the panel's — is
+// "starting" until its first healthcheck, and the check waits that out; one
+// that never settles is a broken link once the wait is over.
+func TestTheCheckWaitsForAContainerOnItsWayUp(t *testing.T) {
+	inspect := []string{"docker", "inspect", "-f", "{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}",
+		"aacpanel", "aacpanel-db", "aacpanel-socket-proxy"}
+	const starting = "/aacpanel running starting\n/aacpanel-db running healthy\n/aacpanel-socket-proxy running \n"
+	for _, c := range []struct {
+		settles int // the inspect that first finds it healthy; 0 is never
+		broken  bool
+	}{{3, false}, {0, true}} {
+		g := newRig(t)
+		g.chainUp()
+		g.says(inspect, starting)
+		asked := 0
+		key := Command(inspect[0], inspect[1:]...)
+		g.m.Effects[key] = func(Cmd) error {
+			if asked++; asked == c.settles {
+				g.says(inspect, "/aacpanel running healthy\n/aacpanel-db running healthy\n/aacpanel-socket-proxy running \n")
+			}
+			return nil
+		}
+		began := g.clock.Now()
+		lines := g.said()
+		err := g.do(g.in.CheckStep())
+		waited := g.clock.Now().Sub(began)
+		switch {
+		case !c.broken && (err != nil || !slices.Contains(*lines, "✓ containers healthy: aacpanel, aacpanel-db, aacpanel-socket-proxy")):
+			t.Errorf("a container that settles after %d looks: %v\n%s", c.settles, err, strings.Join(*lines, "\n"))
+		case !c.broken && waited < 4*time.Second:
+			t.Errorf("the check waited %v for a container three looks away from healthy", waited)
+		case c.broken:
+			failedWith(t, err, "1 link of the chain is broken")
+			if !slices.Contains(*lines, "✗ containers: aacpanel is running starting") || waited < healthSettles {
+				t.Errorf("a container that never settles, after %v:\n%s", waited, strings.Join(*lines, "\n"))
+			}
+		}
 	}
 }
 
@@ -404,6 +487,9 @@ func (g *rig) installed(linger string) (*Removal, string) {
 	wired, _, _ := Wire([]byte(orig), g.in.wiring())
 	g.write(settings, string(wired), 0o600)
 	g.claudeMachine()
+	// What the part as root put down is on the machine until it is taken back.
+	g.m.Stats[collectorUnitPath] = Stat{Mode: 0o644}
+	g.m.Stats[lingerPath("u")] = Stat{Mode: 0o644}
 	if err := g.mcpEntry(g.in.mcpFile(personal), g.in.mcpWant()); err != nil {
 		g.t.Fatal(err)
 	}
@@ -417,6 +503,8 @@ func (g *rig) installed(linger string) (*Removal, string) {
 		g.t.Fatal(err)
 	}
 	g.write(g.in.execPath(), "binary", 0o755)
+	// The executor's probe of the limits starts claude in a cache of its own.
+	g.write(filepath.Join(g.home, ".cache", "aacpanel", "limits-probe", ".keep"), "", 0o600)
 	g.write(filepath.Join(g.clone, ".env"), "AACP_SECRET=s\n", 0o600)
 	g.write(filepath.Join(g.state, "host.env"), "AACP_HOST=lab\n", 0o644)
 	cache := filepath.Join(g.root, "cache")
@@ -518,7 +606,8 @@ func TestUninstallTakesBackTheManifestInItsOrder(t *testing.T) {
 	if got := g.read(filepath.Join(g.home, ".claude", "settings.json")); got != orig {
 		t.Errorf("the settings came back as\n%s", got)
 	}
-	for _, gone := range []string{g.in.execPath(), g.in.execUnitPath(), filepath.Join(g.home, "bin"), filepath.Join(g.home, ".config"), rm.Cache} {
+	for _, gone := range []string{g.in.execPath(), g.in.execUnitPath(), filepath.Join(g.home, "bin"), filepath.Join(g.home, ".config"), rm.Cache,
+		filepath.Join(g.home, ".cache", "aacpanel")} {
 		if _, err := os.Lstat(gone); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s is still there", gone)
 		}
@@ -532,7 +621,8 @@ func TestUninstallTakesBackTheManifestInItsOrder(t *testing.T) {
 		t.Errorf("the volume went or the pulled image stayed: %q", ran)
 	}
 	left := strings.Join(rm.Left(), "\n")
-	for _, w := range []string{"the volume " + DBVolume + ": docker volume rm " + DBVolume, g.state + ": sudo rm -r " + g.state, "~/aacpanel/.env: rm ~/aacpanel/.env"} {
+	for _, w := range []string{"the volume " + DBVolume + ": docker volume rm " + DBVolume, g.state + ": sudo rm -r " + g.state, "~/aacpanel/.env: rm ~/aacpanel/.env",
+		"docker's build cache, which the build of the image filled: docker builder prune"} {
 		if !strings.Contains(left, w) {
 			t.Errorf("the report of what is left does not say %q:\n%s", w, left)
 		}
@@ -543,6 +633,35 @@ func TestUninstallTakesBackTheManifestInItsOrder(t *testing.T) {
 	}
 	if _, err := os.Stat(g.in.f().InstallDir); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("the installer's directory is still there")
+	}
+}
+
+// TestUninstallGoesOnAfterTheAdministratorsCommand: without a terminal and
+// with sudo that wants a password the uninstall stops at the part as root;
+// once an administrator ran the command, the uninstall run again finds it
+// taken back and goes on to the data without asking for root.
+func TestUninstallGoesOnAfterTheAdministratorsCommand(t *testing.T) {
+	g := newRig(t)
+	rm, _ := g.installed("by-installer")
+	if err := rm.Choose(nil, "", false); err != nil {
+		t.Fatal(err)
+	}
+	delete(g.m.Stats, collectorUnitPath)
+	delete(g.m.Stats, lingerPath("u"))
+	began := g.uninstall(rm, "remove", "--user", "u", "--state", g.state, "--linger")
+	if slices.ContainsFunc(g.m.Ran, func(c string) bool { return strings.HasPrefix(c, "sudo") }) || !slices.Contains(began, "Data and the installer's cache") {
+		t.Errorf("root was asked for again: ran %q, parts %q", g.m.Ran, began)
+	}
+	// Linger still on is still root's to take back.
+	g2 := newRig(t)
+	rm2, _ := g2.installed("by-installer")
+	if err := rm2.Choose(nil, "", false); err != nil {
+		t.Fatal(err)
+	}
+	delete(g2.m.Stats, collectorUnitPath)
+	g2.uninstall(rm2, "remove", "--user", "u", "--state", g2.state, "--linger")
+	if !slices.ContainsFunc(g2.m.Ran, func(c string) bool { return strings.HasPrefix(c, "sudo") }) {
+		t.Errorf("linger left on was not taken back: ran %q", g2.m.Ran)
 	}
 }
 

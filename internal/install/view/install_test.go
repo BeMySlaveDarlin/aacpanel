@@ -2,6 +2,8 @@ package view
 
 import (
 	"bytes"
+	"os"
+	"os/signal"
 	"strings"
 	"testing"
 	"time"
@@ -160,6 +162,40 @@ func TestASignInGoesToClaudeWithoutAFrame(t *testing.T) {
 	}
 	if !strings.Contains(s.text(), "⚠ claude is not signed in to ~/.claude-work") {
 		t.Errorf("the end does not say what is left:\n%s", s.text())
+	}
+}
+
+// TestACtrlCWhileSudoHoldsTheTerminalStopsAfterTheStep: the terminal is the
+// command's, and a Ctrl+C there reaches the installer as a signal rather
+// than a key; the command goes on — root.sh lets it pass — and the run stops
+// after the step, as after a Ctrl+C on the screen.
+func TestACtrlCWhileSudoHoldsTheTerminalStopsAfterTheStep(t *testing.T) {
+	// The test holds the signal itself too: a handCmd that did not would
+	// otherwise leave the test binary to die of it.
+	guard := make(chan os.Signal, 1)
+	signal.Notify(guard, os.Interrupt)
+	defer signal.Stop(guard)
+	var out bytes.Buffer
+	c := &handCmd{h: install.Handover{Argv: []string{"sh", "-c", "kill -INT $PPID; sleep 0.2"}, Line: func(string) {}}}
+	c.SetStdout(&out)
+	c.SetStderr(&out)
+	c.SetStdin(strings.NewReader(""))
+	if err := c.Run(); err != nil || !c.interrupted {
+		t.Fatalf("a Ctrl+C while the command held the terminal: err %v, interrupted %v", err, c.interrupted)
+	}
+
+	followed := false
+	s := installing(t,
+		&install.Step{ID: "root", Title: "Root part", Undo: install.UndoKind, Apply: func(r *install.Run) error {
+			return r.AsRoot("Root command", "Creates /var/lib/aacpanel. Nothing else runs as root.", "apply", "--user", "u")
+		}},
+		&install.Step{ID: "next", Title: "User manager", Apply: func(*install.Run) error { followed = true; return nil }})
+	s.pump(t, func() bool { return s.m.stage == handing })
+	s.send(press("1"))
+	s.send(handedMsg{interrupted: true})
+	s.pump(t, func() bool { return s.m.stage == over })
+	if followed || s.m.status != 130 || !strings.Contains(s.text(), `Interrupted after "Root part"`) {
+		t.Errorf("status %d, the next step ran: %v; the feed:\n%s", s.m.status, followed, s.text())
 	}
 }
 

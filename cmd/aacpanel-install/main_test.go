@@ -23,8 +23,8 @@ func TestTheCommandLine(t *testing.T) {
 		status   int
 		says     string
 	}{
-		{nil, never, 2, "usage: aacpanel-install install"},
 		{[]string{"-h"}, never, 0, "aacpanel-install demo [--speed N]"},
+		{[]string{"--help"}, never, 0, "usage: aacpanel-install [install]"},
 		{[]string{"upgrade"}, never, 2, `unknown command "upgrade"`},
 		{[]string{"update", "-h"}, never, 0, "-to"},
 		{[]string{"check", "extra"}, never, 2, `unexpected "extra"`},
@@ -121,6 +121,49 @@ func TestPlanWithoutATerminalIsPlain(t *testing.T) {
 	}
 	if asked != "/srv/aacpanel" {
 		t.Errorf("the clone looked at is %q, not the one install.sh named", asked)
+	}
+}
+
+// TestNoCommandInstalls: ./install.sh alone, as curl | bash runs it, and
+// ./install.sh with flags alone are install — and install asks before it
+// changes anything, so without a terminal a question no flag answers stops
+// the run with the flag's name before the first step.
+func TestNoCommandInstalls(t *testing.T) {
+	for _, c := range []struct {
+		args   []string
+		status int
+		says   string
+		begins bool
+	}{
+		{nil, 1, "pass --host <value>", false},
+		{[]string{"--plain", "--host", "lab", "--locale", "C.UTF-8"}, 1, "or --yes", false},
+		{[]string{"--plain", "--host", "lab", "--locale", "C.UTF-8", "--yes"}, 0, "Would you like to proceed? → Yes (--yes)", true},
+	} {
+		began := false
+		var stdout, stderr bytes.Buffer
+		status := runWith(c.args, env{
+			stdout: &stdout, stderr: &stderr,
+			terminal: func() bool { return false },
+			inspect: func(clone string) install.Inspection {
+				return install.Inspection{Facts: install.Facts{Account: install.Account{Name: "u", UID: 1000, Home: "/home/u"},
+					Clone: clone, Claude: "/usr/bin/claude", Mode: install.Fresh}}
+			},
+			survey: func(in install.Inspection, run *install.Run) *install.Survey {
+				return install.NewSurvey(&install.Table{Acct: in.Account}, in, run, time.Now())
+			},
+			begin: func(*install.Survey, install.Install) (*install.Run, []*install.Step, error) {
+				began = true
+				m, err := install.OpenManifest(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				return &install.Run{Manifest: m}, nil, nil
+			},
+		})
+		said := stdout.String() + stderr.String()
+		if status != c.status || began != c.begins || !strings.Contains(said, c.says) {
+			t.Errorf("%q: status %d, began %v, said:\n%s\nwant %d, began %v and %q", c.args, status, began, said, c.status, c.begins, c.says)
+		}
 	}
 }
 

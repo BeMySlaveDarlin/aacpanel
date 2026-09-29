@@ -16,7 +16,14 @@ func procRoot() string {
 	return "/proc"
 }
 
+// commLen is how much of a program's name the kernel keeps in comm:
+// gnome-session-binary is gnome-session-b there.
+const commLen = 15
+
 func pidsByComm(name string) []int {
+	if len(name) > commLen {
+		name = name[:commLen]
+	}
 	entries, err := os.ReadDir(procRoot())
 	if err != nil {
 		return nil

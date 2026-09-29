@@ -522,14 +522,33 @@ func (c *checker) dockerPS() []container {
 				continue
 			}
 			if i := strings.LastIndex(host, ":"); i >= 0 {
-				if n, err := strconv.Atoi(host[i+1:]); err == nil {
-					ct.ports = append(ct.ports, n)
-				}
+				ct.ports = append(ct.ports, portRange(host[i+1:])...)
 			}
 		}
 		c.listed = append(c.listed, ct)
 	}
 	return c.listed
+}
+
+// portRange reads a host port of docker ps: one port, or the range docker
+// makes of ports published one after another (8776-8777).
+func portRange(s string) []int {
+	from, to, isRange := strings.Cut(s, "-")
+	lo, err := strconv.Atoi(from)
+	if err != nil {
+		return nil
+	}
+	hi := lo
+	if isRange {
+		if hi, err = strconv.Atoi(to); err != nil || hi < lo || hi > 65535 {
+			return nil
+		}
+	}
+	var out []int
+	for p := lo; p <= hi; p++ {
+		out = append(out, p)
+	}
+	return out
 }
 
 func (ct container) panels() bool {
@@ -721,9 +740,27 @@ func (c *checker) sudo() {
 			"the command for an administrator, and ./install.sh goes on once it has run.", why)
 		return
 	}
+	if c.rootDone() {
+		c.add(Warn, "warn: %s, and the part as root of the earlier install is in place: a step that needs root "+
+			"this time stops with the command for an administrator.", why)
+		return
+	}
 	c.add(Stop, "stop: one step needs root (the state directory, the collector unit, linger) and %s. "+
 		"Run ./install.sh at a terminal: sudo asks for its password there, and a No at the root command "+
 		"stops the run with the command for an administrator.", why)
+}
+
+// rootDone tells whether the part as root of an earlier install is in
+// place: the manifest, the host description and the collector's unit. A run
+// then needs root only for what changed since, which the root step itself
+// finds out.
+func (c *checker) rootDone() bool {
+	for _, p := range []string{filepath.Join(c.f.InstallDir, ManifestName), filepath.Join(c.f.StateDir, "host.env"), collectorUnitPath} {
+		if _, err := c.m.Stat(p); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 var clonePath = regexp.MustCompile(`^/[A-Za-z0-9._/-]+$`)

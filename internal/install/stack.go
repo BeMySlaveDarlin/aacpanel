@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -452,9 +453,13 @@ func (in *Install) stackStep() *Step {
 			if err := r.Once(Compose, Project, "project"); err != nil {
 				return err
 			}
-			if _, err := r.Exec(Cmd{Argv: in.docker("volume", "inspect", DBVolume), Quiet: true, Limit: time.Minute}); err != nil {
-				if err := r.Once(Volume, DBVolume, "data"); err != nil {
-					return err
+			// up makes every volume of the file, the tailnet node's as well
+			// whether the node runs or not: both are the install's.
+			for _, v := range []string{DBVolume, TSVolume} {
+				if _, err := r.Exec(Cmd{Argv: in.docker("volume", "inspect", v), Quiet: true, Limit: time.Minute}); err != nil {
+					if err := r.Once(Volume, v, "data"); err != nil {
+						return err
+					}
 				}
 			}
 			if err := r.Once(Image, Project+"-aacpanel", "local"); err != nil {
@@ -468,8 +473,16 @@ func (in *Install) stackStep() *Step {
 				build = append(build, "--build-arg", "SKIP_VULNCHECK=1")
 				r.Say(Warn, "the image is built without the check of its dependencies: --skip-vulncheck")
 			}
-			for _, args := range [][]string{append(build, "aacpanel"), {"compose", "up", "-d"}} {
-				if _, err := r.Exec(Cmd{Argv: in.docker(args...), Dir: in.clone()}); err != nil {
+			// BuildKit gives an image a provenance attestation that carries
+			// the time of the build, and the id of the image changes with it:
+			// a build all from the cache would have up recreate the panel on
+			// every run. Without the attestation the same tree keeps its id.
+			for _, c := range []Cmd{
+				{Argv: in.docker(append(build, "aacpanel")...), Env: []string{"BUILDX_NO_DEFAULT_ATTESTATIONS=1"}},
+				{Argv: in.docker("compose", "up", "-d")},
+			} {
+				c.Dir = in.clone()
+				if _, err := r.Exec(c); err != nil {
 					why, fix := stackDiagnosis(err)
 					return fail(why, err, fix...)
 				}
@@ -766,8 +779,21 @@ func (in *Install) rev() string {
 
 func (in *Install) collectorStep() *Step {
 	return &Step{ID: "collector-restart", Title: "Restart the collector",
+		// The tree is written down before the restart is asked for, with the
+		// time it was asked at: a restart said no to, or cut short, leaves the
+		// collector older than that and the next run restarts it, while a
+		// restart an administrator ran after the stop leaves it younger.
 		Done: func(r *Run) (bool, error) {
-			return r.Last(Rev) == in.rev() && !in.hostChanged && !in.agentUnit, nil
+			e := r.lastEntry(Rev)
+			if e.Target != in.rev() || in.hostChanged || in.agentUnit {
+				return false, nil
+			}
+			asked, err := strconv.ParseInt(metaValue(e.Meta, "asked"), 10, 64)
+			if err != nil {
+				return true, nil
+			}
+			since, ok := in.agentSince()
+			return ok && since >= asked-1, nil
 		},
 		Apply: func(r *Run) error {
 			// The collector runs from the tree: a module that does not
@@ -775,14 +801,14 @@ func (in *Install) collectorStep() *Step {
 			if _, err := r.Exec(Cmd{Argv: []string{"python3", "importcheck.py"}, Dir: filepath.Join(in.clone(), "agent"), Limit: 2 * time.Minute}); err != nil {
 				return fail("the collector would not come up: a module of agent/ does not import", err)
 			}
-			if err := r.Record(Rev, in.rev(), ""); err != nil {
-				return err
-			}
 			if in.agentStarted {
 				r.Say(Pass, in.agent()+" started in the root part, on this tree")
-				return nil
+				return r.Record(Rev, in.rev(), "")
 			}
 			in.restarted = r.clock().Now()
+			if err := r.Record(Rev, in.rev(), "asked="+strconv.FormatInt(in.restarted.Unix(), 10)); err != nil {
+				return err
+			}
 			return r.AsRoot("Root command", "Restarts the collector, which runs from the clone: "+in.agent()+".",
 				"restart-agent", "--user", in.user())
 		},
@@ -804,8 +830,46 @@ func (in *Install) collectorStep() *Step {
 					Tail: lastLines(journal, tailLines)}
 			}
 			r.Say(Pass, in.agent()+" restarted · "+stateJSON+" fresh")
-			return nil
+			return r.Record(Rev, in.rev(), "")
 		},
 		Undo: UndoKind,
 	}
+}
+
+// agentSince is when the collector's main process started, in seconds of
+// the clock: the boot time of /proc/stat and the start of the process in
+// ticks of a hundredth of a second after it. False when it does not run.
+func (in *Install) agentSince() (int64, bool) {
+	out, err := in.M.Run("systemctl", "show", "-p", "MainPID", "--value", in.agent())
+	pid := strings.TrimSpace(out)
+	if err != nil || pid == "" || pid == "0" {
+		return 0, false
+	}
+	raw, err := in.M.ReadFile("/proc/" + pid + "/stat")
+	if err != nil {
+		return 0, false
+	}
+	// The name in parentheses may hold spaces: the fields are counted from
+	// after it, the state first and the start the twentieth.
+	s := string(raw)
+	f := strings.Fields(s[strings.LastIndexByte(s, ')')+1:])
+	if len(f) < 20 {
+		return 0, false
+	}
+	ticks, err := strconv.ParseInt(f[19], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	stat, err := in.M.ReadFile("/proc/stat")
+	if err != nil {
+		return 0, false
+	}
+	for _, line := range strings.Split(string(stat), "\n") {
+		if v, ok := strings.CutPrefix(line, "btime "); ok {
+			if boot, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
+				return boot + ticks/100, true
+			}
+		}
+	}
+	return 0, false
 }

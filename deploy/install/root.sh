@@ -9,6 +9,12 @@
 
 set -euo pipefail
 
+# The installer hands its terminal to this script, so a Ctrl+C there reaches
+# it too, and a part torn in the middle leaves a unit without its link or
+# linger without its directory. The script, and every command it runs, lets
+# the Ctrl+C pass and goes on to its end; the installer stops after it.
+trap '' INT
+
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 unit_src=$here/../systemd/aacpanel-agent@.service
 unit=/etc/systemd/system/aacpanel-agent@.service

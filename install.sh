@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # The one command that installs the panel: ./install.sh [command] [flags].
+# Without a command it installs: it looks the machine over, asks, and
+# changes nothing before the plan is approved.
 #
 # The installer is a Go program, and nothing is built in advance, so this
 # script gets it onto the screen: it downloads the Go that go.mod names from

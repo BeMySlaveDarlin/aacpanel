@@ -220,7 +220,8 @@ func (rm *Removal) Plan() []PlanRow {
 	}
 	add("As root — one sudo", root...)
 	add("Data — stays unless chosen below", rm.kept()...)
-	add("Always", "the installer's cache "+rm.short(rm.Cache)+" (Go, modules, builds)", "its own directory "+rm.short(rm.Facts.InstallDir)+", last")
+	add("Always", "the installer's cache "+rm.short(rm.Cache)+" (Go, modules, builds)",
+		"the executor's cache "+rm.short(rm.execCache()), "its own directory "+rm.short(rm.Facts.InstallDir)+", last")
 	var never []string
 	for _, e := range rm.of(Pkg) {
 		never = append(never, "the apt package "+e.Target)
@@ -285,6 +286,15 @@ func (rm *Removal) filesDir() string {
 		return filepath.Join(d, "aacpanel-exec")
 	}
 	return filepath.Join(rm.home(), ".local", "share", "aacpanel-exec")
+}
+
+// execCache is the executor's cache: the directory its probe of the limits
+// starts claude in.
+func (rm *Removal) execCache() string {
+	if d := rm.M.Env("XDG_CACHE_HOME"); d != "" {
+		return filepath.Join(d, "aacpanel")
+	}
+	return filepath.Join(rm.home(), ".cache", "aacpanel")
 }
 
 // RootArgs are the arguments of the one call of root.sh remove, and whether
@@ -457,6 +467,10 @@ func (rm *Removal) root(r *Run) error {
 		r.Say(Note, "nothing of root's to take back")
 		return nil
 	}
+	if rm.rootGone(args) {
+		r.Say(Pass, "taken back already: the collector's unit, and linger and the state directory where asked, are gone")
+		return nil
+	}
 	says := "Disables the collector and removes its unit"
 	if slices.Contains(args, "--linger") {
 		says += ", turns linger off"
@@ -465,6 +479,26 @@ func (rm *Removal) root(r *Run) error {
 		says += ", deletes " + rm.state()
 	}
 	return r.AsRoot("Root command", says+". Nothing else runs as root.", args...)
+}
+
+// rootGone tells whether what the call as root would take back is gone
+// already — an administrator ran the command a stop without a terminal
+// named — so that the uninstall run again goes on instead of asking for
+// root once more.
+func (rm *Removal) rootGone(args []string) bool {
+	paths := []string{collectorUnitPath, "/etc/systemd/system/multi-user.target.wants/aacpanel-agent@" + rm.Place.User + ".service"}
+	if slices.Contains(args, "--linger") {
+		paths = append(paths, lingerPath(rm.Place.User))
+	}
+	if slices.Contains(args, "--purge-state") {
+		paths = append(paths, rm.state())
+	}
+	for _, p := range paths {
+		if _, err := rm.M.Stat(p); err == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // U7: the data chosen, and the installer's cache every time.
@@ -508,6 +542,12 @@ func (rm *Removal) data(r *Run) error {
 		return err
 	}
 	r.Say(Pass, "the installer's cache "+rm.short(rm.Cache)+" removed")
+	if fileThere(rm.execCache()) {
+		if err := os.RemoveAll(rm.execCache()); err != nil {
+			return err
+		}
+		r.Say(Pass, "the executor's cache "+rm.short(rm.execCache())+" removed")
+	}
 	return nil
 }
 
@@ -579,6 +619,11 @@ func (rm *Removal) Left() []string {
 	}
 	for _, e := range rm.of(TSNode) {
 		out = append(out, "the node "+e.Target+" in the tailnet: the admin console, Machines")
+	}
+	// The build of the image fills docker's build cache, a gigabyte or so,
+	// and docker keeps no mark of which build a piece of it came from.
+	if slices.ContainsFunc(rm.of(Image), func(e Entry) bool { return metaHas(e.Meta, "local") }) {
+		out = append(out, "docker's build cache, which the build of the image filled: docker builder prune — the cache of every build of this machine")
 	}
 	return append(out, "never touched: ~/.cache/claude-tmp, trust marks in .claude.json, the clone "+rm.short(rm.Place.Clone))
 }

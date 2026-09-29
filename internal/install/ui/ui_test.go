@@ -373,6 +373,28 @@ func TestNarrowTerminalsGetNoFrame(t *testing.T) {
 	}
 }
 
+// TestABulletKeepsInsideTheFrame: the lines under a bullet hang two cells
+// further in than its first, and still end inside the frame — the list of
+// what a run changed is one long bullet of paths.
+func TestABulletKeepsInsideTheFrame(t *testing.T) {
+	var words []string
+	for i := range 40 {
+		words = append(words, strings.Repeat("x", 3+i%17))
+	}
+	text := "  · " + strings.Join(words, " · ")
+	for _, width := range []int{MinWidth, 80, 120} {
+		lines := strings.Split(Strip(plain.Frame(Frame{Rows: []Row{{Text: text}}}, width)), "\n")
+		for _, line := range lines {
+			if Width(line) != min(width, MaxFrame) {
+				t.Errorf("width %d: a line of %d cells: %q", width, Width(line), line)
+			}
+		}
+		if len(lines) < 5 || !strings.HasPrefix(lines[2], "│     x") {
+			t.Errorf("width %d: the bullet does not hang:\n%s", width, strings.Join(lines, "\n"))
+		}
+	}
+}
+
 func TestTheLivePartOnlyGrowsBetweenPrints(t *testing.T) {
 	var l Live
 	five := "1\n2\n3\n4\n5"

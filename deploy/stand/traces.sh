@@ -17,9 +17,11 @@
 # rate-limits.json and session-models of every claude account (~/.claude and
 # ~/.claude-*), the names of mcpServers in each .claude.json with a sha256 of
 # their entry, linger, the state directory (AACP_STATE_DIR, /var/lib/aacpanel
-# by default), the directories of the executor and of the installer, the
-# .env of this clone, docker containers, volumes, networks and images, the
-# installed apt packages and the docker group.
+# by default), the directories of the executor and of the installer with
+# their caches, the .env of this clone, docker containers, volumes, networks
+# and images, the installed apt packages and the docker group. A network is
+# listed with its driver, not its id: docker makes its bridge anew every
+# time the daemon starts.
 #
 # AACP_TRACES_ROOT puts every path under another root and prints it as it is
 # on the machine; docker, systemctl and getent still answer for this one.
@@ -115,7 +117,7 @@ dockers() {
 	fi
 	"${docker[@]}" ps -a --no-trunc --format '{{.Names}}{{"\t"}}{{.Image}} {{.ID}}' | sed 's/^/docker-container\t/'
 	"${docker[@]}" volume ls --format '{{.Name}}{{"\t"}}{{.Driver}}' | sed 's/^/docker-volume\t/'
-	"${docker[@]}" network ls --no-trunc --format '{{.Name}}{{"\t"}}{{.ID}}' | sed 's/^/docker-network\t/'
+	"${docker[@]}" network ls --format '{{.Name}}{{"\t"}}{{.Driver}}' | sed 's/^/docker-network\t/'
 	"${docker[@]}" image ls --no-trunc --format '{{.Repository}}:{{.Tag}}{{"\t"}}{{.ID}}' | sed 's/^/docker-image\t/'
 }
 
@@ -151,6 +153,7 @@ traces() {
 		tree userdata "$state/aacpanel-stream"
 		tree userdata "$state/aacpanel-install"
 		tree userdata "${XDG_CACHE_HOME:-$HOME/.cache}/aacpanel-install"
+		tree userdata "${XDG_CACHE_HOME:-$HOME/.cache}/aacpanel"
 		tree userdata "${XDG_DATA_HOME:-$HOME/.local/share}/aacpanel-exec"
 		tree userdata "$HOME/.config/aacpanel"
 		tree clone "$clone/.env"
@@ -192,9 +195,11 @@ starts() {
 }
 
 # compare OLD NEW prints the lines that differ, - for gone and + for new.
-# Packages and the docker group are never taken back by uninstall, and
-# docker that did not answer before has lists nothing can be compared with:
-# those lines are named, and only the rest makes the status 1.
+# Packages and the docker group are never taken back by uninstall, and with
+# a package come the links that enable the units it ships, under
+# /usr/lib/systemd; docker that did not answer before has lists nothing can
+# be compared with: those lines are named, and only the rest makes the
+# status 1.
 compare() {
 	local old=$1 new=$2
 	if [ ! -r "$old" ] || [ ! -r "$new" ]; then
@@ -213,6 +218,7 @@ compare() {
 			{
 				kind = substr($1, 3)
 				if (kind == "pkg" || kind == "group") { kept[++k] = $0; next }
+				if (kind == "sysunit" && $3 ~ /^link \/(usr\/)?lib\/systemd\/system\//) { kept[++k] = $0; next }
 				if (docker_before == 0 && (kind == "docker" || kind ~ /^docker-/)) { unasked[++u] = $0; next }
 				bad[++b] = $0
 			}
@@ -220,7 +226,7 @@ compare() {
 				for (i = 1; i <= b; i++) print bad[i]
 				if (b) printf "traces: %d line(s) differ that uninstall promises to put back\n", b
 				if (k) {
-					print "left on purpose — packages and the docker group are never taken back:"
+					print "left on purpose — packages, the units they enable and the docker group are never taken back:"
 					for (i = 1; i <= k; i++) print "  " kept[i]
 				}
 				if (u) {

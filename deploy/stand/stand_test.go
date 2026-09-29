@@ -105,7 +105,13 @@ case "$1 $2" in
 "ps -a") printf 'aacpanel\taacpanel-aacpanel c974\n' ;;
 "ps -aq") printf 'c974\n' ;;
 "volume ls") printf 'aacpanel_aacpanel-db\tlocal\n' ;;
-"network ls") printf 'bridge\tn1\n' ;;
+"network ls")
+	# The id of the bridge is new every time the daemon starts.
+	case "$*" in
+	*'{{.Driver}}'*) printf 'bridge\tbridge\n' ;;
+	*) printf 'bridge\t%s\n' "$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')" ;;
+	esac
+	;;
 "image ls") printf 'postgres:18-alpine\tsha256:abc\n' ;;
 "inspect --format") printf '/aacpanel\t2026-01-02T03:04:05Z\n' ;;
 *) echo "docker of the test: $*" >&2; exit 1 ;;
@@ -152,6 +158,7 @@ func machine(t *testing.T) (root, clone string) {
 	put(t, root, "/var/lib/systemd/linger/dev", "", 0o644)
 	put(t, root, "/var/lib/aacpanel/host.env", "AACP_REPO=/home/dev/aacpanel\n", 0o644)
 	put(t, root, home+"/.local/state/aacpanel-install/manifest.tsv", "S4\tlinger\tdev\tby-installer\n", 0o600)
+	put(t, root, home+"/.cache/aacpanel/limits-probe/.keep", "", 0o600)
 	put(t, root, clone+"/.env", "AACP_SECRET=0\n", 0o600)
 	put(t, root, "/var/lib/dpkg/status", `Package: tmux
 Status: install ok installed
@@ -211,7 +218,8 @@ func TestTracesListAMachineUnderARoot(t *testing.T) {
 		"clone\t" + clone + "/.env\tfile 600 " + me.Username + " " + sum("AACP_SECRET=0\n"),
 		"docker-container\taacpanel\taacpanel-aacpanel c974",
 		"docker-volume\taacpanel_aacpanel-db\tlocal",
-		"docker-network\tbridge\tn1",
+		"userdata\t/home/dev/.cache/aacpanel/limits-probe/.keep\tfile 600 " + me.Username + " " + sum(""),
+		"docker-network\tbridge\tbridge",
 		"docker-image\tpostgres:18-alpine\tsha256:abc",
 		"pkg\ttmux\t3.4-1",
 		"group\tdocker\tgid 998",
@@ -276,6 +284,15 @@ func TestTracesCompareFailsOnlyOnWhatUninstallPromises(t *testing.T) {
 			[]string{"not compared", "  + docker-network\tbridge\tn1", "left on purpose"}},
 		{"a pulled image left", before, before + "docker-image\tpostgres:18-alpine\tsha256:abc\n", 1,
 			[]string{"+ docker-image\tpostgres:18-alpine\tsha256:abc"}},
+		// Taken on a bare Ubuntu 24.04 where the root step installed docker.io:
+		// the package enables its units, and they stay with it.
+		{"the units a package enables", before,
+			before + "sysunit\t/etc/systemd/system/multi-user.target.wants/docker.service\tlink /usr/lib/systemd/system/docker.service\n" +
+				"sysunit\t/etc/systemd/system/sockets.target.wants/docker.socket\tlink /lib/systemd/system/docker.socket\n" + "pkg\tdocker.io\t29.1.3\n", 0,
+			[]string{"left on purpose", "  + sysunit\t/etc/systemd/system/multi-user.target.wants/docker.service"}},
+		{"the collector's link left", before,
+			before + "sysunit\t/etc/systemd/system/multi-user.target.wants/aacpanel-agent@dev.service\tlink /etc/systemd/system/aacpanel-agent@.service\n", 1,
+			[]string{"+ sysunit\t/etc/systemd/system/multi-user.target.wants/aacpanel-agent@dev.service", "1 line(s) differ"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -361,6 +378,11 @@ func TestFakeClaudeAnswersVersionWithoutWaiting(t *testing.T) {
 	r := run(t, claudeEnv(home), rd, "fake-claude.sh", "auth", "status")
 	if r.code != 2 || !strings.Contains(r.err, "does not play claude auth") {
 		t.Errorf("a command the stand-in does not play (%d): %q %q", r.code, r.out, r.err)
+	}
+	// The probe of the limits runs claude -p on the stand as well.
+	r = run(t, claudeEnv(home), rd, "fake-claude.sh", "-p", "--input-format", "stream-json", "--output-format", "stream-json")
+	if r.code != 2 || !strings.Contains(r.err, "does not play claude -p") {
+		t.Errorf("claude -p (%d): %q %q", r.code, r.out, r.err)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".claude", "sessions")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a command left a session file, as if it were a session: %v", err)
@@ -795,6 +817,46 @@ func TestVMUserDataOfEachVariant(t *testing.T) {
 	for _, env := range []string{"AACP_STAND_OS=fedora", "AACP_STAND_SUDO=maybe"} {
 		if r := run(t, []string{"PATH=" + os.Getenv("PATH"), "HOME=" + t.TempDir(), env}, nil, "vm.sh", "user-data"); r.code != 2 {
 			t.Errorf("%s: status %d, %q", env, r.code, r.err)
+		}
+	}
+}
+
+// TestVMUpInTheForegroundHoldsQemu: up detaches qemu unless asked to keep it
+// in the foreground, and then qemu takes the place of the script, so the
+// machine ends with the job that ran up.
+func TestVMUpInTheForegroundHoldsQemu(t *testing.T) {
+	if f, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0); err != nil {
+		t.Skipf("up refuses without /dev/kvm before it reaches qemu: %v", err)
+	} else {
+		f.Close()
+	}
+	for _, c := range []struct {
+		env    string
+		detach bool
+	}{{"AACP_STAND_FOREGROUND=0", true}, {"AACP_STAND_FOREGROUND=1", false}} {
+		dir, args := t.TempDir(), filepath.Join(t.TempDir(), "args")
+		put(t, dir, "noble-cloud.img", "image", 0o644)
+		key := filepath.Join(t.TempDir(), "key.pub")
+		put(t, filepath.Dir(key), "key.pub", "ssh-ed25519 AAAAtest stand@test\n", 0o644)
+		path := stubs(t, map[string]string{
+			"qemu-system-x86_64": "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + args + "\nexit 7\n",
+			"qemu-img":           "#!/bin/sh\n",
+			"cloud-localds":      "#!/bin/sh\n: > \"$1\"\n",
+		})
+		r := run(t, []string{"PATH=" + path, "HOME=" + t.TempDir(), "AACP_STAND_VM_DIR=" + dir, "AACP_STAND_KEY=" + key, c.env},
+			nil, "vm.sh", "up")
+		got, err := os.ReadFile(args)
+		if err != nil {
+			t.Fatalf("%s: qemu did not run: %v\n%s%s", c.env, err, r.out, r.err)
+		}
+		if lines := strings.Split(strings.TrimSpace(string(got)), "\n"); slices.Contains(lines, "-daemonize") != c.detach {
+			t.Errorf("%s: qemu got %q, detached should be %v", c.env, lines, c.detach)
+		}
+		// Detached, a qemu that failed stops the script before it names the
+		// ports; held, the ports are named first and qemu is the script,
+		// its status the job's.
+		if r.code != 7 || c.detach == strings.Contains(r.out, "the stand is coming up") {
+			t.Errorf("%s: status %d, said %q", c.env, r.code, r.out)
 		}
 	}
 }

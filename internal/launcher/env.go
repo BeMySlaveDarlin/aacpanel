@@ -20,14 +20,17 @@ var grantedVars = append(append([]string{}, routeVars...), "CLAUDE_CODE_TMPDIR")
 func isGrantedVar(name string) bool { return slices.Contains(grantedVars, name) }
 
 var graphicalVars = []string{
-	"DBUS_SESSION_BUS_ADDRESS", "DISPLAY", "XAUTHORITY",
+	"DBUS_SESSION_BUS_ADDRESS", "DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY",
 	"XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_CLASS", "XDG_SESSION_ID",
 	"KDE_FULL_SESSION", "KDE_SESSION_VERSION",
 }
 
+// graphicalProcs carry the environment of a desktop. On Wayland GNOME's
+// shell starts before its X server and holds no DISPLAY; the settings
+// daemon of X comes up with that server and holds it, with its XAUTHORITY.
 var graphicalProcs = []string{
 	"plasmashell", "ksmserver", "kwin_x11", "kded6",
-	"gnome-shell", "gnome-session-binary",
+	"gnome-shell", "gsd-xsettings", "gnome-session-binary",
 	"xfce4-session", "mate-session", "cinnamon-session",
 }
 

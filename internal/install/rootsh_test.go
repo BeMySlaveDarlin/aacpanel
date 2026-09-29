@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -111,6 +112,28 @@ func TestADryRunOfRootShPrintsTheManifestOfAFreshMachine(t *testing.T) {
 	}
 	if _, err := os.Stat(state); !errors.Is(err, os.ErrNotExist) {
 		t.Error("a dry run made the state directory")
+	}
+}
+
+// TestRootShRunsToItsEndThroughACtrlC: the installer hands its terminal to
+// root.sh, and a Ctrl+C there reaches the whole group; the part as root goes
+// on to its end rather than stop between two changes.
+func TestRootShRunsToItsEndThroughACtrlC(t *testing.T) {
+	dir := t.TempDir()
+	stubs := t.TempDir()
+	// dpkg-query is asked first of all: the Ctrl+C comes while it runs.
+	for name, body := range map[string]string{"dpkg-query": "#!/bin/sh\nkill -INT 0\nexit 1\n", "systemctl": "#!/bin/sh\nexit 1\n"} {
+		if err := os.WriteFile(filepath.Join(stubs, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.Command("bash", rootScript, "apply", "--user", "nobody", "--state", filepath.Join(dir, "state"),
+		"--package", "tmux", "--dry-run")
+	cmd.Env = append(os.Environ(), "PATH="+stubs+":"+os.Getenv("PATH"))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "MANIFEST\tenabled\tsystem aacpanel-agent@nobody.service") {
+		t.Errorf("root.sh stopped at a Ctrl+C (%v):\n%s", err, out)
 	}
 }
 

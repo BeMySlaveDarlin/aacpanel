@@ -22,6 +22,10 @@ BARE=${AACP_STAND_BARE:-0}
 INSTALLER=${AACP_STAND_USER:-}
 SUDO=${AACP_STAND_SUDO:-nopasswd}
 PASSWORD=${AACP_STAND_PASSWORD:-stand}
+# AACP_STAND_FOREGROUND=1 keeps qemu in the foreground instead of detaching
+# it: whoever runs up holds the machine as a job of its own, and the machine
+# ends with that job.
+FOREGROUND=${AACP_STAND_FOREGROUND:-0}
 
 case $OS in
 ubuntu24.04)
@@ -212,14 +216,22 @@ do_up() {
     printf 'instance-id: stand-01\nlocal-hostname: stand\n' > "$DIR/seed/meta-data"
     cloud-localds "$DIR/seed.iso" "$DIR/seed/user-data" "$DIR/seed/meta-data"
 
-    qemu-system-x86_64 -enable-kvm -m "$MEM" -smp "$CPUS" -cpu host \
-        -drive file="$DIR/stand.qcow2",if=virtio,format=qcow2 \
-        -drive file="$DIR/seed.iso",if=virtio,format=raw,readonly=on \
-        -netdev user,id=n0,hostfwd=tcp:127.0.0.1:"$SSH_PORT"-:22,hostfwd=tcp:127.0.0.1:"$PANEL_PORT"-:8776 \
-        -device virtio-net-pci,netdev=n0 \
-        -vga virtio -display vnc=127.0.0.1:"$VNC_DISPLAY" \
-        -name "aacpanel-stand-$(basename "$DIR")" -daemonize
+    local qemu=(qemu-system-x86_64 -enable-kvm -m "$MEM" -smp "$CPUS" -cpu host
+        -drive "file=$DIR/stand.qcow2,if=virtio,format=qcow2"
+        -drive "file=$DIR/seed.iso,if=virtio,format=raw,readonly=on"
+        -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$PANEL_PORT-:8776"
+        -device "virtio-net-pci,netdev=n0"
+        -vga virtio -display vnc=127.0.0.1:"$VNC_DISPLAY"
+        -name "aacpanel-stand-$(basename "$DIR")")
+    if [ "$FOREGROUND" = 1 ]; then
+        coming_up
+        exec "${qemu[@]}"
+    fi
+    "${qemu[@]}" -daemonize
+    coming_up
+}
 
+coming_up() {
     echo "the stand is coming up: ssh on port $SSH_PORT, the panel on $PANEL_PORT, the screen over vnc://127.0.0.1:$((5900 + VNC_DISPLAY))"
     echo "the first install takes some twenty minutes - a desktop is being installed"
 }

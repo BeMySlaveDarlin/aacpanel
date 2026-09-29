@@ -52,6 +52,7 @@ with: cloud-init reads its seed once. Another variant is another directory.
 | `AACP_STAND_BARE=1` | no docker, tmux, jq, curl or Go — the cloud images bring curl, jq and tmux along, and they are purged: the machine where the installer has to name each one |
 | `AACP_STAND_USER=<name>` | the installing user, uid 1001, gets the desktop, the ssh key and the docker group (unless bare) |
 | `AACP_STAND_SUDO=password`, `AACP_STAND_PASSWORD` | that user gets root by password (`stand` unless set) instead of `NOPASSWD` |
+| `AACP_STAND_FOREGROUND=1` | `up` keeps qemu in the foreground rather than detaching it, for a caller that holds the machine as a job of its own and wants it gone with that job |
 
 The installer's stand, apart from the one of the landing's shots:
 
@@ -207,8 +208,8 @@ deploy/stand/traces.sh compare before after
 ```
 
 `compare` fails on every line uninstall promises to put back, and only names
-the packages and the docker group, which uninstall never takes back, and the
-docker lists of a machine where docker did not answer before. `traces.sh starts`
+the packages, the units they enable and the docker group, which uninstall never
+takes back, and the docker lists of a machine where docker did not answer before. `traces.sh starts`
 prints the invocation of every `aacpanel*` unit and the start of every container:
 the same before and after a second run means the run restarted nothing. The same
 steps run in the CI job `install.yml` on a runner, which is a whole virtual

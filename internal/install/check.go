@@ -40,6 +40,10 @@ const askSocket = "/run/aacpanel-agent/ask.sock"
 // written: the collector writes every few seconds.
 const stateFresh = 60 * time.Second
 
+// stateSettles is how long the check waits for a snapshot of a collector
+// that has just started.
+const stateSettles = 30 * time.Second
+
 // ExecSocket is where the executor listens.
 func (in *Install) ExecSocket() string {
 	if in.Sock != "" {
@@ -141,7 +145,15 @@ func answered(status int, err error) string {
 func (in *Install) stateLink(r *Run) chainLink {
 	path := filepath.Join(in.state(), "state.json")
 	fix := "systemctl status " + in.agent() + " and journalctl -u " + in.agent() + " -n 50; most often the clone moved and AACP_REPO in host.env names where it was."
-	st, err := in.M.Stat(path)
+	// A collector started a moment ago — at boot, or by the install — writes
+	// its first snapshot within seconds: the check gives it that long before
+	// it calls an old snapshot, or none, a collector that does not write.
+	var st Stat
+	var err error
+	_, _ = r.Until(stateSettles, time.Second, func() (bool, error) {
+		st, err = in.M.Stat(path)
+		return err == nil && r.clock().Now().Sub(st.Mod) <= stateFresh, nil
+	})
 	if err != nil {
 		return broken(fix, "%s is not there: the collector does not write", path)
 	}
@@ -221,18 +233,27 @@ func stackContainers(env map[string]string) []string {
 	return out
 }
 
+// healthSettles is how long a container docker has just started may stay
+// "starting": the panel's first healthcheck comes half a minute after its
+// start, and three that fail make it unhealthy.
+const healthSettles = 2 * time.Minute
+
 func (in *Install) containersLink(r *Run, env map[string]string) chainLink {
 	names := stackContainers(env)
 	const fix = "docker compose ps and docker compose logs; ./install.sh brings the stack up again."
-	out, _ := r.Exec(Cmd{Argv: in.docker(append([]string{"inspect", "-f",
-		"{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}"}, names...)...), Limit: time.Minute})
-	seen := map[string]string{}
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		f := strings.Fields(line)
-		if len(f) >= 2 {
-			seen[strings.TrimPrefix(f[0], "/")] = strings.Join(f[1:], " ")
+	// A container recreated a moment ago — the app role's step does that,
+	// and so does a reboot — is on its way up, not broken: the check waits
+	// for its healthcheck to say which.
+	var seen map[string]string
+	_, _ = r.Until(healthSettles, 2*time.Second, func() (bool, error) {
+		seen = in.containerStates(r, names)
+		for _, state := range seen {
+			if strings.HasSuffix(state, " starting") {
+				return false, nil
+			}
 		}
-	}
+		return true, nil
+	})
 	var bad []string
 	for _, n := range names {
 		switch state := seen[n]; state {
@@ -247,6 +268,21 @@ func (in *Install) containersLink(r *Run, env map[string]string) chainLink {
 		return broken(fix, "containers: %s", strings.Join(bad, ", "))
 	}
 	return pass("containers healthy: %s", strings.Join(names, ", "))
+}
+
+// containerStates is what docker says of each container: its state, and
+// the state of its health when it has a healthcheck.
+func (in *Install) containerStates(r *Run, names []string) map[string]string {
+	out, _ := r.Exec(Cmd{Argv: in.docker(append([]string{"inspect", "-f",
+		"{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}"}, names...)...), Limit: time.Minute})
+	seen := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 {
+			seen[strings.TrimPrefix(f[0], "/")] = strings.Join(f[1:], " ")
+		}
+	}
+	return seen
 }
 
 // unitState is how systemctl answers of a unit: active, enabled.
