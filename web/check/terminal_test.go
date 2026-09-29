@@ -40,8 +40,8 @@ func TestLiveChatOpensInTerminal(t *testing.T) {
 			"a live session: without the first the panel promises what does not exist, without the " +
 			"second it tries to attach to an archived chat")
 	}
-	if !strings.Contains(src, "useViewPick(canTerm, wide)") {
-		t.Error("the view is computed from something other than terminal availability and width: " +
+	if !strings.Contains(src, "useViewPick(name, canTerm, wide)") {
+		t.Error("the view is computed from something other than the session, terminal availability and width: " +
 			"a default written into state gets stuck on the feed — the server answer arrives after the first frame")
 	}
 	if !strings.Contains(src, `wide ? "term" : "feed"`) {

@@ -93,7 +93,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     // A claude the panel did not start lives in no pane of tmux: there is no
     // screen of it to attach to.
     const canTerm = term.ok && Boolean(live) && !live.outside;
-    const [picked, pickView] = useViewPick(canTerm, wide);
+    // What to watch it with is the session's own choice on this device.
+    const [picked, pickView] = useViewPick(name, canTerm, wide);
 
     // Which side the session lives on decides what the pair of views does: see
     // sidesOf. The window on the host is asked here, since it holds a console.

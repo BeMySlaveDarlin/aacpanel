@@ -16,8 +16,13 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { saveView } from "/src/screens/chat/viewpick.js";
 
-const items = [{ role: "me", pos: 10, text: "where are we", at: new Date().toISOString() },
+// This device watches the console of the session with its terminal: the phone
+// would open the feed of it otherwise.
+saveView("aacpanel", "term");
+
+const items =[{ role: "me", pos: 10, text: "where are we", at: new Date().toISOString() },
                { role: "ai", pos: 20, text: "In the project.", at: new Date().toISOString() }];
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
