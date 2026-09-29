@@ -9,12 +9,29 @@
 # second run takes the Go it already has; a new version in go.mod downloads
 # the new one and removes the old.
 #
-# AACP_GO_DOWNLOADS points at a mirror of go.dev/dl with the same layout.
+# The script also comes on its own, with no clone around it:
 #
-# Everything is inside main, called on the last line: a download cut short
-# runs nothing.
+#   curl -fsSL https://raw.githubusercontent.com/BeMySlaveDarlin/aacpanel/<tag>/install.sh | bash
+#
+# It then clones the release it belongs to into ${AACP_DIR:-~/aacpanel} and
+# runs the install.sh of the clone with the same arguments and the terminal
+# as its input. The clone stays for good: the collector and the hooks run
+# from it. Run again, the same line goes on in the clone it made.
+#
+# AACP_VERSION names another release to clone, vP.M.m. AACP_ORIGIN is the
+# repository to clone from, AACP_GO_DOWNLOADS a mirror of go.dev/dl with the
+# same layout.
+#
+# Everything is inside main, called on the last line, and the call is in
+# braces: bash does not start a braced command it has not read to the end,
+# so a download cut short anywhere, even halfway through that line, runs
+# nothing.
 
 set -euo pipefail
+
+# The release this script belongs to. make release writes it into the commit
+# it tags, so the script taken from a tag clones that very tag.
+RELEASE=
 
 stop() {
 	printf 'stop: %s\n' "$*" >&2
@@ -95,12 +112,50 @@ get_go() {
 	done
 }
 
+# download clones the release this script belongs to and hands over to the
+# install.sh of the clone. It never returns.
+download() {
+	local origin=${AACP_ORIGIN:-https://github.com/BeMySlaveDarlin/aacpanel}
+	local dir=${AACP_DIR:-$HOME/aacpanel}
+	local tag=${AACP_VERSION:-$RELEASE}
+	[ -n "$tag" ] ||
+		stop "this install.sh belongs to no release, so it cannot tell which to clone. Take it from a tag (…/aacpanel/<tag>/install.sh), name one with AACP_VERSION=vP.M.m, or clone it yourself: git clone $origin ~/aacpanel && ~/aacpanel/install.sh"
+	tag=v${tag#v}
+	[[ $tag =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] ||
+		stop "$tag is not a release: a release is vP.M.m, v1.0.0 say."
+	command -v git >/dev/null 2>&1 ||
+		stop "git is needed to clone the panel: sudo apt install git, then run the same command again."
+
+	if [ -e "$dir" ] && [ -n "$(ls -A "$dir" 2>/dev/null)" ]; then
+		local head at
+		head=$(git -C "$dir" rev-parse -q --verify HEAD 2>/dev/null) || true
+		at=$(git -C "$dir" rev-parse -q --verify "refs/tags/$tag^{commit}" 2>/dev/null) || true
+		if [ ! -f "$dir/deploy/install/root.sh" ] || [ -z "$head" ] || [ "$head" != "$at" ]; then
+			stop "$dir is there already and is not the clone of $tag. Run the installer of the clone that is there ($dir/install.sh, or $dir/install.sh update to move it on), or clone elsewhere: AACP_DIR=/another/place"
+		fi
+	else
+		printf 'aacpanel %s: cloning it into %s\n' "$tag" "$dir" >&2
+		GIT_TERMINAL_PROMPT=0 git -c advice.detachedHead=false clone --quiet --branch "$tag" "$origin" "$dir" ||
+			stop "$tag did not clone from $origin: the output above says why. Check the network and the name of the release, then run the same command again."
+	fi
+
+	if { : </dev/tty; } 2>/dev/null; then
+		exec bash "$dir/install.sh" "$@" </dev/tty
+	fi
+	exec bash "$dir/install.sh" "$@"
+}
+
 main() {
 	if [ "$(id -u)" = 0 ]; then
 		stop "run the installer as the user whose claude sessions the panel will manage, not as root: the executor refuses to run as root. As that user: ./install.sh"
 	fi
-	local repo arch ver cache
-	repo=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+	# Read from a pipe, the script has no file of its own; saved by itself,
+	# it has no clone around it. Either way the clone comes first.
+	local src=${BASH_SOURCE[0]:-} repo arch ver cache
+	if [ ! -f "$src" ] || [ ! -f "$(dirname "$src")/deploy/install/root.sh" ]; then
+		download "$@"
+	fi
+	repo=$(cd "$(dirname "$src")" && pwd -P)
 	case "$(uname -m)" in
 	x86_64) arch=amd64 ;;
 	aarch64) arch=arm64 ;;
@@ -131,4 +186,4 @@ main() {
 	exec "$cache/bin/aacpanel-install" "$@"
 }
 
-main "$@"
+{ main "$@"; }
