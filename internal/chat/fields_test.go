@@ -15,15 +15,18 @@ import (
 // without a word. The screen then shows the old behaviour and nobody can tell
 // why: the collector is right, the feed is right, and the value is gone in
 // between. This walks the keys the collector puts into a task and demands that
-// each of them has a place to land.
+// each of them has a place to land. A shell and a watch are built in tasks.py,
+// an alarm in wake.py.
 func TestEveryTaskFieldTheCollectorSendsHasAPlace(t *testing.T) {
 	root := filepath.Join("..", "..")
-	raw, err := os.ReadFile(filepath.Join(root, "agent", "sesstate", "tasks.py"))
-	if err != nil {
-		t.Fatalf("the collector source is out of reach: %v", err)
+	var sent []string
+	for _, name := range []string{"tasks.py", "wake.py"} {
+		raw, err := os.ReadFile(filepath.Join(root, "agent", "sesstate", name))
+		if err != nil {
+			t.Fatalf("the collector source is out of reach: %v", err)
+		}
+		sent = append(sent, collectorKeys(t, name, string(raw))...)
 	}
-
-	sent := collectorKeys(t, string(raw))
 	if len(sent) < 4 {
 		t.Fatalf("only %d keys found in the collector: the test reads the wrong place", len(sent))
 	}
@@ -45,22 +48,27 @@ func TestEveryTaskFieldTheCollectorSendsHasAPlace(t *testing.T) {
 	}
 }
 
+// taskLiteral is where a literal a task is built from begins: state.tasks[<id>] = { ... }
+var taskLiteral = regexp.MustCompile(`state\.tasks\[\w+\] = \{`)
+
 // collectorKeys returns the names of the fields the collector assigns to a task.
-func collectorKeys(t *testing.T, src string) []string {
+func collectorKeys(t *testing.T, name, src string) []string {
 	t.Helper()
 	var out []string
 	seen := map[string]bool{}
 
-	// The literal a task is built from: state.tasks[task_id] = { ... }
-	start := strings.Index(src, "state.tasks[task_id] = {")
-	if start < 0 {
-		t.Fatal("the literal of a task is not where the test looks for it")
+	starts := taskLiteral.FindAllStringIndex(src, -1)
+	if len(starts) == 0 {
+		t.Fatalf("no literal of a task in %s where the test looks for one", name)
 	}
-	end := strings.Index(src[start:], "\n    }")
-	if end < 0 {
-		t.Fatal("the literal of a task has no end where the test expects one")
+	var body string
+	for _, at := range starts {
+		end := strings.Index(src[at[0]:], "\n    }")
+		if end < 0 {
+			t.Fatalf("a literal of a task in %s has no end where the test expects one", name)
+		}
+		body += src[at[0] : at[0]+end]
 	}
-	body := src[start : start+end]
 
 	for _, re := range []*regexp.Regexp{
 		regexp.MustCompile(`"([a-zA-Z]+)":`),            // inside the literal

@@ -61,6 +61,47 @@ def aacpanel(tool_id, task_id, description="Watching the build",
                      persistent=persistent))
 
 
+WATCH_STARTED = ("Monitor started (task {}, expires in 30m unless the source ends first; you get "
+                 "one notice at expiry — re-arm if you still need the watch). You will be notified "
+                 "on each event. Keep working — do not poll or sleep. Events may arrive while you "
+                 "are waiting for the user — an event is not their reply.")
+
+SHELL_STARTS = (
+    "Command running in background with ID: {}. Output is being written to: "
+    "/srv/proj/tasks/{}.output. You will be notified when it completes.",
+    "Command did not complete within its 300s timeout and was moved to the background "
+    "(ID: {}). Output is being written to: /srv/proj/tasks/{}.output.",
+    "Command was manually backgrounded by user with ID: {}. Output is being written to: "
+    "/srv/proj/tasks/{}.output.",
+)
+
+
+def worded(tool_id, text, at="2026-08-25T10:00:01Z"):
+    """A result the way the transcript of a subagent on the stream keeps it: the words alone."""
+    return line({"type": "user", "timestamp": at, "isSidechain": True,
+                 "message": {"content": [
+                     {"type": "tool_result", "tool_use_id": tool_id, "content": text}]}})
+
+
+def worded_watch(tool_id, task_id):
+    return (call("Monitor", tool_id, command="until [ -s /srv/proj/ready ]; do sleep 10; done; "
+                                             "cat /srv/proj/ready",
+                 description="stand ready", timeout_ms=1800000)
+            + worded(tool_id, WATCH_STARTED.format(task_id)))
+
+
+def queued_notification(task_id, tool_id, summary, event, status="completed",
+                        at="2026-08-25T10:10:00Z"):
+    """The end of a task as an agent on the stream is told it: a queued command, not a message."""
+    return line({"type": "attachment", "timestamp": at, "isSidechain": True,
+                 "attachment": {"type": "queued_command", "commandMode": "task-notification",
+                                "prompt": f"<task-notification>\n<task-id>{task_id}</task-id>\n"
+                                          f"<tool-use-id>{tool_id}</tool-use-id>\n"
+                                          f"<status>{status}</status>\n"
+                                          f"<summary>{summary}</summary>\n"
+                                          f"<event>{event}</event>\n</task-notification>"}})
+
+
 def async_agent(tool_id, agent_id, description="Run the tests",
                 at="2026-08-25T10:00:00Z"):
     return (call("Agent", tool_id, at=at, description=description,
@@ -542,3 +583,44 @@ class SubagentShells(Transcript):
         grown = sesstate.read(path, state).snapshot()
         self.assertEqual([(t["id"], t["done"]) for t in grown["tasks"]],
                          [("b00000009", True)])
+
+    # An agent of a session on the stream: its transcript keeps no structured
+    # result of a call, only the words of the answer.
+
+    def test_a_watch_of_an_agent_on_the_stream_is_in_the_work_of_the_session(self):
+        self.agent("alpha", worded_watch("toolu_9", "bw0000009"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual([(t["id"], t["kind"], t["agent"], t["line"], t["done"]) for t in got["tasks"]],
+                         [("bw0000009", sesstate.TASK_MONITOR, "alpha", "stand ready", False)],
+                         "the id of the watch is in the words of the answer and nowhere else")
+
+    def test_a_watch_of_an_agent_on_the_stream_leaves_when_its_source_ends(self):
+        self.agent("alpha", worded_watch("toolu_9", "bw0000009"),
+                   queued_notification("bw0000009", "toolu_9", 'Monitor "stand ready" stream ended',
+                                       "up\n[exited with code 0]"))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["tasks"], [])
+
+    def test_a_shell_of_an_agent_on_the_stream_is_found_however_it_went_there(self):
+        chunks = []
+        for i, said in enumerate(SHELL_STARTS):
+            task_id = f"bs000000{i}"
+            chunks.append(call("Bash", f"toolu_{i}", command="make check", description="the tests")
+                          + worded(f"toolu_{i}", said.format(task_id, task_id)))
+        self.agent("alpha", *chunks)
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(sorted((t["id"], t["kind"]) for t in got["tasks"]),
+                         [(f"bs000000{i}", sesstate.TASK_BASH) for i in range(len(SHELL_STARTS))])
+
+    def test_the_output_of_a_command_is_not_taken_for_the_id_of_a_task(self):
+        # A command in the foreground prints what it likes, a transcript of an
+        # agent included: the words count only where claude opens its answer
+        # with them and left no structured result.
+        self.agent("alpha",
+                   call("Bash", "toolu_7", command="grep -h ID /srv/proj/log")
+                   + worded("toolu_7", "log: Command running in background with ID: bs0000007."),
+                   call("Bash", "toolu_8", command="cat /srv/proj/notes")
+                   + result("toolu_8", SHELL_STARTS[0].format("bs0000008", "bs0000008"),
+                            stdout="...", interrupted=False))
+        got = self.state(spawn("toolu_1", "alpha"))
+        self.assertEqual(got["tasks"], [])

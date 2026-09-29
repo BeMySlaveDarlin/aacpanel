@@ -536,6 +536,18 @@ class Queue(unittest.TestCase):
                       "message": {"content": "Watch tick: check CI"}})
         self.assertEqual(self.items(fired, pending), [], "the firing is shown a second time")
 
+    def test_a_job_of_the_cron_comes_back_as_an_alarm(self):
+        # The firing goes through the queue before the record of its turn, and
+        # waits there while the session is busy: drawn as the person's prompt,
+        # it stands in the feed as words nobody typed.
+        pending = chat.Pending()
+        self.items(assistant(tool_block("CronCreate", cron="13 * * * *", recurring=True,
+                                        prompt="Hourly check of the shop deploy")), pending)
+        for pos in (140, 900):
+            got = self.enqueued("Hourly check of the shop deploy", pending, pos=pos)
+            self.assertEqual([(i["role"], i["text"]) for i in got],
+                             [("wake", "Hourly check of the shop deploy")])
+
     def test_a_firing_with_no_enqueue_is_an_alarm_too(self):
         fired = line({"type": "user", "isMeta": True, "promptSource": "system",
                       "scheduledTaskId": "bbbb2222", "timestamp": "2026-08-23T10:20:00Z",

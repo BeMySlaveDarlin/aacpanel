@@ -805,6 +805,17 @@ yesterday's while its own card says spring. The order is the stamp the card
 shows, read from the tail of the transcript and remembered beside the parse; a
 transcript that names no time has nothing left but its file.
 
+**The background work of a session is read from its transcript and from the
+transcripts of its agents**: a shell or a watch an agent starts belongs to the
+session. A call is known by its structured result, and where claude keeps none
+— the transcript of an agent on the stream keeps only the words of the answer —
+by the words, which name the id the way the session's screen does. An alarm the
+session sets — a wake-up, or a job of its cron, once or over and over — stands
+among that work until it fires, is cancelled or goes with the process. A console
+names the job on the record it fires with; the stream leaves only the prompt, so
+a firing is matched to its job by the prompt, word for word, and one no job owns
+is the wake-up's.
+
 **How full the context is gets counted on the spot** by the same parsing that
 counts it for closed conversations: one and the same session must show one
 number before and after it is closed.

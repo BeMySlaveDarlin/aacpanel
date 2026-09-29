@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The alarms of a session among its background work: a wake-up, a job of the
+// cron that fires once on a pinned date and one that repeats every hour, next
+// to a command that runs.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Work, WorkList } from "/src/screens/chat/work.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const now = Date.now();
+const later = (min) => new Date(now + min * 60 * 1000 + 10 * 1000).toISOString();
+const ago = new Date(now - 10 * 60 * 1000).toISOString();
+
+const work = {
+    artifacts: [], docs: [], sent: [], agents: [],
+    tasks: [
+        { id: "b1", text: "Waiting for the tests", kind: "bash", at: ago, line: "make check" },
+        { id: "wakeup", text: "watching CI", kind: "wake", at: ago, due: later(20) },
+        { id: "6a61ac3b", text: "Check that the shop cache was rebuilt", kind: "cron", at: ago,
+          schedule: "7 21 29 9 *", due: later(180) },
+        { id: "78b049ff", text: "Hourly check of the shop deploy", kind: "cron", at: ago,
+          schedule: "Every hour at :13", repeats: true },
+    ],
+};
+
+render(html`
+    <${ToastHost}><${GateHost}>
+        <div id="chips"><${Work} work=${work} onOpen=${() => {}} /></div>
+        <div id="list">
+            <${WorkList} session="lab" id="1" kind="tasks" work=${work}
+                         exec=${{ available: true, kinds: ["task.stop"] }} />
+        </div>
+    <//><//>
+`, document.getElementById("root"));
+
+(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const text = (el, sel) => ((el.querySelector(sel) || {}).textContent || "").trim();
+    const rows = Array.from(document.querySelectorAll("#list .wrow.task"));
+    window.done = {
+        chip: text(document, "#chips .wchip .wnum"),
+        rows: rows.map((r) => ({
+            text: text(r, ".wtext"),
+            kind: text(r, ".wkind"),
+            when: text(r, ".wage"),
+            opens: r.tagName === "BUTTON",
+            stops: Boolean(r.closest(".wline") && r.closest(".wline").querySelector(".wstop")),
+        })),
+    };
+})();
+</script>

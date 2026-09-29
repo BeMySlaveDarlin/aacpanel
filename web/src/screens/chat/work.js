@@ -188,7 +188,22 @@ const TASK_KINDS = {
     bash: [Icon.terminal, "command"],
     aacpanel: [Icon.probes, "monitoring"],
     wake: [Icon.alerts, "wake-up"],
+    cron: [Icon.alerts, "alarm"],
 };
+
+// An alarm the session set itself — a wake-up or a job of its cron — runs
+// nothing until it fires: its row neither opens nor stops. It says when the
+// alarm is due or, for a job that repeats, how often it fires.
+const ALARMS = new Set(["wake", "cron"]);
+
+function alarmWord(task) {
+    return task.kind === "cron" && task.repeats ? "repeats" : taskKind(task)[1];
+}
+
+function alarmWhen(task) {
+    if (task.due) return until(task.due);
+    return task.schedule || since(task.at);
+}
 
 // running are the ones the session still has in flight. A shell that is over
 // stays in the list — its output is readable and the session screen counts it.
@@ -451,15 +466,15 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
         </div>
 
         <div class="worklist">
-            ${kind === "tasks" && tasks.map((task) => (task.kind === "wake"
+            ${kind === "tasks" && tasks.map((task) => (ALARMS.has(task.kind)
                 ? html`
                     <div class="wrow task still" key=${task.id}>
                         <span class="wicon">${taskKind(task)[0]()}</span>
                         <span class="wtext">
                             ${task.text}
-                            <span class="wkind">${taskKind(task)[1]}</span>
+                            <span class="wkind">${alarmWord(task)}</span>
                         </span>
-                        <span class="wage">${task.due ? until(task.due) : since(task.at)}</span>
+                        <span class="wage">${alarmWhen(task)}</span>
                     </div>
                 `
                 : html`

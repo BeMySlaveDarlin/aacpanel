@@ -462,7 +462,9 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                 if calls is not None:
                     calls[block.get("id") or ""] = {"tool": tool_label(name, block.get("input")),
                                                     "subject": tool_arg(block.get("input"), name)}
-                if name == "ScheduleWakeup" and pending is not None:
+                # An alarm comes back through the queue in its own words, and
+                # the queue draws it as an alarm rather than as the person.
+                if name in ("ScheduleWakeup", "CronCreate") and pending is not None:
                     data = block.get("input")
                     if isinstance(data, dict):
                         pending.schedule(data.get("prompt"))

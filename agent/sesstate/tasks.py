@@ -33,7 +33,35 @@ TASK_MONITOR = "aacpanel"
 
 TASK_KIND_BY_KEY = {"backgroundTaskId": TASK_BASH, "taskId": TASK_MONITOR}
 
+# The transcript of a subagent on the stream keeps no structured result of a
+# call — only the words claude answered with, and they name the id the way the
+# screen of the session does. A command sent to the background opens its answer
+# with "Command" and gives the id after "ID:", whether it went there at once,
+# on its timeout or by hand; a watch opens with "Monitor started (task <id>".
+# Read only where the structured result is missing: the output of a command in
+# the foreground may say anything.
+TASK_TEXT_RES = (
+    (re.compile(r"Command\b[^\n]*?\bID: ([\w-]+)"), TASK_BASH),
+    (re.compile(r"Monitor started \(task ([\w-]+)"), TASK_MONITOR),
+)
+
 STOPPERS = ("TaskStop",)
+
+
+def left_behind(result, text):
+    """Returns the id and the kind of the work a call left in the background, or None."""
+    if isinstance(result, dict):
+        for key in TASK_ID_KEYS:
+            if result.get(key):
+                return result[key], TASK_KIND_BY_KEY[key]
+        return None
+    if result is not None:
+        return None
+    for pattern, kind in TASK_TEXT_RES:
+        found = pattern.match(text)
+        if found:
+            return found.group(1), kind
+    return None
 
 
 def _task(state, use, task_id, started, text="", kind=TASK_BASH):

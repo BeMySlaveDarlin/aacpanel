@@ -7,10 +7,10 @@ from .artifacts import (ARTIFACT_URL_RE, DOC_TOOLS, SENT_TOOL, _artifact, _docum
                         _sent, result_text)
 from .limits import MAX_ITEMS, _short
 from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
-from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, TASK_ID_KEYS,
-                    TASK_KIND_BY_KEY, _notify_tasks, _task, finish)
+from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, _notify_tasks, _task,
+                    finish, left_behind)
 from . import background
-from .wake import WAKE_ID, _wake, is_wakeup
+from .wake import WAKE_ID, _wake, cancelled, fired, is_wakeup, scheduled
 from . import workflows
 
 
@@ -114,7 +114,7 @@ def _feed_record(state, record, raw):
         state.prompted = at
 
     if is_wakeup(record):
-        state.tasks.pop(WAKE_ID, None)
+        fired(state, record)
 
     if "<task-notification>" in raw:
         content = record.get("content")
@@ -160,6 +160,12 @@ def _feed_record(state, record, raw):
                     "text": _short(data.get("reason") or data.get("prompt") or "wake-up"),
                 }
                 continue
+            if name == "CronCreate":
+                state.pending[block.get("id")] = {"kind": "cron", "at": at, "data": data}
+                continue
+            if name == "CronDelete":
+                state.pending[block.get("id")] = {"kind": "uncron"}
+                continue
             if name == workflows.WORKFLOW_TOOL:
                 state.pending[block.get("id")] = workflows.started_of(data, at)
                 continue
@@ -201,10 +207,19 @@ def _feed_record(state, record, raw):
         if started["kind"] == "wake":
             _wake(state, started, result, at)
             continue
+        if started["kind"] == "task":
+            _task_left(state, block, result, started)
+            continue
         if not isinstance(result, dict):
             continue
         if started["kind"] == "sent":
             _sent(state, result, at)
+            continue
+        if started["kind"] == "cron":
+            scheduled(state, started, result)
+            continue
+        if started["kind"] == "uncron":
+            cancelled(state, result)
             continue
         if started["kind"] == "mail":
             # The only letter the tool refuses to an agent of this session is one
@@ -238,11 +253,13 @@ def _feed_record(state, record, raw):
             }
             _prune_reported_agents(state)
             continue
-        for key in TASK_ID_KEYS:
-            if result.get(key):
-                _task(state, block.get("tool_use_id"), result[key], started,
-                      kind=TASK_KIND_BY_KEY[key])
-                break
+
+
+def _task_left(state, block, result, started):
+    """Adds the work a call left in the background, if it left any."""
+    found = left_behind(result, result_text(block))
+    if found:
+        _task(state, block.get("tool_use_id"), found[0], started, kind=found[1])
 
 
 def _may_go_background(name, data, at, agent=""):
@@ -303,11 +320,4 @@ def _sub_record(state, record, raw, agent):
         started = state.pending.pop(block.get("tool_use_id"), None)
         if started is None or started.get("kind") != "task":
             continue
-        result = record.get("toolUseResult")
-        if not isinstance(result, dict):
-            continue
-        for key in TASK_ID_KEYS:
-            if result.get(key):
-                _task(state, block.get("tool_use_id"), result[key], started,
-                      kind=TASK_KIND_BY_KEY[key])
-                break
+        _task_left(state, block, record.get("toolUseResult"), started)

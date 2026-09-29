@@ -19,7 +19,7 @@ from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, MONITOR_OVER_RE,  # noqa: F
                     NOTIF_TASK_RE, NOTIF_USE_RE, STOPPERS,
                     TASK_BASH, TASK_ID_KEYS, TASK_KIND_BY_KEY, TASK_MONITOR,
                     _finish_older_than)
-from .wake import TASK_WAKE, WAKE_ID, is_wakeup  # noqa: F401
+from .wake import ALARMS, TASK_CRON, TASK_WAKE, WAKE_ID, is_wakeup  # noqa: F401
 from . import background, workflows  # noqa: F401
 
 TEAMS_DIR = os.environ.get("AACP_CLAUDE_TEAMS")

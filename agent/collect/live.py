@@ -11,7 +11,7 @@ import held
 import notes
 
 import agent
-from sesstate.wake import TASK_WAKE
+from sesstate.wake import ALARMS
 
 
 def claude_config_dirs():
@@ -203,17 +203,18 @@ def _by_name(value_of):
 def work_of(busy):
     """Returns how much of the session's work is still going on.
 
-    A wake-up the session set itself stands among its tasks, the way the panel
-    lists it; the count of them rides along, since a wake-up runs nothing and
-    a restart of the session must not wait for it. A workflow that runs is
-    work of its own, whether or not an agent of it is counted yet.
+    An alarm the session set itself — a wake-up or a job of its cron — stands
+    among its tasks, the way the panel lists it; the count of them rides along
+    as wakes, since an alarm runs nothing and a restart of the session must not
+    wait for it. A workflow that runs is work of its own, whether or not an
+    agent of it is counted yet.
     """
     live = [t for t in busy["tasks"] if not t.get("done")]
     work = {
         "tasks": len(live),
         "agents": sum(1 for a in busy["agents"] if a.get("status") == "active"),
     }
-    wakes = sum(1 for t in live if t.get("kind") == TASK_WAKE)
+    wakes = sum(1 for t in live if t.get("kind") in ALARMS)
     if wakes:
         work["wakes"] = wakes
     flows = sum(1 for f in busy.get("workflows") or [] if f.get("status") == "running")

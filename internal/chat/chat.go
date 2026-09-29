@@ -292,6 +292,10 @@ type WorkTask struct {
 	Due   string `json:"due,omitempty"`
 	Event string `json:"event,omitempty"`
 	Line  string `json:"line,omitempty"`
+	// Schedule and Repeats describe a job of the session's cron: how claude
+	// words its cron expression, and whether it fires again after this time.
+	Schedule string `json:"schedule,omitempty"`
+	Repeats  bool   `json:"repeats,omitempty"`
 	// Done tells a shell that is over from one still running. A shell stays in
 	// the list after its command ends: its output is still readable, and the
 	// screen of the session counts it among the ones it holds.
