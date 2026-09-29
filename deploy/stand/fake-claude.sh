@@ -141,6 +141,17 @@ agents | attach | auth | auto-mode | doctor | gateway | import | install | logs 
 	;;
 esac
 
+# claude -p is not played either — the probe of the limits and a session on
+# the stream run it — and it stops at once rather than wait like a session.
+for arg in "$@"; do
+	case $arg in
+	-p | --print)
+		printf 'the stand-in claude does not play claude %s\n' "$arg" >&2
+		exit 2
+		;;
+	esac
+done
+
 name=stand
 while [ $# -gt 0 ]; do
 	case "$1" in -n | --name) name=$2; shift ;; esac

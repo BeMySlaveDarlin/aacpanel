@@ -379,6 +379,11 @@ func TestFakeClaudeAnswersVersionWithoutWaiting(t *testing.T) {
 	if r.code != 2 || !strings.Contains(r.err, "does not play claude auth") {
 		t.Errorf("a command the stand-in does not play (%d): %q %q", r.code, r.out, r.err)
 	}
+	// The probe of the limits runs claude -p on the stand as well.
+	r = run(t, claudeEnv(home), rd, "fake-claude.sh", "-p", "--input-format", "stream-json", "--output-format", "stream-json")
+	if r.code != 2 || !strings.Contains(r.err, "does not play claude -p") {
+		t.Errorf("claude -p (%d): %q %q", r.code, r.out, r.err)
+	}
 	if _, err := os.Stat(filepath.Join(home, ".claude", "sessions")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a command left a session file, as if it were a session: %v", err)
 	}
