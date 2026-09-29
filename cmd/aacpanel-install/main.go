@@ -22,8 +22,19 @@ import (
 	"aacpanel/internal/install/view"
 )
 
-const usage = `usage: aacpanel-install plan [--plain] [--yes] [answers as flags]
+const usage = `usage: aacpanel-install install [--plain] [--yes] [answers as flags]
+       aacpanel-install plan [--plain] [--yes] [answers as flags]
        aacpanel-install demo [--speed N] [--fail STEP]
+
+  install looks the machine over, asks the questions, shows the plan and,
+          once it is approved, puts the panel on the machine: the host
+          description, one sudo for the part as root, the executor built
+          and started as a user unit, the .env, the stack, the app role,
+          the test database when the kit has it, and the collector's
+          restart on a new tree. Each step checks the machine first and
+          passes by what is in place, so a run that stopped goes on from
+          the step it stopped at. Every change is recorded before it is
+          made. Ctrl+C stops after the step at work; a second stops at once.
 
   plan    looks the machine over the way an install would begin — the
           system, docker and compose, claude, the programs the panel needs,
@@ -43,8 +54,14 @@ the flag's name. Run aacpanel-install <command> -h for its flags.
 `
 
 // cloneEnv is where install.sh says which clone it runs from; without it
-// the clone is the working directory, as under go run.
-const cloneEnv = "AACP_INSTALL_CLONE"
+// the clone is the working directory, as under go run. goEnv and cacheEnv
+// are the Go install.sh keeps in its cache and the cache itself: the
+// executor is built with the same Go. Under go run the Go on PATH builds it.
+const (
+	cloneEnv = "AACP_INSTALL_CLONE"
+	goEnv    = "AACP_INSTALL_GO"
+	cacheEnv = "AACP_INSTALL_CACHE"
+)
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, isTerminal))
@@ -58,11 +75,33 @@ type env struct {
 	inspect        func(clone string) install.Inspection
 	survey         func(in install.Inspection, r *install.Run) *install.Survey
 	save           func(text string) (string, error)
+	begin          func(s *install.Survey) (*install.Run, []*install.Step, error)
 }
 
 func run(args []string, stdout, stderr io.Writer, terminal func() bool) int {
 	return runWith(args, env{stdout: stdout, stderr: stderr, terminal: terminal,
-		inspect: inspectLocal, survey: surveyLocal, save: savePlan})
+		inspect: inspectLocal, survey: surveyLocal, save: savePlan, begin: beginLocal})
+}
+
+// beginLocal opens the run of an approved plan on this machine: the
+// manifest and the journal in the installer's directory, and the steps.
+func beginLocal(s *install.Survey) (*install.Run, []*install.Step, error) {
+	dir := s.Facts.InstallDir
+	man, err := install.OpenManifest(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	j, err := install.OpenJournal(dir, "install", time.Now())
+	if err != nil {
+		return nil, nil, err
+	}
+	goBin := os.Getenv(goEnv)
+	if goBin == "" {
+		goBin = "go"
+	}
+	in := &install.Install{S: s, M: local(), Go: goBin, Cache: os.Getenv(cacheEnv)}
+	r := &install.Run{Manifest: man, Journal: j, Shell: local(), Place: in.Place()}
+	return r, in.Steps(), nil
 }
 
 // local is this machine. sudo asks for its password at the terminal of the
@@ -145,7 +184,9 @@ func runWith(args []string, e env) int {
 		fmt.Fprint(e.stdout, usage)
 		return 0
 	case "plan":
-		return runPlan(args[1:], e)
+		return runPlan("plan", args[1:], e)
+	case "install":
+		return runPlan("install", args[1:], e)
 	case "demo":
 		return runDemo(args[1:], e.stderr, e.terminal)
 	}
@@ -153,8 +194,10 @@ func runWith(args []string, e env) int {
 	return 2
 }
 
-func runPlan(args []string, e env) int {
-	fs := flag.NewFlagSet("aacpanel-install plan", flag.ContinueOnError)
+// runPlan runs plan, and install, which is plan that goes on past an
+// approved plan to the steps.
+func runPlan(command string, args []string, e env) int {
+	fs := flag.NewFlagSet("aacpanel-install "+command, flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	plain := fs.Bool("plain", false, "the plain view: the same lines with no live part and no colour, as without a terminal")
 	yes := fs.Bool("yes", false, "take the suggested answer of every question no flag answers")
@@ -172,14 +215,14 @@ func runPlan(args []string, e env) int {
 		return 2
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(e.stderr, "aacpanel-install plan: unexpected %q\n", fs.Arg(0))
+		fmt.Fprintf(e.stderr, "aacpanel-install %s: unexpected %q\n", command, fs.Arg(0))
 		return 2
 	}
 	clone := os.Getenv(cloneEnv)
 	if clone == "" {
 		wd, err := os.Getwd()
 		if err != nil {
-			fmt.Fprintln(e.stderr, "aacpanel-install plan:", err)
+			fmt.Fprintf(e.stderr, "aacpanel-install %s: %v\n", command, err)
 			return 1
 		}
 		clone = wd
@@ -194,16 +237,21 @@ func runPlan(args []string, e env) int {
 	if e.survey != nil {
 		survey = func(in install.Inspection) *install.Survey { return e.survey(in, r) }
 	}
-	status, err := view.Plan(view.PlanOptions{
+	o := view.PlanOptions{
 		Theme:   theme,
 		Plain:   *plain || !tty,
 		Out:     e.stdout,
 		Inspect: func() install.Inspection { return e.inspect(clone) },
 		Survey:  survey,
 		Save:    e.save,
-	})
+		Yes:     *yes,
+	}
+	if command == "install" {
+		o.Begin = e.begin
+	}
+	status, err := view.Plan(o)
 	if err != nil {
-		fmt.Fprintln(e.stderr, "aacpanel-install plan:", err)
+		fmt.Fprintf(e.stderr, "aacpanel-install %s: %v\n", command, err)
 		return 1
 	}
 	return status

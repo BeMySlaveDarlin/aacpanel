@@ -3,6 +3,7 @@ package install
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,11 +15,9 @@ import (
 // Record refuses it.
 type Kind string
 
-// The kinds a run records so far.
-const (
-	// Dir is a directory the installer made; its meta is "created".
-	Dir Kind = "dir"
-)
+// Dir is a directory the installer made; its meta is "created", or
+// "cache" for the installer's own cache of Go, its modules and its builds.
+const Dir Kind = "dir"
 
 // undos take back what a line stands for. Each is idempotent: a line is
 // written before its change, so the change may never have happened, and
@@ -28,8 +27,19 @@ var undos = map[Kind]func(*Run, Entry) error{
 }
 
 // undoDir removes a directory the installer made, if nothing else lives in
-// it by now: what somebody put there since is theirs.
+// it by now: what somebody put there since is theirs. The cache is the
+// installer's alone and goes whole; Go keeps its modules read-only, so the
+// tree is made writable first.
 func undoDir(r *Run, e Entry) error {
+	if metaHas(e.Meta, "cache") {
+		_ = filepath.WalkDir(e.Target, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && d.IsDir() {
+				_ = os.Chmod(path, 0o700)
+			}
+			return nil
+		})
+		return os.RemoveAll(e.Target)
+	}
 	err := os.Remove(e.Target)
 	switch {
 	case err == nil, errors.Is(err, os.ErrNotExist):

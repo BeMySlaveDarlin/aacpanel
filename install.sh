@@ -124,7 +124,7 @@ main() {
 
 	# The installer reads its answers from the terminal even when this
 	# script came through a pipe; with no terminal at all it runs plain.
-	export AACP_INSTALL_CLONE="$repo"
+	export AACP_INSTALL_CLONE="$repo" AACP_INSTALL_GO="$cache/go$ver/bin/go" AACP_INSTALL_CACHE="$cache"
 	if { : </dev/tty; } 2>/dev/null; then
 		exec "$cache/bin/aacpanel-install" "$@" </dev/tty
 	fi

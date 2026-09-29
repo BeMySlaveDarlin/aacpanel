@@ -6,9 +6,13 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
+	"sync/atomic"
 )
 
 // Step is one thing the installer does to the machine. Every step is
@@ -51,6 +55,7 @@ const (
 	Said                     // a line under the step
 	Changed                  // the step changed something on the machine
 	Closed                   // the step ended; Err says how
+	Output                   // a line a command of the step printed
 )
 
 // Event is what a run tells its sink.
@@ -58,8 +63,11 @@ type Event struct {
 	Type  EventType
 	Title string // the step's
 	Mark  Mark   // Said
-	Text  string // Said, Changed
+	Text  string // Said, Changed, Output
 	Err   error  // Closed: nil when the step went through
+	// Already is a step closed by its check alone: the machine had it,
+	// and nothing was touched.
+	Already bool
 }
 
 // Sink takes the events of a run: the screen, the plain view, a test.
@@ -81,8 +89,51 @@ type Run struct {
 	Yes     bool
 	Ask     func(Question) (string, error)
 
-	step    *Step
-	changed []Entry
+	// Shell runs the commands of the steps. Hand gives the person's
+	// terminal to a command that needs it; a run without one — the plain
+	// view — runs such a command through the shell, where sudo cannot ask.
+	Shell Shell
+	Hand  func(Handover) error
+	Clock Clock
+	// Env is laid over the environment of every command the steps run:
+	// what a step learns of the user manager reaches the steps after it.
+	Env map[string]string
+	// Ctx ends the command at work when it is done: the second Ctrl+C.
+	Ctx context.Context
+	// Place is the clone and the user the run installs for.
+	Place *Place
+
+	step     *Step
+	changed  []Entry
+	stopping int32 // atomic: Stop comes from the screen while a step works
+}
+
+// Stop asks the run to stop after the step at work: the step goes on to its
+// end, which is its safe point, and no step follows it.
+func (r *Run) Stop() { atomic.StoreInt32(&r.stopping, 1) }
+
+// Stopping tells whether Stop was asked.
+func (r *Run) Stopping() bool { return atomic.LoadInt32(&r.stopping) == 1 }
+
+// Failed is a step that stops the run: the diagnosis in a line, what to do
+// about it when there is more to say, and the last lines the command said.
+type Failed struct {
+	Diagnosis string
+	Fix       []string
+	Tail      []string
+}
+
+func (f *Failed) Error() string { return f.Diagnosis }
+
+// fail makes a stop of a command that failed: the diagnosis, and the tail
+// of the command's output when there is one.
+func fail(diagnosis string, err error, fix ...string) *Failed {
+	f := &Failed{Diagnosis: diagnosis, Fix: fix}
+	var ran *Ran
+	if errors.As(err, &ran) {
+		f.Tail = ran.Tail
+	}
+	return f
 }
 
 func (r *Run) emit(e Event) {
@@ -98,6 +149,13 @@ func (r *Run) Say(m Mark, text string) {
 		title = r.step.Title
 	}
 	r.emit(Event{Type: Said, Title: title, Mark: m, Text: text})
+}
+
+// Hide keeps a secret out of the journal, whatever prints it.
+func (r *Run) Hide(secret string) {
+	if r.Journal != nil {
+		r.Journal.Hide(secret)
+	}
 }
 
 // ErrReadOnly is what Record answers in a run without a manifest.
@@ -152,8 +210,10 @@ func (r *Run) Do(s *Step) (err error) {
 	r.step = s
 	r.emit(Event{Type: Opened, Title: s.Title})
 	defer func() {
-		r.emit(Event{Type: Closed, Title: s.Title, Err: err})
-		r.step = nil
+		if r.step != nil {
+			r.emit(Event{Type: Closed, Title: s.Title, Err: err})
+			r.step = nil
+		}
 	}()
 	if s.Done != nil {
 		done, err := s.Done(r)
@@ -161,6 +221,8 @@ func (r *Run) Do(s *Step) (err error) {
 			return err
 		}
 		if done {
+			r.emit(Event{Type: Closed, Title: s.Title, Already: true})
+			r.step = nil
 			return nil
 		}
 	}
@@ -171,6 +233,28 @@ func (r *Run) Do(s *Step) (err error) {
 	}
 	if s.Verify != nil {
 		return s.Verify(r)
+	}
+	return nil
+}
+
+// Interrupted is a run the person stopped: it went on to the end of the
+// step at work, its safe point, and took no step after it.
+type Interrupted struct{ After string }
+
+func (e *Interrupted) Error() string { return "stopped after " + e.After }
+
+// Perform takes the steps in their order. There is no file of progress: a
+// step whose check finds the machine done is passed by, so a run that
+// stopped at a step goes on from that step. A failure stops the run where
+// it is, and a stop the person asked for ends it after the step at work.
+func Perform(r *Run, steps []*Step) error {
+	for i, s := range steps {
+		if err := r.Do(s); err != nil {
+			return err
+		}
+		if r.Stopping() && i+1 < len(steps) {
+			return &Interrupted{After: s.Title}
+		}
 	}
 	return nil
 }
@@ -193,4 +277,76 @@ func UndoKind(r *Run, e Entry) error {
 		return fmt.Errorf("no undo knows the kind %q of %s", e.Kind, e.Target)
 	}
 	return undo(r, e)
+}
+
+func sortedKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// Recorded tells whether the manifest holds a line of kind for target from
+// an earlier run or this one: a thing the installer made once is its own
+// from then on, and a second line would only repeat the first.
+func (r *Run) Recorded(kind Kind, target string) bool {
+	if r.Manifest == nil {
+		return false
+	}
+	es, err := ReadManifest(r.Manifest.Path)
+	if err != nil {
+		return false
+	}
+	for _, e := range es {
+		if e.Kind == string(kind) && e.Target == target {
+			return true
+		}
+	}
+	return false
+}
+
+// Once records a line unless the manifest has one of that kind for target.
+func (r *Run) Once(kind Kind, target, meta string) error {
+	if r.Recorded(kind, target) {
+		return nil
+	}
+	return r.Record(kind, target, meta)
+}
+
+// Last is the target of the latest line of kind: the revision the last
+// run installed.
+func (r *Run) Last(kind Kind) string {
+	if r.Manifest == nil {
+		return ""
+	}
+	es, _ := ReadManifest(r.Manifest.Path)
+	for i := len(es) - 1; i >= 0; i-- {
+		if es[i].Kind == string(kind) {
+			return es[i].Target
+		}
+	}
+	return ""
+}
+
+// meta tells whether the meta of a line holds a word: "created",
+// "by-installer", or a key as in "orig=".
+func metaHas(meta, word string) bool {
+	for _, w := range strings.Fields(meta) {
+		if w == word || (strings.HasSuffix(word, "=") && strings.HasPrefix(w, word)) {
+			return true
+		}
+	}
+	return false
+}
+
+// metaValue is the value of key= in the meta of a line.
+func metaValue(meta, key string) string {
+	for _, w := range strings.Fields(meta) {
+		if v, ok := strings.CutPrefix(w, key+"="); ok {
+			return v
+		}
+	}
+	return ""
 }

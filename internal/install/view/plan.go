@@ -1,6 +1,7 @@
 package view
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +33,11 @@ type PlanOptions struct {
 	// Save writes the plan to a file when the person asks for it, and says
 	// where it went.
 	Save func(text string) (string, error)
+	// Begin opens the run of the plan once it is approved: install has
+	// one, plan stops at the plan. Yes is --yes, which approves it without
+	// a terminal.
+	Begin Begin
+	Yes   bool
 }
 
 // Plan shows what the installer sees of the machine, asks what the install
@@ -55,19 +61,19 @@ func planPlain(o PlanOptions) int {
 		in = install.Offered(in)
 	}
 	p := &Plain{W: o.Out, T: o.Theme, Width: PlainWidth}
-	p.Print(Welcome(o.Theme, in.Facts, "plan", PlainWidth))
+	p.Print(Welcome(o.Theme, in.Facts, o.command(), PlainWidth))
 	(&install.Run{Sink: p.Sink}).Do(install.Check(in))
 	if tr := traces(o.Theme, in.Facts, PlainWidth); tr != "" {
 		p.Print(tr)
 	}
 	if in.Stops() > 0 || o.Survey == nil {
-		p.Print(closing(o.Theme, in.Stops(), PlainWidth))
+		p.Print(closing(o.Theme, in.Stops(), o.command(), PlainWidth))
 		return statusOf(in)
 	}
 	s := o.Survey(in)
 	stop := func(err error) int {
 		p.Print(o.Theme.Entry(ui.Bad, "Answers", []string{said{install.Stop, err.Error()}.render(o.Theme)}, PlainWidth))
-		p.Print(closing(o.Theme, 1, PlainWidth))
+		p.Print(closing(o.Theme, 1, o.command(), PlainWidth))
 		return 1
 	}
 	if s.Earlier() {
@@ -97,8 +103,24 @@ func planPlain(o PlanOptions) int {
 		lines = nil
 	}
 	p.Print("\n" + planFrame(o.Theme, s, PlainWidth))
-	p.Print(planned(o.Theme, PlainWidth))
-	return 0
+	if o.Begin == nil {
+		p.Print(planned(o.Theme, PlainWidth))
+		return 0
+	}
+	if !o.Yes {
+		return stop(errors.New(`stop: no terminal to ask "Would you like to proceed?"; pass --yes`))
+	}
+	p.Print(o.Theme.Step(ui.Asked, "Would you like to proceed? → Yes (--yes)", PlainWidth))
+	return runPlain(o, p, s)
+}
+
+// command is the command of the run, as the welcome and the last line
+// name it.
+func (o PlanOptions) command() string {
+	if o.Begin != nil {
+		return "install"
+	}
+	return "plan"
 }
 
 func statusOf(in install.Inspection) int {
@@ -131,6 +153,8 @@ const (
 	looked                       // the check stopped the install; ctrl+o opens the folded lines
 	questioning                  // a block of questions is open
 	proceeding                   // the plan waits for its answer
+	running                      // the steps run
+	handing                      // a command as root waits for its answer
 	over
 )
 
@@ -174,6 +198,25 @@ type planModel struct {
 	// in place to read the feed.
 	out    func(text string, after ...tea.Cmd) tea.Cmd
 	status int
+
+	// The run of the approved plan.
+	run       *install.Run
+	steps     []*install.Step
+	queue     *feedQueue
+	cancel    context.CancelFunc
+	tasks     []ui.Task
+	at        int      // the step at work
+	stepSaid  []said   // what it said so far
+	output    []string // what its commands printed
+	since     time.Time
+	ranSince  time.Time
+	stopping  bool
+	hand      *handMsg
+	handAsk   *ui.Block
+	changed   []string // what the run recorded, as its events told
+	peekTitle string   // the step whose output ctrl+o opens
+	peekLines []string
+	listen    tea.Cmd // what the screen waits on once the run begins
 }
 
 func newPlanModel(o PlanOptions) *planModel {
@@ -215,17 +258,27 @@ func (m *planModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tickMsg:
 		m.frame++
-		if m.stage == looking {
+		if m.stage == looking || m.stage == running || m.stage == handing {
 			next = tick()
 		}
 	case inspectedMsg:
 		m.inspected(msg.in)
+	case eventMsg, handMsg, endMsg:
+		next = m.onRun(msg)
+	case handedMsg:
+		m.onHanded(msg.err)
+	case shownMsg:
+		m.handAsk = rootConfirm()
 	case tea.PasteMsg:
 		if m.ask != nil && m.pager == nil {
 			m.ask.ui.Paste(msg.Content)
 		}
 	case tea.KeyPressMsg:
 		m.onKey(msg)
+	}
+	if m.listen != nil {
+		next = tea.Batch(next, m.listen)
+		m.listen = nil
 	}
 	if m.pager != nil || (len(m.feed) == 0 && len(m.then) == 0) {
 		return m, next
@@ -248,7 +301,7 @@ func (m *planModel) inspected(in install.Inspection) {
 	w := m.width()
 	var c collect
 	(&install.Run{Sink: c.sink}).Do(install.Check(in))
-	m.say("\n" + Welcome(m.t, in.Facts, "plan", w))
+	m.say("\n" + Welcome(m.t, in.Facts, m.o.command(), w))
 	m.say(entry(m.t, "Check the machine", c.lines, true, w))
 	if tr := traces(m.t, in.Facts, w); tr != "" {
 		m.say(tr)
@@ -258,7 +311,7 @@ func (m *planModel) inspected(in install.Inspection) {
 	}
 	m.status = statusOf(in)
 	if in.Stops() > 0 || m.o.Survey == nil {
-		m.say(closing(m.t, in.Stops(), w))
+		m.say(closing(m.t, in.Stops(), m.o.command(), w))
 		if _, folded := fold(c.lines); folded > 0 {
 			m.stage = looked
 			return
@@ -324,7 +377,7 @@ func shapeOf(qs []install.Question) string {
 func (m *planModel) stopped(err error) {
 	w := m.width()
 	m.say(m.t.Entry(ui.Bad, "Answers", []string{said{install.Stop, err.Error()}.render(m.t)}, w))
-	m.say(closing(m.t, 1, w))
+	m.say(closing(m.t, 1, m.o.command(), w))
 	m.end(1)
 }
 
@@ -347,6 +400,24 @@ func (m *planModel) onKey(k tea.KeyPressMsg) {
 		return
 	}
 	switch {
+	case key.Matches(k, ui.Keys.Stop) && m.stage == handing:
+		m.stopping = true
+		m.run.Stop()
+		m.onHand(ui.Back)
+		return
+	case key.Matches(k, ui.Keys.Stop) && m.stage == running:
+		m.stopRun()
+		return
+	case key.Matches(k, ui.Keys.Expand) && (len(m.peekLines) > 0 || (m.stage == running && len(m.output) > 0)):
+		// The step at work first, else the last one that printed.
+		title, lines := m.peekTitle, m.peekLines
+		if m.stage == running && len(m.output) > 0 {
+			title, lines = m.tasks[m.at].Title, append([]string(nil), m.output...)
+		}
+		if !m.live.Busy() {
+			m.pager = ui.NewPager(title+" — every line", lines, m.width(), m.h)
+		}
+		return
 	case key.Matches(k, ui.Keys.Stop):
 		if m.stage != over {
 			m.say(m.t.Entry(ui.Bad, "Stopped", []string{"Nothing on this machine was changed."}, m.width()))
@@ -369,6 +440,8 @@ func (m *planModel) onKey(k tea.KeyPressMsg) {
 		m.onAsk(m.ask.ui.Update(k))
 	case proceeding:
 		m.onProceed(m.ask.ui.Update(k))
+	case handing:
+		m.onHand(m.handAsk.Update(k))
 	}
 }
 
@@ -433,6 +506,10 @@ func (m *planModel) onProceed(out ui.Outcome) {
 	switch choice {
 	case "yes":
 		m.say(m.t.Step(ui.Asked, "Would you like to proceed? → "+m.t.Accent.Render("Yes"), w))
+		if m.o.Begin != nil {
+			m.startRun()
+			return
+		}
 		m.say(planned(m.t, w))
 		m.end(0)
 	case "back":
@@ -478,6 +555,10 @@ func (m *planModel) bottom() string {
 		return "\n" + m.t.Dim.Render(ui.Fit(" ctrl+o to expand the check · enter to finish", w))
 	case questioning, proceeding:
 		return "\n" + m.ask.ui.View(m.t, w, m.h-1)
+	case running:
+		return m.runView(w)
+	case handing:
+		return "\n" + m.handAsk.View(m.t, w, m.h-1)
 	}
 	return ""
 }

@@ -23,9 +23,11 @@ func TestTheCommandLine(t *testing.T) {
 		status   int
 		says     string
 	}{
-		{nil, never, 2, "usage: aacpanel-install plan"},
+		{nil, never, 2, "usage: aacpanel-install install"},
 		{[]string{"-h"}, never, 0, "aacpanel-install demo [--speed N]"},
-		{[]string{"install"}, never, 2, `unknown command "install"`},
+		{[]string{"update"}, never, 2, `unknown command "update"`},
+		{[]string{"install", "-h"}, never, 0, "-yes"},
+		{[]string{"install", "extra"}, never, 2, `aacpanel-install install: unexpected "extra"`},
 		{[]string{"plan", "-h"}, never, 0, "-plain"},
 		{[]string{"plan", "extra"}, never, 2, `unexpected "extra"`},
 		{[]string{"demo", "-h"}, never, 0, "-speed"},
@@ -115,5 +117,67 @@ func TestPlanWithoutATerminalIsPlain(t *testing.T) {
 	}
 	if asked != "/srv/aacpanel" {
 		t.Errorf("the clone looked at is %q, not the one install.sh named", asked)
+	}
+}
+
+// madeUp is a run of install on a machine of the test's own: a clean check,
+// no question left to the terminal, and the steps begin gives.
+func madeUp(t *testing.T, args []string, steps ...*install.Step) (int, string, *install.Run) {
+	t.Helper()
+	var r *install.Run
+	var stdout, stderr bytes.Buffer
+	status := runWith(append([]string{"install", "--plain", "--host", "lab", "--locale", "C.UTF-8"}, args...), env{
+		stdout: &stdout, stderr: &stderr,
+		terminal: func() bool { return false },
+		inspect: func(clone string) install.Inspection {
+			return install.Inspection{Facts: install.Facts{Account: install.Account{Name: "u", UID: 1000, Home: "/home/u"},
+				Clone: clone, Claude: "/usr/bin/claude", Mode: install.Fresh}}
+		},
+		survey: func(in install.Inspection, run *install.Run) *install.Survey {
+			return install.NewSurvey(&install.Table{Acct: in.Account}, in, run, time.Now())
+		},
+		begin: func(*install.Survey) (*install.Run, []*install.Step, error) {
+			m, err := install.OpenManifest(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			r = &install.Run{Manifest: m}
+			return r, steps, nil
+		},
+	})
+	return status, stdout.String() + stderr.String(), r
+}
+
+// TestInstallGoesOnPastThePlan: install is plan that takes the steps of
+// the approved plan.
+func TestInstallGoesOnPastThePlan(t *testing.T) {
+	ran := false
+	step := &install.Step{ID: "s", Title: "A step", Apply: func(*install.Run) error { ran = true; return nil }}
+	status, out, _ := madeUp(t, []string{"--yes"}, step)
+	if status != 0 || !ran || !strings.Contains(out, "Would you like to proceed? → Yes (--yes)") || !strings.Contains(out, "Installed in") {
+		t.Errorf("install --yes: status %d, ran %v:\n%s", status, ran, out)
+	}
+}
+
+// TestAStopNamesTheStepAndWhatChanged: a failing step ends the run there
+// with its diagnosis and what the run changed so far, and the steps after
+// it do not run.
+func TestAStopNamesTheStepAndWhatChanged(t *testing.T) {
+	made := &install.Step{ID: "made", Title: "Make a directory", Undo: install.UndoKind,
+		Apply: func(r *install.Run) error { return r.Record(install.Dir, "/srv/made", "created") }}
+	failing := &install.Step{ID: "failing", Title: "Panel stack", Apply: func(*install.Run) error {
+		return &install.Failed{Diagnosis: "/healthz did not answer in 120 s", Tail: []string{"aacpanel | store: connection refused"}}
+	}}
+	after := false
+	last := &install.Step{ID: "last", Title: "Last", Apply: func(*install.Run) error { after = true; return nil }}
+	status, out, _ := madeUp(t, []string{"--yes"}, made, failing, last)
+	for _, want := range []string{"✗ /healthz did not answer in 120 s", "aacpanel | store: connection refused",
+		"Fix it and run ./install.sh again — finished steps are skipped.", "Changed in this run: /srv/made"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the stop does not say %q:\n%s", want, out)
+		}
+	}
+	if status != 1 || after {
+		t.Errorf("status %d, the step after the stop ran: %v", status, after)
 	}
 }
