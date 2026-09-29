@@ -126,6 +126,64 @@ working one.
 
 ---
 
+## The installer
+
+`./install.sh` builds `cmd/aacpanel-install` with a Go of its own and runs it.
+While working on it, the same installer runs from the clone with the Go on your
+`PATH`:
+
+```bash
+go run ./cmd/aacpanel-install plan    # the check, the questions and the plan; changes nothing
+go run ./cmd/aacpanel-install demo    # the whole install on a made-up machine; changes nothing
+```
+
+`install`, `update` and `uninstall` change the machine they run on: they run on
+the stand.
+
+**A change that leaves a trace on a host is a step with its undo.** Every step
+is written to the contract in `internal/install/step.go`: `Done` looks at the
+machine itself, `Apply` records every piece in the manifest before it makes it,
+`Verify` checks the machine after, and the undo takes a line of the manifest
+back and is idempotent. A new kind of line gets its undo in
+`internal/install/undo.go`; `Record` refuses a kind without one, and
+`TestEveryKindHasAnUndo` holds it. A thing put on the machine with no line in
+the manifest is a thing uninstall leaves behind.
+
+**A new question is data.** It goes into `internal/install/questions.go` — its
+options from what the machine gives, the source of each, where the answer is
+written — with its flag in `internal/install/flags.go`. `TestEveryQuestionHasAFlag`
+and `TestYesAsksNothing` hold that a run with nobody at a terminal answers it
+too. A question changes a screen, and the screen has a golden file.
+
+**The screens are compared with golden files**, `testdata/*.golden` of
+`internal/install/ui` and `internal/install/view`, at 60 and 80 columns. A change
+of a screen that is meant rewrites them, and their diff is read before the
+commit:
+
+```bash
+go test ./internal/install/ui ./internal/install/view -update
+go test ./cmd/aacpanel-install -run Bare -update    # the refusals of a bare machine, in a container
+```
+
+`-update` is a flag of those packages' tests alone: given to
+`./internal/install/...` it stops every other package with "flag provided but
+not defined".
+
+**The stand and the CI job run it for real.** The stand's virtual machine
+(`deploy/stand/vm.sh`, its variants in `deploy/stand/README.md`) is where the
+installer runs whole: Ubuntu or Debian 13, a bare machine, a user of uid 1001,
+sudo with a password. `deploy/stand/scenario.sh` answers its questions through
+tmux, a key only after the screen it answers is seen — a digit picks at once, so
+a key sent blind answers a question nobody saw. `deploy/stand/traces.sh` lists
+what the machine holds before the install and after the uninstall, and compares
+the two. The same run goes in `.github/workflows/install.yml` on a GitHub
+runner — install, check, a second run that must restart nothing, uninstall with
+the data, the traces compared — on a pull request that touches the installer or
+what it puts on the machine, and once a week. `act` does not run that job: its
+containers have no systemd.
+
+---
+
 ## What is expected of a change
 
 **A rule and its reason live next to the code.** A comment explains not "what

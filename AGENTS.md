@@ -71,3 +71,20 @@ load time, because it would otherwise look into the live state directory.
 - **Units of measure travel in data, not in code.** An alert carries the rule's
   unit in its payload and keeps it until it closes, so renaming a unit key breaks
   pushes for alerts raised before the rename.
+- **The installer never prints a secret.** A secret goes into its file or into a
+  program's environment, never onto a command line; a command whose output
+  carries secrets runs `Quiet`, and every secret made or read is handed to
+  `Run.Hide` before anything could echo it. `docker compose config` without `-q`
+  prints the configuration with the secrets of the `.env` in it: read the fields
+  you need and keep none of it.
+- **claude's `settings.json` is edited only through `internal/install/settings.go`.**
+  It parses the file keeping the order of its keys, finds the panel's lines by
+  the tails of their paths, refuses a file that does not parse, and gives a file
+  that needs nothing back byte for byte — which is what lets uninstall return
+  the file as it was. A text edit, or a JSON round trip through a map, loses
+  somebody's hooks or reorders their file.
+- **Keys go into the installer one at a time, each after reading the screen.**
+  A digit picks an option at once and Enter takes whatever the cursor is on, so
+  keys sent blind answer questions nobody saw — a wrong kit, a sudo said yes to.
+  On the stand, `deploy/stand/scenario.sh` waits for the text of the screen
+  before every key and refuses a scenario with a key no wait comes before.

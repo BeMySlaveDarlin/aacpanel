@@ -768,6 +768,13 @@ updated nor disabled by the synchronisation.
 
 Only the service writes to the database. The executor does not reach it at all.
 
+**The install keeps its own account, apart from the panel's data.** The
+installer's manifest — a line a change to the machine, written before the
+change — the journals of its runs and the copies of the files it changed lie in
+`${XDG_STATE_HOME:-~/.local/state}/aacpanel-install`, and uninstall takes back
+what the manifest lists and nothing else. The executor's state beside it, in
+`~/.local/state/aacpanel`, is the panel's and none of the installer's.
+
 ---
 
 ## Collection

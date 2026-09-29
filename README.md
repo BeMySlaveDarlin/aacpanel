@@ -105,15 +105,23 @@ client goes for data to the nearest one that answered.
 |---|---|
 | Linux with systemd | there is nothing to install |
 | docker + compose v2 | there is no panel |
-| Go | not a single action on the host |
 | tmux | no session will open |
 | python3 | every screen is empty |
 | jq | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in tmux shows only with its next request |
 | claude | there is nothing to show |
 | a terminal (`konsole`, `gnome-terminal`, `alacritty`…) | no windows; the normal mode for a machine without graphics |
 
-Postgres does not have to be installed, it arrives as a container.
-The install step by step — [`INSTALL.md`](INSTALL.md).
+Postgres does not have to be installed, it arrives as a container, and neither
+does Go: the installer downloads its own into a cache and builds itself and the
+executor with it. On Debian, Ubuntu and their kin it offers to install docker,
+compose, tmux and jq with apt as well:
+
+```bash
+git clone https://github.com/BeMySlaveDarlin/aacpanel ~/aacpanel && ~/aacpanel/install.sh
+```
+
+What it asks, what it changes, and each of its steps done by hand —
+[`INSTALL.md`](INSTALL.md).
 
 ## Stack
 
@@ -165,7 +173,7 @@ transcripts, writes a snapshot that the container mounts read-only.
 
 ## Next
 
-- [`INSTALL.md`](INSTALL.md) — the install step by step, from scratch.
+- [`INSTALL.md`](INSTALL.md) — `./install.sh`, and what each of its steps does, for doing it by hand.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — how it is built, the boundaries and what the panel does not have.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — build, checks, what is expected of a change.
 - [`AGENTS.md`](AGENTS.md) — the same for a coding agent, plus the traps of this code.
