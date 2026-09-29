@@ -109,11 +109,19 @@ t -f "$out/tmux.conf" new-session -d -s scenario -x "$cols" -y "$rows" "$@"
 
 screen() { t capture-pane -p -J -t scenario; }
 
-# dead prints the status of the program when it has ended, nothing otherwise.
+# dead prints how the program ended once it has: its exit status, or the
+# signal that killed it; nothing otherwise. tmux marks the pane dead when its
+# terminal closes and learns the status a moment later, when it reaps the
+# program: a dead pane without either is not over yet.
 dead() {
-	local d s
-	read -r d s <<<"$(t display-message -p -t scenario '#{pane_dead} #{pane_dead_status}')"
-	[ "$d" != 1 ] || printf '%s\n' "${s:-?}"
+	local d s g
+	IFS=: read -r d s g <<<"$(t display-message -p -t scenario '#{pane_dead}:#{pane_dead_status}:#{pane_dead_signal}')"
+	[ "$d" = 1 ] || return 0
+	if [ -n "$s" ]; then
+		printf '%s\n' "$s"
+	elif [ -n "$g" ]; then
+		printf 'signal %s\n' "$g"
+	fi
 }
 
 note() { printf '%s\n' "$*" >>"$log"; }

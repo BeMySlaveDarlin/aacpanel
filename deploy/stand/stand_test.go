@@ -513,10 +513,13 @@ func jsonEqual(a, b any) bool {
 
 // The tmux of the scenario tests plays one pane of a program described in
 // $FAKE_TMUX/app: its first line is "start<TAB>screen", every next one
-// "key<TAB>screen after it", and "exit N" as a screen ends the program. A key
-// the program does not expect puts "unexpected key" on the screen. A new
-// screen shows only on the third look at the pane, so a single look finds
-// the program at work. Every key is logged with the screen it was sent on.
+// "key<TAB>screen after it"; "exit N" as a screen ends the program with
+// status N, "kill N" with signal N. A key the program does not expect puts
+// "unexpected key" on the screen. A new screen shows only on the third look
+// at the pane, so a single look finds the program at work, and the first
+// look at a dead pane finds no status yet, as tmux marks a pane dead when its
+// terminal closes and learns the status once it reaps the program. Every key
+// is logged with the screen it was sent on.
 const fakeTmux = `#!/bin/sh
 d=$FAKE_TMUX
 # look is a look at the pane: the one that comes after the lag shows the
@@ -532,6 +535,7 @@ look() {
 	next=$(cat "$d/next")
 	case $next in
 	"exit "*) echo "${next#exit }" >"$d/dead"; echo ended >"$d/screen" ;;
+	"kill "*) echo "signal ${next#kill }" >"$d/dead"; echo ended >"$d/screen" ;;
 	*) echo "$next" >"$d/screen" ;;
 	esac
 }
@@ -575,7 +579,18 @@ display-message)
 	*socket_path*) echo "$d/sock" ;;
 	*)
 		look
-		if [ -f "$d/dead" ]; then echo "1 $(cat "$d/dead")"; else echo "0 "; fi
+		if [ ! -f "$d/dead" ]; then
+			echo "0::"
+		elif [ ! -f "$d/reaped" ]; then
+			: >"$d/reaped"
+			echo "1::"
+		else
+			how=$(cat "$d/dead")
+			case $how in
+			"signal "*) echo "1::${how#signal }" ;;
+			*) echo "1:$how:" ;;
+			esac
+		fi
 		;;
 	esac
 	;;
@@ -678,6 +693,8 @@ func TestScenarioStopsWhenTheScreenIsNotTheOneAwaited(t *testing.T) {
 			"the program ended with 3 while waiting for \"Next\"", 1},
 		{"the program ends with another status", "start\tQ?\nEnter\texit 3\n", "wait Q?\nkey Enter\nexit 0\n",
 			"the program ended with 3, not 0", 1},
+		{"the program is killed", "start\tQ?\nEnter\tkill 15\n", "wait Q?\nkey Enter\nexit 0\n",
+			"the program ended with signal 15, not 0", 1},
 		{"the text stays", "start\tQ?\n", "timeout 1\ngone Q?\n", "\"Q?\" was not off the screen in 1s", 0},
 	}
 	for _, c := range cases {
