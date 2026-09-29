@@ -127,6 +127,47 @@ func TestTheCheckWalksTheChain(t *testing.T) {
 	}
 }
 
+// TestTheCheckWaitsForAContainerOnItsWayUp: a container recreated a moment
+// before the check — the app role's step recreates the panel's — is
+// "starting" until its first healthcheck, and the check waits that out; one
+// that never settles is a broken link once the wait is over.
+func TestTheCheckWaitsForAContainerOnItsWayUp(t *testing.T) {
+	inspect := []string{"docker", "inspect", "-f", "{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}",
+		"aacpanel", "aacpanel-db", "aacpanel-socket-proxy"}
+	const starting = "/aacpanel running starting\n/aacpanel-db running healthy\n/aacpanel-socket-proxy running \n"
+	for _, c := range []struct {
+		settles int // the inspect that first finds it healthy; 0 is never
+		broken  bool
+	}{{3, false}, {0, true}} {
+		g := newRig(t)
+		g.chainUp()
+		g.says(inspect, starting)
+		asked := 0
+		key := Command(inspect[0], inspect[1:]...)
+		g.m.Effects[key] = func(Cmd) error {
+			if asked++; asked == c.settles {
+				g.says(inspect, "/aacpanel running healthy\n/aacpanel-db running healthy\n/aacpanel-socket-proxy running \n")
+			}
+			return nil
+		}
+		began := g.clock.Now()
+		lines := g.said()
+		err := g.do(g.in.CheckStep())
+		waited := g.clock.Now().Sub(began)
+		switch {
+		case !c.broken && (err != nil || !slices.Contains(*lines, "✓ containers healthy: aacpanel, aacpanel-db, aacpanel-socket-proxy")):
+			t.Errorf("a container that settles after %d looks: %v\n%s", c.settles, err, strings.Join(*lines, "\n"))
+		case !c.broken && waited < 4*time.Second:
+			t.Errorf("the check waited %v for a container three looks away from healthy", waited)
+		case c.broken:
+			failedWith(t, err, "1 link of the chain is broken")
+			if !slices.Contains(*lines, "✗ containers: aacpanel is running starting") || waited < healthSettles {
+				t.Errorf("a container that never settles, after %v:\n%s", waited, strings.Join(*lines, "\n"))
+			}
+		}
+	}
+}
+
 // TestAnAccountWithoutTheServerIsAWarning: the panel gives its own sessions
 // the server at their start, so an account without it holds the chain; a
 // session started by hand lacks the tools, and the check says so.

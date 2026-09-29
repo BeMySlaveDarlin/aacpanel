@@ -221,18 +221,27 @@ func stackContainers(env map[string]string) []string {
 	return out
 }
 
+// healthSettles is how long a container docker has just started may stay
+// "starting": the panel's first healthcheck comes half a minute after its
+// start, and three that fail make it unhealthy.
+const healthSettles = 2 * time.Minute
+
 func (in *Install) containersLink(r *Run, env map[string]string) chainLink {
 	names := stackContainers(env)
 	const fix = "docker compose ps and docker compose logs; ./install.sh brings the stack up again."
-	out, _ := r.Exec(Cmd{Argv: in.docker(append([]string{"inspect", "-f",
-		"{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}"}, names...)...), Limit: time.Minute})
-	seen := map[string]string{}
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		f := strings.Fields(line)
-		if len(f) >= 2 {
-			seen[strings.TrimPrefix(f[0], "/")] = strings.Join(f[1:], " ")
+	// A container recreated a moment ago — the app role's step does that,
+	// and so does a reboot — is on its way up, not broken: the check waits
+	// for its healthcheck to say which.
+	var seen map[string]string
+	_, _ = r.Until(healthSettles, 2*time.Second, func() (bool, error) {
+		seen = in.containerStates(r, names)
+		for _, state := range seen {
+			if strings.HasSuffix(state, " starting") {
+				return false, nil
+			}
 		}
-	}
+		return true, nil
+	})
 	var bad []string
 	for _, n := range names {
 		switch state := seen[n]; state {
@@ -247,6 +256,21 @@ func (in *Install) containersLink(r *Run, env map[string]string) chainLink {
 		return broken(fix, "containers: %s", strings.Join(bad, ", "))
 	}
 	return pass("containers healthy: %s", strings.Join(names, ", "))
+}
+
+// containerStates is what docker says of each container: its state, and
+// the state of its health when it has a healthcheck.
+func (in *Install) containerStates(r *Run, names []string) map[string]string {
+	out, _ := r.Exec(Cmd{Argv: in.docker(append([]string{"inspect", "-f",
+		"{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}"}, names...)...), Limit: time.Minute})
+	seen := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 {
+			seen[strings.TrimPrefix(f[0], "/")] = strings.Join(f[1:], " ")
+		}
+	}
+	return seen
 }
 
 // unitState is how systemctl answers of a unit: active, enabled.
