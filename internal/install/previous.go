@@ -50,7 +50,7 @@ func (c *checker) previous() {
 		if len(ours) > 0 {
 			c.f.Traces = append(c.f.Traces, "compose project "+Project+": "+strings.Join(ours, ", "))
 		}
-		if out, err := c.m.Run("docker", "volume", "ls", "--format", "{{.Name}}"); err == nil &&
+		if out, err := c.dockerRun("volume", "ls", "--format", "{{.Name}}"); err == nil &&
 			slices.Contains(strings.Fields(out), DBVolume) {
 			c.f.Traces = append(c.f.Traces, "volume "+DBVolume)
 			if envErr != nil || hostcfg.Parse(env)["AACP_DB_PASSWORD"] == "" {

@@ -31,6 +31,9 @@ var undos = map[Kind]func(*Run, Entry) error{
 // installer's alone and goes whole; Go keeps its modules read-only, so the
 // tree is made writable first.
 func undoDir(r *Run, e Entry) error {
+	if metaHas(e.Meta, Adopted) {
+		return nil
+	}
 	if metaHas(e.Meta, "cache") {
 		_ = filepath.WalkDir(e.Target, func(path string, d fs.DirEntry, err error) error {
 			if err == nil && d.IsDir() {

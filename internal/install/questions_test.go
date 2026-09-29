@@ -214,6 +214,7 @@ func TestEveryQuestionHasAFlag(t *testing.T) {
 		used[q.Flag] = true
 	}
 	check(s.KeepQuestion())
+	check((&Install{S: s, M: m}).SessionQuestion())
 	for _, b := range Blocks {
 		qs, _ := s.Settle(b)
 		for _, q := range s.Questions(b) {
@@ -432,15 +433,27 @@ func TestAnAccountFlagNamesItsAccount(t *testing.T) {
 }
 
 // TestAnInstallByHandKeepsItsKit: the parts of the kit an install by hand
-// wired into claude are the kit it keeps.
+// wired into claude are the kit it keeps. The restart is the launch's where
+// the settings allow none of the panel's tools, as a session the panel
+// starts is allowed them all; a rule of the whole server allows it too, and
+// the tools allowed one by one without it leave it out.
 func TestAnInstallByHandKeepsItsKit(t *testing.T) {
-	m := desktop()
-	m.Files[DefaultStateDir+"/host.env"] = "AACP_REPO=" + clone + "\n"
-	m.Files[clone+"/.env"] = "AACP_TAILSCALE=1\nAACP_DB_PASSWORD=x\n"
-	m.Files[home+"/.claude/settings.json"] = `{"hooks":{"PreToolUse":[{"hooks":[{"command":"python3 ` + clone +
-		`/agent/ask-hook.py"}]}],"Stop":[{"hooks":[{"command":"python3 ` + clone + `/deploy/claude/context-guard.py"}]}]}}`
-	s := survey(m, &Run{Yes: true})
-	if q := find(t, s, BlockK, "kit"); q.Default != "relay,limits,tools,cap,tailscale" {
-		t.Errorf("the kit kept is %q", q.Default)
+	hooks := `"hooks":{"PreToolUse":[{"hooks":[{"command":"python3 ` + clone +
+		`/agent/ask-hook.py"}]}],"Stop":[{"hooks":[{"command":"python3 ` + clone + `/deploy/claude/context-guard.py"}]}]}`
+	for _, c := range []struct{ allow, kit string }{
+		{``, "relay,limits,tools,cap,restart,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel"]}`, "relay,limits,tools,cap,restart,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__*"]}`, "relay,limits,tools,cap,restart,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__notify"]}`, "relay,limits,tools,cap,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__session_restart"]}`, "relay,limits,tools,cap,restart,tailscale"},
+	} {
+		m := desktop()
+		m.Files[DefaultStateDir+"/host.env"] = "AACP_REPO=" + clone + "\n"
+		m.Files[clone+"/.env"] = "AACP_TAILSCALE=1\nAACP_DB_PASSWORD=x\n"
+		m.Files[home+"/.claude/settings.json"] = `{` + hooks + c.allow + `}`
+		s := survey(m, &Run{Yes: true})
+		if q := find(t, s, BlockK, "kit"); q.Default != c.kit {
+			t.Errorf("allow %s: the kit kept is %q, want %q", c.allow, q.Default, c.kit)
+		}
 	}
 }

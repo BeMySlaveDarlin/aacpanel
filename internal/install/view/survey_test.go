@@ -75,8 +75,11 @@ func (s *screen) collect(text string, after ...tea.Cmd) tea.Cmd {
 		s.feed = append(s.feed, text)
 	}
 	for _, a := range after {
-		if _, ok := a().(tea.QuitMsg); ok {
+		switch msg := a().(type) {
+		case tea.QuitMsg:
 			s.quit = true
+		case codeMsg:
+			s.later = append(s.later, msg)
 		}
 	}
 	return nil

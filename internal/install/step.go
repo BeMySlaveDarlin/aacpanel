@@ -94,7 +94,10 @@ type Run struct {
 	// view — runs such a command through the shell, where sudo cannot ask.
 	Shell Shell
 	Hand  func(Handover) error
-	Clock Clock
+	// Enroll shows a code of the first device and waits for the person to
+	// be done with it; a run without one — the plain view — says the code.
+	Enroll func(Enrollment) error
+	Clock  Clock
 	// Env is laid over the environment of every command the steps run:
 	// what a step learns of the user manager reaches the steps after it.
 	Env map[string]string
@@ -105,9 +108,14 @@ type Run struct {
 
 	step     *Step
 	changed  []Entry
+	kept     []string
 	later    []string
 	stopping int32 // atomic: Stop comes from the screen while a step works
 }
+
+// Kept are the titles of the steps whose check found the machine done:
+// what the run left as it was.
+func (r *Run) Kept() []string { return append([]string(nil), r.kept...) }
 
 // Remind keeps a line for the end of the run: something left to the person
 // that a step found and could not do — a sign-in, a screen to visit.
@@ -196,6 +204,27 @@ func (r *Run) Record(kind Kind, target, meta string) error {
 	return nil
 }
 
+// Adopt writes a line of the manifest for a thing found in place: the
+// installer did not make it, so it is no change of this run, and uninstall
+// reads the mark to leave alone what it cannot tell for the panel's.
+func (r *Run) Adopt(kind Kind, target, meta string) error {
+	if r.Manifest == nil {
+		return ErrReadOnly
+	}
+	if undos[kind] == nil {
+		return fmt.Errorf("a %s has no undo: nothing would take it back", kind)
+	}
+	step := "adopt"
+	if r.step != nil {
+		step = r.step.ID
+	}
+	e := Entry{Step: step, Kind: string(kind), Target: target, Meta: strings.TrimSpace(Adopted + " " + meta)}
+	if err := r.Manifest.Append(e); err != nil {
+		return fmt.Errorf("the manifest did not take %s %s: %w", kind, target, err)
+	}
+	return nil
+}
+
 // MakeDir makes a directory the step needs, recording it first. A directory
 // that is already there is left out of the manifest: it is not the
 // installer's to remove.
@@ -233,6 +262,7 @@ func (r *Run) Do(s *Step) (err error) {
 			return err
 		}
 		if done {
+			r.kept = append(r.kept, s.Title)
 			r.emit(Event{Type: Closed, Title: s.Title, Already: true})
 			r.step = nil
 			return nil

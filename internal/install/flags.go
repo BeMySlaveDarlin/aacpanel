@@ -58,6 +58,7 @@ var Flags = []Flag{
 	{Name: "--contour", Takes: "DIR=NAME", Help: "the name of an account's contour on the map", PerAccount: true},
 	{Name: "--group", Takes: "NAME", Help: "the first group of projects on the map"},
 	{Name: "--project", Takes: "DIR", Help: "a project in that group; again for more", Many: true},
+	{Name: "--check-session", Takes: "yes|no", Help: "open a test session at the end of the check, and close it"},
 }
 
 // Switches are the flags that stand for an answer.

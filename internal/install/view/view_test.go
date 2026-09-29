@@ -89,6 +89,9 @@ type screen struct {
 	m    *planModel
 	feed []string
 	quit bool
+	// later are the messages the commands after a print gave, for the
+	// test to hand back: a new code of the first device.
+	later []tea.Msg
 }
 
 func newScreen(in install.Inspection, width int) *screen {

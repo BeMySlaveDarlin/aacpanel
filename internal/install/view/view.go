@@ -183,12 +183,17 @@ type Plain struct {
 	W     io.Writer
 	T     ui.Theme
 	Width int
+	// Color keeps the escapes: the feed of a command run at a terminal.
+	Color bool
 	first bool // the next line under the step is its first
 }
 
 // Print writes text of the feed.
 func (p *Plain) Print(text string) {
-	fmt.Fprintln(p.W, ui.Strip(text))
+	if !p.Color {
+		text = ui.Strip(text)
+	}
+	fmt.Fprintln(p.W, text)
 }
 
 // Sink takes the events of a run.

@@ -62,10 +62,19 @@ func TestPython(t *testing.T) {
 	says(t, Inspect(m, clone), "✗ stop: python3 3.9 or newer is needed by the collector (found none).")
 }
 
+// TestSudo: the stop names no file a run has not written yet — the command
+// for an administrator comes from the root command's frame, once the host
+// description it names is there.
 func TestSudo(t *testing.T) {
-	const admin = "Ask an administrator to run: sudo bash " + clone + "/deploy/install/root.sh apply --user u " +
-		"--staged " + home + "/.local/state/aacpanel-install/host.env.staged, then run ./install.sh again."
+	const terminal = "Run ./install.sh at a terminal: sudo asks for its password there, and a No at the root command " +
+		"stops the run with the command for an administrator."
+	const answerNo = "At the root command answer No: the run stops there with the command for an administrator, " +
+		"and ./install.sh goes on once it has run."
 	password := func(m *fake) { m.Cmds[key("sudo", "-n", "true")] = fails("sudo: a password is required") }
+	notSudoer := func(m *fake) {
+		password(m)
+		m.Cmds[key("sudo", "-n", "-l")] = fails("Sorry, user u may not run sudo on lab.")
+	}
 	for _, c := range []struct {
 		name string
 		edit func(*fake)
@@ -75,14 +84,13 @@ func TestSudo(t *testing.T) {
 		{"a password at a terminal", func(m *fake) { password(m); m.Tty = true },
 			"✓ sudo asks for a password: the root step runs one sudo"},
 		{"a password and no terminal", password,
-			"✗ stop: one step needs root (the state directory, the collector unit, linger) and sudo cannot ask for a password here. " + admin},
-		{"not a sudoer", func(m *fake) {
-			password(m)
-			m.Tty = true
-			m.Cmds[key("sudo", "-n", "-l")] = fails("Sorry, user u may not run sudo on lab.")
-		}, "✗ stop: one step needs root (the state directory, the collector unit, linger) and u may not run sudo here. " + admin},
+			"✗ stop: one step needs root (the state directory, the collector unit, linger) and sudo cannot ask for a password here. " + terminal},
+		{"not a sudoer at a terminal", func(m *fake) { notSudoer(m); m.Tty = true },
+			"⚠ warn: one step needs root, and u may not run sudo here. " + answerNo},
+		{"not a sudoer and no terminal", notSudoer,
+			"✗ stop: one step needs root (the state directory, the collector unit, linger) and u may not run sudo here. " + terminal},
 		{"no sudo", func(m *fake) { delete(m.Path, "sudo") },
-			"✗ stop: one step needs root (the state directory, the collector unit, linger) and sudo is not installed here. " + admin},
+			"✗ stop: one step needs root (the state directory, the collector unit, linger) and sudo is not installed here. " + terminal},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			m := healthy()

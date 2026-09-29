@@ -75,6 +75,9 @@ type Facts struct {
 	LANPort    int
 	Mode       Mode
 	Traces     []string // what an earlier install left, when there was one
+	// ViaGroup is docker reached through sg: the user is in the docker group
+	// and this terminal began before the group was added.
+	ViaGroup bool
 }
 
 // Finding is a line of the check.
@@ -283,7 +286,14 @@ func (c *checker) docker() {
 		c.dockerMissing()
 		return
 	}
-	out, err := c.m.Run("docker", "version", "--format", "{{.Server.Version}}")
+	out, err := c.dockerRun("version", "--format", "{{.Server.Version}}")
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "permission denied") && c.inDockerGroup() {
+		// The group came after this terminal did: the run that added it
+		// stopped later, and this one began in the same terminal. sg opens
+		// the group without a new login, as the run that added it did.
+		c.f.ViaGroup = true
+		out, err = c.dockerRun("version", "--format", "{{.Server.Version}}")
+	}
 	if err != nil {
 		why := strings.ToLower(err.Error())
 		switch {
@@ -307,7 +317,7 @@ func (c *checker) docker() {
 		OperatingSystem string
 		DockerRootDir   string
 	}
-	if raw, err := c.m.Run("docker", "info", "--format", "{{json .}}"); err == nil {
+	if raw, err := c.dockerRun("info", "--format", "{{json .}}"); err == nil {
 		_ = json.Unmarshal([]byte(raw), &info)
 	}
 	c.dockerDir = info.DockerRootDir
@@ -329,7 +339,7 @@ func (c *checker) docker() {
 			"and mounts the state directory and /run/user/%d into its container.", kind, c.f.Account.UID)
 	}
 
-	out, err = c.m.Run("docker", "compose", "version", "--short")
+	out, err = c.dockerRun("compose", "version", "--short")
 	if err != nil {
 		if pkg, ok := c.composePackage(); ok {
 			c.missing(Missing{Name: "docker compose", Why: "the panel is a stack of compose services",
@@ -345,8 +355,28 @@ func (c *checker) docker() {
 		c.add(Stop, "stop: docker compose %s is older than %s.", c.f.Compose, MinCompose)
 	}
 	if !c.stoppedSince(stops) {
-		c.insert(stops, Finding{Mark: Pass, Text: "docker " + c.f.Docker + " · compose " + c.f.Compose + " · system daemon"})
+		line := "docker " + c.f.Docker + " · compose " + c.f.Compose + " · system daemon"
+		if c.f.ViaGroup {
+			line += " · through sg docker: this terminal began before the group was added"
+		}
+		c.insert(stops, Finding{Mark: Pass, Text: line})
 	}
+}
+
+// dockerRun runs docker for the check: straight, or through sg when the
+// docker group is the user's and not yet this terminal's.
+func (c *checker) dockerRun(args ...string) (string, error) {
+	if !c.f.ViaGroup {
+		return c.m.Run("docker", args...)
+	}
+	return c.m.Run("sg", "docker", "-c", shellLine(append([]string{"docker"}, args...)))
+}
+
+// inDockerGroup tells whether the group database puts the user in the docker
+// group, whatever the groups this process was started with.
+func (c *checker) inDockerGroup() bool {
+	out, err := c.m.Run("id", "-nG", c.f.Account.Name)
+	return err == nil && slices.Contains(strings.Fields(out), "docker")
 }
 
 func (c *checker) dockerMissing() {
@@ -474,7 +504,7 @@ func (c *checker) dockerPS() []container {
 		return c.listed
 	}
 	c.listed = []container{}
-	out, err := c.m.Run("docker", "ps", "-a", "--format", psFormat)
+	out, err := c.dockerRun("ps", "-a", "--format", psFormat)
 	if err != nil {
 		return c.listed
 	}
@@ -668,6 +698,11 @@ func (c *checker) python() {
 
 // sudo checks that the one step as root can run: at once, or with a
 // password asked at the terminal.
+//
+// A person without sudo of their own goes on: the root command's frame takes
+// a No, and the run stops there with the command an administrator runs —
+// with the host description it names already written, which it is not yet
+// while the machine is only looked over.
 func (c *checker) sudo() {
 	why := "sudo cannot ask for a password here"
 	if _, err := c.m.LookPath("sudo"); err != nil {
@@ -681,9 +716,14 @@ func (c *checker) sudo() {
 		c.add(Pass, "sudo asks for a password: the root step runs one sudo")
 		return
 	}
+	if c.m.Terminal() {
+		c.add(Warn, "warn: one step needs root, and %s. At the root command answer No: the run stops there with "+
+			"the command for an administrator, and ./install.sh goes on once it has run.", why)
+		return
+	}
 	c.add(Stop, "stop: one step needs root (the state directory, the collector unit, linger) and %s. "+
-		"Ask an administrator to run: sudo bash %s/deploy/install/root.sh apply --user %s --staged %s, "+
-		"then run ./install.sh again.", why, c.f.Clone, c.f.Account.Name, filepath.Join(c.f.InstallDir, "host.env.staged"))
+		"Run ./install.sh at a terminal: sudo asks for its password there, and a No at the root command "+
+		"stops the run with the command for an administrator.", why)
 }
 
 var clonePath = regexp.MustCompile(`^/[A-Za-z0-9._/-]+$`)

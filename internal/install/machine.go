@@ -44,6 +44,9 @@ type Machine interface {
 	Run(name string, args ...string) (string, error)
 	Space(path string) (Space, error)
 	Reach(url string) (status int, err error)
+	// Fetch gets a page of a local address and gives its status and body:
+	// what the panel's local listener says of itself.
+	Fetch(url string) (status int, body []byte, err error)
 	// Terminal tells whether there is a person at a terminal: sudo can ask
 	// for a password only then.
 	Terminal() bool
@@ -206,4 +209,19 @@ func (Local) Reach(url string) (int, error) {
 	}
 	resp.Body.Close()
 	return resp.StatusCode, nil
+}
+
+// pageLimit is as much of a page as Fetch reads: the map of a big machine
+// fits many times over.
+const pageLimit = 8 << 20
+
+func (Local) Fetch(url string) (int, []byte, error) {
+	c := http.Client{Timeout: reachTime}
+	resp, err := c.Get(url)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, pageLimit))
+	return resp.StatusCode, body, err
 }

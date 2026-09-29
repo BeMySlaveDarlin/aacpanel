@@ -175,27 +175,46 @@ func (in *Install) localOff(r *Run) bool {
 
 // mapMissing is what the answers want on the map and it does not hold.
 func (in *Install) mapMissing(v mapView) []string {
-	var out []string
-	accounts := in.accounts()
+	c, g := in.S.mapMissing(v)
+	return append(c, g...)
+}
+
+// mapMissing is what the answers want on the map and it does not hold: the
+// contours, and the group with its projects.
+func (s *Survey) mapMissing(v mapView) (contours, group []string) {
+	accounts := split(s.valueOr("accounts", ""))
+	name := func(dir string) string { return s.valueOr("contour:"+dir, "") }
 	for _, dir := range accounts {
-		if v.contourOf(dir, in.contourName(dir)) == nil {
-			out = append(out, "contour "+in.contourName(dir))
+		if v.contourOf(dir, name(dir)) == nil {
+			contours = append(contours, "contour "+name(dir))
 		}
 	}
-	group := in.S.valueOr("group", "")
-	if group == "" || len(accounts) == 0 {
-		return out
+	g := s.valueOr("group", "")
+	if g == "" || len(accounts) == 0 {
+		return contours, nil
 	}
-	first := v.contourOf(accounts[0], in.contourName(accounts[0]))
-	if first == nil || first.group(group) == nil {
-		out = append(out, "group "+group)
+	first := v.contourOf(accounts[0], name(accounts[0]))
+	if first == nil || first.group(g) == nil {
+		group = append(group, "group "+g)
 	}
-	for _, p := range split(in.S.valueOr("projects", "")) {
+	for _, p := range split(s.valueOr("projects", "")) {
 		if !v.holds(p) {
-			out = append(out, "project "+p)
+			group = append(group, "project "+p)
 		}
 	}
-	return out
+	return contours, group
+}
+
+// mapNow is the map as the panel's local listener gives it, for a plan and a
+// check that only look: what this machine answers, or nothing when the
+// panel is not up.
+func mapNow(m Machine, url string) (mapView, bool) {
+	var v mapView
+	status, body, err := m.Fetch(url + "/api/profiles")
+	if err != nil || status != 200 || json.Unmarshal(body, &v) != nil {
+		return mapView{}, false
+	}
+	return v, true
 }
 
 func (in *Install) readMap(r *Run) (mapView, error) {

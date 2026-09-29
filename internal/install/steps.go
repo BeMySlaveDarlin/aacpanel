@@ -25,8 +25,18 @@ type Install struct {
 	// developer's own under go run, when Cache is empty.
 	Go, Cache string
 	// Local is the panel's local listener the map is made through; empty
-	// is where compose publishes it.
-	Local string
+	// is where compose publishes it. Sock is the executor's socket; empty
+	// is where the executor makes it.
+	Local, Sock string
+	// SkipVulncheck builds the image without the check of its dependencies
+	// against published vulnerabilities: the person's knowing choice when a
+	// vulnerability published after the release stops the build.
+	SkipVulncheck bool
+	// Update makes the run an update: the pulled images fresh first.
+	// UpdatedFrom is the commit the clone was on before the update moved
+	// it, empty when it did not.
+	Update      bool
+	UpdatedFrom string
 
 	viaGroup     bool      // docker goes through sg: the root part added the group this run
 	agentStarted bool      // the root part enabled the collector this run, on this tree
@@ -38,10 +48,17 @@ type Install struct {
 
 // The steps of the machine, in the order a run takes them.
 func (in *Install) Steps() []*Step {
-	steps := []*Step{
+	var steps []*Step
+	if in.f().Mode != Fresh {
+		steps = append(steps, in.adoptStep())
+	}
+	if in.Update {
+		steps = append(steps, in.updateStep())
+	}
+	steps = append(steps,
 		in.hostEnvStep(), in.rootStep(), in.userManagerStep(), in.envFileStep(),
 		in.execBuildStep(), in.execUnitStep(), in.stackStep(), in.appRoleStep(),
-	}
+	)
 	if in.S.Has("testdb") {
 		steps = append(steps, in.testDBStep())
 	}
@@ -52,7 +69,7 @@ func (in *Install) Steps() []*Step {
 	if in.mapAnswered() {
 		steps = append(steps, in.mapStep())
 	}
-	return append(steps, in.collectorStep())
+	return append(steps, in.collectorStep(), in.CheckStep(), in.SessionStep(), in.EnrollStep())
 }
 
 func (in *Install) f() Facts        { return in.S.Facts }
@@ -76,8 +93,11 @@ func (in *Install) dotEnvPath() string  { return filepath.Join(in.clone(), ".env
 // ask runs a command that only reads and gives what it printed, trimmed,
 // whether it ended well or not: systemctl is-enabled says "disabled" with
 // status 1, which is an answer and not a failure.
+//
+// It runs in the clone: docker compose finds its project there, whatever
+// directory the installer was started from.
 func (in *Install) ask(r *Run, argv ...string) string {
-	out, _ := r.Exec(Cmd{Argv: argv, Limit: 30 * time.Second})
+	out, _ := r.Exec(Cmd{Argv: argv, Dir: in.clone(), Limit: 30 * time.Second})
 	return strings.TrimSpace(out)
 }
 
@@ -88,14 +108,19 @@ func (in *Install) docker(args ...string) []string {
 }
 
 func (in *Install) withGroup(argv []string) []string {
-	if !in.viaGroup {
+	if !in.viaGroup && !in.f().ViaGroup {
 		return argv
 	}
+	return []string{"sg", "docker", "-c", shellLine(argv)}
+}
+
+// shellLine is argv as one line of the shell, each word quoted as it needs.
+func shellLine(argv []string) string {
 	quoted := make([]string, len(argv))
 	for i, a := range argv {
 		quoted[i] = shellQuote(a)
 	}
-	return []string{"sg", "docker", "-c", strings.Join(quoted, " ")}
+	return strings.Join(quoted, " ")
 }
 
 var plainWord = regexp.MustCompile(`^[A-Za-z0-9._/:=@%+-]+$`)

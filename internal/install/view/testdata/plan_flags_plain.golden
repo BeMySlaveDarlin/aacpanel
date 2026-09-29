@@ -56,7 +56,8 @@
 │   · aacpanel-exec.service, user unit                                     new │
 │   · ~/aacpanel/.env                                                      new │
 │   · compose: aacpanel, aacpanel-db, socket-proxy                         new │
-│   · map: contour personal (~/.claude), group Projects, 1 project         new │
+│   · map: contour personal (~/.claude)                                    new │
+│   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
 │   · 5 allow rules · 5 hooks                                                  │

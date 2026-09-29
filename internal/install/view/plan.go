@@ -38,6 +38,20 @@ type PlanOptions struct {
 	// a terminal.
 	Begin Begin
 	Yes   bool
+	// Adopt approves taking over an install by hand without a terminal:
+	// --yes alone does not, since a person approves the plan of that.
+	Adopt bool
+	// Command is the command of the run, "update" for one; empty is plan
+	// or install, by whether there is Begin.
+	Command string
+}
+
+// done is the title of the report of a run that went through.
+func (o PlanOptions) done() string {
+	if o.command() == "update" {
+		return "Updated"
+	}
+	return "Installed"
 }
 
 // Plan shows what the installer sees of the machine, asks what the install
@@ -110,6 +124,10 @@ func planPlain(o PlanOptions) int {
 	if !o.Yes {
 		return stop(errors.New(`stop: no terminal to ask "Would you like to proceed?"; pass --yes`))
 	}
+	if in.Mode == install.Adopt && !o.Adopt {
+		return stop(errors.New("stop: the panel here was installed by hand, and taking it over is approved by a person: " +
+			"run ./install.sh at a terminal, or pass --adopt with --yes"))
+	}
 	p.Print(o.Theme.Step(ui.Asked, "Would you like to proceed? → Yes (--yes)", PlainWidth))
 	return runPlain(o, p, s)
 }
@@ -117,6 +135,9 @@ func planPlain(o PlanOptions) int {
 // command is the command of the run, as the welcome and the last line
 // name it.
 func (o PlanOptions) command() string {
+	if o.Command != "" {
+		return o.Command
+	}
 	if o.Begin != nil {
 		return "install"
 	}
@@ -149,12 +170,14 @@ func planned(t ui.Theme, width int) string {
 type planStage int
 
 const (
-	looking     planStage = iota // the check is at work
-	looked                       // the check stopped the install; ctrl+o opens the folded lines
-	questioning                  // a block of questions is open
-	proceeding                   // the plan waits for its answer
-	running                      // the steps run
-	handing                      // a command as root waits for its answer
+	looking        planStage = iota // the check is at work
+	looked                          // the check stopped the install; ctrl+o opens the folded lines
+	questioning                     // a block of questions is open
+	proceeding                      // the plan waits for its answer
+	running                         // the steps run
+	handing                         // a command as root waits for its answer
+	answering                       // a step waits for the answer to a question
+	enrollingStage                  // the code of the first device is on the screen
 	over
 )
 
@@ -217,6 +240,10 @@ type planModel struct {
 	peekTitle string   // the step whose output ctrl+o opens
 	peekLines []string
 	listen    tea.Cmd // what the screen waits on once the run begins
+	asked2    *askMsg
+	runAsk    *asking
+	enroll    *enrollMsg
+	enrolling *enrolling
 }
 
 func newPlanModel(o PlanOptions) *planModel {
@@ -258,13 +285,17 @@ func (m *planModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tickMsg:
 		m.frame++
-		if m.stage == looking || m.stage == running || m.stage == handing {
+		if m.stage == looking || m.stage == running || m.stage == handing || m.stage == answering || m.stage == enrollingStage {
 			next = tick()
 		}
 	case inspectedMsg:
 		m.inspected(msg.in)
-	case eventMsg, handMsg, endMsg:
+	case eventMsg, handMsg, endMsg, askMsg, enrollMsg:
 		next = m.onRun(msg)
+	case codeMsg:
+		if m.enrolling != nil {
+			m.enrolling.code(msg)
+		}
 	case handedMsg:
 		m.onHanded(msg.err)
 	case shownMsg:
@@ -400,6 +431,15 @@ func (m *planModel) onKey(k tea.KeyPressMsg) {
 		return
 	}
 	switch {
+	case m.stage == enrollingStage:
+		// The panel is in and checked: a Ctrl+C here only ends the frame.
+		m.onEnrollKey(k)
+		return
+	case key.Matches(k, ui.Keys.Stop) && m.stage == answering:
+		m.stopping = true
+		m.run.Stop()
+		m.onAnswer(ui.Back)
+		return
 	case key.Matches(k, ui.Keys.Stop) && m.stage == handing:
 		m.stopping = true
 		m.run.Stop()
@@ -442,6 +482,8 @@ func (m *planModel) onKey(k tea.KeyPressMsg) {
 		m.onProceed(m.ask.ui.Update(k))
 	case handing:
 		m.onHand(m.handAsk.Update(k))
+	case answering:
+		m.onAnswer(m.runAsk.ui.Update(k))
 	}
 }
 
@@ -559,6 +601,10 @@ func (m *planModel) bottom() string {
 		return m.runView(w)
 	case handing:
 		return "\n" + m.handAsk.View(m.t, w, m.h-1)
+	case answering:
+		return "\n" + m.runAsk.ui.View(m.t, w, m.h-1)
+	case enrollingStage:
+		return "\n" + m.enrolling.frame(m.t, w)
 	}
 	return ""
 }

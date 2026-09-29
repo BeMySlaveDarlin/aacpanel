@@ -200,6 +200,37 @@ func TestDocker(t *testing.T) {
 	}
 }
 
+// TestTheDockerGroupOfAnEarlierRunGoesThroughSg: a run added the group and
+// stopped later, and the next one began in the same terminal — the group is
+// the user's and not the terminal's. The check reaches docker through sg,
+// as the run that added the group did, and so do the steps after it.
+func TestTheDockerGroupOfAnEarlierRunGoesThroughSg(t *testing.T) {
+	m := healthy()
+	denied := fails("permission denied while trying to connect to the docker API at unix:///var/run/docker.sock")
+	for _, args := range [][]string{
+		{"version", "--format", "{{.Server.Version}}"}, {"info", "--format", "{{json .}}"},
+		{"compose", "version", "--short"}, {"ps", "-a", "--format", psFormat}, {"volume", "ls", "--format", "{{.Name}}"},
+	} {
+		plain := key("docker", args...)
+		m.Cmds[key("sg", "docker", "-c", shellLine(append([]string{"docker"}, args...)))] = m.Cmds[plain]
+		m.Cmds[plain] = denied
+	}
+	m.Cmds[key("id", "-nG", "u")] = ok("u adm docker\n")
+	in := Inspect(m, clone)
+	says(t, in, "✓ docker 27.5.1 · compose 2.33.1 · system daemon · through sg docker: this terminal began before the group was added")
+	if in.Stops() > 0 || !in.ViaGroup {
+		t.Errorf("stops %d, through sg %v:\n%s", in.Stops(), in.ViaGroup, strings.Join(marked(in), "\n"))
+	}
+	in2 := &Install{S: &Survey{Facts: in.Facts}}
+	if got := in2.docker("compose", "up", "-d"); !slices.Equal(got, []string{"sg", "docker", "-c", "docker compose up -d"}) {
+		t.Errorf("a step calls docker as %q", got)
+	}
+
+	// Not in the group at all: the stop stays.
+	m.Cmds[key("id", "-nG", "u")] = ok("u adm\n")
+	says(t, Inspect(m, clone), `✗ stop: docker answers "permission denied": u is not in the docker group. sudo usermod -aG docker u, log out and in, run ./install.sh again.`)
+}
+
 func TestAMissingProgramIsOfferedNotJustRefused(t *testing.T) {
 	m := healthy()
 	for _, name := range []string{"docker", "claude", "tmux", "jq"} {
