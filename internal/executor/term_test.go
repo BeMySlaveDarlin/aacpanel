@@ -370,8 +370,21 @@ func ownTmuxServer(t *testing.T) {
 	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { exec.Command(bin, "-L", sock, "kill-server").Run() })
+	t.Cleanup(func() {
+		exec.Command(bin, "-L", sock, "kill-server").Run()
+		// The server goes and its socket file stays: every run would leave one.
+		os.Remove(filepath.Join(tmuxSocketDir(), sock))
+	})
 	t.Setenv(tmuxEnv, wrapper)
+}
+
+// tmuxSocketDir is where tmux keeps a socket named with -L.
+func tmuxSocketDir() string {
+	dir := os.Getenv("TMUX_TMPDIR")
+	if dir == "" {
+		dir = "/tmp"
+	}
+	return filepath.Join(dir, fmt.Sprintf("tmux-%d", os.Getuid()))
 }
 
 func liveTmuxSession(t *testing.T, name string, cols, rows int) string {
