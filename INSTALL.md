@@ -454,14 +454,14 @@ in the account settings:
 ]}}
 ```
 
-It holds the end of a turn only when the place of the session — the account and
-the directory — has a checklist with steps pending or at work, the turn called
+It holds the end of a turn only when the session — its account, its directory
+and its name — has a checklist with steps pending or at work, the turn called
 tools, and the checklist was not written during it; the model is told to send
 the checklist if it changed, to clear it if it no longer applies, and otherwise
 to end the turn, and the turn after the hold is never held. Its price is one
 short turn more when the model forgot. Only a session with the checklist tool is
 asked: one that sent the checklist itself, or one started with the tool allowed,
-as the panel starts every session — so a session started again after a restart
+as the panel starts every session — so a session started again under its name
 is asked about the checklist it found. A claude started by hand in the same
 place, without the tool, is asked nothing.
 

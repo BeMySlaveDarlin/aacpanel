@@ -28,7 +28,7 @@ const Description = "The checklist of the current work, shown to the person in t
 	"Update it when a step starts or ends and when the checklist changes. Whether to keep a checklist and what makes a step " +
 	"is yours to decide: a question or a one-step task needs none. An empty list clears the checklist; " +
 	"a call without items changes nothing and returns the checklist as it stands. " +
-	"The checklist belongs to the place the session works in and outlives a restart of the session. " +
+	"The checklist is this session's and outlives its restart; other sessions in the same directory keep their own. " +
 	"note is an optional short line about the checklist as a whole, such as what it waits on. " +
 	"The checklist belongs to the main conversation: a subagent does not call this."
 
@@ -42,7 +42,7 @@ func Tool(dir string, now func() time.Time) mcp.Tool {
 		Description:  Description,
 		InputSchema:  InputSchema(),
 		Instructions: Instructions,
-		Standing:     func(b mcp.Binding) string { return standing(Adopt(dir, b.Place)) },
+		Standing:     func(b mcp.Binding) string { return standing(Adopt(dir, b)) },
 		Allowed:      true,
 		Call: func(_ context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 			return call(dir, now, bind, args)
@@ -54,18 +54,19 @@ func Tool(dir string, now func() time.Time) mcp.Tool {
 // system prompt of the whole session.
 const standingStep = 60
 
-// standing is what the instructions add when the place already has a checklist:
-// a session started again here — afresh or going on with its conversation —
-// learns of it before its first word, since the person sees it all along.
-// It says how far the checklist got and the step it stands at, and how to read
-// the rest; the length is bounded whatever the checklist holds.
+// standing is what the instructions add when the session already has a
+// checklist: a session started again under its name — afresh or going on
+// with its conversation — learns of it before its first word, since the
+// person sees it all along. It says how far the checklist got and the step it
+// stands at, and how to read the rest; the length is bounded whatever the
+// checklist holds.
 func standing(p *Checklist) string {
 	if p == nil || len(p.Items) == 0 {
 		return ""
 	}
 	finished, at := progress(p)
 	var b strings.Builder
-	fmt.Fprintf(&b, "This place already has a checklist (last sent %s): %d of %d steps finished",
+	fmt.Fprintf(&b, "This session already has a checklist (last sent %s): %d of %d steps finished",
 		p.At, finished, len(p.Items))
 	switch {
 	case at == nil:
@@ -137,8 +138,8 @@ func InputSchema() map[string]any {
 	}
 }
 
-// call runs the tool on the checklist of the place the claude works in, found
-// anew on every call: a call without items reads the checklist, one with them
+// call runs the tool on the checklist of the session of the claude, found anew
+// on every call: a call without items reads the checklist, one with them
 // keeps it.
 func call(dir string, now func() time.Time, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
@@ -157,9 +158,9 @@ func call(dir string, now func() time.Time, bind mcp.Bind, raw json.RawMessage) 
 		}
 		return "The checklist was not kept: " + err.Error(), true
 	}
-	// A checklist filed under a conversation of the place is taken over before
-	// anything else: a step sent again keeps the time it had there.
-	current := Adopt(dir, b.Place)
+	// A checklist left for the session in a file keyed otherwise is taken over
+	// before anything else: a step sent again keeps the time it had there.
+	current := Adopt(dir, b)
 	if args.Items == nil {
 		return listing(current), false
 	}
@@ -189,7 +190,7 @@ func summary(p *Checklist) string {
 // changes, and needs the steps as they stand to do it.
 func listing(p *Checklist) string {
 	if p == nil || len(p.Items) == 0 {
-		return "There is no checklist in this place."
+		return "This session has no checklist."
 	}
 	finished, _ := progress(p)
 	var b strings.Builder

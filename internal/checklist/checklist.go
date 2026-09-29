@@ -1,10 +1,13 @@
 // Package checklist keeps the checklist a session makes of its work: the list
 // of steps the model sends through the panel's checklist tool, one file a
-// place — the account a session runs in and the directory it works in. A
-// session started again in the same place, afresh or going on with its
-// conversation, finds the checklist where it was left. The collector reads
-// the file into the row of a session of the place and into the state of its
-// conversation; nothing else writes it.
+// session. A session is told by its place — the account it runs in and the
+// directory it works in — and by its name, so the sessions of one directory
+// keep checklists of their own, and a session started again under its name,
+// afresh or going on with its conversation, finds its checklist where it was
+// left. A session without a name is told by its place alone: nothing else
+// tells it from another session there. The collector reads the file into the
+// row of the session and into the state of its conversation; nothing else
+// writes it.
 package checklist
 
 import (
@@ -58,29 +61,36 @@ type Item struct {
 	Since string `json:"since,omitempty"`
 }
 
-// Name is the file of the checklist of a place, or empty for a place that is
-// not one. A path does not make a file name, so the name is a hash of the two
-// paths — the collector and the reminder hook compute the same; the file
-// holds the paths themselves, and a reader takes it only for the place it
-// names.
-func Name(p mcp.Place) string {
+// File is the file of the checklist of a session — its place and its name,
+// or its place alone for a session without a name — or empty for a place that
+// is not one. A path does not make a file name, so the name is a hash of the
+// two paths and the name of the session — the collector and the reminder hook
+// compute the same; the file holds them, and a reader takes it only for the
+// session it names.
+func File(p mcp.Place, name string) string {
 	where, ok := p.Clean()
 	if !ok {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(where.ConfigDir + "\x00" + where.Dir))
+	key := where.ConfigDir + "\x00" + where.Dir
+	if name != "" {
+		key += "\x00" + name
+	}
+	sum := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(sum[:16]) + ".json"
 }
 
-// Checklist is what lies on disk for one place.
+// Checklist is what lies on disk for one session.
 type Checklist struct {
 	ConfigDir string `json:"configDir"`
 	Dir       string `json:"dir"`
+	// Name is the name of the session, empty for a session without one.
+	Name string `json:"name,omitempty"`
 	// SessionID and PID are the conversation and the claude process that sent
-	// the checklist last. The place is the checklist's key; these say who holds
-	// it now: the feed of a conversation that is over shows the checklist only
-	// while it is the one that sent it last, and a process that sent it has the
-	// tool to send it again.
+	// the checklist last. The session is the checklist's key; these say who
+	// holds it now: the feed of a conversation that is over shows the checklist
+	// only while it is the one that sent it last, and a process that sent it
+	// has the tool to send it again.
 	SessionID string `json:"sessionId,omitempty"`
 	PID       int    `json:"pid"`
 	At        string `json:"at"`
@@ -105,7 +115,7 @@ func Dir() string {
 var conversationID = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z-]*$`)
 
 // filedName is the name of a checklist filed under a conversation: its id,
-// which claude makes a UUID. The name of a place's checklist is a hash and
+// which claude makes a UUID. The name of a session's checklist is a hash and
 // never one.
 var filedName = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\.json$`)
 
@@ -146,11 +156,11 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// Keep writes the checklist of a place and returns what was written; an empty
-// list removes the checklist and returns nil. The file is replaced whole by a
-// rename, so the collector reads the old checklist or the new one, never half
-// of each. A step that keeps its text and its status keeps the time it took
-// it, across a restart of the session as well.
+// Keep writes the checklist of a session and returns what was written; an
+// empty list removes the checklist and returns nil. The file is replaced
+// whole by a rename, so the collector reads the old checklist or the new one,
+// never half of each. A step that keeps its text and its status keeps the
+// time it took it, across a restart of the session as well.
 func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (*Checklist, error) {
 	where, ok := b.Place.Clean()
 	if !ok {
@@ -163,7 +173,7 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dir, Name(where))
+	path := filepath.Join(dir, File(where, b.Name))
 	if len(items) == 0 {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("the checklist was not cleared: %w", err)
@@ -172,7 +182,7 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 	}
 
 	stamp := now.UTC().Format(Stamp)
-	was := sinceOf(Read(dir, where))
+	was := sinceOf(Read(dir, where, b.Name))
 	for i := range items {
 		if items[i].Status != Active && items[i].Status != Done {
 			continue
@@ -182,7 +192,7 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 			items[i].Since = at
 		}
 	}
-	p := &Checklist{ConfigDir: where.ConfigDir, Dir: where.Dir, SessionID: b.SessionID, PID: b.PID,
+	p := &Checklist{ConfigDir: where.ConfigDir, Dir: where.Dir, Name: b.Name, SessionID: b.SessionID, PID: b.PID,
 		At: stamp, Note: note, Items: items}
 	if err := write(dir, path, p); err != nil {
 		return nil, err
@@ -230,42 +240,86 @@ func write(dir, path string, p *Checklist) error {
 	return nil
 }
 
-// Read returns the checklist of a place, or nil when there is none.
-func Read(dir string, place mcp.Place) *Checklist {
+// Read returns the checklist of a session, told by its place and its name,
+// or nil when there is none.
+func Read(dir string, place mcp.Place, name string) *Checklist {
 	where, ok := place.Clean()
 	if !ok {
 		return nil
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, Name(where)))
+	return readFile(filepath.Join(dir, File(where, name)), where, name)
+}
+
+func readFile(path string, where mcp.Place, name string) *Checklist {
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
 	var p Checklist
-	if json.Unmarshal(raw, &p) != nil || p.ConfigDir != where.ConfigDir || p.Dir != where.Dir {
+	if json.Unmarshal(raw, &p) != nil || p.ConfigDir != where.ConfigDir || p.Dir != where.Dir || p.Name != name {
 		return nil
 	}
 	return &p
 }
 
-// Adopt returns the checklist of a place, taking over first a checklist filed
-// under a conversation of the place. Such a file is named by the conversation
-// and names no place: the server a live session was started with may still
-// write one. Its place is told by the transcript of its conversation, which
-// claude keeps under the account in the directory of the project; the newest
-// of them becomes the checklist of the place, and the files taken over go. A
-// place that already has a checklist takes over nothing, and a file no place
-// took over goes with the sweep.
-func Adopt(dir string, place mcp.Place) *Checklist {
-	where, ok := place.Clean()
+// Adopt returns the checklist of the session bound, taking over first what a
+// server that keys checklists otherwise left for it: the server a live
+// session was started with writes the file it knows until the session starts
+// again.
+//
+// A server that does not tell the sessions of a place apart keeps one
+// checklist a place, whichever session sent it. A named session with no
+// checklist of its own takes that one over only while its conversation is
+// the one that sent it last: which session sent the checklist of another
+// conversation is not to be told, and it stays where it is.
+//
+// A checklist filed under a conversation is named by the conversation and
+// names no place. Its place is told by the transcript of its conversation,
+// which claude keeps under the account in the directory of the project; a
+// session without a name takes over the newest of them, a named session only
+// the one of its own conversation.
+//
+// A session that already has a checklist takes over nothing. What is taken
+// over is written as the session's and the files it came from go; a file
+// nobody took over goes with the sweep.
+func Adopt(dir string, b mcp.Binding) *Checklist {
+	where, ok := b.Place.Clean()
 	if !ok {
 		return nil
 	}
-	if p := Read(dir, where); p != nil {
+	if p := Read(dir, where, b.Name); p != nil {
 		return p
 	}
+	var newest *Checklist
+	var taken []string
+	if b.Name != "" && b.SessionID != "" {
+		placed := filepath.Join(dir, File(where, ""))
+		if p := readFile(placed, where, ""); p != nil && p.SessionID == b.SessionID {
+			newest, taken = p, []string{placed}
+		}
+	}
+	if newest == nil {
+		newest, taken = filedFor(dir, where, b)
+	}
+	if newest == nil {
+		return nil
+	}
+	newest.ConfigDir, newest.Dir, newest.Name = where.ConfigDir, where.Dir, b.Name
+	if write(dir, filepath.Join(dir, File(where, b.Name)), newest) != nil {
+		return nil
+	}
+	for _, path := range taken {
+		os.Remove(path)
+	}
+	return newest
+}
+
+// filedFor returns the newest checklist filed under a conversation of the
+// place that the session takes over, with the files it takes over.
+func filedFor(dir string, where mcp.Place, b mcp.Binding) (*Checklist, []string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	project := filepath.Join(where.ConfigDir, "projects", projectSlug(where.Dir))
 	var newest *Checklist
@@ -275,6 +329,9 @@ func Adopt(dir string, place mcp.Place) *Checklist {
 			continue
 		}
 		id := strings.TrimSuffix(e.Name(), ".json")
+		if b.Name != "" && id != b.SessionID {
+			continue
+		}
 		if _, err := os.Stat(filepath.Join(project, id+".jsonl")); err != nil {
 			continue
 		}
@@ -291,17 +348,7 @@ func Adopt(dir string, place mcp.Place) *Checklist {
 			newest = &p
 		}
 	}
-	if newest == nil {
-		return nil
-	}
-	newest.ConfigDir, newest.Dir = where.ConfigDir, where.Dir
-	if write(dir, filepath.Join(dir, Name(where)), newest) != nil {
-		return nil
-	}
-	for _, path := range taken {
-		os.Remove(path)
-	}
-	return newest
+	return newest, taken
 }
 
 // projectSlug is the name claude gives the directory of a project's
@@ -316,9 +363,9 @@ func projectSlug(dir string) string {
 	}, dir)
 }
 
-// MaxAge is how long a checklist nobody wrote to stays on disk. A place whose
-// checklist has not been touched for this long has moved on, and a directory
-// that is gone leaves its checklist behind.
+// MaxAge is how long a checklist nobody wrote to stays on disk. A session
+// whose checklist has not been touched for this long has moved on, and a
+// directory that is gone leaves its checklist behind.
 const MaxAge = 30 * 24 * time.Hour
 
 // Sweep removes the checklists older than MaxAge, and what a write that never

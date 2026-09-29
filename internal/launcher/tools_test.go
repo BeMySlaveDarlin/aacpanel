@@ -265,3 +265,39 @@ func TestWhereWithoutAFileIsReadFromTheProcess(t *testing.T) {
 		t.Errorf("the file written, the process is still placed without it: %+v %v", got, err)
 	}
 }
+
+// The name of the session is the one claude keeps in the file of it: a
+// session renamed since its start goes by its new name. A process whose file
+// names none, or that has no file yet, goes by the name it was started with,
+// in either form claude takes; a process started without one has no name.
+func TestWhereNamesTheSession(t *testing.T) {
+	const id = "8d2e9f3a-4b5c-4d6e-8f7a-9b0c1d2e3f4a"
+	contour := t.TempDir()
+	contourDirs(t, t.TempDir())
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	env := []string{"HOME=/home/u", "CLAUDE_CONFIG_DIR=" + contour}
+	fakeProc(t,
+		fproc{pid: 500, comm: "claude", env: env, args: []string{"claude", "-n", "lab-old"}},
+		fproc{pid: 501, comm: "claude", env: env, args: []string{"claude", "--name=lab"}},
+		fproc{pid: 502, comm: "claude", env: env, cwd: "/srv/proj/lab", args: []string{"claude", "--resume", id, "-n", "lab"}},
+		fproc{pid: 503, comm: "claude", env: env, cwd: "/srv/proj/lab", args: []string{"claude", "--name", "lab"}},
+		fproc{pid: 504, comm: "claude", env: env, cwd: "/srv/proj/lab", args: []string{"claude"}},
+	)
+	for pid, name := range map[int]string{500: "lab", 501: ""} {
+		dir := filepath.Join(contour, "sessions")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		body := fmt.Sprintf(`{"pid":%d,"sessionId":%q,"cwd":"/srv/proj/lab","procStart":"1000","kind":"interactive","name":%q}`,
+			pid, id, name)
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%d.json", pid)), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for pid, want := range map[int]string{500: "lab", 501: "lab", 502: "lab", 503: "lab", 504: ""} {
+		got, err := Where(pid)
+		if err != nil || got.Name != want || got.Place != (mcp.Place{ConfigDir: contour, Dir: "/srv/proj/lab"}) {
+			t.Errorf("process %d: %+v %v, meant the name %q", pid, got, err, want)
+		}
+	}
+}

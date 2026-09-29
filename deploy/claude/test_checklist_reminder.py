@@ -27,6 +27,9 @@ SESSION = "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d"
 BEFORE = "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e"
 LAB = "/srv/proj/lab"
 
+# The name the panel starts the session under.
+NAME = "lab"
+
 # The claude running the hook, as the fake /proc shows it.
 CLAUDE = 4242
 START = "5555"
@@ -85,22 +88,23 @@ class TestReminder(unittest.TestCase):
         with open(os.path.join(root, "cmdline"), "wb") as f:
             f.write(b"\0".join(a.encode() for a in args) + b"\0")
 
-    def claude(self, args, session=SESSION, start=START, cwd=LAB):
+    def claude(self, args, session=SESSION, start=START, cwd=LAB, name=NAME):
         """Puts the claude running the hook in place: its process and the file it keeps of itself."""
         self.process(CLAUDE, 1, START, args)
         os.makedirs(os.path.join(self.config, "sessions"), exist_ok=True)
         with open(os.path.join(self.config, "sessions", f"{CLAUDE}.json"), "w", encoding="utf-8") as f:
             json.dump({"pid": CLAUDE, "sessionId": session, "cwd": cwd, "procStart": start,
-                       "kind": "interactive"}, f)
+                       "kind": "interactive", **({"name": name} if name else {})}, f)
 
-    def checklist(self, *statuses, pid=CLAUDE, session=SESSION, written=BEGAN_AT - 60, cwd=LAB):
+    def checklist(self, *statuses, pid=CLAUDE, session=SESSION, written=BEGAN_AT - 60, cwd=LAB, name=NAME):
+        """Writes the checklist of a session of the place; without a name, the one of the place."""
         root = os.path.join(self.xdg, "aacpanel", "checklists")
         os.makedirs(root, exist_ok=True)
-        path = os.path.join(root, reminder.checklist_name(self.config, cwd))
+        path = os.path.join(root, reminder.checklist_name(self.config, cwd, name))
         items = [{"text": f"step {i}", "status": s} for i, s in enumerate(statuses)]
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"configDir": self.config, "dir": cwd, "sessionId": session, "pid": pid,
-                       "at": "2026-09-28T09:59:00Z", "items": items}, f)
+                       "at": "2026-09-28T09:59:00Z", "items": items, **({"name": name} if name else {})}, f)
         os.utime(path, (written, written))
 
     def turn(self, *records):
@@ -146,26 +150,46 @@ class TestReminder(unittest.TestCase):
         self.assertIsNone(self.run_hook({"stop_hook_active": True}),
                           "the turn that answers the hold was held again: a loop of reminders")
 
-    def test_a_session_started_again_in_the_place_is_asked_about_the_checklist_it_found(self):
+    def test_a_session_started_again_under_its_name_is_asked_about_the_checklist_it_found(self):
         # The checklist was sent by the process before the restart, in another
         # conversation; this one has the tool from the panel.
         self.checklist("done", "active", pid=CLAUDE + 1, session=BEFORE)
         self.worked()
         got = self.run_hook()
         self.assertEqual(got and got["decision"], "block",
-                         "a session started again with the tool is never asked about the checklist of its place")
+                         "a session started again with the tool is never asked about its checklist")
+
+    def test_another_session_of_the_directory_is_not_asked_about_a_checklist_it_does_not_keep(self):
+        self.checklist("done", "active", pid=CLAUDE + 1, session=BEFORE, name="lab-review")
+        self.worked()
+        self.assertIsNone(self.run_hook(), "a session was asked about the checklist another session keeps")
+
+    def test_a_session_whose_file_names_none_goes_by_the_name_it_was_started_with(self):
+        self.claude(WITH_TOOL, name=None)
+        self.checklist("active", pid=CLAUDE + 1, session=BEFORE)
+        self.worked()
+        self.assertEqual(self.run_hook()["decision"], "block")
+
+    def test_a_named_session_is_asked_about_the_checklist_of_its_place_only_while_it_sent_it(self):
+        # A server that does not tell the sessions of a place apart
+        # writes the checklist of the place.
+        self.checklist("active", name=None)
+        self.worked()
+        self.assertEqual(self.run_hook()["decision"], "block")
+        self.checklist("active", pid=CLAUDE + 1, session=BEFORE, name=None)
+        self.assertIsNone(self.run_hook(), "a session was asked about the checklist another conversation left")
 
     def test_a_session_without_the_tool_is_not_asked_about_a_checklist_it_did_not_send(self):
-        # A claude started by hand in the same place cannot update the
-        # checklist.
-        self.claude(BY_HAND)
-        self.checklist("active", pid=CLAUDE + 1, session=BEFORE)
+        # A claude started by hand in the same place, without a name, cannot
+        # update the checklist of the place.
+        self.claude(BY_HAND, name=None)
+        self.checklist("active", pid=CLAUDE + 1, session=BEFORE, name=None)
         self.worked()
         self.assertIsNone(self.run_hook())
 
     def test_a_session_that_sent_the_checklist_is_asked_whatever_it_was_started_with(self):
-        self.claude(BY_HAND)
-        self.checklist("active")
+        self.claude(BY_HAND, name=None)
+        self.checklist("active", name=None)
         self.worked()
         self.assertEqual(self.run_hook()["decision"], "block")
 
@@ -184,7 +208,7 @@ class TestReminder(unittest.TestCase):
 
     def test_a_file_that_names_another_place_is_not_the_checklist_whatever_its_name(self):
         self.checklist("active")
-        path = os.path.join(self.xdg, "aacpanel", "checklists", reminder.checklist_name(self.config, LAB))
+        path = os.path.join(self.xdg, "aacpanel", "checklists", reminder.checklist_name(self.config, LAB, NAME))
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         with open(path, "w", encoding="utf-8") as f:
@@ -274,10 +298,24 @@ class TestReminder(unittest.TestCase):
 class TestPlace(unittest.TestCase):
 
     def test_the_name_of_the_checklist_is_the_one_the_executor_computes(self):
-        # Pinned beside the executor's own test of the same place.
+        # Pinned beside the executor's own test of the same session.
+        self.assertEqual(reminder.checklist_name("/srv/claude", LAB, "lab"), "f7138acc90830a36ac4a7481c26dfb18.json")
         self.assertEqual(reminder.checklist_name("/srv/claude", LAB), "d2ba143628e62863dae2533062199cf6.json")
-        self.assertEqual(reminder.checklist_name("/srv/claude/", LAB + "/"), reminder.checklist_name("/srv/claude", LAB))
-        self.assertIsNone(reminder.checklist_name("/srv/claude", "proj/lab"))
+        self.assertEqual(reminder.checklist_name("/srv/claude/", LAB + "/", "lab"),
+                         reminder.checklist_name("/srv/claude", LAB, "lab"))
+        self.assertIsNone(reminder.checklist_name("/srv/claude", "proj/lab", "lab"))
+
+    def test_the_name_of_the_session_is_taken_in_either_form_claude_takes(self):
+        with tempfile.TemporaryDirectory() as proc:
+            self.addCleanup(setattr, reminder, "PROC", reminder.PROC)
+            reminder.PROC = proc
+            os.makedirs(os.path.join(proc, "7"))
+            for args, name in ((["claude", "-n", "lab"], "lab"), (["claude", "--name=lab"], "lab"),
+                               (["claude", "--name", "lab"], "lab"), (["claude", "-n="], None), (["claude"], None)):
+                with open(os.path.join(proc, "7", "cmdline"), "wb") as f:
+                    f.write(b"\0".join(a.encode() for a in args) + b"\0")
+                self.assertEqual(reminder.session_name(7, {}), name, args)
+                self.assertEqual(reminder.session_name(7, {"name": "kept"}), "kept", "the file of the session lost")
 
     def test_the_ancestors_are_read_up_the_chain_of_parents(self):
         with tempfile.TemporaryDirectory() as proc:

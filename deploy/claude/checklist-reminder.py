@@ -2,14 +2,15 @@
 """Checklist reminder: at the end of a turn a session that keeps a checklist is asked once whether it changed.
 
 The checklist is the model's own list of steps, kept through the panel's
-checklist tool and shown to the person. It belongs to the place the session
-works in — the config directory of the account and the directory claude runs
-in — so a session started again there, afresh or going on with its
-conversation, finds it. A turn that did work — called tools — and left the
-checklist as it was may have left it behind: the end of that turn is held
-once, and the model is told to update the checklist if it changed, to clear
-it if it no longer applies, and otherwise to end the turn. The turn after the
-hold is never held again.
+checklist tool and shown to the person. It belongs to the session: the place
+it works in — the config directory of the account and the directory claude
+runs in — and its name, so a session started again under its name, afresh or
+going on with its conversation, finds it, and another session of the
+directory has its own; a session without a name is told by its place alone.
+A turn that did work — called tools — and left the checklist as it was may
+have left it behind: the end of that turn is held once, and the model is told
+to update the checklist if it changed, to clear it if it no longer applies,
+and otherwise to end the turn. The turn after the hold is never held again.
 
 A checklist with nothing left to do asks nothing, and neither does a session
 that has no checklist tool: a claude started by hand in the same place cannot
@@ -57,28 +58,54 @@ def _clean(path):
     return "/" + path.lstrip("/") if path.startswith("//") else path
 
 
-def checklist_name(config_dir, cwd):
-    """Returns the file name of the checklist of a place: the hash of its two paths the executor computes."""
+def _name(name):
+    return name if isinstance(name, str) and name else ""
+
+
+def checklist_name(config_dir, cwd, name=None):
+    """Returns the file name of the checklist of a session: the hash the executor computes.
+
+    It is the hash of the two paths and the name of the session, or of the
+    paths alone for a session without a name.
+    """
     config_dir, cwd = _clean(config_dir), _clean(cwd)
     if config_dir is None or cwd is None:
         return None
-    return hashlib.sha256(os.fsencode(config_dir) + b"\0" + os.fsencode(cwd)).hexdigest()[:32] + ".json"
+    key = os.fsencode(config_dir) + b"\0" + os.fsencode(cwd)
+    if _name(name):
+        key += b"\0" + os.fsencode(name)
+    return hashlib.sha256(key).hexdigest()[:32] + ".json"
 
 
-def read_checklist(config_dir, cwd):
-    """Returns the checklist of a place and when its file was written, or (None, None)."""
-    name = checklist_name(config_dir, cwd)
-    if name is None:
+def _read(config_dir, cwd, name):
+    file = checklist_name(config_dir, cwd, name)
+    if file is None:
         return None, None
-    path = os.path.join(checklists_dir(), name)
+    path = os.path.join(checklists_dir(), file)
     try:
         written = os.stat(path).st_mtime
         with open(path, encoding="utf-8") as f:
             found = json.load(f)
     except (OSError, ValueError):
         return None, None
-    if not isinstance(found, dict) or found.get("configDir") != _clean(config_dir) or found.get("dir") != _clean(cwd):
+    if (not isinstance(found, dict) or found.get("configDir") != _clean(config_dir)
+            or found.get("dir") != _clean(cwd) or _name(found.get("name")) != _name(name)):
         return None, None
+    return found, written
+
+
+def read_checklist(config_dir, cwd, name, session_id):
+    """Returns the checklist of a session and when its file was written, or (None, None).
+
+    A named session without a file of its own has the checklist of its place —
+    the one a server that does not tell the sessions of a place apart keeps
+    writing — only while its conversation sent it last.
+    """
+    found, written = _read(config_dir, cwd, name)
+    if found is None and _name(name):
+        found, written = _read(config_dir, cwd, None)
+        if found is not None and found.get("sessionId") != session_id:
+            return None, None
     return found, written
 
 
@@ -149,15 +176,37 @@ def claude(session_id):
     return None, None
 
 
-def has_tool(pid):
-    """Says whether a claude process was started with the checklist tool allowed, as the panel starts every session."""
+def _args(pid):
     try:
         with open(os.path.join(PROC, str(pid), "cmdline"), "rb") as f:
-            args = f.read().split(b"\0")
+            return f.read().split(b"\0")
     except OSError:
-        return False
+        return []
+
+
+def has_tool(pid):
+    """Says whether a claude process was started with the checklist tool allowed, as the panel starts every session."""
     word = TOOL.encode()
-    return any(word in re.split(rb"[\s,=]+", arg) for arg in args)
+    return any(word in re.split(rb"[\s,=]+", arg) for arg in _args(pid))
+
+
+def session_name(pid, session):
+    """Returns the name of the session of a claude, or None for one started without a name.
+
+    It is the name claude keeps in the file of the session, or else the one the
+    process was started with, in either form claude takes.
+    """
+    name = session.get("name")
+    if isinstance(name, str) and name:
+        return name
+    args = [os.fsdecode(arg) for arg in _args(pid)]
+    for i, arg in enumerate(args):
+        for flag in ("-n", "--name"):
+            if arg == flag and i + 1 < len(args):
+                return args[i + 1] or None
+            if arg.startswith(flag + "="):
+                return arg[len(flag) + 1:] or None
+    return None
 
 
 def _stamp(record):
@@ -231,7 +280,7 @@ def turn(path):
 
 def reason():
     """Returns what the model is told instead of stopping."""
-    return (f"The panel shows the person a checklist of the work in this place, and this turn did work "
+    return (f"The panel shows the person the checklist of this session's work, and this turn did work "
             f"without touching it. If the checklist changed — a step started, ended or was dropped, or the "
             f"steps themselves changed — send it with the checklist tool ({TOOL}); if it no longer applies, "
             f"clear it with an empty list. If it did not change, end the turn now, without a word about this.")
@@ -250,7 +299,8 @@ def main():
     pid, session = claude(payload.get("session_id") or "")
     if pid is None:
         return
-    checklist, written = read_checklist(config_dir(), session.get("cwd"))
+    checklist, written = read_checklist(config_dir(), session.get("cwd"), session_name(pid, session),
+                                        session.get("sessionId"))
     if checklist is None or not unfinished(checklist):
         return
     if checklist.get("pid") != pid and not has_tool(pid):

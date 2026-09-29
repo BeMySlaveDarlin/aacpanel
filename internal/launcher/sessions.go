@@ -72,6 +72,7 @@ type sessionFile struct {
 	ProcStart string `json:"procStart"`
 	SessionID string `json:"sessionId"`
 	Cwd       string `json:"cwd"`
+	Name      string `json:"name"`
 }
 
 // sessionOf reads the file of a session, and only as that process's: a file
@@ -92,18 +93,21 @@ func sessionOf(path string, pid int) (sessionFile, bool) {
 	return file, ok && file.ProcStart != "" && file.ProcStart == start
 }
 
-// Where returns where a live claude process works and the conversation it is
-// in, from the file claude keeps of itself: sessions/<pid>.json in its config
-// directory, which names the conversation and the directory the session runs
-// in. The config directory is the one the process was started with — its own
-// CLAUDE_CONFIG_DIR, read from its environment — and after it the ones the
-// contours name; the collector finds the session in the same file, so the
-// place it shows a checklist by is this one. The file is read anew on every call:
-// /clear starts another conversation in the same process.
+// Where returns where a live claude process works, the name of its session
+// and the conversation it is in, from the file claude keeps of itself:
+// sessions/<pid>.json in its config directory, which names the conversation,
+// the directory the session runs in and the session. The config directory is
+// the one the process was started with — its own CLAUDE_CONFIG_DIR, read from
+// its environment — and after it the ones the contours name; the collector
+// finds the session in the same file, so the session it shows a checklist by
+// is this one. The file is read anew on every call: /clear starts another
+// conversation in the same process.
 //
 // A process with no file of itself yet — a server asked as the session
 // starts — is placed by its environment and its working directory, where
 // claude starts and which it writes into the file, and has no conversation.
+// Its name, and the name of one whose file names none, is the one it was
+// started with.
 func Where(pid int) (mcp.Binding, error) {
 	var dirs []string
 	add := func(dir string) {
@@ -121,7 +125,8 @@ func Where(pid int) (mcp.Binding, error) {
 	for _, dir := range dirs {
 		file, ok := sessionOf(filepath.Join(dir, "sessions", strconv.Itoa(pid)+".json"), pid)
 		if ok && file.SessionID != "" && file.Cwd != "" {
-			return mcp.Binding{Place: mcp.Place{ConfigDir: dir, Dir: file.Cwd}, SessionID: file.SessionID, PID: pid}, nil
+			return mcp.Binding{Place: mcp.Place{ConfigDir: dir, Dir: file.Cwd}, Name: nameOf(pid, file.Name),
+				SessionID: file.SessionID, PID: pid}, nil
 		}
 	}
 
@@ -141,7 +146,17 @@ func Where(pid int) (mcp.Binding, error) {
 		}
 		config = filepath.Join(home, ".claude")
 	}
-	return mcp.Binding{Place: mcp.Place{ConfigDir: config, Dir: cwd}, PID: pid}, nil
+	return mcp.Binding{Place: mcp.Place{ConfigDir: config, Dir: cwd}, Name: nameOf(pid, ""), PID: pid}, nil
+}
+
+// nameOf is the name of the session a claude process runs: the one kept in
+// the file of it, or else the one the process was started with.
+func nameOf(pid int, kept string) string {
+	if kept != "" {
+		return kept
+	}
+	name, _ := argValue(procArgs(pid), "-n", "--name")
+	return name
 }
 
 func envValue(environ []string, name string) string {

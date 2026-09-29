@@ -15,7 +15,7 @@ import (
 )
 
 func fixed(id string, pid int) mcp.Bind {
-	return func() (mcp.Binding, error) { return bound(id, pid), nil }
+	return func() (mcp.Binding, error) { return named("lab", id, pid), nil }
 }
 
 func clock() time.Time { return t0 }
@@ -78,16 +78,16 @@ func TestTheChecklistToolIsListedWithItsSchema(t *testing.T) {
 	}
 }
 
-// A call keeps the checklist of the place the claude works in, with the
+// A call keeps the checklist of the session of the claude, with the
 // conversation found on every call: the same process moves to another
 // conversation on /clear, and the checklist it sends next says so.
-func TestACallKeepsTheChecklistOfThePlaceWithTheConversationAskedOnEveryCall(t *testing.T) {
+func TestACallKeepsTheChecklistOfTheSessionWithTheConversationAskedOnEveryCall(t *testing.T) {
 	dir := t.TempDir()
 	conversations := []string{sid, "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e"}
 	calls := 0
 	bind := func() (mcp.Binding, error) {
 		calls++
-		return bound(conversations[min(calls, 2)-1], 4242), nil
+		return named("lab", conversations[min(calls, 2)-1], 4242), nil
 	}
 	tool := Tool(dir, clock)
 
@@ -102,37 +102,36 @@ func TestACallKeepsTheChecklistOfThePlaceWithTheConversationAskedOnEveryCall(t *
 	if failed || said != "The checklist is kept: 1 of 3 steps finished." {
 		t.Errorf("the call answered %q", said)
 	}
-	got := Read(dir, lab)
+	got := Read(dir, lab, "lab")
 	if got == nil || got.PID != 4242 || got.SessionID != sid || got.Note != "waits on nothing" || len(got.Items) != 3 ||
 		got.Items[1] != (Item{Text: "write the tests", Status: Active, Since: t0.Format(Stamp)}) {
 		t.Fatalf("the file holds %+v", got)
 	}
 
 	callChecklist(t, tool, bind, map[string]any{"items": []any{map[string]any{"text": "start over", "status": "active"}}})
-	if next := Read(dir, lab); next == nil || next.Items[0].Text != "start over" || next.SessionID != conversations[1] {
+	if next := Read(dir, lab, "lab"); next == nil || next.Items[0].Text != "start over" || next.SessionID != conversations[1] {
 		t.Errorf("the checklist after /clear is %+v", next)
 	}
 }
 
-// standingChecklist is a checklist a session left in the place before it
-// restarted.
+// standingChecklist is a checklist the session lab left before it restarted.
 func standingChecklist(t *testing.T, dir string, items ...Item) {
 	t.Helper()
-	if _, err := Keep(dir, bound("6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e", 999), items, "waits on CI", t0); err != nil {
+	if _, err := Keep(dir, named("lab", "6b1d8e2f-3c4a-4b5c-9d7e-8f9a0b1c2d3e", 999), items, "waits on CI", t0); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// A session started again in a place that has a checklist learns of it with the
-// handshake: how far it got, the step it stands at, and how to read the rest
-// or clear it. The step is quoted short and the whole word stays bounded,
-// since it stands in the system prompt of the whole session.
-func TestTheHandshakeTellsARestartedSessionOfTheChecklistOfItsPlace(t *testing.T) {
+// A session started again under a name that has a checklist learns of it
+// with the handshake: how far it got, the step it stands at, and how to read
+// the rest or clear it. The step is quoted short and the whole word stays
+// bounded, since it stands in the system prompt of the whole session.
+func TestTheHandshakeTellsARestartedSessionOfItsChecklist(t *testing.T) {
 	dir := t.TempDir()
 	standingChecklist(t, dir, Item{Text: "read the code", Status: Done}, Item{Text: "the old idea", Status: Dropped},
 		Item{Text: "write the tests", Status: Active}, Item{Text: "mutate", Status: Pending})
 	said := hello(t, dir, fixed(sid, 1))
-	if !strings.HasPrefix(said, Instructions+" This place already has a checklist") {
+	if !strings.HasPrefix(said, Instructions+" This session already has a checklist") {
 		t.Errorf("the checklist does not follow the line of the tool: %q", said)
 	}
 	for _, want := range []string{"2 of 4 steps finished", "the current step: “write the tests”",
@@ -166,14 +165,22 @@ func TestTheHandshakeTellsARestartedSessionOfTheChecklistOfItsPlace(t *testing.T
 	}
 }
 
-// A place with no checklist, or one not known at the handshake, is told what
-// the tool is for and nothing more.
-func TestTheHandshakeOfAPlaceWithoutAChecklistSaysNothingOfOne(t *testing.T) {
+// A session with no checklist — another session of the directory keeping one
+// beside it — or one whose place is not known at the handshake, is told what
+// the tool is for and nothing more, and a call reads no checklist.
+func TestTheHandshakeOfASessionWithoutAChecklistSaysNothingOfOne(t *testing.T) {
 	if said := hello(t, t.TempDir(), fixed(sid, 1)); said != Instructions {
 		t.Errorf("an empty place: %q", said)
 	}
 	dir := t.TempDir()
 	standingChecklist(t, dir, Item{Text: "one", Status: Active})
+	other := func() (mcp.Binding, error) { return named("lab-review", sid, 1), nil }
+	if said := hello(t, dir, other); said != Instructions {
+		t.Errorf("another session of the directory: %q", said)
+	}
+	if said, _ := callChecklist(t, Tool(dir, clock), other, map[string]any{}); said != "This session has no checklist." {
+		t.Errorf("another session of the directory read %q", said)
+	}
 	unknown := func() (mcp.Binding, error) { return mcp.Binding{}, errors.New("no file of the session yet") }
 	if said := hello(t, dir, unknown); said != Instructions {
 		t.Errorf("a place not known: %q", said)
@@ -182,14 +189,14 @@ func TestTheHandshakeOfAPlaceWithoutAChecklistSaysNothingOfOne(t *testing.T) {
 
 // A call without items writes nothing and reads the checklist whole, so a
 // session that goes on with a checklist it did not send can send it back with
-// its changes. A place without a checklist says so.
+// its changes. A session without a checklist says so.
 func TestACallWithoutItemsReadsTheChecklist(t *testing.T) {
 	dir := t.TempDir()
 	tool := Tool(dir, clock)
-	if said, failed := callChecklist(t, tool, fixed(sid, 1), map[string]any{}); failed || said != "There is no checklist in this place." {
-		t.Errorf("an empty place read %q", said)
+	if said, failed := callChecklist(t, tool, fixed(sid, 1), map[string]any{}); failed || said != "This session has no checklist." {
+		t.Errorf("a session without a checklist read %q", said)
 	}
-	if said, failed := tool.Call(context.Background(), fixed(sid, 1), nil); failed || said != "There is no checklist in this place." {
+	if said, failed := tool.Call(context.Background(), fixed(sid, 1), nil); failed || said != "This session has no checklist." {
 		t.Errorf("a call without arguments read %q", said)
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
@@ -197,20 +204,21 @@ func TestACallWithoutItemsReadsTheChecklist(t *testing.T) {
 	}
 
 	standingChecklist(t, dir, Item{Text: "read the code", Status: Done}, Item{Text: "write the tests", Status: Active})
-	before := Read(dir, lab)
+	before := Read(dir, lab, "lab")
 	said, failed := callChecklist(t, tool, fixed(sid, 1), map[string]any{"note": "ignored"})
 	want := "The checklist, last sent 2026-09-28T10:00:00Z: 1 of 2 steps finished.\n" +
 		"1. [done] read the code\n2. [active] write the tests\nNote: waits on CI"
 	if failed || said != want {
 		t.Errorf("the checklist read as %q", said)
 	}
-	if after := Read(dir, lab); !reflect.DeepEqual(after, before) {
+	if after := Read(dir, lab, "lab"); !reflect.DeepEqual(after, before) {
 		t.Errorf("reading the checklist changed it: %+v", after)
 	}
 }
 
-// The first call of a place takes over a checklist filed under a conversation
-// of it, and a step sent again keeps the time it had there.
+// The first call of a session without a name takes over a checklist filed
+// under a conversation of its place, and a step sent again keeps the time it
+// had there.
 func TestACallTakesOverAChecklistFiledUnderAConversationOfThePlace(t *testing.T) {
 	dir, config := t.TempDir(), t.TempDir()
 	here := mcp.Place{ConfigDir: config, Dir: "/srv/proj/lab"}
@@ -224,7 +232,7 @@ func TestACallTakesOverAChecklistFiledUnderAConversationOfThePlace(t *testing.T)
 	}
 	bind := func() (mcp.Binding, error) { return mcp.Binding{Place: here, SessionID: sid, PID: 1}, nil }
 	callChecklist(t, Tool(dir, clock), bind, map[string]any{"items": []any{map[string]any{"text": "read the code", "status": "active"}}})
-	if got := Read(dir, here); got == nil || got.Items[0].Since != "2026-09-28T08:00:00Z" || got.SessionID != sid {
+	if got := Read(dir, here, ""); got == nil || got.Items[0].Since != "2026-09-28T08:00:00Z" || got.SessionID != sid {
 		t.Errorf("the checklist went on as %+v", got)
 	}
 }
@@ -268,7 +276,7 @@ func TestAnEmptyListClearsTheChecklistThroughTheTool(t *testing.T) {
 	tool := Tool(dir, clock)
 	callChecklist(t, tool, fixed(sid, 1), map[string]any{"items": []any{map[string]any{"text": "one", "status": "active"}}})
 	said, failed := callChecklist(t, tool, fixed(sid, 1), map[string]any{"items": []any{}})
-	if failed || said != "The checklist is cleared." || Read(dir, lab) != nil {
-		t.Errorf("clearing answered %q and left %+v", said, Read(dir, lab))
+	if failed || said != "The checklist is cleared." || Read(dir, lab, "lab") != nil {
+		t.Errorf("clearing answered %q and left %+v", said, Read(dir, lab, "lab"))
 	}
 }

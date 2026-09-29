@@ -15,8 +15,9 @@ import (
 )
 
 // fakeClaude puts a live claude process into a fake /proc, with the file it
-// keeps of itself in its config directory: a session in /srv/proj/lab.
-func fakeClaude(t *testing.T, proc, config string, pid int, start, id string) {
+// keeps of itself in its config directory: a session named name in
+// /srv/proj/lab.
+func fakeClaude(t *testing.T, proc, config string, pid int, start, id, name string) {
 	t.Helper()
 	dir := filepath.Join(proc, fmt.Sprint(pid))
 	fields := append([]string{"S", "1"}, strings.Split(strings.Repeat("0 ", 17), " ")[:17]...)
@@ -35,7 +36,8 @@ func fakeClaude(t *testing.T, proc, config string, pid int, start, id string) {
 	if err := os.MkdirAll(filepath.Join(config, "sessions"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	session := fmt.Sprintf(`{"pid":%d,"sessionId":%q,"cwd":"/srv/proj/lab","procStart":%q,"kind":"interactive"}`, pid, id, start)
+	session := fmt.Sprintf(`{"pid":%d,"sessionId":%q,"cwd":"/srv/proj/lab","procStart":%q,"kind":"interactive","name":%q}`,
+		pid, id, start, name)
 	if err := os.WriteFile(filepath.Join(config, "sessions", fmt.Sprintf("%d.json", pid)), []byte(session), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -93,21 +95,23 @@ func TestThePlanAndMCPFlagsStartOneServer(t *testing.T) {
 
 // The server as a session runs it: claude starts the executor with the flag
 // of its configuration, shakes hands and calls the checklist tool, and the
-// checklist lands under the place of the claude that is the server's parent —
-// the config directory it keeps the file of itself in and the directory that
-// file names. A session started again in the place, another process in
-// another conversation, is told of the checklist at its handshake.
-func TestTheServerKeepsTheChecklistOfItsParentsPlace(t *testing.T) {
+// checklist lands under the session of the claude that is the server's parent
+// — the config directory it keeps the file of itself in, and the directory
+// and the name that file names. The session started again under its name,
+// another process in another conversation, is told of the checklist at its
+// handshake; another session of the directory is told of none.
+func TestTheServerKeepsTheChecklistOfItsParentsSession(t *testing.T) {
 	const (
 		first     = "9e3f0a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b"
 		restarted = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+		beside    = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"
 	)
 	proc, config, state := t.TempDir(), t.TempDir(), t.TempDir()
 	t.Setenv("AACP_PROC", proc)
 	t.Setenv("XDG_STATE_HOME", state)
 	t.Setenv("AACP_CLAUDE_HOME", filepath.Join(t.TempDir(), "no-contour"))
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	fakeClaude(t, proc, config, 4242, "5555", first)
+	fakeClaude(t, proc, config, 4242, "5555", first, "lab")
 
 	replies := talk(t, 4242, handshake,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
@@ -126,17 +130,25 @@ func TestTheServerKeepsTheChecklistOfItsParentsPlace(t *testing.T) {
 	}
 
 	lab := mcp.Place{ConfigDir: config, Dir: "/srv/proj/lab"}
-	got := checklist.Read(filepath.Join(state, "aacpanel", "checklists"), lab)
+	got := checklist.Read(filepath.Join(state, "aacpanel", "checklists"), lab, "lab")
 	if got == nil || got.PID != 4242 || got.SessionID != first || len(got.Items) != 2 || got.Items[1].Status != checklist.Active {
 		t.Fatalf("the checklist on disk is %+v", got)
 	}
 
-	fakeClaude(t, proc, config, 5151, "7777", restarted)
-	replies = talk(t, 5151, handshake)
+	fakeClaude(t, proc, config, 6262, "8888", beside, "lab-review")
+	replies = talk(t, 6262, handshake)
 	res, _ := replies[0]["result"].(map[string]any)
 	said, _ := res["instructions"].(string)
-	if !strings.HasPrefix(said, noChecklist+" This place already has a checklist") ||
+	if !strings.HasPrefix(said, noChecklist+"\n") || strings.Contains(said, "already has a checklist") {
+		t.Errorf("another session of the directory was told of the checklist of this one: %q", said)
+	}
+
+	fakeClaude(t, proc, config, 5151, "7777", restarted, "lab")
+	replies = talk(t, 5151, handshake)
+	res, _ = replies[0]["result"].(map[string]any)
+	said, _ = res["instructions"].(string)
+	if !strings.HasPrefix(said, noChecklist+" This session already has a checklist") ||
 		!strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
-		t.Errorf("the session started again was not told of the checklist of its place: %q", said)
+		t.Errorf("the session started again under its name was not told of its checklist: %q", said)
 	}
 }

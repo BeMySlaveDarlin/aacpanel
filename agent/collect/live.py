@@ -87,19 +87,40 @@ def live_session_files():
     return [data for _, _, data in session_files() if _alive(data)]
 
 
-def live_session_places():
-    """Maps the sessionId of a live session to its place: the config directory of its account and its directory.
+def session_name(data):
+    """Returns the name of a live session, or None for one started without a name.
 
-    The checklist of a session is kept by its place, and the executor finds the
-    place in this same file: the directory the file lies under and the
-    directory it names.
+    It is the name claude keeps in the file of the session, or else the one its
+    process was started with, in either form claude takes.
+    """
+    name = data.get("name")
+    if isinstance(name, str) and name:
+        return name
+    args = ctx.proc_args(data.get("pid"))
+    for i, arg in enumerate(args):
+        for flag in ("-n", "--name"):
+            if arg == flag and i + 1 < len(args):
+                return args[i + 1] or None
+            if arg.startswith(flag + "="):
+                return arg[len(flag) + 1:] or None
+    return None
+
+
+def live_session_places():
+    """Maps the sessionId of a live session to its place and its name.
+
+    The place is the config directory of its account and its directory. The
+    checklist of a session is kept by its place and its name, and the executor
+    finds them in this same file: the directory the file lies under, the
+    directory it names and the name of the session.
     """
     out = {}
     for _, config_dir, data in session_files():
         sid, cwd = data.get("sessionId"), data.get("cwd")
         if not sid or not isinstance(cwd, str) or not cwd or not _alive(data):
             continue
-        out[sid] = (config_dir or os.path.dirname((agent.CLAUDE_SESSIONS or "").rstrip("/")), cwd)
+        config_dir = config_dir or os.path.dirname((agent.CLAUDE_SESSIONS or "").rstrip("/"))
+        out[sid] = (config_dir, cwd, session_name(data))
     return out
 
 
@@ -244,10 +265,11 @@ def sessions():
                 s["profile"], config_dir = found
                 if config_dir:
                     s["configDir"] = config_dir
-        # The checklist is the place's: a session started again where another
-        # left one shows it at once, under a conversation of its own.
+        # The checklist is the session's: a session started again under its
+        # name shows the one it left at once, under a conversation of its own,
+        # and another session of the directory shows its own or none.
         place = places.get(sid) if sid else None
-        checklist = checklists.of(*place) if place else None
+        checklist = checklists.of(*place, sid=sid) if place else None
         if checklist:
             s["checklist"] = checklist
         wait = waits.get(s.get("session") or "")

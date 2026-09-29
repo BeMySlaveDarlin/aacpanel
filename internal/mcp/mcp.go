@@ -27,10 +27,9 @@ func Qualified(tool string) string {
 }
 
 // Place is where a session works: the config directory of its account and
-// the directory claude runs in. What a tool keeps for a session belongs to
-// the place rather than to a conversation: a restart starts another
-// conversation in the same place, or goes on with the old one, and not always
-// under the old id.
+// the directory claude runs in. It outlives a conversation: a restart starts
+// another conversation in the same place, or goes on with the old one, and
+// not always under the old id.
 type Place struct {
 	ConfigDir string
 	Dir       string
@@ -46,10 +45,15 @@ func (p Place) Clean() (Place, bool) {
 }
 
 // Binding is what the server learns of the claude it serves: where it
-// works, the conversation it is in — empty while claude has not written the
-// file of itself yet — and its process.
+// works, the name of the session, the conversation it is in — empty while
+// claude has not written the file of itself yet — and its process.
 type Binding struct {
-	Place     Place
+	Place Place
+	// Name is the name the session runs under, empty for a session started
+	// without one. Sessions of one place are told apart by it, and a restart
+	// under the same name — the same conversation or another — is the same
+	// session going on.
+	Name      string
 	SessionID string
 	PID       int
 }

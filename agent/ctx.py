@@ -37,6 +37,16 @@ def parent_pid(pid):
         return None
 
 
+def proc_args(pid):
+    """Returns the arguments a process was started with, or an empty list when it is gone."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            raw = f.read().rstrip(b"\0")
+    except OSError:
+        return []
+    return [os.fsdecode(arg) for arg in raw.split(b"\0")] if raw else []
+
+
 def _comm(pid):
     try:
         with open(f"/proc/{pid}/comm") as f:

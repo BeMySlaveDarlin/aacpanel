@@ -278,12 +278,13 @@ def _answer(request):
 def conversation_checklist(session, path):
     """Returns the checklist the feed of a conversation shows, or None.
 
-    A checklist is kept by the place a session works in. A live conversation
-    shows the checklist of its place whoever sent it — a session started again
-    there goes on with it. A conversation that is over is placed by its
-    transcript, which lies under the config directory of its account and names
-    the directory it ran in, and shows the checklist only while it sent it
-    last.
+    A checklist is kept by the session: its place and its name. A live
+    conversation shows the checklist of its session whoever sent it — a
+    session started again under its name goes on with it. A conversation that
+    is over is placed by its transcript, which lies under the config directory
+    of its account and names the directory it ran in, and shows the checklist
+    of its place it sent last, whatever the name, only while no later
+    conversation sent it.
     """
     from collect.live import live_session_places
     try:
@@ -291,9 +292,9 @@ def conversation_checklist(session, path):
     except OSError:
         place = None
     if place:
-        return checklists.of(*place)
+        return checklists.of(*place, sid=session)
     config_dir = os.path.dirname(os.path.dirname(os.path.dirname(path)))
-    return checklists.of(config_dir, transcript_cwd(path), sid=session)
+    return checklists.of_conversation(config_dir, transcript_cwd(path), session)
 
 
 def serve(sock):
