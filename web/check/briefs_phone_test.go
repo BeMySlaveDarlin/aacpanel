@@ -5,32 +5,32 @@ import (
 	"testing"
 )
 
-// The bottom menu is where a screen lives when it is opened often: usage
-// stands there, and briefs are under the logo with the journal — one door
-// each, and the briefs opened from the sheet carry their own way back.
-func TestUsageSitsInTheBottomMenuAndBriefsUnderTheLogo(t *testing.T) {
+// The bottom menu is where a screen lives when it is opened often: the
+// terminals stand there, and usage, briefs and the journal are under the
+// logo — one door each, and what the sheet opens carries its own way back.
+func TestTerminalsSitInTheBottomMenuAndUsageUnderTheLogo(t *testing.T) {
 	files := srcFiles(t)
 	nav := stripComments(files["src/ui/nav.js"])
 	if nav == "" {
 		t.Fatal("src/ui/nav.js not found — the test looks in the wrong place")
 	}
-	if !strings.Contains(nav, `id: "usage"`) {
-		t.Error("usage is not in the bottom menu")
+	if !strings.Contains(nav, `id: "terminals"`) {
+		t.Error("the terminals are not in the bottom menu")
 	}
-	for _, gone := range []string{`id: "briefs"`, `id: "journal"`} {
+	for _, gone := range []string{`id: "usage"`, `id: "briefs"`, `id: "journal"`} {
 		if strings.Contains(nav, gone) {
 			t.Errorf("%s is in the bottom menu, which has five columns and all of them are taken", gone)
 		}
 	}
 
 	sheet := shellSheet(t, files)
-	for _, page := range []string{"briefs", "journal"} {
+	for _, page := range []string{"usage", "briefs", "journal"} {
 		if !strings.Contains(sheet, `onPage("`+page+`")`) {
 			t.Errorf("%s has no entry in the sheet under the logo: there is no way into it at all", page)
 		}
 	}
-	if strings.Contains(sheet, `onPage("usage")`) {
-		t.Error("usage is in the bottom menu and in the sheet at once: one screen, two doors")
+	if first := strings.Index(sheet, `onPage(`); first < 0 || !strings.HasPrefix(sheet[first:], `onPage("usage")`) {
+		t.Error("usage does not lead the sheet under the logo: it came from the bottom menu, and it is looked for first")
 	}
 
 	shell := stripComments(files["src/mobile/shell.js"])

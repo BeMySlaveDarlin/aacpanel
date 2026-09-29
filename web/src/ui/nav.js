@@ -4,17 +4,24 @@ import { Icon } from "./icons.js";
 
 export const TABS = [
     { id: "sessions", label: "Sessions", icon: Icon.sessions },
+    { id: "terminals", label: "Terminals", icon: Icon.prompt },
     { id: "containers", label: "Containers", icon: Icon.containers },
 ];
 
 export const PAGES = [
-    { id: "usage", label: "Usage", icon: Icon.pie },
     { id: "profiles", label: "Profiles", icon: Icon.cube },
 ];
 
 export const SECTIONS = [...TABS, ...PAGES];
 
-export function Nav({ current, onSelect, home }) {
+// What talks to the machine stands left of the home button — its sessions and
+// its terminals — and what it runs and how it is mapped stands right of it.
+const LEFT = new Set(["sessions", "terminals"]);
+
+// Nav draws the menu. A listener without the terminal has no terminals item:
+// a button there would open a screen with nothing behind it.
+export function Nav({ current, onSelect, home, terminals = true }) {
+    const items = SECTIONS.filter((section) => terminals || section.id !== "terminals");
     const button = (section) => html`
         <button
             key=${section.id}
@@ -29,9 +36,9 @@ export function Nav({ current, onSelect, home }) {
 
     return html`
         <nav class="tabs">
-            ${TABS.map(button)}
+            ${items.filter((section) => LEFT.has(section.id)).map(button)}
             <div class="homeslot">${home}</div>
-            ${PAGES.map(button)}
+            ${items.filter((section) => !LEFT.has(section.id)).map(button)}
         </nav>
     `;
 }

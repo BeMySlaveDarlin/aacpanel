@@ -1,0 +1,114 @@
+/* Terminals of places: the page of a place, its cards, and the tabs over an
+   open terminal. */
+
+.tpage { display: flex; flex-direction: column; gap: .4rem; }
+
+.ttitle {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+    padding: .2rem .1rem .3rem;
+}
+.ttitle h2 { flex: none; margin: 0; font-size: var(--t-xl); font-weight: 600; letter-spacing: -.01em; }
+
+/* A path too long for the line keeps its end, which names the place. */
+.ttitlepath {
+    flex: 1 1 0;
+    min-width: 0;
+    direction: rtl;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tnew { flex: none; display: inline-flex; align-items: center; gap: .3rem; }
+.tnew svg { width: var(--i-sm); height: var(--i-sm); }
+
+/* A terminal is a glass card; one with something running in it wears the
+   accent on its edge, the way its dot glows. */
+.tcard {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    width: 100%;
+    min-height: 48px;
+    padding: .55rem .75rem;
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-card);
+    background: var(--glass);
+    box-shadow: var(--gloss), var(--hairline);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.tcard.running { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.tcard:active { background: var(--glass-2); }
+
+.tcardname {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tcardwhen { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
+
+.tdot { flex: none; width: .45rem; height: .45rem; border-radius: 50%; background: var(--line); }
+.tdot.run { background: var(--accent); box-shadow: 0 0 .4rem var(--accent); }
+
+/* The tabs of the place over its terminal: words on a line, the open one in
+   the accent with a rule under it, and a plus that starts one more. */
+.ttabs {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: .45rem;
+    padding: .1rem .1rem .4rem;
+    border-bottom: var(--hair) solid var(--line);
+    overflow-x: auto;
+}
+.ttab {
+    position: relative;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-faint);
+    font: inherit;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    white-space: nowrap;
+    cursor: pointer;
+}
+.ttab.on { color: var(--accent); }
+.ttab.on::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(-.4rem - var(--hair));
+    height: 2px;
+    border-radius: var(--r-small);
+    background: var(--accent);
+}
+.ttab.tadd { color: var(--accent); }
+.ttab svg { width: var(--i-sm); height: var(--i-sm); }
+
+/* Home leads the choice of a place, marked the way a picked row is. */
+.tpick .thome { padding-inline: .4rem; border-radius: var(--r-small); background: var(--accent-bg); }
+.tpick .toolaside { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+
+.tjump svg { color: var(--accent); }

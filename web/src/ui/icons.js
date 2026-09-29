@@ -30,6 +30,10 @@ export const Icon = {
     wrap: () => html`<svg ...${stroke}><path d="M3 6h18M3 12h13a3.5 3.5 0 0 1 0 7h-3l2-2M13 19l2 2M3 18h5" /></svg>`,
     terminal: () => html`<svg ...${stroke}><rect x="2.5" y="4" width="19" height="16" rx="2" /><path d="m7 9.5 2.5 2.5L7 14.5M13 15h4" /></svg>`,
 
+    // A prompt without a frame: the terminals of places, told apart from the
+    // framed screen the sessions are drawn with.
+    prompt: () => html`<svg ...${stroke}><path d="m4.5 6.5 5.5 5.5-5.5 5.5M12.5 18h7" /></svg>`,
+
     file: () => html`<svg ...${stroke}><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5Z" /><path d="M13.5 3v5.5H19" /></svg>`,
 
     globe: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" /></svg>`,

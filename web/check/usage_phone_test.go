@@ -17,7 +17,7 @@ import (
 
 const phoneUsage = "src/screens/usage.js"
 
-func TestUsageOpensFromTheBottomMenu(t *testing.T) {
+func TestUsageOpensFromTheMenuUnderTheLogo(t *testing.T) {
 	files := srcFiles(t)
 	shell := files["src/mobile/shell.js"]
 	if shell == "" {
@@ -26,13 +26,13 @@ func TestUsageOpensFromTheBottomMenu(t *testing.T) {
 	body := stripComments(shell)
 	at := strings.Index(body, `page === "usage"`)
 	if at < 0 {
-		t.Fatal("the shell has no page branch for the usage screen — the menu button is drawn and opens nothing")
+		t.Fatal("the shell has no page branch for the usage screen — the menu entry is drawn and opens nothing")
 	}
-	if tail := body[at:min(len(body), at+200)]; !strings.Contains(tail, "<${Usage}") {
-		t.Error("the usage branch opens something other than the usage screen")
+	if tail := body[at:min(len(body), at+200)]; !strings.Contains(tail, "<${Usage}") || !strings.Contains(tail, "onBack") {
+		t.Error("the usage branch opens something other than the usage screen, or opens it without a way back")
 	}
-	if !strings.Contains(stripComments(files["src/ui/nav.js"]), `id: "usage"`) {
-		t.Error("the usage screen is not in the bottom menu")
+	if !strings.Contains(shellSheet(t, files), `onPage("usage")`) {
+		t.Error("the usage screen has no entry in the menu under the logo")
 	}
 }
 

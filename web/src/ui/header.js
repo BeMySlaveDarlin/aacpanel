@@ -91,8 +91,9 @@ export function Header({ hostName = "host", ageSec, conn, route, flag = false, m
     `;
 }
 
-// HostMenu is the sheet behind the host name: the install while the app is not
-// installed, the theme, and the pages that have no tab of their own.
+// HostMenu is the sheet behind the host name: the pages that have no tab of
+// their own, usage first, the install while the app is not installed, and the
+// theme.
 export function HostMenu({ open, onClose, hostName = "host", installable = false, onInstall, theme, onTheme, onPage }) {
     const light = theme === "sky";
     return html`
@@ -100,6 +101,7 @@ export function HostMenu({ open, onClose, hostName = "host", installable = false
             <div class="shead">
                 <div><div class="stitle">${hostName}</div><div class="ssub">monitoring panel</div></div>
             </div>
+            <button class="item" type="button" onClick=${() => onPage("usage")}>Usage</button>
             ${installable && html`
                 <button class="item install" type="button" onClick=${() => { onClose(); onInstall(); }}>
                     ${Icon.download()}Install the app<small>not installed yet</small>

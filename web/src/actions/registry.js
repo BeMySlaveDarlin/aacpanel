@@ -435,6 +435,32 @@ export const ACTIONS = {
         done: (target) => `Window ${target} closed`,
         ok: "Close window",
     },
+    // A terminal of a place starts on the press of the place it starts in:
+    // a shell comes up there, and nothing runs until the person types it.
+    "term.start": {
+        instant: true,
+        effect: "A shell comes up in the directory, in a tmux of its own on the host: it runs nothing "
+            + "until something is typed into it, and it lives on when the screen is closed.",
+        done: (target) => `A terminal started in ${target}`,
+    },
+    // Closing ends the shell and whatever runs in it, so the screen asks
+    // before the press with a sheet of its own that names what runs.
+    "term.close": {
+        instant: true,
+        effect: "The shell of the tab ends, and whatever runs in it ends with it.",
+        done: () => "The tab is closed",
+    },
+    "term.rename": {
+        instant: true,
+        effect: "The tab keeps the name given instead of the command running in it; what runs is not touched.",
+        done: (target, params) => `The tab is called ${(params && params.name) || "otherwise"} now`,
+    },
+    "term.console": {
+        instant: true,
+        effect: "A terminal window attached to the same tmux appears on the desktop of the machine: "
+            + "the screen of the panel and the window show one and the same shell.",
+        done: () => `A window opened on ${hostLabel()}`,
+    },
     "device.revoke": {
         title: (target) => `Revoke access for "${target}"?`,
         effect: "The device will not sign in any more, and its push subscription goes dark. Access comes back only through a new registration by code.",
@@ -848,6 +874,10 @@ const NAMES = {
     "session.remote": "Remote Control",
     "window.open": "Open window",
     "window.close": "Close window",
+    "term.start": "Start a terminal",
+    "term.close": "Close a terminal",
+    "term.rename": "Rename a terminal tab",
+    "term.console": "Open a terminal in a window",
     "device.revoke": "Revoke device",
     "device.revokeSelf": "Revoke device",
     "device.rename": "Rename device",

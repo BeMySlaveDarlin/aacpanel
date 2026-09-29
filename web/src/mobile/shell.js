@@ -13,6 +13,8 @@ import { Alerts } from "../screens/alerts.js";
 import { Containers, filterChips } from "../screens/containers.js";
 import { Machine, machineStats } from "../screens/machine.js";
 import { Sessions, sessionChips } from "../screens/sessions.js";
+import { Terminals } from "../screens/terms.js";
+import { useTermAvailable } from "../screens/chat/term.js";
 import { Devices } from "../screens/devices.js";
 import { Usage } from "../screens/usage.js";
 import { Profiles } from "../screens/profiles.js";
@@ -105,6 +107,19 @@ export function MobileShell({
         goTab("sessions");
         setWant({ name, id });
     }, [goTab]);
+
+    // The terminals exist where the listener has the terminal route; a tab
+    // kept from a listener that had it goes back to the containers.
+    const term = useTermAvailable();
+    const [wantTerm, setWantTerm] = useState(null);
+    const goTerm = useCallback((target) => {
+        setPage(null);
+        goTab("terminals");
+        setWantTerm(target);
+    }, [goTab]);
+    useEffect(() => {
+        if (tab === "terminals" && term.known && !term.route) goTab("containers");
+    }, [tab, term.known, term.route, goTab]);
     useEffect(() => {
         if (!jump) return;
         goHome(jump.name, jump.id);
@@ -182,6 +197,10 @@ export function MobileShell({
                     onLayer=${setLayer}
                     want=${want}
                     onWanted=${() => setWant(null)}
+                    terms=${term.route}
+                    wantTerm=${wantTerm}
+                    onWantedTerm=${() => setWantTerm(null)}
+                    onTerm=${term.route ? goTerm : null}
                 onUsage=${() => setPage("usage")} />`}
             </main>
 
@@ -216,6 +235,7 @@ export function MobileShell({
                 <${Nav}
                     current=${page || tab}
                     onSelect=${goNav}
+                    terminals=${term.route}
                     home=${html`
                         <${HomeButton}
                             snapshot=${snapshot}
@@ -230,11 +250,18 @@ export function MobileShell({
     `;
 }
 
-function Screen({ tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults, onLayer, want, onWanted, onUsage }) {
+function Screen({
+    tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults,
+    onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm,
+}) {
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
             exec=${exec} wait=${wait} faults=${faults} onLayer=${onLayer}
-            want=${want} onWanted=${onWanted} onUsage=${onUsage} />`;
+            want=${want} onWanted=${onWanted} onUsage=${onUsage} onTerm=${onTerm} />`;
+    }
+    if (tab === "terminals" && terms) {
+        return html`<${Terminals} snapshot=${snapshot} exec=${exec} onLayer=${onLayer}
+            want=${wantTerm} onWanted=${onWantedTerm} />`;
     }
     return html`<${Containers} tree=${tree} error=${treeError} filter=${filter} query=${query} open=${open}
         onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec} />`;

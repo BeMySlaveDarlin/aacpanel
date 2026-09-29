@@ -9,14 +9,23 @@ import { sender } from "./input.js";
 const SCROLLBACK = 5000;
 
 // useTermAvailable reports whether this installation has a terminal at all.
+// ok says a terminal can be opened now; route says the listener has the
+// terminal at all. A listener without it answers 404, and then nothing of the
+// terminals is drawn, while a route whose executor is down still says why.
+// known turns true once the answer is in.
 export function useTermAvailable() {
-    const [state, setState] = useState({ ok: false, reason: "" });
+    const [state, setState] = useState({ ok: false, reason: "", route: false, known: false });
     useEffect(() => {
         let live = true;
         fetch("/api/term")
-            .then((r) => (r.ok ? r.json() : { available: false, reason: "" }))
-            .then((d) => live && setState({ ok: Boolean(d.available), reason: d.reason || "" }))
-            .catch(() => live && setState({ ok: false, reason: "" }));
+            .then((r) => {
+                if (r.status === 404) return { available: false, route: false };
+                return r.ok ? r.json().then((d) => ({ ...d, route: true })) : { available: false, route: true };
+            })
+            .then((d) => live && setState({
+                ok: Boolean(d.available), reason: d.reason || "", route: d.route, known: true,
+            }))
+            .catch(() => live && setState({ ok: false, reason: "", route: false, known: true }));
         return () => {
             live = false;
         };
@@ -223,7 +232,10 @@ function TermKeys({ send, ctrl, onCtrl }) {
     `;
 }
 
-export function Term({ name }) {
+// Term attaches to the terminal of a session by the session's name, or to a
+// terminal of a place by its id: the screen, the keys and the stream are one
+// component either way.
+export function Term({ name, term: tab }) {
     const box = useRef(null);
     const wrap = useRef(null);
     const termRef = useRef(null);
@@ -300,9 +312,8 @@ export function Term({ name }) {
                 });
             };
 
-            const es = new EventSource(
-                `/api/term/stream?name=${encodeURIComponent(name)}&cols=${term.cols}&rows=${term.rows}`,
-            );
+            const which = tab ? `term=${encodeURIComponent(tab)}` : `name=${encodeURIComponent(name)}`;
+            const es = new EventSource(`/api/term/stream?${which}&cols=${term.cols}&rows=${term.rows}`);
             close = () => es.close();
 
             let id = "";
@@ -378,7 +389,7 @@ export function Term({ name }) {
             termRef.current = null;
             sendRef.current = null;
         };
-    }, [name, attempt]);
+    }, [name, tab, attempt]);
 
     useEffect(() => {
         if (state.kind !== "live") return;
@@ -396,12 +407,13 @@ export function Term({ name }) {
             if (!(data.files && data.files.length) || data.getData("text/plain")) return;
             event.preventDefault();
             event.stopPropagation();
-            toast("A file cannot be pasted into the terminal",
-                "only keyboard bytes go into the session — attach it in the feed", true);
+            toast("A file cannot be pasted into the terminal", tab
+                ? "only keyboard bytes go into the shell"
+                : "only keyboard bytes go into the session — attach it in the feed", true);
         };
         el.addEventListener("paste", refuse, true);
         return () => el.removeEventListener("paste", refuse, true);
-    }, [toast]);
+    }, [toast, tab]);
 
     const type = (data) => {
         const send = sendRef.current;
@@ -432,7 +444,9 @@ export function Term({ name }) {
             `}
             ${state.kind === "closed" && html`
                 <div class="termnote">
-                    <p class="hint">The terminal detached — the session is closed or detached at the machine.</p>
+                    <p class="hint">${tab
+                        ? "The terminal detached — the tab is closed or detached at the machine."
+                        : "The terminal detached — the session is closed or detached at the machine."}</p>
                     <button class="btn" type="button" onClick=${again}>Connect again</button>
                 </div>
             `}

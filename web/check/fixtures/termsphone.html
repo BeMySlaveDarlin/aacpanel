@@ -1,0 +1,274 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The terminals of places on a phone, walked in the whole shell the way a
+// person walks them: the bottom menu and the menu under the logo, the pager
+// of places, the choice of where a new terminal starts, the terminal of a
+// place with its tabs, what ⋯ does to a tab, and the question before a tab
+// is closed. The host is played by the page: it keeps the list, answers the
+// actions and records what was asked.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { MobileShell } from "/src/mobile/shell.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+// A frame to look at: #shot=A stops the walk where the artboard stands.
+const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
+const pause = async (name) => {
+    if (shot !== name) return;
+    await sleep(400);
+    document.body.dataset.shot = name;
+    await new Promise(() => {});
+};
+
+const now = Math.floor(Date.now() / 1000);
+const T = (id, place, label, name, command, typedAgo, created) =>
+    ({ id, place, label, name, command, activity: now - typedAgo, created: now - created, clients: 0 });
+// The host lists by place: a project that sorts before the home directory
+// comes before it in the list, and the screen still puts home first.
+let terms = [
+    T("t-lab", "/data/lab", "lab", "zsh", "zsh", 7200, 9000),
+    T("t-h1", "/home/u", "Home", "zsh", "zsh", 180, 8000),
+    T("t-h2", "/home/u", "Home", "htop", "htop", 3600, 7000),
+    T("t-s1", "/srv/proj/shop", "shop", "make check", "make", 60, 6000),
+    T("t-s2", "/srv/proj/shop", "shop", "zsh", "zsh", 720, 5000),
+    T("t-s3", "/srv/proj/shop", "shop", "git log", "git", 2400, 4000),
+];
+const profileMap = [
+    { id: 1, profile: "personal", groups: [{ name: "Side", projects: [
+        { id: 11, name: "shop", path: "/srv/proj/shop", session: "shop" },
+        { id: 12, name: "api", path: "/srv/proj/api", session: "api" },
+    ] }] },
+    { id: 2, profile: "work", groups: [{ name: "Lab", projects: [
+        { id: 21, name: "lab", path: "/data/lab", session: "lab" },
+        { id: 22, name: "helios", path: "/home/u", session: "helios" },
+    ] }] },
+];
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const asked = [];
+let made = 0;
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u === "/api/term") return json({ available: true });
+    if (u === "/api/terms") return json({ terms });
+    if (u.startsWith("/api/term/")) return json({});
+    if (u === "/api/actions" && init && init.method === "POST") {
+        const body = JSON.parse(init.body);
+        asked.push(body);
+        const p = body.params || {};
+        if (body.kind === "term.start") {
+            made += 1;
+            const id = `t-new${made}`;
+            const label = p.place === "/home/u" ? "Home" : p.place.split("/").pop();
+            terms = [...terms, T(id, p.place, label, "zsh", "zsh", 0, -made)]
+                .sort((a, b) => a.place.localeCompare(b.place) || a.created - b.created);
+            return json({ ok: true, detail: "", logged: true, id });
+        }
+        if (body.kind === "term.close") terms = terms.filter((t) => t.id !== p.id);
+        if (body.kind === "term.rename") terms = terms.map((t) => (t.id === p.id ? { ...t, name: p.name } : t));
+        return json({ ok: true, detail: "", logged: true });
+    }
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    return json({});
+};
+
+const streams = [];
+window.EventSource = class {
+    static CONNECTING = 0;
+    static OPEN = 1;
+    static CLOSED = 2;
+    constructor(url) {
+        this.url = String(url);
+        this.readyState = 1;
+        this.on = {};
+        streams.push(this);
+    }
+    addEventListener(name, fn) { this.on[name] = fn; }
+    close() { this.readyState = 2; }
+};
+const lastStream = () => streams.filter((s) => s.url.startsWith("/api/term/stream")).pop() || null;
+// live answers the stream as the host does and writes a screen into it.
+const live = async (lines) => {
+    await until(() => lastStream() && lastStream().on.ready && lastStream().onmessage);
+    const s = lastStream();
+    s.on.ready({ data: JSON.stringify({ id: "in-1" }) });
+    s.onmessage({ data: btoa(String.fromCharCode(...new TextEncoder().encode(lines.join("\r\n")))) });
+};
+
+const exec = { available: true, kinds: ["term.start", "term.close", "term.rename", "term.console", "session.send"] };
+const snapshot = { at: 1, hostName: "helios", sessions: [], profileMap, limits: null, host: { home: "/home/u" } };
+const wait = { opening: () => [], of: () => null };
+const alerts = { kind: "ready", alerts: [], older: [], reload: () => {} };
+render(h(ToastHost, null, h(GateHost, null, html`<${MobileShell} snapshot=${snapshot}
+    tree=${{ stacks: [], running: 0, total: 0 }} treeError=${null} hostError=${null} ageSec=${1} history=${[]} faults=${[]}
+    alerts=${alerts} openAlerts=${0} exec=${exec} onRefresh=${() => {}} wait=${wait} conn=${{ kind: "live" }}
+    theme="space" onTheme=${() => {}} updateReady=${false} updating=${false} onApplyUpdate=${() => {}}
+    installable=${false} onInstall=${() => {}}
+    route=${{ here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }}
+    jump=${null} onJumped=${() => {}} />`)), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel, from = document) => Array.from(from.querySelectorAll(sel));
+const navItems = () => all("nav.tabs > *").map((el) => (el.classList.contains("homeslot") ? "(home)" : text(el)));
+const navButton = (label) => all("nav.tabs button").find((b) => text(b) === label);
+const sheet = () => document.querySelector(".sheet.on");
+const rows = () => all(".sheet.on .mcprow").map((b) => text(b.querySelector(".toollabel")));
+const rowOf = (label) => all(".sheet.on .mcprow").find((b) => text(b.querySelector(".toollabel")) === label);
+// A place in the pager reads as its name and the number of its terminals.
+const placeTab = (b) => {
+    const n = b && b.querySelector(".n");
+    return n ? `${text(b).slice(0, -text(n).length).trim()} ${text(n)}` : text(b);
+};
+const tabs = () => all(".ttabs .ttab:not(.tadd)").map(text);
+const onTab = () => text(document.querySelector(".ttabs .ttab.on"));
+const pageOf = (label) => {
+    const at = all(".pftab").findIndex((b) => text(b).replace(/\s*\d+$/, "") === label);
+    return all(".pfpages > .pfpage")[at] || null;
+};
+const actions = (kind) => asked.filter((a) => a.kind === kind);
+
+window.done = (async () => {
+    const out = {};
+    try {
+        await document.fonts.ready;
+        await until(() => navButton("Terminals"));
+        out.nav = navItems();
+
+        // The menu under the logo leads with usage.
+        document.querySelector("header .host").click();
+        await until(() => sheet() && sheet().querySelector(".item"));
+        out.logoMenu = all(".sheet.on .item").map(text);
+        document.querySelector(".scrim.on") && document.querySelector(".scrim.on").click();
+        await until(() => !sheet());
+
+        navButton("Terminals").click();
+        await until(() => all(".pftab").length === 3 && pageOf("shop") && pageOf("shop").querySelector(".tcard"));
+        out.places = all(".pftab").map(placeTab);
+        out.current = placeTab(document.querySelector(".pftab.on"));
+        out.homeCards = all(".tcard", pageOf("Home")).map((c) => ({
+            name: text(c.querySelector(".tcardname")),
+            runs: c.querySelector(".tdot").classList.contains("run"),
+            when: text(c.querySelector(".tcardwhen")),
+        }));
+
+        all(".pftab").find((b) => text(b).startsWith("shop")).click();
+        await until(() => text(document.querySelector(".pftab.on")).startsWith("shop"));
+        out.picked = placeTab(document.querySelector(".pftab.on"));
+        await pause("A");
+
+        // New: where the terminal starts, home first, the map by contour.
+        pageOf("shop").querySelector(".tnew").click();
+        await until(() => sheet() && sheet().querySelector(".tpick"));
+        out.picker = all(".sheet.on .tpick .cmdsechead, .sheet.on .tpick .mcprow").map((el) => (el.classList.contains("mcprow")
+            ? `${text(el.querySelector(".toollabel"))} ${text(el.querySelector(".toolaside"))}`
+            : `[${text(el)}]`));
+        await pause("A2");
+
+        rowOf("shop").click();
+        await until(() => document.querySelector(".ttabs"));
+        out.started = actions("term.start").map((a) => ({ target: a.target, params: a.params }));
+        out.opened = {
+            head: text(document.querySelector(".phead h2")),
+            tabs: tabs(),
+            on: onTab(),
+            stream: lastStream() ? lastStream().url.replace(/&cols=.*$/, "") : "",
+            nav: Boolean(document.querySelector("nav.tabs")),
+        };
+        await live([
+            "\x1b[2mu@helios\x1b[0m \x1b[34mshop\x1b[0m \x1b[36mmain\x1b[0m $ nice -n 10 make check",
+            "go vet ./...",
+            "\x1b[32mok\x1b[0m   shop/internal/cart     0.21s",
+            "\x1b[32mok\x1b[0m   shop/internal/orders   3.10s",
+            "\x1b[32mok\x1b[0m   shop/internal/store   15.90s",
+            "\x1b[32mOK\x1b[0m",
+            "\x1b[2mu@helios\x1b[0m \x1b[34mshop\x1b[0m \x1b[36mmain\x1b[0m $ ",
+        ]);
+        await until(() => document.querySelector(".termkeys"));
+        out.keys = all(".termkeys .termkey").map(text);
+
+        // Another tab of the place attaches the terminal to it.
+        all(".ttabs .ttab").find((b) => text(b) === "make check").click();
+        await until(() => lastStream() && lastStream().url.includes("term=t-s1"));
+        out.switched = { on: onTab(), stream: lastStream().url.replace(/&cols=.*$/, "") };
+
+        // The plus of the tabs starts one more in the same place.
+        document.querySelector(".ttabs .tadd").click();
+        await until(() => actions("term.start").length === 2 && onTab() === "zsh" && lastStream().url.includes("t-new2"));
+        out.plus = { params: actions("term.start")[1].params, on: lastStream().url.replace(/&cols=.*$/, "") };
+        all(".ttabs .ttab").find((b) => text(b) === "make check").click();
+        await until(() => lastStream().url.includes("term=t-s1"));
+        await live(["\x1b[2mu@helios\x1b[0m \x1b[34mshop\x1b[0m \x1b[36mmain\x1b[0m $ nice -n 10 make check",
+            "\x1b[32mok\x1b[0m   shop/internal/store   15.90s", "\x1b[33m…\x1b[0m    shop/web/check"]);
+
+        await pause("B1");
+
+        // ⋯: a window, a name, a new tab, the closing.
+        document.querySelector(".phead .pmore").click();
+        await until(() => rowOf("Open in a window"));
+        out.menu = rows();
+        await pause("B");
+        rowOf("Open in a window").click();
+        await until(() => actions("term.console").length === 1);
+        out.window = actions("term.console")[0];
+
+        document.querySelector(".phead .pmore").click();
+        await until(() => rowOf("Rename tab"));
+        rowOf("Rename tab").click();
+        const field = await until(() => document.querySelector(".sheet.on .rnname"));
+        field.value = "build";
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        await sleep(50);
+        all(".sheet.on .btn.primary").pop().click();
+        await until(() => actions("term.rename").length === 1 && tabs().includes("build"));
+        out.renamed = { action: actions("term.rename")[0], tabs: tabs() };
+
+        // Close asks first, names what the tab ends, and Cancel keeps it.
+        await until(() => !sheet());
+        document.querySelector(".phead .pmore").click();
+        await until(() => rowOf("Close tab"));
+        rowOf("Close tab").click();
+        await until(() => document.querySelector(".sheet.on .tclose"));
+        out.ask = {
+            title: text(document.querySelector(".sheet.on .tclose .stitle")),
+            sub: text(document.querySelector(".sheet.on .tclose .ssub")),
+            says: text(document.querySelector(".sheet.on .tclose .warnline")),
+            closedBefore: actions("term.close").length,
+        };
+        all(".sheet.on .tclose .btn").find((b) => text(b) === "Cancel").click();
+        await until(() => !sheet());
+        out.kept = { closes: actions("term.close").length, tabs: tabs() };
+
+        document.querySelector(".phead .pmore").click();
+        await until(() => rowOf("Close tab"));
+        rowOf("Close tab").click();
+        await until(() => document.querySelector(".sheet.on .tclose"));
+        all(".sheet.on .tclose .btn").find((b) => text(b) === "Close tab").click();
+        await until(() => actions("term.close").length === 1 && !tabs().includes("build"));
+        out.closed = { action: actions("term.close")[0], tabs: tabs(), on: onTab() };
+
+        // Back lands on the page of the place, with the menu under it again.
+        document.querySelector(".phead .pback").click();
+        await until(() => document.querySelector(".pftab.on") && navButton("Terminals"));
+        out.back = { current: placeTab(document.querySelector(".pftab.on")), nav: navItems() };
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

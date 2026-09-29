@@ -46,7 +46,7 @@ export function sessionChips() {
 const RECENT_ASK = 20;
 
 // Sessions renders the sessions tab.
-export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage }) {
+export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onLayer, want, onWanted, pick, onUsage, onTerm }) {
     const [project, setProject] = useState(null);
 
     const profiles = (snapshot && snapshot.profileMap) || [];
@@ -101,6 +101,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             archive=${recent.find((r) => r.sessionId === chat.id) || null}
             onBack=${() => setChat(null)}
             onUsage=${onUsage}
+            onTerm=${onTerm}
             onOpenChat=${(talk) => setChat({ name: talk.name, id: talk.live ? null : talk.id })}
         />`;
     }

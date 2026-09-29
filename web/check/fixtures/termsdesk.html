@@ -1,0 +1,171 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The terminals section of the wide screen: its button after the sessions,
+// the places side by side as columns with home first, the choice of the ones
+// shown and the button of a new terminal above them, and a card opening its
+// terminal under the tabs of its place, with the window and the closing of
+// the tab at the end of the line.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { DesktopShell } from "/src/desktop/shell.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
+const pause = async (name) => {
+    if (shot !== name) return;
+    await sleep(400);
+    document.body.dataset.shot = name;
+    await new Promise(() => {});
+};
+
+const now = Math.floor(Date.now() / 1000);
+const T = (id, place, label, name, command, typedAgo, created) =>
+    ({ id, place, label, name, command, activity: now - typedAgo, created: now - created, clients: 0 });
+let terms = [
+    T("t-lab", "/data/lab", "lab", "zsh", "zsh", 7200, 9000),
+    T("t-h1", "/home/u", "Home", "zsh", "zsh", 180, 8000),
+    T("t-h2", "/home/u", "Home", "htop", "htop", 3600, 7000),
+    T("t-s1", "/srv/proj/shop", "shop", "make check", "make", 60, 6000),
+    T("t-s2", "/srv/proj/shop", "shop", "zsh", "zsh", 720, 5000),
+    T("t-s3", "/srv/proj/shop", "shop", "git log", "git", 2400, 4000),
+];
+const profileMap = [
+    { id: 1, profile: "personal", groups: [{ name: "Side", projects: [
+        { id: 11, name: "shop", path: "/srv/proj/shop", session: "shop" },
+    ] }] },
+    { id: 2, profile: "work", groups: [{ name: "Lab", projects: [{ id: 21, name: "lab", path: "/data/lab", session: "lab" }] }] },
+];
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const asked = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u === "/api/term") return json({ available: true });
+    if (u === "/api/terms") return json({ terms });
+    if (u.startsWith("/api/term/")) return json({});
+    if (u === "/api/actions" && init && init.method === "POST") {
+        const body = JSON.parse(init.body);
+        asked.push(body);
+        if (body.kind === "term.close") terms = terms.filter((t) => t.id !== body.params.id);
+        return json({ ok: true, detail: "", logged: true });
+    }
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 24, offset: 0 });
+    if (u.startsWith("/api/profiles")) return json({ profiles: [] });
+    if (u.startsWith("/api/usage/")) return json({ error: "usage is not collected here" }, 503);
+    return json({});
+};
+const streams = [];
+window.EventSource = class {
+    static CONNECTING = 0;
+    static OPEN = 1;
+    static CLOSED = 2;
+    constructor(url) {
+        this.url = String(url);
+        this.readyState = 1;
+        this.on = {};
+        streams.push(this);
+    }
+    addEventListener(name, fn) { this.on[name] = fn; }
+    close() { this.readyState = 2; }
+};
+const lastStream = () => streams.filter((s) => s.url.startsWith("/api/term/stream")).pop() || null;
+
+const exec = { available: true, kinds: ["term.start", "term.close", "term.rename", "term.console", "session.send"] };
+const snapshot = { at: 1, hostName: "helios", sessions: [], profileMap, limits: null, host: { home: "/home/u" } };
+const wait = { opening: () => [], of: () => null };
+const alerts = { kind: "ready", alerts: [], older: [], reload: () => {} };
+render(h(ToastHost, null, h(GateHost, null, html`<${DesktopShell} snapshot=${snapshot}
+    tree=${{ stacks: [], running: 0, total: 0 }} treeError=${null} hostError=${null} ageSec=${1} history=${[]} faults=${[]}
+    alerts=${alerts} openAlerts=${0} exec=${exec} onRefresh=${() => {}} wait=${wait}
+    theme="space" onTheme=${() => {}} updateReady=${false} updating=${false} onApplyUpdate=${() => {}}
+    route=${{ here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }}
+    jump=${null} onJumped=${() => {}} />`)), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel, from = document) => Array.from(from.querySelectorAll(sel));
+const sections = () => all(".dktop .dkibs")[0];
+
+window.done = (async () => {
+    const out = {};
+    try {
+        await document.fonts.ready;
+        await until(() => all(".dkib", sections()).some((b) => b.getAttribute("aria-label") === "Terminals"));
+        out.sections = all(".dkib", sections()).map((b) => b.getAttribute("aria-label"));
+        all(".dkib", sections()).find((b) => b.getAttribute("aria-label") === "Terminals").click();
+
+        await until(() => all(".pfdesk.row > .pfstack").length === 3 && all(".tcard").length === 6);
+        const stacks = all(".pfdesk.row > .pfstack");
+        out.columns = stacks.map((s) => {
+            const r = s.getBoundingClientRect();
+            return {
+                head: text(s.querySelector(".theadname")),
+                count: text(s.querySelector(".theadcount")),
+                path: text(s.querySelector(".theadpath")),
+                cards: all(".tcardname", s).map(text),
+                left: Math.round(r.left),
+                top: Math.round(r.top),
+            };
+        });
+        out.chooser = text(document.querySelector(".pfdesk.row > .pfsel .pfsellabel"));
+        out.newButton = text(document.querySelector(".pfdesk.row > .pfsel .tnew"));
+        await pause("E");
+
+        // A card opens its terminal under the tabs of its place.
+        all(".pfstack")[2].querySelectorAll(".tcard")[0].click();
+        await until(() => document.querySelector(".dkterm") && lastStream());
+        const head = document.querySelector(".dkterm .dkheadtop");
+        out.opened = {
+            back: text(head.querySelector(".tback")),
+            tabs: all(".ttabsdesk .dktab:not(.tadd)", head).map(text),
+            on: text(head.querySelector(".ttabsdesk .dktab.on")),
+            buttons: all(":scope > .btn", head).map(text),
+            stream: lastStream().url.replace(/&cols=.*$/, ""),
+            columns: Boolean(document.querySelector(".pfdesk")),
+        };
+        const s = lastStream();
+        await until(() => s.on.ready && s.onmessage);
+        s.on.ready({ data: JSON.stringify({ id: "in-1" }) });
+        s.onmessage({ data: btoa(["u@helios shop main $ nice -n 10 make check", "ok   shop/internal/cart     0.21s",
+            "ok   shop/internal/store   15.90s", "OK", "u@helios shop main $ "].join("\r\n")) });
+        await until(() => document.querySelector(".dkterm .termwrap:not(.off)"));
+        const term = document.querySelector(".dkterm .termwrap").getBoundingClientRect();
+        out.fills = { height: Math.round(term.height), window: window.innerHeight, keys: Boolean(document.querySelector(".termkeys")) };
+        await pause("E2");
+
+        all(":scope > .btn", head).find((b) => text(b) === "Open in a window").click();
+        await until(() => asked.some((a) => a.kind === "term.console"));
+        all(":scope > .btn", head).find((b) => text(b) === "Close tab").click();
+        await until(() => document.querySelector(".sheet.on .tclose"));
+        out.asked = asked.map((a) => a.kind);
+        all(".sheet.on .tclose .btn").find((b) => text(b) === "Close tab").click();
+        await until(() => asked.some((a) => a.kind === "term.close") && lastStream().url.includes("term=t-s2"));
+        out.closed = {
+            action: asked.find((a) => a.kind === "term.close"),
+            on: text(document.querySelector(".dkterm .ttabsdesk .dktab.on")),
+        };
+
+        document.querySelector(".dkterm .tback").click();
+        await until(() => document.querySelector(".pfdesk.row"));
+        out.back = all(".pfdesk.row > .pfstack .theadname").map(text);
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

@@ -28,11 +28,12 @@ export function pageNames(profiles, limits) {
     return names;
 }
 
-// useProfilePage returns the chosen contour and how to change it.
-export function useProfilePage(names) {
+// useProfilePage returns the chosen contour and how to change it. The pager
+// pages places as well as contours; each keeps its choice under its own key.
+export function useProfilePage(names, key = PICK_KEY) {
     const [picked, setPicked] = useState(() => {
         try {
-            return localStorage.getItem(PICK_KEY) || "";
+            return localStorage.getItem(key) || "";
         } catch {
             return "";
         }
@@ -41,50 +42,61 @@ export function useProfilePage(names) {
     const pick = useCallback((name) => {
         setPicked(name);
         try {
-            localStorage.setItem(PICK_KEY, name);
+            localStorage.setItem(key, name);
         } catch {
         }
-    }, []);
+    }, [key]);
 
     return [names.includes(picked) ? picked : (names[0] || ""), pick];
 }
 
 // useProfilePicks returns which contours are shown on the wide screen.
-export function useProfilePicks(names) {
-    const [picks, setPicks] = useState(readShown);
+export function useProfilePicks(names, key = SHOW_KEY) {
+    const [picks, setPicks] = useState(() => readShown(key));
 
     const toggle = useCallback((name) => {
-        setPicks((prev) => saveShown(prev.includes(name)
+        setPicks((prev) => saveShown(key, prev.includes(name)
             ? prev.filter((n) => n !== name)
             : [...prev, name]));
-    }, []);
+    }, [key]);
 
-    const all = useCallback(() => setPicks(saveShown([])), []);
+    const all = useCallback(() => setPicks(saveShown(key, [])), [key]);
 
     return [picks.filter((name) => names.includes(name)), toggle, all];
 }
 
-function readShown() {
+function readShown(key) {
     try {
-        const raw = JSON.parse(localStorage.getItem(SHOW_KEY) || "[]");
+        const raw = JSON.parse(localStorage.getItem(key) || "[]");
         return Array.isArray(raw) ? raw.filter((v) => typeof v === "string") : [];
     } catch {
         return [];
     }
 }
 
-function saveShown(next) {
+function saveShown(key, next) {
     try {
-        localStorage.setItem(SHOW_KEY, JSON.stringify(next));
+        localStorage.setItem(key, JSON.stringify(next));
     } catch {
     }
     return next;
 }
 
+const same = (name) => name;
+
 // Pages renders the pager itself: the row of names above, the pages below it.
-export function Pages({ names, current, onPick, live, page, onShown }) {
+// A name is the key of a page; label is what the person reads for it, what
+// is the word for the things paged, keep is where the wide screen keeps its
+// choice of the ones shown. A pager given head draws a heading of its own
+// over every column of the wide screen, and tools stand beside the choice —
+// with either, the wide screen keeps its columns for a single page too.
+// row lays the columns side by side instead of one under another.
+export function Pages({
+    names, current, onPick, live, page, onShown,
+    label = same, what = "contours", keep = SHOW_KEY, head = null, tools = null, row = false,
+}) {
     const wide = useWide();
-    const [picks, togglePick, showAll] = useProfilePicks(names);
+    const [picks, togglePick, showAll] = useProfilePicks(names, keep);
     const shown = picks.length ? names.filter((name) => picks.includes(name)) : names;
 
     useEffect(() => {
@@ -96,23 +108,27 @@ export function Pages({ names, current, onPick, live, page, onShown }) {
         if (onShown) onShown(shown);
     }, [shown.join("\n"), onShown]);
 
-    if (names.length < 2) return page(names[0] || "");
+    const framed = wide && (head || tools);
+    if (names.length < 2 && !framed) return page(names[0] || "");
 
     if (wide) {
         return html`
-            <div class="pfdesk">
+            <div class=${`pfdesk${row ? " row" : ""}`}>
                 <${ContourPick}
                     names=${names}
                     picks=${picks}
                     live=${live}
+                    label=${label}
+                    what=${what}
+                    tools=${tools}
                     onToggle=${togglePick}
                     onAll=${showAll}
                 />
                 ${shown.map((name) => html`
                     <div class="pfstack" key=${name}>
-                        ${shown.length > 1 && html`
+                        ${head ? head(name) : shown.length > 1 && html`
                             <div class="pfstackname">
-                                <span class="pfstacktitle">${name}</span>
+                                <span class="pfstacktitle">${label(name)}</span>
                                 ${live && live.get(name) > 0 && html`
                                     <span class="pfstacklive">
                                         ${live.get(name)} live
@@ -139,7 +155,7 @@ export function Pages({ names, current, onPick, live, page, onShown }) {
                         aria-pressed=${name === current ? "true" : "false"}
                         onClick=${() => onPick(name)}
                     >
-                        ${name}
+                        ${label(name)}
                         ${live && live.get(name) > 0 && html`<span class="n">${live.get(name)}</span>`}
                     </button>
                 `)}
@@ -150,15 +166,15 @@ export function Pages({ names, current, onPick, live, page, onShown }) {
     `;
 }
 
-function ContourPick({ names, picks, live, onToggle, onAll }) {
+function ContourPick({ names, picks, live, label, what, tools, onToggle, onAll }) {
     const [open, setOpen] = useState(false);
-    const label = picks.length === 0
+    const chosen = picks.length === 0
         ? `all (${names.length})`
-        : picks.length === 1 ? picks[0] : `${picks.length} of ${names.length}`;
+        : picks.length === 1 ? label(picks[0]) : `${picks.length} of ${names.length}`;
 
     return html`
         <div class="pfsel">
-            <span class="pfsellabel">contours</span>
+            <span class="pfsellabel">${what}</span>
             <div class="pfdrop">
                 <button
                     class="pfselbtn"
@@ -166,7 +182,7 @@ function ContourPick({ names, picks, live, onToggle, onAll }) {
                     aria-expanded=${open ? "true" : "false"}
                     onClick=${() => setOpen((v) => !v)}
                 >
-                    <span class="pfselname">${label}</span>
+                    <span class="pfselname">${chosen}</span>
                     <span class="chev">${Icon.chevron()}</span>
                 </button>
                 ${open && html`
@@ -174,7 +190,7 @@ function ContourPick({ names, picks, live, onToggle, onAll }) {
                     <div class="pfmenu">
                         <button class="pfopt" type="button" onClick=${() => onAll()}>
                             <span class=${`pfcheck ${picks.length === 0 ? "on" : ""}`}></span>
-                            <span>all contours</span>
+                            <span>all ${what}</span>
                         </button>
                         ${names.map((name) => html`
                             <button
@@ -184,13 +200,14 @@ function ContourPick({ names, picks, live, onToggle, onAll }) {
                                 onClick=${() => onToggle(name)}
                             >
                                 <span class=${`pfcheck ${picks.includes(name) ? "on" : ""}`}></span>
-                                <span class="pfoptname">${name}</span>
+                                <span class="pfoptname">${label(name)}</span>
                                 ${live && live.get(name) > 0 && html`<span class="n">${live.get(name)}</span>`}
                             </button>
                         `)}
                     </div>
                 `}
             </div>
+            ${tools}
         </div>
     `;
 }

@@ -47,13 +47,14 @@ import { MoveScreen, sidesOf, useMove, useSwitchWay } from "./chat/switch.js";
 import { outsideNote } from "./sessions/kin.js";
 import { TakeBack } from "./chat/takeback.js";
 import { Term, useTermAvailable } from "./chat/term.js";
+import { TermJump } from "./terms/jump.js";
 import { useViewPick } from "./chat/viewpick.js";
 import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 import { useAsOf } from "../ui/asof.js";
 
 
-export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, onUsage, onOpenChat }) {
+export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, onUsage, onOpenChat, onTerm }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
     // where it was. Sending the reader to a page of their own instead costs
@@ -301,6 +302,13 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
         ${live && html`<${SessionButton} ...${tools} open=${panel} onOpen=${setPanel} />`}
     `;
     const commandsChip = html`<${CommandsChip} onOpen=${() => setLook({ kind: "commands" })} />`;
+    // The terminal of the session's project: the root the map knows it by,
+    // or the directory it works in. A listener without the terminal route
+    // has no such button at all.
+    const termPlace = (live && live.project && live.project.path) || here;
+    const termJump = onTerm && term.route && live && termPlace && knows(exec, "term.start")
+        ? html`<${TermJump} place=${termPlace} exec=${exec} onTerm=${onTerm} />`
+        : null;
 
     return html`
         ${wide
@@ -436,6 +444,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                              ${view !== "term" && html`<div class="cwork">
                                                  <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                                                  <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
+                                                 ${termJump}
                                              </div>`}`
                                          : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} lead=${commandsChip} />`}
                                      focus=${`${name}|${id || ""}|${view}`} />
@@ -453,6 +462,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                     </button>`}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
+                    ${termJump}
                     <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
                 </div>
             </div>

@@ -14,6 +14,8 @@ import { HeadLoad } from "./load.js";
 import { Devices } from "../screens/devices.js";
 import { Settings } from "../screens/settings.js";
 import { SessionColumn } from "./sessions.js";
+import { TermsDesk } from "./terms.js";
+import { useTermAvailable } from "../screens/chat/term.js";
 import { StackColumn, ContainersCenter } from "./containers.js";
 import { MachineCats, MachineCenter } from "./machine.js";
 import { routeChip } from "../ui/route.js";
@@ -25,6 +27,7 @@ import { MAX, MIN, useScale } from "./scale.js";
 
 export const SECTIONS = [
     { id: "sessions", label: "Sessions", icon: Icon.sessions },
+    { id: "terminals", label: "Terminals", icon: Icon.prompt },
     { id: "containers", label: "Containers", icon: Icon.containers },
     { id: "machine", label: "Machine", icon: Icon.cpu },
     { id: "devices", label: "Devices", icon: Icon.skill },
@@ -255,6 +258,18 @@ export function DesktopShell({
         setChat(target);
         goSection("sessions");
     }, [goSection]);
+
+    // The terminals are a section where the listener has the terminal route:
+    // elsewhere the section has no button, and a kept one opens home.
+    const term = useTermAvailable();
+    const [termOpen, setTermOpen] = useState(null);
+    const openTerm = useCallback((target) => {
+        setTermOpen(target);
+        goSection("terminals");
+    }, [goSection]);
+    useEffect(() => {
+        if (section === "terminals" && term.known && !term.route) goSection("home");
+    }, [section, term.known, term.route, goSection]);
     useEffect(() => {
         if (!jump) return;
         openChat({ name: jump.name, id: jump.id });
@@ -308,6 +323,11 @@ export function DesktopShell({
                 cat=${cat}
             />`;
         }
+        if (section === "terminals") {
+            return term.route
+                ? html`<${TermsDesk} snapshot=${snapshot} exec=${exec} open=${termOpen} onOpen=${setTermOpen} />`
+                : null;
+        }
         if (section === "devices") return html`<div class="dkpage"><${Devices} onBack=${goBack} /></div>`;
         if (section === "alerts") {
             return html`<div class="dkpage"><${Alerts} alerts=${alerts} onAction=${alerts.reload} onBack=${goBack} /></div>`;
@@ -325,6 +345,7 @@ export function DesktopShell({
                 archive=${chat.archived ? chat.row : null}
                 onBack=${() => setChat(null)}
                 onUsage=${() => { setChat(null); goSection("home"); }}
+                onTerm=${term.route ? openTerm : null}
                 onOpenChat=${(talk) => openChat(talk.live
                     ? { name: talk.name, id: null }
                     : { name: talk.name, id: talk.id, archived: true, row: null })}
@@ -343,7 +364,7 @@ export function DesktopShell({
     const chip = routeChip(route);
     const panels = PANELS[section] || [];
     const panelTitle = (panels.find((p) => p.id === panel) || {}).label || "";
-    const wide = section === "home" || section === "devices" || section === "alerts";
+    const wide = section === "home" || section === "devices" || section === "alerts" || section === "terminals";
 
     return html`
         <div class="deskshell" ref=${shellRef}>
@@ -362,7 +383,7 @@ export function DesktopShell({
                     onClick=${() => goSection("home")}
                 ><${Icon.orbit} /></button>
                 <nav class="dkibs">
-                    ${SECTIONS.map((it) => html`
+                    ${SECTIONS.filter((it) => it.id !== "terminals" || term.route).map((it) => html`
                         <${IconButton} key=${it.id} item=${it} active=${section === it.id} onClick=${() => goSection(it.id)} />
                     `)}
                 </nav>

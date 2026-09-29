@@ -387,6 +387,7 @@ func TestCatchUpHasOneOwner(t *testing.T) {
 		"src/screens/chat/work.js":       "the clock of a compaction, redrawn by the second and asking nothing",
 		"src/screens/chat/now.js":        "the clock of the call going out, redrawn by the second and asking nothing",
 		"src/data/usage.js":              "the progress of usage collection, one for the monitor and the phone",
+		"src/data/terms.js":              "the terminals of places while their screen is open: a tab renames itself after what runs in it",
 	}
 	for _, path := range sortedKeys(files) {
 		if !strings.Contains(stripComments(files[path]), "setInterval(") {
