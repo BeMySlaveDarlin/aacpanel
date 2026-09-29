@@ -313,3 +313,52 @@ func TestStateDirFollowsXDG(t *testing.T) {
 		t.Errorf("with XDG_STATE_HOME: %s", got)
 	}
 }
+
+// TestARunThatStoppedGoesOnFromTheStepItStoppedAt: there is no file of
+// progress. The steps before the stop find the machine done and pass by;
+// the step that failed runs again; a stop asked for ends the run after the
+// step at work.
+func TestARunThatStoppedGoesOnFromTheStepItStoppedAt(t *testing.T) {
+	m, dir := manifestIn(t)
+	made := filepath.Join(dir, "made")
+	broken := true
+	var ran []string
+	steps := []*Step{
+		{ID: "one", Title: "One", Undo: UndoKind,
+			Done:  func(*Run) (bool, error) { _, err := os.Stat(made); return err == nil, nil },
+			Apply: func(r *Run) error { ran = append(ran, "one"); return r.MakeDir(made, 0o755) }},
+		{ID: "two", Title: "Two", Apply: func(*Run) error {
+			ran = append(ran, "two")
+			if broken {
+				return &Failed{Diagnosis: "the stack did not come up"}
+			}
+			return nil
+		}},
+		{ID: "three", Title: "Three", Apply: func(*Run) error { ran = append(ran, "three"); return nil }},
+	}
+	var already []string
+	sink := func(e Event) {
+		if e.Type == Closed && e.Already {
+			already = append(already, e.Title)
+		}
+	}
+	err := Perform(&Run{Manifest: m, Sink: sink}, steps)
+	var f *Failed
+	if !errors.As(err, &f) || !slices.Equal(ran, []string{"one", "two"}) {
+		t.Fatalf("the first run ended with %v after %q", err, ran)
+	}
+	broken, ran = false, nil
+	if err := Perform(&Run{Manifest: m, Sink: sink}, steps); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ran, []string{"two", "three"}) || !slices.Equal(already, []string{"One"}) {
+		t.Errorf("the second run ran %q and passed by %q", ran, already)
+	}
+	ran = nil
+	r := &Run{Manifest: m}
+	steps[1].Apply = func(*Run) error { ran = append(ran, "two"); r.Stop(); return nil }
+	var stopped *Interrupted
+	if err := Perform(r, steps); !errors.As(err, &stopped) || stopped.After != "Two" || !slices.Equal(ran, []string{"two"}) {
+		t.Errorf("a stop during Two ended with %v after %q", err, ran)
+	}
+}

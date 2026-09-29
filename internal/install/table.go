@@ -1,11 +1,15 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -26,6 +30,19 @@ type Table struct {
 	Spaces map[string]Space
 	Web    map[string]int
 	Tty    bool
+
+	// Disk is a directory whose files are read from the disk itself: the
+	// temporary tree a test lets the steps write into. The tables come
+	// first, so a test still names what the system around it holds.
+	Disk string
+	// Effects are what a command does besides answering, for the steps to
+	// find afterwards: a build leaves its binary.
+	Effects map[string]func(Cmd) error
+	// Ran are the commands the steps ran through the table, in order, and
+	// Envs the environment each was given.
+	Ran  []string
+	Envs [][]string
+	mu   sync.Mutex
 }
 
 // Reply is what a command of a Table gives: its output, or a failure with
@@ -55,7 +72,14 @@ func (t *Table) ReadFile(path string) ([]byte, error) {
 	if s, ok := t.Files[path]; ok {
 		return []byte(s), nil
 	}
+	if t.onDisk(path) {
+		return os.ReadFile(path)
+	}
 	return nil, &fs.PathError{Op: "open", Path: path, Err: fs.ErrNotExist}
+}
+
+func (t *Table) onDisk(path string) bool {
+	return t.Disk != "" && (path == t.Disk || strings.HasPrefix(path, strings.TrimSuffix(t.Disk, "/")+"/"))
 }
 
 func (t *Table) Head(path string, n int) ([]byte, error) {
@@ -70,6 +94,9 @@ func (t *Table) Stat(path string) (Stat, error) {
 	if st, ok := t.Stats[path]; ok {
 		return st, nil
 	}
+	if t.onDisk(path) {
+		return Local{}.Stat(path)
+	}
 	if _, ok := t.Files[path]; ok {
 		return Stat{Mode: 0o644, UID: t.Acct.UID}, nil
 	}
@@ -83,6 +110,9 @@ func (t *Table) Stat(path string) (Stat, error) {
 // List finds the names under dir among every path the tables know: a path
 // deeper than one level makes its first step a directory.
 func (t *Table) List(dir string) ([]DirEntry, error) {
+	if t.onDisk(dir) {
+		return Local{}.List(dir)
+	}
 	st, ok := t.Stats[dir]
 	if ok && !st.Mode.IsDir() {
 		return nil, &fs.PathError{Op: "readdirent", Path: dir, Err: syscall.ENOTDIR}
@@ -150,6 +180,47 @@ func (t *Table) Run(name string, args ...string) (string, error) {
 		return r.Out, &Failure{Code: r.Code, Stderr: r.Fail}
 	}
 	return r.Out, nil
+}
+
+// Exec runs a command of the steps from the table: it notes the command
+// and its environment, does its effect, and gives its answer line by line.
+// A command the table does not know fails, so a test learns of every
+// command a step runs.
+func (t *Table) Exec(_ context.Context, c Cmd, line func(string)) (string, error) {
+	key := Command(c.Argv[0], c.Argv[1:]...)
+	t.mu.Lock()
+	t.Ran = append(t.Ran, key)
+	t.Envs = append(t.Envs, c.Env)
+	effect := t.Effects[key]
+	t.mu.Unlock()
+	if effect != nil {
+		if err := effect(c); err != nil {
+			return "", err
+		}
+	}
+	r, ok := t.Cmds[key]
+	if !ok {
+		return "", &Failure{Code: 127, Stderr: "the table of the test has no " + key}
+	}
+	for _, l := range strings.Split(strings.TrimSuffix(r.Out+r.Fail, "\n"), "\n") {
+		if l != "" && line != nil {
+			line(l)
+		}
+	}
+	if r.failed() {
+		return r.Out, &Failure{Code: r.Code, Stderr: r.Fail}
+	}
+	return r.Out, nil
+}
+
+// Writes makes a command of the table write a file, as the command would.
+func Writes(path, body string) func(Cmd) error {
+	return func(Cmd) error {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(path, []byte(body), 0o755)
+	}
 }
 
 func (t *Table) Space(path string) (Space, error) {

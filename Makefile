@@ -36,6 +36,10 @@ vet:
 # asks for fewer.
 GOTEST_FLAGS ?=
 GOTEST_PARALLEL ?= 16
+# The installer writes the test database it makes into .env; a DSN in the
+# environment wins.
+AACP_TEST_DSN ?= $(shell sed -n 's/^AACP_TEST_DSN=//p' .env 2>/dev/null | tail -n 1)
+export AACP_TEST_DSN
 test:
 	@test -n "$$AACP_TEST_DSN" || echo "!! AACP_TEST_DSN is not set: the tests with a database will be skipped"
 	@home=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-testhome.XXXXXX"); \
@@ -50,40 +54,11 @@ test:
 	go test -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) ./...
 
 # The agent is deployed from the working tree, so a restart is a release: a name
-# undefined at module level does not break one screen, it keeps the service from
-# starting at all. Tests do not catch that — they import what they need.
-define AGENT_IMPORT_PY
-import importlib, importlib.util, pathlib, sys, traceback
-bad = []
-for path in sorted(pathlib.Path(".").glob("*.py")):
-    if path.name.startswith("test_"):
-        continue
-    try:
-        if "-" in path.stem:
-            spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
-            spec.loader.exec_module(importlib.util.module_from_spec(spec))
-        else:
-            importlib.import_module(path.stem)
-    except BaseException as err:
-        where = ""
-        if not getattr(err, "filename", None):
-            here = pathlib.Path(".").resolve()
-            frames = [f for f in traceback.extract_tb(err.__traceback__)
-                      if here in pathlib.Path(f.filename).parents]
-            if frames:
-                where = " (%s:%s)" % (pathlib.Path(frames[-1].filename).relative_to(here),
-                                      frames[-1].lineno)
-        bad.append("%s: %s: %s%s" % (path.name, type(err).__name__, err, where))
-if bad:
-    print("!! the collector will not come up - these modules do not import:")
-    for line in bad:
-        print("   " + line)
-    sys.exit(1)
-endef
-export AGENT_IMPORT_PY
-
+# undefined at module level keeps the service from starting at all, and tests do
+# not catch that. The installer runs the same check before it restarts the
+# collector.
 agent-import:
-	@cd agent && python3 -c "$$AGENT_IMPORT_PY"
+	@cd agent && python3 importcheck.py
 
 # Agent tests run with a substituted state directory — the same barrier as the
 # home directory above, since the question book lives by absolute path.

@@ -156,16 +156,21 @@ func traces(t ui.Theme, f install.Facts, width int) string {
 	return t.Entry(ui.Plain, "What is here already", lines, width)
 }
 
-// closing is the last line of plan.
-func closing(t ui.Theme, stops, width int) string {
+// closing is the last line of a run that ends before the steps: after the
+// check, or at an answer that stops the install.
+func closing(t ui.Theme, stops int, command string, width int) string {
+	again := "./install.sh plan"
+	if command == "install" {
+		again = "./install.sh"
+	}
 	var s string
 	switch stops {
 	case 0:
 		s = "Nothing on this machine was changed. The machine can take the panel."
 	case 1:
-		s = "Nothing on this machine was changed. One line above stops the install: fix it and run ./install.sh plan again."
+		s = "Nothing on this machine was changed. One line above stops the install: fix it and run " + again + " again."
 	default:
-		s = fmt.Sprintf("Nothing on this machine was changed. %d lines above stop the install: fix them and run ./install.sh plan again.", stops)
+		s = fmt.Sprintf("Nothing on this machine was changed. %d lines above stop the install: fix them and run %s again.", stops, again)
 	}
 	return "\n" + strings.Join(ui.Indent(s, " ", " ", width), "\n")
 }
@@ -193,17 +198,27 @@ func (p *Plain) Sink(e install.Event) {
 		p.Print("\n" + p.T.Step(ui.Plain, e.Title, p.Width))
 		p.first = true
 	case install.Said:
-		lines := said{e.Mark, e.Text}.lines(p.T, feedWidth(p.Width))
-		if p.first {
-			p.Print(p.T.Output(lines, p.Width))
-			p.first = false
-			return
+		p.under(said{e.Mark, e.Text}.lines(p.T, feedWidth(p.Width)))
+	case install.Changed:
+		p.under([]string{p.T.Dim.Render("+ " + e.Text)})
+	case install.Closed:
+		if e.Already {
+			p.under([]string{p.T.Result(ui.Pass, "in place already: nothing to do")})
 		}
-		for i := range lines {
-			lines[i] = "     " + lines[i]
-		}
-		p.Print(strings.Join(lines, "\n"))
 	}
+}
+
+// under puts lines under the step at work: the first of them behind ⎿.
+func (p *Plain) under(lines []string) {
+	if p.first {
+		p.Print(p.T.Output(lines, p.Width))
+		p.first = false
+		return
+	}
+	for i := range lines {
+		lines[i] = "     " + lines[i]
+	}
+	p.Print(strings.Join(lines, "\n"))
 }
 
 // collect is the sink of the screen: it keeps what a step said until the
