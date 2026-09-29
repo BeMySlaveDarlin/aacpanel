@@ -153,53 +153,53 @@ function safe(name, fn) {
     }
 }
 
-safe("fresh", () => readView("evirma", store()));
+safe("fresh", () => readView("acme", store()));
 safe("saved", () => {
     const s = store();
-    saveView("evirma", "feed", s);
-    return readView("evirma", s);
+    saveView("acme", "feed", s);
+    return readView("acme", s);
 });
 safe("otherSession", () => {
     const s = store();
-    saveView("evirma", "feed", s);
-    return readView("evirma-c", s);
+    saveView("acme", "feed", s);
+    return readView("acme-c", s);
 });
 safe("twoSessions", () => {
     const s = store();
-    saveView("evirma", "feed", s);
-    saveView("evirma-c", "term", s);
-    return readView("evirma", s) + "," + readView("evirma-c", s);
+    saveView("acme", "feed", s);
+    saveView("acme-c", "term", s);
+    return readView("acme", s) + "," + readView("acme-c", s);
 });
 safe("again", () => {
     const s = store();
-    saveView("evirma", "feed", s);
-    saveView("evirma", "term", s);
-    return readView("evirma", s) + ":" + JSON.parse(s.data[VIEW_KEY]).length;
+    saveView("acme", "feed", s);
+    saveView("acme", "term", s);
+    return readView("acme", s) + ":" + JSON.parse(s.data[VIEW_KEY]).length;
 });
-safe("junk", () => readView("evirma", store({ [VIEW_KEY]: "terminal" })));
+safe("junk", () => readView("acme", store({ [VIEW_KEY]: "terminal" })));
 safe("junkEntry", () => {
-    const s = store({ [VIEW_KEY]: JSON.stringify([["evirma", "terminal"], "evirma-c", [7, "feed"], ["evirma-c", "feed"]]) });
-    return readView("evirma", s) + "," + readView("evirma-c", s);
+    const s = store({ [VIEW_KEY]: JSON.stringify([["acme", "terminal"], "acme-c", [7, "feed"], ["acme-c", "feed"]]) });
+    return readView("acme", s) + "," + readView("acme-c", s);
 });
-safe("readThrows", () => readView("evirma", store({ [VIEW_KEY]: JSON.stringify([["evirma", "term"]]) }, "read")));
+safe("readThrows", () => readView("acme", store({ [VIEW_KEY]: JSON.stringify([["acme", "term"]]) }, "read")));
 safe("writeThrows", () => {
     const s = store({}, "write");
-    saveView("evirma", "term", s);
-    return readView("evirma", s) === "" ? "ok" : "written into an unavailable storage";
+    saveView("acme", "term", s);
+    return readView("acme", s) === "" ? "ok" : "written into an unavailable storage";
 });
 safe("afterReload", () => {
     const s = store();
-    saveView("evirma", "feed", s);
-    return viewOf(readView("evirma", s), true, true);
+    saveView("acme", "feed", s);
+    return viewOf(readView("acme", s), true, true);
 });
 const noTerm = store();
-saveView("evirma", "term", noTerm);
-safe("noTermView", () => viewOf(readView("evirma", noTerm), false, true));
-safe("noTermKept", () => readView("evirma", noTerm));
+saveView("acme", "term", noTerm);
+safe("noTermView", () => viewOf(readView("acme", noTerm), false, true));
+safe("noTermKept", () => readView("acme", noTerm));
 safe("nextSession", () => {
     const s = store();
-    saveView("evirma", "feed", s);
-    return viewOf(readView("evirma-c", s), true, true);
+    saveView("acme", "feed", s);
+    return viewOf(readView("acme-c", s), true, true);
 });
 // Two hundred choices fill the storage; the oldest was picked again, so the
 // next one past the ceiling pushes out the one after it.

@@ -38,8 +38,8 @@ async function run(answer, action) {
         return new Response("{}", { status: answer });
     };
     boot(self, { open: async () => ({}), keys: async () => [], delete: async () => true }, fetch);
-    const payload = { title: "Stack down · lms", body: "b", tag: "stack:lms", severity: "critical",
-                      quiet: { what: "stacks", key: "lms", label: "Quiet: lms" } };
+    const payload = { title: "Stack down · shop", body: "b", tag: "stack:shop", severity: "critical",
+                      quiet: { what: "stacks", key: "shop", label: "Quiet: shop" } };
     for (const fn of handlers.push) fn({ data: { json: () => payload, text: () => "" }, waitUntil: (p) => waits.push(p) });
     await Promise.all(waits);
     const push = shown[0];
@@ -70,18 +70,18 @@ process.stdout.write(JSON.stringify(out));
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("%v: %s", err, raw)
 	}
-	if len(got.Ok.Actions) != 1 || got.Ok.Actions[0].Action != "quiet" || got.Ok.Actions[0].Title != "Quiet: lms" {
-		t.Errorf("the push carries %+v, want one button Quiet: lms", got.Ok.Actions)
+	if len(got.Ok.Actions) != 1 || got.Ok.Actions[0].Action != "quiet" || got.Ok.Actions[0].Title != "Quiet: shop" {
+		t.Errorf("the push carries %+v, want one button Quiet: shop", got.Ok.Actions)
 	}
 	if len(got.Ok.Asked) != 1 {
 		t.Fatalf("the button asked %+v", got.Ok.Asked)
 	}
 	a := got.Ok.Asked[0]
 	if a.URL != "https://panel.example/api/push/quiet" || a.Method != "POST" || a.Credentials != "same-origin" ||
-		!strings.Contains(a.Body, `"what":"stacks"`) || !strings.Contains(a.Body, `"key":"lms"`) {
+		!strings.Contains(a.Body, `"what":"stacks"`) || !strings.Contains(a.Body, `"key":"shop"`) {
 		t.Errorf("the button asked %+v: its own panel, with the session of that panel, naming the source", a)
 	}
-	if strings.Join(got.Ok.Said, "|") != "Quieted: lms" || strings.Join(got.Refused.Said, "|") != "Not quieted" {
+	if strings.Join(got.Ok.Said, "|") != "Quieted: shop" || strings.Join(got.Refused.Said, "|") != "Not quieted" {
 		t.Errorf("the phone was told %v when it went and %v when the panel refused", got.Ok.Said, got.Refused.Said)
 	}
 	if len(got.Tap.Asked) != 0 || got.Tap.Opened == "" {

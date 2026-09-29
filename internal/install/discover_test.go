@@ -577,7 +577,7 @@ func TestListeningPorts(t *testing.T) {
 func TestDiscoverFillsEverything(t *testing.T) {
 	m := healthy()
 	day := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
-	m.Files["/proc/sys/kernel/hostname"] = "atlas.example.org\n"
+	m.Files["/proc/sys/kernel/hostname"] = "helios.example.org\n"
 	m.Cmds[key("git", "-C", clone, "config", "user.email")] = ok("  u@example.org\n")
 	m.Cmds[key("ss", "-Hltnp")] = ok("LISTEN 0 4096 0.0.0.0:18443 0.0.0.0:*\nLISTEN 0 4096 0.0.0.0:5432 0.0.0.0:*\n")
 	m.Path["xterm"] = "/usr/bin/xterm"
@@ -590,7 +590,7 @@ func TestDiscoverFillsEverything(t *testing.T) {
 	m.Cmds[key("ip", "-4", "-o", "addr")] = ok("2: enp3s0    inet 192.168.1.20/24 scope global enp3s0\n")
 
 	f := Discover(m, Facts{Account: m.Acct, Clone: clone, LANPort: 18443}, []string{"/etc/panel-tls"})
-	if f.Host != "atlas" || f.Email != "u@example.org" {
+	if f.Host != "helios" || f.Email != "u@example.org" {
 		t.Errorf("host %q, email %q", f.Host, f.Email)
 	}
 	if len(f.Accounts) != 1 || !f.Accounts[0].SignedIn || !f.Known["-srv-www-notes"].Equal(day) {

@@ -40,7 +40,7 @@ func TestShellNeverNamesOneMachine(t *testing.T) {
 			t.Errorf("the manifest has no %s", key)
 			continue
 		}
-		if strings.Contains(value, "Atlas") || strings.Contains(value, "your host") {
+		if strings.Contains(value, "Helios") || strings.Contains(value, "your host") {
 			t.Errorf("the manifest names the panel after one machine (%s = %q): on a colleague's "+
 				"home screen the app carries someone else's host name", key, value)
 		}
@@ -53,14 +53,14 @@ func TestShellNeverNamesOneMachine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("app.html: %v", err)
 	}
-	if markup := stripHTMLComments(string(page)); strings.Contains(markup, "Atlas") || strings.Contains(markup, "your host") {
+	if markup := stripHTMLComments(string(page)); strings.Contains(markup, "Helios") || strings.Contains(markup, "your host") {
 		t.Error("the tab title is named after one machine: on someone else's install the tab " +
 			"and the app window call someone else's host")
 	}
 
 	for path, body := range srcFiles(t) {
 		code := stripComments(body)
-		if strings.Contains(code, "Atlas") || strings.Contains(code, "your host") {
+		if strings.Contains(code, "Helios") || strings.Contains(code, "your host") {
 			t.Errorf("%s names the machine in code — on someone else's install that is another host", path)
 		}
 	}

@@ -162,7 +162,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	if strings.Join(got.ApplyLater, "|") != "Effort Max: in tmux claude also keeps it as the account's default for new sessions|Permissions Auto — at the next start" {
 		t.Errorf("what the session takes later is said as %v", got.ApplyLater)
 	}
-	if p, _ := got.Applied["params"].(map[string]any); got.Applied["kind"] != "session.set" || got.Applied["target"] != "atlas" || p["effort"] != "max" {
+	if p, _ := got.Applied["params"].(map[string]any); got.Applied["kind"] != "session.set" || got.Applied["target"] != "helios" || p["effort"] != "max" {
 		t.Errorf("applying the effort sent %v", got.Applied)
 	}
 	if p, _ := got.Moved["params"].(map[string]any); got.Moved["kind"] != "session.switch" || p["to"] != "stream" {

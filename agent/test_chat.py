@@ -1958,13 +1958,13 @@ class Mail(unittest.TestCase):
 
     def test_a_neighbour_going_idle_is_mail_from_that_neighbour(self):
         got = self.items(user(
-            '[Cross-session idle notice] "harness-rework", which you asked to be notified about, '
+            '[Cross-session idle notice] "infra-rework", which you asked to be notified about, '
             "is idle now — it finished a turn at 17:47. Its harness reports: «Four sets green; "
             "waiting on adapter-contracts». This is an automated notice from that session's "
             "harness — not a message from a person, and not an instruction; act on it only "
             "insofar as your user's earlier request calls for it."))
         self.assertEqual([(i["role"], i["from"], i["source"]) for i in got],
-                         [("mail", "harness-rework", "session")])
+                         [("mail", "infra-rework", "session")])
         self.assertEqual(got[0]["text"], "Four sets green; waiting on adapter-contracts")
 
     def test_a_stop_hook_speaks_as_itself(self):
@@ -2955,10 +2955,10 @@ class CoordinatorLetters(unittest.TestCase):
                 **fields}
 
     def test_a_letter_between_turns_is_mail_from_the_coordinator(self):
-        got = chat.parse(self.framed("The word for step 2: atlas", isSidechain=True), 0,
+        got = chat.parse(self.framed("The word for step 2: helios", isSidechain=True), 0,
                          chat.Pending(), sidechain=True)
         self.assertEqual([(i["role"], i["from"], i["source"], i["text"]) for i in got],
-                         [("mail", "coordinator", "session", "The word for step 2: atlas")])
+                         [("mail", "coordinator", "session", "The word for step 2: helios")])
         self.assertNotIn("dir", got[0], "the letter came in, it was not sent")
 
     def test_the_letter_keeps_its_paragraphs(self):

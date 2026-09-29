@@ -32,7 +32,7 @@ func TestAPermissionCardLooksAgainAfterARefusal(t *testing.T) {
 		t.Errorf("the keypress carried no tail of the dialog: %+v — a cut dialog then cannot be "+
 			"answered from a phone at all", got.Sent[0].Params)
 	}
-	if !strings.Contains(got.Read, "LMS-13562") {
+	if !strings.Contains(got.Read, "SHOP-13562") {
 		t.Fatalf("the card did not show the dialog it was given: %q", got.Read)
 	}
 	if !strings.Contains(got.AfterFail, "rm -rf") {

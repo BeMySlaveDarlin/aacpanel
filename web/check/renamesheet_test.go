@@ -28,7 +28,7 @@ func TestRenameSheetSavesASoundNameAndTheScreenFollows(t *testing.T) {
 	if got.Error != "" {
 		t.Fatalf("the fixture broke: %s", got.Error)
 	}
-	if got.Title != "Rename the session" || got.Value != "atlas" || !got.SameOff {
+	if got.Title != "Rename the session" || got.Value != "helios" || !got.SameOff {
 		t.Errorf("the sheet opened as %q with %q (save off on the same name: %v)", got.Title, got.Value, got.SameOff)
 	}
 	if !got.SpaceOff || !strings.Contains(got.SpaceWhy, "latin") {
@@ -37,13 +37,13 @@ func TestRenameSheetSavesASoundNameAndTheScreenFollows(t *testing.T) {
 	if !got.TakenOff || !strings.Contains(got.TakenWhy, "already") {
 		t.Errorf("a taken name can be saved (%v): %q", !got.TakenOff, got.TakenWhy)
 	}
-	if got.GoodOff || len(got.Sent) != 1 || got.Sent[0] != `session.rename:atlas:{"name":"atlas-pilot"}` {
+	if got.GoodOff || len(got.Sent) != 1 || got.Sent[0] != `session.rename:helios:{"name":"helios-pilot"}` {
 		t.Errorf("a sound name went out as %v (save off: %v)", got.Sent, got.GoodOff)
 	}
 	if got.Confirmation {
 		t.Error("the saved name was asked about a second time")
 	}
-	if strings.Join(got.Before, ",") != "atlas" || !strings.Contains(strings.Join(got.After, ","), "atlas-pilot") {
+	if strings.Join(got.Before, ",") != "helios" || !strings.Contains(strings.Join(got.After, ","), "helios-pilot") {
 		t.Errorf("the conversation asked by %v, then by %v — it did not follow the renamed session", got.Before, got.After)
 	}
 }

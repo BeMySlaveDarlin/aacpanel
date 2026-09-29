@@ -9,7 +9,7 @@ import { render } from "preact";
 import { html } from "/src/html.js";
 import { render as md } from "/src/md.js";
 
-const text = "Open **http://192.168.1.137:8093/board.html** and *https://b.example/y*, "
+const text = "Open **http://192.168.1.20:8093/board.html** and *https://b.example/y*, "
     + "then **read [the notes](https://c.example/z)**; the code `http://d.example/code` stays code.";
 render(html`<div>${md(text)}</div>`, document.getElementById("root"));
 window.done = (async () => {

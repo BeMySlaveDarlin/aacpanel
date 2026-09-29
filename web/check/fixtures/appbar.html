@@ -16,8 +16,8 @@ import { RouteSheet, asOf } from "/src/ui/route.js";
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const legs = [
     { kind: "local", url: "http://127.0.0.1:8777" },
-    { kind: "lan", url: "https://atlas.example.net:8443" },
-    { kind: "ts", url: "https://atlas.tail0000.ts.net" },
+    { kind: "lan", url: "https://helios.example.net:8443" },
+    { kind: "ts", url: "https://helios.tail0000.ts.net" },
 ];
 let maps = 0;
 window.fetch = async (url) => {
@@ -26,7 +26,7 @@ window.fetch = async (url) => {
         maps++;
         return json({ panel: "p1", here: "local", endpoints: legs });
     }
-    if (u === "https://atlas.example.net:8443/probe") return json({ panel: "p1", kind: "lan" });
+    if (u === "https://helios.example.net:8443/probe") return json({ panel: "p1", kind: "lan" });
     if (u.endsWith("/probe")) throw new TypeError("no answer");
     return new Response("", { status: 404 });
 };
@@ -63,11 +63,11 @@ const states = [
     ["via", { kind: "live", at }, 3, false, { via: "lan", why: "lan" }],
     // Words that cannot fit: a leg the labels do not know and a long host name.
     ["longleg", { kind: "live", at }, 720, false, { via: "wireguard-backup-leg", why: "wireguard-backup-leg" }],
-    ["longhost", { kind: "offline", at }, null, false, {}, "aziz-workstation-builder-01"],
+    ["longhost", { kind: "offline", at }, null, false, {}, "jdoe-workstation-builder-01"],
 ];
 
 const root = document.getElementById("root");
-const show = (conn, ageSec, flag, r, host = "ATLAS") => render(html`
+const show = (conn, ageSec, flag, r, host = "HELIOS") => render(html`
     <${Header} hostName=${host} conn=${conn} ageSec=${ageSec} route=${r} flag=${flag}
                alerts=${3} query="" onQuery=${() => {}} onMenu=${() => {}} onAlerts=${() => {}} />
 `, root);
@@ -160,7 +160,7 @@ window.done = (async () => {
 
     // The host menu: install and theme moved here from the bar.
     let installs = 0, themes = 0, closed = 0;
-    const menu = (installable, theme) => render(html`<${HostMenu} open=${true} hostName="ATLAS" installable=${installable}
+    const menu = (installable, theme) => render(html`<${HostMenu} open=${true} hostName="HELIOS" installable=${installable}
         theme=${theme} onClose=${() => { closed++; }} onInstall=${() => { installs++; }} onTheme=${() => { themes++; }}
         onPage=${() => {}} />`, sheetRoot);
     menu(true, "space");

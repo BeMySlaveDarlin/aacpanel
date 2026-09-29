@@ -238,7 +238,7 @@ var (
 		// what they want: the tool's line in the server's word names it, since
 		// the model sees that line and not the tool's description.
 		"internal/session/restart.go":  {`«перезапустись», «перезапусти сессию»`},
-		"internal/session/letter.go":   {`«напиши в lms», «передай сессии»`},
+		"internal/session/letter.go":   {`«напиши в соседнюю сессию», «передай сессии»`},
 		"internal/collector/brief.go":  {`"бриф", "опросник", "скинь в панель", "отвечу потом"`},
 		"internal/collector/notify.go": {`"позови меня", "пингани", "дай знать на телефон"`},
 

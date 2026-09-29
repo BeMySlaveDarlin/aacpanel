@@ -214,9 +214,9 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 	if len(got.Sections) != 3 {
 		t.Fatalf("the column shows %d contours, expected all three of the map, with live sessions or without: %+v", len(got.Sections), got.Sections)
 	}
-	evirma, algo, personal := got.Sections[0], got.Sections[1], got.Sections[2]
+	acme, globex, personal := got.Sections[0], got.Sections[1], got.Sections[2]
 	for sec, want := range map[*deskSection]string{
-		&evirma: "7:48m|41:7d", &algo: "93:2h|57:5d", &personal: "12:3h|24:5d",
+		&acme: "7:48m|41:7d", &globex: "93:2h|57:5d", &personal: "12:3h|24:5d",
 	} {
 		var rings []string
 		for _, r := range sec.Rings {
@@ -246,21 +246,21 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 			t.Errorf("%q holds %d closed conversations among its live sessions — the closed ones stand on the shelf", sec.Name, sec.Closed)
 		}
 	}
-	if !strings.Contains(evirma.Head, "1 h ago") {
-		t.Errorf("the heading of numbers an hour old reads %q — how old they are has to show without a press", evirma.Head)
+	if !strings.Contains(acme.Head, "1 h ago") {
+		t.Errorf("the heading of numbers an hour old reads %q — how old they are has to show without a press", acme.Head)
 	}
-	if len(evirma.Live) != 0 || evirma.Empty != "nothing live" || !evirma.Old {
+	if len(acme.Live) != 0 || acme.Empty != "nothing live" || !acme.Old {
 		t.Errorf("the contour with no live session shows live %v, says %q, dimmed %v: expected a word that nothing lives there and old numbers dimmed",
-			evirma.Live, evirma.Empty, evirma.Old)
+			acme.Live, acme.Empty, acme.Old)
 	}
-	if strings.Join(algo.Live, ",") != "lms" || strings.Join(personal.Live, ",") != "aacpanel,atlas,blog" {
-		t.Errorf("the contours hold live %v and %v, expected lms and the three of personal", algo.Live, personal.Live)
+	if strings.Join(globex.Live, ",") != "shop" || strings.Join(personal.Live, ",") != "aacpanel,blog,helios" {
+		t.Errorf("the contours hold live %v and %v, expected shop and the three of personal", globex.Live, personal.Live)
 	}
 
 	if len(got.Asked) != 1 {
 		t.Fatalf("the shelf asked the archive %d times (%v), expected one request for every contour shown", len(got.Asked), got.Asked)
 	}
-	for _, want := range []string{"contour=4", "contour=1", "contour=3", "skip=lms%2Caacpanel%2Catlas%2Cblog"} {
+	for _, want := range []string{"contour=4", "contour=1", "contour=3", "skip=shop%2Caacpanel%2Chelios%2Cblog"} {
 		if !strings.Contains(got.Asked[0], want) {
 			t.Errorf("the shelf asked %q without %s — every contour shown goes by the id of its entry, and the live conversations are left out", got.Asked[0], want)
 		}
@@ -277,8 +277,8 @@ func TestDeskColumnShowsEveryContourWithItsLimitAndTheClosedOnAShelf(t *testing.
 	}
 	if len(got.Shelf) > 0 {
 		first := got.Shelf[0]
-		if first.Contour != "Algorithmics and every project of it" {
-			t.Errorf("a closed conversation of the contour the collector calls algo is labelled %q — the shelf names contours the way the map does", first.Contour)
+		if first.Contour != "Globex Group and every project of it" {
+			t.Errorf("a closed conversation of the contour the collector calls globex is labelled %q — the shelf names contours the way the map does", first.Contour)
 		}
 		if !strings.Contains(first.About, "what conversation 0 of contour 1 was about") || first.When != "1 h ago" {
 			t.Errorf("a closed conversation says %q, %q — what it was about, and when in words of the screen", first.About, first.When)

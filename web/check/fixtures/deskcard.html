@@ -40,23 +40,23 @@ const now = Date.now();
 const iso = (min) => new Date(now - min * 60e3).toISOString();
 const P = (id, name, group, path) => ({ id, name, group, session: name, path });
 const projects = {
-    11: P(11, "aacpanel", "Pets", "/srv/aacpanel"), 12: P(12, "person", "Pets", "/srv/person"),
-    13: P(13, "blog", "Pets", "/srv/blog"), 14: P(14, "atlas", "Host", "/home/u"),
-    21: P(21, "lms", "LMS", "/srv/lms"), 22: P(22, "lms-admin", "LMS", "/srv/lms-admin"),
-    23: P(23, "ai-platform", "Platform", "/srv/ai-platform"),
+    11: P(11, "aacpanel", "Side", "/srv/aacpanel"), 12: P(12, "person", "Side", "/srv/person"),
+    13: P(13, "blog", "Side", "/srv/blog"), 14: P(14, "helios", "Host", "/home/u"),
+    21: P(21, "shop", "SHOP", "/srv/shop"), 22: P(22, "shop-admin", "SHOP", "/srv/shop-admin"),
+    23: P(23, "api", "Platform", "/srv/api"),
 };
 const group = (name, ids) => ({ name, projects: ids.map((id) => { const { group: _, ...p } = projects[id]; return p; }) });
 const profileMap = [
-    { id: 3, profile: "personal", name: "personal", groups: [group("Pets", [11, 12, 13]), group("Host", [14])] },
-    { id: 1, profile: "Algorithmics", name: "Algorithmics", groups: [group("LMS", [21, 22]), group("Platform", [23])] },
+    { id: 3, profile: "personal", name: "personal", groups: [group("Side", [11, 12, 13]), group("Host", [14])] },
+    { id: 1, profile: "Globex Group", name: "Globex Group", groups: [group("SHOP", [21, 22]), group("Platform", [23])] },
 ];
 const accounts = [
     { name: "personal", account: { permissionMode: "auto" } },
-    { name: "algo", account: { permissionMode: "bypassPermissions" } },
+    { name: "globex", account: { permissionMode: "bypassPermissions" } },
 ];
 const limits = { contours: [
     { profile: "personal", contour: 3, ageSec: 30, fiveHour: { pct: 20, resetsAt: now / 1000 + 3600 }, sevenDay: { pct: 30, resetsAt: now / 1000 + 86400 } },
-    { profile: "algo", contour: 1, ageSec: 30, fiveHour: { pct: 40, resetsAt: now / 1000 + 3600 }, sevenDay: { pct: 50, resetsAt: now / 1000 + 86400 } },
+    { profile: "globex", contour: 1, ageSec: 30, fiveHour: { pct: 40, resetsAt: now / 1000 + 3600 }, sevenDay: { pct: 50, resetsAt: now / 1000 + 86400 } },
 ] };
 const S = (o) => ({
     transport: "stream", model: "claude-opus-5-5", effort: "xhigh", limit: 1000000, limitKnown: true,
@@ -69,16 +69,16 @@ const first = [
         ask: { count: 2, header: "Palette" }, pct: 63 }),
     S({ session: "aacpanel", profile: "personal", contour: 3, project: projects[11], status: "busy", work: { agents: 2, tasks: 0 },
         pct: 41.8, remote: "https://claude.ai/code/session_x", compacts: 2 }),
-    S({ session: "ai-platform", profile: "algo", contour: 1, project: projects[23], status: "waiting", waitingFor: "dialog open",
+    S({ session: "api", profile: "globex", contour: 1, project: projects[23], status: "waiting", waitingFor: "dialog open",
         pct: 37, mode: "plan" }),
-    S({ session: "lms", profile: "algo", contour: 1, project: projects[21], status: "busy", work: { agents: 1, tasks: 0 },
+    S({ session: "shop", profile: "globex", contour: 1, project: projects[21], status: "busy", work: { agents: 1, tasks: 0 },
         pct: 26, mode: "bypassPermissions" }),
-    S({ session: "atlas", profile: "personal", contour: 3, project: projects[14], home: true, status: "idle", pct: 10,
+    S({ session: "helios", profile: "personal", contour: 3, project: projects[14], home: true, status: "idle", pct: 10,
         remote: "https://claude.ai/code/session_y" }),
     S({ session: "scratch", profile: "personal", contour: 3, project: null, transport: "tmux", status: "idle", pct: 5 }),
     // A name longer than the column, both marks and a full context: what
     // crowds the right column most.
-    S({ session: "evirma-fingerprint-rotation-review", profile: "algo", contour: 1, project: null, transport: "tmux",
+    S({ session: "acme-fingerprint-rotation-review", profile: "globex", contour: 1, project: null, transport: "tmux",
         status: "idle", pct: 99.6, remote: "https://claude.ai/code/session_w" }),
 ];
 // A minute later every one of them stands otherwise, and the list comes in
@@ -92,7 +92,7 @@ const later = [
     { ...first[1], status: "waiting", waitingFor: "input needed", ask: { count: 1, header: "Scope" } },
     { ...first[0], status: "idle", ask: null, waitingFor: null },
 ];
-const task = { kind: "open", target: "lms-admin", since: now - 7000, before: first.map((s) => s.session), seen: 0, params: { project: 22 } };
+const task = { kind: "open", target: "shop-admin", since: now - 7000, before: first.map((s) => s.session), seen: 0, params: { project: 22 } };
 const wait = { opening: () => [task], of: () => null };
 
 const closed = (o) => ({ model: "claude-opus-5-5", pctMax: 40, startedAt: iso(o.min + 60), lastAt: iso(o.min), ...o });
@@ -104,7 +104,7 @@ const archive = [
     closed({ sessionId: "c-blog", name: "blog", profile: "personal", project: projects[13], messages: 0, min: 180, prompts: [] }),
     closed({ sessionId: "c-career", name: "career", profile: "personal", project: null, cwd: "/srv/career", messages: 10, min: 300,
              prompts: ["a cover letter for the platform role, shorter"] }),
-    closed({ sessionId: "c-lms-admin", name: "lms-admin", profile: "algo", project: projects[22], messages: 20, min: 26 * 60,
+    closed({ sessionId: "c-shop-admin", name: "shop-admin", profile: "globex", project: projects[22], messages: 20, min: 26 * 60,
              prompts: ["migrate the admin filters to the new router"] }),
 ];
 
@@ -242,17 +242,17 @@ window.done = (async () => {
         return g ? { section: text(sec.querySelector(".dkcontourname")), key: text(g.querySelector(".dkkey")),
                      last: g === Array.from(sec.querySelectorAll(".dklive")).pop(), say: words(g.querySelector(".dksay")) } : null;
     })();
-    out.says = Object.fromEntries(["person", "aacpanel", "ai-platform", "lms", "atlas"].map((n) => [n, say(n)]));
-    out.tones = Object.fromEntries(["person", "aacpanel", "atlas"].map((n) => [n, rowOf(n).dataset.tone]));
+    out.says = Object.fromEntries(["person", "aacpanel", "api", "shop", "helios"].map((n) => [n, say(n)]));
+    out.tones = Object.fromEntries(["person", "aacpanel", "helios"].map((n) => [n, rowOf(n).dataset.tone]));
     out.edge = getComputedStyle(rowOf("person")).boxShadow;
-    out.noEdge = getComputedStyle(rowOf("atlas")).boxShadow;
-    out.facts = Object.fromEntries(["aacpanel", "ai-platform", "lms", "atlas", "scratch", "evirma-fingerprint-rotation-review"]
+    out.noEdge = getComputedStyle(rowOf("helios")).boxShadow;
+    out.facts = Object.fromEntries(["aacpanel", "api", "shop", "helios", "scratch", "acme-fingerprint-rotation-review"]
         .map((n) => [n, facts(n)]));
-    out.marks = Object.fromEntries(["aacpanel", "atlas", "scratch", "lms"].map((n) => [n,
+    out.marks = Object.fromEntries(["aacpanel", "helios", "scratch", "shop"].map((n) => [n,
         Array.from(rowOf(n).querySelectorAll(".dkmark, .dkrc, .dkhome")).map(text)]));
     out.columnText = text(root().querySelector(".dkscroll"));
     out.rows = rows();
-    out.homeAct = (rowOf("atlas").querySelector(".dkrowacts .dkact") || {}).getAttribute?.("aria-label") || "";
+    out.homeAct = (rowOf("helios").querySelector(".dkrowacts .dkact") || {}).getAttribute?.("aria-label") || "";
     out.hiding = hiding();
 
     // The shelf.
@@ -299,7 +299,7 @@ window.done = (async () => {
 
     // A closed conversation open: its row carries its time and Resume both.
     sent.length = 0;
-    column(first, "lms-admin", "c-lms-admin");
+    column(first, "shop-admin", "c-shop-admin");
     await sleep(120);
     const open = root().querySelector(".dkclosed.on");
     out.openClosed = open ? { name: text(open.querySelector(".dkclname")),
@@ -316,9 +316,9 @@ window.done = (async () => {
     out.pickedAfterResume = picked.length;
 
     // The header of a conversation, the right panel open and closed.
-    const live = { ...first[3], session: "lms", cwd: "/home/u/Projects/Algo/lms", remote: "https://claude.ai/code/session_z" };
+    const live = { ...first[3], session: "shop", cwd: "/home/u/Projects/Globex/shop", remote: "https://claude.ai/code/session_z" };
     render(h(ToastHost, null, h(GateHost, null, h(Chat, {
-        name: "lms", id: live.sessionId, live, exec, snapshot: { sessions: [live] }, onBack() {}, onUsage() {},
+        name: "shop", id: live.sessionId, live, exec, snapshot: { sessions: [live] }, onBack() {}, onUsage() {},
     }))), document.getElementById("chat"));
     const chat = document.getElementById("chat");
     for (let i = 0; i < 40 && !chat.querySelector(".dkplace"); i++) await sleep(50);

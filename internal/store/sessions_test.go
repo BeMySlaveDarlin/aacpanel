@@ -396,15 +396,15 @@ func TestSessionResumeLookupPG(t *testing.T) {
 	})
 
 	t.Run("a name shared by two places is not enough to resume by", func(t *testing.T) {
-		insert("sessions_1m", base, "ai-platform", "cccccccc-0000-0000-0000-000000000003", "/srv/proj/Lab/ai-platform")
-		insert("sessions_1m", base.Add(time.Hour), "ai-platform", "dddddddd-0000-0000-0000-000000000004", "/srv/proj/Acme/ai-platform")
+		insert("sessions_1m", base, "api", "cccccccc-0000-0000-0000-000000000003", "/srv/proj/Lab/api")
+		insert("sessions_1m", base.Add(time.Hour), "api", "dddddddd-0000-0000-0000-000000000004", "/srv/proj/Acme/api")
 
-		_, _, err := s.SessionResume(ctx, hostID, "ai-platform")
+		_, _, err := s.SessionResume(ctx, hostID, "api")
 		if err == nil {
 			t.Fatal("the name of a project two contours both hold resumed one of them without asking — the person " +
 				"pressed on one conversation and got somebody else's, in somebody else's tree")
 		}
-		for _, want := range []string{"/srv/proj/Lab/ai-platform", "/srv/proj/Acme/ai-platform"} {
+		for _, want := range []string{"/srv/proj/Lab/api", "/srv/proj/Acme/api"} {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("the refusal does not name %s: %v", want, err)
 			}
@@ -416,7 +416,7 @@ func TestSessionResumeLookupPG(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := "/srv/proj/Lab/ai-platform"; cwd != want {
+		if want := "/srv/proj/Lab/api"; cwd != want {
 			t.Errorf("directory %q, %q was expected — the identifier points at one conversation and only one", cwd, want)
 		}
 	})

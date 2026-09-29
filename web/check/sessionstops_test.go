@@ -16,8 +16,8 @@ func TestAnEndSaysWhatItStops(t *testing.T) {
 	runWideFixture(t, "sessionstops.html", &got)
 
 	for name, want := range map[string]string{
-		"atlas": "stops 1 background task, 2 agents · a new session",
-		"lab":   "stops 3 background tasks, 1 workflow · the conversation stays",
+		"helios": "stops 1 background task, 2 agents · a new session",
+		"lab":    "stops 3 background tasks, 1 workflow · the conversation stays",
 	} {
 		if !strings.Contains(got.Sheets[name], want) {
 			t.Errorf("the end of %s reads %q, expected it to name %q", name, got.Sheets[name], want)
@@ -26,7 +26,7 @@ func TestAnEndSaysWhatItStops(t *testing.T) {
 	if strings.Contains(got.Sheets["quiet"], "stops") || !strings.Contains(got.Sheets["quiet"], "the conversation stays") {
 		t.Errorf("the end of a session with nothing at work reads %q", got.Sheets["quiet"])
 	}
-	for name, want := range map[string]string{"atlas": "Stops 1 background task, 2 agents", "lab": "Stops 3 background tasks, 1 workflow"} {
+	for name, want := range map[string]string{"helios": "Stops 1 background task, 2 agents", "lab": "Stops 3 background tasks, 1 workflow"} {
 		if got.Tips[name] == nil || *got.Tips[name] != want {
 			t.Errorf("the desktop button of %s tips %v, expected %q", name, got.Tips[name], want)
 		}

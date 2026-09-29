@@ -407,12 +407,12 @@ func TestCatchUpHasOneOwner(t *testing.T) {
 // word over the name: null is outside the map even under a matching name, and
 // the name is the guess only for a row the service did not place.
 func TestSessionGoesToTheProjectTheServiceNamed(t *testing.T) {
-	project := map[string]any{"id": 200, "session": "evirma"}
+	project := map[string]any{"id": 200, "session": "acme"}
 	sessions := []any{
-		map[string]any{"session": "evirma-fingerprint-rotation", "project": map[string]any{"id": 200}},
-		map[string]any{"session": "evirma-2", "project": nil},
-		map[string]any{"session": "evirma", "project": map[string]any{"id": 7}},
-		map[string]any{"session": "evirma-3"},
+		map[string]any{"session": "acme-fingerprint-rotation", "project": map[string]any{"id": 200}},
+		map[string]any{"session": "acme-2", "project": nil},
+		map[string]any{"session": "acme", "project": map[string]any{"id": 7}},
+		map[string]any{"session": "acme-3"},
 	}
 	got := runModuleJS(t, "src/screens/sessions/map.js", "sessionsOf", [][]any{{project, sessions}})
 
@@ -420,7 +420,7 @@ func TestSessionGoesToTheProjectTheServiceNamed(t *testing.T) {
 	for _, row := range got[0].([]any) {
 		names = append(names, row.(map[string]any)["session"].(string))
 	}
-	if strings.Join(names, ",") != "evirma-fingerprint-rotation,evirma-3" {
+	if strings.Join(names, ",") != "acme-fingerprint-rotation,acme-3" {
 		t.Errorf("the project holds %v, expected the worktree session and the unplaced one by its name", names)
 	}
 }

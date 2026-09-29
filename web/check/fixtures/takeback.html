@@ -36,7 +36,7 @@ window.fetch = async (url, init) => {
         sent.push(body);
         if (body.kind === "session.unqueue") {
             unqueues += 1;
-            if (unqueues === 2) return json({ error: "the message is already delivered: evirma has read it", logged: true }, 502);
+            if (unqueues === 2) return json({ error: "the message is already delivered: acme has read it", logged: true }, 502);
         }
         return json({ logged: true, ok: true, detail: "ok" });
     }
@@ -51,7 +51,7 @@ window.EventSource = class {
 const exec = { available: true, kinds: ["session.send", "session.unqueue", "session.stop"] };
 const live = { status: "busy", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj" };
 function Page() {
-    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
+    return html`<${Chat} name="acme" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
 }
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
 

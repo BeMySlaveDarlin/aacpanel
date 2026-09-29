@@ -28,15 +28,15 @@ const contour = (id, name, groups) => ({ id, name, configDir: `/home/u/.claude-$
     contextGuard: true, account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 },
     effective: base, groups: groups.map(([gid, gname, projects]) => ({ id: gid, profileId: id, name: gname, projects })) });
 let profiles = [
-    contour(3, "personal", [[31, "Home", [project(11, 31, "atlas")]],
-        [32, "Pets", [project(12, 32, "aacpanel"), project(13, 32, "blog"), project(14, 32, "person")]]]),
-    contour(4, "Evirma", [[41, "Common", [project(21, 41, "ai-platform")]], [42, "Harness", [project(22, 42, "harness-rework")]]]),
-    contour(1, "Algorithmics", [[11, "LMS", [project(31, 11, "lms")]]]),
+    contour(3, "personal", [[31, "Home", [project(11, 31, "helios")]],
+        [32, "Side", [project(12, 32, "aacpanel"), project(13, 32, "blog"), project(14, 32, "person")]]]),
+    contour(4, "Acme", [[41, "Common", [project(21, 41, "api")]], [42, "Infra", [project(22, 42, "infra-rework")]]]),
+    contour(1, "Globex Group", [[11, "SHOP", [project(31, 11, "shop")]]]),
 ];
 const profileMap = profiles.map((p) => ({ id: p.id, profile: p.name, name: p.name,
     groups: p.groups.map((g) => ({ id: g.id, name: g.name, projects: g.projects.map((x) => ({ id: x.id, name: x.name, path: x.path, session: x.session })) })) }));
 const now = Math.floor(Date.now() / 1000);
-const snapshot = { at: now, hostName: "atlas", sessions: [], profileMap, limits: { contours: [] } };
+const snapshot = { at: now, hostName: "helios", sessions: [], profileMap, limits: { contours: [] } };
 
 const sent = [];
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

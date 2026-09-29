@@ -14,12 +14,12 @@ import { ToastHost } from "/src/ui/toasts.js";
 
 const container = (name) => ({ name, service: name, state: "running", status: "Up 2 days", cpu: 0, mem: 64 << 20 });
 const tree = { running: 3, total: 3, stacks: [{
-    name: "tg-shadow", running: 3, total: 3, hasStats: true, hasDisk: true,
+    name: "chat-bridge", running: 3, total: 3, hasStats: true, hasDisk: true,
     cpu: 0, mem: 192 << 20, disk: 21 << 20,
     containers: [container("bot"), container("db"), container("worker")],
 }] };
 render(h(ToastHost, null, h(GateHost, null, h(ContainersCenter, {
-    tree, stack: "tg-shadow", current: null, onPick() {}, exec: { available: true, kinds: [] }, onDone() {}, onLogs() {},
+    tree, stack: "chat-bridge", current: null, onPick() {}, exec: { available: true, kinds: [] }, onDone() {}, onLogs() {},
 }))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

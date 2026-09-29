@@ -47,7 +47,7 @@ type prefsShot struct {
 	Gone          []string `json:"gone"`
 
 	AcmeOn            []string `json:"acmeOn"`
-	HarnessOn         []string `json:"harnessOn"`
+	InfraOn           []string `json:"infraOn"`
 	SessionChipsAfter []string `json:"sessionChipsAfter"`
 	ProjectSheet      struct {
 		Heads []string `json:"heads"`
@@ -56,7 +56,7 @@ type prefsShot struct {
 	ProjectPicked      []string `json:"projectPicked"`
 	SessionChipsPicked []string `json:"sessionChipsPicked"`
 
-	LmsOn            []string `json:"lmsOn"`
+	ShopOn           []string `json:"shopOn"`
 	StackChipsAfter  []string `json:"stackChipsAfter"`
 	StackSheet       []string `json:"stackSheet"`
 	StackPicked      []string `json:"stackPicked"`
@@ -186,8 +186,8 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 	}
 
 	chips := map[string]string{
-		"sessions": "personal|work|acme (off)|harness (off)",
-		"stacks":   "acme-dev (off)|acme-top (off)|lms (off)",
+		"sessions": "personal|work|acme (off)|infra (off)",
+		"stacks":   "acme-dev (off)|acme-top (off)|shop (off)",
 		"limits":   "personal|work|acme",
 	}
 	for what, w := range chips {
@@ -206,13 +206,13 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		t.Errorf("turning kinds back on sent off %v, then %v", got.QuestionBack, got.Gone)
 	}
 
-	const harness = "/srv/proj/acme/harness"
+	const infra = "/srv/proj/acme/infra"
 	const panel = "/srv/proj/panel"
-	if !sameSet(got.AcmeOn, []string{harness}) || len(got.HarnessOn) != 0 {
-		t.Errorf("hearing acme and harness again sent sessions %v, then %v", got.AcmeOn, got.HarnessOn)
+	if !sameSet(got.AcmeOn, []string{infra}) || len(got.InfraOn) != 0 {
+		t.Errorf("hearing acme and infra again sent sessions %v, then %v", got.AcmeOn, got.InfraOn)
 	}
 	if strings.Join(got.SessionChipsAfter, "|") != "personal|work|acme" {
-		t.Errorf("after harness is heard again the chips read %v — a project is a chip while it is quiet", got.SessionChipsAfter)
+		t.Errorf("after infra is heard again the chips read %v — a project is a chip while it is quiet", got.SessionChipsAfter)
 	}
 	if strings.Join(got.ProjectSheet.Heads, "|") != "personal|work|acme" || len(got.ProjectSheet.Items) != 5 ||
 		got.ProjectSheet.Items[0] != "panel | "+panel {
@@ -222,11 +222,11 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		t.Errorf("quieting panel sent sessions %v, the chips read %v", got.ProjectPicked, got.SessionChipsPicked)
 	}
 
-	if !sameSet(got.LmsOn, []string{"acme-dev", "acme-top"}) ||
+	if !sameSet(got.ShopOn, []string{"acme-dev", "acme-top"}) ||
 		strings.Join(got.StackChipsAfter, "|") != "acme-dev (off)|acme-top (off)" {
-		t.Errorf("hearing lms again sent stacks %v, the chips read %v", got.LmsOn, got.StackChipsAfter)
+		t.Errorf("hearing shop again sent stacks %v, the chips read %v", got.ShopOn, got.StackChipsAfter)
 	}
-	if strings.Join(got.StackSheet, "|") != "home-assistant|lms|panel" {
+	if strings.Join(got.StackSheet, "|") != "home-assistant|panel|shop" {
 		t.Errorf("the stacks offered: %v — only those not quiet yet", got.StackSheet)
 	}
 	if !sameSet(got.StackPicked, []string{"acme-dev", "acme-top", "home-assistant"}) ||

@@ -14,20 +14,20 @@ import (
 )
 
 const (
-	vitrinaHome = "7c1f0e2d-0000-4000-8000-00000000000%d"
-	vitrinaHour = "2026-09-10T10:00:00Z"
+	showcaseHome = "7c1f0e2d-0000-4000-8000-00000000000%d"
+	showcaseHour = "2026-09-10T10:00:00Z"
 )
 
-func vitrinaID(n int) string { return fmt.Sprintf(vitrinaHome, n) }
+func showcaseID(n int) string { return fmt.Sprintf(showcaseHome, n) }
 
 func TestUsageProjectsSumUpToTheContourPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(1), "probe", "/opt/probe/panel", 100, 10)
-	seedSession(t, ctx, pool, vitrinaID(2), "probe", "/opt/probe/panel/web", 200, 20)
-	seedSession(t, ctx, pool, vitrinaID(3), "probe", "/tmp/scratchpad", 40, 4)
+	seedSession(t, ctx, pool, showcaseID(1), "probe", "/opt/probe/panel", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(2), "probe", "/opt/probe/panel/web", 200, 20)
+	seedSession(t, ctx, pool, showcaseID(3), "probe", "/tmp/scratchpad", 40, 4)
 
-	f := vitrinaFilter()
+	f := showcaseFilter()
 	rows, err := s.UsageBreakdownFor(ctx, f, UsageByProject, 0)
 	if err != nil {
 		t.Fatalf("the breakdown by project: %v", err)
@@ -53,11 +53,11 @@ func TestUsageProjectsSumUpToTheContourPG(t *testing.T) {
 }
 
 func TestUsageOutsideRowStandsEvenAtZeroPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(4), "probe", "/opt/probe/panel", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(4), "probe", "/opt/probe/panel", 100, 10)
 
-	rows, err := s.UsageBreakdownFor(ctx, vitrinaFilter(), UsageByProject, 0)
+	rows, err := s.UsageBreakdownFor(ctx, showcaseFilter(), UsageByProject, 0)
 	if err != nil {
 		t.Fatalf("the breakdown: %v", err)
 	}
@@ -74,11 +74,11 @@ func TestUsageOutsideRowStandsEvenAtZeroPG(t *testing.T) {
 }
 
 func TestUsageProjectTakesTheLongestPrefixPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(5), "probe", "/opt/probe/panel/web/src", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(5), "probe", "/opt/probe/panel/web/src", 100, 10)
 
-	rows, err := s.UsageBreakdownFor(ctx, vitrinaFilter(), UsageByProject, 0)
+	rows, err := s.UsageBreakdownFor(ctx, showcaseFilter(), UsageByProject, 0)
 	if err != nil {
 		t.Fatalf("the breakdown: %v", err)
 	}
@@ -93,12 +93,12 @@ func TestUsageProjectTakesTheLongestPrefixPG(t *testing.T) {
 }
 
 func TestUsageFiltersAreCountedOnTheServerPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(6), "probe", "/opt/probe/panel", 100, 10)
-	seedSession(t, ctx, pool, vitrinaID(7), "probe", "/tmp/scratchpad", 40, 4)
+	seedSession(t, ctx, pool, showcaseID(6), "probe", "/opt/probe/panel", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(7), "probe", "/tmp/scratchpad", 40, 4)
 
-	all, err := s.UsageSummaryFor(ctx, vitrinaFilter())
+	all, err := s.UsageSummaryFor(ctx, showcaseFilter())
 	if err != nil {
 		t.Fatalf("the summary: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestUsageFiltersAreCountedOnTheServerPG(t *testing.T) {
 		t.Fatalf("input without a filter is %d, wanted 140", all.Input)
 	}
 
-	f := vitrinaFilter()
+	f := showcaseFilter()
 	f.Project = "/opt/probe/panel"
 	one, err := s.UsageSummaryFor(ctx, f)
 	if err != nil {
@@ -116,7 +116,7 @@ func TestUsageFiltersAreCountedOnTheServerPG(t *testing.T) {
 		t.Errorf("input by project is %d, wanted 100: the filter must be applied here", one.Input)
 	}
 
-	f = vitrinaFilter()
+	f = showcaseFilter()
 	f.Outside = true
 	outside, err := s.UsageSummaryFor(ctx, f)
 	if err != nil {
@@ -128,12 +128,12 @@ func TestUsageFiltersAreCountedOnTheServerPG(t *testing.T) {
 }
 
 func TestUsageCacheHitUsesTheFullDenominatorPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	seedSession(t, ctx, pool, vitrinaID(8), "probe", "/tmp/cache", 10, 1)
+	ctx, s, pool := showcase(t)
+	seedSession(t, ctx, pool, showcaseID(8), "probe", "/tmp/cache", 10, 1)
 	mustExec(t, ctx, pool, `UPDATE usage_1h SET cache_read = 700, cache_creation = 290
-	                         WHERE session_id = $1`, vitrinaID(8))
+	                         WHERE session_id = $1`, showcaseID(8))
 
-	sum, err := s.UsageSummaryFor(ctx, vitrinaFilter())
+	sum, err := s.UsageSummaryFor(ctx, showcaseFilter())
 	if err != nil {
 		t.Fatalf("the summary: %v", err)
 	}
@@ -143,12 +143,12 @@ func TestUsageCacheHitUsesTheFullDenominatorPG(t *testing.T) {
 }
 
 func TestUsageDaySeriesCutsDaysInTheZonePG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	seedSession(t, ctx, pool, vitrinaID(9), "probe", "/tmp/zone", 10, 1)
+	ctx, s, pool := showcase(t)
+	seedSession(t, ctx, pool, showcaseID(9), "probe", "/tmp/zone", 10, 1)
 	mustExec(t, ctx, pool, `UPDATE usage_1h SET bucket = $2 WHERE session_id = $1`,
-		vitrinaID(9), time.Date(2026, 9, 10, 22, 0, 0, 0, time.UTC))
+		showcaseID(9), time.Date(2026, 9, 10, 22, 0, 0, 0, time.UTC))
 
-	f := vitrinaFilter()
+	f := showcaseFilter()
 	f.Zone = "Asia/Tokyo"
 	points, err := s.UsageSeriesFor(ctx, f, "day")
 	if err != nil {
@@ -163,16 +163,16 @@ func TestUsageDaySeriesCutsDaysInTheZonePG(t *testing.T) {
 }
 
 func TestUsageToolsKeepTheTailCountedPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	seedSession(t, ctx, pool, vitrinaID(1), "probe", "/tmp/tools", 10, 1)
+	ctx, s, pool := showcase(t)
+	seedSession(t, ctx, pool, showcaseID(1), "probe", "/tmp/tools", 10, 1)
 	for i, name := range []string{"Bash", "Read", "Edit", "Grep", "mcp__long__name"} {
 		mustExec(t, ctx, pool, `
 			INSERT INTO usage_tools_1h (session_id, bucket, agent, tool, calls, errors)
 			VALUES ($1, $2, '', $3, $4, 1)`,
-			vitrinaID(1), vitrinaHour, name, 100-i*10)
+			showcaseID(1), showcaseHour, name, 100-i*10)
 	}
 
-	tools, err := s.UsageToolsFor(ctx, vitrinaFilter(), 2)
+	tools, err := s.UsageToolsFor(ctx, showcaseFilter(), 2)
 	if err != nil {
 		t.Fatalf("the tools: %v", err)
 	}
@@ -188,12 +188,12 @@ func TestUsageToolsKeepTheTailCountedPG(t *testing.T) {
 }
 
 func TestUsageOutsideExpandsToDirectoriesPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(2), "probe", "/tmp/scratchpad", 40, 4)
-	seedSession(t, ctx, pool, vitrinaID(3), "probe", "/root", 10, 1)
+	seedSession(t, ctx, pool, showcaseID(2), "probe", "/tmp/scratchpad", 40, 4)
+	seedSession(t, ctx, pool, showcaseID(3), "probe", "/root", 10, 1)
 
-	f := vitrinaFilter()
+	f := showcaseFilter()
 	f.Outside = true
 	rows, err := s.UsageBreakdownFor(ctx, f, UsageByCWD, 0)
 	if err != nil {
@@ -208,11 +208,11 @@ func TestUsageOutsideExpandsToDirectoriesPG(t *testing.T) {
 }
 
 func TestUsageWithoutFilterAnswersPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(1), "probe", "/opt/probe/panel", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(1), "probe", "/opt/probe/panel", 100, 10)
 
-	f := vitrinaFilter()
+	f := showcaseFilter()
 	f.Contours = nil
 
 	if _, err := s.UsageSummaryFor(ctx, f); err != nil {
@@ -236,15 +236,15 @@ func TestUsageWithoutFilterAnswersPG(t *testing.T) {
 }
 
 func TestUsageSubShareCountsTheWholeInboundPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	seedSession(t, ctx, pool, vitrinaID(1), "probe", "/tmp/fan-out", 10, 100)
+	ctx, s, pool := showcase(t)
+	seedSession(t, ctx, pool, showcaseID(1), "probe", "/tmp/fan-out", 10, 100)
 	mustExec(t, ctx, pool, `
 		INSERT INTO usage_1h (session_id, bucket, model, agent, answers,
 		                      input_tokens, output_tokens, cache_read)
 		VALUES ($1, $2, 'claude-opus-5', 'agent-A', 3, 90, 900, 9900)`,
-		vitrinaID(1), vitrinaHour)
+		showcaseID(1), showcaseHour)
 
-	sum, err := s.UsageSummaryFor(ctx, vitrinaFilter())
+	sum, err := s.UsageSummaryFor(ctx, showcaseFilter())
 	if err != nil {
 		t.Fatalf("the summary: %v", err)
 	}
@@ -281,14 +281,14 @@ func TestUsageQueriesAskForAFreshPlan(t *testing.T) {
 }
 
 func TestUsageBreakdownOrdersByTheNumberItShowsPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(1), "probe", "/opt/probe/panel", 1000, 10)
-	seedSession(t, ctx, pool, vitrinaID(2), "probe", "/opt/probe/panel/web", 10, 10)
+	seedSession(t, ctx, pool, showcaseID(1), "probe", "/opt/probe/panel", 1000, 10)
+	seedSession(t, ctx, pool, showcaseID(2), "probe", "/opt/probe/panel/web", 10, 10)
 	mustExec(t, ctx, pool, `UPDATE usage_1h SET cache_read = 100000 WHERE session_id = $1`,
-		vitrinaID(2))
+		showcaseID(2))
 
-	rows, err := s.UsageBreakdownFor(ctx, vitrinaFilter(), UsageByProject, 0)
+	rows, err := s.UsageBreakdownFor(ctx, showcaseFilter(), UsageByProject, 0)
 	if err != nil {
 		t.Fatalf("the breakdown: %v", err)
 	}
@@ -311,15 +311,15 @@ func TestUsageBreakdownOrdersByTheNumberItShowsPG(t *testing.T) {
 }
 
 func TestUsageModelsOrderByTheWholeInboundPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	seedSession(t, ctx, pool, vitrinaID(3), "probe", "/tmp/models", 1000, 10)
+	ctx, s, pool := showcase(t)
+	seedSession(t, ctx, pool, showcaseID(3), "probe", "/tmp/models", 1000, 10)
 	mustExec(t, ctx, pool, `
 		INSERT INTO usage_1h (session_id, bucket, model, agent, answers,
 		                      input_tokens, output_tokens, cache_read)
 		VALUES ($1, $2, 'claude-sonnet-5', '', 1, 10, 10, 100000)`,
-		vitrinaID(3), vitrinaHour)
+		showcaseID(3), showcaseHour)
 
-	models, err := s.UsageModelsFor(ctx, vitrinaFilter())
+	models, err := s.UsageModelsFor(ctx, showcaseFilter())
 	if err != nil {
 		t.Fatalf("the models: %v", err)
 	}
@@ -337,11 +337,11 @@ func TestUsageModelsOrderByTheWholeInboundPG(t *testing.T) {
 }
 
 func TestUsageHitArrivesReadyInEveryRowPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedMap(t, ctx, pool)
-	seedSession(t, ctx, pool, vitrinaID(4), "probe", "/opt/probe/panel", 10, 10)
+	seedSession(t, ctx, pool, showcaseID(4), "probe", "/opt/probe/panel", 10, 10)
 	mustExec(t, ctx, pool, `UPDATE usage_1h SET cache_read = 700, cache_creation = 290
-	                         WHERE session_id = $1`, vitrinaID(4))
+	                         WHERE session_id = $1`, showcaseID(4))
 
 	want := 700.0 / 1000.0
 	near := func(name string, got float64) {
@@ -352,32 +352,32 @@ func TestUsageHitArrivesReadyInEveryRowPG(t *testing.T) {
 		}
 	}
 
-	sum, err := s.UsageSummaryFor(ctx, vitrinaFilter())
+	sum, err := s.UsageSummaryFor(ctx, showcaseFilter())
 	if err != nil {
 		t.Fatalf("the summary: %v", err)
 	}
 	near("the summary", sum.Hit)
 
-	points, err := s.UsageSeriesFor(ctx, vitrinaFilter(), "hour")
+	points, err := s.UsageSeriesFor(ctx, showcaseFilter(), "hour")
 	if err != nil || len(points) == 0 {
 		t.Fatalf("the series: %v", err)
 	}
 	near("a point of the series", points[0].Hit)
 
-	rows, err := s.UsageBreakdownFor(ctx, vitrinaFilter(), UsageByProject, 0)
+	rows, err := s.UsageBreakdownFor(ctx, showcaseFilter(), UsageByProject, 0)
 	if err != nil || len(rows) == 0 {
 		t.Fatalf("the breakdown: %v", err)
 	}
 	near("a breakdown row", rows[0].Hit)
 
-	models, err := s.UsageModelsFor(ctx, vitrinaFilter())
+	models, err := s.UsageModelsFor(ctx, showcaseFilter())
 	if err != nil || len(models) == 0 {
 		t.Fatalf("the models: %v", err)
 	}
 	near("a model row", models[0].Hit)
 }
 
-func vitrinaFilter() UsageFilter {
+func showcaseFilter() UsageFilter {
 	return UsageFilter{
 		From:     time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 		To:       time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
@@ -385,7 +385,7 @@ func vitrinaFilter() UsageFilter {
 	}
 }
 
-func vitrina(t *testing.T) (context.Context, *Store, *pgxpool.Pool) {
+func showcase(t *testing.T) (context.Context, *Store, *pgxpool.Pool) {
 	t.Helper()
 	dsn := testdb.DSN(t)
 
@@ -445,13 +445,13 @@ func seedSession(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id, cont
 	t.Helper()
 	mustExec(t, ctx, pool, `
 		INSERT INTO usage_sessions (session_id, contour, cwd, started_at, ended_at)
-		VALUES ($1, $2, $3, $4, $4)`, id, contour, cwd, vitrinaHour)
+		VALUES ($1, $2, $3, $4, $4)`, id, contour, cwd, showcaseHour)
 	mustExec(t, ctx, pool, `
 		INSERT INTO usage_events_1h (session_id, bucket, agent, messages, compacts, interrupts)
-		VALUES ($1, $2, '', 4, 1, 1)`, id, vitrinaHour)
+		VALUES ($1, $2, '', 4, 1, 1)`, id, showcaseHour)
 	mustExec(t, ctx, pool, `
 		INSERT INTO usage_1h (session_id, bucket, model, agent, answers, input_tokens, output_tokens)
-		VALUES ($1, $2, 'claude-opus-5', '', 2, $3, $4)`, id, vitrinaHour, in, out)
+		VALUES ($1, $2, 'claude-opus-5', '', 2, $3, $4)`, id, showcaseHour, in, out)
 }
 
 func mustExec(t *testing.T, ctx context.Context, pool *pgxpool.Pool, sql string, args ...any) {
@@ -495,9 +495,9 @@ func seedProfile(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 	return groupID
 }
 
-// contourFilter is vitrinaFilter for the contours a test seeds itself.
+// contourFilter is showcaseFilter for the contours a test seeds itself.
 func contourFilter(contours ...string) UsageFilter {
-	f := vitrinaFilter()
+	f := showcaseFilter()
 	f.Contours = contours
 	return f
 }
@@ -507,21 +507,21 @@ func contourFilter(contours ...string) UsageFilter {
 // and a session placed by name landed outside the map — which is where two
 // thirds of this host used to end up.
 func TestUsagePlacesASessionWhoseContourIsNotTheProfileNamePG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	seedProfile(t, ctx, pool, "Schoolwork", "/home/probe/.claude-profiles/algo", "/opt/algo",
-		"Backend", map[string]string{"lms": "/opt/algo/lms"})
-	seedSession(t, ctx, pool, vitrinaID(1), "algo", "/opt/algo/lms", 100, 10)
-	seedSession(t, ctx, pool, vitrinaID(2), "algo", "/tmp/worktree", 40, 4)
+	ctx, s, pool := showcase(t)
+	seedProfile(t, ctx, pool, "Clients", "/home/probe/.claude-profiles/globex", "/opt/globex",
+		"Backend", map[string]string{"shop": "/opt/globex/shop"})
+	seedSession(t, ctx, pool, showcaseID(1), "globex", "/opt/globex/shop", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(2), "globex", "/tmp/worktree", 40, 4)
 
-	rows, err := s.UsageBreakdownFor(ctx, contourFilter("algo"), UsageByProject, 0)
+	rows, err := s.UsageBreakdownFor(ctx, contourFilter("globex"), UsageByProject, 0)
 	if err != nil {
 		t.Fatalf("the breakdown by project: %v", err)
 	}
 	if len(rows) != 2 {
 		t.Fatalf("%d rows, wanted the project and the row outside the map: %+v", len(rows), rows)
 	}
-	if rows[0].Label != "lms" || rows[0].Input != 100 {
-		t.Errorf("the first row is %+v, wanted lms with its 100 tokens", rows[0])
+	if rows[0].Label != "shop" || rows[0].Input != 100 {
+		t.Errorf("the first row is %+v, wanted shop with its 100 tokens", rows[0])
 	}
 	if !rows[len(rows)-1].Outside || rows[len(rows)-1].Input != 40 {
 		t.Errorf("outside the map: %+v, wanted the 40 tokens of the worktree and nothing else",
@@ -532,20 +532,20 @@ func TestUsagePlacesASessionWhoseContourIsNotTheProfileNamePG(t *testing.T) {
 // A session run in a git worktree beside its repository is placed by the
 // repository the agent found for it; without one the worktree is outside.
 func TestUsagePlacesAWorktreeSessionByItsRepositoryPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	seedProfile(t, ctx, pool, "Schoolwork", "/home/probe/.claude-profiles/algo", "/opt/algo",
-		"Backend", map[string]string{"lms": "/opt/algo/lms"})
-	seedSession(t, ctx, pool, vitrinaID(1), "algo", "/opt/algo/lms", 100, 10)
-	seedSession(t, ctx, pool, vitrinaID(2), "algo", "/opt/algo/worktrees/lms-fix/web", 40, 4)
-	seedSession(t, ctx, pool, vitrinaID(3), "algo", "/opt/algo/worktrees/gone", 7, 1)
-	mustExec(t, ctx, pool, `UPDATE usage_sessions SET checkout = '/opt/algo/lms' WHERE session_id = $1`, vitrinaID(2))
+	ctx, s, pool := showcase(t)
+	seedProfile(t, ctx, pool, "Clients", "/home/probe/.claude-profiles/globex", "/opt/globex",
+		"Backend", map[string]string{"shop": "/opt/globex/shop"})
+	seedSession(t, ctx, pool, showcaseID(1), "globex", "/opt/globex/shop", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(2), "globex", "/opt/globex/worktrees/shop-fix/web", 40, 4)
+	seedSession(t, ctx, pool, showcaseID(3), "globex", "/opt/globex/worktrees/gone", 7, 1)
+	mustExec(t, ctx, pool, `UPDATE usage_sessions SET checkout = '/opt/globex/shop' WHERE session_id = $1`, showcaseID(2))
 
-	rows, err := s.UsageBreakdownFor(ctx, contourFilter("algo"), UsageByProject, 0)
+	rows, err := s.UsageBreakdownFor(ctx, contourFilter("globex"), UsageByProject, 0)
 	if err != nil {
 		t.Fatalf("the breakdown by project: %v", err)
 	}
-	if len(rows) != 2 || rows[0].Label != "lms" || rows[0].Input != 140 {
-		t.Fatalf("the project rows are %+v, wanted lms with its own 100 and the worktree's 40", rows)
+	if len(rows) != 2 || rows[0].Label != "shop" || rows[0].Input != 140 {
+		t.Fatalf("the project rows are %+v, wanted shop with its own 100 and the worktree's 40", rows)
 	}
 	if last := rows[len(rows)-1]; !last.Outside || last.Input != 7 {
 		t.Errorf("outside the map: %+v, wanted the 7 tokens of the worktree with no repository", last)
@@ -555,15 +555,15 @@ func TestUsagePlacesAWorktreeSessionByItsRepositoryPG(t *testing.T) {
 // Two profiles may each have a group called Common, and they are two groups:
 // keyed by name they would be added up into one row belonging to neither.
 func TestUsageKeepsTwoGroupsOfTheSameNameApartPG(t *testing.T) {
-	ctx, s, pool := vitrina(t)
-	algo := seedProfile(t, ctx, pool, "Schoolwork", "/home/probe/.claude-profiles/algo", "/opt/algo",
-		"Common", map[string]string{"ai-platform": "/opt/algo/ai-platform"})
-	evirma := seedProfile(t, ctx, pool, "The client", "/home/probe/.claude-profiles/evirma", "/opt/evirma",
-		"Common", map[string]string{"ai-platform": "/opt/evirma/ai-platform"})
-	seedSession(t, ctx, pool, vitrinaID(3), "algo", "/opt/algo/ai-platform", 100, 10)
-	seedSession(t, ctx, pool, vitrinaID(4), "evirma", "/opt/evirma/ai-platform", 200, 20)
+	ctx, s, pool := showcase(t)
+	globex := seedProfile(t, ctx, pool, "Clients", "/home/probe/.claude-profiles/globex", "/opt/globex",
+		"Common", map[string]string{"api": "/opt/globex/api"})
+	acme := seedProfile(t, ctx, pool, "The client", "/home/probe/.claude-profiles/acme", "/opt/acme",
+		"Common", map[string]string{"api": "/opt/acme/api"})
+	seedSession(t, ctx, pool, showcaseID(3), "globex", "/opt/globex/api", 100, 10)
+	seedSession(t, ctx, pool, showcaseID(4), "acme", "/opt/acme/api", 200, 20)
 
-	rows, err := s.UsageBreakdownFor(ctx, contourFilter("algo", "evirma"), UsageByGroup, 0)
+	rows, err := s.UsageBreakdownFor(ctx, contourFilter("globex", "acme"), UsageByGroup, 0)
 	if err != nil {
 		t.Fatalf("the breakdown by group: %v", err)
 	}
@@ -577,18 +577,18 @@ func TestUsageKeepsTwoGroupsOfTheSameNameApartPG(t *testing.T) {
 	if len(named) != 2 {
 		t.Fatalf("%d groups, wanted two of the same name apart: %+v", len(named), rows)
 	}
-	if named[fmt.Sprint(algo)] != 100 || named[fmt.Sprint(evirma)] != 200 {
+	if named[fmt.Sprint(globex)] != 100 || named[fmt.Sprint(acme)] != 200 {
 		t.Errorf("groups %+v — each keeps the usage of its own profile", named)
 	}
 
 	// And the filter of a group reaches one of them, not both.
-	f := contourFilter("algo", "evirma")
-	f.Group = fmt.Sprint(evirma)
+	f := contourFilter("globex", "acme")
+	f.Group = fmt.Sprint(acme)
 	one, err := s.UsageBreakdownFor(ctx, f, UsageByProject, 0)
 	if err != nil {
 		t.Fatalf("the breakdown inside a group: %v", err)
 	}
-	if len(one) != 2 || one[0].Label != "ai-platform" || one[0].Input != 200 {
-		t.Errorf("inside the group of the client: %+v, wanted its ai-platform alone", one)
+	if len(one) != 2 || one[0].Label != "api" || one[0].Input != 200 {
+		t.Errorf("inside the group of the client: %+v, wanted its api alone", one)
 	}
 }

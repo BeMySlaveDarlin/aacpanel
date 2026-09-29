@@ -36,8 +36,8 @@ const run = (session, contour, i) => ({ session, sessionId: `${session}-id`, sta
     pct: 10 + i, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
 const profileMap = [
     { id: 1, profile: "personal", name: "personal", groups: [] },
-    { id: 2, profile: "Evirma", name: "Evirma", groups: [] },
-    { id: 3, profile: "algo", name: "algo", groups: [] },
+    { id: 2, profile: "Acme", name: "Acme", groups: [] },
+    { id: 3, profile: "globex", name: "globex", groups: [] },
 ];
 const exec = { available: true, kinds: ["session.send"] };
 const wait = { opening: () => [], of: () => null };
@@ -46,8 +46,8 @@ const shell = document.getElementById("shell");
 const show = (mine) => {
     const sessions = [
         ...Array.from({ length: mine }, (_, i) => run(`mine-${i}`, 1, i)),
-        run("harness", 2, 0),
-        run("lms", 3, 0),
+        run("infra", 2, 0),
+        run("shop", 3, 0),
     ];
     const snapshot = { at: mine, sessions, profileMap, limits: null };
     render(h(ToastHost, null, h(GateHost, null, html`
@@ -119,13 +119,13 @@ window.done = (async () => {
 
         // Every contour short, as on the phone: the room under the lists runs
         // down to the menu.
-        localStorage.setItem("aacpanel.sessions.profile", "Evirma");
+        localStorage.setItem("aacpanel.sessions.profile", "Acme");
         show(2);
-        await until(() => current() === "Evirma" && pageOf("Evirma") && pageOf("Evirma").querySelector(".crumb"));
+        await until(() => current() === "Acme" && pageOf("Acme") && pageOf("Acme").querySelector(".crumb"));
         await sleep(200);
 
         const navTop = document.querySelector("nav.tabs").getBoundingClientRect().top;
-        const last = lastRow(pageOf("Evirma"));
+        const last = lastRow(pageOf("Acme"));
         out.start = current();
         out.lastRowBottom = last.bottom;
         out.navTop = navTop;

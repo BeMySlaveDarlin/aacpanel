@@ -16,7 +16,7 @@ func TestAnAddressIsALinkInBoldAndItalicsToo(t *testing.T) {
 		CodeLinked bool     `json:"codeLinked"`
 	}
 	runFixture(t, "mdlinks.html", &got)
-	want := "http://192.168.1.137:8093/board.html,https://b.example/y,https://c.example/z"
+	want := "http://192.168.1.20:8093/board.html,https://b.example/y,https://c.example/z"
 	if strings.Join(got.Links, ",") != want {
 		t.Errorf("the answer links %v, expected %s", got.Links, want)
 	}

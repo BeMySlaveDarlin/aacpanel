@@ -98,11 +98,11 @@ class TestLines(unittest.TestCase):
         with tempfile.TemporaryDirectory() as xdg, tempfile.TemporaryDirectory() as state_dir:
             os.makedirs(os.path.join(xdg, "aacpanel"))
             with open(os.path.join(xdg, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
-                f.write("/srv/proj/Algo\t60\t0\n")
+                f.write("/srv/proj/Globex\t60\t0\n")
             with open(os.path.join(state_dir, "state.json"), "w", encoding="utf-8") as f:
                 json.dump(snapshot(), f)
             said = {}
-            for cwd in ("/srv/proj/Algo/lms", "/srv/elsewhere"):
+            for cwd in ("/srv/proj/Globex/shop", "/srv/elsewhere"):
                 was = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "AACP_STATE_DIR", "CLAUDE_PROJECT_DIR")}
                 os.environ.update({"XDG_STATE_HOME": xdg, "AACP_STATE_DIR": state_dir})
                 os.environ.pop("CLAUDE_PROJECT_DIR", None)
@@ -120,7 +120,7 @@ class TestLines(unittest.TestCase):
                         else:
                             os.environ[k] = v
                 said[cwd] = json.loads(out.getvalue())["hookSpecificOutput"]["additionalContext"]
-            self.assertIn("finalize from 600k", said["/srv/proj/Algo/lms"])
+            self.assertIn("finalize from 600k", said["/srv/proj/Globex/shop"])
             self.assertIn("finalize from 800k", said["/srv/elsewhere"])
 
     def test_with_auto_restart_the_cap_is_where_the_restart_comes(self):

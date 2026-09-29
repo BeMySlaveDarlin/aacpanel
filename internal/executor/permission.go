@@ -201,8 +201,8 @@ func hasFooter(line string) bool {
 // connection — and it steps over a question quoted in the conversation, which has no
 // list under it.
 //
-// With no list to be found it falls back to the commonest wording, so a screen that
-// used to be read still is.
+// With no list to be found it falls back to the commonest wording: the last line
+// that reads "Do you want to proceed?" is the question.
 func questionAt(lines []string) int {
 	const scan = 24
 

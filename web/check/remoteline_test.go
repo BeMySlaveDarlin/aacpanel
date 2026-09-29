@@ -35,13 +35,13 @@ func TestRemoteControlIsALineAmongTheTools(t *testing.T) {
 		on.Link != url {
 		t.Errorf("a session with the bridge reads %+v: on, naming where it is, with the way there", on)
 	}
-	if work.Button || !strings.Contains(work.Note, "evirma") {
+	if work.Button || !strings.Contains(work.Note, "acme") {
 		t.Errorf("a session of a contour on another account reads %+v: no switch, and saying whose account", work)
 	}
 	if !old.Disabled {
 		t.Errorf("a host whose executor does not know the switch offers it: %+v", old)
 	}
-	want := []string{`session.remote:atlas:{"on":true}`, `session.remote:aacpanel:{"on":false}`}
+	want := []string{`session.remote:helios:{"on":true}`, `session.remote:aacpanel:{"on":false}`}
 	if strings.Join(got.Sent, " | ") != strings.Join(want, " | ") {
 		t.Errorf("the presses sent %v, not %v", got.Sent, want)
 	}

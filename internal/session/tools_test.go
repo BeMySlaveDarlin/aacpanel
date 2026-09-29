@@ -231,7 +231,7 @@ func TestWhatStopsARestartIsTheToolsError(t *testing.T) {
 
 const machine = `{"sessionsAt":1,"sessions":[` +
 	`{"session":"lab","sessionId":"` + mine + `","profile":"personal","cwd":"/srv/proj/lab"},` +
-	`{"session":"lms","sessionId":"` + other + `","profile":"work","cwd":"/srv/work/lms"},` +
+	`{"session":"shop","sessionId":"` + other + `","profile":"work","cwd":"/srv/work/shop"},` +
 	`{"session":"docs","sessionId":"a","profile":"personal","cwd":"/srv/proj/docs"},` +
 	`{"session":"docs","sessionId":"b","profile":"work","cwd":"/srv/work/docs"},` +
 	`{"session":"","sessionId":"c","profile":"work","cwd":"/srv/work/nameless"}]}`
@@ -245,7 +245,7 @@ func TestALetterWithoutARecipientListsTheSessions(t *testing.T) {
 	if failed {
 		t.Fatalf("the list answered %q", said)
 	}
-	for _, want := range []string{"- lms — work — /srv/work/lms", "- docs — personal — /srv/proj/docs",
+	for _, want := range []string{"- shop — work — /srv/work/shop", "- docs — personal — /srv/proj/docs",
 		"- docs — work — /srv/work/docs (two live sessions answer to this name"} {
 		if !strings.Contains(said, want) {
 			t.Errorf("the list does not say %q:\n%s", want, said)
@@ -268,9 +268,9 @@ func TestALetterWithoutARecipientListsTheSessions(t *testing.T) {
 // conversation of the session calling — the one its server finds, never a
 // name of the model's choosing.
 func TestALetterGoesFromTheConversationOfTheSessionCalling(t *testing.T) {
-	p, url := startPanel(t, http.StatusOK, `{"ok":true,"detail":"a letter from lab to lms (free — it will read it right away), 5 characters"}`)
-	said, failed := call(t, Letter(hostWith(t, machine, url)), bound(mine), map[string]any{"to": "lms", "text": "hello"})
-	if failed || !strings.Contains(said, "a letter from lab to lms") {
+	p, url := startPanel(t, http.StatusOK, `{"ok":true,"detail":"a letter from lab to shop (free — it will read it right away), 5 characters"}`)
+	said, failed := call(t, Letter(hostWith(t, machine, url)), bound(mine), map[string]any{"to": "shop", "text": "hello"})
+	if failed || !strings.Contains(said, "a letter from lab to shop") {
 		t.Errorf("the letter answered %q (error %v)", said, failed)
 	}
 	asked := p.calls()
@@ -278,7 +278,7 @@ func TestALetterGoesFromTheConversationOfTheSessionCalling(t *testing.T) {
 		t.Fatalf("the panel was asked %v", asked)
 	}
 	params, _ := asked[0]["params"].(map[string]any)
-	if asked[0]["kind"] != "session.letter" || asked[0]["target"] != "lms" || params["from"] != mine || params["text"] != "hello" {
+	if asked[0]["kind"] != "session.letter" || asked[0]["target"] != "shop" || params["from"] != mine || params["text"] != "hello" {
 		t.Errorf("the panel was asked %v", asked[0])
 	}
 }
@@ -286,19 +286,19 @@ func TestALetterGoesFromTheConversationOfTheSessionCalling(t *testing.T) {
 // What a letter cannot be is refused before the panel is asked, and what the
 // panel refuses comes back with its reason.
 func TestWhatStopsALetterIsTheToolsError(t *testing.T) {
-	refusing, url := startPanel(t, http.StatusBadGateway, `{"error":"session lms takes no letters: its claude publishes no message socket"}`)
+	refusing, url := startPanel(t, http.StatusBadGateway, `{"error":"session shop takes no letters: its claude publishes no message socket"}`)
 	for name, c := range map[string]struct {
 		bind mcp.Bind
 		args map[string]any
 		says string
 	}{
 		"text without a recipient": {bound(mine), map[string]any{"text": "hello"}, "needs to"},
-		"a recipient without text": {bound(mine), map[string]any{"to": "lms"}, "without text"},
-		"a letter too long":        {bound(mine), map[string]any{"to": "lms", "text": strings.Repeat("é", action.TextMax+1)}, "longer than"},
-		"a control character":      {bound(mine), map[string]any{"to": "lms", "text": "a\x1bb"}, "control character"},
-		"no conversation yet":      {bound(""), map[string]any{"to": "lms", "text": "hello"}, "not known yet"},
-		"no place":                 {lost, map[string]any{"to": "lms", "text": "hello"}, "where claude process 9"},
-		"the panel refuses":        {bound(mine), map[string]any{"to": "lms", "text": "hello"}, "publishes no message socket"},
+		"a recipient without text": {bound(mine), map[string]any{"to": "shop"}, "without text"},
+		"a letter too long":        {bound(mine), map[string]any{"to": "shop", "text": strings.Repeat("é", action.TextMax+1)}, "longer than"},
+		"a control character":      {bound(mine), map[string]any{"to": "shop", "text": "a\x1bb"}, "control character"},
+		"no conversation yet":      {bound(""), map[string]any{"to": "shop", "text": "hello"}, "not known yet"},
+		"no place":                 {lost, map[string]any{"to": "shop", "text": "hello"}, "where claude process 9"},
+		"the panel refuses":        {bound(mine), map[string]any{"to": "shop", "text": "hello"}, "publishes no message socket"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			said, failed := call(t, Letter(hostWith(t, machine, url)), c.bind, c.args)

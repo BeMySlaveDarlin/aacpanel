@@ -13,7 +13,7 @@ import { LIFETIME, ToastHost, useToast } from "/src/ui/toasts.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 window.fetch = async (url) => (String(url) === "/api/actions"
-    ? json({ logged: true, detail: "session harness-rework started" })
+    ? json({ logged: true, detail: "session infra-rework started" })
     : new Response("", { status: 404 }));
 
 const fx = { renders: 0 };
@@ -57,7 +57,7 @@ window.done = (async () => {
         await sleep(200);
     }
     // Through the gate: the note of a confirmed action.
-    fx.run("session.open", "harness-rework");
+    fx.run("session.open", "infra-rework");
     await sleep(100);
     confirm();
     await sleep(300);

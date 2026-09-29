@@ -242,7 +242,7 @@ func TestACallReachesThePushQueueBeforeTheTick(t *testing.T) {
 	}
 	said := tailLog(t)
 	path := filepath.Join(t.TempDir(), "state.json")
-	writeSnapshot(t, path, sessionRow("aacpanel", callerID, ""), sessionRow("lms", laterID, ""))
+	writeSnapshot(t, path, sessionRow("aacpanel", callerID, ""), sessionRow("shop", laterID, ""))
 	c := startCollector(t)
 	store := watchWith(t, path, c)
 	c.awaitWaiting()
@@ -250,7 +250,7 @@ func TestACallReachesThePushQueueBeforeTheTick(t *testing.T) {
 	made := time.Now()
 	c.call(callerID, "stuck on the migration, need you")
 	writeSnapshot(t, path, sessionRow("aacpanel", callerID, "stuck on the migration, need you"),
-		sessionRow("lms", laterID, ""))
+		sessionRow("shop", laterID, ""))
 
 	took := taken(t, store, 3*time.Second, "the call").Sub(made)
 	if took > 2*time.Second {
@@ -270,7 +270,7 @@ func TestACallReachesThePushQueueBeforeTheTick(t *testing.T) {
 	if n := strings.Count(said.String(), "aacpanel is calling"); n != 1 {
 		t.Errorf("the first call was pushed %d times:\n%s", n, said)
 	}
-	if !strings.Contains(said.String(), "notify: lms is calling — the stand is down") {
+	if !strings.Contains(said.String(), "notify: shop is calling — the stand is down") {
 		t.Errorf("the second call is not the one pushed:\n%s", said)
 	}
 }
@@ -289,7 +289,7 @@ func TestACallWaitsForItsSessionToReachTheSnapshot(t *testing.T) {
 	nothingTaken(t, store, time.Second, "for a session nobody sees: it has no name and a tap opens nothing")
 
 	shown := time.Now()
-	writeSnapshot(t, path, sessionRow("aacpanel", callerID, ""), sessionRow("lms", laterID, ""))
+	writeSnapshot(t, path, sessionRow("aacpanel", callerID, ""), sessionRow("shop", laterID, ""))
 	if took := taken(t, store, 5*time.Second, "the call of a session that showed").Sub(shown); took > 4*time.Second {
 		t.Errorf("the call went out %s after its session showed", took.Round(time.Millisecond))
 	}

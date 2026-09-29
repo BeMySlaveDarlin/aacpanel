@@ -696,7 +696,7 @@ func TestDataGoesOnlyWithTheHostNameTyped(t *testing.T) {
 		typed string
 		yes   bool
 		err   error
-	}{{"", false, ErrNotTyped}, {"atlas", false, ErrNotTyped}, {"lab", false, nil}, {"", true, nil}} {
+	}{{"", false, ErrNotTyped}, {"helios", false, ErrNotTyped}, {"lab", false, nil}, {"", true, nil}} {
 		if err := rm.Choose([]string{"db", "env", "state"}, c.typed, c.yes); !errors.Is(err, c.err) {
 			t.Errorf("typed %q, yes %v: %v", c.typed, c.yes, err)
 		}

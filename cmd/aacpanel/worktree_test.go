@@ -19,13 +19,13 @@ import (
 // repository; the agent says which repository the worktree belongs to.
 func TestResumeFromAWorktreeCarriesItsProjectPG(t *testing.T) {
 	srv, root := profilesServer(t)
-	repo := filepath.Join(root, "Evirma", "evirma")
-	worktree := filepath.Join(root, "Evirma", "evirma-fix")
+	repo := filepath.Join(root, "Acme", "acme")
+	worktree := filepath.Join(root, "Acme", "acme-fix")
 	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"projects":{"at":1,"roots":["`+root+`"],"depth":4,"dirs":[`+
 		`{"path":"`+repo+`","kind":"project","git":true},`+
 		`{"path":"`+worktree+`","kind":"project","git":true,"worktreeOf":"`+repo+`"}]}}`))
 
-	name, group, project := "Evirma", "Work", "evirma"
+	name, group, project := "Acme", "Work", "acme"
 	profile, err := srv.db.CreateProfile(t.Context(), store.ProfileEdit{
 		Name: &name, ConfigDir: &root, Launch: json.RawMessage(`{"model":"opus"}`),
 	})
@@ -54,14 +54,14 @@ func TestResumeFromAWorktreeCarriesItsProjectPG(t *testing.T) {
 	testdb.PartitionsBack(t, t.Context(), pool, "sessions_1m", 3*time.Hour)
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO sessions_1m (bucket, host_id, name, tokens_max, pct_avg, pct_max, messages_max, samples, session_id, cwd)
-		VALUES ($1, $2, 'evirma', 1000, 10, 20, 5, 6, $3, $4) ON CONFLICT DO NOTHING`,
+		VALUES ($1, $2, 'acme', 1000, 10, 20, 5, 6, $3, $4) ON CONFLICT DO NOTHING`,
 		time.Now().UTC().Add(-time.Hour).Truncate(time.Minute), hostID, conversation, worktree); err != nil {
 		t.Fatal(err)
 	}
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "resumed"})
 	srv.exec, srv.auth = client, &auth.Service{}
 
-	w := post(t, srv, `{"kind":"session.resume","target":"evirma","params":{"session":"`+conversation+`"}}`)
+	w := post(t, srv, `{"kind":"session.resume","target":"acme","params":{"session":"`+conversation+`"}}`)
 	if w.Code != 200 {
 		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
 	}

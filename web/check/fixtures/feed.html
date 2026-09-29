@@ -44,7 +44,7 @@ const arrive = (text) => {
 
 const exec = { available: true };
 const live = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, tokensIn: 124000, tokensOut: 8000, lastRequestAt: new Date(Date.now() - 120000).toISOString() };
-function Page() { return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`; }
+function Page() { return html`<${Chat} name="acme" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`; }
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

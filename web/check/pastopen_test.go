@@ -30,8 +30,8 @@ func TestANewSessionFromTheArchiveNamesTheProjectOfTheMap(t *testing.T) {
 	}
 	// The panel waits for the new session by the name it was sent under: the
 	// name of its session on the map, not the name of the project people read.
-	if mapped.Target != "ai-platform" {
-		t.Errorf("a row standing on the map went out as %q — the session comes up as ai-platform, and "+
+	if mapped.Target != "api" {
+		t.Errorf("a row standing on the map went out as %q — the session comes up as api, and "+
 			"the row that waits for it under the name of the project never clears", mapped.Target)
 	}
 	if id, ok := mapped.Params["project"].(float64); !ok || int(id) != 42 {

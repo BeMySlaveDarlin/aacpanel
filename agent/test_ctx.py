@@ -378,8 +378,8 @@ class Lineage(unittest.TestCase):
     def test_a_claude_started_by_a_run_inside_another_session_names_it(self):
         self.table({500: (400, "claude"), 400: (300, "python3"), 300: (200, "bash"),
                     200: (100, "claude"), 100: (1, "aacpanel-exec")})
-        got = ctx.lineage(500, {200: {"session": "evirma", "sessionId": UUID_A}})
-        self.assertEqual(got, {"outside": True, "parent": {"session": "evirma", "sessionId": UUID_A}})
+        got = ctx.lineage(500, {200: {"session": "acme", "sessionId": UUID_A}})
+        self.assertEqual(got, {"outside": True, "parent": {"session": "acme", "sessionId": UUID_A}})
 
     def test_a_console_of_the_panel_is_not_outside(self):
         self.table({500: (40, "claude"), 40: (1, "tmux: server")})
@@ -420,16 +420,16 @@ class Lineage(unittest.TestCase):
 
     def test_the_snapshot_rows_carry_where_a_session_came_from(self):
         self.table({500: (200, "claude"), 200: (100, "claude"), 100: (1, "aacpanel-exec")})
-        lives = [{"name": "evirma", "sessionId": UUID_A, "cwd": "/x", "pid": 200, "transcript": "", "procStartedAt": None},
-                 {"name": "evirma-e8", "sessionId": UUID_B, "cwd": "/x", "pid": 500, "transcript": "", "procStartedAt": None}]
+        lives = [{"name": "acme", "sessionId": UUID_A, "cwd": "/x", "pid": 200, "transcript": "", "procStartedAt": None},
+                 {"name": "acme-e8", "sessionId": UUID_B, "cwd": "/x", "pid": 500, "transcript": "", "procStartedAt": None}]
         for name, fake in (("live_sessions", lambda: [dict(x) for x in lives]),
                            ("_row", lambda live: {"session": live["name"], "sessionId": live["sessionId"], "pct": 0.0})):
             self.addCleanup(setattr, ctx, name, getattr(ctx, name))
             setattr(ctx, name, fake)
         rows = {r["session"]: r for r in ctx.sessions()["sessions"]}
-        self.assertNotIn("outside", rows["evirma"])
-        self.assertEqual(rows["evirma-e8"].get("parent"), {"session": "evirma", "sessionId": UUID_A})
-        self.assertTrue(rows["evirma-e8"].get("outside"))
+        self.assertNotIn("outside", rows["acme"])
+        self.assertEqual(rows["acme-e8"].get("parent"), {"session": "acme", "sessionId": UUID_A})
+        self.assertTrue(rows["acme-e8"].get("outside"))
 
 
 if __name__ == "__main__":

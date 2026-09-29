@@ -18,8 +18,8 @@ import { ToastHost } from "/src/ui/toasts.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
-const windows = { evirma: "unknown", "evirma-c": "none", "evirma-w": "open", "evirma-b": "none", "evirma-q": "unknown" };
-const ways = { evirma: "console", "evirma-c": "stream", "evirma-w": "stream", "evirma-b": "stream", "evirma-q": "console" };
+const windows = { acme: "unknown", "acme-c": "none", "acme-w": "open", "acme-b": "none", "acme-q": "unknown" };
+const ways = { acme: "console", "acme-c": "stream", "acme-w": "stream", "acme-b": "stream", "acme-q": "console" };
 const who = (u) => new URL(u, location.href).searchParams.get("name");
 window.fetch = async (url, init) => {
     const u = String(url);
@@ -86,7 +86,7 @@ window.done = (async () => {
 
     // On the stream: the feed is on, the terminal is reached by a move and
     // says so; it opens the move rather than making it.
-    show("evirma", { ...base, transport: "stream" });
+    show("acme", { ...base, transport: "stream" });
     await settle();
     out.streamOn = pressed();
     out.termMarked = Boolean(tab("Terminal") && tab("Terminal").classList.contains("moves"));
@@ -105,14 +105,14 @@ window.done = (async () => {
 
     // A session in tmux of the same project: the terminal is on, and the
     // session panel moves it to the stream.
-    show("evirma-c", { ...base, transport: "tmux" });
+    show("acme-c", { ...base, transport: "tmux" });
     await settle();
     out.consoleOn = pressed();
     const toFeed = await panel(document.querySelector(".dkplace"));
     out.toFeed = toFeed ? await agree(toFeed) : { title: "", sent: null };
 
     // A window holds the session in tmux: the feed reads it, nothing moves.
-    show("evirma-w", { ...base, transport: "tmux" });
+    show("acme-w", { ...base, transport: "tmux" });
     await settle();
     const count = sent.length;
     tab("Terminal").click();
@@ -127,7 +127,7 @@ window.done = (async () => {
     out.heldMarked = tabs().some((b) => b.classList.contains("moves"));
 
     // A turn in progress: the move waits for it, and says so.
-    show("evirma-b", { ...base, transport: "tmux", status: "busy" });
+    show("acme-b", { ...base, transport: "tmux", status: "busy" });
     await settle();
     const busy = await panel(document.querySelector(".dkplace"));
     out.busyOff = Boolean(busy && busy.disabled);
@@ -135,7 +135,7 @@ window.done = (async () => {
 
     // A message the session on the stream has not taken yet: claude is idle,
     // the holder still has it, and the move and its window wait for it.
-    show("evirma-q", { ...base, transport: "stream", queued: 1 });
+    show("acme-q", { ...base, transport: "stream", queued: 1 });
     await settle();
     const queued = await panel(document.querySelector(".dkplace"));
     out.queuedOff = Boolean(queued && queued.disabled);

@@ -159,26 +159,26 @@ func TestProjectSessionNameIsUniqueAcrossTheMapPG(t *testing.T) {
 	s, root := profileStore(t)
 	ctx := t.Context()
 
-	algo := mustProfile(t, s, "algo", filepath.Join(root, "Algo"), 0)
-	algoGroup := mustGroup(t, s, algo.ID, "Common", 0)
-	mustProject(t, s, algoGroup.ID, "ai-platform", filepath.Join(root, "Algo", "ai-platform"), 0)
+	globex := mustProfile(t, s, "globex", filepath.Join(root, "Globex"), 0)
+	globexGroup := mustGroup(t, s, globex.ID, "Common", 0)
+	mustProject(t, s, globexGroup.ID, "api", filepath.Join(root, "Globex", "api"), 0)
 
 	work := mustProfile(t, s, "work", filepath.Join(root, "Work"), 1)
 	workGroup := mustGroup(t, s, work.ID, "Common", 0)
 
 	_, err := s.CreateProject(ctx, workGroup.ID, ProjectEdit{
-		Name: strp("bot-platform"), Path: strp(filepath.Join(root, "Work", "ai-platform")), Sort: intp(0)})
+		Name: strp("bot-platform"), Path: strp(filepath.Join(root, "Work", "api")), Sort: intp(0)})
 	if !errors.Is(err, ErrConflict) {
 		t.Fatalf("a project whose directory answers to a taken session name gave %v, ErrConflict was expected", err)
 	}
-	for _, want := range []string{`"ai-platform"`, `project "ai-platform"`, `contour "algo"`} {
+	for _, want := range []string{`"api"`, `project "api"`, `contour "globex"`} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal %q does not say %s", err.Error(), want)
 		}
 	}
 
 	bot, err := s.CreateProject(ctx, workGroup.ID, ProjectEdit{
-		Name: strp("bot-platform"), Path: strp(filepath.Join(root, "Work", "ai-platform")),
+		Name: strp("bot-platform"), Path: strp(filepath.Join(root, "Work", "api")),
 		Session: strp("bot-platform"), Sort: intp(0)})
 	if err != nil {
 		t.Fatalf("the same directory under a session name of its own was refused: %v", err)
@@ -187,7 +187,7 @@ func TestProjectSessionNameIsUniqueAcrossTheMapPG(t *testing.T) {
 	if _, err := s.UpdateProject(ctx, bot.ID, ProjectEdit{Session: strp("")}); !errors.Is(err, ErrConflict) {
 		t.Errorf("clearing the session name back to the directory's gave %v, ErrConflict was expected", err)
 	}
-	if _, err := s.UpdateProject(ctx, bot.ID, ProjectEdit{Session: strp("ai-platform")}); !errors.Is(err, ErrConflict) {
+	if _, err := s.UpdateProject(ctx, bot.ID, ProjectEdit{Session: strp("api")}); !errors.Is(err, ErrConflict) {
 		t.Errorf("naming the session like the other project's gave %v, ErrConflict was expected", err)
 	}
 	if got := mustTree(t, s); projectSession(got, bot.ID) != "bot-platform" {

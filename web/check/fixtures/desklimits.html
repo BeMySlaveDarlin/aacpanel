@@ -22,20 +22,20 @@ const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
 // whole unit, and one whose reset the snapshot does not know.
 const limits = { contours: [
     { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2.2), sevenDay: part(24, 100) },
-    { profile: "algo", contour: 1, ageSec: 30, fiveHour: part(93, 1.5), sevenDay: part(57, 118) },
-    { profile: "evirma", contour: 4, ageSec: 3600, fiveHour: part(7, 0.795), sevenDay: { pct: 41 } },
+    { profile: "globex", contour: 1, ageSec: 30, fiveHour: part(93, 1.5), sevenDay: part(57, 118) },
+    { profile: "acme", contour: 4, ageSec: 3600, fiveHour: part(7, 0.795), sevenDay: { pct: 41 } },
 ] };
 const profileMap = [
-    { id: 4, profile: "Evirma", name: "Evirma", groups: [] },
-    { id: 1, profile: "Algorithmics and every project of it", name: "Algorithmics and every project of it", groups: [] },
+    { id: 4, profile: "Acme", name: "Acme", groups: [] },
+    { id: 1, profile: "Globex Group and every project of it", name: "Globex Group and every project of it", groups: [] },
     { id: 3, profile: "personal", name: "personal", groups: [] },
 ];
 const session = (name, contour) => ({ session: name, sessionId: name, contour, status: "idle", pct: 20, cwd: `/srv/${name}` });
-const sessions = [session("lms", 1), session("aacpanel", 3), session("atlas", 3), session("blog", 3)];
+const sessions = [session("shop", 1), session("aacpanel", 3), session("helios", 3), session("blog", 3)];
 const asked = [];
 // Three closed conversations a contour, an hour apart and the contours
 // interleaved, each in a project of its own.
-const collector = { 3: "personal", 1: "algo", 4: "evirma" };
+const collector = { 3: "personal", 1: "globex", 4: "acme" };
 const closed = (contour, n) => Array.from({ length: n }, (_, i) => ({
     sessionId: `c${contour}-${i}`, name: `old-${contour}-${i}`, cwd: `/srv/old${contour}${i}`, profile: collector[contour],
     prompts: [`what conversation ${i} of contour ${contour} was about`],
@@ -144,8 +144,8 @@ window.done = (async () => {
         shelfTop: shelf ? shelf.getBoundingClientRect().top : 0,
         shelfLast: Boolean(shelf) && shelf === shelf.parentElement.lastElementChild,
     };
-    const algo = Array.from(document.querySelectorAll(".dkrings"))[1];
-    algo.click();
+    const globex = Array.from(document.querySelectorAll(".dkrings"))[1];
+    globex.click();
     await sleep(120);
     const pop = document.querySelector(".dklimpop");
     out.pop = pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null;

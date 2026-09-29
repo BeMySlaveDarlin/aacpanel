@@ -216,8 +216,8 @@ func TestTheConnectionSheetSaysItAll(t *testing.T) {
 	}
 	want := []struct{ kind, tag, where, mark string }{
 		{"localhost", "no answer", "this device · 127.0.0.1:8777", "page"},
-		{"LAN", "ms", "atlas.example.net:8443", ""},
-		{"tailscale", "no answer", "atlas.tail0000.ts.net", ""},
+		{"LAN", "ms", "helios.example.net:8443", ""},
+		{"tailscale", "no answer", "helios.tail0000.ts.net", ""},
 	}
 	if len(s.Rows) != len(want) {
 		t.Fatalf("the sheet lists %d legs: %+v", len(s.Rows), s.Rows)

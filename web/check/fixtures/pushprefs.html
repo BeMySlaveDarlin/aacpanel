@@ -42,13 +42,13 @@ const sources = {
             { name: "panel", path: "/srv/proj/panel" },
             { name: "person", path: "/srv/proj/person" },
         ] },
-        { name: "work", configDir: work, projects: [{ name: "lms", path: "/srv/proj/work/lms" }] },
+        { name: "work", configDir: work, projects: [{ name: "shop", path: "/srv/proj/work/shop" }] },
         { name: "acme", configDir: acme, projects: [
-            { name: "harness", path: "/srv/proj/acme/harness" },
-            { name: "shop", path: "/srv/proj/acme/shop" },
+            { name: "billing", path: "/srv/proj/acme/billing" },
+            { name: "infra", path: "/srv/proj/acme/infra" },
         ] },
     ],
-    stacks: ["acme-dev", "acme-top", "home-assistant", "lms", "panel"],
+    stacks: ["acme-dev", "acme-top", "home-assistant", "panel", "shop"],
     rules: [
         { id: 1, name: "Container eats CPU", key: "container.cpu", enabled: true },
         { id: 3, name: "Host CPU is loaded", key: "host.cpu", enabled: true },
@@ -61,8 +61,8 @@ const sources = {
 let prefs = {
     off: ["back", "gone"],
     rules: [],
-    sessions: [acme, "/srv/proj/acme/harness"],
-    stacks: ["acme-dev", "acme-top", "lms"],
+    sessions: [acme, "/srv/proj/acme/infra"],
+    stacks: ["acme-dev", "acme-top", "shop"],
     limits: [],
 };
 
@@ -176,7 +176,7 @@ window.done = (async () => {
 
     // Chips of the places a session is heard from.
     out.acmeOn = (await press(chip("sessions", "acme"))).sessions;
-    out.harnessOn = (await press(chip("sessions", "harness"))).sessions;
+    out.infraOn = (await press(chip("sessions", "infra"))).sessions;
     out.sessionChipsAfter = chips("sessions");
     root.querySelector('.nffrom[aria-label^="sessions:"] .nfadd').click();
     const projects = await until(sheet);
@@ -189,7 +189,7 @@ window.done = (async () => {
     out.sessionChipsPicked = chips("sessions");
 
     // Stacks: a quiet one heard again leaves the chips; a new one is quieted.
-    out.lmsOn = (await press(chip("stacks", "lms"))).stacks;
+    out.shopOn = (await press(chip("stacks", "shop"))).stacks;
     out.stackChipsAfter = chips("stacks");
     root.querySelector('.nffrom[aria-label^="stacks:"] .nfadd').click();
     const stacks = await until(sheet);

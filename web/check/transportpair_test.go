@@ -57,11 +57,11 @@ func TestTheViewsReachTheOtherSideOnlyThroughTheMove(t *testing.T) {
 	if !got.TermSentNothing {
 		t.Error("the terminal tab of a session on the stream moved it by itself — it is meant to open the move")
 	}
-	if s := got.ToConsole.Sent; s == nil || s.Kind != "session.switch" || s.Target != "evirma" ||
+	if s := got.ToConsole.Sent; s == nil || s.Kind != "session.switch" || s.Target != "acme" ||
 		s.Params["to"] != "console" || s.Params["window"] != nil {
 		t.Errorf("the move of a session on the stream sent %+v (sheet %q)", s, got.ToConsole.Title)
 	}
-	if got.ToConsole.Title != "Move evirma to tmux?" {
+	if got.ToConsole.Title != "Move acme to tmux?" {
 		t.Errorf("the move asks %q", got.ToConsole.Title)
 	}
 	if got.WindowOff || got.WithWindow == nil {
@@ -70,14 +70,14 @@ func TestTheViewsReachTheOtherSideOnlyThroughTheMove(t *testing.T) {
 	if s := got.WithWindow.Sent; s == nil || s.Kind != "session.switch" || s.Params["to"] != "console" || s.Params["window"] != true {
 		t.Errorf("the move with a window sent %+v — the window comes with the move", s)
 	}
-	if !strings.HasPrefix(got.WithWindow.Title, "Open a window to evirma on ") ||
+	if !strings.HasPrefix(got.WithWindow.Title, "Open a window to acme on ") ||
 		!strings.Contains(got.WithWindow.Effect, "stays in tmux") {
 		t.Errorf("the move with a window asks %q: %q", got.WithWindow.Title, got.WithWindow.Effect)
 	}
 	if got.ConsoleOn != "term" {
 		t.Errorf("a session in tmux of a project on the stream shows %q", got.ConsoleOn)
 	}
-	if s := got.ToFeed.Sent; s == nil || s.Params["to"] != "stream" || got.ToFeed.Title != "Move evirma-c to the stream?" {
+	if s := got.ToFeed.Sent; s == nil || s.Params["to"] != "stream" || got.ToFeed.Title != "Move acme-c to the stream?" {
 		t.Errorf("the move of a session in tmux sent %+v (sheet %q)", s, got.ToFeed.Title)
 	}
 	if got.HeldTerm != "term" || got.HeldOn != "feed" || !got.HeldFeed || got.HeldSent != 0 || got.HeldMarked {

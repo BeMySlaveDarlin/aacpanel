@@ -24,8 +24,8 @@ function Feed() {
     const [look, setLook] = useState(null);
     return html`
         <div class="chatfeed" style="height: 500px">
-            <${Row} item=${prompt} session="atlas" id="1" />
-            <${Row} item=${answer} session="atlas" id="1"
+            <${Row} item=${prompt} session="helios" id="1" />
+            <${Row} item=${answer} session="helios" id="1"
                     onCommand=${(row) => { opened.push(row.name); setLook(row); }} />
         </div>
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)} label="command output" inner>

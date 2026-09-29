@@ -61,11 +61,11 @@ function lineOf(launch, session) {
 // that takes no effort and no Auto.
 const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
 let project = {
-    id: 4, groupId: 3, name: "host session", path: "/srv/proj/home", session: "atlas", base: "", sort: 0,
+    id: 4, groupId: 3, name: "host session", path: "/srv/proj/home", session: "helios", base: "", sort: 0,
     launch: mode === "haiku" ? { model: "haiku", effort: "high" } : { remoteControl: true, permissionMode: "auto" },
 };
 project.effective = effectiveOf(project.launch);
-project.line = lineOf(project.launch, "atlas");
+project.line = lineOf(project.launch, "helios");
 const contour = () => ({
     id: 3, name: "personal", auth: "builtin", contextGuard: true, account, launch: { contextCap: 80, restartIntent: "Carry on" },
     effective: contourEff,
@@ -124,8 +124,8 @@ function Harness() {
         profiles=${[c]}
         catalog=${catalog}
         order=${null}
-        sessions=${[{ session: "atlas", project: { id: 4 }, transport: null, remote: null, status: "idle" },
-                    { session: "atlas-2", project: { id: 4 }, transport: "stream", remote: null, status: "idle" },
+        sessions=${[{ session: "helios", project: { id: 4 }, transport: null, remote: null, status: "idle" },
+                    { session: "helios-2", project: { id: 4 }, transport: "stream", remote: null, status: "idle" },
                     { session: "other", project: { id: 9 }, transport: null, remote: null, status: "idle" }]}
         onClose=${() => { closed += 1; }}
         onDone=${(data) => { done.push(Boolean(data && data.profiles)); setTick((n) => n + 1); }}

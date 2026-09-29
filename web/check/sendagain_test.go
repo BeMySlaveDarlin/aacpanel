@@ -44,7 +44,7 @@ func TestAMessageRefusedByADialogIsSentAgainFromTheRow(t *testing.T) {
 		t.Fatalf("the first press sent %d requests: %+v — Esc that did not free the composer was followed "+
 			"by the message anyway, into whatever screen is standing there", got.AfterOne, got.Sent)
 	}
-	if got.Sent[0].Kind != "session.escape" || got.Sent[0].Target != "evirma" {
+	if got.Sent[0].Kind != "session.escape" || got.Sent[0].Target != "acme" {
 		t.Fatalf("the first request was %s to %q — the press starts with Esc into the session that refused",
 			got.Sent[0].Kind, got.Sent[0].Target)
 	}

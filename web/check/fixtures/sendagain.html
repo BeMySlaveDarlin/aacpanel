@@ -14,7 +14,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const shot = "/home/x/.local/share/aacpanel-exec/files/20260918-101010-ab12cd-1000032475.png";
-const refusal = "session evirma did not accept the input: nothing was typed: the session is showing a "
+const refusal = "session acme did not accept the input: nothing was typed: the session is showing a "
     + "screen of its own, not its composer; it ends with: \"1 to review · 2 to send · 0 to dismiss\". "
     + "Press Esc in the session to get back to its composer, then send again; "
     + "the file itself was saved to " + shot;
@@ -37,13 +37,13 @@ window.fetch = async (url, init) => {
             // the screen again and says what is standing there now.
             if (!closes) {
                 closes = true;
-                return json({ error: "Esc went into session evirma and its composer did not come back: "
+                return json({ error: "Esc went into session acme and its composer did not come back: "
                     + "the session is showing a screen of its own, not its composer; "
                     + "it ends with: \"Discard the draft? y/n\"" }, 502);
             }
-            return json({ ok: true, detail: "Esc pressed in evirma: its composer is free" });
+            return json({ ok: true, detail: "Esc pressed in acme: its composer is free" });
         }
-        return json({ ok: true, detail: "typed into evirma (free), 71 characters" });
+        return json({ ok: true, detail: "typed into acme (free), 71 characters" });
     }
     return new Response("", { status: 404 });
 };
@@ -54,7 +54,7 @@ let item = {
     role: "me", key: "k1", state: "failed", error: refusal,
     at: new Date().toISOString(),
     text: "1000032475.png", sent: "", file: "1000032475.png",
-    from: { name: "evirma", text: "", files: 1 },
+    from: { name: "acme", text: "", files: 1 },
 };
 
 function draw() {

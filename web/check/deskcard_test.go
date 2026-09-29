@@ -139,8 +139,8 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	got := runDeskCard(t)
 
 	want := []deskCardSection{
-		{Name: "personal", Rows: []string{"1:aacpanel", "2:person", "3:atlas", "4:scratch"}},
-		{Name: "Algorithmics", Rows: []string{"5:lms", "6:ai-platform", "7:evirma-fingerprint-rotation-review", ":lms-admin"}},
+		{Name: "personal", Rows: []string{"1:aacpanel", "2:person", "3:helios", "4:scratch"}},
+		{Name: "Globex Group", Rows: []string{"5:shop", "6:api", "7:acme-fingerprint-rotation-review", ":shop-admin"}},
 	}
 	check := func(when string, sections []deskCardSection) {
 		if len(sections) != len(want) {
@@ -155,10 +155,10 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 	}
 	check("at first", got.Before)
 	check("a minute later, every state changed", got.After)
-	if got.OrderBefore != "aacpanel,person,atlas,scratch,lms,ai-platform,evirma-fingerprint-rotation-review" || got.OrderAfter != got.OrderBefore {
+	if got.OrderBefore != "aacpanel,person,helios,scratch,shop,api,acme-fingerprint-rotation-review" || got.OrderAfter != got.OrderBefore {
 		t.Errorf("the keys of the shell go %q, then %q — the same places the column shows, before and after", got.OrderBefore, got.OrderAfter)
 	}
-	if got.Ghost == nil || got.Ghost.Section != "Algorithmics" || got.Ghost.Key != "" || !got.Ghost.Last ||
+	if got.Ghost == nil || got.Ghost.Section != "Globex Group" || got.Ghost.Key != "" || !got.Ghost.Last ||
 		!strings.HasPrefix(got.Ghost.Say, "starting on the host") {
 		t.Errorf("the console being raised stands as %+v: in the contour of its project, after the live ones, with no key", got.Ghost)
 	}
@@ -173,17 +173,17 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 	got := runDeskCard(t)
 
 	for name, want := range map[string]string{
-		"person":      "asks you · Palette · 2 questions",
-		"aacpanel":    "working · 2 agents",
-		"ai-platform": "waiting: a dialog is open",
-		"lms":         "working · 1 agent",
+		"person":   "asks you · Palette · 2 questions",
+		"aacpanel": "working · 2 agents",
+		"api":      "waiting: a dialog is open",
+		"shop":     "working · 1 agent",
 	} {
 		if got.Says[name] != want {
 			t.Errorf("%s says %q, expected %q", name, got.Says[name], want)
 		}
 	}
-	if !regexp.MustCompile(`^idle · \d+ min ago$`).MatchString(got.Says["atlas"]) {
-		t.Errorf("an idle session says %q — idle, and since when", got.Says["atlas"])
+	if !regexp.MustCompile(`^idle · \d+ min ago$`).MatchString(got.Says["helios"]) {
+		t.Errorf("an idle session says %q — idle, and since when", got.Says["helios"])
 	}
 	if got.SaysAfter["aacpanel"] != "asks you · Scope" || !strings.HasPrefix(got.SaysAfter["person"], "idle") {
 		t.Errorf("after the change the rows say %v", got.SaysAfter)
@@ -193,7 +193,7 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 			t.Errorf("the column still says %q — the state is said in the words of the phone", dead)
 		}
 	}
-	if got.Tones["person"] != "wait" || got.Tones["aacpanel"] != "busy" || got.Tones["atlas"] != "idle" {
+	if got.Tones["person"] != "wait" || got.Tones["aacpanel"] != "busy" || got.Tones["helios"] != "idle" {
 		t.Errorf("the rows carry tones %v", got.Tones)
 	}
 	if !strings.Contains(got.Edge, "inset") || got.NoEdge != "none" {
@@ -205,9 +205,9 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 
 	for name, want := range map[string]string{
 		"aacpanel": "RC",
-		"atlas":    "home,RC",
+		"helios":   "home,RC",
 		"scratch":  "tmux",
-		"lms":      "",
+		"shop":     "",
 	} {
 		if strings.Join(got.Marks[name], ",") != want {
 			t.Errorf("%s is marked %v, expected %q", name, got.Marks[name], want)
@@ -230,11 +230,11 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	got := runDeskCard(t)
 
 	for name, want := range map[string]string{
-		"aacpanel":    "Pets|Opus 5.5 · Extra|418k of 1m|42%|up 3 h|2 compactions",
-		"ai-platform": "Platform|Opus 5.5 · Extra|Plan|370k of 1m|37%|up 3 h",
-		"lms":         "Opus 5.5 · Extra|Bypass|260k of 1m|26%|up 3 h",
-		"atlas":       "Host|Opus 5.5 · Extra|100k of 1m|10%|up 3 h",
-		"scratch":     "Opus 5.5 · Extra|50k of 1m|5%|up 3 h",
+		"aacpanel": "Side|Opus 5.5 · Extra|418k of 1m|42%|up 3 h|2 compactions",
+		"api":      "Platform|Opus 5.5 · Extra|Plan|370k of 1m|37%|up 3 h",
+		"shop":     "Opus 5.5 · Extra|Bypass|260k of 1m|26%|up 3 h",
+		"helios":   "Host|Opus 5.5 · Extra|100k of 1m|10%|up 3 h",
+		"scratch":  "Opus 5.5 · Extra|50k of 1m|5%|up 3 h",
 	} {
 		f := got.Facts[name]
 		if strings.Join(f.All, "|") != want {
@@ -253,7 +253,7 @@ func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	if f := got.Facts["aacpanel"]; len(f.Shown) >= len(f.All) {
 		t.Errorf("the longest line shows all of %v — the fixture no longer checks what happens to a line too long for the column", f.All)
 	}
-	for name, want := range map[string]string{"aacpanel": "", "evirma-fingerprint-rotation-review": "crit"} {
+	for name, want := range map[string]string{"aacpanel": "", "acme-fingerprint-rotation-review": "crit"} {
 		f := got.Facts[name]
 		at := -1
 		for i, fact := range f.All {
@@ -293,7 +293,7 @@ func TestDeskRowActionStandsOnEveryRow(t *testing.T) {
 			t.Errorf("%s: %v — the action keeps the corner of its own", row.Name, row.Bad)
 		}
 	}
-	if got.HomeAct != "restart session atlas" {
+	if got.HomeAct != "restart session helios" {
 		t.Errorf("the home session offers %q, expected its restart alone", got.HomeAct)
 	}
 	if len(got.Hiding) > 0 {
@@ -311,7 +311,7 @@ func TestDeskContourHeadingStartsASession(t *testing.T) {
 	if got.Plus != "visible" {
 		t.Errorf("the plus of a heading stands %q — it is there without the pointer", got.Plus)
 	}
-	if want := "[Pets],aacpanel live,person live,blog"; strings.Join(got.Menu, ",") != want {
+	if want := "[Side],aacpanel live,person live,blog"; strings.Join(got.Menu, ",") != want {
 		t.Errorf("the plus of personal offers %v, expected %s", got.Menu, want)
 	}
 	if len(got.Opened) != 1 || got.Opened[0].Kind != "session.open" || got.Opened[0].Target != "blog" {
@@ -338,12 +338,12 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	for _, row := range got.Shelf {
 		names = append(names, row.Name)
 	}
-	if strings.Join(names, ",") != "person-e8,career,lms-admin" {
+	if strings.Join(names, ",") != "person-e8,career,shop-admin" {
 		t.Errorf("the shelf holds %v, expected one conversation per project, the empty one dropped", names)
 	}
 	if len(got.Shelf) == 3 {
 		first, last := got.Shelf[0], got.Shelf[2]
-		if first.Contour != "personal" || got.Shelf[1].Contour != "personal" || last.Contour != "Algorithmics" {
+		if first.Contour != "personal" || got.Shelf[1].Contour != "personal" || last.Contour != "Globex Group" {
 			t.Errorf("the shelf names the contours %q, %q, %q", first.Contour, got.Shelf[1].Contour, last.Contour)
 		}
 		if first.When != "1 h ago" || last.When != "1 d ago" || !strings.Contains(last.About, "migrate the admin filters") {
@@ -364,13 +364,13 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 	if got.ArchiveOpened != 1 {
 		t.Errorf("the way to the archive opened it %d times", got.ArchiveOpened)
 	}
-	if got.PickedClosed.Name != "lms-admin" || got.PickedClosed.ID != "c-lms-admin" || !got.PickedClosed.Archived {
+	if got.PickedClosed.Name != "shop-admin" || got.PickedClosed.ID != "c-shop-admin" || !got.PickedClosed.Archived {
 		t.Errorf("a press on a closed conversation opened %+v", got.PickedClosed)
 	}
-	if got.OpenClosed == nil || got.OpenClosed.Name != "lms-admin" || got.OpenClosed.Resume == "none" || got.OpenClosed.When == "none" {
+	if got.OpenClosed == nil || got.OpenClosed.Name != "shop-admin" || got.OpenClosed.Resume == "none" || got.OpenClosed.When == "none" {
 		t.Errorf("the open closed conversation stands as %+v: with its time and Resume both", got.OpenClosed)
 	}
-	if len(got.Resumed) != 1 || got.Resumed[0].Kind != "session.resume" || got.Resumed[0].Params["session"] != "c-lms-admin" {
+	if len(got.Resumed) != 1 || got.Resumed[0].Kind != "session.resume" || got.Resumed[0].Params["session"] != "c-shop-admin" {
 		t.Errorf("Resume sent %+v", got.Resumed)
 	}
 	if got.PickedAfterResume != 1 {
@@ -405,7 +405,7 @@ func TestDeskChatHeaderStandsInTwoLines(t *testing.T) {
 	if got.WithPanel.Width >= got.WithoutPanel.Width {
 		t.Errorf("the header is %d px with the panel and %d px without — the panel was not open", got.WithPanel.Width, got.WithoutPanel.Width)
 	}
-	if !strings.Contains(got.WithoutPanel.Sub, "~/Projects/Algo/lms") {
+	if !strings.Contains(got.WithoutPanel.Sub, "~/Projects/Globex/shop") {
 		t.Errorf("with room the path reads whole: %q", got.WithoutPanel.Sub)
 	}
 }

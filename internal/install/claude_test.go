@@ -284,21 +284,21 @@ func TestAnAccountTheWrapperSignsInIsSignedIn(t *testing.T) {
 	reg := home + "/wrap/registry.conf"
 	m.Files[DefaultStateDir+"/host.env"] = "AACP_REPO=" + clone + "\nAACP_CLAUDE_REGISTRY=" + reg + "\n"
 	m.Files[reg] = "# profile | prefix | config | token | codex\n" +
-		"algo | /srv/algo/ | ~/.claude-profiles/algo | ~/.vault/algo.age | -\n" +
+		"globex | /srv/globex/ | ~/.claude-profiles/globex | ~/.vault/globex.age | -\n" +
 		"lab | /srv/lab/ | ~/.claude-profiles/lab | ~/.vault/lab.age\n" +
 		"personal | * | ~/.claude | -\n"
-	m.Files[home+"/.vault/algo.age"] = "sealed"
-	m.Files[home+"/.claude-profiles/algo/settings.json"] = "{}"
+	m.Files[home+"/.vault/globex.age"] = "sealed"
+	m.Files[home+"/.claude-profiles/globex/settings.json"] = "{}"
 	m.Files[home+"/.claude-profiles/lab/settings.json"] = "{}"
 	m.Files[home+"/.claude-keyed/settings.json"] = `{"apiKeyHelper": "~/bin/key.sh"}`
 	s := survey(m, &Run{Yes: true, Answers: map[string]string{"--keep": "review"}})
-	for dir, want := range map[string]bool{home + "/.claude-profiles/algo": true, home + "/.claude-profiles/lab": false,
+	for dir, want := range map[string]bool{home + "/.claude-profiles/globex": true, home + "/.claude-profiles/lab": false,
 		home + "/.claude": true, home + "/.claude-keyed": true} {
 		if got, how := s.SignedIn(dir); got != want {
 			t.Errorf("%s: signed in %v (%s), want %v", dir, got, how, want)
 		}
 	}
-	if _, how := s.SignedIn(home + "/.claude-profiles/algo"); how != "signed in by the wrapper, with ~/.vault/algo.age" {
+	if _, how := s.SignedIn(home + "/.claude-profiles/globex"); how != "signed in by the wrapper, with ~/.vault/globex.age" {
 		t.Errorf("the account says %q", how)
 	}
 	s.Keep(Given{Value: "review"})

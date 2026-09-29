@@ -98,7 +98,7 @@ func TestToastUnderChrome(t *testing.T) {
 			t.Errorf("at %d ms the toast is still on, %d ms after the second show — it does not go away by itself", at, at-second)
 		}
 	}
-	if !got.Gate.On || !strings.HasPrefix(got.Gate.Text, "Session harness-rework is up") {
+	if !got.Gate.On || !strings.HasPrefix(got.Gate.Text, "Session infra-rework is up") {
 		t.Errorf("the note of a confirmed action did not show: on=%v text=%q", got.Gate.On, got.Gate.Text)
 	}
 	if got.Gate.Later {

@@ -33,7 +33,7 @@ window.done = (async () => {
         drift: [
             ...drift(stream, { session: "person", transport: "", model: "claude-fable-5-1" }),
             ...drift({ words: [{ text: "claude" }, { text: "--model", key: "model" }, { text: "opus", key: "model" }] },
-                { session: "ai-platform", transport: null, model: "claude-fable-5-1" }),
+                { session: "api", transport: null, model: "claude-fable-5-1" }),
             ...drift(tmux, { session: "aacpanel", transport: null, model: "claude-sonnet-5" }),
         ],
         labels: [{ key: "transport", value: "stream" }, { key: "remoteControl", value: false }, { key: "contextCap", value: 70 },

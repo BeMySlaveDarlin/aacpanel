@@ -698,11 +698,11 @@ class Under(unittest.TestCase):
         return sorted(r["sessionId"][:1] for r in page["rows"]), page["total"]
 
     def test_the_project_its_subdirectories_and_nothing_beside_it(self):
-        self.put("-opt-p-ai-platform", "11111111-1111-4111-8111-111111111111", "/opt/p/ai-platform")
-        self.put("-opt-p-ai-platform-docs", "22222222-2222-4222-8222-222222222222", "/opt/p/ai-platform/docs")
-        self.put("-opt-p-ai-platform-x", "33333333-3333-4333-8333-333333333333", "/opt/p/ai-platform-x")
+        self.put("-opt-p-api", "11111111-1111-4111-8111-111111111111", "/opt/p/api")
+        self.put("-opt-p-api-docs", "22222222-2222-4222-8222-222222222222", "/opt/p/api/docs")
+        self.put("-opt-p-api-x", "33333333-3333-4333-8333-333333333333", "/opt/p/api-x")
         self.put("-opt-p-other", "44444444-4444-4444-8444-444444444444", "/opt/p/other")
-        self.assertEqual(self.ids("/opt/p/ai-platform"), (["1", "2"], 2),
+        self.assertEqual(self.ids("/opt/p/api"), (["1", "2"], 2),
                          "a sibling whose name starts the same came into the project, or its subdirectory stayed out")
 
     def test_the_directory_is_named_the_way_claude_names_it(self):

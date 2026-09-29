@@ -21,7 +21,7 @@ const mcpAnswer = `{"subtype":"success","request_id":"panel-2","response":{"mcpS
  {"name":"docker","status":"connected","scope":"user","source":"user",
   "config":{"type":"stdio","command":"/usr/local/bin/docker-mcp","args":["--token","s3cret"],"env":{"KEY":"v"}},
   "tools":[{"name":"ps"}]},
- {"name":"tg-shadow","status":"failed","error":"ECONNREFUSED: Unable to connect.","scope":"user","source":"user",
+ {"name":"chat-bridge","status":"failed","error":"ECONNREFUSED: Unable to connect.","scope":"user","source":"user",
   "config":{"type":"http","url":"http://127.0.0.1:8901/mcp"}},
  {"status":"connected"}]}}`
 
@@ -78,17 +78,17 @@ func TestMcpChangesGoAsClaudesRequests(t *testing.T) {
 			f := onTheStream(t, false)
 			e, _ := newTest(t, "")
 			r := req(action.SessionMcp, "demo")
-			r.Mcp = &action.McpChange{Server: "tg-shadow", Do: c.do}
+			r.Mcp = &action.McpChange{Server: "chat-bridge", Do: c.do}
 			detail, err := e.Execute(context.Background(), r)
 			if err != nil {
 				t.Fatal(err)
 			}
 			asked := f.asked()
-			if len(asked) != 1 || asked[0].Subtype != c.subtype || asked[0].Fields["serverName"] != "tg-shadow" ||
+			if len(asked) != 1 || asked[0].Subtype != c.subtype || asked[0].Fields["serverName"] != "chat-bridge" ||
 				asked[0].Fields["enabled"] != c.enabled {
 				t.Fatalf("the holder was asked %+v", asked)
 			}
-			if !strings.Contains(detail, "tg-shadow") {
+			if !strings.Contains(detail, "chat-bridge") {
 				t.Errorf("the report %q does not name the server", detail)
 			}
 		})

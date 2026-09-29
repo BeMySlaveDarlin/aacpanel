@@ -25,7 +25,7 @@ def load(name):
 guard = load("context-guard")
 guards = load("guards")
 
-PROJECT = "/srv/proj/Pets/service/aacpanel"
+PROJECT = "/srv/proj/Side/service/aacpanel"
 
 
 class TestGuard(unittest.TestCase):
@@ -208,11 +208,11 @@ class TestPlaces(unittest.TestCase):
         return f.name
 
     def test_the_closest_place_above_wins(self):
-        name = self.file("/srv/proj/Algo\t70\t1", "/srv/proj/Algo/lms\t90\t0")
-        self.assertEqual(guards.of("/srv/proj/Algo/lms/src", name), (90, False))
-        self.assertEqual(guards.of("/srv/proj/Algo/ai-platform", name), (70, True))
-        self.assertEqual(guards.of("/srv/proj/Algo", name), (70, True))
-        self.assertIsNone(guards.of("/srv/proj/AlgoX", name))
+        name = self.file("/srv/proj/Globex\t70\t1", "/srv/proj/Globex/shop\t90\t0")
+        self.assertEqual(guards.of("/srv/proj/Globex/shop/src", name), (90, False))
+        self.assertEqual(guards.of("/srv/proj/Globex/api", name), (70, True))
+        self.assertEqual(guards.of("/srv/proj/Globex", name), (70, True))
+        self.assertIsNone(guards.of("/srv/proj/GlobexX", name))
 
     def test_a_broken_line_is_passed_over(self):
         name = self.file("/opt/x\teighty\t1", "/opt/x", "/opt\t75\t0")

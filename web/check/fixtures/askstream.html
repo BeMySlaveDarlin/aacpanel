@@ -51,7 +51,7 @@ window.EventSource = class {
 const exec = { available: true, kinds: ["session.answer", "session.dismiss", "session.send"] };
 const live = { status: "waiting", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj" };
 function Page() {
-    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
+    return html`<${Chat} name="acme" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
 }
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
 

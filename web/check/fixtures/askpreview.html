@@ -28,7 +28,7 @@ const WIDE = [
     "|   - Journal       |   +--------------------+   +--------------------------+ |",
     "|   - Settings      |                                                        |",
     "|                   |   recent runs                                          |",
-    "|                   |   - evirma      busy     12 min    make check          |",
+    "|                   |   - acme      busy     12 min    make check          |",
     "|                   |   - aacpanel    waiting   3 min    session.answer      |",
     "+-------------------+--------------------------------------------------------+",
 ].join("\n");
@@ -87,7 +87,7 @@ const live = {
     tokensIn: 124000, tokensOut: 8000, cwd: "/srv/proj",
 };
 function Page() {
-    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
+    return html`<${Chat} name="acme" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`;
 }
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));
 

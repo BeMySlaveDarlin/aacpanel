@@ -42,7 +42,7 @@ func TestASwipeUnderAShortListTurnsTheContourPage(t *testing.T) {
 	if got.Error != "" {
 		t.Fatalf("the fixture failed: %s", got.Error)
 	}
-	if got.Start != "Evirma" {
+	if got.Start != "Acme" {
 		t.Fatalf("the phone opened on %q, not on the contour it was left on", got.Start)
 	}
 	if room := got.NavTop - got.LastRowBottom; room < 200 {
@@ -68,10 +68,10 @@ func TestASwipeUnderAShortListTurnsTheContourPage(t *testing.T) {
 				"which does not scroll sideways, and the contour page stays where it is", p.Y, p.Under)
 		}
 	}
-	if got.Forward.Page != "algo" {
+	if got.Forward.Page != "globex" {
 		t.Errorf("a swipe from the middle of the empty room left the phone on %q, expected the next contour", got.Forward.Page)
 	}
-	if got.Back.Page != "Evirma" {
+	if got.Back.Page != "Acme" {
 		t.Errorf("a swipe from just above the menu left the phone on %q, expected the contour before", got.Back.Page)
 	}
 

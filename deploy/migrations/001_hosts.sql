@@ -4,6 +4,3 @@ CREATE TABLE hosts (
     kind       text        NOT NULL CHECK (kind IN ('host', 'vps')),
     created_at timestamptz NOT NULL DEFAULT now()
 );
-
-INSERT INTO hosts (name, kind) VALUES ('ATLAS', 'host')
-ON CONFLICT (name) DO NOTHING;

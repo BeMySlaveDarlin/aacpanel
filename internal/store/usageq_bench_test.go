@@ -16,7 +16,7 @@ func TestUsageQueryTimingsPG(t *testing.T) {
 	if os.Getenv("AACP_USAGE_BENCH") == "" {
 		t.Skip("the dashboard measurement runs on demand: AACP_USAGE_BENCH=1")
 	}
-	ctx, s, pool := vitrina(t)
+	ctx, s, pool := showcase(t)
 	seedBench(t, ctx, pool)
 
 	now := time.Now().UTC()

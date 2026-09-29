@@ -77,7 +77,7 @@ func TestADrawingOfAnOptionFitsTheBoxItIsPutIn(t *testing.T) {
 	if len(got.Sent) != 1 {
 		t.Fatalf("the picked option left %d requests behind: %+v", len(got.Sent), got.Sent)
 	}
-	if got.Sent[0].Kind != "session.answer" || got.Sent[0].Target != "evirma" {
+	if got.Sent[0].Kind != "session.answer" || got.Sent[0].Target != "acme" {
 		t.Errorf("the answer went out as %q to %q", got.Sent[0].Kind, got.Sent[0].Target)
 	}
 	if picks, _ := got.Sent[0].Params["picks"].([]any); len(picks) != 1 {

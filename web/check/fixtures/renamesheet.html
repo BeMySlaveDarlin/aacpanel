@@ -41,9 +41,9 @@ window.EventSource = class {
 };
 
 const exec = { available: true, kinds: ["session.send", "session.command", "session.rename"] };
-const session = { session: "atlas", sessionId: "s1", status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
+const session = { session: "helios", sessionId: "s1", status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
     limit: 1000000, cwd: "/srv/proj", model: "claude-opus-5-5", effort: "xhigh", mode: "auto", profile: "personal" };
-const other = { ...session, session: "lms", sessionId: "s2" };
+const other = { ...session, session: "shop", sessionId: "s2" };
 const root = document.getElementById("root");
 const waits = { opening: () => [], of: () => null };
 
@@ -60,7 +60,7 @@ const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.
     const out = {};
     try {
         const snapshot = { at: 1, sessions: [session, other] };
-        render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="atlas" id="s1" live=${session}
+        render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${session}
             snapshot=${snapshot} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
         await sleep(400);
         await typeInto(document.querySelector("textarea"), "/rename");
@@ -74,10 +74,10 @@ const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.
         await typeInto(field, "my session");
         out.spaceOff = save().disabled;
         out.spaceWhy = text(".sheet.on .stpwarn")[0] || "";
-        await typeInto(field, "lms");
+        await typeInto(field, "shop");
         out.takenOff = save().disabled;
         out.takenWhy = text(".sheet.on .stpwarn")[0] || "";
-        await typeInto(field, "atlas-pilot");
+        await typeInto(field, "helios-pilot");
         out.goodOff = save().disabled;
         save().click();
         await sleep(400);
@@ -91,10 +91,10 @@ const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.
         const show = (snap, want) => render(h(ToastHost, null, h(GateHost, null, html`<${Sessions} snapshot=${snap}
             error=${null} ageSec=${1} exec=${exec} wait=${waits} faults=${[]} want=${want}
             onWanted=${() => {}} onLayer=${() => {}} onUsage=${() => {}} />`)), root);
-        show({ at: 1, sessions: [session, other] }, { name: "atlas", id: "s1" });
+        show({ at: 1, sessions: [session, other] }, { name: "helios", id: "s1" });
         await sleep(500);
         out.before = [...new Set(chats)];
-        show({ at: 2, sessions: [{ ...session, session: "atlas-pilot" }, other] }, null);
+        show({ at: 2, sessions: [{ ...session, session: "helios-pilot" }, other] }, null);
         await sleep(600);
         out.after = [...new Set(chats)];
     } catch (err) {

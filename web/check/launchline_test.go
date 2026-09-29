@@ -37,7 +37,7 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 	if strings.Join(got.Labels, "|") != "stream|no RC|cap 70%|no first message|sonnet" {
 		t.Errorf("a project's own values read %v", got.Labels)
 	}
-	want := "person lives in tmux — the project says the stream|ai-platform runs Fable — the project says Opus"
+	want := "person lives in tmux — the project says the stream|api runs Fable — the project says Opus"
 	if strings.Join(got.Drift, "|") != want {
 		t.Errorf("drift reads %q, meant %q — and a model the launch does not name is the session's own pick", strings.Join(got.Drift, "|"), want)
 	}

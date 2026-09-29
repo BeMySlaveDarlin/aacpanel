@@ -61,7 +61,7 @@ const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
 const terminal = { ...stream, transport: "" };
 const root = document.getElementById("root");
 const show = (live) => render(h(ToastHost, null, h(GateHost, null,
-    html`<${Chat} name="atlas" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    html`<${Chat} name="helios" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());

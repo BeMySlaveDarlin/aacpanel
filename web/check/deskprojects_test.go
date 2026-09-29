@@ -45,16 +45,16 @@ func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 		t.Errorf("the Projects button opened %v, a panel at the right %v, the button lit %v — expected the columns on the first contour and no panel",
 			got.Opened, got.Panel, got.Active)
 	}
-	if want := "personal2|Home1|Pets3|Evirma2|Common1|Harness1|Algorithmics1|LMS1"; strings.Join(got.Tree, "|") != want {
+	if want := "personal2|Home1|Side3|Acme2|Common1|Infra1|Globex Group1|SHOP1"; strings.Join(got.Tree, "|") != want {
 		t.Errorf("the tree reads %v, expected %s", got.Tree, want)
 	}
 	if got.Adds != "new contour" {
 		t.Errorf("the foot of the tree says %q — a new contour is added there", got.Adds)
 	}
-	if want := "personal2|Pets3|blog"; strings.Join(got.Found, "|") != want {
+	if want := "personal2|Side3|blog"; strings.Join(got.Found, "|") != want {
 		t.Errorf("a query for blo leaves the tree as %v, expected %s — the group and the project found in it", got.Found, want)
 	}
-	if strings.Join(got.FoundOpens, "|") != "Pets|blog" {
+	if strings.Join(got.FoundOpens, "|") != "Side|blog" {
 		t.Errorf("a project found in the tree opens %v, expected its group and its page", got.FoundOpens)
 	}
 	if got.None != "nothing matches the query" {
@@ -68,13 +68,13 @@ func TestTheProjectsButtonOpensTheColumns(t *testing.T) {
 	if !got.ClosedAfterStart {
 		t.Error("a session started from the settings leaves them open over the column it comes up in")
 	}
-	if strings.Join(got.Reopened, "|") != "Pets|blog" {
+	if strings.Join(got.Reopened, "|") != "Side|blog" {
 		t.Errorf("the settings open again on %v, expected where they were left", got.Reopened)
 	}
 	if !got.DeleteAsked || got.DeleteSent["url"] != "/api/projects/13" {
 		t.Errorf("the deletion of a project asked %v and sent %v", got.DeleteAsked, got.DeleteSent)
 	}
-	if strings.Join(got.AfterDelete, "|") != "Pets|" || strings.Join(got.TreeAfterDelete, "|") != "Home1|Pets2|Common1|Harness1|LMS1" {
+	if strings.Join(got.AfterDelete, "|") != "Side|" || strings.Join(got.TreeAfterDelete, "|") != "Home1|Side2|Common1|Infra1|SHOP1" {
 		t.Errorf("after the deletion the columns read %v and the tree %v — the page of the project goes, its group stays with one fewer",
 			got.AfterDelete, got.TreeAfterDelete)
 	}

@@ -95,7 +95,7 @@ func TestThePhoneHeaderIsOneLineWithTheToolsBehindIt(t *testing.T) {
 	if got.Dot != "waiting" || got.Word != "waiting for you" {
 		t.Errorf("a session waiting on a question stands as %q, saying %q", got.Dot, got.Word)
 	}
-	if got.Label != "evirma-fingerprint-rotation-review-2" {
+	if got.Label != "acme-fingerprint-rotation-review-2" {
 		t.Errorf("the name reads %q to a screen reader — it is meant whole", got.Label)
 	}
 	if !got.HeadCut || got.Tail != "-review-2" || !got.TailWhole {
@@ -113,7 +113,7 @@ func TestThePhoneHeaderIsOneLineWithTheToolsBehindIt(t *testing.T) {
 	if !strings.Contains(joined, "Files of the project") {
 		t.Errorf("the files of the project are not among the tools: %s", joined)
 	}
-	if got.Title != "evirma-fingerprint-rotation-review-2" || got.Where != "/srv/proj/panel" {
+	if got.Title != "acme-fingerprint-rotation-review-2" || got.Where != "/srv/proj/panel" {
 		t.Errorf("the sheet opens on %q at %q — the name whole and where the session works", got.Title, got.Where)
 	}
 	if strings.Join(got.Segs, " ") != "Feed:true Terminal:false" {

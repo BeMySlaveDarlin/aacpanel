@@ -27,8 +27,8 @@ const PARTS = {
               label: "Checking the rules", text: "node /home/u/.claude/plugins/hookify/rules.js --event pre", textLabel: "Command",
               disabled: true },
             { event: "PostToolBatch", source: "User settings (~/.claude/settings.json)", type: "command",
-              label: "bash /home/u/atlas-scripts/prompt-stamp/prompt-stamp.sh PostToolBatch",
-              text: "bash /home/u/atlas-scripts/prompt-stamp/prompt-stamp.sh PostToolBatch", textLabel: "Command" },
+              label: "bash /home/u/helios-scripts/prompt-stamp/prompt-stamp.sh PostToolBatch",
+              text: "bash /home/u/helios-scripts/prompt-stamp/prompt-stamp.sh PostToolBatch", textLabel: "Command" },
         ] } },
     memory: { memory: {
         auto: "on",
@@ -86,7 +86,7 @@ const stream = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
     work: { agents: 1 } };
 const root = document.getElementById("root");
 const show = (live) => render(h(ToastHost, null, h(GateHost, null,
-    html`<${Chat} name="atlas" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    html`<${Chat} name="helios" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());

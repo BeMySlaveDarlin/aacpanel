@@ -18,14 +18,14 @@ import (
 // holds and nothing restarts.
 func TestGuardsOfTheMap(t *testing.T) {
 	list := []store.Profile{
-		{Prefix: "/srv/proj/Algo", Launch: json.RawMessage(`{"contextCap":70,"autoRestart":true}`),
+		{Prefix: "/srv/proj/Globex", Launch: json.RawMessage(`{"contextCap":70,"autoRestart":true}`),
 			Groups: []store.ProfileGroup{{Projects: []store.ProfileProject{
-				{Path: "/srv/proj/Algo/lms", Launch: json.RawMessage(`{"autoRestart":false}`)},
-				{Path: "/srv/proj/Algo/ai-platform"},
+				{Path: "/srv/proj/Globex/shop", Launch: json.RawMessage(`{"autoRestart":false}`)},
+				{Path: "/srv/proj/Globex/api"},
 			}}}},
 		{Prefix: "", Launch: json.RawMessage(`{}`),
 			Groups: []store.ProfileGroup{{Projects: []store.ProfileProject{
-				{Path: "/srv/proj/Pets/service/aacpanel", Launch: json.RawMessage(`{"contextCap":90}`)},
+				{Path: "/srv/proj/Side/service/aacpanel", Launch: json.RawMessage(`{"contextCap":90}`)},
 			}}}},
 	}
 	got := map[string]action.Guard{}
@@ -33,10 +33,10 @@ func TestGuardsOfTheMap(t *testing.T) {
 		got[g.Path] = g
 	}
 	want := map[string]action.Guard{
-		"/srv/proj/Algo":                  {Path: "/srv/proj/Algo", Cap: 70, Restart: true},
-		"/srv/proj/Algo/lms":              {Path: "/srv/proj/Algo/lms", Cap: 70, Restart: false},
-		"/srv/proj/Algo/ai-platform":      {Path: "/srv/proj/Algo/ai-platform", Cap: 70, Restart: true},
-		"/srv/proj/Pets/service/aacpanel": {Path: "/srv/proj/Pets/service/aacpanel", Cap: 90, Restart: false},
+		"/srv/proj/Globex":                {Path: "/srv/proj/Globex", Cap: 70, Restart: true},
+		"/srv/proj/Globex/shop":           {Path: "/srv/proj/Globex/shop", Cap: 70, Restart: false},
+		"/srv/proj/Globex/api":            {Path: "/srv/proj/Globex/api", Cap: 70, Restart: true},
+		"/srv/proj/Side/service/aacpanel": {Path: "/srv/proj/Side/service/aacpanel", Cap: 90, Restart: false},
 	}
 	if len(got) != len(want) {
 		t.Errorf("guards %v, meant %v", got, want)

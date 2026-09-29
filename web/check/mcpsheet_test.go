@@ -44,19 +44,19 @@ func TestMcpOpensTheServersOfTheSession(t *testing.T) {
 	if !strings.HasPrefix(got.Docker, "docker") || !strings.Contains(got.Docker, "56 tools") {
 		t.Errorf("the docker row reads %q", got.Docker)
 	}
-	for _, want := range []string{"docker:ok", "tg-shadow:crit", "plugin:data:hex:warn", "plugin:data:snowflake:off"} {
+	for _, want := range []string{"docker:ok", "chat-bridge:crit", "plugin:data:hex:warn", "plugin:data:snowflake:off"} {
 		if !contains(want, got.Dots) {
 			t.Errorf("no row %s among %v", want, got.Dots)
 		}
 	}
-	if got.Server != "tg-shadow" || !contains("IssueECONNREFUSED: Unable to connect. Is the computer able to access the url?", got.Facts) ||
+	if got.Server != "chat-bridge" || !contains("IssueECONNREFUSED: Unable to connect. Is the computer able to access the url?", got.Facts) ||
 		!contains("URLhttp://127.0.0.1:8901/mcp", got.Facts) {
 		t.Errorf("the server %q shows %v", got.Server, got.Facts)
 	}
 	if !reflect.DeepEqual(got.Buttons, []string{"Reconnect", "Disable"}) {
 		t.Errorf("the server offers %v", got.Buttons)
 	}
-	if !reflect.DeepEqual(got.Sent, []string{`session.mcp:{"server":"tg-shadow","do":"disable"}`}) || !got.AskedAgain {
+	if !reflect.DeepEqual(got.Sent, []string{`session.mcp:{"server":"chat-bridge","do":"disable"}`}) || !got.AskedAgain {
 		t.Errorf("the host got %v, and after a refusal the list was asked again: %v", got.Sent, got.AskedAgain)
 	}
 	if got.ConsoleReady || !strings.Contains(got.ConsoleHint, "keys") {

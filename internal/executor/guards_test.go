@@ -14,8 +14,8 @@ func TestKeepGuardsWritesALineAPlace(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	e := &Executor{}
 	if err := e.KeepGuards(t.Context(), []action.Guard{
-		{Path: "/srv/proj/Pets/service/aacpanel", Cap: 80, Restart: true},
-		{Path: "/srv/proj/Algo", Cap: 70},
+		{Path: "/srv/proj/Side/service/aacpanel", Cap: 80, Restart: true},
+		{Path: "/srv/proj/Globex", Cap: 70},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -23,17 +23,17 @@ func TestKeepGuardsWritesALineAPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "/srv/proj/Algo\t70\t0\n/srv/proj/Pets/service/aacpanel\t80\t1\n"; string(got) != want {
+	if want := "/srv/proj/Globex\t70\t0\n/srv/proj/Side/service/aacpanel\t80\t1\n"; string(got) != want {
 		t.Errorf("the guards file reads %q, meant %q", got, want)
 	}
 	if info, _ := os.Stat(GuardsPath()); info.Mode().Perm() != 0o600 {
 		t.Errorf("the guards file is %v — the map of another user's projects is not for others", info.Mode().Perm())
 	}
 
-	if err := e.KeepGuards(t.Context(), []action.Guard{{Path: "/srv/proj/Algo", Cap: 60}}); err != nil {
+	if err := e.KeepGuards(t.Context(), []action.Guard{{Path: "/srv/proj/Globex", Cap: 60}}); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := os.ReadFile(GuardsPath()); string(got) != "/srv/proj/Algo\t60\t0\n" {
+	if got, _ := os.ReadFile(GuardsPath()); string(got) != "/srv/proj/Globex\t60\t0\n" {
 		t.Errorf("after a smaller map the file reads %q", got)
 	}
 	left, _ := filepath.Glob(filepath.Join(filepath.Dir(GuardsPath()), ".guards-*"))

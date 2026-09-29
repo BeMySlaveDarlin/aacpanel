@@ -16,7 +16,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const sessions = [
-    { session: "atlas", sessionId: "h1", contour: 4, home: true, status: "idle", pct: 40, cwd: "/home/me",
+    { session: "helios", sessionId: "h1", contour: 4, home: true, status: "idle", pct: 40, cwd: "/home/me",
       work: { agents: 2, tasks: 1 } },
     { session: "lab", sessionId: "l1", contour: 4, status: "idle", pct: 20, cwd: "/srv/lab", work: { agents: 0, tasks: 3, workflows: 1 } },
     { session: "quiet", sessionId: "q1", contour: 4, status: "idle", pct: 10, cwd: "/srv/quiet" },
@@ -47,11 +47,11 @@ window.done = (async () => {
         sheets[s.session] = end ? end.textContent.replace(/\s+/g, " ").trim() : "";
         render(null, phone);
     }
-    await until(() => tip("restart session atlas") !== null);
+    await until(() => tip("restart session helios") !== null);
     return {
         sheets,
         tips: {
-            atlas: tip("restart session atlas"),
+            helios: tip("restart session helios"),
             lab: tip("close session lab"),
             quiet: tip("close session quiet"),
         },

@@ -122,16 +122,16 @@ func TestARestartGoesOnWithTheConversationTheSessionRuns(t *testing.T) {
 // A session writing to another names its own conversation, and the executor
 // gets it with the letter, so it sends the letter from that session.
 func TestALetterReachesTheExecutorWithItsSender(t *testing.T) {
-	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "a letter from lab to lms"})
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "a letter from lab to shop"})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
 
-	w := post(t, srv, `{"kind":"session.letter","target":"lms","params":{"text":"hello","from":"`+switchSID+`"}}`)
+	w := post(t, srv, `{"kind":"session.letter","target":"shop","params":{"text":"hello","from":"`+switchSID+`"}}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
 	}
 	select {
 	case got := <-fake.got:
-		if got.Kind != action.SessionLetter || got.From != switchSID || got.Text != "hello" || got.Target != "lms" {
+		if got.Kind != action.SessionLetter || got.From != switchSID || got.Text != "hello" || got.Target != "shop" {
 			t.Errorf("the letter reached the executor as %+v", got)
 		}
 	case <-time.After(3 * time.Second):
@@ -139,8 +139,8 @@ func TestALetterReachesTheExecutorWithItsSender(t *testing.T) {
 	}
 
 	for _, body := range []string{
-		`{"kind":"session.letter","target":"lms","params":{"text":"hello","from":"lab"}}`,
-		`{"kind":"session.letter","target":"lms","params":{"text":"hello"}}`,
+		`{"kind":"session.letter","target":"shop","params":{"text":"hello","from":"lab"}}`,
+		`{"kind":"session.letter","target":"shop","params":{"text":"hello"}}`,
 	} {
 		if w := post(t, srv, body); w.Code != http.StatusBadRequest {
 			t.Errorf("%s gave %d: a letter with no conversation to come from has no sender", body, w.Code)

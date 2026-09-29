@@ -35,7 +35,7 @@ func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
 	}
 	var got chatHeadSeen
 	runFixture(t, "chathead.html", &got)
-	if got.HeadPath != "~/Projects/Pets/service/a-rather-long-group/and-a-subgroup/aacpanel" {
+	if got.HeadPath != "~/Projects/Side/service/a-rather-long-group/and-a-subgroup/aacpanel" {
 		t.Errorf("the header says the session works in %q — it is meant to say where, with the home as a tilde", got.HeadPath)
 	}
 	if !got.HeadPathCut || !got.HeadTailShown {
@@ -52,7 +52,7 @@ func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
 		t.Errorf("the tokens in and out are not at the left of the row under the composer: shown %v, first %v, %.0f px in",
 			got.DeckUse, got.DeckUseFirst, got.DeckUseLeftGap)
 	}
-	if got.PathText != "~/Projects/Pets/service/a-rather-long-group/and-a-subgroup/aacpanel" {
+	if got.PathText != "~/Projects/Side/service/a-rather-long-group/and-a-subgroup/aacpanel" {
 		t.Errorf("the tools say the session works in %q — the home is meant to be a tilde", got.PathText)
 	}
 	if got.Cut {

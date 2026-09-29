@@ -41,7 +41,7 @@ func TestTheChoiceOfPushesIsKeptAndTheButtonOfAPushQuietsItsSourcePG(t *testing.
 	}
 
 	code, got := pushCall(t, srv.apiPushPrefsSave, http.MethodPut,
-		`{"off":["done","call","done","nonsense"],"stacks":["lms"," "],"rules":[14,-1]}`)
+		`{"off":["done","call","done","nonsense"],"stacks":["shop"," "],"rules":[14,-1]}`)
 	if code != http.StatusOK {
 		t.Fatalf("saving gave %d", code)
 	}
@@ -50,7 +50,7 @@ func TestTheChoiceOfPushesIsKeptAndTheButtonOfAPushQuietsItsSourcePG(t *testing.
 	if err := json.Unmarshal(raw, &saved); err != nil {
 		t.Fatal(err)
 	}
-	want := notify.Prefs{Off: []string{"done"}, Rules: []int64{14}, Sessions: []string{}, Stacks: []string{"lms"}, Limits: []string{}}
+	want := notify.Prefs{Off: []string{"done"}, Rules: []int64{14}, Sessions: []string{}, Stacks: []string{"shop"}, Limits: []string{}}
 	if !reflect.DeepEqual(saved, want) {
 		t.Errorf("the choice was stored as %+v, want %+v", saved, want)
 	}
@@ -70,16 +70,16 @@ func TestTheChoiceOfPushesIsKeptAndTheButtonOfAPushQuietsItsSourcePG(t *testing.
 		}
 	}
 
-	code, _ = pushCall(t, srv.apiPushQuiet, http.MethodPost, `{"what":"sessions","key":"/srv/proj/Evirma/harness","label":"Quiet: harness"}`)
+	code, _ = pushCall(t, srv.apiPushQuiet, http.MethodPost, `{"what":"sessions","key":"/srv/proj/Acme/infra","label":"Quiet: infra"}`)
 	if code != http.StatusOK {
 		t.Fatalf("the button gave %d", code)
 	}
 	p := srv.pushPrefs(t.Context())
-	if len(p.Sessions) != 1 || p.Sessions[0] != "/srv/proj/Evirma/harness" || len(p.Stacks) != 1 {
+	if len(p.Sessions) != 1 || p.Sessions[0] != "/srv/proj/Acme/infra" || len(p.Stacks) != 1 {
 		t.Errorf("after the button the choice is %+v", p)
 	}
-	turn := notify.Message{Title: "Turn finished · harness", Body: "b", Tag: "done:x:1", Kind: notify.KindDone,
-		Source: notify.Source{Place: "/srv/proj/Evirma/harness"}}
+	turn := notify.Message{Title: "Turn finished · infra", Body: "b", Tag: "done:x:1", Kind: notify.KindDone,
+		Source: notify.Source{Place: "/srv/proj/Acme/infra"}}
 	if p.Allows(turn) {
 		t.Error("the source a button quieted still pushes")
 	}

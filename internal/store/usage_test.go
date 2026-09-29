@@ -76,7 +76,7 @@ func TestUsageWriteRepeatsWithoutAddingPG(t *testing.T) {
 
 	hour := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
 	file := UsageFile{
-		Session: UsageSession{SessionID: usageSecond, Contour: "home", CWD: "/srv/proj/pets"},
+		Session: UsageSession{SessionID: usageSecond, Contour: "home", CWD: "/srv/proj/side"},
 		Rows:    []UsageRow{{Bucket: hour, Model: "claude-opus-5", Answers: 7, InputTokens: 700, OutputTokens: 70}},
 		Events:  []UsageEventRow{{Bucket: hour, Messages: 40, Compacts: 1}},
 		Tools:   []UsageToolRow{{Bucket: hour, Tool: "Bash", Calls: 12, Errors: 2}},

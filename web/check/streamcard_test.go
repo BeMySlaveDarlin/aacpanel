@@ -49,7 +49,7 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 			t.Errorf("%s: the percentage left its place before the actions button (%dpx short): %+v", c.Name, c.PctRight, c)
 		}
 		session := c.Name
-		if !strings.HasPrefix(session, "evirma") && session != "aacpanel" && session != "person" {
+		if !strings.HasPrefix(session, "acme") && session != "aacpanel" && session != "person" {
 			t.Fatalf("an unknown block %q", session)
 		}
 		if c.TapPct != "open:"+session || c.TapTag != "open:"+session {
@@ -71,7 +71,7 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		if c.Since != wantSince || (wantSince != "" && (c.SinceCut || !c.SinceBelow)) {
 			t.Errorf("%s: under the state stands %q (cut %v, on a line of its own %v), expected %q", session, c.Since, c.SinceCut, c.SinceBelow, wantSince)
 		}
-		remote := strings.HasPrefix(c.Name, "evirma")
+		remote := strings.HasPrefix(c.Name, "acme")
 		if remote && (c.RC != "RC" || !c.RCShown) {
 			t.Errorf("%s: Remote Control is up and the row does not say so before where it lives: %+v", c.Name, c)
 		}

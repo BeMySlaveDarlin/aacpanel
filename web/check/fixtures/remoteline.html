@@ -26,7 +26,7 @@ window.fetch = async (url, init) => {
 const url = "https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT";
 const snapshot = { profiles: [
     { name: "personal", auth: "builtin" },
-    { name: "evirma", auth: "token" },
+    { name: "acme", auth: "token" },
 ] };
 const exec = { available: true, kinds: ["session.remote"] };
 const old = { available: true, kinds: ["session.send"] };
@@ -34,9 +34,9 @@ const row = (id, name, live, ex = exec) => html`
     <ul id=${id} class="mcplist toollist"><${RemoteLine} name=${name} live=${live} exec=${ex} snapshot=${snapshot} /></ul>`;
 
 render(h(ToastHost, null, h(GateHost, null, html`
-    ${row("off", "atlas", { profile: "personal" })}
+    ${row("off", "helios", { profile: "personal" })}
     ${row("on", "aacpanel", { profile: "personal", remote: url })}
-    ${row("work", "wb-parser", { profile: "evirma" })}
+    ${row("work", "parser", { profile: "acme" })}
     ${row("old", "book", { profile: "personal" }, old)}
 `)), document.getElementById("root"));
 

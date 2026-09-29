@@ -40,7 +40,7 @@ window.EventSource = class {
 const live = { status: "idle", transport: "stream", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj/panel" };
 const exec = { available: true, kinds: ["session.switch", "window.open", "window.close"] };
 function Page() {
-    return html`<${Chat} name="evirma" id="s1" live=${live} exec=${exec}
+    return html`<${Chat} name="acme" id="s1" live=${live} exec=${exec}
                          onBack=${() => {}} onUsage=${() => {}} />`;
 }
 render(h(ToastHost, null, h(GateHost, null, h(Page))), document.getElementById("root"));

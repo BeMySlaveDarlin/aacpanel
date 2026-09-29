@@ -9,8 +9,8 @@ import (
 // absolute, or one with a tab or a break in it, would forge another place.
 func TestGuardsAreCheckedBeforeTheHostKeepsThem(t *testing.T) {
 	good := Request{Ask: AskGuards, Guards: []Guard{
-		{Path: "/srv/proj/Pets/service/aacpanel", Cap: 80, Restart: true},
-		{Path: "/srv/proj/Algo", Cap: 70},
+		{Path: "/srv/proj/Side/service/aacpanel", Cap: 80, Restart: true},
+		{Path: "/srv/proj/Globex", Cap: 70},
 	}}
 	if err := good.Validate(); err != nil {
 		t.Fatalf("honest guards were refused: %v", err)

@@ -37,7 +37,7 @@ func (f UsageFilter) zone() (string, error) {
 // the name the machine gives the account — the directory of its configuration,
 // as the wrapper registry spells it — while a profile of the map carries the
 // name a person gave it, and the two are the same word only by chance: the
-// account in the directory named "algo" is called "Schoolwork" on the screen.
+// account in the directory named "globex" is called "Clients" on the screen.
 // Matching them by name put everything but the personal contour outside the map.
 //
 // A session run in a git worktree is placed by the main checkout the agent

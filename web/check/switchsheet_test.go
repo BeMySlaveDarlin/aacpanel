@@ -35,7 +35,7 @@ func TestTheSwitchSheetNamesWhatStops(t *testing.T) {
 	if !strings.Contains(got.Note, "1 background task") {
 		t.Errorf("the tools do not say what stops before the press: %q", got.Note)
 	}
-	if got.Title != "Move evirma to tmux?" {
+	if got.Title != "Move acme to tmux?" {
 		t.Errorf("the sheet asks %q", got.Title)
 	}
 	for _, say := range []string{"1 background task", "does not bring them back", "same conversation"} {
@@ -50,7 +50,7 @@ func TestTheSwitchSheetNamesWhatStops(t *testing.T) {
 		t.Fatalf("%d requests went to the panel, expected one", len(got.Sent))
 	}
 	s := got.Sent[0]
-	if s.Kind != "session.switch" || s.Target != "evirma" || s.Params["to"] != "console" || s.Params["force"] != true {
+	if s.Kind != "session.switch" || s.Target != "acme" || s.Params["to"] != "console" || s.Params["force"] != true {
 		t.Errorf("the panel was asked %+v — where to go and the agreement must go together", s)
 	}
 }

@@ -117,7 +117,7 @@ func TestTheVersionStampGoesBeforeTheExtension(t *testing.T) {
 		name, mtime, want string
 	}{
 		{"cv.pdf", at, "cv 2026-09-13 17-50.pdf"},
-		{"aziz-muzafarov-cv.pdf", at, "aziz-muzafarov-cv 2026-09-13 17-50.pdf"},
+		{"jane-doe-cv.pdf", at, "jane-doe-cv 2026-09-13 17-50.pdf"},
 		{"archive.tar.gz", at, "archive.tar 2026-09-13 17-50.gz"},
 		{"Makefile", at, "Makefile 2026-09-13 17-50"},
 		{".env", at, ".env 2026-09-13 17-50"},

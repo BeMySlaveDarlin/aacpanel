@@ -1043,7 +1043,7 @@ func TestPermissionHasNoNoteOnThePlainDialogs(t *testing.T) {
 // refused over it is a permission the person cannot give from the phone at all.
 func permLongDialog(wrap int, head bool) string {
 	body := []string{
-		"   │ curl -sS -X POST https://jira.example.test/rest/api/3/issue/LMS-13562/comment \\",
+		"   │ curl -sS -X POST https://jira.example.test/rest/api/3/issue/SHOP-13562/comment \\",
 		"   │   -H 'Content-Type: application/json' \\",
 		"   │   -d '{\"body\": \"the copy endpoint takes five requests a minute, the key is counted",
 		"   │        by route and by address, and clients behind one address share the counter\"}'",
@@ -1052,7 +1052,7 @@ func permLongDialog(wrap int, head bool) string {
 
 	note := []string{
 		" │ Hook PreToolUse:mcp__atlassian__jira_add_comment requires confirmation for this tool:",
-		" │ Jira, a comment on LMS-13562: the person allows this one at a time. [settings]",
+		" │ Jira, a comment on SHOP-13562: the person allows this one at a time. [settings]",
 		" settings.json to update hooks",
 	}
 	if wrap > 0 {

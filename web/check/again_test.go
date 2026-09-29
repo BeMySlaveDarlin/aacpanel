@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-const heldComposer = "session evirma did not accept the input: nothing was typed: the session is " +
+const heldComposer = "session acme did not accept the input: nothing was typed: the session is " +
 	"showing a screen of its own, not its composer; it ends with: \"1 to review · 2 to send · 0 to dismiss\". " +
 	"Press Esc in the session to get back to its composer, then send again"
 
-const wentAstray = "session evirma did not accept the input: the session left its composer while the " +
+const wentAstray = "session acme did not accept the input: the session left its composer while the " +
 	"message was going in: the session is showing a screen of its own, not its composer — whether it " +
 	"arrived is unknown. Press Esc there and send it again"
 
@@ -22,8 +22,8 @@ const savedTo = "; the file itself was saved to /home/x/.local/share/aacpanel-ex
 // twice. A file is not asked for a second time either — it lies on the host,
 // and what goes out is the path it landed at.
 func TestASecondAttemptOnlyFollowsARefusalThatPromisesNothingWentOut(t *testing.T) {
-	text := map[string]any{"name": "evirma", "text": "restart the router", "files": 0}
-	file := map[string]any{"name": "evirma", "text": "look at this", "files": 1}
+	text := map[string]any{"name": "acme", "text": "restart the router", "files": 0}
+	file := map[string]any{"name": "acme", "text": "look at this", "files": 1}
 
 	got := runModuleJS(t, "src/screens/chat/again.js", "resend", [][]any{
 		{text, heldComposer},

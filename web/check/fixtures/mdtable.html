@@ -24,7 +24,7 @@ const narrow = [
 ].join("\n");
 
 // The everyday case: two columns, and one cell holding a line longer than the
-// screen. This is the table that used to push the page sideways all by itself.
+// screen. This table alone is enough to push the page sideways.
 const longcell = [
     "| file | what changed |",
     "| --- | --- |",
@@ -35,9 +35,9 @@ const longcell = [
 const wide = [
     "| task | what it is about | where it lives | who asked | when |",
     "| --- | --- | --- | --- | --- |",
-    "| #563 | a wide box inside a sheet does not scroll under a finger | web/src/css/sheet.css | the owner | today |",
-    "| #569 | a table in the feed runs off the edge of the screen | web/src/css/markdown.css | the owner | today |",
-    "| #564 | the service worker will not step aside for a new version | web/src/sw.js | the owner | yesterday |",
+    "| #101 | a wide picture in a card does not scroll under a finger | web/src/css/cards.css | the owner | today |",
+    "| #102 | a code block in the feed runs off the edge of the screen | web/src/css/markdown.css | the owner | today |",
+    "| #103 | the old bundle will not step aside for a freshly built one | web/src/sw.js | the owner | yesterday |",
 ].join("\n");
 
 const items = [
@@ -61,7 +61,7 @@ window.EventSource = class {
 const live = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000 };
 function Page() {
     return html`
-        <${Chat} name="evirma" id="s1" live=${live} exec=${{ available: true }}
+        <${Chat} name="acme" id="s1" live=${live} exec=${{ available: true }}
                  onBack=${() => {}} onUsage=${() => {}} />
         <${Sheet} open=${true} onClose=${() => {}} label="a reading">
             <div class="msg ai" id="insheet">${md(wide)}</div>

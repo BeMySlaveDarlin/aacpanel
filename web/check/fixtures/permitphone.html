@@ -31,7 +31,7 @@ const comment = "Colleagues, after the call I am writing down what we agreed abo
 
 const permission = {
     tool: "mcp__atlassian__jira_edit_comment",
-    action: JSON.stringify({ comment, comment_id: "10234", issue_key: "LMS-13423" }, null, 2).split("\n"),
+    action: JSON.stringify({ comment, comment_id: "10234", issue_key: "SHOP-13423" }, null, 2).split("\n"),
     note: [
         "Edit a comment on a Jira issue",
         "asked because: Hook PreToolUse:mcp__atlassian__jira_edit_comment requires confirmation " +
@@ -79,7 +79,7 @@ const live = { status: "waiting", waitingFor: "permission", transport: "stream",
     limit: 1000000, cwd: "/srv/proj" };
 const root = document.getElementById("root");
 const page = (id) => h(ToastHost, null, h(GateHost, null,
-    html`<${Chat} key=${id} name="lms" id=${id} live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`));
+    html`<${Chat} key=${id} name="shop" id=${id} live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (test) => {

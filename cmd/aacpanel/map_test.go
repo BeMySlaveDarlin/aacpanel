@@ -417,8 +417,8 @@ func TestProfileMapPutsDefaultProfileFirst(t *testing.T) {
 	}
 	other := store.Profile{
 		ID: 2, Name: "acme", Prefix: "/srv/proj/Acme", Sort: 1,
-		Groups: []store.ProfileGroup{{ID: 20, Name: "Harness", Projects: []store.ProfileProject{
-			{ID: 200, GroupID: 20, Name: "harness", Path: "/srv/proj/Acme/harness"},
+		Groups: []store.ProfileGroup{{ID: 20, Name: "Infra", Projects: []store.ProfileProject{
+			{ID: 200, GroupID: 20, Name: "infra", Path: "/srv/proj/Acme/infra"},
 		}}},
 	}
 	home := store.Profile{
