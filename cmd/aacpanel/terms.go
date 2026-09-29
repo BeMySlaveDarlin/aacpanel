@@ -84,15 +84,16 @@ func (s *Server) termPlaces(ctx context.Context) (map[string]string, error) {
 }
 
 // placesFrom lists the home directory and the directory of every project of
-// the map. A project is called by its name, the home directory by its own
-// unless a project of the map is kept there; the first project of a
-// directory kept by two gives it its name.
+// the map. A project is called by its name and the home directory is always
+// Home, whatever project of the map is kept there: the screen puts it first
+// by that name. The first project of a directory kept by two gives it its name.
 func placesFrom(home string, list []store.Profile) map[string]string {
 	places := map[string]string{}
+	named := map[string]bool{}
 	if dir := cleanPlace(home); dir != "" {
 		places[dir] = homeLabel
+		named[dir] = true
 	}
-	named := map[string]bool{}
 	for _, profile := range list {
 		for _, group := range profile.Groups {
 			for _, p := range group.Projects {

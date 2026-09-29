@@ -124,7 +124,7 @@ func TestTermPlacesAreTheHomeAndTheProjectsOfTheMap(t *testing.T) {
 	places := placesFrom("/home/u", list)
 	for place, want := range map[string]string{
 		"/srv/proj/shop": "Shop front",
-		"/home/u":        "Home base",
+		"/home/u":        homeLabel,
 	} {
 		if got := places[place]; got != want {
 			t.Errorf("%s is called %q, expected %q", place, got, want)
