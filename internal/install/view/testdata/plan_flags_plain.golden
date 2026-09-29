@@ -1,0 +1,78 @@
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ ✻ aacpanel installer                                                         │
+│                                                                              │
+│   clone    ~/aacpanel  (3f1c2ab)                                             │
+│   user     u (uid 1000)                                                      │
+│   mode     fresh install — no trace of the panel here                        │
+│   plan     looks only, changes nothing                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+⏺ Check the machine
+  ⎿  ✓ Ubuntu 24.04.3 LTS · x86_64 · systemd 255
+
+⏺ This machine
+  ⎿  · What does the panel call this machine? → studio (flag)
+     · Name of the home session (the machine's own claude session)? → studio
+     (host name)
+     · Where do your projects live? → ~/code (found)
+     · Where does the panel keep its state? → /var/lib/aacpanel (recommended)
+
+⏺ Session windows
+  ⎿  · How should the panel open a window to a session? → No windows — sessions
+     live in tmux only (flag)
+     · Which locale do sessions run in? → en_US.UTF-8 ($LANG, and in locale -a)
+
+⏺ Claude
+  ⎿  · What starts claude? → ~/.local/bin/claude (command -v claude)
+     · Which claude accounts does the panel serve? → ~/.claude (found)
+     · How are sessions kept? → In tmux (flag)
+
+⏺ Kit
+  ⎿  · What goes into this install? → Question relay, Limits snapshot, Panel
+     tools, Page copies, Brief reminder, Checklist nudge, Self-restart, Prompt
+     stamp (flag)
+
+⏺ More settings
+  ⎿  · Tune more settings? → No — defaults (default)
+     · Which local services should the Machine screen probe? → none (default)
+     · Contact for push services? → Leave it to the panel (the panel's default)
+     · How long does a sign-in last? → 24h idle · 30 days at most (the panel's
+     default)
+
+⏺ Map
+  ⎿  · Name of the contour for ~/.claude? → personal (the account's directory)
+     · Create a group for your projects? → Projects (suggested)
+     · Which projects go into the group "Projects"? → ~/code/shop (claude opened
+     them lately)
+
+╭─ Install plan ───────────────────────────────────────────────────────────────╮
+│ As root — one sudo                                                           │
+│   · /var/lib/aacpanel, owner u                                           new │
+│   · /var/lib/aacpanel/host.env                                           new │
+│   · aacpanel-agent@.service, enabled for u                               new │
+│   · linger for u                                                         new │
+│ As you                                                                       │
+│   · ~/bin/aacpanel-exec, built with the installer's Go                   new │
+│   · aacpanel-exec.service, user unit                                     new │
+│   · ~/aacpanel/.env                                                      new │
+│   · compose: aacpanel, aacpanel-db, socket-proxy                         new │
+│   · map: contour personal (~/.claude), group Projects, 1 project         new │
+│ In claude settings — ~/.claude/settings.json                                 │
+│   · question hook · status line before yours · MCP server                    │
+│   · 5 allow rules · 5 hooks                                                  │
+│ Values                                                                       │
+│   host studio (flag) · home session studio (host name)                       │
+│   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │
+│   no windows: sessions live in tmux only (flag) · locale en_US.UTF-8 ($LANG, │
+│   and in locale -a)                                                          │
+│   claude ~/.local/bin/claude (command -v claude) · sessions in tmux (flag)   │
+│   accounts ~/.claude (found)                                                 │
+│   passkeys localhost (only this machine signs in with a passkey)             │
+│   push contact Leave it to the panel (the panel's default) · sign-in 24h     │
+│   idle · 30 days at most (the panel's default)                               │
+│   repo ~/aacpanel (the clone) · uid 1000 gid 1000 (id)                       │
+│   secrets: made once on this machine, never shown                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+ Nothing on this machine was changed: plan only looks. ./install.sh asks the
+ same questions and goes on to install.

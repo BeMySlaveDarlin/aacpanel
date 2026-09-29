@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -20,20 +22,24 @@ import (
 	"aacpanel/internal/install/view"
 )
 
-const usage = `usage: aacpanel-install plan [--plain]
+const usage = `usage: aacpanel-install plan [--plain] [--yes] [answers as flags]
        aacpanel-install demo [--speed N] [--fail STEP]
 
   plan    looks the machine over the way an install would begin — the
           system, docker and compose, claude, the programs the panel needs,
-          sudo, the clone, the ports, free room, the network — and says
-          what it found of an earlier install. It changes nothing.
+          sudo, the clone, the ports, free room, the network — says what it
+          found of an earlier install, asks the questions of the install and
+          shows the plan it makes of the answers, with where every value
+          came from. It changes nothing. Every question has a flag, and
+          --yes takes the suggested answer of the rest.
   demo    the whole install on a made-up machine: the check, the questions,
           the plan, the root command, the steps, the first device and the
           report. Nothing on this machine is changed and nothing is sent;
           the password asked for at the root command is read and dropped.
 
 Without a terminal, or with --plain, the same lines go out plain: no live
-part and no colour. Run aacpanel-install <command> -h for its flags.
+part and no colour, and a question that no flag answers stops the run with
+the flag's name. Run aacpanel-install <command> -h for its flags.
 `
 
 // cloneEnv is where install.sh says which clone it runs from; without it
@@ -50,18 +56,83 @@ type env struct {
 	stdout, stderr io.Writer
 	terminal       func() bool
 	inspect        func(clone string) install.Inspection
+	survey         func(in install.Inspection, r *install.Run) *install.Survey
+	save           func(text string) (string, error)
 }
 
 func run(args []string, stdout, stderr io.Writer, terminal func() bool) int {
-	return runWith(args, env{stdout: stdout, stderr: stderr, terminal: terminal, inspect: inspectLocal})
+	return runWith(args, env{stdout: stdout, stderr: stderr, terminal: terminal,
+		inspect: inspectLocal, survey: surveyLocal, save: savePlan})
 }
 
-// inspectLocal looks this machine over. sudo asks for its password at the
-// terminal of the input, whatever the output goes into, so that is the
-// terminal the check asks about.
-func inspectLocal(clone string) install.Inspection {
+// local is this machine. sudo asks for its password at the terminal of the
+// input, whatever the output goes into, so that is the terminal the check
+// asks about.
+func local() install.Local {
 	_, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TCGETS)
-	return install.Inspect(install.Local{Tty: err == nil}, clone)
+	return install.Local{Tty: err == nil}
+}
+
+func inspectLocal(clone string) install.Inspection { return install.Inspect(local(), clone) }
+
+func surveyLocal(in install.Inspection, r *install.Run) *install.Survey {
+	return install.NewSurvey(local(), in, r, time.Now())
+}
+
+// savePlan writes the plan into the installer's own directory, the one
+// place a run writes to before the plan is approved, and only when asked.
+func savePlan(text string) (string, error) {
+	dir := install.StateDir(os.Getenv)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "plan.txt")
+	return path, os.WriteFile(path, []byte(text), 0o600)
+}
+
+// answers gathers the flags of the questions into the answers of a run.
+type answers map[string]string
+
+// flagValue is a flag of a question: a flag given twice gathers its values
+// when the question takes several, and a flag about one account keeps the
+// account apart.
+type flagValue struct {
+	f   install.Flag
+	out answers
+}
+
+func (v flagValue) String() string { return "" }
+
+func (v flagValue) Set(s string) error {
+	key := v.f.Name
+	if v.f.PerAccount {
+		if dir, val, ok := strings.Cut(s, "="); ok {
+			home, _ := os.UserHomeDir()
+			key, s = key+" "+install.Expand(dir, home), val
+		}
+	}
+	if prev, ok := v.out[key]; ok && v.f.Many {
+		s = prev + "," + s
+	}
+	v.out[key] = s
+	return nil
+}
+
+// switchValue is a flag without a value that gives another flag its answer.
+type switchValue struct {
+	sw  install.Switch
+	out answers
+}
+
+func (v switchValue) String() string   { return "" }
+func (v switchValue) IsBoolFlag() bool { return true }
+
+func (v switchValue) Set(s string) error {
+	if s != "true" {
+		return fmt.Errorf("takes no value")
+	}
+	v.out[v.sw.For] = v.sw.Value
+	return nil
 }
 
 func runWith(args []string, e env) int {
@@ -86,6 +157,14 @@ func runPlan(args []string, e env) int {
 	fs := flag.NewFlagSet("aacpanel-install plan", flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	plain := fs.Bool("plain", false, "the plain view: the same lines with no live part and no colour, as without a terminal")
+	yes := fs.Bool("yes", false, "take the suggested answer of every question no flag answers")
+	given := answers{}
+	for _, f := range install.Flags {
+		fs.Var(flagValue{f, given}, strings.TrimPrefix(f.Name, "--"), f.Help+" ("+f.Takes+")")
+	}
+	for _, sw := range install.Switches {
+		fs.Var(switchValue{sw, given}, strings.TrimPrefix(sw.Name, "--"), sw.Help)
+	}
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -110,11 +189,18 @@ func runPlan(args []string, e env) int {
 	if *plain || !tty {
 		theme = ui.NewTheme(false)
 	}
+	r := &install.Run{Answers: given, Yes: *yes}
+	var survey func(install.Inspection) *install.Survey
+	if e.survey != nil {
+		survey = func(in install.Inspection) *install.Survey { return e.survey(in, r) }
+	}
 	status, err := view.Plan(view.PlanOptions{
 		Theme:   theme,
 		Plain:   *plain || !tty,
 		Out:     e.stdout,
 		Inspect: func() install.Inspection { return e.inspect(clone) },
+		Survey:  survey,
+		Save:    e.save,
 	})
 	if err != nil {
 		fmt.Fprintln(e.stderr, "aacpanel-install plan:", err)

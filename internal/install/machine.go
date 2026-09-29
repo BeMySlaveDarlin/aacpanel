@@ -34,6 +34,9 @@ type Machine interface {
 	// what runs it, without reading all of a binary.
 	Head(path string, n int) ([]byte, error)
 	Stat(path string) (Stat, error)
+	// List names what a directory holds, without following links: a link
+	// found in a walk leads anywhere, /etc included.
+	List(dir string) ([]DirEntry, error)
 	Real(path string) (string, error) // the path with its symlinks resolved
 	LookPath(name string) (string, error)
 	// Run runs a program and gives its standard output. A program that
@@ -57,6 +60,14 @@ type Account struct {
 type Stat struct {
 	Mode fs.FileMode
 	UID  int
+	Mod  time.Time // the last change of its content
+}
+
+// DirEntry is a name in a directory and what it is.
+type DirEntry struct {
+	Name string
+	Dir  bool
+	Link bool
 }
 
 // Space is the file system a path lives on.
@@ -139,11 +150,20 @@ func (Local) Stat(path string) (Stat, error) {
 	if err != nil {
 		return Stat{}, err
 	}
-	st := Stat{Mode: fi.Mode(), UID: -1}
+	st := Stat{Mode: fi.Mode(), UID: -1, Mod: fi.ModTime()}
 	if sys, ok := fi.Sys().(*syscall.Stat_t); ok {
 		st.UID = int(sys.Uid)
 	}
 	return st, nil
+}
+
+func (Local) List(dir string) ([]DirEntry, error) {
+	entries, err := os.ReadDir(dir)
+	out := make([]DirEntry, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, DirEntry{Name: e.Name(), Dir: e.IsDir(), Link: e.Type()&fs.ModeSymlink != 0})
+	}
+	return out, err
 }
 
 func (Local) Run(name string, args ...string) (string, error) {

@@ -1,0 +1,29 @@
+╭─ Install plan ───────────────────────────────────────────────────────────────╮
+│ As root — one sudo                                                           │
+│   · /var/lib/aacpanel, owner u                                           new │
+│   · /var/lib/aacpanel/host.env                                           new │
+│   · aacpanel-agent@.service, enabled for u                               new │
+│   · linger for u                                                         new │
+│ As you                                                                       │
+│   · ~/bin/aacpanel-exec, built with the installer's Go                   new │
+│   · aacpanel-exec.service, user unit                                     new │
+│   · ~/aacpanel/.env                                                      new │
+│   · compose: aacpanel, aacpanel-db, socket-proxy                         new │
+│   · map: contour personal (~/.claude), group Projects, 1 project         new │
+│ In claude settings — ~/.claude/settings.json                                 │
+│   · question hook · status line before yours · MCP server                    │
+│   · 5 allow rules · 5 hooks                                                  │
+│ Values                                                                       │
+│   host lab (hostname) · home session lab (host name)                         │
+│   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │
+│   windows konsole (found on PATH) on :0 (from the user manager), opened on   │
+│   start · locale en_US.UTF-8 ($LANG, and in locale -a)                       │
+│   claude ~/.local/bin/claude (command -v claude) · sessions on the stream    │
+│   (recommended)                                                              │
+│   accounts ~/.claude (found)                                                 │
+│   passkeys localhost (only this machine signs in with a passkey)             │
+│   push contact Leave it to the panel (the panel's default) · sign-in 24h     │
+│   idle · 30 days at most (the panel's default)                               │
+│   repo ~/aacpanel (the clone) · uid 1000 gid 1000 (id)                       │
+│   secrets: made once on this machine, never shown                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
