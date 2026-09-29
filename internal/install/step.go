@@ -374,17 +374,20 @@ func (r *Run) Once(kind Kind, target, meta string) error {
 
 // Last is the target of the latest line of kind: the revision the last
 // run installed.
-func (r *Run) Last(kind Kind) string {
+func (r *Run) Last(kind Kind) string { return r.lastEntry(kind).Target }
+
+// lastEntry is the last line of the manifest of the kind, whole.
+func (r *Run) lastEntry(kind Kind) Entry {
 	if r.Manifest == nil {
-		return ""
+		return Entry{}
 	}
 	es, _ := ReadManifest(r.Manifest.Path)
 	for i := len(es) - 1; i >= 0; i-- {
 		if es[i].Kind == string(kind) {
-			return es[i].Target
+			return es[i]
 		}
 	}
-	return ""
+	return Entry{}
 }
 
 // meta tells whether the meta of a line holds a word: "created",

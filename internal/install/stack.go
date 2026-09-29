@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -778,8 +779,21 @@ func (in *Install) rev() string {
 
 func (in *Install) collectorStep() *Step {
 	return &Step{ID: "collector-restart", Title: "Restart the collector",
+		// The tree is written down before the restart is asked for, with the
+		// time it was asked at: a restart said no to, or cut short, leaves the
+		// collector older than that and the next run restarts it, while a
+		// restart an administrator ran after the stop leaves it younger.
 		Done: func(r *Run) (bool, error) {
-			return r.Last(Rev) == in.rev() && !in.hostChanged && !in.agentUnit, nil
+			e := r.lastEntry(Rev)
+			if e.Target != in.rev() || in.hostChanged || in.agentUnit {
+				return false, nil
+			}
+			asked, err := strconv.ParseInt(metaValue(e.Meta, "asked"), 10, 64)
+			if err != nil {
+				return true, nil
+			}
+			since, ok := in.agentSince()
+			return ok && since >= asked-1, nil
 		},
 		Apply: func(r *Run) error {
 			// The collector runs from the tree: a module that does not
@@ -789,17 +803,18 @@ func (in *Install) collectorStep() *Step {
 			}
 			if in.agentStarted {
 				r.Say(Pass, in.agent()+" started in the root part, on this tree")
-				return nil
+				return r.Record(Rev, in.rev(), "")
 			}
 			in.restarted = r.clock().Now()
+			if err := r.Record(Rev, in.rev(), "asked="+strconv.FormatInt(in.restarted.Unix(), 10)); err != nil {
+				return err
+			}
 			return r.AsRoot("Root command", "Restarts the collector, which runs from the clone: "+in.agent()+".",
 				"restart-agent", "--user", in.user())
 		},
-		// The tree is written down once the collector is seen to run it: a
-		// restart declined or cut short leaves the next run to restart it.
 		Verify: func(r *Run) error {
 			if in.restarted.IsZero() {
-				return r.Record(Rev, in.rev(), "")
+				return nil
 			}
 			stateJSON := filepath.Join(in.state(), "state.json")
 			ok, err := r.Until(30*time.Second, time.Second, func() (bool, error) {
@@ -819,4 +834,42 @@ func (in *Install) collectorStep() *Step {
 		},
 		Undo: UndoKind,
 	}
+}
+
+// agentSince is when the collector's main process started, in seconds of
+// the clock: the boot time of /proc/stat and the start of the process in
+// ticks of a hundredth of a second after it. False when it does not run.
+func (in *Install) agentSince() (int64, bool) {
+	out, err := in.M.Run("systemctl", "show", "-p", "MainPID", "--value", in.agent())
+	pid := strings.TrimSpace(out)
+	if err != nil || pid == "" || pid == "0" {
+		return 0, false
+	}
+	raw, err := in.M.ReadFile("/proc/" + pid + "/stat")
+	if err != nil {
+		return 0, false
+	}
+	// The name in parentheses may hold spaces: the fields are counted from
+	// after it, the state first and the start the twentieth.
+	s := string(raw)
+	f := strings.Fields(s[strings.LastIndexByte(s, ')')+1:])
+	if len(f) < 20 {
+		return 0, false
+	}
+	ticks, err := strconv.ParseInt(f[19], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	stat, err := in.M.ReadFile("/proc/stat")
+	if err != nil {
+		return 0, false
+	}
+	for _, line := range strings.Split(string(stat), "\n") {
+		if v, ok := strings.CutPrefix(line, "btime "); ok {
+			if boot, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
+				return boot + ticks/100, true
+			}
+		}
+	}
+	return 0, false
 }

@@ -2,6 +2,7 @@ package install
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -920,18 +921,32 @@ func TestTheCollectorRestartsOnANewTreeAndNotAfterItsFirstStart(t *testing.T) {
 	if err := g.do(g.step("collector-restart")); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(g.m.Ran, Command(restart[0], restart[1:]...)) || g.lines()[len(g.lines())-1] != "rev 9e8d7c6" {
+	asked := fmt.Sprintf("rev 9e8d7c6 asked=%d", g.clock.Now().Unix())
+	if n := len(g.lines()); !slices.Contains(g.m.Ran, Command(restart[0], restart[1:]...)) || g.lines()[n-2] != asked || g.lines()[n-1] != "rev 9e8d7c6" {
 		t.Errorf("a new tree: ran %q, manifest %q", g.m.Ran, g.lines())
 	}
+	if !g.already(g.step("collector-restart")) {
+		t.Error("a collector restarted on this tree was restarted again")
+	}
 	// A restart that did not go through — said no to, or cut short — leaves
-	// the tree to the next run, which restarts the collector.
+	// the collector older than the ask, and the next run restarts it; one an
+	// administrator ran after the stop leaves it younger, and the run goes on.
 	g.in.S.Facts.Version = "2222222"
 	g.fails(restart, "sudo: a password is required")
 	if err := g.do(g.step("collector-restart")); err == nil {
 		t.Fatal("a restart that failed passed")
 	}
-	if done, _ := g.step("collector-restart").Done(g.r); done || slices.Contains(g.lines(), "rev 2222222") {
-		t.Errorf("a restart that failed wrote its tree down: %q", g.lines())
+	now := g.clock.Now().Unix()
+	g.says([]string{"systemctl", "show", "-p", "MainPID", "--value", "aacpanel-agent@u.service"}, "4242\n")
+	g.m.Files["/proc/stat"] = fmt.Sprintf("cpu  1 2 3\nbtime %d\nprocesses 9\n", now-1000)
+	for _, c := range []struct {
+		started int64 // seconds after the boot
+		done    bool
+	}{{500, false}, {1000, true}, {2000, true}} {
+		g.m.Files["/proc/4242/stat"] = fmt.Sprintf("4242 (python3 agent) S 1 4242 4242 0 -1 4194560 1 0 0 0 0 0 0 0 20 0 1 0 %d 1 2\n", c.started*100)
+		if done, _ := g.step("collector-restart").Done(g.r); done != c.done {
+			t.Errorf("a collector started %d s before the ask: done %v", 1000-c.started, done)
+		}
 	}
 	g.says(restart, "root.sh: systemctl restart aacpanel-agent@u.service\n")
 	g.in.S.Facts.Version = "1111111"
