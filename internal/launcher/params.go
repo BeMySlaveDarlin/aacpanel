@@ -50,6 +50,13 @@ type Params struct {
 	// path on the host, which a preview drawn in the panel's container does
 	// not know.
 	tools string
+
+	// chrome hands a session on the stream Claude in Chrome. The launch sets
+	// it from the account, not the map: claude in a terminal turns Chrome on
+	// by the account's own setting, while claude on the stream runs
+	// non-interactive, where that setting is not read and only the flag
+	// turns it on.
+	chrome bool
 }
 
 func parseParams(raw json.RawMessage) (Params, []string) {
@@ -158,6 +165,9 @@ func streamWords(name, sessionID, resume string, p Params) []schema.Word {
 		out = append(out, schema.Word{Text: w, Key: keyTransport})
 	}
 	out = append(out, toolWords(p)...)
+	if p.chrome {
+		out = append(out, schema.Word{Text: "--chrome"})
+	}
 	out = append(out, schema.Word{Text: "-n"}, schema.Word{Text: name})
 	out = append(out, flagWords(p)...)
 	if resume != "" {

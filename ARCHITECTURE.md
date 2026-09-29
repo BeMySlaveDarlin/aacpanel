@@ -329,6 +329,14 @@ A holder's state file names the conversation and the pid of its claude, and
 a process that matches none is somebody else's run — seen in the archive, not
 on the list of live sessions.
 
+**A session on the stream gets Claude in Chrome where a terminal one would.**
+claude turns Chrome on by the account's own setting only when it runs
+interactively; on the stream it runs `-p`, where only the `--chrome` flag
+turns it on. The launcher reads the setting from the account's `.claude.json`,
+where claude itself keeps it, and passes the flag when it is on. The setting
+is read at the start: turned on later, it reaches a stream session with its
+next start.
+
 **A holder runs the program it was started with until its session ends.** It is
 the process claude's pipes belong to, so a new build of the executor reaches it
 only through a new start. An operation the running holder does not know is

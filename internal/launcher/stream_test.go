@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -186,6 +187,48 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 		if strings.Contains(w, "remote control") {
 			t.Errorf("remote control asked for a stream session was refused: %v", rep.Warnings)
 		}
+	}
+}
+
+func TestAStreamSessionGetsChromeWhereItsAccountTurnedItOn(t *testing.T) {
+	for _, c := range []struct {
+		name, config string
+		want         bool
+	}{
+		{"on", `{"claudeInChromeDefaultEnabled":true}`, true},
+		{"off", `{"claudeInChromeDefaultEnabled":false}`, false},
+		{"unset", `{"numStartups":3}`, false},
+		{"no file", "", false},
+		{"not json", `{"claudeInChromeDefaultEnabled":tr`, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			shortRuntime(t)
+			proc := fakeProc(t)
+			specPath := fakeHolder(t, "sleep 5")
+			machineClaude(t)
+			playHolder(t, proc, specPath)
+			contour := t.TempDir()
+			if c.config != "" {
+				if err := os.WriteFile(filepath.Join(contour, ".claude.json"), []byte(c.config), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := Run(context.Background(), Spec{
+				Dir: t.TempDir(), Session: "demo", ConfigDir: contour,
+				Launch: json.RawMessage(`{"transport":"stream"}`),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			var spec stream.Spec
+			if err := json.Unmarshal(readFile(t, specPath), &spec); err != nil {
+				t.Fatal(err)
+			}
+			if got := slices.Contains(spec.Argv, "--chrome"); got != c.want {
+				t.Errorf("an account with %s started a stream session with --chrome %v, want %v: claude on the "+
+					"stream reads the account's Chrome setting only through the flag: %s",
+					c.config, got, c.want, strings.Join(spec.Argv, " "))
+			}
+		})
 	}
 }
 

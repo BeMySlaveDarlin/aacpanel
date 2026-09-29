@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -112,6 +113,7 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	warns = append(warns, dropWarns...)
 
 	if params.Transport == TransportStream {
+		params.chrome = chromeByDefault(env)
 		return runStream(ctx, spec, params, name, choice.Path, drop, warns)
 	}
 
@@ -183,6 +185,28 @@ func runStream(ctx context.Context, spec Spec, params Params, name, bin string, 
 		Transport:    TransportStream,
 		Conversation: conversation,
 	}, nil
+}
+
+// chromeByDefault says whether the account a session runs under turned
+// Claude in Chrome on by default. The setting lies where claude itself reads
+// it: .claude.json in the directory CLAUDE_CONFIG_DIR of the session names, or
+// else in its home directory. A file that is not there or not read is off.
+func chromeByDefault(env []string) bool {
+	dir := envValue(env, "CLAUDE_CONFIG_DIR")
+	if dir == "" {
+		dir = envValue(env, "HOME")
+	}
+	if dir == "" {
+		return false
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, ".claude.json"))
+	if err != nil {
+		return false
+	}
+	var account struct {
+		ChromeByDefault bool `json:"claudeInChromeDefaultEnabled"`
+	}
+	return json.Unmarshal(raw, &account) == nil && account.ChromeByDefault
 }
 
 // holderCommand is how the holder is started: this very binary in its
