@@ -487,6 +487,9 @@ func (g *rig) installed(linger string) (*Removal, string) {
 	wired, _, _ := Wire([]byte(orig), g.in.wiring())
 	g.write(settings, string(wired), 0o600)
 	g.claudeMachine()
+	// What the part as root put down is on the machine until it is taken back.
+	g.m.Stats[collectorUnitPath] = Stat{Mode: 0o644}
+	g.m.Stats[lingerPath("u")] = Stat{Mode: 0o644}
 	if err := g.mcpEntry(g.in.mcpFile(personal), g.in.mcpWant()); err != nil {
 		g.t.Fatal(err)
 	}
@@ -630,6 +633,35 @@ func TestUninstallTakesBackTheManifestInItsOrder(t *testing.T) {
 	}
 	if _, err := os.Stat(g.in.f().InstallDir); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("the installer's directory is still there")
+	}
+}
+
+// TestUninstallGoesOnAfterTheAdministratorsCommand: without a terminal and
+// with sudo that wants a password the uninstall stops at the part as root;
+// once an administrator ran the command, the uninstall run again finds it
+// taken back and goes on to the data without asking for root.
+func TestUninstallGoesOnAfterTheAdministratorsCommand(t *testing.T) {
+	g := newRig(t)
+	rm, _ := g.installed("by-installer")
+	if err := rm.Choose(nil, "", false); err != nil {
+		t.Fatal(err)
+	}
+	delete(g.m.Stats, collectorUnitPath)
+	delete(g.m.Stats, lingerPath("u"))
+	began := g.uninstall(rm, "remove", "--user", "u", "--state", g.state, "--linger")
+	if slices.ContainsFunc(g.m.Ran, func(c string) bool { return strings.HasPrefix(c, "sudo") }) || !slices.Contains(began, "Data and the installer's cache") {
+		t.Errorf("root was asked for again: ran %q, parts %q", g.m.Ran, began)
+	}
+	// Linger still on is still root's to take back.
+	g2 := newRig(t)
+	rm2, _ := g2.installed("by-installer")
+	if err := rm2.Choose(nil, "", false); err != nil {
+		t.Fatal(err)
+	}
+	delete(g2.m.Stats, collectorUnitPath)
+	g2.uninstall(rm2, "remove", "--user", "u", "--state", g2.state, "--linger")
+	if !slices.ContainsFunc(g2.m.Ran, func(c string) bool { return strings.HasPrefix(c, "sudo") }) {
+		t.Errorf("linger left on was not taken back: ran %q", g2.m.Ran)
 	}
 }
 

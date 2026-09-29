@@ -467,6 +467,10 @@ func (rm *Removal) root(r *Run) error {
 		r.Say(Note, "nothing of root's to take back")
 		return nil
 	}
+	if rm.rootGone(args) {
+		r.Say(Pass, "taken back already: the collector's unit, and linger and the state directory where asked, are gone")
+		return nil
+	}
 	says := "Disables the collector and removes its unit"
 	if slices.Contains(args, "--linger") {
 		says += ", turns linger off"
@@ -475,6 +479,26 @@ func (rm *Removal) root(r *Run) error {
 		says += ", deletes " + rm.state()
 	}
 	return r.AsRoot("Root command", says+". Nothing else runs as root.", args...)
+}
+
+// rootGone tells whether what the call as root would take back is gone
+// already — an administrator ran the command a stop without a terminal
+// named — so that the uninstall run again goes on instead of asking for
+// root once more.
+func (rm *Removal) rootGone(args []string) bool {
+	paths := []string{collectorUnitPath, "/etc/systemd/system/multi-user.target.wants/aacpanel-agent@" + rm.Place.User + ".service"}
+	if slices.Contains(args, "--linger") {
+		paths = append(paths, lingerPath(rm.Place.User))
+	}
+	if slices.Contains(args, "--purge-state") {
+		paths = append(paths, rm.state())
+	}
+	for _, p := range paths {
+		if _, err := rm.M.Stat(p); err == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // U7: the data chosen, and the installer's cache every time.
