@@ -479,6 +479,24 @@ func (c *handCmd) Run() error {
 	return err
 }
 
+// plainHand gives a command the terminal in the plain view. The plain view
+// asks nothing — the command line gave the answers, and --yes approved the
+// plan the command is part of — so a command as root gets its frame, to say
+// what runs, and no question; sudo then asks for its password at the
+// terminal, as it does under the screen.
+func plainHand(t ui.Theme, out io.Writer) func(install.Handover) error {
+	return func(h install.Handover) error {
+		if !h.Direct {
+			fmt.Fprintln(out, "\n"+rootFrame(t, h, PlainWidth))
+		}
+		c := &handCmd{h: h}
+		c.SetStdin(os.Stdin)
+		c.SetStdout(out)
+		c.SetStderr(os.Stderr)
+		return c.Run()
+	}
+}
+
 // lineTee writes what a command prints to the terminal a line at a time and
 // hands each line on; a line of hide's prefix is handed on only.
 type lineTee struct {
@@ -561,6 +579,9 @@ func runPlain(o PlanOptions, p *Plain, s *install.Survey) int {
 			return
 		}
 		p.Sink(e)
+	}
+	if o.Tty {
+		r.Hand = plainHand(o.Theme, o.Out)
 	}
 	sig := make(chan os.Signal, 2)
 	signal.Notify(sig, os.Interrupt)

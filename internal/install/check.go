@@ -116,6 +116,9 @@ func (in *Install) chain(r *Run) []chainLink {
 	if env["AACP_TAILSCALE"] == "1" {
 		out = append(out, in.tailnetLink(r))
 	}
+	if in.S.Has("gc") {
+		out = append(out, in.gcLink(r))
+	}
 	return out
 }
 
@@ -378,6 +381,17 @@ func (in *Install) mapLink(local bool) chainLink {
 		return chainLink{mark: Warn, text: "the map has no contour: the projects screen stays empty until one is taken on the Profiles screen"}
 	}
 	return pass("the map has %s", count(len(v.Profiles), "contour"))
+}
+
+// gcLink is the weekly cleanup of docker, when the kit holds it. The panel
+// works without it, so a timer that is off is a warning.
+func (in *Install) gcLink(r *Run) chainLink {
+	active, enabled := in.unitState(r, true, gcTimer)
+	if active != "active" || enabled != "enabled" {
+		return chainLink{mark: Warn, text: fmt.Sprintf("%s is %s and %s: docker's build cache grows until it runs; "+
+			"systemctl --user enable --now %s", gcTimer, orNone(active), orNone(enabled), gcTimer)}
+	}
+	return pass("%s active and enabled", gcTimer)
 }
 
 func (in *Install) tailnetLink(r *Run) chainLink {

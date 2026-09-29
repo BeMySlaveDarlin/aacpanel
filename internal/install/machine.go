@@ -44,8 +44,9 @@ type Machine interface {
 	Run(name string, args ...string) (string, error)
 	Space(path string) (Space, error)
 	Reach(url string) (status int, err error)
-	// Fetch gets a page of a local address and gives its status and body:
-	// what the panel's local listener says of itself.
+	// Fetch gets a page and gives its status and body: what the panel's
+	// local listener says of itself, or the script of claude's native
+	// installer.
 	Fetch(url string) (status int, body []byte, err error)
 	// Terminal tells whether there is a person at a terminal: sudo can ask
 	// for a password only then.

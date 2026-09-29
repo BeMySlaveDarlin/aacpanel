@@ -154,6 +154,8 @@ transcripts, writes a snapshot that the container mounts read-only.
 | `cmd/aacpanel/` | the service: pages, API, streams, the action gate |
 | `cmd/aacpanel-exec/` | the executor of actions on the host |
 | `cmd/webbuild/` | the front-end build |
+| `cmd/aacpanel-install/` | the installer behind `./install.sh`: its commands and flags |
+| `internal/install/` | the installer's engine: the check of the machine, the questions, the steps with their manifest and undo; `view/` and `ui/` draw it |
 | `internal/action/` | the protocol between the service and the executor: the closed list of actions |
 | `internal/executor/` | the actions themselves: containers, stacks, sessions, windows |
 | `internal/launcher/` | starting a claude session: environment, tmux, window, the panel's MCP server |

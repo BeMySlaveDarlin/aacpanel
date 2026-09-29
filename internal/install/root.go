@@ -22,10 +22,10 @@ func (p Place) RootScript() string { return filepath.Join(p.Clone, "deploy", "in
 // one before every change it makes.
 const manifestLine = "MANIFEST\t"
 
-// AsRoot runs root.sh with args as root. With a person at the terminal the
-// screen frames the command, asks, and gives the terminal to sudo, which
-// asks for the password there; a plain run has nobody to type it and runs
-// sudo -n. Each MANIFEST line root.sh prints is recorded by the step at
+// AsRoot runs root.sh with args as root. With a terminal at the input the
+// view frames the command and gives the terminal to sudo, which asks for the
+// password there — the screen asks first, the plain view has had its --yes;
+// a run without a terminal has nobody to type it and runs sudo -n. Each MANIFEST line root.sh prints is recorded by the step at
 // work the moment it comes — root.sh prints it before the change, so the
 // manifest has the line before the change is made.
 func (r *Run) AsRoot(title, says string, args ...string) error {
@@ -97,8 +97,8 @@ func (r *Run) again() string {
 	return "./install.sh"
 }
 
-// rootFailed is a root command of a plain run that failed: sudo that wants
-// a password nobody can type, or root.sh that stopped.
+// rootFailed is a root command of a run without a terminal that failed:
+// sudo that wants a password nobody can type, or root.sh that stopped.
 func rootFailed(err error, admin, again string) *Failed {
 	f := fail("root.sh failed", err)
 	var ran *Ran

@@ -90,8 +90,9 @@ type Run struct {
 	Ask     func(Question) (string, error)
 
 	// Shell runs the commands of the steps. Hand gives the person's
-	// terminal to a command that needs it; a run without one — the plain
-	// view — runs such a command through the shell, where sudo cannot ask.
+	// terminal to a command that needs it; a run without one — no terminal
+	// at the input — runs such a command through the shell, where sudo
+	// cannot ask.
 	Shell Shell
 	Hand  func(Handover) error
 	// Enroll shows a code of the first device and waits for the person to

@@ -228,6 +228,62 @@ func TestAPlainInstallAsksForYesBeforeTheFirstStep(t *testing.T) {
 	}
 }
 
+// asRoot is a step that hands a command as root over, the way the root
+// part does, and notes whether the run had anyone to hand it to.
+func asRoot(handed *bool, got *[]string) *install.Step {
+	return &install.Step{ID: "root", Title: "Root part", Apply: func(r *install.Run) error {
+		*handed = r.Hand != nil
+		if r.Hand == nil {
+			return nil
+		}
+		return r.Hand(install.Handover{Title: "Root command", Argv: []string{"sh", "-c", "echo done"},
+			Says: "Creates the state directory.", Script: "/srv/proj/shop/root.sh", Admin: "sudo bash /srv/proj/shop/root.sh",
+			Line: func(l string) { *got = append(*got, l) }})
+	}}
+}
+
+// TestThePlainViewLetsSudoAskAtATerminal: the plain view asks nothing, and
+// with a terminal at the input it still gives it to a command as root —
+// framed, without a question, since --yes approved the plan — so sudo asks
+// for its password there. Without one nobody could type it, and the run
+// has no one to hand the command to: it goes through the shell, sudo -n.
+func TestThePlainViewLetsSudoAskAtATerminal(t *testing.T) {
+	for _, tty := range []bool{true, false} {
+		var out bytes.Buffer
+		var handed bool
+		var got []string
+		step := asRoot(&handed, &got)
+		status := planPlain(PlanOptions{Theme: ui.NewTheme(false), Out: &out, Inspect: fresh, Yes: true, Tty: tty,
+			Survey: surveyOn(desktop(), &install.Run{Yes: true}),
+			Begin: func(*install.Survey) (*install.Run, []*install.Step, error) {
+				m, err := install.OpenManifest(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				return &install.Run{Manifest: m}, []*install.Step{step}, nil
+			}})
+		if status != 0 || handed != tty {
+			t.Errorf("a terminal at the input %v: status %d, the command was handed over %v:\n%s", tty, status, handed, out.String())
+		}
+		if tty && (!strings.Contains(out.String(), "Creates the state directory.") || strings.Join(got, "\n") != "done") {
+			t.Errorf("the plain view at a terminal gave the frame and the lines %q:\n%s", got, out.String())
+		}
+	}
+
+	// uninstall --plain is the plain view too.
+	for _, input := range []bool{true, false} {
+		var out bytes.Buffer
+		var handed bool
+		var got []string
+		if err := (Lines{Theme: ui.NewTheme(false), Out: &out, Input: input}).Run(&install.Run{}, []*install.Step{asRoot(&handed, &got)}); err != nil {
+			t.Fatal(err)
+		}
+		if handed != input {
+			t.Errorf("the plain lines with a terminal at the input %v handed the command over: %v", input, handed)
+		}
+	}
+}
+
 // TestAStepAsksAndShowsTheFirstDevice: the test session's question is asked
 // on the screen while the steps wait, and the code of the first device
 // stands in its frame, with its countdown, until q; r asks for a new code.

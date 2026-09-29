@@ -224,7 +224,7 @@ func (rm *Removal) Plan() []PlanRow {
 		"the executor's cache "+rm.short(rm.execCache()), "its own directory "+rm.short(rm.Facts.InstallDir)+", last")
 	var never []string
 	for _, e := range rm.of(Pkg) {
-		never = append(never, "the apt package "+e.Target)
+		never = append(never, pkgName(e))
 	}
 	for _, e := range rm.of(Group) {
 		never = append(never, "the group "+e.Target)
@@ -606,7 +606,7 @@ func (rm *Removal) Left() []string {
 		}
 	}
 	for _, e := range rm.of(Pkg) {
-		out = append(out, "the apt package "+e.Target+": sudo apt remove "+e.Target)
+		out = append(out, pkgName(e)+": "+pkgRemove(e))
 	}
 	for _, e := range rm.of(Group) {
 		group, user, _ := strings.Cut(e.Target, " ")

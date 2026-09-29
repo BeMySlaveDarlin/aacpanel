@@ -21,6 +21,11 @@ type PlanOptions struct {
 	// Plain asks for the plain view; the command line sets it for --plain
 	// and for a run without a terminal.
 	Plain bool
+	// Tty is a terminal at the input. The plain view asks no question of
+	// its own, and with a terminal there it still gives it to sudo, which
+	// asks for its password there, and to claude for a sign-in the answers
+	// agreed to.
+	Tty bool
 	// Out is where the plain view writes.
 	Out io.Writer
 	// Inspect looks the machine over. It is the slow part: the screen turns

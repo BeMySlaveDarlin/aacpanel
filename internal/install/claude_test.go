@@ -75,6 +75,105 @@ func (g *rig) undoAll(s *Step) {
 	}
 }
 
+// ---- claude by its native installer ----
+
+// missingClaude is a machine the check found without claude.
+var missingClaude = Missing{Name: "claude", Why: "the panel starts and watches claude sessions", Command: nativeCommand}
+
+func stepIDs(in *Install) []string {
+	var out []string
+	for _, s := range in.Steps() {
+		out = append(out, s.ID)
+	}
+	return out
+}
+
+// TestClaudeIsInstalledWhenMissingAndAgreedTo: the native installer runs
+// only for a machine without claude whose answer is yes, as the user and
+// before the settings of claude are wired, and its program is recorded as
+// the packages of apt are.
+func TestClaudeIsInstalledWhenMissingAndAgreedTo(t *testing.T) {
+	if slices.Contains(stepIDs(newRig(t).in), "claude-install") {
+		t.Error("a machine with claude runs the native installer")
+	}
+	g := newRig(t, lacking(missingClaude), answer("--install-claude", "yes"))
+	ids := stepIDs(g.in)
+	at := slices.Index(ids, "claude-install")
+	if at < 0 || at > slices.Index(ids, "claude") || at < slices.Index(ids, "usermgr") {
+		t.Fatalf("the steps are %q: the native installer comes after the root part and before the settings of claude", ids)
+	}
+
+	version := []string{"/usr/bin/claude", "--version"}
+	g.fails(version, "bash: /usr/bin/claude: No such file or directory")
+	body := "#!/bin/bash\nset -e\necho installing\n"
+	g.m.Pages = map[string]string{NativeInstaller: body}
+	script := filepath.Join(g.in.f().InstallDir, "claude-install.sh")
+	run := []string{"bash", script}
+	g.says(run, "Setting up Claude Code...\n")
+	var ran string
+	g.m.Effects[Command(run[0], run[1:]...)] = func(Cmd) error {
+		raw, err := os.ReadFile(script)
+		ran = string(raw)
+		g.says(version, "2.1.283 (Claude Code)\n")
+		return err
+	}
+	lines := g.said()
+	if err := g.do(g.step("claude-install")); err != nil {
+		t.Fatal(err)
+	}
+	if ran != body {
+		t.Errorf("bash ran %q, want the script as it downloaded", ran)
+	}
+	if _, err := os.Stat(script); !os.IsNotExist(err) {
+		t.Error("the script stays in the installer's directory after it ran")
+	}
+	if want := []string{"pkg claude by-installer native"}; !slices.Equal(g.lines(), want) {
+		t.Errorf("the manifest holds %q, want %q", g.lines(), want)
+	}
+	for _, c := range g.m.Ran {
+		if strings.Contains(c, "sudo") {
+			t.Errorf("the native installer ran as root: %s", c)
+		}
+	}
+	if !slices.Contains(*lines, "✓ claude 2.1.283 · /usr/bin/claude") {
+		t.Errorf("the step said %q", *lines)
+	}
+	if !g.already(g.step("claude-install")) {
+		t.Error("claude that answers --version was installed again")
+	}
+
+	// Uninstall names it with the command that takes it away, and leaves it.
+	es, err := ReadManifest(g.r.Manifest.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm := NewRemoval(g.m, g.in.f(), es, "")
+	const named = "claude, installed with Anthropic's native installer"
+	if !slices.ContainsFunc(rm.Plan(), func(r PlanRow) bool { return r.Text == "  · "+named }) {
+		t.Errorf("the plan of uninstall does not name %q", named)
+	}
+	if left := strings.Join(rm.Left(), "\n"); !strings.Contains(left, named+": rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude") {
+		t.Errorf("what uninstall leaves does not say how claude goes:\n%s", left)
+	}
+}
+
+func TestTheNativeInstallerIsDiagnosed(t *testing.T) {
+	g := newRig(t, lacking(missingClaude), answer("--install-claude", "yes"))
+	g.fails([]string{"/usr/bin/claude", "--version"}, "No such file or directory")
+	failedWith(t, g.do(g.step("claude-install")), NativeInstaller+" did not download: dial tcp")
+	g.m.Pages = map[string]string{NativeInstaller: "<html>not here</html>"}
+	failedWith(t, g.do(g.step("claude-install")), NativeInstaller+" gave no installer script")
+	if g.lines() != nil {
+		t.Errorf("a download that failed recorded %q", g.lines())
+	}
+	g.m.Pages = map[string]string{NativeInstaller: "#!/bin/bash\n"}
+	g.fails([]string{"bash", filepath.Join(g.in.f().InstallDir, "claude-install.sh")}, "Either curl or wget is required but neither is installed")
+	f := failedWith(t, g.do(g.step("claude-install")), "Anthropic's native installer did not install claude")
+	if !slices.Contains(f.Tail, "Either curl or wget is required but neither is installed") {
+		t.Errorf("the stop does not show what the installer said: %q", f.Tail)
+	}
+}
+
 func TestClaudeSettingsAreWiredInEveryAccount(t *testing.T) {
 	personal := "{\n  \"model\": \"opus\",\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash ~/bin/mine.sh\"\n          }\n        ]\n      }\n    ]\n  },\n  \"statusLine\": {\n    \"type\": \"command\",\n    \"command\": \"~/bin/line.sh '$x'\"\n  }\n}\n"
 	g := newRig(t, homeFile(".claude/settings.json", personal), answer("--account", "~/.claude,~/.claude-work"))

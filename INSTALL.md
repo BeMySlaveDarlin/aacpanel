@@ -42,6 +42,11 @@ choose in the `settings.json` of every claude account, the panel's MCP server in
 every account, linger for your user, the executor's state in
 `<home>/.local/state/aacpanel` and `<home>/.local/state/aacpanel-stream`.
 
+On request, with the kit: the weekly cleanup of docker, the user units
+`aacpanel-docker-gc.timer` and `aacpanel-docker-gc.service`. Where the machine
+has no claude and you agree: claude itself, by Anthropic's native installer, in
+`<home>/.local/bin/claude` and `<home>/.local/share/claude`.
+
 The installer's own: the manifest, the journals and the copies of the files it
 changed in `<install>`, and the Go it builds itself and the executor with in
 `${XDG_CACHE_HOME:-~/.cache}/aacpanel-install`.
@@ -65,22 +70,23 @@ sudo rights of your own, answer No at the root command: the run stops with the
 command for an administrator, and `./install.sh` goes on from there once it
 has run.
 
-**claude is installed before the run**, with Anthropic's native installer:
-
-```bash
-curl -fsSL https://claude.ai/install.sh | bash
-```
-
-The installer finds it with `command -v claude`. A claude that runs on a node
-of your shell's `PATH` is refused: the executor's unit does not see that node,
-and no panel session would start. Signing in can wait — the installer offers to
-hand you the terminal for it.
+**claude** is found with `command -v claude`. On a machine without it the
+installer offers to install it with Anthropic's native installer, as you and
+without root: it downloads the script `https://claude.ai/install.sh` itself and
+runs it with bash, before the settings of claude are wired. The script puts the
+launcher into `~/.local/bin/claude` and the versions into
+`~/.local/share/claude`, and downloads claude with curl or wget: a machine with
+neither stops at the check with `sudo apt install curl`. A claude that runs on a
+node of your shell's `PATH` is refused: the executor's unit does not see that
+node, and no panel session would start. Signing in can wait — the installer
+offers to hand you the terminal for it.
 
 **The network.** The installer downloads the Go that `go.mod` names from
 `go.dev` (checked against the checksum `go.dev` publishes), the modules of the
-executor from `proxy.golang.org`, the images from Docker Hub, and the packages
-with apt. Behind a proxy, the downloads of Go and of its modules go through
-`HTTPS_PROXY`.
+executor from `proxy.golang.org`, the images from Docker Hub, the packages
+with apt, and — where it installs claude — the native installer from
+`claude.ai`, which downloads claude from `downloads.claude.ai`. Behind a proxy,
+the downloads of Go, of its modules and of claude go through `HTTPS_PROXY`.
 
 **Decide where the panel is opened from.** This machine is always a way in.
 The others are parts of the kit, and each asks its own questions:
@@ -117,7 +123,7 @@ run before the first change, with the command that fixes it.
 | `x86_64` | `uname -m` | `aarch64` goes with a warning, anything else stops |
 | docker, the system daemon, answering you | `docker version`, `docker info`, `/var/run/docker.sock` | missing: offered with apt; `permission denied`: `sudo usermod -aG docker <user>` and a new login; rootless docker, Docker Desktop, docker from snap: stop |
 | docker compose v2, 2.18.0 or newer | `docker compose version --short` | missing: offered with apt, when apt has one that new; otherwise stop. The `docker-compose` package of Debian 12 is compose v1: there docker comes from `download.docker.com` |
-| claude | `command -v claude`, and what its first line runs | missing: install it before the run, with the command the check names. One that runs on a node the executor's unit does not see: stop |
+| claude | `command -v claude`, and what its first line runs | missing: offered with Anthropic's native installer, as you, where curl or wget is there to download it; with neither, stop: `sudo apt install curl`. One that runs on a node the executor's unit does not see: stop |
 | tmux and jq | `PATH` | offered with apt |
 | python3 3.9 or newer | `python3 -c …` | stop |
 | sudo | `sudo -n true`, `sudo -n -l` | a password is asked at the terminal; without a terminal the run stops, unless the root part of an earlier install is in place |
@@ -334,10 +340,12 @@ stop: no terminal to ask "Where does the panel keep its state?"; pass --state-di
 ```
 
 A question with nothing to suggest — a domain, the Tailscale key — takes its
-flag even with `--yes`. In the plain view sudo cannot ask for a password: it
-has to go through without asking, or the run stops with the command for an
-administrator. An install by hand is taken over only with `--adopt` next to
-`--yes`.
+flag even with `--yes`. The plain view asks nothing of its own, and with a
+terminal at the input `--plain` still gives it to sudo, which asks for its
+password there, and to claude for a sign-in the answers agreed to. Without a
+terminal at the input sudo has to go through without asking (`sudo -n`), or
+the run stops with the command for an administrator. An install by hand is
+taken over only with `--adopt` next to `--yes`.
 
 ```bash
 ./install.sh --yes --plain                                     # the suggested answers, all of them
@@ -426,10 +434,11 @@ line a link: `/healthz` on the panel's address and on the local listener, the
 age of the collector's snapshot, `aacpanel-exec -list`, the executor's socket and
 whether the panel reaches it, the database under the application role, the
 containers, both units and linger, the socket of the questions, the wiring of
-claude in every account, the contours on the map, and the tailnet node when
-there is one. `--session` opens the test session `aacpanel-check` through the
-executor, waits for the collector to see it and closes it — only it. The check
-changes nothing else.
+claude in every account, the contours on the map, the tailnet node when there
+is one, and the timer of the docker cleanup when the kit holds it — a warning,
+not a break, when it is off. `--session` opens the test session
+`aacpanel-check` through the executor, waits for the collector to see it and
+closes it — only it. The check changes nothing else.
 
 **`./install.sh enroll`** gives a code for another device, with its countdown.
 
@@ -469,11 +478,11 @@ goes only after you type the host name:
 host name typed. `--dry-run` shows the plan and what `root.sh` would run, and
 changes nothing. The installer's cache and the executor's go every time. What
 stays is named at the end with the command that removes it: the data you kept,
-apt packages, the docker group, linger that was on before, the tailnet node in
-its admin console, docker's build cache; and the clone itself is never
-touched. Without a manifest uninstall refuses and lists what the machine holds
-of the panel: an install by hand goes away as "Removing the panel" in part 2
-says, or is taken over by the installer first.
+apt packages, claude from the native installer, the docker group, linger that
+was on before, the tailnet node in its admin console, docker's build cache; and
+the clone itself is never touched. Without a manifest uninstall refuses and
+lists what the machine holds of the panel: an install by hand goes away as
+"Removing the panel" in part 2 says, or is taken over by the installer first.
 
 ## Access from outside
 
@@ -514,10 +523,13 @@ says, or is taken over by the installer first.
 | Root part | `<state>` exists and belongs to another user | `sudo chown -R <user>:<group> <state>`, or remove it |
 | Root part | the collector does not write `<state>/state.json` | `journalctl -u aacpanel-agent@<user> -n 30`; most often the clone moved after the install and `AACP_REPO` in `host.env` names where it was |
 | User manager | the user systemd manager did not come up after linger | `systemctl status user@<uid>` |
+| Install claude | `https://claude.ai/install.sh` did not download, or gave no installer script | the network or `HTTPS_PROXY`; a page instead of the script is claude.ai not serving the region |
+| Install claude | Anthropic's native installer did not install claude | the lines above are its own: `curl -fsSL https://claude.ai/install.sh \| bash` runs it by hand, then `./install.sh` goes on |
 | Build the executor | no room left on the disk; modules did not download from `proxy.golang.org`; the Go is not of this machine's architecture | room; the network or `HTTPS_PROXY`; the architecture |
 | Executor unit | the socket did not appear | `journalctl --user -u aacpanel-exec -n 30` |
 | Executor unit | `226/NAMESPACE` | an older unit: `./install.sh` puts the unit of this tree in place |
 | Executor unit | the socket directory belongs to root | docker made it before the executor ran: `sudo rmdir /run/user/<uid>/aacpanel-exec`, then `./install.sh` |
+| Docker cleanup timer | the timer is not active and enabled after it was enabled | `systemctl --user status aacpanel-docker-gc.timer` |
 | Panel stack | the image build stopped on a vulnerability published after this release | `./install.sh update`, or knowingly `./install.sh --skip-vulncheck` |
 | Panel stack | a port the panel publishes is taken | `ss -ltnp` names who holds it |
 | Panel stack | a container of a name the panel takes belongs to something else | `docker ps -a`; remove or rename it |
@@ -613,7 +625,7 @@ uninstall removes only where it knows it for the panel's beyond doubt; and
 | jq | `jq --version` | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in tmux shows only with its next request |
 | Go of the version `go.mod` names | `go version` | the executor cannot be built |
 | git, openssl | `git --version`, `openssl version` | the secrets below are drawn by `openssl` |
-| claude, installed natively | `claude --version` | there is nothing to show |
+| claude, installed natively | `claude --version` | there is nothing to show; S5a installs it |
 | a terminal | `command -v konsole` (or your own) | no windows onto sessions — the normal mode for a machine without graphics |
 
 On Debian and Ubuntu:
@@ -695,6 +707,14 @@ is a display; the locale always.
   terminal. `CLAUDE_CONFIG_DIR=<account> claude`, `/exit` when done; for
   `~/.claude` plain `claude`.
 
+**Prerequisites** — asked only for what the check found missing, yes each:
+*docker is not installed. Install it with apt as part of the root step?*,
+*docker compose v2 is missing…*, *tmux is missing. Install it?*, *jq is
+missing. Install it?* — the packages of S4; *claude is not installed. Install
+it with Anthropic's native installer?* — S5a, and then *What starts claude?*
+suggests `~/.local/bin/claude`. A no stops the run with the command that
+installs it by hand.
+
 **Kit** — *What goes into this install?* The parts and what each puts where:
 
 | Part | Checked | What it puts in place |
@@ -709,7 +729,7 @@ is a display; the locale always.
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `deploy/claude/prompt-stamp.py` |
 | Cost snapshot | no | the `Stop` and `SubagentStop` hooks, `deploy/claude/cost-snapshot.py` |
-| Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer`: the installer lists it in the plan, and it is installed by hand, below |
+| Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
 | Test database | no | S10a |
 
@@ -837,6 +857,29 @@ often `AACP_REPO` names a place the clone is not.
   `systemctl status user@<uid>`.
 - **Manifest.** Nothing.
 
+## S5a. `claude-install` — Install claude
+
+Only on a machine without claude, and only with the person's yes. As the user,
+never as root: the native installer puts everything under the home directory,
+and under sudo it would land in root's.
+
+- **Done when** `<claude> --version` answers, `<claude>` being the answer to
+  *What starts claude?* — `~/.local/bin/claude` for the native installer.
+- **Do.** Anthropic's native installer, as its documentation gives it:
+
+  ```bash
+  curl -fsSL https://claude.ai/install.sh | bash
+  ```
+
+  The installer fetches the same script with its own HTTP client and runs
+  `bash <install>/claude-install.sh`, then deletes the file. The script needs
+  curl or wget for its own downloads: the check stops a machine with neither.
+- **Check.** `~/.local/bin/claude --version` prints a version. Signing in is
+  the question of S2, not this step.
+- **Manifest.** `claude-install	pkg	claude	by-installer native`, before the
+  script runs. Uninstall names it and leaves it, as it leaves the packages of
+  apt: `rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude` removes it.
+
 ## S6. `envfile` — Panel settings
 
 - **Done when** `<clone>/.env` is `0600`, holds `AACP_SECRET` and
@@ -952,16 +995,36 @@ action" while the button is alive.
   `exec-unit	dir	<home>/.config/systemd/user/default.target.wants	created` when
   `enable` made it.
 
-**Docker cleanup** — the kit part on request, installed by hand:
+## S8a. `gc-timer` — Docker cleanup timer
 
-```bash
-install -Dm644 deploy/systemd/aacpanel-docker-gc.service ~/.config/systemd/user/aacpanel-docker-gc.service
-install -Dm644 deploy/systemd/aacpanel-docker-gc.timer   ~/.config/systemd/user/aacpanel-docker-gc.timer
-systemctl --user daemon-reload && systemctl --user enable --now aacpanel-docker-gc.timer
-```
+Only when the kit holds Docker cleanup. Once a week it removes build cache
+older than two weeks and untagged images — of the whole machine, not only the
+panel's. Both units are the user's: the service reaches docker through the
+docker group, as you do.
 
-Once a week it removes build cache older than two weeks and untagged images —
-of the whole machine, not only the panel's.
+- **Done when** `~/.config/systemd/user/aacpanel-docker-gc.service` and
+  `aacpanel-docker-gc.timer` are the shipped files, and the timer is enabled and
+  active.
+- **Do.**
+
+  ```bash
+  install -Dm644 deploy/systemd/aacpanel-docker-gc.service ~/.config/systemd/user/aacpanel-docker-gc.service
+  install -Dm644 deploy/systemd/aacpanel-docker-gc.timer   ~/.config/systemd/user/aacpanel-docker-gc.timer
+  systemctl --user daemon-reload
+  systemctl --user enable --now aacpanel-docker-gc.timer
+  ```
+
+  A timer enabled already, whose files changed, is restarted instead.
+- **Check.** `systemctl --user is-enabled aacpanel-docker-gc.timer` and
+  `is-active` say `enabled` and `active`; `systemctl --user list-timers` names
+  its next run. S14 asks the same and warns when it is off.
+- **Manifest.** A line a directory made, as in S8;
+  `gc-timer	userunit	<home>/.config/systemd/user/aacpanel-docker-gc.service	created`;
+  the same for `aacpanel-docker-gc.timer`;
+  `gc-timer	enabled	user aacpanel-docker-gc.timer	by-installer`, and
+  `gc-timer	dir	<home>/.config/systemd/user/timers.target.wants	created` when
+  `enable` made it. Uninstall disables the timer, removes both files and the
+  link, and the directories it made where nothing else lives.
 
 ## S9. `compose` — Panel stack
 
@@ -1248,6 +1311,7 @@ docker inspect -f '{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Heal
   aacpanel aacpanel-db aacpanel-socket-proxy                             # running, and healthy where it has a healthcheck
 systemctl is-active "aacpanel-agent@$USER"; systemctl --user is-active aacpanel-exec          # active, active
 stat -c %F /run/aacpanel-agent/ask.sock                                  # the questions of sessions: socket
+systemctl --user is-active aacpanel-docker-gc.timer                      # with the docker cleanup: active
 ```
 
 | Silent | Where to look |
@@ -1258,6 +1322,7 @@ stat -c %F /run/aacpanel-agent/ask.sock                                  # the q
 | the socket | none — `systemctl --user status aacpanel-exec`; another uid — `AACP_UID` in `.env` does not match the owner, and the service will not open a `0600` socket |
 | the database | `AACP_APP_ROLE` and `AACP_APP_PASSWORD` — both or neither; `docker compose ps aacpanel-db` healthy |
 | `ask.sock` | `journalctl -u "aacpanel-agent@$USER" -n 30`: the collector opens it |
+| the cleanup's timer | `systemctl --user status aacpanel-docker-gc.timer`; the panel works without it, so it is a warning |
 
 **The test session** — *Open a test session to check the whole chain?*, yes
 unless claude is not signed in to the first account, whose session would stop
@@ -1357,6 +1422,8 @@ The rest is data, one thing at a time and with the person's word:
   starts claude;
 - `docker rm -f -v aacpanel-test-db` — the test database;
 - `sudo loginctl disable-linger "$USER"`, unless something else of yours needs
-  user units without a login.
+  user units without a login;
+- claude, where the native installer put it for the panel and nothing else of
+  yours uses it: `rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude`.
 
 Delete the clone only after step 1.

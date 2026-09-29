@@ -34,7 +34,7 @@ func lines(e env, plain bool) view.Lines {
 	if tty {
 		theme = ui.ThemeFromEnv()
 	}
-	return view.Lines{Theme: theme, Out: e.stdout, Tty: tty}
+	return view.Lines{Theme: theme, Out: e.stdout, Tty: tty, Input: e.input()}
 }
 
 // parse reads the flags of a command that takes no argument besides them.

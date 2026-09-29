@@ -88,7 +88,7 @@ func (in *Install) traces(r *Run) []trace {
 
 // userUnits are the panel's units of the user: the executor, and the weekly
 // prune of docker with its timer.
-var userUnits = []string{execService, "aacpanel-docker-gc.service", "aacpanel-docker-gc.timer"}
+var userUnits = []string{execService, gcService, gcTimer}
 
 func (in *Install) userUnitDir() string {
 	return filepath.Join(in.home(), ".config", "systemd", "user")

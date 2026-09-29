@@ -55,10 +55,15 @@ func (in *Install) Steps() []*Step {
 	if in.Update {
 		steps = append(steps, in.updateStep())
 	}
-	steps = append(steps,
-		in.hostEnvStep(), in.rootStep(), in.userManagerStep(), in.envFileStep(),
-		in.execBuildStep(), in.execUnitStep(), in.stackStep(), in.appRoleStep(),
-	)
+	steps = append(steps, in.hostEnvStep(), in.rootStep(), in.userManagerStep())
+	if in.nativeInstalls() {
+		steps = append(steps, in.claudeInstallStep())
+	}
+	steps = append(steps, in.envFileStep(), in.execBuildStep(), in.execUnitStep())
+	if in.S.Has("gc") {
+		steps = append(steps, in.gcTimerStep())
+	}
+	steps = append(steps, in.stackStep(), in.appRoleStep())
 	if in.S.Has("testdb") {
 		steps = append(steps, in.testDBStep())
 	}

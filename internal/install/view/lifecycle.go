@@ -240,8 +240,9 @@ type Lines struct {
 	Theme ui.Theme
 	Out   io.Writer
 	// Tty is a person at the terminal; without one every answer comes from
-	// the command line.
-	Tty bool
+	// the command line. Input is a terminal at the input all the same, as
+	// in the plain view: sudo asks for its password there.
+	Tty, Input bool
 }
 
 func (o Lines) plain() *Plain {
@@ -275,6 +276,8 @@ func (o Lines) Run(r *install.Run, steps []*install.Step) error {
 			_, err := tea.NewProgram(&enrollModel{t: o.Theme, en: &enrolling{e: e, now: time.Now}}).Run()
 			return err
 		}
+	} else if o.Input {
+		r.Hand = plainHand(o.Theme, o.Out)
 	}
 	sig := make(chan os.Signal, 2)
 	signal.Notify(sig, os.Interrupt)

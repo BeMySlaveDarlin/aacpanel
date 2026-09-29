@@ -29,7 +29,7 @@ type Table struct {
 	Cmds   map[string]Reply
 	Spaces map[string]Space
 	Web    map[string]int
-	// Pages are what a local address answers with a body, the status 200.
+	// Pages are what an address answers with a body, the status 200.
 	Pages map[string]string
 	Tty   bool
 

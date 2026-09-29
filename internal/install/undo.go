@@ -14,7 +14,7 @@ import (
 // deleting it is the person's choice at uninstall.
 const (
 	File     Kind = "file"     // a file; meta: created, orig=<backup>, replaced, data, sha=
-	Pkg      Kind = "pkg"      // an apt package; never removed, only named
+	Pkg      Kind = "pkg"      // an apt package, or claude by its native installer (meta native); never removed, only named
 	Group    Kind = "group"    // "docker <user>"; never taken back, only named
 	Linger   Kind = "linger"   // linger of the user, turned on by the installer
 	SysUnit  Kind = "sysunit"  // the collector's unit in /etc/systemd/system
@@ -84,8 +84,33 @@ func removeIfThere(path string) error {
 }
 
 func undoPkg(r *Run, e Entry) error {
-	r.Say(Note, e.Target+" was installed with apt and stays: sudo apt remove "+e.Target)
+	r.Say(Note, e.Target+" was installed "+pkgHow(e)+" and stays: "+pkgRemove(e))
 	return nil
+}
+
+// pkgHow is how the installer put a program on the machine, and pkgRemove
+// the command that takes it away: apt's, or what Anthropic's documentation
+// gives for its native installer.
+func pkgHow(e Entry) string {
+	if metaHas(e.Meta, "native") {
+		return "with Anthropic's native installer"
+	}
+	return "with apt"
+}
+
+func pkgRemove(e Entry) string {
+	if metaHas(e.Meta, "native") {
+		return "rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude"
+	}
+	return "sudo apt remove " + e.Target
+}
+
+// pkgName is the program as uninstall names it among what it leaves.
+func pkgName(e Entry) string {
+	if metaHas(e.Meta, "native") {
+		return e.Target + ", installed " + pkgHow(e)
+	}
+	return "the apt package " + e.Target
 }
 
 func undoGroup(r *Run, e Entry) error {

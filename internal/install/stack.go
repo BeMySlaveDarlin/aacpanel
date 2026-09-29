@@ -345,16 +345,8 @@ func (in *Install) execUnitStep() *Step {
 				newUnit = true
 			}
 			if in.ask(r, "systemctl", "--user", "is-enabled", execService) != "enabled" {
-				if err := r.Once(Enabled, "user "+execService, "by-installer"); err != nil {
+				if err := in.recordEnable(r, execService, "default.target"); err != nil {
 					return err
-				}
-				// enable makes the directory of the links when it is not
-				// there: the installer's then, and uninstall takes it away.
-				wants := filepath.Join(filepath.Dir(path), "default.target.wants")
-				if _, err := os.Stat(wants); errors.Is(err, fs.ErrNotExist) {
-					if err := r.Once(Dir, wants, "created"); err != nil {
-						return err
-					}
 				}
 				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "enable", execService}, Limit: time.Minute}); err != nil {
 					return fail("the executor's unit did not enable", err)
@@ -390,6 +382,120 @@ func (in *Install) execUnitStep() *Step {
 					dir, dst.UID, dst.Mode.Perm(), dir)}
 			}
 			r.Say(Pass, fmt.Sprintf("%s active · %s, owner %s, 0700", execService, sock, in.user()))
+			return nil
+		},
+		Undo: UndoKind,
+	}
+}
+
+// recordEnable records a unit of the user that is about to be enabled, and
+// the directory of the links of the target it is wanted by: enable makes it
+// when it is not there, the installer's then, and uninstall takes it away.
+func (in *Install) recordEnable(r *Run, unit, wantedBy string) error {
+	if err := r.Once(Enabled, "user "+unit, "by-installer"); err != nil {
+		return err
+	}
+	wants := filepath.Join(in.userUnitDir(), wantedBy+".wants")
+	if _, err := os.Stat(wants); errors.Is(err, fs.ErrNotExist) {
+		return r.Once(Dir, wants, "created")
+	}
+	return nil
+}
+
+// ---- S8a: the weekly cleanup of docker, a part of the kit ----
+
+// The cleanup is two units of the user: the service that prunes docker's
+// build cache and its untagged images, and the timer that starts it once a
+// week. The service reaches docker through the docker group, as the person
+// does, so it needs no root.
+const (
+	gcService = "aacpanel-docker-gc.service"
+	gcTimer   = "aacpanel-docker-gc.timer"
+)
+
+// gcUnits are the units of the cleanup as this tree ships them, by name.
+func (in *Install) gcUnits() (map[string][]byte, error) {
+	out := map[string][]byte{}
+	for _, name := range []string{gcService, gcTimer} {
+		raw, err := in.M.ReadFile(filepath.Join(in.clone(), "deploy", "systemd", name))
+		if err != nil {
+			return nil, err
+		}
+		out[name] = raw
+	}
+	return out, nil
+}
+
+// gcInPlace tells whether the units of the cleanup are this tree's and the
+// timer is enabled and waiting.
+func (in *Install) gcInPlace(r *Run) (bool, error) {
+	units, err := in.gcUnits()
+	if err != nil {
+		return false, err
+	}
+	for name, want := range units {
+		have, err := in.M.ReadFile(filepath.Join(in.userUnitDir(), name))
+		if err != nil || !bytes.Equal(have, want) {
+			return false, nil
+		}
+	}
+	active, enabled := in.unitState(r, true, gcTimer)
+	return active == "active" && enabled == "enabled", nil
+}
+
+func (in *Install) gcTimerStep() *Step {
+	return &Step{ID: "gc-timer", Title: "Docker cleanup timer",
+		Done: in.gcInPlace,
+		Apply: func(r *Run) error {
+			units, err := in.gcUnits()
+			if err != nil {
+				return err
+			}
+			dir := in.userUnitDir()
+			if err := in.makeDirs(r, dir); err != nil {
+				return err
+			}
+			changed := false
+			for _, name := range []string{gcService, gcTimer} {
+				path := filepath.Join(dir, name)
+				if have, err := os.ReadFile(path); err == nil && bytes.Equal(have, units[name]) {
+					continue
+				}
+				if err := in.touch(r, UserUnit, path, ""); err != nil {
+					return err
+				}
+				if err := writeFile(path, units[name], 0o644); err != nil {
+					return err
+				}
+				changed = true
+			}
+			if changed {
+				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "daemon-reload"}, Limit: time.Minute}); err != nil {
+					return fail("systemctl --user daemon-reload fails", err)
+				}
+			}
+			if in.ask(r, "systemctl", "--user", "is-enabled", gcTimer) != "enabled" {
+				if err := in.recordEnable(r, gcTimer, "timers.target"); err != nil {
+					return err
+				}
+				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "enable", "--now", gcTimer}, Limit: time.Minute}); err != nil {
+					return fail("the cleanup's timer did not enable", err)
+				}
+				return nil
+			}
+			if changed || in.ask(r, "systemctl", "--user", "is-active", gcTimer) != "active" {
+				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "restart", gcTimer}, Limit: time.Minute}); err != nil {
+					return fail("the cleanup's timer did not start", err)
+				}
+			}
+			return nil
+		},
+		Verify: func(r *Run) error {
+			if active, enabled := in.unitState(r, true, gcTimer); active != "active" || enabled != "enabled" {
+				return &Failed{Diagnosis: fmt.Sprintf("%s is %s and %s after it was enabled", gcTimer, orNone(active), orNone(enabled)),
+					Fix: []string{"systemctl --user status " + gcTimer + " says why."}}
+			}
+			r.Say(Pass, gcTimer+" active and enabled · weekly: docker builder prune, docker image prune")
 			return nil
 		},
 		Undo: UndoKind,

@@ -1,6 +1,7 @@
 package install
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,8 +10,87 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 )
+
+// ---- claude itself, when the machine has none ----
+
+// NativeInstaller is Anthropic's installer of claude. The script downloads
+// the claude of this machine's platform, checks it against the checksum its
+// release publishes and sets it up under the home directory — the launcher
+// ~/.local/bin/claude, the versions in ~/.local/share/claude — as the user,
+// never as root. The installer fetches the script itself; the script
+// downloads claude with curl or wget, and the check stops a machine that has
+// neither.
+const NativeInstaller = "https://claude.ai/install.sh"
+
+// nativeCommand is the native install as a person types it.
+const nativeCommand = "curl -fsSL " + NativeInstaller + " | bash"
+
+// nativeInstalls tells whether the run installs claude: the check found
+// none, and the answer is to install it.
+func (in *Install) nativeInstalls() bool {
+	return in.f().Claude == "" && in.S.valueOr("pkg:claude", "") == yes
+}
+
+// claudeVersion is what claude answers to --version where the install
+// expects it, and whether it answered.
+func (in *Install) claudeVersion(r *Run) (string, bool) {
+	out, err := r.Exec(Cmd{Argv: []string{in.claude(), "--version"}, Limit: 30 * time.Second})
+	if err != nil {
+		return "", false
+	}
+	if f := strings.Fields(out); len(f) > 0 {
+		return f[0], true
+	}
+	return "", true
+}
+
+func (in *Install) claudeInstallStep() *Step {
+	return &Step{ID: "claude-install", Title: "Install claude",
+		Done: func(r *Run) (bool, error) {
+			_, ok := in.claudeVersion(r)
+			return ok, nil
+		},
+		Apply: func(r *Run) error {
+			status, body, err := in.M.Fetch(NativeInstaller)
+			switch {
+			case err != nil:
+				return &Failed{Diagnosis: NativeInstaller + " did not download: " + firstLine(err.Error()),
+					Fix: []string{"Check the network or a proxy (HTTPS_PROXY) and run ./install.sh again."}}
+			case status != 200 || !bytes.HasPrefix(body, []byte("#!")):
+				return &Failed{Diagnosis: fmt.Sprintf("%s gave no installer script (status %d)", NativeInstaller, status),
+					Fix: []string{"claude.ai may not serve this region: " + nativeCommand + " by hand says more."}}
+			}
+			// A program the installer puts on the machine is recorded as the
+			// packages of apt are: uninstall names it and leaves it.
+			if err := r.Once(Pkg, "claude", "by-installer native"); err != nil {
+				return err
+			}
+			script := filepath.Join(in.f().InstallDir, "claude-install.sh")
+			if err := writeFile(script, body, 0o600); err != nil {
+				return err
+			}
+			defer os.Remove(script)
+			if _, err := r.Exec(Cmd{Argv: []string{"bash", script}, Limit: 15 * time.Minute}); err != nil {
+				return fail("Anthropic's native installer did not install claude", err,
+					"The lines above are its own; "+nativeCommand+" runs it by hand, and ./install.sh goes on after it.")
+			}
+			return nil
+		},
+		Verify: func(r *Run) error {
+			v, ok := in.claudeVersion(r)
+			if !ok {
+				return &Failed{Diagnosis: in.short(in.claude()) + " --version does not answer after the native installer",
+					Fix: []string{"The native installer puts claude into ~/.local/bin; the answer to \"What starts claude?\" names " + in.short(in.claude()) + "."}}
+			}
+			r.Say(Pass, "claude "+v+" · "+in.short(in.claude()))
+			return nil
+		},
+		Undo: UndoKind,
+	}
+}
 
 // ---- S12: claude in every account ----
 

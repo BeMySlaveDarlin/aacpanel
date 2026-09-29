@@ -254,6 +254,27 @@ func TestAMissingProgramIsOfferedNotJustRefused(t *testing.T) {
 	says(t, in, "✗ stop: claude is needed: the panel starts and watches claude sessions. curl -fsSL https://claude.ai/install.sh | bash, then run again.")
 }
 
+// TestClaudeIsOfferedWhereItsInstallerCanDownload: the native installer
+// downloads claude with curl or wget, so a machine with neither stops with
+// the command that brings one, and one with either is offered claude.
+func TestClaudeIsOfferedWhereItsInstallerCanDownload(t *testing.T) {
+	m := healthy()
+	delete(m.Path, "claude")
+	delete(m.Path, "curl")
+	in := Inspect(m, clone)
+	says(t, in, "✗ stop: claude is needed: the panel starts and watches claude sessions. Anthropic's native installer "+
+		"downloads it with curl or wget, and this machine has neither: sudo apt install curl, then run again.")
+	for _, f := range Offered(in).Findings {
+		if f.Missing != nil {
+			t.Errorf("%s is offered on a machine its installer cannot download to", f.Missing.Name)
+		}
+	}
+	m.Path["wget"] = "/usr/bin/wget"
+	if !slices.ContainsFunc(Inspect(m, clone).Findings, func(f Finding) bool { return f.Missing != nil && f.Missing.Name == "claude" }) {
+		t.Error("with wget claude is not offered")
+	}
+}
+
 func TestClaudeOnANodeTheUnitCannotSee(t *testing.T) {
 	m := healthy()
 	m.Files[home+"/.local/bin/claude"] = "#!/usr/bin/env node\nrequire('./cli.js')\n"

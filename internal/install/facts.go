@@ -437,8 +437,17 @@ var unitPath = []string{"/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/
 func (c *checker) claude() {
 	path, err := c.m.LookPath("claude")
 	if err != nil {
-		c.missing(Missing{Name: "claude", Why: "the panel starts and watches claude sessions",
-			Command: "curl -fsSL https://claude.ai/install.sh | bash"})
+		why := "the panel starts and watches claude sessions"
+		_, curl := c.m.LookPath("curl")
+		_, wget := c.m.LookPath("wget")
+		if curl != nil && wget != nil {
+			// The native installer downloads claude with one of them, and
+			// the installer brings neither.
+			c.add(Stop, "stop: claude is needed: %s. Anthropic's native installer downloads it with curl or wget, "+
+				"and this machine has neither: sudo apt install curl, then run again.", why)
+			return
+		}
+		c.missing(Missing{Name: "claude", Why: why, Command: nativeCommand})
 		return
 	}
 	c.f.Claude = path

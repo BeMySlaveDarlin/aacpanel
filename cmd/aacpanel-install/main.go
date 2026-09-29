@@ -115,6 +115,10 @@ type env struct {
 	machine install.Machine
 }
 
+// input tells whether there is a terminal at the input: the plain view asks
+// nothing, and sudo still asks for its password there.
+func (e env) input() bool { return e.machine != nil && e.machine.Terminal() }
+
 func run(args []string, stdout, stderr io.Writer, terminal func() bool) int {
 	return runWith(args, env{stdout: stdout, stderr: stderr, terminal: terminal,
 		inspect: inspectLocal, survey: surveyLocal, save: savePlan, begin: beginLocal,
@@ -311,6 +315,7 @@ func runPlan(command string, args []string, e env) int {
 	o := view.PlanOptions{
 		Theme:   theme,
 		Plain:   *plain || !tty,
+		Tty:     e.input(),
 		Out:     e.stdout,
 		Inspect: func() install.Inspection { return e.inspect(clone) },
 		Survey:  survey,

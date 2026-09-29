@@ -46,6 +46,7 @@ func healthy() *fake {
 			"apt-get": "/usr/bin/apt-get", "dpkg": "/usr/bin/dpkg",
 			"docker": "/usr/bin/docker", "tmux": "/usr/bin/tmux", "jq": "/usr/bin/jq",
 			"claude": home + "/.local/bin/claude", "python3": "/usr/bin/python3", "sudo": "/usr/bin/sudo",
+			"curl": "/usr/bin/curl",
 		},
 		Cmds: map[string]Reply{
 			key("git", "-C", clone, "rev-parse", "--short", "HEAD"):                                    ok("3f1c2ab\n"),

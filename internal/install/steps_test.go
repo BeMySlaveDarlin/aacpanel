@@ -39,7 +39,8 @@ type rig struct {
 
 // templates are the files of the tree the steps read from the clone.
 var templates = []string{".env.example", "deploy/host.env.example",
-	"deploy/systemd/aacpanel-agent@.service", "deploy/systemd/aacpanel-exec.service"}
+	"deploy/systemd/aacpanel-agent@.service", "deploy/systemd/aacpanel-exec.service",
+	"deploy/systemd/aacpanel-docker-gc.service", "deploy/systemd/aacpanel-docker-gc.timer"}
 
 type rigOption func(*rigSetup)
 
@@ -731,6 +732,95 @@ func TestAnExecutorWithoutItsSocketIsDiagnosedByItsJournal(t *testing.T) {
 	g.m.Stats[dir] = Stat{Mode: fs.ModeDir | 0o755, UID: 0}
 	g.m.Stats[dir+"/sock"] = Stat{Mode: fs.ModeSocket | 0o600, UID: uid}
 	failedWith(t, g.do(g.step("exec-unit")), "docker made it as root before the executor ran")
+}
+
+// TestTheDockerCleanupIsATimerOfTheUser: the part of the kit puts the
+// shipped units among the user's, enables the timer and starts it, records
+// every piece before it is made, and uninstall takes it all back — the
+// units, the link of the timer and the directory enable made for it.
+func TestTheDockerCleanupIsATimerOfTheUser(t *testing.T) {
+	g := newRig(t, answer("--kit", "+gc"))
+	if !slices.ContainsFunc(g.in.Steps(), func(s *Step) bool { return s.ID == "gc-timer" }) {
+		t.Fatal("a kit with the cleanup takes no step for it")
+	}
+	if slices.ContainsFunc(newRig(t).in.Steps(), func(s *Step) bool { return s.ID == "gc-timer" }) {
+		t.Error("a kit without the cleanup installs its timer")
+	}
+	dir := g.in.userUnitDir()
+	wants := filepath.Join(dir, "timers.target.wants")
+	g.says([]string{"systemctl", "--user", "daemon-reload"}, "")
+	g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "disabled\n")
+	g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "inactive\n")
+	enable := []string{"systemctl", "--user", "enable", "--now", gcTimer}
+	g.says(enable, "")
+	g.m.Effects[Command(enable[0], enable[1:]...)] = func(Cmd) error {
+		g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "enabled\n")
+		g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "active\n")
+		if err := os.MkdirAll(wants, 0o755); err != nil {
+			return err
+		}
+		return os.Symlink(filepath.Join(dir, gcTimer), filepath.Join(wants, gcTimer))
+	}
+	if err := g.do(g.step("gc-timer")); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{gcService, gcTimer} {
+		if g.read(filepath.Join(dir, name)) != g.read(filepath.Join(g.clone, "deploy", "systemd", name)) {
+			t.Errorf("%s is not the unit of the tree", name)
+		}
+	}
+	want := []string{
+		"dir " + filepath.Join(g.home, ".config") + " created",
+		"dir " + filepath.Join(g.home, ".config/systemd") + " created",
+		"dir " + dir + " created",
+		"userunit " + filepath.Join(dir, gcService) + " created",
+		"userunit " + filepath.Join(dir, gcTimer) + " created",
+		"enabled user " + gcTimer + " by-installer",
+		"dir " + wants + " created",
+	}
+	if !slices.Equal(g.lines(), want) {
+		t.Errorf("the manifest holds\n%s\nwant\n%s", strings.Join(g.lines(), "\n"), strings.Join(want, "\n"))
+	}
+	if got, want := g.ran(true), []string{"systemctl --user daemon-reload", "systemctl --user enable --now " + gcTimer}; !slices.Equal(got, want) {
+		t.Errorf("ran %q, want %q", got, want)
+	}
+	if !g.already(g.step("gc-timer")) {
+		t.Error("a timer in place was installed again")
+	}
+
+	// The check holds it too, and a timer that went off is a warning.
+	g.chainUp()
+	lines := g.said()
+	if err := g.do(g.in.CheckStep()); err != nil || !slices.Contains(*lines, "✓ "+gcTimer+" active and enabled") {
+		t.Errorf("the check with the cleanup: %v\n%s", err, strings.Join(*lines, "\n"))
+	}
+	g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "inactive\n")
+	*lines = nil
+	if err := g.do(g.in.CheckStep()); err != nil ||
+		!slices.ContainsFunc(*lines, func(l string) bool { return strings.HasPrefix(l, "⚠ "+gcTimer+" is inactive and enabled") }) {
+		t.Errorf("the check with the cleanup off: %v\n%s", err, strings.Join(*lines, "\n"))
+	}
+
+	es, err := ReadManifest(g.r.Manifest.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm := NewRemoval(g.m, g.in.f(), es, "")
+	for _, u := range []string{gcTimer, gcService} {
+		g.says([]string{"systemctl", "--user", "disable", "--now", u}, "")
+	}
+	g.r.Sink = nil
+	if err := Perform(g.r, rm.Steps()); err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{filepath.Join(dir, gcService), filepath.Join(dir, gcTimer), wants, filepath.Join(g.home, ".config")} {
+		if _, err := os.Lstat(gone); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s is still there after uninstall", gone)
+		}
+	}
+	if !slices.Contains(g.m.Ran, "systemctl --user disable --now "+gcTimer) {
+		t.Errorf("uninstall did not disable the timer: %q", g.m.Ran)
+	}
 }
 
 // ---- S9 ----
