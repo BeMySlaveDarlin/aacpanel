@@ -787,9 +787,6 @@ func (in *Install) collectorStep() *Step {
 			if _, err := r.Exec(Cmd{Argv: []string{"python3", "importcheck.py"}, Dir: filepath.Join(in.clone(), "agent"), Limit: 2 * time.Minute}); err != nil {
 				return fail("the collector would not come up: a module of agent/ does not import", err)
 			}
-			if err := r.Record(Rev, in.rev(), ""); err != nil {
-				return err
-			}
 			if in.agentStarted {
 				r.Say(Pass, in.agent()+" started in the root part, on this tree")
 				return nil
@@ -798,9 +795,11 @@ func (in *Install) collectorStep() *Step {
 			return r.AsRoot("Root command", "Restarts the collector, which runs from the clone: "+in.agent()+".",
 				"restart-agent", "--user", in.user())
 		},
+		// The tree is written down once the collector is seen to run it: a
+		// restart declined or cut short leaves the next run to restart it.
 		Verify: func(r *Run) error {
 			if in.restarted.IsZero() {
-				return nil
+				return r.Record(Rev, in.rev(), "")
 			}
 			stateJSON := filepath.Join(in.state(), "state.json")
 			ok, err := r.Until(30*time.Second, time.Second, func() (bool, error) {
@@ -816,7 +815,7 @@ func (in *Install) collectorStep() *Step {
 					Tail: lastLines(journal, tailLines)}
 			}
 			r.Say(Pass, in.agent()+" restarted · "+stateJSON+" fresh")
-			return nil
+			return r.Record(Rev, in.rev(), "")
 		},
 		Undo: UndoKind,
 	}

@@ -923,6 +923,17 @@ func TestTheCollectorRestartsOnANewTreeAndNotAfterItsFirstStart(t *testing.T) {
 	if !slices.Contains(g.m.Ran, Command(restart[0], restart[1:]...)) || g.lines()[len(g.lines())-1] != "rev 9e8d7c6" {
 		t.Errorf("a new tree: ran %q, manifest %q", g.m.Ran, g.lines())
 	}
+	// A restart that did not go through — said no to, or cut short — leaves
+	// the tree to the next run, which restarts the collector.
+	g.in.S.Facts.Version = "2222222"
+	g.fails(restart, "sudo: a password is required")
+	if err := g.do(g.step("collector-restart")); err == nil {
+		t.Fatal("a restart that failed passed")
+	}
+	if done, _ := g.step("collector-restart").Done(g.r); done || slices.Contains(g.lines(), "rev 2222222") {
+		t.Errorf("a restart that failed wrote its tree down: %q", g.lines())
+	}
+	g.says(restart, "root.sh: systemctl restart aacpanel-agent@u.service\n")
 	g.in.S.Facts.Version = "1111111"
 	g.fails(check, "!! the collector will not come up - these modules do not import:\n   agent.py: NameError: name 'x' is not defined")
 	f := failedWith(t, g.do(g.step("collector-restart")), "a module of agent/ does not import")
