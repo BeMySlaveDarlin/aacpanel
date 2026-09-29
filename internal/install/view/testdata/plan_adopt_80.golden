@@ -1,0 +1,25 @@
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ ✻ aacpanel installer                                                         │
+│                                                                              │
+│   clone    ~/aacpanel  (3f1c2ab)                                             │
+│   user     u (uid 1000)                                                      │
+│   mode     adopt — the panel is here, installed by hand                      │
+│   plan     looks only, changes nothing                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+⏺ Check the machine
+  ⎿  ✓ Debian GNU/Linux 13 (trixie) · x86_64 · systemd 257
+     ✓ docker 29.8.1 · compose 5.5.1 · system daemon
+     ✓ ports 8776, 8777, 8443 are the panel's own
+     ✓ the panel is here, installed without the installer: this run takes it
+       over
+
+⏺ What is here already
+  ⎿  /var/lib/aacpanel/host.env
+     ~/aacpanel/.env
+     ~/bin/aacpanel-exec
+     compose project aacpanel: aacpanel, aacpanel-db, aacpanel-socket-proxy
+     volume aacpanel_aacpanel-db
+
+ Nothing on this machine was changed. The machine can take the panel.

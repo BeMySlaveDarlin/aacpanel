@@ -1,0 +1,23 @@
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ ✻ aacpanel installer                                                         │
+│                                                                              │
+│   clone    ~/aacpanel  (3f1c2ab)                                             │
+│   user     u (uid 1000)                                                      │
+│   mode     fresh install — no trace of the panel here                        │
+│   plan     looks only, changes nothing                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+⏺ Check the machine
+  ⎿  ✓ Ubuntu 24.04.3 LTS · x86_64 · systemd 255
+     ✓ docker 27.5.1 · compose 2.33.1 · system daemon
+     ✗ stop: tmux is needed: sessions live in it, and without it the executor
+       turns off every action on sessions. sudo apt install tmux, then run
+       again.
+     ✗ stop: jq is needed: the status line script reads the limits with it. sudo
+       apt install jq, then run again.
+     ⚠ warn: registry-1.docker.io does not answer; pulling the images may fail.
+     … +9 checks (ctrl+o to expand)
+
+ Nothing on this machine was changed. 2 lines above stop the install: fix them
+ and run ./install.sh plan again.

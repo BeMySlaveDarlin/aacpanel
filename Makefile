@@ -122,7 +122,7 @@ delivery-test:
 
 # Shell scripts have no tests, and static analysis is all that checks them before
 # the stand. A missing shellcheck is reported aloud rather than skipped quietly.
-SHELL_SCRIPTS = $(shell find deploy agent -name '*.sh' | sort)
+SHELL_SCRIPTS = install.sh $(shell find deploy agent -name '*.sh' | sort)
 shellcheck:
 	@if command -v shellcheck >/dev/null 2>&1; then shellcheck $(SHELL_SCRIPTS); \
 	else echo "!! shellcheck not found: the scripts are unchecked ($(SHELL_SCRIPTS))"; fi
