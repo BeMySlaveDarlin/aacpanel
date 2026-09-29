@@ -460,9 +460,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                         <span class="deckin"><i aria-hidden="true">↑</i>${tokens(live.tokensIn)}</span>
                         <span class="deckout"><i aria-hidden="true">↓</i>${tokens(live.tokensOut)}</span>
                     </button>`}
+                ${termJump}
                 <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                 <div class="deckright">
-                    ${termJump}
                     <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
                 </div>
             </div>
