@@ -40,6 +40,10 @@ const askSocket = "/run/aacpanel-agent/ask.sock"
 // written: the collector writes every few seconds.
 const stateFresh = 60 * time.Second
 
+// stateSettles is how long the check waits for a snapshot of a collector
+// that has just started.
+const stateSettles = 30 * time.Second
+
 // ExecSocket is where the executor listens.
 func (in *Install) ExecSocket() string {
 	if in.Sock != "" {
@@ -141,7 +145,15 @@ func answered(status int, err error) string {
 func (in *Install) stateLink(r *Run) chainLink {
 	path := filepath.Join(in.state(), "state.json")
 	fix := "systemctl status " + in.agent() + " and journalctl -u " + in.agent() + " -n 50; most often the clone moved and AACP_REPO in host.env names where it was."
-	st, err := in.M.Stat(path)
+	// A collector started a moment ago — at boot, or by the install — writes
+	// its first snapshot within seconds: the check gives it that long before
+	// it calls an old snapshot, or none, a collector that does not write.
+	var st Stat
+	var err error
+	_, _ = r.Until(stateSettles, time.Second, func() (bool, error) {
+		st, err = in.M.Stat(path)
+		return err == nil && r.clock().Now().Sub(st.Mod) <= stateFresh, nil
+	})
 	if err != nil {
 		return broken(fix, "%s is not there: the collector does not write", path)
 	}

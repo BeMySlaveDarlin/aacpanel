@@ -116,7 +116,9 @@ func TestTheCheckWalksTheChain(t *testing.T) {
 	g.m.Pages["http://127.0.0.1:8777/api/profiles"] = `{"profiles":[]}`
 	*lines = nil
 	f := failedWith(t, g.do(g.in.CheckStep()), "2 links of the chain are broken")
-	for _, w := range []string{"✗ " + filepath.Join(g.state, "state.json") + " is 10m3s old: the collector does not write",
+	// The snapshot was 10m3s old, and the check gave the collector half a
+	// minute to write before it called it broken.
+	for _, w := range []string{"✗ " + filepath.Join(g.state, "state.json") + " is 10m33s old: the collector does not write",
 		"✗ the executor's socket belongs to uid 0, not ", "⚠ the map has no contour: the projects screen stays empty"} {
 		if !slices.ContainsFunc(*lines, func(l string) bool { return strings.HasPrefix(l, w) }) {
 			t.Errorf("the check never said %q:\n%s", w, strings.Join(*lines, "\n"))
@@ -124,6 +126,46 @@ func TestTheCheckWalksTheChain(t *testing.T) {
 	}
 	if len(f.Fix) != 2 {
 		t.Errorf("the stop names %q to look at", f.Fix)
+	}
+}
+
+// wakingClock is the clock of a run that does something of the machine's
+// own after it has slept a while: a collector that writes its first snapshot.
+type wakingClock struct {
+	*fakeClock
+	after time.Duration
+	slept time.Duration
+	wake  func(now time.Time)
+}
+
+func (c *wakingClock) Sleep(d time.Duration) {
+	c.fakeClock.Sleep(d)
+	if c.slept < c.after && c.slept+d >= c.after {
+		c.wake(c.Now())
+	}
+	c.slept += d
+}
+
+// TestTheCheckWaitsForACollectorJustStarted: after a boot the collector
+// starts late, and a check that comes a moment after it finds the snapshot
+// of before the boot; the collector writes within seconds, and the check
+// waits for that rather than calling it broken.
+func TestTheCheckWaitsForACollectorJustStarted(t *testing.T) {
+	g := newRig(t)
+	g.chainUp()
+	g.clock.t = g.clock.t.Add(2 * time.Minute)
+	state := filepath.Join(g.state, "state.json")
+	g.r.Clock = &wakingClock{fakeClock: g.clock, after: 8 * time.Second, wake: func(now time.Time) {
+		if err := os.Chtimes(state, now, now); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	lines := g.said()
+	if err := g.do(g.in.CheckStep()); err != nil {
+		t.Fatalf("a collector that writes 8 s into the check: %v\n%s", err, strings.Join(*lines, "\n"))
+	}
+	if !slices.Contains(*lines, "✓ state.json is 0s old") {
+		t.Errorf("the check said:\n%s", strings.Join(*lines, "\n"))
 	}
 }
 
