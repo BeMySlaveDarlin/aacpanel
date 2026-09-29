@@ -10,7 +10,7 @@ from .cards import (BRIEF_TOOL, artifact_card, ask_round, brief_card, permit_car
                     wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
                       service, strip_panel_note, unwrap_pasted)
-from .mail import peer_name, peer_pid, undelivered
+from .mail import LETTER_TOOL, peer_name, peer_pid, undelivered
 from .notices import hook_call, system_notice
 from .limits import MAX_NOTE, MAX_TEXT, cut
 from .queue import delivered, withdrawn
@@ -475,15 +475,17 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     # reached the human is known only from the answer, and
                     # the window takes the call out once its card is drawn.
                     sent.add(block.get("id") or "")
-                if name == "SendMessage":
+                if name in ("SendMessage", LETTER_TOOL):
                     data = block.get("input") or {}
-                    said = data.get("message") or data.get("content") or ""
+                    said = data.get("message") or data.get("content") or data.get("text") or ""
                     body, trimmed = cut(str(said).strip(), MAX_TEXT)
+                    # The panel's tool asked for the list of sessions sends
+                    # nothing, and stays a call.
                     if body:
                         to = str(data.get("to") or data.get("recipient") or "")
                         letter = {"role": "mail", "dir": "out",
                                   "from": peer_name(to),
-                                  "source": "session" if peer_pid(to) else "agent",
+                                  "source": "session" if name == LETTER_TOOL or peer_pid(to) else "agent",
                                   "text": body, "cut": trimmed,
                                   "use": block.get("id") or "",
                                   "at": at, "pos": pos}

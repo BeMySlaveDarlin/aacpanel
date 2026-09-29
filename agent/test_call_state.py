@@ -69,6 +69,13 @@ def letter(use, to="coordinator", text="salta"):
                                      "input": {"to": to, "message": text}}]}}
 
 
+def panel_letter(use, to="shop-review", text="salta"):
+    """Returns an answer of the model that writes to a session of another account through the panel."""
+    return {"type": "assistant", "timestamp": AT, "cwd": CWD,
+            "message": {"content": [{"type": "tool_use", "id": use, "name": "mcp__aacpanel__send_to_session",
+                                     "input": {"to": to, "text": text}}]}}
+
+
 def letters_of(items):
     """Returns every letter sent in the window as (id, why it reached nobody)."""
     return [(i.get("use"), i.get("undelivered")) for i in items
@@ -322,6 +329,28 @@ class Letters(Window):
         said = "<tool_use_error>InputValidationError: to is required</tool_use_error>"
         self.write(prompt("go"), letter("t1"), result("t1", error=True, text=said))
         self.assertEqual(letters_of(chat.feed(self.path)["items"]), [("t1", said)])
+
+    def test_a_letter_through_the_panel_is_a_letter_to_its_session(self):
+        self.write(prompt("go"), panel_letter("t1"), result("t1", text="Sent: shop-review has it."))
+        got = [i for i in chat.feed(self.path)["items"] if i["role"] in ("mail", "tools")]
+        self.assertEqual([(i["role"], i.get("dir"), i.get("from"), i.get("source"), i.get("text")) for i in got],
+                         [("mail", "out", "shop-review", "session", "salta")],
+                         "a letter to another account is drawn as a call of a tool")
+        self.assertEqual(letters_of(got), [("t1", None)])
+
+    def test_a_letter_the_panel_did_not_send_says_why(self):
+        said = "Nothing was sent: no live session is called shop-review."
+        self.write(prompt("go"), panel_letter("t1"), result("t1", error=True, text=said))
+        self.assertEqual(letters_of(chat.feed(self.path)["items"]), [("t1", said)])
+
+    def test_the_list_of_sessions_stays_a_call(self):
+        listing = {"type": "assistant", "timestamp": AT, "cwd": CWD,
+                   "message": {"content": [{"type": "tool_use", "id": "t1",
+                                            "name": "mcp__aacpanel__send_to_session", "input": {}}]}}
+        self.write(prompt("go"), listing, result("t1", text="There is no other live session on this machine."))
+        got = chat.feed(self.path)["items"]
+        self.assertEqual(letters_of(got), [])
+        self.assertEqual(calls_of(got), [("t1", None, None)])
 
     def test_a_letter_with_no_answer_yet_is_not_called_lost(self):
         self.write(prompt("go"), letter("t1"))

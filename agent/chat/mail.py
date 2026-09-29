@@ -126,6 +126,11 @@ def peer_pid(address):
     return int(found.group(1)) if found else 0
 
 
+# The panel's tool that writes to a live session of any account on the
+# machine: a letter as SendMessage writes one, to a session by its name.
+LETTER_TOOL = "mcp__aacpanel__send_to_session"
+
+
 def peer_name(address):
     """Returns the session name for an address, or the address itself when unknown."""
     pid = peer_pid(address)
