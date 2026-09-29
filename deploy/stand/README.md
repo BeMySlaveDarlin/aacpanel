@@ -52,6 +52,7 @@ with: cloud-init reads its seed once. Another variant is another directory.
 | `AACP_STAND_BARE=1` | no docker, tmux, jq, curl or Go — the cloud images bring curl, jq and tmux along, and they are purged: the machine where the installer has to name each one |
 | `AACP_STAND_USER=<name>` | the installing user, uid 1001, gets the desktop, the ssh key and the docker group (unless bare) |
 | `AACP_STAND_SUDO=password`, `AACP_STAND_PASSWORD` | that user gets root by password (`stand` unless set) instead of `NOPASSWD` |
+| `AACP_STAND_FOREGROUND=1` | `up` keeps qemu in the foreground rather than detaching it, for a caller that holds the machine as a job of its own and wants it gone with that job |
 
 The installer's stand, apart from the one of the landing's shots:
 

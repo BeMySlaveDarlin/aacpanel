@@ -798,3 +798,43 @@ func TestVMUserDataOfEachVariant(t *testing.T) {
 		}
 	}
 }
+
+// TestVMUpInTheForegroundHoldsQemu: up detaches qemu unless asked to keep it
+// in the foreground, and then qemu takes the place of the script, so the
+// machine ends with the job that ran up.
+func TestVMUpInTheForegroundHoldsQemu(t *testing.T) {
+	if f, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0); err != nil {
+		t.Skipf("up refuses without /dev/kvm before it reaches qemu: %v", err)
+	} else {
+		f.Close()
+	}
+	for _, c := range []struct {
+		env    string
+		detach bool
+	}{{"AACP_STAND_FOREGROUND=0", true}, {"AACP_STAND_FOREGROUND=1", false}} {
+		dir, args := t.TempDir(), filepath.Join(t.TempDir(), "args")
+		put(t, dir, "noble-cloud.img", "image", 0o644)
+		key := filepath.Join(t.TempDir(), "key.pub")
+		put(t, filepath.Dir(key), "key.pub", "ssh-ed25519 AAAAtest stand@test\n", 0o644)
+		path := stubs(t, map[string]string{
+			"qemu-system-x86_64": "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + args + "\nexit 7\n",
+			"qemu-img":           "#!/bin/sh\n",
+			"cloud-localds":      "#!/bin/sh\n: > \"$1\"\n",
+		})
+		r := run(t, []string{"PATH=" + path, "HOME=" + t.TempDir(), "AACP_STAND_VM_DIR=" + dir, "AACP_STAND_KEY=" + key, c.env},
+			nil, "vm.sh", "up")
+		got, err := os.ReadFile(args)
+		if err != nil {
+			t.Fatalf("%s: qemu did not run: %v\n%s%s", c.env, err, r.out, r.err)
+		}
+		if lines := strings.Split(strings.TrimSpace(string(got)), "\n"); slices.Contains(lines, "-daemonize") != c.detach {
+			t.Errorf("%s: qemu got %q, detached should be %v", c.env, lines, c.detach)
+		}
+		// Detached, a qemu that failed stops the script before it names the
+		// ports; held, the ports are named first and qemu is the script,
+		// its status the job's.
+		if r.code != 7 || c.detach == strings.Contains(r.out, "the stand is coming up") {
+			t.Errorf("%s: status %d, said %q", c.env, r.code, r.out)
+		}
+	}
+}
