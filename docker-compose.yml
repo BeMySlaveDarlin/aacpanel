@@ -198,8 +198,9 @@ services:
       TS_USERSPACE: "true"
       TS_HOSTNAME: ${AACP_TS_HOSTNAME:-aacpanel}
       TS_SERVE_CONFIG: /config/serve.json
-      # The auth key is optional: without it the login link is printed into the
-      # container log and opened once.
+      # The node signs in only with a one-time auth key. Without one the login
+      # link in the container log does not get through: containerboot waits a
+      # minute for the confirmation and starts again with a new node key.
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       # The key is asked for once: node state lives in the volume, so `tailscale
       # up` is not repeated on restart, where a one-time key would fail.

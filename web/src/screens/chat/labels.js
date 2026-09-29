@@ -56,13 +56,14 @@ export function shortTokens(n) {
     return String(n);
 }
 
-// stampText renders when a message was written.
+// stampText renders when a message was written, the day in numbers as the
+// charts write it: a month name would come in the language of the locale.
 export function stampText(iso) {
     const ms = Date.parse(iso);
     if (!Number.isFinite(ms)) return "";
     const at = new Date(ms);
-    const day = at.toLocaleString("ru-RU", { day: "numeric", month: "short" }).replace(".", "");
-    const time = at.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    const day = at.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+    const time = at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
     return `${day} · ${time}`;
 }
 
