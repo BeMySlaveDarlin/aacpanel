@@ -11,9 +11,22 @@
     padding: .2rem .1rem .3rem;
 }
 .ttitle h2 { flex: none; margin: 0; font-size: var(--t-xl); font-weight: 600; letter-spacing: -.01em; }
+.ttitle .tnew { margin-left: auto; }
 
-/* A path too long for the line keeps its end, which names the place. */
-.ttitlepath {
+/* A place heads its terminals: its name, how many it holds and where it is.
+   A path too long for the line keeps its end, which names the place. */
+.tplace { display: flex; flex-direction: column; gap: .4rem; }
+.tplace + .tplace { margin-top: .5rem; }
+.thead {
+    display: flex;
+    align-items: baseline;
+    gap: .45rem;
+    min-width: 0;
+    padding: .2rem .2rem .3rem;
+}
+.theadname { flex: none; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.theadcount { flex: none; font-size: var(--t-xs); color: var(--accent); }
+.theadpath {
     flex: 1 1 0;
     min-width: 0;
     direction: rtl;
@@ -110,5 +123,13 @@
 /* Home leads the choice of a place, marked the way a picked row is. */
 .tpick .thome { padding-inline: .4rem; border-radius: var(--r-small); background: var(--accent-bg); }
 .tpick .toolaside { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+/* The chips of the contours stand in the sheet, not over a screen. */
+.tpick .chips {
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 0;
+    padding: .55rem 0 .2rem;
+}
 
 .tjump svg { color: var(--accent); }

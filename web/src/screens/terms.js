@@ -1,6 +1,7 @@
-// The "Terminals" tab: a page per place, paged by swipe the way the sessions
-// page contours, and the terminal of a place opened over them with the tabs
-// of the place instead of a head.
+// The "Terminals" tab: a page per contour, paged by swipe the way the sessions
+// page them, the terminals of each under the places they stand in, and the
+// terminal of a place opened over them with the tabs of the place instead of
+// a head.
 import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../html.js";
@@ -10,12 +11,14 @@ import { Sheet } from "../ui/sheet.js";
 import { shortPath } from "./chat/head.js";
 import { Term } from "./chat/term.js";
 import { Pages, useProfilePage } from "./sessions/pages.js";
-import { samePlace, tabName, useTerms } from "../data/terms.js";
+import { tabName, useTerms } from "../data/terms.js";
 import {
-    afterClose, homeOf, pickOf, PLACE_KEY, placeLabel, placesOf, SHOW_KEY, tabsOf,
+    afterClose, CONTOUR_KEY, contoursOf, homeOf, pageOf, pickOf, placesOf, tabsOf,
 } from "./terms/places.js";
 import { useTermActs } from "./terms/acts.js";
-import { CloseTab, NewButton, PlacePicker, RenameTab, TabMenu, TermCard, TermTabs } from "./terms/parts.js";
+import {
+    CloseTab, NewButton, PlaceHead, PlacePicker, RenameTab, TabMenu, TermCard, TermTabs,
+} from "./terms/parts.js";
 
 // Terminals renders the tab. want is a terminal another screen sent here —
 // the button of a session opens the terminal of its project this way.
@@ -23,16 +26,20 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
     const { terms, error, reload } = useTerms();
     const acts = useTermActs(exec, reload);
     const home = homeOf(snapshot, terms);
+    const map = snapshot && snapshot.profileMap;
     const places = placesOf(terms || [], home);
-    const names = places.map((p) => p.place);
-    const [current, pick] = useProfilePage(names, PLACE_KEY);
+    const pages = contoursOf(places, map, home);
+    const names = pages.map((p) => p.key);
+    const [current, pick] = useProfilePage(names, CONTOUR_KEY);
     const [open, setOpen] = useState(null);
     const [picking, setPicking] = useState(false);
+    // The contour whose projects the choice of a place offers: the one of the
+    // page New was pressed on, until a chip picks another.
+    const [contour, setContour] = useState("");
 
     const show = (target) => {
         if (!target) return;
-        const at = places.find((p) => samePlace(p.place, target.place));
-        if (at) pick(at.place);
+        pick(pageOf(pages, target.place));
         setOpen(target);
     };
 
@@ -59,16 +66,17 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
             onOpen=${setOpen}
             onNew=${(place) => acts.start(place).then(show)}
             onBack=${() => {
-                // The place the terminal was opened in is the page to come back
-                // to, whether it was opened from there or sent from a session.
-                const at = places.find((p) => samePlace(p.place, open.place));
-                if (at) pick(at.place);
+                // The contour of the place the terminal was opened in is the
+                // page to come back to, whether it was opened from there or sent
+                // from a session.
+                pick(pageOf(pages, open.place));
                 setOpen(null);
             }}
         />`;
     }
 
-    const counts = new Map(places.map((p) => [p.place, p.terms.length]));
+    const counts = new Map(pages.map((p) => [p.key, p.count]));
+    const pageBy = (key) => pages.find((p) => p.key === key);
     return html`
         ${error && html`<p class="hint crit">${error}</p>`}
         ${terms === null && !error && html`<p class="empty">Reading the terminals…</p>`}
@@ -78,40 +86,46 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
                 current=${current}
                 onPick=${pick}
                 live=${counts}
-                label=${(place) => placeLabel(places, place)}
-                what="places"
-                keep=${SHOW_KEY}
-                page=${(place) => html`
-                    <${PlacePage}
-                        key=${place}
-                        entry=${places.find((p) => p.place === place)}
-                        onNew=${() => setPicking(true)}
+                label=${(key) => pageBy(key).label}
+                page=${(key) => html`
+                    <${ContourPage}
+                        key=${key}
+                        page=${pageBy(key)}
+                        onNew=${() => {
+                            setContour(pageBy(key).contour);
+                            setPicking(true);
+                        }}
                         onOpen=${(t) => show({ id: t.id, place: t.place })}
                     />
                 `}
             />
         `}
         <${Sheet} open=${picking} onClose=${() => setPicking(false)} label="new terminal">
-            ${picking && html`<${PlacePicker} pick=${pickOf(snapshot && snapshot.profileMap, home)}
+            ${picking && html`<${PlacePicker} pick=${pickOf(map, home)} contour=${contour} onContour=${setContour}
                                               why=${acts.can.start ? "" : acts.why.start} onPick=${startIn} />`}
         <//>
     `;
 }
 
-// PlacePage is the page of one place: its name and where it is, the button
-// of a new terminal, and a card per terminal.
-function PlacePage({ entry, onNew, onOpen }) {
-    if (!entry) return null;
+// ContourPage is the page of one contour: its name, the button of a new
+// terminal, and the places with terminals, each under a heading of its name
+// and where it is.
+function ContourPage({ page, onNew, onOpen }) {
+    if (!page) return null;
     return html`
         <div class="tpage">
             <div class="ttitle">
-                <h2>${entry.label}</h2>
-                <span class="ttitlepath" title=${entry.place}><bdi>${shortPath(entry.place)}</bdi></span>
+                <h2>${page.label}</h2>
                 <${NewButton} onNew=${onNew} />
             </div>
-            ${entry.terms.length === 0
+            ${page.count === 0
                 ? html`<p class="empty">No terminals here yet: New starts a shell in a place.</p>`
-                : entry.terms.map((t) => html`<${TermCard} key=${t.id} t=${t} onOpen=${onOpen} />`)}
+                : page.places.map((entry) => html`
+                    <section class="tplace" key=${entry.place}>
+                        <${PlaceHead} label=${entry.label} path=${shortPath(entry.place)} />
+                        ${entry.terms.map((t) => html`<${TermCard} key=${t.id} t=${t} onOpen=${onOpen} />`)}
+                    </section>
+                `)}
         </div>
     `;
 }

@@ -19,27 +19,6 @@
     .pfdesk.row .pfdrop { flex: 0 1 18rem; }
     .pfsel .tnew { margin-left: auto; padding: .3rem .6rem; font-size: var(--t-xs); }
 
-    .thead {
-        display: flex;
-        align-items: baseline;
-        gap: .45rem;
-        min-width: 0;
-        padding: .2rem .2rem .3rem;
-    }
-    .theadname { flex: none; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
-    .theadcount { flex: none; font-size: var(--t-xs); color: var(--accent); }
-    .theadpath {
-        flex: 1 1 0;
-        min-width: 0;
-        direction: rtl;
-        text-align: left;
-        font-family: var(--mono);
-        font-size: var(--t-xs);
-        color: var(--ink-faint);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
     .pfdesk.row .pfstack > .empty { padding: .3rem; text-align: left; font-size: var(--t-xs); }
 
     .tcard:hover { background: var(--glass-2); }

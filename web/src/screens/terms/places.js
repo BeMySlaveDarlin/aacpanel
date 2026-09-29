@@ -1,15 +1,19 @@
 // Where terminals live: the home directory and the projects of the map. A
-// place is shown when it has a terminal, and home is shown always, first.
+// place is shown when it has a terminal, and home is shown always, first. The
+// wide screen lays the places out one by one, the phone by contour.
 import { shortPath } from "../chat/head.js";
 import { samePlace } from "../../data/terms.js";
 
 export const HOME = "Home";
 
-// Which place a pager stands on, and which places the wide screen shows,
-// are kept on the device: the phone and the desk share them.
+// Which place the wide screen stands on, and which places it shows, are kept
+// on the device.
 export const PLACE_KEY = "aacpanel.terms.place";
 
 export const SHOW_KEY = "aacpanel.terms.shown";
+
+// Which contour the phone pages to is kept on the device as well.
+export const CONTOUR_KEY = "aacpanel.terms.contour";
 
 // homeOf is the home directory of the host: the snapshot names it, and a
 // terminal the host keeps there names it too.
@@ -69,6 +73,48 @@ export function placeLabel(places, place) {
     return found ? found.label : baseName(place);
 }
 
+// contoursOf lays the places out the way the phone pages them: a page per
+// contour of the map in its order, keyed by its name, with the projects of the
+// contour that have terminals in the order the map lists them. The first
+// contour is taken for the personal one — the map puts the contour without a
+// directory prefix first — and every other place with terminals stands on it:
+// home ahead of its projects, the rest after them in the order the host lists
+// them. A place two contours list stands on the first. paths are the places a
+// page answers for, with terminals or without, so a terminal just started
+// finds its page before the list catches up. A map without contours gives one
+// page for every place.
+export function contoursOf(places, profileMap, home) {
+    const taken = new Set();
+    const pages = [];
+    for (const profile of profileMap || []) {
+        const name = contourName(profile);
+        if (!name) continue;
+        const paths = projectsOf(profile, home).map((project) => project.path);
+        const own = [];
+        for (const path of paths) {
+            const entry = places.find((p) => samePlace(p.place, path));
+            if (!entry || taken.has(entry.place) || entry.terms.length === 0) continue;
+            taken.add(entry.place);
+            own.push(entry);
+        }
+        pages.push({ key: name, label: name, contour: name, paths, places: own });
+    }
+    if (pages.length === 0) pages.push({ key: "", label: "Terminals", contour: "", paths: [], places: [] });
+    const personal = pages[0];
+    const rest = places.filter((p) => !taken.has(p.place) && p.terms.length > 0);
+    const atHome = (p) => Boolean(home) && samePlace(p.place, home);
+    personal.places = [...rest.filter(atHome), ...personal.places, ...rest.filter((p) => !atHome(p))];
+    for (const page of pages) page.count = page.places.reduce((n, p) => n + p.terms.length, 0);
+    return pages;
+}
+
+// pageOf is the key of the page a place stands on: the contour that lists it,
+// or the personal one.
+export function pageOf(pages, place) {
+    const found = pages.find((p) => p.paths.some((path) => samePlace(path, place))) || pages[0];
+    return found ? found.key : "";
+}
+
 // pickOf lists where a new terminal can start: home at the top, then the
 // projects of the map by contour. A project of the map in the home directory
 // is home already and is not offered twice.
@@ -76,15 +122,27 @@ export function pickOf(profileMap, home) {
     const out = [];
     if (home) out.push({ contour: "", items: [{ place: home, name: HOME, path: "~" }] });
     for (const profile of profileMap || []) {
-        const items = [];
-        for (const group of profile.groups || []) {
-            for (const project of group.projects || []) {
-                if (!project.path || (home && samePlace(project.path, home))) continue;
-                if (items.some((it) => samePlace(it.place, project.path))) continue;
-                items.push({ place: project.path, name: project.name || baseName(project.path), path: shortPath(project.path) });
-            }
+        const items = projectsOf(profile, home).map((project) => ({
+            place: project.path, name: project.name || baseName(project.path), path: shortPath(project.path),
+        }));
+        if (items.length) out.push({ contour: contourName(profile), items });
+    }
+    return out;
+}
+
+function contourName(profile) {
+    return profile.profile || profile.name || "";
+}
+
+// projectsOf is the projects of a contour, one per directory, the home
+// directory left out: it is home, not a project.
+function projectsOf(profile, home) {
+    const out = [];
+    for (const group of profile.groups || []) {
+        for (const project of group.projects || []) {
+            if (!project.path || (home && samePlace(project.path, home))) continue;
+            if (!out.some((it) => samePlace(it.path, project.path))) out.push(project);
         }
-        if (items.length) out.push({ contour: profile.profile || profile.name || "", items });
     }
     return out;
 }

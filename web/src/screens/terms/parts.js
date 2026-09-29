@@ -2,6 +2,7 @@
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { Chips } from "../../ui/chips.js";
 import { Icon } from "../../ui/icons.js";
 import { hostLabel } from "../../actions/registry.js";
 import { runs, tabName, typed } from "../../data/terms.js";
@@ -70,29 +71,43 @@ export function TermTabs({ tabs, current, onPick, onNew, wide = false }) {
 }
 
 // PlacePicker asks where a new terminal starts: home at the top, the projects
-// of the map under their contours.
-export function PlacePicker({ pick, why, onPick }) {
+// of the map under their contours. Given onContour, it offers the projects of
+// one contour under home, with a chip per contour over them to switch it; a
+// contour with none to offer gives way to the first that has some.
+export function PlacePicker({ pick, why, onPick, contour = "", onContour = null }) {
+    const contours = pick.filter((part) => part.contour);
+    const chosen = contours.find((part) => part.contour === contour) || contours[0];
+    const section = (part, head) => html`
+        <section class="toolsec" key=${part.contour || "home"}>
+            ${head && html`<div class="cmdsechead"><span>${part.contour}</span></div>`}
+            <ul class="mcplist toollist">
+                ${part.items.map((it) => html`
+                    <li key=${it.place}>
+                        <button type="button" class=${`mcprow toolrow${part.contour ? "" : " thome"}`}
+                                disabled=${Boolean(why)} onClick=${() => onPick(it.place)}>
+                            <span class="toolicon">${part.contour ? Icon.files() : Icon.orbit()}</span>
+                            <span class="toollabel">${it.name}</span>
+                            <span class="toolaside"><bdi>${it.path}</bdi></span>
+                        </button>
+                    </li>
+                `)}
+            </ul>
+        </section>
+    `;
     return html`
         <div class="cmdsheet tpick">
             <div class="shead cmdtitle"><span class="cmdhead">New terminal — where?</span></div>
             ${why && html`<p class="cmdnote">${why}</p>`}
-            ${pick.map((part) => html`
-                <section class="toolsec" key=${part.contour || "home"}>
-                    ${part.contour && html`<div class="cmdsechead"><span>${part.contour}</span></div>`}
-                    <ul class="mcplist toollist">
-                        ${part.items.map((it) => html`
-                            <li key=${it.place}>
-                                <button type="button" class=${`mcprow toolrow${part.contour ? "" : " thome"}`}
-                                        disabled=${Boolean(why)} onClick=${() => onPick(it.place)}>
-                                    <span class="toolicon">${part.contour ? Icon.files() : Icon.orbit()}</span>
-                                    <span class="toollabel">${it.name}</span>
-                                    <span class="toolaside"><bdi>${it.path}</bdi></span>
-                                </button>
-                            </li>
-                        `)}
-                    </ul>
-                </section>
-            `)}
+            ${onContour
+                ? html`
+                    ${pick.filter((part) => !part.contour).map((part) => section(part, false))}
+                    ${chosen && html`
+                        <${Chips} items=${contours.map((part) => ({ id: part.contour, label: part.contour }))}
+                                  current=${chosen.contour} onSelect=${onContour} />
+                        ${section(chosen, false)}
+                    `}
+                `
+                : pick.map((part) => section(part, Boolean(part.contour)))}
         </div>
     `;
 }

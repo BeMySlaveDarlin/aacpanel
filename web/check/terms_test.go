@@ -15,17 +15,27 @@ type termsPhoneShot struct {
 	Error    string   `json:"error"`
 	Nav      []string `json:"nav"`
 	LogoMenu []string `json:"logoMenu"`
-	Places   []string `json:"places"`
+	Tabs     []string `json:"tabs"`
 	Current  string   `json:"current"`
-	Picked   string   `json:"picked"`
+	Pages    []struct {
+		Title  string `json:"title"`
+		Places []struct {
+			Head  string   `json:"head"`
+			Cards []string `json:"cards"`
+		} `json:"places"`
+		Empty     string `json:"empty"`
+		NewButton bool   `json:"newButton"`
+	} `json:"pages"`
+	Picked   string `json:"picked"`
 	HomeCard []struct {
 		Name string `json:"name"`
 		Runs bool   `json:"runs"`
 		When string `json:"when"`
 	} `json:"homeCards"`
-	Picker  []string     `json:"picker"`
-	Started []termAction `json:"started"`
-	Opened  struct {
+	Picker   []string     `json:"picker"`
+	Rechosen []string     `json:"rechosen"`
+	Started  []termAction `json:"started"`
+	Opened   struct {
 		Head   string   `json:"head"`
 		Tabs   []string `json:"tabs"`
 		On     string   `json:"on"`
@@ -88,15 +98,47 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		}
 	})
 
-	// A page per place, home first even where the host lists another place
-	// before it; a card says what the terminal is called, whether something
-	// runs in it and when it was typed into.
-	t.Run("the pager puts home first", func(t *testing.T) {
-		if want := []string{"Home 2", "lab 1", "shop 3"}; !equalStrings(got.Places, want) {
-			t.Errorf("the places read %v, expected %v — home first, then the places with terminals", got.Places, want)
+	// A page per contour of the map, in its order, counting its terminals; a
+	// contour without any keeps its page.
+	t.Run("the pager pages the contours of the map", func(t *testing.T) {
+		if want := []string{"personal 7", "work 1", "ops"}; !equalStrings(got.Tabs, want) {
+			t.Errorf("the tabs read %v, expected %v — the contours in the order of the map", got.Tabs, want)
 		}
-		if got.Current != "Home 2" || got.Picked != "shop 3" {
-			t.Errorf("the pager opened on %q and a tap turned it to %q, expected home and then shop", got.Current, got.Picked)
+		if got.Current != "personal 7" || got.Picked != "work 1" {
+			t.Errorf("the pager opened on %q and a tap turned it to %q, expected personal and then work", got.Current, got.Picked)
+		}
+	})
+
+	// A card stands under its place on the page of the contour that lists it,
+	// the projects in the order of the map rather than of the host. The first
+	// contour takes home ahead of its projects and a place no contour lists
+	// after them, though another contour lists the home directory. A card says
+	// what the terminal is called, whether something runs in it and when it was
+	// typed into.
+	t.Run("the cards stand under their places on the page of their contour", func(t *testing.T) {
+		want := [][]string{
+			{"# personal", "Home ~: zsh, htop", "shop /srv/proj/shop: make check, zsh, git log",
+				"api /srv/proj/api: npm run dev", "misc /opt/misc: zsh"},
+			{"# work", "lab /data/lab: zsh"},
+			{"# ops", "No terminals here yet: New starts a shell in a place."},
+		}
+		if len(got.Pages) != len(want) {
+			t.Fatalf("%d pages, expected %d: %+v", len(got.Pages), len(want), got.Pages)
+		}
+		for i, p := range got.Pages {
+			lines := []string{"# " + p.Title}
+			for _, place := range p.Places {
+				lines = append(lines, place.Head+": "+strings.Join(place.Cards, ", "))
+			}
+			if len(p.Places) == 0 {
+				lines = append(lines, p.Empty)
+			}
+			if !equalStrings(lines, want[i]) {
+				t.Errorf("page %d reads %v, expected %v", i, lines, want[i])
+			}
+			if !p.NewButton {
+				t.Errorf("page %q has no New", p.Title)
+			}
 		}
 		if len(got.HomeCard) != 2 {
 			t.Fatalf("home shows %d cards, expected 2: %+v", len(got.HomeCard), got.HomeCard)
@@ -109,12 +151,17 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		}
 	})
 
-	// New asks where: home at the top, the projects of the map under their
-	// contours, a project in the home directory not offered twice.
-	t.Run("the picker puts home first", func(t *testing.T) {
-		want := []string{"Home ~", "[personal]", "shop /srv/proj/shop", "api /srv/proj/api", "[work]", "lab /data/lab"}
+	// New asks where: home at the top, then the projects of the contour whose
+	// page it was pressed on, a project in the home directory not offered
+	// twice; the chips of the contours over them switch to another.
+	t.Run("the picker offers home and the projects of the contour", func(t *testing.T) {
+		want := []string{"Home ~", "(personal)", "(work*)", "(ops)", "lab /data/lab"}
 		if !equalStrings(got.Picker, want) {
-			t.Errorf("the choice of a place reads %v, expected %v", got.Picker, want)
+			t.Errorf("New on the page of work offers %v, expected %v", got.Picker, want)
+		}
+		want = []string{"Home ~", "(personal*)", "(work)", "(ops)", "shop /srv/proj/shop", "api /srv/proj/api"}
+		if !equalStrings(got.Rechosen, want) {
+			t.Errorf("the chip of personal left %v, expected %v", got.Rechosen, want)
 		}
 	})
 
@@ -182,8 +229,9 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		if c.Action.Kind != "term.close" || c.Action.Params["id"] != "t-s1" || contains("build", c.Tabs) || c.On != "zsh" {
 			t.Errorf("the closing left %+v, expected term.close of t-s1 and the tab typed into last open", c)
 		}
-		if got.Back.Current != "shop 4" || !contains("Terminals", got.Back.Nav) {
-			t.Errorf("back lands on %q with the menu %v, expected the page of shop under the menu", got.Back.Current, got.Back.Nav)
+		if got.Back.Current != "personal 8" || !contains("Terminals", got.Back.Nav) {
+			t.Errorf("back lands on %q with the menu %v, expected the page of personal, the contour of shop, under the menu",
+				got.Back.Current, got.Back.Nav)
 		}
 	})
 }

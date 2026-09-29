@@ -7,9 +7,9 @@
 <script type="module">
 // The terminals of places on a phone, walked in the whole shell the way a
 // person walks them: the bottom menu and the menu under the logo, the pager
-// of places, the choice of where a new terminal starts, the terminal of a
-// place with its tabs, what ⋯ does to a tab, and the question before a tab
-// is closed. The host is played by the page: it keeps the list, answers the
+// of contours with the places under them, the choice of where a new terminal
+// starts, the terminal of a place with its tabs, what ⋯ does to a tab, and
+// the question before a tab is closed. The host is played by the page: it keeps the list, answers the
 // actions and records what was asked.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -29,12 +29,16 @@ const pause = async (name) => {
 const now = Math.floor(Date.now() / 1000);
 const T = (id, place, label, name, command, typedAgo, created) =>
     ({ id, place, label, name, command, activity: now - typedAgo, created: now - created, clients: 0 });
-// The host lists by place: a project that sorts before the home directory
-// comes before it in the list, and the screen still puts home first.
+// The host lists by place, and the screen lays the places out otherwise: a
+// project of a contour stands on its page in the order of the map, and the
+// first contour takes home ahead of its projects and a place no contour lists
+// after them — even where another contour lists the home directory.
 let terms = [
     T("t-lab", "/data/lab", "lab", "zsh", "zsh", 7200, 9000),
     T("t-h1", "/home/u", "Home", "zsh", "zsh", 180, 8000),
     T("t-h2", "/home/u", "Home", "htop", "htop", 3600, 7000),
+    T("t-misc", "/opt/misc", "misc", "zsh", "zsh", 900, 6500),
+    T("t-api", "/srv/proj/api", "api", "npm run dev", "npm", 300, 6200),
     T("t-s1", "/srv/proj/shop", "shop", "make check", "make", 60, 6000),
     T("t-s2", "/srv/proj/shop", "shop", "zsh", "zsh", 720, 5000),
     T("t-s3", "/srv/proj/shop", "shop", "git log", "git", 2400, 4000),
@@ -47,6 +51,9 @@ const profileMap = [
     { id: 2, profile: "work", groups: [{ name: "Lab", projects: [
         { id: 21, name: "lab", path: "/data/lab", session: "lab" },
         { id: 22, name: "helios", path: "/home/u", session: "helios" },
+    ] }] },
+    { id: 3, profile: "ops", groups: [{ name: "Infra", projects: [
+        { id: 31, name: "infra", path: "/srv/infra", session: "infra" },
     ] }] },
 ];
 
@@ -130,11 +137,29 @@ const navButton = (label) => all("nav.tabs button").find((b) => text(b) === labe
 const sheet = () => document.querySelector(".sheet.on");
 const rows = () => all(".sheet.on .mcprow").map((b) => text(b.querySelector(".toollabel")));
 const rowOf = (label) => all(".sheet.on .mcprow").find((b) => text(b.querySelector(".toollabel")) === label);
-// A place in the pager reads as its name and the number of its terminals.
+// A contour in the pager reads as its name and the number of its terminals.
 const placeTab = (b) => {
     const n = b && b.querySelector(".n");
     return n ? `${text(b).slice(0, -text(n).length).trim()} ${text(n)}` : text(b);
 };
+// The choice of a place reads top to bottom: a row as its name and path, a
+// chip in brackets with a star on the one pressed, a heading in square ones.
+const picker = () => all(".sheet.on .tpick .cmdsechead, .sheet.on .tpick .chip, .sheet.on .tpick .mcprow").map((el) => {
+    if (el.classList.contains("mcprow")) return `${text(el.querySelector(".toollabel"))} ${text(el.querySelector(".toolaside"))}`;
+    if (el.classList.contains("chip")) return `(${text(el)}${el.getAttribute("aria-pressed") === "true" ? "*" : ""})`;
+    return `[${text(el)}]`;
+});
+// A page reads as its title, the places on it with their cards, the line of
+// an empty one and whether it has the button of a new terminal.
+const pageShot = (page) => ({
+    title: text(page.querySelector(".ttitle h2")),
+    places: all(".tplace", page).map((sec) => ({
+        head: `${text(sec.querySelector(".theadname"))} ${text(sec.querySelector(".theadpath"))}`,
+        cards: all(".tcardname", sec).map(text),
+    })),
+    empty: text(page.querySelector(".empty")),
+    newButton: Boolean(page.querySelector(".ttitle .tnew")),
+});
 const tabs = () => all(".ttabs .ttab:not(.tadd)").map(text);
 const onTab = () => text(document.querySelector(".ttabs .ttab.on"));
 const pageOf = (label) => {
@@ -158,27 +183,34 @@ window.done = (async () => {
         await until(() => !sheet());
 
         navButton("Terminals").click();
-        await until(() => all(".pftab").length === 3 && pageOf("shop") && pageOf("shop").querySelector(".tcard"));
-        out.places = all(".pftab").map(placeTab);
+        await until(() => all(".pftab").length === 3 && pageOf("personal") && pageOf("personal").querySelector(".tcard"));
+        out.tabs = all(".pftab").map(placeTab);
         out.current = placeTab(document.querySelector(".pftab.on"));
-        out.homeCards = all(".tcard", pageOf("Home")).map((c) => ({
-            name: text(c.querySelector(".tcardname")),
-            runs: c.querySelector(".tdot").classList.contains("run"),
-            when: text(c.querySelector(".tcardwhen")),
-        }));
-
-        all(".pftab").find((b) => text(b).startsWith("shop")).click();
-        await until(() => text(document.querySelector(".pftab.on")).startsWith("shop"));
-        out.picked = placeTab(document.querySelector(".pftab.on"));
+        out.pages = all(".pfpages > .pfpage").map(pageShot);
+        out.homeCards = all(".tplace", pageOf("personal"))
+            .filter((sec) => text(sec.querySelector(".theadname")) === "Home")
+            .flatMap((sec) => all(".tcard", sec))
+            .map((c) => ({
+                name: text(c.querySelector(".tcardname")),
+                runs: c.querySelector(".tdot").classList.contains("run"),
+                when: text(c.querySelector(".tcardwhen")),
+            }));
         await pause("A");
 
-        // New: where the terminal starts, home first, the map by contour.
-        pageOf("shop").querySelector(".tnew").click();
-        await until(() => sheet() && sheet().querySelector(".tpick"));
-        out.picker = all(".sheet.on .tpick .cmdsechead, .sheet.on .tpick .mcprow").map((el) => (el.classList.contains("mcprow")
-            ? `${text(el.querySelector(".toollabel"))} ${text(el.querySelector(".toolaside"))}`
-            : `[${text(el)}]`));
+        all(".pftab").find((b) => text(b).startsWith("work")).click();
+        await until(() => text(document.querySelector(".pftab.on")).startsWith("work"));
+        out.picked = placeTab(document.querySelector(".pftab.on"));
+
+        // New on the page of a contour offers home and the projects of that
+        // contour; a chip turns the choice to another contour.
+        pageOf("work").querySelector(".tnew").click();
+        await until(() => sheet() && sheet().querySelector(".tpick .chip"));
+        out.picker = picker();
         await pause("A2");
+        all(".sheet.on .tpick .chip").find((b) => text(b) === "personal").click();
+        await until(() => rowOf("shop"));
+        out.rechosen = picker();
+        if (!rowOf("shop")) throw new Error(`the chip of personal did not turn the choice: ${out.rechosen.join(", ")}`);
 
         rowOf("shop").click();
         await until(() => document.querySelector(".ttabs"));
@@ -262,7 +294,8 @@ window.done = (async () => {
         await until(() => actions("term.close").length === 1 && !tabs().includes("build"));
         out.closed = { action: actions("term.close")[0], tabs: tabs(), on: onTab() };
 
-        // Back lands on the page of the place, with the menu under it again.
+        // Back lands on the page of the contour of the place, with the menu
+        // under it again, though New was pressed on another.
         document.querySelector(".phead .pback").click();
         await until(() => document.querySelector(".pftab.on") && navButton("Terminals"));
         out.back = { current: placeTab(document.querySelector(".pftab.on")), nav: navItems() };
