@@ -21,7 +21,6 @@ session could not be started at all.
 """
 
 import argparse
-import datetime
 import glob
 import json
 import os
@@ -695,32 +694,6 @@ def run(claude, model, keep, say):
     return results, exit_code(results)
 
 
-def checked_path():
-    """Returns where the host keeps the version of claude the contract last passed on."""
-    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    return os.path.join(base, "aacpanel", "stream-contract.json")
-
-
-def keep_checked(results, path=None):
-    """Writes the version a passed contract ran on, for the panel to hold sessions against.
-
-    A session on the stream running another version is shown as not checked:
-    claude updates itself, and a new version can change a request the feed
-    depends on without a word.
-    """
-    said = next((r.detail for r in results if r.name == "version"), "")
-    version = said.split()[0] if said else ""
-    if not version:
-        return ""
-    path = path or checked_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"version": version, "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}, f)
-    os.replace(tmp, path)
-    return version
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--claude", default=shutil.which("claude") or "claude")
@@ -734,10 +707,6 @@ def main(argv=None):
             print(line, file=sys.stderr, flush=True)
 
     results, code = run(args.claude, args.model, args.keep, say)
-    if code == 0:
-        version = keep_checked(results)
-        if version:
-            say(f"the feed is marked as checked on claude {version}")
     if args.json:
         print(json.dumps([r.as_dict() for r in results], ensure_ascii=False, indent=1))
     else:

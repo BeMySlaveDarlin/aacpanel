@@ -90,23 +90,3 @@ func TestAConversationIsNamedByTheLastWordsThatSaySomething(t *testing.T) {
 		}
 	}
 }
-
-// A session on the stream running a claude the stream contract did not pass
-// on says so on its row; a console session, and one on the checked version,
-// say nothing.
-func TestAStreamSessionOnAnUncheckedClaudeSaysSo(t *testing.T) {
-	stream := func(v string) map[string]any { return map[string]any{"transport": "stream", "version": v} }
-	got := runModuleJS(t, "src/screens/sessions/blocks.js", "unchecked", [][]any{
-		{stream("2.1.290"), "2.1.283"},
-		{stream("2.1.283"), "2.1.283"},
-		{stream("2.1.290"), ""},
-		{map[string]any{"version": "2.1.290"}, "2.1.283"},
-		{stream(""), "2.1.283"},
-	})
-	want := []string{"claude 2.1.290 is not checked for the feed", "", "claude 2.1.290 is not checked for the feed", "", ""}
-	for i, w := range want {
-		if got[i] != w {
-			t.Errorf("case %d: the row says %q, expected %q", i, got[i], w)
-		}
-	}
-}

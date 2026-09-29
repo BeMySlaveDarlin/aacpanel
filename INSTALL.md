@@ -623,11 +623,10 @@ brings to it only after its own restart, which keeps the conversation; until
 then an operation its holder does not know is refused with those words.
 
 Claude updates itself, and part of the stream protocol the feed leans on is not
-public. A session on the stream running a claude the stream contract has not
-passed on is marked on its row as not checked for the feed. The contract runs
-every request the feed needs against the installed claude, in a directory of
-its own, and on a pass leaves the version for the panel — a few minutes and a
-dozen short turns on haiku:
+public. When the feed of a session on the stream breaks after an update, the
+stream contract says which request changed: it runs every request the feed
+needs against the installed claude, in a directory of its own — a few minutes
+and a dozen short turns on haiku:
 
 ```bash
 python3 deploy/claude/stream-contract.py     # exit 0: every required check holds
@@ -692,7 +691,7 @@ The rest is optional and one at a time, because it is data:
 | the limits of an account are empty or old | `journalctl --user -u aacpanel-exec` names a probe that failed; no `jq` or no status line leaves them to the probe alone |
 | there is a button, and the journal says "unknown action" | the executor was built from an old tree: §12 |
 | a session on the stream answers that it was started before the panel could do this | its holder runs the executor it was started with: restart the session, the conversation is kept |
-| a session's row says its claude is not checked for the feed | claude updated itself: the stream contract, §16 |
+| the feed of a session on the stream broke after claude updated itself | the stream contract names the request that changed: §16 |
 | `Failed to connect to bus` from `systemctl --user` | linger is off, or you signed in without a logind session |
 | the feed is visible from the phone, but there is no switch to the terminal | that is by design: `AACP_TERM_PUBLIC=0` |
 | the projects screen is empty although there are projects on disk | not a single profile has been created: the button is on that same screen |

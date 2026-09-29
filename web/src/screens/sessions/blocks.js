@@ -31,15 +31,6 @@ export const QUIET_MAX = 5;
 // restart opens with. The card is named by the last one that says something.
 const ABOUT_MIN = 12;
 
-// unchecked says why a session on the stream runs a claude the feed was not
-// checked on: claude updates itself, and a new version can change a request
-// the feed depends on without a word. Empty when there is nothing to say.
-export function unchecked(session, checked) {
-    if (session.transport !== "stream" || !session.version) return "";
-    if (checked === session.version) return "";
-    return `claude ${session.version} is not checked for the feed`;
-}
-
 // stateOf says what a live session is doing, in the words and the tone of the
 // row that shows it.
 export function stateOf(s) {
@@ -176,7 +167,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
 
 // ProjectBlock is one project: its name, a new session in it, and its live
 // sessions or, with none, its last conversation.
-export function ProjectBlock({ block, exec, wait, notes, checked, onOpen, onMore, onProject }) {
+export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProject }) {
     const run = useAction();
     const project = block.project;
     const canNew = project && !block.home;
@@ -199,7 +190,7 @@ export function ProjectBlock({ block, exec, wait, notes, checked, onOpen, onMore
                 `}
             </div>
             <${LiveLines} list=${block.live} named=${(s) => block.live.length > 1 || s.session !== (project && project.session)}
-                          notes=${notes} checked=${checked} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
+                          notes=${notes} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
             ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
             ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
         </section>
@@ -209,11 +200,11 @@ export function ProjectBlock({ block, exec, wait, notes, checked, onOpen, onMore
 // LiveLines lays out the live sessions of a project: the runs a session
 // started inside its work fold under it, and the fold says whether one of
 // them waits for the person.
-export function LiveLines({ list, named, notes, checked, wait, onOpen, onMore }) {
+export function LiveLines({ list, named, notes, wait, onOpen, onMore }) {
     const { own, kids } = kinOf(list);
     const line = (s, kid = false) => html`
         <${LiveLine} key=${s.session} session=${s} named=${kid || named(s)} kid=${kid}
-                     notes=${notes && notes.get(s.session)} checked=${checked} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
+                     notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
     `;
     return own.map((s) => html`
         ${line(s)}
@@ -238,7 +229,7 @@ function KinFold({ kids, line }) {
 // it is in the checklist of its work, where it lives, how full it is, and the
 // button of what can be done to it. The checklist takes what room the state
 // leaves on its line and gives way first: the state is read whole.
-export function LiveLine({ session, named, kid = false, notes, checked, wait, onOpen, onMore }) {
+export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
     const closing = wait ? wait.of("close", session.session) : null;
@@ -265,7 +256,7 @@ export function LiveLine({ session, named, kid = false, notes, checked, wait, on
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
         </div>
-        ${[...(notes || []), unchecked(session, checked)].filter(Boolean).map((note) => html`<div class="pjnote" key=${note}>${note}</div>`)}
+        ${(notes || []).map((note) => html`<div class="pjnote" key=${note}>${note}</div>`)}
     `;
 }
 

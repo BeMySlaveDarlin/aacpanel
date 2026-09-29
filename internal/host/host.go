@@ -20,9 +20,6 @@ type state struct {
 	Probes       json.RawMessage `json:"probes"`
 	Profiles     json.RawMessage `json:"profiles"`
 	Models       json.RawMessage `json:"models"`
-	// StreamChecked is the version of claude the stream contract last passed
-	// on: a session on the stream running another one is shown as not checked.
-	StreamChecked json.RawMessage `json:"streamChecked"`
 }
 
 // Reader reads the state written by the agent and caches it for a second.
@@ -90,7 +87,6 @@ func (h *Reader) JSON() ([]byte, error) {
 		"host":           st.Host,
 		"sessions":       st.Sessions,
 		"sessionNotes":   st.SessionNotes,
-		"streamChecked":  st.StreamChecked,
 		"limits":         st.Limits,
 		"sessionsAt":     st.SessionsAt,
 		"sessionsAgeSec": ageOrZero(st.SessionsAt),

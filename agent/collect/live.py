@@ -182,23 +182,6 @@ def live_session_version():
     return _by_name(version)
 
 
-def stream_checked():
-    """Returns the version of claude the stream contract last passed on, or None.
-
-    A passed `make stream-contract` leaves it in the owner's state: a session on
-    the stream running another one is shown as not checked.
-    """
-    base = os.environ.get("AACP_OWNER_STATE") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    try:
-        with open(os.path.join(base, "aacpanel", "stream-contract.json"), encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict) or not isinstance(data.get("version"), str) or not data["version"]:
-        return None
-    return {"version": data["version"], "at": data.get("at") if isinstance(data.get("at"), str) else ""}
-
-
 def _by_name(value_of):
     out, dropped = {}, set()
     for data in live_session_files():

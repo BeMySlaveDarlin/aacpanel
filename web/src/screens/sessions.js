@@ -35,11 +35,6 @@ export function splitNotes(notes, sessions) {
     return { own, common };
 }
 
-// checkedOf returns the version of claude the feed was last checked on.
-function checkedOf(snapshot) {
-    return (snapshot && snapshot.streamChecked && snapshot.streamChecked.version) || "";
-}
-
 // sessionChips reports that the sessions tab has no chips.
 export function sessionChips() {
     return null;
@@ -120,7 +115,6 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
             project=${project}
             sessions=${sessionsNow}
             notes=${splitNotes((snapshot && snapshot.sessionNotes) || [], sessionsNow).own}
-            checked=${checkedOf(snapshot)}
             exec=${exec}
             wait=${wait}
             onBack=${() => setProject(null)}
@@ -185,7 +179,6 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
                     opening=${profiles.length > 0 ? ghosts.get(name) || [] : wait.opening()}
                     recent=${name === profile ? recent : []}
                     notes=${notes.own}
-                    checked=${checkedOf(snapshot)}
                     blind=${blind}
                     exec=${exec}
                             wait=${wait}
@@ -219,7 +212,7 @@ const SECTIONS = [
     { rank: RANK.quiet, title: "quiet", tone: "" },
 ];
 
-function Page({ name, profile, limits, stale, sessions, opening, recent, notes, checked, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
+function Page({ name, profile, limits, stale, sessions, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
     const [acting, setActing] = useState("");
     const blocks = blocksOf({ profile, sessions, recent, opening });
     const acted = acting ? sessions.find((s) => s.session === acting) || null : null;
@@ -236,7 +229,7 @@ function Page({ name, profile, limits, stale, sessions, opening, recent, notes, 
                         ${section.title}${section.rank !== RANK.quiet && html`<span class="pjcount">${list.length}</span>`}
                     </div>
                     ${list.map((block) => html`
-                        <${ProjectBlock} key=${block.key} block=${block} exec=${exec} wait=${wait} notes=${notes} checked=${checked}
+                        <${ProjectBlock} key=${block.key} block=${block} exec=${exec} wait=${wait} notes=${notes}
                                          onOpen=${onChat} onMore=${(s) => setActing(s.session)} onProject=${toProject} />
                     `)}
                 `;

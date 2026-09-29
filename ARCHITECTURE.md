@@ -346,11 +346,10 @@ this, and a restart, which keeps the conversation, brings it.
 **The stream is claude's control protocol, and part of it is not public.** Any
 release may change a request the feed leans on without a word, so
 `make stream-contract` runs every such request against the installed claude
-and, when all of them hold, leaves the version it ran on in the owner's state
-(`aacpanel/stream-contract.json`). A session on the stream running any other
-version is marked on its row as not checked for the feed. The check spends
-tokens on haiku and goes to the network, which is why it is not part of
-`make check`.
+and names the one that no longer holds. It is run by hand when the feed
+breaks after claude updated itself: the panel does not hold sessions against
+the version it last passed on. The check spends tokens on haiku and goes to
+the network, which is why it is not part of `make check`.
 
 **A model, an effort and a permission mode are picked from a list, not
 typed.** The list is the session's own where it has one — a session on the
