@@ -383,8 +383,17 @@ func TestSudoWithoutATerminalNamesTheAdministratorsCommand(t *testing.T) {
 	argv := g.rootMachine()
 	g.fails(argv, "sudo: a password is required")
 	f := failedWith(t, g.do(g.step("root")), "sudo needs a password")
-	if !strings.Contains(strings.Join(f.Fix, " "), "sudo bash ") {
+	if fix := strings.Join(f.Fix, " "); !strings.Contains(fix, "sudo bash ") || !strings.HasSuffix(fix, "and then run ./install.sh again.") {
 		t.Errorf("the fix is %q", f.Fix)
+	}
+	// An uninstall that stops there goes on by uninstall: install would put
+	// back what it took.
+	g.r.Again = "./install.sh uninstall"
+	remove := []string{"sudo", "-n", "bash", g.in.Place().RootScript(), "remove", "--user", "u"}
+	g.fails(remove, "sudo: a password is required")
+	f = failedWith(t, g.r.AsRoot("Root command", "Removes the collector's unit.", remove[4:]...), "sudo needs a password")
+	if fix := strings.Join(f.Fix, " "); !strings.HasSuffix(fix, "and then run ./install.sh uninstall again.") {
+		t.Errorf("the fix of an uninstall is %q", f.Fix)
 	}
 }
 

@@ -105,6 +105,10 @@ type Run struct {
 	Ctx context.Context
 	// Place is the clone and the user the run installs for.
 	Place *Place
+	// Again is the command a stop tells the person to run again once its
+	// cause is gone: ./install.sh unless set, ./install.sh uninstall for an
+	// uninstall, which install would undo.
+	Again string
 
 	step     *Step
 	changed  []Entry

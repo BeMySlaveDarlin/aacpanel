@@ -239,7 +239,7 @@ func runUninstall(args []string, e env) int {
 		if err != nil {
 			return nil, err
 		}
-		r := &install.Run{Journal: j, Shell: local(), Place: rm.Place}
+		r := &install.Run{Journal: j, Shell: local(), Place: rm.Place, Again: "./install.sh uninstall"}
 		install.UserBus(r, in.Account.UID)
 		return r, nil
 	}

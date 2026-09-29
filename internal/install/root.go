@@ -62,7 +62,7 @@ func (r *Run) AsRoot(title, says string, args ...string) error {
 		argv := append([]string{"sudo", "-n", "bash", script}, args...)
 		_, err := r.exec(Cmd{Argv: argv}, line)
 		if err != nil {
-			return rootFailed(err, admin)
+			return rootFailed(err, admin, r.again())
 		}
 		return recorded
 	}
@@ -77,28 +77,36 @@ func (r *Run) AsRoot(title, says string, args ...string) error {
 	if err != nil {
 		if errors.Is(err, ErrDeclined) {
 			return &Failed{Diagnosis: "the root part did not run: you said no",
-				Fix: []string{"An administrator runs, as root:", admin, "and then ./install.sh goes on from here."}}
+				Fix: []string{"An administrator runs, as root:", admin, "and then " + r.again() + " goes on from here."}}
 		}
 		tail := said
 		if len(tail) > tailLines {
 			tail = tail[len(tail)-tailLines:]
 		}
 		return &Failed{Diagnosis: rootDiagnosis(err, said), Tail: tail,
-			Fix: []string{"Nothing after the last line above ran as root. Run ./install.sh again when it can go through."}}
+			Fix: []string{"Nothing after the last line above ran as root. Run " + r.again() + " again when it can go through."}}
 	}
 	return recorded
 }
 
+// again is the command a stop names to run again.
+func (r *Run) again() string {
+	if r.Again != "" {
+		return r.Again
+	}
+	return "./install.sh"
+}
+
 // rootFailed is a root command of a plain run that failed: sudo that wants
 // a password nobody can type, or root.sh that stopped.
-func rootFailed(err error, admin string) *Failed {
+func rootFailed(err error, admin, again string) *Failed {
 	f := fail("root.sh failed", err)
 	var ran *Ran
 	if errors.As(err, &ran) {
 		f.Diagnosis = rootDiagnosis(ran.Err, ran.Tail)
 	}
 	if strings.Contains(f.Diagnosis, "password") {
-		f.Fix = []string{"Ask an administrator to run, as root:", admin, "and then run ./install.sh again."}
+		f.Fix = []string{"Ask an administrator to run, as root:", admin, "and then run " + again + " again."}
 	}
 	return f
 }
