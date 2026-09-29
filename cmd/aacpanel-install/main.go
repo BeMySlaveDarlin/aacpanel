@@ -22,7 +22,7 @@ import (
 	"aacpanel/internal/install/view"
 )
 
-const usage = `usage: aacpanel-install install [--plain] [--yes] [--adopt] [--skip-vulncheck] [answers as flags]
+const usage = `usage: aacpanel-install [install] [--plain] [--yes] [--adopt] [--skip-vulncheck] [answers as flags]
        aacpanel-install plan [--plain] [--yes] [answers as flags]
        aacpanel-install update [--to P] [--plain] [--yes] [--adopt] [--skip-vulncheck] [answers as flags]
        aacpanel-install check [--session] [--plain]
@@ -30,8 +30,9 @@ const usage = `usage: aacpanel-install install [--plain] [--yes] [--adopt] [--sk
        aacpanel-install uninstall [--yes] [--purge-db] [--purge-state] [--purge-env] [--purge-files] [--purge-exec] [--purge-data] [--dry-run] [--plain]
        aacpanel-install demo [--speed N] [--fail STEP]
 
-  install looks the machine over, asks the questions, shows the plan and,
-          once it is approved, puts the panel on the machine: the host
+  install is also what runs without a command. It looks the machine
+          over, asks the questions, shows the plan and, once it is
+          approved, puts the panel on the machine: the host
           description, one sudo for the part as root, the executor built
           and started as a user unit, the .env, the stack, the app role,
           the test database and the tailnet node when the kit has them,
@@ -175,6 +176,9 @@ func savePlan(text string) (string, error) {
 	return path, os.WriteFile(path, []byte(text), 0o600)
 }
 
+// helps are the words that ask for the usage.
+var helps = []string{"-h", "-help", "--help", "help"}
+
 // answers gathers the flags of the questions into the answers of a run.
 type answers map[string]string
 
@@ -221,14 +225,17 @@ func (v switchValue) Set(s string) error {
 }
 
 func runWith(args []string, e env) int {
-	if len(args) == 0 {
-		fmt.Fprint(e.stderr, usage)
-		return 2
-	}
-	switch args[0] {
-	case "-h", "-help", "--help", "help":
+	if len(args) > 0 && slices.Contains(helps, args[0]) {
 		fmt.Fprint(e.stdout, usage)
 		return 0
+	}
+	// No command is install, and so are flags alone: the line piped from
+	// curl into bash has no word to add, and install asks before it
+	// changes anything.
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return runPlan("install", args, e)
+	}
+	switch args[0] {
 	case "plan":
 		return runPlan("plan", args[1:], e)
 	case "install":
