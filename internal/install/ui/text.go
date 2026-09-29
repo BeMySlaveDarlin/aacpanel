@@ -12,11 +12,17 @@ import (
 // paths and unit names, and aacpanel-agent@ split in two reads as two
 // things. A width under one leaves the text whole: there is nothing to fit
 // it into.
-func wrap(s string, width int) []string {
-	if width < 1 {
+func wrap(s string, width int) []string { return hang(s, width, width) }
+
+// hang wraps as wrap does, into first cells on the first line and rest
+// cells on every line after it: the lines under a bullet hang further in
+// than the bullet itself.
+func hang(s string, first, rest int) []string {
+	if first < 1 || rest < 1 {
 		return strings.Split(s, "\n")
 	}
 	var out []string
+	width := first
 	for _, para := range strings.Split(s, "\n") {
 		line, used, started := "", 0, false
 		for _, word := range strings.Split(para, " ") {
@@ -29,16 +35,19 @@ func wrap(s string, width int) []string {
 			default:
 				if started {
 					out = append(out, line)
+					width = rest
 				}
 				for w > width {
 					out = append(out, ansi.Truncate(word, width, ""))
 					word = ansi.TruncateLeft(word, width, "")
 					w = ansi.StringWidth(word)
+					width = rest
 				}
 				line, used, started = word, w, true
 			}
 		}
 		out = append(out, line)
+		width = rest
 	}
 	return out
 }
@@ -62,15 +71,12 @@ func pad(s string, width int) string {
 // indent puts prefix before the first line and cont before the rest, wrapping
 // the text into what is left of the width.
 func indent(s, prefix, cont string, width int) []string {
-	room := width - ansi.StringWidth(prefix)
-	var out []string
-	for _, para := range strings.Split(s, "\n") {
-		for _, line := range wrap(para, room) {
-			if len(out) == 0 {
-				out = append(out, prefix+line)
-			} else {
-				out = append(out, cont+line)
-			}
+	out := hang(s, width-ansi.StringWidth(prefix), width-ansi.StringWidth(cont))
+	for i, line := range out {
+		if i == 0 {
+			out[i] = prefix + line
+		} else {
+			out[i] = cont + line
 		}
 	}
 	return out
