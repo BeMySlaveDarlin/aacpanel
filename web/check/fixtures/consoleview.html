@@ -1,0 +1,189 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0} .shell{height:100%;--nav-clear:0px;--body-gap:.6rem} .body{position:relative;height:100%;display:flex;flex-direction:column;padding:0 .7rem;box-sizing:border-box}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="module">
+// A console whose project lives in the feed, watched either way: the pair of
+// views picks the terminal or the feed, and the session stays in tmux — the
+// move to the feed waits in the tools of the session. The pick is the
+// session's own: another console opens the way it would have, and a reload
+// brings each back the way it was left. A session on the stream keeps its
+// header. The same page runs on a phone and on the wide screen.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { WIDE } from "/src/ui/wide.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const sent = [];
+// What the panel has answered since the conversation was last drawn: the
+// views are only settled once the terminal and the way are known.
+const answered = new Set();
+const ways = { "evirma-fp": "stream", "evirma-rw": "stream", evirma: "console" };
+const who = (u) => new URL(u, location.href).searchParams.get("name");
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) {
+        return json({ items: [{ role: "ai", pos: 1, text: "Rotating the fingerprints." }], first: 1, last: 1, total: 1,
+            moreBefore: false, state: null });
+    }
+    if (u === "/api/term") {
+        answered.add("term");
+        return json({ available: true });
+    }
+    if (u.startsWith("/api/session/window")) return json({ state: "none" });
+    if (u.startsWith("/api/session/switch")) {
+        answered.add(`way:${who(u)}`);
+        return json({ to: ways[who(u)] });
+    }
+    if (u.startsWith("/api/actions") && init && init.method === "POST") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true, detail: "done" });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.switch", "window.open", "window.close", "session.send"] };
+const base = { status: "idle", pct: 12.4, tokens: 124000, limit: 1000000, cwd: "/srv/proj/evirma" };
+const sessions = {
+    "evirma-fp": { ...base, transport: "tmux", sessionId: "c1" },
+    "evirma-rw": { ...base, transport: "tmux", sessionId: "c2" },
+    evirma: { ...base, transport: "stream", sessionId: "s1" },
+};
+const root = document.getElementById("root");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(25);
+    return ok();
+};
+const settle = async (name) => {
+    await until(() => answered.has("term") && answered.has(`way:${name}`));
+    for (let i = 0; i < 3; i++) await frame();
+};
+
+// open draws the conversation in the screen that is up, the way the wide
+// screen turns from one session to the next.
+const open = async (name) => {
+    answered.delete(`way:${name}`);
+    render(h(ToastHost, null, h(GateHost, null,
+        html`<${Chat} name=${name} id=${sessions[name].sessionId} live=${sessions[name]} exec=${exec}
+                      onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    await settle(name);
+};
+// reload takes the page down and draws it again: what comes back is only
+// what the storage kept.
+const reload = async (name) => {
+    render(null, root);
+    answered.clear();
+    await open(name);
+};
+
+const wide = matchMedia(WIDE).matches;
+const LABELS = { feed: "Feed", term: "Terminal" };
+const shown = () => (root.querySelector(".termwrap") ? "term" : root.querySelector(".chatfeed") ? "feed" : "");
+const label = (b) => b.textContent.replace("⇢", "").trim();
+const tabs = () => [...root.querySelectorAll(".dkhead .dktabs .dktab")];
+const sheet = () => document.querySelector(".tools:not(.dkpanel)");
+const openSheet = async () => {
+    if (!sheet()) root.querySelector(".phead .pmore").click();
+    await until(() => sheet());
+};
+
+// watch reads the pair of views: the tabs of the wide screen, or what the
+// tools of the phone offer to watch with.
+const watch = async () => {
+    if (wide) {
+        return tabs().map((b) => `${label(b)}:${b.getAttribute("aria-pressed")}${b.classList.contains("moves") ? ":moves" : ""}`);
+    }
+    await openSheet();
+    return [...sheet().querySelectorAll(".toolseg")].map((b) => `${label(b)}:${b.getAttribute("aria-pressed")}`);
+};
+// moveLine reads the move the tools of the session offer, and puts them down
+// on the wide screen.
+const moveLine = async () => {
+    if (!wide) {
+        await openSheet();
+        const go = sheet().querySelector(".toolmove .toolgo");
+        return go ? go.textContent.trim() : "";
+    }
+    root.querySelector(".dkplace").click();
+    await until(() => document.querySelector(".dkpop .toolgo"));
+    const go = document.querySelector(".dkpop .toolgo");
+    const say = go ? go.textContent.trim() : "";
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await until(() => !document.querySelector(".dkpop"));
+    return say;
+};
+// pick presses the view by its name in the pair.
+const pick = async (view) => {
+    if (wide) {
+        const t = tabs().find((b) => label(b) === LABELS[view]);
+        if (t) t.click();
+        return;
+    }
+    await openSheet();
+    const seg = [...sheet().querySelectorAll(".toolseg")].find((b) => label(b) === LABELS[view]);
+    if (seg) seg.click();
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = { wide };
+
+    // A console opens by the width of the screen, and offers the move to the
+    // feed in the tools of the session.
+    await reload("evirma-fp");
+    out.first = shown();
+    out.watch = await watch();
+    out.move = await moveLine();
+
+    // The other view: the screen turns to it, nothing is asked and nothing
+    // goes to the panel.
+    const other = out.first === "term" ? "feed" : "term";
+    const before = sent.length;
+    await pick(other);
+    await until(() => shown() === other && !sheet());
+    // A question or a request would be up by the next frames: the gate draws
+    // its sheet from the press itself.
+    for (let i = 0; i < 3; i++) await frame();
+    out.picked = shown();
+    out.pickSent = sent.slice(before).map((s) => `${s.kind}:${s.target}`);
+    out.pickAsked = (document.querySelector(".stitle") || {}).textContent || "";
+    out.pickPanel = Boolean(document.querySelector(".dkpop") || sheet());
+
+    // Another console of the same project opens the way it would have, and
+    // the first keeps its pick when the screen comes back to it.
+    await open("evirma-rw");
+    out.neighbour = shown();
+    await open("evirma-fp");
+    out.back = shown();
+
+    // A reload brings each back the way it was left.
+    await reload("evirma-fp");
+    out.reloaded = shown();
+    await reload("evirma-rw");
+    out.reloadedNeighbour = shown();
+
+    // A session on the stream: the feed alone, the terminal behind the move.
+    await reload("evirma");
+    out.stream = shown();
+    out.streamWatch = await watch();
+    const term = tabs().find((b) => label(b) === "Terminal");
+    out.streamTip = term ? term.getAttribute("data-tip") || "" : "";
+    out.streamMove = await moveLine();
+    out.sent = sent.map((s) => `${s.kind}:${s.target}`);
+    return out;
+})();
+</script>

@@ -487,18 +487,23 @@ new request. A stream session can always go to the console; a console goes to
 the feed only when its project lives there, because which projects live in the
 feed is decided in the map, not by a button in one conversation.
 
-**The switch is the pair of views, and a window holds a console.** Where the
-project lives in the feed, the terminal and the feed of the conversation
-header are the two sides: the feed is the session on the stream, the terminal
-is the console, and pressing the other one moves the session there. A session
-on the stream has nothing a window on the host could show, so the window
-button moves it to the console and opens the window in one action. While a
-terminal outside the panel shows a console — a window on the host, an ssh
-attached to its tmux, or a terminal of its own when it runs outside tmux — the
-executor refuses to move it to the feed: the conversation would end under the
-eyes of whoever reads it there. The pair then only picks what to watch the
-console with. A project that lives in the console keeps the pair as a choice
-of the device.
+**The pair of views watches, the move is a line of its own, and a window
+holds a console.** A session on the stream has only its feed: the terminal of
+the conversation header is the console on the other side, and pressing it
+opens the move rather than making it. A console is watched either way — its
+terminal, or its transcript read as a feed — and the pair only picks which:
+the session stays in tmux, where an agent that started it may be following
+its pane. The pick is the session's own, kept on the device by the session's
+name; a session never picked opens in the terminal on a wide screen and in
+the feed on a phone, and a renamed one opens that way again. A console whose
+project lives in the feed moves there from the tools of the session. A
+session on the stream has nothing a window on the host could show, so the
+window button moves it to the console and opens the window in one action.
+While a terminal outside the panel shows a console — a window on the host, an
+ssh attached to its tmux, or a terminal of its own when it runs outside tmux —
+the executor refuses to move it to the feed: the conversation would end under
+the eyes of whoever reads it there. While the window on the host is open, the
+tools do not offer the move at all.
 
 **Remote Control is a second way in, past the panel.** It is claude's bridge
 to claude.ai: while it is up, the session is reached from the Claude app and

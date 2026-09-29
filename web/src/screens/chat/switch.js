@@ -76,19 +76,20 @@ export function useSwitchWay(name, transport) {
 }
 
 // sidesOf lays the pair of views over the sides of a live session. On the
-// stream the feed is all there is, and the terminal moves the session to the
-// console. A console whose project lives in the feed shows its terminal, and
-// the feed moves it there — unless a window on the host holds it: then the
-// pair only picks what to watch the console with. Anywhere else the pair is
-// the choice of the device, as it always was.
+// stream the feed is all there is, and the terminal is the console on the
+// other side, reached by the move. A console is watched either way — its
+// terminal or its transcript as a feed — and the pair only picks which: the
+// session stays in tmux, where whoever started it may be reading its pane. A
+// console whose project lives in the feed moves there from the tools of the
+// session, unless a window on the host holds it.
 export function sidesOf({ live, way, held, picked, canTerm, exec }) {
     const why = () => blocked(live) || whyNot(exec, "session.switch");
     if (live.transport === "stream") {
         if (way.to !== "console") return { view: "feed", pair: false, moves: "", tip: "", why: "" };
-        return { view: "feed", pair: true, moves: "console", tip: "Move to the console", why: why() };
+        return { view: "feed", pair: false, moves: "console", tip: "Move to the console", why: why() };
     }
-    if (way.to === "stream" && canTerm && !held) {
-        return { view: "term", pair: true, moves: "stream", tip: "Move to the feed", why: why() };
+    if (way.to === "stream" && !held) {
+        return { view: picked, pair: canTerm, moves: "stream", tip: "", why: why() };
     }
     const tip = way.to === "stream" && held
         ? `Watch the console as a feed — the window on ${hostLabel()} holds the session there`

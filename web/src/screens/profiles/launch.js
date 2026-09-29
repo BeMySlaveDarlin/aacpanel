@@ -242,7 +242,7 @@ function StreamBlock() {
             <span class="pfhelp">takes effect at the next start: the session is answered in the feed — there is no terminal and no window on the host</span>
             <span class="pfhelp">holds here too: the model, the effort, the permission mode, remote control, the starting intent, the environment and the context cap</span>
             <span class="pfhelp warn">the extra arguments go to <code>claude -p</code>: one only the terminal knows stops the session at its start</span>
-            <span class="pfhelp">what the feed cannot do yet is in the console: the terminal of the pair of views in the conversation header moves the session there and back</span>
+            <span class="pfhelp">what the feed cannot do yet is in the console: a line in the tools of the session moves the session there and back</span>
         </div>
     `;
 }

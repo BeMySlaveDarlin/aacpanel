@@ -60,7 +60,7 @@ export function SessionTools(props) {
                         <span class="crgo">${Icon.chevron()}</span>
                     </button></li>
                 `}
-                ${live && sides.pair && !sides.moves && html`<${Watch} view=${view} note=${sides.tip} onPick=${onPick} />`}
+                ${live && sides.pair && html`<${Watch} view=${view} note=${sides.tip} onPick=${onPick} />`}
             </ul>
             ${live ? html`<${SessionSections} ...${props} />`
                 : archive && html`<p class="cmdnote">The conversation is closed: it can be resumed from the history.</p>`}
@@ -81,8 +81,8 @@ function facts(live, pct) {
     `;
 }
 
-// Watch picks what this device watches the session with. Nothing moves: the
-// session stays where it lives.
+// Watch picks what this session is watched with on this device. Nothing
+// moves: the session stays where it lives.
 function Watch({ view, note, onPick }) {
     const one = (id, label, icon) => html`
         <button type="button" class=${`toolseg${view === id ? " on" : ""}`} aria-pressed=${view === id}
@@ -313,20 +313,23 @@ function Move({ name, live, exec, sides, work, win, way, run, onDone }) {
 }
 
 // ViewTabs is what the wide screen looks at the conversation with: the feed,
-// the terminal, the files of the project. A view never moves the session:
-// where the other side is reached only by a move, its tab opens the session
-// panel on the move instead, and is marked for it.
+// the terminal, the files of the project. A view never moves the session: a
+// console is watched either way and stays where it is, and the terminal of a
+// session on the stream is the other side, reached only by a move — its tab
+// opens the session panel on the move instead, and is marked for it.
 export function ViewTabs({ view, sides, canTerm, onView, onRepo, onMove }) {
-    const moving = (id) => id !== "files" && Boolean(sides.moves) && id !== sides.view;
+    const moving = (id) => id !== "files" && id !== sides.view && !sides.pair && Boolean(sides.moves);
     const tab = (id, label, press, shown = true) => shown && html`
         <button type="button" class=${`dktab${view === id ? " on" : ""}${moving(id) ? " moves" : ""}`}
                 aria-pressed=${view === id}
                 data-tip=${moving(id)
-                    ? (sides.moves === "console" ? "The session is on the stream: move it to the console first" : "Move the session to the feed first")
+                    ? "The session is on the stream: move it to the console first"
                     : (id !== "files" && id !== view && sides.tip) || undefined}
                 onClick=${press}>${label}${moving(id) ? html`<span class="dktabgo" aria-hidden="true">⇢</span>` : ""}</button>
     `;
-    const pick = (id) => () => (moving(id) ? onMove() : onView(id));
+    // The view already shown is no choice: pressing it keeps nothing for the
+    // session.
+    const pick = (id) => () => (moving(id) ? onMove() : id !== view && onView(id));
     return html`
         <span class="dktabs" role="group" aria-label="what to look at the conversation with">
             ${tab("feed", "Feed", pick("feed"))}

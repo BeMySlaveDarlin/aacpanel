@@ -17,13 +17,14 @@ type pairSheet struct {
 	Sent   *pairSent `json:"sent"`
 }
 
-// On the wide screen, where a project lives in the feed, the views are the
-// sides: the feed is the session on the stream, the terminal is the console,
-// and the tab of the other side opens the move with its question — it never
-// moves the session by itself. The window on the host comes with a move to the
-// console as a choice in it; while a window is open the views only pick what
-// to watch the console with. A turn in progress holds the move, and so does a
-// message the session has not taken yet, and the panel says so in words.
+// On the wide screen, where a project lives in the feed, a session on the
+// stream has the feed alone: the terminal is the console on the other side,
+// and its tab opens the move with its question — it never moves the session by
+// itself. A console moves to the feed from the session panel. The window on
+// the host comes with a move to the console as a choice in it; while a window
+// is open nothing moves and the views only pick what to watch the console
+// with. A turn in progress holds the move, and so does a message the session
+// has not taken yet, and the panel says so in words.
 func TestTheViewsReachTheOtherSideOnlyThroughTheMove(t *testing.T) {
 	var got struct {
 		StreamOn        string     `json:"streamOn"`

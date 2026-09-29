@@ -310,8 +310,8 @@ func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
 		t.Fatalf("%s not found — the test is useless", chatFile)
 	}
 
-	if !strings.Contains(src, "useViewPick(") {
-		t.Errorf("%s: the layout is not taken from the device setting — the choice is lost "+
+	if !strings.Contains(src, "useViewPick(name,") {
+		t.Errorf("%s: the layout is not taken from the session's own choice on the device — the choice is lost "+
 			"on the very first move to a neighbouring chat", chatFile)
 	}
 
@@ -326,8 +326,8 @@ func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
 	body := withoutComments(src[head:end])
 	for _, bad := range []string{"pickView", "saveView", "setView", "setPick"} {
 		if strings.Contains(body, bad) {
-			t.Errorf("%s: the reset on a session switch touches the layout (%s) — the feed choice "+
-				"lasts until the first move to a neighbouring chat", chatFile, bad)
+			t.Errorf("%s: the reset on a session switch touches the layout (%s) — the feed chosen for "+
+				"a session lasts until the first move to a neighbouring chat", chatFile, bad)
 		}
 	}
 

@@ -47,6 +47,8 @@ func TestChatViewFollowsTheSavedChoice(t *testing.T) {
 	}
 }
 
+// The choice is the session's own: kept on the device by its name, read back
+// after the app is gone, and seen by no other session.
 func TestChatViewOutlivesTheAppAndSparesSessionsWithoutTerminal(t *testing.T) {
 	got := runViewPickJS(t, nil)
 	for _, c := range []struct {
@@ -54,13 +56,18 @@ func TestChatViewOutlivesTheAppAndSparesSessionsWithoutTerminal(t *testing.T) {
 	}{
 		{"an empty storage holds no choice", got.Storage["fresh"], ""},
 		{"what was saved reads back", got.Storage["saved"], "feed"},
+		{"another session does not see the choice", got.Storage["otherSession"], ""},
+		{"two sessions keep a choice each", got.Storage["twoSessions"], "feed,term"},
+		{"a second pick replaces the first and is kept once", got.Storage["again"], "term:1"},
 		{"junk in the key reads as \"nothing was chosen\"", got.Storage["junk"], ""},
+		{"a broken entry is skipped, the rest read back", got.Storage["junkEntry"], ",feed"},
 		{"reading from an unavailable storage", got.Storage["readThrows"], ""},
 		{"writing into an unavailable storage does not break the screen", got.Storage["writeThrows"], "ok"},
 		{"after a re-entry the choice is shown, not the default", got.Storage["afterReload"], "feed"},
 		{"a session without a terminal shows the feed", got.Storage["noTermView"], "feed"},
 		{"a session without a terminal leaves the setting alone", got.Storage["noTermKept"], "term"},
-		{"the next session with a terminal sees the earlier choice", got.Storage["nextSession"], "term"},
+		{"the next session opens by the width, not by the earlier choice", got.Storage["nextSession"], "term"},
+		{"past the ceiling the oldest choice goes and a fresh pick stays", got.Storage["ceiling"], "200:,feed,feed,term"},
 		{"the device storage is not touched past the one passed in", got.Storage["strayed"], ""},
 	} {
 		if c.got != c.want {
@@ -146,29 +153,64 @@ function safe(name, fn) {
     }
 }
 
-safe("fresh", () => readView(store()));
+safe("fresh", () => readView("evirma", store()));
 safe("saved", () => {
     const s = store();
-    saveView("feed", s);
-    return readView(s);
+    saveView("evirma", "feed", s);
+    return readView("evirma", s);
 });
-safe("junk", () => readView(store({ [VIEW_KEY]: "terminal" })));
-safe("readThrows", () => readView(store({ [VIEW_KEY]: "term" }, "read")));
+safe("otherSession", () => {
+    const s = store();
+    saveView("evirma", "feed", s);
+    return readView("evirma-c", s);
+});
+safe("twoSessions", () => {
+    const s = store();
+    saveView("evirma", "feed", s);
+    saveView("evirma-c", "term", s);
+    return readView("evirma", s) + "," + readView("evirma-c", s);
+});
+safe("again", () => {
+    const s = store();
+    saveView("evirma", "feed", s);
+    saveView("evirma", "term", s);
+    return readView("evirma", s) + ":" + JSON.parse(s.data[VIEW_KEY]).length;
+});
+safe("junk", () => readView("evirma", store({ [VIEW_KEY]: "terminal" })));
+safe("junkEntry", () => {
+    const s = store({ [VIEW_KEY]: JSON.stringify([["evirma", "terminal"], "evirma-c", [7, "feed"], ["evirma-c", "feed"]]) });
+    return readView("evirma", s) + "," + readView("evirma-c", s);
+});
+safe("readThrows", () => readView("evirma", store({ [VIEW_KEY]: JSON.stringify([["evirma", "term"]]) }, "read")));
 safe("writeThrows", () => {
     const s = store({}, "write");
-    saveView("term", s);
-    return readView(s) === "" ? "ok" : "written into an unavailable storage";
+    saveView("evirma", "term", s);
+    return readView("evirma", s) === "" ? "ok" : "written into an unavailable storage";
 });
 safe("afterReload", () => {
     const s = store();
-    saveView("feed", s);
-    return viewOf(readView(s), true, true);
+    saveView("evirma", "feed", s);
+    return viewOf(readView("evirma", s), true, true);
 });
 const noTerm = store();
-saveView("term", noTerm);
-safe("noTermView", () => viewOf(readView(noTerm), false, true));
-safe("noTermKept", () => noTerm.data[VIEW_KEY] || "");
-safe("nextSession", () => viewOf(readView(noTerm), true, false));
+saveView("evirma", "term", noTerm);
+safe("noTermView", () => viewOf(readView("evirma", noTerm), false, true));
+safe("noTermKept", () => readView("evirma", noTerm));
+safe("nextSession", () => {
+    const s = store();
+    saveView("evirma", "feed", s);
+    return viewOf(readView("evirma-c", s), true, true);
+});
+// Two hundred choices fill the storage; the oldest was picked again, so the
+// next one past the ceiling pushes out the one after it.
+safe("ceiling", () => {
+    const s = store();
+    for (let i = 0; i < 200; i++) saveView("s" + i, "feed", s);
+    saveView("s0", "feed", s);
+    saveView("s200", "term", s);
+    const kept = JSON.parse(s.data[VIEW_KEY]).length;
+    return kept + ":" + ["s1", "s0", "s2", "s200"].map((n) => readView(n, s)).join(",");
+});
 storage.strayed = strayed;
 
 const cases = JSON.parse(readFileSync(0, "utf8")) || [];
