@@ -849,7 +849,7 @@
        warning and the critical share, never a blend of the share: how much is
        spent is said by the fill and the number, the colour says only which
        band it is in. Numbers the snapshot has not renewed are dimmed. */
-    .dkcontour.dklimhead { padding: .3rem .45rem .3rem .55rem; }
+    .dkcontour.dklimhead { padding: .2rem .45rem .2rem .55rem; }
 
     /* The heading of a contour among its sessions is a band of glass a step
        denser than a row under the pointer, laid over the ground of the page so
@@ -865,7 +865,7 @@
         display: flex;
         align-items: center;
         gap: .55rem;
-        padding: .1rem .2rem;
+        padding: .05rem .2rem;
         border: 0;
         border-radius: var(--r-small);
         background: none;
@@ -885,14 +885,17 @@
     .dkring { display: flex; align-items: center; gap: .25rem; }
 
     /* The dial is a ring cut out of a conic fill: the share of the window
-       from the top, clockwise, over the track. */
+       from the top, clockwise, over the track. It is sized to keep the heading
+       of a contour low, and the share inside is a step under the small print:
+       a window spent to the end reads 100, and three digits fit the ring. */
     .dkringdial {
         --ring: var(--accent);
         position: relative;
         display: grid;
         place-items: center;
-        width: 2.1rem;
-        height: 2.1rem;
+        width: 1.65rem;
+        height: 1.65rem;
+        font-size: var(--t-xs);
     }
 
     .dkringdial::before {
@@ -901,15 +904,15 @@
         inset: 0;
         border-radius: 50%;
         background: conic-gradient(var(--ring) calc(var(--share) * 1%), var(--line) 0);
-        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
-        mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.4px), #000 calc(100% - 2px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 2.4px), #000 calc(100% - 2px));
     }
 
     .dkring.dkwarn .dkringdial { --ring: var(--warn); }
 
     .dkring.dkcrit .dkringdial { --ring: var(--crit); }
 
-    .dkringdial b { position: relative; font-size: var(--t-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+    .dkringdial b { position: relative; font-size: .9em; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 
     .dkring.dkwarn b { color: var(--warn); }
 
