@@ -22,6 +22,9 @@ type Contour struct {
 	Profile string
 	Prefix  string
 	Config  string
+	// Token is the file the wrapper signs the account in with, instead of
+	// a sign-in claude keeps in the directory; empty when there is none.
+	Token string
 }
 
 // Load returns the contours from the registry, in file order.
@@ -50,7 +53,9 @@ func fromRegistry(home string) []Contour {
 }
 
 // ParseRegistry reads a wrapper registry: a contour a line, as
-// profile|prefix|config directory, with # for a comment.
+// profile|prefix|config directory|token, with # for a comment. The token is
+// the file the wrapper signs the account in with, "-" for none; the fields
+// after it are not the contour's.
 func ParseRegistry(raw []byte, home string) []Contour {
 	var out []Contour
 	for _, line := range strings.Split(string(raw), "\n") {
@@ -62,11 +67,17 @@ func ParseRegistry(raw []byte, home string) []Contour {
 		if len(parts) < 3 {
 			continue
 		}
-		out = append(out, Contour{
+		c := Contour{
 			Profile: strings.TrimSpace(parts[0]),
 			Prefix:  strings.TrimSpace(parts[1]),
 			Config:  expand(strings.TrimSpace(parts[2]), home),
-		})
+		}
+		if len(parts) > 3 {
+			if token := strings.TrimSpace(parts[3]); token != "-" {
+				c.Token = expand(token, home)
+			}
+		}
+		out = append(out, c)
 	}
 	return out
 }

@@ -22,10 +22,31 @@ import (
 // secrets are the keys of the .env made once on this machine and never
 // made again: a new AACP_SECRET logs every device out, a new database
 // password locks the volume.
-var secrets = []struct {
+var secrets = []secret{{"AACP_SECRET", 32}, {"AACP_DB_PASSWORD", 24}}
+
+type secret struct {
 	key   string
 	bytes int
-}{{"AACP_SECRET", 32}, {"AACP_DB_PASSWORD", 24}}
+}
+
+// tokenBytes is the size of the token a phone signs in with over the home
+// network: 48 hex characters, twice the least the panel takes.
+const tokenBytes = 24
+
+// lacking are the secrets the .env is to hold and does not: the two of
+// every install, and the token when the answers want one.
+func (in *Install) lacking(env map[string]string) []secret {
+	var out []secret
+	for _, s := range secrets {
+		if strings.TrimSpace(env[s.key]) == "" {
+			out = append(out, s)
+		}
+	}
+	if want, _ := in.S.Token(); want && strings.TrimSpace(env["AACP_TOKEN"]) == "" {
+		out = append(out, secret{"AACP_TOKEN", tokenBytes})
+	}
+	return out
+}
 
 // secretKeys are the keys of the .env whose values the journal never holds.
 var secretKeys = []string{"AACP_SECRET", "AACP_DB_PASSWORD", "AACP_APP_PASSWORD", "AACP_TOKEN", "TS_AUTHKEY", "AACP_TEST_DSN"}
@@ -78,10 +99,8 @@ func (in *Install) envFileStep() *Step {
 			if st, err := in.M.Stat(in.dotEnvPath()); err != nil || st.Mode.Perm() != 0o600 {
 				return false, nil
 			}
-			for _, s := range secrets {
-				if strings.TrimSpace(env[s.key]) == "" {
-					return false, nil
-				}
+			if len(in.lacking(env)) > 0 {
+				return false, nil
 			}
 			if vars, drop := in.envWant(raw); len(vars) > 0 || len(drop) > 0 {
 				return false, nil
@@ -103,10 +122,7 @@ func (in *Install) envFileStep() *Step {
 				raw, env = template, hostcfg.Parse(template)
 			}
 			var made []Var
-			for _, s := range secrets {
-				if strings.TrimSpace(env[s.key]) != "" {
-					continue
-				}
+			for _, s := range in.lacking(env) {
 				v, err := NewSecret(s.bytes)
 				if err != nil {
 					return err

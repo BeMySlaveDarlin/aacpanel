@@ -24,6 +24,9 @@ type Install struct {
 	// Go builds the executor: the Go install.sh keeps in Cache, or the
 	// developer's own under go run, when Cache is empty.
 	Go, Cache string
+	// Local is the panel's local listener the map is made through; empty
+	// is where compose publishes it.
+	Local string
 
 	viaGroup     bool      // docker goes through sg: the root part added the group this run
 	agentStarted bool      // the root part enabled the collector this run, on this tree
@@ -41,6 +44,13 @@ func (in *Install) Steps() []*Step {
 	}
 	if in.S.Has("testdb") {
 		steps = append(steps, in.testDBStep())
+	}
+	if in.S.Has("tailscale") {
+		steps = append(steps, in.tailscaleStep())
+	}
+	steps = append(steps, in.claudeStep())
+	if in.mapAnswered() {
+		steps = append(steps, in.mapStep())
 	}
 	return append(steps, in.collectorStep())
 }

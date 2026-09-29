@@ -105,8 +105,20 @@ type Run struct {
 
 	step     *Step
 	changed  []Entry
+	later    []string
 	stopping int32 // atomic: Stop comes from the screen while a step works
 }
+
+// Remind keeps a line for the end of the run: something left to the person
+// that a step found and could not do — a sign-in, a screen to visit.
+func (r *Run) Remind(text string) {
+	if !slices.Contains(r.later, text) {
+		r.later = append(r.later, text)
+	}
+}
+
+// Reminders are the lines the steps kept for the end, in order.
+func (r *Run) Reminders() []string { return append([]string(nil), r.later...) }
 
 // Stop asks the run to stop after the step at work: the step goes on to its
 // end, which is its safe point, and no step follows it.
@@ -305,6 +317,21 @@ func (r *Run) Recorded(kind Kind, target string) bool {
 		}
 	}
 	return false
+}
+
+// First is the earliest line of kind for target, from an earlier run or this
+// one: what the target was before the installer ever touched it.
+func (r *Run) First(kind Kind, target string) (Entry, bool) {
+	if r.Manifest == nil {
+		return Entry{}, false
+	}
+	es, _ := ReadManifest(r.Manifest.Path)
+	for _, e := range es {
+		if e.Kind == string(kind) && e.Target == target {
+			return e, true
+		}
+	}
+	return Entry{}, false
 }
 
 // Once records a line unless the manifest has one of that kind for target.

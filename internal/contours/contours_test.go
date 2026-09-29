@@ -63,6 +63,9 @@ func TestLoadParsesRegistryInFileOrder(t *testing.T) {
 	if list[2].Prefix != "*" {
 		t.Errorf("the default profile lost %q: %+v", "*", list[2])
 	}
+	if list[1].Token != filepath.Join(home, ".vault", "acme.age") || list[2].Token != "" {
+		t.Errorf("the token files are %q and %q", list[1].Token, list[2].Token)
+	}
 }
 
 func TestLoadExpandsTildeInConfigOnly(t *testing.T) {

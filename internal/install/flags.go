@@ -49,6 +49,7 @@ var Flags = []Flag{
 	{Name: "--domain", Takes: "DOMAIN", Help: "the domain of the panel behind your reverse proxy"},
 	{Name: "--bind", Takes: "ADDRESS", Help: "where your reverse proxy reaches the panel"},
 	{Name: "--passkey-home", Takes: "DOMAIN", Help: "agree to move the passkeys to this domain, which voids every enrolled passkey"},
+	{Name: "--lan-token", Takes: "yes|no", Help: "with the home network as the only way in: a token a phone signs in with"},
 	{Name: "--term-public", Takes: "yes|no", Help: "the terminal of live sessions from other devices, behind a passkey"},
 	{Name: "--more", Takes: "yes|no", Help: "tune the rare settings"},
 	{Name: "--probe", Takes: "NAME=HOST:PORT", Help: "a local service the Machine screen probes; again for more", Many: true},

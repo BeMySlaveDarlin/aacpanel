@@ -400,7 +400,7 @@ func blockOf(id string) BlockID {
 		return BlockL
 	case "kit":
 		return BlockK
-	case "tskey", "tsname", "lanaddr", "lancert", "domain", "bind", "passkey", "term":
+	case "tskey", "tsname", "lanaddr", "lancert", "domain", "bind", "passkey", "token", "term":
 		return BlockD
 	case "tune":
 		return BlockT

@@ -134,6 +134,53 @@ func TestCtrlCStopsAfterTheStepAtWork(t *testing.T) {
 	}
 }
 
+// TestASignInGoesToClaudeWithoutAFrame: a command the person agreed to among
+// the answers gets the terminal at once, and what a step leaves the person
+// is said at the end.
+func TestASignInGoesToClaudeWithoutAFrame(t *testing.T) {
+	var back error
+	s := installing(t, &install.Step{ID: "claude", Title: "Claude settings", Apply: func(r *install.Run) error {
+		back = r.Hand(install.Handover{Title: "Sign in", Argv: []string{"claude"}, Direct: true,
+			Says: "claude opens here to sign in to ~/.claude-work · /exit brings you back"})
+		r.Remind("claude is not signed in to ~/.claude-work: CLAUDE_CONFIG_DIR=~/.claude-work claude signs in")
+		return nil
+	}})
+	s.pump(t, func() bool { return s.m.hand != nil })
+	if s.m.stage != running || s.m.handAsk != nil {
+		t.Fatalf("a sign-in was framed and asked about: stage %d", s.m.stage)
+	}
+	s.send(tickMsg{})
+	if !strings.Contains(s.text(), "Sign in → claude opens here to sign in to ~/.claude-work") {
+		t.Errorf("the feed does not say where the terminal went:\n%s", s.text())
+	}
+	s.send(handedMsg{})
+	s.pump(t, func() bool { return s.m.stage == over })
+	if back != nil || s.m.status != 0 {
+		t.Errorf("the hand-over came back with %v, the run ended with %d", back, s.m.status)
+	}
+	if !strings.Contains(s.text(), "⚠ claude is not signed in to ~/.claude-work") {
+		t.Errorf("the end does not say what is left:\n%s", s.text())
+	}
+}
+
+// TestAProgramThatDrawsGetsTheTerminalWhole: without a line reader the
+// command writes straight to the terminal, in the environment it was given.
+func TestAProgramThatDrawsGetsTheTerminalWhole(t *testing.T) {
+	t.Setenv("AACP_PROBE_GONE", "set")
+	var out bytes.Buffer
+	c := &handCmd{h: install.Handover{Argv: []string{"sh", "-c", `printf '%s|%s' "$AACP_PROBE_SET" "${AACP_PROBE_GONE-unset}"`},
+		Env: []string{"AACP_PROBE_SET=given"}, Unset: []string{"AACP_PROBE_GONE"}}}
+	c.SetStdout(&out)
+	c.SetStderr(&out)
+	c.SetStdin(strings.NewReader(""))
+	if err := c.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); !strings.HasSuffix(got, "\ngiven|unset") {
+		t.Errorf("the program wrote %q", got)
+	}
+}
+
 func TestAPlainInstallAsksForYesBeforeTheFirstStep(t *testing.T) {
 	var out bytes.Buffer
 	begun := false
