@@ -105,7 +105,13 @@ case "$1 $2" in
 "ps -a") printf 'aacpanel\taacpanel-aacpanel c974\n' ;;
 "ps -aq") printf 'c974\n' ;;
 "volume ls") printf 'aacpanel_aacpanel-db\tlocal\n' ;;
-"network ls") printf 'bridge\tn1\n' ;;
+"network ls")
+	# The id of the bridge is new every time the daemon starts.
+	case "$*" in
+	*'{{.Driver}}'*) printf 'bridge\tbridge\n' ;;
+	*) printf 'bridge\t%s\n' "$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')" ;;
+	esac
+	;;
 "image ls") printf 'postgres:18-alpine\tsha256:abc\n' ;;
 "inspect --format") printf '/aacpanel\t2026-01-02T03:04:05Z\n' ;;
 *) echo "docker of the test: $*" >&2; exit 1 ;;
@@ -152,6 +158,7 @@ func machine(t *testing.T) (root, clone string) {
 	put(t, root, "/var/lib/systemd/linger/dev", "", 0o644)
 	put(t, root, "/var/lib/aacpanel/host.env", "AACP_REPO=/home/dev/aacpanel\n", 0o644)
 	put(t, root, home+"/.local/state/aacpanel-install/manifest.tsv", "S4\tlinger\tdev\tby-installer\n", 0o600)
+	put(t, root, home+"/.cache/aacpanel/limits-probe/.keep", "", 0o600)
 	put(t, root, clone+"/.env", "AACP_SECRET=0\n", 0o600)
 	put(t, root, "/var/lib/dpkg/status", `Package: tmux
 Status: install ok installed
@@ -211,7 +218,8 @@ func TestTracesListAMachineUnderARoot(t *testing.T) {
 		"clone\t" + clone + "/.env\tfile 600 " + me.Username + " " + sum("AACP_SECRET=0\n"),
 		"docker-container\taacpanel\taacpanel-aacpanel c974",
 		"docker-volume\taacpanel_aacpanel-db\tlocal",
-		"docker-network\tbridge\tn1",
+		"userdata\t/home/dev/.cache/aacpanel/limits-probe/.keep\tfile 600 " + me.Username + " " + sum(""),
+		"docker-network\tbridge\tbridge",
 		"docker-image\tpostgres:18-alpine\tsha256:abc",
 		"pkg\ttmux\t3.4-1",
 		"group\tdocker\tgid 998",

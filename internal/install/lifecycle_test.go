@@ -500,6 +500,8 @@ func (g *rig) installed(linger string) (*Removal, string) {
 		g.t.Fatal(err)
 	}
 	g.write(g.in.execPath(), "binary", 0o755)
+	// The executor's probe of the limits starts claude in a cache of its own.
+	g.write(filepath.Join(g.home, ".cache", "aacpanel", "limits-probe", ".keep"), "", 0o600)
 	g.write(filepath.Join(g.clone, ".env"), "AACP_SECRET=s\n", 0o600)
 	g.write(filepath.Join(g.state, "host.env"), "AACP_HOST=lab\n", 0o644)
 	cache := filepath.Join(g.root, "cache")
@@ -601,7 +603,8 @@ func TestUninstallTakesBackTheManifestInItsOrder(t *testing.T) {
 	if got := g.read(filepath.Join(g.home, ".claude", "settings.json")); got != orig {
 		t.Errorf("the settings came back as\n%s", got)
 	}
-	for _, gone := range []string{g.in.execPath(), g.in.execUnitPath(), filepath.Join(g.home, "bin"), filepath.Join(g.home, ".config"), rm.Cache} {
+	for _, gone := range []string{g.in.execPath(), g.in.execUnitPath(), filepath.Join(g.home, "bin"), filepath.Join(g.home, ".config"), rm.Cache,
+		filepath.Join(g.home, ".cache", "aacpanel")} {
 		if _, err := os.Lstat(gone); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s is still there", gone)
 		}
@@ -615,7 +618,8 @@ func TestUninstallTakesBackTheManifestInItsOrder(t *testing.T) {
 		t.Errorf("the volume went or the pulled image stayed: %q", ran)
 	}
 	left := strings.Join(rm.Left(), "\n")
-	for _, w := range []string{"the volume " + DBVolume + ": docker volume rm " + DBVolume, g.state + ": sudo rm -r " + g.state, "~/aacpanel/.env: rm ~/aacpanel/.env"} {
+	for _, w := range []string{"the volume " + DBVolume + ": docker volume rm " + DBVolume, g.state + ": sudo rm -r " + g.state, "~/aacpanel/.env: rm ~/aacpanel/.env",
+		"docker's build cache, which the build of the image filled: docker builder prune"} {
 		if !strings.Contains(left, w) {
 			t.Errorf("the report of what is left does not say %q:\n%s", w, left)
 		}

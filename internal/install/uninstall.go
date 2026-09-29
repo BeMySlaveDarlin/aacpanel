@@ -220,7 +220,8 @@ func (rm *Removal) Plan() []PlanRow {
 	}
 	add("As root — one sudo", root...)
 	add("Data — stays unless chosen below", rm.kept()...)
-	add("Always", "the installer's cache "+rm.short(rm.Cache)+" (Go, modules, builds)", "its own directory "+rm.short(rm.Facts.InstallDir)+", last")
+	add("Always", "the installer's cache "+rm.short(rm.Cache)+" (Go, modules, builds)",
+		"the executor's cache "+rm.short(rm.execCache()), "its own directory "+rm.short(rm.Facts.InstallDir)+", last")
 	var never []string
 	for _, e := range rm.of(Pkg) {
 		never = append(never, "the apt package "+e.Target)
@@ -285,6 +286,15 @@ func (rm *Removal) filesDir() string {
 		return filepath.Join(d, "aacpanel-exec")
 	}
 	return filepath.Join(rm.home(), ".local", "share", "aacpanel-exec")
+}
+
+// execCache is the executor's cache: the directory its probe of the limits
+// starts claude in.
+func (rm *Removal) execCache() string {
+	if d := rm.M.Env("XDG_CACHE_HOME"); d != "" {
+		return filepath.Join(d, "aacpanel")
+	}
+	return filepath.Join(rm.home(), ".cache", "aacpanel")
 }
 
 // RootArgs are the arguments of the one call of root.sh remove, and whether
@@ -508,6 +518,12 @@ func (rm *Removal) data(r *Run) error {
 		return err
 	}
 	r.Say(Pass, "the installer's cache "+rm.short(rm.Cache)+" removed")
+	if fileThere(rm.execCache()) {
+		if err := os.RemoveAll(rm.execCache()); err != nil {
+			return err
+		}
+		r.Say(Pass, "the executor's cache "+rm.short(rm.execCache())+" removed")
+	}
 	return nil
 }
 
@@ -579,6 +595,11 @@ func (rm *Removal) Left() []string {
 	}
 	for _, e := range rm.of(TSNode) {
 		out = append(out, "the node "+e.Target+" in the tailnet: the admin console, Machines")
+	}
+	// The build of the image fills docker's build cache, a gigabyte or so,
+	// and docker keeps no mark of which build a piece of it came from.
+	if slices.ContainsFunc(rm.of(Image), func(e Entry) bool { return metaHas(e.Meta, "local") }) {
+		out = append(out, "docker's build cache, which the build of the image filled: docker builder prune — the cache of every build of this machine")
 	}
 	return append(out, "never touched: ~/.cache/claude-tmp, trust marks in .claude.json, the clone "+rm.short(rm.Place.Clone))
 }

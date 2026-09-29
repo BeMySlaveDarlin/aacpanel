@@ -17,9 +17,11 @@
 # rate-limits.json and session-models of every claude account (~/.claude and
 # ~/.claude-*), the names of mcpServers in each .claude.json with a sha256 of
 # their entry, linger, the state directory (AACP_STATE_DIR, /var/lib/aacpanel
-# by default), the directories of the executor and of the installer, the
-# .env of this clone, docker containers, volumes, networks and images, the
-# installed apt packages and the docker group.
+# by default), the directories of the executor and of the installer with
+# their caches, the .env of this clone, docker containers, volumes, networks
+# and images, the installed apt packages and the docker group. A network is
+# listed with its driver, not its id: docker makes its bridge anew every
+# time the daemon starts.
 #
 # AACP_TRACES_ROOT puts every path under another root and prints it as it is
 # on the machine; docker, systemctl and getent still answer for this one.
@@ -115,7 +117,7 @@ dockers() {
 	fi
 	"${docker[@]}" ps -a --no-trunc --format '{{.Names}}{{"\t"}}{{.Image}} {{.ID}}' | sed 's/^/docker-container\t/'
 	"${docker[@]}" volume ls --format '{{.Name}}{{"\t"}}{{.Driver}}' | sed 's/^/docker-volume\t/'
-	"${docker[@]}" network ls --no-trunc --format '{{.Name}}{{"\t"}}{{.ID}}' | sed 's/^/docker-network\t/'
+	"${docker[@]}" network ls --format '{{.Name}}{{"\t"}}{{.Driver}}' | sed 's/^/docker-network\t/'
 	"${docker[@]}" image ls --no-trunc --format '{{.Repository}}:{{.Tag}}{{"\t"}}{{.ID}}' | sed 's/^/docker-image\t/'
 }
 
@@ -151,6 +153,7 @@ traces() {
 		tree userdata "$state/aacpanel-stream"
 		tree userdata "$state/aacpanel-install"
 		tree userdata "${XDG_CACHE_HOME:-$HOME/.cache}/aacpanel-install"
+		tree userdata "${XDG_CACHE_HOME:-$HOME/.cache}/aacpanel"
 		tree userdata "${XDG_DATA_HOME:-$HOME/.local/share}/aacpanel-exec"
 		tree userdata "$HOME/.config/aacpanel"
 		tree clone "$clone/.env"
