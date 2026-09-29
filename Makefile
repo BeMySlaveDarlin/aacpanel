@@ -1,7 +1,7 @@
 GOVULNCHECK_VERSION ?= v1.7.0
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract delivery-test shellcheck
+.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract delivery-test shellcheck release
 
 # check — everything that runs before a commit. front is here as a check, not for
 # the bundle: an error in the screen markup is caught by no test. It goes first,
@@ -116,3 +116,9 @@ front:
 
 image:
 	docker compose build aacpanel
+
+# A release is the tag vP.M.m of a clean tree that passed check, with the
+# release written into install.sh. The tag stays here without PUSH=1: once
+# pushed it is public, so the push is asked for and never implied.
+release:
+	@deploy/release.sh '$(VERSION)' '$(PUSH)'
