@@ -1,0 +1,15 @@
+╭─ Root command ───────────────────────────────────────────────────────────────╮
+│ sudo bash deploy/install/root.sh apply --user u \                            │
+│   --staged /srv/state/host.env.staged                                        │
+│                                                                              │
+│ Installs tmux jq with apt, creates /var/lib/aacpanel, installs the collector │
+│ unit and enables linger. Nothing else runs as root.                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+ Do you want to run it?
+
+ ❯ 1. Yes
+   2. Show the script first
+   3. No — print the command for an administrator and stop
+
+ Enter to select · ↑/↓ to navigate · Esc to say no

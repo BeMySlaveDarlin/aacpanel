@@ -1,0 +1,9 @@
+⏺ Build the executor
+  ⎿  go: downloading charm.land/bubbletea/v2 v2.0.10
+     … +2 lines (ctrl+o to expand)
+
+✻ Building the executor… (41s · ctrl+c stops after a safe p…
+  ⎿  ☒ Check the machine
+     ☒ Root part (one sudo)
+     ■ Executor
+     ☐ Panel stack
