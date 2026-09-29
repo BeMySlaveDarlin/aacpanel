@@ -8,11 +8,11 @@ from sesstate.feed import TURN_ENDS
 from . import commands
 from .cards import (BRIEF_TOOL, artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card,
                     wake_item)
-from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted, nudge,
+from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
                       service, strip_panel_note, unwrap_pasted)
 from .mail import peer_name, peer_pid, undelivered
 from .notices import hook_call, system_notice
-from .limits import MAX_TEXT, cut
+from .limits import MAX_NOTE, MAX_TEXT, cut
 from .queue import delivered, withdrawn
 from .tools import edited_path, tool_arg, tool_kind, tool_label
 
@@ -310,12 +310,12 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         if sesstate.is_wakeup(record):
             if pending is not None and pending.shown_as_wake(text):
                 return out
-            shown = pending.shown_at(text) if pending is not None else None
-            if shown is None:
+            drawn = pending.drawn(text) if pending is not None else None
+            if drawn is None:
                 if pending is not None:
                     pending.remember(text, pos, wake=True)
                 return out + [wake_item(text, at, pos)]
-            item = wake_item(text, at, shown)
+            item = wake_item(text, at, drawn["pos"])
             item["fixes"] = "me"
             return out + [item]
 
@@ -333,9 +333,6 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             if stop:
                 out += cutoff(calls, at, pos)
             return out
-        said = nudge(text) if record.get("isMeta") else None
-        if said is not None:
-            return out + [{"role": "note", "text": said, "at": at, "pos": pos}]
         body, trimmed = cut(shown, MAX_TEXT)
         # A slash command that went through the queue comes back as a record
         # of the command, with no mark of the queue on it: it is the prompt the
@@ -353,6 +350,18 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             pending.remember(text, pos)
         if (record.get("origin") or {}).get("kind") == "peer":
             return out
+        # claude wrote this prompt itself — to go on once the limit reset,
+        # after a resume — and a prompt of claude is a line, never a bubble of
+        # the person. The queue draws it as one before the record says whose it
+        # is, and the line then takes that bubble's place.
+        if record.get("isMeta"):
+            said, trimmed = cut(shown, MAX_NOTE)
+            drawn = pending.drawn(text) if pending is not None else None
+            item = {"role": "note", "text": said + "…" if trimmed else said, "at": at,
+                    "pos": drawn["pos"] if drawn else pos}
+            if drawn:
+                item["fixes"] = "me"
+            return out + [item] + cutoff(calls, at, pos)
         out.append({"role": "me", "text": body, "cut": trimmed, "at": at, "pos": pos})
         return out + cutoff(calls, at, pos)
 

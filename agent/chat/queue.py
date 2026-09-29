@@ -5,7 +5,7 @@ class Pending:
     """Prompts typed while the model was answering: the queue and leaving it."""
 
     def __init__(self):
-        # The text of the prompt the queue has just handed over: a slash command
+        # The bubble of the prompt the queue has just handed over: a slash command
         # comes back after it as a record of its own, and that is the same prompt.
         self.last = None
         self.waiting = []
@@ -33,11 +33,6 @@ class Pending:
     def service_remember(self, text):
         self.service_texts.add(text)
 
-    def shown_at(self, text):
-        """Returns the position where this text is already shown, or None."""
-        shown = self.texts.get(text)
-        return shown[0] if shown else None
-
     def shown_as_wake(self, text):
         """Reports whether the text is already shown as an alarm card."""
         shown = self.texts.get(text)
@@ -64,23 +59,35 @@ class Pending:
     def head(self):
         """Returns the item the queue has just handed to the model."""
         item = self.waiting.pop(0) if self.waiting else None
-        self.last = item["text"] if item else None
+        self.last = item
         return item
 
     def by_text(self, text):
         """Returns the waiting item with this text."""
         for i, item in enumerate(self.waiting):
             if item["text"] == text:
-                self.last = item["text"]
+                self.last = item
                 return self.waiting.pop(i)
         return None
 
     def handed(self, text):
         """Reports, once, whether this is the prompt the queue has just handed over."""
-        if self.last is not None and self.last == text:
+        return self.drawn(text, waiting=False) is not None
+
+    def drawn(self, text, waiting=True):
+        """Returns, once, the bubble the queue drew for this prompt, or None.
+
+        The bubble still waits in the queue or was the last to leave it. A text
+        seen anywhere else is not asked: the same words come again — the next
+        tick of a loop, the next reset of the limit — and each time the queue
+        draws them anew.
+        """
+        item = self.by_text(text) if waiting else None
+        if item is None and self.last is not None and self.last["text"] == text:
+            item = self.last
+        if item is not None:
             self.last = None
-            return True
-        return False
+        return item
 
 
 def delivered(item):

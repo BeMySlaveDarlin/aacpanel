@@ -81,7 +81,12 @@ def fold(rows, limit, before, after):
                 continue
             if was["role"] == item["role"] or was["role"] == item.get("fixes"):
                 window[i] = dict(item)
-                window[i].pop("fixes", None)
+                # A row the reader already has comes again under its own
+                # position, and the reader finds its row by the mark: the
+                # queue hands a bubble over and the next record fixes it
+                # within one read.
+                if after is None or item["pos"] > after:
+                    window[i].pop("fixes", None)
                 return True
         return False
 

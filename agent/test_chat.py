@@ -564,6 +564,30 @@ class Queue(unittest.TestCase):
         self.assertEqual(got[0].get("fixes"), "me",
                          "without this the fix has nothing to find: the address is the position and the role")
 
+    def test_a_wakeup_the_session_set_fires_with_no_task_id(self):
+        # claude names a scheduled task on the record it fires with, and a
+        # wakeup of the session only by the origin of the turn.
+        fired = line({"type": "user", "isMeta": True, "promptSource": "system",
+                      "turnOrigin": "scheduled", "timestamp": "2026-08-23T10:20:00Z",
+                      "message": {"content": "Watch tick: check CI"}})
+        got = self.items(fired, chat.Pending())
+        self.assertEqual([(i["role"], i["text"]) for i in got], [("wake", "Watch tick: check CI")])
+
+    def test_each_tick_of_a_loop_fixes_its_own_bubble(self):
+        pending = chat.Pending()
+        self.items(assistant(tool_block("ScheduleWakeup", delaySeconds=300, noop=True,
+                                        prompt="<<autonomous-loop-dynamic>>")), pending)
+        instructions = "Keep the loop going: check the queue and pick up a task"
+        fired = line({"type": "user", "isMeta": True, "promptSource": "system",
+                      "turnOrigin": "scheduled", "timestamp": "2026-08-23T10:20:00Z",
+                      "message": {"content": instructions}})
+        for pos in (140, 900):
+            self.enqueued(instructions, pending, pos=pos)
+            self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
+            got = chat.parse(json.loads(fired), pos + 50, pending)
+            self.assertEqual([(i["role"], i["pos"], i.get("fixes")) for i in got], [("wake", pos, "me")],
+                             "the next tick fixed the first bubble and left its own one standing")
+
     def test_a_recognized_enqueue_gives_no_second_card(self):
         pending = chat.Pending()
         self.items(assistant(tool_block("ScheduleWakeup", delaySeconds=1200,
@@ -2771,8 +2795,8 @@ class Harness(unittest.TestCase):
         self.assertEqual([i["role"] for i in got], ["mail"])
 
 
-class HarnessNudges(unittest.TestCase):
-    """What claude tells a model on its own, under a key in brackets: never a person."""
+class ClaudePrompts(unittest.TestCase):
+    """What claude tells the model on its own: a line of the feed, never a bubble of the person."""
 
     HANDBACK = ("[handback-send-enforce] Your report has not been delivered. "
                 "Call SubagentHandback({message: <your full report>}) now, then stop.")
@@ -2796,14 +2820,128 @@ class HarnessNudges(unittest.TestCase):
                           "message": {"content": self.HANDBACK}}, 0)
         self.assertEqual([i["role"] for i in got], ["me"])
 
-    def test_a_bracket_that_is_not_a_key_is_no_nudge(self):
-        got = chat.parse(self.meta("[Deploy watch] check the queue of the bot"), 0)
-        self.assertNotIn("note", [i["role"] for i in got])
-
     def test_a_long_nudge_is_cut_honestly(self):
         got = chat.parse(self.meta("[handback-send-enforce] " + "x" * 5000), 0)
         self.assertTrue(got[0]["text"].endswith("…"))
         self.assertLess(len(got[0]["text"]), 1100)
+
+    RESET = ("Your claude.ai usage limit has reset. Continue the task you were working on "
+             "when the limit was reached; do not repeat work that is already complete.")
+
+    def going_on(self, text, pos, pending):
+        return chat.parse(self.meta(text, promptSource="system", origin={"kind": "auto-continuation"}),
+                          pos, pending)
+
+    def queue(self, operation, pos, pending, **fields):
+        return chat.parse({"type": "queue-operation", "operation": operation,
+                           "timestamp": "2026-09-29T14:40:58.507Z", **fields}, pos, pending)
+
+    def test_the_go_on_after_a_resume_is_a_line(self):
+        got = chat.parse(self.meta("Continue from where you left off."), 7, chat.Pending())
+        self.assertEqual([(i["role"], i["pos"], i.get("fixes")) for i in got], [("note", 7, None)])
+
+    def test_the_line_takes_the_place_of_the_bubble_the_queue_drew(self):
+        pending = chat.Pending()
+        drawn = self.queue("enqueue", 10, pending, content=self.RESET)
+        self.assertEqual([i["role"] for i in drawn], ["me"],
+                         "the enqueue says nothing of whose the words are")
+        self.queue("dequeue", 11, pending)
+        got = self.going_on(self.RESET, 12, pending)
+        self.assertEqual([(i["role"], i["pos"], i.get("fixes")) for i in got], [("note", 10, "me")],
+                         "the queue's bubble stays and the prompt of claude is shown a second time")
+
+    def test_a_line_that_comes_before_the_handover_takes_the_bubble_too(self):
+        pending = chat.Pending()
+        self.queue("enqueue", 10, pending, content=self.RESET)
+        got = self.going_on(self.RESET, 12, pending)
+        self.assertEqual([(i["role"], i["pos"], i.get("fixes")) for i in got], [("note", 10, "me")])
+
+    def test_each_reset_fixes_its_own_bubble(self):
+        pending = chat.Pending()
+        for pos in (10, 200):
+            self.queue("enqueue", pos, pending, content=self.RESET)
+            self.queue("dequeue", pos + 1, pending)
+            got = self.going_on(self.RESET, pos + 2, pending)
+            self.assertEqual([(i["pos"], i.get("fixes")) for i in got], [(pos, "me")],
+                             "the second reset fixed the first bubble and left its own one standing")
+
+    def test_the_same_words_the_person_typed_stay_theirs(self):
+        pending = chat.Pending()
+        said = "Continue from where you left off."
+        typed = chat.parse({"type": "user", "timestamp": "2026-09-29T14:00:00Z",
+                            "message": {"content": said}}, 5, pending)
+        self.assertEqual([i["role"] for i in typed], ["me"])
+        got = chat.parse(self.meta(said), 50, pending)
+        self.assertEqual([(i["role"], i["pos"], i.get("fixes")) for i in got], [("note", 50, None)],
+                         "the line of claude took the place of a message the person wrote")
+
+    def test_the_line_ends_the_turn_before_it(self):
+        calls = {"toolu_1": {"name": "Bash"}}
+        got = chat.parse(self.meta(self.RESET, promptSource="system"), 12, chat.Pending(), calls=calls)
+        self.assertEqual([(i["role"], i.get("use")) for i in got], [("note", None), ("cutoff", "toolu_1")],
+                         "a call the limit cut off would be shown running on")
+
+
+class LimitReset(unittest.TestCase):
+    """claude goes on by itself once the usage limit resets: its own line says so, the person said nothing."""
+
+    RESET = ClaudePrompts.RESET
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+        self.path = os.path.join(self.dir.name, f"{UUID}.jsonl")
+        # The records as claude 2.1.284 wrote them, in their order.
+        self.enqueue = line({"type": "queue-operation", "operation": "enqueue",
+                             "timestamp": "2026-09-29T14:40:58.507Z", "content": self.RESET})
+        self.dequeue = line({"type": "queue-operation", "operation": "dequeue",
+                             "timestamp": "2026-09-29T14:40:58.529Z"})
+        self.notice = line({"type": "system", "subtype": "informational", "level": "notice",
+                            "content": "Usage limit reset · continuing automatically",
+                            "isMeta": False, "timestamp": "2026-09-29T14:40:58.507Z"})
+        self.meta = line({"type": "user", "isMeta": True, "promptSource": "system",
+                          "origin": {"kind": "auto-continuation"}, "turnOrigin": "auto_continuation",
+                          "queuePriority": "later", "timestamp": "2026-09-29T14:40:58.549Z",
+                          "message": {"role": "user", "content": self.RESET}})
+        self.answer = assistant(text_block("The limit reset, going on with the review."))
+
+    def write(self, *raws):
+        with open(self.path, "w", encoding="utf-8") as f:
+            f.write("".join(raws))
+
+    def shown(self, items):
+        return [(i["role"], i.get("text")) for i in items if i["role"] in ("me", "note", "notice")]
+
+    def test_the_feed_holds_no_bubble_of_the_person(self):
+        self.write(self.enqueue, self.dequeue, self.notice, self.meta, self.answer)
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual(self.shown(items), [("note", self.RESET),
+                                             ("notice", "Usage limit reset · continuing automatically")])
+        self.assertFalse([i for i in items if "fixes" in i],
+                         "the window holds the bubble it fixed, and a client would look for it anyway")
+
+    def test_a_client_that_has_the_queued_bubble_gets_the_line_in_its_place(self):
+        self.write(self.enqueue)
+        first = chat.feed(self.path, limit=40)
+        self.assertEqual([(i["role"], i.get("state")) for i in first["items"]], [("me", "queued")])
+
+        self.write(self.enqueue, self.dequeue, self.notice, self.meta, self.answer)
+        more = chat.feed(self.path, limit=40, after=first["last"])["items"]
+        self.assertNotIn("me", [i["role"] for i in more],
+                         "the handover draws the bubble again on the client")
+        lines = [i for i in more if i["role"] == "note"]
+        self.assertEqual([(i["pos"], i.get("fixes")) for i in lines],
+                         [(first["items"][0]["pos"], "me")],
+                         "the handover and the line came in one poll, and the line lost the mark "
+                         "the client finds its bubble by: both stay on screen")
+
+    def test_a_client_that_has_the_handed_bubble_gets_the_line_in_its_place(self):
+        self.write(self.enqueue, self.dequeue)
+        first = chat.feed(self.path, limit=40)
+        self.write(self.enqueue, self.dequeue, self.notice, self.meta, self.answer)
+        more = chat.feed(self.path, limit=40, after=first["last"])["items"]
+        lines = [i for i in more if i["role"] == "note"]
+        self.assertEqual([(i["pos"], i.get("fixes")) for i in lines], [(first["items"][0]["pos"], "me")])
 
 
 class CoordinatorLetters(unittest.TestCase):

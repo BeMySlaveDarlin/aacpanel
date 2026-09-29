@@ -170,22 +170,6 @@ def interrupted(text):
 AGENT_STOPPED = "the agent was stopped"
 
 
-# A nudge claude gives the model on its own — hand the report back, answer in
-# the shape asked for — begins with a key of the harness in brackets. The words
-# after the key change from version to version; the shape of the key does not,
-# and a person's bracket reads otherwise. Only a record claude marked as its own
-# is asked, so a person typing such a key still wrote a message.
-NUDGE_RE = re.compile(r"\A\[[a-z]+(?:-[a-z]+)+\]")
-
-
-def nudge(text):
-    """Returns the note for a nudge of the harness, or None when the text is not one."""
-    if not NUDGE_RE.match(text):
-        return None
-    body, trimmed = cut(text, MAX_NOTE)
-    return body + "…" if trimmed else body
-
-
 # What the session that started a subagent sends it reaches the subagent as a
 # prompt, and the record, not the words, says who it came from. Between turns
 # the words come framed: a line naming the sender before them and a request to

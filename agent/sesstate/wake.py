@@ -7,9 +7,13 @@ WAKE_ID = "wakeup"
 
 
 def is_wakeup(record):
-    """Reports whether the record is the one an alarm fired with."""
+    """Reports whether the record is the one an alarm fired with.
+
+    A scheduled task names itself on the record; a wakeup the session set
+    for itself leaves only the origin of the turn.
+    """
     return (isinstance(record, dict) and record.get("type") == "user"
-            and bool(record.get("scheduledTaskId")))
+            and (bool(record.get("scheduledTaskId")) or record.get("turnOrigin") == "scheduled"))
 
 
 def _wake(state, started, result, at):

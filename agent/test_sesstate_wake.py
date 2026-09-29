@@ -28,6 +28,14 @@ class Wakeups(Transcript):
         got = self.state(wakeup("toolu_1") + fired())
         self.assertEqual(got["tasks"], [])
 
+    def test_firing_with_no_task_id_removes_the_wakeup(self):
+        # A wakeup of the session fires with the origin of the turn and no task.
+        firing = line({"type": "user", "timestamp": "2026-08-25T10:20:00Z", "isMeta": True,
+                       "promptSource": "system", "turnOrigin": "scheduled",
+                       "message": {"content": "Watch tick"}})
+        got = self.state(wakeup("toolu_1") + firing)
+        self.assertEqual(got["tasks"], [])
+
     def test_stop_removes_the_wakeup(self):
         got = self.state(wakeup("toolu_1")
                          + call("ScheduleWakeup", "toolu_2", stop=True)

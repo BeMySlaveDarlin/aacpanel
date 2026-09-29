@@ -14,6 +14,7 @@ func TestMergeReplacesBubbleWithWakeCard(t *testing.T) {
 	shots := map[string]any{"role": "shots", "pos": 140}
 	card := map[string]any{"role": "wake", "text": "Continue the loop", "pos": 140, "fixes": "me"}
 	plain := map[string]any{"role": "wake", "text": "Continue the loop", "pos": 140}
+	line := map[string]any{"role": "note", "text": "Continue the loop", "pos": 140, "fixes": "me"}
 
 	cases := []struct {
 		name  string
@@ -27,6 +28,8 @@ func TestMergeReplacesBubbleWithWakeCard(t *testing.T) {
 			[]map[string]any{shots, bubble}, []map[string]any{card}, []string{"shots", "wake"}},
 		{"replacing does not breed a third row on a repeat",
 			[]map[string]any{bubble}, []map[string]any{card, card}, []string{"wake"}},
+		{"a line of claude replaces the bubble the queue drew",
+			[]map[string]any{bubble}, []map[string]any{line}, []string{"note"}},
 	}
 	for _, c := range cases {
 		got := runFeedJS(t, c.items, c.incom)
