@@ -85,6 +85,10 @@ func Path() string { return path() }
 // ParseFile parses a machine description by the same rules as systemd.
 func ParseFile(filePath string) map[string]string { return parseEnvFile(filePath) }
 
+// Parse is ParseFile for what is already read: a description, or the .env
+// of a clone, which is written the same way.
+func Parse(raw []byte) map[string]string { return parseEnv(raw) }
+
 func path() string {
 	if p := os.Getenv(PathEnv); p != "" {
 		return p

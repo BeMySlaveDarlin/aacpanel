@@ -1,0 +1,7 @@
+stop: systemd is not the init of this machine (PID 1 is docker-init): the collector and the executor are systemd units.
+stop: docker is needed: the panel, its database and the socket proxy run as containers. sudo apt install docker.io docker-compose-v2, then run again.
+stop: claude is needed: the panel starts and watches claude sessions. curl -fsSL https://claude.ai/install.sh | bash, then run again.
+stop: tmux is needed: sessions live in it, and without it the executor turns off every action on sessions. sudo apt install tmux, then run again.
+stop: jq is needed: the status line script reads the limits with it. sudo apt install jq, then run again.
+stop: python3 3.9 or newer is needed by the collector (found none).
+stop: one step needs root (the state directory, the collector unit, linger) and sudo is not installed here. Ask an administrator to run: sudo bash /home/ubuntu/aacpanel/deploy/install/root.sh apply --user ubuntu --staged /home/ubuntu/.local/state/aacpanel-install/host.env.staged, then run ./install.sh again.

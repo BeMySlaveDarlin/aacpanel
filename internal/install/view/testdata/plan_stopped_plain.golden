@@ -1,0 +1,31 @@
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ ✻ aacpanel installer                                                         │
+│                                                                              │
+│   clone    ~/aacpanel  (3f1c2ab)                                             │
+│   user     u (uid 1000)                                                      │
+│   mode     fresh install — no trace of the panel here                        │
+│   plan     looks only, changes nothing                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+⏺ Check the machine
+  ⎿  ✓ Ubuntu 24.04.3 LTS · x86_64 · systemd 255
+     ✓ docker 27.5.1 · compose 2.33.1 · system daemon
+     ✓ claude 2.1.283 · ~/.local/bin/claude
+     ✗ stop: tmux is needed: sessions live in it, and without it the executor
+       turns off every action on sessions. sudo apt install tmux, then run
+       again.
+     ✗ stop: jq is needed: the status line script reads the limits with it. sudo
+       apt install jq, then run again.
+     ✓ ports 8776, 8777, 8443 are free
+     ✓ python3 3.12.3 for the collector
+     ✓ sudo asks for a password: the root step runs one sudo
+     ✓ the clone ~/aacpanel belongs to u and is not on tmpfs
+     ✓ no container is named aacpanel, aacpanel-db, aacpanel-socket-proxy,
+       aacpanel-tailscale
+     ✓ 212.0 GB free under /var/lib/docker · 16.7 GB of memory
+     ⚠ warn: registry-1.docker.io does not answer; pulling the images may fail.
+     ✓ proxy.golang.org answers
+     ✓ no trace of the panel: a fresh install
+
+ Nothing on this machine was changed. 2 lines above stop the install: fix them
+ and run ./install.sh plan again.
