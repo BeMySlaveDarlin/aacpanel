@@ -484,10 +484,17 @@ func (s *Survey) SignedIn(dir string) (bool, string) {
 	return false, "not signed in"
 }
 
+// signInLaterEnv lists, in host.env, the accounts whose sign-in the install
+// left for later. Only the installer reads it: a run that keeps the settings
+// keeps that answer rather than hand the terminal to claude again.
+const signInLaterEnv = "AACP_SIGN_IN_LATER"
+
 // signIn asks, for every chosen account claude is not signed in to, whether
 // to sign in now. The sign-in itself hands the terminal to claude.
 func (s *Survey) signIn() []Question {
 	var qs []Question
+	later, _ := s.before(HostEnvFile, signInLaterEnv)
+	left := split(s.expandAll(strings.ReplaceAll(later, ":", ",")))
 	for _, dir := range split(s.valueOr("accounts", "")) {
 		if in, _ := s.SignedIn(dir); in {
 			continue
@@ -505,6 +512,9 @@ func (s *Survey) signIn() []Question {
 		q.Default = "later"
 		if s.m.Terminal() {
 			q.Default = "now"
+		}
+		if slices.Contains(left, dir) {
+			s.preferValue(&q, "later", "")
 		}
 		qs = append(qs, q)
 	}

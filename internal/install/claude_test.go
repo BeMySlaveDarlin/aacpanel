@@ -409,6 +409,39 @@ func TestSignInLaterNamesTheCommandThatSignsIn(t *testing.T) {
 	}
 }
 
+// TestAKeptRunKeepsASignInLeftForLater: the answer Later goes into host.env
+// with the other answers, and a run at a terminal that keeps the settings
+// takes it rather than the suggested Yes, which would hand the terminal to
+// claude again. An account nothing was answered for keeps the suggested Yes.
+func TestAKeptRunKeepsASignInLeftForLater(t *testing.T) {
+	m := desktop()
+	m.Tty = true
+	delete(m.Files, home+"/.claude/.credentials.json")
+	m.Files[home+"/.claude-work/settings.json"] = "{}"
+	first := survey(m, &Run{Yes: true, Answers: map[string]string{
+		"--account": home + "/.claude," + home + "/.claude-work",
+		"--claude-login " + home + "/.claude-work": "later",
+	}})
+	answerAll(t, first)
+	var hostEnv strings.Builder
+	for _, v := range first.HostEnv() {
+		hostEnv.WriteString(v.Key + "=" + v.Value + "\n")
+	}
+	if !strings.Contains(hostEnv.String(), "\nAACP_SIGN_IN_LATER="+home+"/.claude-work\n") {
+		t.Fatalf("host.env of the answers:\n%s", hostEnv.String())
+	}
+
+	m.Files[DefaultStateDir+"/host.env"] = hostEnv.String()
+	again := survey(m, &Run{})
+	again.Keep(Given{Value: "yes", Source: "you"})
+	answerAll(t, again)
+	for dir, want := range map[string]string{home + "/.claude-work": "later", home + "/.claude": "now"} {
+		if g, _ := again.Value("login:" + dir); g.Value != want {
+			t.Errorf("kept, the sign-in to %s is %+v, want %s", dir, g, want)
+		}
+	}
+}
+
 // TestAnAccountTheWrapperSignsInIsSignedIn: an account of the wrapper's
 // registry with a token file has no .credentials.json and is signed in all
 // the same; one whose token file is gone is not.

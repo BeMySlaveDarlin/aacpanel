@@ -708,7 +708,9 @@ is a display; the locale always.
   S13 makes.
 - *Sign in to `<account>` now?* — for an account without a sign-in: now, at a
   terminal. `CLAUDE_CONFIG_DIR=<account> claude`, `/exit` when done; for
-  `~/.claude` plain `claude`.
+  `~/.claude` plain `claude`. The accounts left for later go into
+  `AACP_SIGN_IN_LATER`, joined by `:`, so that a run keeping the settings does
+  not open claude for them again.
 
 **Prerequisites** — asked only for what the check found missing, yes each:
 *docker is not installed. Install it with apt as part of the root step?*,

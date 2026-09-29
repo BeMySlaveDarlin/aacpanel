@@ -68,6 +68,21 @@ func (s *Survey) HostEnv() []Var {
 	if accounts := split(s.valueOr("accounts", "")); len(accounts) > 0 {
 		out = append(out, Var{Key: contours.HomeEnv, Value: strings.Join(accounts, ":")})
 	}
+	// The sign-ins left for later, once the run asked about any: an empty
+	// list says every account asked about was to be signed in now.
+	var later []string
+	asked := false
+	for _, dir := range split(s.valueOr("accounts", "")) {
+		if g, ok := s.Value("login:" + dir); ok {
+			asked = true
+			if g.Value == "later" {
+				later = append(later, dir)
+			}
+		}
+	}
+	if asked {
+		out = append(out, Var{Key: signInLaterEnv, Value: strings.Join(later, ":")})
+	}
 	if g, ok := s.tuned("probes"); ok {
 		out = append(out, Var{Key: "AACP_PROBE_PORTS", Value: g.Value})
 	}
