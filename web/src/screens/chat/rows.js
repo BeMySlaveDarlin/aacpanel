@@ -1,6 +1,6 @@
 // Feed entries: what a row of the conversation looks like.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
@@ -9,10 +9,9 @@ import { Icon } from "../../ui/icons.js";
 import { dedent, leadOf, render } from "../../md.js";
 import { plural, stopwatch } from "../../format.js";
 import { resend } from "./again.js";
-import { idParam } from "./api.js";
 import { CommandCard } from "./command.js";
 import { FileAtts, SentCard } from "./files.js";
-import { Photo, shotName } from "./photo.js";
+import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, stampText, tokenWord } from "./labels.js";
 
@@ -21,17 +20,7 @@ import { shortTokens, stampText, tokenWord } from "./labels.js";
 // beside the feed (see timeline.js).
 export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, copies, onPage, onTask }) {
     if (item.role === "shots") {
-        const shots = item.shots || [];
-        if (!shots.length) return null;
-        return html`
-            <div class="mshots">
-                ${shots.map((shot) => {
-                    const src = `/api/chat/image?session=${encodeURIComponent(session)}${idParam(id)}&pos=${item.pos}&i=${shot.index}`;
-                    return html`<${Shot} key=${shot.index} src=${src}
-                                         name=${shotName(shot, item.pos)} />`;
-                })}
-            </div>
-        `;
+        return html`<${Shots} shots=${item.shots} session=${session} id=${id} pos=${item.pos} />`;
     }
 
     if (item.role === "note") {
@@ -104,16 +93,31 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, co
     // changes from the state to the time.
     const wait = onTheWay(item.state);
     const again = failed ? resend(item.from, item.error) : null;
+    // The pictures the panel sent with a message stand over it, drawn the way
+    // pasted ones are, and the lines of their paths leave its words.
+    const sent = mine ? (item.shots || []) : [];
+    const said = sent.length ? withoutShotPaths(item.text, sent) : item.text;
     return html`
-        <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}>
-            ${render(item.text, { breaks: mine })}
-            ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} />`}
-            ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
-            ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}
-            ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} />`}
-        </div>
+        ${sent.length > 0 && html`<${Shots} shots=${sent} session=${session} id=${id} pos=${item.pos} />`}
+        ${(said || !sent.length || failed) && html`
+            <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}>
+                ${render(said, { breaks: mine })}
+                ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} />`}
+                ${item.cut && html`<p class="hint warn">The message is longer than shown — cut.</p>`}
+                ${failed && html`<p class="mwait crit">did not go out: ${item.error}</p>`}
+                ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} />`}
+            </div>
+        `}
         ${mine && (wait || item.at) && html`<div class="mstamp">${wait || stampText(item.at)}</div>`}
     `;
+}
+
+// withoutShotPaths returns the words of a message without the lines naming the
+// pictures drawn over it: the host puts the path of every file it saved on a
+// line of its own.
+function withoutShotPaths(text, shots) {
+    const drawn = new Set(shots.map((shot) => shot.path));
+    return String(text || "").split("\n").filter((line) => !drawn.has(line.trim())).join("\n").trim();
 }
 
 // SendAgain stands under a message a session refused because a screen of its
@@ -171,55 +175,6 @@ function onTheWay(state) {
     if (state === "held") return "will go out when the session is free";
     if (state === "withdrawn") return "taken back — the session did not read it";
     return null;
-}
-
-function Shot({ src, name }) {
-    const box = useRef(null);
-    const [url, setUrl] = useState("");
-    const [error, setError] = useState("");
-    const [want, setWant] = useState(typeof IntersectionObserver === "undefined");
-    const [open, setOpen] = useState(false);
-
-    useEffect(() => {
-        if (want || !box.current) return undefined;
-        const eye = new IntersectionObserver((entries) => {
-            if (entries.some((e) => e.isIntersecting)) setWant(true);
-        }, { rootMargin: "300px" });
-        eye.observe(box.current);
-        return () => eye.disconnect();
-    }, [want]);
-
-    useEffect(() => {
-        if (!want) return undefined;
-        let alive = true;
-        let object = "";
-        (async () => {
-            try {
-                const r = await fetch(src);
-                if (!r.ok) throw new Error((await r.text()).trim() || `response ${r.status}`);
-                const blob = await r.blob();
-                if (!alive) return;
-                object = URL.createObjectURL(blob);
-                setUrl(object);
-            } catch (e) {
-                if (alive) setError(String(e.message || e));
-            }
-        })();
-        return () => {
-            alive = false;
-            if (object) URL.revokeObjectURL(object);
-        };
-    }, [src, want]);
-
-    return html`
-        <button class="mshot" ref=${box} type="button" onClick=${() => setOpen(true)}
-                aria-label=${`open attachment ${name}`}>
-            ${url && html`<img src=${url} decoding="async" alt="attachment in the message" />`}
-            ${error && html`<span class="mshotbad">✕</span>`}
-        </button>
-        ${open && html`<${Photo} url=${url} name=${name} error=${error}
-                                 onClose=${() => setOpen(false)} />`}
-    `;
 }
 
 // What a letter is: a session next door, a subagent of this one, a hook of the

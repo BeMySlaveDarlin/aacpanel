@@ -30,4 +30,6 @@ from .spots import blocks_of, call, image, tool_result  # noqa: E402,F401
 from .tail import (FIRST_SPAN, KEEP_SPANS, MAX_PIECES, OVERLAP, PIECES,  # noqa: E402,F401
                    SPAN_STEP, STAMP, Cache, Piece, Stream, View)
 from .tools import ARG_KEYS, TOOL_KINDS, one_line, tool_arg, tool_kind, tool_label  # noqa: E402,F401
+from .uploads import (UPLOAD_MEDIA, attach_uploads, files_dir, picture,  # noqa: E402,F401
+                      upload, uploads_in)
 from .window import feed  # noqa: E402,F401

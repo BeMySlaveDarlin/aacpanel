@@ -14,8 +14,12 @@ def blocks_of(record):
     return prompt if isinstance(prompt, list) else []
 
 
-def image(path, pos, index):
-    """Returns one image from the transcript as its media type and base64 bytes."""
+def image(path, pos, index, part=None):
+    """Returns one image from the transcript as its media type and base64 bytes.
+
+    Without a part the image is a block of the record; with one it is a
+    picture a call returned, at that place in the result standing at index.
+    """
     with open(path, "rb") as f:
         f.seek(pos)
         raw = f.readline()
@@ -27,6 +31,13 @@ def image(path, pos, index):
     if not (0 <= index < len(content)):
         return None
     block = content[index]
+    if part is not None:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            return None
+        body = block.get("content")
+        if not isinstance(body, list) or not (0 <= part < len(body)):
+            return None
+        block = body[part]
     if not isinstance(block, dict) or block.get("type") != "image":
         return None
     src = block.get("source") or {}

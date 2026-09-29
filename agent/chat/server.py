@@ -19,6 +19,7 @@ from .locate import subagent_path, transcript_cwd, transcript_path
 from .mail import agent_mail
 from .repo import answer as repo_answer
 from .spots import call, image
+from .uploads import upload
 from .window import feed
 
 import chat
@@ -174,12 +175,25 @@ def _answer(request):
                     "error": "there is no transcript with this identifier on disk: "
                              "the conversation has either not started yet, or was deleted"}
 
+    # A picture the panel sent is asked for by its name in the executor's
+    # directory, and only a picture directly in it comes back; any other is
+    # asked for by where it lies in the transcript.
     want = request.get("image")
     if isinstance(want, dict):
+        sent = want.get("upload")
         try:
-            found = image(path, int(want.get("pos", -1)), int(want.get("index", -1)))
+            if sent is not None:
+                found = upload(sent)
+            else:
+                part = want.get("part")
+                found = image(path, int(want.get("pos", -1)), int(want.get("index", -1)),
+                              None if part is None else int(part))
         except (OSError, ValueError, TypeError) as e:
             return {"ok": False, "error": f"the attachment was not read: {e}"}
+        if not found and sent is not None:
+            return {"ok": False,
+                    "error": "there is no picture under this name among the files the panel sent: "
+                             "it was either swept, or is not a picture, or is over 4 MB"}
         if not found:
             return {"ok": False, "error": "there is no attachment at this position"}
         return {"ok": True, "session": session, **found}

@@ -76,6 +76,31 @@
 .crgo { display: flex; width: 14px; height: 14px; color: var(--ink-faint); }
 .crgo svg { width: 100%; height: 100%; }
 
+/* A call that returned a picture shows it on its row; the row opens the call,
+   and the picture opens full screen from there. */
+.callnode.pic { grid-template-columns: auto 1fr auto auto; }
+.cnshot {
+    display: block;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--r-small);
+    overflow: hidden;
+    border: var(--hair) solid var(--line);
+    background: rgba(150, 170, 255, .05);
+}
+.cnshot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+}
+.callbody .mshots {
+    justify-content: flex-start;
+    max-width: none;
+    margin-bottom: .5rem;
+}
+
 .callbody {
     overflow-y: auto;
     padding-bottom: 1.5rem;

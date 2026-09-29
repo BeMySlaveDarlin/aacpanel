@@ -821,6 +821,20 @@ off the text beside it. The terminal's grid
 is left out: a markdown copy of it follows in the next record. The answer of a
 command the collector does not know stays a line of text.
 
+**A picture sent from the panel is found on disk, by the collector.** The
+executor saves a file it is sent in a directory of its own and types the path
+into the message, a line for each file; the transcript keeps the path and
+nothing else. The collector is the one process that reads both the transcript
+and the owner's home — the service reads nothing of the host, the executor no
+transcript — so it hangs on a message the pictures its lines name, and serves
+one by its name: a file directly in that directory, still there, of a type
+every browser draws, and small enough for one answer of the socket. A path
+typed to a picture anywhere else stays words. The directory is found by the
+executor's own variables, and the collector, a system unit, does not see what
+is set for the user's manager alone: `AACP_FILES` goes into the host
+description, which both units read. A picture a call returned is in the
+transcript already, inside the result: the feed carries its place on the call.
+
 **`/mcp` is a screen of the panel, asked of the session.** On the stream the
 panel asks claude for its MCP servers each time the screen opens, and changes
 one of them — reconnect, enable, disable — with claude's own requests.

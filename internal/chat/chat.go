@@ -164,6 +164,9 @@ type ToolCall struct {
 	// as an error. Each is absent rather than false when it does not hold.
 	Open   bool `json:"open,omitempty"`
 	Failed bool `json:"failed,omitempty"`
+	// Shots are the pictures the call returned: a file it read, a page it
+	// took a shot of.
+	Shots []Shot `json:"shots,omitempty"`
 }
 
 // ThinkSpot is one thinking block inside a run: where it stood and how long it took.
@@ -175,11 +178,20 @@ type ThinkSpot struct {
 	Index  int    `json:"index"`
 }
 
-// Shot is one attachment of a reply.
+// Shot is one picture of the feed: a block of a prompt, a picture a call
+// returned or a file the panel sent that a message names.
 type Shot struct {
 	Index int    `json:"index"`
 	Media string `json:"media,omitempty"`
 	Bytes int    `json:"bytes,omitempty"`
+	// Pos and Part place a picture a call returned: the record of the result,
+	// and the place of the picture in the result standing at Index.
+	Pos  int64 `json:"pos,omitempty"`
+	Part *int  `json:"part,omitempty"`
+	// Upload is the name of a file the panel sent, in the directory the
+	// executor keeps them in; Path is the line of the message naming it.
+	Upload string `json:"upload,omitempty"`
+	Path   string `json:"path,omitempty"`
 }
 
 // Work is the state of a session: what it runs and what it waits for.
@@ -451,10 +463,13 @@ type ArchiveReq struct {
 	Under string `json:"under,omitempty"`
 }
 
-// ImageRef says where to find an attachment.
+// ImageRef says where to find an attachment: a block of a record, a picture
+// at Part in the result of a call, or a file the panel sent, by its name.
 type ImageRef struct {
-	Pos   int64 `json:"pos"`
-	Index int   `json:"index"`
+	Pos    int64  `json:"pos"`
+	Index  int    `json:"index"`
+	Part   *int   `json:"part,omitempty"`
+	Upload string `json:"upload,omitempty"`
 }
 
 // ErrUnavailable means the agent does not answer.
@@ -591,9 +606,8 @@ func (c *Client) CallOf(ctx context.Context, t Target, pos int64, index int) (Ca
 }
 
 // Image fetches one attachment.
-func (c *Client) Image(ctx context.Context, t Target, pos int64, index int) (string, []byte, error) {
-	reply, err := c.Feed(ctx, Req{Session: t.Session, Subagent: t.Subagent,
-		Image: &ImageRef{Pos: pos, Index: index}})
+func (c *Client) Image(ctx context.Context, t Target, ref ImageRef) (string, []byte, error) {
+	reply, err := c.Feed(ctx, Req{Session: t.Session, Subagent: t.Subagent, Image: &ref})
 	if err != nil {
 		return "", nil, err
 	}

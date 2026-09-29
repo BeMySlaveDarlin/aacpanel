@@ -7,6 +7,7 @@ import { BackHead, useBackClose } from "../../ui/back.js";
 import { FileCard, fileOfCall } from "./files.js";
 import { Icon } from "../../ui/icons.js";
 import { idParam } from "./api.js";
+import { Shots, shotSrc, Thumb } from "./shots.js";
 import { countCalls, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
 
 // Calls renders the page listing the calls of one badge. Opened from the end
@@ -53,8 +54,8 @@ export function Calls({ session, id, calls, turn, onFile }) {
                     </span>
                 </div>
             ` : html`
-                <button class="callnode" type="button" key=${`${call.pos}-${call.index}`}
-                        onClick=${() => setPick(n)}>
+                <button class=${`callnode${call.shots && call.shots.length ? " pic" : ""}`} type="button"
+                        key=${`${call.pos}-${call.index}`} onClick=${() => setPick(n)}>
                     <span class=${`cnmark k-${call.kind || "other"}`}>${kindIcon(call.kind)}</span>
                     <span class="cnbody">
                         <span class="cnname">${call.name}</span>
@@ -65,6 +66,9 @@ export function Calls({ session, id, calls, turn, onFile }) {
                             </span>
                         `}
                     </span>
+                    ${call.shots && call.shots.length > 0 && html`
+                        <${Thumb} src=${shotSrc(session, id, call.pos, call.shots[0])} />
+                    `}
                     <span class="crgo">${Icon.chevron()}</span>
                 </button>
             `))}
@@ -133,6 +137,7 @@ function CallView({ session, id, call, place, onBack, onFile }) {
                 ${state.argsCut && html`<p class="hint warn">The arguments are longer than shown — cut.</p>`}
 
                 <h3 class="callcap">${state.failed ? "returned an error" : "what came out"}</h3>
+                <${Shots} shots=${call.shots} session=${session} id=${id} pos=${call.pos} />
                 ${state.pending
                     ? html`<p class="hint warn">There is no answer: the call never finished — the session was
                         interrupted or the window was closed before it came back.</p>`

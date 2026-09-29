@@ -4,6 +4,7 @@ from .disk import attach_files
 from .limits import DEFAULT_LIMIT, MAX_LIMIT
 from .locate import transcript_cwd
 from .records import MARKS
+from .uploads import attach_uploads
 from . import tail
 
 
@@ -121,6 +122,8 @@ def fold(rows, limit, before, after):
         call.pop("open", None)
         if mark.get("failed"):
             call["failed"] = True
+        if mark.get("shots"):
+            call["shots"] = [dict(shot) for shot in mark["shots"]]
         if mark.get("undelivered"):
             call["undelivered"] = mark["undelivered"]
         touch(group, rows_of)
@@ -272,6 +275,7 @@ def fold(rows, limit, before, after):
     if after is not None and not crossed:
         known, window, total = window, [], 0
     attach_files(window, cwd)
+    attach_uploads(window)
     mark_outside(window, cwd)
     if after is not None:
         again = [was for was in known if any(was is group for group in touched)]

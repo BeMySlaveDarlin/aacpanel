@@ -94,11 +94,34 @@ CUTOFF = "cutoff"
 MARKS = (RESULT, CUTOFF)
 
 
-def result_mark(use, block, at, pos):
-    """Returns the mark of a call whose result has come."""
+def shot_of(block, index):
+    """Returns a picture of a record by its place, without its bytes, or None."""
+    if not isinstance(block, dict) or block.get("type") != "image":
+        return None
+    src = block.get("source") or {}
+    return {"index": index,
+            "media": src.get("media_type") or "image/jpeg",
+            "bytes": len(src.get("data") or "") * 3 // 4}
+
+
+def result_mark(use, block, at, pos, index):
+    """Returns the mark of a call whose result has come.
+
+    A picture the call returned — a file it read, a page it took a shot of —
+    rides on the mark to the call: the result is the record at pos, the
+    picture is at part in the result that stands at index.
+    """
     mark = {"role": RESULT, "use": use, "at": at, "pos": pos}
     if block.get("is_error"):
         mark["failed"] = True
+    body = block.get("content")
+    shots = []
+    for part, piece in enumerate(body if isinstance(body, list) else []):
+        shot = shot_of(piece, index)
+        if shot:
+            shots.append(dict(shot, pos=pos, part=part))
+    if shots:
+        mark["shots"] = shots
     return mark
 
 
@@ -233,13 +256,13 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                 links = []
                 allowed = []
                 settled = []
-                for b in content:
+                for i, b in enumerate(content):
                     if not isinstance(b, dict) or b.get("type") != "tool_result":
                         continue
                     use = b.get("tool_use_id") or ""
                     call = calls.pop(use, None) if calls is not None else None
                     if use and call is not None:
-                        mark = result_mark(use, b, at, pos)
+                        mark = result_mark(use, b, at, pos, i)
                         if call.get("letter"):
                             lost = undelivered(sesstate.result_text(b), b.get("is_error"))
                             if lost:
@@ -274,13 +297,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                 # The marks go last: a card that takes the place of its call
                 # takes the call out first, and the mark then finds nothing.
                 return links + settled
-            for i, b in enumerate(content):
-                if not isinstance(b, dict) or b.get("type") != "image":
-                    continue
-                src = b.get("source") or {}
-                shots.append({"index": i,
-                              "media": src.get("media_type") or "image/jpeg",
-                              "bytes": len(src.get("data") or "") * 3 // 4})
+            shots = [shot for shot in (shot_of(b, i) for i, b in enumerate(content)) if shot]
             if shots:
                 out.append({"role": "shots", "at": at, "pos": pos, "shots": shots})
             text = "\n".join(b.get("text", "") for b in content
@@ -373,13 +390,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         out = []
         shots = []
         if isinstance(prompt, list):
-            for i, b in enumerate(prompt):
-                if not isinstance(b, dict) or b.get("type") != "image":
-                    continue
-                src = b.get("source") or {}
-                shots.append({"index": i,
-                              "media": src.get("media_type") or "image/jpeg",
-                              "bytes": len(src.get("data") or "") * 3 // 4})
+            shots = [shot for shot in (shot_of(b, i) for i, b in enumerate(prompt)) if shot]
             text = "\n".join(b.get("text", "") for b in prompt
                               if isinstance(b, dict) and b.get("type") == "text")
         else:

@@ -1,0 +1,114 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body"><div id="root"></div><div id="sheet"></div></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Pictures in the feed that arrive as something else: a file the panel sent,
+// which reaches the session as the path the host saved it under, and the
+// picture a call returned, which the feed knows only as the call.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { Calls } from "/src/screens/chat/calls.js";
+import { rows, runCalls, turnCalls, weld } from "/src/screens/chat/feed.js";
+import { callsOf, FeedGrid } from "/src/screens/chat/timeline.js";
+
+const at = "2026-09-20T10:00:00Z";
+const files = "/home/dev/.local/share/aacpanel-exec/files";
+const sent = `${files}/20260920-100000-ab12cd-board.png`;
+const typed = "/srv/proj/shop/docs/board.png";
+const png = Uint8Array.from(atob(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="),
+    (c) => c.charCodeAt(0));
+
+const asked = [];
+window.fetch = async (url) => {
+    const u = String(url);
+    asked.push(u);
+    if (u.startsWith("/api/chat/image?")) {
+        return new Response(new Blob([png], { type: "image/png" }), { status: 200 });
+    }
+    if (u.startsWith("/api/chat/call?")) {
+        return new Response(JSON.stringify({ tool: "Read", args: `{"file_path": "${sent}"}`, result: "[image]",
+            at, resultAt: at }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("not here", { status: 404 });
+};
+
+const shot = { upload: "20260920-100000-ab12cd-board.png", path: sent, media: "image/png", bytes: 70 };
+const items = [
+    { role: "me", text: `the task is on the board\n${sent}`, pos: 10, at, shots: [shot] },
+    { role: "me", text: `and the old one is here\n${typed}`, pos: 20, at },
+    { role: "me", text: sent, pos: 30, at, shots: [shot] },
+    { role: "tools", kind: "files", run: 40, pos: 40, at, calls: [
+        { name: "Read", arg: sent, pos: 40, index: 0, use: "toolu_1", seq: 0, at,
+          shots: [{ pos: 44, index: 0, part: 0, media: "image/png", bytes: 70 }] },
+        { name: "Read", arg: "/srv/proj/shop/main.go", pos: 40, index: 1, use: "toolu_2", seq: 1, at },
+    ] },
+    { role: "ai", text: "The board is read.", pos: 50, at },
+];
+
+const feed = weld(items);
+const sheet = document.getElementById("sheet");
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(feed)} wide=${false}
+    onOpen=${(g, badge) => render(html`<${Calls} session="shop" id=""
+        calls=${callsOf(g, feed, runCalls, turnCalls, badge).list} />`, sheet)}
+    row=${(item) => html`<${Row} item=${item} session="shop" id="" />`} /></div>`,
+    document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const loaded = (img) => Boolean(img && img.complete && img.naturalWidth === 1);
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const box = (el) => el.getBoundingClientRect();
+
+(async () => {
+    await until(() => document.querySelectorAll(".r-me").length === 3 && document.querySelector(".railbadge.k-files")
+        && Array.from(document.querySelectorAll("#root .mshot img")).every(loaded)
+        && document.querySelectorAll("#root .mshot img").length === 2);
+    const [withWords, typedRow, alone] = Array.from(document.querySelectorAll(".feedrow.r-me"));
+    const bubble = withWords.querySelector(".msg.me");
+    const strip = withWords.querySelector(".mshots");
+    const feedRows = {
+        sentPictures: withWords.querySelectorAll(".mshot img").length,
+        sentLoaded: loaded(withWords.querySelector(".mshot img")),
+        sentWords: text(bubble),
+        stripOverBubble: strip ? box(strip).bottom <= box(bubble).top : false,
+        stripRight: strip ? Math.round(box(strip).right - box(bubble).right) : null,
+        typedPictures: typedRow.querySelectorAll(".mshot").length,
+        typedWords: text(typedRow.querySelector(".msg.me")),
+        aloneBubbles: alone.querySelectorAll(".msg").length,
+        alonePictures: alone.querySelectorAll(".mshot img").length,
+        aloneStamp: text(alone.querySelector(".mstamp")),
+    };
+
+    document.querySelector(".railbadge.k-files").click();
+    await until(() => loaded(sheet.querySelector(".callnode.pic .cnshot img")));
+    const nodes = Array.from(sheet.querySelectorAll(".callnode"));
+    const row = nodes[0];
+    const thumb = row && row.querySelector(".cnshot");
+    const callRows = {
+        nodes: nodes.map((n) => ({ pic: n.classList.contains("pic"), thumbs: n.querySelectorAll(".cnshot").length })),
+        thumbLoaded: loaded(thumb && thumb.querySelector("img")),
+        thumbInside: thumb ? box(thumb).right <= box(row).right : false,
+    };
+
+    row.click();
+    await until(() => loaded(sheet.querySelector(".callbody .mshot img")));
+    const view = {
+        pictures: sheet.querySelectorAll(".callbody .mshot img").length,
+        loaded: loaded(sheet.querySelector(".callbody .mshot img")),
+        after: text(sheet.querySelector(".callbody .mshots") && sheet.querySelector(".callbody .mshots").previousElementSibling),
+    };
+
+    window.done = {
+        feed: feedRows,
+        calls: callRows,
+        view,
+        asked: asked.filter((u) => u.startsWith("/api/chat/image?")),
+    };
+})();
+</script>

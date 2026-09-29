@@ -107,7 +107,10 @@ func TestOwnReplyKeepsLineBreaks(t *testing.T) {
 	if !regexp.MustCompile(`const mine = item\.role === "me"`).MatchString(row) {
 		t.Fatalf("%s: the feed row does not tell a person reply apart — there is nobody to ask hard breaks for", chatFile)
 	}
-	if !regexp.MustCompile(`render\(\s*item\.text\s*,\s*\{\s*breaks:\s*mine\s*\}`).MatchString(row) {
+	// The words of a message are its text less the lines of the pictures drawn
+	// over it, and they are what the bubble renders.
+	if !regexp.MustCompile(`const said = [^;]*item\.text`).MatchString(row) ||
+		!regexp.MustCompile(`render\(\s*said\s*,\s*\{\s*breaks:\s*mine\s*\}`).MatchString(row) {
 		t.Errorf("%s: the reply is rendered without hard breaks — three paragraphs become one again", chatFile)
 	}
 	mail := jsBlock(t, chatFile, screen, "function Letter(")

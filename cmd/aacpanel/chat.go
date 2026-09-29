@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -122,26 +123,50 @@ func (s *Server) apiChatImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	pos, err := strconv.ParseInt(r.URL.Query().Get("pos"), 10, 64)
-	if err != nil || pos < 0 {
-		http.Error(w, "an attachment position is required", http.StatusBadRequest)
-		return
-	}
-	index, err := strconv.Atoi(r.URL.Query().Get("i"))
-	if err != nil || index < 0 {
-		http.Error(w, "an attachment number is required", http.StatusBadRequest)
+	ref, err := imageRef(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	media, body, err := s.chat.Image(r.Context(), target, pos, index)
+	media, body, err := s.chat.Image(r.Context(), target, ref)
 	if err != nil {
 		chatFail(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", media)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	_, _ = w.Write(body)
+}
+
+// imageRef reads which picture is asked for. A file the panel sent goes by its
+// name alone: it is not in the transcript, and the collector serves it only
+// from the directory the executor keeps such files in. Any other picture goes
+// by where it lies in the transcript — the record, the block and, for one a
+// call returned, its place in the result.
+func imageRef(q url.Values) (chat.ImageRef, error) {
+	if name := q.Get("upload"); name != "" {
+		return chat.ImageRef{Upload: name}, nil
+	}
+	pos, err := strconv.ParseInt(q.Get("pos"), 10, 64)
+	if err != nil || pos < 0 {
+		return chat.ImageRef{}, errors.New("an attachment position is required")
+	}
+	index, err := strconv.Atoi(q.Get("i"))
+	if err != nil || index < 0 {
+		return chat.ImageRef{}, errors.New("an attachment number is required")
+	}
+	ref := chat.ImageRef{Pos: pos, Index: index}
+	if v := q.Get("part"); v != "" {
+		part, err := strconv.Atoi(v)
+		if err != nil || part < 0 {
+			return chat.ImageRef{}, errors.New("the place of a picture in the result of a call is a number")
+		}
+		ref.Part = &part
+	}
+	return ref, nil
 }
 
 func (s *Server) apiChatCall(w http.ResponseWriter, r *http.Request) {

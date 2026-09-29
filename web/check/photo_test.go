@@ -147,6 +147,10 @@ func TestShotFileNameSaysWhatItIs(t *testing.T) {
 		{"a photograph", map[string]any{"media": "image/jpeg", "index": 2}, 140, "attachment-140-2.jpg"},
 		{"the type was not given", map[string]any{"index": 1}, 140, "attachment-140-1.png"},
 		{"the type is unknown", map[string]any{"media": "image/x-strange", "index": 1}, 140, "attachment-140-1.png"},
+		{"a file the panel sent", map[string]any{"upload": "20260918-101010-ab12cd-plan.jpg", "media": "image/jpeg"},
+			140, "20260918-101010-ab12cd-plan.jpg"},
+		{"a picture a call returned", map[string]any{"pos": 900, "index": 1, "part": 0, "media": "image/png"},
+			140, "attachment-900-1-0.png"},
 	}
 	steps := make([]step, 0, len(cases))
 	for _, c := range cases {
