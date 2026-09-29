@@ -378,7 +378,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
     // A teammate is stopped by its name on the session screen. An agent sent
     // to the background has no name there the panel could aim at.
     // An agent sent off to work is a background task to claude: the stream
-    // stops it by its id, a console by its line on the screen of background
+    // stops it by its id, tmux by its line on the screen of background
     // work.
     const agentStopper = (agent) => (agent.kind === "background" ? {
         ready: knows(exec, "task.stop") && agentPhase(agent) !== "over" && Boolean(agent.line),

@@ -1,7 +1,7 @@
 // What to watch a live session with: the feed or its real screen. The choice
-// is the session's own, kept on this device by the session's name: a console
-// watched as a feed stays a feed, and every session opens the way it was last
-// watched here, or by the width of the screen when it never was.
+// is the session's own, kept on this device by the session's name: a session
+// in tmux watched as a feed stays a feed, and every session opens the way it
+// was last watched here, or by the width of the screen when it never was.
 
 import { useCallback, useMemo, useState } from "preact/hooks";
 

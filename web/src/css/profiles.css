@@ -201,7 +201,7 @@
 
 .pfstream code { font-size: .95em; }
 
-/* A setting that holds only in the console stays editable on the stream: it
+/* A setting that holds only in tmux stays editable on the stream: it
    comes back into force when the session moves there. */
 
 /* The threshold sits on the row of its switch; on a narrow screen the field

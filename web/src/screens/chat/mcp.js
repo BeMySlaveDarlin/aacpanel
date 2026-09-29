@@ -99,8 +99,8 @@ export function McpSheet({ name, exec }) {
     if (data.transport !== "stream") {
         return html`
             <div class="cmdsheet">${head}
-                <p class="cmdnote">This session runs in a console: its servers are on its own screen, /mcp with keys.
-                    The panel lists them for a session in the feed.</p>
+                <p class="cmdnote">This session lives in tmux: its servers are on its own screen, /mcp with keys.
+                    The panel lists them for a session on the stream.</p>
             </div>
         `;
     }
@@ -181,7 +181,7 @@ function McpServer({ name, exec, server, onBack, onDone }) {
             </ul>
             ${server.description && html`<p class="cmdnote">${server.description}</p>`}
             ${server.status === "needs-auth" && html`
-                <p class="cmdnote">Authentication opens a browser and comes back to the host: do it in the console on the host.</p>`}
+                <p class="cmdnote">Authentication opens a browser and comes back to the host: do it in the terminal on the host.</p>`}
             <div class="mcpacts">
                 ${!off && html`
                     <button type="button" class="btn" disabled=${!can || Boolean(busy)} title=${why || undefined}

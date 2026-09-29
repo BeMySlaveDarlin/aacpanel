@@ -39,16 +39,16 @@ export function useWindow(name, transport) {
 }
 
 // windowOf says what the window button does for this session and why it
-// cannot, when it cannot. A session in the feed has nothing a window could
-// show: the window takes it to the console first, and holds it there while it
-// is open.
+// cannot, when it cannot. A session on the stream has nothing a window could
+// show: the window takes it to tmux first, and holds it there while it is
+// open.
 export function windowOf({ name, live, work, exec, win, way, run, onChange }) {
     if (live.transport === "stream" && way.to === "console") {
         return {
             moves: true,
             open: false,
             why: blocked(live) || whyNot(exec, "session.switch") || whyNot(exec, "window.open"),
-            say: `Move to the console and open a window on ${hostLabel()}`,
+            say: `Move to tmux and open a window on ${hostLabel()}`,
             press: () => moveSession({ run, exec, name, to: "console", work, withWindow: true }),
         };
     }

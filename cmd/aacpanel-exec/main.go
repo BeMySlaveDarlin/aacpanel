@@ -52,7 +52,7 @@ func main() {
 		"hold a claude session on the stream protocol from the task on stdin, until it ends. "+
 			"Not a panel action: the launcher starts it in place of a tmux server")
 	console := flag.String("console", "",
-		"move a live session on the stream to the console, without the panel: the running executor "+
+		"move a live session on the stream to tmux, without the panel: the running executor "+
 			"starts it in tmux with what it was started with, and tmux attach reaches it")
 	serveMCP := mcpFlags(flag.CommandLine)
 	flag.Parse()
@@ -142,8 +142,8 @@ func defaultSocket() string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("aacpanel-exec-%d", os.Getuid()), "sock")
 }
 
-// runConsole moves a session on the stream to the console where the panel is
-// not there to do it. The running executor does the move, as it does for the
+// runConsole moves a session on the stream to tmux where the panel is not
+// there to do it. The running executor does the move, as it does for the
 // panel: it has the environment a session is started with, which a terminal
 // the person typed this in does not.
 func runConsole(socket, name string, out, errs io.Writer) int {

@@ -90,7 +90,7 @@ func checkResume(dir, resume string) error {
 		return nil
 	}
 	return fmt.Errorf("there is no conversation %s in directory %s: claude looks for a transcript only "+
-		"under its own project, and a console started with someone else's dies right away", resume, dir)
+		"under its own project, and a session started with someone else's dies right away", resume, dir)
 }
 
 func slugs(dir string) []string {

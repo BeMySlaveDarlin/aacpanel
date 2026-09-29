@@ -85,7 +85,7 @@ export function aboutOf(row, project) {
 
 // blocksOf lays the sessions of a contour out as blocks of their projects:
 // every live session in the block of its project (a session no project holds
-// gets a block of its own), the consoles being raised beside them, and the
+// gets a block of its own), the sessions being raised beside them, and the
 // last conversation of a block with nothing live. A block with a live session
 // shows none of its past: the way into the project is the live session, and a
 // closed conversation beside it reads as that session. Projects with nothing
@@ -236,7 +236,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
     const restarting = wait ? wait.of("restart", session.session) : null;
     const busy = closing || restarting;
     const place = placeOf(session);
-    const tag = { feed: Icon.feed, console: Icon.terminal, outside: Icon.exit }[place];
+    const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit }[place];
     return html`
         <div class=${`pjrow${kid ? " pjkid" : ""}`}>
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
@@ -260,7 +260,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
     `;
 }
 
-// GhostLine holds the place of a console being raised.
+// GhostLine holds the place of a session being raised.
 export function GhostLine({ task }) {
     const sec = Math.max(0, Math.round((Date.now() - task.since) / 1000));
     return html`
@@ -325,8 +325,8 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
     if (!session.outside && (way.to === "console" || way.to === "stream")) {
         const to = way.to;
         lines.push({ key: "move", icon: to === "stream" ? Icon.feed() : Icon.terminal(),
-            text: to === "stream" ? "Move to the feed" : "Move to the console",
-            note: "the same conversation on the other side; between turns only",
+            text: to === "stream" ? "Move to the stream" : "Move to tmux",
+            note: "the same conversation, resumed there; between turns only",
             why: whyNot(exec, "session.switch"),
             press: act(async () => moveSession({ run, exec, name, to })) });
     }

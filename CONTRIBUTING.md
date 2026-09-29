@@ -41,7 +41,7 @@ mv ~/bin/aacpanel-exec.new ~/bin/aacpanel-exec
 systemctl --user restart aacpanel-exec
 ```
 
-The holders of feed sessions run the same file (`aacpanel-exec -hold`), so
+The holders of stream sessions run the same file (`aacpanel-exec -hold`), so
 stopping the unit does not free it, and a build over it answers "text file
 busy". The rename leaves a live holder on the copy it started with until its
 session ends.

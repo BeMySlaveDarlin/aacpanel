@@ -68,10 +68,10 @@ export function shortPath(cwd) {
 // (see useAsOf): a state read off a snapshot nobody refreshes is not said as
 // if it were now, it is dated.
 export function stateOf(live, still = null, move = null) {
-    // A session between its sides is gone from the snapshot for a while, and
-    // that is the move, not the end of it.
+    // A session on its way to tmux or the stream is gone from the snapshot for
+    // a while, and that is the move, not the end of it.
     if (move) {
-        return { tone: "busy", say: move.to === "console" ? "moving to the console" : "moving to the feed", word: "moving" };
+        return { tone: "busy", say: move.to === "console" ? "moving to tmux" : "moving to the stream", word: "moving" };
     }
     if (!live) return { tone: "off", say: "the conversation is gone", word: "closed" };
     if (still !== null) {

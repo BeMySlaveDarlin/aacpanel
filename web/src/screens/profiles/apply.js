@@ -1,6 +1,6 @@
 // After a Save: what of the saved values a running session of the project
 // can take right away, and by which action — the model, the effort, the mode
-// on the feed, Remote Control, a move between the console and the feed — and
+// on the stream, Remote Control, a move between tmux and the stream — and
 // what it takes only at its next start, said in words. Nothing is applied
 // unasked: the page offers, the person presses.
 import { html } from "../../html.js";
@@ -23,7 +23,7 @@ export function offers(keys, effective, params, session) {
         if (key === "transport") {
             const to = value === "stream" ? "stream" : "console";
             if ((to === "stream") === onStream) continue;
-            out.push({ key, text: `${to === "stream" ? "Move to the feed" : "Move to the console"}`,
+            out.push({ key, text: `${to === "stream" ? "Move to the stream" : "Move to tmux"}`,
                 action: "session.switch", params: { to } });
         } else if (key === "remoteControl" && live === "now") {
             if (Boolean(value) === Boolean(session.remote)) continue;
@@ -31,7 +31,7 @@ export function offers(keys, effective, params, session) {
         } else if (SET[key] && live === "now" && value !== null) {
             out.push({
                 key, text: `${param.label} ${said}`, action: "session.set", params: { [SET[key]]: value },
-                note: !onStream && key !== "permissionMode" ? "the console also keeps it as the account's default for new sessions" : "",
+                note: !onStream && key !== "permissionMode" ? "in tmux claude also keeps it as the account's default for new sessions" : "",
             });
         } else if (live === "now" && param.host) {
             out.push({ key, text: `${param.label} ${said}`, later: "the host reads it already" });

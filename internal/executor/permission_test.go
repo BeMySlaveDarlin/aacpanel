@@ -82,7 +82,7 @@ func TestPermissionShowsTheDialogItCouldNotParse(t *testing.T) {
 			}
 			if len(d.Raw) == 0 {
 				t.Fatal("a dialog the panel does not know went out without its lines — " +
-					"the human is sent to the console to find out what is being asked")
+					"the human is sent to the terminal to find out what is being asked")
 			}
 			if d.Raw[0] != "Bash command" {
 				t.Errorf("the first line is %q: the frame arrived as an indent and takes the "+

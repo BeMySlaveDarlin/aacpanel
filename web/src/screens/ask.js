@@ -70,7 +70,7 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
     const ownBlocked = (n) => {
         if (stream) return ownReady ? "" : dropWhy;
         if (questions[n].multi) {
-            return "this one takes several choices, and a free answer in the console is a checkbox, not a field";
+            return "this one takes several choices, and a free answer in tmux is a checkbox, not a field";
         }
         if ((questions[n].options || []).some((o) => o.preview)) {
             return "the options have previews, and in that layout there is no free answer at all";

@@ -35,7 +35,7 @@ export function sameReply(text, local) {
     return mine !== "" || theirs !== String(text || "").trim();
 }
 
-// sameShell reports whether a shell command the console ran is the one shown
+// sameShell reports whether a shell command the session ran is the one shown
 // locally: the person typed it with the "!" that runs it, the transcript keeps
 // the command alone.
 export function sameShell(command, local) {

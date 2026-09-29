@@ -64,7 +64,7 @@ export function StatusSheet({ name, live }) {
     const model = [modelTitle(live.model || ""), live.effort && effortName(live.effort)].filter(Boolean).join(" · ");
     const rows = [
         ["Claude Code", version || "—"],
-        ["Runs in", stream ? "the feed" : "a console"],
+        ["Lives", stream ? "on the stream" : "in tmux"],
         ["Model", model || "—"],
         ["Permissions", live.mode ? modeName(live.mode) : "—"],
         ["Started", live.startedAt ? ago(live.startedAt) : "—"],

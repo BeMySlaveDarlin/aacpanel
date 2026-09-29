@@ -83,8 +83,8 @@ func TestAShellCommandToAnOlderHolderSaysToRestartTheSession(t *testing.T) {
 }
 
 // A terminal runs "!" in its own composer, and the composer sends it there as
-// a message: a command meant for the stream that finds a console is refused
-// rather than typed into it.
+// a message: a command meant for the stream that finds the session in tmux is
+// refused rather than typed into it.
 func TestAShellCommandIsNotTypedIntoATerminal(t *testing.T) {
 	procFS(t, fakeProc{pid: 5002, comm: "claude", ppid: 1, cwd: "/opt/x", start: "5556",
 		args: []string{"claude", "-n", "term"}})
@@ -92,7 +92,7 @@ func TestAShellCommandIsNotTypedIntoATerminal(t *testing.T) {
 	e, _ := newTest(t, "")
 	r := req(action.SessionShell, "term")
 	r.Text = "ls"
-	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "runs in a terminal") {
+	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "lives in tmux") {
 		t.Errorf("a command went to a terminal: %v", err)
 	}
 }

@@ -13,7 +13,7 @@ import (
 )
 
 // With the panel down, a terminal asks the running executor to move a session
-// to the console, and is told how to reach it there.
+// to tmux, and is told how to reach it there.
 func TestConsoleAsksTheExecutorToMoveTheSession(t *testing.T) {
 	dir, err := os.MkdirTemp("", "cons")
 	if err != nil {
@@ -36,7 +36,7 @@ func TestConsoleAsksTheExecutorToMoveTheSession(t *testing.T) {
 		var req action.Request
 		_ = json.NewDecoder(conn).Decode(&req)
 		got <- req
-		_ = json.NewEncoder(conn).Encode(action.Response{ID: req.ID, OK: true, Detail: "session person moved in the console"})
+		_ = json.NewEncoder(conn).Encode(action.Response{ID: req.ID, OK: true, Detail: "session person moved to tmux"})
 	}()
 
 	var out, errs bytes.Buffer
@@ -48,7 +48,7 @@ func TestConsoleAsksTheExecutorToMoveTheSession(t *testing.T) {
 		req.Switch.To != action.SwitchConsole || req.Project != nil {
 		t.Errorf("the executor was asked %+v", req)
 	}
-	if !strings.Contains(out.String(), "moved in the console") || !strings.Contains(out.String(), "tmux attach -t person") {
+	if !strings.Contains(out.String(), "moved to tmux") || !strings.Contains(out.String(), "tmux attach -t person") {
 		t.Errorf("the terminal was told %q", out.String())
 	}
 }

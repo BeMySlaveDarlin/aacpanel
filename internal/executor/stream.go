@@ -102,8 +102,8 @@ func streamCommand(ctx context.Context, s liveSession, cmd *action.Command) (str
 
 // sessionShell has a session on the stream run a command typed after "!". A
 // terminal runs such a command itself, typed into its composer with the bang,
-// so a console is refused rather than typed into: the composer sends there a
-// message, and a command meant for the stream that finds a console has lost
+// so a session in tmux is refused rather than typed into: the composer sends
+// there a message, and a command meant for the stream that finds tmux has lost
 // the race with a switch.
 func (e *Executor) sessionShell(ctx context.Context, target, command, runID string) (string, error) {
 	s, err := findOneLiveSession(target)
@@ -111,8 +111,8 @@ func (e *Executor) sessionShell(ctx context.Context, target, command, runID stri
 		return "", err
 	}
 	if !onStream(s) {
-		return "", fmt.Errorf("session %s runs in a terminal now: send the command again, "+
-			"and its console runs it itself", s.Name)
+		return "", fmt.Errorf("session %s lives in tmux now: send the command again, "+
+			"and claude runs it there itself", s.Name)
 	}
 	st, err := streamState(ctx, s)
 	if err != nil {

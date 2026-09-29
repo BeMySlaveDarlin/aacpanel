@@ -96,8 +96,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     // What to watch it with is the session's own choice on this device.
     const [picked, pickView] = useViewPick(name, canTerm, wide);
 
-    // Which side the session lives on decides what the pair of views does: see
-    // sidesOf. The window on the host is asked here, since it holds a console.
+    // Where the session lives decides what the pair of views does: see
+    // sidesOf. The window on the host is asked here, since it holds tmux.
     const transport = (live && live.transport) || "";
     const way = useSwitchWay(live ? name : "", transport);
     const [win, askWindow] = useWindow(live ? name : "", transport);

@@ -1,5 +1,5 @@
 // The tools of a session. What is done to it answers three questions: where
-// it lives (the stream or the console, the window on the host, the move
+// it lives (the stream or tmux, the window on the host, the move
 // between them with what stops on the way), Remote Control, and the session
 // itself (its name, what it runs on, how to find it again, how it ends). The
 // sections are one piece for both screens: on a phone they fill the sheet
@@ -160,9 +160,9 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
 function Place({ live, win }) {
     const stream = live.transport === "stream";
     const note = live.outside ? outsideNote(live)
-        : stream ? `the panel's feed: no terminal and no window on ${hostLabel()} here`
-        : `tmux on ${hostLabel()}${win.kind === "open" ? " · a window shows it" : ""}`;
-    const label = live.outside ? "Outside the panel" : stream ? "On the stream" : "In the console";
+        : stream ? `claude -p held by the panel: no terminal and no window on ${hostLabel()}`
+        : `a terminal on ${hostLabel()}${win.kind === "open" ? " · a window shows it" : ""}`;
+    const label = live.outside ? "Outside the panel" : stream ? "On the stream" : "In tmux";
     return html`
         <li class="toolline">
             <span class="toolicon">${Icon.pin()}</span>
@@ -232,7 +232,7 @@ function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
     const renameWhy = live.outside
         ? "the panel did not start this session and cannot rename it"
         : live.transport !== "stream"
-        ? "a session in the console is renamed on its own screen, /rename with keys"
+        ? "a session in tmux is renamed on its own screen, /rename with keys"
         : knows(exec, "session.rename") ? "" : whyNot(exec, "session.rename");
     const row = (icon, label, note, press, aside = "", off = "") => html`
         <li><button type="button" class="mcprow toolrow" disabled=${Boolean(off)} onClick=${press}>
@@ -275,10 +275,10 @@ function EndLine({ name, live, exec, work, run, onDone }) {
     `;
 }
 
-// Move takes the session to the other side: the process closes and the
-// conversation is resumed there. What runs inside the process ends with it,
-// and the line names it before the press, not after. A window on the host
-// comes with a move to the console, or not at all: on the stream there is
+// Move takes the session to the other place it can live in: the process
+// closes and the conversation is resumed there. What runs inside the process
+// ends with it, and the line names it before the press, not after. A window on
+// the host comes with a move to tmux, or not at all: on the stream there is
 // nothing for it to show.
 function Move({ name, live, exec, sides, work, win, way, run, onDone }) {
     const [withWindow, setWithWindow] = useState(false);
@@ -297,7 +297,7 @@ function Move({ name, live, exec, sides, work, win, way, run, onDone }) {
     return html`
         <div class="toolmove">
             <button type="button" class="btn toolgo" disabled=${off} onClick=${go}>
-                ${Icon.exit()}<span>${to === "console" ? "Move to the console" : "Move to the feed"}</span>
+                ${Icon.exit()}<span>${to === "console" ? "Move to tmux" : "Move to the stream"}</span>
             </button>
             ${to === "console" && html`
                 <label class=${`toolcheck${windowWhy ? " off" : ""}`} title=${windowWhy || undefined}>
@@ -314,8 +314,8 @@ function Move({ name, live, exec, sides, work, win, way, run, onDone }) {
 
 // ViewTabs is what the wide screen looks at the conversation with: the feed,
 // the terminal, the files of the project. A view never moves the session: a
-// console is watched either way and stays where it is, and the terminal of a
-// session on the stream is the other side, reached only by a move — its tab
+// session in tmux is watched either way and stays where it is, and the
+// terminal of a session on the stream is tmux, reached only by a move — its tab
 // opens the session panel on the move instead, and is marked for it.
 export function ViewTabs({ view, sides, canTerm, onView, onRepo, onMove }) {
     const moving = (id) => id !== "files" && id !== sides.view && !sides.pair && Boolean(sides.moves);
@@ -323,7 +323,7 @@ export function ViewTabs({ view, sides, canTerm, onView, onRepo, onMove }) {
         <button type="button" class=${`dktab${view === id ? " on" : ""}${moving(id) ? " moves" : ""}`}
                 aria-pressed=${view === id}
                 data-tip=${moving(id)
-                    ? "The session is on the stream: move it to the console first"
+                    ? "The session is on the stream: move it to tmux first"
                     : (id !== "files" && id !== view && sides.tip) || undefined}
                 onClick=${press}>${label}${moving(id) ? html`<span class="dktabgo" aria-hidden="true">⇢</span>` : ""}</button>
     `;
@@ -352,7 +352,7 @@ export function SessionButton(props) {
                     aria-label="the session: where it lives, Remote Control and what can be done to it"
                     onClick=${() => onOpen(!open)}>
                 <span class="dkplaceicon">${Icon.pin()}</span>
-                <span>${live.outside ? "outside" : stream ? "stream" : "console"}</span>
+                <span>${live.outside ? "outside" : stream ? "stream" : "tmux"}</span>
                 ${!stream && win.kind === "open" && html`<span class="dkplacewin">window</span>`}
                 ${live.remote && html`<span class="dkrc">RC</span>`}
                 <span class="dkplacechev">${Icon.chevron()}</span>

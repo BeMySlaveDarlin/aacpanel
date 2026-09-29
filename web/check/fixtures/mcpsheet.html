@@ -7,7 +7,7 @@
 <script type="module">
 // /mcp typed in a session on the stream opens the panel's own screen: the
 // servers the session reports, by where each comes from, and one server with
-// what can be done to it. In a console the command is a screen driven by
+// what can be done to it. In tmux the command is a screen driven by
 // keys, and the composer does not send it. The servers are those claude
 // reported on a real host.
 import { h, render } from "preact";
@@ -99,7 +99,7 @@ const sendButton = () => document.querySelector(".composer .iconbtn.accent");
     document.querySelector(".sheet.on .sheetclose").click();
     await sleep(300);
 
-    // In a console /mcp is a screen driven by keys: the composer says so and sends nothing.
+    // In tmux /mcp is a screen driven by keys: the composer says so and sends nothing.
     show({ ...stream, transport: "" });
     await sleep(300);
     await type("/mcp");

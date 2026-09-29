@@ -105,6 +105,6 @@ func TestSettingsScreensShowTheRowsOfTheSession(t *testing.T) {
 		t.Errorf("the service was asked %v and %d actions were sent", got.Asked, got.Sent)
 	}
 	if got.ConsoleReady {
-		t.Error("/hooks is ready to send in a console, where it is a screen driven by keys")
+		t.Error("/hooks is ready to send in tmux, where it is a screen driven by keys")
 	}
 }

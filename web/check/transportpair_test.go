@@ -17,13 +17,13 @@ type pairSheet struct {
 	Sent   *pairSent `json:"sent"`
 }
 
-// On the wide screen, where a project lives in the feed, a session on the
-// stream has the feed alone: the terminal is the console on the other side,
-// and its tab opens the move with its question — it never moves the session by
-// itself. A console moves to the feed from the session panel. The window on
-// the host comes with a move to the console as a choice in it; while a window
-// is open nothing moves and the views only pick what to watch the console
-// with. A turn in progress holds the move, and so does a message the session
+// On the wide screen, where a project lives on the stream, a session on the
+// stream has the feed alone: the terminal is tmux, reached by the move, and
+// its tab opens the move with its question — it never moves the session by
+// itself. A session in tmux moves to the stream from the session panel. The
+// window on the host comes with a move to tmux as a choice in it; while a
+// window is open nothing moves and the views only pick what to watch the
+// session in tmux with. A turn in progress holds the move, and so does a message the session
 // has not taken yet, and the panel says so in words.
 func TestTheViewsReachTheOtherSideOnlyThroughTheMove(t *testing.T) {
 	var got struct {
@@ -61,24 +61,24 @@ func TestTheViewsReachTheOtherSideOnlyThroughTheMove(t *testing.T) {
 		s.Params["to"] != "console" || s.Params["window"] != nil {
 		t.Errorf("the move of a session on the stream sent %+v (sheet %q)", s, got.ToConsole.Title)
 	}
-	if got.ToConsole.Title != "Move evirma to the console?" {
+	if got.ToConsole.Title != "Move evirma to tmux?" {
 		t.Errorf("the move asks %q", got.ToConsole.Title)
 	}
 	if got.WindowOff || got.WithWindow == nil {
-		t.Fatalf("the window of a move to the console is off (%v) or missing", got.WindowOff)
+		t.Fatalf("the window of a move to tmux is off (%v) or missing", got.WindowOff)
 	}
 	if s := got.WithWindow.Sent; s == nil || s.Kind != "session.switch" || s.Params["to"] != "console" || s.Params["window"] != true {
 		t.Errorf("the move with a window sent %+v — the window comes with the move", s)
 	}
 	if !strings.HasPrefix(got.WithWindow.Title, "Open a window to evirma on ") ||
-		!strings.Contains(got.WithWindow.Effect, "console") {
+		!strings.Contains(got.WithWindow.Effect, "stays in tmux") {
 		t.Errorf("the move with a window asks %q: %q", got.WithWindow.Title, got.WithWindow.Effect)
 	}
 	if got.ConsoleOn != "term" {
-		t.Errorf("a console of a project in the feed shows %q", got.ConsoleOn)
+		t.Errorf("a session in tmux of a project on the stream shows %q", got.ConsoleOn)
 	}
-	if s := got.ToFeed.Sent; s == nil || s.Params["to"] != "stream" || got.ToFeed.Title != "Move evirma-c to the feed?" {
-		t.Errorf("the move of a console sent %+v (sheet %q)", s, got.ToFeed.Title)
+	if s := got.ToFeed.Sent; s == nil || s.Params["to"] != "stream" || got.ToFeed.Title != "Move evirma-c to the stream?" {
+		t.Errorf("the move of a session in tmux sent %+v (sheet %q)", s, got.ToFeed.Title)
 	}
 	if got.HeldTerm != "term" || got.HeldOn != "feed" || !got.HeldFeed || got.HeldSent != 0 || got.HeldMarked {
 		t.Errorf("under an open window the views show %q then %q (feed drawn: %v, a tab marked as a move: %v) and sent %d requests",

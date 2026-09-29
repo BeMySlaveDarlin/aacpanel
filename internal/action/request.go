@@ -129,7 +129,7 @@ type Switch struct {
 
 	Force bool `json:"force,omitempty"`
 	// Window opens a terminal window on the host to the session once it is in
-	// the console: a window is what a session in the feed does not have.
+	// tmux: a window is what a session on the stream does not have.
 	Window bool `json:"window,omitempty"`
 }
 

@@ -109,7 +109,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)
 	}
 	if got.ConsoleInherited != "1" || got.RcOwn != "0" || got.EffortInherited != "1" {
-		t.Errorf("own and inherited are not told apart: console %q, RC %q, effort %q", got.ConsoleInherited, got.RcOwn, got.EffortInherited)
+		t.Errorf("own and inherited are not told apart: tmux %q, RC %q, effort %q", got.ConsoleInherited, got.RcOwn, got.EffortInherited)
 	}
 	if got.EffortFrom != "Extra — the account" {
 		t.Errorf("an effort from the account reads %q", got.EffortFrom)
@@ -133,10 +133,10 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 		t.Errorf("the changed words of the command are %v, meant --effort max", got.DraftedWords)
 	}
 	if got.PermLiveTmux != "next start" || got.PermLiveStream != "now" {
-		t.Errorf("permissions take a change %q in the console and %q in the feed", got.PermLiveTmux, got.PermLiveStream)
+		t.Errorf("permissions take a change %q in tmux and %q on the stream", got.PermLiveTmux, got.PermLiveStream)
 	}
 	if got.BarAfterTwo != "2 changes" || len(got.FeedSays) == 0 {
-		t.Errorf("after the feed: %q, the card says %v", got.BarAfterTwo, got.FeedSays)
+		t.Errorf("after the stream: %q, the card says %v", got.BarAfterTwo, got.FeedSays)
 	}
 	if !strings.Contains(got.Blocked, "-p: the panel decides where the session lives") || !got.SaveDisabled || got.Exit != "Undo the change" {
 		t.Errorf("a refused draft reads %q, Save disabled %v, the way out %q", got.Blocked, got.SaveDisabled, got.Exit)
@@ -156,10 +156,10 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	if got.SheetOnPlainSave || len(got.Done) != 1 || !got.Done[0] || got.BarAfterSave {
 		t.Errorf("a plain Save: sheet %v, done %v, bar left %v", got.SheetOnPlainSave, got.Done, got.BarAfterSave)
 	}
-	if got.ApplyHead != "2 sessions run now" || strings.Join(got.ApplyNow, "|") != "Effort Max|Move to the feed|Effort Max|Permissions Auto" {
+	if got.ApplyHead != "2 sessions run now" || strings.Join(got.ApplyNow, "|") != "Effort Max|Move to the stream|Effort Max|Permissions Auto" {
 		t.Errorf("after Save the running session is offered %q %v", got.ApplyHead, got.ApplyNow)
 	}
-	if strings.Join(got.ApplyLater, "|") != "Effort Max: the console also keeps it as the account's default for new sessions|Permissions Auto — at the next start" {
+	if strings.Join(got.ApplyLater, "|") != "Effort Max: in tmux claude also keeps it as the account's default for new sessions|Permissions Auto — at the next start" {
 		t.Errorf("what the session takes later is said as %v", got.ApplyLater)
 	}
 	if p, _ := got.Applied["params"].(map[string]any); got.Applied["kind"] != "session.set" || got.Applied["target"] != "atlas" || p["effort"] != "max" {

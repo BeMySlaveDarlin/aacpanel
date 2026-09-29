@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="module">
-// A session on the stream moving to the console, frame by frame: pressed,
-// gone from the snapshot, back in the console while the panel is still asking
+// A session on the stream moving to tmux, frame by frame: pressed, gone from
+// the snapshot, back in tmux while the panel is still asking
 // what its views do there, and its terminal opening. Every frame in between
 // shows the move or the opening terminal — never the feed it left, never a
 // terminal that says it detached.
@@ -18,7 +18,7 @@ import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { saveView } from "/src/screens/chat/viewpick.js";
 
-// This device watches the console of the session with its terminal: the phone
+// This device watches the session in tmux with its terminal: the phone
 // would open the feed of it otherwise.
 saveView("aacpanel", "term");
 
@@ -27,7 +27,7 @@ const items =[{ role: "me", pos: 10, text: "where are we", at: new Date().toISOS
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// The answer about the sides of the console is held back until the check lets
+// The answer about where the session can move is held back until the check lets
 // it go: the frame before it is the one where the feed used to flash.
 let letWay = null;
 const wayHeld = new Promise((r) => { letWay = r; });

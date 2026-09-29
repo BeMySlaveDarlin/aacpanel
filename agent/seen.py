@@ -137,10 +137,10 @@ def turn_ended(text):
 
 
 def last_mode(text, since):
-    """Returns the permission mode a console was last in, or "".
+    """Returns the permission mode a session in tmux was last in, or "".
 
     Claude writes the mode as a record of its own, and a message a person sends
-    may carry it too. Only a mode written since the console started counts
+    may carry it too. Only a mode written since the session started counts
     (since, in epoch milliseconds): an older one was written by another process
     of the same conversation and says nothing of this one. The record of the
     mode carries no time, so it is dated by the nearest word before it that

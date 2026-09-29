@@ -135,7 +135,7 @@ export function Briefs({ snapshot, exec, onSession, open, onOpen, onLeave, onBac
             ${cards && !cards.length && !error && html`
                 <p class="bshelf-none">
                     A session publishes one when what it has to ask does not fit a
-                    question in the console: several questions at once, or an option
+                    question in the conversation: several questions at once, or an option
                     that takes a paragraph to explain.
                 </p>
             `}

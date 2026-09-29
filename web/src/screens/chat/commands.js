@@ -17,7 +17,7 @@ import { effortName, modeName } from "./picker.js";
 const SENT = ["context", "usage", "compact"];
 
 // panelCommands lays out what the panel does itself for a session, by group.
-// A screen the console keeps to its own keys is left out of a console session,
+// A screen claude keeps to its own keys is left out of a session in tmux,
 // and so is a command the stream does not take.
 export function panelCommands({ stream, live, pick, side }) {
     const screens = Object.keys(SCREENS)

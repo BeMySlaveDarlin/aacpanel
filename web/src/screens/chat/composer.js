@@ -284,11 +284,12 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     // chat and never into the conversation.
     const side = stream && onSide && !pack.length ? parseSide(text) : null;
     // A leading "!" on the stream is a command for the shell of the session,
-    // as it is in the composer of a terminal; a console takes it as typed.
+    // as it is in the composer of a terminal; a session in tmux takes it as
+    // typed.
     const bang = stream && canShell && !pack.length ? shellOf(text) : null;
     const listing = canCmd && !pack.length && !(cmd && cmd.ready) && !lists && !opens && !(side && side.question);
     // On the stream the list is the session's own, every command and skill it
-    // takes; until it has come, and in a console, the panel's own list stands.
+    // takes; until it has come, and in tmux, the panel's own list stands.
     const theirs = useSessionCommands(name, id, stream && listing && text.startsWith("/"));
     const hints = listing ? (stream && theirs ? sessionHints(text, theirs) : commandHints(text, stream)) : [];
     const [hot, setHot] = useState(0);

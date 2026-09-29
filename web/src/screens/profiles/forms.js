@@ -19,7 +19,7 @@ const TITLES = {
     "profile.add": ["New profile", "its own token, its own config directory, its own projects"],
     "group.add": ["New group", "a shelf inside the profile: projects are laid out on it"],
     "group.edit": ["Group", "the name shows on the map and in the launch list"],
-    "project.add": ["New project", "something the panel can bring up as a console"],
+    "project.add": ["New project", "something the panel can start a session in"],
 };
 
 // EditLayer renders the one open form. A contour or a project that exists

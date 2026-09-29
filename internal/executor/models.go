@@ -221,13 +221,13 @@ func (set *setting) said() string {
 	if set.seen != nil {
 		switch {
 		case set.effort && set.value == action.Ultracode:
-			out += "; the console runs on ultracode now, for this session only (its status line says xhigh)"
+			out += "; ultracode is on now, for this session only (its status line says xhigh)"
 		case set.effort:
-			out += "; the console shows effort " + set.seen.Effort + " now"
+			out += "; the status line shows effort " + set.seen.Effort + " now"
 		case set.seen.Name != "":
-			out += "; the console shows " + set.seen.Name + " now"
+			out += "; the status line shows " + set.seen.Name + " now"
 		default:
-			out += "; the console shows " + set.seen.Model + " now"
+			out += "; the status line shows " + set.seen.Model + " now"
 		}
 	}
 	return out

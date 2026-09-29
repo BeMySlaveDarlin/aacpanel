@@ -49,8 +49,8 @@ func withToolsOf(t *testing.T, launch string) Params {
 	return p
 }
 
-// The panel's tools are on unless the map turns them off, in a console and on
-// the stream alike: the executor as the panel's MCP server, and the tools its
+// The panel's tools are on unless the map turns them off, in tmux and on the
+// stream alike: the executor as the panel's MCP server, and the tools its
 // list marks allowed. Both flags take lists, so the name follows them and ends
 // the list: an opening message after them would be read as one more server.
 func TestTheArgumentsHandTheSessionThePanelsTools(t *testing.T) {
@@ -138,7 +138,7 @@ func TestAnExecutorThatDoesNotKnowItsPathStartsTheSessionWithoutTheTools(t *test
 	}
 }
 
-// A session in a console gets the panel's tools from Run itself.
+// A session in tmux gets the panel's tools from Run itself.
 func TestRunInAConsoleHandsThePanelsTools(t *testing.T) {
 	stubToolServer(t)
 	for launch, on := range map[string]bool{`{}`: true, `{"panelTools":false}`: false} {

@@ -158,7 +158,7 @@ func TestSwitchToConsoleResumesTheSameConversation(t *testing.T) {
 	if _, ok := got["intent"]; ok {
 		t.Error("the opening message went into a resumed conversation: it would read it as a new request")
 	}
-	for _, say := range []string{"moved in the console", streamSID, "mode acceptEdits", "1 background task stopped: make check"} {
+	for _, say := range []string{"moved to tmux", streamSID, "mode acceptEdits", "1 background task stopped: make check"} {
 		if !strings.Contains(detail, say) {
 			t.Errorf("the report %q does not say %q", detail, say)
 		}
@@ -186,7 +186,7 @@ func TestSwitchToStreamCarriesWhatTheConsoleShows(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Join(signals.sent, ",") != "1004:terminated" {
-		t.Errorf("signals %v, expected one TERM to the console", signals.sent)
+		t.Errorf("signals %v, expected one TERM to the session in tmux", signals.sent)
 	}
 	got := launched(t, log)
 	want := map[string]any{"_resume": consoleSID, "transport": "stream",
@@ -196,7 +196,7 @@ func TestSwitchToStreamCarriesWhatTheConsoleShows(t *testing.T) {
 			t.Errorf("%s reached the launcher as %v, expected %v", k, got[k], v)
 		}
 	}
-	if !strings.Contains(detail, "moved in the feed") {
+	if !strings.Contains(detail, "moved to the stream") {
 		t.Errorf("the report %q does not say where the session went", detail)
 	}
 	if len(collector.since) != 1 || collector.since[0] != consoleStarted.UnixMilli() {
@@ -219,7 +219,7 @@ func TestSwitchToStreamTakesTheStartModeWhenTheConsoleSaidNone(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := launched(t, log)["permissionMode"]; got != "acceptEdits" {
-		t.Errorf("the feed starts in mode %v, while the console was in acceptEdits", got)
+		t.Errorf("the stream starts in mode %v, while tmux was in acceptEdits", got)
 	}
 	if !strings.Contains(detail, "mode acceptEdits from its start") {
 		t.Errorf("the report %q does not say where the mode came from", detail)
@@ -243,7 +243,7 @@ func TestSwitchToConsoleLeavesAnUnchangedModeToTheProject(t *testing.T) {
 	}
 }
 
-// A stream session started in a named mode — by a switch from a console, say —
+// A stream session started in a named mode — by a switch from tmux, say —
 // keeps it on the way back, changed or not.
 func TestSwitchToConsoleCarriesTheModeTheStartNamed(t *testing.T) {
 	dir, _ := streamStand(t, func(s *stream.State) { s.Mode, s.StartMode = "acceptEdits", "acceptEdits" },
@@ -256,7 +256,7 @@ func TestSwitchToConsoleCarriesTheModeTheStartNamed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := launched(t, log)["permissionMode"]; got != "acceptEdits" {
-		t.Errorf("the console starts in mode %v, while the feed was started in acceptEdits", got)
+		t.Errorf("tmux starts in mode %v, while the stream was started in acceptEdits", got)
 	}
 }
 
@@ -316,7 +316,7 @@ func TestSwitchToStreamStopsWhileATerminalShowsTheConsole(t *testing.T) {
 }
 
 // A window asked for with the switch opens onto the session the launcher
-// started in the console; one that does not open leaves the switch done.
+// started in tmux; one that does not open leaves the switch done.
 func TestSwitchToConsoleOpensTheWindowItWasAskedFor(t *testing.T) {
 	body, err := json.Marshal(launcher.Report{Session: "demo-2", Transport: launcher.TransportTmux})
 	if err != nil {
@@ -343,7 +343,7 @@ func TestSwitchToConsoleOpensTheWindowItWasAskedFor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, say := range []string{"moved in the console", c.says} {
+			for _, say := range []string{"moved to tmux", c.says} {
 				if !strings.Contains(detail, say) {
 					t.Errorf("the report %q does not say %q", detail, say)
 				}
@@ -361,20 +361,20 @@ func TestSwitchToConsoleOpensTheWindowItWasAskedFor(t *testing.T) {
 }
 
 func TestSwitchGoesOnlyToTheOtherSide(t *testing.T) {
-	t.Run("a console to the console", func(t *testing.T) {
+	t.Run("tmux to tmux", func(t *testing.T) {
 		dir := consoleStand(t, "idle")
 		e, _ := newTest(t, "")
 		_, err := e.Execute(context.Background(), switchTo(action.SwitchConsole, false, dir))
-		if err == nil || !strings.Contains(err.Error(), "in the console already") {
-			t.Fatalf("a console was moved to the console: %v", err)
+		if err == nil || !strings.Contains(err.Error(), "in tmux already") {
+			t.Fatalf("a session in tmux was moved to tmux: %v", err)
 		}
 	})
-	t.Run("the stream to the feed", func(t *testing.T) {
+	t.Run("the stream to the stream", func(t *testing.T) {
 		dir, _ := streamStand(t, func(*stream.State) {})
 		e, _ := newTest(t, "")
 		_, err := e.Execute(context.Background(), switchTo(action.SwitchStream, false, dir))
-		if err == nil || !strings.Contains(err.Error(), "in the feed already") {
-			t.Fatalf("a stream session was moved to the feed: %v", err)
+		if err == nil || !strings.Contains(err.Error(), "on the stream already") {
+			t.Fatalf("a stream session was moved to the stream: %v", err)
 		}
 	})
 	t.Run("a project somewhere else", func(t *testing.T) {
@@ -444,9 +444,9 @@ func TestClosingAStreamSessionEndsItsInput(t *testing.T) {
 	}
 }
 
-// With the panel down, a session on the stream goes to the console from what
-// its holder keeps it was started with: the project, its launch and its
-// contour — a console under another account would be another person's.
+// With the panel down, a session on the stream goes to tmux from what its
+// holder keeps it was started with: the project, its launch and its contour —
+// a session under another account would be another person's.
 func TestSwitchToConsoleWithoutThePanelStartsFromWhatTheHolderKeeps(t *testing.T) {
 	dir, f := streamStand(t, func(*stream.State) {})
 	kept, err := json.Marshal(launcher.Spec{Dir: dir, Session: "demo", Launch: json.RawMessage(`{"model":"opus","room":"work"}`),

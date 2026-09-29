@@ -38,7 +38,7 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	}
 	for _, c := range got {
 		stream := !strings.HasSuffix(c.Name, "aacpanel")
-		want := map[bool]string{true: "feed", false: "console"}[stream]
+		want := map[bool]string{true: "stream", false: "tmux"}[stream]
 		if c.Mark != want || !c.Shown {
 			t.Errorf("%s: the row does not say %q where it can be seen: %+v", c.Name, want, c)
 		}

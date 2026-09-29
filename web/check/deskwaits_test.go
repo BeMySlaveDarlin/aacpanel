@@ -91,11 +91,11 @@ func TestColumnDrawsWhatItIsWaitingFor(t *testing.T) {
 	}
 
 	if !strings.Contains(src, "raising(all, wait ? wait.opening() : []") {
-		t.Error("the column does not ask which consoles are coming up: pressing open leaves " +
+		t.Error("the column does not ask which sessions are coming up: pressing open leaves " +
 			"no trace until the next snapshot")
 	}
 	if !strings.Contains(src, "<${GhostLine}") {
-		t.Error("a console coming up has nothing to stand on in the column — the ghost is counted and not drawn")
+		t.Error("a session coming up has nothing to stand on in the column — the ghost is counted and not drawn")
 	}
 	if !strings.Contains(src, `wait.of("close", s.session)`) {
 		t.Error("the row does not ask whether it is being closed: the close stays unanswered until " +

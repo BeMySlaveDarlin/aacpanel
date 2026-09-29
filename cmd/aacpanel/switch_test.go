@@ -72,10 +72,10 @@ func TestSessionSwitchWayPG(t *testing.T) {
 	cases := []struct {
 		name, project, live, to, reason string
 	}{
-		{"the stream goes to the console", "stream", "stream", "console", ""},
-		{"the stream goes to the console even when its project was moved back", "", "stream", "console", ""},
-		{"a console of a project that lives in the feed goes to the feed", "stream", "", "stream", ""},
-		{"a console of a project that lives in the console stays", "", "", "", "lives in the console"},
+		{"the stream goes to tmux", "stream", "stream", "console", ""},
+		{"the stream goes to tmux even when its project was moved back", "", "stream", "console", ""},
+		{"tmux of a project that lives on the stream goes to the stream", "stream", "", "stream", ""},
+		{"tmux of a project that lives in tmux stays", "", "", "", "lives in tmux"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -115,9 +115,9 @@ func TestSessionSwitchRefusesTheWayThatIsNotOpenPG(t *testing.T) {
 	cases := []struct {
 		name, project, live, to, says string
 	}{
-		{"a console of a console project to the feed", "", "", "stream", "lives in the console"},
-		{"the stream to the feed", "stream", "stream", "stream", "in the feed already"},
-		{"a console to the console", "stream", "", "console", "in the console already"},
+		{"tmux of a tmux project to the stream", "", "", "stream", "lives in tmux"},
+		{"the stream to the stream", "stream", "stream", "stream", "on the stream already"},
+		{"tmux to tmux", "stream", "", "console", "in tmux already"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
