@@ -127,6 +127,24 @@ func (m *Manifest) Append(e Entry) error {
 	return f.Close()
 }
 
+// Drop takes the lines gone picks out of the manifest: a thing a run took
+// back before uninstall — a part of the kit left out — is on record no
+// more. The manifest is written whole beside itself and renamed over, so a
+// run that dies in the middle leaves it as it was or as it is meant to be.
+func (m *Manifest) Drop(gone func(Entry) bool) error {
+	es, err := ReadManifest(m.Path)
+	if err != nil {
+		return err
+	}
+	var kept strings.Builder
+	for _, e := range es {
+		if !gone(e) {
+			kept.WriteString(e.line())
+		}
+	}
+	return writeFile(m.Path, []byte(kept.String()), 0o600)
+}
+
 // ReadManifest reads the lines of the manifest at path in the order they were
 // written. A line that does not split into four fields is an error: the
 // manifest is the only account of the install, and a guess at a torn line

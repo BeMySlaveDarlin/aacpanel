@@ -1,4 +1,3 @@
 stop: systemd is not the init of this machine (PID 1 is docker-init): the collector and the executor are systemd units.
-stop: claude is needed: the panel starts and watches claude sessions. Anthropic's native installer downloads it with curl or wget, and this machine has neither: sudo apt install curl, then run again.
 stop: python3 3.9 or newer is needed by the collector (found none).
 stop: one step needs root (the state directory, the collector unit, linger) and sudo is not installed here. Run ./install.sh at a terminal: sudo asks for its password there, and a No at the root command stops the run with the command for an administrator.

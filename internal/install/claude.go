@@ -21,8 +21,8 @@ import (
 // release publishes and sets it up under the home directory — the launcher
 // ~/.local/bin/claude, the versions in ~/.local/share/claude — as the user,
 // never as root. The installer fetches the script itself; the script
-// downloads claude with curl or wget, and the check stops a machine that has
-// neither.
+// downloads claude with curl or wget, and on a machine with neither the root
+// step installs curl first.
 const NativeInstaller = "https://claude.ai/install.sh"
 
 // nativeCommand is the native install as a person types it.

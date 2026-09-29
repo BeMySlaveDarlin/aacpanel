@@ -62,6 +62,8 @@ func (in *Install) Steps() []*Step {
 	steps = append(steps, in.envFileStep(), in.execBuildStep(), in.execUnitStep())
 	if in.S.Has("gc") {
 		steps = append(steps, in.gcTimerStep())
+	} else if in.gcThere() {
+		steps = append(steps, in.gcOffStep())
 	}
 	steps = append(steps, in.stackStep(), in.appRoleStep())
 	if in.S.Has("testdb") {

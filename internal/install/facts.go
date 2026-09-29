@@ -71,13 +71,16 @@ type Facts struct {
 	Arch       string
 	Docker     string
 	Compose    string
-	Claude     string // the path, as PATH gives it
+	Claude     string // the path, as PATH gives it, or where the native installer puts it
 	LANPort    int
 	Mode       Mode
 	Traces     []string // what an earlier install left, when there was one
 	// ViaGroup is docker reached through sg: the user is in the docker group
 	// and this terminal began before the group was added.
 	ViaGroup bool
+	// ClaudeOffPath is claude found where Anthropic's native installer
+	// puts it, and not on PATH.
+	ClaudeOffPath bool
 }
 
 // Finding is a line of the check.
@@ -95,6 +98,9 @@ type Missing struct {
 	Name    string
 	Why     string // what the panel does with it
 	Command string // what puts it there by hand
+	// Needs are the apt packages the program's own installer lacks on this
+	// machine: the root step installs them with the rest.
+	Needs []string
 }
 
 // Stop is the stop of a run that does not install what is missing.
@@ -434,20 +440,31 @@ func (c *checker) composePackage() (string, bool) {
 // the person's shell.
 var unitPath = []string{"/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"}
 
+// NativeClaude is where Anthropic's native installer puts the launcher of
+// claude under a home directory.
+func NativeClaude(home string) string { return filepath.Join(home, ".local", "bin", "claude") }
+
 func (c *checker) claude() {
 	path, err := c.m.LookPath("claude")
 	if err != nil {
-		why := "the panel starts and watches claude sessions"
+		// A native install is found off PATH too: ~/.local/bin reaches PATH
+		// only with the next login, and the run after the install comes
+		// sooner.
+		native := NativeClaude(c.f.Account.Home)
+		if st, err := c.m.Stat(native); err == nil && st.Mode.IsRegular() {
+			path, c.f.ClaudeOffPath = native, true
+		}
+	}
+	if path == "" {
+		m := Missing{Name: "claude", Why: "the panel starts and watches claude sessions", Command: nativeCommand}
 		_, curl := c.m.LookPath("curl")
 		_, wget := c.m.LookPath("wget")
 		if curl != nil && wget != nil {
-			// The native installer downloads claude with one of them, and
-			// the installer brings neither.
-			c.add(Stop, "stop: claude is needed: %s. Anthropic's native installer downloads it with curl or wget, "+
-				"and this machine has neither: sudo apt install curl, then run again.", why)
-			return
+			// The native installer downloads claude with one of them.
+			m.Needs = []string{"curl"}
+			m.Command = "sudo apt install curl && " + nativeCommand
 		}
-		c.missing(Missing{Name: "claude", Why: why, Command: nativeCommand})
+		c.missing(m)
 		return
 	}
 	c.f.Claude = path
@@ -468,6 +485,10 @@ func (c *checker) claude() {
 		if f := strings.Fields(out); len(f) > 0 {
 			line += " " + f[0]
 		}
+	}
+	if c.f.ClaudeOffPath {
+		c.add(Pass, "%s · %s, where the native installer puts it: not on PATH", line, c.short(path))
+		return
 	}
 	c.add(Pass, "%s · %s", line, c.short(path))
 }

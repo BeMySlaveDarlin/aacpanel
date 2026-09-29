@@ -79,10 +79,11 @@ func TestADryRunOfRootShPrintsTheManifestOfAFreshMachine(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := dryRoot(t, "apply", "--user", "nobody", "--state", state, "--staged", staged,
-		"--package", "tmux", "--package", "docker.io", "--package", "docker-compose-v2")
+		"--package", "tmux", "--package", "curl", "--package", "docker.io", "--package", "docker-compose-v2")
 	got := manifestOf(out)
 	want := []string{
 		"pkg | tmux | by-installer",
+		"pkg | curl | by-installer",
 		"pkg | docker.io | by-installer",
 		"pkg | docker-compose-v2 | by-installer",
 		"group | docker nobody | by-installer",
@@ -169,7 +170,7 @@ func TestRootShRefusesWhatItDoesNotTake(t *testing.T) {
 		{[]string{"apply", "--user"}, 2, "--user takes a value"},
 		{[]string{"apply", "--user", "nobody", "--linger"}, 2, "apply takes no --linger"},
 		{[]string{"restart-agent", "--user", "nobody", "--package", "tmux"}, 2, "restart-agent takes no --package"},
-		{[]string{"apply", "--user", "nobody", "--package", "curl"}, 2, "curl is not one of them"},
+		{[]string{"apply", "--user", "nobody", "--package", "wget"}, 2, "wget is not one of them"},
 		{[]string{"apply", "--user", "nobody", "--state", "var/lib/aacpanel"}, 2, "not a plain absolute path"},
 		{[]string{"apply", "--user", "nobody", "--state", "/var/lib/../etc"}, 2, "not a plain absolute path"},
 		{[]string{"apply", "--user", "nobody", "--state", "/srv/my state"}, 2, "not a plain absolute path"},

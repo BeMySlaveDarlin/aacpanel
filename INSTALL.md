@@ -70,16 +70,18 @@ sudo rights of your own, answer No at the root command: the run stops with the
 command for an administrator, and `./install.sh` goes on from there once it
 has run.
 
-**claude** is found with `command -v claude`. On a machine without it the
-installer offers to install it with Anthropic's native installer, as you and
-without root: it downloads the script `https://claude.ai/install.sh` itself and
-runs it with bash, before the settings of claude are wired. The script puts the
-launcher into `~/.local/bin/claude` and the versions into
-`~/.local/share/claude`, and downloads claude with curl or wget: a machine with
-neither stops at the check with `sudo apt install curl`. A claude that runs on a
-node of your shell's `PATH` is refused: the executor's unit does not see that
-node, and no panel session would start. Signing in can wait — the installer
-offers to hand you the terminal for it.
+**claude** is found with `command -v claude`, or where Anthropic's native
+installer puts it, `~/.local/bin/claude`, when that is not on `PATH` yet. On a
+machine without it the installer offers to install it with the native
+installer, as you and without root: it downloads the script
+`https://claude.ai/install.sh` itself and runs it with bash, before the
+settings of claude are wired. The script puts the launcher into
+`~/.local/bin/claude` and the versions into `~/.local/share/claude`, and
+downloads claude with curl or wget: on a machine with neither, the root step
+installs curl with apt, with the other packages. A claude that runs on a node
+of your shell's `PATH` is refused: the executor's unit does not see that node,
+and no panel session would start. Signing in can wait — the installer offers to
+hand you the terminal for it.
 
 **The network.** The installer downloads the Go that `go.mod` names from
 `go.dev` (checked against the checksum `go.dev` publishes), the modules of the
@@ -123,7 +125,7 @@ run before the first change, with the command that fixes it.
 | `x86_64` | `uname -m` | `aarch64` goes with a warning, anything else stops |
 | docker, the system daemon, answering you | `docker version`, `docker info`, `/var/run/docker.sock` | missing: offered with apt; `permission denied`: `sudo usermod -aG docker <user>` and a new login; rootless docker, Docker Desktop, docker from snap: stop |
 | docker compose v2, 2.18.0 or newer | `docker compose version --short` | missing: offered with apt, when apt has one that new; otherwise stop. The `docker-compose` package of Debian 12 is compose v1: there docker comes from `download.docker.com` |
-| claude | `command -v claude`, and what its first line runs | missing: offered with Anthropic's native installer, as you, where curl or wget is there to download it; with neither, stop: `sudo apt install curl`. One that runs on a node the executor's unit does not see: stop |
+| claude | `command -v claude`, else `~/.local/bin/claude`; and what its first line runs | missing: offered with Anthropic's native installer, as you, and curl with apt where the machine has neither curl nor wget for it. One that runs on a node the executor's unit does not see: stop |
 | tmux and jq | `PATH` | offered with apt |
 | python3 3.9 or newer | `python3 -c …` | stop |
 | sudo | `sudo -n true`, `sudo -n -l` | a password is asked at the terminal; without a terminal the run stops, unless the root part of an earlier install is in place |
@@ -692,8 +694,9 @@ is a display; the locale always.
 
 **Claude**
 - *What starts claude?* — what `command -v claude` gives, the link kept as it
-  is so that an update of claude reaches the panel; a wrapper of your own
-  instead, where the accounts need one. `AACP_CLAUDE`.
+  is so that an update of claude reaches the panel; off `PATH`,
+  `~/.local/bin/claude`, where the native installer puts it; a wrapper of your
+  own instead, where the accounts need one. `AACP_CLAUDE`.
 - *Which claude accounts does the panel serve?* — `~/.claude` and every
   `~/.claude-*` holding what claude puts there (`.credentials.json`,
   `settings.json`, `projects`, `sessions`, `statsig`), `~/.claude` checked.
@@ -711,7 +714,8 @@ is a display; the locale always.
 *docker is not installed. Install it with apt as part of the root step?*,
 *docker compose v2 is missing…*, *tmux is missing. Install it?*, *jq is
 missing. Install it?* — the packages of S4; *claude is not installed. Install
-it with Anthropic's native installer?* — S5a, and then *What starts claude?*
+it with Anthropic's native installer?* — S5a, with curl among the packages of
+S4 on a machine with neither curl nor wget, and then *What starts claude?*
 suggests `~/.local/bin/claude`. A no stops the run with the command that
 installs it by hand.
 
@@ -729,7 +733,7 @@ installs it by hand.
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `deploy/claude/prompt-stamp.py` |
 | Cost snapshot | no | the `Stop` and `SubagentStop` hooks, `deploy/claude/cost-snapshot.py` |
-| Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a |
+| Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
 | Test database | no | S10a |
 
@@ -824,9 +828,10 @@ sudo bash <clone>/deploy/install/root.sh apply --user <user> --state <state> \
 bash <clone>/deploy/install/root.sh apply --user <user> --dry-run   # what it would do, without root
 ```
 
-`--package` takes only `tmux`, `jq`, `docker.io`, `docker-compose-v2`,
-`docker-compose-plugin` and `docker-compose`; `--staged` only when S3 staged
-the file. Or the same by hand, as root:
+`--package` takes only `tmux`, `jq`, `curl`, `docker.io`, `docker-compose-v2`,
+`docker-compose-plugin` and `docker-compose` — curl for claude's native
+installer on a machine with neither curl nor wget; `--staged` only when S3
+staged the file. Or the same by hand, as root:
 
 | | Done when | Do | Check | Manifest |
 |---|---|---|---|---|
@@ -873,7 +878,9 @@ and under sudo it would land in root's.
 
   The installer fetches the same script with its own HTTP client and runs
   `bash <install>/claude-install.sh`, then deletes the file. The script needs
-  curl or wget for its own downloads: the check stops a machine with neither.
+  curl or wget for its own downloads: on a machine with neither, S4 installs
+  curl first (`root	pkg	curl	by-installer`, named and left at uninstall like
+  the other packages).
 - **Check.** `~/.local/bin/claude --version` prints a version. Signing in is
   the question of S2, not this step.
 - **Manifest.** `claude-install	pkg	claude	by-installer native`, before the
@@ -1025,6 +1032,15 @@ docker group, as you do.
   `gc-timer	dir	<home>/.config/systemd/user/timers.target.wants	created` when
   `enable` made it. Uninstall disables the timer, removes both files and the
   link, and the directories it made where nothing else lives.
+
+**`gc-timer-off` — Remove the docker cleanup timer.** A later run whose kit
+leaves Docker cleanup out, over units of it the manifest holds, takes them away
+the way uninstall does: `systemctl --user disable --now` the timer and the
+service, both files and the link removed, `systemctl --user daemon-reload`,
+and `timers.target.wants` removed if nothing else lives there. Their lines
+then leave the manifest; the directories the executor's unit shares stay on
+record. Done when the manifest holds no line of the cleanup; units of it the
+manifest does not hold are not the installer's and stay.
 
 ## S9. `compose` — Panel stack
 

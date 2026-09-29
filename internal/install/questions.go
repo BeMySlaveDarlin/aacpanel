@@ -222,11 +222,16 @@ func (s *Survey) prerequisites() []Question {
 	var qs []Question
 	for _, m := range s.missing {
 		yesLabel := "Yes — with apt, in the root step"
+		note := why[m.Name]
 		if m.Name == "claude" {
 			yesLabel = "Yes — as you, no root needed"
+			if len(m.Needs) > 0 {
+				yesLabel = "Yes — as you; " + strings.Join(m.Needs, " ") + " with apt, in the root step"
+				note += " Its installer downloads claude with curl or wget, and the machine has neither: the root step installs curl."
+			}
 		}
 		qs = append(qs, Question{
-			ID: "pkg:" + m.Name, Tab: m.Name, Prompt: prompt[m.Name], Note: why[m.Name], Form: One,
+			ID: "pkg:" + m.Name, Tab: m.Name, Prompt: prompt[m.Name], Note: note, Form: One,
 			Options: []Option{
 				{Value: yes, Label: yesLabel, Source: "recommended"},
 				{Value: no, Label: "No — show me the command", Detail: "The run stops here with the command that installs it by hand."},
@@ -371,11 +376,14 @@ func (s *Survey) claude() []Question {
 		Own: typeOwn, Flag: "--claude", Check: checkPaths, Writes: []Target{{HostEnvFile, "AACP_CLAUDE"}},
 	}
 	switch {
+	case f.ClaudeOffPath:
+		cmd.Options = []Option{{Value: f.Claude, Label: f.Short(f.Claude), Source: "the native installer",
+			Detail: "Where Anthropic's native installer puts it; not on PATH until your next login."}}
 	case f.Claude != "":
 		cmd.Options = []Option{{Value: f.Claude, Label: f.Short(f.Claude), Source: "command -v claude",
 			Detail: "Found with command -v claude. The link is kept as it is, so an update of claude reaches the panel."}}
 	case s.valueOr("pkg:claude", "") == yes:
-		native := filepath.Join(f.Account.Home, ".local", "bin", "claude")
+		native := NativeClaude(f.Account.Home)
 		cmd.Options = []Option{{Value: native, Label: f.Short(native), Source: "the native installer",
 			Detail: "Where Anthropic's native installer puts it."}}
 	}

@@ -231,9 +231,17 @@ func TestTheDockerGroupOfAnEarlierRunGoesThroughSg(t *testing.T) {
 	says(t, Inspect(m, clone), `✗ stop: docker answers "permission denied": u is not in the docker group. sudo usermod -aG docker u, log out and in, run ./install.sh again.`)
 }
 
+// noClaude takes claude off the machine: off PATH, and from where the
+// native installer puts it.
+func noClaude(m *fake) {
+	delete(m.Path, "claude")
+	delete(m.Files, NativeClaude(home))
+}
+
 func TestAMissingProgramIsOfferedNotJustRefused(t *testing.T) {
 	m := healthy()
-	for _, name := range []string{"docker", "claude", "tmux", "jq"} {
+	noClaude(m)
+	for _, name := range []string{"docker", "tmux", "jq"} {
 		delete(m.Path, name)
 	}
 	in := Inspect(m, clone)
@@ -254,24 +262,49 @@ func TestAMissingProgramIsOfferedNotJustRefused(t *testing.T) {
 	says(t, in, "✗ stop: claude is needed: the panel starts and watches claude sessions. curl -fsSL https://claude.ai/install.sh | bash, then run again.")
 }
 
-// TestClaudeIsOfferedWhereItsInstallerCanDownload: the native installer
-// downloads claude with curl or wget, so a machine with neither stops with
-// the command that brings one, and one with either is offered claude.
-func TestClaudeIsOfferedWhereItsInstallerCanDownload(t *testing.T) {
-	m := healthy()
-	delete(m.Path, "claude")
+// TestCurlComesForClaudesInstaller: the native installer downloads claude
+// with curl or wget, so on a machine with neither a yes to claude puts curl
+// into the root step's apt, with tmux and jq; with either, nothing more.
+func TestCurlComesForClaudesInstaller(t *testing.T) {
+	m := desktop()
+	noClaude(m)
 	delete(m.Path, "curl")
+	delete(m.Path, "tmux")
 	in := Inspect(m, clone)
-	says(t, in, "✗ stop: claude is needed: the panel starts and watches claude sessions. Anthropic's native installer "+
-		"downloads it with curl or wget, and this machine has neither: sudo apt install curl, then run again.")
-	for _, f := range Offered(in).Findings {
-		if f.Missing != nil {
-			t.Errorf("%s is offered on a machine its installer cannot download to", f.Missing.Name)
-		}
+	says(t, in, "✗ stop: claude is needed: the panel starts and watches claude sessions. "+
+		"sudo apt install curl && curl -fsSL https://claude.ai/install.sh | bash, then run again.")
+	packages := func(m *fake, claude string) []string {
+		s := survey(m, &Run{Yes: true, Answers: map[string]string{"--install-claude": claude}})
+		answerAll(t, s)
+		return s.Packages()
+	}
+	if got := packages(m, yes); !slices.Equal(got, []string{"curl", "tmux"}) {
+		t.Errorf("a yes to claude on a machine without curl or wget installs %q with apt", got)
 	}
 	m.Path["wget"] = "/usr/bin/wget"
-	if !slices.ContainsFunc(Inspect(m, clone).Findings, func(f Finding) bool { return f.Missing != nil && f.Missing.Name == "claude" }) {
-		t.Error("with wget claude is not offered")
+	if got := packages(m, yes); !slices.Equal(got, []string{"tmux"}) {
+		t.Errorf("with wget there the root step installs %q", got)
+	}
+}
+
+// TestClaudeOffPathIsFoundWhereTheNativeInstallerPutsIt: after the native
+// installer, ~/.local/bin reaches PATH only with the next login; the run
+// before it finds claude there all the same, asks nothing about installing
+// it, and suggests it as what starts claude.
+func TestClaudeOffPathIsFoundWhereTheNativeInstallerPutsIt(t *testing.T) {
+	m := desktop()
+	delete(m.Path, "claude")
+	in := Inspect(m, clone)
+	says(t, in, "✓ claude 2.1.283 · ~/.local/bin/claude, where the native installer puts it: not on PATH")
+	for _, f := range in.Findings {
+		if f.Missing != nil {
+			t.Errorf("%s is asked about with claude at ~/.local/bin", f.Missing.Name)
+		}
+	}
+	s := survey(m, &Run{Yes: true})
+	answerAll(t, s)
+	if g, _ := s.Value("claude"); g.Value != NativeClaude(home) || g.Source != "the native installer" {
+		t.Errorf("what starts claude: %+v", g)
 	}
 }
 

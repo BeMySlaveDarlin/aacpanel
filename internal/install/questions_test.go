@@ -190,7 +190,8 @@ func TestTheCursorStandsOnTheEarlierAnswerOnlyWhenItsKeyIsThere(t *testing.T) {
 // flag stands for a question that is gone.
 func TestEveryQuestionHasAFlag(t *testing.T) {
 	m := desktop()
-	for _, name := range []string{"tmux", "jq", "claude", "docker"} {
+	noClaude(m)
+	for _, name := range []string{"tmux", "jq", "docker"} {
 		delete(m.Path, name)
 	}
 	m.Files[home+"/.claude-work/settings.json"] = "{}"

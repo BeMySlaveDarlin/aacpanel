@@ -258,5 +258,6 @@ func (s *Survey) tlsVars(cert string) []Var {
 }
 
 // Packages are the apt packages the root step installs: what the person
-// agreed to in block P, claude aside, which installs as the person.
+// agreed to in block P, claude aside, which installs as the person — but
+// with curl where its installer has nothing to download claude with.
 func (s *Survey) Packages() []string { return s.packages() }

@@ -20,8 +20,9 @@ unit_src=$here/../systemd/aacpanel-agent@.service
 unit=/etc/systemd/system/aacpanel-agent@.service
 lingers=/var/lib/systemd/linger
 default_state=/var/lib/aacpanel
-# The packages the installer offers: nothing else is installed as root.
-known_packages=" tmux jq docker.io docker-compose-v2 docker-compose-plugin docker-compose "
+# The packages the installer offers: nothing else is installed as root. curl
+# is for claude's native installer, on a machine with neither curl nor wget.
+known_packages=" tmux jq curl docker.io docker-compose-v2 docker-compose-plugin docker-compose "
 clean_path='^/[A-Za-z0-9._/-]+$'
 
 usage() {

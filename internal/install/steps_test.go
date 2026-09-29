@@ -748,22 +748,7 @@ func TestTheDockerCleanupIsATimerOfTheUser(t *testing.T) {
 	}
 	dir := g.in.userUnitDir()
 	wants := filepath.Join(dir, "timers.target.wants")
-	g.says([]string{"systemctl", "--user", "daemon-reload"}, "")
-	g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "disabled\n")
-	g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "inactive\n")
-	enable := []string{"systemctl", "--user", "enable", "--now", gcTimer}
-	g.says(enable, "")
-	g.m.Effects[Command(enable[0], enable[1:]...)] = func(Cmd) error {
-		g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "enabled\n")
-		g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "active\n")
-		if err := os.MkdirAll(wants, 0o755); err != nil {
-			return err
-		}
-		return os.Symlink(filepath.Join(dir, gcTimer), filepath.Join(wants, gcTimer))
-	}
-	if err := g.do(g.step("gc-timer")); err != nil {
-		t.Fatal(err)
-	}
+	g.gcInstalled()
 	for _, name := range []string{gcService, gcTimer} {
 		if g.read(filepath.Join(dir, name)) != g.read(filepath.Join(g.clone, "deploy", "systemd", name)) {
 			t.Errorf("%s is not the unit of the tree", name)
@@ -820,6 +805,74 @@ func TestTheDockerCleanupIsATimerOfTheUser(t *testing.T) {
 	}
 	if !slices.Contains(g.m.Ran, "systemctl --user disable --now "+gcTimer) {
 		t.Errorf("uninstall did not disable the timer: %q", g.m.Ran)
+	}
+}
+
+// gcInstalled takes the rig through the step of the cleanup: the timer is
+// enabled and started as systemctl would do it, with its link.
+func (g *rig) gcInstalled() {
+	g.t.Helper()
+	dir := g.in.userUnitDir()
+	wants := filepath.Join(dir, "timers.target.wants")
+	g.says([]string{"systemctl", "--user", "daemon-reload"}, "")
+	g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "disabled\n")
+	g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "inactive\n")
+	enable := []string{"systemctl", "--user", "enable", "--now", gcTimer}
+	g.says(enable, "")
+	g.m.Effects[Command(enable[0], enable[1:]...)] = func(Cmd) error {
+		g.says([]string{"systemctl", "--user", "is-enabled", gcTimer}, "enabled\n")
+		g.says([]string{"systemctl", "--user", "is-active", gcTimer}, "active\n")
+		if err := os.MkdirAll(wants, 0o755); err != nil {
+			return err
+		}
+		return os.Symlink(filepath.Join(dir, gcTimer), filepath.Join(wants, gcTimer))
+	}
+	if err := g.do(g.step("gc-timer")); err != nil {
+		g.t.Fatal(err)
+	}
+}
+
+// TestALaterRunWithoutTheCleanupTakesItAway: a run whose kit leaves the
+// cleanup out disables the timer and removes its units, link and directory
+// by the undo uninstall uses, and their lines leave the manifest; what the
+// executor's unit shares with it stays on record.
+func TestALaterRunWithoutTheCleanupTakesItAway(t *testing.T) {
+	g := newRig(t, answer("--kit", "+gc"))
+	g.gcInstalled()
+	dir := g.in.userUnitDir()
+	g.in.S.given["kit"] = Given{Value: strings.ReplaceAll(g.in.S.valueOr("kit", ""), ",gc", "")}
+	ids := stepIDs(g.in)
+	if slices.Contains(ids, "gc-timer") || !slices.Contains(ids, "gc-timer-off") {
+		t.Fatalf("a kit without the cleanup over its timer takes the steps %q", ids)
+	}
+	if !slices.ContainsFunc(g.in.S.Plan(), func(r PlanRow) bool { return strings.Contains(r.Text, gcTimer+" taken away") }) {
+		t.Error("the plan does not say the timer goes")
+	}
+	for _, u := range []string{gcTimer, gcService} {
+		g.says([]string{"systemctl", "--user", "disable", "--now", u}, "")
+	}
+	if err := g.do(g.step("gc-timer-off")); err != nil {
+		t.Fatal(err)
+	}
+	wants := filepath.Join(dir, "timers.target.wants")
+	for _, gone := range []string{filepath.Join(dir, gcService), filepath.Join(dir, gcTimer), wants} {
+		if _, err := os.Lstat(gone); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s is still there", gone)
+		}
+	}
+	if !slices.Contains(g.m.Ran, "systemctl --user disable --now "+gcTimer) {
+		t.Errorf("the timer was not disabled: %q", g.m.Ran)
+	}
+	want := []string{
+		"dir " + filepath.Join(g.home, ".config") + " created",
+		"dir " + filepath.Join(g.home, ".config/systemd") + " created",
+		"dir " + dir + " created",
+	}
+	if !slices.Equal(g.lines(), want) {
+		t.Errorf("the manifest holds\n%s\nwant\n%s", strings.Join(g.lines(), "\n"), strings.Join(want, "\n"))
+	}
+	if slices.Contains(stepIDs(g.in), "gc-timer-off") || !g.already(g.in.gcOffStep()) {
+		t.Error("a cleanup taken away is taken away again")
 	}
 }
 

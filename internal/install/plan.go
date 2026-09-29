@@ -65,8 +65,11 @@ func (s *Survey) Plan() []PlanRow {
 	if s.Has("testdb") {
 		rows = append(rows, row("a test database for make check", TagNew))
 	}
+	gc := filepath.Join(home, ".config", "systemd", "user", "aacpanel-docker-gc.timer")
 	if s.Has("gc") {
-		rows = append(rows, row("aacpanel-docker-gc.timer, weekly", tag(filepath.Join(home, ".config", "systemd", "user", "aacpanel-docker-gc.timer"))))
+		rows = append(rows, row("aacpanel-docker-gc.timer, weekly", tag(gc)))
+	} else if tag(gc) == TagThere {
+		rows = append(rows, row("aacpanel-docker-gc.timer taken away: the kit leaves it out", ""))
 	}
 	rows = append(rows, s.mapRows()...)
 
@@ -102,10 +105,15 @@ func (s *Survey) Plan() []PlanRow {
 func (s *Survey) packages() []string {
 	var out []string
 	for _, m := range s.missing {
-		if m.Name == "claude" || s.valueOr("pkg:"+m.Name, "") != yes {
+		if s.valueOr("pkg:"+m.Name, "") != yes {
 			continue
 		}
-		out = append(out, strings.Fields(strings.TrimPrefix(m.Command, "sudo apt install "))...)
+		// claude installs as the person; what its installer lacks comes
+		// with apt all the same.
+		if m.Name != "claude" {
+			out = append(out, strings.Fields(strings.TrimPrefix(m.Command, "sudo apt install "))...)
+		}
+		out = append(out, m.Needs...)
 	}
 	return out
 }

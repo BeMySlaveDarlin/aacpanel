@@ -375,7 +375,15 @@ func (rm *Removal) units(r *Run) error {
 			r.Say(Warn, "sessions on the stream end with the executor: "+strings.Join(strings.Fields(live), " "))
 		}
 	}
-	for _, e := range rm.of(Enabled) {
+	return takeUnits(r, rm.of(Enabled), rm.of(UserUnit))
+}
+
+// takeUnits takes units of the user back by their lines: each one enabled
+// is disabled, and each file is disabled and removed with its links, as
+// files, so they go even with the user's manager away. The manager is
+// reloaded once, after the last.
+func takeUnits(r *Run, enabled, files []Entry) error {
+	for _, e := range enabled {
 		scope, unit, _ := strings.Cut(e.Target, " ")
 		if scope != "user" {
 			continue
@@ -384,8 +392,7 @@ func (rm *Removal) units(r *Run) error {
 			r.Say(Warn, "systemctl --user disable "+unit+" failed: its files go all the same")
 		}
 	}
-	any := false
-	for _, e := range rm.of(UserUnit) {
+	for _, e := range files {
 		unit := filepath.Base(e.Target)
 		if err := userctl(r, "disable", "--now", unit); err != nil {
 			r.Say(Warn, "systemctl --user disable "+unit+" failed: its files go all the same")
@@ -402,9 +409,8 @@ func (rm *Removal) units(r *Run) error {
 			return err
 		}
 		r.Say(Pass, unit+" disabled, its file removed")
-		any = true
 	}
-	if any {
+	if len(files) > 0 {
 		_ = userctl(r, "daemon-reload")
 	}
 	return nil

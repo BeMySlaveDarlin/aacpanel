@@ -502,6 +502,82 @@ func (in *Install) gcTimerStep() *Step {
 	}
 }
 
+// gcThere tells whether a unit of the cleanup is among the user's.
+func (in *Install) gcThere() bool {
+	for _, name := range []string{gcService, gcTimer} {
+		if _, err := in.M.Stat(filepath.Join(in.userUnitDir(), name)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// gcLines are the lines of the manifest that stand for the cleanup: the
+// timer enabled, its two units, and the directory enable made for the link
+// of the timer.
+func (in *Install) gcLines(r *Run) (enabled, units, dirs []Entry) {
+	if r.Manifest == nil {
+		return nil, nil, nil
+	}
+	es, _ := ReadManifest(r.Manifest.Path)
+	dir := in.userUnitDir()
+	for _, e := range es {
+		switch {
+		case e.Kind == string(Enabled) && e.Target == "user "+gcTimer:
+			enabled = append(enabled, e)
+		case e.Kind == string(UserUnit) && (e.Target == filepath.Join(dir, gcService) || e.Target == filepath.Join(dir, gcTimer)):
+			units = append(units, e)
+		case e.Kind == string(Dir) && e.Target == filepath.Join(dir, "timers.target.wants"):
+			dirs = append(dirs, e)
+		}
+	}
+	return enabled, units, dirs
+}
+
+// gcOffStep takes the cleanup away when the kit leaves it out, as hooks of
+// parts left out go from claude's settings: by the undo uninstall takes it
+// away with, and its lines then leave the manifest. Units of the cleanup the
+// manifest does not hold are not the installer's, and stay.
+func (in *Install) gcOffStep() *Step {
+	return &Step{ID: "gc-timer-off", Title: "Remove the docker cleanup timer",
+		Done: func(r *Run) (bool, error) {
+			enabled, units, dirs := in.gcLines(r)
+			return len(enabled)+len(units)+len(dirs) == 0, nil
+		},
+		Apply: func(r *Run) error {
+			enabled, units, dirs := in.gcLines(r)
+			if err := takeUnits(r, enabled, units); err != nil {
+				return err
+			}
+			for _, e := range dirs {
+				if err := undoDir(r, e); err != nil {
+					return err
+				}
+			}
+			// A directory with something else in it stays, and so does its
+			// line; the rest is gone from the machine and leaves the record.
+			return r.Manifest.Drop(func(e Entry) bool {
+				if slices.Contains(dirs, e) {
+					_, err := os.Stat(e.Target)
+					return errors.Is(err, fs.ErrNotExist)
+				}
+				return slices.Contains(enabled, e) || slices.Contains(units, e)
+			})
+		},
+		Verify: func(r *Run) error {
+			for _, name := range []string{gcService, gcTimer} {
+				path := filepath.Join(in.userUnitDir(), name)
+				if r.Recorded(UserUnit, path) {
+					return &Failed{Diagnosis: path + " is still on record after the cleanup was taken away"}
+				}
+			}
+			r.Say(Pass, "the kit leaves the docker cleanup out: "+gcTimer+" and its service are gone")
+			return nil
+		},
+		Undo: UndoKind,
+	}
+}
+
 // execDiagnosis is why the executor did not come up, by its journal.
 func (in *Install) execDiagnosis(r *Run, cause error) error {
 	journal, _ := r.Exec(Cmd{Argv: []string{"journalctl", "--user", "-u", execService, "-n", "30", "--no-pager"}, Limit: 30 * time.Second})
