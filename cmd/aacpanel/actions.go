@@ -142,6 +142,13 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		req.Text, req.From = text, from
 		params = map[string]any{"chars": len([]rune(text)), "from": from}
 	}
+	if req.Kind == action.SessionBackground {
+		req.Use, _ = body.Params["use"].(string)
+		params = map[string]any{"use": req.Use}
+		if req.Use == "" {
+			params = map[string]any{"all": true}
+		}
+	}
 	if req.Kind == action.SessionUnqueue {
 		id, _ := body.Params["messageId"].(string)
 		req.MessageID = id

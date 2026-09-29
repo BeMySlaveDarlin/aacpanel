@@ -129,6 +129,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     // they reach neither the conversation nor its transcript.
     const sideChat = useSideChat(name, id);
     const onStream = Boolean(live) && live.transport === "stream";
+    // A call the turn waits on goes to the background in a live session the
+    // panel reaches: on the stream by its id, in the console all at once.
+    const toBackground = live && !live.outside ? { name, exec, stream: onStream } : null;
 
     const quote = useSelectionQuote();
     const [insert, setInsert] = useState(null);
@@ -400,6 +403,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                turnOver=${Boolean(live.turnOver)}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""}
                                feed=${feed} onCalls=${(run) => setCalls({ list: runCalls(feed, run) })}
+                               to=${toBackground}
                                checklist=${wide ? null : checklist}
                                onChecklist=${() => setLook({ kind: "checklist" })}
                                onOpen=${(what) => setLook(what)} />
@@ -466,7 +470,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>
             <${Calls} session=${name} id=${id} calls=${calls ? calls.list : []} turn=${calls && calls.turn}
-                      onFile=${(file) => setLook({ kind: "file", ...file })} />
+                      onFile=${(file) => setLook({ kind: "file", ...file })} to=${toBackground} />
         <//>
 
         <${Sheet} open=${Boolean(look)} onClose=${() => setLook(null)}

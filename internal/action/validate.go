@@ -332,6 +332,17 @@ func (r Request) Validate() error {
 	} else if r.Kind == SessionUnqueue {
 		return badRequest("action %s without the message to take back", r.Kind)
 	}
+	if r.Use != "" {
+		if r.Kind != SessionBackground {
+			return badRequest("action %s moves no call", r.Kind)
+		}
+		if len(r.Use) > idMax {
+			return badRequest("the call id is longer than %d characters", idMax)
+		}
+		if !safeID(r.Use) {
+			return badRequest("the call id contains forbidden characters")
+		}
+	}
 	if r.Kind == SessionLetter {
 		if r.From == "" {
 			return badRequest("a letter without the conversation it comes from: it would have no sender")

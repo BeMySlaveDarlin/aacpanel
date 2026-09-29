@@ -110,17 +110,18 @@ func Run(ctx context.Context, spec Spec) error {
 		log:       logFile,
 		statePath: StatePath(spec.SessionID),
 		state: State{
-			Protocol:  Protocol,
-			Name:      spec.Name,
-			SessionID: spec.SessionID,
-			Holder:    os.Getpid(),
-			Started:   time.Now(),
-			Pending:   []Pending{},
-			Queue:     []Queued{},
-			Tasks:     []Task{},
-			Shells:    []Shell{},
-			Launched:  spec.Launched,
-			Said:      spec.Resumed,
+			Protocol:   Protocol,
+			Name:       spec.Name,
+			SessionID:  spec.SessionID,
+			Holder:     os.Getpid(),
+			Started:    time.Now(),
+			Pending:    []Pending{},
+			Queue:      []Queued{},
+			Tasks:      []Task{},
+			Foreground: []Task{},
+			Shells:     []Shell{},
+			Launched:   spec.Launched,
+			Said:       spec.Resumed,
 		},
 	}
 	defer h.cleanup(ln)
@@ -282,6 +283,11 @@ type event struct {
 	Model          string          `json:"model"`
 	PermissionMode string          `json:"permissionMode"`
 	Tasks          []Task          `json:"tasks"`
+	TaskID         string          `json:"task_id"`
+	TaskType       string          `json:"task_type"`
+	ToolUseID      string          `json:"tool_use_id"`
+	Description    string          `json:"description"`
+	IsBackgrounded *bool           `json:"is_backgrounded"`
 	Message        json.RawMessage `json:"message"`
 	Status         json.RawMessage `json:"status"`
 	CompactResult  string          `json:"compact_result"`
@@ -368,6 +374,9 @@ func (h *Holder) handle(ev event) {
 		// A turn that ended waits for nobody: a request left from it was
 		// answered or withdrawn with the turn.
 		h.state.Pending = []Pending{}
+		// Nor does it wait on a call: a call in the foreground is part of
+		// its turn.
+		h.state.Foreground = []Task{}
 		// Nor does it compact: a compaction interrupted ends with the turn,
 		// and claude says nothing else about it.
 		h.state.Compacting = nil
@@ -419,11 +428,33 @@ func (h *Holder) onUser(ev event) {
 		Content json.RawMessage `json:"content"`
 	}
 	_ = json.Unmarshal(ev.Message, &msg)
+	h.callsAnswered(msg.Content)
 	var text string
 	_ = json.Unmarshal(msg.Content, &text)
 	h.shellPrinted(text)
 	if h.take(ev.UUID, text) {
 		h.saveSummary()
+	}
+}
+
+// callsAnswered takes the calls whose answer has come off the ones the turn
+// waits on. The answer is the one end every call has — a command that
+// finished, a subagent that reported, a call moved to the background, which
+// answers at once — whatever claude says of the task behind it.
+func (h *Holder) callsAnswered(content json.RawMessage) {
+	var blocks []struct {
+		Type      string `json:"type"`
+		ToolUseID string `json:"tool_use_id"`
+	}
+	if json.Unmarshal(content, &blocks) != nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, b := range blocks {
+		if b.Type == "tool_result" {
+			h.dropForeground(b.ToolUseID)
+		}
 	}
 }
 
@@ -492,12 +523,35 @@ func (h *Holder) onSystem(ev event) {
 		h.state.Compacting = nil
 	case "background_tasks_changed":
 		h.state.Tasks = append([]Task{}, ev.Tasks...)
+	case "task_started":
+		// A shell command or a subagent the turn waits on is a task claude
+		// registers in the foreground; one started in the background is
+		// followed by background_tasks_changed. The calls in the foreground
+		// are not in the state file, so nothing is written for them.
+		if ev.IsBackgrounded != nil && !*ev.IsBackgrounded && ev.TaskID != "" {
+			h.state.Foreground = append(h.state.Foreground, Task{
+				ID: ev.TaskID, Type: ev.TaskType, Description: ev.Description, ToolUseID: ev.ToolUseID,
+			})
+		}
+		h.mu.Unlock()
+		return
 	default:
 		h.mu.Unlock()
 		return
 	}
 	h.mu.Unlock()
 	h.saveSummary()
+}
+
+// dropForeground takes the call a tool_result answers off the calls the turn
+// waits on. Called under h.mu.
+func (h *Holder) dropForeground(use string) {
+	for i, t := range h.state.Foreground {
+		if use != "" && t.ToolUseID == use {
+			h.state.Foreground = append(h.state.Foreground[:i], h.state.Foreground[i+1:]...)
+			return
+		}
+	}
 }
 
 // compacting follows a compaction by the status claude reports: "compacting"
@@ -873,7 +927,7 @@ func (h *Holder) do(req Request) Reply {
 		return Reply{OK: true}
 	case OpControl:
 		if !Controls[req.Subtype] {
-			return Reply{Error: fmt.Sprintf("%q is not a request the panel passes on", req.Subtype)}
+			return Reply{Error: fmt.Sprintf("%q %s", req.Subtype, NoSuchControl)}
 		}
 		if err := vetSettings(req.Subtype, req.Fields); err != nil {
 			return Reply{Error: err.Error()}
@@ -924,6 +978,7 @@ func (h *Holder) snapshot() State {
 	s.Pending = append([]Pending{}, h.state.Pending...)
 	s.Queue = append([]Queued{}, h.state.Queue...)
 	s.Tasks = append([]Task{}, h.state.Tasks...)
+	s.Foreground = append([]Task{}, h.state.Foreground...)
 	s.Shells = append([]Shell{}, h.state.Shells...)
 	return s
 }

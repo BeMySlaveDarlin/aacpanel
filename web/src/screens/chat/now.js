@@ -7,6 +7,7 @@ import { useEffect, useState } from "preact/hooks";
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { callWord, KIND_NAMES, kindIcon, shortTokens, tokenWord } from "./labels.js";
+import { aims, inForeground, ToBackground } from "./tobg.js";
 
 // What the person put into the turn. The turn going on began at the last one
 // of them the session read: a message still in the queue has not begun anything.
@@ -18,8 +19,9 @@ const later = (a, b) => (a.pos - b.pos) || ((a.index || 0) - (b.index || 0));
 
 // nowOf reads the feed for the turn going on: its last run of calls, the
 // latest call of that run and whether the host says it is still out, the
-// badges of the run, and since when it has stood as it stands. A turn with no
-// call yet has only its start.
+// badges of the run, the calls of the run the turn waits on in the foreground,
+// and since when it has stood as it stands. A turn with no call yet has only
+// its start.
 export function nowOf(items) {
     const list = items || [];
     let start = -1;
@@ -46,12 +48,15 @@ export function nowOf(items) {
             if (Number.isFinite(t) && !(t <= last)) last = t;
         }
     }
-    if (run == null) return { call: null, kind: "", running: false, since: last, think: null, kinds: [], run: null };
+    if (run == null) {
+        return { call: null, kind: "", running: false, since: last, think: null, kinds: [], run: null, fore: [] };
+    }
 
     let call = null;
     let kind = "other";
     let think = null;
     const kinds = [];
+    const fore = [];
     for (const item of turn) {
         if (item.run !== run) continue;
         if (item.role === "think") {
@@ -70,6 +75,7 @@ export function nowOf(items) {
             kinds.push({ kind: item.kind, count: calls.length, failed });
         }
         for (const one of calls) {
+            if (inForeground(one)) fore.push(one);
             if (!call || later(one, call) > 0) {
                 call = one;
                 kind = item.kind;
@@ -77,7 +83,7 @@ export function nowOf(items) {
         }
     }
     const running = Boolean(call) && call.open === true;
-    return { call, kind, running, since: running ? ms(call.at) : last, think, kinds, run };
+    return { call, kind, running, since: running ? ms(call.at) : last, think, kinds, run, fore };
 }
 
 // clock says how long something has stood, the way a stopwatch does.
@@ -99,10 +105,16 @@ export function useTick() {
 }
 
 // NowBar is the bar above the composer while a session is at work. Its badges
-// open the calls of the run going on.
-export function NowBar({ now, onCalls }) {
+// open the calls of the run going on. With to — the session, when the panel
+// can reach it — a call the turn waits on goes to the background from here:
+// the one going out by itself on the stream, and every one of them at once
+// where there are several, or in the console, where one key moves them all.
+export function NowBar({ now, onCalls, to }) {
     useTick();
     const { call, kind, running, think, kinds } = now;
+    const fore = (to && now.fore) || [];
+    const one = aims(to) && running && inForeground(call) ? call : null;
+    const all = fore.length > (aims(to) ? 1 : 0);
     const took = Number.isFinite(now.since) ? clock((Date.now() - now.since) / 1000) : "";
     const badges = (think && think.count > 0) || kinds.length > 0;
     return html`
@@ -148,6 +160,12 @@ export function NowBar({ now, onCalls }) {
                             })}
                         </span>
                     `}
+                </div>
+            `}
+            ${(one || all) && html`
+                <div class="nowbg">
+                    ${one && html`<${ToBackground} to=${to} call=${one} key=${`one-${one.use}`} />`}
+                    ${all && html`<${ToBackground} to=${to} count=${fore.length} key="all" />`}
                 </div>
             `}
         </div>

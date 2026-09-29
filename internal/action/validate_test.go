@@ -481,6 +481,35 @@ func TestAMessageIDNamesASentOrQueuedMessage(t *testing.T) {
 	}
 }
 
+// A call is named by the id of the tool_use block that started it, and only
+// the move to the background names one: the id reaches claude as a field of a
+// request, and nothing else takes it.
+func TestACallToMoveIsNamedByItsUse(t *testing.T) {
+	cases := []struct {
+		name string
+		req  Request
+		ok   bool
+	}{
+		{"one call", Request{ID: "1", Kind: SessionBackground, Target: "a", Use: "toolu_01AbCdEf"}, true},
+		{"every call in the foreground", Request{ID: "1", Kind: SessionBackground, Target: "a"}, true},
+		{"an id with a quote", Request{ID: "1", Kind: SessionBackground, Target: "a", Use: `toolu_"x`}, false},
+		{"an id over the ceiling", Request{ID: "1", Kind: SessionBackground, Target: "a",
+			Use: "toolu_" + strings.Repeat("a", idMax)}, false},
+		{"a call riding another action", Request{ID: "1", Kind: SessionStop, Target: "a", Use: "toolu_01AbCdEf"}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.req.Validate()
+			if c.ok && err != nil {
+				t.Errorf("a sound request is rejected: %v", err)
+			}
+			if !c.ok && err == nil {
+				t.Error("the request is accepted, though it must not be")
+			}
+		})
+	}
+}
+
 // A letter names the conversation it comes from, as a uuid, and nothing else
 // carries one: a message of the person that named a sender would be taken
 // for a letter. Its text is held to what any message is, and it does not wait

@@ -34,6 +34,12 @@ const (
 	SessionDismiss Kind = "session.dismiss"
 	// SessionStop interrupts what the model is writing right now.
 	SessionStop Kind = "session.stop"
+	// SessionBackground moves a call that runs in the foreground — a shell
+	// command or a subagent the turn waits on — to the background, as Ctrl+B
+	// does in the terminal: the call answers at once, the turn goes on, and
+	// the work goes on running beside it. It names one call, or none for every
+	// call in the foreground.
+	SessionBackground Kind = "session.background"
 	// SessionEscape closes a screen the session put up on its own and gives the
 	// composer back, so that what is typed next goes to the conversation and
 	// not into a dialog nobody at the panel has seen.
@@ -91,7 +97,7 @@ const (
 var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
-	SessionAnswer, SessionDismiss, SessionStop, SessionEscape, SessionFile, SessionCommand, SessionShell,
+	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, TaskStop, AgentStop, WindowOpen, WindowClose,
 	ProjectCreate,
 }

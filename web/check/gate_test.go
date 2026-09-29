@@ -171,6 +171,10 @@ var instantActions = map[string]bool{
 	// no more than writing into it — and a second sheet in front of a button
 	// the person pressed to recover from a refusal is a sheet in the way.
 	"session.escape": true,
+	// A call sent to the background loses nothing: it runs on beside the
+	// turn, and the list of background work stops it. Ctrl+B in the
+	// terminal asks nothing either.
+	"session.background": true,
 	// Taking back a message the person sent is no more than not sending it:
 	// the message is the person's own, and it goes back into the composer.
 	"session.unqueue": true,
@@ -211,18 +215,19 @@ var instantActions = map[string]bool{
 }
 
 var instantExecActions = map[string]bool{
-	"session.send":    true,
-	"session.shell":   true,
-	"session.answer":  true,
-	"session.stop":    true,
-	"session.permit":  true,
-	"session.file":    true,
-	"session.escape":  true,
-	"session.unqueue": true,
-	"session.set":     true,
-	"session.mcp":     true,
-	"session.rename":  true,
-	"session.remote":  true,
+	"session.send":       true,
+	"session.shell":      true,
+	"session.answer":     true,
+	"session.stop":       true,
+	"session.background": true,
+	"session.permit":     true,
+	"session.file":       true,
+	"session.escape":     true,
+	"session.unqueue":    true,
+	"session.set":        true,
+	"session.mcp":        true,
+	"session.rename":     true,
+	"session.remote":     true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

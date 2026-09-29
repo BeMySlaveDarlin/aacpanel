@@ -9,10 +9,13 @@ import { Icon } from "../../ui/icons.js";
 import { idParam } from "./api.js";
 import { Shots, shotSrc, Thumb } from "./shots.js";
 import { countCalls, kindIcon, shortTokens, stampText, tokenWord, turnLeft, turnTook } from "./labels.js";
+import { aims, inForeground, ToBackground } from "./tobg.js";
 
 // Calls renders the page listing the calls of one badge. Opened from the end
-// of a turn, it lists every call of the turn and says how long it took.
-export function Calls({ session, id, calls, turn, onFile }) {
+// of a turn, it lists every call of the turn and says how long it took. With
+// to — the live session on the stream — a call the turn waits on goes to the
+// background from its row and from the call itself.
+export function Calls({ session, id, calls, turn, onFile, to }) {
     const [pick, setPick] = useState(null);
     const real = calls.filter((call) => !call.still);
     const place = (n) => real.indexOf(calls[n]) + 1;
@@ -25,8 +28,31 @@ export function Calls({ session, id, calls, turn, onFile }) {
             place=${`${place(pick)} of ${real.length}`}
             onBack=${() => setPick(null)}
             onFile=${onFile}
+            to=${to}
         />`;
     }
+
+    // A row opens its call; a call the turn waits on gets the button under
+    // its row, not inside the button the row is.
+    const node = (call, n) => html`
+        <button class=${`callnode${call.shots && call.shots.length ? " pic" : ""}`} type="button"
+                key=${`${call.pos}-${call.index}`} onClick=${() => setPick(n)}>
+            <span class=${`cnmark k-${call.kind || "other"}`}>${kindIcon(call.kind)}</span>
+            <span class="cnbody">
+                <span class="cnname">${call.name}</span>
+                ${call.arg && html`<span class="cnarg">${call.arg}</span>`}
+                ${call.done && html`
+                    <span class=${`cndone ${doneKind(call.done.status)}`}>
+                        ${doneText(call.done)}
+                    </span>
+                `}
+            </span>
+            ${call.shots && call.shots.length > 0 && html`
+                <${Thumb} src=${shotSrc(session, id, call.pos, call.shots[0])} />
+            `}
+            <span class="crgo">${Icon.chevron()}</span>
+        </button>
+    `;
 
     return html`
         <div class="sheethead">
@@ -53,25 +79,12 @@ export function Calls({ session, id, calls, turn, onFile }) {
                         </span>
                     </span>
                 </div>
-            ` : html`
-                <button class=${`callnode${call.shots && call.shots.length ? " pic" : ""}`} type="button"
-                        key=${`${call.pos}-${call.index}`} onClick=${() => setPick(n)}>
-                    <span class=${`cnmark k-${call.kind || "other"}`}>${kindIcon(call.kind)}</span>
-                    <span class="cnbody">
-                        <span class="cnname">${call.name}</span>
-                        ${call.arg && html`<span class="cnarg">${call.arg}</span>`}
-                        ${call.done && html`
-                            <span class=${`cndone ${doneKind(call.done.status)}`}>
-                                ${doneText(call.done)}
-                            </span>
-                        `}
-                    </span>
-                    ${call.shots && call.shots.length > 0 && html`
-                        <${Thumb} src=${shotSrc(session, id, call.pos, call.shots[0])} />
-                    `}
-                    <span class="crgo">${Icon.chevron()}</span>
-                </button>
-            `))}
+            ` : aims(to) && inForeground(call) ? html`
+                <div class="callrow" key=${`${call.pos}-${call.index}`}>
+                    ${node(call, n)}
+                    <${ToBackground} to=${to} call=${call} />
+                </div>
+            ` : node(call, n)))}
         </div>
     `;
 }
@@ -97,7 +110,7 @@ function fetchCall(session, id, at) {
         });
 }
 
-function CallView({ session, id, call, place, onBack, onFile }) {
+function CallView({ session, id, call, place, onBack, onFile, to }) {
     const [state, setState] = useState({ kind: "loading" });
 
     useBackClose(true, onBack);
@@ -126,6 +139,12 @@ function CallView({ session, id, call, place, onBack, onFile }) {
         <//>
 
         <div class="callbody">
+            ${aims(to) && inForeground(call) && html`
+                <div class="callbg">
+                    <span class="hint">The turn waits on this call.</span>
+                    <${ToBackground} to=${to} call=${call} />
+                </div>
+            `}
             ${state.kind === "loading" && html`<p class="hint">Reading the call…</p>`}
             ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
             ${state.kind === "ready" && html`

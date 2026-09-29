@@ -101,6 +101,38 @@
     margin-bottom: .5rem;
 }
 
+/* A call the turn waits on goes to the background from a pill beside it —
+   the clock of the background work it joins. It stands beside the row of the
+   call, not in it: the row is a button of its own. */
+.tobg {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .25rem .6rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--glass-2);
+    box-shadow: var(--hairline);
+    color: var(--accent);
+    font: inherit;
+    font-size: var(--t-xs);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.tobg svg { width: var(--i-sm); height: var(--i-sm); }
+.tobg:disabled { cursor: default; color: var(--ink-faint); }
+.tobg.sent { box-shadow: none; background: none; }
+/* Under the row, in line with the name of the call it moves. */
+.callrow { display: flex; flex-direction: column; align-items: flex-start; }
+.callrow > .tobg { margin: -.2rem 0 .35rem calc(30px + .55rem); }
+.callbg { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-top: .6rem; }
+.callbg .hint { margin: 0; }
+/* A line of its own in the bar above the composer: the command and the badges
+   keep the room they had. */
+.nowbg { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+
 .callbody {
     overflow-y: auto;
     padding-bottom: 1.5rem;

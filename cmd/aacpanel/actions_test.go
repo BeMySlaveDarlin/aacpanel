@@ -912,6 +912,33 @@ func TestRunActionCarriesTheMessageIDToExecutor(t *testing.T) {
 	}
 }
 
+// A move to the background names its call by the id of the tool_use block, or
+// no call at all for every call in the foreground; a call id that could not
+// reach claude as a field is refused before the executor.
+func TestRunActionCarriesTheCallToMoveToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	for body, want := range map[string]string{
+		`{"kind":"session.background","target":"aacpanel","params":{"use":"toolu_01Fg"}}`: "toolu_01Fg",
+		`{"kind":"session.background","target":"aacpanel","params":{}}`:                   "",
+	} {
+		if w := post(t, srv, body); w.Code != http.StatusOK {
+			t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+		}
+		select {
+		case got := <-fake.got:
+			if got.Kind != action.SessionBackground || got.Use != want {
+				t.Errorf("%s reached the executor as %+v", body, got)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("the executor did not get the request")
+		}
+	}
+	if w := post(t, srv, `{"kind":"session.background","target":"aacpanel","params":{"use":"toolu_\"; rm"}}`); w.Code != http.StatusBadRequest {
+		t.Errorf("a call id with a quote is accepted: %d", w.Code)
+	}
+}
+
 // The picker asks once and gets both lists: what the session's claude names,
 // and the catalogue of the account for the models it does not.
 func TestSessionModelsCarryTheSessionAndTheCatalogue(t *testing.T) {

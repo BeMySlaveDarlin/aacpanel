@@ -339,9 +339,20 @@ next start.
 
 **A holder runs the program it was started with until its session ends.** It is
 the process claude's pipes belong to, so a new build of the executor reaches it
-only through a new start. An operation the running holder does not know is
-refused with what to do: the session was started before the panel could do
-this, and a restart, which keeps the conversation, brings it.
+only through a new start. An operation or a control request the running holder
+does not know is refused with what to do: the session was started before the
+panel could do this, and a restart, which keeps the conversation, brings it.
+
+**A call the turn waits on goes to the background the way Ctrl+B moves it.**
+A shell command or a subagent claude runs in the foreground is a task it can
+move: the call answers at once, the turn goes on, and the work runs on as a
+background task, which the collector reads off that answer like any other. On
+the stream one call is named by the id of its tool_use block, and the holder
+follows the calls in the foreground by claude's task events and their answers.
+In the console one key moves every call at once, so only all of them are
+offered there, and the key is pressed only while claude shows its hint under a
+running call: the hint names the key the terminal takes, and the same key into
+a free composer is a keystroke into the conversation.
 
 **The stream is claude's control protocol, and part of it is not public.** Any
 release may change a request the feed leans on without a word, so

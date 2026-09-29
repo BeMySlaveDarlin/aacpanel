@@ -58,6 +58,23 @@ func fakeClaude() int {
 		fmt.Println(string(b))
 	}
 	model, ultra := "claude-sonnet-5", false
+	// The calls a turn waits on, as claude -p 2.1.283 registers them: a
+	// task in the foreground, named by the call that started it.
+	var foreground []map[string]any
+	// moved answers a call moved to the background the way claude does: the
+	// task is patched, the list of background tasks comes whole, and the call
+	// gets its answer at once while the task goes on.
+	moved := func(task map[string]any) {
+		out(map[string]any{"type": "system", "subtype": "task_updated", "task_id": task["task_id"],
+			"patch": map[string]any{"is_backgrounded": true}, "uuid": NewSessionID(), "session_id": "s"})
+		out(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": []any{
+			map[string]any{"task_id": task["task_id"], "task_type": task["task_type"], "description": task["description"]}},
+			"uuid": NewSessionID(), "session_id": "s"})
+		out(map[string]any{"type": "user", "parent_tool_use_id": nil, "session_id": "s", "uuid": NewSessionID(),
+			"message": map[string]any{"role": "user", "content": []any{map[string]any{
+				"tool_use_id": task["tool_use_id"], "type": "tool_result",
+				"content": fmt.Sprintf("Command running in background with ID: %s.", task["task_id"])}}}})
+	}
 	for in.Scan() {
 		line := in.Bytes()
 		fmt.Fprintln(logf, string(line))
@@ -123,6 +140,26 @@ func fakeClaude() int {
 					"eventCatalog": []any{map[string]any{"name": "Stop"}, map[string]any{"name": "PreToolUse"}},
 					"policy":       map[string]any{"allDisabled": false},
 				}
+			case "background_tasks":
+				use, named := req["tool_use_id"].(string)
+				var kept, gone []map[string]any
+				for _, task := range foreground {
+					if named && task["tool_use_id"] != use {
+						kept = append(kept, task)
+						continue
+					}
+					gone = append(gone, task)
+				}
+				foreground = kept
+				if named {
+					body = map[string]any{"backgrounded": len(gone) > 0}
+				}
+				out(map[string]any{"type": "control_response", "response": map[string]any{
+					"subtype": "success", "request_id": msg["request_id"], "response": body}})
+				for _, task := range gone {
+					moved(task)
+				}
+				continue
 			case "cancel_async_message":
 				found := false
 				for i, m := range held {
@@ -209,6 +246,47 @@ func fakeClaude() int {
 			case "hook":
 				out(map[string]any{"type": "control_request", "request_id": "cc-2", "request": map[string]any{
 					"subtype": "hook_callback", "callback_id": "x"}})
+			case "foreground":
+				// A command and a subagent the turn waits on, as claude -p
+				// 2.1.283 starts them: the calls, then a task in the
+				// foreground for each. The turn stays open.
+				out(map[string]any{"type": "user", "uuid": msg["uuid"], "message": msg["message"]})
+				out(map[string]any{"type": "assistant", "parent_tool_use_id": nil, "session_id": "s", "message": map[string]any{
+					"role": "assistant", "content": []any{
+						map[string]any{"type": "tool_use", "id": "toolu_01Fg", "name": "Bash",
+							"input": map[string]any{"command": "sleep 30 && echo woke", "description": "Wait thirty seconds"}},
+						map[string]any{"type": "tool_use", "id": "toolu_01Ag", "name": "Agent",
+							"input": map[string]any{"description": "probe poem", "subagent_type": "general-purpose", "prompt": "write"}}}}})
+				foreground = []map[string]any{
+					{"task_id": "b7x2k9q1", "tool_use_id": "toolu_01Fg", "task_type": "local_bash", "description": "Wait thirty seconds"},
+					{"task_id": "a4f1c2d3", "tool_use_id": "toolu_01Ag", "task_type": "local_agent", "description": "probe poem"},
+				}
+				out(map[string]any{"type": "system", "subtype": "task_started", "task_id": "b7x2k9q1",
+					"tool_use_id": "toolu_01Fg", "description": "Wait thirty seconds", "task_type": "local_bash",
+					"is_backgrounded": false, "uuid": NewSessionID(), "session_id": "s"})
+				out(map[string]any{"type": "system", "subtype": "task_started", "task_id": "a4f1c2d3",
+					"tool_use_id": "toolu_01Ag", "description": "probe poem", "subagent_type": "general-purpose",
+					"is_backgrounded": false, "spawn_depth": 1, "task_type": "local_agent", "prompt": "write",
+					"uuid": NewSessionID(), "session_id": "s"})
+				// A command sent to the background from the start is no call
+				// the turn waits on.
+				out(map[string]any{"type": "system", "subtype": "task_started", "task_id": "bgfromstart",
+					"tool_use_id": "toolu_01Bg", "description": "tail the log", "task_type": "local_bash",
+					"is_backgrounded": true, "uuid": NewSessionID(), "session_id": "s"})
+				continue
+			case "command-ends":
+				// The command ends in the foreground with its answer, and
+				// claude says nothing of its task.
+				for i, task := range foreground {
+					if task["task_type"] == "local_bash" {
+						out(map[string]any{"type": "user", "parent_tool_use_id": nil, "session_id": "s", "uuid": NewSessionID(),
+							"message": map[string]any{"role": "user", "content": []any{map[string]any{
+								"tool_use_id": task["tool_use_id"], "type": "tool_result", "content": "woke"}}}})
+						foreground = append(foreground[:i], foreground[i+1:]...)
+						break
+					}
+				}
+				continue
 			case "tasks":
 				out(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": []any{
 					map[string]any{"task_id": "b1", "task_type": "local_bash", "description": "a sleep"}}})
@@ -740,6 +818,127 @@ func TestARequestThePanelDoesNotServeIsRefusedAtOnce(t *testing.T) {
 	}
 	if s := r.state(); len(s.Pending) != 0 {
 		t.Fatalf("a hook request was put before a person: %+v", s.Pending)
+	}
+}
+
+// foregroundCalls waits for the fake claude to have started its command and
+// its subagent in the foreground.
+func (r *rig) foregroundCalls() State {
+	r.t.Helper()
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	r.ask(Request{Op: OpSend, Text: "foreground"})
+	s := r.waitFor("the calls in the foreground", func(s State) bool { return len(s.Foreground) == 2 })
+	if s.Foreground[0].ToolUseID != "toolu_01Fg" || s.Foreground[1].ToolUseID != "toolu_01Ag" ||
+		s.Foreground[1].Type != "local_agent" {
+		r.t.Fatalf("the calls in the foreground are %+v", s.Foreground)
+	}
+	return s
+}
+
+// backgroundRequests are the background_tasks requests that reached claude,
+// as the lines it read.
+func (r *rig) backgroundRequests() []map[string]any {
+	var got []map[string]any
+	for _, line := range strings.Split(r.received(), "\n") {
+		var msg struct {
+			Type    string         `json:"type"`
+			Request map[string]any `json:"request"`
+		}
+		if json.Unmarshal([]byte(line), &msg) == nil && msg.Type == "control_request" &&
+			msg.Request["subtype"] == "background_tasks" {
+			got = append(got, msg.Request)
+		}
+	}
+	return got
+}
+
+// A call the turn waits on is moved to the background by the id of its
+// tool_use block, as Ctrl+B moves it in the terminal: claude says it moved
+// it, the call leaves the foreground and joins the background tasks, and the
+// other call stays where it was.
+func TestACallInTheForegroundGoesToTheBackgroundByItsUse(t *testing.T) {
+	r := start(t, nil)
+	r.foregroundCalls()
+
+	reply := r.ask(Request{Op: OpControl, Subtype: "background_tasks", Fields: map[string]any{"tool_use_id": "toolu_01Fg"}})
+	if !reply.OK || !strings.Contains(string(reply.Response), `"backgrounded":true`) {
+		t.Fatalf("the move was answered %+v, %s", reply, reply.Response)
+	}
+	s := r.waitFor("the command in the background", func(s State) bool {
+		return len(s.Foreground) == 1 && len(s.Tasks) == 1
+	})
+	if s.Foreground[0].ToolUseID != "toolu_01Ag" || s.Tasks[0].ID != "b7x2k9q1" {
+		t.Fatalf("foreground %+v, background %+v", s.Foreground, s.Tasks)
+	}
+	got := r.backgroundRequests()
+	if len(got) != 1 || got[0]["tool_use_id"] != "toolu_01Fg" || len(got[0]) != 2 {
+		t.Fatalf("claude read %v", got)
+	}
+
+	// A call that is no longer in the foreground is answered as claude
+	// answers it: nothing was moved.
+	again := r.ask(Request{Op: OpControl, Subtype: "background_tasks", Fields: map[string]any{"tool_use_id": "toolu_01Fg"}})
+	if !again.OK || !strings.Contains(string(again.Response), `"backgrounded":false`) {
+		t.Fatalf("a call moved already was answered %+v, %s", again, again.Response)
+	}
+}
+
+// With no call named, every call in the foreground goes, the subagent as well
+// as the command: Ctrl+B semantics.
+func TestEveryCallInTheForegroundGoesWhenNoneIsNamed(t *testing.T) {
+	r := start(t, nil)
+	r.foregroundCalls()
+	if reply := r.ask(Request{Op: OpControl, Subtype: "background_tasks"}); !reply.OK {
+		t.Fatalf("the move was answered %+v", reply)
+	}
+	r.waitFor("no call left in the foreground", func(s State) bool { return len(s.Foreground) == 0 })
+	if got := r.backgroundRequests(); len(got) != 1 || len(got[0]) != 1 {
+		t.Fatalf("claude read %v, where a request naming no call was sent", got)
+	}
+}
+
+// A call leaves the foreground by its answer, whatever claude says of the
+// task behind it, and a turn that ended waits on no call at all.
+func TestACallLeavesTheForegroundWithItsAnswerOrItsTurn(t *testing.T) {
+	r := start(t, nil)
+	r.foregroundCalls()
+	r.ask(Request{Op: OpSend, Text: "command-ends"})
+	s := r.waitFor("the command answered", func(s State) bool { return len(s.Foreground) == 1 })
+	if s.Foreground[0].ToolUseID != "toolu_01Ag" {
+		t.Fatalf("the answered command stayed in the foreground: %+v", s.Foreground)
+	}
+	r.ask(Request{Op: OpSend, Text: "hello"})
+	r.waitFor("the end of the turn", func(s State) bool { return !s.Busy && len(s.Foreground) == 0 })
+}
+
+// The holder passes on one call by its id, or none; anything else riding
+// along is refused before claude reads it.
+func TestBackgroundTasksPassesOnACallOrNothing(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	for _, fields := range []map[string]any{
+		{"tool_use_id": "toolu_01Fg", "task_id": "b7x2k9q1"},
+		{"tool_use_id": 7},
+		{"tool_use_id": ""},
+		{"task_id": "b7x2k9q1"},
+	} {
+		if reply := r.ask(Request{Op: OpControl, Subtype: "background_tasks", Fields: fields}); reply.OK {
+			t.Errorf("%v was passed on", fields)
+		}
+	}
+	if got := r.backgroundRequests(); len(got) != 0 {
+		t.Fatalf("claude read %v", got)
+	}
+}
+
+// A request that is not on the list is refused in the words an older holder
+// uses: the executor reads them to tell the person to restart the session.
+func TestARequestOffTheListIsRefusedInTheWordsOfOlderHolders(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	reply := r.ask(Request{Op: OpControl, Subtype: "end_session"})
+	if reply.OK || reply.Error != `"end_session" is not a request the panel passes on` {
+		t.Fatalf("a request off the list was answered %+v", reply)
 	}
 }
 

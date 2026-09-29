@@ -1,0 +1,116 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// A turn that waits on a command and a subagent in the foreground, while a
+// read of the same run is back: the bar above the composer and the calls
+// sheet of a session on the stream, of one in the console, and of one on a
+// host whose executor does not know the move.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { WorkStatus } from "/src/screens/chat/work.js";
+import { Calls } from "/src/screens/chat/calls.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+const bash = { name: "Bash", arg: "sleep 30 && echo woke", pos: 7, index: 0, at: ago(12), open: true, use: "toolu_01Fg" };
+const agent = { name: "Agent", arg: "probe poem", pos: 6, index: 0, at: ago(20), open: true, use: "toolu_01Ag" };
+const read = { name: "Read", arg: "web/check/nowbar_test.go", pos: 5, index: 0, at: ago(30), use: "toolu_01Rd" };
+const feed = [
+    { role: "me", text: "wait for it", at: ago(40), pos: 1 },
+    { role: "tools", kind: "files", run: 5, pos: 5, at: ago(30), calls: [read] },
+    { role: "tools", kind: "agents", run: 5, pos: 6, at: ago(20), calls: [agent] },
+    { role: "tools", kind: "bash", run: 5, pos: 7, at: ago(12), calls: [bash] },
+];
+// A turn whose call out is a read: nothing there goes to the background.
+const reading = [
+    { role: "me", text: "look", at: ago(9), pos: 1 },
+    { role: "tools", kind: "files", run: 3, pos: 3, at: ago(4), calls: [{ ...read, pos: 3, open: true }] },
+];
+const knowing = { available: true, kinds: ["session.background"] };
+const stream = { name: "lab", exec: knowing, stream: true };
+const inConsole = { name: "lab", exec: knowing, stream: false };
+const old = { name: "lab", exec: { available: true, kinds: ["session.stop"] }, stream: true };
+const list = [{ ...read, kind: "files" }, { ...agent, kind: "agents" }, { ...bash, kind: "bash" }];
+
+const sent = [];
+window.fetch = async (url, init) => {
+    if (String(url).startsWith("/api/actions") && init && init.method === "POST") {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ ok: true, detail: "moved", logged: true }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+const bar = (id, feedOf, to) => html`
+    <div class="composerbox" id=${id}>
+        <${WorkStatus} work=${null} busy=${true} compacting="" feed=${feedOf} onCalls=${() => {}} to=${to} />
+    </div>`;
+render(html`
+    <${ToastHost}><${GateHost}>
+        ${bar("stream", feed, stream)}
+        ${bar("console", feed, inConsole)}
+        ${bar("old", feed, old)}
+        ${bar("reading", reading, stream)}
+        ${bar("away", feed, null)}
+        <div id="sheet"><${Calls} session="lab" id="1" calls=${list} to=${stream} /></div>
+        <div id="consolesheet"><${Calls} session="lab" id="1" calls=${list} to=${inConsole} /></div>
+    <//><//>
+`, document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const pills = (root) => Array.from(document.querySelectorAll(`${root} .tobg`)).map((b) => ({
+    text: text(b), off: b.disabled, why: b.title,
+}));
+
+window.done = (async () => {
+    const out = {};
+    try {
+        await until(() => document.querySelector("#stream .nowbar") && document.querySelector("#sheet .calltime"));
+        out.stream = pills("#stream");
+        out.console = pills("#console");
+        out.old = pills("#old");
+        out.reading = pills("#reading");
+        out.away = pills("#away");
+        out.sheetRows = Array.from(document.querySelectorAll("#sheet .calltime > *")).map((row) => ({
+            name: text(row.querySelector(".cnname")), pill: text(row.querySelector(".tobg")),
+            nested: Boolean(row.querySelector(".callnode .tobg")),
+        }));
+        out.consoleSheet = pills("#consolesheet");
+        out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
+        // The buttons take a line of their own: the command keeps its room,
+        // and the badges stay inside the bar.
+        const barBox = document.querySelector("#stream .nowbar").getBoundingClientRect();
+        out.argWidth = Math.round(document.querySelector("#stream .nowarg").getBoundingClientRect().width);
+        out.chipsOut = Math.round(document.querySelector("#stream .nowchips").getBoundingClientRect().right - barBox.right);
+
+        // One call by its id, then every call at once.
+        const [one, all] = document.querySelectorAll("#stream .tobg");
+        one.click();
+        await until(() => sent.length === 1);
+        await until(() => text(one) === "in background");
+        out.afterOne = { text: text(one), off: one.disabled };
+        all.click();
+        await until(() => sent.length === 2);
+        document.querySelector("#console .tobg").click();
+        await until(() => sent.length === 3);
+        out.sent = sent.map((r) => ({ kind: r.kind, target: r.target, params: r.params }));
+
+        // The call opened from its row carries the button too.
+        document.querySelector("#sheet .callrow .callnode").click();
+        await until(() => document.querySelector("#sheet .callbg"));
+        out.view = pills("#sheet .callbg");
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

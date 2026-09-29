@@ -357,6 +357,17 @@ export const ACTIONS = {
         instant: true,
         done: (target) => `${target} stopped`,
     },
+    // A call goes to the background on the press, as Ctrl+B does in the
+    // terminal: nothing of it is lost, and it is stopped from the list of
+    // background work like any other task.
+    "session.background": {
+        instant: true,
+        effect: "The call answers the session at once and runs on beside the turn; its end reaches the session "
+            + "as news, and the list of background work stops it like any other task.",
+        done: (target, params) => (params && params.use
+            ? `The call went to the background in ${target}`
+            : `The calls of ${target} went to the background`),
+    },
     "session.escape": {
         instant: true,
         done: (target) => `The composer of ${target} is free`,
@@ -825,6 +836,7 @@ const NAMES = {
     "session.dismiss": "Dismiss the question",
     "session.permit": "Answer the permission request",
     "session.stop": "Stop the work",
+    "session.background": "Send to the background",
     "session.escape": "Free the composer",
     "task.stop": "Stop background work",
     "agent.stop": "Stop subagent",

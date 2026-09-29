@@ -35,6 +35,10 @@ type Request struct {
 
 	Switch *Switch `json:"switch,omitempty"`
 
+	// Use is the call session.background moves: the id of the tool_use block
+	// that started it. Empty moves every call running in the foreground.
+	Use string `json:"use,omitempty"`
+
 	// MessageID names a message sent to a session on the stream, so that it can
 	// be taken back from the queue while it waits there.
 	MessageID string `json:"messageId,omitempty"`

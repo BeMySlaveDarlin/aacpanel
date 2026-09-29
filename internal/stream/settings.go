@@ -62,6 +62,12 @@ func vetSettings(subtype string, fields map[string]any) error {
 		if len(fields) != 2 || !ok || title == "" || fields["source"] != "host" {
 			return fmt.Errorf("rename_session passes on only {title, source: host}")
 		}
+	case "background_tasks":
+		// One call by the id of the tool_use block that started it, or every
+		// call in the foreground when none is named.
+		if id, ok := fields["tool_use_id"].(string); len(fields) > 1 || (len(fields) == 1 && (!ok || id == "")) {
+			return fmt.Errorf("background_tasks passes on only {tool_use_id} or nothing")
+		}
 	case "remote_control":
 		// The request can also carry a secret of the bridge and the session
 		// to attach to: those belong to claude.ai, and the panel only switches.

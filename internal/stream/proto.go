@@ -135,6 +135,10 @@ const (
 	// session, so one started before an operation existed answers with it,
 	// word for word, however new the rest of the panel is.
 	NoSuchOp = "there is no such operation"
+	// NoSuchControl closes the refusal of a control request the holder does
+	// not pass on: a holder started before the request joined Controls
+	// answers with it, word for word, as it answers NoSuchOp.
+	NoSuchControl = "is not a request the panel passes on"
 
 	// OpShell runs a shell command a person typed after "!", the way the
 	// composer of a terminal runs one: claude runs it with no turn of the
@@ -192,11 +196,14 @@ type Shell struct {
 	Since   time.Time `json:"since"`
 }
 
-// Task is a background task claude runs.
+// Task is a task claude runs: a shell command, a monitor, a subagent.
 type Task struct {
 	ID          string `json:"task_id"`
 	Type        string `json:"task_type,omitempty"`
 	Description string `json:"description,omitempty"`
+	// ToolUseID is the call that started the task. background_tasks names a
+	// call in the foreground by it.
+	ToolUseID string `json:"tool_use_id,omitempty"`
 }
 
 // State is what a holder knows about its session.
@@ -223,6 +230,10 @@ type State struct {
 	Pending []Pending `json:"pending"`
 	Queue   []Queued  `json:"queue"`
 	Tasks   []Task    `json:"tasks"`
+	// Foreground are the calls the turn waits on — a shell command or a
+	// subagent claude runs in the foreground — which background_tasks moves
+	// to the background. A turn that ended waits on none.
+	Foreground []Task `json:"foreground"`
 	// Shells are the shell commands started from the panel that have not
 	// ended yet, or whose output has not reached claude as a message.
 	Shells []Shell `json:"shells,omitempty"`
@@ -278,6 +289,7 @@ var Controls = map[string]bool{
 	"mcp_toggle":              true,
 	"mcp_reconnect":           true,
 	"stop_task":               true,
+	"background_tasks":        true,
 	"apply_flag_settings":     true,
 	"update_settings":         true,
 	"get_settings":            true,

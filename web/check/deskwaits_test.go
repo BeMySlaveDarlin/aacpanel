@@ -203,6 +203,9 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		"session.permit":  "",
 		"session.dismiss": "",
 		"session.stop":    "",
+		// A call in the background leaves the session where it stood: the
+		// turn goes on, and the task joins the background work.
+		"session.background": "",
 		// Esc changes nothing in the list of sessions: the session goes on
 		// standing where it stood, only its composer comes back.
 		"session.escape":  "",
