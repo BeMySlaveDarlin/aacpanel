@@ -68,7 +68,7 @@ func (s *Survey) Plan() []PlanRow {
 	if s.Has("gc") {
 		rows = append(rows, row("aacpanel-docker-gc.timer, weekly", tag(filepath.Join(home, ".config", "systemd", "user", "aacpanel-docker-gc.timer"))))
 	}
-	rows = append(rows, s.mapRow())
+	rows = append(rows, s.mapRows()...)
 
 	var settings []string
 	for _, dir := range split(s.valueOr("accounts", "")) {
@@ -127,9 +127,13 @@ func (s *Survey) composeTag() string {
 	return TagNew
 }
 
-func (s *Survey) mapRow() PlanRow {
+// mapRows are the map as the plan reads it: the contours of the accounts,
+// then the group with its projects, each tagged by what the panel's map
+// holds already — a machine with its contours in place gets none of them
+// made again.
+func (s *Survey) mapRows() []PlanRow {
 	if s.keep == "yes" || s.keep == "access" {
-		return PlanRow{Text: "  · map: left as it is"}
+		return []PlanRow{{Text: "  · map: left as it is"}}
 	}
 	var names []string
 	for _, dir := range split(s.valueOr("accounts", "")) {
@@ -139,12 +143,33 @@ func (s *Survey) mapRow() PlanRow {
 	if len(names) > 1 {
 		line = "map: contours " + strings.Join(names, ", ")
 	}
-	if group := s.valueOr("group", ""); group == "" {
-		line += ", no group"
-	} else {
-		line += fmt.Sprintf(", group %s, %s", group, count(len(split(s.valueOr("projects", ""))), "project"))
+	contours, group := TagNew, TagNew
+	if v, ok := s.mapNow(); ok {
+		c, g := s.mapMissing(v)
+		if len(c) == 0 {
+			contours = TagThere
+		}
+		if len(g) == 0 {
+			group = TagThere
+		}
 	}
-	return PlanRow{Text: "  · " + line, Tag: TagNew}
+	g := s.valueOr("group", "")
+	if g == "" {
+		return []PlanRow{{Text: "  · " + line + ", no group", Tag: contours}}
+	}
+	return []PlanRow{
+		{Text: "  · " + line, Tag: contours},
+		{Text: fmt.Sprintf("  · map: group %s, %s", g, count(len(split(s.valueOr("projects", ""))), "project")), Tag: group},
+	}
+}
+
+// mapNow is the map of the panel on this machine, when its local listener
+// answers: a listener turned off in .env is not asked.
+func (s *Survey) mapNow() (mapView, bool) {
+	if v, ok := s.before(DotEnvFile, "AACP_LOCAL_ADDR"); ok && strings.TrimSpace(v) == "" {
+		return mapView{}, false
+	}
+	return mapNow(s.m, fmt.Sprintf("http://127.0.0.1:%d", PortLocal))
 }
 
 // hooks is how many hooks the kit wires into claude: the question relay and

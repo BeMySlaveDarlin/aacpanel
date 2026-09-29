@@ -214,8 +214,13 @@ func (in *Install) wireSettings(r *Run, dir string) error {
 // them: none, or the copy kept aside then.
 func (in *Install) jsonOrig(r *Run, path string, there bool) (string, error) {
 	if e, ok := r.First(JSON, path); ok {
-		if metaHas(e.Meta, "created") {
+		switch {
+		case metaHas(e.Meta, "created"):
 			return "created", nil
+		case metaHas(e.Meta, Adopted):
+			// Wired by hand before the installer: no copy of it as it was
+			// before the panel exists, so the undo only takes the panel out.
+			return Adopted, nil
 		}
 		return "orig=" + metaValue(e.Meta, "orig"), nil
 	}

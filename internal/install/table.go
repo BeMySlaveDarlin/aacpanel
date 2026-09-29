@@ -29,7 +29,9 @@ type Table struct {
 	Cmds   map[string]Reply
 	Spaces map[string]Space
 	Web    map[string]int
-	Tty    bool
+	// Pages are what a local address answers with a body, the status 200.
+	Pages map[string]string
+	Tty   bool
 
 	// Disk is a directory whose files are read from the disk itself: the
 	// temporary tree a test lets the steps write into. The tables come
@@ -236,5 +238,18 @@ func (t *Table) Reach(url string) (int, error) {
 	if s, ok := t.Web[url]; ok {
 		return s, nil
 	}
+	if _, ok := t.Pages[url]; ok {
+		return 200, nil
+	}
 	return 0, errors.New("dial tcp: i/o timeout")
+}
+
+func (t *Table) Fetch(url string) (int, []byte, error) {
+	if body, ok := t.Pages[url]; ok {
+		return 200, []byte(body), nil
+	}
+	if s, ok := t.Web[url]; ok {
+		return s, nil, nil
+	}
+	return 0, nil, errors.New("dial tcp: connection refused")
 }

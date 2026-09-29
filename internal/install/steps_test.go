@@ -688,6 +688,7 @@ func TestTheExecutorsUnitIsInstalledEnabledAndStarted(t *testing.T) {
 		"dir " + filepath.Join(g.home, ".config/systemd/user") + " created",
 		"userunit " + unit + " created",
 		"enabled user aacpanel-exec.service by-installer",
+		"dir " + filepath.Join(g.home, ".config/systemd/user/default.target.wants") + " created",
 	}
 	if !slices.Equal(g.lines(), want) {
 		t.Errorf("the manifest holds\n%s\nwant\n%s", strings.Join(g.lines(), "\n"), strings.Join(want, "\n"))
@@ -726,6 +727,8 @@ func TestAnExecutorWithoutItsSocketIsDiagnosedByItsJournal(t *testing.T) {
 
 func (g *rig) stackUp() {
 	g.write(filepath.Join(g.clone, ".env"), "AACP_SECRET=s3cr3t-cookie-key\nAACP_DB_PASSWORD=db-pass-123\n", 0o600)
+	g.says([]string{"docker", "compose", "config", "--images"}, "tecnativa/docker-socket-proxy:0.3.0\npostgres:18-alpine\naacpanel-aacpanel\n")
+	g.says([]string{"docker", "image", "inspect", "--format", "{{.Id}}", "tecnativa/docker-socket-proxy:0.3.0"}, "sha256:1\n")
 	g.says([]string{"docker", "compose", "build", "aacpanel"}, "#13 naming to docker.io/library/aacpanel-aacpanel done\n")
 	g.says([]string{"docker", "compose", "up", "-d"}, " Container aacpanel  Started\n")
 	g.fails([]string{"docker", "volume", "inspect", DBVolume}, "Error: No such volume: "+DBVolume)
@@ -742,21 +745,33 @@ func TestTheStackIsRecordedBeforeItComesUp(t *testing.T) {
 	if err := g.do(g.step("compose")); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"compose aacpanel project", "volume " + DBVolume + " data", "image aacpanel-aacpanel local"}
+	// The image the machine had stays its own; the one pulled now is the
+	// install's, and uninstall takes it away with the stack.
+	want := []string{"compose aacpanel project", "volume " + DBVolume + " data", "image aacpanel-aacpanel local", "image postgres:18-alpine pulled"}
 	if !slices.Equal(g.lines(), want) {
 		t.Errorf("the manifest holds %q, want %q", g.lines(), want)
 	}
-	wantRan := []string{"docker compose build aacpanel", "docker compose up -d"}
+	wantRan := []string{"docker compose config --images", "docker compose build aacpanel", "docker compose up -d"}
 	if got := g.ran(true); !slices.Equal(got, wantRan) {
 		t.Errorf("ran %q, want %q", got, wantRan)
 	}
 	// Again: compose keeps what holds, and the manifest takes no line twice.
 	g.says([]string{"docker", "volume", "inspect", DBVolume}, "[]")
+	g.says([]string{"docker", "image", "inspect", "--format", "{{.Id}}", "postgres:18-alpine"}, "sha256:2\n")
 	if err := g.do(g.step("compose")); err != nil {
 		t.Fatal(err)
 	}
-	if len(g.lines()) != 3 {
+	if len(g.lines()) != 4 {
 		t.Errorf("a second run added lines: %q", g.lines())
+	}
+	// A build past a vulnerability is the person's knowing choice, said so.
+	g.in.SkipVulncheck = true
+	g.says([]string{"docker", "compose", "build", "--build-arg", "SKIP_VULNCHECK=1", "aacpanel"}, "")
+	if err := g.do(g.step("compose")); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(g.m.Ran, "docker compose build --build-arg SKIP_VULNCHECK=1 aacpanel") {
+		t.Errorf("--skip-vulncheck did not reach the build: %q", g.m.Ran)
 	}
 }
 
@@ -851,7 +866,7 @@ func TestTheTestDatabaseIsAContainerOfItsOwnWithItsDSNInTheEnvFile(t *testing.T)
 	if i < 0 || !slices.Contains(g.m.Envs[i], "POSTGRES_PASSWORD="+pw) {
 		t.Error("the container did not get its password through the environment")
 	}
-	want := []string{"testdb " + testDBName + " created", "envkey AACP_TEST_DSN generated"}
+	want := []string{"image " + testDBImage + " pulled", "testdb " + testDBName + " created", "envkey AACP_TEST_DSN generated"}
 	if !slices.Equal(g.lines(), want) {
 		t.Errorf("the manifest holds %q, want %q", g.lines(), want)
 	}

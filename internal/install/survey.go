@@ -128,6 +128,14 @@ func wiredKit(m Machine, f Facts, e earlier) []string {
 	if !on["relay"] && !on["tailscale"] && !on["lan"] && !on["domain"] {
 		return nil
 	}
+	// A session the panel starts is allowed the panel's tools, the restart
+	// among them, by its launch: settings with no rule of those tools leave
+	// the restart to the launch, and a rule of the whole server allows it as
+	// the restart's own rule would.
+	if !strings.Contains(text, "mcp__aacpanel__") || strings.Contains(text, `"mcp__aacpanel"`) ||
+		strings.Contains(text, `"mcp__aacpanel__*"`) {
+		on["restart"] = true
+	}
 	var out []string
 	for _, p := range Kit {
 		if on[p.ID] || p.Group == GroupAlways {
@@ -135,6 +143,20 @@ func wiredKit(m Machine, f Facts, e earlier) []string {
 		}
 	}
 	return out
+}
+
+// Kept is the survey of a run that asks nothing and keeps every answer the
+// install on the machine wrote: check and enroll read the install through
+// it as an update that keeps the settings would.
+func Kept(m Machine, in Inspection, now time.Time) *Survey {
+	s := NewSurvey(m, in, &Run{Yes: true}, now)
+	s.Keep(Given{Value: yes, Source: "the earlier install"})
+	for _, b := range Blocks {
+		// A question with no answer to take for granted stays unanswered:
+		// what reads the answers falls back as a fresh install would.
+		_, _ = s.Settle(b)
+	}
+	return s
 }
 
 // before is a key an earlier install wrote, and whether it wrote it.

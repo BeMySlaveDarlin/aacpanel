@@ -22,8 +22,12 @@ import (
 	"aacpanel/internal/install/view"
 )
 
-const usage = `usage: aacpanel-install install [--plain] [--yes] [answers as flags]
+const usage = `usage: aacpanel-install install [--plain] [--yes] [--adopt] [--skip-vulncheck] [answers as flags]
        aacpanel-install plan [--plain] [--yes] [answers as flags]
+       aacpanel-install update [--to P] [--plain] [--yes] [--adopt] [--skip-vulncheck] [answers as flags]
+       aacpanel-install check [--session] [--plain]
+       aacpanel-install enroll [--plain]
+       aacpanel-install uninstall [--yes] [--purge-db] [--purge-state] [--purge-env] [--purge-files] [--purge-exec] [--purge-data] [--dry-run] [--plain]
        aacpanel-install demo [--speed N] [--fail STEP]
 
   install looks the machine over, asks the questions, shows the plan and,
@@ -34,10 +38,31 @@ const usage = `usage: aacpanel-install install [--plain] [--yes] [answers as fla
           claude's settings and the panel's tools in every account — the
           terminal goes to claude for a sign-in asked for — the first
           contours of the map, and the collector's restart on a new
-          tree. Each step checks the machine first and
-          passes by what is in place, so a run that stopped goes on from
-          the step it stopped at. Every change is recorded before it is
-          made. Ctrl+C stops after the step at work; a second stops at once.
+          tree; then the check, a test session when asked, the code of
+          the first device when there is none, and the report. Each step
+          checks the machine first and passes by what is in place, so a
+          run that stopped goes on from the step it stopped at. Every
+          change is recorded before it is made. An install by hand is
+          taken over, each thing of it recorded as found; without a
+          terminal that takes --adopt. Ctrl+C stops after the step at
+          work; a second stops at once.
+  update  moves the clone on — a release to the newest of its paradigm,
+          or of the one --to names; a branch pulled without a merge — then
+          hands over to the installer of the new tree, which pulls the
+          images and goes on as install, keeping the settings unless told
+          otherwise. Changes of your own in the clone stop it first.
+  check   the chain the panel works through, a line a link, from the
+          service's answer to the contours on the map; --session opens the
+          test session aacpanel-check through the executor and closes it,
+          only it. It changes nothing else.
+  enroll  a code for another device, with its countdown; r a new one.
+  uninstall takes back what the manifest lists, and nothing else: claude's
+          settings first, the units, the executor, the stack, the part as
+          root with linger last, the data chosen after typing the host
+          name (or named by --purge flags with --yes), the installer's
+          cache, and its own directory last. Without a manifest it refuses
+          and names what the machine holds of the panel. --dry-run shows
+          the plan and what root.sh would run, and changes nothing.
 
   plan    looks the machine over the way an install would begin — the
           system, docker and compose, claude, the programs the panel needs,
@@ -78,31 +103,49 @@ type env struct {
 	inspect        func(clone string) install.Inspection
 	survey         func(in install.Inspection, r *install.Run) *install.Survey
 	save           func(text string) (string, error)
-	begin          func(s *install.Survey) (*install.Run, []*install.Step, error)
+	// begin opens the run of an approved plan; like is the install the
+	// command line shapes, which the steps are made for.
+	begin func(s *install.Survey, like install.Install) (*install.Run, []*install.Step, error)
+	// move takes the clone forward for an update, and handover runs the
+	// installer of the tree it moved to.
+	move     func(clone string, paradigm int) (install.Moved, error)
+	handover func(argv, env []string) error
+	// machine is what check, enroll and uninstall read the machine through.
+	machine install.Machine
 }
 
 func run(args []string, stdout, stderr io.Writer, terminal func() bool) int {
 	return runWith(args, env{stdout: stdout, stderr: stderr, terminal: terminal,
-		inspect: inspectLocal, survey: surveyLocal, save: savePlan, begin: beginLocal})
+		inspect: inspectLocal, survey: surveyLocal, save: savePlan, begin: beginLocal,
+		move: moveLocal, handover: handoverLocal, machine: local()})
+}
+
+// goBin is the Go the executor is built with.
+func goBin() string {
+	if g := os.Getenv(goEnv); g != "" {
+		return g
+	}
+	return "go"
 }
 
 // beginLocal opens the run of an approved plan on this machine: the
 // manifest and the journal in the installer's directory, and the steps.
-func beginLocal(s *install.Survey) (*install.Run, []*install.Step, error) {
+func beginLocal(s *install.Survey, like install.Install) (*install.Run, []*install.Step, error) {
 	dir := s.Facts.InstallDir
 	man, err := install.OpenManifest(dir)
 	if err != nil {
 		return nil, nil, err
 	}
-	j, err := install.OpenJournal(dir, "install", time.Now())
+	command := "install"
+	if like.Update {
+		command = "update"
+	}
+	j, err := install.OpenJournal(dir, command, time.Now())
 	if err != nil {
 		return nil, nil, err
 	}
-	goBin := os.Getenv(goEnv)
-	if goBin == "" {
-		goBin = "go"
-	}
-	in := &install.Install{S: s, M: local(), Go: goBin, Cache: os.Getenv(cacheEnv)}
+	in := like
+	in.S, in.M, in.Go, in.Cache = s, local(), goBin(), os.Getenv(cacheEnv)
 	r := &install.Run{Manifest: man, Journal: j, Shell: local(), Place: in.Place()}
 	return r, in.Steps(), nil
 }
@@ -190,6 +233,14 @@ func runWith(args []string, e env) int {
 		return runPlan("plan", args[1:], e)
 	case "install":
 		return runPlan("install", args[1:], e)
+	case "update":
+		return runUpdate(args[1:], e)
+	case "check":
+		return runCheck(args[1:], e)
+	case "enroll":
+		return runEnroll(args[1:], e)
+	case "uninstall":
+		return runUninstall(args[1:], e)
 	case "demo":
 		return runDemo(args[1:], e.stderr, e.terminal)
 	}
@@ -198,12 +249,22 @@ func runWith(args []string, e env) int {
 }
 
 // runPlan runs plan, and install, which is plan that goes on past an
-// approved plan to the steps.
+// approved plan to the steps, and the install that finishes an update.
 func runPlan(command string, args []string, e env) int {
 	fs := flag.NewFlagSet("aacpanel-install "+command, flag.ContinueOnError)
 	fs.SetOutput(e.stderr)
 	plain := fs.Bool("plain", false, "the plain view: the same lines with no live part and no colour, as without a terminal")
 	yes := fs.Bool("yes", false, "take the suggested answer of every question no flag answers")
+	var like install.Install
+	var adopt *bool
+	if command != "plan" {
+		adopt = fs.Bool("adopt", false, "take over an install by hand without a terminal: --yes alone does not")
+		fs.BoolVar(&like.SkipVulncheck, "skip-vulncheck", false, "build the image without the check of its dependencies against published vulnerabilities, knowingly")
+	}
+	if command == "update" {
+		fs.Int("to", -1, "the paradigm to move to, P of vP.M.m; an update stays in its own without it")
+		like.Update, like.UpdatedFrom = true, os.Getenv(install.UpdatedEnv)
+	}
 	given := answers{}
 	for _, f := range install.Flags {
 		fs.Var(flagValue{f, given}, strings.TrimPrefix(f.Name, "--"), f.Help+" ("+f.Takes+")")
@@ -249,8 +310,20 @@ func runPlan(command string, args []string, e env) int {
 		Save:    e.save,
 		Yes:     *yes,
 	}
-	if command == "install" {
-		o.Begin = e.begin
+	if command != "plan" {
+		o.Begin = func(s *install.Survey) (*install.Run, []*install.Step, error) {
+			run, steps, err := e.begin(s, like)
+			if run != nil {
+				// A step asks on its way — the test session — and the flags
+				// and --yes answer it as they answered the blocks.
+				run.Answers, run.Yes = given, *yes
+			}
+			return run, steps, err
+		}
+		o.Adopt = *adopt
+	}
+	if command == "update" {
+		o.Command = "update"
 	}
 	status, err := view.Plan(o)
 	if err != nil {

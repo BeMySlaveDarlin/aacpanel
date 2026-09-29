@@ -151,9 +151,15 @@ func undoVolume(r *Run, e Entry) error {
 	return nil
 }
 
+// undoImage removes an image the install built or pulled. One a container
+// of something else runs from stays: it is not the panel's alone any more.
 func undoImage(r *Run, e Entry) error {
-	_, err := r.Exec(Cmd{Argv: []string{"docker", "image", "rm", e.Target}})
-	if err != nil && gone(err, "no such image") {
+	_, err := r.Exec(Cmd{Argv: []string{"docker", "image", "rm", e.Target}, Limit: time.Minute})
+	switch {
+	case err == nil, gone(err, "no such image"):
+		return nil
+	case gone(err, "conflict", "being used", "is using"):
+		r.Say(Note, "the image "+e.Target+" is left: a container of something else uses it")
 		return nil
 	}
 	return err
@@ -165,6 +171,10 @@ func undoTSNode(r *Run, e Entry) error {
 }
 
 func undoTestDB(r *Run, e Entry) error {
+	if metaHas(e.Meta, Adopted) {
+		r.Say(Note, "the test database "+e.Target+" is left: it was made by hand; docker rm -f -v "+e.Target+" deletes it")
+		return nil
+	}
 	_, err := r.Exec(Cmd{Argv: []string{"docker", "rm", "-f", "-v", e.Target}})
 	if err != nil && gone(err, "no such container") {
 		return nil

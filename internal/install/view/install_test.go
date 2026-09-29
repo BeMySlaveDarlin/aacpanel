@@ -68,7 +68,7 @@ func TestTheStepsRunOnTheScreenAndSayWhatIsInPlace(t *testing.T) {
 	s.pump(t, func() bool { return s.m.stage == over })
 	feed := s.text()
 	for _, want := range []string{"⏺ Host description\n  ⎿  ✓ in place already: nothing to do",
-		"⏺ Build the executor\n  ⎿  ✓ ~/bin/aacpanel-exec · -list names 31 of 31 actions", "⏺ Installed in"} {
+		"⏺ Build the executor\n  ⎿  ✓ ~/bin/aacpanel-exec · -list names 31 of 31 actions", "✻ Installed in", "Left as it was"} {
 		if !strings.Contains(feed, want) {
 			t.Errorf("the feed does not say %q:\n%s", want, feed)
 		}
@@ -189,5 +189,49 @@ func TestAPlainInstallAsksForYesBeforeTheFirstStep(t *testing.T) {
 		Begin:  func(*install.Survey) (*install.Run, []*install.Step, error) { begun = true; return nil, nil, nil }})
 	if status != 1 || begun || !strings.Contains(out.String(), `stop: no terminal to ask "Would you like to proceed?"; pass --yes`) {
 		t.Errorf("a plain install without --yes: status %d, begun %v:\n%s", status, begun, out.String())
+	}
+}
+
+// TestAStepAsksAndShowsTheFirstDevice: the test session's question is asked
+// on the screen while the steps wait, and the code of the first device
+// stands in its frame, with its countdown, until q; r asks for a new code.
+func TestAStepAsksAndShowsTheFirstDevice(t *testing.T) {
+	var answer string
+	asking := &install.Step{ID: "ask", Title: "Test session", Apply: func(r *install.Run) error {
+		v, err := r.Answer(install.Question{ID: "session", Prompt: "Open a test session to check the whole chain?", Form: install.One,
+			Options: []install.Option{{Value: "yes", Label: "Yes"}, {Value: "no", Label: "No"}}, Flag: "--check-session", Default: "yes"})
+		answer = v
+		return err
+	}}
+	again := 0
+	enroll := &install.Step{ID: "enroll", Title: "First device", Apply: func(r *install.Run) error {
+		return r.Enroll(install.Enrollment{Code: "7K3QM-9XW2P", Expires: time.Now().Add(5 * time.Minute),
+			Open: []string{"http://localhost:8776"}, Hints: []string{"no browser here: ssh -L 8776:127.0.0.1:8776 u@lab"},
+			Again: func() (string, time.Time, error) { again++; return "AAAAA-BBBBB", time.Now().Add(5 * time.Minute), nil }})
+	}}
+	s := installing(t, asking, enroll)
+	s.pump(t, func() bool { return s.m.stage == answering })
+	s.send(press("2"))
+	s.pump(t, func() bool { return s.m.stage == enrollingStage })
+	if answer != "no" {
+		t.Errorf("the step got %q", answer)
+	}
+	frame := ui.Strip(s.m.bottom())
+	for _, w := range []string{"First device", "Open  http://localhost:8776  and enter the code", "7K3QM-9XW2P", "valid 4:5", "r — a new code · q — finish", "ssh -L 8776"} {
+		if !strings.Contains(frame, w) {
+			t.Errorf("the frame does not say %q:\n%s", w, frame)
+		}
+	}
+	s.send(press("r"))
+	for _, msg := range s.later {
+		s.send(msg)
+	}
+	if again != 1 || !strings.Contains(ui.Strip(s.m.bottom()), "AAAAA-BBBBB") {
+		t.Errorf("r: %d new codes, the frame:\n%s", again, ui.Strip(s.m.bottom()))
+	}
+	s.send(press("q"))
+	s.pump(t, func() bool { return s.m.stage == over })
+	if s.m.status != 0 || !strings.Contains(s.text(), "✻ Installed in") {
+		t.Errorf("the run ended with %d:\n%s", s.m.status, s.text())
 	}
 }

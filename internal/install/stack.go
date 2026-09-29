@@ -347,6 +347,14 @@ func (in *Install) execUnitStep() *Step {
 				if err := r.Once(Enabled, "user "+execService, "by-installer"); err != nil {
 					return err
 				}
+				// enable makes the directory of the links when it is not
+				// there: the installer's then, and uninstall takes it away.
+				wants := filepath.Join(filepath.Dir(path), "default.target.wants")
+				if _, err := os.Stat(wants); errors.Is(err, fs.ErrNotExist) {
+					if err := r.Once(Dir, wants, "created"); err != nil {
+						return err
+					}
+				}
 				if _, err := r.Exec(Cmd{Argv: []string{"systemctl", "--user", "enable", execService}, Limit: time.Minute}); err != nil {
 					return fail("the executor's unit did not enable", err)
 				}
@@ -424,7 +432,7 @@ func stackDiagnosis(err error) (string, []string) {
 	switch {
 	case strings.Contains(text, "govulncheck") || strings.Contains(text, "vulnerability #"):
 		return "the image build stopped on a vulnerability published after this release", []string{
-			"Update the clone and run ./install.sh again, or build knowingly: docker compose build --build-arg SKIP_VULNCHECK=1 aacpanel"}
+			"./install.sh update, or knowingly ./install.sh --skip-vulncheck"}
 	case strings.Contains(text, "port is already allocated"), strings.Contains(text, "address already in use"):
 		return "a port the panel publishes is taken", []string{"ss -ltnp names who holds it."}
 	case strings.Contains(text, "is already in use by container"):
@@ -452,7 +460,15 @@ func (in *Install) stackStep() *Step {
 			if err := r.Once(Image, Project+"-aacpanel", "local"); err != nil {
 				return err
 			}
-			for _, args := range [][]string{{"compose", "build", "aacpanel"}, {"compose", "up", "-d"}} {
+			if err := in.recordPulls(r); err != nil {
+				return err
+			}
+			build := []string{"compose", "build"}
+			if in.SkipVulncheck {
+				build = append(build, "--build-arg", "SKIP_VULNCHECK=1")
+				r.Say(Warn, "the image is built without the check of its dependencies: --skip-vulncheck")
+			}
+			for _, args := range [][]string{append(build, "aacpanel"), {"compose", "up", "-d"}} {
 				if _, err := r.Exec(Cmd{Argv: in.docker(args...), Dir: in.clone()}); err != nil {
 					why, fix := stackDiagnosis(err)
 					return fail(why, err, fix...)
@@ -469,6 +485,33 @@ func (in *Install) stackStep() *Step {
 		},
 		Undo: UndoKind,
 	}
+}
+
+// recordPulls records the images of the stack that are not on the machine
+// yet, before compose pulls them: they are the install's, and uninstall
+// takes them away, where the images the machine had before stay.
+func (in *Install) recordPulls(r *Run) error {
+	out, err := r.Exec(Cmd{Argv: in.docker("compose", "config", "--images"), Dir: in.clone(), Limit: time.Minute})
+	if err != nil {
+		return fail("docker compose config --images fails", err)
+	}
+	for _, ref := range strings.Fields(out) {
+		if ref == Project+"-aacpanel" {
+			continue
+		}
+		if err := in.recordPull(r, ref); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// recordPull records an image about to be pulled, unless the machine has it.
+func (in *Install) recordPull(r *Run, ref string) error {
+	if _, err := r.Exec(Cmd{Argv: in.docker("image", "inspect", "--format", "{{.Id}}", ref), Limit: time.Minute}); err == nil {
+		return nil
+	}
+	return r.Once(Image, ref, "pulled")
 }
 
 // panelUp waits for the database to be healthy and the panel to answer on
@@ -606,8 +649,9 @@ func (in *Install) appRoleStep() *Step {
 // ---- S10a: the test database ----
 
 const (
-	testDBName = "aacpanel-test-db"
-	testDBPort = 55432
+	testDBName  = "aacpanel-test-db"
+	testDBPort  = 55432
+	testDBImage = "postgres:18-alpine"
 )
 
 func (in *Install) testDBUp(r *Run) bool {
@@ -654,6 +698,9 @@ func (in *Install) testDBStep() *Step {
 					return err
 				}
 				r.Hide(pw)
+				if err := in.recordPull(r, testDBImage); err != nil {
+					return err
+				}
 				if err := r.Record(TestDB, testDBName, "created"); err != nil {
 					return err
 				}
@@ -661,7 +708,7 @@ func (in *Install) testDBStep() *Step {
 				// reboot turns make check green without its forty tests.
 				_, err := r.Exec(Cmd{Argv: in.docker("run", "-d", "--restart", "unless-stopped", "--name", testDBName,
 					"-p", fmt.Sprintf("127.0.0.1:%d:5432", testDBPort),
-					"-e", "POSTGRES_USER="+user, "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_DB="+db, "postgres:18-alpine"),
+					"-e", "POSTGRES_USER="+user, "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_DB="+db, testDBImage),
 					Env: []string{"POSTGRES_PASSWORD=" + pw}})
 				if err != nil {
 					return fail(testDBName+" did not start", err)

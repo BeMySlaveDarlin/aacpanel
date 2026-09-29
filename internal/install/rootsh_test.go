@@ -176,6 +176,31 @@ func TestRootShHelpNamesItsCommands(t *testing.T) {
 	}
 }
 
+// TestRootShTurnsLingerOffLast reads the removal of root.sh: linger goes
+// after the collector is disabled and its unit is gone, since a user
+// manager that stops with linger takes nothing of the panel's down with it
+// then, and it goes only on --linger, which uninstall passes for linger the
+// installer turned on.
+func TestRootShTurnsLingerOffLast(t *testing.T) {
+	raw, err := os.ReadFile(rootScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	start := strings.Index(body, "\nremove() {")
+	end := strings.Index(body[start:], "\n}\n")
+	remove := body[start : start+end]
+	linger := strings.Index(remove, "loginctl disable-linger")
+	for _, before := range []string{"systemctl disable --now", `rm -f "$unit"`, "systemctl daemon-reload"} {
+		if i := strings.Index(remove, before); i < 0 || linger < 0 || i > linger {
+			t.Errorf("remove turns linger off at %d, before %q at %d:\n%s", linger, before, i, remove)
+		}
+	}
+	if !strings.Contains(remove, `if [ "$linger" = 1 ]`) {
+		t.Errorf("remove turns linger off without --linger:\n%s", remove)
+	}
+}
+
 func TestADryRemoveNamesWhatItTakesAway(t *testing.T) {
 	out := dryRoot(t, "remove", "--user", "nobody", "--state", t.TempDir(), "--purge-state")
 	if strings.Contains(out, "MANIFEST") || !strings.Contains(out, "would run: rm -rf ") {

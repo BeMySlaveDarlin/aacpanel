@@ -25,7 +25,11 @@ func TestTheCommandLine(t *testing.T) {
 	}{
 		{nil, never, 2, "usage: aacpanel-install install"},
 		{[]string{"-h"}, never, 0, "aacpanel-install demo [--speed N]"},
-		{[]string{"update"}, never, 2, `unknown command "update"`},
+		{[]string{"upgrade"}, never, 2, `unknown command "upgrade"`},
+		{[]string{"update", "-h"}, never, 0, "-to"},
+		{[]string{"check", "extra"}, never, 2, `unexpected "extra"`},
+		{[]string{"uninstall", "-h"}, never, 0, "-purge-data"},
+		{[]string{"enroll", "--nope"}, never, 2, "flag provided but not defined"},
 		{[]string{"install", "-h"}, never, 0, "-yes"},
 		{[]string{"install", "extra"}, never, 2, `aacpanel-install install: unexpected "extra"`},
 		{[]string{"plan", "-h"}, never, 0, "-plain"},
@@ -136,7 +140,7 @@ func madeUp(t *testing.T, args []string, steps ...*install.Step) (int, string, *
 		survey: func(in install.Inspection, run *install.Run) *install.Survey {
 			return install.NewSurvey(&install.Table{Acct: in.Account}, in, run, time.Now())
 		},
-		begin: func(*install.Survey) (*install.Run, []*install.Step, error) {
+		begin: func(*install.Survey, install.Install) (*install.Run, []*install.Step, error) {
 			m, err := install.OpenManifest(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
@@ -179,5 +183,22 @@ func TestAStopNamesTheStepAndWhatChanged(t *testing.T) {
 	}
 	if status != 1 || after {
 		t.Errorf("status %d, the step after the stop ran: %v", status, after)
+	}
+}
+
+// TestAStepOfInstallTakesTheFlagsToo: the test session is asked on the way,
+// and the command line answers it as it answered the blocks.
+func TestAStepOfInstallTakesTheFlagsToo(t *testing.T) {
+	var got string
+	step := &install.Step{ID: "s", Title: "Test session", Apply: func(r *install.Run) error {
+		v, err := r.Answer(install.Question{ID: "session", Flag: "--check-session", Default: "yes"})
+		got = v
+		return err
+	}}
+	if status, out, _ := madeUp(t, []string{"--yes", "--check-session", "no"}, step); status != 0 || got != "no" {
+		t.Errorf("status %d, the step got %q:\n%s", status, got, out)
+	}
+	if status, out, _ := madeUp(t, []string{"--yes"}, step); status != 0 || got != "yes" {
+		t.Errorf("--yes: status %d, the step got %q:\n%s", status, got, out)
 	}
 }
