@@ -33,7 +33,7 @@ set -euo pipefail
 
 # The release this script belongs to. make release writes it into the commit
 # it tags, so the script taken from a tag clones that very tag.
-RELEASE=
+RELEASE=v1.0.0
 
 stop() {
 	printf 'stop: %s\n' "$*" >&2
