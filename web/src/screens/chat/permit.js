@@ -78,7 +78,7 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
         return html`
             <div class="permit">
                 <p class="hint warn">the permission was not read: ${state.reason || "the executor did not answer"}</p>
-                <p class="hint">it can be answered in the console itself — the dialog is there</p>
+                <p class="hint">it can be answered in the terminal itself — the dialog is there</p>
             </div>
         `;
     }
@@ -86,7 +86,7 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
     if (!perm) {
         const canStop = knows(exec, "session.stop");
         // The panel could not parse the dialog, but the lines it stands on are still an
-        // answer to "what is it asking" — unmarked text beats sending a person to the console.
+        // answer to "what is it asking" — unmarked text beats sending a person to the terminal.
         const raw = (shown && shown.raw) || [];
         return html`
             <div class="permit">
@@ -99,7 +99,7 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
                 ${raw.length > 0 && html`<${Request} lines=${raw} note=${[]} />`}
                 ${state.escaped
                     ? html`<p class="hint">Esc sent — if there was a dialog, it is closed</p>`
-                    : html`<p class="hint">it can only be answered in the console; from here — close the dialog
+                    : html`<p class="hint">it can only be answered in the terminal; from here — close the dialog
                         without confirming anything</p>`}
                 <div class="askopts">
                     <div class=${`askopt${sending > 0 || !canStop ? " off" : ""}`}>
@@ -132,13 +132,13 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
             <${Request} lines=${perm.action || []} note=${perm.note || []} />
 
             ${perm.cut && html`
-                <p class="hint warn">the command is longer than shown — its beginning is above the console
+                <p class="hint warn">the command is longer than shown — its beginning is above the terminal
                     screen and cut off. Read the tail before pressing anything</p>
             `}
 
             ${perm.partial && html`
                 <p class="hint warn">not everything is visible: one of the dialog lines was not parsed by the panel.
-                    If the item you need is not here — answer in the console</p>
+                    If the item you need is not here — answer in the terminal</p>
             `}
 
             <div class="askopts">
@@ -168,7 +168,7 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
     `;
 }
 
-// Request is what the console asks to do and why it asks, folded to the first
+// Request is what the session asks to do and why it asks, folded to the first
 // lines of each. The answers under it are what a person came to the dock for,
 // and a request can be a whole edit: drawn whole, it pushes them to the bottom
 // of the screen under a wall of code. The fold shows its button only when it

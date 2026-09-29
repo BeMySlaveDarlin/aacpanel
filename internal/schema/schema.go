@@ -44,7 +44,7 @@ type Live string
 const (
 	// LiveNow: the session takes it by an action, without a restart.
 	LiveNow Live = "now"
-	// LiveOnMove: a move between the console and the feed restarts the
+	// LiveOnMove: a move between tmux and the stream restarts the
 	// process with the project's parameters, and the change goes with it.
 	LiveOnMove Live = "on move"
 	// LiveNextStart: only a new process takes it.
@@ -115,12 +115,12 @@ var params = []Param{
 		Key: "transport", Label: "Where it lives", Kind: KindEnum,
 		Levels: []Level{LevelContour, LevelProject},
 		Options: []Option{
-			{Value: TransportTmux, Label: "Console",
+			{Value: TransportTmux, Label: "tmux",
 				Meaning: "a terminal in tmux on the host; the panel types keys and reads the screen"},
-			{Value: TransportStream, Label: "Feed",
+			{Value: TransportStream, Label: "Stream",
 				Meaning: "claude -p under a holder; the panel answers with structure; no window on the host"},
 		},
-		Unset: "Console", Merge: MergeOverride,
+		Unset: "tmux", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
 	{

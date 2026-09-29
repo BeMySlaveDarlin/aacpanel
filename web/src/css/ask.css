@@ -88,7 +88,7 @@
 }
 .askopt.on .asktick { background: var(--accent); border-color: var(--accent); }
 /* The tick is drawn into an empty ring: the ring of a permission's answer
-   holds the number the console gives it (permit.css). */
+   holds the number the terminal gives it (permit.css). */
 .askopt.on .asktick:empty::after { content: "✓"; font-weight: 800; }
 .askbody { min-width: 0; }
 .askname { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); line-height: 1.3; }

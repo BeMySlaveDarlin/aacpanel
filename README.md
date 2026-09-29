@@ -23,7 +23,7 @@ the project.
 
 | Screen | What is on it |
 |---|---|
-| **Sessions** | live sessions by contour and project — who waits for you, who works, who is quiet — with the model, how full the context is and what each one does; the conversation as a feed — messages, thinking, tool calls, letters from other sessions and subagents, attachments — with the timeline of its work beside it; the composer, typed or dictated, with files, a queue and a command after `!`; the question sheet — an option, several, your own words, a note, or dismiss it; the permission dock; stopping the turn, a piece of background work or a subagent, and the feeds of subagents and workflows; the checklist the session keeps; its briefs and published pages; slash commands and the screens of `/mcp`, `/status`, `/hooks` and the like; the model, the effort and the mode picked from a list; Remote Control switched on and off; the session terminal; a window on the host desktop; an archive of closed conversations, with resume. A session lives in the console (tmux) or in the feed (`claude -p` under a holder) and moves between them |
+| **Sessions** | live sessions by contour and project — who waits for you, who works, who is quiet — with the model, how full the context is and what each one does; the conversation as a feed — messages, thinking, tool calls, letters from other sessions and subagents, attachments — with the timeline of its work beside it; the composer, typed or dictated, with files, a queue and a command after `!`; the question sheet — an option, several, your own words, a note, or dismiss it; the permission dock; stopping the turn, a piece of background work or a subagent, and the feeds of subagents and workflows; the checklist the session keeps; its briefs and published pages; slash commands and the screens of `/mcp`, `/status`, `/hooks` and the like; the model, the effort and the mode picked from a list; Remote Control switched on and off; the session terminal; a window on the host desktop; an archive of closed conversations, with resume. A session lives in tmux or on the stream (`claude -p` under a holder) and moves between them; one in tmux is watched as a feed or as its terminal |
 | **Containers** | the "stack → containers" tree with processor, memory and size on disk; logs, starting and stopping a container, bringing a whole stack up and down |
 | **Machine** | processor, memory, disks, network, top processes, checks on ports and external services; history with rollups by minute and by hour, charts from half an hour to a month |
 | **Profile map** | "contour → group → project": where sessions may be opened, with what parameters, in which claude account. Each has a settings page drawn from a schema of the launch parameters, with the command the next launch runs; every change goes into a journal of the map that can take a deleted project back |
@@ -70,7 +70,7 @@ phone ──https──► aacpanel (container)
                     ├──► host snapshot  ◄── aacpanel-agent (host)
                     └──► unix socket    ──► aacpanel-exec (host) ──► docker, tmux, claude
                                                        │
-                                                       └──► aacpanel-exec -hold ──► claude -p (the feed)
+                                                       └──► aacpanel-exec -hold ──► claude -p (the stream)
 
 claude (any session) ──stdio──► aacpanel-exec -mcp: the panel's tools for the session
 ```
@@ -108,7 +108,7 @@ client goes for data to the nearest one that answered.
 | Go | not a single action on the host |
 | tmux | no session will open |
 | python3 | every screen is empty |
-| jq | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in a console shows only with its next request |
+| jq | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in tmux shows only with its next request |
 | claude | there is nothing to show |
 | a terminal (`konsole`, `gnome-terminal`, `alacritty`…) | no windows; the normal mode for a machine without graphics |
 
@@ -149,7 +149,7 @@ transcripts, writes a snapshot that the container mounts read-only.
 | `internal/action/` | the protocol between the service and the executor: the closed list of actions |
 | `internal/executor/` | the actions themselves: containers, stacks, sessions, windows |
 | `internal/launcher/` | starting a claude session: environment, tmux, window, the panel's MCP server |
-| `internal/stream/` | the holder of a session in the feed: `claude -p` on the stream protocol |
+| `internal/stream/` | the holder of a session on the stream: `claude -p` on the stream protocol |
 | `internal/mcp/`, `internal/toolset/` | the panel's MCP server and the one list of its tools: the checklist, the brief, the call, the restart, the letter |
 | `internal/schema/` | the launch parameters of the map as data: levels, options, effective values with their layers |
 | `internal/contours/` | the layout of claude contours: accounts and their directories |

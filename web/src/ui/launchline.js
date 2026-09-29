@@ -29,7 +29,7 @@ function titled(word) {
 }
 
 // drift says, a line each, where a live session of the project runs otherwise
-// than the project's launch says: the console against the feed, or another
+// than the project's launch says: tmux against the stream, or another
 // family of model where the launch names one. What the account picks is not
 // in the line, and a session that picks for itself is not held against it.
 export function drift(line, live) {
@@ -38,7 +38,7 @@ export function drift(line, live) {
     const stream = onStream(line);
     const liveStream = live.transport === "stream";
     if (stream !== liveStream) {
-        out.push(`${live.session} runs in the ${liveStream ? "feed" : "console"} — the project says the ${stream ? "feed" : "console"}`);
+        out.push(`${live.session} lives ${liveStream ? "on the stream" : "in tmux"} — the project says ${stream ? "the stream" : "tmux"}`);
     }
     const words = line.words || [];
     const at = words.findIndex((w) => w.key === "model" && w.text === "--model");

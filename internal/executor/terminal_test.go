@@ -315,8 +315,8 @@ func TestCursorAtTellsThePromptFromTheText(t *testing.T) {
 }
 
 // The panel is the keyboard of the person at it, and what goes in that way is
-// their own message. Text handed to the console in one write is folded into a
-// paste: the console marks it in the transcript as pasted content, and the
+// their own message. Text handed to claude in one write is folded into a
+// paste: claude marks it in the transcript as pasted content, and the
 // words of a person then reach the session as data rather than as what they
 // said. So a message is typed — a handful of characters at a time, at the pace
 // of a hand — and only what typing would change is pasted.

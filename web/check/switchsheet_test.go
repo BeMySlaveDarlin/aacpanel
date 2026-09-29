@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// A session on the stream moves to the console from its tools. What runs
+// A session on the stream moves to tmux from its tools. What runs
 // inside its process does not survive the move, so the tools name it before
 // the press, the confirmation names it again and marks the press as the one
 // that costs something, and what goes to the panel says where to go and that
@@ -27,7 +27,7 @@ func TestTheSwitchSheetNamesWhatStops(t *testing.T) {
 	runFixture(t, "switchsheet.html", &got)
 
 	if !got.Button {
-		t.Fatal("the tools of a stream session offer no way to the console")
+		t.Fatal("the tools of a stream session offer no way to tmux")
 	}
 	if got.Disabled {
 		t.Fatal("the switch is off for an idle session")
@@ -35,7 +35,7 @@ func TestTheSwitchSheetNamesWhatStops(t *testing.T) {
 	if !strings.Contains(got.Note, "1 background task") {
 		t.Errorf("the tools do not say what stops before the press: %q", got.Note)
 	}
-	if got.Title != "Move evirma to the console?" {
+	if got.Title != "Move evirma to tmux?" {
 		t.Errorf("the sheet asks %q", got.Title)
 	}
 	for _, say := range []string{"1 background task", "does not bring them back", "same conversation"} {

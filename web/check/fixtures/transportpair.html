@@ -5,11 +5,11 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="module">
-// A project that lives in the feed, on the wide screen. A session on the
-// stream has the feed alone: the terminal is the console on the other side,
-// reached by a move, which its tab opens rather than makes. A console moves to
-// the feed from the session panel. The window on the host comes with a move to
-// the console and holds the session there: while it is open, nothing moves.
+// A project that lives on the stream, on the wide screen. A session on the
+// stream has the feed alone: the terminal is tmux, reached by a move, which its
+// tab opens rather than makes. A session in tmux moves to the stream from the
+// session panel. The window on the host comes with a move to tmux and holds
+// the session there: while it is open, nothing moves.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -95,7 +95,7 @@ window.done = (async () => {
     const move = await panel(tab("Terminal"));
     out.termSentNothing = sent.length === before;
     out.toConsole = move ? await agree(move) : { title: "", effect: "", sent: null };
-    // The window comes with the move to the console, as a choice in it.
+    // The window comes with the move to tmux, as a choice in it.
     const again = await panel(document.querySelector(".dkplace"));
     const box = document.querySelector(".dkpop .toolcheck input");
     out.windowOff = !box || box.disabled;
@@ -103,15 +103,15 @@ window.done = (async () => {
     await sleep(100);
     out.withWindow = again ? await agree(again) : null;
 
-    // A console of the same project: the terminal is on, and the session
-    // panel moves it to the feed.
+    // A session in tmux of the same project: the terminal is on, and the
+    // session panel moves it to the stream.
     show("evirma-c", { ...base, transport: "tmux" });
     await settle();
     out.consoleOn = pressed();
     const toFeed = await panel(document.querySelector(".dkplace"));
     out.toFeed = toFeed ? await agree(toFeed) : { title: "", sent: null };
 
-    // A window holds the console: the feed reads it, nothing moves.
+    // A window holds the session in tmux: the feed reads it, nothing moves.
     show("evirma-w", { ...base, transport: "tmux" });
     await settle();
     const count = sent.length;

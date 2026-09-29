@@ -50,7 +50,7 @@ process.stdout.write(JSON.stringify({
 		}
 	}
 	if strings.Contains(got.Console, "On the stream") || strings.Contains(got.Console, "console only") {
-		t.Errorf("a console project is told about the stream:\n%s", got.Console)
+		t.Errorf("a tmux project is told about the stream:\n%s", got.Console)
 	}
 	if !strings.Contains(got.Inherited, "from the profile: stream") {
 		t.Errorf("a project silent on it does not say the profile puts it on the stream:\n%s", got.Inherited)

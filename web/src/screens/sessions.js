@@ -192,7 +192,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
     `;
 }
 
-// ghostsOf returns on whose page to show each console being raised.
+// ghostsOf returns on whose page to show each session being raised.
 export function ghostsOf(profiles, opening) {
     const out = new Map(profiles.map((p) => [p.profile, []]));
     const fallback = profiles.length > 0 ? profiles[0].profile : null;

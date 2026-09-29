@@ -172,7 +172,7 @@ window.done = mode === "haiku" ? (async () => {
     const out = {};
     await until(() => all(".pzrow").length > 0);
     out.rows = all(".pzrow").map((r) => text(r.querySelector(".pzname")));
-    out.consoleInherited = card("Console") && card("Console").dataset.inherited;
+    out.consoleInherited = card("tmux") && card("tmux").dataset.inherited;
     out.account = all(".pzacct span").map(text);
     out.hints = all(".pzhint span").map(text);
     out.rcOwn = chip("Remote Control", "On") && chip("Remote Control", "On").dataset.inherited;
@@ -194,7 +194,7 @@ window.done = mode === "haiku" ? (async () => {
     out.draftedWords = drafted();
     out.permLiveTmux = live("Permissions");
 
-    card("Feed").click();
+    card("Stream").click();
     await until(() => text(bar().querySelector(".pzbarsay")) === "2 changes");
     out.barAfterTwo = text(bar().querySelector(".pzbarsay"));
     await until(() => live("Permissions") === "now");
@@ -230,7 +230,7 @@ window.done = mode === "haiku" ? (async () => {
     Array.from(document.querySelectorAll(".pzapply .pzopt")).find((b) => text(b) === "Effort Max").click();
     await until(() => actions.length > 0);
     out.applied = actions[0];
-    Array.from(document.querySelectorAll(".pzapply .pzopt")).find((b) => text(b) === "Move to the feed").click();
+    Array.from(document.querySelectorAll(".pzapply .pzopt")).find((b) => text(b) === "Move to the stream").click();
     const move = await until(() => Array.from(document.querySelectorAll(".sheet.on")).find((x) => Array.from(x.querySelectorAll("button")).some((b) => text(b) === "Move")));
     Array.from(move.querySelectorAll("button")).find((b) => text(b) === "Move").click();
     await until(() => actions.length > 1);

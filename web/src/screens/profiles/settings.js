@@ -35,7 +35,7 @@ function Account({ contour, effective, stream }) {
         .map((v) => String(v.value));
     return html`
         <div class="pzacct">
-            <span>account ${contour.name} · ${stream ? "feed (claude -p)" : "console (tmux)"}</span>
+            <span>account ${contour.name} · ${stream ? "stream (claude -p)" : "tmux"}</span>
             ${past.length > 0 && html`<span>from the account, not in the command: ${past.join(" · ")}</span>`}
         </div>
     `;

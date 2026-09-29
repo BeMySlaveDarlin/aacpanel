@@ -37,10 +37,10 @@ func TestTheGroupPageIsAShelf(t *testing.T) {
 	}
 	runFixtureServing(t, "groupsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	if strings.Join(got.Rows, " ") != "alpha:feed,RC beta: gamma:high" {
+	if strings.Join(got.Rows, " ") != "alpha:stream,RC beta: gamma:high" {
 		t.Errorf("the rows read %v", got.Rows)
 	}
-	if got.Summary != "set otherwise than the contour: feed 1 of 3 · RC 1 of 3 · high 1 of 3" {
+	if got.Summary != "set otherwise than the contour: stream 1 of 3 · RC 1 of 3 · high 1 of 3" {
 		t.Errorf("the shelf is summed up as %q", got.Summary)
 	}
 	if strings.Join(got.Nearby, " ") != "/srv/proj/delta /srv/proj/eps" {

@@ -11,7 +11,7 @@ export function ownLabel(v) {
     const value = v.value;
     if (ON_OFF[v.key]) return value ? ON_OFF[v.key][0] : ON_OFF[v.key][1];
     switch (v.key) {
-    case "transport": return value === "stream" ? "feed" : "console";
+    case "transport": return value === "stream" ? "stream" : "tmux";
     case "intent": return value === "" ? "no first message" : "first message";
     case "restartIntent": return "message after a restart";
     case "contextCap": return `cap ${value}%`;

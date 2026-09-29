@@ -194,7 +194,7 @@ func dialogShown(ctx context.Context, t term, target string, q storedQuestion) e
 		return nil
 	}
 	return fmt.Errorf("the question is not on the screen of session %s: nothing was pressed. It was answered "+
-		"at the machine, or the console never drew it — look at the terminal of the session", target)
+		"at the machine, or claude never drew it — look at the terminal of the session", target)
 }
 
 func pasteIntoDialog(ctx context.Context, t term, text string) error {

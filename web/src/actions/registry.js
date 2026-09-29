@@ -16,7 +16,7 @@ function count(n, one, many) {
 }
 
 const KEPT = "Directories on disk stay where they are: what disappears from the map is the entry, not the code. "
-    + "Live consoles will not close — they live on the host, and they are closed on the sessions screen.";
+    + "Live sessions will not close — they live on the host, and they are closed on the sessions screen.";
 
 // COMMANDS lists the slash commands the panel can send into a session.
 export const COMMANDS = {
@@ -25,7 +25,7 @@ export const COMMANDS = {
         // On the stream a clear starts a conversation under a new id, which the
         // holder does not keep: the session would drop off the panel.
         console: true,
-        effect: "The console will forget the whole conversation: the context starts from zero. The transcript on disk stays, but the only way back into it is resuming the session.",
+        effect: "The session will forget the whole conversation: the context starts from zero. The transcript on disk stays, but the only way back into it is resuming the session.",
         danger: true,
     },
     compact: {
@@ -58,8 +58,8 @@ export const COMMANDS = {
 };
 
 // SCREENS lists the slash commands the panel answers with a screen of its own
-// rather than sending them: the session is asked for the data. In a console
-// each is a screen driven by keys, and the composer does not type into it —
+// rather than sending them: the session is asked for the data. In tmux each
+// is a screen driven by keys, and the composer does not type into it —
 // unless the panel has the data without it, as it has what /status shows.
 export const SCREENS = {
     mcp: { name: "MCP servers" },
@@ -84,13 +84,13 @@ export const REFUSED = {
 // switchEffect tells what a switch keeps and what it ends. The conversation
 // comes up on the other side whole; what ran inside the process does not.
 function switchEffect(params) {
-    const console = params.window
-        ? "A window shows a console, not the feed: the session comes up in a terminal on " + hostLabel()
-            + " and a window attaches to it there. While the window is open the session stays in the console. "
+    const tmux = params.window
+        ? "A window shows a session in tmux, not on the stream: the session comes up in a terminal on " + hostLabel()
+            + " and a window attaches to it there. While the window is open the session stays in tmux. "
         : "The session comes up in a terminal on " + hostLabel() + ", with every screen claude has there. ";
     const where = params.to === "console"
-        ? console
-        : "The console closes and the session comes up in the feed, answered with structure. "
+        ? tmux
+        : "The session leaves tmux and comes up on the stream, answered with structure. "
             + "Remote control does not come along. ";
     const kept = "The same conversation, the same history, the model, the effort and the permission mode it runs with now. ";
     const lost = params.stops
@@ -115,7 +115,7 @@ export function commandLine(params) {
 }
 
 // parseCommand reads what is typed in the composer as a slash command. On the
-// stream a command that holds in the console only is never ready: sent as a
+// stream a command that holds in tmux only is never ready: sent as a
 // plain message it would be run all the same.
 export function parseCommand(text, stream = false) {
     const line = String(text || "").trim();
@@ -146,10 +146,10 @@ export function commandHints(text, stream = false) {
         return [{ value: line, label: `/${name}`, hint: REFUSED[name.toLowerCase()] }];
     }
     if (SCREENS[name] && !stream && !SCREENS[name].console) {
-        return [{ value: line, label: `/${name}`, hint: "in the feed only: in a console it is a screen driven by keys" }];
+        return [{ value: line, label: `/${name}`, hint: "on the stream only: in tmux it is a screen driven by keys" }];
     }
     if (stream && COMMANDS[name] && COMMANDS[name].console) {
-        return [{ value: line, label: `/${name}`, hint: "in the console only: on the stream it drops the session off the panel" }];
+        return [{ value: line, label: `/${name}`, hint: "in tmux only: on the stream it drops the session off the panel" }];
     }
     const spec = space < 0 ? null : COMMANDS[name];
     if (spec && spec.args) {
@@ -233,7 +233,7 @@ function sessionHint(one) {
     const refused = REFUSED[name.toLowerCase()];
     if (refused) return { value: label, label, hint: refused, off: true };
     if (COMMANDS[name] && COMMANDS[name].console) {
-        return { value: label, label, hint: "in the console only: on the stream it drops the session off the panel", off: true };
+        return { value: label, label, hint: "in tmux only: on the stream it drops the session off the panel", off: true };
     }
     if (SCREENS[name]) return { value: `${label} `, label, hint: one.description || SCREENS[name].name, screen: true };
     return { value: `${label} `, label, hint: one.description || "", arg: one.hint || "" };
@@ -295,12 +295,12 @@ export const ACTIONS = {
         watch: "switch",
         title: (target, params) => {
             if (params && params.window) return `Open a window to ${target} on ${hostLabel()}?`;
-            return params && params.to === "console" ? `Move ${target} to the console?` : `Move ${target} to the feed?`;
+            return params && params.to === "console" ? `Move ${target} to tmux?` : `Move ${target} to the stream?`;
         },
         effect: (params) => switchEffect(params || {}),
         done: (target, params) => (params && params.to === "console"
-            ? `${target} is moving to the console${params.window ? ", a window follows" : ""}`
-            : `${target} is moving to the feed`),
+            ? `${target} is moving to tmux${params.window ? ", a window follows" : ""}`
+            : `${target} is moving to the stream`),
         ok: (params) => (params && params.window ? "Move and open" : "Move"),
         danger: (params) => Boolean(params && params.stops),
     },
@@ -419,7 +419,7 @@ export const ACTIONS = {
     "window.close": {
         title: (target) => `Close window ${target} on ${hostLabel()}?`,
         effect: "The window on the desktop closes, the conversation goes on — the session lives in tmux. "
-            + "Everything attached to it detaches, including a console opened over ssh; "
+            + "Everything attached to it detaches, including a terminal attached over ssh; "
             + "the terminal inside the panel itself is not touched.",
         done: (target) => `Window ${target} closed`,
         ok: "Close window",
@@ -487,9 +487,9 @@ export const ACTIONS = {
     },
     "session.open": {
         watch: "open",
-        title: (target) => `Open console ${target}?`,
-        effect: () => `The console comes up on ${hostLabel()}. The limits it spends come out of the shared quota.`,
-        done: (target) => `Console ${target} is up`,
+        title: (target) => `Open session ${target}?`,
+        effect: () => `The session comes up on ${hostLabel()}. The limits it spends come out of the shared quota.`,
+        done: (target) => `Session ${target} is up`,
         ok: "Open",
     },
     "session.resume": {
@@ -545,7 +545,7 @@ export const ACTIONS = {
     },
     "profile.edit": {
         title: (target) => `Save profile "${target}"?`,
-        effect: "The new values go into the launch of the next sessions. Consoles already up stay the way they were — they read their settings at start.",
+        effect: "The new values go into the launch of the next sessions. Sessions already up stay the way they were — they read their settings at start.",
         done: (target) => `Profile "${target}" saved`,
         ok: "Save",
         journaled: false,
@@ -709,7 +709,7 @@ export const ACTIONS = {
             + (params.pathFrom
                 ? `The conversations of ${params.pathFrom} stay in the archive and no longer resume from this project. `
                 : "")
-            + "The new values go into the launch of the next sessions. Live consoles of this project will not change.",
+            + "The new values go into the launch of the next sessions. Live sessions of this project will not change.",
         done: (target) => `Project "${target}" saved`,
         ok: "Save",
         journaled: false,
@@ -724,7 +724,7 @@ export const ACTIONS = {
         title: (target) => `Delete project "${target}"?`,
         effect: (params) => `The project disappears from the launch list of group "${params.group}" — it will not be possible to open it from the phone. `
             + `The directory ${params.path} and everything inside it stays where it is. `
-            + "A live console of this project will not close: it lives on the host, and what leaves the map is the entry. "
+            + "A live session of this project will not close: it lives on the host, and what leaves the map is the entry. "
             + "It will still be visible in the same place, on the sessions screen — and that is where it is closed.",
         done: (target) => `Project "${target}" deleted`,
         ok: "Delete",
@@ -812,9 +812,9 @@ const NAMES = {
     "session.close": "Close session",
     "session.restart": "Restart session",
     "session.kill": "Kill session",
-    "session.open": "Open console",
+    "session.open": "Open session",
     "session.resume": "Resume session",
-    "session.switch": "Move between console and feed",
+    "session.switch": "Move between the stream and tmux",
     "session.send": "Write to session",
     "session.shell": "Run a shell command",
     // No screen sends a letter: a session writes one to another with a tool

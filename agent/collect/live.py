@@ -302,7 +302,7 @@ def sessions():
             # still has one.
             if not s.get("model") and isinstance(hold.get("model"), str) and hold["model"]:
                 s["model"] = hold["model"]
-            # An effort picked in the feed is known to the holder at once; the
+            # An effort picked on the stream is known to the holder at once; the
             # transcript of a claude -p does not carry it.
             if isinstance(hold.get("effort"), str) and hold["effort"]:
                 s["effort"] = hold["effort"]

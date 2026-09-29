@@ -2,7 +2,7 @@
 """Asks the panel to restart this session as its project from the map.
 
 The panel closes the session the gentle way and brings it up again with the
-project's parameters — the console or the feed, the model, the account — and
+project's parameters — tmux or the stream, the model, the account — and
 the message after a restart as its first. The session is named by its
 conversation: from inside it the name the panel calls it by is not known.
 

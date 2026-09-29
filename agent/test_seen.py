@@ -206,7 +206,7 @@ class TurnEnded(Seen):
 
 
 class LastMode(Seen):
-    """The mode a console was last in, for a move of it to the feed."""
+    """The mode a session in tmux was last in, for a move of it to the stream."""
 
     START = 1790000000000  # 2026-09-21T14:13:20Z
 
@@ -234,7 +234,7 @@ class LastMode(Seen):
         self.append(json.dumps({"type": "user", "permissionMode": "default", "timestamp": "2026-09-21T14:14:00Z"}))
         self.append(json.dumps({"type": "assistant", "timestamp": "2026-09-21T14:14:05Z"}))
         self.append(json.dumps({"type": "permission-mode", "permissionMode": "plan"}))
-        self.assertEqual(self.mode(), "plan", "the mode changed in the console after the last message is lost")
+        self.assertEqual(self.mode(), "plan", "the mode changed in tmux after the last message is lost")
 
     def test_a_record_of_the_mode_before_the_start_is_another_process(self):
         self.append(json.dumps({"type": "assistant", "timestamp": "2026-09-21T14:13:00Z"}))

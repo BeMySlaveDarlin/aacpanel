@@ -90,11 +90,11 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	console := " " + strings.Join(got.ConsoleLines, " ") + " "
 	for _, gone := range []string{" /hooks ", " /mcp ", " /btw "} {
 		if strings.Contains(console, gone) {
-			t.Errorf("a console session is offered %s: %v", strings.TrimSpace(gone), got.ConsoleLines)
+			t.Errorf("a session in tmux is offered %s: %v", strings.TrimSpace(gone), got.ConsoleLines)
 		}
 	}
 	if !strings.Contains(console, " /status ") || !strings.Contains(console, " /context ") {
-		t.Errorf("a console session lost what works there: %v", got.ConsoleLines)
+		t.Errorf("a session in tmux lost what works there: %v", got.ConsoleLines)
 	}
 	if !got.OldHostOff || got.OldHostNote == "" || got.OldHostNote == "Context usage" {
 		t.Errorf("an executor that cannot send commands left /context pressable (%v) with the note %q",

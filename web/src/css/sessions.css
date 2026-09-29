@@ -32,7 +32,7 @@
 
 .srow .pct.blank { color: var(--ink-faint); font-size: var(--t-xs); }
 
-/* A session on the stream is answered with structure, a console one with
+/* A session on the stream is answered with structure, one in tmux with
    keys: the mark tells them apart before the card is opened. It sits right
    after the name and leaves the percentage at the edge. */
 .srow .smark {

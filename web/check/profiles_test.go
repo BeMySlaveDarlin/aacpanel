@@ -742,8 +742,8 @@ func TestCascadeSaysWhatItTakesAndWhatItLeaves(t *testing.T) {
 		}
 	}
 	if kept := regexp.MustCompile(`(?s)const KEPT = .*?;`).FindString(registry); !strings.Contains(kept, "on disk") ||
-		!strings.Contains(kept, "consoles") {
-		t.Error("KEPT stopped speaking about the disk and the live consoles — the promise on the sheet is gone")
+		!strings.Contains(kept, "Live sessions will not close") {
+		t.Error("KEPT stopped speaking about the disk and the live sessions — the promise on the sheet is gone")
 	}
 }
 

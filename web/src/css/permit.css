@@ -1,4 +1,4 @@
-/* Session permission: the console asks, the dock answers with a keypress. */
+/* Session permission: the terminal asks, the dock answers with a keypress. */
 
 /* A permission and a question take the same place and are answered the same
    way, so they are one kind of dock to the eye: this one is the sheet a
@@ -113,7 +113,7 @@
 /* A warning about what is shown stands apart from what it warns about. */
 .permitsaid + .hint { margin-top: .45rem; }
 
-/* The ring of an answer holds the number the console gives it, in the ink of
+/* The ring of an answer holds the number the terminal gives it, in the ink of
    the words beside it until the ring is filled. The cross of the way out
    stands where a number stands and is the size of one: an icon of the scale
    is wider than the ring. */

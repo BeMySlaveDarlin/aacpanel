@@ -28,8 +28,8 @@ type switchWaitSeen struct {
 	Refused       switchFrame `json:"refused"`
 }
 
-// A session moving between the feed and the console shows the move from the
-// press until the other side is up: not the feed closing under the person,
+// A session moving between the stream and tmux shows the move from the press
+// until it is up in the other: not the feed closing under the person,
 // not a conversation with no session, not a terminal that says it detached
 // before it ever attached.
 func TestAMoveBetweenSidesShowsTheMoveUntilTheOtherSideIsUp(t *testing.T) {
@@ -44,8 +44,8 @@ func TestAMoveBetweenSidesShowsTheMoveUntilTheOtherSideIsUp(t *testing.T) {
 	}
 	moving := func(name string, f switchFrame) {
 		t.Helper()
-		if !strings.Contains(f.Wait, "Moving to the console") {
-			t.Errorf("%s: the screen does not say the session is moving to the console (%q)", name, f.Wait)
+		if !strings.Contains(f.Wait, "Moving to tmux") {
+			t.Errorf("%s: the screen does not say the session is moving to tmux (%q)", name, f.Wait)
 		}
 		if f.Feed || f.Composer || f.Term {
 			t.Errorf("%s: a view stands beside the move — feed %v, composer %v, terminal %v", name, f.Feed, f.Composer, f.Term)
@@ -56,13 +56,13 @@ func TestAMoveBetweenSidesShowsTheMoveUntilTheOtherSideIsUp(t *testing.T) {
 		t.Errorf("gone from the snapshot mid-move, the header says %q — the move reads as the end of the session", got.Gone.Head)
 	}
 	moving("gone from the snapshot", got.Gone)
-	moving("back in the console, its views not yet known", got.Back)
+	moving("back in tmux, its views not yet known", got.Back)
 	if got.Back.TermStreams != 0 {
-		t.Errorf("the terminal was attached %d times before the panel said the console shows it", got.Back.TermStreams)
+		t.Errorf("the terminal was attached %d times before the panel said tmux shows it", got.Back.TermStreams)
 	}
 
 	if !got.Opening.Term || !strings.Contains(got.Opening.Wait, "Opening the terminal") {
-		t.Errorf("the console came up but the terminal is not opening with a spinner: %+v", got.Opening)
+		t.Errorf("the session came up in tmux but the terminal is not opening with a spinner: %+v", got.Opening)
 	}
 	if got.Opening.Detached {
 		t.Error("the terminal says it detached before the stream said anything — an error in place of the opening")
@@ -71,7 +71,7 @@ func TestAMoveBetweenSidesShowsTheMoveUntilTheOtherSideIsUp(t *testing.T) {
 		t.Errorf("the terminal did not come up on ready: live %v, detached %v", got.ReadyLive, got.Ready.Detached)
 	}
 
-	if !strings.Contains(got.RefusedDuring.Wait, "Moving to the console") {
+	if !strings.Contains(got.RefusedDuring.Wait, "Moving to tmux") {
 		t.Fatalf("the second press does not show the move (%q): the refusal below proves nothing", got.RefusedDuring.Wait)
 	}
 	if !got.Refused.Feed || got.Refused.Wait != "" {

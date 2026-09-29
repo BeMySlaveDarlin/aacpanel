@@ -21,11 +21,11 @@ const RestartInstructions = "When the person asks to restart this session (“re
 
 // RestartDescription is the tool's own word to the model.
 const RestartDescription = "Restarts this session through the panel, as its project from the map: the same " +
-	"directory and account, the same launch parameters — the console or the feed, the model — and the map's " +
+	"directory and account, the same launch parameters — tmux or the stream, the model — and the map's " +
 	"message after a restart as its first. It restarts only this session: never a service, a container or " +
 	"another session. Without continue the new session starts with an empty context, so put what is worth " +
 	"keeping on disk first — notes, where the work stands, a commit; with continue it goes on with this " +
-	"conversation. The session is closed right after the call, a session in the feed at the end of the " +
+	"conversation. The session is closed right after the call, a session on the stream at the end of the " +
 	"current turn: once the panel has taken the restart, end the turn and do nothing more. A restart ends everything the session runs — its agents, workflows " +
 	"and background commands — so while any of them is at work nothing is restarted and the call says what " +
 	"is at work; a wake-up the session set runs nothing and does not count. A restart you started on your " +

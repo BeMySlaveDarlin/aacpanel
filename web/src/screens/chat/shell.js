@@ -1,10 +1,11 @@
 // A command the person ran with "!": a card in the feed, and its whole output
 // in a sheet.
 //
-// A console writes the command and what it printed into the conversation as
-// two rows, and so does a session on the stream once the command has ended,
-// with the exit code besides. Until then the command is the page's own row:
-// the card says it is starting, and then how long it has been running.
+// A session in tmux writes the command and what it printed into the
+// conversation as two rows, and so does a session on the stream once the
+// command has ended, with the exit code besides. Until then the command is the
+// page's own row: the card says it is starting, and then how long it has been
+// running.
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -32,8 +33,8 @@ export function tailOf(text, n = TAIL_LINES) {
 }
 
 // Stand says where a command stands: going out, running and for how long, or
-// how it ended. A console says nothing of how a command ended, and neither
-// does its card.
+// how it ended. A session in tmux says nothing of how a command ended, and
+// neither does its card.
 function Stand({ item }) {
     if (item.state === "sending") {
         return html`<span class="mshellat"><span class="mclock">${Icon.clock()}</span>starting</span>`;

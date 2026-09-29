@@ -140,9 +140,9 @@ export function Groups({ profile, sessions, onOpen, exec }) {
                                     <button
                                         class="iconbtn accent"
                                         type="button"
-                                        aria-label=${own.length > 0 ? `open one more console ${p.name}` : `open console ${p.name}`}
+                                        aria-label=${own.length > 0 ? `open one more session of ${p.name}` : `open a session of ${p.name}`}
                                         disabled=${!ready}
-                                        title=${ready ? "open the console" : why}
+                                        title=${ready ? "open a session" : why}
                                         onClick=${async () => {
                                             await run("session.open", p.session, { project: p.id });
                                         }}
@@ -160,8 +160,8 @@ export function Groups({ profile, sessions, onOpen, exec }) {
 // Project renders the project screen.
 // openLabel names the press by where the session will live.
 function openLabel(more, stream) {
-    if (stream) return more ? "Open one more in the feed" : "Open in the feed";
-    return more ? "Open one more console" : "Open the console";
+    if (stream) return more ? "Open one more on the stream" : "Open on the stream";
+    return more ? "Open one more in tmux" : "Open in tmux";
 }
 
 // How many conversations of the project a press shows more of.

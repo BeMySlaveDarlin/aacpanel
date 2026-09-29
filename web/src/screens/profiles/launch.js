@@ -1,5 +1,5 @@
-// The default launch parameters: what the panel passes claude when it raises the
-// console of a profile or a project.
+// The default launch parameters: what the panel passes claude when it raises a
+// session of a profile or a project.
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -44,8 +44,8 @@ export const MODES = ["default", "acceptEdits", "auto", "plan"];
 
 // Where a session lives. A terminal in tmux is what a session gets when
 // nothing is said; on the stream it is answered with structure — questions,
-// permissions, the model — and the console is a switch away rather than the
-// place the session is.
+// permissions, the model — and tmux is a move away rather than the place the
+// session is.
 export const TRANSPORTS = [
     ["tmux", "a terminal in tmux"],
     ["stream", "the stream — answered by the panel, no terminal"],
@@ -239,10 +239,10 @@ function StreamBlock() {
     return html`
         <div class="pfstream">
             <span class="pflabel">On the stream</span>
-            <span class="pfhelp">takes effect at the next start: the session is answered in the feed — there is no terminal and no window on the host</span>
+            <span class="pfhelp">takes effect at the next start: the panel answers the session with structure — there is no terminal and no window on the host</span>
             <span class="pfhelp">holds here too: the model, the effort, the permission mode, remote control, the starting intent, the environment and the context cap</span>
             <span class="pfhelp warn">the extra arguments go to <code>claude -p</code>: one only the terminal knows stops the session at its start</span>
-            <span class="pfhelp">what the feed cannot do yet is in the console: a line in the tools of the session moves the session there and back</span>
+            <span class="pfhelp">what the stream cannot do yet is in tmux: a line in the tools of the session moves the session there and back</span>
         </div>
     `;
 }

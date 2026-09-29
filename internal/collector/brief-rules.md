@@ -11,7 +11,7 @@ from now, whenever they finish. Nothing waits for them here.
 
 `AskUserQuestion` stops the turn and is answered in seconds. It holds at most
 four questions, two to four options each, and a twelve-character header. Answers
-picked from the panel are pressed into the console dialog as keystrokes, and
+picked from the panel are pressed into the dialog in tmux as keystrokes, and
 that dialog fits nine items.
 
 Take a brief when any of that is in the way:

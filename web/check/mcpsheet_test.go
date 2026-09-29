@@ -9,7 +9,7 @@ import (
 // /mcp in a session on the stream opens the panel's own screen instead of
 // going to the session: the servers by where each comes from, a dot of how
 // each stands, and one server with its facts and the changes a phone can make.
-// In a console the command is a screen driven by keys, and nothing is sent.
+// In tmux the command is a screen driven by keys, and nothing is sent.
 func TestMcpOpensTheServersOfTheSession(t *testing.T) {
 	var got struct {
 		Hints         []string `json:"hints"`
@@ -60,6 +60,6 @@ func TestMcpOpensTheServersOfTheSession(t *testing.T) {
 		t.Errorf("the host got %v, and after a refusal the list was asked again: %v", got.Sent, got.AskedAgain)
 	}
 	if got.ConsoleReady || !strings.Contains(got.ConsoleHint, "keys") {
-		t.Errorf("in a console /mcp is ready %v, the hint %q", got.ConsoleReady, got.ConsoleHint)
+		t.Errorf("in tmux /mcp is ready %v, the hint %q", got.ConsoleReady, got.ConsoleHint)
 	}
 }

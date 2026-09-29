@@ -166,7 +166,7 @@ catches up on its own, and a deploy does not leave the host unguarded while the
 database migrates.
 
 **The delivery socket.** The executor has no access to transcripts, yet typing
-into a console is blind without them: whether the message landed, whether the
+into a session in tmux is blind without them: whether the message landed, whether the
 turn is over, which permission mode the session was last in — only the
 transcript says. So it asks the collector over `seen.sock`, in the collector's
 runtime directory: it names the conversation and a mark cut from the message,
@@ -425,7 +425,7 @@ command as a card: the page draws it going out and running, and once the
 output reaches the transcript the card says how the command ended, shows the
 last lines of what it printed and opens the whole. A running command holds off
 a switch — closing claude would stop it, and its output would never arrive. A
-console gets the line as typed, since its own composer runs the command.
+session in tmux gets the line as typed, since its own composer runs the command.
 
 **A question on the stream is answered with structure, not with keys**, so the
 limits a terminal dialog puts on a layout do not hold there: a free answer and
@@ -458,15 +458,15 @@ a record once, and a result read before its answer would stay without a card
 for good. For the same reason the collector reads that file after it has
 taken the length of the transcript and parses nothing past that length. The
 card stands at the result of the call; what the call was about comes from the
-transcript. A permission answered at a terminal leaves no card: the console
+transcript. A permission answered at a terminal leaves no card: claude in tmux
 keeps nothing of it.
 
-**A switch moves a live session between the two** (`session.switch`): the
-executor closes the process on one side and resumes the same conversation on
-the other, under the same name. The id and the history stay; the process does
-not, and what lives only inside it goes with it — a turn in progress, an open
-question or permission, messages in the queue, background tasks, Monitor,
-wakeups, agents. So a switch happens only between turns and never under an
+**A switch moves a live session between tmux and the stream**
+(`session.switch`): the executor closes the process in one and resumes the
+same conversation in the other, under the same name. The id and the history
+stay; the process does not, and what lives only inside it goes with it — a
+turn in progress, an open question or permission, messages in the queue,
+background tasks, Monitor, wakeups, agents. So a switch happens only between turns and never under an
 open request: the executor refuses rather than cut anything off. Background
 work is the one loss a person may accept: the sheet names it before the press,
 and on the stream, where the holder knows the tasks exactly, the executor
@@ -474,45 +474,48 @@ refuses a switch nobody agreed to.
 
 The new process is started with the project's launch parameters and what the
 session changed since its start. On the stream that is the model and the
-effort picked in the feed, as they were picked, and the permission mode:
+effort picked there, as they were picked, and the permission mode:
 always when the start named one, and otherwise only when the holder saw it
 change since the handshake — a mode nobody chose is claude's own name for the
-default, and carrying it would override the project's choice. From a console it is the model and the effort its status
-line shows, which names the model with its context window, and the mode
-claude last wrote into the transcript since the console started, or the mode
-it was started with. The transcript is read for it by the collector: the
-executor has no access to transcripts. The opening
-message of the project is dropped — a resumed conversation would read it as a
-new request. A stream session can always go to the console; a console goes to
-the feed only when its project lives there, because which projects live in the
-feed is decided in the map, not by a button in one conversation.
+default, and carrying it would override the project's choice. From tmux it
+is the model and the effort its status line shows, which names the model with
+its context window, and the mode claude last wrote into the transcript since
+the session started, or the mode it was started with. The transcript is read
+for it by the collector: the executor has no access to transcripts. The
+opening message of the project is dropped — a resumed conversation would read
+it as a new request. A stream session can always go to tmux; a session in tmux goes to
+the stream only when its project lives there, because which projects live on
+the stream is decided in the map, not by a button in one conversation.
 
-**The pair of views watches, the move is a line of its own, and a window
-holds a console.** A session on the stream has only its feed: the terminal of
-the conversation header is the console on the other side, and pressing it
-opens the move rather than making it. A console is watched either way — its
-terminal, or its transcript read as a feed — and the pair only picks which:
-the session stays in tmux, where an agent that started it may be following
-its pane. The pick is the session's own, kept on the device by the session's
+**Where a session lives and what it is watched with are two things.** It
+lives in tmux or on the stream, and it is watched with the Feed or the
+Terminal. The pair of views only watches; the move is a line of its own,
+named by where the session goes — Move to the stream, Move to tmux — and a
+window holds a session in tmux. A session on the stream has only its feed:
+the terminal of the conversation header is tmux, reached by the move, and
+pressing it opens the move rather than making it. A session in tmux is
+watched either way — its terminal, or its transcript read as a feed — and the
+pair only picks which: the session stays in tmux, where an agent that started
+it may be following its pane. The pick is the session's own, kept on the device by the session's
 name; a session never picked opens in the terminal on a wide screen and in
-the feed on a phone, and a renamed one opens that way again. A console whose
-project lives in the feed moves there from the tools of the session. A
-session on the stream has nothing a window on the host could show, so the
-window button moves it to the console and opens the window in one action.
-While a terminal outside the panel shows a console — a window on the host, an
-ssh attached to its tmux, or a terminal of its own when it runs outside tmux —
-the executor refuses to move it to the feed: the conversation would end under
-the eyes of whoever reads it there. While the window on the host is open, the
-tools do not offer the move at all.
+the feed on a phone, and a renamed one opens that way again. A session in
+tmux whose project lives on the stream moves there from the tools of the
+session. A session on the stream has nothing a window on the host could show,
+so the window button moves it to tmux and opens the window in one action.
+While a terminal outside the panel shows a session in tmux — a window on the
+host, an ssh attached to its tmux, or a terminal of its own when it runs
+outside tmux — the executor refuses to move it to the stream: the
+conversation would end under the eyes of whoever reads it there. While the
+window on the host is open, the tools do not offer the move at all.
 
 **Remote Control is a second way in, past the panel.** It is claude's bridge
 to claude.ai: while it is up, the session is reached from the Claude app and
-the web under the account it runs in. Where the launch parameters ask for it, a
-console gets it as a flag of the start, and a stream session from its holder,
-which asks claude for it as a control request right after the handshake and
-before the project's opening message. From the panel it is switched with
+the web under the account it runs in. Where the launch parameters ask for it,
+a session in tmux gets it as a flag of the start, and a stream session from its
+holder, which asks claude for it as a control request right after the handshake
+and before the project's opening message. From the panel it is switched with
 `session.remote`: on the stream that is the same request, and its answer is the
-proof; in a console it is `/remote-control` typed into the terminal, the dialog
+proof; in tmux it is `/remote-control` typed into the terminal, the dialog
 that disconnects is walked by reading the screen after every key, and the
 switch is known to have landed when claude writes the id of the bridge into the
 file of the session or takes it out. What the bridge lets in is decided by
@@ -523,9 +526,9 @@ session, which is why it is off unless the map turns it on.
 session is reached with `tmux attach` whatever happens to the panel; a stream
 session has only its holder's pipes, and the panel is the way to them.
 `aacpanel-exec -sessions` lists the live sessions with how each is kept, and
-`aacpanel-exec -console <name>` asks the running executor to move one to the
-console, after which `tmux attach -t <name>` reaches it. The console is started
-from what the holder keeps the session was started with — the project, its
+`aacpanel-exec -console <name>` asks the running executor to move one to
+tmux, after which `tmux attach -t <name>` reaches it. The session is started
+in tmux from what the holder keeps it was started with — the project, its
 launch parameters and its contour, so it runs under the same account; a holder
 that does not keep it is refused rather than guessed around, since a project
 found by its directory carries no contour. The executor outlives the service's
@@ -542,7 +545,7 @@ project starts with is not a set of form fields but a schema
 (`internal/schema/schema.go`): each launch parameter says where it may be kept
 (a contour, a project), what its options mean, what an absent value leaves to,
 how a project's value lies over the contour's, and when a running session takes
-a change — now, on a move between the console and the feed, or at the next
+a change — now, on a move between tmux and the stream, or at the next
 start. The screens are drawn from it (`GET /api/profiles/schema`, answered
 without the database), the launcher reads exactly its keys, and a test holds
 the two lists equal. Retired keys are named with the reason, not silently
@@ -676,8 +679,8 @@ executor what it can do and greys out buttons from the answer, and a field does
 not change that answer — an old executor would accept the request and silently
 throw the file away.
 
-**A message is typed into the session, not handed over as a paste.** A console
-folds a large write into a paste of its own making and marks it in the
+**A message is typed into the session, not handed over as a paste.** Claude in
+tmux folds a large write into a paste of its own making and marks it in the
 transcript as pasted content: what the person at the panel wrote would then
 reach the session as quoted data rather than as words addressed to it. So the
 executor types — a handful of characters at a time with a pause between the
@@ -817,12 +820,12 @@ one of them — reconnect, enable, disable — with claude's own requests.
 Authentication is left to the host: its browser comes back to the host, and a
 phone is not that browser. Only what the screen shows leaves the host: the
 headers, the arguments and the environment of a server, and the query of its
-address, can carry keys. In a console `/mcp` is a screen driven by keys, and
+address, can carry keys. In tmux `/mcp` is a screen driven by keys, and
 the composer does not send it. `/status` is a screen of the panel too, in both
 kinds of session: most of it the snapshot of the host already holds, the
 version comes from the file of the session, and the account from claude's
-answer to the handshake — which a console does not have, so its card goes
-without one.
+answer to the handshake — which a session in tmux does not have, so its card
+goes without one.
 
 **`/hooks`, `/memory`, `/skills`, `/agents` and `/config` are read-only screens
 of the panel.** On the stream claude hands out the rows of its own screens for
@@ -830,7 +833,7 @@ the first three, names the kinds of subagents at the handshake, and answers
 `get_settings` with the merged settings; the panel asks each time a screen
 opens and changes nothing — a hook or a skill is changed in its file or by
 asking Claude. The rules of permissions are not shown in any form, and the
-environment never leaves the host. In a console these are the client's own
+environment never leaves the host. In tmux these are the client's own
 screens, driven by keys, and the composer does not send them.
 
 **A button under the composer lists what the panel does itself** — its
@@ -838,7 +841,7 @@ screens, the pickers of the model, the effort and the mode, a question aside,
 and the commands whose answers the feed draws as cards (`/context`, `/usage`)
 or that change the conversation (`/compact`). The list is read from the same
 registry the composer reads, and each row does what typing it does: a command
-goes through the same confirmation. A console session is offered only what
+goes through the same confirmation. A session in tmux is offered only what
 works there.
 
 **A session on the stream is renamed from the panel** (`session.rename`, the
@@ -848,10 +851,10 @@ session up; the holder is keyed by the conversation and does not notice. A
 name keeps to what a URL and a file name take, and a name another live
 session answers to is refused: two sessions would answer to one name. The
 open conversation follows the session by its conversation to the new name. A
-terminal is renamed on its own screen, `/rename` with keys.
+session in tmux is renamed on its own screen, `/rename` with keys.
 
 **A session gets the panel's tools from one MCP server.** Every session the
-launcher starts, in a console or on the stream, gets the executor as the MCP
+launcher starts, in tmux or on the stream, gets the executor as the MCP
 server `aacpanel` (`aacpanel-exec -mcp`), and the tools the server marks
 allowed are allowed by name, so a call of one never waits on a person; the
 `panelTools` launch parameter turns them off for a contour or a project. A

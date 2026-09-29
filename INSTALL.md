@@ -41,9 +41,9 @@ started by hand, the executor's state in `<home>/.local/state/aacpanel` and
 | docker + compose v2 | `docker compose version` | the service and the database will not come up |
 | docker without sudo | `docker version` — the call itself, not `command -v` | half the steps will need rights |
 | Go | `go version` | the executor cannot be built |
-| tmux | `tmux -V` | **no session will open**, in the console or in the feed: a console lives in tmux and the window is only attached to it, and a feed session goes into tmux when it is moved to the console |
+| tmux | `tmux -V` | **no session will open**, in tmux or on the stream: a session in tmux lives there and the window is only attached to it, and a stream session goes into tmux when it is moved there |
 | python3 | `python3 -V` | the collector will not start, the panel is blind |
-| jq | `jq --version` | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in a console shows only with its next request |
+| jq | `jq --version` | the status line writes nothing: the limits of an account wait for the executor's probe, and a model changed in tmux shows only with its next request |
 | curl, git, openssl | `curl -V`, `git --version`, `openssl version` | the checks below are browser-only; the secrets in §6 are drawn by `openssl` |
 | claude | `claude --version` | there is nothing to show |
 | a terminal | `command -v konsole` (or your own) | there will be no windows onto sessions — the normal mode for a machine without graphics |
@@ -273,7 +273,7 @@ text: your own hooks are in that file and they must stay. The files are
 `<home>/.claude/settings.json` and one like it in every account directory from
 `AACP_CLAUDE_HOME` or the contour registry, if there are several accounts.
 
-**The question hook.** A session in the console reports a question to the panel
+**The question hook.** A session in tmux reports a question to the panel
 only through it: the record of the call reaches the transcript after the
 answer, and without the hook the card never arrives. A session on the stream
 hands its question to its holder as a request, hook or not.
@@ -288,8 +288,8 @@ hands its question to its holder as a request, hook or not.
 **The status line.** Claude says the 5-hour and weekly percentages of the
 subscription to the status line of a terminal, and every account has its own.
 The script writes them for its account, at most every twenty seconds, together
-with the model and the effort the console runs — what the list of sessions and a
-move to the feed read. Without it the limits come only from the executor's
+with the model and the effort a session in tmux runs — what the list of sessions
+and a move to the stream read. Without it the limits come only from the executor's
 probe (§5, `AACP_LIMITS_EVERY`). The script goes first in the chain and passes
 the payload on to the previous command:
 
@@ -555,8 +555,8 @@ Profiles tab of the phone or from Projects in the sessions section at a desk:
 until there is a first contour the projects screen is empty, and taking one is
 the first thing done there — a contour is taken from an account the machine
 already has, found by the collector; its paths are typed by hand only on a
-machine without a contour router. A project lives in the console unless its
-launch parameters put it in the feed.
+machine without a contour router. A project lives in tmux unless its launch
+parameters put it on the stream.
 
 What cannot be checked with a command:
 
@@ -565,7 +565,7 @@ What cannot be checked with a command:
 3. opening a session from the panel and seeing it in the list, and the window on
    the desktop;
 4. sending a message and seeing it in the feed;
-5. asking a session in the console a question through `AskUserQuestion` and
+5. asking a session in tmux a question through `AskUserQuestion` and
    seeing the card on the phone — the only check of the question hook;
 6. the 5-hour and weekly limits of the account on the sessions screen: the
    executor's probe writes them shortly after its start, and the status
@@ -683,7 +683,7 @@ The rest is optional and one at a time, because it is data:
 | the panel does not open | `docker compose logs aacpanel`, `docker compose ps` |
 | the screens are empty, "the collector is not writing" | `journalctl -u "aacpanel-agent@$USER" -f`; most often a wrong `AACP_REPO` |
 | "the executor is unavailable" | `journalctl --user -u aacpanel-exec -f`; linger; the socket must belong to the uid from `AACP_UID` |
-| the panel is down and a session in the feed is needed | `~/bin/aacpanel-exec -sessions` names the sessions on the stream, `~/bin/aacpanel-exec -console <name>` moves one into tmux under the same account, then `tmux attach -t <name>`; the holders outlive a restart of the executor |
+| the panel is down and a session on the stream is needed | `~/bin/aacpanel-exec -sessions` names the sessions on the stream, `~/bin/aacpanel-exec -console <name>` moves one into tmux under the same account, then `tmux attach -t <name>`; the holders outlive a restart of the executor |
 | the token is accepted, but the sign-in screen comes back empty | a cookie with `Secure` was dropped over http: an address without a certificate needs `AACP_SECURE=0` |
 | the "cookie without Secure" chip in the header | the panel is opened over https while `AACP_SECURE=0` stayed: remove the line and recreate the container |
 | a session opens without a window | an empty `AACP_TERMINAL` or a machine without `DISPLAY`; the button in the conversation header will open a window where there are graphics |

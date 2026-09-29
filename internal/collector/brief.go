@@ -33,7 +33,7 @@ var rules string
 // publishInstructions is the tool's line in the server's word to every
 // session: the model sees it and the name, so it says when to reach for the
 // tool. publishDescription is read once the tool is looked up.
-const publishInstructions = "When a question does not fit the console — over four questions or options, an " +
+const publishInstructions = "When a question does not fit AskUserQuestion — over four questions or options, an " +
 	"option that needs a paragraph, facts the choice rests on — or a finished analysis is worth reading on the " +
 	"phone, publish a brief with brief_publish; also when the person asks for one " +
 	`("send me a brief", "I will answer later"; in Russian "бриф", "опросник", "скинь в панель", "отвечу потом").`
@@ -45,7 +45,7 @@ const publishDescription = "Publishes a brief to the panel: a long piece the per
 	"With doc, the brief is published under doc.id; the same id from the same project updates it in place " +
 	"and keeps the answers already given. The answers come back later as a message in this session, whenever " +
 	"the person sends them: do not wait for them, let the turn end. check with doc reads the document and says " +
-	"what is in it, publishing nothing. When the work stops until they answer, ask a question in the console " +
+	"what is in it, publishing nothing. When the work stops until they answer, ask with AskUserQuestion " +
 	"instead. A refusal says why nothing was published; say it in the conversation."
 
 // deleteInstructions and deleteDescription are the removal's line and its own

@@ -70,7 +70,7 @@ function held(task) {
     return Math.max(0, Math.round((Date.now() - task.since) / 1000));
 }
 
-// raising lists the consoles being started that are not in the snapshot yet.
+// raising lists the sessions being started that are not in the snapshot yet.
 export function raising(sessions, opening, at) {
     const names = (sessions || []).map((s) => s.session);
     return (opening || []).filter((task) => !settled(task, names, at));
@@ -132,7 +132,7 @@ export function factsOf(s, group, usual = "default") {
     return out;
 }
 
-// GhostLine holds the place of a console being raised, in the contour it is
+// GhostLine holds the place of a session being raised, in the contour it is
 // raised in.
 function GhostLine({ task }) {
     return html`
@@ -190,8 +190,8 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                     </span>
                 `}
                 ${!s.outside && s.transport !== "stream" && html`
-                    <span class="dkmark" data-tip="Lives in a console of tmux rather than on the feed">
-                        <${Icon.terminal} />console
+                    <span class="dkmark" data-tip="Lives in tmux rather than on the stream">
+                        <${Icon.terminal} />tmux
                     </span>
                 `}
                 ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
@@ -410,7 +410,7 @@ function NewSession({ name, entry, snapshot, exec }) {
 
 // ContourSection is one contour in the column: its heading with how many of
 // its sessions wait for the person, the way to a new one and the limit; its
-// live sessions with the runs they started under them, and the consoles being
+// live sessions with the runs they started under them, and the sessions being
 // raised in it.
 function ContourSection({ name, entry, list, ghosts, limits, map, place, snapshot, current, onPick, keyOf, exec, wait }) {
     const { own, kids } = kinOf(list);
@@ -556,7 +556,7 @@ function groupOf(profiles) {
     };
 }
 
-// sectionOfTask finds the contour a console is being raised in: by the project
+// sectionOfTask finds the contour a session is being raised in: by the project
 // it was opened from, then by its name among the projects of the map; one the
 // map does not know stands in the first contour shown.
 function sectionOfTask(task, map, sections) {

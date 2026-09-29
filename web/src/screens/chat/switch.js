@@ -1,6 +1,5 @@
-// The two sides a live session lives on — the console and the feed — and the
-// move between them: the same conversation, closed on one side and resumed on
-// the other.
+// The two places a live session lives in — tmux and the stream — and the move
+// between them: the same conversation, closed in one and resumed in the other.
 
 import { useEffect, useRef, useState } from "preact/hooks";
 
@@ -37,9 +36,9 @@ export function blocked(live) {
     return "";
 }
 
-// moveSession asks the executor to move a live session to the other side, with
-// what stops on the way named for the sheet. A window asked for comes up over
-// the console the session moves to.
+// moveSession asks the executor to move a live session to where it can go,
+// with what stops on the way named for the sheet. A window asked for comes up
+// over tmux, where the session moves.
 export function moveSession({ run, exec, name, to, work, withWindow = false }) {
     if (!knows(exec, "session.switch")) return;
     const lost = stops(work);
@@ -47,8 +46,8 @@ export function moveSession({ run, exec, name, to, work, withWindow = false }) {
 }
 
 // useSwitchWay asks the panel which way a live session can move: a session on
-// the stream can always go to the console, a console goes to the feed only
-// when its project lives there. It asks again when the session changes sides.
+// the stream can always go to tmux, a session in tmux goes to the stream only
+// when its project lives there. It asks again when the session moves.
 export function useSwitchWay(name, transport) {
     const [answer, setAnswer] = useState({ for: null, ...asking });
     const key = `${name}|${transport}`;
@@ -75,29 +74,29 @@ export function useSwitchWay(name, transport) {
     return answer.for === key ? answer : asking;
 }
 
-// sidesOf lays the pair of views over the sides of a live session. On the
-// stream the feed is all there is, and the terminal is the console on the
-// other side, reached by the move. A console is watched either way — its
-// terminal or its transcript as a feed — and the pair only picks which: the
-// session stays in tmux, where whoever started it may be reading its pane. A
-// console whose project lives in the feed moves there from the tools of the
+// sidesOf lays the pair of views over where a live session lives. On the
+// stream the feed is all there is, and the terminal is tmux on the other side,
+// reached by the move. A session in tmux is watched either way — its terminal
+// or its transcript as a feed — and the pair only picks which: the session
+// stays in tmux, where whoever started it may be reading its pane. A session
+// in tmux whose project lives on the stream moves there from the tools of the
 // session, unless a window on the host holds it.
 export function sidesOf({ live, way, held, picked, canTerm, exec }) {
     const why = () => blocked(live) || whyNot(exec, "session.switch");
     if (live.transport === "stream") {
         if (way.to !== "console") return { view: "feed", pair: false, moves: "", tip: "", why: "" };
-        return { view: "feed", pair: false, moves: "console", tip: "Move to the console", why: why() };
+        return { view: "feed", pair: false, moves: "console", tip: "Move to tmux", why: why() };
     }
     if (way.to === "stream" && !held) {
         return { view: picked, pair: canTerm, moves: "stream", tip: "", why: why() };
     }
     const tip = way.to === "stream" && held
-        ? `Watch the console as a feed — the window on ${hostLabel()} holds the session there`
+        ? `Watch it as a feed — the window on ${hostLabel()} holds the session in tmux`
         : "";
     return { view: picked, pair: canTerm, moves: "", tip, why: "" };
 }
 
-// useMove says the session is between its sides: from the press until the
+// useMove says the session is between its places: from the press until the
 // snapshot shows it on the other side and the panel has said what the pair of
 // views does there. Neither view is worth showing meanwhile — the one being
 // left closes under the person, the one being reached is not up yet — so the
@@ -122,14 +121,14 @@ export function MoveScreen({ move }) {
         return () => clearInterval(timer);
     }, []);
     const sec = Math.max(0, Math.round((Date.now() - move.since) / 1000));
-    const toConsole = move.to === "console";
+    const toTmux = move.to === "console";
     return html`
         <div class="viewwait" role="status" aria-live="polite">
             <span class="spin"></span>
-            <p class="viewwaittitle">${toConsole ? "Moving to the console" : "Moving to the feed"}</p>
-            <p class="viewwaitsub">${toConsole
-                ? "the stream closes and the same conversation comes up in the console"
-                : "the console closes and the same conversation comes up on the stream"} · ${sec} s</p>
+            <p class="viewwaittitle">${toTmux ? "Moving to tmux" : "Moving to the stream"}</p>
+            <p class="viewwaitsub">${toTmux
+                ? "the stream closes and the same conversation comes up in tmux"
+                : "tmux closes and the same conversation comes up on the stream"} · ${sec} s</p>
         </div>
     `;
 }

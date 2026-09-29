@@ -15,8 +15,8 @@ import (
 	"aacpanel/internal/stream"
 )
 
-// A switch closes a live session on one side and resumes the same
-// conversation on the other: the id, the history and the name stay, the
+// A switch closes a live session in tmux or on the stream and resumes the
+// same conversation in the other: the id, the history and the name stay, the
 // process does not. What lives only inside the process — a turn in progress,
 // an open question, messages waiting in the queue, background tasks — does
 // not survive it, so a switch happens on the boundary of a turn and says what
@@ -79,12 +79,12 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 	switch sw.To {
 	case action.SwitchConsole:
 		if !held {
-			return "", fmt.Errorf("session %s is in the console already", s.Name)
+			return "", fmt.Errorf("session %s is in tmux already", s.Name)
 		}
 		keep, lost, err = leavingStream(ctx, s, sw.Force)
 	case action.SwitchStream:
 		if held {
-			return "", fmt.Errorf("session %s is in the feed already", s.Name)
+			return "", fmt.Errorf("session %s is on the stream already", s.Name)
 		}
 		if err = shownElsewhere(ctx, s); err != nil {
 			return "", err
@@ -120,9 +120,9 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 			"it is whole on disk, resume it from the archive", closed, err)
 	}
 
-	where := "in the console"
+	where := "to tmux"
 	if sw.To == action.SwitchStream {
-		where = "in the feed"
+		where = "to the stream"
 	}
 	detail := fmt.Sprintf("session %s moved %s, conversation %s", rep.Session, where, s.SessionID)
 	if keep.Unsaid {
@@ -139,7 +139,7 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 		detail += "; WARNING: " + w
 	}
 	if sw.Window {
-		// The session is in the console already: a window that did not open
+		// The session is in tmux already: a window that did not open
 		// is a warning about the window, not a failed switch.
 		opened, err := e.openWindowTo(ctx, p.Path, rep.Session)
 		if err != nil {
@@ -151,13 +151,13 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 }
 
 // launchedWith is the project a session on the stream was started with, as
-// its holder keeps it: a move to the console asked for without the panel —
-// the panel is down — starts the console from it. The contour comes with it,
-// so the console runs under the same account. Nothing else is guessed: a
+// its holder keeps it: a move to tmux asked for without the panel — the panel
+// is down — starts the session in tmux from it. The contour comes with it, so
+// the session runs under the same account. Nothing else is guessed: a
 // project found by its directory alone would carry neither.
 func launchedWith(ctx context.Context, s liveSession, sw *action.Switch) (*action.Project, error) {
 	if sw.To != action.SwitchConsole || !onStream(s) {
-		return nil, fmt.Errorf("a switch without the project moves only a session on the stream to the console")
+		return nil, fmt.Errorf("a switch without the project moves only a session on the stream to tmux")
 	}
 	st, err := streamState(ctx, s)
 	if err != nil {
@@ -176,23 +176,23 @@ func launchedWith(ctx context.Context, s liveSession, sw *action.Switch) (*actio
 		ClaudeBin: spec.ClaudeBin, ConfigDir: spec.ConfigDir}, nil
 }
 
-// shownElsewhere stops a console from leaving while a terminal outside the
-// panel shows it: the switch would end the conversation there, under the eyes
-// of whoever reads it. A console outside tmux runs in a terminal of its own; in
-// tmux, a window on the host or an ssh attached to it counts, and the terminal
-// of the panel does not.
+// shownElsewhere stops a session from leaving tmux while a terminal outside
+// the panel shows it: the switch would end the conversation there, under the
+// eyes of whoever reads it. A session outside tmux runs in a terminal of its
+// own; in tmux, a window on the host or an ssh attached to it counts, and the
+// terminal of the panel does not.
 func shownElsewhere(ctx context.Context, s liveSession) error {
 	pane, err := tmuxPaneFor(ctx, s.PID)
 	if err != nil {
 		return fmt.Errorf("session %s does not live in tmux, so it runs in a terminal of its own and a switch "+
-			"would end it there — close it in that terminal and resume the conversation in the feed: %w", s.Name, err)
+			"would end it there — close it in that terminal and resume the conversation on the stream: %w", s.Name, err)
 	}
 	clients, err := foreignClients(ctx, tmuxSessionOf(pane.Target))
 	if err != nil {
 		return fmt.Errorf("whether a window shows session %s is unknown: %w", s.Name, err)
 	}
 	if len(clients) > 0 {
-		return fmt.Errorf("a window on the host shows session %s and holds it in the console: close the window first",
+		return fmt.Errorf("a window on the host shows session %s and holds it in tmux: close the window first",
 			s.Name)
 	}
 	return nil
@@ -202,8 +202,8 @@ func shownElsewhere(ctx context.Context, s liveSession) error {
 // asked to end the way a finished `claude -p` does: its input is closed, it
 // writes the rest of its transcript and exits cleanly, and its holder leaves
 // nothing behind — a signal would read as a launch that failed when the
-// session is young. A signal is kept for a console, and for a stream session
-// that did not end on its own.
+// session is young. A signal is kept for a session in tmux, and for a stream
+// session that did not end on its own.
 func (e *Executor) closeGently(ctx context.Context, s liveSession, proc agentProc, held bool) (string, error) {
 	if held {
 		if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpClose}); err == nil &&
@@ -214,7 +214,7 @@ func (e *Executor) closeGently(ctx context.Context, s liveSession, proc agentPro
 	return e.closeAgent(ctx, proc)
 }
 
-// leavingStream says what a session on the stream takes to the console, or
+// leavingStream says what a session on the stream takes to tmux, or
 // why it cannot go now. A turn in progress, a request waiting for a person,
 // messages in the queue and a shell command still running stop the switch:
 // each of them is lost in a way the person did not choose. Background tasks stop it too, unless the person was
@@ -256,11 +256,11 @@ func leavingStream(ctx context.Context, s liveSession, force bool) (carried, str
 	}
 	if st.Picked != "" {
 		keep.Model = st.Picked
-		keep.From = append(keep.From, "model "+st.Picked+" picked in the feed")
+		keep.From = append(keep.From, "model "+st.Picked+" picked on the stream")
 	}
 	if st.Effort != "" {
 		keep.Effort = st.Effort
-		keep.From = append(keep.From, "effort "+st.Effort+" picked in the feed")
+		keep.From = append(keep.From, "effort "+st.Effort+" picked on the stream")
 	}
 	lost := ""
 	if len(st.Tasks) > 0 {
@@ -281,10 +281,10 @@ func taskList(tasks []stream.Task) string {
 	return strings.Join(out, "; ")
 }
 
-// leavingConsole says what a session in the console takes to the feed, or
-// why it cannot go now. A console shows its background work only on its
-// screen, and the panel does not open that screen to count it: the person
-// was shown it in the feed before pressing.
+// leavingConsole says what a session in tmux takes to the stream, or why it
+// cannot go now. A session in tmux shows its background work only on its
+// screen, and the panel does not open that screen to count it: the person was
+// shown it in the conversation before pressing.
 func leavingConsole(s liveSession) (carried, error) {
 	switch s.Status {
 	case "busy":

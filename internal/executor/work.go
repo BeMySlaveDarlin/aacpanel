@@ -42,7 +42,7 @@ type workRow struct {
 }
 
 // taskStop stops a background task: a command, a monitor or an agent sent off
-// to work. On the stream claude stops it by its id; in a console the panel
+// to work. On the stream claude stops it by its id; in tmux the panel
 // finds its line on the screen of background work and presses the key there.
 func (e *Executor) taskStop(ctx context.Context, target string, w *action.Work) (string, error) {
 	if w == nil {

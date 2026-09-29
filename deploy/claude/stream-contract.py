@@ -576,7 +576,7 @@ def wait_gone(pid, limit=15):
 
 
 def check_console(claude, cwd, env, sid, model):
-    """A session moves to the console by resuming its conversation in a terminal,
+    """A session moves to tmux by resuming its conversation in a terminal,
     so a terminal has to read what the stream wrote. No request is made: the
     history is drawn from the transcript. The directory is new to claude, and
     the terminal asks whether to trust it with the cursor on "No, exit": a key

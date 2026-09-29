@@ -165,7 +165,7 @@ const rowNamed = (words) => Array.from(document.querySelectorAll(".sheet.on .mcp
     out.asked = asked;
     out.sent = sent.length;
 
-    // In a console these are the client's own screens, driven by keys: the
+    // In tmux these are the client's own screens, driven by keys: the
     // composer says so and sends nothing.
     show({ ...stream, transport: "" });
     await sleep(300);

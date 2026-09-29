@@ -24,7 +24,7 @@ const notifyInstructions = "When the work is blocked on what only the person can
 
 const notifyDescription = "Calls the person to this session: the line arrives on their phone as a push, and a " +
 	"tap opens this session in the panel. Not a question and not a permission request: nothing appears in the " +
-	"console, nothing waits for an answer, and the turn goes on. Call when the work is blocked on a decision only " +
+	"conversation, nothing waits for an answer, and the turn goes on. Call when the work is blocked on a decision only " +
 	"they can make, when something broke that they would want to know about now, or when they asked to be called " +
 	"when a job finished. Not instead of finishing work that is merely hard, not for progress, and not in place " +
 	"of a question when an answer is what you need and they are there. The line stands on its own, read on a " +

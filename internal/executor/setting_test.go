@@ -100,7 +100,7 @@ func typedWith(words string) func(string) bool {
 
 func key(k string) func(string) bool { return func(p string) bool { return p == k } }
 
-// statusLine writes what the status line of a console shows, the way its
+// statusLine writes what the status line of a session in tmux shows, the way its
 // script does, and returns the session id it is written for.
 func statusLine(t *testing.T) (string, func(model, name, effort string, window int)) {
 	t.Helper()
@@ -145,7 +145,7 @@ func TestTheConfirmationOfASwitchIsAnsweredForThePerson(t *testing.T) {
 		t.Errorf("the reply does not say what the switch costs: %q", said)
 	}
 	if !strings.Contains(said, "Opus 5.5") {
-		t.Errorf("the reply does not say what the console shows now: %q", said)
+		t.Errorf("the reply does not say what the status line shows now: %q", said)
 	}
 }
 
@@ -162,13 +162,13 @@ func TestAnEffortTakenWhileTheSessionAnswersIsNotReportedLost(t *testing.T) {
 
 	confirmed, err := pasteAndSendWith(context.Background(), term, typed(cmd), nil, set.watch())
 	if err != nil {
-		t.Fatalf("an effort the console shows was reported lost: %v", err)
+		t.Fatalf("an effort the status line shows was reported lost: %v", err)
 	}
 	if !confirmed {
 		t.Error("the status line shows the effort, yet the change is unconfirmed")
 	}
 	if !strings.Contains(set.said(), "effort max") {
-		t.Errorf("the reply does not say what the console shows now: %q", set.said())
+		t.Errorf("the reply does not say what the status line shows now: %q", set.said())
 	}
 }
 

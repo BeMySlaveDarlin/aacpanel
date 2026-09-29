@@ -305,7 +305,7 @@ func TestSessionCloseSkipsDaemonFork(t *testing.T) {
 		sessionFiles(t, files...)
 	}
 
-	t.Run("the signal goes to the console session, not to a namesake fork", func(t *testing.T) {
+	t.Run("the signal goes to the session in tmux, not to a namesake fork", func(t *testing.T) {
 		stand(t, true)
 		e, _ := newTest(t, "")
 		log := withSignals(t, e, map[int]bool{100: true, 1003: true, 1004: true}, map[int]int{1004: 1})

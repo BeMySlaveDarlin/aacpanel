@@ -19,7 +19,7 @@ func (e *Executor) sessionRename(ctx context.Context, target, name string) (stri
 		return "", err
 	}
 	if !onStream(s) {
-		return "", fmt.Errorf("session %s runs in a console: it is renamed on its own screen, /rename with keys", s.Name)
+		return "", fmt.Errorf("session %s lives in tmux: it is renamed on its own screen, /rename with keys", s.Name)
 	}
 	namesakes, _, err := liveSessionsByName(name)
 	if err != nil {

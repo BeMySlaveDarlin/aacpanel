@@ -165,9 +165,9 @@ func TestDeskColumnKeepsItsPlacesWhateverTheSessionsDo(t *testing.T) {
 }
 
 // A row says how its session stands in the words of the phone, and only what
-// is unusual about it is marked: Remote Control, the home session, a console,
-// a session the panel did not start — the feed is where a session lives and
-// goes unmarked. A session that waits for the person is the bright row, with
+// is unusual about it is marked: Remote Control, the home session, a session
+// in tmux, a session the panel did not start — the stream is where a session
+// lives and goes unmarked. A session that waits for the person is the bright row, with
 // an edge of its own, counted in the heading of its contour.
 func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 	got := runDeskCard(t)
@@ -206,15 +206,15 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 	for name, want := range map[string]string{
 		"aacpanel": "RC",
 		"atlas":    "home,RC",
-		"scratch":  "console",
+		"scratch":  "tmux",
 		"lms":      "",
 	} {
 		if strings.Join(got.Marks[name], ",") != want {
 			t.Errorf("%s is marked %v, expected %q", name, got.Marks[name], want)
 		}
 	}
-	if regexp.MustCompile(`\bfeed\b`).MatchString(got.ColumnText) {
-		t.Error("the column marks a session as living on the feed — that is where every session lives unless marked")
+	if regexp.MustCompile(`\bstream\b`).MatchString(got.ColumnText) {
+		t.Error("the column marks a session as living on the stream — that is where every session lives unless marked")
 	}
 }
 

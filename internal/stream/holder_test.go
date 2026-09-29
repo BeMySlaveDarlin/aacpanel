@@ -401,7 +401,7 @@ func TestTheHandshakeSaysThePanelStopsATaskOnItsOwn(t *testing.T) {
 	t.Fatalf("claude was never greeted:\n%s", r.received())
 }
 
-// What the session was started with stays with its holder: the console is
+// What the session was started with stays with its holder: tmux is
 // started from it when the panel that knows the project is down.
 func TestTheHolderKeepsWhatTheSessionWasStartedWith(t *testing.T) {
 	launched := json.RawMessage(`{"dir":"/srv/proj","session":"demo","configDir":"/home/u/.claude-profiles/work"}`)
@@ -669,7 +669,7 @@ func TestOnlyTheListedControlsArePassedOn(t *testing.T) {
 	r.waitFor("the model to change", func(s State) bool { return s.Model == "sonnet" })
 }
 
-// A model and an effort chosen in the feed are remembered as they were chosen:
+// A model and an effort chosen on the stream are remembered as they were chosen:
 // the other side of a switch is started with them, and the id claude resolves
 // a model to has lost its context window.
 func TestAPickedModelAndEffortAreRemembered(t *testing.T) {

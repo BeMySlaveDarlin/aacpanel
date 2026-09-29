@@ -26,18 +26,18 @@ func TestTheLaunchLineReadsAsTheCommand(t *testing.T) {
 		t.Errorf("the stream line reads %q", strings.Join(got.Stream, " "))
 	}
 	if strings.Join(got.Tmux, " ") != "claude -n aacpanel --remote-control aacpanel" {
-		t.Errorf("the console line reads %q", strings.Join(got.Tmux, " "))
+		t.Errorf("the tmux line reads %q", strings.Join(got.Tmux, " "))
 	}
 	if got.Own != "solid" || got.Contour != "dashed" || got.Plain != "none" {
 		t.Errorf("own %q, contour %q, the command's own %q — meant solid, dashed, none", got.Own, got.Contour, got.Plain)
 	}
 	if got.Then != "then: remote control on · the first message" || got.TmuxThen {
-		t.Errorf("then reads %q (console has one: %v)", got.Then, got.TmuxThen)
+		t.Errorf("then reads %q (tmux has one: %v)", got.Then, got.TmuxThen)
 	}
-	if strings.Join(got.Labels, "|") != "feed|no RC|cap 70%|no first message|sonnet" {
+	if strings.Join(got.Labels, "|") != "stream|no RC|cap 70%|no first message|sonnet" {
 		t.Errorf("a project's own values read %v", got.Labels)
 	}
-	want := "person runs in the console — the project says the feed|ai-platform runs Fable — the project says Opus"
+	want := "person lives in tmux — the project says the stream|ai-platform runs Fable — the project says Opus"
 	if strings.Join(got.Drift, "|") != want {
 		t.Errorf("drift reads %q, meant %q — and a model the launch does not name is the session's own pick", strings.Join(got.Drift, "|"), want)
 	}

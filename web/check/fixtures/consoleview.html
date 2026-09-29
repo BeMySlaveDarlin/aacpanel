@@ -5,10 +5,10 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="module">
-// A console whose project lives in the feed, watched either way: the pair of
-// views picks the terminal or the feed, and the session stays in tmux — the
-// move to the feed waits in the tools of the session. The pick is the
-// session's own: another console opens the way it would have, and a reload
+// A session in tmux whose project lives on the stream, watched either way: the
+// pair of views picks the terminal or the feed, and the session stays in tmux —
+// the move to the stream waits in the tools of the session. The pick is the
+// session's own: another session in tmux opens the way it would have, and a reload
 // brings each back the way it was left. A session on the stream keeps its
 // header. The same page runs on a phone and on the wide screen.
 import { h, render } from "preact";
@@ -142,8 +142,8 @@ window.done = (async () => {
     await document.fonts.ready;
     const out = { wide };
 
-    // A console opens by the width of the screen, and offers the move to the
-    // feed in the tools of the session.
+    // A session in tmux opens by the width of the screen, and offers the move
+    // to the stream in the tools of the session.
     await reload("evirma-fp");
     out.first = shown();
     out.watch = await watch();
@@ -163,7 +163,7 @@ window.done = (async () => {
     out.pickAsked = (document.querySelector(".stitle") || {}).textContent || "";
     out.pickPanel = Boolean(document.querySelector(".dkpop") || sheet());
 
-    // Another console of the same project opens the way it would have, and
+    // Another session in tmux of the same project opens the way it would have, and
     // the first keeps its pick when the screen comes back to it.
     await open("evirma-rw");
     out.neighbour = shown();

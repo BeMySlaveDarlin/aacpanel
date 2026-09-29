@@ -64,8 +64,8 @@ export function SetupSheet({ name, part }) {
     if (!data) return plain("Asking the session…");
     if (data.state !== "ok") return plain(data.reason || "The session did not answer.");
     if (data.transport !== "stream") {
-        return plain(`This session runs in a console: this is on its own screen there, /${part} with keys. `
-            + "The panel shows it for a session in the feed.");
+        return plain(`This session lives in tmux: this is on its own screen there, /${part} with keys. `
+            + "The panel shows it for a session on the stream.");
     }
     const head = html`<${Head} title=${title} onAgain=${again} />`;
     switch (part) {
@@ -273,7 +273,7 @@ function SkillsView({ skills, head }) {
                 `)}
             </ul>
             ${shown.length === 0 && html`<p class="cmdnote">No skill has these words.</p>`}
-            <p class="cmdnote">Read-only: a skill is turned on or off in the console, /skills with keys.</p>
+            <p class="cmdnote">Read-only: a skill is turned on or off in the terminal, /skills with keys.</p>
         </div>
     `;
 }

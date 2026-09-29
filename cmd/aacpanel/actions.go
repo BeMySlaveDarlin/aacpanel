@@ -615,15 +615,15 @@ type switchWay struct {
 
 func (p switchWay) why() string {
 	if p.To == action.SwitchConsole {
-		return "it is in the feed already"
+		return "it is on the stream already"
 	}
-	return "it is in the console already"
+	return "it is in tmux already"
 }
 
 // switchPlan finds where a live session can move. A session on the stream can
-// always go to the console. A console goes to the feed only when its project
-// is set to live there: which projects live in the feed is decided in the map,
-// not by a button in one conversation.
+// always go to tmux. A session in tmux goes to the stream only when its project
+// is set to live there: which projects live on the stream is decided in the
+// map, not by a button in one conversation.
 func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error) {
 	if s.host == nil {
 		return switchWay{}, errors.New("the host snapshot is not configured")
@@ -656,7 +656,7 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 	}
 	_ = json.Unmarshal(want.Launch, &launch)
 	if launch.Transport != action.SwitchStream {
-		return switchWay{}, fmt.Errorf("the project of session %q lives in the console", name)
+		return switchWay{}, fmt.Errorf("the project of session %q lives in tmux", name)
 	}
 	return switchWay{To: action.SwitchStream, Project: want, ProjectID: projectID}, nil
 }

@@ -71,10 +71,10 @@ func TestTheBangRunsACommandOnTheStreamAndIsTypedIntoAConsole(t *testing.T) {
 
 	c := got.Console
 	if len(c.Sends) != 1 || c.Sends[0].Kind != "session.send" || c.Sends[0].Text != "! git status" {
-		t.Errorf("a console got %+v rather than the line as typed", c.Sends)
+		t.Errorf("a session in tmux got %+v rather than the line as typed", c.Sends)
 	}
 	if c.Cards != 0 || len(c.Bubbles) != 1 {
-		t.Errorf("a line to a console is drawn as %d command cards and bubbles %v", c.Cards, c.Bubbles)
+		t.Errorf("a line to a session in tmux is drawn as %d command cards and bubbles %v", c.Cards, c.Bubbles)
 	}
 }
 

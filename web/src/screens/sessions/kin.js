@@ -5,9 +5,9 @@
 
 // placeOf names where a live session lives, for its mark.
 export function placeOf(s) {
-    if (s.transport === "stream") return "feed";
+    if (s.transport === "stream") return "stream";
     if (s.outside) return "outside";
-    return "console";
+    return "tmux";
 }
 
 // kinOf splits live sessions into those standing on their own and, under each
