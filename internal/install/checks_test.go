@@ -101,6 +101,15 @@ func TestSudo(t *testing.T) {
 			"✗ stop: one step needs root (the state directory, the collector unit, linger) and u may not run sudo here. " + terminal},
 		{"no sudo", func(m *fake) { delete(m.Path, "sudo") },
 			"✗ stop: one step needs root (the state directory, the collector unit, linger) and sudo is not installed here. " + terminal},
+		// A second run with the part as root in place needs no root unless
+		// something of it changed: the step finds that out, not the check.
+		{"a password and no terminal, the part as root in place", func(m *fake) {
+			password(m)
+			m.Files["/home/u/.local/state/aacpanel-install/"+ManifestName] = ""
+			m.Files[DefaultStateDir+"/host.env"] = ""
+			m.Files[collectorUnitPath] = "[Unit]\n"
+		}, "⚠ warn: sudo cannot ask for a password here, and the part as root of the earlier install is in place: " +
+			"a step that needs root this time stops with the command for an administrator."},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			m := healthy()
