@@ -1,0 +1,99 @@
+# The installer from scratch on a clean machine and back: install, check,
+# a second run that changes nothing, uninstall with the data, and the
+# traces of the machine compared with what they were before. A GitHub runner
+# is a whole virtual machine — systemd as PID 1, docker, sudo without a
+# password — which is what the installer needs and a container is not.
+name: install
+
+on:
+  pull_request:
+    paths:
+      - install.sh
+      - cmd/aacpanel-install/**
+      - internal/install/**
+      - deploy/**
+      - docker-compose.yml
+      - Dockerfile
+      - .env.example
+      - cmd/aacpanel-exec/**
+      - .github/workflows/install.yml
+  # Weekly on the default branch: a new claude, new images and a new
+  # vulnerability database change the result without a change here.
+  schedule:
+    - cron: "23 4 * * 1"
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: install and uninstall
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    # bash with pipefail: curl that fails into a pipe fails the step.
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # claude is installed and never signed in: the installer only needs
+      # claude mcp, which works without an account.
+      - name: claude, without signing in
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/claude" --version
+
+      - name: traces before
+        run: |
+          TRACES=$RUNNER_TEMP/traces
+          echo "TRACES=$TRACES" >> "$GITHUB_ENV"
+          mkdir -p "$TRACES"
+          deploy/stand/traces.sh > "$TRACES/before"
+          wc -l < "$TRACES/before"
+
+      - name: install
+        run: ./install.sh install --yes --plain
+
+      - name: check
+        run: ./install.sh check
+
+      # A second run finds everything in place: no unit and no container
+      # starts again.
+      - name: a second run changes nothing
+        run: |
+          deploy/stand/traces.sh starts > "$TRACES/starts-before"
+          ./install.sh install --yes --plain
+          deploy/stand/traces.sh starts > "$TRACES/starts-after"
+          diff -u "$TRACES/starts-before" "$TRACES/starts-after"
+
+      - name: uninstall with the data
+        run: ./install.sh uninstall --yes --purge-data
+
+      - name: traces after
+        run: |
+          deploy/stand/traces.sh > "$TRACES/after"
+          deploy/stand/traces.sh compare "$TRACES/before" "$TRACES/after"
+
+      # The journal holds every command with its output and no secret: the
+      # installer keeps secrets out of argv and prints no value of the .env.
+      - name: the journal of the installer
+        if: failure()
+        run: |
+          for log in "${XDG_STATE_HOME:-$HOME/.local/state}"/aacpanel-install/log/*.log; do
+            [ -f "$log" ] || continue
+            echo "::group::$log"
+            tail -n 200 "$log"
+            echo "::endgroup::"
+          done
+          if [ -f "${TRACES:-}/before" ]; then
+            deploy/stand/traces.sh > "$TRACES/now" || true
+            deploy/stand/traces.sh compare "$TRACES/before" "$TRACES/now" || true
+          fi
