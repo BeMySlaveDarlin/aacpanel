@@ -195,9 +195,11 @@ starts() {
 }
 
 # compare OLD NEW prints the lines that differ, - for gone and + for new.
-# Packages and the docker group are never taken back by uninstall, and
-# docker that did not answer before has lists nothing can be compared with:
-# those lines are named, and only the rest makes the status 1.
+# Packages and the docker group are never taken back by uninstall, and with
+# a package come the links that enable the units it ships, under
+# /usr/lib/systemd; docker that did not answer before has lists nothing can
+# be compared with: those lines are named, and only the rest makes the
+# status 1.
 compare() {
 	local old=$1 new=$2
 	if [ ! -r "$old" ] || [ ! -r "$new" ]; then
@@ -216,6 +218,7 @@ compare() {
 			{
 				kind = substr($1, 3)
 				if (kind == "pkg" || kind == "group") { kept[++k] = $0; next }
+				if (kind == "sysunit" && $3 ~ /^link \/(usr\/)?lib\/systemd\/system\//) { kept[++k] = $0; next }
 				if (docker_before == 0 && (kind == "docker" || kind ~ /^docker-/)) { unasked[++u] = $0; next }
 				bad[++b] = $0
 			}
@@ -223,7 +226,7 @@ compare() {
 				for (i = 1; i <= b; i++) print bad[i]
 				if (b) printf "traces: %d line(s) differ that uninstall promises to put back\n", b
 				if (k) {
-					print "left on purpose — packages and the docker group are never taken back:"
+					print "left on purpose — packages, the units they enable and the docker group are never taken back:"
 					for (i = 1; i <= k; i++) print "  " kept[i]
 				}
 				if (u) {

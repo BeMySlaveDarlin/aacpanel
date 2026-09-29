@@ -284,6 +284,15 @@ func TestTracesCompareFailsOnlyOnWhatUninstallPromises(t *testing.T) {
 			[]string{"not compared", "  + docker-network\tbridge\tn1", "left on purpose"}},
 		{"a pulled image left", before, before + "docker-image\tpostgres:18-alpine\tsha256:abc\n", 1,
 			[]string{"+ docker-image\tpostgres:18-alpine\tsha256:abc"}},
+		// Taken on a bare Ubuntu 24.04 where the root step installed docker.io:
+		// the package enables its units, and they stay with it.
+		{"the units a package enables", before,
+			before + "sysunit\t/etc/systemd/system/multi-user.target.wants/docker.service\tlink /usr/lib/systemd/system/docker.service\n" +
+				"sysunit\t/etc/systemd/system/sockets.target.wants/docker.socket\tlink /lib/systemd/system/docker.socket\n" + "pkg\tdocker.io\t29.1.3\n", 0,
+			[]string{"left on purpose", "  + sysunit\t/etc/systemd/system/multi-user.target.wants/docker.service"}},
+		{"the collector's link left", before,
+			before + "sysunit\t/etc/systemd/system/multi-user.target.wants/aacpanel-agent@dev.service\tlink /etc/systemd/system/aacpanel-agent@.service\n", 1,
+			[]string{"+ sysunit\t/etc/systemd/system/multi-user.target.wants/aacpanel-agent@dev.service", "1 line(s) differ"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -208,8 +208,8 @@ deploy/stand/traces.sh compare before after
 ```
 
 `compare` fails on every line uninstall promises to put back, and only names
-the packages and the docker group, which uninstall never takes back, and the
-docker lists of a machine where docker did not answer before. `traces.sh starts`
+the packages, the units they enable and the docker group, which uninstall never
+takes back, and the docker lists of a machine where docker did not answer before. `traces.sh starts`
 prints the invocation of every `aacpanel*` unit and the start of every container:
 the same before and after a second run means the run restarted nothing. The same
 steps run in the CI job `install.yml` on a runner, which is a whole virtual
