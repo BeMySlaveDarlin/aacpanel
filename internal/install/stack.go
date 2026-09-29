@@ -452,9 +452,13 @@ func (in *Install) stackStep() *Step {
 			if err := r.Once(Compose, Project, "project"); err != nil {
 				return err
 			}
-			if _, err := r.Exec(Cmd{Argv: in.docker("volume", "inspect", DBVolume), Quiet: true, Limit: time.Minute}); err != nil {
-				if err := r.Once(Volume, DBVolume, "data"); err != nil {
-					return err
+			// up makes every volume of the file, the tailnet node's as well
+			// whether the node runs or not: both are the install's.
+			for _, v := range []string{DBVolume, TSVolume} {
+				if _, err := r.Exec(Cmd{Argv: in.docker("volume", "inspect", v), Quiet: true, Limit: time.Minute}); err != nil {
+					if err := r.Once(Volume, v, "data"); err != nil {
+						return err
+					}
 				}
 			}
 			if err := r.Once(Image, Project+"-aacpanel", "local"); err != nil {

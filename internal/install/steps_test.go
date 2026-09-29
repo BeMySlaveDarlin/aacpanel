@@ -732,6 +732,7 @@ func (g *rig) stackUp() {
 	g.says([]string{"docker", "compose", "build", "aacpanel"}, "#13 naming to docker.io/library/aacpanel-aacpanel done\n")
 	g.says([]string{"docker", "compose", "up", "-d"}, " Container aacpanel  Started\n")
 	g.fails([]string{"docker", "volume", "inspect", DBVolume}, "Error: No such volume: "+DBVolume)
+	g.fails([]string{"docker", "volume", "inspect", TSVolume}, "Error: No such volume: "+TSVolume)
 	g.says([]string{"docker", "inspect", "-f", "{{.State.Health.Status}}", "aacpanel-db"}, "healthy\n")
 	// A log line may carry the DSN whole: the journal must not.
 	g.says([]string{"docker", "compose", "logs", "--no-color", "aacpanel"},
@@ -746,8 +747,11 @@ func TestTheStackIsRecordedBeforeItComesUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The image the machine had stays its own; the one pulled now is the
-	// install's, and uninstall takes it away with the stack.
-	want := []string{"compose aacpanel project", "volume " + DBVolume + " data", "image aacpanel-aacpanel local", "image postgres:18-alpine pulled"}
+	// install's, and uninstall takes it away with the stack. up makes the
+	// volume of the tailnet node without the node: it is the install's too,
+	// and a second run does not take it for an install by hand.
+	want := []string{"compose aacpanel project", "volume " + DBVolume + " data", "volume " + TSVolume + " data",
+		"image aacpanel-aacpanel local", "image postgres:18-alpine pulled"}
 	if !slices.Equal(g.lines(), want) {
 		t.Errorf("the manifest holds %q, want %q", g.lines(), want)
 	}
@@ -757,12 +761,18 @@ func TestTheStackIsRecordedBeforeItComesUp(t *testing.T) {
 	}
 	// Again: compose keeps what holds, and the manifest takes no line twice.
 	g.says([]string{"docker", "volume", "inspect", DBVolume}, "[]")
+	g.says([]string{"docker", "volume", "inspect", TSVolume}, "[]")
 	g.says([]string{"docker", "image", "inspect", "--format", "{{.Id}}", "postgres:18-alpine"}, "sha256:2\n")
 	if err := g.do(g.step("compose")); err != nil {
 		t.Fatal(err)
 	}
-	if len(g.lines()) != 4 {
+	if len(g.lines()) != len(want) {
 		t.Errorf("a second run added lines: %q", g.lines())
+	}
+	for _, left := range g.in.unowned(g.r) {
+		if left.kind == Volume {
+			t.Errorf("a second run would take over the volume %s as found", left.target)
+		}
 	}
 	// A build past a vulnerability is the person's knowing choice, said so.
 	g.in.SkipVulncheck = true
