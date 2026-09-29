@@ -30,8 +30,8 @@ func TestRemoteControlIsALineAmongTheTools(t *testing.T) {
 	if !off.Button || off.Says != "Turn on" || off.Pressed != "false" || off.Disabled || off.Note != "off" {
 		t.Errorf("a session without the bridge reads %+v", off)
 	}
-	const url = "https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT"
-	if on.Says != "Turn off" || on.Pressed != "true" || !strings.Contains(on.Note, "claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT") ||
+	const url = "https://claude.ai/code/session_01AaaaBbbbCcccDdddEeeeFf"
+	if on.Says != "Turn off" || on.Pressed != "true" || !strings.Contains(on.Note, "claude.ai/code/session_01AaaaBbbbCcccDdddEeeeFf") ||
 		on.Link != url {
 		t.Errorf("a session with the bridge reads %+v: on, naming where it is, with the way there", on)
 	}

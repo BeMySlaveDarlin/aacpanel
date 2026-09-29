@@ -46,7 +46,7 @@ func TestTheGroupPageIsAShelf(t *testing.T) {
 	if strings.Join(got.Nearby, " ") != "/srv/proj/delta /srv/proj/eps" {
 		t.Errorf("found next to the shelf: %v — meant the two in its folder, claude's first", got.Nearby)
 	}
-	if !strings.Contains(got.Danger, "only an empty shelf is deleted — move its 3 projects to:") || !strings.HasSuffix(got.Danger, "pets") {
+	if !strings.Contains(got.Danger, "only an empty shelf is deleted — move its 3 projects to:") || !strings.HasSuffix(got.Danger, "side") {
 		t.Errorf("a full shelf's deletion reads %q", got.Danger)
 	}
 	if got.Blocked != "the directory decides the account here: these 3 projects in /srv/proj stay personal" || !got.BackClears {
@@ -69,7 +69,7 @@ func TestTheGroupPageIsAShelf(t *testing.T) {
 		t.Errorf("hiding a directory sent %v", got.Hide)
 	}
 	if body, _ := got.Move["body"].(map[string]any); got.Move["url"] != "/api/groups/3/move" || body["to"] != float64(5) ||
-		!strings.Contains(got.MoveSheet, `onto group "pets"`) {
+		!strings.Contains(got.MoveSheet, `onto group "side"`) {
 		t.Errorf("moving the shelf: sheet %q, sent %v", got.MoveSheet, got.Move)
 	}
 	if got.ProjectOver != "alpha" || !got.BackToShelf || got.Closed != 0 {

@@ -25,7 +25,7 @@ echo " done"
 
 cat <<'TXT'
 
-Next comes the install from the inside, as dev, following INSTALL.md:
-  deploy/stand/sh.sh                       # get inside the stand
-  cd ~/aacpanel && less INSTALL.md   # and then step by step
+Next comes the install from the inside, as dev:
+  deploy/stand/sh.sh                  # get inside the stand
+  cd ~/aacpanel && ./install.sh       # or by hand, by INSTALL.md, part 2
 TXT

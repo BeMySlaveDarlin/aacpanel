@@ -41,7 +41,7 @@ const personal = {
         { id: 3, profileId: 3, name: "home", projects: [
             project(11, "alpha", { remoteControl: true, transport: "stream" }), project(12, "beta", {}), project(13, "gamma", { effort: "high" }),
         ] },
-        { id: 5, profileId: 3, name: "pets", projects: [] },
+        { id: 5, profileId: 3, name: "side", projects: [] },
     ],
 };
 const work = { id: 9, name: "work", configDir: "/home/u/.claude-profiles/work", prefix: "/srv/work", auth: "token", launch: {},
@@ -168,7 +168,7 @@ window.done = mode === "free" ? (async () => {
     await until(() => sent.length > 0);
     out.hide = sent.shift();
 
-    button("pets", document.querySelector(".pzdanger")).click();
+    button("side", document.querySelector(".pzdanger")).click();
     out.moveSheet = await confirm("Move");
     out.move = sent.shift();
 

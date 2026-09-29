@@ -169,7 +169,7 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 		t.Errorf("the move sent %v", got.Moved)
 	}
 	if !strings.Contains(got.PathSays, "stay in the archive") || !strings.Contains(got.PathSheet, "stay in the archive") ||
-		!strings.Contains(got.PathSheet, `moves to group "pets"`) {
+		!strings.Contains(got.PathSheet, `moves to group "side"`) {
 		t.Errorf("a new directory and group say %q under the field and %q on their sheet", got.PathSays, got.PathSheet)
 	}
 	if got.Leave != "2 changes not saved" || got.ClosedBeforeDiscard != 0 || got.ClosedAfterDiscard != 1 {

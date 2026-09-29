@@ -69,7 +69,7 @@ project.line = lineOf(project.launch, "helios");
 const contour = () => ({
     id: 3, name: "personal", auth: "builtin", contextGuard: true, account, launch: { contextCap: 80, restartIntent: "Carry on" },
     effective: contourEff,
-    groups: [{ id: 3, name: "home", projects: [project] }, { id: 5, name: "pets", projects: [] }],
+    groups: [{ id: 3, name: "home", projects: [project] }, { id: 5, name: "side", projects: [] }],
 });
 
 const previews = [];
@@ -239,8 +239,8 @@ window.done = mode === "haiku" ? (async () => {
 
     const path = all(".pffield").find((f) => text(f.querySelector(".pflabel")).startsWith("Directory")).querySelector("input");
     await typeInto(path, "/srv/proj/elsewhere");
-    const pets = all(".pffield").find((f) => text(f.querySelector(".pflabel")).startsWith("Group"));
-    Array.from(pets.querySelectorAll(".pzopt")).find((b) => text(b) === "pets").click();
+    const side = all(".pffield").find((f) => text(f.querySelector(".pflabel")).startsWith("Group"));
+    Array.from(side.querySelectorAll(".pzopt")).find((b) => text(b) === "side").click();
     await until(() => bar() && text(bar().querySelector(".pzbarsay")) === "2 changes");
     out.pathSays = text(path.parentElement.querySelector(".pfhelp"));
     bar().querySelector(".btn.primary").click();

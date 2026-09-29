@@ -1,8 +1,8 @@
 # The stand: someone else's machine in a container
 
 Tooling, not part of the delivery. This is where it is checked that the panel
-installs **from scratch** by [`INSTALL.md`](../../INSTALL.md) onto a foreign
-machine: Ubuntu 24.04 with no desktop, no domain, no konsole and no KDE, with a
+installs **from scratch** by `./install.sh`, or by hand by
+[`INSTALL.md`](../../INSTALL.md), part 2, onto a foreign machine: Ubuntu 24.04 with no desktop, no domain, no konsole and no KDE, with a
 user of **uid 1001**.
 
 ## Bring it up

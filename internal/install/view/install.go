@@ -269,7 +269,7 @@ func closingLines(err error, changed []string, took time.Duration, mind []string
 		tone, title, status = ui.Good, "Installed in "+ui.Elapsed(took), 0
 		lines = []string{
 			"Changed in this run: " + changedLine(changed),
-			"The panel runs: http://localhost:8776. The first device signs in with a code: INSTALL.md §14.",
+			"The panel runs: http://localhost:8776. The first device signs in with a code: ./install.sh enroll.",
 		}
 	case errors.As(err, &stopped):
 		tone, title, status = ui.Bad, fmt.Sprintf("Interrupted after %q", stopped.After), 130

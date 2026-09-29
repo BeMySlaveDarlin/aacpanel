@@ -114,11 +114,11 @@ class LiveSessionWaits(unittest.TestCase):
         self.assertEqual(agent.live_session_status_at(), {"site": 1788795235163})
 
     def test_a_session_with_remote_control_on_gives_its_address(self):
-        self.write("site", status="idle", bridgeSessionId="session_015aXCcdHpKReTaPGrYZVxrT")
+        self.write("site", status="idle", bridgeSessionId="session_01AaaaBbbbCcccDdddEeeeFf")
         self.write("aacpanel", status="idle")
         self.write("book", status="idle", bridgeSessionId="  ")
         self.assertEqual(agent.live_session_remote(),
-                         {"site": "https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT"})
+                         {"site": "https://claude.ai/code/session_01AaaaBbbbCcccDdddEeeeFf"})
 
 
 
@@ -265,7 +265,7 @@ class Sessions(unittest.TestCase):
         with open(os.path.join(agent.CLAUDE_SESSIONS, f"{pid}.json"), "w") as f:
             json.dump({"pid": pid, "procStart": agent.ctx.proc_start(pid),
                        "name": "aacpanel", "sessionId": UUID_A, "status": "idle",
-                       "bridgeSessionId": "session_015aXCcdHpKReTaPGrYZVxrT"}, f)
+                       "bridgeSessionId": "session_01AaaaBbbbCcccDdddEeeeFf"}, f)
         self.rows({"session": "aacpanel", "sessionId": UUID_A})
         row = agent.sessions()["sessions"][0]
-        self.assertEqual(row["remote"], "https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT")
+        self.assertEqual(row["remote"], "https://claude.ai/code/session_01AaaaBbbbCcccDdddEeeeFf")

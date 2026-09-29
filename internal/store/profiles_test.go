@@ -21,7 +21,7 @@ func TestProfilesTreePG(t *testing.T) {
 	first := mustProfile(t, s, "first", root, 10)
 
 	group := mustGroup(t, s, first.ID, "services", 0)
-	other := mustGroup(t, s, first.ID, "pets", 5)
+	other := mustGroup(t, s, first.ID, "side", 5)
 	mustProject(t, s, group.ID, "aacpanel", filepath.Join(root, "aacpanel"), 0)
 	mustProject(t, s, group.ID, "gatekeeper", filepath.Join(root, "gatekeeper"), 1)
 

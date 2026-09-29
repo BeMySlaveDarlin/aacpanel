@@ -42,7 +42,7 @@ func TestTheContourSettingsPage(t *testing.T) {
 	if len(got.Rows) != 11 || got.Rows[0] != "Model" {
 		t.Errorf("the contour's rows are %v, meant the eleven a project has", got.Rows)
 	}
-	if strings.Join(got.Groups, " ") != "home pets" {
+	if strings.Join(got.Groups, " ") != "home side" {
 		t.Errorf("the groups read %v", got.Groups)
 	}
 	if len(got.Raise) != 1 || got.Raise[0] != "Remote Control is On in 3 of 4 projects — make it this contour's default?" {
@@ -57,7 +57,7 @@ func TestTheContourSettingsPage(t *testing.T) {
 	if got.AfterRaise != "1 change" || got.RcNote != "1 of 4 projects follow it · 3 set their own and stay" || len(got.RaiseLeft) != 0 {
 		t.Errorf("after the raise: %q, note %q, the hint still %v", got.AfterRaise, got.RcNote, got.RaiseLeft)
 	}
-	if got.AfterDrag != "2 changes" || strings.Join(got.OrderNow, " ") != "pets home" || got.OrderSays != "order not saved" {
+	if got.AfterDrag != "2 changes" || strings.Join(got.OrderNow, " ") != "side home" || got.OrderSays != "order not saved" {
 		t.Errorf("after the drag: %q, order %v, said %q", got.AfterDrag, got.OrderNow, got.OrderSays)
 	}
 	want := []string{

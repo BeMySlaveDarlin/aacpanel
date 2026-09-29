@@ -29,7 +29,7 @@ const personal = { id: 3, name: "personal", configDir: "/home/u/.claude", prefix
     account: { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" }, launch: { contextCap: 80 }, effective: base,
     groups: [
         { id: 3, profileId: 3, name: "home", projects: [project(11, "alpha"), project(12, "beta")] },
-        { id: 5, profileId: 3, name: "pets", projects: [] },
+        { id: 5, profileId: 3, name: "side", projects: [] },
     ] };
 const sent = [];
 window.fetch = async (url, init) => {
@@ -88,7 +88,7 @@ window.done = (async () => {
     Array.from(right.querySelectorAll(".pzrow")).find((r) => text(r.querySelector(".pzname")) === "Effort")
         .querySelectorAll(".pzopt")[4].click();
     await until(() => right.querySelector(".pzbar"));
-    all(".dktreegroup").find((b) => text(b).startsWith("pets")).click();
+    all(".dktreegroup").find((b) => text(b).startsWith("side")).click();
     const ask = await until(() => document.querySelector(".sheet.on .pzleave"));
     out.ask = text(ask.querySelector("h3"));
     button("Stay", ask).click();
@@ -122,8 +122,8 @@ window.done = (async () => {
 
     const handle = cols()[0].querySelectorAll(".pzgroup .pzhandle")[1];
     const from = handle.getBoundingClientRect();
-    const pets = Array.from(document.querySelectorAll(".dktreegroup")).find((b) => text(b).startsWith("pets"));
-    const to = pets.getBoundingClientRect();
+    const side = Array.from(document.querySelectorAll(".dktreegroup")).find((b) => text(b).startsWith("side"));
+    const to = side.getBoundingClientRect();
     const fire = (type, x, y) => handle.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 9, clientX: x, clientY: y }));
     const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
     const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;

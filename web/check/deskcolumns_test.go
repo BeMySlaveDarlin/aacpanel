@@ -36,7 +36,7 @@ func TestTheDesktopSettingsAreThreeColumns(t *testing.T) {
 	}
 	runFixtureServing(t, "deskcolumns.html", deskScreen, deskPointer, schemaAnswer(map[string]any{}), &got)
 
-	if strings.Join(got.Tree, "|") != "personal2|home2|pets0" {
+	if strings.Join(got.Tree, "|") != "personal2|home2|side0" {
 		t.Errorf("the tree reads %v", got.Tree)
 	}
 	if strings.Join(got.Opened, "|") != "home|" || strings.Join(got.WithProject, "|") != "home|alpha" {
@@ -56,7 +56,7 @@ func TestTheDesktopSettingsAreThreeColumns(t *testing.T) {
 		t.Errorf("the close of the settings is not in the corner of the window clear of the last heading: %+v", got.Close)
 	}
 	body, _ := got.Move["body"].(map[string]any)
-	if !strings.Contains(got.MoveSheet, `moves to group "pets"`) || got.Move["url"] != "/api/projects/12" || body["groupId"] != float64(5) || !got.OrderKept {
+	if !strings.Contains(got.MoveSheet, `moves to group "side"`) || got.Move["url"] != "/api/projects/12" || body["groupId"] != float64(5) || !got.OrderKept {
 		t.Errorf("a drop on the tree: sheet %q, sent %v, order kept %v", got.MoveSheet, got.Move, got.OrderKept)
 	}
 }

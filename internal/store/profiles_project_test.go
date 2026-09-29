@@ -16,7 +16,7 @@ func TestProjectPathIsUniquePG(t *testing.T) {
 	path := filepath.Join(root, "aacpanel")
 	mustProject(t, s, g.ID, "aacpanel", path, 0)
 
-	other := mustGroup(t, s, p.ID, "pets", 1)
+	other := mustGroup(t, s, p.ID, "side", 1)
 	_, err := s.CreateProject(ctx, other.ID, ProjectEdit{Name: strp("copy"), Path: strp(path), Sort: intp(0)})
 	if !errors.Is(err, ErrConflict) {
 		t.Fatalf("a repeated path gave %v, ErrConflict was expected", err)

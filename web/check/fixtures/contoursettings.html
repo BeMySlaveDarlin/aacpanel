@@ -37,7 +37,7 @@ let contour = {
     account, contextGuard: true, route: { prefix: "*" }, launch: { contextCap: 80 },
     groups: [
         { id: 3, name: "home", projects: [project(11, "alpha", { remoteControl: true }), project(12, "beta", { remoteControl: true })] },
-        { id: 5, name: "pets", projects: [project(21, "gamma", { remoteControl: true }), project(22, "delta", { effort: "high" })] },
+        { id: 5, name: "side", projects: [project(21, "gamma", { remoteControl: true }), project(22, "delta", { effort: "high" })] },
     ],
 };
 contour.effective = layered(contour.launch);

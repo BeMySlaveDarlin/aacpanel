@@ -80,7 +80,7 @@ func (r *remoteScreen) screen(context.Context) (string, bool) {
 	var b strings.Builder
 	b.WriteString("▔▔▔▔▔▔▔▔\n   Remote Control\n\n")
 	b.WriteString("   This session is available in the Claude mobile app and at\n")
-	b.WriteString("   https://claude.ai/code/session_015aXCcdHpKReTaPGrYZVxrT.\n\n")
+	b.WriteString("   https://claude.ai/code/session_01AaaaBbbbCcccDdddEeeeFf.\n\n")
 	for i, line := range r.lines {
 		mark := "  "
 		if i == r.at {
@@ -94,7 +94,7 @@ func (r *remoteScreen) screen(context.Context) (string, bool) {
 
 func (r *remoteScreen) bridge() string {
 	if r.up {
-		return "session_015aXCcdHpKReTaPGrYZVxrT"
+		return "session_01AaaaBbbbCcccDdddEeeeFf"
 	}
 	return ""
 }
@@ -115,7 +115,7 @@ func TestRemoteControlComesUpWithTheCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("remote control did not come up: %v", err)
 	}
-	if bridge != "session_015aXCcdHpKReTaPGrYZVxrT" {
+	if bridge != "session_01AaaaBbbbCcccDdddEeeeFf" {
 		t.Errorf("the bridge read back is %q", bridge)
 	}
 	if len(r.sent) != 3 || r.sent[0] != clearLine || r.sent[1] != pasteStart+remoteCommand+pasteEnd || r.sent[2] != enterKey {

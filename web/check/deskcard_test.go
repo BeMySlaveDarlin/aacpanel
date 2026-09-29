@@ -346,7 +346,7 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 		if first.Contour != "personal" || got.Shelf[1].Contour != "personal" || last.Contour != "Globex Group" {
 			t.Errorf("the shelf names the contours %q, %q, %q", first.Contour, got.Shelf[1].Contour, last.Contour)
 		}
-		if first.When != "1 h ago" || last.When != "1 d ago" || !strings.Contains(last.About, "migrate the admin filters") {
+		if first.When != "1 h ago" || last.When != "1 d ago" || !strings.Contains(last.About, "move the report exports") {
 			t.Errorf("the shelf says %q and %q, %q", first.When, last.When, last.About)
 		}
 		for _, row := range got.Shelf {
