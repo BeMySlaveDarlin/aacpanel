@@ -229,6 +229,11 @@ func TestEveryQuestionHasAFlag(t *testing.T) {
 			t.Errorf("the walk never met %s: the test no longer covers every question", id)
 		}
 	}
+	// The token of a phone is asked only where the home network is the one
+	// way in besides this machine.
+	lan := survey(desktop(), &Run{Yes: true, Answers: map[string]string{"--kit": "+lan"}})
+	answerAll(t, lan)
+	check(find(t, lan, BlockD, "token"))
 	for _, f := range Flags {
 		if !used[f.Name] && f.Name != "--install-compose" {
 			t.Errorf("%s answers no question", f.Name)
@@ -277,7 +282,7 @@ func TestTheWaysInAskOnlyWhatIsChecked(t *testing.T) {
 		want []string
 	}{
 		{"", nil},
-		{"+lan", []string{"lanaddr", "lancert", "term"}},
+		{"+lan", []string{"lanaddr", "lancert", "token", "term"}},
 		{"+tailscale", []string{"tskey", "tsname", "term"}},
 		{"+domain", []string{"domain", "bind", "term"}},
 		{"+tailscale,+lan,+domain", []string{"tskey", "tsname", "lanaddr", "lancert", "domain", "bind", "term"}},

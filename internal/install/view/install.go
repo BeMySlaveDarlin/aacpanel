@@ -118,6 +118,12 @@ func (m *planModel) onRun(msg tea.Msg) tea.Cmd {
 		m.onEvent(msg.e)
 	case handMsg:
 		m.hand = &msg
+		if msg.h.Direct {
+			// Agreed to among the answers: the terminal goes at once.
+			m.say(m.t.Step(ui.Asked, msg.h.Title+" → "+msg.h.Says, m.width()))
+			m.then = append(m.then, tea.Exec(&handCmd{h: msg.h}, func(err error) tea.Msg { return handedMsg{err} }))
+			break
+		}
 		m.say("\n" + rootFrame(m.t, msg.h, m.width()))
 		m.handAsk = rootConfirm()
 		m.stage = handing
@@ -216,29 +222,51 @@ func targets(r *install.Run) []string {
 	return names
 }
 
-// closingLines are the last words of a run of the steps, by how it ended.
-func closingLines(err error, changed []string, took time.Duration) (tone ui.Tone, title string, lines []string, status int) {
+// closingLines are the last words of a run of the steps, by how it ended,
+// and what the person is left to mind.
+func closingLines(err error, changed []string, took time.Duration, mind []string) (tone ui.Tone, title string, lines []string, status int) {
 	var stopped *install.Interrupted
 	switch {
 	case err == nil:
-		return ui.Good, "Installed in " + ui.Elapsed(took), []string{
+		tone, title, status = ui.Good, "Installed in "+ui.Elapsed(took), 0
+		lines = []string{
 			"Changed in this run: " + changedLine(changed),
-			"The panel runs: http://localhost:8776. Claude's settings, the map and the first device are INSTALL.md from §10 on.",
-		}, 0
+			"The panel runs: http://localhost:8776. The first device signs in with a code: INSTALL.md §14.",
+		}
 	case errors.As(err, &stopped):
-		return ui.Bad, fmt.Sprintf("Interrupted after %q", stopped.After), []string{
+		tone, title, status = ui.Bad, fmt.Sprintf("Interrupted after %q", stopped.After), 130
+		lines = []string{
 			"Changed so far in this run: " + changedLine(changed),
 			"Run ./install.sh again to go on, or ./install.sh uninstall to take it back.",
-		}, 130
+		}
+	default:
+		tone, title, status = ui.Bad, "Stopped", 1
+		lines = []string{
+			"Fix it and run ./install.sh again — finished steps are skipped.",
+			"Changed in this run: " + changedLine(changed),
+		}
 	}
-	return ui.Bad, "Stopped", []string{
-		"Fix it and run ./install.sh again — finished steps are skipped.",
-		"Changed in this run: " + changedLine(changed),
-	}, 1
+	for _, l := range mind {
+		lines = append(lines, "⚠ "+l)
+	}
+	return tone, title, lines, status
+}
+
+// mindOf is what the end of a run leaves the person: what the answers left
+// undone and what the steps could not do.
+func mindOf(s *install.Survey, r *install.Run) []string {
+	var out []string
+	if s != nil {
+		out = append(out, s.Closing()...)
+	}
+	if r != nil {
+		out = append(out, r.Reminders()...)
+	}
+	return out
 }
 
 func (m *planModel) finish(err error) {
-	tone, title, lines, status := closingLines(err, m.changed, m.now().Sub(m.ranSince))
+	tone, title, lines, status := closingLines(err, m.changed, m.now().Sub(m.ranSince), mindOf(m.s, m.run))
 	m.say(m.t.Entry(tone, title, lines, m.width()))
 	m.end(status)
 }
@@ -340,6 +368,12 @@ func (c *handCmd) SetStderr(w io.Writer) { c.stderr = w }
 func (c *handCmd) Run() error {
 	fmt.Fprintf(c.stdout, "$ %s\n", strings.Join(c.h.Argv, " "))
 	cmd := exec.Command(c.h.Argv[0], c.h.Argv[1:]...)
+	cmd.Env = install.Environ(os.Environ(), c.h.Unset, c.h.Env)
+	if c.h.Line == nil {
+		// A program that draws its own screen gets the terminal whole.
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = c.stdin, c.stdout, c.stderr
+		return cmd.Run()
+	}
 	out := &lineTee{to: c.stdout, line: c.h.Line, hide: "MANIFEST\t"}
 	errOut := &lineTee{to: c.stderr, line: c.h.Line}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = c.stdin, out, errOut
@@ -447,7 +481,7 @@ func runPlain(o PlanOptions, p *Plain, s *install.Survey) int {
 	}()
 	began := time.Now()
 	err = install.Perform(r, steps)
-	tone, title, lines, status := closingLines(err, targets(r), time.Since(began))
+	tone, title, lines, status := closingLines(err, targets(r), time.Since(began), mindOf(s, r))
 	p.Print(o.Theme.Entry(tone, title, lines, PlainWidth))
 	return status
 }

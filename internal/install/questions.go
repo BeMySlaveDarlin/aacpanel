@@ -1,6 +1,7 @@
 package install
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -389,7 +390,7 @@ func (s *Survey) claude() []Question {
 	personal := filepath.Join(f.Account.Home, ".claude")
 	for i, a := range s.Found.Accounts {
 		accounts.Options = append(accounts.Options, Option{Value: a.Dir, Label: f.Short(a.Dir),
-			Detail: signedIn(a.SignedIn), Source: "found", On: a.Dir == personal || i == 0})
+			Source: "found", On: a.Dir == personal || i == 0})
 	}
 	accounts.source = "found"
 	if len(accounts.Options) == 0 {
@@ -401,6 +402,11 @@ func (s *Survey) claude() []Question {
 		s.preferList(&accounts, HostEnvFile, contours.HomeEnv, ":")
 	} else if dirs := s.registered(); len(dirs) > 0 {
 		s.preferParts(&accounts, dirs)
+	}
+	for i, o := range accounts.Options {
+		if o.Source != "claude's own" {
+			_, accounts.Options[i].Detail = s.SignedIn(o.Value)
+		}
 	}
 
 	transport := Question{
@@ -420,6 +426,17 @@ func (s *Survey) claude() []Question {
 // registered are the accounts of the wrapper registry an earlier install
 // names instead of a list of accounts.
 func (s *Survey) registered() []string {
+	var out []string
+	for _, c := range s.registry() {
+		if c.Config != "" && !slices.Contains(out, c.Config) {
+			out = append(out, c.Config)
+		}
+	}
+	return out
+}
+
+// registry is the wrapper registry an earlier install names in host.env.
+func (s *Survey) registry() []contours.Contour {
 	reg, ok := s.before(HostEnvFile, contours.RegistryEnv)
 	if !ok || reg == "" {
 		return nil
@@ -429,20 +446,34 @@ func (s *Survey) registered() []string {
 	if err != nil {
 		return nil
 	}
-	var out []string
-	for _, c := range contours.ParseRegistry(raw, home) {
-		if c.Config != "" && !slices.Contains(out, c.Config) {
-			out = append(out, c.Config)
-		}
-	}
-	return out
+	return contours.ParseRegistry(raw, home)
 }
 
-func signedIn(in bool) string {
-	if in {
-		return "signed in"
+// SignedIn tells whether claude can work under an account, and how that is
+// known. claude keeps its own sign-in in .credentials.json; an account the
+// wrapper of the registry signs in with a token of its file, or whose
+// settings hand claude a key, has none there and is signed in all the same.
+func (s *Survey) SignedIn(dir string) (bool, string) {
+	dir = Expand(dir, s.Facts.Account.Home)
+	if exists(s.m, filepath.Join(dir, ".credentials.json")) {
+		return true, "signed in"
 	}
-	return "not signed in"
+	for _, c := range s.registry() {
+		if filepath.Clean(c.Config) == filepath.Clean(dir) && c.Token != "" && exists(s.m, c.Token) {
+			return true, "signed in by the wrapper, with " + s.Facts.Short(c.Token)
+		}
+	}
+	if raw, err := s.m.ReadFile(filepath.Join(dir, "settings.json")); err == nil {
+		var set struct {
+			APIKeyHelper string            `json:"apiKeyHelper"`
+			Env          map[string]string `json:"env"`
+		}
+		if json.Unmarshal(raw, &set) == nil &&
+			(set.APIKeyHelper != "" || set.Env["CLAUDE_CODE_OAUTH_TOKEN"] != "" || set.Env["ANTHROPIC_API_KEY"] != "") {
+			return true, "signed in by its settings"
+		}
+	}
+	return false, "not signed in"
 }
 
 // signIn asks, for every chosen account claude is not signed in to, whether
@@ -450,7 +481,7 @@ func signedIn(in bool) string {
 func (s *Survey) signIn() []Question {
 	var qs []Question
 	for _, dir := range split(s.valueOr("accounts", "")) {
-		if s.signedIn(dir) {
+		if in, _ := s.SignedIn(dir); in {
 			continue
 		}
 		short := s.Facts.Short(dir)
@@ -470,16 +501,6 @@ func (s *Survey) signIn() []Question {
 		qs = append(qs, q)
 	}
 	return qs
-}
-
-func (s *Survey) signedIn(dir string) bool {
-	for _, a := range s.Found.Accounts {
-		if a.Dir == dir {
-			return a.SignedIn
-		}
-	}
-	_, err := s.m.Stat(filepath.Join(Expand(dir, s.Facts.Account.Home), ".credentials.json"))
-	return err == nil
 }
 
 func (s *Survey) kit() []Question {
@@ -595,7 +616,12 @@ func (s *Survey) access() []Question {
 	f := s.Facts
 	var qs []Question
 	if s.Has("tailscale") {
-		if v, _ := s.before(DotEnvFile, "AACP_TAILSCALE"); v != "1" {
+		// The key is asked for until the node signs in: the installer's step
+		// wipes it from .env then, so a key it left there is one that did not
+		// take. An install by hand keeps its key after the node is in.
+		v, _ := s.before(DotEnvFile, "AACP_TAILSCALE")
+		left, _ := s.before(DotEnvFile, "TS_AUTHKEY")
+		if v != "1" || (s.Facts.Mode == Upgrade && strings.TrimSpace(left) != "") {
 			qs = append(qs, Question{
 				ID: "tskey", Tab: "Tailscale key", Form: Secret, Required: true,
 				Prompt: "Tailscale auth key (one-time, admin console → Settings → Keys)",
@@ -692,6 +718,27 @@ func (s *Survey) access() []Question {
 			},
 		})
 	}
+	if s.LANOnly() {
+		token := Question{
+			ID: "token", Tab: "Phone sign-in", Prompt: "How does a phone sign in over the home network?", Form: One,
+			Note: "Without a domain or Tailscale, passkeys live at localhost: the home-network address hands a sign-in over to this machine, which a phone cannot open.",
+			Options: []Option{
+				{Value: yes, Label: "With a token (Recommended)", Source: "recommended",
+					Detail: "A token made once on this machine goes into .env as AACP_TOKEN, and the sign-in screen takes it. Keep it like a password: it lets its holder in as a passkey does."},
+				{Value: no, Label: "No token — only this machine signs in",
+					Detail: "A phone reaches the address and stops at the sign-in until a domain or Tailscale is added."},
+			},
+			Flag: "--lan-token", Values: []string{yes, no}, Default: yes, Writes: []Target{{DotEnvFile, "AACP_TOKEN"}},
+		}
+		if v, ok := s.before(DotEnvFile, "AACP_TOKEN"); ok {
+			was := no
+			if strings.TrimSpace(v) != "" {
+				was = yes
+			}
+			s.preferValue(&token, was, "")
+		}
+		qs = append(qs, token)
+	}
 	term := Question{
 		ID: "term", Tab: "Terminal", Prompt: "Terminal of live sessions from other devices?", Form: One,
 		Options: []Option{
@@ -711,6 +758,13 @@ func (s *Survey) access() []Question {
 		s.preferValue(&term, was, "")
 	}
 	return append(qs, term)
+}
+
+// LANOnly tells whether the home network is the one way in besides this
+// machine: its listener then hands a sign-in over to localhost, where the
+// passkeys live, and a phone has no way to sign in but a token.
+func (s *Survey) LANOnly() bool {
+	return s.Has("lan") && !s.Has("tailscale") && !s.Has("domain")
 }
 
 // domainWas is the domain an earlier install serves the panel on: its

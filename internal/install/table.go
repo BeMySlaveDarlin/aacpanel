@@ -39,10 +39,11 @@ type Table struct {
 	// find afterwards: a build leaves its binary.
 	Effects map[string]func(Cmd) error
 	// Ran are the commands the steps ran through the table, in order, and
-	// Envs the environment each was given.
-	Ran  []string
-	Envs [][]string
-	mu   sync.Mutex
+	// Envs the environment each was given; Given are the commands whole.
+	Ran   []string
+	Envs  [][]string
+	Given []Cmd
+	mu    sync.Mutex
 }
 
 // Reply is what a command of a Table gives: its output, or a failure with
@@ -191,6 +192,7 @@ func (t *Table) Exec(_ context.Context, c Cmd, line func(string)) (string, error
 	t.mu.Lock()
 	t.Ran = append(t.Ran, key)
 	t.Envs = append(t.Envs, c.Env)
+	t.Given = append(t.Given, c)
 	effect := t.Effects[key]
 	t.mu.Unlock()
 	if effect != nil {

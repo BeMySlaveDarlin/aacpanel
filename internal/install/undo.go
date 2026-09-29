@@ -27,6 +27,10 @@ const (
 	DBRole   Kind = "dbrole"   // a role in the database; it goes with the volume
 	TestDB   Kind = "testdb"   // the container of the test database
 	Rev      Kind = "rev"      // the commit a run installed
+	JSON     Kind = "json"     // claude's settings.json of an account; meta: created or orig=, and sha= of the write
+	MCP      Kind = "mcp"      // the panel's MCP server of an account; meta: claude=, file=
+	TSNode   Kind = "tsnode"   // the node in the tailnet; the admin console removes it
+	Profile  Kind = "profile"  // an entry of the map; it lives in the database and goes with its volume
 )
 
 // The undos join the map in init: an undo that runs root.sh records what
@@ -37,6 +41,7 @@ func init() {
 		File: undoFile, Pkg: undoPkg, Group: undoGroup, Linger: undoRoot, SysUnit: undoRoot,
 		UserUnit: undoUserUnit, Enabled: undoEnabled, Compose: undoCompose, Volume: undoVolume,
 		Image: undoImage, EnvKey: undoNothing, DBRole: undoNothing, TestDB: undoTestDB, Rev: undoNothing,
+		JSON: undoJSON, MCP: undoMCP, TSNode: undoTSNode, Profile: undoNothing,
 	} {
 		undos[k] = undo
 	}
@@ -152,6 +157,11 @@ func undoImage(r *Run, e Entry) error {
 		return nil
 	}
 	return err
+}
+
+func undoTSNode(r *Run, e Entry) error {
+	r.Say(Note, "the node "+e.Target+" stays in the tailnet: remove it in the admin console, Machines")
+	return nil
 }
 
 func undoTestDB(r *Run, e Entry) error {

@@ -30,8 +30,11 @@ const usage = `usage: aacpanel-install install [--plain] [--yes] [answers as fla
           once it is approved, puts the panel on the machine: the host
           description, one sudo for the part as root, the executor built
           and started as a user unit, the .env, the stack, the app role,
-          the test database when the kit has it, and the collector's
-          restart on a new tree. Each step checks the machine first and
+          the test database and the tailnet node when the kit has them,
+          claude's settings and the panel's tools in every account — the
+          terminal goes to claude for a sign-in asked for — the first
+          contours of the map, and the collector's restart on a new
+          tree. Each step checks the machine first and
           passes by what is in place, so a run that stopped goes on from
           the step it stopped at. Every change is recorded before it is
           made. Ctrl+C stops after the step at work; a second stops at once.

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -20,7 +21,11 @@ type Cmd struct {
 	// Env is added to the environment of the command. A secret travels
 	// here and never in Argv: argv is seen by ps and written to the journal.
 	Env []string
-	Dir string
+	// Unset are variables of the installer's own environment the command
+	// must not see: claude takes a CLAUDE_CONFIG_DIR that is there even
+	// when the installer runs from a session of another account.
+	Unset []string
+	Dir   string
 	// Quiet keeps the output out of the journal and off the screen: the
 	// output of a command that prints a secret back.
 	Quiet bool
@@ -61,7 +66,7 @@ func (Local) Exec(ctx context.Context, c Cmd, line func(string)) (string, error)
 	}
 	cmd := exec.CommandContext(ctx, c.Argv[0], c.Argv[1:]...)
 	cmd.Dir = c.Dir
-	cmd.Env = append(os.Environ(), c.Env...)
+	cmd.Env = Environ(os.Environ(), c.Unset, c.Env)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 	cmd.WaitDelay = 5 * time.Second
@@ -79,6 +84,19 @@ func (Local) Exec(ctx context.Context, c Cmd, line func(string)) (string, error)
 		return out.String(), &Failure{Code: exit.ExitCode(), Stderr: strings.TrimSpace(errOut.String())}
 	}
 	return out.String(), err
+}
+
+// Environ is the environment of a command: base without the variables of
+// unset, and add laid over it.
+func Environ(base, unset, add []string) []string {
+	out := make([]string, 0, len(base)+len(add))
+	for _, kv := range base {
+		k, _, _ := strings.Cut(kv, "=")
+		if !slices.Contains(unset, k) {
+			out = append(out, kv)
+		}
+	}
+	return append(out, add...)
 }
 
 // lineWriter hands what a command writes to line, a whole line at a time.
@@ -224,16 +242,24 @@ func (r *Run) Until(limit, every time.Duration, cond func() (bool, error)) (bool
 }
 
 // Handover is a command that needs the person's terminal: sudo, which asks
-// for a password there. The screen frames it and asks first — and shows
-// the script when asked — then gives the terminal to it and takes it back.
+// for a password there, or claude, which signs in there. The screen frames
+// a command as root and asks first — and shows the script when asked —
+// then gives the terminal to it and takes it back.
 type Handover struct {
 	Title  string   // of the frame
 	Argv   []string // what runs
 	Says   string   // what it does, in a sentence or two
 	Script string   // the file shown before a yes
 	Admin  string   // what an administrator runs instead, on a no
-	// Line takes every line the command prints on standard output.
+	// Line takes every line the command prints on standard output. A
+	// command without it has the terminal to itself: a program that draws
+	// a screen of its own does not print in lines.
 	Line func(string)
+	// Direct is a command the person agreed to among the answers: no frame
+	// and no question, the terminal goes to it at once.
+	Direct bool
+	// Env and Unset shape its environment as they do a Cmd's.
+	Env, Unset []string
 }
 
 // ErrDeclined is the person saying no to a command that needs root.

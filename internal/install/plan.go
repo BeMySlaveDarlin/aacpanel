@@ -89,6 +89,12 @@ func (s *Survey) Plan() []PlanRow {
 	for _, line := range s.values() {
 		rows = append(rows, PlanRow{Text: "  " + line})
 	}
+	if mind := s.Mind(); len(mind) > 0 {
+		rows = append(rows, PlanRow{Text: "Mind", Head: true})
+		for _, line := range mind {
+			rows = append(rows, PlanRow{Text: "  · " + line})
+		}
+	}
 	return rows
 }
 
@@ -222,7 +228,7 @@ func (s *Survey) values() []string {
 		add(s.shown("domain", "domain "), s.shown("bind", "the proxy reaches "))
 	}
 	if len(s.legs()) > 0 {
-		add(s.shown("term", "terminal from other devices "))
+		add(s.shown("token", "phone sign-in "), s.shown("term", "terminal from other devices "))
 	}
 	if probes := s.valueOr("probes", ""); probes != "" {
 		add("probes " + strings.ReplaceAll(probes, ",", ", "))

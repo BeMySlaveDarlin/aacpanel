@@ -153,6 +153,9 @@ func (s *Survey) DotEnv() (set []Var, drop []string) {
 		set = append(set, Var{Key: "AACP_SESSION_IDLE", Value: idle}, Var{Key: "AACP_SESSION_MAX", Value: max})
 	}
 
+	if want, asked := s.Token(); asked && !want {
+		drop = append(drop, "AACP_TOKEN")
+	}
 	for _, leg := range Legs {
 		if slices.Contains(s.was.kit, leg) && !s.Has(leg) {
 			drop = append(drop, legKeys[leg]...)
@@ -168,6 +171,40 @@ func (s *Survey) DotEnv() (set []Var, drop []string) {
 		}
 	}
 	return set, kept
+}
+
+// Token tells whether the .env is to hold a token a phone signs in with,
+// and whether the answers said: only a home network without a domain or a
+// tailnet asks, and a token nobody asked about stays as it is.
+func (s *Survey) Token() (want, asked bool) {
+	if !s.LANOnly() {
+		return false, false
+	}
+	g, ok := s.Value("token")
+	if !ok {
+		return false, false
+	}
+	return g.Value == yes, true
+}
+
+// Mind are what the person should know before the plan goes and after the
+// run ends: what the answers leave undone.
+func (s *Survey) Mind() []string {
+	var out []string
+	if want, asked := s.Token(); asked && !want {
+		out = append(out, "A phone cannot sign in over the home network: without a domain or Tailscale the passkeys live at localhost, and there is no token.")
+	}
+	return append(out, s.signInMind()...)
+}
+
+// Closing is what the end of an install says of the answers: where the
+// token of a phone lies, and what the answers leave undone.
+func (s *Survey) Closing() []string {
+	var out []string
+	if want, _ := s.Token(); want {
+		out = append(out, "A phone signs in over the home network with the token: AACP_TOKEN in "+s.Facts.Short(filepath.Join(s.Facts.Clone, ".env"))+".")
+	}
+	return append(out, s.Mind()...)
 }
 
 // passkeyVars are the passkey address and its origin, when this run knows
