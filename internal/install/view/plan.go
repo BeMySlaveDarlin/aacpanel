@@ -297,7 +297,7 @@ func (m *planModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.enrolling.code(msg)
 		}
 	case handedMsg:
-		m.onHanded(msg.err)
+		m.onHanded(msg)
 	case shownMsg:
 		m.handAsk = rootConfirm()
 	case tea.PasteMsg:

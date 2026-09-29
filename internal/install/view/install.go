@@ -29,9 +29,12 @@ type (
 		h     install.Handover
 		reply chan error
 	}
-	handedMsg struct{ err error }
-	shownMsg  struct{}
-	endMsg    struct{ err error }
+	handedMsg struct {
+		err         error
+		interrupted bool
+	}
+	shownMsg struct{}
+	endMsg   struct{ err error }
 	// askMsg is a question a step asks on its way: the test session.
 	askMsg struct {
 		q     install.Question
@@ -146,7 +149,7 @@ func (m *planModel) onRun(msg tea.Msg) tea.Cmd {
 		if msg.h.Direct {
 			// Agreed to among the answers: the terminal goes at once.
 			m.say(m.t.Step(ui.Asked, msg.h.Title+" → "+msg.h.Says, m.width()))
-			m.then = append(m.then, tea.Exec(&handCmd{h: msg.h}, func(err error) tea.Msg { return handedMsg{err} }))
+			m.then = append(m.then, handOver(msg.h))
 			break
 		}
 		m.say("\n" + rootFrame(m.t, msg.h, m.width()))
@@ -392,8 +395,7 @@ func (m *planModel) onHand(out ui.Outcome) {
 	case 0:
 		m.say(m.t.Step(ui.Asked, "Do you want to run it? → "+m.t.Accent.Render("Yes")+" · the terminal is sudo's until it is done", w))
 		m.stage = running
-		h := m.hand.h
-		m.then = append(m.then, tea.Exec(&handCmd{h: h}, func(err error) tea.Msg { return handedMsg{err} }))
+		m.then = append(m.then, handOver(m.hand.h))
 	case 1:
 		if less, err := exec.LookPath("less"); err == nil {
 			m.then = append(m.then, tea.ExecProcess(exec.Command(less, m.hand.h.Script), func(error) tea.Msg { return shownMsg{} }))
@@ -413,11 +415,22 @@ func (m *planModel) onHand(out ui.Outcome) {
 	}
 }
 
-func (m *planModel) onHanded(err error) {
+// handOver gives the terminal to the command and comes back with how it
+// ended.
+func handOver(h install.Handover) tea.Cmd {
+	c := &handCmd{h: h}
+	return tea.Exec(c, func(err error) tea.Msg { return handedMsg{err: err, interrupted: c.interrupted} })
+}
+
+func (m *planModel) onHanded(msg handedMsg) {
 	if m.hand == nil {
 		return
 	}
-	m.hand.reply <- err
+	if msg.interrupted && !m.stopping {
+		m.stopping = true
+		m.run.Stop()
+	}
+	m.hand.reply <- msg.err
 	m.hand = nil
 }
 
@@ -428,6 +441,10 @@ type handCmd struct {
 	h              install.Handover
 	stdin          io.Reader
 	stdout, stderr io.Writer
+	// interrupted is a Ctrl+C at the terminal while the command held it: a
+	// signal to the installer as well, which the screen does not see as a
+	// key, and it counts as the first Ctrl+C of the run.
+	interrupted bool
 }
 
 func (c *handCmd) SetStdin(r io.Reader)  { c.stdin = r }
@@ -435,6 +452,16 @@ func (c *handCmd) SetStdout(w io.Writer) { c.stdout = w }
 func (c *handCmd) SetStderr(w io.Writer) { c.stderr = w }
 
 func (c *handCmd) Run() error {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	defer func() {
+		signal.Stop(sig)
+		select {
+		case <-sig:
+			c.interrupted = true
+		default:
+		}
+	}()
 	fmt.Fprintf(c.stdout, "$ %s\n", strings.Join(c.h.Argv, " "))
 	cmd := exec.Command(c.h.Argv[0], c.h.Argv[1:]...)
 	cmd.Env = install.Environ(os.Environ(), c.h.Unset, c.h.Env)
