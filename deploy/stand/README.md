@@ -24,10 +24,11 @@ person does by hand — the window to a session. It is opened by a real terminal
 the desktop, and that can only be seen where a desktop exists.
 
 ```sh
-deploy/stand/vm.sh up       # bring it up; downloads the cloud image if missing
-deploy/stand/vm.sh status   # whether the machine is alive and the install finished
-deploy/stand/vm.sh ssh      # get inside as the dev user
-deploy/stand/vm.sh down     # shut down; purge removes the disk as well
+deploy/stand/vm.sh up         # bring it up; downloads the cloud image if missing
+deploy/stand/vm.sh status     # whether the machine is alive and the install finished
+deploy/stand/vm.sh ssh        # get inside as the installing user, or dev
+deploy/stand/vm.sh down       # shut down; purge removes the disk as well
+deploy/stand/vm.sh user-data  # what cloud-init would get, without a machine
 ```
 
 Inside is Ubuntu 24.04 with GNOME on Wayland, brought up from a cloud image: it
@@ -39,6 +40,27 @@ The screen is watched over VNC on `127.0.0.1:5911`, ssh is forwarded to port 222
 and the panel inside to 8778 of the host. All of that is changed by the variables
 listed at the top of the script.
 
+### Variants
+
+The variant is chosen by variables, and a disk keeps the variant it first came up
+with: cloud-init reads its seed once. Another variant is another directory.
+
+| Variable | What it changes |
+|---|---|
+| `AACP_STAND_VM_DIR`, `AACP_STAND_SSH_PORT`, `AACP_STAND_PANEL_PORT`, `AACP_STAND_VNC` | where the disk lives and which ports it takes; the machine is found by its disk, so stands in different directories run side by side |
+| `AACP_STAND_OS=debian13` | Debian 13 with `gnome-core` instead of Ubuntu 24.04: its compose package is `docker-compose`, its GDM reads `daemon.conf` |
+| `AACP_STAND_BARE=1` | no docker, tmux, jq, curl or Go — the cloud images bring curl, jq and tmux along, and they are purged: the machine where the installer has to name each one |
+| `AACP_STAND_USER=<name>` | the installing user, uid 1001, gets the desktop, the ssh key and the docker group (unless bare) |
+| `AACP_STAND_SUDO=password`, `AACP_STAND_PASSWORD` | that user gets root by password (`stand` unless set) instead of `NOPASSWD` |
+
+The installer's stand, apart from the one of the landing's shots:
+
+```sh
+export AACP_STAND_VM_DIR=~/vm/stand-install AACP_STAND_SSH_PORT=2224 \
+       AACP_STAND_PANEL_PORT=8779 AACP_STAND_VNC=12 AACP_STAND_USER=inst
+deploy/stand/vm.sh up
+```
+
 KVM needs access to `/dev/kvm`: `sudo usermod -aG kvm "$USER"` and a re-login.
 Without it the machine comes up on emulation and installs for hours, so the script
 refuses right away and says what to do.
@@ -47,20 +69,20 @@ refuses right away and says what to do.
 
 The window to a session opens on the desktop of the user the installation runs
 as — for anyone else there is nothing to check it with, and the window is why the
-virtual machine exists at all. The cloud image creates `dev` (uid 1000) and puts
-that user into the GDM autologin, while the installation is done by a separate
-user with uid 1001, so the desktop is handed over:
+virtual machine exists at all. The cloud image creates `dev` (uid 1000), while the
+installation is done by a separate user with uid 1001. With `AACP_STAND_USER` that
+user is made at the first boot and the GDM autologin is theirs; on a disk that came
+up without one, the desktop is handed over by hand:
 
 ```sh
 sudo sed -i 's/^AutomaticLogin=dev/AutomaticLogin=<user>/' /etc/gdm3/custom.conf
 sudo systemctl reboot
 ```
 
-Get inside as that user from then on, putting the key into their
-`~/.ssh/authorized_keys`: without a logind session of its own `systemctl --user`
-answers "Failed to connect to bus", and half of the installation would look like a
-refusal. They need the whole `sudo`: the instructions install a system unit and
-enable linger.
+Get inside as that user (`vm.sh ssh` does, when `AACP_STAND_USER` names them):
+without a logind session of its own `systemctl --user` answers "Failed to connect
+to bus", and half of the installation would look like a refusal. `dev` stays for
+the administration of the machine: `ssh -p <port> dev@127.0.0.1`.
 
 ### The tree
 
@@ -160,6 +182,63 @@ The executor unit does not keep `~/bin` in PATH, so in the `host.env` of the sta
 the stand-in is named explicitly: `AACP_CLAUDE=/home/dev/bin/claude`. The account
 directory that a first run of claude leaves on a live machine is created here by
 hand: `mkdir -p ~/.claude/sessions && echo '{}' > ~/.claude/settings.json`.
+
+What the installer asks of claude outside a session the stand-in answers the way
+claude does: `--version`, and `claude mcp add|get|remove|list` in the user scope
+with the same messages, streams and exit codes, keeping the server in
+`$CLAUDE_CONFIG_DIR/.claude.json`, or `~/.claude.json` without it. A call into
+the local or project scope, or of a command it does not play (`auth`, `doctor`
+and the rest), stops with status 2 instead of waiting for input like a session.
+
+## Traces: what an install leaves
+
+`traces.sh` lists what an install leaves on the machine — units, `~/bin`, the
+`settings.json` and MCP servers of each claude account, linger, the state
+directory, the directories of the executor and the installer, the `.env`, docker
+containers, volumes, networks and images, apt packages and the docker group —
+one sorted line each, files with their sha256. Taken before the install and
+after the uninstall, the two lists are compared:
+
+```sh
+deploy/stand/traces.sh > before
+./install.sh install && ./install.sh uninstall --purge-data
+deploy/stand/traces.sh > after
+deploy/stand/traces.sh compare before after
+```
+
+`compare` fails on every line uninstall promises to put back, and only names
+the packages and the docker group, which uninstall never takes back, and the
+docker lists of a machine where docker did not answer before. `traces.sh starts`
+prints the invocation of every `aacpanel*` unit and the start of every container:
+the same before and after a second run means the run restarted nothing. The same
+steps run in the CI job `install.yml` on a runner, which is a whole virtual
+machine with systemd, docker and sudo.
+
+## Questions answered through tmux
+
+The installer is a TUI in which a digit picks an option at once and Enter takes
+whatever the cursor is on, so a key sent blind answers a question nobody saw.
+`scenario.sh` plays a scenario against it in a tmux server of its own: before
+each key it waits for the text of the screen the key answers, and a scenario
+with a key that no wait comes before is refused before the program starts.
+
+```sh
+cat > enter.txt <<'EOF'
+timeout 60
+wait What does the panel call this machine?
+key Enter
+wait Name of the home session
+key Enter
+wait Where do your projects live?
+shot projects
+key C-c
+exit 130
+EOF
+deploy/stand/scenario.sh -x 60 -o out enter.txt -- ./install.sh install
+```
+
+`out/transcript.txt` keeps every screen a wait matched and every key sent; the
+directives are listed at the top of the script.
 
 ## Traps of the stand (not of the panel)
 
