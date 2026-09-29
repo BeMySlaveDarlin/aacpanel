@@ -62,10 +62,19 @@ type Stream struct {
 
 // Open attaches to a session.
 func (c *Client) Open(ctx context.Context, target string, cols, rows uint16) (*Stream, error) {
+	return c.open(ctx, Frame{Type: FrameOpen, Target: target, Cols: cols, Rows: rows})
+}
+
+// OpenTerm attaches to a terminal of the panel.
+func (c *Client) OpenTerm(ctx context.Context, id string, cols, rows uint16) (*Stream, error) {
+	return c.open(ctx, Frame{Type: FrameOpen, Term: id, Cols: cols, Rows: rows})
+}
+
+func (c *Client) open(ctx context.Context, first Frame) (*Stream, error) {
 	if !c.Enabled() {
 		return nil, fmt.Errorf("%w: the terminal socket is not configured", ErrUnavailable)
 	}
-	if err := ValidateSize(cols, rows); err != nil {
+	if err := ValidateSize(first.Cols, first.Rows); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +91,7 @@ func (c *Client) Open(ctx context.Context, target string, cols, rows uint16) (*S
 	}
 
 	conn.SetDeadline(time.Now().Add(openTimeout))
-	if err := s.frame(Frame{Type: FrameOpen, Target: target, Cols: cols, Rows: rows}); err != nil {
+	if err := s.frame(first); err != nil {
 		conn.Close()
 		return nil, err
 	}

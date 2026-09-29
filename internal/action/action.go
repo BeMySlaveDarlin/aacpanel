@@ -91,6 +91,19 @@ const (
 
 	// ProjectCreate creates a project directory on disk and grants it trust.
 	ProjectCreate Kind = "project.create"
+
+	// TermStart starts a terminal of the panel: the user's own shell in a
+	// tmux session on the panel's socket, in a place from the map. The
+	// target is the id the service gives it.
+	TermStart Kind = "term.start"
+	// TermClose kills a terminal of the panel with whatever runs in it.
+	TermClose Kind = "term.close"
+	// TermRename gives a terminal of the panel a name of the person's own in
+	// place of the command it runs.
+	TermRename Kind = "term.rename"
+	// TermConsole opens a terminal window on the host attached to a terminal
+	// of the panel.
+	TermConsole Kind = "term.console"
 )
 
 // Kinds is the full list of what the executor can do.
@@ -99,7 +112,7 @@ var Kinds = []Kind{
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, TaskStop, AgentStop, WindowOpen, WindowClose,
-	ProjectCreate,
+	ProjectCreate, TermStart, TermClose, TermRename, TermConsole,
 }
 
 // Valid reports whether the executor knows this kind of action.

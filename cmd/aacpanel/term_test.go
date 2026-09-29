@@ -24,6 +24,7 @@ func TestTerminalRoutesFollowTheSwitch(t *testing.T) {
 		{http.MethodGet, "/api/term/stream"},
 		{http.MethodPost, "/api/term/input"},
 		{http.MethodPost, "/api/term/size"},
+		{http.MethodGet, "/api/terms"},
 	}
 
 	off := (&Server{}).routes((&Server{}).publicGate())
@@ -109,6 +110,7 @@ type screenOpener struct {
 
 	mu     sync.Mutex
 	target string
+	term   string
 	cols   uint16
 	rows   uint16
 }
@@ -121,6 +123,22 @@ func (o *screenOpener) Open(_ context.Context, target string, cols, rows uint16)
 		return nil, o.err
 	}
 	return o.screen, nil
+}
+
+func (o *screenOpener) OpenTerm(_ context.Context, id string, cols, rows uint16) (termlink.Terminal, error) {
+	o.mu.Lock()
+	o.term, o.cols, o.rows = id, cols, rows
+	o.mu.Unlock()
+	if o.err != nil {
+		return nil, o.err
+	}
+	return o.screen, nil
+}
+
+func (o *screenOpener) askedTerm() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.term
 }
 
 func (o *screenOpener) asked() (string, uint16, uint16) {

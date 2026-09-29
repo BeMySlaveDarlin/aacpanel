@@ -420,7 +420,7 @@ func TestLiveWindowFollowsTheBridgeClient(t *testing.T) {
 	)
 	target := liveTmuxSession(t, name, 116, 110)
 
-	before := tmuxWindowSize(t.Context(), win)
+	before := userTmux.windowSize(t.Context(), win)
 	if before != "116x110" {
 		t.Fatalf("the window came up sized %q instead of 116x110", before)
 	}
@@ -433,7 +433,7 @@ func TestLiveWindowFollowsTheBridgeClient(t *testing.T) {
 
 	under := before
 	for range 60 {
-		if under = tmuxWindowSize(t.Context(), win); under != before {
+		if under = userTmux.windowSize(t.Context(), win); under != before {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -447,10 +447,10 @@ func TestLiveWindowFollowsTheBridgeClient(t *testing.T) {
 	}
 
 	term.Close()
-	if after := tmuxWindowSize(t.Context(), win); after != before {
+	if after := userTmux.windowSize(t.Context(), win); after != before {
 		t.Errorf("the window stayed %s instead of %s — whoever opens the terminal next sees a size that is not theirs", after, before)
 	}
-	if opt := tmuxWindowSizeOption(t.Context(), win); opt != "" {
+	if opt := userTmux.windowSizeOption(t.Context(), win); opt != "" {
 		t.Errorf("the window stayed in window-size %q: giving the size back did not clear its own option", opt)
 	}
 }
@@ -469,7 +469,7 @@ func TestLiveBridgeGivesTheWindowBack(t *testing.T) {
 	if win == "" {
 		t.Fatalf("the pane of session %s was not found", name)
 	}
-	before := tmuxWindowSize(t.Context(), win)
+	before := userTmux.windowSize(t.Context(), win)
 	t.Logf("window %s before the bridge: %s", win, before)
 
 	term, err := NewTermOpener().Open(t.Context(), name, 40, 32)
@@ -478,13 +478,13 @@ func TestLiveBridgeGivesTheWindowBack(t *testing.T) {
 	}
 	go io.Copy(io.Discard, term)
 	time.Sleep(1500 * time.Millisecond)
-	under := tmuxWindowSize(t.Context(), win)
+	under := userTmux.windowSize(t.Context(), win)
 	t.Logf("the window under the bridge: %s", under)
 
 	term.Close()
 	time.Sleep(500 * time.Millisecond)
-	after := tmuxWindowSize(t.Context(), win)
-	opt := tmuxWindowSizeOption(t.Context(), win)
+	after := userTmux.windowSize(t.Context(), win)
+	opt := userTmux.windowSizeOption(t.Context(), win)
 	t.Logf("the window after the bridge: %s, window-size of the window: %q", after, opt)
 
 	if after != before {
@@ -548,7 +548,7 @@ func TestLiveBridgeSeesTheWholeWindowUnderALiveNeighbour(t *testing.T) {
 	press := attachNeighbour(t, target, 120, 50)
 	alone := ""
 	for range 60 {
-		if alone = tmuxWindowSize(t.Context(), win); alone != "" && alone != "120x50" {
+		if alone = userTmux.windowSize(t.Context(), win); alone != "" && alone != "120x50" {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -560,7 +560,7 @@ func TestLiveBridgeSeesTheWholeWindowUnderALiveNeighbour(t *testing.T) {
 	}
 	go io.Copy(io.Discard, term)
 	for range 60 {
-		if tmuxWindowSize(t.Context(), win) != alone {
+		if userTmux.windowSize(t.Context(), win) != alone {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -573,16 +573,16 @@ func TestLiveBridgeSeesTheWholeWindowUnderALiveNeighbour(t *testing.T) {
 	if !whole {
 		t.Errorf("the bridge sees only part of window %s: %s — the person in the panel reads a strip, "+
 			"and the session mark «not everything is shown» is carried off its edge",
-			tmuxWindowSize(t.Context(), win), line)
+			userTmux.windowSize(t.Context(), win), line)
 	}
 
 	term.Close()
-	if opt := tmuxWindowSizeOption(t.Context(), win); opt != "" {
+	if opt := userTmux.windowSizeOption(t.Context(), win); opt != "" {
 		t.Errorf("the window stayed in window-size %q: the bridge did not clear its own rule", opt)
 	}
 	back := ""
 	for range 60 {
-		if back = tmuxWindowSize(t.Context(), win); back == alone {
+		if back = userTmux.windowSize(t.Context(), win); back == alone {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -610,14 +610,14 @@ func TestLiveBridgeLeavesAPinnedWindowAlone(t *testing.T) {
 	go io.Copy(io.Discard, term)
 	time.Sleep(700 * time.Millisecond)
 
-	if rule := tmuxWindowSizeRule(t.Context(), win); rule != "manual" {
+	if rule := userTmux.windowSizeRule(t.Context(), win); rule != "manual" {
 		t.Errorf("the window went into window-size %q — the bridge overrode the decision of the owner about the size", rule)
 	}
-	if size := tmuxWindowSize(t.Context(), win); size != "120x50" {
+	if size := userTmux.windowSize(t.Context(), win); size != "120x50" {
 		t.Errorf("the pinned window became %s instead of 120x50", size)
 	}
 	term.Close()
-	if opt := tmuxWindowSizeOption(t.Context(), win); opt != "" {
+	if opt := userTmux.windowSizeOption(t.Context(), win); opt != "" {
 		t.Errorf("an own option %q landed on the window on top of the ban set globally", opt)
 	}
 }

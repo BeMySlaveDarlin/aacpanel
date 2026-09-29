@@ -55,7 +55,10 @@ type Server struct {
 	secure       bool
 	insecureSeen atomic.Bool
 	termPublic   bool
-	endpoints    endpoints
+	// home is the home directory of the machine's owner: a place a terminal
+	// of the panel opens in, beside the projects of the map.
+	home      string
+	endpoints endpoints
 	// guards is poked when the map changes, so the host learns the context
 	// guard of every place; nil where there is no map.
 	guards chan struct{}
@@ -303,6 +306,7 @@ func run() error {
 		tmpl:       tmpl,
 		secure:     secure,
 		termPublic: termPublic,
+		home:       ownerHome(),
 		endpoints:  eps,
 	}
 

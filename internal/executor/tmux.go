@@ -132,6 +132,24 @@ func tmuxPaneFor(ctx context.Context, pid int) (tmuxPane, error) {
 	return tmuxPane{}, fmt.Errorf("process %d is in no tmux pane", pid)
 }
 
+// tmuxServer is the tmux server a command goes to: the user's own, where the
+// sessions of claude live, or one on a socket of its own, reached with -L.
+type tmuxServer string
+
+// userTmux is the user's own tmux server.
+const userTmux tmuxServer = ""
+
+func (s tmuxServer) argv(args ...string) []string {
+	if s == userTmux {
+		return args
+	}
+	return append([]string{"-L", string(s)}, args...)
+}
+
+func (s tmuxServer) run(ctx context.Context, args ...string) (string, error) {
+	return tmuxRun(ctx, s.argv(args...)...)
+}
+
 func tmuxRun(ctx context.Context, args ...string) (string, error) {
 	callCtx, cancel := context.WithTimeout(ctx, tmuxTimeout)
 	defer cancel()
@@ -166,8 +184,8 @@ func tmuxWindowOf(target string) string {
 	return target
 }
 
-func tmuxWindowSize(ctx context.Context, window string) string {
-	out, err := tmuxRun(ctx, "display-message", "-p", "-t", window, "#{window_width}x#{window_height}")
+func (s tmuxServer) windowSize(ctx context.Context, window string) string {
+	out, err := s.run(ctx, "display-message", "-p", "-t", window, "#{window_width}x#{window_height}")
 	if err != nil {
 		return ""
 	}
@@ -178,8 +196,8 @@ func tmuxWindowSize(ctx context.Context, window string) string {
 	return size
 }
 
-func tmuxWindowSizeOption(ctx context.Context, window string) string {
-	out, err := tmuxRun(ctx, "show-options", "-t", window, "-w", "window-size")
+func (s tmuxServer) windowSizeOption(ctx context.Context, window string) string {
+	out, err := s.run(ctx, "show-options", "-t", window, "-w", "window-size")
 	if err != nil {
 		return ""
 	}
@@ -190,19 +208,19 @@ func tmuxWindowSizeOption(ctx context.Context, window string) string {
 	return strings.TrimSpace(value)
 }
 
-func tmuxWindowSizeRule(ctx context.Context, window string) string {
-	out, err := tmuxRun(ctx, "show-options", "-t", window, "-w", "-A", "-v", "window-size")
+func (s tmuxServer) windowSizeRule(ctx context.Context, window string) string {
+	out, err := s.run(ctx, "show-options", "-t", window, "-w", "-A", "-v", "window-size")
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(out)
 }
 
-func tmuxSessionHasClients(ctx context.Context, session string) bool {
+func (s tmuxServer) sessionHasClients(ctx context.Context, session string) bool {
 	if session == "" {
 		return true
 	}
-	out, err := tmuxRun(ctx, "list-clients", "-t", session, "-F", "#{client_tty}")
+	out, err := s.run(ctx, "list-clients", "-t", session, "-F", "#{client_tty}")
 	if err != nil {
 		return true
 	}

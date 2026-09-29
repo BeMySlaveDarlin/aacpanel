@@ -186,6 +186,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Kinds: s.kinds()}
 	}
 
+	if req.Ask == AskTerms {
+		asker, ok := s.exec.(TermsAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor keeps no terminals of the panel"), 0)
+		}
+		terms, err := asker.Terms(ctx)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Terms: terms}
+	}
+
 	if req.Ask == AskGuards {
 		keeper, ok := s.exec.(GuardKeeper)
 		if !ok {

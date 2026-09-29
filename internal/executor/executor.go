@@ -47,7 +47,9 @@ func (e *Executor) Kinds() []action.Kind {
 			continue
 		case !sessions && (k == action.TaskStop || k == action.AgentStop):
 			continue
-		case !canOpen && k == action.WindowOpen:
+		case !sessions && action.TermKind(k):
+			continue
+		case !canOpen && (k == action.WindowOpen || k == action.TermConsole):
 			continue
 		}
 		out = append(out, k)
@@ -118,6 +120,14 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.windowClose(ctx, req.Target)
 	case action.ProjectCreate:
 		return projectCreate(req.Target)
+	case action.TermStart:
+		return e.termStart(ctx, req.Target, req.Place)
+	case action.TermClose:
+		return e.termClose(ctx, req.Target)
+	case action.TermRename:
+		return e.termRename(ctx, req.Target, req.Rename)
+	case action.TermConsole:
+		return e.termConsole(ctx, req.Target)
 	default:
 		return "", fmt.Errorf("action %s is not supported by the executor", req.Kind)
 	}

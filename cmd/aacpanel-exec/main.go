@@ -48,6 +48,10 @@ func main() {
 		"open a terminal window to a live tmux session from the task on stdin. "+
 			"Like -launch, it is called by the executor through systemd-run: otherwise the window "+
 			"would die with its restart, and the graphical session environment would not be read")
+	term := flag.Bool("term", false,
+		"start a terminal of the panel from the task on stdin: a shell in tmux on the panel's own socket. "+
+			"Like -launch, it is called by the executor through systemd-run: a tmux server started inside the "+
+			"executor would give every shell its sandbox and die with its restart")
 	hold := flag.Bool("hold", false,
 		"hold a claude session on the stream protocol from the task on stdin, until it ends. "+
 			"Not a panel action: the launcher starts it in place of a tmux server")
@@ -94,6 +98,10 @@ func main() {
 
 	if *window {
 		os.Exit(runWindow())
+	}
+
+	if *term {
+		os.Exit(runTerm())
 	}
 
 	if err := run(*socket, *dockerHost, *self); err != nil {
@@ -273,6 +281,30 @@ func runWindow() int {
 	return 0
 }
 
+func runTerm() int {
+	if os.Geteuid() == 0 {
+		fmt.Fprintln(os.Stderr, "aacpanel-exec: starting a terminal as root is not allowed")
+		return 2
+	}
+
+	var spec launcher.TermSpec
+	if err := json.NewDecoder(os.Stdin).Decode(&spec); err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: the terminal task was not parsed: %v\n", err)
+		return 2
+	}
+
+	report, err := launcher.Term(spec)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: %v\n", err)
+		return 1
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: the terminal report was not sent: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
 func run(socket, dockerHost, self string) error {
 	if os.Geteuid() == 0 {
 		return errors.New("running as root is not allowed: the executor gets by with the rights of the session owner")
@@ -397,6 +429,15 @@ func (a audited) Window(ctx context.Context, target string) (*action.Window, err
 		return nil, fmt.Errorf("this executor does not know about session windows")
 	}
 	return asker.Window(ctx, target)
+}
+
+// Terms asks the wrapped executor for the terminals of the panel.
+func (a audited) Terms(ctx context.Context) ([]action.Term, error) {
+	asker, ok := a.next.(action.TermsAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor keeps no terminals of the panel")
+	}
+	return asker.Terms(ctx)
 }
 
 // Models asks the wrapped executor what a session can be switched to.

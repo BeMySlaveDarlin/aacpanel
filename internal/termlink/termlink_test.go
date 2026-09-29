@@ -70,6 +70,7 @@ type fakeOpener struct {
 
 	mu      sync.Mutex
 	targets []string
+	terms   []string
 	sizes   [][2]uint16
 	opened  int
 }
@@ -84,6 +85,24 @@ func (o *fakeOpener) Open(_ context.Context, target string, cols, rows uint16) (
 		return nil, o.err
 	}
 	return o.term, nil
+}
+
+func (o *fakeOpener) OpenTerm(_ context.Context, id string, cols, rows uint16) (Terminal, error) {
+	o.mu.Lock()
+	o.terms = append(o.terms, id)
+	o.sizes = append(o.sizes, [2]uint16{cols, rows})
+	o.opened++
+	o.mu.Unlock()
+	if o.err != nil {
+		return nil, o.err
+	}
+	return o.term, nil
+}
+
+func (o *fakeOpener) askedTerms() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]string(nil), o.terms...)
 }
 
 func (o *fakeOpener) asked() []string {
@@ -329,6 +348,49 @@ type openerPerCall struct{}
 func (openerPerCall) Open(context.Context, string, uint16, uint16) (Terminal, error) {
 	screen, _ := io.Pipe()
 	return &fakeTerm{out: screen}, nil
+}
+
+func (o openerPerCall) OpenTerm(ctx context.Context, id string, cols, rows uint16) (Terminal, error) {
+	return o.Open(ctx, id, cols, rows)
+}
+
+func TestTerminalOfThePanelIsOpenedByItsID(t *testing.T) {
+	screen, feed := io.Pipe()
+	t.Cleanup(func() { feed.Close() })
+	opener := &fakeOpener{term: &fakeTerm{out: screen}}
+	client := stand(t, opener)
+
+	stream, err := client.OpenTerm(context.Background(), "t-1a2b3c4d", 90, 30)
+	if err != nil {
+		t.Fatalf("the terminal did not open: %v", err)
+	}
+	defer stream.Close()
+
+	if got := opener.askedTerms(); len(got) != 1 || got[0] != "t-1a2b3c4d" {
+		t.Errorf("the executor was asked for terminals %v", got)
+	}
+	if got := opener.asked(); len(got) != 0 {
+		t.Errorf("the id went to the executor as the name of a session: %v", got)
+	}
+}
+
+func TestOpenNamesOneThingToAttachTo(t *testing.T) {
+	for _, f := range []Frame{
+		{Type: FrameOpen, Cols: 80, Rows: 24},
+		{Type: FrameOpen, Target: "shop", Term: "t-1a2b3c4d", Cols: 80, Rows: 24},
+	} {
+		if err := ValidateOpen(f); err == nil {
+			t.Errorf("an open naming session %q and terminal %q was accepted", f.Target, f.Term)
+		}
+	}
+	for _, f := range []Frame{
+		{Type: FrameOpen, Target: "shop", Cols: 80, Rows: 24},
+		{Type: FrameOpen, Term: "t-1a2b3c4d", Cols: 80, Rows: 24},
+	} {
+		if err := ValidateOpen(f); err != nil {
+			t.Errorf("an open naming session %q or terminal %q was refused: %v", f.Target, f.Term, err)
+		}
+	}
 }
 
 func TestTerminalRefusesSillySize(t *testing.T) {

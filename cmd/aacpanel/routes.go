@@ -142,7 +142,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/settings", g.page(s.apiSettings))
 	mux.Handle("GET /api/degradations", g.page(s.apiDegradations))
 	mux.Handle("GET /api/actions", g.page(s.apiActions))
-	mux.Handle("POST /api/actions", g.page(s.apiRunAction))
+	mux.Handle("POST /api/actions", g.page(s.apiRunAction(g.term)))
 	mux.Handle("GET /api/exec", g.page(s.apiExecStatus))
 	mux.Handle("GET /api/session/permission", g.page(s.apiSessionPermission))
 	mux.Handle("GET /api/session/window", g.page(s.apiSessionWindow))
@@ -179,6 +179,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 		mux.Handle("GET /api/term/stream", g.stream(s.apiTermStream))
 		mux.Handle("POST /api/term/input", g.page(s.apiTermInput))
 		mux.Handle("POST /api/term/size", g.page(s.apiTermSize))
+		mux.Handle("GET /api/terms", g.page(s.apiTerms))
 	}
 
 	return mux

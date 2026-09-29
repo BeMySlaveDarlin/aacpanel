@@ -36,6 +36,7 @@ func newTmuxStub(t *testing.T, panes []string, screen string) *tmuxStub {
 	script := fmt.Sprintf(`#!/bin/sh
 for a in "$@"; do printf '%%s\n' "$a" >> %q; done
 printf -- '--\n' >> %q
+if [ "$1" = -L ]; then shift 2; fi
 f=%q/reply-"$1"
 if [ -f "$f" ]; then cat "$f"; fi
 exit 0
@@ -228,6 +229,8 @@ var windowKinds = []action.Kind{action.WindowOpen, action.WindowClose}
 
 var workKinds = []action.Kind{action.TaskStop, action.AgentStop}
 
+var termKinds = []action.Kind{action.TermStart, action.TermClose, action.TermRename, action.TermConsole}
+
 func tmuxHere(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "tmux")
@@ -262,6 +265,7 @@ func TestKindsDropSessionsWithoutTmux(t *testing.T) {
 		got := e.Kinds()
 		gone := append(append([]action.Kind{}, sessionKinds...), windowKinds...)
 		gone = append(gone, workKinds...)
+		gone = append(gone, termKinds...)
 		for _, k := range gone {
 			if hasKind(got, k) {
 				t.Errorf("%s is offered without tmux — the button will answer with the text of an unrelated error", k)
@@ -276,9 +280,8 @@ func TestKindsDropSessionsWithoutTmux(t *testing.T) {
 		if !hasKind(got, action.ProjectCreate) {
 			t.Error("project.create disappeared along with the sessions — there is nothing left to start a project with on such a machine")
 		}
-		if len(action.Kinds) != len(sessionKinds)+len(windowKinds)+len(workKinds)+6 {
-			t.Errorf("action.Kinds changed: it holds %d kinds while the test knows %d",
-				len(action.Kinds), len(sessionKinds)+len(windowKinds)+len(workKinds)+6)
+		if known := len(sessionKinds) + len(windowKinds) + len(workKinds) + len(termKinds) + 6; len(action.Kinds) != known {
+			t.Errorf("action.Kinds changed: it holds %d kinds while the test knows %d", len(action.Kinds), known)
 		}
 	})
 }
@@ -293,7 +296,7 @@ func TestKindsAreRecountedOnEveryAsk(t *testing.T) {
 	if err := os.Remove(bin); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Kinds(); len(got) != len(action.Kinds)-len(sessionKinds)-len(windowKinds)-len(workKinds) {
+	if got := e.Kinds(); len(got) != len(action.Kinds)-len(sessionKinds)-len(windowKinds)-len(workKinds)-len(termKinds) {
 		t.Errorf("after tmux went missing %d actions are offered — the answer was remembered, not recomputed", len(got))
 	}
 
@@ -316,6 +319,14 @@ func TestKindsDropWindowOpenWithoutTerminal(t *testing.T) {
 	}
 	if !hasKind(got, action.WindowClose) {
 		t.Error("window.close disappeared along with the open — a window raised by hand has nothing left to close it")
+	}
+	if hasKind(got, action.TermConsole) {
+		t.Error("term.console is offered with an empty AACP_TERMINAL — it opens a window the same way")
+	}
+	for _, k := range []action.Kind{action.TermStart, action.TermClose, action.TermRename} {
+		if !hasKind(got, k) {
+			t.Errorf("%s disappeared because AACP_TERMINAL is empty — the terminal of the panel needs no window", k)
+		}
 	}
 	for _, k := range sessionKinds {
 		if !hasKind(got, k) {

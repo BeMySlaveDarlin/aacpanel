@@ -141,7 +141,7 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 	if sw.Window {
 		// The session is in tmux already: a window that did not open
 		// is a warning about the window, not a failed switch.
-		opened, err := e.openWindowTo(ctx, p.Path, rep.Session)
+		opened, err := e.openWindowTo(ctx, userTmux, p.Path, rep.Session)
 		if err != nil {
 			opened = "WARNING: the window did not open (" + err.Error() + ") — open it with the button in the header"
 		}
@@ -187,7 +187,7 @@ func shownElsewhere(ctx context.Context, s liveSession) error {
 		return fmt.Errorf("session %s does not live in tmux, so it runs in a terminal of its own and a switch "+
 			"would end it there — close it in that terminal and resume the conversation on the stream: %w", s.Name, err)
 	}
-	clients, err := foreignClients(ctx, tmuxSessionOf(pane.Target))
+	clients, err := foreignClients(ctx, userTmux, tmuxSessionOf(pane.Target))
 	if err != nil {
 		return fmt.Errorf("whether a window shows session %s is unknown: %w", s.Name, err)
 	}

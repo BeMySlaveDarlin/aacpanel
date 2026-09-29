@@ -33,13 +33,22 @@ func (e *Executor) runLauncher(ctx context.Context, p project, resume string) (l
 	})
 }
 
-func (e *Executor) runWindowOpener(ctx context.Context, dir, session string) (launcher.Report, error) {
+func (e *Executor) runWindowOpener(ctx context.Context, srv tmuxServer, dir, session string) (launcher.Report, error) {
 	bin, err := launcherPath()
 	if err != nil {
 		return launcher.Report{}, err
 	}
 	return runInUnit(ctx, bin, windowFlag, "opening the window",
-		launcher.WindowSpec{Dir: dir, Session: session})
+		launcher.WindowSpec{Dir: dir, Session: session, Socket: string(srv)})
+}
+
+func (e *Executor) runTermStarter(ctx context.Context, dir, id string) (launcher.Report, error) {
+	bin, err := launcherPath()
+	if err != nil {
+		return launcher.Report{}, err
+	}
+	return runInUnit(ctx, bin, termFlag, "starting the terminal",
+		launcher.TermSpec{Dir: dir, Session: id, Socket: string(panelTmux)})
 }
 
 func runInUnit(ctx context.Context, bin, mode, what string, spec any) (launcher.Report, error) {
@@ -111,6 +120,7 @@ func launchArgs(env []string, bin, mode string) []string {
 const (
 	launchFlag = "-launch"
 	windowFlag = "-window"
+	termFlag   = "-term"
 )
 
 func passEnv(name string) bool {

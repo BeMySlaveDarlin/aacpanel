@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/store"
 	"aacpanel/internal/termlink"
 )
@@ -84,9 +85,16 @@ func (s *Server) apiTermStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the terminal is not configured", http.StatusServiceUnavailable)
 		return
 	}
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		http.Error(w, "it is not said which session to attach to", http.StatusBadRequest)
+	name, term := r.URL.Query().Get("name"), r.URL.Query().Get("term")
+	switch {
+	case name == "" && term == "":
+		http.Error(w, "it is not said which session or terminal to attach to", http.StatusBadRequest)
+		return
+	case name != "" && term != "":
+		http.Error(w, "both a session and a terminal are named: the terminal attaches to one", http.StatusBadRequest)
+		return
+	case term != "" && !action.TermID(term):
+		http.Error(w, fmt.Sprintf("%q is not the id of a terminal of the panel", term), http.StatusBadRequest)
 		return
 	}
 	cols, rows, err := sizeFrom(r)
@@ -95,9 +103,14 @@ func (s *Server) apiTermStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	open := s.terms.client.Open
+	if term != "" {
+		name, open = term, s.terms.client.OpenTerm
+	}
+
 	journal := s.termJournal(r, name)
 
-	stream, err := s.terms.client.Open(r.Context(), name, cols, rows)
+	stream, err := open(r.Context(), name, cols, rows)
 	if err != nil {
 		if !wantsSSE(r) {
 			journal.done(r.Context(), store.ActionFailed, err.Error())

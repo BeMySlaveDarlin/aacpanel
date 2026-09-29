@@ -33,7 +33,13 @@ func (s *Server) apiActions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"actions": list})
 }
 
-func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
+// apiRunAction runs actions on a listener; with term off, the actions on the
+// terminals of the panel are not there, as the terminal itself is not.
+func (s *Server) apiRunAction(term bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) { s.runAction(w, r, term) }
+}
+
+func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	if s.exec == nil {
 		http.Error(w, "the executor is not configured: actions are unavailable", http.StatusServiceUnavailable)
 		return
@@ -55,6 +61,11 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := action.Request{Kind: action.Kind(body.Kind), Target: body.Target}
+
+	if action.TermKind(req.Kind) && !term {
+		http.Error(w, "the terminals are not served on this listener", http.StatusNotFound)
+		return
+	}
 
 	var cwd string
 	if req.Kind == action.SessionResume {
@@ -222,6 +233,15 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if action.TermKind(req.Kind) {
+		termParams, err := s.termRequest(r.Context(), &req, body.Target, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		params, body.Target = termParams, req.Target
+	}
+
 	if req.Kind == action.SessionRestart {
 		plan, err := s.restartPlan(r.Context(), body.Target, body.Params)
 		if err != nil {
@@ -333,7 +353,11 @@ func (s *Server) apiRunAction(w http.ResponseWriter, r *http.Request) {
 		writeStatusJSON(w, status, map[string]any{"error": outcome.Error, "logged": logged})
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "detail": resp.Detail, "logged": logged})
+	out := map[string]any{"ok": true, "detail": resp.Detail, "logged": logged}
+	if req.Kind == action.TermStart {
+		out["id"] = req.Target
+	}
+	writeJSON(w, out)
 }
 
 func (s *Server) apiSessionPermission(w http.ResponseWriter, r *http.Request) {

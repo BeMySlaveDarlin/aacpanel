@@ -268,7 +268,7 @@ func start(dir, name, bin string, args []string, env *sessionEnv) (int, []string
 	if !terminalAuto() {
 		return 0, warns, nil
 	}
-	pid, _, err := openWindow(dir, name, env.vars)
+	pid, _, err := openWindow(dir, name, "", env.vars)
 	if err != nil {
 		return 0, append(warns, err.Error()+
 			"; the session itself did start — open a window to it with the button in the conversation header"), nil

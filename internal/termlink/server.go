@@ -24,9 +24,10 @@ type Terminal interface {
 	Detail() string
 }
 
-// Opener opens a terminal to the named session.
+// Opener opens a terminal to the named session, or to a terminal of the panel.
 type Opener interface {
 	Open(ctx context.Context, target string, cols, rows uint16) (Terminal, error)
+	OpenTerm(ctx context.Context, id string, cols, rows uint16) (Terminal, error)
 }
 
 // Server accepts terminal streams.
@@ -123,7 +124,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	}
 	defer s.live.Add(-1)
 
-	term, err := s.opener.Open(ctx, first.Target, first.Cols, first.Rows)
+	var term Terminal
+	if first.Term != "" {
+		term, err = s.opener.OpenTerm(ctx, first.Term, first.Cols, first.Rows)
+	} else {
+		term, err = s.opener.Open(ctx, first.Target, first.Cols, first.Rows)
+	}
 	if err != nil {
 		send(Frame{Type: FrameEnd, Error: err.Error()})
 		return

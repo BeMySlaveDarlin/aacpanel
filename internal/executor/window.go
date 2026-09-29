@@ -30,19 +30,19 @@ func (e *Executor) windowOpen(ctx context.Context, target string) (string, error
 		return "", err
 	}
 
-	return e.openWindowTo(ctx, dir, tmuxSessionOf(pane.Target))
+	return e.openWindowTo(ctx, userTmux, dir, tmuxSessionOf(pane.Target))
 }
 
 // openWindowTo opens a terminal window on the host attached to a tmux session
 // and waits for it to attach.
-func (e *Executor) openWindowTo(ctx context.Context, dir, name string) (string, error) {
-	rep, err := e.runWindowOpener(ctx, dir, name)
+func (e *Executor) openWindowTo(ctx context.Context, srv tmuxServer, dir, name string) (string, error) {
+	rep, err := e.runWindowOpener(ctx, srv, dir, name)
 	if err != nil {
 		return "", err
 	}
 	detail := describeWindow(rep)
 
-	if !waitForeignClient(ctx, name) {
+	if !waitForeignClient(ctx, srv, name) {
 		detail += fmt.Sprintf("; WARNING: nobody attached to the session within %s — the window may not have opened",
 			windowWait)
 	}
@@ -54,10 +54,10 @@ var (
 	windowPoll = 200 * time.Millisecond
 )
 
-func waitForeignClient(ctx context.Context, session string) bool {
+func waitForeignClient(ctx context.Context, srv tmuxServer, session string) bool {
 	deadline := time.Now().Add(windowWait)
 	for {
-		if clients, err := foreignClients(ctx, session); err == nil && len(clients) > 0 {
+		if clients, err := foreignClients(ctx, srv, session); err == nil && len(clients) > 0 {
 			return true
 		}
 		if time.Now().After(deadline) {
@@ -78,7 +78,7 @@ func (e *Executor) windowClose(ctx context.Context, target string) (string, erro
 	}
 	name := tmuxSessionOf(pane.Target)
 
-	clients, err := foreignClients(ctx, name)
+	clients, err := foreignClients(ctx, userTmux, name)
 	if err != nil {
 		return "", err
 	}
@@ -114,7 +114,7 @@ func (e *Executor) Window(ctx context.Context, target string) (*action.Window, e
 	if err != nil {
 		return nil, err
 	}
-	clients, err := foreignClients(ctx, tmuxSessionOf(pane.Target))
+	clients, err := foreignClients(ctx, userTmux, tmuxSessionOf(pane.Target))
 	if err != nil {
 		return nil, err
 	}
@@ -146,11 +146,11 @@ func paneDir(ctx context.Context, target string) (string, error) {
 	return dir, nil
 }
 
-func foreignClients(ctx context.Context, session string) ([]tmuxClient, error) {
+func foreignClients(ctx context.Context, srv tmuxServer, session string) ([]tmuxClient, error) {
 	if session == "" {
 		return nil, fmt.Errorf("the tmux session name is empty: whose clients to count is unknown")
 	}
-	out, err := tmuxRun(ctx, "list-clients", "-t", session, "-F", clientFormat)
+	out, err := srv.run(ctx, "list-clients", "-t", session, "-F", clientFormat)
 	if err != nil {
 		return nil, fmt.Errorf("tmux did not tell about the clients of session %s: %w", session, err)
 	}

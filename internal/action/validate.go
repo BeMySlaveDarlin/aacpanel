@@ -23,7 +23,7 @@ func (r Request) Validate() error {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
-		case AskKinds:
+		case AskKinds, AskTerms:
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
@@ -263,15 +263,23 @@ func (r Request) Validate() error {
 	} else if r.Mcp != nil {
 		return badRequest("action %s changes no MCP server", r.Kind)
 	}
-	if r.Kind == SessionRename {
+	switch {
+	case r.Kind == SessionRename:
 		if err := safeSessionName(r.Rename); err != nil {
 			return err
 		}
 		if r.Rename == r.Target {
 			return badRequest("session %s is called so already", r.Target)
 		}
-	} else if r.Rename != "" {
+	case r.Kind == TermRename:
+		if err := safeTermName(r.Rename); err != nil {
+			return err
+		}
+	case r.Rename != "":
 		return badRequest("action %s renames no session", r.Kind)
+	}
+	if r.Place != "" && r.Kind != TermStart {
+		return badRequest("action %s opens nothing in a place", r.Kind)
 	}
 	if r.Kind == SessionRemote {
 		if r.Remote == nil {
@@ -387,6 +395,9 @@ func (r Request) Validate() error {
 			return badRequest("the project path %q is not absolute", r.Target)
 		}
 		return safePath(r.Target)
+	}
+	if TermKind(r.Kind) {
+		return validateTerm(r)
 	}
 	return safeTarget(r.Target)
 }

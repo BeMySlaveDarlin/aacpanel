@@ -212,6 +212,16 @@ var instantActions = map[string]bool{
 	"project.restore": true,
 	"disk.hide":       true,
 	"disk.show":       true,
+	// A terminal of the panel opens the person's own shell in a place picked
+	// from the list, and nothing runs in it until they type; a window on the
+	// host only shows a shell already open, and a name is typed on its sheet
+	// and saved with its own button. Closing kills what runs there, so the
+	// screen of the terminals asks first — a sheet of the gate over that
+	// answer would be the same question twice.
+	"term.start":   true,
+	"term.close":   true,
+	"term.rename":  true,
+	"term.console": true,
 }
 
 var instantExecActions = map[string]bool{
@@ -228,6 +238,10 @@ var instantExecActions = map[string]bool{
 	"session.mcp":        true,
 	"session.rename":     true,
 	"session.remote":     true,
+	"term.start":         true,
+	"term.close":         true,
+	"term.rename":        true,
+	"term.console":       true,
 }
 
 func TestInstantActionsStayHarmless(t *testing.T) {

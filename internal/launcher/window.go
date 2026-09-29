@@ -18,6 +18,8 @@ var windowsInFlight sync.WaitGroup
 type WindowSpec struct {
 	Dir     string `json:"dir"`
 	Session string `json:"session"`
+	// Socket names the tmux server the session lives on; empty is the user's own.
+	Socket string `json:"socket,omitempty"`
 }
 
 // Window opens a terminal window onto a live tmux session.
@@ -32,7 +34,7 @@ func Window(spec WindowSpec) (Report, error) {
 	host := hostcfg.Load()
 	env, warns := childEnv(os.Environ(), Params{}, host.Display, host.Lang, "")
 
-	pid, _, err := openWindow(spec.Dir, spec.Session, env)
+	pid, _, err := openWindow(spec.Dir, spec.Session, spec.Socket, env)
 	if err != nil {
 		return Report{}, err
 	}
@@ -66,14 +68,13 @@ func terminalAutoOff(value string) bool {
 	return false
 }
 
-func openWindow(dir, name string, env []string) (int, bool, error) {
+func openWindow(dir, name, socket string, env []string) (int, bool, error) {
 	spec := windowTemplate()
 	if windowless() {
 		return 0, false, nil
 	}
 
-	tmuxBin := tool(tmuxEnv, "tmux")
-	argv, konsole := windowArgv(spec, dir, name, []string{tmuxBin, "attach", "-t", name})
+	argv, konsole := windowArgv(spec, dir, name, attachArgv(tool(tmuxEnv, "tmux"), socket, name))
 	if len(argv) == 0 {
 		return 0, false, nil
 	}
@@ -93,6 +94,15 @@ func openWindow(dir, name string, env []string) (int, bool, error) {
 		_ = cmd.Wait()
 	}()
 	return cmd.Process.Pid, konsole, nil
+}
+
+// attachArgv is what a window runs to show a tmux session: on the user's own
+// server, or on the server a socket of its own names.
+func attachArgv(tmuxBin, socket, name string) []string {
+	if socket == "" {
+		return []string{tmuxBin, "attach", "-t", name}
+	}
+	return []string{tmuxBin, "-L", socket, "attach", "-t", name}
 }
 
 func windowArgv(spec, dir, name string, attach []string) ([]string, bool) {

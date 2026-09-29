@@ -53,8 +53,12 @@ type Request struct {
 	// Mcp is what session.mcp does, and to which server.
 	Mcp *McpChange `json:"mcp,omitempty"`
 
-	// Rename is the new name session.rename gives a session.
+	// Rename is the new name session.rename gives a session, or term.rename
+	// a terminal of the panel.
 	Rename string `json:"rename,omitempty"`
+
+	// Place is the directory term.start opens its terminal in.
+	Place string `json:"place,omitempty"`
 
 	// Remote is whether session.remote switches Remote Control on or off.
 	Remote *bool `json:"remote,omitempty"`

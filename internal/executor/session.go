@@ -100,11 +100,17 @@ func checkProjectDir(path string) (string, error) {
 	if path == "" || !strings.HasPrefix(path, "/") {
 		return "", fmt.Errorf("project path %q is not absolute", path)
 	}
-	clean := filepath.Clean(path)
 	roots := projectRoots()
 	if len(roots) == 0 {
 		return "", fmt.Errorf("no project roots are set: neither %s nor the home directory", projectRootsEnv)
 	}
+	return dirInside(path, roots)
+}
+
+// dirInside checks that an absolute path is an existing directory whose real
+// path, links resolved, is inside one of the roots.
+func dirInside(path string, roots []string) (string, error) {
+	clean := filepath.Clean(path)
 	if !insideRoots(clean, roots) {
 		return "", fmt.Errorf("path %s is outside the allowed roots (%s)", clean, strings.Join(roots, ", "))
 	}

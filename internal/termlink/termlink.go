@@ -4,7 +4,9 @@ package termlink
 import "fmt"
 
 const (
-	// FrameOpen is the first frame from the service: which session to attach to and at which window size.
+	// FrameOpen is the first frame from the service: what to attach to — a
+	// session by its name or a terminal of the panel by its id — and at which
+	// window size.
 	FrameOpen = "open"
 	// FrameIn carries input from the person.
 	FrameIn = "in"
@@ -24,6 +26,7 @@ type Frame struct {
 	Type   string `json:"t"`
 	Data   []byte `json:"d,omitempty"`
 	Target string `json:"target,omitempty"`
+	Term   string `json:"term,omitempty"`
 	Cols   uint16 `json:"cols,omitempty"`
 	Rows   uint16 `json:"rows,omitempty"`
 	Kind   string `json:"kind,omitempty"`
@@ -48,8 +51,11 @@ func ValidateOpen(f Frame) error {
 	if f.Type != FrameOpen {
 		return fmt.Errorf("the first frame was expected to be %q, got %q", FrameOpen, f.Type)
 	}
-	if f.Target == "" {
+	if f.Target == "" && f.Term == "" {
 		return fmt.Errorf("no session to attach to was named")
+	}
+	if f.Target != "" && f.Term != "" {
+		return fmt.Errorf("both session %s and terminal %s were named — a bridge attaches to one", f.Target, f.Term)
 	}
 	return ValidateSize(f.Cols, f.Rows)
 }

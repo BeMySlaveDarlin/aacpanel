@@ -644,7 +644,7 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Thirty-one actions, and the list is closed.
+Thirty-five actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
@@ -654,9 +654,24 @@ Thirty-one actions, and the list is closed.
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
+| terminals of the panel | `term.start`, `term.close`, `term.rename`, `term.console` |
 
 What is deliberately not on the list: removing containers, images and volumes,
 `docker exec`, editing compose, package operations, restarting itself.
+
+**A terminal of the panel is the owner's shell on a tmux server of its own.**
+It lives on the socket `tmux -L aacpanel-term`, apart from the sessions of
+claude and from the servers tests start, so the list there is what the panel
+opened and nothing else. It opens only in a place: the home directory or the
+directory of a project of the map. The service takes the place from that list,
+never from a string on the phone, and the executor checks again that it is a
+directory whose real path lies inside the home directory or a project root. The
+session is started with no command line — it runs the default shell and nothing
+else — so nothing sent from the phone is ever run as a command: it reaches the
+shell as keystrokes, over the same bridge as the session terminal, and on the
+same listeners only. The first terminal starts the server from a unit of its
+own, as a session does: started inside the executor, every shell would inherit
+its sandbox and die with its restart.
 
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives

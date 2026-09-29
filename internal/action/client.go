@@ -80,6 +80,19 @@ func (c *Client) Kinds(ctx context.Context) ([]Kind, error) {
 	return resp.Kinds, nil
 }
 
+// Terms asks for the terminals of the panel. The list crosses the socket
+// with omitempty, so none at all arrives as nil.
+func (c *Client) Terms(ctx context.Context) ([]Term, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskTerms})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Terms, nil
+}
+
 // Permission asks which permission prompt a session is standing on.
 func (c *Client) Permission(ctx context.Context, target string) (*Permission, error) {
 	resp, err := c.Do(ctx, Request{Ask: AskPermission, Target: target})

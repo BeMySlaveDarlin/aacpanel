@@ -61,7 +61,7 @@ func post(t *testing.T, srv *Server, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/api/actions", strings.NewReader(body))
-	srv.apiRunAction(w, r)
+	srv.runAction(w, r, true)
 	return w
 }
 
