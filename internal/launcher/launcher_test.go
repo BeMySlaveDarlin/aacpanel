@@ -305,6 +305,43 @@ func TestChildEnvTakesGraphicalSession(t *testing.T) {
 	}
 }
 
+// TestChildEnvTakesGNOMEOnWayland: GNOME's shell on Wayland starts before
+// its X server and carries no DISPLAY, and the settings daemon of X holds
+// the display with its XAUTHORITY — without which a program of X in the
+// session is refused by Xwayland. Taken on Ubuntu 24.04.
+func TestChildEnvTakesGNOMEOnWayland(t *testing.T) {
+	bus := liveBus(t)
+	fakeProc(t,
+		fproc{pid: 10, comm: "gnome-shell", env: []string{
+			"DBUS_SESSION_BUS_ADDRESS=" + bus, "XDG_CURRENT_DESKTOP=ubuntu:GNOME", "XDG_SESSION_TYPE=wayland",
+		}},
+		fproc{pid: 11, comm: "gsd-xsettings", env: []string{
+			"DBUS_SESSION_BUS_ADDRESS=" + bus, "DISPLAY=:0", "WAYLAND_DISPLAY=wayland-0",
+			"XAUTHORITY=/run/user/1001/.mutter-Xwaylandauth.LQ1HW3", "XDG_SESSION_TYPE=wayland",
+		}},
+	)
+	env, warns := childEnv([]string{"DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}, Params{}, ":0", "", "")
+	joined := strings.Join(env, " ")
+	for _, want := range []string{"XAUTHORITY=/run/user/1001/.mutter-Xwaylandauth.LQ1HW3", "WAYLAND_DISPLAY=wayland-0",
+		"DBUS_SESSION_BUS_ADDRESS=" + bus, "DISPLAY=:0"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("the session lacks %s: %v", want, env)
+		}
+	}
+	if len(warns) != 0 {
+		t.Errorf("a GNOME session on Wayland drew complaints: %v", warns)
+	}
+}
+
+// TestAProcessIsFoundByTheNameTheKernelKeeps: comm holds fifteen characters
+// of a name, and a longer one is found by them.
+func TestAProcessIsFoundByTheNameTheKernelKeeps(t *testing.T) {
+	fakeProc(t, fproc{pid: 10, comm: "gnome-session-b", env: []string{"DISPLAY=:1", "DBUS_SESSION_BUS_ADDRESS=" + liveBus(t)}})
+	if got := pidsByComm("gnome-session-binary"); len(got) != 1 || got[0] != 10 {
+		t.Errorf("gnome-session-binary is gnome-session-b in comm; found %v", got)
+	}
+}
+
 func TestChildEnvKeepsADeadBusOutOfTheSession(t *testing.T) {
 	dead := "unix:path=" + filepath.Join(t.TempDir(), "gone")
 	named := func(t *testing.T, env []string) {
