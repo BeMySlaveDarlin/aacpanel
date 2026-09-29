@@ -28,6 +28,16 @@ func TestPorts(t *testing.T) {
 			m.Cmds[ps] = ok("aacpanel\taacpanel\t127.0.0.1:8776->8776/tcp, 127.0.0.1:8777->8777/tcp, 127.0.0.1:8443->8443/tcp\n" +
 				"aacpanel-db\taacpanel\t5432/tcp\n")
 		}, "✓ ports 8776, 8777, 8443 are the panel's own", PortLAN},
+		// docker-proxy holds the ports of a running panel, and docker ps
+		// folds ports published one after another into a range.
+		{"the panel's own, running", func(m *fake) {
+			m.Files["/proc/net/tcp"] = tcpHead + listen("0100007F:2248") + listen("0100007F:2249") + listen("0100007F:20FB")
+			m.Cmds[ps] = ok("aacpanel\taacpanel\t127.0.0.1:8443->8443/tcp, 127.0.0.1:8776-8777->8776-8777/tcp\n" +
+				"aacpanel-db\taacpanel\t5432/tcp\n")
+		}, "✓ ports 8776, 8777, 8443 are the panel's own", PortLAN},
+		{"a stranger's range over 8776", func(m *fake) {
+			m.Cmds[ps] = ok("shop-web\tshop\t0.0.0.0:8775-8779->80-84/tcp\n")
+		}, "✗ stop: 127.0.0.1:8776 is taken by the container shop-web. The panel publishes there and the port is fixed. Free it and run again.", PortLAN},
 		{"a process of the user's own on every address", func(m *fake) {
 			m.Files["/proc/net/tcp"] = tcpHead + listen("00000000:2248")
 			m.Cmds[key("ss", "-Hltnp")] = ok(`LISTEN 0 5 0.0.0.0:8776 0.0.0.0:* users:(("python3",pid=4242,fd=3))` + "\n")

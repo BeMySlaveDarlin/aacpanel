@@ -522,14 +522,33 @@ func (c *checker) dockerPS() []container {
 				continue
 			}
 			if i := strings.LastIndex(host, ":"); i >= 0 {
-				if n, err := strconv.Atoi(host[i+1:]); err == nil {
-					ct.ports = append(ct.ports, n)
-				}
+				ct.ports = append(ct.ports, portRange(host[i+1:])...)
 			}
 		}
 		c.listed = append(c.listed, ct)
 	}
 	return c.listed
+}
+
+// portRange reads a host port of docker ps: one port, or the range docker
+// makes of ports published one after another (8776-8777).
+func portRange(s string) []int {
+	from, to, isRange := strings.Cut(s, "-")
+	lo, err := strconv.Atoi(from)
+	if err != nil {
+		return nil
+	}
+	hi := lo
+	if isRange {
+		if hi, err = strconv.Atoi(to); err != nil || hi < lo || hi > 65535 {
+			return nil
+		}
+	}
+	var out []int
+	for p := lo; p <= hi; p++ {
+		out = append(out, p)
+	}
+	return out
 }
 
 func (ct container) panels() bool {
