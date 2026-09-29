@@ -1,0 +1,12 @@
+────────────────────────────────────────────────────────────
+ ←  ■ Host  ☐ Session  ☐ Projects  ☐ State  ✔ Submit  →
+
+ What does the panel call this machine?
+
+ ❯ 1. lab
+      From hostname. Metrics history is keyed by this name:
+      changing it later starts a new history.
+   2. Type something.
+
+ Enter to select · Tab/Arrow keys to navigate · Esc to go
+ back

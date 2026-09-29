@@ -1,0 +1,27 @@
+────────────────────────────────────────────────────────────
+  ■ Kit 
+
+ What goes into this install?
+ Space checks a part, Enter takes the list as it stands.
+
+   Always
+   [✔] Question relay     a session's questions reach your
+                          phone
+   [✔] Panel tools        checklist, briefs, a call to your
+                          phone, restart
+   Quiet — checked for you
+ ❯ [✔] Page copies        a published page opens on the
+                          phone under any account
+   [✔] Context cap        stops a session at the cap,
+                          restarts it with your line
+   On request
+   [ ] Docker cleanup     weekly prune of unused images — of
+                          the whole machine
+   Ways in besides this machine
+   [ ] Tailscale          your phone from anywhere, through
+                          your tailnet
+   [ ] Home network, TLS  straight at home, with a
+                          certificate you issue
+
+ Space to toggle · Enter to accept · ↑/↓ to move · Esc to go
+ back
