@@ -1,7 +1,10 @@
 package install
 
 import (
+	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -246,8 +249,8 @@ func TestDuplicatesOfThePanelsGo(t *testing.T) {
 	if strings.Count(out, "mcp__aacpanel__notify") != 1 || !strings.Contains(out, `"x"`) {
 		t.Errorf("the rules:\n%s", out)
 	}
-	if !strings.Contains(out, "python3 "+repo+"/agent/ask-hook.py") {
-		t.Errorf("the hook left kept an old path:\n%s", out)
+	if !strings.Contains(out, "test -f "+repo+"/agent/ask-hook.py && python3 "+repo+"/agent/ask-hook.py") {
+		t.Errorf("the hook left kept an old path or runs its script unguarded:\n%s", out)
 	}
 }
 
@@ -260,7 +263,7 @@ func TestTheKitDecidesWhatStays(t *testing.T) {
 		hooked(t, was, "Stop", "deploy/claude/background-reminder.py") != 1 {
 		t.Fatalf("the stamp, the cost and the background reminder are not wired:\n%s", was)
 	}
-	if !strings.Contains(was, `"command": "python3 `+repo+`/deploy/claude/prompt-stamp.py PostToolBatch"`) {
+	if !strings.Contains(was, `"command": "test -f `+repo+`/deploy/claude/prompt-stamp.py && python3 `+repo+`/deploy/claude/prompt-stamp.py PostToolBatch"`) {
 		t.Errorf("the stamp between tools lacks its argument:\n%s", was)
 	}
 	less := Wiring{Clone: repo, Kit: []string{"relay", "limits", "tools", "cap"}}
@@ -282,13 +285,46 @@ func TestTheKitDecidesWhatStays(t *testing.T) {
 	}
 }
 
+// A hook whose script is gone must not hold the session: python on a missing
+// file exits 2, which claude reads as "do not stop" for Stop, "throw the
+// prompt away" for UserPromptSubmit and "refuse the call" for PreToolUse. The
+// command runs the script only where it is, and passes on what the script
+// says when it is there.
+func TestAHookWhoseScriptIsGoneHoldsNothing(t *testing.T) {
+	clone := t.TempDir()
+	w := Wiring{Clone: clone, Kit: fullKit.Kit}
+	for _, h := range kitHooks {
+		cmd := exec.Command("sh", "-c", w.command(h))
+		cmd.Stdin = strings.NewReader("{}")
+		err := cmd.Run()
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) || exit.ExitCode() == 2 {
+			t.Errorf("%s on %s with its script gone: %v — expected an exit other than 0 and 2", h.Script, h.Event, err)
+		}
+	}
+	h := kitHooks[0]
+	script := filepath.Join(clone, h.Script)
+	if err := os.MkdirAll(filepath.Dir(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(script, []byte("import sys\nsys.exit(2)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := exec.Command("sh", "-c", w.command(h)).Run()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 2 {
+		t.Errorf("a script that asks to block came back as %v: the guard swallowed its word", err)
+	}
+}
+
 func TestAStateDirectoryOfItsOwnIsNamedToTheHooksThatReadIt(t *testing.T) {
 	w := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "background")}
 	w.State = "/srv/aacpanel-state"
 	out, _ := wire(t, "{}", w)
-	if !strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/context-guard.py"`) ||
-		!strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/background-reminder.py"`) ||
-		!strings.Contains(out, `"command": "python3 `+repo+`/agent/ask-hook.py"`) {
+	guard := func(script string) string { return "test -f " + repo + "/" + script + " && " }
+	if !strings.Contains(out, `"command": "`+guard("deploy/claude/context-guard.py")+`AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/context-guard.py"`) ||
+		!strings.Contains(out, `"command": "`+guard("deploy/claude/background-reminder.py")+`AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/background-reminder.py"`) ||
+		!strings.Contains(out, `"command": "`+guard("agent/ask-hook.py")+`python3 `+repo+`/agent/ask-hook.py"`) {
 		t.Errorf("the state directory:\n%s", out)
 	}
 	w.State = DefaultStateDir

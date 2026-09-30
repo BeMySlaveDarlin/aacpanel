@@ -259,15 +259,22 @@ type Wiring struct {
 
 func (w Wiring) has(part string) bool { return slices.Contains(w.Kit, part) }
 
+// command is the command of a hook in the settings. It runs the script only
+// where the script is: python on a missing file exits 2, which for a Stop hook
+// means the session may not stop, for a prompt that it is thrown away and for
+// a tool call that it is refused — a clone moved or a script renamed would
+// hold every session of the account. Without the script the command exits 1,
+// an error claude reports and passes over.
 func (w Wiring) command(h kitHook) string {
-	cmd := "python3 " + filepath.Join(w.Clone, h.Script)
+	script := filepath.Join(w.Clone, h.Script)
+	cmd := "python3 " + script
 	if h.Args != "" {
 		cmd += " " + h.Args
 	}
 	if h.State && w.State != "" && w.State != DefaultStateDir {
 		cmd = "AACP_STATE_DIR=" + shellQuote(w.State) + " " + cmd
 	}
-	return cmd
+	return "test -f " + script + " && " + cmd
 }
 
 // runs tells whether a command runs the script: a word of it is the

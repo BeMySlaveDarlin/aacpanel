@@ -1190,7 +1190,7 @@ first in the chain and passes the payload on to the command that was there:
   "hooks": {
     "PreToolUse": [
       {"matcher": "AskUserQuestion",
-       "hooks": [{"type": "command", "command": "python3 <clone>/agent/ask-hook.py", "timeout": 5}]}
+       "hooks": [{"type": "command", "command": "test -f <clone>/agent/ask-hook.py && python3 <clone>/agent/ask-hook.py", "timeout": 5}]}
     ]
   },
   "statusLine": {"type": "command",
@@ -1223,10 +1223,18 @@ changed where it stands, never added a second time:
 | Cost snapshot | `Stop`, `SubagentStop` | — | `python3 <clone>/deploy/claude/cost-snapshot.py` | — |
 | Background work | `Stop` | — | `python3 <clone>/deploy/claude/background-reminder.py` | 5 |
 
+Each command in the table runs behind a check that its script is there:
+`test -f <clone>/<script> && python3 <clone>/<script>`. Python on a missing
+file exits 2, which claude reads as "do not stop" for a `Stop` hook, "throw the
+prompt away" for `UserPromptSubmit` and "refuse the call" for `PreToolUse`: a
+clone moved or a script renamed would hold every session of the account.
+Behind the check such a hook exits 1 instead, an error claude reports under
+every turn and passes over until the clone is back or the installer runs again.
+
 For a state directory other than `/var/lib/aacpanel`, the commands of the
-context cap, the prompt stamp and the background reminder begin with
-`AACP_STATE_DIR='<state>' `: the first two read the collector's snapshot there,
-the reminder keeps there when it first saw each task.
+context cap, the prompt stamp and the background reminder set
+`AACP_STATE_DIR='<state>'` before `python3`: the first two read the collector's
+snapshot there, the reminder keeps there when it first saw each task.
 
 **The panel's server**, through claude's own command — claude rewrites its
 `.claude.json` all the time, so the file is never edited by hand:
