@@ -282,6 +282,9 @@ func parallel(t *testing.T) {
 
 // run opens a page in a context of its own, waits for the promise the page
 // leaves in window.done and returns what it resolved to.
+// disposeWait bounds the dispose of a run's browser context.
+var disposeWait = 10 * time.Second
+
 func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage, error) {
 	var created struct {
 		BrowserContextID string `json:"browserContextId"`
@@ -290,7 +293,14 @@ func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage,
 	if err != nil || json.Unmarshal(raw, &created) != nil {
 		return nil, fmt.Errorf("no browser context: %v", err)
 	}
-	defer b.call(context.Background(), "", "Target.disposeBrowserContext", map[string]any{"browserContextId": created.BrowserContextID})
+	// The context goes whatever became of the run, and on a bound of its own:
+	// a Chrome that stopped answering would hold the dispose, and the whole
+	// package with it, long after the run itself gave up.
+	defer func() {
+		done, cancel := context.WithTimeout(context.Background(), disposeWait)
+		defer cancel()
+		_, _ = b.call(done, "", "Target.disposeBrowserContext", map[string]any{"browserContextId": created.BrowserContextID})
+	}()
 
 	var target struct {
 		TargetID string `json:"targetId"`
@@ -403,5 +413,55 @@ setTimeout(() => { throw new Error("the card lost its rows"); }, 150);`,
 				t.Fatalf("a page that threw passed as a fixture: %v", err)
 			}
 		})
+	}
+}
+
+// A Chrome that stops answering in the middle of a run holds nothing past the
+// run's own bound: the fake answers the browser context and then keeps quiet,
+// and the run comes back with an error instead of waiting on the dispose.
+func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
+	was := disposeWait
+	disposeWait = 100 * time.Millisecond
+	t.Cleanup(func() { disposeWait = was })
+
+	toChrome, to, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	from, fromChrome, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = to.Close(); _ = fromChrome.Close(); _ = toChrome.Close() })
+	b := &browser{to: to, stderr: &tailBuffer{limit: 1 << 10},
+		waiting: map[int]chan cdpMessage{}, thrown: map[string][]string{}}
+	go b.read(from)
+	go func() {
+		in := bufio.NewReader(toChrome)
+		line, err := in.ReadBytes(0)
+		if err != nil {
+			return
+		}
+		var msg cdpMessage
+		_ = json.Unmarshal(line[:len(line)-1], &msg)
+		reply, _ := json.Marshal(cdpMessage{ID: msg.ID, Result: json.RawMessage(`{"browserContextId":"c1"}`)})
+		_, _ = fromChrome.Write(append(reply, 0))
+		_, _ = io.Copy(io.Discard, in)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := b.run(ctx, "about:blank", "{}")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("a Chrome that answered nothing but the context gave a result")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the run on a Chrome that stopped answering never came back: the dispose waits on it unbounded")
 	}
 }
