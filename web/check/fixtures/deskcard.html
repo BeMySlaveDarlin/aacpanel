@@ -248,11 +248,16 @@ window.done = (async () => {
     out.noEdge = getComputedStyle(rowOf("helios")).boxShadow;
     // The ground of a live row fills as far as its context, faintly, in the
     // colour of its bar — the open row too; a console being raised has none.
+    // Its box is read from the resolved offsets of the layer, measured
+    // against the bar: the track, and how far the bar's own fill reaches.
     const ground = (row) => {
         const st = getComputedStyle(row, "::before");
-        const bar = row.querySelector(".dksessbar i");
-        return { share: parseFloat(st.width) / row.getBoundingClientRect().width, ground: st.backgroundColor,
-                 bar: bar ? getComputedStyle(bar).backgroundColor : "", under: st.zIndex, own: getComputedStyle(row).isolation };
+        const track = row.querySelector(".dksessbar");
+        const bar = track && track.querySelector("i");
+        return { width: parseFloat(st.width) || 0, span: parseFloat(st.left) + parseFloat(st.width) + parseFloat(st.right),
+                 track: track ? track.getBoundingClientRect().width : 0, reach: bar ? bar.getBoundingClientRect().width : 0,
+                 ground: st.backgroundColor, bar: bar ? getComputedStyle(bar).backgroundColor : "",
+                 under: st.zIndex, own: getComputedStyle(row).isolation };
     };
     out.grounds = Object.fromEntries(["aacpanel", "person", "helios", "acme-fingerprint-rotation-review"].map((n) => [n, ground(rowOf(n))]));
     out.ghostGround = ground(root().querySelector(".dkghost"));

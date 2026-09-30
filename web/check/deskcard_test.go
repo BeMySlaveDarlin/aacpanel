@@ -422,10 +422,12 @@ func TestClosedConversationTimeIsRelative(t *testing.T) {
 	}
 }
 
-// The ground of a live row fills faintly from the left as far as its context,
-// in the colour of its bar, so how full the sessions are reads down the column
-// before a figure is read. The fill lies under the words and stays on the open
-// row; a console still being raised has no context and no fill.
+// The ground of a live row fills faintly as far as its context, in the colour
+// of its bar and over the bar's own columns, so the fill starts and ends where
+// the bar does: a fill measured against the whole row runs past the key column
+// the bar leaves out and ends short of the bar's end. The fill lies under the
+// words and stays on the open row; a console still being raised has no
+// context and no fill.
 func TestDeskRowGroundFillsAsFarAsItsContext(t *testing.T) {
 	got := runDeskCard(t)
 	for name, pct := range map[string]float64{"aacpanel": 41.8, "person": 63, "helios": 10, "acme-fingerprint-rotation-review": 99.6} {
@@ -434,8 +436,14 @@ func TestDeskRowGroundFillsAsFarAsItsContext(t *testing.T) {
 			t.Errorf("%s: the fixture measured no ground", name)
 			continue
 		}
-		if g.Share < pct/100-.01 || g.Share > pct/100+.01 {
-			t.Errorf("%s: the ground fills %.3f of the row against a context of %v%%", name, g.Share, pct)
+		if g.Track == 0 || g.Span < g.Track-1 || g.Span > g.Track+1 {
+			t.Errorf("%s: the ground spans %.1f px against the bar's %.1f — it is not laid over the bar's columns", name, g.Span, g.Track)
+		}
+		if share := g.Width / g.Track; share < pct/100-.01 || share > pct/100+.01 {
+			t.Errorf("%s: the ground fills %.3f of the bar's track against a context of %v%%", name, share, pct)
+		}
+		if d := g.Width - g.Reach; d > 1 || d < -1 {
+			t.Errorf("%s: the ground ends at %.1f px and the bar at %.1f — the two ends of one context do not meet", name, g.Width, g.Reach)
 		}
 		ground, alpha, okG := srgbOf(g.Ground)
 		bar, _, okB := srgbOf(g.Bar)
@@ -457,8 +465,8 @@ func TestDeskRowGroundFillsAsFarAsItsContext(t *testing.T) {
 				name, g.Under, g.Own)
 		}
 	}
-	if got.GhostGround.Share != 0 {
-		t.Errorf("the console being raised is filled to %.3f — it has no context yet", got.GhostGround.Share)
+	if got.GhostGround.Width != 0 {
+		t.Errorf("the console being raised is filled %.1f px wide — it has no context yet", got.GhostGround.Width)
 	}
 }
 
@@ -494,11 +502,15 @@ func srgbOf(css string) ([3]float64, float64, bool) {
 	return c, alpha, true
 }
 
-// rowGround is the faint fill under a live row of the column: how far it
-// reaches as a share of the row, its colour, the colour of the row's bar, and
-// whether it lies under the words.
+// rowGround is the faint fill under a live row of the column: how wide it is
+// and the box it is laid over, the width of the bar's track and how far the
+// bar's fill reaches, its colour against the bar's, and whether it lies under
+// the words.
 type rowGround struct {
-	Share  float64 `json:"share"`
+	Width  float64 `json:"width"`
+	Span   float64 `json:"span"`
+	Track  float64 `json:"track"`
+	Reach  float64 `json:"reach"`
 	Ground string  `json:"ground"`
 	Bar    string  `json:"bar"`
 	Under  string  `json:"under"`

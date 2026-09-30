@@ -587,15 +587,17 @@
         background: none;
     }
 
-    /* The ground of a live row fills faintly from the left as far as its
-       context, in the colour of its bar, so how full the sessions are reads
-       down the column before a figure is read. The fill is a layer of its own
-       under the words: the ground of an open row or of one under the pointer
-       is drawn beneath it and does not take it away. */
+    /* The ground of a live row fills faintly as far as its context, in the
+       colour of its bar and over the bar's own columns, so the fill starts and
+       ends where the bar does and how full the sessions are reads down the
+       column before a figure is read. The fill is a layer of its own under the
+       words: the ground of an open row or of one under the pointer is drawn
+       beneath it and does not take it away. */
     .dksess.dklive { isolation: isolate; }
 
     .dksess.dklive::before {
         content: "";
+        grid-column: 2 / -1;
         position: absolute;
         top: 0;
         bottom: 0;
