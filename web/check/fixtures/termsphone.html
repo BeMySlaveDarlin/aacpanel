@@ -242,7 +242,9 @@ window.done = (async () => {
         if (!rowOf("shop")) throw new Error(`the chip of personal did not turn the choice: ${out.rechosen.join(", ")}`);
 
         rowOf("shop").click();
-        await until(() => document.querySelector(".ttabs"));
+        // The tabs of the place stand up first; the terminal attaches and the
+        // menu goes away a moment later, and on a slow machine a good deal later.
+        await until(() => document.querySelector(".ttabs") && lastStream() && !document.querySelector("nav.tabs"));
         out.started = actions("term.start").map((a) => ({ target: a.target, params: a.params }));
         out.opened = {
             head: text(document.querySelector(".phead h2")),

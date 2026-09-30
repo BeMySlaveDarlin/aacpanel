@@ -122,8 +122,13 @@ const moveLine = async () => {
     await until(() => document.querySelector(".dkpop .toolgo"));
     const go = document.querySelector(".dkpop .toolgo");
     const say = go ? go.textContent.trim() : "";
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    await until(() => !document.querySelector(".dkpop"));
+    // The pop listens for Escape only once its effects have run, which on a
+    // slow machine is after it is drawn: the key goes again until it closes.
+    await until(() => {
+        if (!document.querySelector(".dkpop")) return true;
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        return false;
+    });
     return say;
 };
 // pick presses the view by its name in the pair.

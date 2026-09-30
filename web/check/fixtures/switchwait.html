@@ -123,6 +123,9 @@ window.done = (async () => {
     await sleep(200);
     out.opening = frame();
 
+    // The terminal listens for ready once its effects have run: the event goes
+    // to the stream only when something hears it.
+    await until(() => terms.length && terms[terms.length - 1].on.ready);
     const es = terms[terms.length - 1];
     if (es && es.on.ready) es.on.ready({ data: JSON.stringify({ id: "t1", kind: "tmux", detail: "" }) });
     await until(() => document.querySelector(".termwrap:not(.off)"));
