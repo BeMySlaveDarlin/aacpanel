@@ -87,7 +87,7 @@ def load(path):
     try:
         with open(path, encoding="utf-8") as f:
             marks = json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return {}
     return marks if isinstance(marks, dict) else {}
 
@@ -168,7 +168,8 @@ def remind(payload, now):
 def main():
     try:
         payload = json.load(sys.stdin)
-    except (ValueError, OSError):
+    except (ValueError, OSError, RecursionError):
+        # JSON nested deeper than the reader goes fails with RecursionError.
         return
     text = remind(payload, time.time())
     if text is None:
@@ -179,8 +180,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as err:  # noqa: BLE001 — a failure here would be an error under every turn of the session
-        print(f"background-reminder: {err!r}", file=sys.stderr)
-    sys.exit(0)
+    main()
