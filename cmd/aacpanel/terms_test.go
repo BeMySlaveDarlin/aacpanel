@@ -78,9 +78,9 @@ func TestTermStreamNamesOneThingToAttachTo(t *testing.T) {
 func TestTermsAreListedWithLabelsByPlaceAndAge(t *testing.T) {
 	client, exec := startFakeExec(t, action.Response{OK: true, Terms: []action.Term{
 		{ID: "t-0000beef", Place: "/srv/proj/shop", Name: "logs", Command: "tail",
-			Activity: 1790700500, Created: 1790695000},
+			Activity: 1790700500, Created: 1790695000, Busy: true, Last: "GET /api/cart 200"},
 		{ID: "t-1a2b3c4d", Place: "/srv/proj/shop", Name: "make check", Command: "make",
-			Activity: 1790700000, Created: 1790690000, Clients: 1},
+			Activity: 1790700000, Created: 1790690000, Clients: 1, Busy: true, Last: "ok   shop/store  15.90s"},
 		{ID: "t-00c0ffee", Place: "/home/u", Name: "bash", Command: "bash",
 			Activity: 1790680500, Created: 1790680000},
 	}})
@@ -92,9 +92,9 @@ func TestTermsAreListedWithLabelsByPlaceAndAge(t *testing.T) {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
 	want := `{"terms":[` +
-		`{"id":"t-00c0ffee","place":"/home/u","label":"Home","name":"bash","command":"bash","activity":1790680500,"created":1790680000,"clients":0},` +
-		`{"id":"t-1a2b3c4d","place":"/srv/proj/shop","label":"shop","name":"make check","command":"make","activity":1790700000,"created":1790690000,"clients":1},` +
-		`{"id":"t-0000beef","place":"/srv/proj/shop","label":"shop","name":"logs","command":"tail","activity":1790700500,"created":1790695000,"clients":0}` +
+		`{"id":"t-00c0ffee","place":"/home/u","label":"Home","name":"bash","command":"bash","activity":1790680500,"created":1790680000,"clients":0,"busy":false,"last":""},` +
+		`{"id":"t-1a2b3c4d","place":"/srv/proj/shop","label":"shop","name":"make check","command":"make","activity":1790700000,"created":1790690000,"clients":1,"busy":true,"last":"ok   shop/store  15.90s"},` +
+		`{"id":"t-0000beef","place":"/srv/proj/shop","label":"shop","name":"logs","command":"tail","activity":1790700500,"created":1790695000,"clients":0,"busy":true,"last":"GET /api/cart 200"}` +
 		`]}`
 	if got := strings.TrimSpace(rec.Body.String()); got != want {
 		t.Errorf("the list is\n%s\ninstead of\n%s", got, want)

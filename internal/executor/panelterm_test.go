@@ -59,17 +59,159 @@ func TestPanelTermsAreListedFromTheirOwnSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []action.Term{
-		{ID: "t-1a2b3c4d", Place: "/srv/proj/shop", Name: "make", Command: "make",
+		{ID: "t-1a2b3c4d", Place: "/srv/proj/shop", Name: "make", Command: "make", Busy: true,
 			Activity: 1790700000, Created: 1790690000, Clients: 1},
-		{ID: "t-0000beef", Place: "/home/u", Name: "logs", Command: "tail",
+		{ID: "t-0000beef", Place: "/home/u", Name: "logs", Command: "tail", Busy: true,
 			Activity: 1790680500, Created: 1790680000},
 	}
 	if !reflect.DeepEqual(list, want) {
 		t.Errorf("the terminals are listed as\n%+v\ninstead of\n%+v", list, want)
 	}
 	calls := panelCalls(t, stub.log)
-	if len(calls) != 1 || calls[0][0] != "list-sessions" {
-		t.Errorf("the list was asked with %v", calls)
+	if len(calls) == 0 || calls[0][0] != "list-sessions" {
+		t.Fatalf("the list was asked with %v", calls)
+	}
+	for _, c := range calls[1:] {
+		if c[0] != "capture-pane" {
+			t.Errorf("after the list tmux was asked %v — one list-sessions for all, a screen for each", c)
+		}
+	}
+}
+
+// screensTmux plays the panel's tmux with a screen of its own for every
+// terminal: it lists the sessions it is given, shows a terminal named in
+// screens its screen, never answers for one named in hang, and refuses the
+// screen of any other.
+func screensTmux(t *testing.T, sessions []string, screens map[string]string, hang ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	log := filepath.Join(dir, "argv")
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("sessions", strings.Join(sessions, "\n")+"\n")
+	for id, screen := range screens {
+		write("screen-"+id, screen)
+	}
+	for _, id := range hang {
+		write("hang-"+id, "")
+	}
+	// The hang execs its sleep: a sleep under the shell would keep the pipe
+	// open after the shell is killed, and the call would wait for it.
+	script := fmt.Sprintf(`#!/bin/sh
+for a in "$@"; do printf '%%s\n' "$a" >> %[1]q; done
+printf -- '--\n' >> %[1]q
+d=%[2]q
+if [ "$1" = -L ]; then shift 2; fi
+cmd=$1
+t=
+while [ $# -gt 0 ]; do
+	if [ "$1" = -t ]; then t=$(printf '%%s' "$2" | tr -d '=:'); fi
+	shift
+done
+case $cmd in
+list-sessions) cat "$d/sessions" ;;
+capture-pane)
+	if [ -f "$d/hang-$t" ]; then exec sleep 5; fi
+	if [ -f "$d/screen-$t" ]; then cat "$d/screen-$t"; exit 0; fi
+	echo "can't find pane: $t" >&2
+	exit 1 ;;
+esac
+`, log, dir)
+	bin := filepath.Join(dir, "tmux")
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(tmuxEnv, bin)
+	return log
+}
+
+func termRow(id, command string) string {
+	return id + "\t1790690000\t1790700000\t0\t/srv/proj/shop\t\t" + command + "\t" + command
+}
+
+func TestTermsTellWhetherSomethingRunsBesideTheShell(t *testing.T) {
+	busy := map[string]bool{
+		"bash": false, "zsh": false, "sh": false, "fish": false,
+		"make": true, "htop": true, "sleep": true, "npm": true, "python3": true,
+	}
+	var rows []string
+	of := map[string]string{}
+	for command := range busy {
+		id := fmt.Sprintf("t-%08x", len(rows)+1)
+		of[id] = command
+		rows = append(rows, termRow(id, command))
+	}
+	screensTmux(t, rows, nil)
+
+	list, err := (&Executor{}).Terms(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != len(busy) {
+		t.Fatalf("%d terminals listed of %d", len(list), len(busy))
+	}
+	for _, term := range list {
+		if want := busy[of[term.ID]]; term.Busy != want {
+			t.Errorf("with %q in the foreground the terminal is busy %v, expected %v", of[term.ID], term.Busy, want)
+		}
+	}
+}
+
+func TestTermsCarryTheLastLineOnTheirScreen(t *testing.T) {
+	long := strings.Repeat("ж", termLastRunes+40)
+	var rows []string
+	for i := 1; i <= 6; i++ {
+		rows = append(rows, termRow(fmt.Sprintf("t-%08x", i), "bash"))
+	}
+	log := screensTmux(t, rows, map[string]string{
+		"t-00000001": "u@h shop $ make check\nok   shop/cart    0.21s\n  ok   shop/store  15.90s  \n   \n\n\n",
+		"t-00000002": "u@h ~ $ cat big\n" + long + "\n\n",
+		"t-00000003": "\n\n   \n\n",
+	}, "t-00000005")
+	// A screen has a bound of its own, far under the one of any tmux call: the
+	// one that never answers is given up on long before its sleep ends.
+	prevCapture, prevTmux := termCaptureTimeout, tmuxTimeout
+	termCaptureTimeout, tmuxTimeout = 50*time.Millisecond, time.Minute
+	t.Cleanup(func() { termCaptureTimeout, tmuxTimeout = prevCapture, prevTmux })
+
+	began := time.Now()
+	list, err := (&Executor{}).Terms(t.Context())
+	if err != nil {
+		t.Fatalf("a screen that did not come dropped the list: %v", err)
+	}
+	if took := time.Since(began); took > 3*time.Second {
+		t.Errorf("the list took %v — a screen that does not answer held it up", took)
+	}
+	last := map[string]string{}
+	for _, term := range list {
+		last[term.ID] = term.Last
+	}
+	want := map[string]string{
+		"t-00000001": "ok   shop/store  15.90s",
+		"t-00000002": string([]rune(long)[:termLastRunes]) + "…",
+		"t-00000003": "",
+		"t-00000004": "",
+		"t-00000005": "",
+		"t-00000006": "",
+	}
+	if !reflect.DeepEqual(last, want) {
+		t.Errorf("the last lines are\n%q\ninstead of\n%q", last, want)
+	}
+
+	var captures [][]string
+	for _, c := range panelCalls(t, log) {
+		if c[0] == "capture-pane" {
+			captures = append(captures, c)
+		}
+	}
+	if len(captures) != 6 {
+		t.Fatalf("%d screens were read for six terminals: %v", len(captures), captures)
+	}
+	if want := []string{"capture-pane", "-p", "-t", "=t-00000001:"}; !slices.Equal(captures[0], want) {
+		t.Errorf("the screen was read with %v instead of %v — plain text of the exact session", captures[0], want)
 	}
 }
 
@@ -360,6 +502,49 @@ func TestLivePanelTerminalFromStartToClose(t *testing.T) {
 	}
 	if list, err := panelTerms(t.Context()); err != nil || len(list) != 0 {
 		t.Errorf("after the close the terminals are %+v (%v)", list, err)
+	}
+}
+
+func TestLivePanelTerminalTellsWhatRunsAndItsLastLine(t *testing.T) {
+	ownPanelTmux(t)
+	const id = "t-0a1b2c3d"
+	if _, err := launcher.Term(launcher.TermSpec{Dir: t.TempDir(), Session: id, Socket: string(panelTmux)}); err != nil {
+		t.Fatalf("the terminal did not start: %v", err)
+	}
+	e := &Executor{}
+	// seen waits for the terminal to be listed as ok takes it.
+	seen := func(ok func(action.Term) bool) action.Term {
+		t.Helper()
+		var last action.Term
+		for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+			list, err := e.Terms(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(list) == 1 {
+				last = list[0]
+				if ok(last) {
+					return last
+				}
+			}
+		}
+		t.Fatalf("the terminal stayed listed as %+v", last)
+		return last
+	}
+
+	idle := seen(func(term action.Term) bool { return term.Last != "" })
+	if idle.Busy {
+		t.Errorf("a shell at its prompt is listed busy: %+v", idle)
+	}
+	if _, err := panelTmux.run(t.Context(), "send-keys", "-t", "="+id+":",
+		"printf 'one\\ntwo\\n'; sleep 30", "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	// The command in the foreground and the screen are read apart, so the
+	// terminal is waited for until both have caught up.
+	running := seen(func(term action.Term) bool { return term.Busy && term.Last == "two" })
+	if running.Command != "sleep" {
+		t.Errorf("the busy terminal runs %q, expected sleep", running.Command)
 	}
 }
 

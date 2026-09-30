@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/launcher"
@@ -32,14 +33,71 @@ var panelTermFormat = strings.Join([]string{
 
 const panelTermFields = 8
 
-// Terms lists the terminals of the panel.
-func (e *Executor) Terms(ctx context.Context) ([]action.Term, error) {
-	return panelTerms(ctx)
+// panelShells are the commands a terminal shows while nothing runs in it: tmux
+// names the command of a pane after the process in its foreground, and a shell
+// waiting at its prompt is the shell itself.
+var panelShells = map[string]bool{
+	"bash": true, "zsh": true, "fish": true, "sh": true, "dash": true, "ksh": true, "mksh": true,
+	"tcsh": true, "csh": true, "nu": true, "elvish": true, "xonsh": true,
 }
 
-// panelTerms lists the terminals on the panel's tmux server. A session there
-// without an id of the panel or without its place was not started by the
-// panel, and is left out: nothing the panel does can name it.
+// termLastRunes is the ceiling on the last line of a screen a terminal is
+// listed with: the card shows one line of it, and a screen as wide as a monitor
+// need not ride along in every list.
+const termLastRunes = 160
+
+// termCaptureTimeout bounds the reading of one screen, well under a tmux call
+// of its own: the line is a glance, and a screen slow to come leaves its
+// terminal without one rather than holding up the list.
+var termCaptureTimeout = time.Second
+
+// Terms lists the terminals of the panel, each with the last line on its
+// screen.
+func (e *Executor) Terms(ctx context.Context) ([]action.Term, error) {
+	list, err := panelTerms(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range list {
+		list[i].Last = termLast(ctx, list[i].ID)
+	}
+	return list, nil
+}
+
+// termBusy reports that something other than the shell runs in a terminal.
+func termBusy(command string) bool {
+	return !panelShells[command]
+}
+
+// termLast reads the screen of a terminal and gives its last line. A screen
+// that could not be read is no line: the terminal is listed all the same.
+func termLast(ctx context.Context, id string) string {
+	callCtx, cancel := context.WithTimeout(ctx, termCaptureTimeout)
+	defer cancel()
+	screen, err := panelTmux.run(callCtx, "capture-pane", "-p", "-t", "="+id+":")
+	if err != nil {
+		return ""
+	}
+	return lastLine(screen)
+}
+
+// lastLine is the last line of a screen that is not blank, trimmed and cut to
+// termLastRunes. A screen fills from the top, so the rows under the cursor are
+// empty, and the last one with text is where the terminal stands.
+func lastLine(screen string) string {
+	lines := strings.Split(screen, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(lines[i]); line != "" {
+			return cutRunes(line, termLastRunes)
+		}
+	}
+	return ""
+}
+
+// panelTerms lists the terminals on the panel's tmux server, and whether
+// something other than the shell runs in each. A session there without an id
+// of the panel or without its place was not started by the panel, and is left
+// out: nothing the panel does can name it.
 func panelTerms(ctx context.Context) ([]action.Term, error) {
 	out, err := panelTmux.run(ctx, "list-sessions", "-F", panelTermFormat)
 	if err != nil {
@@ -62,7 +120,7 @@ func panelTerms(ctx context.Context) ([]action.Term, error) {
 			name = f[6]
 		}
 		list = append(list, action.Term{
-			ID: f[0], Place: f[4], Name: name, Command: f[7],
+			ID: f[0], Place: f[4], Name: name, Command: f[7], Busy: termBusy(f[7]),
 			Activity: activity, Created: created, Clients: clients,
 		})
 	}

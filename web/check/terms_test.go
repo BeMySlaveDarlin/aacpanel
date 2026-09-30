@@ -1,6 +1,7 @@
 package check
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -9,6 +10,42 @@ type termAction struct {
 	Kind   string            `json:"kind"`
 	Target string            `json:"target"`
 	Params map[string]string `json:"params"`
+}
+
+// termCard is a card of a terminal as a fixture reads it; the setting of the
+// last line is read only when there is one.
+type termCard struct {
+	Name     string  `json:"name"`
+	Runs     bool    `json:"runs"`
+	When     string  `json:"when"`
+	Last     *string `json:"last"`
+	Lines    int     `json:"lines"`
+	Cut      bool    `json:"cut"`
+	Ellipsis bool    `json:"ellipsis"`
+	Mono     bool    `json:"mono"`
+	Under    bool    `json:"under"`
+}
+
+// lastReads says what is wrong with the last line of a card that has one, or
+// nothing: it stands on one line of the face of the name, under the name and
+// across to the end of the card, and a line longer than the card ends in an
+// ellipsis rather than running over.
+func (c termCard) lastReads(want string, long bool) string {
+	switch {
+	case c.Last == nil:
+		return "the card has no last line"
+	case *c.Last != want:
+		return fmt.Sprintf("the last line reads %q, expected %q", *c.Last, want)
+	case c.Lines != 1:
+		return fmt.Sprintf("the last line takes %d lines", c.Lines)
+	case !c.Mono:
+		return "the last line is not in the face of the name"
+	case !c.Under:
+		return "the last line does not stand under the name across the card"
+	case long && !(c.Cut && c.Ellipsis):
+		return fmt.Sprintf("a line longer than the card is cut %v, with an ellipsis %v", c.Cut, c.Ellipsis)
+	}
+	return ""
 }
 
 type termsPhoneShot struct {
@@ -26,12 +63,9 @@ type termsPhoneShot struct {
 		Empty     string `json:"empty"`
 		NewButton bool   `json:"newButton"`
 	} `json:"pages"`
-	Picked   string `json:"picked"`
-	HomeCard []struct {
-		Name string `json:"name"`
-		Runs bool   `json:"runs"`
-		When string `json:"when"`
-	} `json:"homeCards"`
+	Picked   string       `json:"picked"`
+	HomeCard []termCard   `json:"homeCards"`
+	BareCard termCard     `json:"bareCard"`
 	Picker   []string     `json:"picker"`
 	Rechosen []string     `json:"rechosen"`
 	Started  []termAction `json:"started"`
@@ -148,6 +182,25 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		}
 		if c := got.HomeCard[1]; c.Name != "htop" || !c.Runs || c.When != "typed 1h" {
 			t.Errorf("a running command reads %+v, expected htop with its dot, typed 1h", c)
+		}
+	})
+
+	// Under the name a card shows the last line on the screen of its terminal,
+	// in the face of the name, on one line cut with an ellipsis; a terminal
+	// whose screen the host did not read has no such line at all.
+	t.Run("a card shows the last line of its screen", func(t *testing.T) {
+		if len(got.HomeCard) != 2 {
+			t.Fatalf("home shows %d cards, expected 2", len(got.HomeCard))
+		}
+		if trouble := got.HomeCard[0].lastReads("u@helios ~ $", false); trouble != "" {
+			t.Errorf("the idle shell: %s", trouble)
+		}
+		htop := "F1Help  F2Setup  F3Search  F4Filter  F5Tree  F6SortBy  F7Nice -  F8Nice +  F9Kill  F10Quit"
+		if trouble := got.HomeCard[1].lastReads(htop, true); trouble != "" {
+			t.Errorf("htop: %s", trouble)
+		}
+		if c := got.BareCard; c.Name != "zsh" || c.Last != nil {
+			t.Errorf("a terminal listed without a last line reads %+v — expected no line under its name", c)
 		}
 	})
 
@@ -324,12 +377,13 @@ func TestNoTerminalRouteNoTerminals(t *testing.T) {
 // rest.
 func TestTerminalsOnTheDesk(t *testing.T) {
 	type column struct {
-		Head  string   `json:"head"`
-		Count string   `json:"count"`
-		Path  string   `json:"path"`
-		Cards []string `json:"cards"`
-		Left  int      `json:"left"`
-		Top   int      `json:"top"`
+		Head  string     `json:"head"`
+		Count string     `json:"count"`
+		Path  string     `json:"path"`
+		Cards []string   `json:"cards"`
+		Shots []termCard `json:"shots"`
+		Left  int        `json:"left"`
+		Top   int        `json:"top"`
 	}
 	var got struct {
 		Error     string   `json:"error"`
@@ -381,6 +435,34 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		}
 		if got.Chooser != "places" || got.NewButton != "New" {
 			t.Errorf("above the columns: chooser %q, button %q — expected the choice of places and New", got.Chooser, got.NewButton)
+		}
+	})
+
+	// A card in a column wears the dot the host gives it, whatever the
+	// command, and the last line of its screen under its name.
+	t.Run("a card in a column tells what runs and its last line", func(t *testing.T) {
+		if len(got.Columns) != 3 || len(got.Columns[2].Shots) != 3 {
+			t.Fatalf("the columns are %+v, expected shop third with three cards", got.Columns)
+		}
+		shop := got.Columns[2].Shots
+		for i, want := range []struct {
+			name string
+			runs bool
+		}{{"make check", true}, {"zsh", false}, {"git log", false}} {
+			if shop[i].Name != want.name || shop[i].Runs != want.runs {
+				t.Errorf("card %d reads %q with a dot %v, expected %q with %v — the dot is the host's word",
+					i, shop[i].Name, shop[i].Runs, want.name, want.runs)
+			}
+		}
+		long := "ok   shop/internal/store   15.90s   coverage: 81.4% of statements in shop/internal/store/..."
+		if trouble := shop[0].lastReads(long, true); trouble != "" {
+			t.Errorf("make check: %s", trouble)
+		}
+		if trouble := shop[1].lastReads("u@helios shop main $", false); trouble != "" {
+			t.Errorf("zsh: %s", trouble)
+		}
+		if shop[2].Last != nil {
+			t.Errorf("git log shows the last line %q — the host gave it none", *shop[2].Last)
 		}
 	})
 

@@ -25,14 +25,19 @@ const pause = async (name) => {
 };
 
 const now = Math.floor(Date.now() / 1000);
-const T = (id, place, label, name, command, typedAgo, created) =>
-    ({ id, place, label, name, command, activity: now - typedAgo, created: now - created, clients: 0 });
+const T = (id, place, label, name, command, typedAgo, created, screen = {}) =>
+    ({ id, place, label, name, command, activity: now - typedAgo, created: now - created, clients: 0, ...screen });
+// Whether something runs is the host's word, not the command's: the host has
+// not said so of git log, and its card has no dot.
 let terms = [
     T("t-lab", "/data/lab", "lab", "zsh", "zsh", 7200, 9000),
     T("t-h1", "/home/u", "Home", "zsh", "zsh", 180, 8000),
-    T("t-h2", "/home/u", "Home", "htop", "htop", 3600, 7000),
-    T("t-s1", "/srv/proj/shop", "shop", "make check", "make", 60, 6000),
-    T("t-s2", "/srv/proj/shop", "shop", "zsh", "zsh", 720, 5000),
+    T("t-h2", "/home/u", "Home", "htop", "htop", 3600, 7000, { busy: true }),
+    T("t-s1", "/srv/proj/shop", "shop", "make check", "make", 60, 6000, {
+        busy: true,
+        last: "ok   shop/internal/store   15.90s   coverage: 81.4% of statements in shop/internal/store/...",
+    }),
+    T("t-s2", "/srv/proj/shop", "shop", "zsh", "zsh", 720, 5000, { last: "u@helios shop main $" }),
     T("t-s3", "/srv/proj/shop", "shop", "git log", "git", 2400, 4000),
 ];
 const profileMap = [
@@ -100,6 +105,33 @@ const until = async (fn, ms = 3000) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const all = (sel, from = document) => Array.from(from.querySelectorAll(sel));
 const sections = () => all(".dktop .dkibs")[0];
+// A card reads as its name, its dot and the last line of its screen, with how
+// that line is set, as on the phone.
+const cardShot = (c) => {
+    const last = c.querySelector(".tcardlast");
+    const shot = {
+        name: text(c.querySelector(".tcardname")),
+        runs: c.querySelector(".tdot").classList.contains("run"),
+        when: text(c.querySelector(".tcardwhen")),
+        last: last ? last.textContent : null,
+    };
+    if (!last) return shot;
+    const style = getComputedStyle(last);
+    const range = document.createRange();
+    range.selectNodeContents(last);
+    const name = c.querySelector(".tcardname").getBoundingClientRect();
+    const when = c.querySelector(".tcardwhen").getBoundingClientRect();
+    const box = last.getBoundingClientRect();
+    return {
+        ...shot,
+        // An ellipsis is a box of its own on the same line: lines count by their tops.
+        lines: new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size,
+        cut: last.scrollWidth > last.clientWidth,
+        ellipsis: style.textOverflow === "ellipsis",
+        mono: style.fontFamily === getComputedStyle(c.querySelector(".tcardname")).fontFamily,
+        under: box.top >= name.bottom && Math.round(box.left) === Math.round(name.left) && Math.round(box.right) === Math.round(when.right),
+    };
+};
 
 window.done = (async () => {
     const out = {};
@@ -118,6 +150,7 @@ window.done = (async () => {
                 count: text(s.querySelector(".theadcount")),
                 path: text(s.querySelector(".theadpath")),
                 cards: all(".tcardname", s).map(text),
+                shots: all(".tcard", s).map(cardShot),
                 left: Math.round(r.left),
                 top: Math.round(r.top),
             };

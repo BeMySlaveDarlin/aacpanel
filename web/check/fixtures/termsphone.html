@@ -27,19 +27,21 @@ const pause = async (name) => {
 };
 
 const now = Math.floor(Date.now() / 1000);
-const T = (id, place, label, name, command, typedAgo, created) =>
-    ({ id, place, label, name, command, activity: now - typedAgo, created: now - created, clients: 0 });
+const T = (id, place, label, name, command, typedAgo, created, screen = {}) =>
+    ({ id, place, label, name, command, activity: now - typedAgo, created: now - created, clients: 0, ...screen });
 // The host lists by place, and the screen lays the places out otherwise: a
 // project of a contour stands on its page in the order of the map, and the
 // first contour takes home ahead of its projects and a place no contour lists
-// after them — even where another contour lists the home directory.
+// after them — even where another contour lists the home directory. Whether
+// something runs and the last line of a screen are the host's word.
+const HTOP_KEYS = "F1Help  F2Setup  F3Search  F4Filter  F5Tree  F6SortBy  F7Nice -  F8Nice +  F9Kill  F10Quit";
 let terms = [
     T("t-lab", "/data/lab", "lab", "zsh", "zsh", 7200, 9000),
-    T("t-h1", "/home/u", "Home", "zsh", "zsh", 180, 8000),
-    T("t-h2", "/home/u", "Home", "htop", "htop", 3600, 7000),
+    T("t-h1", "/home/u", "Home", "zsh", "zsh", 180, 8000, { last: "u@helios ~ $" }),
+    T("t-h2", "/home/u", "Home", "htop", "htop", 3600, 7000, { busy: true, last: HTOP_KEYS }),
     T("t-misc", "/opt/misc", "misc", "zsh", "zsh", 900, 6500),
-    T("t-api", "/srv/proj/api", "api", "npm run dev", "npm", 300, 6200),
-    T("t-s1", "/srv/proj/shop", "shop", "make check", "make", 60, 6000),
+    T("t-api", "/srv/proj/api", "api", "npm run dev", "npm", 300, 6200, { busy: true, last: "ready in 412 ms" }),
+    T("t-s1", "/srv/proj/shop", "shop", "make check", "make", 60, 6000, { busy: true, last: "ok   shop/internal/store   15.90s" }),
     T("t-s2", "/srv/proj/shop", "shop", "zsh", "zsh", 720, 5000),
     T("t-s3", "/srv/proj/shop", "shop", "git log", "git", 2400, 4000),
 ];
@@ -160,6 +162,35 @@ const pageShot = (page) => ({
     empty: text(page.querySelector(".empty")),
     newButton: Boolean(page.querySelector(".ttitle .tnew")),
 });
+// A card reads as its name, its dot, when it was typed into and the last line
+// of its screen, with how that line is set: how many lines it takes, whether
+// it is cut and with what, whether it wears the face of the name, and whether
+// it stands under the name across to the end of the card.
+const cardShot = (c) => {
+    const last = c.querySelector(".tcardlast");
+    const shot = {
+        name: text(c.querySelector(".tcardname")),
+        runs: c.querySelector(".tdot").classList.contains("run"),
+        when: text(c.querySelector(".tcardwhen")),
+        last: last ? last.textContent : null,
+    };
+    if (!last) return shot;
+    const style = getComputedStyle(last);
+    const range = document.createRange();
+    range.selectNodeContents(last);
+    const name = c.querySelector(".tcardname").getBoundingClientRect();
+    const when = c.querySelector(".tcardwhen").getBoundingClientRect();
+    const box = last.getBoundingClientRect();
+    return {
+        ...shot,
+        // An ellipsis is a box of its own on the same line: lines count by their tops.
+        lines: new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size,
+        cut: last.scrollWidth > last.clientWidth,
+        ellipsis: style.textOverflow === "ellipsis",
+        mono: style.fontFamily === getComputedStyle(c.querySelector(".tcardname")).fontFamily,
+        under: box.top >= name.bottom && Math.round(box.left) === Math.round(name.left) && Math.round(box.right) === Math.round(when.right),
+    };
+};
 const tabs = () => all(".ttabs .ttab:not(.tadd)").map(text);
 const onTab = () => text(document.querySelector(".ttabs .ttab.on"));
 const pageOf = (label) => {
@@ -190,11 +221,9 @@ window.done = (async () => {
         out.homeCards = all(".tplace", pageOf("personal"))
             .filter((sec) => text(sec.querySelector(".theadname")) === "Home")
             .flatMap((sec) => all(".tcard", sec))
-            .map((c) => ({
-                name: text(c.querySelector(".tcardname")),
-                runs: c.querySelector(".tdot").classList.contains("run"),
-                when: text(c.querySelector(".tcardwhen")),
-            }));
+            .map(cardShot);
+        out.bareCard = cardShot(all(".tplace", pageOf("personal"))
+            .find((sec) => text(sec.querySelector(".theadname")) === "misc").querySelector(".tcard"));
         await pause("A");
 
         all(".pftab").find((b) => text(b).startsWith("work")).click();

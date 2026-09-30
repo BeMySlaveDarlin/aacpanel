@@ -43,11 +43,13 @@
 .tnew svg { width: var(--i-sm); height: var(--i-sm); }
 
 /* A terminal is a glass card; one with something running in it wears the
-   accent on its edge, the way its dot glows. */
+   accent on its edge, the way its dot glows. The last line on its screen
+   stands under the name, across to the end of the card. */
 .tcard {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: .55rem;
+    gap: .15rem .55rem;
     width: 100%;
     min-height: 48px;
     padding: .55rem .75rem;
@@ -64,7 +66,6 @@
 .tcard:active { background: var(--glass-2); }
 
 .tcardname {
-    flex: 1 1 auto;
     min-width: 0;
     font-family: var(--mono);
     font-size: var(--t-sm);
@@ -72,7 +73,17 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.tcardwhen { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
+.tcardwhen { font-size: var(--t-xs); color: var(--ink-faint); }
+.tcardlast {
+    grid-column: 2 / -1;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
+}
 
 .tdot { flex: none; width: .45rem; height: .45rem; border-radius: 50%; background: var(--line); }
 .tdot.run { background: var(--accent); box-shadow: 0 0 .4rem var(--accent); }

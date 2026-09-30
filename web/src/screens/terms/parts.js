@@ -11,7 +11,8 @@ import { runs, tabName, typed } from "../../data/terms.js";
 export const NAME_MAX = 40;
 
 // TermCard is a terminal on the page of its place: what it is called, whether
-// something runs in it and when it was typed into last.
+// something runs in it, when it was typed into last and the last line on its
+// screen.
 export function TermCard({ t, onOpen }) {
     const busy = runs(t);
     return html`
@@ -20,6 +21,7 @@ export function TermCard({ t, onOpen }) {
             <span class=${`tdot${busy ? " run" : ""}`}></span>
             <span class="tcardname">${tabName(t)}</span>
             <span class="tcardwhen">${typed(t.activity)}</span>
+            ${t.last && html`<span class="tcardlast">${t.last}</span>`}
         </button>
     `;
 }

@@ -19,7 +19,9 @@ import (
 // homeLabel is what the home directory is called in the list of terminals.
 const homeLabel = "Home"
 
-// termRow is a terminal of the panel as the screen lists it.
+// termRow is a terminal of the panel as the screen lists it: busy while
+// something other than the shell runs in it, and last the last line on its
+// screen.
 type termRow struct {
 	ID       string `json:"id"`
 	Place    string `json:"place"`
@@ -29,6 +31,8 @@ type termRow struct {
 	Activity int64  `json:"activity"`
 	Created  int64  `json:"created"`
 	Clients  int    `json:"clients"`
+	Busy     bool   `json:"busy"`
+	Last     string `json:"last"`
 }
 
 // apiTerms lists the terminals of the panel, grouped by place and in the order
@@ -56,6 +60,7 @@ func (s *Server) apiTerms(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, termRow{
 			ID: t.ID, Place: t.Place, Label: placeLabel(places, t.Place), Name: t.Name,
 			Command: t.Command, Activity: t.Activity, Created: t.Created, Clients: t.Clients,
+			Busy: t.Busy, Last: t.Last,
 		})
 	}
 	sort.SliceStable(rows, func(i, j int) bool {

@@ -69,15 +69,10 @@ export function latestIn(terms, place) {
     return best;
 }
 
-// SHELLS are the commands a tab shows while nothing runs in it: tmux names a
-// tab after what runs in its pane, and a shell waiting at its prompt is the
-// shell itself.
-const SHELLS = new Set(["bash", "zsh", "fish", "sh", "dash", "ksh", "mksh", "tcsh", "csh", "nu", "elvish", "xonsh"]);
-
-// runs says whether something other than the shell runs in the terminal.
+// runs says whether something other than the shell runs in the terminal: the
+// host tells it by the command in the foreground of its pane.
 export function runs(t) {
-    const cmd = String((t && t.command) || "").replace(/^-/, "");
-    return Boolean(cmd) && !SHELLS.has(cmd);
+    return Boolean(t && t.busy);
 }
 
 // tabName is what a tab is called: the name given to it, or what runs in it.

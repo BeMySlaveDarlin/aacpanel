@@ -23,6 +23,8 @@ type Term struct {
 	Activity int64  `json:"activity"`
 	Created  int64  `json:"created"`
 	Clients  int    `json:"clients"`
+	Busy     bool   `json:"busy,omitempty"`
+	Last     string `json:"last,omitempty"`
 }
 
 // TermsAsker is an executor that lists the terminals of the panel.
