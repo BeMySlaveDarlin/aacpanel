@@ -129,9 +129,12 @@ class TestLines(unittest.TestCase):
         self.assertIn("leave it out of replies", line)
         self.assertNotIn("finalize", line, "a session that restarts itself is still told to wrap up")
 
-    def test_past_the_cap_with_auto_restart_is_no_alarm(self):
-        self.assertIsNone(stamp.line_alarms(snapshot(), "other", 80, True),
-                          "the guard stops the session itself, yet the stamp raises an alarm")
+    def test_past_the_cap_with_auto_restart_the_alarm_holds_new_work_back(self):
+        said = stamp.line_alarms(snapshot(), "other", 80, True)
+        self.assertIn("CONTEXT past the cap", said or "",
+                      "the session goes past the cap unwarned and keeps the guard waiting on new work")
+        self.assertIn("start no new work, background included", said)
+        self.assertIsNone(stamp.line_alarms(snapshot(), "mine", 80, True))
 
     def test_a_project_that_restarts_its_sessions_says_so_in_the_stamp(self):
         with tempfile.TemporaryDirectory() as xdg, tempfile.TemporaryDirectory() as state_dir:
@@ -142,9 +145,9 @@ class TestLines(unittest.TestCase):
                 json.dump(snapshot(), f)
             said = run_main(xdg, state_dir, {"session_id": "other", "cwd": "/srv/proj/app"}, "UserPromptSubmit")
             self.assertIn("auto restart at 800k", said)
-            self.assertNotIn("CONTEXT past the cap", said)
+            self.assertIn("CONTEXT past the cap: start no new work", said)
 
-    def test_a_step_of_the_context_is_not_retold_where_the_guard_restarts(self):
+    def test_a_step_of_the_context_speaks_up_where_the_guard_restarts(self):
         with tempfile.TemporaryDirectory() as xdg, tempfile.TemporaryDirectory() as state_dir:
             os.makedirs(os.path.join(xdg, "aacpanel"))
             with open(os.path.join(xdg, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
@@ -157,8 +160,10 @@ class TestLines(unittest.TestCase):
             data["sessions"][0].update({"tokens": 610_000, "pct": 61.0})
             with open(os.path.join(state_dir, "state.json"), "w", encoding="utf-8") as f:
                 json.dump(data, f)
+            self.assertIn("610k/1M", run_main(xdg, state_dir, payload, "PostToolBatch"),
+                          "a step of the context went unsaid in a session the guard restarts")
             self.assertEqual(run_main(xdg, state_dir, payload, "PostToolBatch"), "",
-                             "a step of the context spoke up in the middle of a turn that restarts itself")
+                             "the same step of the context spoke up twice")
 
     def test_a_window_that_is_not_a_round_million_stays_in_thousands(self):
         data = snapshot()
@@ -175,6 +180,8 @@ class TestLines(unittest.TestCase):
         self.assertIsNone(stamp.line_alarms(snapshot(), "mine", 80))
         self.assertIn("CONTEXT past the cap", stamp.line_alarms(snapshot(), "other", 80))
         self.assertIn("CONTEXT past the cap", stamp.line_alarms(snapshot(), "mine", 50))
+        self.assertNotIn("restart", stamp.line_alarms(snapshot(), "other", 80),
+                         "a project that does not restart its sessions is told of a restart")
 
     def test_unknown_model_window_is_said_aloud(self):
         data = snapshot()

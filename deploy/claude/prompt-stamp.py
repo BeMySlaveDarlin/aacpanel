@@ -59,8 +59,9 @@ def line_context(state, session_id, cap=guards.CAP_DEFAULT, restart=False):
 
     The share is of the window, the hard limit; the cap stands beside it as a number of
     its own — a share of the cap read as a share of the window says "wrap up" a quarter
-    too early. Where the project restarts its sessions itself, the cap is not a point for
-    the session to act on or to talk about: the guard wraps it up when it comes.
+    too early. Where the project restarts its sessions itself, the cap is where the restart
+    comes: the session knows how near it is, so as not to start there what the restart
+    would cut, and leaves it out of its replies — the guard wraps it up.
     """
     s = session_of(state, session_id)
     if s is None:
@@ -135,12 +136,14 @@ def line_disks(state):
 def line_alarms(state, session_id="", cap=guards.CAP_DEFAULT, restart=False):
     """Returns the alarms line, empty when there is nothing to say.
 
-    Past the cap of a project that restarts its sessions there is no alarm: the guard
-    stops the session at the end of the turn, and an alarm would only be retold.
+    Past the cap of a project that restarts its sessions, the alarm says what holds the
+    restart back: the guard waits for the session's agents and background work, and a
+    session that keeps starting more of it is never restarted.
     """
     alarms = []
-    if session_id and not restart and past_cap(state, session_id, cap):
-        alarms.append("CONTEXT past the cap")
+    if session_id and past_cap(state, session_id, cap):
+        alarms.append("CONTEXT past the cap: start no new work, background included; "
+                      "the restart waits for what already runs" if restart else "CONTEXT past the cap")
     host = state.get("host") or {}
     for d in (host.get("disks") or []):
         pct = d.get("pct")
@@ -242,11 +245,8 @@ def main():
 
     if event != "UserPromptSubmit":
         # A step of the context speaks up between prompts so that a session can wrap up
-        # in time; where the guard restarts the session, there is nothing to wrap up for.
-        pct = None
-        for s in (state or {}).get("sessions", []):
-            if s.get("sessionId") == session_id and not restart:
-                pct = s.get("pct")
+        # in time, or, where the guard restarts it, not start what the restart would cut.
+        pct = (session_of(state, session_id) or {}).get("pct")
         if not throttle(state_dir, session_id, pct, line_alarms(state or {}, session_id, cap, restart)):
             return
         lines = [l for l in lines if not l.startswith("[")]
