@@ -7,10 +7,14 @@ import (
 	"time"
 )
 
+// shortBusTimeout bounds a call to konsole well under its real bound and far
+// over what a call of the fake takes: the fake is a python script, started
+// anew for every call, and on a loaded runner a start alone has taken longer
+// than 150ms. A stalled call of the fake sleeps for half a minute.
 func shortBusTimeout(t *testing.T) {
 	t.Helper()
 	was := konsoleTimeout
-	konsoleTimeout = 150 * time.Millisecond
+	konsoleTimeout = time.Second
 	t.Cleanup(func() { konsoleTimeout = was })
 }
 
@@ -52,7 +56,7 @@ func TestKonsoleStallIsNamedAndStopsSearch(t *testing.T) {
 		t.Fatalf("a stall was not called a stall: %v", err)
 	}
 	msg := err.Error()
-	for _, want := range []string{"did not answer", "tree", "150ms"} {
+	for _, want := range []string{"did not answer", "tree", konsoleTimeout.String()} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("the error %q has no %q", msg, want)
 		}
