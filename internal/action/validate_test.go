@@ -125,6 +125,28 @@ func TestFilePackChecksCountAndTotal(t *testing.T) {
 	}
 }
 
+// The copy of a picture for the feed is served as a JPEG, and it is held to
+// that and to its own ceiling; it does not count against the batch.
+func TestFilePreviewIsASmallJPEG(t *testing.T) {
+	jpeg := func(n int) []byte { return append([]byte{0xff, 0xd8, 0xff, 0xe0}, make([]byte, n-4)...) }
+	req := func(files ...File) Request {
+		return Request{ID: "a1", Kind: SessionFile, Target: "aacpanel", Files: files}
+	}
+
+	if err := req(File{Name: "IMG_0001.HEIC", Data: []byte("the photo"), Preview: jpeg(PreviewMax)}).Validate(); err != nil {
+		t.Fatalf("a copy at its ceiling is rejected: %v", err)
+	}
+	if err := req(File{Name: "IMG_0001.HEIC", Data: []byte("the photo"), Preview: jpeg(PreviewMax + 1)}).Validate(); err == nil {
+		t.Error("a copy over its ceiling is accepted")
+	}
+	if err := req(File{Name: "IMG_0001.HEIC", Data: []byte("the photo"), Preview: []byte("<html>a page</html>")}).Validate(); err == nil {
+		t.Error("a copy that is not a JPEG is accepted — the collector would serve it as one")
+	}
+	if err := req(File{Name: "a.bin", Data: make([]byte, FilesBytesMax), Preview: jpeg(PreviewMax)}).Validate(); err != nil {
+		t.Errorf("a batch at its ceiling is rejected for the copy beside it: %v", err)
+	}
+}
+
 func TestCommandRequestKeepsClosedList(t *testing.T) {
 	req := func(c *Command) Request {
 		return Request{ID: "a1", Kind: SessionCommand, Target: "aacpanel", Command: c}

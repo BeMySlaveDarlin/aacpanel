@@ -192,6 +192,9 @@ type Shot struct {
 	// executor keeps them in; Path is the line of the message naming it.
 	Upload string `json:"upload,omitempty"`
 	Path   string `json:"path,omitempty"`
+	// Preview says the picture served under Upload is the smaller JPEG the
+	// phone drew of the file, not the file itself.
+	Preview bool `json:"preview,omitempty"`
 }
 
 // Work is the state of a session: what it runs and what it waits for.

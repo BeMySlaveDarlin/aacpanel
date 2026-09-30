@@ -193,7 +193,8 @@ def _answer(request):
         if not found and sent is not None:
             return {"ok": False,
                     "error": "there is no picture under this name among the files the panel sent: "
-                             "it was either swept, or is not a picture, or is over 4 MB"}
+                             "it was either swept, or is not a picture, or is over 4 MB or a HEIC "
+                             "and came without a smaller copy"}
         if not found:
             return {"ok": False, "error": "there is no attachment at this position"}
         return {"ok": True, "session": session, **found}

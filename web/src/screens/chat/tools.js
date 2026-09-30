@@ -12,6 +12,25 @@ const PACK_MAX = 32 * 1024 * 1024;
 
 export const FILES_MAX = 16;
 
+// A picture the feed cannot show from the file itself goes with a smaller
+// JPEG of it, drawn here, since the host has nothing to decode pictures with:
+// one over PREVIEW_OVER, which the collector does not carry in one answer of
+// its socket, and a HEIC, which not every browser draws. The file itself goes
+// as it is.
+const PREVIEW_OVER = 4 * 1024 * 1024;
+
+const PREVIEW_MAX = 1 * 1024 * 1024;
+
+const PREVIEW_SIDE = 1600;
+
+const PREVIEW_QUALITY = 0.82;
+
+// The pictures every browser draws, as the collector knows them, and the ones
+// a phone camera takes that only some do.
+const DRAWN = /\.(png|apng|jpe?g|jfif|gif|webp|avif|bmp)$/i;
+
+const HEIF = /\.(heic|heif)$/i;
+
 const TARGETS = [
     { id: "camera", label: "Camera", icon: Icon.camera, accept: "image/*", capture: "environment", multiple: false },
     { id: "photo", label: "Photos", icon: Icon.photo, accept: "image/*", capture: undefined, multiple: true },
@@ -93,8 +112,12 @@ export async function intake(picked, have, toast, rename) {
         return null;
     }
 
+    // One at a time: a copy is drawn from the decoded picture, and a dozen
+    // photos decoded at once is more memory than a phone gives a tab.
     try {
-        return await Promise.all(picked.map((f, i) => read(f, rename && rename(f, i))));
+        const out = [];
+        for (const [i, f] of picked.entries()) out.push(await read(f, rename && rename(f, i)));
+        return out;
     } catch (err) {
         toast("The file was not read", `${err.message}: the browser did not give up the contents`, true);
         return null;
@@ -114,19 +137,66 @@ export function clipName(file, at) {
     return ext ? `paste-${stamp}.${ext}` : `paste-${stamp}`;
 }
 
-function read(file, name) {
+async function read(file, name) {
+    const out = { name: tidy(name || file.name), size: file.size, data: await base64(file, file.name) };
+    if (wantsPreview(out.name, file.size)) {
+        const copy = await preview(file);
+        if (copy) out.preview = copy;
+    }
+    return out;
+}
+
+// wantsPreview says whether a file goes with a copy for the feed: the
+// collector finds a picture by the name it was sent under.
+function wantsPreview(name, size) {
+    if (HEIF.test(name)) return true;
+    return DRAWN.test(name) && size > PREVIEW_OVER;
+}
+
+// preview draws a picture at most PREVIEW_SIDE on its long side as a JPEG and
+// returns it base64. A picture this browser does not decode — a HEIC in
+// Chrome — and a copy over PREVIEW_MAX give nothing: the file goes alone, and
+// the feed shows its path.
+async function preview(file) {
+    const url = URL.createObjectURL(file);
+    try {
+        const img = new Image();
+        img.src = url;
+        try {
+            await img.decode();
+        } catch {
+            return undefined;
+        }
+        const scale = Math.min(1, PREVIEW_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const pen = canvas.getContext("2d");
+        // A JPEG has no transparency: what shows through a picture turns white, not black.
+        pen.fillStyle = "#fff";
+        pen.fillRect(0, 0, canvas.width, canvas.height);
+        pen.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise((done) => canvas.toBlob(done, "image/jpeg", PREVIEW_QUALITY));
+        if (!blob || blob.size > PREVIEW_MAX) return undefined;
+        return await base64(blob, `the copy of ${file.name}`);
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
+function base64(blob, label) {
     return new Promise((ok, no) => {
         const reader = new FileReader();
-        reader.onerror = () => no(new Error(file.name));
+        reader.onerror = () => no(new Error(label));
         reader.onload = () => {
             const at = String(reader.result).indexOf(",");
             if (at < 0) {
-                no(new Error(file.name));
+                no(new Error(label));
                 return;
             }
-            ok({ name: tidy(name || file.name), size: file.size, data: String(reader.result).slice(at + 1) });
+            ok(String(reader.result).slice(at + 1));
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(blob);
     });
 }
 

@@ -13,7 +13,7 @@ import (
 
 const (
 	actionBodyMax = action.TextMax*4 + 4<<10
-	uploadBodyMax = action.FilesBytesMax/3*4 + 64<<10
+	uploadBodyMax = action.UploadBytesMax/3*4 + 64<<10
 )
 
 type countingReader struct {
@@ -47,7 +47,17 @@ func filesFromParams(params map[string]any) ([]action.File, error) {
 		if err != nil {
 			return nil, fmt.Errorf("the content of file %d was not decoded: %w", i+1, err)
 		}
-		out = append(out, action.File{Name: name, Data: data})
+		file := action.File{Name: name, Data: data}
+		if given, sent := raw["preview"]; sent {
+			encoded, ok := given.(string)
+			if !ok {
+				return nil, fmt.Errorf("the copy of file %d for the feed did not arrive as a base64 string", i+1)
+			}
+			if file.Preview, err = base64.StdEncoding.DecodeString(encoded); err != nil {
+				return nil, fmt.Errorf("the copy of file %d for the feed was not decoded: %w", i+1, err)
+			}
+		}
+		out = append(out, file)
 	}
 	return out, nil
 }

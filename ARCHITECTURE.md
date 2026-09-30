@@ -872,8 +872,14 @@ nothing else. The collector is the one process that reads both the transcript
 and the owner's home — the service reads nothing of the host, the executor no
 transcript — so it hangs on a message the pictures its lines name, and serves
 one by its name: a file directly in that directory, still there, of a type
-every browser draws, and small enough for one answer of the socket. A path
-typed to a picture anywhere else stays words. The directory is found by the
+every browser draws, and small enough for one answer of the socket. A picture
+that is neither — a camera photo over 4 MB, a HEIC — is shown by a smaller
+JPEG the phone draws when it sends it, since the host has no library to
+decode pictures with: the copy rides beside the file, the executor keeps it
+in `previews/` of the same directory under the same sweep and never names it
+in the message, and the collector serves it in place of the file. A browser
+that does not decode the picture — Chrome and a HEIC — sends none, and the
+feed shows the path. A path typed to a picture anywhere else stays words. The directory is found by the
 executor's own variables, and the collector, a system unit, does not see what
 is set for the user's manager alone: `AACP_FILES` goes into the host
 description, which both units read. A picture a call returned is in the

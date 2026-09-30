@@ -1,6 +1,7 @@
 package action
 
 import (
+	"bytes"
 	"strings"
 	"unicode"
 )
@@ -73,6 +74,24 @@ func safeFileName(name string) error {
 		default:
 			return badRequest("the file name contains a forbidden character %q", r)
 		}
+	}
+	return nil
+}
+
+// jpegMark opens every JPEG file: the start-of-image marker and the next one.
+var jpegMark = []byte{0xff, 0xd8, 0xff}
+
+// checkPreview holds the copy of a picture for the feed to what the collector
+// serves it as: a JPEG, and small.
+func (f File) checkPreview() error {
+	if len(f.Preview) == 0 {
+		return nil
+	}
+	if len(f.Preview) > PreviewMax {
+		return badRequest("the copy of file %q for the feed is larger than %d MB", f.Name, PreviewMax>>20)
+	}
+	if !bytes.HasPrefix(f.Preview, jpegMark) {
+		return badRequest("the copy of file %q for the feed is not a JPEG", f.Name)
 	}
 	return nil
 }

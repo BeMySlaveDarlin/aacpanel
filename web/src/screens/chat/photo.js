@@ -20,9 +20,11 @@ const EXT = {
 };
 
 // shotName returns the name an attachment is saved to the device under. A
-// file the panel sent keeps the name it was sent under; a picture a call
-// returned is named by the place of its result.
+// file the panel sent keeps the name it was sent under, and the smaller copy
+// the phone drew of it is a JPEG named after it; a picture a call returned is
+// named by the place of its result.
 export function shotName(shot, pos) {
+    if (shot && shot.upload && shot.preview) return `${shot.upload.replace(/\.[^.]*$/, "")}-preview.jpg`;
     if (shot && shot.upload) return shot.upload;
     const ext = EXT[(shot && shot.media) || ""] || "png";
     if (shot && shot.part != null) return `attachment-${shot.pos}-${shot.index || 0}-${shot.part}.${ext}`;

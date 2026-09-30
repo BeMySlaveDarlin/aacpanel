@@ -193,7 +193,9 @@ export function deliver(run, name, { text, files, messageId }) {
     return pack.length
         ? run("session.file", name, {
             text,
-            files: pack.map((f) => ({ name: f.name, data: f.data })),
+            files: pack.map((f) => (f.preview
+                ? { name: f.name, data: f.data, preview: f.preview }
+                : { name: f.name, data: f.data })),
         })
         : run("session.send", name, messageId ? { text, messageId } : { text });
 }

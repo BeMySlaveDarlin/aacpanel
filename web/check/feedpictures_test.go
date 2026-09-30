@@ -17,6 +17,10 @@ type feedPicturesShot struct {
 		AloneBubbles    int    `json:"aloneBubbles"`
 		AlonePictures   int    `json:"alonePictures"`
 		AloneStamp      string `json:"aloneStamp"`
+		PhotoPictures   int    `json:"photoPictures"`
+		PhotoLoaded     bool   `json:"photoLoaded"`
+		PhotoWords      string `json:"photoWords"`
+		PhotoSaved      string `json:"photoSaved"`
 	} `json:"feed"`
 	Calls struct {
 		Nodes []struct {
@@ -69,6 +73,36 @@ func TestAPictureThePanelSentIsDrawnOverItsMessage(t *testing.T) {
 	}
 	if sent == 0 {
 		t.Errorf("the sent picture was never asked for by its name: %v", got.Asked)
+	}
+}
+
+// A photo the feed cannot show from the file itself — a HEIC, or one over
+// what the collector serves — stands over its message by the copy the phone
+// drew of it. The copy is asked for by the name of the file, the path leaves
+// the words as any sent picture's does, and it is saved as the JPEG it is.
+func TestAPhotoThePanelSentIsDrawnByItsCopy(t *testing.T) {
+	var got feedPicturesShot
+	runFixture(t, "feedpictures.html", &got)
+	f := got.Feed
+
+	if f.PhotoPictures != 1 || !f.PhotoLoaded {
+		t.Errorf("the message with a sent photo shows %d pictures, loaded %v: the copy is missing",
+			f.PhotoPictures, f.PhotoLoaded)
+	}
+	if f.PhotoWords != "and the wall" {
+		t.Errorf("the message reads %q: the words stay, the path of the drawn photo goes", f.PhotoWords)
+	}
+	asked := false
+	for _, u := range got.Asked {
+		if strings.Contains(u, "&upload=20260920-100000-cd34ef-IMG_0001.HEIC") {
+			asked = true
+		}
+	}
+	if !asked {
+		t.Errorf("the photo was never asked for by the name of its file: %v", got.Asked)
+	}
+	if f.PhotoSaved != "20260920-100000-cd34ef-IMG_0001-preview.jpg" {
+		t.Errorf("the copy is saved as %q: its bytes are a JPEG, not the HEIC it was drawn of", f.PhotoSaved)
 	}
 }
 

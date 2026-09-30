@@ -18,6 +18,7 @@ const at = "2026-09-20T10:00:00Z";
 const files = "/home/dev/.local/share/aacpanel-exec/files";
 const sent = `${files}/20260920-100000-ab12cd-board.png`;
 const typed = "/srv/proj/shop/docs/board.png";
+const photo = `${files}/20260920-100000-cd34ef-IMG_0001.HEIC`;
 const png = Uint8Array.from(atob(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="),
     (c) => c.charCodeAt(0));
@@ -37,6 +38,10 @@ window.fetch = async (url) => {
 };
 
 const shot = { upload: "20260920-100000-ab12cd-board.png", path: sent, media: "image/png", bytes: 70 };
+// A photo the feed cannot show from the file itself is served by the copy the
+// phone drew of it: the collector says so on the picture.
+const copy = { upload: "20260920-100000-cd34ef-IMG_0001.HEIC", path: photo, media: "image/jpeg", bytes: 70,
+               preview: true };
 const items = [
     { role: "me", text: `the task is on the board\n${sent}`, pos: 10, at, shots: [shot] },
     { role: "me", text: `and the old one is here\n${typed}`, pos: 20, at },
@@ -47,6 +52,7 @@ const items = [
         { name: "Read", arg: "/srv/proj/shop/main.go", pos: 40, index: 1, use: "toolu_2", seq: 1, at },
     ] },
     { role: "ai", text: "The board is read.", pos: 50, at },
+    { role: "me", text: `and the wall\n${photo}`, pos: 60, at, shots: [copy] },
 ];
 
 const feed = weld(items);
@@ -66,10 +72,10 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const box = (el) => el.getBoundingClientRect();
 
 (async () => {
-    await until(() => document.querySelectorAll(".r-me").length === 3 && document.querySelector(".railbadge.k-files")
+    await until(() => document.querySelectorAll(".r-me").length === 4 && document.querySelector(".railbadge.k-files")
         && Array.from(document.querySelectorAll("#root .mshot img")).every(loaded)
-        && document.querySelectorAll("#root .mshot img").length === 2);
-    const [withWords, typedRow, alone] = Array.from(document.querySelectorAll(".feedrow.r-me"));
+        && document.querySelectorAll("#root .mshot img").length === 3);
+    const [withWords, typedRow, alone, photoRow] = Array.from(document.querySelectorAll(".feedrow.r-me"));
     const bubble = withWords.querySelector(".msg.me");
     const strip = withWords.querySelector(".mshots");
     const feedRows = {
@@ -83,7 +89,16 @@ const box = (el) => el.getBoundingClientRect();
         aloneBubbles: alone.querySelectorAll(".msg").length,
         alonePictures: alone.querySelectorAll(".mshot img").length,
         aloneStamp: text(alone.querySelector(".mstamp")),
+        photoPictures: photoRow.querySelectorAll(".mshot img").length,
+        photoLoaded: loaded(photoRow.querySelector(".mshot img")),
+        photoWords: text(photoRow.querySelector(".msg.me")),
     };
+
+    photoRow.querySelector(".mshot").click();
+    await until(() => document.querySelector(".pvget"));
+    feedRows.photoSaved = document.querySelector(".pvget") ? document.querySelector(".pvget").getAttribute("download") : "";
+    history.back();
+    await until(() => !document.querySelector(".pvget"));
 
     document.querySelector(".railbadge.k-files").click();
     await until(() => loaded(sheet.querySelector(".callnode.pic .cnshot img")));

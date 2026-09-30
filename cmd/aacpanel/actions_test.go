@@ -474,6 +474,68 @@ func TestRunActionSendsBiggestPack(t *testing.T) {
 	}
 }
 
+// The copies for the feed ride beside the files: a batch at its ceiling with
+// a copy at its own beside every file is still taken.
+func TestRunActionSendsBiggestPackWithCopies(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+
+	items := make([]string, 0, action.FilesMax)
+	previews := make([][]byte, 0, action.FilesMax)
+	for i := range action.FilesMax {
+		raw := make([]byte, action.FilesBytesMax/action.FilesMax)
+		preview := make([]byte, action.PreviewMax)
+		preview[0], preview[1], preview[2] = 0xff, 0xd8, 0xff
+		for j := 3; j < len(preview); j++ {
+			preview[j] = byte(i + j)
+		}
+		previews = append(previews, preview)
+		items = append(items, `{"name":"IMG_`+strconv.Itoa(i)+`.HEIC","data":"`+
+			base64.StdEncoding.EncodeToString(raw)+`","preview":"`+base64.StdEncoding.EncodeToString(preview)+`"}`)
+	}
+	body := `{"kind":"session.file","target":"aacpanel","params":{"files":[` + strings.Join(items, ",") + `]}}`
+	if w := post(t, srv, body); w.Code != http.StatusOK {
+		t.Fatalf("a batch with copies at the ceiling was rejected: status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if len(got.Files) != action.FilesMax {
+			t.Fatalf("%d attachments out of %d reached the executor", len(got.Files), action.FilesMax)
+		}
+		for i, f := range got.Files {
+			if string(f.Preview) != string(previews[i]) {
+				t.Errorf("the copy of %s arrived damaged: %d bytes", f.Name, len(f.Preview))
+			}
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+}
+
+func TestRunActionRefusesABrokenCopy(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+
+	data := base64.StdEncoding.EncodeToString([]byte("the photo"))
+	for what, preview := range map[string]string{
+		"not base64":       `"%%%"`,
+		"not a string":     `42`,
+		"not a JPEG":       `"` + base64.StdEncoding.EncodeToString([]byte("<html>")) + `"`,
+		"over its ceiling": `"` + base64.StdEncoding.EncodeToString(append([]byte{0xff, 0xd8, 0xff}, make([]byte, action.PreviewMax)...)) + `"`,
+	} {
+		body := `{"kind":"session.file","target":"aacpanel","params":{"files":[` +
+			`{"name":"IMG_0001.HEIC","data":"` + data + `","preview":` + preview + `}]}}`
+		if w := post(t, srv, body); w.Code != http.StatusBadRequest {
+			t.Errorf("a copy %s was taken: status %d, body %s", what, w.Code, w.Body.String())
+		}
+	}
+	select {
+	case req := <-fake.got:
+		t.Errorf("a broken copy reached the executor: %+v", req.Files)
+	default:
+	}
+}
+
 func TestRunActionSendsBiggestFile(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}

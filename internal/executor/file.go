@@ -18,6 +18,11 @@ const (
 	fileTTL      = 7 * 24 * time.Hour
 	fileMode     = 0o600
 	filesDirMode = 0o700
+	// previewsDir holds the copies of pictures the phone drew for the feed,
+	// each under the name of its file and .jpg. The collector serves the copy
+	// in place of a picture it cannot serve itself; the session is never
+	// told of it and reads the file as it was sent.
+	previewsDir = "previews"
 )
 
 func (e *Executor) sessionFile(ctx context.Context, target, caption string, files []action.File) (string, error) {
@@ -30,12 +35,18 @@ func (e *Executor) sessionFile(ctx context.Context, target, caption string, file
 	}
 
 	paths := make([]string, 0, len(files))
+	var bare []string
 	for i := range files {
 		path, err := storeFile(&files[i])
 		if err != nil {
 			return "", fmt.Errorf("%w%s", err, landed(paths))
 		}
 		paths = append(paths, path)
+		// A copy that did not land costs the feed its picture, not the
+		// session its file: the message goes, and the reply says so.
+		if err := storePreview(path, files[i].Preview); err != nil {
+			bare = append(bare, fmt.Sprintf("%s (%v)", files[i].Name, err))
+		}
 	}
 
 	text := strings.Join(paths, "\n")
@@ -46,7 +57,11 @@ func (e *Executor) sessionFile(ctx context.Context, target, caption string, file
 	if err != nil {
 		return "", fmt.Errorf("%w%s", err, landed(paths))
 	}
-	return detail + " · " + describeFiles(files, paths), nil
+	detail += " · " + describeFiles(files, paths)
+	if len(bare) > 0 {
+		detail += "; the feed shows a path in place of " + strings.Join(bare, ", ")
+	}
+	return detail, nil
 }
 
 func describeFiles(files []action.File, paths []string) string {
@@ -83,6 +98,7 @@ func storeFile(file *action.File) (string, error) {
 		return "", fmt.Errorf("permissions of the directory for files: %w", err)
 	}
 	sweepOldFiles(dir)
+	sweepOldFiles(filepath.Join(dir, previewsDir))
 
 	var buf [3]byte
 	if _, err := rand.Read(buf[:]); err != nil {
@@ -94,6 +110,25 @@ func storeFile(file *action.File) (string, error) {
 		return "", fmt.Errorf("the file was not written: %w", err)
 	}
 	return path, nil
+}
+
+// storePreview puts the copy of a picture for the feed beside its file, under
+// the same permissions and the same sweep.
+func storePreview(path string, preview []byte) error {
+	if len(preview) == 0 {
+		return nil
+	}
+	dir := filepath.Join(filepath.Dir(path), previewsDir)
+	if err := os.MkdirAll(dir, filesDirMode); err != nil {
+		return fmt.Errorf("the directory for copies was not created: %w", err)
+	}
+	if err := os.Chmod(dir, filesDirMode); err != nil {
+		return fmt.Errorf("permissions of the directory for copies: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, filepath.Base(path)+".jpg"), preview, fileMode); err != nil {
+		return fmt.Errorf("the copy was not written: %w", err)
+	}
+	return nil
 }
 
 func sweepOldFiles(dir string) {

@@ -16,6 +16,9 @@ UUID = "55555555-5555-4555-8555-555555555555"
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
+# The collector does not read what a copy holds: the bytes only have to be told apart.
+JPEG = b"\xff\xd8\xff\xe0 the copy the phone drew"
+
 AT = "2026-09-20T10:00:00Z"
 
 
@@ -135,6 +138,109 @@ class Uploads(unittest.TestCase):
         self.assertTrue(reply["ok"], reply.get("error"))
         self.assertEqual(reply["media"], "image/png")
         self.assertEqual(base64.b64decode(reply["data"]), PNG)
+
+    def copy(self, name, data=JPEG):
+        shelf = os.path.join(self.files, chat.uploads.PREVIEWS)
+        os.makedirs(shelf, exist_ok=True)
+        with open(os.path.join(shelf, name + ".jpg"), "wb") as f:
+            f.write(data)
+        return os.path.join(shelf, name + ".jpg")
+
+    def test_a_picture_too_big_for_the_socket_is_drawn_by_its_copy(self):
+        path = self.sent("20260920-100000-ab12cd-big.jpg", JPEG + b"\0" * chat.MAX_MEDIA)
+        self.copy("20260920-100000-ab12cd-big.jpg")
+        self.write(prompt(f"the whole wall\n{path}"))
+        self.assertEqual(self.mine()[-1]["shots"], [{"upload": "20260920-100000-ab12cd-big.jpg", "path": path,
+                                                     "media": "image/jpeg", "bytes": len(JPEG), "preview": True}])
+        reply = chat.answer({"session": UUID, "image": {"upload": "20260920-100000-ab12cd-big.jpg"}})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual((reply["media"], base64.b64decode(reply["data"])), ("image/jpeg", JPEG))
+
+    def test_a_heic_is_drawn_by_its_copy_whatever_its_size(self):
+        for name in ("20260920-100000-ab12cd-IMG_0001.HEIC", "20260920-100000-ab12cd-IMG_0002.heif"):
+            with self.subTest(name=name):
+                path = self.sent(name, b"\0\0\0\x18ftypheic")
+                self.write(prompt(path))
+                self.assertNotIn("shots", self.mine()[-1], "a HEIC with no copy is its path")
+                self.copy(name)
+                self.write(prompt(path))
+                shots = self.mine()[-1]["shots"]
+                self.assertEqual([(s["upload"], s["media"], s.get("preview")) for s in shots],
+                                 [(name, "image/jpeg", True)])
+                reply = chat.answer({"session": UUID, "image": {"upload": name}})
+                self.assertTrue(reply["ok"], reply.get("error"))
+                self.assertEqual(base64.b64decode(reply["data"]), JPEG)
+
+    def test_a_picture_the_socket_carries_is_served_itself_beside_a_copy(self):
+        path = self.sent("20260920-100000-ab12cd-shot.png")
+        self.copy("20260920-100000-ab12cd-shot.png")
+        self.write(prompt(path))
+        self.assertEqual(self.mine()[-1]["shots"], [{"upload": "20260920-100000-ab12cd-shot.png", "path": path,
+                                                     "media": "image/png", "bytes": len(PNG)}])
+        reply = chat.answer({"session": UUID, "image": {"upload": "20260920-100000-ab12cd-shot.png"}})
+        self.assertEqual(base64.b64decode(reply["data"]), PNG)
+
+    def test_a_copy_is_held_to_the_rules_of_the_file(self):
+        big = JPEG + b"\0" * chat.MAX_MEDIA
+        outside = os.path.join(self.root, "secret.jpg")
+        with open(outside, "wb") as f:
+            f.write(JPEG)
+        cases = {
+            "the copy of a file swept away": lambda: self.copy("20260920-100000-ab12cd-gone.heic"),
+            "a copy of a file that is not a picture": lambda: (
+                self.sent("20260920-100000-ab12cd-notes.txt", b"plain words"),
+                self.copy("20260920-100000-ab12cd-notes.txt")),
+            "a copy of a page": lambda: (
+                self.sent("20260920-100000-ab12cd-logo.svg", b"<svg xmlns='http://www.w3.org/2000/svg'/>"),
+                self.copy("20260920-100000-ab12cd-logo.svg")),
+            "a copy over the ceiling": lambda: (
+                self.sent("20260920-100000-ab12cd-huge.heic"), self.copy("20260920-100000-ab12cd-huge.heic", big)),
+            "an empty copy": lambda: (
+                self.sent("20260920-100000-ab12cd-empty.heic"), self.copy("20260920-100000-ab12cd-empty.heic", b"")),
+            "a copy that links out": lambda: (
+                self.sent("20260920-100000-ab12cd-link.heic"),
+                os.makedirs(os.path.join(self.files, chat.uploads.PREVIEWS), exist_ok=True),
+                os.symlink(outside, os.path.join(self.files, chat.uploads.PREVIEWS,
+                                                 "20260920-100000-ab12cd-link.heic.jpg"))),
+            "a copy that is a directory": lambda: (
+                self.sent("20260920-100000-ab12cd-dir.heic"),
+                os.makedirs(os.path.join(self.files, chat.uploads.PREVIEWS, "20260920-100000-ab12cd-dir.heic.jpg"))),
+        }
+        for what, make in cases.items():
+            with self.subTest(what):
+                shutil.rmtree(self.files)
+                os.makedirs(self.files)
+                make()
+                name = next(n for n in os.listdir(os.path.join(self.files, chat.uploads.PREVIEWS)))[:-len(".jpg")]
+                self.write(prompt(os.path.join(self.files, name)))
+                self.assertNotIn("shots", self.mine()[-1])
+                reply = chat.answer({"session": UUID, "image": {"upload": name}})
+                self.assertFalse(reply["ok"], what)
+                self.assertNotIn("data", reply)
+
+    def test_a_shelf_of_copies_that_links_out_serves_nothing(self):
+        away = os.path.join(self.root, "away")
+        os.makedirs(away)
+        with open(os.path.join(away, "20260920-100000-ab12cd-IMG_0001.heic.jpg"), "wb") as f:
+            f.write(JPEG)
+        os.symlink(away, os.path.join(self.files, chat.uploads.PREVIEWS))
+        path = self.sent("20260920-100000-ab12cd-IMG_0001.heic")
+        self.write(prompt(path))
+        self.assertNotIn("shots", self.mine()[-1])
+        reply = chat.answer({"session": UUID, "image": {"upload": "20260920-100000-ab12cd-IMG_0001.heic"}})
+        self.assertFalse(reply["ok"])
+        self.assertNotIn("data", reply)
+
+    def test_a_copy_is_asked_for_by_the_name_of_its_file_alone(self):
+        self.sent("20260920-100000-ab12cd-IMG_0001.heic")
+        self.copy("20260920-100000-ab12cd-IMG_0001.heic")
+        self.write()
+        for name in ("20260920-100000-ab12cd-IMG_0001.heic.jpg", "previews/20260920-100000-ab12cd-IMG_0001.heic.jpg",
+                     "previews"):
+            with self.subTest(name=name):
+                reply = chat.answer({"session": UUID, "image": {"upload": name}})
+                self.assertFalse(reply["ok"], name)
+                self.assertNotIn("data", reply)
 
     def test_nothing_but_a_picture_directly_in_the_directory_is_served(self):
         outside = os.path.join(self.root, "secret.png")

@@ -26,3 +26,12 @@ const FilesBytesMax = FileMax
 
 // FilesMax is how many files travel at once.
 const FilesMax = 16
+
+// PreviewMax is the size ceiling for the copy of a picture the phone draws
+// for the feed, in bytes: a JPEG at most 1600 pixels on its long side is a
+// few hundred kilobytes.
+const PreviewMax = 1 << 20
+
+// UploadBytesMax is the most a batch weighs together with the copies for the
+// feed: the ceilings on the way from the phone to the executor count from it.
+const UploadBytesMax = FilesBytesMax + FilesMax*PreviewMax

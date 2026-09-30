@@ -220,6 +220,9 @@ func (r Request) Validate() error {
 			if err := safeFileName(f.Name); err != nil {
 				return err
 			}
+			if err := f.checkPreview(); err != nil {
+				return err
+			}
 			total += len(f.Data)
 		}
 		if total > FilesBytesMax {

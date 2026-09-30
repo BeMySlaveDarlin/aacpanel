@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	maxRequest    = FilesBytesMax/3*4 + 64<<10
+	maxRequest    = UploadBytesMax/3*4 + 64<<10
 	readTimeout   = 5 * time.Second
 	writeTimeout  = 5 * time.Second
 	resultTTL     = 10 * time.Minute

@@ -111,6 +111,11 @@ type Answer struct {
 type File struct {
 	Name string `json:"name"`
 	Data []byte `json:"data"`
+	// Preview is a smaller JPEG of a picture the feed cannot show from the
+	// file itself — one over what the collector serves in one answer, or a
+	// HEIC that not every browser draws. The phone draws it when it sends the
+	// picture: the host has no library to decode pictures with.
+	Preview []byte `json:"preview,omitempty"`
 }
 
 // Command is a slash command for session.command.

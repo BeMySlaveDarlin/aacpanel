@@ -5,6 +5,12 @@ directory of its own and types its path into the message, a line for each file.
 The transcript holds the path and nothing else, so the picture is looked up on
 disk here: the collector reads the owner's home, the service facing the
 internet reads nothing of the host, and the executor does not read transcripts.
+
+A picture the feed cannot show from the file itself — one over MAX_MEDIA, which
+does not fit in one answer of the socket, or a HEIC that not every browser
+draws — is shown by the smaller JPEG the phone drew when it sent it. The
+executor keeps that copy in PREVIEWS under the name of the file and .jpg, and
+never names it in the message.
 """
 import base64
 import os
@@ -19,6 +25,12 @@ UPLOAD_MEDIA = {
     ".jpeg": "image/jpeg", ".jfif": "image/jpeg", ".gif": "image/gif",
     ".webp": "image/webp", ".avif": "image/avif", ".bmp": "image/bmp",
 }
+
+# The pictures a phone camera takes that only some browsers draw: they are
+# shown by their copy alone.
+UPLOAD_HEIF = {".heic", ".heif"}
+
+PREVIEWS = "previews"
 
 
 def files_dir():
@@ -42,19 +54,38 @@ def files_dir():
 
 
 def picture(name):
-    """Returns the real path, type and size of a sent picture by its name, or None.
+    """Returns what is served for a sent picture by its name — the real path, the
+    type, the size and whether it is the copy — or None.
 
     The name is the name of a file directly in the directory: a path, a
-    hidden file or a link out of the directory is refused. So is a picture
-    over MAX_MEDIA — it would not fit in one answer of the socket.
+    hidden file or a link out of the directory is refused. A picture over
+    MAX_MEDIA — it would not fit in one answer of the socket — and a HEIC
+    are served by their copy, held to the same rules inside PREVIEWS; without
+    one there is nothing to serve.
     """
     if not isinstance(name, str) or not name or name != os.path.basename(name) \
             or name.startswith(".") or "\x00" in name:
         return None
-    media = UPLOAD_MEDIA.get(os.path.splitext(name)[1].lower())
-    if not media:
+    ext = os.path.splitext(name)[1].lower()
+    media = UPLOAD_MEDIA.get(ext)
+    if not media and ext not in UPLOAD_HEIF:
         return None
     home = os.path.realpath(files_dir())
+    found = _plain_file(home, name)
+    if not found:
+        return None
+    if media and found[1] <= MAX_MEDIA:
+        return found[0], media, found[1], False
+    # A shelf that is a link fails the same test: the real path of a copy
+    # through it never lies directly in the shelf as named.
+    copy = _plain_file(os.path.join(home, PREVIEWS), name + ".jpg")
+    if not copy or copy[1] > MAX_MEDIA:
+        return None
+    return copy[0], "image/jpeg", copy[1], True
+
+
+def _plain_file(home, name):
+    """Returns the real path and size of a regular file, not empty, directly in home, or None."""
     real = os.path.realpath(os.path.join(home, name))
     if os.path.dirname(real) != home:
         return None
@@ -62,9 +93,9 @@ def picture(name):
         st = os.stat(real)
     except OSError:
         return None
-    if not stat.S_ISREG(st.st_mode) or not 0 < st.st_size <= MAX_MEDIA:
+    if not stat.S_ISREG(st.st_mode) or st.st_size <= 0:
         return None
-    return real, media, st.st_size
+    return real, st.st_size
 
 
 def uploads_in(text):
@@ -84,8 +115,11 @@ def uploads_in(text):
         if not found:
             continue
         seen.add(name)
-        _, media, size = found
-        out.append({"upload": name, "path": path, "media": media, "bytes": size})
+        _, media, size, copy = found
+        shot = {"upload": name, "path": path, "media": media, "bytes": size}
+        if copy:
+            shot["preview"] = True
+        out.append(shot)
     return out
 
 
@@ -109,7 +143,7 @@ def upload(name):
     found = picture(name)
     if not found:
         return None
-    real, media, _ = found
+    real, media, _, _ = found
     with open(real, "rb") as f:
         data = f.read(MAX_MEDIA + 1)
     if not data or len(data) > MAX_MEDIA:

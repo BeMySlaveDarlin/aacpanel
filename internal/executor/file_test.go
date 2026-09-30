@@ -76,6 +76,123 @@ func TestSessionFileLandsOnDiskAndSendsPath(t *testing.T) {
 	}
 }
 
+// The copy of a picture the phone drew for the feed lies beside the files,
+// under the name of its file, and the session is never told of it: it reads
+// the file as it was sent.
+func TestSessionFileKeepsTheCopyForTheFeedOutOfTheMessage(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(filesEnv, dir)
+	socket, _ := listenFake(t)
+	procFS(t,
+		fakeProc{pid: 820, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 821, comm: "claude", args: []string{"claude"}, ppid: 820, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 821, name: "aacpanel", start: "77", socket: socket, status: "idle"})
+	log := fakeBusctl(t, map[string]int{"/Sessions/1": 821})
+
+	photo := []byte("\x00\x00\x00\x18ftypheic the photo as the camera took it")
+	drawn := []byte("\xff\xd8\xff\xe0 the copy the phone drew")
+	e := &Executor{}
+	detail, err := e.sessionFile(t.Context(), "aacpanel", "the wall", []action.File{
+		{Name: "IMG_0001.HEIC", Data: photo, Preview: drawn},
+		{Name: "notes.txt", Data: []byte("plain words")},
+	})
+	if err != nil {
+		t.Fatalf("the files were not sent: %v", err)
+	}
+
+	var stored []string
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			stored = append(stored, entry.Name())
+		}
+	}
+	if len(stored) != 2 {
+		t.Fatalf("%d files beside the copies, expected the two sent: %v", len(stored), stored)
+	}
+	var heic string
+	for _, name := range stored {
+		if strings.HasSuffix(name, "IMG_0001.HEIC") {
+			heic = name
+		}
+	}
+	if raw, err := os.ReadFile(filepath.Join(dir, heic)); err != nil || string(raw) != string(photo) {
+		t.Errorf("the photo did not land as it was sent: %q, %v", raw, err)
+	}
+
+	shelf := filepath.Join(dir, previewsDir)
+	copies, err := os.ReadDir(shelf)
+	if err != nil {
+		t.Fatalf("there is no directory of copies: %v", err)
+	}
+	if len(copies) != 1 || copies[0].Name() != heic+".jpg" {
+		t.Fatalf("the copies are %v, expected one under the name of the photo and .jpg", copies)
+	}
+	kept := filepath.Join(shelf, heic+".jpg")
+	if raw, err := os.ReadFile(kept); err != nil || string(raw) != string(drawn) {
+		t.Errorf("the copy did not land as it was sent: %q, %v", raw, err)
+	}
+	for path, want := range map[string]os.FileMode{shelf: filesDirMode, kept: fileMode} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != want {
+			t.Errorf("%s has mode %v, expected %v as the files have", path, info.Mode().Perm(), want)
+		}
+	}
+
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatalf("nothing went out to konsole: %v", err)
+	}
+	sent := string(raw)
+	if !strings.Contains(sent, filepath.Join(dir, heic)) {
+		t.Errorf("the path of the photo was not typed into the session: %q", sent)
+	}
+	if strings.Contains(sent, previewsDir) || strings.Contains(sent, ".HEIC.jpg") {
+		t.Errorf("the session was told of the copy for the feed: %q", sent)
+	}
+	if strings.Contains(detail, "in place of") {
+		t.Errorf("the reply says a copy was lost though it landed: %q", detail)
+	}
+}
+
+// A copy that could not land costs the feed its picture, not the session its
+// file.
+func TestSessionFileGoesWhenTheCopyDoesNotLand(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(filesEnv, dir)
+	socket, _ := listenFake(t)
+	procFS(t,
+		fakeProc{pid: 830, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 831, comm: "claude", args: []string{"claude"}, ppid: 830, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 831, name: "aacpanel", start: "77", socket: socket, status: "idle"})
+	log := fakeBusctl(t, map[string]int{"/Sessions/1": 831})
+	if err := os.WriteFile(filepath.Join(dir, previewsDir), []byte("in the way"), fileMode); err != nil {
+		t.Fatal(err)
+	}
+
+	e := &Executor{}
+	detail, err := e.sessionFile(t.Context(), "aacpanel", "", []action.File{
+		{Name: "IMG_0001.HEIC", Data: []byte("the photo"), Preview: []byte("\xff\xd8\xff the copy")},
+	})
+	if err != nil {
+		t.Fatalf("a copy that did not land held back the file: %v", err)
+	}
+	if _, err := os.ReadFile(log); err != nil {
+		t.Fatalf("nothing went out to konsole: %v", err)
+	}
+	if !strings.Contains(detail, "the feed shows a path in place of IMG_0001.HEIC") {
+		t.Errorf("the reply does not say the feed lost its picture: %q", detail)
+	}
+}
+
 func TestSessionFilePackGoesInOneReply(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(filesEnv, dir)
@@ -208,14 +325,22 @@ func TestSessionFileSweepsOldFiles(t *testing.T) {
 
 	old := filepath.Join(dir, "20260101-000000-aaaaaa-old.png")
 	fresh := filepath.Join(dir, "20260830-000000-bbbbbb-fresh.png")
-	for _, path := range []string{old, fresh} {
+	shelf := filepath.Join(dir, previewsDir)
+	oldCopy := filepath.Join(shelf, "20260101-000000-aaaaaa-old.heic.jpg")
+	freshCopy := filepath.Join(shelf, "20260830-000000-bbbbbb-fresh.heic.jpg")
+	if err := os.Mkdir(shelf, filesDirMode); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{old, fresh, oldCopy, freshCopy} {
 		if err := os.WriteFile(path, []byte("x"), fileMode); err != nil {
 			t.Fatal(err)
 		}
 	}
 	stale := time.Now().Add(-fileTTL - time.Hour)
-	if err := os.Chtimes(old, stale, stale); err != nil {
-		t.Fatal(err)
+	for _, path := range []string{old, oldCopy} {
+		if err := os.Chtimes(path, stale, stale); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	e := &Executor{}
@@ -226,8 +351,13 @@ func TestSessionFileSweepsOldFiles(t *testing.T) {
 	if _, err := os.Stat(old); !os.IsNotExist(err) {
 		t.Error("the old file is still there — the directory will grow without end")
 	}
-	if _, err := os.Stat(fresh); err != nil {
-		t.Errorf("the fresh file was swept away along with the old one: %v", err)
+	if _, err := os.Stat(oldCopy); !os.IsNotExist(err) {
+		t.Error("the old copy for the feed is still there — the copies outlive their files")
+	}
+	for _, path := range []string{fresh, freshCopy} {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("%s was swept away along with the old ones: %v", filepath.Base(path), err)
+		}
 	}
 }
 

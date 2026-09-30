@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The copy for the feed the phone draws of a picture it sends. The files are
+// taken the way the paperclip and the paste take them, and sent the way the
+// composer sends them, with the run of the action stubbed.
+import { intake } from "/src/screens/chat/tools.js";
+import { deliver } from "/src/screens/chat/composer.js";
+
+const MB = 1024 * 1024;
+
+const gradient = (w, h) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const pen = canvas.getContext("2d");
+    const fill = pen.createLinearGradient(0, 0, w, h);
+    fill.addColorStop(0, "#1d4ed8");
+    fill.addColorStop(1, "#f59e0b");
+    pen.fillStyle = fill;
+    pen.fillRect(0, 0, w, h);
+    return canvas;
+};
+const noise = (w, h) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const pen = canvas.getContext("2d");
+    const dots = pen.createImageData(w, h);
+    for (let i = 0; i < dots.data.length; i++) dots.data[i] = i % 4 === 3 ? 255 : (Math.random() * 256) | 0;
+    pen.putImageData(dots, 0, 0);
+    return canvas;
+};
+const encoded = (canvas, type, quality) => new Promise((ok) => canvas.toBlob(ok, type, quality));
+// A JPEG is read to its end marker and no further: the bytes after it weigh a
+// picture up to a camera's without the page encoding one that large.
+const weighed = (blob, weight) => [blob, new Uint8Array(Math.max(0, weight - blob.size))];
+
+const picked = [
+    new File(weighed(await encoded(gradient(2400, 1000), "image/jpeg", 0.9), 5 * MB),
+        "IMG_20260930_101010.jpg", { type: "image/jpeg" }),
+    new File(weighed(await encoded(gradient(1000, 3000), "image/jpeg", 0.9), 6 * MB),
+        "IMG_20260930_101011.jpg", { type: "image/jpeg" }),
+    new File([await encoded(gradient(300, 200), "image/png")], "shot.png", { type: "image/png" }),
+    // A browser draws by what the bytes are, not by the name: a HEIC this
+    // engine can decode stands for the one a phone takes.
+    new File([await encoded(gradient(1200, 900), "image/jpeg", 0.9)], "IMG_0002.HEIC", { type: "image/heic" }),
+    new File([new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, 104, 101, 105, 99, 1, 2, 3, 4])], "IMG_0003.heif",
+        { type: "image/heif" }),
+    new File(weighed(await encoded(gradient(2400, 1000), "image/jpeg", 0.9), 5 * MB), "dump.bin",
+        { type: "application/octet-stream" }),
+    new File(weighed(await encoded(noise(1600, 1600), "image/jpeg", 1), 5 * MB), "IMG_20260930_101012.jpg",
+        { type: "image/jpeg" }),
+];
+
+const toasts = [];
+const got = await intake(picked, [], (title, text) => toasts.push(`${title}: ${text}`));
+
+const size = async (b64) => {
+    const img = new Image();
+    img.src = `data:image/jpeg;base64,${b64}`;
+    await img.decode();
+    return [img.naturalWidth, img.naturalHeight];
+};
+const files = [];
+for (const [i, f] of (got || []).entries()) {
+    files.push({
+        name: f.name,
+        whole: atob(f.data).length === picked[i].size,
+        preview: Boolean(f.preview),
+        jpeg: Boolean(f.preview) && f.preview.startsWith("/9j/"),
+        box: f.preview ? await size(f.preview) : null,
+        weight: f.preview ? atob(f.preview).length : 0,
+    });
+}
+
+const calls = [];
+await deliver(async (kind, target, params) => {
+    calls.push({ kind, target, body: JSON.stringify(params) });
+    return { ok: true };
+}, "shop", { text: "the wall", files: got || [] });
+const sent = calls.length ? JSON.parse(calls[0].body) : null;
+
+window.done = {
+    toasts,
+    files,
+    kind: calls.length ? calls[0].kind : "",
+    sent: sent ? sent.files.map((f, i) => ({
+        keys: Object.keys(f).sort().join(","),
+        same: f.data === got[i].data && f.preview === got[i].preview,
+    })) : [],
+};
+</script>
