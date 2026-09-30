@@ -24,8 +24,8 @@ const RestartDescription = "Restarts this session through the panel, as its proj
 	"directory and account, the same launch parameters — tmux or the stream, the model — and the map's " +
 	"message after a restart as its first. It restarts only this session: never a service, a container or " +
 	"another session. Without continue the new session starts with an empty context, and that is the restart " +
-	"the person means when they ask for one: put what is worth keeping on disk first — notes, where the work " +
-	"stands, a commit. With continue it goes on with this conversation: only when the person asks to keep " +
+	"the person means when they ask for one: put the state of the work on disk first, the way the project " +
+	"keeps it — its finalize skill if it has one, otherwise notes, where the work stands, a commit. With continue it goes on with this conversation: only when the person asks to keep " +
 	"the conversation, never to spare the notes. The session is closed right after the call, a session on the stream at the end of the " +
 	"current turn: once the panel has taken the restart, end the turn and do nothing more. A restart ends everything the session runs — its agents, workflows " +
 	"and background commands — so while any of them is at work nothing is restarted and the call says what " +

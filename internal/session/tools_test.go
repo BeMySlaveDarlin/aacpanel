@@ -329,6 +329,15 @@ func TestARestartThePersonAsksForIsAFreshOne(t *testing.T) {
 	}
 }
 
+// A fresh start keeps only what is on disk, so before one the session hands
+// its work over the way its project does: with the finalize skill where the
+// project has one, the way the context guard asks for it too.
+func TestAFreshRestartAsksForTheFinalizeSkillFirst(t *testing.T) {
+	if !strings.Contains(RestartDescription, "its finalize skill if it has one") {
+		t.Errorf("the tool's word does not ask for the project's finalize skill before a fresh start: %q", RestartDescription)
+	}
+}
+
 // The line of each tool in the server's word stays one short sentence or two:
 // it stands in the system prompt of every session.
 func TestTheLinesOfTheToolsAreShort(t *testing.T) {
