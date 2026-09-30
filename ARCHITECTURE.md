@@ -988,9 +988,10 @@ panel.** Both go to the panel's local listener as actions of this machine and
 name the session by the conversation the server's parent runs, so the model
 cannot act as another session. `session_restart` asks for `session.restart`:
 the panel brings the session back as its project from the map, afresh or, with
-`continue`, resuming the same conversation — the executor checks it is the one
-the session runs, and a conversation on the stream nobody said a word in starts
-anew. A restart the person asks for is a fresh one, and the tool's word keeps
+`continue`, resuming the same conversation. Either way the executor restarts it
+only while it still runs the conversation that asked — a late repeat of the call
+would otherwise close the session an earlier restart brought up under the same
+name — and a conversation on the stream nobody said a word in starts anew. A restart the person asks for is a fresh one, and the tool's word keeps
 `continue` for their ask to keep the conversation: left to choose, a model takes
 `continue` to spare itself the notes a fresh start wants first. Nothing is asked while the collector's snapshot shows the session's
 agents, workflows or background commands at work, since a restart ends them;

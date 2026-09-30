@@ -19,6 +19,11 @@ type Request struct {
 	// back, or the one session.restart closes and starts again.
 	Resume string `json:"resume,omitempty"`
 
+	// Conversation is the conversation a session.restart is asked for by, when
+	// a session restarts itself: the session is restarted only while it still
+	// runs that one.
+	Conversation string `json:"conversation,omitempty"`
+
 	Project *Project `json:"project,omitempty"`
 
 	Permit *Permit `json:"permit,omitempty"`

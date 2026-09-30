@@ -104,3 +104,40 @@ func TestARestartGoesOnOnlyWithItsOwnConversation(t *testing.T) {
 		t.Error("the launcher was called after the refusal")
 	}
 }
+
+// A restart a session asks for without going on names the conversation it is
+// asked by, and goes ahead only while the session runs it: a late repeat of
+// the call would close the session an earlier restart brought up in its place.
+func TestARestartFromScratchClosesOnlyTheConversationItNames(t *testing.T) {
+	dir := consoleStand(t, "idle")
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportTmux})
+	e, _ := newTest(t, "")
+	signals := withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
+
+	late := restartOf(dir, "")
+	late.Conversation = streamSID
+	_, err := e.Execute(context.Background(), late)
+	if err == nil || !strings.Contains(err.Error(), "runs conversation "+consoleSID) {
+		t.Fatalf("a restart asked for by a conversation the session no longer runs answered %v", err)
+	}
+	if len(signals.sent) != 0 {
+		t.Errorf("signals %v went out before the refusal", signals.sent)
+	}
+	if _, err := os.Stat(log); err == nil {
+		t.Fatal("the launcher was called after the refusal")
+	}
+
+	own := restartOf(dir, "")
+	own.ID = "restart-own"
+	own.Conversation = consoleSID
+	detail, err := e.Execute(context.Background(), own)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := launched(t, log)["_resume"]; got != "" {
+		t.Errorf("a restart from scratch came back resuming %v", got)
+	}
+	if !strings.Contains(detail, "with an empty context") {
+		t.Errorf("the report %q does not say the session started anew", detail)
+	}
+}

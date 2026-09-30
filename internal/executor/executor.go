@@ -111,7 +111,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		}
 		defer e.restarting.give(req.Target)
 		defer markRestarting(req.Target)()
-		return e.sessionRestart(ctx, req.Target, req.Resume, req.Project)
+		return e.sessionRestart(ctx, req.Target, req.Resume, req.Conversation, req.Project)
 	case action.SessionSend:
 		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID)
 	case action.SessionLetter:

@@ -69,26 +69,29 @@ func TestSessionRestartComesBackAsItsProjectPG(t *testing.T) {
 // A restart asked to go on hands the executor the conversation the session
 // runs: the one the session named, or the one the snapshot knows it by. A
 // restart not asked to go on hands none, and one whose conversation is not
-// known is refused rather than started anew.
+// known is refused rather than started anew. The conversation a session names
+// goes to the executor either way, to be checked against the one it runs.
 func TestARestartGoesOnWithTheConversationTheSessionRuns(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "restarted"})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
 	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"lab","sessionId":"`+switchSID+
 		`","cwd":"/srv/proj/lab"},{"session":"quiet","cwd":"/srv/proj/quiet"}]}`))
 
-	for body, want := range map[string]string{
-		`{"kind":"session.restart","params":{"conversation":"` + switchSID + `","resume":true}}`:  switchSID,
-		`{"kind":"session.restart","target":"lab","params":{"resume":true}}`:                      switchSID,
-		`{"kind":"session.restart","params":{"conversation":"` + switchSID + `"}}`:                "",
-		`{"kind":"session.restart","params":{"conversation":"` + switchSID + `","resume":false}}`: "",
+	for body, want := range map[string]struct{ resume, named string }{
+		`{"kind":"session.restart","params":{"conversation":"` + switchSID + `","resume":true}}`:  {switchSID, switchSID},
+		`{"kind":"session.restart","target":"lab","params":{"resume":true}}`:                      {switchSID, ""},
+		`{"kind":"session.restart","params":{"conversation":"` + switchSID + `"}}`:                {"", switchSID},
+		`{"kind":"session.restart","params":{"conversation":"` + switchSID + `","resume":false}}`: {"", switchSID},
+		`{"kind":"session.restart","target":"lab"}`:                                               {"", ""},
 	} {
 		if w := post(t, srv, body); w.Code != http.StatusOK {
 			t.Fatalf("%s: status %d, body %s", body, w.Code, w.Body.String())
 		}
 		select {
 		case got := <-fake.got:
-			if got.Target != "lab" || got.Resume != want {
-				t.Errorf("%s reached the executor as %q resuming %q, meant %q", body, got.Target, got.Resume, want)
+			if got.Target != "lab" || got.Resume != want.resume || got.Conversation != want.named {
+				t.Errorf("%s reached the executor as %q resuming %q asked by %q, meant %+v",
+					body, got.Target, got.Resume, got.Conversation, want)
 			}
 		case <-time.After(3 * time.Second):
 			t.Fatal("the executor did not get the request")

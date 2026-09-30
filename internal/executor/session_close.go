@@ -44,13 +44,19 @@ func (e *Executor) sessionClose(ctx context.Context, target string) (string, err
 // up in another setup — the console instead of the feed, another model,
 // possibly another account. Without a project only the host's main session is
 // restarted, since its launch is fixed: the home directory, the same name.
-func (e *Executor) sessionRestart(ctx context.Context, target, resume string, want *action.Project) (string, error) {
+// A session restarting itself names its conversation, and the restart goes
+// ahead only while the session still runs it: a late repeat of the call would
+// otherwise close the session an earlier restart brought up under the name.
+func (e *Executor) sessionRestart(ctx context.Context, target, resume, conversation string, want *action.Project) (string, error) {
 	p, err := lookupAgent(target)
 	if err != nil {
 		return "", err
 	}
-	if resume != "" {
-		if err := runsConversation(target, resume); err != nil {
+	for _, named := range []string{resume, conversation} {
+		if named == "" {
+			continue
+		}
+		if err := runsConversation(target, named); err != nil {
 			return "", err
 		}
 	}
@@ -77,17 +83,19 @@ func (e *Executor) sessionRestart(ctx context.Context, target, resume string, wa
 	return closed + "; " + describeConsole(rep) + restartedWith(resume, ""), nil
 }
 
-// runsConversation refuses a restart that would go on with a conversation
-// other than the one the session runs: it would close one conversation and
-// bring up another in its place.
+// runsConversation refuses a restart that names a conversation other than
+// the one the session runs: going on with it would close one conversation and
+// bring up another in its place, and a restart asked for by it would close a
+// session that conversation is no longer in.
 func runsConversation(target, conversation string) error {
 	s, err := findOneLiveSession(target)
 	if err != nil {
-		return fmt.Errorf("the conversation of session %s is not known, so it cannot go on: %w", target, err)
+		return fmt.Errorf("the conversation of session %s is not known, so the restart cannot tell it is %s: %w",
+			target, conversation, err)
 	}
 	if s.SessionID != conversation {
-		return fmt.Errorf("session %s runs conversation %s, not %s: a restart goes on only with the "+
-			"conversation it closes", target, s.SessionID, conversation)
+		return fmt.Errorf("session %s runs conversation %s, not %s: a restart closes only the conversation "+
+			"it names", target, s.SessionID, conversation)
 	}
 	return nil
 }

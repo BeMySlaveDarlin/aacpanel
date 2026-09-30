@@ -248,7 +248,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		req.Target, body.Target, req.Resume = plan.Name, plan.Name, plan.Resume
+		req.Target, body.Target, req.Resume, req.Conversation = plan.Name, plan.Name, plan.Resume, plan.Conversation
 		if plan.Project != nil {
 			req.Project = plan.Project
 			params = map[string]any{"project": plan.ProjectID, "path": plan.Project.Path}
@@ -692,13 +692,15 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 	return switchWay{To: action.SwitchStream, Project: want, ProjectID: projectID}, nil
 }
 
-// restartWay is the session a restart is about, what it comes back as, and
-// the conversation it goes on with when it does not start anew.
+// restartWay is the session a restart is about, what it comes back as, the
+// conversation it goes on with when it does not start anew, and the one it is
+// asked for by.
 type restartWay struct {
-	Name      string
-	Project   *action.Project
-	ProjectID int
-	Resume    string
+	Name         string
+	Project      *action.Project
+	ProjectID    int
+	Resume       string
+	Conversation string
 }
 
 // restartPlan finds the session a restart is about and the project it comes
@@ -708,10 +710,12 @@ type restartWay struct {
 // send after a restart; a session no project of the map holds goes without
 // one, and the executor restarts it only if it is the host's main session.
 // With resume the new session goes on with the conversation the old one ran.
+// The conversation a session names goes to the executor either way, which
+// restarts the session only while it still runs it.
 func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (restartWay, error) {
 	conversation, _ := params["conversation"].(string)
 	resume, _ := params["resume"].(bool)
-	way := restartWay{Name: name}
+	way := restartWay{Name: name, Conversation: conversation}
 	if s.host == nil {
 		if resume {
 			if conversation == "" {
