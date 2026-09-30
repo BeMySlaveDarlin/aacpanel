@@ -186,3 +186,23 @@ func TestSessionRestart(t *testing.T) {
 		}
 	})
 }
+
+func TestASecondRestartOfASessionWaitsForNoneAndStartsNothing(t *testing.T) {
+	e := &Executor{}
+	req := action.Request{Kind: action.SessionRestart, Target: "shop"}
+	if !e.restarting.take("shop") {
+		t.Fatal("the first restart of a session was not let through")
+	}
+	_, err := e.Execute(context.Background(), req)
+	if err == nil || !strings.Contains(err.Error(), "being restarted already") {
+		t.Fatalf("a restart taken while another one of the same session runs: %v", err)
+	}
+	e.restarting.give("shop")
+	_, err = e.Execute(context.Background(), req)
+	if err != nil && strings.Contains(err.Error(), "being restarted already") {
+		t.Fatalf("the restart that ended still holds the session: %v", err)
+	}
+	if !e.restarting.take("blog") {
+		t.Fatal("another session waits for the restart of the first")
+	}
+}

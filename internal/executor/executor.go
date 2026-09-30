@@ -23,6 +23,38 @@ type Executor struct {
 	sendSignal func(pid int, sig syscall.Signal) error
 	poll       time.Duration
 	soft       time.Duration
+
+	// restarting holds the sessions a restart is under way for. A session
+	// past its context cap is told to restart itself on every stop, and the
+	// close of a restart lets it stop once more: a second restart taken
+	// while the first still closes the session would start a second one.
+	restarting busy
+}
+
+// busy is a set of names something is under way for.
+type busy struct {
+	mu sync.Mutex
+	on map[string]bool
+}
+
+// take marks the name as under way, or reports false when it already is.
+func (b *busy) take(name string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.on[name] {
+		return false
+	}
+	if b.on == nil {
+		b.on = map[string]bool{}
+	}
+	b.on[name] = true
+	return true
+}
+
+func (b *busy) give(name string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.on, name)
 }
 
 // New creates an Executor for the given Docker client and self container name.
@@ -73,6 +105,11 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.SessionClose:
 		return e.sessionClose(ctx, req.Target)
 	case action.SessionRestart:
+		if !e.restarting.take(req.Target) {
+			return "", fmt.Errorf("session %s is being restarted already: a second restart would bring up a "+
+				"second session, so this one does nothing", req.Target)
+		}
+		defer e.restarting.give(req.Target)
 		return e.sessionRestart(ctx, req.Target, req.Resume, req.Project)
 	case action.SessionSend:
 		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID)
