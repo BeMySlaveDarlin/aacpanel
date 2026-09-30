@@ -312,6 +312,23 @@ func TestWhatStopsALetterIsTheToolsError(t *testing.T) {
 	}
 }
 
+// A restart the person asks for is a fresh one. Left a free choice, a model
+// takes continue to spare itself the notes a fresh start wants first, and the
+// person's "restart" comes back as the same conversation; so the server's word,
+// the tool's and the flag's each keep continue for their ask to keep it.
+func TestARestartThePersonAsksForIsAFreshOne(t *testing.T) {
+	flag := restartSchema()["properties"].(map[string]any)["continue"].(map[string]any)["description"].(string)
+	for name, text := range map[string]string{
+		"the server's word": RestartInstructions,
+		"the tool's word":   RestartDescription,
+		"the flag's word":   flag,
+	} {
+		if !strings.Contains(text, "to keep the conversation") {
+			t.Errorf("%s leaves continue to the model's choice: %q", name, text)
+		}
+	}
+}
+
 // The line of each tool in the server's word stays one short sentence or two:
 // it stands in the system prompt of every session.
 func TestTheLinesOfTheToolsAreShort(t *testing.T) {
