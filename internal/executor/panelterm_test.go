@@ -161,7 +161,7 @@ func TestTermsTellWhetherSomethingRunsBesideTheShell(t *testing.T) {
 }
 
 func TestTermsCarryTheLastLineOnTheirScreen(t *testing.T) {
-	long := strings.Repeat("ж", termLastRunes+40)
+	long := strings.Repeat("é", termLastRunes+40)
 	var rows []string
 	for i := 1; i <= 6; i++ {
 		rows = append(rows, termRow(fmt.Sprintf("t-%08x", i), "bash"))
