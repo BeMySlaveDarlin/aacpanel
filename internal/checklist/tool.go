@@ -18,8 +18,9 @@ const ToolName = "checklist"
 
 // Instructions is the tool's line in the server's word to every session that
 // has it.
-const Instructions = "When the work has several steps, keep them with the checklist tool, which the person sees " +
-	"in the panel: the whole list every time, sent when a step starts or ends. A short task needs none."
+const Instructions = "Keep work of several steps with the checklist tool, which the person sees " +
+	"in the panel: the whole list, sent before the work, when a step starts or ends and when the plan " +
+	"changes. A short task needs none."
 
 // Description is the tool's own word to the model.
 const Description = "The checklist of the current work, shown to the person in the panel on their phone and desk; " +
