@@ -5,7 +5,7 @@ export const TASK_HUSH_MS = 2 * 60 * 60 * 1000;
 
 // taskVoice returns what to say about the voice of a task, or null to say nothing.
 export function taskVoice(task, now = Date.now()) {
-    if (!task || task.kind !== "aacpanel") return null;
+    if (!task || task.kind !== "monitor") return null;
     if (!task.event) return { silent: true, hush: true };
     const at = Date.parse(task.event);
     if (Number.isNaN(at)) return null;

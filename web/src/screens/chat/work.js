@@ -186,7 +186,7 @@ export function WorkRefs({ work, pages, briefs, onOpen }) {
 
 const TASK_KINDS = {
     bash: [Icon.terminal, "command"],
-    aacpanel: [Icon.probes, "monitoring"],
+    monitor: [Icon.probes, "monitoring"],
     wake: [Icon.alerts, "wake-up"],
     cron: [Icon.alerts, "alarm"],
 };

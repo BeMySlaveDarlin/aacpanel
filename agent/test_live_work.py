@@ -34,7 +34,7 @@ class WorkOfASession(unittest.TestCase):
                          "a restart waits for the background of a session, and a wake-up runs nothing")
 
     def test_a_job_of_the_cron_is_an_alarm_too(self):
-        got = live.work_of({"tasks": [{"kind": "cron"}, {"kind": "wake"}, {"kind": "aacpanel"}],
+        got = live.work_of({"tasks": [{"kind": "cron"}, {"kind": "wake"}, {"kind": "monitor"}],
                             "agents": []})
         self.assertEqual(got, {"tasks": 3, "agents": 0, "wakes": 2},
                          "a restart waited for a prompt on the cron that runs nothing until it fires")

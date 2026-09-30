@@ -20,15 +20,15 @@ func TestTaskVoiceTellsSilenceFromLongPause(t *testing.T) {
 		want string
 	}{
 		{"a command keeps silent in its own way", map[string]any{"kind": "bash", "event": ago(time.Minute)}, "null"},
-		{"a fresh event", map[string]any{"kind": "aacpanel", "event": ago(4 * time.Minute)},
+		{"a fresh event", map[string]any{"kind": "monitor", "event": ago(4 * time.Minute)},
 			`{"silent":false,"hush":false}`},
-		{"an hour fifty is still ordinary", map[string]any{"kind": "aacpanel", "event": ago(110 * time.Minute)},
+		{"an hour fifty is still ordinary", map[string]any{"kind": "monitor", "event": ago(110 * time.Minute)},
 			`{"silent":false,"hush":false}`},
-		{"over two hours the tone changes", map[string]any{"kind": "aacpanel", "event": ago(3 * time.Hour)},
+		{"over two hours the tone changes", map[string]any{"kind": "monitor", "event": ago(3 * time.Hour)},
 			`{"silent":false,"hush":true}`},
-		{"there were no events at all", map[string]any{"kind": "aacpanel", "at": ago(19 * time.Hour)},
+		{"there were no events at all", map[string]any{"kind": "monitor", "at": ago(19 * time.Hour)},
 			`{"silent":true,"hush":true}`},
-		{"the timestamp does not parse — say nothing", map[string]any{"kind": "aacpanel", "event": "yesterday"}, "null"},
+		{"the timestamp does not parse — say nothing", map[string]any{"kind": "monitor", "event": "yesterday"}, "null"},
 	}
 	calls := make([][]any, 0, len(cases))
 	for _, c := range cases {

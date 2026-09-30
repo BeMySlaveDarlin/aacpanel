@@ -29,7 +29,7 @@ MAYBE_BACKGROUND = ("Bash", "Monitor")
 TASK_ID_KEYS = ("backgroundTaskId", "taskId")
 
 TASK_BASH = "bash"
-TASK_MONITOR = "aacpanel"
+TASK_MONITOR = "monitor"
 
 TASK_KIND_BY_KEY = {"backgroundTaskId": TASK_BASH, "taskId": TASK_MONITOR}
 

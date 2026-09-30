@@ -53,7 +53,7 @@ def timed_out(tool_id, task_id, description="Catching a flaky check",
                      backgroundTaskId=task_id, timedOutAfterMs=300000))
 
 
-def aacpanel(tool_id, task_id, description="Watching the build",
+def monitor(tool_id, task_id, description="Watching the build",
             at="2026-08-25T10:00:00Z", persistent=True):
     return (call("Monitor", tool_id, at=at, command="make watch",
                  description=description, persistent=persistent)
@@ -141,25 +141,30 @@ class Tasks(Transcript):
         got = self.state(background("toolu_1", "b00000001"), notification("toolu_1", "running"))
         self.assertEqual(len(got["tasks"]), 1)
 
+    def test_a_watch_goes_to_the_screen_as_monitor(self):
+        got = self.state(monitor("toolu_1", "b00000002"))
+        self.assertEqual([t["kind"] for t in got["tasks"]], ["monitor"],
+                         "the screen reads a watch by this word and draws any other as a command")
+
 
 class Notifications(Transcript):
     def test_a_notification_without_a_call_removes_the_task_by_its_id(self):
-        got = self.state(aacpanel("toolu_1", "b00000002"),
+        got = self.state(monitor("toolu_1", "b00000002"),
                          orphan_summary("beapubqvz", "b00000002"))
         self.assertEqual(got["tasks"], [])
 
     def test_a_summary_about_other_tasks_does_not_touch_ours(self):
-        got = self.state(aacpanel("toolu_1", "b00000001"),
+        got = self.state(monitor("toolu_1", "b00000001"),
                          orphan_summary("beapubqvz"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"])
 
     def test_a_monitor_timeout_removes_the_task(self):
-        got = self.state(aacpanel("toolu_1", "b00000002"),
+        got = self.state(monitor("toolu_1", "b00000002"),
                          monitor_event("b00000002", "[Monitor timed out — re-arm if needed.]"))
         self.assertEqual(got["tasks"], [])
 
     def test_an_expired_monitor_leaves_the_list(self):
-        got = self.state(aacpanel("toolu_1", "b00000002"),
+        got = self.state(monitor("toolu_1", "b00000002"),
                          monitor_event("b00000002",
                                        "[Monitor expired after 30m with no events delivered. "
                                        "Re-arm it if you still need the watch — and widen the "
@@ -167,7 +172,7 @@ class Notifications(Transcript):
         self.assertEqual(got["tasks"], [])
 
     def test_a_monitor_that_delivered_and_then_expired_leaves_the_list(self):
-        got = self.state(aacpanel("toolu_1", "b00000002"),
+        got = self.state(monitor("toolu_1", "b00000002"),
                          monitor_event("b00000002", "CI=running threads=0"),
                          monitor_event("b00000002",
                                        "[Monitor expired after 30m with 1 event delivered. "
@@ -180,7 +185,7 @@ class Notifications(Transcript):
         for n in range(1, 6):
             at = "2026-08-25T%02d:00:00Z" % (9 + n)
             over = "2026-08-25T%02d:30:00Z" % (9 + n)
-            marks.append(aacpanel("toolu_%d" % n, "b0000000%d" % n, at=at))
+            marks.append(monitor("toolu_%d" % n, "b0000000%d" % n, at=at))
             if n < 5:
                 marks.append(monitor_event("b0000000%d" % n,
                                            "[Monitor expired after 30m with no events "
@@ -190,7 +195,7 @@ class Notifications(Transcript):
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000005"])
 
     def test_a_monitor_event_does_not_remove_the_task(self):
-        got = self.state(aacpanel("toolu_1", "b00000001"),
+        got = self.state(monitor("toolu_1", "b00000001"),
                          monitor_event("b00000001", "ordered=5 bought=6 percent=120"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"])
 
@@ -200,34 +205,34 @@ class Notifications(Transcript):
         self.assertTrue(got["tasks"][0]["done"], "the status stopped left the shell open")
 
     def test_a_monitor_event_is_remembered_by_its_time(self):
-        got = self.state(aacpanel("toolu_1", "b00000001"),
+        got = self.state(monitor("toolu_1", "b00000001"),
                          monitor_event("b00000001", "CI=running threads=0"))
         self.assertEqual(got["tasks"][0]["event"], "2026-08-25T10:20:00Z")
 
     def test_a_task_without_events_has_no_mark(self):
-        got = self.state(aacpanel("toolu_1", "b00000001"))
+        got = self.state(monitor("toolu_1", "b00000001"))
         self.assertNotIn("event", got["tasks"][0])
 
     def test_the_mark_is_updated_by_the_last_event(self):
-        got = self.state(aacpanel("toolu_1", "b00000001"),
+        got = self.state(monitor("toolu_1", "b00000001"),
                          monitor_event("b00000001", "CI=running threads=0"),
                          monitor_event("b00000001", "CI=success threads=0",
                                        at="2026-08-25T11:30:00Z"))
         self.assertEqual(got["tasks"][0]["event"], "2026-08-25T11:30:00Z")
 
     def test_an_event_of_another_task_sets_no_mark(self):
-        got = self.state(aacpanel("toolu_1", "b00000001"),
+        got = self.state(monitor("toolu_1", "b00000001"),
                          monitor_event("b00000002", "CI=running threads=0"))
         self.assertNotIn("event", got["tasks"][0])
 
     def test_a_finishing_event_does_not_replace_the_mark_with_the_end(self):
-        got = self.state(aacpanel("toolu_1", "b00000001"),
+        got = self.state(monitor("toolu_1", "b00000001"),
                          monitor_event("b00000001", "[Monitor timed out — re-arm if needed.]"))
         self.assertEqual(got["tasks"], [])
 
     def test_another_task_named_in_a_notification_does_not_touch_the_rest(self):
         got = self.state(background("toolu_1", "b00000001"),
-                         aacpanel("toolu_2", "b00000002", at="2026-08-25T10:05:00Z"),
+                         monitor("toolu_2", "b00000002", at="2026-08-25T10:05:00Z"),
                          orphan_summary("b00000002"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"])
 
@@ -239,12 +244,12 @@ class Kinds(Transcript):
                          [("b00000001", "Waiting for CI")])
 
     def test_a_monitor_is_recognised_by_its_own_key(self):
-        got = self.state(aacpanel("toolu_1", "b00000003"))
+        got = self.state(monitor("toolu_1", "b00000003"))
         self.assertEqual([(t["id"], t["text"]) for t in got["tasks"]],
                          [("b00000003", "Watching the build")])
 
     def test_a_monitor_creates_a_task_even_without_persistent(self):
-        got = self.state(aacpanel("toolu_1", "b00000004", persistent=False))
+        got = self.state(monitor("toolu_1", "b00000004", persistent=False))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000004"])
 
     def test_a_background_agent_is_recognised_by_its_status(self):
@@ -274,7 +279,7 @@ class Kinds(Transcript):
 
     def test_a_notification_leaves_only_the_shell(self):
         got = self.state(
-            background("toolu_1", "b00000001"), aacpanel("toolu_2", "b00000003"),
+            background("toolu_1", "b00000001"), monitor("toolu_2", "b00000003"),
             async_agent("toolu_3", "a3333333333333333"),
             notification("toolu_1"), notification("toolu_2"), notification("toolu_3"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001"],
@@ -301,7 +306,7 @@ class Kinds(Transcript):
 
     def test_a_manual_stop_leaves_only_the_shell(self):
         got = self.state(
-            background("toolu_1", "b00000001"), aacpanel("toolu_2", "b00000003"),
+            background("toolu_1", "b00000001"), monitor("toolu_2", "b00000003"),
             async_agent("toolu_3", "a3333333333333333"),
             call("TaskStop", "toolu_4", task_id="b00000001"),
             call("TaskStop", "toolu_5", task_id="b00000003"),
@@ -310,7 +315,7 @@ class Kinds(Transcript):
 
     def test_a_shell_and_a_watch_are_counted_together_and_the_agent_apart(self):
         got = self.state(background("toolu_1", "b00000001"),
-                         aacpanel("toolu_2", "b00000003"),
+                         monitor("toolu_2", "b00000003"),
                          async_agent("toolu_3", "a3333333333333333"))
         self.assertEqual([t["id"] for t in got["tasks"]], ["b00000001", "b00000003"])
         self.assertEqual([a["id"] for a in got["agents"]], ["a3333333333333333"])
@@ -356,7 +361,7 @@ class ScreenLine(Transcript):
         self.assertEqual(got["line"], "sleep 600")
 
     def test_monitor_line_is_the_description(self):
-        got = self.state(aacpanel("tool-1", "b00000002"))["tasks"][0]
+        got = self.state(monitor("tool-1", "b00000002"))["tasks"][0]
         self.assertEqual(got["line"], "Watching the build")
 
 
@@ -381,13 +386,13 @@ class Restart(Transcript):
                          "the shell died with the process, and the chip still counts it running")
 
     def test_a_watch_started_before_the_birth_is_gone(self):
-        got = self.born(BORN, aacpanel("toolu_1", "b00000002", at=BEFORE))
+        got = self.born(BORN, monitor("toolu_1", "b00000002", at=BEFORE))
         self.assertEqual(got["tasks"], [],
                          "a watch has nothing to come back to after a restart")
 
     def test_work_started_after_the_birth_is_running(self):
         got = self.born(BORN, background("toolu_1", "b00000001", at=AFTER),
-                        aacpanel("toolu_2", "b00000002", at=AFTER),
+                        monitor("toolu_2", "b00000002", at=AFTER),
                         async_agent("toolu_3", "a3333333333333333", at=AFTER))
         self.assertEqual([(t["id"], t.get("done")) for t in got["tasks"]],
                          [("b00000001", False), ("b00000002", False)])
