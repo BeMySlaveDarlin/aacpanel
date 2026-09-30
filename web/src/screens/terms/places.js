@@ -75,14 +75,14 @@ export function placeLabel(places, place) {
 
 // contoursOf lays the places out the way the phone pages them: a page per
 // contour of the map in its order, keyed by its name, with the projects of the
-// contour that have terminals in the order the map lists them. The first
-// contour is taken for the personal one — the map puts the contour without a
-// directory prefix first — and every other place with terminals stands on it:
-// home ahead of its projects, the rest after them in the order the host lists
-// them. A place two contours list stands on the first. paths are the places a
-// page answers for, with terminals or without, so a terminal just started
-// finds its page before the list catches up. A map without contours gives one
-// page for every place.
+// contour that have terminals in the order the map lists them. The personal
+// contour is the one the map marks default — kept in the default config
+// directory of the owner — or the first where none is, and every other place
+// with terminals stands on it: home ahead of its projects, the rest after them
+// in the order the host lists them. A place two contours list stands on the
+// first. paths are the places a page answers for, with terminals or without,
+// so a terminal just started finds its page before the list catches up. A map
+// without contours gives one page for every place.
 export function contoursOf(places, profileMap, home) {
     const taken = new Set();
     const pages = [];
@@ -97,10 +97,10 @@ export function contoursOf(places, profileMap, home) {
             taken.add(entry.place);
             own.push(entry);
         }
-        pages.push({ key: name, label: name, contour: name, paths, places: own });
+        pages.push({ key: name, label: name, contour: name, paths, places: own, personal: Boolean(profile.default) });
     }
     if (pages.length === 0) pages.push({ key: "", label: "Terminals", contour: "", paths: [], places: [] });
-    const personal = pages[0];
+    const personal = personalOf(pages);
     const rest = places.filter((p) => !taken.has(p.place) && p.terms.length > 0);
     const atHome = (p) => Boolean(home) && samePlace(p.place, home);
     personal.places = [...rest.filter(atHome), ...personal.places, ...rest.filter((p) => !atHome(p))];
@@ -108,10 +108,15 @@ export function contoursOf(places, profileMap, home) {
     return pages;
 }
 
+// personalOf is the page of the personal contour.
+function personalOf(pages) {
+    return pages.find((p) => p.personal) || pages[0];
+}
+
 // pageOf is the key of the page a place stands on: the contour that lists it,
 // or the personal one.
 export function pageOf(pages, place) {
-    const found = pages.find((p) => p.paths.some((path) => samePlace(path, place))) || pages[0];
+    const found = pages.find((p) => p.paths.some((path) => samePlace(path, place))) || personalOf(pages);
     return found ? found.key : "";
 }
 

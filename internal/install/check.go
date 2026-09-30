@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/contours"
 	"aacpanel/internal/hostcfg"
 )
 
@@ -518,7 +519,7 @@ func (in *Install) testSession(r *Run) error {
 	}
 	began := r.clock().Now()
 	project := &action.Project{Path: in.sessionDir(), Session: CheckSession}
-	if dirs := in.accounts(); len(dirs) > 0 && filepath.Clean(dirs[0]) != filepath.Join(in.home(), ".claude") {
+	if dirs := in.accounts(); len(dirs) > 0 && !contours.IsDefaultConfig(dirs[0], in.home()) {
 		project.ConfigDir = dirs[0]
 	}
 	launch, _ := json.Marshal(map[string]string{"transport": in.S.valueOr("transport", "stream")})

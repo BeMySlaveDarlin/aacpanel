@@ -44,7 +44,7 @@ func configFileFor(dir string) (string, error) {
 		if c.Prefix != "*" && !strings.HasPrefix(strings.TrimRight(dir, "/")+"/", c.Prefix) {
 			continue
 		}
-		if c.Config == filepath.Join(home, ".claude") {
+		if registry.IsDefaultConfig(c.Config, home) {
 			break
 		}
 		return filepath.Join(c.Config, ".claude.json"), nil

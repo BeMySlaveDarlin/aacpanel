@@ -17,6 +17,19 @@ const HomeEnv = "AACP_CLAUDE_HOME"
 // Personal is the name of the personal contour.
 const Personal = "personal"
 
+// DefaultConfig is the config directory claude reads when nothing names
+// another: .claude in the home directory. The contour kept there is the
+// personal one, whatever the map calls it and wherever it stands on it.
+func DefaultConfig(home string) string {
+	return filepath.Join(home, ".claude")
+}
+
+// IsDefaultConfig reports that dir, a leading ~ read as home, is the default
+// config directory of home.
+func IsDefaultConfig(dir, home string) bool {
+	return home != "" && filepath.Clean(expand(dir, home)) == DefaultConfig(home)
+}
+
 // Contour is a claude contour: its own config directory for a group of projects.
 type Contour struct {
 	Profile string
@@ -35,7 +48,7 @@ func Load() []Contour {
 	}
 	out := fromRegistry(home)
 	if len(out) == 0 {
-		return []Contour{{Profile: "personal", Prefix: "*", Config: filepath.Join(home, ".claude")}}
+		return []Contour{{Profile: "personal", Prefix: "*", Config: DefaultConfig(home)}}
 	}
 	return out
 }
@@ -111,7 +124,7 @@ func envDirs(home string) []string {
 		if home == "" {
 			return nil
 		}
-		return []string{filepath.Join(home, ".claude")}
+		return []string{DefaultConfig(home)}
 	}
 	return strings.Split(raw, string(os.PathListSeparator))
 }

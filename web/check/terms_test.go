@@ -495,3 +495,37 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		}
 	})
 }
+
+type personalLayout struct {
+	Pages []string `json:"pages"`
+	Home  string   `json:"home"`
+	Loose string   `json:"loose"`
+}
+
+// The places no contour of the map lists — home and a directory of no project
+// — stand on the page of the personal contour, the one the map marks default
+// by its config directory, and a terminal started in one opens that page, even
+// where the map puts the personal contour second. A map that marks none gives
+// them to its first contour.
+func TestTerminalsOutsideTheMapStandOnThePersonalContour(t *testing.T) {
+	var got struct {
+		Marked   personalLayout `json:"marked"`
+		Unmarked personalLayout `json:"unmarked"`
+	}
+	runFixture(t, "termspersonal.html", &got)
+
+	if want := []string{"work: lab", "personal: Home, tmp"}; !equalStrings(got.Marked.Pages, want) {
+		t.Errorf("with personal marked default the pages read %v, expected %v", got.Marked.Pages, want)
+	}
+	if got.Marked.Home != "personal" || got.Marked.Loose != "personal" {
+		t.Errorf("a terminal at home opens the page %q, one elsewhere %q — expected personal for both",
+			got.Marked.Home, got.Marked.Loose)
+	}
+	if want := []string{"work: Home, lab, tmp", "personal: "}; !equalStrings(got.Unmarked.Pages, want) {
+		t.Errorf("with no contour marked the pages read %v, expected %v", got.Unmarked.Pages, want)
+	}
+	if got.Unmarked.Home != "work" || got.Unmarked.Loose != "work" {
+		t.Errorf("with no contour marked a terminal at home opens %q, one elsewhere %q — expected the first, work",
+			got.Unmarked.Home, got.Unmarked.Loose)
+	}
+}

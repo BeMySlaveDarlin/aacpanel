@@ -395,7 +395,7 @@ func (s *Survey) claude() []Question {
 		Own:  typePath, Flag: "--account", Check: checkPaths,
 		Writes: []Target{{HostEnvFile, contours.HomeEnv}, {File: "claude settings"}},
 	}
-	personal := filepath.Join(f.Account.Home, ".claude")
+	personal := contours.DefaultConfig(f.Account.Home)
 	for i, a := range s.Found.Accounts {
 		accounts.Options = append(accounts.Options, Option{Value: a.Dir, Label: f.Short(a.Dir),
 			Source: "found", On: a.Dir == personal || i == 0})
@@ -916,7 +916,7 @@ const recent = 14 * 24 * time.Hour
 // contourName is the suggested name of the contour of an account: the
 // personal one for ~/.claude, the rest by their directory.
 func contourName(dir, home string) string {
-	if Expand(dir, home) == filepath.Join(home, ".claude") {
+	if contours.IsDefaultConfig(dir, home) {
 		return contours.Personal
 	}
 	name := strings.TrimPrefix(filepath.Base(dir), ".claude-")

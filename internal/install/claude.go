@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"aacpanel/internal/contours"
 )
 
 // ---- claude itself, when the machine has none ----
@@ -115,7 +117,7 @@ func (in *Install) wiring() Wiring {
 // reads without CLAUDE_CONFIG_DIR — naming ~/.claude there would make
 // claude keep a second file inside it.
 func (in *Install) mcpFile(dir string) string {
-	if filepath.Clean(dir) == filepath.Join(in.home(), ".claude") {
+	if contours.IsDefaultConfig(dir, in.home()) {
 		return filepath.Join(in.home(), ".claude.json")
 	}
 	return filepath.Join(dir, ".claude.json")
@@ -473,7 +475,7 @@ func (s *Survey) signInMind() []string {
 // would make claude keep a second .claude.json inside it.
 func (s *Survey) signInLine(dir string) string {
 	line := s.valueOr("claude", "claude")
-	if Expand(dir, s.Facts.Account.Home) != filepath.Join(s.Facts.Account.Home, ".claude") {
+	if !contours.IsDefaultConfig(dir, s.Facts.Account.Home) {
 		line = "CLAUDE_CONFIG_DIR=" + s.Facts.Short(dir) + " " + line
 	}
 	return line

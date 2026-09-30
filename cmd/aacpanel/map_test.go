@@ -42,7 +42,7 @@ func tree() []store.Profile {
 }
 
 func TestProfileMapShape(t *testing.T) {
-	out := profileMap(tree())
+	out := profileMap(tree(), "/home/u")
 
 	if len(out) != 2 {
 		t.Fatalf("%d profiles, expected 2 (an empty profile does not go into the tree): %+v", len(out), out)
@@ -429,7 +429,7 @@ func TestProfileMapPutsDefaultProfileFirst(t *testing.T) {
 	}
 
 	list := []store.Profile{work, other, home}
-	out := profileMap(list)
+	out := profileMap(list, "/home/u")
 	if len(out) != 3 {
 		t.Fatalf("%d profiles, expected 3: %+v", len(out), out)
 	}
@@ -445,10 +445,30 @@ func TestProfileMapPutsDefaultProfileFirst(t *testing.T) {
 	}
 }
 
+// The contour kept in the default config directory of the owner is marked
+// default, wherever the map puts it and whatever it is called: the screens take
+// it for the personal one. A tilde reads as the owner's home.
+func TestProfileMapMarksTheContourOfTheDefaultConfig(t *testing.T) {
+	list := tree()
+	list[0].ConfigDir = "/home/u/.claude-profiles/lab"
+	list[1].Prefix, list[1].ConfigDir = "/srv/proj/Labs", "~/.claude/"
+	out := profileMap(list, "/home/u")
+	if len(out) != 2 || out[0].Profile != "personal" || out[1].Profile != "work" {
+		t.Fatalf("the map came out as %+v", out)
+	}
+	if out[0].Default || !out[1].Default {
+		t.Errorf("default is marked on %v and %v, expected on the contour in ~/.claude only, not on the first",
+			out[0].Default, out[1].Default)
+	}
+	if got := profileMap(list, ""); got[0].Default || got[1].Default {
+		t.Error("with no home known a contour is marked default all the same")
+	}
+}
+
 func TestProfileMapAddressesContourByID(t *testing.T) {
 	list := tree()
 	list[0].ConfigDir = "/home/u/.claude"
-	out := profileMap(list)
+	out := profileMap(list, "/home/u")
 	if len(out) == 0 {
 		t.Fatal("the tree is empty")
 	}

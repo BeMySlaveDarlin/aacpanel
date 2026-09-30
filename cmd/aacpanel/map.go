@@ -13,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
+	"aacpanel/internal/contours"
 	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
@@ -35,9 +36,13 @@ type groupNode struct {
 	Projects []projectNode `json:"projects"`
 }
 
+// profileNode is a contour of the map. Default marks the one kept in the
+// default config directory of the owner: the personal contour, which the
+// screens take for whatever no other contour holds, wherever the map puts it.
 type profileNode struct {
 	ID      int         `json:"id"`
 	Profile string      `json:"profile"`
+	Default bool        `json:"default,omitempty"`
 	Groups  []groupNode `json:"groups"`
 }
 
@@ -72,7 +77,7 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 	// The account is a layer too: a project that repeats what its account
 	// says is not setting anything of its own.
 	s.fillMap(list)
-	tree := profileMap(list)
+	tree := profileMap(list, s.home)
 	if len(tree) == 0 {
 		return payload, nil
 	}
@@ -97,7 +102,7 @@ func spliceField(payload []byte, key string, value any) ([]byte, error) {
 	return json.Marshal(out)
 }
 
-func profileMap(list []store.Profile) []profileNode {
+func profileMap(list []store.Profile, home string) []profileNode {
 	order := make([]store.Profile, len(list))
 	copy(order, list)
 	sort.SliceStable(order, func(i, j int) bool {
@@ -127,7 +132,8 @@ func profileMap(list []store.Profile) []profileNode {
 		if len(groups) == 0 {
 			continue
 		}
-		out = append(out, profileNode{ID: profile.ID, Profile: profile.Name, Groups: groups})
+		out = append(out, profileNode{ID: profile.ID, Profile: profile.Name,
+			Default: contours.IsDefaultConfig(profile.ConfigDir, home), Groups: groups})
 	}
 	return out
 }

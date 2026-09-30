@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// Where the phone pages the places no contour of the map lists — home and a
+// directory of no project: on the page of the personal contour, the one the map
+// marks default, wherever the map puts it; a map that marks none gives them to
+// its first contour.
+import { contoursOf, pageOf } from "/src/screens/terms/places.js";
+
+const places = [
+    { place: "/home/u", label: "Home", terms: [{ id: "t-1" }] },
+    { place: "/srv/proj/lab", label: "lab", terms: [{ id: "t-2" }] },
+    { place: "/srv/tmp", label: "tmp", terms: [{ id: "t-3" }] },
+];
+const map = (marked) => [
+    { id: 4, profile: "work", groups: [{ name: "Lab", projects: [{ id: 40, name: "lab", path: "/srv/proj/lab" }] }] },
+    { id: 3, profile: "personal", default: marked,
+      groups: [{ name: "Side", projects: [{ id: 30, name: "side", path: "/srv/proj/side" }] }] },
+];
+const lay = (marked) => {
+    const pages = contoursOf(places, map(marked), "/home/u");
+    return {
+        pages: pages.map((p) => `${p.key}: ${p.places.map((e) => e.label).join(", ")}`),
+        home: pageOf(pages, "/home/u"),
+        loose: pageOf(pages, "/srv/elsewhere"),
+    };
+};
+window.done = Promise.resolve({ marked: lay(true), unmarked: lay(false) });
+</script>

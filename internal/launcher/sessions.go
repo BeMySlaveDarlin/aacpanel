@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"aacpanel/internal/contours"
 	"aacpanel/internal/mcp"
 )
 
@@ -144,7 +145,7 @@ func Where(pid int) (mcp.Binding, error) {
 		if home == "" {
 			home, _ = os.UserHomeDir()
 		}
-		config = filepath.Join(home, ".claude")
+		config = contours.DefaultConfig(home)
 	}
 	return mcp.Binding{Place: mcp.Place{ConfigDir: config, Dir: cwd}, Name: nameOf(pid, ""), PID: pid}, nil
 }

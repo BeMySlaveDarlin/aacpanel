@@ -94,7 +94,7 @@ func readEarlier(m Machine, f Facts) earlier {
 // turns it on. Nothing wired — no kit to keep.
 func wiredKit(m Machine, f Facts, e earlier) []string {
 	home := f.Account.Home
-	dirs := []string{filepath.Join(home, ".claude")}
+	dirs := []string{contours.DefaultConfig(home)}
 	if list, ok := e.host[contours.HomeEnv]; ok && list != "" {
 		dirs = nil
 		for _, d := range strings.Split(list, ":") {
