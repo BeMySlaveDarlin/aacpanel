@@ -12,6 +12,9 @@ import guards  # noqa: E402
 
 BATCH_INTERVAL = 600
 BATCH_STEP = 10
+# A conversation leaves its throttle file behind in the state directory: one
+# nobody wrote for this long is swept when another is written.
+STAMP_KEEP = 7 * 24 * 3600
 
 STALE_SEC = 120
 
@@ -196,7 +199,25 @@ def throttle(state_dir, session_id, pct, alarms):
         os.replace(tmp, path)
     except OSError:
         pass
+    sweep(state_dir, now - STAMP_KEEP)
     return True
+
+
+def sweep(state_dir, before):
+    """Removes the throttle files of the stamp written before a time. The state
+    directory is shared with the collector: only the stamp's own files go."""
+    try:
+        entries = list(os.scandir(state_dir))
+    except OSError:
+        return
+    for entry in entries:
+        if not entry.name.startswith("stamp-") or not entry.name.endswith((".state", ".state.tmp")):
+            continue
+        try:
+            if entry.stat().st_mtime < before:
+                os.remove(entry.path)
+        except OSError:
+            pass
 
 
 def main():

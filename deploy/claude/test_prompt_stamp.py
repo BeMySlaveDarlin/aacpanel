@@ -251,6 +251,21 @@ class TestThrottle(unittest.TestCase):
             self.assertTrue(stamp.throttle(state, "sid", 50, "DISK / 95%"),
                             "a fresh alarm went unnoticed")
 
+    def test_the_files_of_old_conversations_are_swept_and_nothing_else(self):
+        with tempfile.TemporaryDirectory() as state:
+            old = time.time() - stamp.STAMP_KEEP - 3600
+            for name in ("stamp-gone.state", "stamp-gone.state.tmp", "state.json", "stamp-notes.txt"):
+                path = os.path.join(state, name)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("x")
+                os.utime(path, (old, old))
+            with open(os.path.join(state, "stamp-fresh.state"), "w", encoding="utf-8") as f:
+                f.write("1\n")
+            stamp.throttle(state, "sid", 50, None)
+            self.assertEqual(sorted(os.listdir(state)),
+                             ["stamp-fresh.state", "stamp-notes.txt", "stamp-sid.state", "state.json"],
+                             "the sweep took the wrong files or left an old conversation's")
+
     def test_sessions_do_not_share_the_throttle(self):
         with tempfile.TemporaryDirectory() as state:
             stamp.throttle(state, "one", 50, None)
