@@ -148,7 +148,7 @@ func TestTheTailscaleKeyNeverShows(t *testing.T) {
 	for r.m.slots[r.m.cur].name != "K" {
 		r.keys("enter")
 	}
-	for i := 0; i < 8; i++ { // from Page copies down to Tailscale
+	for i := 0; i < 9; i++ { // from Page copies down to Tailscale
 		r.keys("down")
 	}
 	r.keys("space", "enter")

@@ -307,6 +307,7 @@ func TestTheKitFlag(t *testing.T) {
 	suggested := "relay,limits,tools,copies,brief,cap,nudge,restart"
 	for _, c := range []struct{ raw, want, err string }{
 		{"+stamp,-cap", "relay,limits,tools,copies,brief,nudge,restart,stamp", ""},
+		{"+background", suggested + ",background", ""},
 		{"gc,lan", "relay,limits,tools,gc,lan", ""},
 		{"-relay", suggested, ""},
 		{"+wings", "", `--kit knows`},
@@ -440,13 +441,14 @@ func TestAnAccountFlagNamesItsAccount(t *testing.T) {
 // the tools allowed one by one without it leave it out.
 func TestAnInstallByHandKeepsItsKit(t *testing.T) {
 	hooks := `"hooks":{"PreToolUse":[{"hooks":[{"command":"python3 ` + clone +
-		`/agent/ask-hook.py"}]}],"Stop":[{"hooks":[{"command":"python3 ` + clone + `/deploy/claude/context-guard.py"}]}]}`
+		`/agent/ask-hook.py"}]}],"Stop":[{"hooks":[{"command":"python3 ` + clone + `/deploy/claude/context-guard.py"}]},` +
+		`{"hooks":[{"command":"python3 ` + clone + `/deploy/claude/background-reminder.py"}]}]}`
 	for _, c := range []struct{ allow, kit string }{
-		{``, "relay,limits,tools,cap,restart,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel"]}`, "relay,limits,tools,cap,restart,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel__*"]}`, "relay,limits,tools,cap,restart,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__notify"]}`, "relay,limits,tools,cap,tailscale"},
-		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__session_restart"]}`, "relay,limits,tools,cap,restart,tailscale"},
+		{``, "relay,limits,tools,cap,restart,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel"]}`, "relay,limits,tools,cap,restart,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__*"]}`, "relay,limits,tools,cap,restart,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__notify"]}`, "relay,limits,tools,cap,background,tailscale"},
+		{`,"permissions":{"allow":["mcp__aacpanel__checklist","mcp__aacpanel__session_restart"]}`, "relay,limits,tools,cap,restart,background,tailscale"},
 	} {
 		m := desktop()
 		m.Files[DefaultStateDir+"/host.env"] = "AACP_REPO=" + clone + "\n"

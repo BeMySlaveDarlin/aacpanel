@@ -200,6 +200,7 @@ the quiet group is checked for you, the rest waits to be asked for:
    On request
    [ ] Prompt stamp       time, context, limits and load before every prompt
    [ ] Cost snapshot      spend per session, written after every turn
+   [ ] Background work    reminds a session of work left running over an hour
    [ ] Docker cleanup     weekly prune of unused images — of the whole machine
    Ways in besides this machine
    [ ] Tailscale          your phone from anywhere, through your tailnet
@@ -735,6 +736,7 @@ installs it by hand.
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `deploy/claude/prompt-stamp.py` |
 | Cost snapshot | no | the `Stop` and `SubagentStop` hooks, `deploy/claude/cost-snapshot.py` |
+| Background work | no | the `Stop` hook, `deploy/claude/background-reminder.py`, and its marks in `<state>/background-reminder/` |
 | Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
 | Test database | no | S10a |
@@ -1219,10 +1221,12 @@ changed where it stands, never added a second time:
 | Prompt stamp | `UserPromptSubmit` | — | `python3 <clone>/deploy/claude/prompt-stamp.py` | 5 |
 | Prompt stamp | `PostToolBatch` | `*` | `python3 <clone>/deploy/claude/prompt-stamp.py PostToolBatch` | 5 |
 | Cost snapshot | `Stop`, `SubagentStop` | — | `python3 <clone>/deploy/claude/cost-snapshot.py` | — |
+| Background work | `Stop` | — | `python3 <clone>/deploy/claude/background-reminder.py` | 5 |
 
 For a state directory other than `/var/lib/aacpanel`, the commands of the
-context cap and the prompt stamp begin with `AACP_STATE_DIR='<state>' `: they
-read the collector's snapshot.
+context cap, the prompt stamp and the background reminder begin with
+`AACP_STATE_DIR='<state>' `: the first two read the collector's snapshot there,
+the reminder keeps there when it first saw each task.
 
 **The panel's server**, through claude's own command — claude rewrites its
 `.claude.json` all the time, so the file is never edited by hand:

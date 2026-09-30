@@ -27,6 +27,8 @@
                           before every prompt
    [ ] Cost snapshot      spend per session, written after
                           every turn
+   [ ] Background work    reminds a session of work left
+                          running over an hour
    [ ] Docker cleanup     weekly prune of unused images — of
                           the whole machine
    Ways in besides this machine

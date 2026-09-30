@@ -215,8 +215,9 @@ type kitHook struct {
 	Script  string
 	Args    string // after the script
 	Timeout int    // zero writes none: claude's own applies
-	// State is a hook that reads the collector's snapshot: a state directory
-	// other than the default is named in its command.
+	// State is a hook that reads the collector's snapshot or keeps files of
+	// its own in the state directory: a state directory other than the
+	// default is named in its command.
 	State bool
 }
 
@@ -230,6 +231,7 @@ var kitHooks = []kitHook{
 	{Part: "stamp", Event: "PostToolBatch", Matcher: "*", Script: "deploy/claude/prompt-stamp.py", Args: "PostToolBatch", Timeout: 5, State: true},
 	{Part: "cost", Event: "Stop", Script: "deploy/claude/cost-snapshot.py"},
 	{Part: "cost", Event: "SubagentStop", Script: "deploy/claude/cost-snapshot.py"},
+	{Part: "background", Event: "Stop", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true},
 }
 
 // statusScript is the script of the status line: the limits snapshot, first

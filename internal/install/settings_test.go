@@ -254,10 +254,11 @@ func TestDuplicatesOfThePanelsGo(t *testing.T) {
 // TestTheKitDecidesWhatStays: a part taken off the kit takes its hook and
 // its rule with it, and leaves the rest.
 func TestTheKitDecidesWhatStays(t *testing.T) {
-	full := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "stamp", "cost")}
+	full := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "stamp", "cost", "background")}
 	was, _ := wire(t, person, full)
-	if hooked(t, was, "PostToolBatch", "deploy/claude/prompt-stamp.py") != 1 || hooked(t, was, "SubagentStop", "deploy/claude/cost-snapshot.py") != 1 {
-		t.Fatalf("the stamp and the cost are not wired:\n%s", was)
+	if hooked(t, was, "PostToolBatch", "deploy/claude/prompt-stamp.py") != 1 || hooked(t, was, "SubagentStop", "deploy/claude/cost-snapshot.py") != 1 ||
+		hooked(t, was, "Stop", "deploy/claude/background-reminder.py") != 1 {
+		t.Fatalf("the stamp, the cost and the background reminder are not wired:\n%s", was)
 	}
 	if !strings.Contains(was, `"command": "python3 `+repo+`/deploy/claude/prompt-stamp.py PostToolBatch"`) {
 		t.Errorf("the stamp between tools lacks its argument:\n%s", was)
@@ -282,16 +283,40 @@ func TestTheKitDecidesWhatStays(t *testing.T) {
 }
 
 func TestAStateDirectoryOfItsOwnIsNamedToTheHooksThatReadIt(t *testing.T) {
-	w := fullKit
+	w := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "background")}
 	w.State = "/srv/aacpanel-state"
 	out, _ := wire(t, "{}", w)
 	if !strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/context-guard.py"`) ||
+		!strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/background-reminder.py"`) ||
 		!strings.Contains(out, `"command": "python3 `+repo+`/agent/ask-hook.py"`) {
 		t.Errorf("the state directory:\n%s", out)
 	}
 	w.State = DefaultStateDir
 	if out, _ := wire(t, "{}", w); strings.Contains(out, "AACP_STATE_DIR") {
 		t.Errorf("the default state directory is named:\n%s", out)
+	}
+}
+
+// TestThePlanCountsEveryHookPart: the parts the plan counts as hooks are the
+// parts with a hook in the wiring, the question relay aside; a part wired but
+// not counted would put in a hook the plan never mentioned.
+func TestThePlanCountsEveryHookPart(t *testing.T) {
+	var wired []string
+	for _, h := range kitHooks {
+		if h.Part != "relay" && !slices.Contains(wired, h.Part) {
+			wired = append(wired, h.Part)
+		}
+	}
+	if !slices.Equal(wired, hookParts) {
+		t.Errorf("the wiring hooks %v, the plan counts %v", wired, hookParts)
+	}
+	for _, p := range Kit {
+		if !slices.Contains(wired, p.ID) {
+			continue
+		}
+		if !slices.ContainsFunc(kitHooks, func(h kitHook) bool { return h.Part == p.ID && h.Script == p.Trace }) {
+			t.Errorf("%s is told by %q, which none of its hooks runs", p.ID, p.Trace)
+		}
 	}
 }
 
@@ -309,7 +334,7 @@ func TestABrokenFileIsRefused(t *testing.T) {
 // TestUnwiringGivesTheFileBack: a file claude wrote, wired and unwired, is
 // the file it was, byte for byte; a file of only the panel's is empty.
 func TestUnwiringGivesTheFileBack(t *testing.T) {
-	full := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "stamp", "cost")}
+	full := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "stamp", "cost", "background")}
 	for _, raw := range []string{person, "{\n  \"model\": \"opus\"\n}\n"} {
 		wired, _ := wire(t, raw, full)
 		back, changed, err := Unwire([]byte(wired))

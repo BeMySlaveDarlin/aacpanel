@@ -211,6 +211,7 @@ func kit() *ui.Block {
 			part(gQuiet, "restart", "Self-restart", "a session may restart itself without asking you"),
 			part(gAsk, "stamp", "Prompt stamp", "time, context, limits and load before every prompt"),
 			part(gAsk, "cost", "Cost snapshot", "spend per session, written after every turn"),
+			part(gAsk, "background", "Background work", "reminds a session of work left running over an hour"),
 			part(gAsk, "gc", "Docker cleanup", "weekly prune of unused images — of the whole machine"),
 			part(gLegs, "tailscale", "Tailscale", "your phone from anywhere, through your tailnet"),
 			part(gLegs, "lan", "Home network, TLS", "straight at home, with a certificate you issue"),
