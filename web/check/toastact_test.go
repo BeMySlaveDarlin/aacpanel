@@ -14,9 +14,11 @@ func TestAToastOffersOneWayBack(t *testing.T) {
 			Label   string  `json:"label"`
 			Pointer string  `json:"pointer"`
 		} `json:"button"`
-		HitsButton bool `json:"hitsButton"`
-		Ran        int  `json:"ran"`
-		OnAfter    bool `json:"onAfter"`
+		HitsButton  bool `json:"hitsButton"`
+		Ran         int  `json:"ran"`
+		OnAfter     bool `json:"onAfter"`
+		OnPastPlain bool `json:"onPastPlain"`
+		OnPastOwn   bool `json:"onPastOwn"`
 	}
 	runFixture(t, "toastact.html", &got)
 	if got.PlainButtons != 0 {
@@ -33,5 +35,11 @@ func TestAToastOffersOneWayBack(t *testing.T) {
 	}
 	if got.Ran != 1 || got.OnAfter {
 		t.Errorf("pressing Undo ran it %d times and left the note on: %v", got.Ran, got.OnAfter)
+	}
+	if !got.OnPastPlain {
+		t.Error("the note with Undo goes at a plain note's time — too soon to read it and reach the button")
+	}
+	if got.OnPastOwn {
+		t.Error("the note with Undo is still on after its own time — it does not go away by itself")
 	}
 }

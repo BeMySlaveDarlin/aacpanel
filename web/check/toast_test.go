@@ -22,14 +22,22 @@ func TestToastGoesAwayByItself(t *testing.T) {
 	if lifetime == nil {
 		t.Fatal("toasts.js does not export LIFETIME — the fixture cannot know how long to wait")
 	}
-	if ms, _ := strconv.Atoi(lifetime[1]); ms < 4000 || ms > 6000 {
-		t.Errorf("a toast lives %d ms — under four seconds two lines go unread, over six it hangs into the next screen", ms)
+	plain, _ := strconv.Atoi(lifetime[1])
+	if plain < 2500 || plain > 4000 {
+		t.Errorf("a toast lives %d ms — under two and a half seconds two lines go unread, over four it hangs over the screen", plain)
+	}
+	withAct := regexp.MustCompile(`export const ACT_LIFETIME = (\d+);`).FindStringSubmatch(host)
+	if withAct == nil {
+		t.Fatal("toasts.js does not export ACT_LIFETIME — a note with a way back goes at the plain note's time")
+	}
+	if ms, _ := strconv.Atoi(withAct[1]); ms <= plain || ms > 6000 {
+		t.Errorf("a note with a way back lives %d ms against %d ms of a plain one — it has to outlast it, and over six seconds it hangs into the next screen", ms, plain)
 	}
 
 	show := funcBody(t, host, "const show = useCallback(")
 	for _, want := range []struct{ code, harm string }{
 		{"clearTimeout(timer.current)", "a second show leaves the first clock running, and the newer toast goes at the older one's time"},
-		{"timer.current = setTimeout(hide, LIFETIME)", "the clock is not set where the toast is shown"},
+		{"timer.current = setTimeout(hide, act ? ACT_LIFETIME : LIFETIME)", "the clock is not set where the toast is shown"},
 	} {
 		if !strings.Contains(show, want.code) {
 			t.Errorf("show in toasts.js has no %q — %s", want.code, want.harm)
@@ -73,7 +81,7 @@ func TestToastUnderChrome(t *testing.T) {
 		Renders int `json:"renders"`
 	}
 	runFixture(t, "toast.html", &got)
-	if got.Lifetime < 4000 || got.Lifetime > 6000 {
+	if got.Lifetime < 2500 || got.Lifetime > 4000 {
 		t.Fatalf("LIFETIME is %d ms in the engine", got.Lifetime)
 	}
 	if got.Renders < 20 {
@@ -106,5 +114,31 @@ func TestToastUnderChrome(t *testing.T) {
 	}
 	if !got.Hidden.Before || got.Hidden.After {
 		t.Errorf("the page put away: toast on before=%v after=%v — it should be down", got.Hidden.Before, got.Hidden.After)
+	}
+}
+
+// On a phone a note stands over the head, clear of the composer at the
+// bottom of a conversation, where the finger is busy while it shows; at a desk
+// it keeps the bottom right corner, away from the head and from the composer.
+func TestToastStandsClearOfTheComposer(t *testing.T) {
+	type place struct {
+		Top    float64 `json:"top"`
+		Bottom float64 `json:"bottom"`
+		Left   float64 `json:"left"`
+		Right  float64 `json:"right"`
+		Width  float64 `json:"width"`
+		Height float64 `json:"height"`
+	}
+	var phone, desk place
+	runFixture(t, "toastplace.html", &phone)
+	if phone.Height == 0 || phone.Top > 24 || phone.Bottom > phone.Height/4 {
+		t.Errorf("on a phone the note stands at %v..%v of %v px — it is not over the head, and at the bottom it covers the composer",
+			phone.Top, phone.Bottom, phone.Height)
+	}
+	runWideFixture(t, "toastplace.html", &desk)
+	if desk.Height == 0 || desk.Height-desk.Bottom > 24 || desk.Width-desk.Right > 24 || desk.Left < desk.Width/2 ||
+		desk.Top < desk.Height/2 {
+		t.Errorf("at a desk the note stands at %v..%v × %v..%v of %v×%v px — it left the bottom right corner",
+			desk.Left, desk.Right, desk.Top, desk.Bottom, desk.Width, desk.Height)
 	}
 }

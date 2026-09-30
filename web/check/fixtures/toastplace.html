@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// Where a note stands on the screen it is shown on, with the way back that
+// makes it the tallest it gets.
+import { h, render } from "preact";
+import { ToastHost, useToast } from "/src/ui/toasts.js";
+
+let show = null;
+function Grab() {
+    show = useToast();
+    return null;
+}
+render(h(ToastHost, null, h(Grab)), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+window.done = (async () => {
+    await sleep(50);
+    show("Project \"aacpanel\" deleted", "with 3 sessions", false, { label: "Undo", run: () => {} });
+    await sleep(400);
+    const r = document.querySelector(".toast").getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, left: r.left, right: r.right,
+             width: window.innerWidth, height: window.innerHeight };
+})();
+</script>

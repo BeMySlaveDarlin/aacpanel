@@ -7,7 +7,7 @@
 // A note that offers a way back: a button a finger can press on a toast that
 // lets touches through, and the note goes away as it is pressed.
 import { h, render } from "preact";
-import { ToastHost, useToast } from "/src/ui/toasts.js";
+import { ACT_LIFETIME, LIFETIME, ToastHost, useToast } from "/src/ui/toasts.js";
 
 let show = null;
 function Grab() {
@@ -37,6 +37,13 @@ window.done = (async () => {
     await sleep(250);
     out.ran = ran;
     out.onAfter = Boolean(document.querySelector(".toast.on"));
+
+    // Left alone, the note with a way back outlasts a plain one and still goes.
+    show("Project \"aacpanel\" deleted", undefined, false, { label: "Undo", run: () => {} });
+    await sleep(LIFETIME + 500);
+    out.onPastPlain = Boolean(document.querySelector(".toast.on"));
+    await sleep(ACT_LIFETIME - LIFETIME);
+    out.onPastOwn = Boolean(document.querySelector(".toast.on"));
     return out;
 })();
 </script>

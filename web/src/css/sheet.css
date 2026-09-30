@@ -207,11 +207,14 @@
 .sheet .item.danger { color: var(--crit); }
 .sheet .item:active { background: var(--glass-2); }
 
+/* On a phone the note stands over the head: at the bottom it would cover the
+   composer of a conversation, the one place a finger is busy while it shows,
+   and the head it covers instead takes touches through it. */
 .toast {
     position: fixed;
     left: 12px;
     right: 12px;
-    bottom: calc(78px + env(safe-area-inset-bottom));
+    top: calc(8px + env(safe-area-inset-top));
     z-index: 20;
     display: flex;
     flex-direction: column;
@@ -224,7 +227,7 @@
     padding: .6rem .85rem;
     font-size: var(--t-sm);
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(-8px);
     pointer-events: none;
     transition: opacity .2s ease, transform .2s ease;
 }
@@ -307,9 +310,11 @@
     .sheet.win .btnrow > .btn { flex: none; }
 
     .toast {
+        top: auto;
         left: auto;
         right: 16px;
         bottom: 16px;
         max-width: 26rem;
+        transform: translateY(8px);
     }
 }

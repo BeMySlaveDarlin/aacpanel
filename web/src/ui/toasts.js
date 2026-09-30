@@ -5,8 +5,10 @@ import { html } from "../html.js";
 import { Toast } from "./toast.js";
 
 // How long a toast stays: enough to read two lines, short enough that the
-// one about an action just taken is gone before the next screen.
-export const LIFETIME = 5000;
+// one about an action just taken is gone before the next screen. A note with
+// a way back stays longer: the finger has to read it and then reach the button.
+export const LIFETIME = 3000;
+export const ACT_LIFETIME = 5000;
 
 const ToastContext = createContext(null);
 
@@ -29,7 +31,7 @@ export function ToastHost({ children }) {
     // it does; the note goes away as it is pressed.
     const show = useCallback((text, sub, bad = false, act = null) => {
         clearTimeout(timer.current);
-        timer.current = setTimeout(hide, LIFETIME);
+        timer.current = setTimeout(hide, act ? ACT_LIFETIME : LIFETIME);
         setToast({ text, sub, bad, act });
     }, [hide]);
 
