@@ -178,6 +178,8 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
             class=${`dksess dklive${current === s.session ? " on" : ""}${kid ? " dkkid" : ""}`}
             type="button"
             data-tone=${tone}
+            data-fill=${s.noRequests ? undefined : fill(full)}
+            style=${s.noRequests ? undefined : `--fill:${Math.min(100, full)}%`}
             onClick=${() => onPick({ name: s.session, id: s.sessionId })}
         >
             <span class="dkkey">${index >= 0 && index < 9 ? index + 1 : ""}</span>

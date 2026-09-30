@@ -246,6 +246,16 @@ window.done = (async () => {
     out.tones = Object.fromEntries(["person", "aacpanel", "helios"].map((n) => [n, rowOf(n).dataset.tone]));
     out.edge = getComputedStyle(rowOf("person")).boxShadow;
     out.noEdge = getComputedStyle(rowOf("helios")).boxShadow;
+    // The ground of a live row fills as far as its context, faintly, in the
+    // colour of its bar — the open row too; a console being raised has none.
+    const ground = (row) => {
+        const st = getComputedStyle(row, "::before");
+        const bar = row.querySelector(".dksessbar i");
+        return { share: parseFloat(st.width) / row.getBoundingClientRect().width, ground: st.backgroundColor,
+                 bar: bar ? getComputedStyle(bar).backgroundColor : "", under: st.zIndex, own: getComputedStyle(row).isolation };
+    };
+    out.grounds = Object.fromEntries(["aacpanel", "person", "helios", "acme-fingerprint-rotation-review"].map((n) => [n, ground(rowOf(n))]));
+    out.ghostGround = ground(root().querySelector(".dkghost"));
     out.facts = Object.fromEntries(["aacpanel", "api", "shop", "helios", "scratch", "acme-fingerprint-rotation-review"]
         .map((n) => [n, facts(n)]));
     out.marks = Object.fromEntries(["aacpanel", "helios", "scratch", "shop"].map((n) => [n,

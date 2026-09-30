@@ -3,6 +3,7 @@ package check
 import (
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -56,19 +57,21 @@ type deskCard struct {
 		Last    bool   `json:"last"`
 		Say     string `json:"say"`
 	} `json:"ghost"`
-	Says       map[string]string        `json:"says"`
-	SaysAfter  map[string]string        `json:"saysAfter"`
-	Tones      map[string]string        `json:"tones"`
-	Edge       string                   `json:"edge"`
-	NoEdge     string                   `json:"noEdge"`
-	Facts      map[string]deskCardFacts `json:"facts"`
-	Marks      map[string][]string      `json:"marks"`
-	ColumnText string                   `json:"columnText"`
-	Rows       []deskCardRow            `json:"rows"`
-	HomeAct    string                   `json:"homeAct"`
-	Hiding     []string                 `json:"hiding"`
-	Asked      []string                 `json:"asked"`
-	Shelf      []struct {
+	Says        map[string]string        `json:"says"`
+	SaysAfter   map[string]string        `json:"saysAfter"`
+	Tones       map[string]string        `json:"tones"`
+	Edge        string                   `json:"edge"`
+	NoEdge      string                   `json:"noEdge"`
+	Grounds     map[string]rowGround     `json:"grounds"`
+	GhostGround rowGround                `json:"ghostGround"`
+	Facts       map[string]deskCardFacts `json:"facts"`
+	Marks       map[string][]string      `json:"marks"`
+	ColumnText  string                   `json:"columnText"`
+	Rows        []deskCardRow            `json:"rows"`
+	HomeAct     string                   `json:"homeAct"`
+	Hiding      []string                 `json:"hiding"`
+	Asked       []string                 `json:"asked"`
+	Shelf       []struct {
 		Name    string   `json:"name"`
 		Contour string   `json:"contour"`
 		When    string   `json:"when"`
@@ -417,4 +420,87 @@ func TestClosedConversationTimeIsRelative(t *testing.T) {
 	if !strings.HasPrefix(got.PhoneWhen, "2 h ago") || regexp.MustCompile(`\p{Cyrillic}`).MatchString(got.PhoneWhen) {
 		t.Errorf("a closed conversation on the phone reads %q, expected how long ago in English", got.PhoneWhen)
 	}
+}
+
+// The ground of a live row fills faintly from the left as far as its context,
+// in the colour of its bar, so how full the sessions are reads down the column
+// before a figure is read. The fill lies under the words and stays on the open
+// row; a console still being raised has no context and no fill.
+func TestDeskRowGroundFillsAsFarAsItsContext(t *testing.T) {
+	got := runDeskCard(t)
+	for name, pct := range map[string]float64{"aacpanel": 41.8, "person": 63, "helios": 10, "acme-fingerprint-rotation-review": 99.6} {
+		g, ok := got.Grounds[name]
+		if !ok {
+			t.Errorf("%s: the fixture measured no ground", name)
+			continue
+		}
+		if g.Share < pct/100-.01 || g.Share > pct/100+.01 {
+			t.Errorf("%s: the ground fills %.3f of the row against a context of %v%%", name, g.Share, pct)
+		}
+		ground, alpha, okG := srgbOf(g.Ground)
+		bar, _, okB := srgbOf(g.Bar)
+		if !okG || !okB {
+			t.Errorf("%s: the colours %q and %q do not read", name, g.Ground, g.Bar)
+			continue
+		}
+		for i := range ground {
+			if d := ground[i] - bar[i]; d > 2 || d < -2 {
+				t.Errorf("%s: the ground is %q, not the colour of its bar %q", name, g.Ground, g.Bar)
+				break
+			}
+		}
+		if alpha < .04 || alpha > .2 {
+			t.Errorf("%s: the ground is %q — at %.2f it is no faint fill", name, g.Ground, alpha)
+		}
+		if g.Under != "-1" || g.Own != "isolate" {
+			t.Errorf("%s: the fill stands at z-index %s in a row isolated as %q — it has to lie under the words, over the row's own ground",
+				name, g.Under, g.Own)
+		}
+	}
+	if got.GhostGround.Share != 0 {
+		t.Errorf("the console being raised is filled to %.3f — it has no context yet", got.GhostGround.Share)
+	}
+}
+
+var colourNumber = regexp.MustCompile(`[0-9.]+`)
+
+// srgbOf reads a computed colour, rgb() or color(srgb …), into channels of
+// 0–255 and an alpha.
+func srgbOf(css string) ([3]float64, float64, bool) {
+	var c [3]float64
+	nums := colourNumber.FindAllString(css, -1)
+	if len(nums) < 3 {
+		return c, 0, false
+	}
+	scale := 1.0
+	if strings.HasPrefix(css, "color(srgb") {
+		scale = 255
+	}
+	for i := range c {
+		v, err := strconv.ParseFloat(nums[i], 64)
+		if err != nil {
+			return c, 0, false
+		}
+		c[i] = v * scale
+	}
+	alpha := 1.0
+	if len(nums) > 3 {
+		v, err := strconv.ParseFloat(nums[3], 64)
+		if err != nil {
+			return c, 0, false
+		}
+		alpha = v
+	}
+	return c, alpha, true
+}
+
+// rowGround is the faint fill under a live row of the column: how far it
+// reaches as a share of the row, its colour, the colour of the row's bar, and
+// whether it lies under the words.
+type rowGround struct {
+	Share  float64 `json:"share"`
+	Ground string  `json:"ground"`
+	Bar    string  `json:"bar"`
+	Under  string  `json:"under"`
+	Own    string  `json:"own"`
 }

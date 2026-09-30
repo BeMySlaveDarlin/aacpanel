@@ -587,6 +587,31 @@
         background: none;
     }
 
+    /* The ground of a live row fills faintly from the left as far as its
+       context, in the colour of its bar, so how full the sessions are reads
+       down the column before a figure is read. The fill is a layer of its own
+       under the words: the ground of an open row or of one under the pointer
+       is drawn beneath it and does not take it away. */
+    .dksess.dklive { isolation: isolate; }
+
+    .dksess.dklive::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: -1;
+        width: var(--fill, 0%);
+        background: color-mix(in srgb, var(--ctx-1) 12%, transparent);
+        pointer-events: none;
+    }
+
+    .dksess.dklive[data-fill="s2"]::before { background: color-mix(in srgb, var(--ctx-2) 12%, transparent); }
+
+    .dksess.dklive[data-fill="s3"]::before { background: color-mix(in srgb, var(--ctx-3) 12%, transparent); }
+
+    .dksess.dklive[data-fill="s4"]::before { background: color-mix(in srgb, var(--ctx-4) 12%, transparent); }
+
     /* The heading of a contour counts the sessions that wait for the person,
        and holds the way to a new session before its limit. */
     .dkwaitn {
