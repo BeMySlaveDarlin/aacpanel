@@ -45,7 +45,7 @@ class TestGuard(unittest.TestCase):
             f.write("".join(line + "\n" for line in lines))
 
     def snapshot(self, at=None, **row):
-        session = {"sessionId": "mine", "tokens": 840_000, "limit": 1_000_000,
+        session = {"sessionId": "mine", "session": "probe", "tokens": 840_000, "limit": 1_000_000,
                    "pct": 84.0, "limitKnown": True}
         session.update(row)
         data = {"sessions": [session]}
@@ -127,6 +127,57 @@ class TestGuard(unittest.TestCase):
         was = guard.background.FRESH_WAIT
         guard.background.FRESH_WAIT = seconds
         self.addCleanup(setattr, guard.background, "FRESH_WAIT", was)
+
+    def aacpanel(self, *parts):
+        return os.path.join(self.xdg.name, "aacpanel", *parts)
+
+    def restart_marker(self, age=0):
+        path = self.aacpanel("restarting", "probe")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("2026-01-01T00:00:00Z\n")
+        at = time.time() - age
+        os.utime(path, (at, at))
+        return path
+
+    def test_the_ask_is_sent_once_a_conversation(self):
+        self.snapshot()
+        self.assertEqual(self.run_hook()["decision"], "block")
+        self.assertIsNone(self.run_hook(), "the stop the close of the restart lets through asked for "
+                                           "a second restart, and a second session came up")
+        self.snapshot(sessionId="next")
+        self.assertEqual(self.run_hook({"session_id": "next"})["decision"], "block",
+                         "the ask sent in one conversation silenced another")
+
+    def test_no_ask_while_a_restart_of_the_session_is_under_way(self):
+        self.snapshot()
+        marker = self.restart_marker()
+        self.assertIsNone(self.run_hook(), "a session being restarted was asked for another restart")
+        os.remove(marker)
+        self.assertEqual(self.run_hook()["decision"], "block",
+                         "a stop held back by a restart under way counted as the ask sent")
+
+    def test_a_restart_of_another_session_does_not_hold_the_ask(self):
+        self.snapshot(session="other")
+        self.restart_marker()
+        self.assertEqual(self.run_hook()["decision"], "block")
+
+    def test_a_stale_restart_marker_does_not_hold_the_ask(self):
+        self.snapshot()
+        marker = self.restart_marker(age=guard.RESTART_STALE + 60)
+        self.assertEqual(self.run_hook()["decision"], "block",
+                         "a marker a restart left behind silenced the guard for good")
+        self.assertFalse(os.path.exists(marker), "the stale marker was left in place")
+
+    def test_marks_older_than_a_week_are_pruned(self):
+        folder = self.aacpanel("context-guard")
+        os.makedirs(folder)
+        for name, age in (("gone", guard.SENT_KEEP + 3600), ("recent", 3600)):
+            open(os.path.join(folder, name), "w").close()
+            os.utime(os.path.join(folder, name), (time.time() - age,) * 2)
+        self.snapshot()
+        self.assertEqual(self.run_hook()["decision"], "block")
+        self.assertEqual(sorted(os.listdir(folder)), ["mine", "recent"])
 
     def test_under_the_cap_nothing_is_said(self):
         self.snapshot(pct=79.9, tokens=799_000)

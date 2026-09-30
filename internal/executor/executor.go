@@ -24,10 +24,10 @@ type Executor struct {
 	poll       time.Duration
 	soft       time.Duration
 
-	// restarting holds the sessions a restart is under way for. A session
-	// past its context cap is told to restart itself on every stop, and the
-	// close of a restart lets it stop once more: a second restart taken
-	// while the first still closes the session would start a second one.
+	// restarting holds the sessions a restart is under way for. The close of
+	// a restart lets the session stop once more, and whatever asks for a
+	// restart at a stop can ask again there: a second restart taken while the
+	// first still closes the session would start a second one.
 	restarting busy
 }
 
@@ -110,6 +110,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 				"second session, so this one does nothing", req.Target)
 		}
 		defer e.restarting.give(req.Target)
+		defer markRestarting(req.Target)()
 		return e.sessionRestart(ctx, req.Target, req.Resume, req.Project)
 	case action.SessionSend:
 		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID)

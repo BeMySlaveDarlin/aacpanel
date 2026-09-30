@@ -165,6 +165,13 @@ fifteen seconds while they fail: an executor that was down when the map changed
 catches up on its own, and a deploy does not leave the host unguarded while the
 database migrates.
 
+A restart of a session keeps a marker in `~/.local/state/aacpanel/restarting/`,
+named by the session, from its start to its end, whatever it ends with. The
+context guard hook asks a session past its cap for a restart once a
+conversation, and not while a marker of it younger than five minutes is there:
+the close of a restart lets the session stop once more, and an ask there would
+bring up a second session.
+
 **The delivery socket.** The executor has no access to transcripts, yet typing
 into a session in tmux is blind without them: whether the message landed, whether the
 turn is over, which permission mode the session was last in — only the

@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -168,6 +169,37 @@ func TestSessionRestart(t *testing.T) {
 			t.Errorf("the error %q hides either that the old session is gone or why the new one did not come up", err)
 		}
 	})
+
+	for _, fails := range []bool{false, true} {
+		name := "the marker of a restart is there while it runs and gone after it starts the new session"
+		end := "cat <<'END'\n{\"session\":\"host\",\"konsole\":500,\"agent\":502}\nEND\n"
+		if fails {
+			name = "the marker of a restart is there while it runs and gone after the new session fails to start"
+			end = "echo 'tmux did not start session host' >&2\nexit 1\n"
+		}
+		t.Run(name, func(t *testing.T) {
+			stand(t)
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			marker := restartingPath("host")
+			seen := filepath.Join(t.TempDir(), "seen")
+			launcherScript(t, "cat > %s\ntest -e '"+marker+"' && echo present > '"+seen+"'\n"+end)
+			fakeTmux(t, []string{"302 host:0.0"}, "")
+			e, _ := newTest(t, "")
+			withSignals(t, e, map[int]bool{300: true, 302: true}, map[int]int{302: 1})
+
+			_, err := e.Execute(ctx, req(action.SessionRestart, "host"))
+			if (err != nil) != fails {
+				t.Fatalf("the restart ended with %v", err)
+			}
+			if _, err := os.Stat(seen); err != nil {
+				t.Errorf("no marker at %s while the new session was being started: the context guard hook "+
+					"would ask the closing session for a second restart", marker)
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Errorf("the marker outlived the restart (%v): the hook would stay silent for the new session", err)
+			}
+		})
+	}
 
 	t.Run("an unknown session — a refusal with the list", func(t *testing.T) {
 		stand(t)

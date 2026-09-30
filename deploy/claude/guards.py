@@ -5,10 +5,15 @@ import os
 CAP_DEFAULT = 80
 
 
+def home():
+    """Returns the directory the executor keeps what the hooks of the host read in."""
+    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+    return os.path.join(base, "aacpanel")
+
+
 def path():
     """Returns the file the executor keeps the guards in."""
-    base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    return os.path.join(base, "aacpanel", "guards.tsv")
+    return os.path.join(home(), "guards.tsv")
 
 
 def where(payload):

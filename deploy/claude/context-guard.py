@@ -4,16 +4,30 @@
 Not while its agents, workflows or the commands it sent to the background are
 at work: a restart would end them. The news that one of them is done starts a turn of its
 own, and the end of that turn asks again.
+
+Not while a restart of the session is under way either, and once a conversation: the
+close of a restart lets the session stop once more, and an ask there would bring up a
+second session.
 """
 
 import json
 import os
 import sys
+import time
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import background  # noqa: E402
 import guards  # noqa: E402
+
+
+# A restart marker older than this was left by a restart that never ended, an
+# executor gone down mid-way, and no longer holds the ask back.
+RESTART_STALE = 5 * 60
+
+# A mark that the ask was sent is kept this long, past the life of a conversation.
+SENT_KEEP = 7 * 24 * 3600
 
 
 def read_state(path):
@@ -25,16 +39,68 @@ def read_state(path):
         return None
 
 
+def row(state, session_id):
+    """Returns what the snapshot says of the session, or an empty dict."""
+    for s in (state or {}).get("sessions", []):
+        if s.get("sessionId") == session_id:
+            return s
+    return {}
+
+
 def fill(state, session_id):
     """Returns the context fill of the session in percent, or None when it is not known well."""
-    for s in (state or {}).get("sessions", []):
-        if s.get("sessionId") != session_id:
-            continue
-        pct = s.get("pct")
-        if pct is None or not s.get("limit") or not s.get("limitKnown", True):
-            return None
-        return float(pct)
-    return None
+    s = row(state, session_id)
+    pct = s.get("pct")
+    if pct is None or not s.get("limit") or not s.get("limitKnown", True):
+        return None
+    return float(pct)
+
+
+def restarting(name):
+    """Reports whether a restart of the named session is under way.
+
+    The executor keeps a marker while it restarts a session, named by the
+    session. A stale one is cleared.
+    """
+    if not name:
+        return False
+    marker = os.path.join(guards.home(), "restarting", urllib.parse.quote(name, safe=""))
+    try:
+        at = os.stat(marker).st_mtime
+    except OSError:
+        return False
+    if time.time() - at < RESTART_STALE:
+        return True
+    try:
+        os.remove(marker)
+    except OSError:
+        pass
+    return False
+
+
+def sent_mark(session_id):
+    """Returns the file that marks the ask as sent in the conversation."""
+    return os.path.join(guards.home(), "context-guard", urllib.parse.quote(session_id, safe=""))
+
+
+def mark_sent(session_id):
+    """Marks the ask as sent in the conversation and prunes the marks past SENT_KEEP.
+
+    A mark that cannot be written leaves the ask to repeat, and the executor
+    still refuses a second restart while one is under way.
+    """
+    mark = sent_mark(session_id)
+    folder = os.path.dirname(mark)
+    try:
+        os.makedirs(folder, mode=0o700, exist_ok=True)
+        old = time.time() - SENT_KEEP
+        for entry in os.scandir(folder):
+            if entry.stat().st_mtime < old:
+                os.remove(entry.path)
+        with open(mark, "w", encoding="utf-8"):
+            pass
+    except OSError:
+        pass
 
 
 def reason(pct, cap):
@@ -67,11 +133,18 @@ def main():
     if not restart:
         return
     state_dir = os.environ.get("AACP_STATE_DIR") or "/var/lib/aacpanel"
-    pct = fill(read_state(os.path.join(state_dir, "state.json")), payload.get("session_id") or "")
+    session_id = payload.get("session_id") or ""
+    state = read_state(os.path.join(state_dir, "state.json"))
+    pct = fill(state, session_id)
     if pct is None or pct < cap:
         return
-    if any(background.at_work(payload.get("session_id") or "", os.path.join(state_dir, "state.json"))):
+    if any(background.at_work(session_id, os.path.join(state_dir, "state.json"))):
         return
+    if restarting(row(state, session_id).get("session")):
+        return
+    if os.path.exists(sent_mark(session_id)):
+        return
+    mark_sent(session_id)
     json.dump({"decision": "block", "reason": reason(pct, cap)}, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
 
