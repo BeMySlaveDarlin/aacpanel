@@ -21,15 +21,46 @@ def empty():
 
 
 def sum_usage(path):
-    """Sums transcript usage, keeping the main session and subagents apart."""
+    """Sums transcript usage, keeping the main session and subagents apart.
+
+    A subagent keeps a transcript of its own, in subagents/ of the directory
+    named by the session next to the session's transcript; a line of the
+    session's own transcript marked a sidechain is a subagent's too.
+    """
+    answers = {}
+    if not read_answers(path, answers, False):
+        return None
+    folder = os.path.join(os.path.splitext(path)[0], "subagents")
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        names = []
+    for name in names:
+        if name.endswith(".jsonl"):
+            read_answers(os.path.join(folder, name), answers, True)
     main, side = empty(), empty()
-    seen = set()
+    for answer in answers.values():
+        acc = side if answer["side"] else main
+        for f in FIELDS:
+            acc[f] += answer[f]
+        acc["messages"] += 1
+    return {"main": main, "side": side}
+
+
+def read_answers(path, answers, subagent):
+    """Reads the usage of every answer in a transcript into answers, by the id
+    of the message; False when the transcript cannot be read.
+
+    An answer written over several lines repeats its id, and a line written
+    while it streamed may carry a count short of the final one: the largest
+    count of each field is the answer's.
+    """
     try:
         fh = open(path, encoding="utf-8")
     except OSError:
-        return None
+        return False
     with fh:
-        for line in fh:
+        for n, line in enumerate(fh):
             line = line.strip()
             if not line:
                 continue
@@ -41,18 +72,13 @@ def sum_usage(path):
             usage = message.get("usage")
             if not isinstance(usage, dict):
                 continue
-            mid = message.get("id")
-            if mid:
-                if mid in seen:
-                    continue
-                seen.add(mid)
-            acc = side if rec.get("isSidechain") else main
+            key = message.get("id") or f"{path}:{n}"
+            answer = answers.setdefault(key, {"side": subagent or bool(rec.get("isSidechain"))} | {f: 0 for f in FIELDS})
             for f in FIELDS:
                 value = usage.get(f)
-                if isinstance(value, int):
-                    acc[f] += value
-            acc["messages"] += 1
-    return {"main": main, "side": side}
+                if isinstance(value, int) and value > answer[f]:
+                    answer[f] = value
+    return True
 
 
 def hook():

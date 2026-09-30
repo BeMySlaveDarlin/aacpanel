@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import shutil
 import sys
 import tempfile
 import unittest
@@ -77,6 +78,31 @@ class TestSumUsage(unittest.TestCase):
         self.assertEqual(sums["main"]["output_tokens"], 100)
         self.assertEqual(sums["side"]["output_tokens"], 450)
         self.assertEqual(sums["side"]["messages"], 2)
+
+    def test_subagents_in_their_own_transcripts_are_counted_apart(self):
+        path = self.make([answer("m1", out=100)])
+        folder = pathlib.Path(os.path.splitext(path)[0]) / "subagents"
+        folder.mkdir(parents=True)
+        self.addCleanup(shutil.rmtree, folder.parent)
+        (folder / "agent-a1.jsonl").write_text(
+            json.dumps(answer("s1", out=30, side=True)) + "\n" + json.dumps(answer("s2", out=5, side=True)) + "\n",
+            encoding="utf-8")
+        (folder / "agent-a1.meta.json").write_text("{}", encoding="utf-8")
+        sums = cost.sum_usage(path)
+        self.assertEqual(sums["main"]["output_tokens"], 100)
+        self.assertEqual(sums["side"]["output_tokens"], 35,
+                         "a subagent writes its own transcript under the session, and it went uncounted")
+        self.assertEqual(sums["side"]["messages"], 2)
+
+    def test_an_answer_is_counted_by_its_final_usage(self):
+        sums = cost.sum_usage(self.make([
+            answer("m1", out=8, inp=3),
+            answer("m1", out=203, inp=3),
+            answer("m1", out=8, inp=3),
+        ]))
+        self.assertEqual(sums["main"]["output_tokens"], 203,
+                         "a line written while the answer streamed was taken for the answer")
+        self.assertEqual(sums["main"]["messages"], 1)
 
     def test_cache_does_not_mix_with_input(self):
         sums = cost.sum_usage(self.make([
