@@ -14,9 +14,10 @@ export const PAGES = [
 
 export const SECTIONS = [...TABS, ...PAGES];
 
-// What talks to the machine stands left of the home button — its sessions and
-// its terminals — and what it runs and how it is mapped stands right of it.
-const LEFT = new Set(["sessions", "terminals"]);
+// Sessions and profiles stand left of the home button, containers and
+// terminals right of it, each side in this order.
+const LEFT = ["sessions", "profiles"];
+const RIGHT = ["containers", "terminals"];
 
 // Nav draws the menu. A listener without the terminal has no terminals item:
 // a button there would open a screen with nothing behind it.
@@ -34,11 +35,13 @@ export function Nav({ current, onSelect, home, terminals = true }) {
         </button>
     `;
 
+    const side = (ids) => ids.map((id) => items.find((section) => section.id === id)).filter(Boolean).map(button);
+
     return html`
         <nav class="tabs">
-            ${items.filter((section) => LEFT.has(section.id)).map(button)}
+            ${side(LEFT)}
             <div class="homeslot">${home}</div>
-            ${items.filter((section) => !LEFT.has(section.id)).map(button)}
+            ${side(RIGHT)}
         </nav>
     `;
 }

@@ -87,10 +87,10 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		t.Fatalf("the walk broke off: %s", got.Error)
 	}
 
-	// Sessions and terminals stand left of the home button, what runs and the
-	// map right of it; usage leads the menu under the logo.
+	// Sessions and profiles stand left of the home button, containers and
+	// terminals right of it; usage leads the menu under the logo.
 	t.Run("the bottom menu and the menu under the logo", func(t *testing.T) {
-		if want := []string{"Sessions", "Terminals", "(home)", "Containers", "Profiles"}; !equalStrings(got.Nav, want) {
+		if want := []string{"Sessions", "Profiles", "(home)", "Containers", "Terminals"}; !equalStrings(got.Nav, want) {
 			t.Errorf("the bottom menu reads %v, expected %v", got.Nav, want)
 		}
 		if len(got.LogoMenu) == 0 || got.LogoMenu[0] != "Usage" {
