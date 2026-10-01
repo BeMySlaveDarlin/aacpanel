@@ -1,8 +1,9 @@
 // Package session holds the tools of the panel's server a session acts with
-// on itself and on the sessions next to it: its own restart, and a letter to
-// another live session of the machine. Both go through the panel, which runs
-// them as actions of this machine and puts them in its journal; what the
-// machine holds, they read from the collector's snapshot.
+// on itself and on the sessions next to it: its own restart, a letter to
+// another live session of the machine, and a new session opened as a project
+// of the map. They go through the panel, which runs them as actions of this
+// machine and puts them in its journal; what the machine holds, they read from
+// the collector's snapshot.
 package session
 
 import (
@@ -121,6 +122,9 @@ type answer struct {
 	Late bool
 	// Said is the panel's detail, or its refusal.
 	Said string
+	// Contour is the account of the map the panel ran the action in, where it
+	// names one.
+	Contour string
 }
 
 // act asks the panel to run an action on this machine, waiting for its answer
@@ -150,8 +154,9 @@ func (h Host) act(ctx context.Context, kind, target string, params map[string]an
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	var reply struct {
-		Detail string `json:"detail"`
-		Error  string `json:"error"`
+		Detail  string `json:"detail"`
+		Error   string `json:"error"`
+		Contour string `json:"contour"`
 	}
 	_ = json.Unmarshal(raw, &reply)
 	if resp.StatusCode != http.StatusOK {
@@ -164,5 +169,5 @@ func (h Host) act(ctx context.Context, kind, target string, params map[string]an
 		}
 		return answer{Said: said}, nil
 	}
-	return answer{Taken: true, Said: reply.Detail}, nil
+	return answer{Taken: true, Said: reply.Detail, Contour: reply.Contour}, nil
 }

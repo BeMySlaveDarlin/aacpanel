@@ -221,15 +221,37 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Mcp = change
 		params = map[string]any{"server": change.Server, "do": change.Do}
 	}
+	// A session opening another names the directory, and a name only if it
+	// wants one of its own: the project is the one of the map the directory
+	// belongs to, and the session is named after it unless a name is given.
+	// The answer names the contour, the account the new session spends.
+	var contour string
 	if req.Kind == action.SessionOpen || req.Kind == action.SessionResume {
-		want, projectID, err := s.launchProject(r.Context(), body.Params, cwd, req.Target)
+		dir, err := openDir(req.Kind, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		var want *action.Project
+		var found mapProject
+		if dir != "" {
+			want, found, err = s.projectIn(r.Context(), dir)
+		} else {
+			want, found, err = s.launchProject(r.Context(), body.Params, cwd, req.Target)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if want != nil {
-			req.Project = want
-			params = map[string]any{"project": projectID, "path": want.Path}
+			if dir != "" {
+				if req.Target == "" {
+					req.Target = want.Session
+				}
+				want.Session, body.Target = req.Target, req.Target
+			}
+			req.Project, contour = want, found.profile.Name
+			params = map[string]any{"project": found.project.ID, "path": want.Path}
 		}
 	}
 
@@ -356,6 +378,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	out := map[string]any{"ok": true, "detail": resp.Detail, "logged": logged}
 	if req.Kind == action.TermStart {
 		out["id"] = req.Target
+	}
+	if contour != "" {
+		out["contour"] = contour
 	}
 	writeJSON(w, out)
 }
@@ -670,7 +695,7 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 		return switchWay{}, fmt.Errorf("session %q was started outside the panel: it lives in no pane of tmux "+
 			"and on no stream, so there is no side to move it from", name)
 	}
-	want, projectID, err := s.launchProject(ctx, nil, live.CWD, "")
+	want, found, err := s.launchProject(ctx, nil, live.CWD, "")
 	if err != nil {
 		return switchWay{}, err
 	}
@@ -680,7 +705,7 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 	}
 	want.Session = name
 	if live.Transport == action.SwitchStream {
-		return switchWay{To: action.SwitchConsole, Project: want, ProjectID: projectID}, nil
+		return switchWay{To: action.SwitchConsole, Project: want, ProjectID: found.project.ID}, nil
 	}
 	var launch struct {
 		Transport string `json:"transport"`
@@ -689,7 +714,7 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 	if launch.Transport != action.SwitchStream {
 		return switchWay{}, fmt.Errorf("the project of session %q lives in tmux", name)
 	}
-	return switchWay{To: action.SwitchStream, Project: want, ProjectID: projectID}, nil
+	return switchWay{To: action.SwitchStream, Project: want, ProjectID: found.project.ID}, nil
 }
 
 // restartWay is the session a restart is about, what it comes back as, the
@@ -744,7 +769,7 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 	if !ok || live.CWD == "" {
 		return way, nil
 	}
-	want, projectID, err := s.launchProject(ctx, nil, live.CWD, "")
+	want, found, err := s.launchProject(ctx, nil, live.CWD, "")
 	if err != nil || want == nil {
 		return way, err
 	}
@@ -754,7 +779,7 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 		return restartWay{}, fmt.Errorf("session %s cannot be restarted from the map: %w", way.Name, err)
 	}
 	want.Launch = launch
-	way.Project, way.ProjectID = want, projectID
+	way.Project, way.ProjectID = want, found.project.ID
 	return way, nil
 }
 

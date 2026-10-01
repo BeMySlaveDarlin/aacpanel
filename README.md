@@ -160,7 +160,7 @@ transcripts, writes a snapshot that the container mounts read-only.
 | `internal/executor/` | the actions themselves: containers, stacks, sessions, windows |
 | `internal/launcher/` | starting a claude session: environment, tmux, window, the panel's MCP server |
 | `internal/stream/` | the holder of a session on the stream: `claude -p` on the stream protocol |
-| `internal/mcp/`, `internal/toolset/` | the panel's MCP server and the one list of its tools: the checklist, the brief, the call, the restart, the letter |
+| `internal/mcp/`, `internal/toolset/` | the panel's MCP server and the one list of its tools: the checklist, the brief, the call, the restart, the letter, the new session |
 | `internal/schema/` | the launch parameters of the map as data: levels, options, effective values with their layers |
 | `internal/contours/` | the layout of claude contours: accounts and their directories |
 | `internal/repo/` | the repository of a project for a screen: tree, files, history, notes |

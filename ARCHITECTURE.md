@@ -993,10 +993,11 @@ swept when a server starts. Nothing makes the model keep it true: a `Stop` hook,
 the account has it, holds a turn that did work past an unfinished checklist it
 did not touch, once, to ask whether it changed.
 
-**A session restarts itself and writes to other sessions with tools of the
-panel.** Both go to the panel's local listener as actions of this machine and
-name the session by the conversation the server's parent runs, so the model
-cannot act as another session. `session_restart` asks for `session.restart`:
+**A session restarts itself, writes to other sessions and opens new ones with
+tools of the panel.** They go to the panel's local listener as actions of this
+machine; the restart and the letter name the session by the conversation the
+server's parent runs, so the model cannot act as another session.
+`session_restart` asks for `session.restart`:
 the panel brings the session back as its project from the map, afresh or, with
 `continue`, resuming the same conversation. Either way the executor restarts it
 only while it still runs the conversation that asked — a late repeat of the call
@@ -1025,11 +1026,27 @@ refused. That is also why a letter is a kind of its own and not a field of
 in, where one that does not know the kind refuses it. The letter does not
 claim the sender's permission class, which the panel does not know for sure,
 so a recipient that runs without permission prompts and has no
-`crossSessionInbound` setting holds it for its person. The restart is allowed:
-the restart past the context cap is done with nobody at the screen, and the
-tool touches only the session that calls it and waits out its work. The letter
-is not: it puts words before another agent, and claude asks the person first,
-as it does for any tool.
+`crossSessionInbound` setting holds it for its person. `session_open` asks for
+`session.open` with a directory, and with a name only where the model gives
+one: the panel finds the project of the map the directory belongs to — the
+project's own, one inside it or a worktree of it, as a restart finds it — and
+opens the session there with the account, the launch parameters and the first
+message of the map, under the project's session name unless one is given; a
+live session of that name makes the launcher take a free one. A directory no
+project holds is refused rather than looked up by the name, since the panel
+would know neither the account to open it in nor its launch parameters, and
+the answer names the contour, so the session can tell its person which account
+the new one spends. The tool has no first message of its own for the reason a
+letter is a kind of its own: words typed into a session its model takes for its
+person's, so work goes to the new session as a letter once it is up. The open
+waits a minute for the panel, which answers once the new claude is up; silence
+past that is an open whose outcome is not known, and the tool says not to open
+again blindly. The restart is allowed: the restart past the context cap is done
+with nobody at the screen, and the tool touches only the session that calls it
+and waits out its work. The letter is not: it puts words before another agent,
+and claude asks the person first, as it does for any tool. Nor is the open: a
+new session starts work in its account and spends its limits, and the question
+claude asks before the call is the person's word to open it.
 
 **The subscription limits come from claude alone.** The 5h/7d percentages do
 not lie on disk and no API hands them out: claude tells them to the status line

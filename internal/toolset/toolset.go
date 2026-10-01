@@ -29,6 +29,7 @@ func tools() []mcp.Tool {
 		collector.Notify(collector.NotifySocket()),
 		session.Restart(session.Here()),
 		session.Letter(session.Here()),
+		session.Open(session.Here()),
 	}
 }
 

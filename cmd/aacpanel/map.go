@@ -156,45 +156,91 @@ type mapProject struct {
 	at string
 }
 
-func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, target string) (*action.Project, int, error) {
+// launchProject finds the project of the map a session is opened or resumed
+// as — by the id the screen names, by the directory the conversation ran in
+// or by the session's name — and what the executor is handed to start it. A
+// project not found is no project and no refusal: the executor looks for one
+// on the host.
+func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, target string) (*action.Project, mapProject, error) {
 	id, err := projectFromParams(params)
 	if err != nil {
-		return nil, 0, err
+		return nil, mapProject{}, err
 	}
 	if s.db == nil {
 		if id > 0 {
-			return nil, 0, fmt.Errorf("the project from the map cannot be found: the database is not configured")
+			return nil, mapProject{}, fmt.Errorf("the project from the map cannot be found: the database is not configured")
 		}
-		return nil, 0, nil
+		return nil, mapProject{}, nil
 	}
 	list, err := s.db.Profiles(ctx)
 	if err != nil {
 		if id > 0 {
-			return nil, 0, fmt.Errorf("the project from the map cannot be found: %w", err)
+			return nil, mapProject{}, fmt.Errorf("the project from the map cannot be found: %w", err)
 		}
 		log.Printf("the project to launch in: the map is unavailable, the executor will look for it: %v", err)
-		return nil, 0, nil
+		return nil, mapProject{}, nil
 	}
 
 	found, err := locateProject(list, id, cwd, target, s.worktrees(), s.db.ProjectRoots())
 	if err != nil {
-		return nil, 0, err
+		return nil, mapProject{}, err
 	}
 	if found == nil {
-		return nil, 0, nil
+		return nil, mapProject{}, nil
 	}
+	want, err := s.launchOf(*found)
+	if err != nil {
+		return nil, mapProject{}, err
+	}
+	return want, *found, nil
+}
 
+// projectIn finds the project of the map a directory belongs to — the
+// project's own, one inside it or a worktree of it — for a session opened
+// there, and what the executor is handed to start it. The directory alone
+// decides: a directory no project holds is refused rather than looked up by
+// the session's name, since the panel would know neither the account to open
+// it in nor its launch parameters.
+func (s *Server) projectIn(ctx context.Context, dir string) (*action.Project, mapProject, error) {
+	if s.db == nil {
+		return nil, mapProject{}, fmt.Errorf("a session is opened in a directory only as a project of the map, " +
+			"and the database with the map is not configured")
+	}
+	clean, err := store.CheckProjectPath(dir, s.db.ProjectRoots())
+	if err != nil {
+		return nil, mapProject{}, fmt.Errorf("a session cannot be opened there: %w", err)
+	}
+	list, err := s.db.Profiles(ctx)
+	if err != nil {
+		return nil, mapProject{}, fmt.Errorf("the project of %s cannot be found: %w", clean, err)
+	}
+	found, ok := projectAt(list, clean, s.worktrees(), s.db.ProjectRoots())
+	if !ok {
+		return nil, mapProject{}, fmt.Errorf("no project of the map holds %s: the panel knows neither the account "+
+			"to open a session there in nor its launch parameters — add the directory to the map first", clean)
+	}
+	want, err := s.launchOf(found)
+	if err != nil {
+		return nil, mapProject{}, err
+	}
+	return want, found, nil
+}
+
+// launchOf is what the executor is handed to start a session of a project
+// found on the map: where it runs, under the project's session name, with the
+// launch parameters of its account and its own.
+func (s *Server) launchOf(found mapProject) (*action.Project, error) {
 	at := found.project.Path
 	if found.at != "" {
 		at = found.at
 	}
 	dir, err := store.CheckProjectPath(at, s.db.ProjectRoots())
 	if err != nil {
-		return nil, 0, fmt.Errorf("project %q cannot be opened: %w", found.project.Name, err)
+		return nil, fmt.Errorf("project %q cannot be opened: %w", found.project.Name, err)
 	}
 	launch, err := store.EffectiveLaunch(found.profile.Launch, found.project.Launch)
 	if err != nil {
-		return nil, 0, fmt.Errorf("project %q cannot be opened: %w", found.project.Name, err)
+		return nil, fmt.Errorf("project %q cannot be opened: %w", found.project.Name, err)
 	}
 	return &action.Project{
 		Path:      dir,
@@ -202,7 +248,7 @@ func (s *Server) launchProject(ctx context.Context, params map[string]any, cwd, 
 		Launch:    launch,
 		ClaudeBin: found.profile.ClaudeBin,
 		ConfigDir: found.profile.ConfigDir,
-	}, found.project.ID, nil
+	}, nil
 }
 
 func (s *Server) worktrees() map[string]string {
@@ -398,6 +444,25 @@ func projectFromParams(params map[string]any) (int, error) {
 		return 0, fmt.Errorf("the project id did not arrive as a positive integer")
 	}
 	return int(num), nil
+}
+
+// openDir is the directory a session is opened in, where the request names
+// one: a session opening another names the directory, the screens name the
+// project by its id, and a resume runs where its conversation ran. A directory
+// and an id at once would leave the project to a guess.
+func openDir(kind action.Kind, params map[string]any) (string, error) {
+	raw, ok := params["path"]
+	if kind != action.SessionOpen || !ok || raw == nil {
+		return "", nil
+	}
+	dir, ok := raw.(string)
+	if !ok || strings.TrimSpace(dir) == "" {
+		return "", fmt.Errorf("the directory to open the session in did not arrive as a path")
+	}
+	if params["project"] != nil {
+		return "", fmt.Errorf("a session is opened by the project's id or by a directory, not by both")
+	}
+	return dir, nil
 }
 
 // ownValues returns the values a project sets itself and that differ from what

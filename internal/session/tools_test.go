@@ -341,9 +341,133 @@ func TestAFreshRestartAsksForTheFinalizeSkillFirst(t *testing.T) {
 // The line of each tool in the server's word stays one short sentence or two:
 // it stands in the system prompt of every session.
 func TestTheLinesOfTheToolsAreShort(t *testing.T) {
-	for _, line := range []string{RestartInstructions, LetterInstructions} {
+	for _, line := range []string{RestartInstructions, LetterInstructions, OpenInstructions} {
 		if n := utf8.RuneCountInString(line); n > 400 {
 			t.Errorf("a line of %d characters: %q", n, line)
 		}
+	}
+}
+
+// Opening a session asks the person, as claude asks of any tool: a new session
+// starts work in its account and spends its limits. The tool says when to
+// reach for it in the server's word, and it takes a directory and a name, never
+// words for the new session, which its model would take for its person's.
+func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
+	tool := Open(Host{})
+	if tool.Allowed {
+		t.Error("session_open is allowed: a session would open others in the account without asking the person")
+	}
+	if tool.Name != "session_open" || tool.Instructions == "" || strings.Contains(tool.Instructions, "\n") ||
+		!strings.Contains(tool.Instructions, tool.Name) {
+		t.Errorf("%s says when to reach for it as %q", tool.Name, tool.Instructions)
+	}
+	if n := len(tool.Description); n > 1536 {
+		t.Errorf("the description of %s is %d bytes", tool.Name, n)
+	}
+	for _, want := range []string{"limits", "send_to_session", "not opened"} {
+		if !strings.Contains(tool.Description, want) {
+			t.Errorf("the tool's word does not say %q: %s", want, tool.Description)
+		}
+	}
+	raw, _ := json.Marshal(tool.InputSchema)
+	var schema struct {
+		Type       string                     `json:"type"`
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+		Additional *bool                      `json:"additionalProperties"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil || schema.Type != "object" ||
+		schema.Additional == nil || *schema.Additional {
+		t.Fatalf("the schema of %s is %s", tool.Name, raw)
+	}
+	if len(schema.Properties) != 2 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
+		len(schema.Required) != 1 || schema.Required[0] != "dir" {
+		t.Errorf("%s takes %s: a directory it needs and a name it may have, nothing more", tool.Name, raw)
+	}
+}
+
+// An open goes to the panel as session.open with the directory, and with the
+// name only where the model gives one: without it the panel names the session
+// after its project. The answer names the session, its account and its
+// directory, and says how the new session is given work.
+func TestAnOpenNamesTheDirectoryToThePanel(t *testing.T) {
+	p, url := startPanel(t, http.StatusOK,
+		`{"ok":true,"detail":"session lab-2 started; opening message: read the queue","contour":"work","logged":true}`)
+	h := hostWith(t, "", url)
+
+	said, failed := call(t, Open(h), bound(mine), map[string]any{"dir": "/srv/proj/lab"})
+	if failed {
+		t.Fatalf("the open answered %q", said)
+	}
+	for _, want := range []string{"session lab-2 started", "account work", "/srv/proj/lab", "send_to_session",
+		"Tell the person"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the open does not say %q: %s", want, said)
+		}
+	}
+	call(t, Open(h), lost, map[string]any{"dir": "/srv/proj/lab/web", "name": "lab-fix"})
+
+	asked := p.calls()
+	if len(asked) != 2 {
+		t.Fatalf("the panel was asked %v", asked)
+	}
+	for i, want := range []struct{ target, path string }{{"", "/srv/proj/lab"}, {"lab-fix", "/srv/proj/lab/web"}} {
+		params, _ := asked[i]["params"].(map[string]any)
+		if asked[i]["kind"] != "session.open" || asked[i]["target"] != want.target || params["path"] != want.path ||
+			len(params) != 1 {
+			t.Errorf("call %d asked the panel %v, meant %+v", i, asked[i], want)
+		}
+	}
+}
+
+// A panel that does not answer within the wait may be opening the session all
+// the same: the answer says so, and that a second open is not to be tried
+// blindly.
+func TestAnOpenThePanelDoesNotAnswerIsNotKnown(t *testing.T) {
+	p, url := startPanel(t, http.StatusOK, `{"ok":true}`)
+	p.hold = make(chan struct{})
+	t.Cleanup(func() { close(p.hold) })
+	was := openWait
+	openWait = 100 * time.Millisecond
+	t.Cleanup(func() { openWait = was })
+
+	said, failed := call(t, Open(hostWith(t, "", url)), bound(mine), map[string]any{"dir": "/srv/proj/lab"})
+	if !failed || !strings.Contains(said, "not known") || !strings.Contains(said, "again blindly") ||
+		!strings.Contains(said, "send_to_session") {
+		t.Errorf("an open the panel kept answering answered %q (error %v)", said, failed)
+	}
+}
+
+// What an open cannot be is refused before the panel is asked, and what the
+// panel refuses comes back with its reason.
+func TestWhatStopsAnOpenIsTheToolsError(t *testing.T) {
+	refusing, url := startPanel(t, http.StatusBadRequest,
+		"no project of the map holds /srv/stray: the panel knows neither the account to open a session there in\n")
+	gone := httptest.NewServer(http.NotFoundHandler())
+	goneURL := gone.URL
+	gone.Close()
+	for name, c := range map[string]struct {
+		panel string
+		args  any
+		says  string
+	}{
+		"no directory":           {url, map[string]any{}, "not an absolute directory"},
+		"a relative directory":   {url, map[string]any{"dir": "srv/proj/lab"}, "not an absolute directory"},
+		"a name with a space":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab two"}, "forbidden character"},
+		"a name with a slash":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab/two"}, "contains /"},
+		"a name out of the path": {url, map[string]any{"dir": "/srv/proj/lab", "name": "../lab"}, ".."},
+		"arguments of another":   {url, map[string]any{"dir": 7}, "not the tool's"},
+		"the panel refuses":      {url, map[string]any{"dir": "/srv/stray"}, "no project of the map holds /srv/stray"},
+		"the panel is not there": {goneURL, map[string]any{"dir": "/srv/proj/lab"}, "does not answer"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			said, failed := call(t, Open(hostWith(t, "", c.panel)), bound(mine), c.args)
+			if !failed || !strings.Contains(said, c.says) || !strings.HasPrefix(said, "Nothing was opened") {
+				t.Errorf("answered %q (error %v), meant an error saying %q", said, failed, c.says)
+			}
+		})
+	}
+	if n := len(refusing.calls()); n != 1 {
+		t.Errorf("the panel was asked %d times, only by the open it refused", n)
 	}
 }
