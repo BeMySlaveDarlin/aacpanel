@@ -4,9 +4,9 @@
 <div class="shell"><div class="body" id="root"></div></div>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
-// The answers of local commands as the collector reads them off a transcript:
-// two reloads typed one after the other, and a model picked by a command. The
-// first answer is longer than a line of a phone, the others are not.
+// Lines of the session's own: an answer the person stopped, a compaction, the
+// fate of a letter. The compaction is longer than a line of a phone, the
+// others are not.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
@@ -15,12 +15,12 @@ import { FeedGrid } from "/src/screens/chat/timeline.js";
 
 const at = "2026-10-01T11:40:09.762Z";
 const items = [
-    { role: "me", text: "/reload-plugins", pos: 1, at },
-    { role: "note", text: "Reloaded: 10 plugins · 30 skills · 14 agents · 3 hooks · 1 plugin LSP server", pos: 2, at },
-    { role: "me", text: "/reload-skills", pos: 3, at },
-    { role: "note", text: "Reloaded skills: 67 skills available (no changes)", pos: 4, at },
-    { role: "me", text: "/model fable", pos: 5, at },
-    { role: "note", text: "Set model to Fable 5.1", pos: 6, at },
+    { role: "me", text: "go on", pos: 1, at },
+    { role: "note", text: "the human interrupted the answer", pos: 2, at },
+    { role: "me", text: "and now?", pos: 3, at },
+    { role: "note", text: "the context was compacted, the conversation continues from a summary", pos: 4, at },
+    { role: "me", text: "write to the neighbour", pos: 5, at },
+    { role: "note", text: "the letter was delivered", pos: 6, at },
 ];
 
 const feed = weld(items);

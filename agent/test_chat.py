@@ -36,25 +36,45 @@ LOCAL_CAVEAT = ("<local-command-caveat>The command below was run directly in Cla
                 "later messages.</local-command-caveat>")
 
 
-def local_run(name, answer, typed, ran):
-    """Returns the records a session on the stream writes for a local command, in the order of its file.
+def command_records(name, typed, key, args="", ran=None):
+    """Returns the caveat and the record of a local command as claude writes them once it runs it.
 
     The caveat stands ahead of the command, though its time is that of the
-    answer, after the command's own.
+    answer, after the command's own. Key names the records, so an answer
+    names its command.
     """
     return [
-        line({"type": "queue-operation", "operation": "enqueue", "timestamp": typed, "content": f"/{name}"}),
-        line({"type": "queue-operation", "operation": "dequeue", "timestamp": typed}),
-        line({"type": "user", "isMeta": True, "timestamp": ran, "entrypoint": "sdk-cli",
-              "message": {"role": "user", "content": LOCAL_CAVEAT}}),
+        line({"type": "user", "isMeta": True, "timestamp": ran or typed, "entrypoint": "sdk-cli",
+              "uuid": f"{key}-caveat", "message": {"role": "user", "content": LOCAL_CAVEAT}}),
         line({"type": "user", "timestamp": typed, "entrypoint": "sdk-cli",
+              "uuid": f"{key}-command", "parentUuid": f"{key}-caveat",
               "message": {"role": "user", "content": f"<command-name>/{name}</command-name>\n"
                           f"            <command-message>{name}</command-message>\n"
-                          "            <command-args></command-args>"}}),
-        line({"type": "system", "subtype": "local_command", "level": "info", "isMeta": False,
-              "timestamp": ran, "commandRun": {"command": name, "args": ""},
-              "content": f"<local-command-stdout>{answer}</local-command-stdout>"}),
+                          f"            <command-args>{args}</command-args>"}}),
     ]
+
+
+def answer_record(name, answer, ran, key, stream="out"):
+    """Returns the answer of a local command: a record whose parent is the record of the command."""
+    return line({"type": "system", "subtype": "local_command", "level": "info", "isMeta": False,
+                 "timestamp": ran, "commandRun": {"command": name, "args": ""},
+                 "uuid": f"{key}-answer", "parentUuid": f"{key}-command",
+                 "content": f"<local-command-std{stream}>{answer}</local-command-std{stream}>"})
+
+
+def enqueue(text, at):
+    return line({"type": "queue-operation", "operation": "enqueue", "timestamp": at, "content": text})
+
+
+def dequeue(at):
+    return line({"type": "queue-operation", "operation": "dequeue", "timestamp": at})
+
+
+def local_run(name, answer, typed, ran, key=None):
+    """Returns the records a session on the stream writes for a local command, in the order of its file."""
+    key = key or name
+    return [enqueue(f"/{name}", typed), dequeue(typed), *command_records(name, typed, key, ran=ran),
+            answer_record(name, answer, ran, key)]
 
 
 def assistant(*blocks):
@@ -119,60 +139,72 @@ class Parse(unittest.TestCase):
         self.assertEqual(self.items(raw), [])
         self.assertEqual(chat.parse(json.loads(raw), 0, chat.Pending()), [])
 
-    def test_a_slash_command_shows_as_a_prompt(self):
+    def test_a_local_command_is_a_card_that_waits_for_its_answer(self):
         got = self.items(user("<command-name>/model</command-name>\n"
                               "            <command-message>model</command-message>\n"
                               "            <command-args></command-args>"))
-        self.assertEqual([(i["role"], i["text"]) for i in got], [("me", "/model")])
+        self.assertEqual([(i["role"], i["text"], i.get("done"), i.get("state")) for i in got],
+                         [("command", "/model", None, None)])
 
-    def test_a_slash_command_answer_arrives_as_a_note(self):
+    def test_a_command_of_the_model_stays_a_prompt(self):
+        # A skill typed with a slash is a request to the model, which answers
+        # it: claude writes its message first, and no answer of claude comes.
+        got = self.items(user("<command-message>cc-task-manager:ts</command-message>\n"
+                              "<command-name>/cc-task-manager:ts</command-name>\n"
+                              "<command-args>list the tasks</command-args>"))
+        self.assertEqual([(i["role"], i["text"]) for i in got], [("me", "/cc-task-manager:ts list the tasks")])
+
+    def test_an_answer_whose_command_the_feed_never_saw_is_a_card_without_it(self):
         got = self.items(local_command(
             "<local-command-stdout>Kept model as `Opus 5`</local-command-stdout>"))
-        self.assertEqual([(i["role"], i["text"]) for i in got],
-                         [("note", "Kept model as `Opus 5`")])
+        self.assertEqual([(i["role"], i.get("text"), i["out"], i["done"]) for i in got],
+                         [("command", None, "Kept model as `Opus 5`", True)])
 
-    def test_a_command_refusal_arrives_the_same_way_as_success(self):
+    def test_a_refusal_answers_the_way_a_success_does_and_an_error_says_so(self):
         got = self.items(local_command(
             "<local-command-stdout>Model 'fable xhigh' not found</local-command-stdout>"))
-        self.assertEqual([(i["role"], i["text"]) for i in got],
-                         [("note", "Model 'fable xhigh' not found")])
+        self.assertEqual([(i["role"], i["out"], i.get("err")) for i in got],
+                         [("command", "Model 'fable xhigh' not found", None)])
         got = self.items(user(
             "<local-command-stderr>Error during compaction: API Error: 529</local-command-stderr>"))
-        self.assertEqual([(i["role"], i["text"]) for i in got],
-                         [("note", "Error during compaction: API Error: 529")])
+        self.assertEqual([(i["role"], i.get("out"), i["err"]) for i in got],
+                         [("command", None, "Error during compaction: API Error: 529")])
 
     def test_a_command_answer_arrives_in_two_kinds_of_records(self):
         got = self.items(user(
             "<local-command-stdout>Set model to `Fable 5.1`</local-command-stdout>"))
-        self.assertEqual([(i["role"], i["text"]) for i in got],
-                         [("note", "Set model to `Fable 5.1`")])
+        self.assertEqual([(i["role"], i["out"]) for i in got],
+                         [("command", "Set model to `Fable 5.1`")])
 
     def test_terminal_coloring_is_stripped_from_the_answer(self):
         got = self.items(local_command(
             "<local-command-stdout>Set model to \x1b[1mFable 5\x1b[22m</local-command-stdout>"))
-        self.assertEqual(got[0]["text"], "Set model to Fable 5")
+        self.assertEqual(got[0]["out"], "Set model to Fable 5")
 
-    def test_an_empty_command_answer_does_not_become_a_note(self):
+    def test_an_empty_answer_of_no_command_shows_nothing(self):
         self.assertEqual(self.items(local_command(
             "<local-command-stdout></local-command-stdout>")), [])
 
-    def test_a_long_command_answer_names_the_trim(self):
-        got = self.items(local_command(
-            "<local-command-stdout>" + "x" * 5000 + "</local-command-stdout>"))
-        self.assertLess(len(got[0]["text"]), 5000)
-        self.assertTrue(got[0]["text"].endswith("…"), got[0]["text"][-20:])
+    def test_a_long_answer_keeps_its_lines_and_names_the_trim(self):
+        said = "\n".join(f"line {n}: " + "x" * 60 for n in range(40))
+        got = self.items(local_command(f"<local-command-stdout>{said}</local-command-stdout>"))
+        self.assertEqual(got[0]["out"], said, "a long answer lost its lines on the way")
+        self.assertNotIn("cut", got[0])
+        got = self.items(local_command("<local-command-stdout>" + "x" * (chat.MAX_TEXT + 10)
+                                       + "</local-command-stdout>"))
+        self.assertEqual((len(got[0]["out"]), got[0]["cut"]), (chat.MAX_TEXT, True))
 
-    def test_a_slash_command_in_its_own_record_is_a_prompt_too(self):
+    def test_a_command_in_a_record_of_its_own_kind_is_a_card_too(self):
         got = self.items(local_command("<command-name>/model</command-name>\n"
                                        "            <command-message>model</command-message>\n"
                                        "            <command-args>fable xhigh</command-args>"))
-        self.assertEqual([(i["role"], i["text"]) for i in got], [("me", "/model fable xhigh")])
+        self.assertEqual([(i["role"], i["text"]) for i in got], [("command", "/model fable xhigh")])
 
     def test_the_arguments_stay_with_the_command(self):
         got = self.items(user("<command-name>/model</command-name>\n"
                               "            <command-message>model</command-message>\n"
                               "            <command-args>fable xhigh</command-args>"))
-        self.assertEqual([(i["role"], i["text"]) for i in got], [("me", "/model fable xhigh")])
+        self.assertEqual([(i["role"], i["text"]) for i in got], [("command", "/model fable xhigh")])
 
     CONTEXT_MD = (
         "## Context Usage\n\n"
@@ -307,18 +339,20 @@ class Parse(unittest.TestCase):
                          [("24h", "120 requests · 5 sessions", 2), ("7d", "4424 requests · 24 sessions", 1)])
         self.assertEqual(habits["windows"][0]["lines"][1], "Top skills: /finalize 10%, /rs 6%")
 
-    def test_a_usage_answer_without_its_report_stays_a_note(self):
+    def test_a_usage_answer_without_its_report_stays_its_text(self):
         got = self.items(local_command(self.USAGE_OUT))
-        self.assertEqual([i["role"] for i in got], ["note"])
+        self.assertEqual([(i["role"], i.get("name"), i["out"][:23]) for i in got],
+                         [("command", None, "You are currently using")])
 
     def test_the_markdown_of_context_pasted_by_a_person_stays_their_message(self):
         got = self.items(user(self.CONTEXT_MD))
         self.assertEqual([i["role"] for i in got], ["me"])
 
-    def test_an_unreadable_context_answer_falls_back_to_a_note(self):
+    def test_an_unreadable_context_answer_falls_back_to_its_text(self):
         got = self.items(local_command("<local-command-stdout>## Context Usage\n\nnothing measured"
                                        "</local-command-stdout>"))
-        self.assertEqual([i["role"] for i in got], ["note"])
+        self.assertEqual([(i["role"], i.get("name"), i["out"]) for i in got],
+                         [("command", None, "## Context Usage\n\nnothing measured")])
 
     def test_other_system_records_stay_out_of_the_feed(self):
         self.assertEqual(self.items(line({"type": "system", "subtype": "stop_hook_summary",
@@ -699,17 +733,58 @@ class Queue(unittest.TestCase):
                     "message": {"content": "write the numbers"}})
         self.assertEqual(chat.parse(json.loads(raw), 99, pending), [])
 
-    def test_a_slash_command_through_the_queue_gives_no_second_bubble(self):
+    def test_a_command_through_the_queue_gives_no_second_card(self):
         pending = chat.Pending()
-        self.enqueued("/model fable", pending, pos=10)
-        self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
+        drawn = self.enqueued("/model  fable", pending, pos=10)
+        self.assertEqual([(i["role"], i["text"], i["pos"], i["state"]) for i in drawn],
+                         [("command", "/model fable", 10, "queued")])
+        handed = self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
+        self.assertEqual([(i["role"], i["pos"], i.get("state")) for i in handed], [("command", 10, None)],
+                         "the command the queue handed over still says it is queued")
         command = ("<command-name>/model</command-name>\n            <command-message>model</command-message>\n"
                    "            <command-args>fable</command-args>")
         raw = line({"type": "user", "timestamp": "2026-08-23T10:01:00Z", "message": {"content": command}})
         self.assertEqual(chat.parse(json.loads(raw), 99, pending), [])
         again = chat.parse(json.loads(raw), 120, pending)
-        self.assertEqual([(i["role"], i["text"]) for i in again], [("me", "/model fable")],
-                         "the same command typed again later is a message of its own")
+        self.assertEqual([(i["role"], i["text"], i["pos"]) for i in again], [("command", "/model fable", 120)],
+                         "the same command typed again later is a command of its own")
+
+    def test_a_path_typed_first_is_a_message_not_a_command(self):
+        pending = chat.Pending()
+        got = self.enqueued("/home/u/.local/share/aacpanel-exec/files/shot.png\nwhat is on it", pending)
+        self.assertEqual([i["role"] for i in got], ["me"])
+
+    def test_a_command_waits_in_the_queue_while_the_model_reads_the_messages(self):
+        # A message typed into a busy session reaches the model in the middle
+        # of its turn; a command waits for the turn to end.
+        pending = chat.Pending()
+        self.enqueued("/reload-plugins", pending, pos=10)
+        self.enqueued("and look at the tests", pending, pos=20)
+        read = self.items(assistant(text_block("On it")), pending)
+        self.assertEqual([(i["role"], i["pos"], i.get("state")) for i in read if i["role"] != "ai"],
+                         [("me", 20, None)])
+        handed = self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
+        self.assertEqual([(i["role"], i["pos"], i.get("state")) for i in handed], [("command", 10, None)])
+
+    def test_a_command_taken_back_from_the_queue_says_so(self):
+        pending = chat.Pending()
+        self.enqueued("/reload-skills", pending, pos=10)
+        got = self.items(line({"type": "queue-operation", "operation": "popAll"}), pending)
+        self.assertEqual([(i["role"], i["pos"], i["state"]) for i in got], [("command", 10, "withdrawn")])
+
+    def test_a_skill_through_the_queue_takes_the_place_of_its_card(self):
+        # The queue cannot tell a skill from a local command by its words, and
+        # draws a card: the record says it is a prompt, and the bubble stands
+        # in the card's place.
+        pending = chat.Pending()
+        self.enqueued("/ts list the tasks", pending, pos=10)
+        self.items(line({"type": "queue-operation", "operation": "dequeue"}), pending)
+        raw = line({"type": "user", "timestamp": "2026-08-23T10:01:00Z", "message": {
+            "content": "<command-message>ts</command-message>\n<command-name>/ts</command-name>\n"
+                       "<command-args>list the tasks</command-args>"}})
+        got = chat.parse(json.loads(raw), 99, pending)
+        self.assertEqual([(i["role"], i["text"], i["pos"], i["fixes"]) for i in got],
+                         [("me", "/ts list the tasks", 10, "command")])
 
     def test_a_prompt_from_the_terminal_does_not_touch_the_queue(self):
         pending = chat.Pending()
@@ -1235,19 +1310,126 @@ class Feed(unittest.TestCase):
         with open(self.path, "w", encoding="utf-8") as f:
             f.write("".join(raws))
 
-    def test_two_local_commands_in_a_row_answer_alike_and_without_the_caveat(self):
-        plugins = "Reloaded: 10 plugins · 30 skills · 14 agents · 3 hooks · 1 plugin LSP server"
-        skills = "Reloaded skills: 67 skills available (no changes)"
-        self.write(*local_run("reload-plugins", plugins, "2026-10-01T11:40:09.703Z", "2026-10-01T11:40:09.762Z"),
-                   *local_run("reload-skills", skills, "2026-10-01T11:40:16.507Z", "2026-10-01T11:40:16.524Z"))
+    PLUGINS = "Reloaded: 10 plugins · 30 skills · 14 agents · 3 hooks · 1 plugin LSP server"
+    SKILLS = "Reloaded skills: 67 skills available (no changes)"
+
+    def cards(self, items):
+        return [(i["role"], i.get("text"), i.get("out"), i.get("done"), i.get("state")) for i in items]
+
+    def test_a_local_command_and_its_answer_are_one_card(self):
+        self.write(*local_run("reload-plugins", self.PLUGINS, "2026-10-01T11:40:09.703Z", "2026-10-01T11:40:09.762Z"),
+                   *local_run("reload-skills", self.SKILLS, "2026-10-01T11:40:16.507Z", "2026-10-01T11:40:16.524Z"))
         items = chat.feed(self.path, limit=40)["items"]
-        self.assertEqual([(i["role"], i["text"]) for i in items],
-                         [("me", "/reload-plugins"), ("note", plugins), ("me", "/reload-skills"), ("note", skills)])
-        self.assertFalse([i for i in items if "local-command-caveat" in i.get("text", "")],
+        self.assertEqual(self.cards(items), [("command", "/reload-plugins", self.PLUGINS, True, None),
+                                             ("command", "/reload-skills", self.SKILLS, True, None)])
+        self.assertFalse([i for i in items if "local-command-caveat" in json.dumps(i)],
                          "the caveat claude writes for the model is in the feed")
-        first, second = items[1], items[3]
-        self.assertEqual(sorted(first), sorted(second),
-                         "the answers of two commands are items of different shapes")
+        self.assertEqual(items[0]["at"], "2026-10-01T11:40:09.703Z", "the card is not stamped with the time the command was typed")
+
+    def test_commands_typed_into_a_busy_session_wait_and_answer_on_their_own_cards(self):
+        # The way a session on the stream writes it: both commands queued in
+        # the middle of a turn, the turn going on, and each command handed
+        # over and run once it ends.
+        self.write(
+            user("rebuild the panel"),
+            enqueue("/reload-plugins", "2026-10-01T12:09:18.822Z"),
+            enqueue("/reload-skills", "2026-10-01T12:09:18.831Z"),
+            assistant(text_block("Building"), tool_block("Bash", command="make check")),
+            assistant(text_block("Done")),
+            dequeue("2026-10-01T12:09:56.950Z"),
+            *command_records("reload-plugins", "2026-10-01T12:09:56.954Z", "plugins"),
+            answer_record("reload-plugins", self.PLUGINS, "2026-10-01T12:09:57.001Z", "plugins"),
+            dequeue("2026-10-01T12:09:57.013Z"),
+            *command_records("reload-skills", "2026-10-01T12:09:57.015Z", "skills"),
+            answer_record("reload-skills", self.SKILLS, "2026-10-01T12:09:57.020Z", "skills"),
+        )
+        items = chat.feed(self.path, limit=40)["items"]
+        cards = [i for i in items if i["role"] == "command"]
+        self.assertEqual(self.cards(cards), [("command", "/reload-plugins", self.PLUGINS, True, None),
+                                             ("command", "/reload-skills", self.SKILLS, True, None)])
+        self.assertEqual([i["role"] for i in items if i["role"] in ("me", "command")], ["me", "command", "command"],
+                         "a command shows twice: as typed and as run")
+        # The cards stand where the person typed the commands.
+        self.assertLess(items.index(cards[1]), next(n for n, i in enumerate(items) if i["role"] == "ai"))
+
+    def test_a_command_in_the_queue_and_one_running_say_so(self):
+        self.write(user("rebuild the panel"),
+                   enqueue("/reload-plugins", "2026-10-01T12:09:18.822Z"),
+                   enqueue("/reload-skills", "2026-10-01T12:09:18.831Z"),
+                   assistant(text_block("Done")),
+                   dequeue("2026-10-01T12:09:56.950Z"),
+                   *command_records("reload-plugins", "2026-10-01T12:09:56.954Z", "plugins"))
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual(self.cards(i for i in items if i["role"] == "command"),
+                         [("command", "/reload-plugins", None, None, None),
+                          ("command", "/reload-skills", None, None, "queued")])
+
+    def test_an_answer_finds_its_command_by_its_parent_not_by_its_place(self):
+        self.write(*command_records("reload-plugins", "2026-10-01T11:40:09.703Z", "plugins"),
+                   *command_records("reload-skills", "2026-10-01T11:40:09.710Z", "skills"),
+                   answer_record("reload-skills", self.SKILLS, "2026-10-01T11:40:09.760Z", "skills"),
+                   answer_record("reload-plugins", self.PLUGINS, "2026-10-01T11:40:09.762Z", "plugins"))
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual(self.cards(items), [("command", "/reload-plugins", self.PLUGINS, True, None),
+                                             ("command", "/reload-skills", self.SKILLS, True, None)])
+
+    def test_an_answer_without_its_command_is_not_lost(self):
+        self.write(user("hello"), answer_record("model", "Set model to Fable 5.1", "2026-10-01T11:40:09.762Z", "gone"))
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual(self.cards(items)[1:], [("command", None, "Set model to Fable 5.1", True, None)])
+
+    def test_an_error_of_a_command_lands_on_its_card(self):
+        self.write(*command_records("compact", "2026-10-01T11:40:09.703Z", "compact"),
+                   answer_record("compact", "Error during compaction: API Error: 529",
+                                 "2026-10-01T11:41:09.703Z", "compact", stream="err"))
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual([(i["text"], i.get("out"), i["err"], i["done"]) for i in items],
+                         [("/compact", None, "Error during compaction: API Error: 529", True)])
+
+    def test_a_long_answer_reaches_its_card_whole(self):
+        said = "\n".join(f"server {n}: connected" for n in range(30))
+        self.write(*command_records("mcp", "2026-10-01T11:40:09.703Z", "mcp"),
+                   answer_record("mcp", said, "2026-10-01T11:40:10.703Z", "mcp"))
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual([(i["text"], i["out"].count("\n") + 1) for i in items], [("/mcp", 30)])
+
+    def test_the_numbers_of_context_stand_under_the_command(self):
+        record = json.loads(answer_record("context", Parse.CONTEXT_MD, "2026-10-01T11:40:10.703Z", "context"))
+        self.write(*command_records("context", "2026-10-01T11:40:09.703Z", "context"), line(record))
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual([(i["role"], i["text"], i["name"], i["data"]["used"]) for i in items],
+                         [("command", "/context", "context", 722700)])
+
+    def test_the_grid_of_a_terminal_and_the_markdown_after_it_answer_one_command(self):
+        # A terminal writes /context as a grid of glyphs, and the markdown
+        # after it names the grid as its parent.
+        grid = json.loads(answer_record("context", " \x1b[1mContext Usage\x1b[22m\n\x1b[38;5;244m⛁ ⛶\x1b[39m",
+                                        "2026-10-01T11:40:10.703Z", "context"))
+        markdown = {"type": "user", "isMeta": True, "timestamp": "2026-10-01T11:40:10.710Z",
+                    "uuid": "context-markdown", "parentUuid": "context-answer",
+                    "message": {"content": Parse.CONTEXT_MD}}
+        self.write(*command_records("context", "2026-10-01T11:40:09.703Z", "context"), line(grid), line(markdown))
+        items = chat.feed(self.path, limit=40)["items"]
+        self.assertEqual([(i["role"], i["text"], i.get("name")) for i in items], [("command", "/context", "context")])
+
+    def test_a_page_ending_at_a_command_carries_its_answer(self):
+        prompts = [user(f"prompt {n}") for n in range(5)]
+        command = command_records("reload-skills", "2026-10-01T11:40:09.703Z", "skills")
+        answer = answer_record("reload-skills", self.SKILLS, "2026-10-01T11:40:09.762Z", "skills")
+        self.write(*prompts[:3], *command, *prompts[3:4], answer, *prompts[4:])
+        tail = chat.feed(self.path, limit=2)
+        page = chat.feed(self.path, limit=2, before=tail["items"][0]["pos"])
+        self.assertEqual(self.cards(page["items"])[-1], ("command", "/reload-skills", self.SKILLS, True, None))
+
+    def test_a_reader_that_has_the_card_gets_it_again_with_the_answer(self):
+        self.write(*command_records("reload-skills", "2026-10-01T11:40:09.703Z", "skills"))
+        got = chat.feed(self.path, limit=10)
+        self.assertEqual(self.cards(got["items"]), [("command", "/reload-skills", None, None, None)])
+        with open(self.path, "a", encoding="utf-8") as f:
+            f.write(answer_record("reload-skills", self.SKILLS, "2026-10-01T11:40:09.762Z", "skills"))
+        more = chat.feed(self.path, limit=10, after=got["last"])
+        self.assertEqual([(i["pos"], i["out"]) for i in more["items"]], [(got["items"][0]["pos"], self.SKILLS)],
+                         "the answer is not under the place of the card the reader has")
 
     def test_by_default_the_tail_is_served(self):
         self.write(*[user(f"prompt {i}") for i in range(10)])

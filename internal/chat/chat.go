@@ -59,6 +59,10 @@ type Item struct {
 	// A card of permissions: each call a person was asked about and the answer.
 	Rows  []Permitted `json:"rows,omitempty"`
 	Files []FileRef   `json:"files,omitempty"`
+	// A local command: what it printed, its errors in Err, and Done once its
+	// answer has come — an answer may print nothing.
+	Out  string `json:"out,omitempty"`
+	Done bool   `json:"done,omitempty"`
 	// The answer of a slash command, read into numbers by the collector. The
 	// panel carries it to the screen and never looks inside.
 	Data json.RawMessage `json:"data,omitempty"`

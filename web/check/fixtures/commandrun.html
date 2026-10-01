@@ -1,0 +1,123 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Local commands as the collector hands them over: each command and its
+// answer one card, in every state a card goes through, among a message of the
+// person and a compaction of the session.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
+
+const at = "2026-10-01T14:30:17.074Z";
+const servers = ["MCP servers", "  aacpanel · connected · 9 tools", "  docker · connected · 62 tools",
+    "  playwright · connected · 21 tools", "  tg-shadow · connected · 11 tools", "  context7 · needs authentication",
+    "  claude.ai Gmail · connected · 5 tools", "  claude.ai Calendar · failed: timed out"].join("\n");
+const recap = "Today so far: the stack went out, CI is green, two tasks are closed and one waits for an answer "
+    + "about the rotation of tokens between the contours, while the stand with the desktop stays off until the next shoot.";
+const usage = { model: "claude-opus-5-5[1m]", used: 259334, max: 1000000, percent: 26,
+    categories: [{ name: "Messages", tokens: 205830, kind: "used" }, { name: "Free space", tokens: 707610, kind: "free" }],
+    mcp: [], agents: [], memory: [], skills: [] };
+const items = [
+    { role: "me", text: "reload everything and show me the servers", pos: 1, at },
+    { role: "command", text: "/reload-plugins", pos: 2, at, done: true,
+      out: "Reloaded: 10 plugins · 30 skills · 14 agents · 3 hooks · 1 plugin LSP server" },
+    { role: "command", text: "/mcp", pos: 3, at, done: true, out: servers },
+    { role: "command", text: "/recap", pos: 4, at, done: true, out: recap },
+    { role: "command", text: "/compact", pos: 5, at, done: true, err: "Error during compaction: API Error: 529" },
+    { role: "command", text: "/context", pos: 6, at, done: true, name: "context", data: usage },
+    { role: "command", pos: 7, at, done: true, out: "Set model to Fable 5.1" },
+    { role: "command", text: "/clear", pos: 8, at, done: true },
+    { role: "note", text: "the context was compacted, the conversation continues from a summary", pos: 9, at },
+    { role: "command", text: "/reload-skills", pos: 10, at },
+    { role: "command", text: "/model fable", pos: 11, at, state: "queued" },
+    { role: "command", text: "/effort max", pos: 12, at, state: "withdrawn" },
+];
+
+const wide = innerWidth > 1000;
+const opened = [];
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${wide}
+    onOpen=${() => {}} row=${(item) => html`<${Row} item=${item} session="lab" id="1"
+        onCommand=${(it) => opened.push(it.name)} />`} /></div>`,
+    document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+const cardOf = (text) => [...document.querySelectorAll(".mcmd")]
+    .find((el) => (el.querySelector(".mcmdtext") || {}).textContent === text);
+const read = (el) => {
+    const out = el.querySelector(".mcmdout");
+    const box = el.getBoundingClientRect();
+    return {
+        command: (el.querySelector(".mcmdtext") || {}).textContent || "",
+        time: (el.querySelector(".mcmdat") || {}).textContent || "",
+        hook: Boolean(el.querySelector(".mcmdhook")),
+        said: out ? out.textContent : "",
+        state: (el.querySelector(".mcmdstate") || {}).textContent || "",
+        running: Boolean(el.querySelector(".mcmdstate.run")),
+        more: (el.querySelector(".mcmdmore") || {}).textContent || "",
+        shown: out ? out.clientHeight : 0,
+        line: out ? parseFloat(getComputedStyle(out).lineHeight) : 0,
+        failed: el.classList.contains("failed"),
+        errColor: out && out.classList.contains("err") ? getComputedStyle(out).color : "",
+        rich: Boolean(el.querySelector(".artifact.cmdcard")),
+        left: box.left, right: box.right,
+    };
+};
+
+(async () => {
+    const out = {};
+    try {
+        await until(() => document.querySelectorAll(".mcmd").length === 10);
+        await document.fonts.ready;
+        // The row under a folded answer is drawn once the answer is measured.
+        await until(() => document.querySelector(".mcmdmore"), 1500);
+        await frame();
+        const col = document.querySelector(".feedcol").getBoundingClientRect();
+        out.col = { left: col.left, right: col.right };
+        out.cards = [...document.querySelectorAll(".mcmd")].map(read);
+        out.notes = [...document.querySelectorAll(".mnote")].map((el) => el.textContent);
+        out.crit = getComputedStyle(document.documentElement).getPropertyValue("--crit").trim();
+        const probe = document.createElement("i");
+        probe.style.color = "var(--crit)";
+        document.body.append(probe);
+        out.critColor = getComputedStyle(probe).color;
+        probe.remove();
+
+        // The list of servers folded, opened by its row, and folded again.
+        const mcp = cardOf("/mcp");
+        const row = () => mcp.querySelector(".mcmdmore");
+        const press = async (done) => {
+            if (!row()) return;
+            row().click();
+            await until(() => done(row().textContent));
+            await frame();
+        };
+        await press((said) => said === "fold");
+        out.mcpOpen = read(mcp);
+        out.mcpOpenLines = (() => {
+            const range = document.createRange();
+            range.selectNodeContents(mcp.querySelector(".mcmdout"));
+            const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+            return tops.size;
+        })();
+        await press((said) => said !== "fold");
+        out.mcpFolded = read(mcp);
+
+        const rich = cardOf("/context") && cardOf("/context").querySelector(".artifact.cmdcard");
+        if (rich) rich.click();
+        out.opened = opened;
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    window.done = out;
+})();
+</script>

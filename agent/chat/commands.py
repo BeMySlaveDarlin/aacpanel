@@ -1,14 +1,50 @@
-"""What a slash command answered, as data for a card rather than as text.
+"""A local command and what it answered: one card of the feed.
 
-The answer of a command is written for the screen it was typed at: a grid of
-coloured glyphs for a terminal, a markdown document for everything else. Laid
-into the feed as text, the first is a paragraph of glyphs and the second a
-table as long as the list of skills. So a command the feed knows is read into
-numbers, and the screen draws them its own way.
+A local command runs in claude, not in the model. claude writes the command as
+it was typed and then its answer, a record whose parent is the record of the
+command, and the feed draws the two as one card: the answer under the command
+it answers, the way a terminal does.
+
+The answer is written for the screen it was typed at: a grid of coloured
+glyphs for a terminal, a markdown document for everything else. Laid into the
+feed as text, the first is a paragraph of glyphs and the second a table as
+long as the list of skills. So an answer the feed knows is read into numbers,
+and the screen draws them its own way.
 """
 import re
 
-from .harness import ANSI_RE, COMMAND_OUT_RE
+from .harness import ANSI_RE, COMMAND_ARGS_RE, COMMAND_OUT_RE, COMMAND_RE
+from .limits import MAX_TEXT, cut
+
+# What a person types to run a command: a slash and a name, and whatever
+# follows a space. A path begins with a slash as well, and its name would
+# hold a slash of its own.
+TYPED_RE = re.compile(r"\A/[A-Za-z][\w:.-]*(?=\s|\Z)", re.A)
+SPACES_RE = re.compile(r"\s+")
+
+
+def typed(text):
+    """Returns the text as a command typed, its spaces folded, or None when it is not one."""
+    line = (text or "").strip()
+    if not TYPED_RE.match(line):
+        return None
+    return SPACES_RE.sub(" ", line)
+
+
+def recorded(text):
+    """Returns the command a record of a local command holds, as typed, or None when it holds none.
+
+    claude writes the name of a local command first, and the message of a
+    command the model answers — a skill — first: the order tells the two
+    apart, and the second stays a prompt of the person.
+    """
+    if not text.startswith("<command-name>"):
+        return None
+    name = COMMAND_RE.match(text)
+    if not name:
+        return None
+    args = COMMAND_ARGS_RE.search(text)
+    return typed(f"{name.group(1)} {args.group(1) if args else ''}")
 
 # How many entries of one list a card carries. The lists are the tools, agents
 # and skills that take room in the context, and a setup with hundreds of them
@@ -257,29 +293,42 @@ def usage_report(report, text):
     }
 
 
-def answer(record, text, at, pos):
-    """Returns the feed items for a command answer the feed draws as a card.
+def grid(text):
+    """Reports whether the answer is the grid of glyphs a terminal draws /context as.
 
-    None is any other text, and it goes on to be read as a prompt or a note.
-    An empty list is an answer that is not shown at all: a terminal writes
-    /context twice, as a coloured grid and as markdown after it, and the card
-    is drawn from the markdown.
+    A terminal writes /context twice, as the grid and as markdown after it,
+    and the card is drawn from the markdown.
+    """
+    found = COMMAND_OUT_RE.search(text)
+    said = (found.group(2) if found else text).strip()
+    return ANSI_RE.sub("", said).strip().startswith(TERMINAL_CONTEXT_HEAD) and "\x1b[" in said
+
+
+def reply(record, text):
+    """Returns what a local command answered, as the fields of its card, or None when the record is no answer.
+
+    An answer the feed knows is its numbers under the name of the command;
+    any other is the text the command printed, and an error is the text it
+    printed to its errors.
     """
     usage = usage_from_record(record.get("contextUsage"))
     if usage:
-        return [card(usage, at, pos)]
+        return {"role": "command", "name": "context", "data": usage}
     report = usage_report(record.get("usageReport"), text)
     if report:
-        return [card(report, at, pos, "usage")]
+        return {"role": "command", "name": "usage", "data": report}
     found = COMMAND_OUT_RE.search(text)
     said = (found.group(2) if found else text).strip()
-    if ANSI_RE.sub("", said).strip().startswith(TERMINAL_CONTEXT_HEAD) and "\x1b[" in said:
-        return []
     usage = usage_from_markdown(said)
     if usage:
-        return [card(usage, at, pos)]
-    return None
-
-
-def card(data, at, pos, name="context"):
-    return {"role": "command", "name": name, "data": data, "at": at, "pos": pos}
+        return {"role": "command", "name": "context", "data": usage}
+    if not found:
+        return None
+    body, trimmed = cut(ANSI_RE.sub("", said).strip(), MAX_TEXT)
+    if found.group(1) == "err":
+        card = {"role": "command", "err": body}
+    else:
+        card = {"role": "command", "out": body}
+    if trimmed:
+        card["cut"] = True
+    return card

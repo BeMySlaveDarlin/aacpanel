@@ -1,4 +1,96 @@
-/* The answer of a slash command: its card in the feed and its sheet. */
+/* A local command and its answer: its card in the feed and its sheet. */
+
+/* The card is as wide as the column, as the card of a command run with "!"
+   is: the command a line in the code face, small and quiet, with the mark in
+   front of it and the time at its end; the answer hangs under it on the mark
+   a terminal hangs an answer on, its lines as the command printed them. */
+.mcmd {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    padding: .4rem .7rem .45rem;
+    border-radius: var(--r-card);
+    background: rgba(var(--tint), .03);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    color: var(--ink-faint);
+    overflow-wrap: anywhere;
+}
+.mcmd.failed { box-shadow: inset 0 0 0 var(--hair) var(--line), inset 2px 0 0 var(--crit); }
+/* The words of the card are set in the code face; the card of an answer the
+   feed knows keeps its own. */
+.mcmdhead, .mcmdhook, .mcmdout, .mcmdstate, .mcmdmore {
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+}
+.mcmdhead {
+    display: flex;
+    align-items: baseline;
+    gap: .45rem;
+    min-width: 0;
+}
+.mcmdmark { flex: none; color: var(--accent); }
+.mcmdtext {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: inherit;
+    color: var(--ink-dim);
+    white-space: pre-wrap;
+}
+.mcmdat {
+    flex: none;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04em;
+}
+.mcmdbody {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    min-width: 0;
+}
+.mcmdhook { flex: none; padding-left: .15rem; }
+.mcmdsaid {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .2rem;
+}
+.mcmdsaid > .artifact { margin-top: .15rem; }
+.mcmdout {
+    align-self: stretch;
+    margin: 0;
+    color: var(--ink-dim);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.mcmdout.err { color: var(--crit); }
+/* Folded, an answer shows its first three lines, the way a terminal shows
+   the first lines of a long answer, and the last of them fades out where the
+   rest goes on. */
+.mcmdout.folded { max-height: calc(3 * 1.5em); overflow: hidden; }
+.mcmdout.folded.cut { mask-image: linear-gradient(180deg, #000 calc(100% - 1.5em), rgba(0, 0, 0, .3)); }
+.mcmdmore {
+    display: inline-flex;
+    align-items: center;
+    padding: .1rem 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+}
+.mcmdstate {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    color: var(--ink-faint);
+}
+.mcmdstate .mclock { margin-right: 0; }
+.mcmdstate.run { color: var(--accent); }
+.mcmdsaid .hint { margin: 0; }
 
 /* The card is a line of the feed; on a wide screen a bar the width of the
    column stops reading as a share of anything. */

@@ -45,6 +45,35 @@ func TestMergeReplacesBubbleWithWakeCard(t *testing.T) {
 	}
 }
 
+// The answer of a local command comes as the card of the command again, under
+// the place the card stands at: it takes the place of the card rather than
+// standing after it. A skill drawn by the queue as a command comes back as the
+// prompt it is, and takes the place of the card the same way.
+func TestMergeLaysTheAnswerOnTheCardOfItsCommand(t *testing.T) {
+	running := map[string]any{"role": "command", "text": "/reload-skills", "pos": 30}
+	answered := map[string]any{"role": "command", "text": "/reload-skills", "pos": 30, "done": true, "out": "Reloaded"}
+	skill := map[string]any{"role": "me", "text": "/ts list", "pos": 30, "fixes": "command"}
+	ai := map[string]any{"role": "ai", "text": "ok", "pos": 50}
+
+	cases := []struct {
+		name  string
+		items []map[string]any
+		incom []map[string]any
+		want  []string
+	}{
+		{"the answered card takes the place of the running one",
+			[]map[string]any{running, ai}, []map[string]any{answered}, []string{"command", "ai"}},
+		{"a skill takes the place of the card the queue drew",
+			[]map[string]any{running, ai}, []map[string]any{skill}, []string{"me", "ai"}},
+	}
+	for _, c := range cases {
+		got := runFeedJS(t, c.items, c.incom)
+		if strings.Join(got, " ") != strings.Join(c.want, " ") {
+			t.Errorf("%s: %v, expected %v", c.name, got, c.want)
+		}
+	}
+}
+
 func runFeedJS(t *testing.T, items, incoming []map[string]any) []string {
 	t.Helper()
 	node, err := exec.LookPath("node")

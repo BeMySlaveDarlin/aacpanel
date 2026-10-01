@@ -386,10 +386,10 @@ button.filepic {
 .mrun .mrname { color: var(--warn); flex: 0 0 auto; }
 .mrun .mrarg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* A line of claude's own in the middle of the column: the answer of a local
-   command, an answer stopped, a compaction. A note longer than a line of the
-   screen widens the plate to the column, and its lines stay centred, or it
-   reads as a block of text beside the notes that fit a line. */
+/* A line of the session's own in the middle of the column: an answer
+   stopped, a compaction. A note longer than a line of the screen widens the
+   plate to the column, and its lines stay centred, or it reads as a block of
+   text beside the notes that fit a line. */
 .mnote {
     align-self: center;
     text-align: center;

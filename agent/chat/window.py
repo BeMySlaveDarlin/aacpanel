@@ -55,6 +55,16 @@ def settled(window, limit, rows):
     return rows.head or window["total"] > limit * 2
 
 
+def unsettled(item):
+    """Reports whether a row waits for a later record: a message or a command in the queue, a command for its answer.
+
+    A command taken back from the queue waits for nothing.
+    """
+    if item.get("state") == "queued":
+        return True
+    return item["role"] == "command" and "text" in item and not item.get("done") and not item.get("state")
+
+
 def fold(rows, limit, before, after):
     """Folds parsed records into a window of at most this many rows.
 
@@ -252,8 +262,9 @@ def fold(rows, limit, before, after):
 
         if before is not None and line_pos >= before:
             # The page is done, but what it holds may still change: a message
-            # queued in it is delivered later, a call in it answered later.
-            if not open_calls() and not any(item.get("state") == "queued" for item in window):
+            # queued in it is delivered later, a call or a command in it
+            # answered later.
+            if not open_calls() and not any(unsettled(item) for item in window):
                 break
             for item in items:
                 if item["role"] in MARKS:

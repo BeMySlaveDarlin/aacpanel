@@ -44,15 +44,17 @@ export function sameShell(command, local) {
 }
 
 // arrived reports whether the feed already carries a row shown locally: the
-// transcript echoes a message as it was sent, and a shell command as the
-// command alone. A row that failed or is held has not gone anywhere yet. Only
-// what the transcript wrote after the row was sent is its echo: the same
-// command run a second time is not over because the first run is.
+// transcript echoes a message as it was sent, a command claude runs as the
+// card of the command, and a shell command as the command alone. A row that
+// failed or is held has not gone anywhere yet. Only what the transcript wrote
+// after the row was sent is its echo: the same command run a second time is
+// not over because the first run is.
 export function arrived(items, local) {
     if (local.state === "failed" || local.state === "held") return false;
     const after = (item) => local.after === undefined || item.pos > local.after;
-    return items.some((item) => after(item) && ((item.role === "me" && sameReply(item.text, local))
-        || (item.role === "shell" && sameShell(item.text, local))));
+    return items.some((item) => after(item)
+        && (((item.role === "me" || item.role === "command") && sameReply(item.text, local))
+            || (item.role === "shell" && sameShell(item.text, local))));
 }
 
 // lastPos is where the feed ends now: a row sent from here on is echoed past it.

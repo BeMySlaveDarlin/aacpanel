@@ -1,11 +1,13 @@
-// The answer of a slash command: a card in the feed, and its breakdown in a sheet.
+// A local command the person ran and what it answered: one card in the feed,
+// and the breakdown of an answer the feed knows in a sheet.
 //
 // What a command prints is written for the screen it was typed at — a grid of
 // coloured glyphs in a terminal, a long markdown table elsewhere — and neither
-// reads in a feed. The host hands over the numbers instead, and they are drawn
-// here: one line in the conversation, the whole picture on a tap.
+// reads in a feed. For /context and /usage the host hands over the numbers
+// instead, and they are drawn here: one line in the conversation, the whole
+// picture on a tap. Any other answer is the text the command printed.
 
-import { useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
@@ -13,6 +15,7 @@ import { useToast } from "../../ui/toasts.js";
 import { plural, tokens } from "../../format.js";
 import { copyText } from "./copy.js";
 import { modelTitle } from "./head.js";
+import { stampText } from "./labels.js";
 import { USAGE_TITLE, UsageBreakdown, UsageCard } from "./usagecard.js";
 
 // The colour of a category is its meaning, the same in the card, the sheet and
@@ -72,11 +75,99 @@ function figure(data) {
     return `${tokens(data.used)} / ${tokens(data.max)} (${Math.round(data.percent || 0)}%)`;
 }
 
-// CommandCard is the line a command answer takes in the feed.
+// CommandCard is a local command and its answer as one row of the feed. The
+// command is a line in the code face, small and quiet: the person typed it,
+// but it is not a message of the conversation — the model never reads it as
+// one, and claude answers it, not the model. So the card is not a bubble of
+// the person, nor the plate in the middle of the column, which is the
+// session's own: it is the width of the column, as the card of a command run
+// with "!" is. The answer hangs under the command on the mark a terminal
+// hangs it on, and until it comes the same place says where the command
+// stands. An answer whose command the feed never saw is the answer alone.
 export function CommandCard({ item, onOpen }) {
-    const data = item.data || {};
+    const typed = Boolean(item.text);
+    // An answer the feed knows is a card of its own, and it takes the width
+    // of the card under the command rather than the room beside the mark.
+    const hung = typed && !COMMAND_TITLES[item.name];
+    return html`
+        <div class=${`mcmd${item.err ? " failed" : ""}`}>
+            ${typed && html`
+                <div class="mcmdhead">
+                    <span class="mcmdmark" aria-hidden="true">⌘</span>
+                    <code class="mcmdtext">${item.text}</code>
+                    ${item.at && html`<span class="mcmdat">${stampText(item.at)}</span>`}
+                </div>
+            `}
+            <div class="mcmdbody">
+                ${hung && html`<span class="mcmdhook" aria-hidden="true">⎿</span>`}
+                <div class="mcmdsaid"><${Answer} item=${item} onOpen=${onOpen} /></div>
+            </div>
+        </div>
+    `;
+}
+
+// Answer is what stands under the command: the card of an answer the feed
+// knows, the text the command printed, or where the command stands while
+// there is no answer yet.
+function Answer({ item, onOpen }) {
     if (item.name === "usage") return html`<${UsageCard} item=${item} onOpen=${onOpen} />`;
-    if (item.name !== "context") return null;
+    if (item.name === "context") return html`<${ContextCard} item=${item} onOpen=${onOpen} />`;
+    if (!item.done) return html`<${Waiting} state=${item.state} />`;
+    if (!item.out && !item.err) return html`<span class="mcmdstate">done, nothing printed</span>`;
+    return html`<${Printed} text=${item.err || item.out} err=${Boolean(item.err)} cut=${item.cut} />`;
+}
+
+// Waiting says where a command without an answer stands: in the queue, where
+// a command typed into a busy session waits for the turn to end; taken back
+// from it; or running.
+function Waiting({ state }) {
+    if (state === "queued") {
+        return html`<span class="mcmdstate"><span class="mclock">${Icon.clock()}</span>queued</span>`;
+    }
+    if (state === "withdrawn") return html`<span class="mcmdstate">taken back — it did not run</span>`;
+    return html`<span class="mcmdstate run"><i class="mshelldot"></i>running</span>`;
+}
+
+// Printed is the text a command printed, its lines as it printed them. Longer
+// than the lines the card shows, it is folded to them, and a row under it
+// says how many more there are — counted as the screen sets them, so an
+// answer of one long paragraph folds as well — and opens the rest.
+function Printed({ text, err, cut }) {
+    const box = useRef(null);
+    const [open, setOpen] = useState(false);
+    const [more, setMore] = useState(0);
+    // Measured again whenever the box changes its size: a screen turned, or
+    // a feed drawn while hidden and shown later.
+    useLayoutEffect(() => {
+        const el = box.current;
+        if (!el || open) return undefined;
+        const measure = () => {
+            const line = parseFloat(getComputedStyle(el).lineHeight) || 1;
+            setMore(Math.max(0, Math.round((el.scrollHeight - el.clientHeight) / line)));
+        };
+        measure();
+        if (typeof ResizeObserver === "undefined") return undefined;
+        const eye = new ResizeObserver(measure);
+        eye.observe(el);
+        return () => eye.disconnect();
+    }, [text, open]);
+    return html`
+        <pre class=${`mcmdout${err ? " err" : ""}${open ? "" : " folded"}${more > 0 && !open ? " cut" : ""}`}
+             ref=${box}>${text}</pre>
+        ${more > 0 && html`
+            <button class="mcmdmore" type="button" aria-expanded=${open ? "true" : "false"}
+                    onClick=${() => setOpen(!open)}>
+                ${open ? "fold" : `${more} more ${plural(more, "line", "lines")}`}
+            </button>
+        `}
+        ${(open || !more) && cut && html`<p class="hint warn">The answer is longer than shown — cut.</p>`}
+    `;
+}
+
+// ContextCard is the answer of /context: how full the window is, and a bar of
+// what fills it.
+function ContextCard({ item, onOpen }) {
+    const data = item.data || {};
     const body = html`
         <span class="cmdico">${Icon.pie()}</span>
         <span class="arbody">

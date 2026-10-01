@@ -146,6 +146,56 @@ def cutoff(calls, at, pos):
     return marks
 
 
+def command_card(record, typed, at, pos, pending, unanswered, calls):
+    """Returns the card of a local command the person typed.
+
+    A command typed into a session that was busy is drawn by the queue as the
+    person typed it, and the card stays there: the record of the command only
+    says which record its answer will name as its parent. Unanswered keeps
+    the cards still waiting for an answer, by that name.
+    """
+    drawn = pending.drawn(typed, waiting=False) if pending is not None else None
+    if drawn is not None and drawn["role"] == "command":
+        card, items = delivered(drawn), []
+    else:
+        card = {"role": "command", "text": typed, "at": at, "pos": pos}
+        items = [card] + cutoff(calls, at, pos)
+        if drawn is not None:
+            # The queue drew it as a message: the card takes its place.
+            card = dict(card, at=drawn["at"], pos=drawn["pos"])
+            items[0] = dict(card, fixes=drawn["role"])
+    if unanswered is not None and record.get("uuid"):
+        unanswered[record["uuid"]] = card
+    return items
+
+
+def command_answer(record, text, at, pos, unanswered):
+    """Returns the card of the command this record answers, with the answer on it, or None for no answer.
+
+    The answer names the record of its command as its parent, and the card
+    comes again in the place of the command with the answer on it. An answer
+    whose command the feed never saw is a card of its own.
+    """
+    parent = record.get("parentUuid")
+    if commands.grid(text):
+        # The markdown after the grid names the grid as its parent.
+        if unanswered is not None and parent in unanswered and record.get("uuid"):
+            unanswered[record["uuid"]] = unanswered.pop(parent)
+        return []
+    said = commands.reply(record, text)
+    if said is None:
+        return None
+    command = unanswered.pop(parent, None) if unanswered is not None and parent else None
+    if command is not None:
+        card = dict(command, **said)
+    elif said.get("out") or said.get("err") or "data" in said:
+        card = dict(said, at=at, pos=pos)
+    else:
+        return []
+    card["done"] = True
+    return [card]
+
+
 # A brief is published by the panel's brief_publish tool, or by a shell call
 # that hands a document to the collector. Whether a call published one is read
 # from its answer and never from what it was given: the tool also checks a
@@ -154,7 +204,7 @@ def cutoff(calls, at, pos):
 
 
 def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
-          briefs=None, shelf=None, calls=None, permits=None):
+          briefs=None, shelf=None, calls=None, permits=None, unanswered=None):
     """Returns the feed items of one transcript record, from none to many.
 
     Asks, sent and briefs are the calls of their kind still waiting for an
@@ -166,7 +216,8 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     running: a reader that keeps them gets a call marked open and a mark when
     its result comes or its turn ends without one. Permits are the answers a
     person gave to permissions, by call, and the card stands by the result of
-    the call.
+    the call. Unanswered is the cards of local commands still waiting for an
+    answer, by the record the answer will name as its parent.
     """
     if not isinstance(record, dict) or (record.get("isSidechain") and not sidechain):
         return []
@@ -187,10 +238,14 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return said + ended
         if record.get("subtype") != "local_command":
             return ended
-        cards = commands.answer(record, (record.get("content") or "").strip(), at, pos)
-        if cards is not None:
-            return cards
-        role, shown = classify((record.get("content") or "").strip())
+        text = (record.get("content") or "").strip()
+        typed = commands.recorded(text)
+        if typed:
+            return command_card(record, typed, at, pos, pending, unanswered, calls)
+        answer = command_answer(record, text, at, pos, unanswered)
+        if answer is not None:
+            return answer
+        role, shown = classify(text)
         if role == "note":
             return [{"role": "note", "text": shown, "at": at, "pos": pos}]
         if role != "me" or not shown:
@@ -235,6 +290,13 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
             return [wake_item(text, at, pos)]
         if pending is not None:
             pending.remember(text, pos)
+        typed = commands.typed(text)
+        if typed:
+            # A command waits for the turn to end, and its card says so.
+            item = {"role": "command", "text": typed, "at": at, "pos": pos, "state": "queued"}
+            if pending is not None:
+                pending.enqueue(item)
+            return [item]
         role, shown = classify(text)
         if role == "skip":
             return []
@@ -313,9 +375,12 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         # Only a record the harness wrote can be an answer: a person pasting
         # the same markdown into a message wrote a message.
         if record.get("isMeta") or text.startswith("<local-command-std"):
-            cards = commands.answer(record, text, at, pos)
-            if cards is not None:
-                return out + cards
+            answer = command_answer(record, text, at, pos, unanswered)
+            if answer is not None:
+                return out + answer
+        typed = commands.recorded(text)
+        if typed:
+            return out + command_card(record, typed, at, pos, pending, unanswered, calls)
         ran = shell(text, at, pos)
         if ran:
             # The prompt the queue drew is already in the feed.
@@ -351,11 +416,15 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                 out += cutoff(calls, at, pos)
             return out
         body, trimmed = cut(shown, MAX_TEXT)
-        # A slash command that went through the queue comes back as a record
-        # of the command, with no mark of the queue on it: it is the prompt the
-        # queue has just handed over, and its bubble is already drawn.
-        if pending is not None and text.startswith("<command-name>") and pending.handed(shown):
-            return out
+        # A command the model answers — a skill — comes back from the queue as
+        # a record of the command, with no mark of the queue on it. The queue
+        # drew it as a command, and it is a prompt of the person: the bubble
+        # takes the place of the card.
+        drawn = pending.drawn(commands.typed(shown) or shown, waiting=False) \
+            if pending is not None and text.startswith("<command-message>") else None
+        if drawn is not None:
+            return out + [{"role": "me", "text": body, "cut": trimmed, "at": drawn["at"],
+                           "pos": drawn["pos"], "fixes": drawn["role"]}] + cutoff(calls, at, pos)
         # A message that went through the queue comes back as a prompt of its
         # own: marked queued in a terminal, and sdk on the stream, where every
         # message goes through the queue. Its bubble is the one the queue drew.
@@ -426,7 +495,7 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     if kind == "assistant":
         out = []
         if pending is not None:
-            out.extend(delivered(item) for item in pending.drain())
+            out.extend(delivered(item) for item in pending.read())
         silent = 0
         said = []
         for b in message.get("content", []):

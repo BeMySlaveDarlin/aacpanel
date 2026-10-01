@@ -1,7 +1,7 @@
 """Records the human did not write, although they lie among their prompts."""
 import re
 
-from .limits import MAX_NOTE, MAX_TEXT, cut
+from .limits import MAX_TEXT, cut
 from .mail import mails
 
 
@@ -31,16 +31,6 @@ COMMAND_ARGS_RE = re.compile(r"<command-args>(.*?)</command-args>", re.S)
 
 COMMAND_OUT_RE = re.compile(r"<local-command-std(out|err)>(.*)</local-command-std\1>", re.S)
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
-
-
-def command_out(text):
-    """Returns the note text for a slash command answer, or None when it is not one."""
-    found = COMMAND_OUT_RE.search(text)
-    if not found:
-        return None
-    said = ANSI_RE.sub("", found.group(2)).strip()
-    body, trimmed = cut(said, MAX_NOTE)
-    return body + "…" if trimmed else body
 
 
 TASK_NOTE_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
@@ -204,10 +194,6 @@ def classify(text):
         args = COMMAND_ARGS_RE.search(text)
         typed = f"{command.group(1)} {args.group(1)}" if args else command.group(1)
         return "me", typed.strip()
-
-    said = command_out(text)
-    if said is not None:
-        return ("note", said) if said else ("skip", "")
 
     for mark, note in NOTES:
         if mark in head:

@@ -121,7 +121,7 @@ class Stream:
         self.cwd = ""
 
     def __iter__(self):
-        pending, asks, sent, briefs, calls = Pending(), {}, set(), {}, {}
+        pending, asks, sent, briefs, calls, unanswered = Pending(), {}, set(), {}, {}, {}
         size = os.path.getsize(self.path)
         permits = permits_of(self.path, self.sidechain)
         with open(self.path, "rb") as f:
@@ -142,7 +142,7 @@ class Stream:
                 if not self.cwd and isinstance(record.get("cwd"), str):
                     self.cwd = record["cwd"]
                 items = parse(record, line_pos, pending, asks, self.sidechain, sent,
-                              briefs, shelf_of(), calls, permits)
+                              briefs, shelf_of(), calls, permits, unanswered)
                 if items:
                     yield line_pos, items
 
@@ -173,6 +173,7 @@ class Piece:
         self.sent = set()
         self.briefs = {}
         self.calls = {}
+        self.unanswered = {}
 
     @classmethod
     def of(cls, path, size, span, sidechain=False):
@@ -223,7 +224,7 @@ class Piece:
                     self.cwd = record["cwd"]
                 items = parse(record, line_pos, self.pending, self.asks,
                               self.sidechain, self.sent, self.briefs, shelf_of(),
-                              self.calls, permits)
+                              self.calls, permits, self.unanswered)
                 if items:
                     self.rows.append((line_pos, items))
             if len(self.stamp) < STAMP:
@@ -249,7 +250,8 @@ class Piece:
             return []
         items = parse(record, self.pos, self.pending.clone(), dict(self.asks),
                       self.sidechain, set(self.sent), dict(self.briefs), shelf_of(),
-                      dict(self.calls), permits_of(self.path, self.sidechain))
+                      dict(self.calls), permits_of(self.path, self.sidechain),
+                      dict(self.unanswered))
         return [(self.pos, items)] if items else []
 
     def trim(self):

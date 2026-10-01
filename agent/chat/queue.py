@@ -5,8 +5,8 @@ class Pending:
     """Prompts typed while the model was answering: the queue and leaving it."""
 
     def __init__(self):
-        # The bubble of the prompt the queue has just handed over: a slash command
-        # comes back after it as a record of its own, and that is the same prompt.
+        # The row of the prompt the queue has just handed over: a command comes
+        # back after it as a record of its own, and that is the same prompt.
         self.last = None
         self.waiting = []
         self.texts = {}
@@ -56,6 +56,16 @@ class Pending:
         out, self.waiting = self.waiting, []
         return out
 
+    def read(self):
+        """Returns the waiting messages at once: the model reads them in the middle of its turn.
+
+        A command waits in the queue for the turn to end, and claude hands it
+        over then.
+        """
+        out = [item for item in self.waiting if item["role"] != "command"]
+        self.waiting = [item for item in self.waiting if item["role"] == "command"]
+        return out
+
     def head(self):
         """Returns the item the queue has just handed to the model."""
         item = self.waiting.pop(0) if self.waiting else None
@@ -70,14 +80,10 @@ class Pending:
                 return self.waiting.pop(i)
         return None
 
-    def handed(self, text):
-        """Reports, once, whether this is the prompt the queue has just handed over."""
-        return self.drawn(text, waiting=False) is not None
-
     def drawn(self, text, waiting=True):
-        """Returns, once, the bubble the queue drew for this prompt, or None.
+        """Returns, once, the row the queue drew for this prompt, or None.
 
-        The bubble still waits in the queue or was the last to leave it. A text
+        The row still waits in the queue or was the last to leave it. A text
         seen anywhere else is not asked: the same words come again — the next
         tick of a loop, the next reset of the limit — and each time the queue
         draws them anew.
