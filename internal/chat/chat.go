@@ -63,6 +63,11 @@ type Item struct {
 	// answer has come — an answer may print nothing.
 	Out  string `json:"out,omitempty"`
 	Done bool   `json:"done,omitempty"`
+	// A shell command run with "!": the code it exited with, and on its output
+	// the command, for the sheet that shows the whole of it. A command that
+	// succeeded exits with 0, which is not an absent code.
+	Code    *int   `json:"code,omitempty"`
+	Command string `json:"command,omitempty"`
 	// The answer of a slash command, read into numbers by the collector. The
 	// panel carries it to the screen and never looks inside.
 	Data json.RawMessage `json:"data,omitempty"`
@@ -75,6 +80,9 @@ type FileRef struct {
 	Name  string `json:"name"`
 	Size  int64  `json:"size,omitempty"`
 	Media string `json:"media,omitempty"`
+	// Outside is a file sent from outside the directory of the conversation:
+	// the reader would refuse to open it, and its row says so.
+	Outside bool `json:"outside,omitempty"`
 }
 
 // Asked is one question of a round together with the answer given.
