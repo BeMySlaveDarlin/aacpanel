@@ -179,15 +179,17 @@ func launchedWith(ctx context.Context, s liveSession, sw *action.Switch) (*actio
 // shownElsewhere stops a session from leaving tmux while a terminal outside
 // the panel shows it: the switch would end the conversation there, under the
 // eyes of whoever reads it. A session outside tmux runs in a terminal of its
-// own; in tmux, a window on the host or an ssh attached to it counts, and the
-// terminal of the panel does not.
+// own. In tmux — the user's own or a terminal of the panel claude was typed
+// into — a window on the host or an ssh attached to its tmux session counts,
+// and a terminal the panel shows it in does not.
 func shownElsewhere(ctx context.Context, s liveSession) error {
 	pane, err := tmuxPaneFor(ctx, s.PID)
 	if err != nil {
-		return fmt.Errorf("session %s does not live in tmux, so it runs in a terminal of its own and a switch "+
-			"would end it there — close it in that terminal and resume the conversation on the stream: %w", s.Name, err)
+		return fmt.Errorf("session %s does not live in tmux, neither the user's nor a terminal of the panel, "+
+			"so it runs in a terminal of its own and a switch would end it there — close it in that terminal "+
+			"and resume the conversation on the stream: %w", s.Name, err)
 	}
-	clients, err := foreignClients(ctx, userTmux, tmuxSessionOf(pane.Target))
+	clients, err := foreignClients(ctx, pane.Server, tmuxSessionOf(pane.Target))
 	if err != nil {
 		return fmt.Errorf("whether a window shows session %s is unknown: %w", s.Name, err)
 	}

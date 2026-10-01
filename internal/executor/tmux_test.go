@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -65,6 +66,87 @@ func tmuxArgv(t *testing.T, log string) []string {
 	return strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
 }
 
+// tmuxSide is what one server of twoServersTmux holds: the panes it lists, the
+// clients it lists for any of its sessions and the directory of its panes. A
+// side that is down answers the way tmux does with no server on the socket, and
+// one that fails answers with its words.
+type tmuxSide struct {
+	down    bool
+	fails   string
+	panes   []string
+	clients []string
+	dir     string
+}
+
+// twoServersTmux plays the user's tmux and the server of the panel's terminals
+// apart: a call with -L and the panel's socket is answered from the panel's
+// side, any other from the user's. Every call is logged with the -L it went
+// with.
+func twoServersTmux(t *testing.T, user, panel tmuxSide) string {
+	t.Helper()
+	dir := t.TempDir()
+	log := filepath.Join(dir, "argv")
+	for name, side := range map[string]tmuxSide{"user": user, "panel": panel} {
+		at := filepath.Join(dir, name)
+		if err := os.Mkdir(at, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		files := map[string]string{
+			"panes": strings.Join(side.panes, "\n"), "clients": strings.Join(side.clients, "\n"), "dir": side.dir,
+		}
+		if side.down {
+			files["down"] = ""
+		}
+		if side.fails != "" {
+			files["fails"] = side.fails
+		}
+		for file, body := range files {
+			if err := os.WriteFile(filepath.Join(at, file), []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	script := fmt.Sprintf(`#!/bin/sh
+for a in "$@"; do printf '%%s\n' "$a" >> %[1]q; done
+printf -- '--\n' >> %[1]q
+d=%[2]q/user
+if [ "$1" = -L ]; then
+	if [ "$2" = %[3]q ]; then d=%[2]q/panel; else d=%[2]q/none; fi
+	shift 2
+fi
+if [ ! -d "$d" ] || [ -f "$d/down" ]; then echo "no server running on /tmp/tmux-1000/x" >&2; exit 1; fi
+if [ -f "$d/fails" ]; then cat "$d/fails" >&2; exit 1; fi
+case "$1" in
+list-panes) cat "$d/panes" ;;
+list-clients) cat "$d/clients" ;;
+display) cat "$d/dir" ;;
+esac
+exit 0
+`, log, dir, string(panelTmux))
+	bin := filepath.Join(dir, "tmux")
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(tmuxEnv, bin)
+	return log
+}
+
+// callsTo are the calls the stub saw on one server, with the -L taken off.
+func callsTo(t *testing.T, log string, srv tmuxServer) [][]string {
+	t.Helper()
+	var out [][]string
+	for _, c := range tmuxCalls(t, log) {
+		on := userTmux
+		if len(c) >= 2 && c[0] == "-L" {
+			on, c = tmuxServer(c[1]), c[2:]
+		}
+		if on == srv {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 func TestTmuxPaneFoundByPID(t *testing.T) {
 	fakeTmux(t, []string{"4100 work:0.0", "4200 aacpanel:1.2"}, "")
 	procFS(t, fakeProc{pid: 4200, comm: "claude", ppid: 1})
@@ -76,6 +158,93 @@ func TestTmuxPaneFoundByPID(t *testing.T) {
 	if pane.Target != "aacpanel:1.2" {
 		t.Errorf("pane %q, expected aacpanel:1.2 — missing the pane means a reply in a neighbouring conversation", pane.Target)
 	}
+}
+
+// A claude typed into a terminal of the panel lives in a pane of the panel's
+// own server: it is found there through the shell of the terminal, and what
+// the panel types into it or reads off it goes to that server.
+func TestTmuxPaneFoundInATerminalOfThePanel(t *testing.T) {
+	log := twoServersTmux(t,
+		tmuxSide{panes: []string{"4100 work:0.0"}},
+		tmuxSide{panes: []string{"3300 t-0000beef:0.0", "700 t-1a2b3c4d:0.0"}})
+	procFS(t,
+		fakeProc{pid: 900, comm: "claude", ppid: 700},
+		fakeProc{pid: 700, comm: "bash", ppid: 1},
+	)
+
+	pane, err := tmuxPaneFor(t.Context(), 900)
+	if err != nil {
+		t.Fatalf("the pane in a terminal of the panel was not found: %v", err)
+	}
+	if pane.Server != panelTmux || pane.Target != "t-1a2b3c4d:0.0" {
+		t.Fatalf("the pane is %q on %s, expected t-1a2b3c4d:0.0 on %s", pane.Target, pane.Server, panelTmux)
+	}
+	if err := pane.send(t.Context(), "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := pane.screen(t.Context()); !ok {
+		t.Fatal("the screen of the pane was not read")
+	}
+	for _, cmd := range []string{"send-keys", "capture-pane"} {
+		if got := tmuxCall(callsTo(t, log, panelTmux), cmd); got == nil || !slices.Contains(got, "t-1a2b3c4d:0.0") {
+			t.Errorf("%s did not reach the pane on the panel's server: %v", cmd, got)
+		}
+		if got := tmuxCall(callsTo(t, log, userTmux), cmd); got != nil {
+			t.Errorf("%s went to the user's server, where the pane is not: %v", cmd, got)
+		}
+	}
+}
+
+// The user's server holds the sessions the panel starts, and a pane found on
+// it is the user's whatever the other server lists.
+func TestTmuxPaneOnTheUsersServerIsTheUsers(t *testing.T) {
+	twoServersTmux(t,
+		tmuxSide{panes: []string{"900 demo:0.0"}},
+		tmuxSide{panes: []string{"700 t-1a2b3c4d:0.0"}})
+	procFS(t, fakeProc{pid: 900, comm: "claude", ppid: 1})
+
+	pane, err := tmuxPaneFor(t.Context(), 900)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pane.Server != userTmux || pane.Target != "demo:0.0" {
+		t.Errorf("the pane is %q on %s, expected demo:0.0 on the user's server", pane.Target, pane.Server)
+	}
+}
+
+// A server that is not running holds no pane, and the other is looked at all
+// the same. A server that failed to answer is named when the pane was found
+// nowhere, since the pane may be on it.
+func TestTmuxPaneLooksPastAServerThatIsDown(t *testing.T) {
+	procFS(t,
+		fakeProc{pid: 900, comm: "claude", ppid: 700},
+		fakeProc{pid: 700, comm: "bash", ppid: 1},
+	)
+	t.Run("the user's server is down", func(t *testing.T) {
+		twoServersTmux(t, tmuxSide{down: true}, tmuxSide{panes: []string{"700 t-1a2b3c4d:0.0"}})
+		if pane, err := tmuxPaneFor(t.Context(), 900); err != nil || pane.Server != panelTmux {
+			t.Errorf("the pane is %+v (%v): a stopped user's server hid the terminals of the panel", pane, err)
+		}
+	})
+	t.Run("the panel's server is down", func(t *testing.T) {
+		twoServersTmux(t, tmuxSide{panes: []string{"700 demo:0.0"}}, tmuxSide{down: true})
+		if pane, err := tmuxPaneFor(t.Context(), 900); err != nil || pane.Server != userTmux {
+			t.Errorf("the pane is %+v (%v)", pane, err)
+		}
+	})
+	t.Run("both are down", func(t *testing.T) {
+		twoServersTmux(t, tmuxSide{down: true}, tmuxSide{down: true})
+		if _, err := tmuxPaneFor(t.Context(), 900); err == nil || !strings.Contains(err.Error(), "no tmux panes") {
+			t.Errorf("with no server running the pane was looked for with %v", err)
+		}
+	})
+	t.Run("one did not answer", func(t *testing.T) {
+		twoServersTmux(t, tmuxSide{fails: "lost server"}, tmuxSide{panes: []string{"3300 t-0000beef:0.0"}})
+		_, err := tmuxPaneFor(t.Context(), 900)
+		if err == nil || !strings.Contains(err.Error(), "lost server") || !strings.Contains(err.Error(), "900") {
+			t.Errorf("the error %v does not name the server that did not answer and the process", err)
+		}
+	})
 }
 
 func TestTmuxPaneFoundThroughShell(t *testing.T) {

@@ -315,6 +315,81 @@ func TestSwitchToStreamStopsWhileATerminalShowsTheConsole(t *testing.T) {
 	}
 }
 
+// panelTermStand is the console of consoleStand typed into a terminal of the
+// panel: claude under the shell of terminal t-1a2b3c4d on the panel's server,
+// with the clients given attached to the terminal. Client 950 is a bridge of
+// the panel, a child of the executor; 4321 is a window on the host.
+func panelTermStand(t *testing.T, clients []string) (dir, log string) {
+	t.Helper()
+	dir = consoleStand(t, "idle")
+	procFS(t,
+		fakeProc{pid: 1004, comm: "claude", ppid: 700, cwd: dir, start: "1000", args: []string{"claude", "-n", "demo"}},
+		fakeProc{pid: 700, comm: "bash", args: []string{"bash"}, ppid: 1},
+		fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: os.Getpid()},
+		fakeProc{pid: 4321, comm: "tmux", args: []string{"tmux", "attach"}, ppid: 1},
+	)
+	log = twoServersTmux(t,
+		tmuxSide{panes: []string{"3003 shop:0.0"}},
+		tmuxSide{panes: []string{"700 t-1a2b3c4d:0.0"}, clients: clients, dir: dir})
+	return dir, log
+}
+
+// A claude typed into a terminal of the panel is a console like one the panel
+// started: it moves to the stream, closed the way a console is, and the shell
+// of the terminal stays where it was. The panel showing the terminal does not
+// hold the session there.
+func TestSwitchToStreamFromATerminalOfThePanel(t *testing.T) {
+	dir, tmuxLog := panelTermStand(t, []string{"/dev/pts/9 950"})
+	startFakeSeen(t)
+	log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: launcher.TransportStream})
+	e, _ := newTest(t, "")
+	signals := withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
+
+	detail, err := e.Execute(context.Background(), switchTo(action.SwitchStream, false, dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(signals.sent, ",") != "1004:terminated" {
+		t.Errorf("signals %v, expected one TERM to claude and nothing to the shell of the terminal", signals.sent)
+	}
+	if got := launched(t, log); got["transport"] != "stream" || got["_resume"] != consoleSID {
+		t.Errorf("the launcher was asked for %v, expected conversation %s on the stream", got, consoleSID)
+	}
+	if !strings.Contains(detail, "moved to the stream") {
+		t.Errorf("the report %q does not say where the session went", detail)
+	}
+	if tmuxCall(callsTo(t, tmuxLog, panelTmux), "list-clients") == nil {
+		t.Error("whether a window shows the terminal was not asked of the panel's server")
+	}
+	for _, srv := range []tmuxServer{userTmux, panelTmux} {
+		if kill := tmuxCall(callsTo(t, tmuxLog, srv), "kill-session"); kill != nil {
+			t.Errorf("%s was asked to %v — the terminal of the panel is the person's shell and outlives the claude typed into it",
+				srv, kill)
+		}
+	}
+}
+
+// A window on the host attached to the terminal of the panel shows the
+// console as much as one attached to a session of the user's tmux: the switch
+// would end the conversation under the eyes of whoever reads it there.
+func TestSwitchToStreamStopsWhileAWindowShowsTheTerminalOfThePanel(t *testing.T) {
+	dir, _ := panelTermStand(t, []string{"/dev/pts/9 950", "/dev/pts/7 4321"})
+	log := fakeLauncher(t, launcher.Report{Session: "demo"})
+	e, _ := newTest(t, "")
+	signals := withSignals(t, e, map[int]bool{1004: true}, map[int]int{1004: 1})
+
+	_, err := e.Execute(context.Background(), switchTo(action.SwitchStream, false, dir))
+	if err == nil || !strings.Contains(err.Error(), "close the window first") {
+		t.Fatalf("the switch was not stopped by the window on the terminal: %v", err)
+	}
+	if len(signals.sent) != 0 {
+		t.Errorf("the console was signalled though the switch stopped: %v", signals.sent)
+	}
+	if _, err := os.Stat(log); err == nil {
+		t.Error("the launcher was called though the switch stopped")
+	}
+}
+
 // A window asked for with the switch opens onto the session the launcher
 // started in tmux; one that does not open leaves the switch done.
 func TestSwitchToConsoleOpensTheWindowItWasAskedFor(t *testing.T) {

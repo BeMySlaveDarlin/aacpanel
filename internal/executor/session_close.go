@@ -137,9 +137,13 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh, nil
 }
 
+// closeAgent ends a session with a signal and waits for its transcript. The
+// session of the user's tmux it ran in goes with it, or the terminal would hang
+// there empty; a terminal of the panel stays, since it is the person's shell
+// that claude was typed into, and it is closed from the list of terminals.
 func (e *Executor) closeAgent(ctx context.Context, p agentProc) (string, error) {
 	tmuxName := ""
-	if pane, err := tmuxPaneFor(ctx, p.Agent); err == nil {
+	if pane, err := tmuxPaneFor(ctx, p.Agent); err == nil && pane.Server == userTmux {
 		tmuxName = tmuxSessionOf(pane.Target)
 	}
 

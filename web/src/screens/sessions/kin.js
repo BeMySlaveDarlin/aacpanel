@@ -1,7 +1,9 @@
-// Sessions the panel did not start. A claude started by a run inside another
+// Sessions out of the panel's reach. A claude started by a run inside another
 // session's work stands under that session, folded, rather than as a session
-// of its own; one typed into a terminal by hand stands on its own with an
-// honest mark. Neither can be written to, moved or shown in a window.
+// of its own; one typed into a terminal by hand, or into a tmux on a socket of
+// its own, stands on its own with an honest mark. None of them can be written
+// to, moved or shown in a window. A claude typed into a terminal of the panel
+// is not among them: the panel reaches the tmux of its terminals.
 
 // placeOf names where a live session lives, for its mark.
 export function placeOf(s) {
@@ -44,9 +46,10 @@ export function kinLabel(count) {
     return `${count} ${count === 1 ? "run" : "runs"} started by it`;
 }
 
-// outsideNote says why the panel only reads a session it did not start.
+// outsideNote says why the panel only reads a session out of its reach.
 export function outsideNote(s) {
-    return s.parent && s.parent.session
-        ? `started by ${s.parent.session}, inside its work — the panel reads this conversation and cannot write to it`
-        : "started outside the panel, in a terminal of its own — the panel reads this conversation and cannot write to it";
+    const only = "the panel reads this conversation and cannot write to it";
+    if (s.parent && s.parent.session) return `started by ${s.parent.session}, inside its work — ${only}`;
+    if (s.tmuxServer) return `started in a tmux of its own (tmux ${s.tmuxServer}), which the panel does not reach — ${only}`;
+    return `started outside the panel, in a terminal of its own — ${only}`;
 }

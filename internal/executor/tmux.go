@@ -30,7 +30,10 @@ const (
 	escReach = 16
 )
 
+// tmuxPane is a pane of tmux and the server it lives on: a target names a pane
+// only on its own server, so every call about the pane goes there.
 type tmuxPane struct {
+	Server tmuxServer
 	Target string
 }
 
@@ -43,7 +46,7 @@ func (p tmuxPane) send(ctx context.Context, payload string) error {
 		return fmt.Errorf("there is a NUL byte in the text — terminals are not written to like that")
 	}
 	for _, piece := range tmuxPieces(payload) {
-		if _, err := tmuxRun(ctx, "send-keys", "-t", p.Target, "-l", "--", piece); err != nil {
+		if _, err := p.Server.run(ctx, "send-keys", "-t", p.Target, "-l", "--", piece); err != nil {
 			return fmt.Errorf("tmux did not accept the input: %w", err)
 		}
 	}
@@ -89,19 +92,57 @@ func tmuxPieces(text string) []string {
 }
 
 func (p tmuxPane) screen(ctx context.Context) (string, bool) {
-	out, err := tmuxRun(ctx, "capture-pane", "-p", "-t", p.Target)
+	out, err := p.Server.run(ctx, "capture-pane", "-p", "-t", p.Target)
 	if err != nil {
 		return "", false
 	}
 	return out, true
 }
 
-func tmuxPaneFor(ctx context.Context, pid int) (tmuxPane, error) {
-	out, err := tmuxRun(ctx, "list-panes", "-a", "-F", paneFormat)
-	if err != nil {
-		return tmuxPane{}, fmt.Errorf("tmux did not tell about its panes: %w", err)
-	}
+// sessionServers are the servers of tmux a session of claude is looked for on:
+// the user's own, where the panel starts its sessions, and the one of the
+// panel's terminals, where a person may type claude into a shell. A server on a
+// socket of any other name is out of the panel's reach, and so is a claude in
+// it.
+func sessionServers() []tmuxServer {
+	return []tmuxServer{userTmux, panelTmux}
+}
 
+// tmuxPaneFor finds the pane a process runs in, or the pane of the shell it was
+// started from, on whichever session server holds it. A server that is not
+// running holds nothing. One that did not answer is named when the pane was
+// found nowhere else: the pane may be on it.
+func tmuxPaneFor(ctx context.Context, pid int) (tmuxPane, error) {
+	var failed []string
+	listed := false
+	for _, srv := range sessionServers() {
+		panes, err := srv.panes(ctx)
+		if err != nil {
+			if !noTmuxServer(err) {
+				failed = append(failed, fmt.Sprintf("%s did not tell about its panes: %v", srv, err))
+			}
+			continue
+		}
+		listed = listed || len(panes) > 0
+		if target, ok := paneUp(panes, pid); ok {
+			return tmuxPane{Server: srv, Target: target}, nil
+		}
+	}
+	if len(failed) > 0 {
+		return tmuxPane{}, fmt.Errorf("process %d was not found in tmux: %s", pid, strings.Join(failed, "; "))
+	}
+	if !listed {
+		return tmuxPane{}, fmt.Errorf("there are no tmux panes right now")
+	}
+	return tmuxPane{}, fmt.Errorf("process %d is in no tmux pane", pid)
+}
+
+// panes maps the process each pane of the server runs to the pane.
+func (s tmuxServer) panes(ctx context.Context) (map[int]string, error) {
+	out, err := s.run(ctx, "list-panes", "-a", "-F", paneFormat)
+	if err != nil {
+		return nil, err
+	}
 	panes := map[int]string{}
 	for _, line := range strings.Split(out, "\n") {
 		owner, target, ok := strings.Cut(strings.TrimSpace(line), " ")
@@ -114,14 +155,16 @@ func tmuxPaneFor(ctx context.Context, pid int) (tmuxPane, error) {
 		}
 		panes[num] = target
 	}
-	if len(panes) == 0 {
-		return tmuxPane{}, fmt.Errorf("there are no tmux panes right now")
-	}
+	return panes, nil
+}
 
+// paneUp is the pane of the process, or of the nearest of its parents that a
+// pane runs.
+func paneUp(panes map[int]string, pid int) (string, bool) {
 	probe := pid
 	for range maxParentHops {
 		if target, ok := panes[probe]; ok {
-			return tmuxPane{Target: target}, nil
+			return target, true
 		}
 		parent, ok := procParent(probe)
 		if !ok || parent <= 1 {
@@ -129,15 +172,24 @@ func tmuxPaneFor(ctx context.Context, pid int) (tmuxPane, error) {
 		}
 		probe = parent
 	}
-	return tmuxPane{}, fmt.Errorf("process %d is in no tmux pane", pid)
+	return "", false
 }
 
 // tmuxServer is the tmux server a command goes to: the user's own, where the
-// sessions of claude live, or one on a socket of its own, reached with -L.
+// panel starts the sessions of claude, or one on a socket of its own, reached
+// with -L.
 type tmuxServer string
 
 // userTmux is the user's own tmux server.
 const userTmux tmuxServer = ""
+
+// String names the server in what the panel says.
+func (s tmuxServer) String() string {
+	if s == userTmux {
+		return "the user's tmux"
+	}
+	return "tmux -L " + string(s)
+}
 
 func (s tmuxServer) argv(args ...string) []string {
 	if s == userTmux {

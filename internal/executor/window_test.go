@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +111,64 @@ func TestWindowCloseDetachesForeignClientsOnly(t *testing.T) {
 	if strings.Contains(said, "/dev/pts/9") {
 		t.Errorf("the bridge of the panel was detached — the terminal screen would go dark under the hands: %v", argv)
 	}
+}
+
+// The window of a claude typed into a terminal of the panel is a window onto
+// that terminal, on the panel's server: it is counted, opened and closed there,
+// and the panel's own bridge to the terminal is not a window.
+func TestWindowOfASessionInATerminalOfThePanel(t *testing.T) {
+	stage := func(t *testing.T, clients []string) string {
+		t.Helper()
+		procFS(t,
+			fakeProc{pid: 901, comm: "claude", args: []string{"claude"}, ppid: 700, start: "77"},
+			fakeProc{pid: 700, comm: "bash", args: []string{"bash"}, ppid: 1},
+			fakeProc{pid: 940, comm: "tmux", args: []string{"tmux", "attach"}, ppid: 1},
+			fakeProc{pid: 950, comm: "tmux", args: []string{"tmux", "attach-session"}, ppid: os.Getpid()},
+		)
+		sessionFiles(t, fakeSession{pid: 901, name: "aacpanel", start: "77", status: "idle"})
+		return twoServersTmux(t,
+			tmuxSide{panes: []string{"3003 shop:0.0"}},
+			tmuxSide{panes: []string{"700 t-1a2b3c4d:0.0"}, clients: clients, dir: "/srv/proj"})
+	}
+	e := &Executor{}
+
+	t.Run("the state", func(t *testing.T) {
+		stage(t, []string{"/dev/pts/9 950"})
+		if win, err := e.Window(t.Context(), "aacpanel"); err != nil || win.Open {
+			t.Errorf("state %+v (%v) — the bridge of the panel was counted as a window", win, err)
+		}
+		stage(t, []string{"/dev/pts/6 940", "/dev/pts/9 950"})
+		if win, err := e.Window(t.Context(), "aacpanel"); err != nil || !win.Open {
+			t.Errorf("state %+v (%v) — the window on the terminal went unseen", win, err)
+		}
+	})
+	t.Run("the close", func(t *testing.T) {
+		log := stage(t, []string{"/dev/pts/6 940", "/dev/pts/9 950"})
+		if _, err := e.windowClose(t.Context(), "aacpanel"); err != nil {
+			t.Fatal(err)
+		}
+		if got := tmuxCall(callsTo(t, log, panelTmux), "detach-client"); !slices.Equal(got,
+			[]string{"detach-client", "-t", "/dev/pts/6"}) {
+			t.Errorf("the window was detached with %v, expected /dev/pts/6 on the panel's server", got)
+		}
+	})
+	t.Run("the open", func(t *testing.T) {
+		log := stage(t, []string{"/dev/pts/6 940"})
+		spec := fakeLauncher(t, launcher.Report{Session: "t-1a2b3c4d", Konsole: 1})
+		if _, err := e.windowOpen(t.Context(), "aacpanel"); err != nil {
+			t.Fatal(err)
+		}
+		var got launcher.WindowSpec
+		if !launcherTask(t, spec, &got) {
+			t.Fatal("the launcher was not handed the window")
+		}
+		if want := (launcher.WindowSpec{Dir: "/srv/proj", Session: "t-1a2b3c4d", Socket: string(panelTmux)}); got != want {
+			t.Errorf("the window was asked for as %+v instead of %+v", got, want)
+		}
+		if tmuxCall(callsTo(t, log, panelTmux), "display") == nil {
+			t.Error("the directory of the window was not asked of the panel's server")
+		}
+	})
 }
 
 func TestWindowCloseSaysNothingToCloseInsteadOfFailing(t *testing.T) {

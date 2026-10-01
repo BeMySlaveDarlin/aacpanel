@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -346,6 +347,30 @@ func TestTermActionsRefuseAnIDOffThePanel(t *testing.T) {
 	}
 }
 
+// The collector knows a claude typed into a terminal of the panel by the
+// socket its server was started on. A name out of step with the executor's
+// marks every such claude as out of the panel's reach on the screens, while
+// the executor would reach it.
+func TestThePanelTerminalSocketIsTheCollectors(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "agent", "ctx.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := ""
+	for _, s := range strings.Split(string(body), "\n") {
+		if strings.HasPrefix(s, "PANEL_TMUX = ") {
+			line = s
+			break
+		}
+	}
+	if line == "" {
+		t.Fatal("no PANEL_TMUX found in agent/ctx.py — the socket of the terminals was renamed there")
+	}
+	if want := `PANEL_TMUX = "` + panelTermSocket + `"`; line != want {
+		t.Errorf("the collector has %s, the executor %q", line, panelTermSocket)
+	}
+}
+
 func TestTermCloseKillsTheSessionOnThePanelSocket(t *testing.T) {
 	stub := newTmuxStub(t, nil, "")
 	stub.reply("list-sessions", shopTerm+"\n")
@@ -556,5 +581,52 @@ func TestLivePanelTerminalLeavesTheUsersServerAlone(t *testing.T) {
 	}
 	if out, err := userTmux.run(context.Background(), "list-sessions"); err == nil {
 		t.Errorf("the terminal of the panel landed on the user's own server: %s", out)
+	}
+}
+
+// What a person types into a live terminal of the panel is found in the
+// terminal's pane on the panel's server, through its shell, while the user's
+// own server is not running at all.
+func TestLivePanelTerminalHoldsWhatIsTypedIntoIt(t *testing.T) {
+	ownPanelTmux(t)
+	const id = "t-0a1b2c3d"
+	if _, err := launcher.Term(launcher.TermSpec{Dir: t.TempDir(), Session: id, Socket: string(panelTmux)}); err != nil {
+		t.Fatalf("the terminal did not start: %v", err)
+	}
+	out, err := panelTmux.run(t.Context(), "list-panes", "-t", "="+id+":", "-F", "#{pane_pid}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		t.Fatalf("the shell of the terminal is %q", out)
+	}
+	if _, err := panelTmux.run(t.Context(), "send-keys", "-t", "="+id+":", "sleep 30", "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	typed := 0
+	for end := time.Now().Add(5 * time.Second); typed == 0 && time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+		dirs, _ := os.ReadDir("/proc")
+		for _, d := range dirs {
+			pid, err := strconv.Atoi(d.Name())
+			if err != nil {
+				continue
+			}
+			if parent, ok := procParent(pid); ok && parent == shell {
+				typed = pid
+				break
+			}
+		}
+	}
+	if typed == 0 {
+		t.Fatal("the shell of the terminal started nothing in five seconds")
+	}
+
+	pane, err := tmuxPaneFor(t.Context(), typed)
+	if err != nil {
+		t.Fatalf("the pane of what was typed into the terminal was not found: %v", err)
+	}
+	if pane.Server != panelTmux || tmuxSessionOf(pane.Target) != id {
+		t.Errorf("what was typed into terminal %s is in %q on %s", id, pane.Target, pane.Server)
 	}
 }

@@ -18,6 +18,16 @@ SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
 TMUX_SERVER = "tmux: server"
 HOLDER = "aacpanel-exec"
 
+# The servers of tmux the executor finds consoles on, as tmux_server names
+# them: the user's own, and the one the terminals of the panel live on, where a
+# person may type claude into a shell. The executor names the socket of the
+# terminals too, and a test of the executor holds the two names together.
+PANEL_TMUX = "aacpanel-term"
+PANEL_SERVERS = ("", "-L " + PANEL_TMUX)
+
+# The options of tmux that take a value, as its getopt string has them.
+TMUX_VALUED = "cfLST"
+
 
 def proc_start(pid):
     """Returns the start time of a process in ticks, from /proc/<pid>/stat."""
@@ -55,14 +65,52 @@ def _comm(pid):
         return ""
 
 
+def tmux_server(pid):
+    """Says how a server of tmux is reached, the way its start named it.
+
+    tmux names its server through the name of the process and leaves the
+    command line as the client that started the server gave it, so the socket
+    is read off that: "-L <name>", "-S <path>", or "" for the user's own server,
+    started with neither or as -L default. The price of reading the start: a
+    server whose socket directory was moved with TMUX_TMPDIR passes for the
+    socket of the same name in the usual directory.
+    """
+    args = proc_args(pid)[1:]
+    label, path = "default", ""
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--" or len(arg) < 2 or not arg.startswith("-"):
+            break
+        for at, flag in enumerate(arg[1:], 1):
+            if flag not in TMUX_VALUED:
+                continue
+            value = arg[at + 1:]
+            if not value:
+                i += 1
+                value = args[i] if i < len(args) else ""
+            if flag == "L":
+                label = value
+            elif flag == "S":
+                path = value
+            break
+        i += 1
+    if path:
+        return "-S " + path
+    return "" if label == "default" else "-L " + label
+
+
 def lineage(pid, owners):
     """Says what a session's process was started under.
 
     The first parent up the chain that tells decides: another live session —
-    this one is a run inside its work; the server of tmux or the holder of the
-    stream — a session of the panel. A chain that reaches the top with none of
-    them is a claude started outside the panel, in a terminal of its own.
-    `owners` maps the pids of the live sessions to what names them.
+    this one is a run inside its work; the user's server of tmux, the server of
+    the panel's terminals or the holder of the stream — a session of the panel.
+    A server of tmux on a socket of its own is out of the panel's reach: the
+    claude in it is named with the server and only read. A chain that reaches
+    the top with none of them is a claude started outside the panel, in a
+    terminal of its own. `owners` maps the pids of the live sessions to what
+    names them.
     """
     seen = set()
     at = parent_pid(pid) if pid else None
@@ -71,7 +119,11 @@ def lineage(pid, owners):
         owner = owners.get(at)
         if owner:
             return {"outside": True, "parent": dict(owner)}
-        if _comm(at) in (TMUX_SERVER, HOLDER):
+        comm = _comm(at)
+        if comm == TMUX_SERVER:
+            server = tmux_server(at)
+            return {} if server in PANEL_SERVERS else {"outside": True, "tmuxServer": server}
+        if comm == HOLDER:
             return {}
         at = parent_pid(at)
     return {"outside": True} if pid else {}

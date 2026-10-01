@@ -369,11 +369,61 @@ class Lineage(unittest.TestCase):
     """What a session's process was started under, read up the chain of parents."""
 
     def table(self, rows):
-        # rows: pid -> (parent, comm)
+        # rows: pid -> (parent, comm) or (parent, comm, arguments)
+        def args(pid):
+            row = rows.get(pid, (None, ""))
+            return list(row[2]) if len(row) > 2 else [row[1]]
         for name, fake in (("parent_pid", lambda pid: rows.get(pid, (None, ""))[0]),
-                           ("_comm", lambda pid: rows.get(pid, (None, ""))[1])):
+                           ("_comm", lambda pid: rows.get(pid, (None, ""))[1]),
+                           ("proc_args", args)):
             self.addCleanup(setattr, ctx, name, getattr(ctx, name))
             setattr(ctx, name, fake)
+
+    def under(self, *server):
+        """A claude in a shell of a pane of the server of tmux started with these arguments."""
+        self.table({500: (60, "claude"), 60: (40, "bash"),
+                    40: (1, "tmux: server", ("tmux",) + server + ("new-session", "-d", "-s", "work"))})
+        return ctx.lineage(500, {})
+
+    def test_a_console_on_the_users_own_server_is_not_outside(self):
+        self.assertEqual(self.under(), {})
+        self.assertEqual(self.under("-u", "-f", "/dev/null"), {})
+        self.assertEqual(self.under("-L", "default"), {})
+
+    def test_a_claude_typed_into_a_terminal_of_the_panel_is_not_outside(self):
+        self.assertEqual(self.under("-L", ctx.PANEL_TMUX), {})
+        self.assertEqual(self.under("-L" + ctx.PANEL_TMUX), {})
+
+    def test_a_claude_under_a_server_of_tmux_of_its_own_is_outside_and_named_with_it(self):
+        for server, named in ((("-L", "work"), "-L work"),
+                              (("-2uLwork",), "-L work"),
+                              (("-f", "-L", "-L", "x"), "-L x"),
+                              (("-S", "/srv/sock"), "-S /srv/sock"),
+                              (("-L", ctx.PANEL_TMUX, "-S", "/tmp/tmux-1000/" + ctx.PANEL_TMUX),
+                               "-S /tmp/tmux-1000/" + ctx.PANEL_TMUX)):
+            with self.subTest(server=server):
+                self.assertEqual(self.under(*server), {"outside": True, "tmuxServer": named})
+
+    def test_a_real_server_of_tmux_keeps_the_socket_its_start_named(self):
+        tmux = shutil.which("tmux")
+        if not tmux:
+            self.skipTest("tmux is not installed: there is no server to read")
+        # Short, since a unix socket path ends at 108 bytes, and the test's own:
+        # the server is started and killed on a socket nothing else uses.
+        home = test_barrier.tmp_path("tx")
+        self.addCleanup(shutil.rmtree, home, True)
+        label = "aacp-ctx-%d" % os.getpid()
+        env = {k: v for k, v in os.environ.items() if k != "TMUX"}
+        env["TMUX_TMPDIR"] = home
+
+        def run(*args):
+            return subprocess.run([tmux, "-L", label, "-f", "/dev/null", *args], env=env,
+                                  capture_output=True, text=True, timeout=10, check=False)
+        started = run("new-session", "-d", "sleep 60")
+        self.addCleanup(run, "kill-server")
+        self.assertEqual(started.returncode, 0, started.stderr)
+        pane = int(run("list-panes", "-F", "#{pane_pid}").stdout.split()[0])
+        self.assertEqual(ctx.lineage(pane, {}), {"outside": True, "tmuxServer": "-L " + label})
 
     def test_a_claude_started_by_a_run_inside_another_session_names_it(self):
         self.table({500: (400, "claude"), 400: (300, "python3"), 300: (200, "bash"),

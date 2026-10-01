@@ -233,6 +233,37 @@ func openBridge(t *testing.T, stub *tmuxStub) termlink.Terminal {
 	return term
 }
 
+// The terminal of a claude typed into a terminal of the panel is its pane on
+// the panel's server: the bridge attaches there and sets up the window there,
+// and the user's server is only asked where the pane is.
+func TestBridgeToASessionInATerminalOfThePanel(t *testing.T) {
+	log := twoServersTmux(t,
+		tmuxSide{panes: []string{"3003 shop:0.0"}},
+		tmuxSide{panes: []string{"700 t-1a2b3c4d:0.0"}})
+	procFS(t,
+		fakeProc{pid: 4242, comm: "claude", args: []string{"claude", "-n", "aacpanel"}, ppid: 700, start: "77"},
+		fakeProc{pid: 700, comm: "bash", args: []string{"bash"}, ppid: 1},
+	)
+	sessionFiles(t, fakeSession{pid: 4242, name: "aacpanel", start: "77"})
+
+	term, err := NewTermOpener().Open(context.Background(), "aacpanel", 40, 32)
+	if err != nil {
+		t.Fatalf("the terminal did not open: %v", err)
+	}
+	io.ReadAll(term)
+	term.Close()
+
+	if attach := tmuxCall(callsTo(t, log, panelTmux), "attach-session"); !slices.Equal(attach,
+		[]string{"attach-session", "-t", "t-1a2b3c4d:0.0"}) {
+		t.Errorf("the bridge attached with %v, expected the pane on the panel's server", attach)
+	}
+	for _, c := range callsTo(t, log, userTmux) {
+		if len(c) > 0 && c[0] != "list-panes" {
+			t.Errorf("the bridge went to the user's server with %v", c)
+		}
+	}
+}
+
 func TestBridgeDoesNotPinTheWindowBeforeAttaching(t *testing.T) {
 	for _, tc := range []struct{ name, clients string }{
 		{"the bridge alone", ""},
@@ -370,7 +401,13 @@ func ownTmuxServer(t *testing.T) {
 	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// The wrapper's -L comes first and a later one wins, so the panel's server
+	// is named after the test too: a pane looked for on it reaches no server of
+	// the machine.
+	prev := panelTmux
+	panelTmux = tmuxServer(sock + "-panel")
 	t.Cleanup(func() {
+		panelTmux = prev
 		exec.Command(bin, "-L", sock, "kill-server").Run()
 		// The server goes and its socket file stays: every run would leave one.
 		os.Remove(filepath.Join(tmuxSocketDir(), sock))

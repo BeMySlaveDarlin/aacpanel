@@ -1,10 +1,49 @@
 package check
 
 import (
+	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// The note on a session out of the panel's reach says why it is only read: a
+// run names the session it runs inside, a claude under a tmux of its own names
+// that server, and one typed into a terminal by hand says so.
+func TestTheOutsideNoteSaysWhyTheSessionIsOnlyRead(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not found: the note is made by the engine, not read out of the source")
+	}
+	kin := bundleFront(t, filepath.Join(webDir, "src", "screens", "sessions", "kin.js"))
+	script := `
+import { outsideNote, placeOf } from ` + jsString("file://"+kin) + `;
+const rows = [
+    { outside: true, parent: { session: "rotation" } },
+    { outside: true, tmuxServer: "-L work" },
+    { outside: true },
+];
+process.stdout.write(JSON.stringify(rows.map((s) => [placeOf(s), outsideNote(s)])));
+`
+	out, err := exec.Command(node, "--input-type=module", "-e", script).Output()
+	if err != nil {
+		t.Fatalf("node: %v", err)
+	}
+	var got [][2]string
+	if err := json.Unmarshal(out, &got); err != nil || len(got) != 3 {
+		t.Fatalf("the notes came back as %s (%v)", out, err)
+	}
+	for i, says := range []string{"started by rotation", "tmux -L work", "in a terminal of its own"} {
+		if got[i][0] != "outside" || !strings.Contains(got[i][1], says) {
+			t.Errorf("row %d is marked %q with the note %q, expected outside and a note saying %q", i, got[i][0], got[i][1], says)
+		}
+	}
+	if strings.Contains(got[1][1], "terminal of its own") {
+		t.Errorf("a claude under a tmux of its own is said to run in a terminal of its own: %q", got[1][1])
+	}
+}
 
 // A claude the panel did not start is shown for what it is. The runs a session
 // started inside its work stand under it: on the phone in a fold that says one

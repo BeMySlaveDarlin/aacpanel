@@ -25,7 +25,8 @@ type TermOpener struct{}
 // NewTermOpener creates a TermOpener.
 func NewTermOpener() *TermOpener { return &TermOpener{} }
 
-// Open attaches to the tmux pane of the named session.
+// Open attaches to the tmux pane of the named session, on the server the pane
+// lives on.
 func (o *TermOpener) Open(ctx context.Context, target string, cols, rows uint16) (termlink.Terminal, error) {
 	s, err := findOneLiveSession(target)
 	if err != nil {
@@ -36,10 +37,10 @@ func (o *TermOpener) Open(ctx context.Context, target string, cols, rows uint16)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"session %s does not live in tmux — there is nothing to attach to; a terminal is available "+
-				"for sessions started by the panel (%v)",
+				"for sessions started by the panel and for claude typed into a terminal of the panel (%v)",
 			s.Name, err)
 	}
-	return bridge(ctx, userTmux, pane.Target, fmt.Sprintf("%s (pane %s)", s.Name, pane.Target), cols, rows)
+	return bridge(ctx, pane.Server, pane.Target, fmt.Sprintf("%s (pane %s)", s.Name, pane.Target), cols, rows)
 }
 
 // OpenTerm attaches to a terminal of the panel, found by its id among those on

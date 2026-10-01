@@ -91,8 +91,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     const wide = useWide();
     const still = useAsOf();
     const term = useTermAvailable();
-    // A claude the panel did not start lives in no pane of tmux: there is no
-    // screen of it to attach to.
+    // A claude out of the panel's reach lives in no pane of a tmux the panel
+    // attaches to: there is no screen of it to attach to.
     const canTerm = term.ok && Boolean(live) && !live.outside;
     // What to watch it with is the session's own choice on this device.
     const [picked, pickView] = useViewPick(name, canTerm, wide);

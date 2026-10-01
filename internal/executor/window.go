@@ -25,12 +25,12 @@ func (e *Executor) windowOpen(ctx context.Context, target string) (string, error
 		return "", err
 	}
 
-	dir, err := paneDir(ctx, pane.Target)
+	dir, err := paneDir(ctx, pane)
 	if err != nil {
 		return "", err
 	}
 
-	return e.openWindowTo(ctx, userTmux, dir, tmuxSessionOf(pane.Target))
+	return e.openWindowTo(ctx, pane.Server, dir, tmuxSessionOf(pane.Target))
 }
 
 // openWindowTo opens a terminal window on the host attached to a tmux session
@@ -78,7 +78,7 @@ func (e *Executor) windowClose(ctx context.Context, target string) (string, erro
 	}
 	name := tmuxSessionOf(pane.Target)
 
-	clients, err := foreignClients(ctx, userTmux, name)
+	clients, err := foreignClients(ctx, pane.Server, name)
 	if err != nil {
 		return "", err
 	}
@@ -88,7 +88,7 @@ func (e *Executor) windowClose(ctx context.Context, target string) (string, erro
 
 	var closed, failed []string
 	for _, c := range clients {
-		if _, err := tmuxRun(ctx, "detach-client", "-t", c.TTY); err != nil {
+		if _, err := pane.Server.run(ctx, "detach-client", "-t", c.TTY); err != nil {
 			failed = append(failed, fmt.Sprintf("%s (%v)", c.TTY, err))
 			continue
 		}
@@ -114,7 +114,7 @@ func (e *Executor) Window(ctx context.Context, target string) (*action.Window, e
 	if err != nil {
 		return nil, err
 	}
-	clients, err := foreignClients(ctx, userTmux, tmuxSessionOf(pane.Target))
+	clients, err := foreignClients(ctx, pane.Server, tmuxSessionOf(pane.Target))
 	if err != nil {
 		return nil, err
 	}
@@ -129,23 +129,29 @@ func windowPane(ctx context.Context, target string) (tmuxPane, error) {
 	pane, err := tmuxPaneFor(ctx, s.PID)
 	if err != nil {
 		return tmuxPane{}, fmt.Errorf(
-			"session %s does not live in tmux — windows for it cannot be opened or closed: %w", s.Name, err)
+			"session %s does not live in tmux, neither the user's nor a terminal of the panel — "+
+				"windows for it cannot be opened or closed: %w", s.Name, err)
 	}
 	return pane, nil
 }
 
-func paneDir(ctx context.Context, target string) (string, error) {
-	out, err := tmuxRun(ctx, "display", "-p", "-t", target, "#{pane_current_path}")
+func paneDir(ctx context.Context, pane tmuxPane) (string, error) {
+	out, err := pane.Server.run(ctx, "display", "-p", "-t", pane.Target, "#{pane_current_path}")
 	if err != nil {
-		return "", fmt.Errorf("tmux did not tell the directory of pane %s: %w", target, err)
+		return "", fmt.Errorf("tmux did not tell the directory of pane %s: %w", pane.Target, err)
 	}
 	dir := strings.TrimSpace(out)
 	if !strings.HasPrefix(dir, "/") {
-		return "", fmt.Errorf("tmux named %q as the directory of pane %s — there is nowhere to open a window", dir, target)
+		return "", fmt.Errorf("tmux named %q as the directory of pane %s — there is nowhere to open a window", dir, pane.Target)
 	}
 	return dir, nil
 }
 
+// foreignClients lists who is attached to a tmux session on the server, past
+// the panel itself: a bridge of the panel — the terminal of a session, a
+// terminal of the Terminals screen — is a child of the executor, on either
+// server, and shows the session to the one who asked for it; a window on the
+// host or an ssh is someone else's.
 func foreignClients(ctx context.Context, srv tmuxServer, session string) ([]tmuxClient, error) {
 	if session == "" {
 		return nil, fmt.Errorf("the tmux session name is empty: whose clients to count is unknown")

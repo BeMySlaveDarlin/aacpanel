@@ -13,10 +13,15 @@ import (
 	"aacpanel/internal/launcher"
 )
 
+// panelTermSocket is the socket of the tmux server the terminals of the panel
+// live on. The collector knows a claude typed into one of them by it, so the
+// name is written once more in agent/ctx.py, and a test holds the two together.
+const panelTermSocket = "aacpanel-term"
+
 // panelTmux is the tmux server the terminals of the panel live on: a socket of
-// their own, apart from the sessions of claude, so that what is listed there
-// is what the panel started and nothing else.
-var panelTmux tmuxServer = "aacpanel-term"
+// their own, apart from the sessions the panel starts, so that what is listed
+// there is what the panel started and nothing else.
+var panelTmux tmuxServer = panelTermSocket
 
 // termNameOption keeps the name a person gave a terminal; without one the
 // terminal goes by its window, which names itself after what runs in it.

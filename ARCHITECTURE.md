@@ -527,8 +527,20 @@ so the window button moves it to tmux and opens the window in one action.
 While a terminal outside the panel shows a session in tmux — a window on the
 host, an ssh attached to its tmux, or a terminal of its own when it runs
 outside tmux — the executor refuses to move it to the stream: the
-conversation would end under the eyes of whoever reads it there. While the
-window on the host is open, the tools do not offer the move at all.
+conversation would end under the eyes of whoever reads it there. The panel's
+own view of it, the terminal of the session or the Terminals screen, does not
+hold it. While the window on the host is open, the tools do not offer the move
+at all.
+
+**A claude typed into a terminal of the panel is a session in tmux.** The
+executor looks for the pane of a session on the user's own tmux server and on
+the server of the panel's terminals, and every call about the session — what
+is typed into it, its screen, its terminal, its window, the move — goes to the
+server the pane was found on. Closed or moved, it ends the way a session the
+panel started does, and the shell of the terminal stays where it was: the
+terminal is the person's, and it closes from the Terminals screen. A tmux
+server on a socket of any other name is out of reach: a claude under it is
+only read, like one typed into a terminal by hand.
 
 **Remote Control is a second way in, past the panel.** It is claude's bridge
 to claude.ai: while it is up, the session is reached from the Claude app and
@@ -671,9 +683,9 @@ What is deliberately not on the list: removing containers, images and volumes,
 `docker exec`, editing compose, package operations, restarting itself.
 
 **A terminal of the panel is the owner's shell on a tmux server of its own.**
-It lives on the socket `tmux -L aacpanel-term`, apart from the sessions of
-claude and from the servers tests start, so the list there is what the panel
-opened and nothing else. It opens only in a place: the home directory or the
+It lives on the socket `tmux -L aacpanel-term`, apart from the sessions the
+panel starts and from the servers tests start, so the list there is what the
+panel opened and nothing else. It opens only in a place: the home directory or the
 directory of a project of the map. The service takes the place from that list,
 never from a string on the phone, and the executor checks again that it is a
 directory whose real path lies inside the home directory or a project root. The
@@ -826,11 +838,18 @@ same name is a different conversation.
 
 **Where a session came from is read up the chain of its process's parents.**
 The first one that tells decides: another live session — this one is a run
-inside its work, a program of that session starting claude; the server of tmux
-or the holder of the stream — a session of the panel; the top of the chain
-with none of them — a claude typed into a terminal by hand. The panel only
-reads a session it did not start: it has no pane to attach to, no side to move
-from, nothing to write into, and the panel does not end what it did not begin.
+inside its work, a program of that session starting claude; the user's own
+tmux server, the server of the panel's terminals or the holder of the stream —
+a session of the panel; a tmux server on a socket of its own — a claude out of
+the panel's reach, named with the server; the top of the chain with none of
+them — a claude typed into a terminal by hand. A server of tmux is told by the
+socket its start named: tmux keeps the command line of the client that started
+the server, so `-L` or `-S` there is where it listens. A server whose socket
+directory was moved with `TMUX_TMPDIR` passes for the socket of the same name,
+and one started with `-S` is out of reach even on the usual path. The panel
+only reads a session out of its reach: it has no pane to attach to, no side to
+move from, nothing to write into, and the panel does not end what it did not
+begin.
 A run folds under the session that started it, so a suite that raises a dozen
 claudes does not push the sessions of the person off the list.
 
