@@ -475,7 +475,7 @@ span.pjname { cursor: default; }
     text-align: left;
     cursor: pointer;
 }
-.pjsess { font-size: var(--t-xs); color: var(--ink-faint); font-family: var(--mono); }
+.pjsess { font-size: var(--t-xs); color: var(--ink-dim); font-family: var(--mono); }
 /* The row of a session is as tall as what it says: the state whole, on two
    lines at most, and when and what else under it on a line of its own. A row
    cut to one line left the state a letter and an ellipsis. */
