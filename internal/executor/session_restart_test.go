@@ -32,7 +32,9 @@ func TestSessionRestart(t *testing.T) {
 		home := stand(t)
 		t.Setenv(hostcfg.HomeSessionEnv, "wg-lab")
 		log := fakeLauncher(t, launcher.Report{Session: "host", Konsole: 500, Agent: 502})
-		tmuxLog := fakeTmux(t, []string{"302 host:0.0"}, "")
+		stub := newTmuxStub(t, []string{"302 host:0.0"}, "")
+		stub.reply("display", launchedPane)
+		tmuxLog := stub.log
 		e, _ := newTest(t, "")
 		sig := withSignals(t, e, map[int]bool{300: true, 302: true, 402: true}, map[int]int{302: 1})
 
@@ -44,7 +46,7 @@ func TestSessionRestart(t *testing.T) {
 		if strings.Join(sig.sent, ",") != strings.Join(want, ",") {
 			t.Errorf("signals %v, expected %v — the old session has to go the gentle way, and only it", sig.sent, want)
 		}
-		if called := strings.Join(tmuxArgv(t, tmuxLog), " "); !strings.Contains(called, "kill-session -t host") {
+		if called := strings.Join(tmuxArgv(t, tmuxLog), " "); !strings.Contains(called, "kill-session -t =host") {
 			t.Errorf("the tmux session was not stopped (calls: %s) — the new one would fail to take the name", called)
 		}
 

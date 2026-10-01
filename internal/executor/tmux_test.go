@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -145,6 +146,98 @@ func callsTo(t *testing.T, log string, srv tmuxServer) [][]string {
 		}
 	}
 	return out
+}
+
+// launchedPane is the start command tmux keeps for the pane of a session the
+// launcher started.
+const launchedPane = `env -i sh /run/user/1000/aacpanel-launch-2502350363/env.sh /usr/bin/claude -n probe --mcp-config "{\"a\":1}"`
+
+// A tmux session the launcher started goes with its claude; a session started
+// by hand on the same server loses only claude and keeps the person's shell,
+// and the session the launcher started is killed by its exact name: once it
+// ended on its own, a neighbour named after it stays.
+func TestLiveCloseKillsOnlyTheSessionTheLauncherStarted(t *testing.T) {
+	ownTmuxServer(t)
+	launch := filepath.Join(t.TempDir(), "aacpanel-launch-1", "env.sh")
+	if err := os.MkdirAll(filepath.Dir(launch), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(launch, []byte("exec \"$@\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	start := func(name string, command ...string) {
+		t.Helper()
+		args := append([]string{"-f", "/dev/null", "new-session", "-d", "-s", name, "-x", "80", "-y", "24"}, command...)
+		if _, err := tmuxRun(ctx, args...); err != nil {
+			t.Fatalf("session %s did not start: %v", name, err)
+		}
+	}
+	paneOf := func(name string) int {
+		t.Helper()
+		out, err := tmuxRun(ctx, "list-panes", "-t", "="+name+":", "-F", "#{pane_pid}")
+		if err != nil {
+			t.Fatal(err)
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(out))
+		if err != nil {
+			t.Fatalf("the pane of %s runs %q", name, out)
+		}
+		return pid
+	}
+	alive := func(name string) bool {
+		_, err := tmuxRun(ctx, "has-session", "-t", "="+name)
+		return err == nil
+	}
+
+	start("probe", "--", "env", "-i", "sh", launch, "/bin/sleep", "300")
+	if _, err := tmuxRun(ctx, "set-option", "-w", "-t", "=probe:", "remain-on-exit", "on"); err != nil {
+		t.Fatal(err)
+	}
+	start("lone", "--", "env", "-i", "sh", launch, "/bin/sleep", "300")
+	start("lone-2", "/bin/sh")
+	start("work", "/bin/sh")
+	shell := paneOf("work")
+	if _, err := tmuxRun(ctx, "send-keys", "-t", "=work:", "sleep 300", "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	typed := 0
+	for end := time.Now().Add(5 * time.Second); typed == 0 && time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+		dirs, _ := os.ReadDir("/proc")
+		for _, d := range dirs {
+			pid, err := strconv.Atoi(d.Name())
+			if err != nil {
+				continue
+			}
+			comm, _ := os.ReadFile(filepath.Join("/proc", d.Name(), "comm"))
+			if parent, ok := procParent(pid); ok && parent == shell && strings.TrimSpace(string(comm)) == "sleep" {
+				typed = pid
+				break
+			}
+		}
+	}
+	if typed == 0 {
+		t.Fatal("the shell of the session started by hand ran nothing in five seconds")
+	}
+
+	e := &Executor{poll: 10 * time.Millisecond, soft: 5 * time.Second}
+	for _, c := range []struct {
+		name string
+		pid  int
+	}{{"probe", paneOf("probe")}, {"lone", paneOf("lone")}, {"work", typed}} {
+		if _, err := e.closeAgent(ctx, agentProc{Session: c.name, Agent: c.pid}); err != nil {
+			t.Fatalf("closing %s: %v", c.name, err)
+		}
+	}
+	if alive("probe") {
+		t.Error("the session the launcher started hangs there with its pane dead")
+	}
+	if !alive("lone-2") {
+		t.Error("closing lone killed lone-2: the session was looked for by the start of its name")
+	}
+	if !alive("work") || paneOf("work") != shell || syscall.Kill(shell, 0) != nil {
+		t.Error("closing claude typed into a session started by hand took the person's shell with it")
+	}
 }
 
 func TestTmuxPaneFoundByPID(t *testing.T) {

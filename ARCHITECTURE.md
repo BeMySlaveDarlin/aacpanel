@@ -542,6 +542,17 @@ terminal is the person's, and it closes from the Terminals screen. A tmux
 server on a socket of any other name is out of reach: a claude under it is
 only read, like one typed into a terminal by hand.
 
+**A close takes the tmux session along only when the launcher started it.**
+Claude gets its signal and the transcript is waited for; then a session the
+launcher started is killed by its exact name, so that a terminal with
+`remain-on-exit` does not hang there empty. The launcher's session is known by
+the command tmux keeps for its pane for the pane's whole life — the
+environment of the launch read from its file, then claude — which nothing a
+person starts by hand carries. Claude typed into a shell, in a tmux session of
+the person's own or in a terminal of the panel, loses only itself, and the
+shell stays. The exact name is the point: a session that already ended with its
+claude, looked for by the start of its name, is a neighbour named after it.
+
 **Remote Control is a second way in, past the panel.** It is claude's bridge
 to claude.ai: while it is up, the session is reached from the Claude app and
 the web under the account it runs in. Where the launch parameters ask for it,

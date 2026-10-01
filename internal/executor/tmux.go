@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"aacpanel/internal/launcher"
 )
 
 const (
@@ -279,10 +281,22 @@ func (s tmuxServer) sessionHasClients(ctx context.Context, session string) bool 
 	return strings.TrimSpace(out) != ""
 }
 
-func killTmuxSession(ctx context.Context, name string) error {
+// launched reports that the launcher started the pane: tmux kept the command
+// of the launch for it. A pane whose command could not be read is not taken
+// for one.
+func (p tmuxPane) launched(ctx context.Context) bool {
+	out, err := p.Server.run(ctx, "display", "-p", "-t", p.Target, "#{pane_start_command}")
+	return err == nil && launcher.Launched(strings.TrimSpace(out))
+}
+
+// killSession kills the tmux session of the pane by its exact name. A session
+// that already ended with its claude is not looked for by the start of its
+// name, which would kill a neighbour named after it, such as name-2.
+func (p tmuxPane) killSession(ctx context.Context) error {
+	name := tmuxSessionOf(p.Target)
 	if name == "" {
 		return nil
 	}
-	_, err := tmuxRun(ctx, "kill-session", "-t", name)
+	_, err := p.Server.run(ctx, "kill-session", "-t", "="+name)
 	return err
 }

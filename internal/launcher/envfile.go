@@ -13,7 +13,10 @@ type sessionEnv struct {
 	path string
 }
 
-const envDirPrefix = "aacpanel-launch-"
+const (
+	envDirPrefix = "aacpanel-launch-"
+	envFileName  = "env.sh"
+)
 
 func writeSessionEnv(vars []string) (*sessionEnv, []string, error) {
 	base := os.Getenv("XDG_RUNTIME_DIR")
@@ -41,7 +44,7 @@ func writeSessionEnv(vars []string) (*sessionEnv, []string, error) {
 	}
 	b.WriteString("\"$@\"\n")
 
-	path := filepath.Join(dir, "env.sh")
+	path := filepath.Join(dir, envFileName)
 	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
 		_ = os.RemoveAll(dir)
 		return nil, nil, fmt.Errorf("session environment was not written: %w", err)

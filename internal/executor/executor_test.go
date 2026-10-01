@@ -1195,19 +1195,39 @@ func TestSessionClose(t *testing.T) {
 		}
 	})
 
-	t.Run("stops the tmux session as well", func(t *testing.T) {
+	t.Run("stops the tmux session the launcher started as well", func(t *testing.T) {
 		stand(t)
 		e, _ := newTest(t, "")
 		withSignals(t, e, map[int]bool{1004: true, 1003: true}, map[int]int{1004: 1})
-		tmuxLog := fakeTmux(t, []string{"1004 probe:0.0"}, "")
+		stub := newTmuxStub(t, []string{"1004 probe:0.0"}, "")
+		stub.reply("display", launchedPane)
 
 		if _, err := e.Execute(ctx, req(action.SessionClose, "probe")); err != nil {
 			t.Fatal(err)
 		}
 
-		called := strings.Join(tmuxArgv(t, tmuxLog), " ")
-		if !strings.Contains(called, "kill-session -t probe") {
-			t.Errorf("the tmux session was not stopped (calls: %s) — the terminal would hang there empty", called)
+		called := strings.Join(tmuxArgv(t, stub.log), " ")
+		if !strings.Contains(called, "kill-session -t =probe") {
+			t.Errorf("the tmux session was not stopped by its exact name (calls: %s) — the terminal would hang "+
+				"there empty", called)
+		}
+	})
+
+	t.Run("leaves a tmux session started by hand to its person", func(t *testing.T) {
+		stand(t)
+		e, _ := newTest(t, "")
+		log := withSignals(t, e, map[int]bool{1004: true, 1003: true}, map[int]int{1004: 1})
+		stub := newTmuxStub(t, []string{"1002 work:0.0"}, "")
+		stub.reply("display", "\n")
+
+		if _, err := e.Execute(ctx, req(action.SessionClose, "probe")); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(log.sent, "1004:terminated") {
+			t.Errorf("signals %v: claude was not asked to end", log.sent)
+		}
+		if called := strings.Join(tmuxArgv(t, stub.log), " "); strings.Contains(called, "kill-session") {
+			t.Errorf("a session started by hand was killed with its shell (calls: %s)", called)
 		}
 	})
 

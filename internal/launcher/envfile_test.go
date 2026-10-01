@@ -112,6 +112,40 @@ func TestSessionEnvFileIsPrivate(t *testing.T) {
 	}
 }
 
+// The executor tells a tmux session the launcher started by the command tmux
+// keeps for its pane, and kills only such a session with its claude: the
+// command the launcher starts a pane with is known for one, and nothing a
+// person starts by hand is.
+func TestLaunchedKnowsThePaneOfALaunchAndNothingElse(t *testing.T) {
+	drop, _, err := writeSessionEnv([]string{"FOO=bar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer drop.remove()
+
+	var words []string
+	for _, w := range sessionCommand(drop.path, "/usr/bin/claude", []string{"-n", "probe", "--mcp-config", `{"a": 1}`}) {
+		if strings.ContainsAny(w, ` "`) {
+			w = `"` + strings.ReplaceAll(w, `"`, `\"`) + `"`
+		}
+		words = append(words, w)
+	}
+	if kept := strings.Join(words, " "); !Launched(kept) {
+		t.Errorf("the pane of a launch, kept by tmux as %q, is not known for one", kept)
+	}
+	for _, hand := range []string{
+		"", "bash", "/bin/sh", "claude -n work",
+		"env -i sh /tmp/env.sh /usr/bin/claude",
+		"env -i sh /tmp/scripts/env.sh /usr/bin/claude",
+		"env sh " + drop.path + " /usr/bin/claude",
+		"env -i sh " + drop.path,
+	} {
+		if Launched(hand) {
+			t.Errorf("a pane started with %q is taken for one the launcher started", hand)
+		}
+	}
+}
+
 func TestSessionEnvNamesTheVariableItDropped(t *testing.T) {
 	drop, warns, err := writeSessionEnv([]string{"GOOD=yes", "GITLAB_TOKEN=beg\x00in"})
 	if err != nil {

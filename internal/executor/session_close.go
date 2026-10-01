@@ -137,14 +137,15 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh, nil
 }
 
-// closeAgent ends a session with a signal and waits for its transcript. The
-// session of the user's tmux it ran in goes with it, or the terminal would hang
-// there empty; a terminal of the panel stays, since it is the person's shell
-// that claude was typed into, and it is closed from the list of terminals.
+// closeAgent ends a session with a signal and waits for its transcript. A
+// tmux session the launcher started goes with it, or under remain-on-exit the
+// terminal would hang there empty. Any other loses only claude: one typed into
+// a shell — of the person's own tmux session or of a terminal of the panel —
+// leaves the shell where it was, since the session is the person's.
 func (e *Executor) closeAgent(ctx context.Context, p agentProc) (string, error) {
-	tmuxName := ""
-	if pane, err := tmuxPaneFor(ctx, p.Agent); err == nil && pane.Server == userTmux {
-		tmuxName = tmuxSessionOf(pane.Target)
+	var launched tmuxPane
+	if pane, err := tmuxPaneFor(ctx, p.Agent); err == nil && pane.launched(ctx) {
+		launched = pane
 	}
 
 	if p.Konsole > 0 {
@@ -155,7 +156,7 @@ func (e *Executor) closeAgent(ctx context.Context, p agentProc) (string, error) 
 	}
 
 	if e.waitGone(ctx, p.Agent, e.softWait()) {
-		_ = killTmuxSession(ctx, tmuxName)
+		_ = launched.killSession(ctx)
 		return fmt.Sprintf("session %s closed gracefully, the transcript is complete", p.Session), nil
 	}
 	return "", fmt.Errorf(

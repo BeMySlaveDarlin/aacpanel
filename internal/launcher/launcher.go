@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -289,13 +290,31 @@ func enableMouse(name string) string {
 	return msg + " — the terminal in the panel will scroll neither by wheel nor by swipe"
 }
 
+// sessionCommand is what the pane of a session runs: the environment of the
+// launch read from its file, then claude in place of the shell that read it.
+func sessionCommand(envFile, bin string, args []string) []string {
+	return append([]string{"env", "-i", "sh", envFile, bin}, args...)
+}
+
+// Launched tells the pane of a session the launcher started by the command
+// tmux keeps for it, as #{pane_start_command} gives it. tmux keeps the command
+// a pane was started with for the pane's whole life, so a session started by
+// hand — a shell, with or without claude typed into it — never carries it.
+// A runtime directory with a space in its path is quoted by tmux and not
+// recognised: such a session passes for one started by hand.
+func Launched(startCommand string) bool {
+	words := strings.Fields(startCommand)
+	if len(words) < 5 || !slices.Equal(words[:3], []string{"env", "-i", "sh"}) {
+		return false
+	}
+	file := words[3]
+	return filepath.Base(file) == envFileName && strings.HasPrefix(filepath.Base(filepath.Dir(file)), envDirPrefix)
+}
+
 func startSession(dir, name, bin string, args []string, envFile string) error {
 	tmuxBin := tool(tmuxEnv, "tmux")
 
-	argv := []string{"new-session", "-d", "-s", name, "-c", dir, "--",
-		"env", "-i", "sh", envFile}
-	argv = append(argv, bin)
-	argv = append(argv, args...)
+	argv := append([]string{"new-session", "-d", "-s", name, "-c", dir, "--"}, sessionCommand(envFile, bin, args)...)
 
 	cmd := exec.Command(tmuxBin, argv...)
 	cmd.Dir = dir
