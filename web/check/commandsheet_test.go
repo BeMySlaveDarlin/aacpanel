@@ -21,6 +21,7 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 		Title         string   `json:"title"`
 		Groups        []string `json:"groups"`
 		Lines         []string `json:"lines"`
+		Sections      []string `json:"sections"`
 		ModelNote     string   `json:"modelNote"`
 		HooksTitle    string   `json:"hooksTitle"`
 		Picker        string   `json:"picker"`
@@ -30,6 +31,9 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 		SentBefore    int      `json:"sentBefore"`
 		Sent          []string `json:"sent"`
 		SheetAfter    bool     `json:"sheetAfterSend"`
+		ReloadConfirm string   `json:"reloadConfirm"`
+		ReloadDanger  bool     `json:"reloadDanger"`
+		ReloadSent    []string `json:"reloadSent"`
 		ConsoleLines  []string `json:"consoleLines"`
 		OldHostOff    bool     `json:"oldHostOff"`
 		OldHostNote   string   `json:"oldHostNote"`
@@ -60,14 +64,19 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	if got.DeckOverflow > 0 || got.PageOverflow > 0 {
 		t.Errorf("the row under the composer overflows the phone by %d px (the page by %d)", got.DeckOverflow, got.PageOverflow)
 	}
-	if got.Title != "Commands" || strings.Join(got.Groups, ",") != "Screens,How the session runs,The conversation" {
+	if got.Title != "Commands" || strings.Join(got.Groups, ",") != "Screens,How the session runs,The conversation,Plugins and skills" {
 		t.Errorf("the list is %q with groups %v", got.Title, got.Groups)
 	}
 	for _, want := range []string{"/mcp", "/status", "/hooks", "/memory", "/skills", "/agents", "/config",
-		"/model", "/effort", "Mode", "/btw", "/context", "/usage", "/compact"} {
+		"/model", "/effort", "Mode", "/btw", "/context", "/usage", "/compact", "/reload-plugins", "/reload-skills"} {
 		if !strings.Contains(" "+strings.Join(got.Lines, " ")+" ", " "+want+" ") {
 			t.Errorf("the list has no %s: %v", want, got.Lines)
 		}
+	}
+	// A reload leaves the conversation alone, so it is not listed with what
+	// changes it.
+	if n := len(got.Sections); n == 0 || got.Sections[n-1] != "Plugins and skills: /reload-plugins /reload-skills" {
+		t.Errorf("the groups of the list read %q: the reloads come last, in a group of their own", got.Sections)
 	}
 	if !strings.Contains(got.ModelNote, "Opus 5.5") {
 		t.Errorf("the model row does not say what the session runs: %q", got.ModelNote)
@@ -87,13 +96,19 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 	if len(got.Sent) != 1 || got.Sent[0] != `session.command:{"command":"context","arg":""}` || got.SheetAfter {
 		t.Errorf("the confirmed /context sent %v (sheet still open: %v)", got.Sent, got.SheetAfter)
 	}
+	if !strings.Contains(got.ReloadConfirm, "/reload-plugins") || got.ReloadDanger ||
+		len(got.ReloadSent) != 1 || got.ReloadSent[0] != `session.command:{"command":"reload-plugins","arg":""}` {
+		t.Errorf("/reload-plugins went out as %v after the confirmation %q (a warning: %v): it is sent as the "+
+			"command it is, and a reload changes nothing a person would be warned of", got.ReloadSent, got.ReloadConfirm, got.ReloadDanger)
+	}
 	console := " " + strings.Join(got.ConsoleLines, " ") + " "
 	for _, gone := range []string{" /hooks ", " /mcp ", " /btw "} {
 		if strings.Contains(console, gone) {
 			t.Errorf("a session in tmux is offered %s: %v", strings.TrimSpace(gone), got.ConsoleLines)
 		}
 	}
-	if !strings.Contains(console, " /status ") || !strings.Contains(console, " /context ") {
+	if !strings.Contains(console, " /status ") || !strings.Contains(console, " /context ") ||
+		!strings.Contains(console, " /reload-plugins ") || !strings.Contains(console, " /reload-skills ") {
 		t.Errorf("a session in tmux lost what works there: %v", got.ConsoleLines)
 	}
 	if !got.OldHostOff || got.OldHostNote == "" || got.OldHostNote == "Context usage" {

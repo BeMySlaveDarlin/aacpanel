@@ -913,8 +913,10 @@ screens, driven by keys, and the composer does not send them.
 
 **A button under the composer lists what the panel does itself** — its
 screens, the pickers of the model, the effort and the mode, a question aside,
-and the commands whose answers the feed draws as cards (`/context`, `/usage`)
-or that change the conversation (`/compact`). The list is read from the same
+the commands whose answers the feed draws as cards (`/context`, `/usage`)
+or that change the conversation (`/compact`), and the reloads of the session's
+plugins and skills (`/reload-plugins`, `/reload-skills`), which leave the
+conversation alone and ask the model nothing. The list is read from the same
 registry the composer reads, and each row does what typing it does: a command
 goes through the same confirmation. A session in tmux is offered only what
 works there.

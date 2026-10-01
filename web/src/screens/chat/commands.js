@@ -1,8 +1,9 @@
 // The commands the panel does itself, gathered behind one button under the
 // composer: the screens it answers with, the pickers of how the session runs,
-// and the commands that go to the session. Each does what typing it does — the
-// list is read from the same registry the composer reads, so it cannot offer
-// what the composer would refuse.
+// the commands that go to the session about its conversation and those that
+// have it read its plugins and skills again. Each does what typing it does —
+// the list is read from the same registry the composer reads, so it cannot
+// offer what the composer would refuse.
 
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
@@ -12,9 +13,20 @@ import { Icon } from "../../ui/icons.js";
 import { modelTitle } from "./head.js";
 import { effortName, modeName } from "./picker.js";
 
-// SENT are the commands of the list that go to the session, in the order a
-// person reaches for them.
+// SENT are the commands of the list that go to the session about its
+// conversation, in the order a person reaches for them.
 const SENT = ["context", "usage", "compact"];
+
+// RELOADS have the session read again what it loaded at its start. They leave
+// the conversation alone, so they stand in a group of their own after it.
+const RELOADS = ["reload-plugins", "reload-skills"];
+
+// commandRows returns the rows of commands that go to the session, without
+// the ones the stream does not take.
+function commandRows(ids, stream) {
+    return ids.filter((id) => COMMANDS[id] && !(stream && COMMANDS[id].console))
+        .map((id) => ({ id, line: `/${id}`, note: COMMANDS[id].name, kind: "command" }));
+}
 
 // panelCommands lays out what the panel does itself for a session, by group.
 // A screen claude keeps to its own keys is left out of a session in tmux,
@@ -30,13 +42,13 @@ export function panelCommands({ stream, live, pick, side }) {
     ] : [];
     const talk = [
         ...(side ? [{ id: "btw", line: "/btw", note: "A question aside", kind: "side" }] : []),
-        ...SENT.filter((id) => COMMANDS[id] && !(stream && COMMANDS[id].console))
-            .map((id) => ({ id, line: `/${id}`, note: COMMANDS[id].name, kind: "command" })),
+        ...commandRows(SENT, stream),
     ];
     return [
         { title: "Screens", rows: screens },
         { title: "How the session runs", rows: session },
         { title: "The conversation", rows: talk },
+        { title: "Plugins and skills", rows: commandRows(RELOADS, stream) },
     ].filter((g) => g.rows.length);
 }
 

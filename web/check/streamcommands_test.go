@@ -75,3 +75,29 @@ func TestPermissionsIsOffInTheComposer(t *testing.T) {
 		t.Errorf("the composer offers /permissions among the commands: %s", text(hints[1]))
 	}
 }
+
+// A reload is a command of its own on either side, its dash and all: typed in
+// the composer it goes as the command, with no argument, and the hints name it
+// from its first letters.
+func TestAReloadIsACommandOnEitherSide(t *testing.T) {
+	parsed := runModuleJS(t, "src/actions/registry.js", "parseCommand", [][]any{
+		{"/reload-plugins", true}, {"/reload-plugins", false}, {"/reload-skills", true}, {"/reload-skills", false},
+		{"/reload-skills now", true},
+	})
+	for i, v := range parsed[:4] {
+		m, _ := v.(map[string]any)
+		if name, _ := m["command"].(string); m == nil || m["ready"] != true || !strings.HasPrefix(name, "reload-") || m["arg"] != "" {
+			t.Errorf("case %d: %v is not a command ready to go", i, v)
+		}
+	}
+	if m, _ := parsed[4].(map[string]any); m == nil || m["ready"] != false {
+		t.Errorf("a reload takes no argument, and one with words after it is ready: %v", parsed[4])
+	}
+	hints := runModuleJS(t, "src/actions/registry.js", "commandHints", [][]any{{"/rel", true}, {"/rel", false}})
+	for i, v := range hints {
+		b, _ := json.Marshal(v)
+		if !strings.Contains(string(b), `"/reload-plugins"`) || !strings.Contains(string(b), `"/reload-skills"`) {
+			t.Errorf("case %d: the hints for /rel are %s", i, b)
+		}
+	}
+}

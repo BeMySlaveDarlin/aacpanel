@@ -153,13 +153,15 @@ type Switch struct {
 
 // Commands is what the panel can send as a slash command, and with which options.
 var Commands = map[string][]string{
-	"clear":    nil,
-	"compact":  nil,
-	"context":  nil,
-	"finalize": nil,
-	"usage":    nil,
-	"model":    {"default", "fable", "opus", "opus[1m]", "sonnet", "haiku"},
-	"effort":   {"low", "medium", "high", "xhigh", "max", "ultracode"},
+	"clear":          nil,
+	"compact":        nil,
+	"context":        nil,
+	"finalize":       nil,
+	"usage":          nil,
+	"reload-plugins": nil,
+	"reload-skills":  nil,
+	"model":          {"default", "fable", "opus", "opus[1m]", "sonnet", "haiku"},
+	"effort":         {"low", "medium", "high", "xhigh", "max", "ultracode"},
 }
 
 func commandNames() []string {

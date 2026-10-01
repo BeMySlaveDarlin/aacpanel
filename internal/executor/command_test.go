@@ -70,6 +70,28 @@ func TestSessionCommandClosesSuggestMenu(t *testing.T) {
 	}
 }
 
+func TestSessionCommandTypesAReloadWhole(t *testing.T) {
+	socket, _ := listenFake(t)
+	procFS(t,
+		fakeProc{pid: 812, comm: "konsole", args: []string{"konsole"}, ppid: 1},
+		fakeProc{pid: 813, comm: "claude", args: []string{"claude"}, ppid: 812, start: "77"},
+	)
+	sessionFiles(t, fakeSession{pid: 813, name: "aacpanel", start: "77", socket: socket, status: "idle"})
+	log := fakeBusctl(t, map[string]int{"/Sessions/1": 813})
+
+	e := &Executor{}
+	if _, err := e.sessionCommand(t.Context(), "aacpanel", &action.Command{Name: "reload-skills"}); err != nil {
+		t.Fatalf("the command was not sent: %v", err)
+	}
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), pasteStart+"/reload-skills "+pasteEnd) {
+		t.Errorf("the reload was not typed whole, dash and all: %q", raw)
+	}
+}
+
 func TestSessionCommandRefusesWithoutKonsole(t *testing.T) {
 	socket, letters := listenFake(t)
 	procFS(t,

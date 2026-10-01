@@ -165,12 +165,21 @@ func TestCommandRequestKeepsClosedList(t *testing.T) {
 			t.Errorf("/%s is rejected: %v", name, err)
 		}
 	}
+	// A reload has the session read its plugins or its skills again, and the
+	// dash is part of the name.
+	for _, name := range []string{"reload-plugins", "reload-skills"} {
+		if err := req(&Command{Name: name}).Validate(); err != nil {
+			t.Errorf("/%s is rejected: %v", name, err)
+		}
+	}
 
 	bad := map[string]*Command{
 		"no command at all":            nil,
 		"command outside the list":     {Name: "permissions"},
 		"argument where none is taken": {Name: "clear", Arg: "everything"},
 		"an argument to a card":        {Name: "context", Arg: "all"},
+		"an argument to a reload":      {Name: "reload-skills", Arg: "all"},
+		"half of a reload":             {Name: "reload"},
 		"option outside the list":      {Name: "model", Arg: "gpt"},
 		"option not named":             {Name: "effort"},
 		"a line of its own":            {Name: "clear && rm -rf ~"},

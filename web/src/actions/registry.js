@@ -41,6 +41,14 @@ export const COMMANDS = {
         name: "Plan usage",
         effect: "The session draws its limits and what spent them, as a card in the feed. It is claude's own count: no request goes to the model.",
     },
+    "reload-plugins": {
+        name: "Reload plugins",
+        effect: "The session reads its plugins again, and with them the skills, agents, hooks, MCP and language servers they bring. No request goes to the model, and the conversation stays as it is.",
+    },
+    "reload-skills": {
+        name: "Reload skills",
+        effect: "The session reads its skills again, and nothing else. No request goes to the model, and the conversation stays as it is.",
+    },
     finalize: {
         name: "Wrap up",
         effect: "The session will put together a summary and update its notes. That is minutes of work and a noticeable share of the limit.",

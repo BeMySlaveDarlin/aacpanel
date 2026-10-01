@@ -89,6 +89,9 @@ const close = async () => {
         out.title = text(".sheet.on .cmdhead")[0] || "";
         out.groups = text(".sheet.on .cmdsechead > span:first-child");
         out.lines = text(".sheet.on .mcprow .cmdname");
+        out.sections = Array.from(document.querySelectorAll(".sheet.on .cmdsec")).map((s) =>
+            `${s.querySelector(".cmdsechead > span:first-child").textContent.trim()}: `
+            + Array.from(s.querySelectorAll(".cmdname")).map((n) => n.textContent.trim()).join(" "));
         out.modelNote = text(".sheet.on .mcprow").find((r) => r.startsWith("/model")) || "";
 
         await row("/hooks");
@@ -120,6 +123,15 @@ const close = async () => {
         await sleep(400);
         out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
         out.sheetAfterSend = Boolean(document.querySelector(".sheet.on"));
+
+        // A reload goes the same way, through a confirmation that does not warn.
+        await chip();
+        await row("/reload-plugins");
+        out.reloadConfirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
+        out.reloadDanger = Boolean(document.querySelector(".sheet.on .btnrow .btn.danger"));
+        document.querySelector(".sheet.on .btnrow .btn.primary").click();
+        await sleep(400);
+        out.reloadSent = sent.slice(1).map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
 
         show({ ...stream, transport: "" });
         await sleep(400);

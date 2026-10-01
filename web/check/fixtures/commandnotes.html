@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The answers of local commands as the collector reads them off a transcript:
+// two reloads typed one after the other, and a model picked by a command. The
+// first answer is longer than a line of a phone, the others are not.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
+
+const at = "2026-10-01T11:40:09.762Z";
+const items = [
+    { role: "me", text: "/reload-plugins", pos: 1, at },
+    { role: "note", text: "Reloaded: 10 plugins · 30 skills · 14 agents · 3 hooks · 1 plugin LSP server", pos: 2, at },
+    { role: "me", text: "/reload-skills", pos: 3, at },
+    { role: "note", text: "Reloaded skills: 67 skills available (no changes)", pos: 4, at },
+    { role: "me", text: "/model fable", pos: 5, at },
+    { role: "note", text: "Set model to Fable 5.1", pos: 6, at },
+];
+
+const feed = weld(items);
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(feed)} wide=${false}
+    onOpen=${() => {}} row=${(item) => html`<${Row} item=${item} session="lab" id="1" />`} /></div>`,
+    document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+
+(async () => {
+    await until(() => document.querySelectorAll(".mnote").length === 3);
+    await document.fonts.ready;
+    const col = document.querySelector(".feedcol").getBoundingClientRect();
+    window.done = {
+        notes: Array.from(document.querySelectorAll(".mnote")).map((el) => {
+            const box = el.getBoundingClientRect();
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            // One rect per line of the text: a line box of a wrapped plate.
+            const lines = Array.from(range.getClientRects()).map((r) => ({ left: r.left, right: r.right }));
+            return {
+                text: el.textContent,
+                cls: el.className,
+                left: box.left, right: box.right,
+                lines,
+                align: getComputedStyle(el).textAlign,
+            };
+        }),
+        colLeft: col.left,
+        colRight: col.right,
+    };
+})();
+</script>

@@ -474,7 +474,8 @@ func TestEveryExecActionReachableFromUI(t *testing.T) {
 func TestCommandListMatchesRegistry(t *testing.T) {
 	body := commandsBlock(t, srcFiles(t)[registryFile])
 
-	entry := regexp.MustCompile(`(?m)^\s{4}([a-z]+):\s*\{`)
+	// A name with a dash is a quoted key of the dictionary.
+	entry := regexp.MustCompile(`(?m)^\s{4}"?([a-z][a-z-]*)"?:\s*\{`)
 	onScreen := map[string]bool{}
 	for _, m := range entry.FindAllStringSubmatch(body, -1) {
 		onScreen[m[1]] = true

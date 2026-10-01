@@ -339,6 +339,23 @@ func TestASlashCommandToAStreamSessionIsAMessage(t *testing.T) {
 	}
 }
 
+// A reload goes to the holder as the line typed, its dash and all: claude runs
+// it itself and writes its answer into the transcript.
+func TestAReloadToAStreamSessionIsTheLineTyped(t *testing.T) {
+	for _, name := range []string{"reload-plugins", "reload-skills"} {
+		f := onTheStream(t, false)
+		e, _ := newTest(t, "")
+		r := req(action.SessionCommand, "demo")
+		r.Command = &action.Command{Name: name}
+		if _, err := e.Execute(context.Background(), r); err != nil {
+			t.Fatalf("/%s: %v", name, err)
+		}
+		if got := only(t, f); got.Op != stream.OpSend || got.Text != "/"+name {
+			t.Errorf("the holder was asked %+v, expected /%s as a message", got, name)
+		}
+	}
+}
+
 // Clearing on the stream starts a conversation under a new id: the holder
 // keeps the old one, and the session would drop off the panel.
 func TestClearIsNotSentToAStreamSession(t *testing.T) {
