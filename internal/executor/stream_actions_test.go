@@ -325,17 +325,51 @@ func TestASlashCommandToAStreamSessionIsAMessage(t *testing.T) {
 	f := onTheStream(t, false)
 	e, _ := newTest(t, "")
 	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "compact", Arg: "keep the plan"}
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := only(t, f)
+	if got.Op != stream.OpSend || got.Text != "/compact keep the plan" {
+		t.Errorf("the holder was asked %+v, expected the command as a message", got)
+	}
+	if !strings.Contains(detail, "/compact keep the plan sent to demo on the stream") {
+		t.Errorf("the report %q does not say what went where", detail)
+	}
+}
+
+// A model named with the command is set by the request of the protocol, the
+// way claude's own client sets it: as a message it would wait for a busy
+// session to end its turn.
+func TestAModelCommandOnTheStreamIsSetPastTheQueue(t *testing.T) {
+	f := onTheStream(t, true)
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
 	r.Command = &action.Command{Name: "model", Arg: "opus[1m]"}
 	detail, err := e.Execute(context.Background(), r)
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := only(t, f)
-	if got.Op != stream.OpSend || got.Text != "/model opus[1m]" {
-		t.Errorf("the holder was asked %+v, expected the command as a message", got)
+	if got.Op != stream.OpControl || got.Subtype != "set_model" || got.Fields["model"] != "opus[1m]" {
+		t.Errorf("the holder was asked %+v, expected set_model", got)
 	}
-	if !strings.Contains(detail, "/model opus[1m] sent to demo on the stream") {
-		t.Errorf("the report %q does not say what went where", detail)
+	if !strings.Contains(detail, "/model opus[1m] set on demo") {
+		t.Errorf("the report %q does not say what was set where", detail)
+	}
+}
+
+// A model the session does not take is refused with claude's reason, rather
+// than reported sent.
+func TestAModelTheStreamRefusesIsNotReportedSet(t *testing.T) {
+	f := onTheStream(t, false)
+	f.fails = map[string]string{stream.OpControl: "model nope is not available"}
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "model", Arg: "nope"}
+	if _, err := e.Execute(context.Background(), r); err == nil || !strings.Contains(err.Error(), "not available") {
+		t.Errorf("the refusal came back as %v", err)
 	}
 }
 
@@ -475,13 +509,19 @@ func TestTheModelsOfAStreamSessionAreTheOnesClaudeListed(t *testing.T) {
 	}
 }
 
-// A model and an effort picked from the list go the way a person types them:
-// the same slash command, which the holder remembers across a switch.
+// A model and an effort picked from the list go the way a person types them,
+// which the holder remembers across a switch: the model by the request that
+// sets it, the effort as the slash command.
 func TestAModelPickedOnTheStreamIsTheSlashCommand(t *testing.T) {
 	for _, c := range []struct {
-		set  action.Setting
-		line string
-	}{{action.Setting{Model: "claude-opus-4-8"}, "/model claude-opus-4-8"}, {action.Setting{Effort: "max"}, "/effort max"}} {
+		set     action.Setting
+		op      string
+		subtype string
+		line    string
+	}{
+		{action.Setting{Model: "claude-opus-4-8"}, stream.OpControl, "set_model", ""},
+		{action.Setting{Effort: "max"}, stream.OpSend, "", "/effort max"},
+	} {
 		f := onTheStream(t, false)
 		e, _ := newTest(t, "")
 		r := req(action.SessionSet, "demo")
@@ -490,8 +530,12 @@ func TestAModelPickedOnTheStreamIsTheSlashCommand(t *testing.T) {
 		if _, err := e.Execute(context.Background(), r); err != nil {
 			t.Fatal(err)
 		}
-		if got := only(t, f); got.Op != stream.OpSend || got.Text != c.line {
-			t.Errorf("the holder was asked %+v, expected %q", got, c.line)
+		got := only(t, f)
+		if got.Op != c.op || got.Subtype != c.subtype || got.Text != c.line {
+			t.Errorf("the holder was asked %+v, expected %s %q %q", got, c.op, c.subtype, c.line)
+		}
+		if c.set.Model != "" && got.Fields["model"] != c.set.Model {
+			t.Errorf("set_model carried %v, expected %q", got.Fields, c.set.Model)
 		}
 	}
 }

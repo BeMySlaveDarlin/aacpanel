@@ -80,17 +80,26 @@ func streamSend(ctx context.Context, s liveSession, text, messageID string) (str
 // streamCommand sends a slash command the way claude -p takes one: as a
 // message. Clearing is the exception: on the stream it starts a conversation
 // under a new id that the holder does not keep, and the session would drop
-// off the panel.
+// off the panel. A model named with the command is the other: as a message it
+// would wait in the queue for a busy session to end its turn, while claude's
+// own client sets it at once with the request of the protocol.
 func streamCommand(ctx context.Context, s liveSession, cmd *action.Command) (string, error) {
 	if cmd.Name == "clear" {
 		return "", fmt.Errorf("/clear is not sent to %s: on the stream it starts a conversation under a new id, "+
 			"and the session would drop off the panel. Close the session and open a new one instead", s.Name)
 	}
+	line := commandLine(cmd)
+	if cmd.Name == "model" && cmd.Arg != "" {
+		if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpControl, Subtype: "set_model",
+			Fields: map[string]any{"model": cmd.Arg}}); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s set on %s on the stream at once, past its queue", line, s.Name), nil
+	}
 	st, err := streamState(ctx, s)
 	if err != nil {
 		return "", err
 	}
-	line := commandLine(cmd)
 	if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpSend, Text: line}); err != nil {
 		return "", err
 	}

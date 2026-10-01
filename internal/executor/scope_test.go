@@ -117,7 +117,7 @@ func TestADefaultModelOnTheStreamIsWrittenIntoTheContour(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := only(t, f); got.Op != stream.OpSend || got.Text != "/model fable" {
+	if got := only(t, f); got.Op != stream.OpControl || got.Subtype != "set_model" || got.Fields["model"] != "fable" {
 		t.Errorf("the session itself was asked %+v", got)
 	}
 	raw, _ := os.ReadFile(path)
