@@ -129,6 +129,14 @@ class TestLines(unittest.TestCase):
         self.assertIn("leave it out of replies", line)
         self.assertNotIn("finalize", line, "a session that restarts itself is still told to wrap up")
 
+    def test_just_short_of_the_cap_the_stamp_names_the_cap_not_the_guards_margin(self):
+        # The guard restarts a turn ending within its margin under the cap; told of
+        # the margin, a session would wrap up short of it and stop there instead.
+        data = snapshot()
+        data["sessions"][0].update(tokens=795_000, pct=79.5)
+        self.assertIn("auto restart at 800k", stamp.line_context(data, "mine", 80, True))
+        self.assertIsNone(stamp.line_alarms(data, "mine", 80, True))
+
     def test_past_the_cap_with_auto_restart_the_alarm_holds_new_work_back(self):
         said = stamp.line_alarms(snapshot(), "other", 80, True)
         self.assertIn("CONTEXT past the cap", said or "",

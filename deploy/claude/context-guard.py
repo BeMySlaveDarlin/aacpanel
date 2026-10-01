@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Context guard: past its cap a session with Auto restart is told to wrap up and restart itself.
+"""Context guard: at its cap a session with Auto restart is told to wrap up and restart itself.
+
+At the cap or a little under it: a session ending a turn within RESTART_MARGIN of the
+cap would not stop again until someone wrote to it.
 
 Not while its agents, workflows or the commands it sent to the background are
 at work: a restart would end them. The news that one of them is done starts a turn of its
@@ -105,8 +108,8 @@ def mark_sent(session_id):
 
 def reason(pct, cap):
     """Returns what the model is told instead of stopping."""
-    return (f"The context of this session is at {pct:.0f}% of the model window, past the {cap}% "
-            "this project set as its context cap, and the project restarts its sessions there. "
+    return (f"The context of this session is at {pct:.0f}% of the model window and has reached the {cap}% "
+            "this project set as its context cap, where the project restarts its sessions. "
             "Take no new work. Put the state of the work on disk the way this project keeps it: "
             "its finalize skill if it has one, otherwise a handoff note for the next session and "
             "a commit of what is done. Then restart this session with session_restart, the tool of "
@@ -136,7 +139,7 @@ def main():
     session_id = payload.get("session_id") or ""
     state = read_state(os.path.join(state_dir, "state.json"))
     pct = fill(state, session_id)
-    if pct is None or pct < cap:
+    if pct is None or pct < cap - guards.RESTART_MARGIN:
         return
     if any(background.at_work(session_id, os.path.join(state_dir, "state.json"))):
         return

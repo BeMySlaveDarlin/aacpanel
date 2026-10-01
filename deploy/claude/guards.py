@@ -4,6 +4,14 @@ import os
 
 CAP_DEFAULT = 80
 
+# How far under the cap, in points of the window, a session of a project that
+# restarts its sessions is restarted at the end of a turn. A session wraps its
+# work up for the restart it sees coming and stops a little short of the cap,
+# and a session stopped under it does not stop again until someone writes to
+# it. The stamp names the cap itself, never the margin: told of the margin, a
+# session would stop short of that instead.
+RESTART_MARGIN = 1.0
+
 
 def home():
     """Returns the directory the executor keeps what the hooks of the host read in."""

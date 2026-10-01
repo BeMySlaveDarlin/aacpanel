@@ -167,10 +167,14 @@ database migrates.
 
 A restart of a session keeps a marker in `~/.local/state/aacpanel/restarting/`,
 named by the session, from its start to its end, whatever it ends with. The
-context guard hook asks a session past its cap for a restart once a
-conversation, and not while a marker of it younger than five minutes is there:
-the close of a restart lets the session stop once more, and an ask there would
-bring up a second session.
+context guard hook asks a session for a restart once a conversation, at the end
+of a turn at its cap or within a point under it, and not while a marker of it
+younger than five minutes is there: the close of a restart lets the session stop
+once more, and an ask there would bring up a second session. The point under the
+cap is there because a session wraps its work up for the restart it sees coming
+and stops a little short, and a session stopped under the cap does not stop again
+until someone writes to it; the prompt stamp names the cap alone, since a session
+told of the margin would stop short of that.
 
 **The delivery socket.** The executor has no access to transcripts, yet typing
 into a session in tmux is blind without them: whether the message landed, whether the

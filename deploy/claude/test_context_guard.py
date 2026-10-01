@@ -86,7 +86,7 @@ class TestGuard(unittest.TestCase):
         got = self.run_hook()
         self.assertEqual(got["decision"], "block")
         self.assertIn("84%", got["reason"])
-        self.assertIn("past the 80%", got["reason"])
+        self.assertIn("has reached the 80%", got["reason"])
         self.assertIn("with session_restart, the tool of the panel's server", got["reason"])
         self.assertIn("mcp__aacpanel__session_restart), without continue", got["reason"])
         self.assertIn("Do not go on with this conversation", got["reason"])
@@ -180,8 +180,17 @@ class TestGuard(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(folder)), ["mine", "recent"])
 
     def test_under_the_cap_nothing_is_said(self):
-        self.snapshot(pct=79.9, tokens=799_000)
+        self.snapshot(pct=78.9, tokens=789_000)
         self.assertIsNone(self.run_hook())
+
+    def test_a_turn_ending_just_short_of_the_cap_restarts(self):
+        # A session wrapped up for the restart at 795k of a 1M window and ended its
+        # turn: below the cap it would not stop again until someone wrote to it.
+        self.snapshot(pct=79.5, tokens=795_000)
+        got = self.run_hook()
+        self.assertIsNotNone(got, "a session that ended its turn at 795k is left standing under the cap")
+        self.assertEqual(got["decision"], "block")
+        self.assertIn("80%", got["reason"])
 
     def test_the_cap_is_the_project_setting(self):
         self.snapshot(pct=61.0, tokens=610_000)
