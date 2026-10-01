@@ -532,10 +532,11 @@ func TestLivePanelTerminalTellsWhatRunsAndItsLastLine(t *testing.T) {
 		return last
 	}
 
-	idle := seen(func(term action.Term) bool { return term.Last != "" })
-	if idle.Busy {
-		t.Errorf("a shell at its prompt is listed busy: %+v", idle)
-	}
+	// The command in the foreground and the screen are read apart, and the
+	// shell's own start can run a command of its profile, such as locale, as
+	// its prompt shows, so the shell is waited for until it is listed idle: one
+	// that stays busy at its prompt fails here.
+	seen(func(term action.Term) bool { return term.Last != "" && !term.Busy })
 	if _, err := panelTmux.run(t.Context(), "send-keys", "-t", "="+id+":",
 		"printf 'one\\ntwo\\n'; sleep 30", "Enter"); err != nil {
 		t.Fatal(err)
