@@ -124,10 +124,6 @@ func TestEveryToolOfTheCollectorReachesItsOwnSocket(t *testing.T) {
 	}
 }
 
-// instructionsMax is the most of a server's word claude keeps, counted as
-// JavaScript counts a string, in UTF-16 units: past it the word is cut.
-const instructionsMax = 2048
-
 // The server's word fits what claude keeps of it even when the place holds the
 // longest checklist the tool takes: cut, it loses the lines of the last tools,
 // and the model never learns when to reach for them.
@@ -163,7 +159,8 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	if !strings.Contains(said, "39 of 40 steps finished") {
 		t.Fatalf("the word does not carry the checklist of the place: %q", said)
 	}
-	if n := len(utf16.Encode([]rune(said))); n > instructionsMax {
-		t.Errorf("the server's word is %d units, claude keeps %d:\n%s", n, instructionsMax, said)
+	// Claude counts the word as JavaScript counts a string, in UTF-16 units.
+	if n := len(utf16.Encode([]rune(said))); n > WordMax {
+		t.Errorf("the server's word is %d units, claude keeps %d:\n%s", n, WordMax, said)
 	}
 }

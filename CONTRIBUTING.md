@@ -272,7 +272,7 @@ for".
 | `TestPreviewIsTheCommandTheLaunchRuns` | the command a settings page shows is the one the launch runs, built by the same code |
 | `TestProfilesSchemaNeedsNoDatabase` | the schema is answered with the database down: the screens are drawn from it |
 | `TestSchemaIsWellFormed` | every parameter of the schema names its levels, what an absent value leaves to and when a live session takes a change |
-| `TestTheServersWordFitsWhatClaudeKeeps` | the word the panel's MCP server gives a session fits the 2048 characters claude keeps of it, even with the longest checklist: past them claude cuts it, and the lines of the last tools never reach the model |
+| `TestTheServersWordFitsWhatClaudeKeeps` | the word the panel's MCP server gives a session fits the 4096 UTF-16 units claude keeps of it under the ceiling the launcher lifts, even with the longest checklist: past them claude cuts it, and the lines of the last tools never reach the model |
 | `TestAnEmptyListTravelsAsAnEmptyList` | a list that is empty is still sent: dropped by `omitempty` it reaches the screen as `undefined`, and a reader counting its length takes the panel down with it |
 
 ### A reply keeps its shape

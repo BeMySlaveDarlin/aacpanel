@@ -1250,7 +1250,12 @@ directory other than the default, `-e AACP_STATE_DIR=<state>` goes after the
 name. A second `add` of the name is refused: a new path goes in after
 `claude mcp remove aacpanel -s user`. A session the panel starts gets the same
 server on its command line anyway, and claude keeps one server of a name, so
-the server in the account serves the sessions started by hand.
+the server in the account serves the sessions started by hand. Such a session
+keeps 2048 UTF-16 units of the server's word, claude's default, and cuts the
+rest, the lines of the last tools first: the launcher lifts the ceiling for its
+own sessions with `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=4096`, and a session
+started by hand gets the same with the variable in the environment claude
+starts in.
 
 Rules of the machine's own for the text of a brief go into
 `${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md`: the brief tool gives

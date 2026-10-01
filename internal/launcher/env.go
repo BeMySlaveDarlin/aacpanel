@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"aacpanel/internal/hostcfg"
+	"aacpanel/internal/toolset"
 )
 
 var routeVars = []string{"CLAUDE_PROFILE", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN"}
@@ -97,6 +99,10 @@ func childEnv(own []string, params Params, display, lang, configDir string) ([]s
 			lang = defaultLang
 		}
 		env["LANG"] = lang
+	}
+
+	if params.tools != "" {
+		env[toolset.WordEnv] = strconv.Itoa(toolset.WordMax)
 	}
 
 	for name, value := range params.Env {

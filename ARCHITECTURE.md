@@ -974,10 +974,15 @@ place, `internal/toolset`: the executor serves it and the launcher takes the
 allowed names from it, so a session is never allowed a tool the server does not
 have. The server's word to a session — in its system prompt — is a lead and a
 line from every tool, since a tool of a server is often deferred and its
-description unread. Claude keeps 2048 characters of that word, counted in
-UTF-16 units, and cuts the rest mid-sentence: the lead and every line fit it
-even when the session holds the longest checklist the tool takes, and a test
-holds that, so a new tool pays for its line out of the same budget. `-plan`
+description unread. Claude keeps 2048 UTF-16 units of that word by default
+and cuts the rest mid-sentence. The launcher lifts the ceiling to 4096 with
+`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the environment of every session
+it hands the tools; claude holds the description of every tool of every
+server to the same ceiling, so those are lifted too. The lead and every line
+fit the lifted ceiling even when the session holds the longest checklist the
+tool takes, and a test holds that, so a new tool pays for its line out of the
+same budget. A session started by hand keeps the default unless the variable
+is in its environment, and past 2048 it loses the lines of the last tools. `-plan`
 starts the same server: a live session keeps the
 MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries

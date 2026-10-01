@@ -21,6 +21,17 @@ import (
 const lead = "The person follows this session in the panel, on their phone and desk: " +
 	"these tools reach them there, and the terminal does not show what they do."
 
+// WordEnv and WordMax lift what claude keeps of a server's word: by default it
+// keeps 2048 UTF-16 units and cuts the rest, and the lines of the last tools
+// never reach the model. The launcher sets the variable for every session it
+// hands the panel's tools; a session started otherwise keeps the default.
+// Claude holds the description of every tool of every server to the same
+// ceiling, so the variable lifts those too.
+const (
+	WordEnv = "CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH"
+	WordMax = 4096
+)
+
 func tools() []mcp.Tool {
 	return []mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),

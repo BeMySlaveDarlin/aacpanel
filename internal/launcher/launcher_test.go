@@ -8,9 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"aacpanel/internal/toolset"
 )
 
 type fproc struct {
@@ -398,6 +401,30 @@ func TestChildEnvKeepsQuietWhereNoWindowsAreOpened(t *testing.T) {
 		if strings.Contains(w, "graphical session") {
 			t.Errorf("no windows are opened, yet the graphical session is mentioned: %q", w)
 		}
+	}
+}
+
+// A session handed the panel's tools keeps the whole word of their server:
+// past claude's default ceiling the lines of the last tools are cut. A launch
+// without the tools leaves claude's default alone, the caller's value never
+// reaches the session, and the map's value wins.
+func TestChildEnvLiftsTheCeilingOfTheServersWord(t *testing.T) {
+	fakeProc(t)
+	lifted := toolset.WordEnv + "=" + strconv.Itoa(toolset.WordMax)
+	own := []string{"HOME=/home/u", toolset.WordEnv + "=100"}
+	env, _ := childEnv(own, Params{tools: "{}"}, ":10", "", "")
+	if !slices.Contains(env, lifted) {
+		t.Errorf("a session with the panel's tools does not get %s: %v", lifted, env)
+	}
+	env, _ = childEnv(own, Params{}, ":10", "", "")
+	for _, kv := range env {
+		if strings.HasPrefix(kv, toolset.WordEnv+"=") {
+			t.Errorf("a session without the panel's tools got %s", kv)
+		}
+	}
+	env, _ = childEnv(own, Params{tools: "{}", Env: map[string]string{toolset.WordEnv: "8192"}}, ":10", "", "")
+	if !slices.Contains(env, toolset.WordEnv+"=8192") {
+		t.Errorf("the map's ceiling lost to the launcher's: %v", env)
 	}
 }
 
