@@ -173,9 +173,12 @@ func TestTermsCarryTheLastLineOnTheirScreen(t *testing.T) {
 		"t-00000003": "\n\n   \n\n",
 	}, "t-00000005")
 	// A screen has a bound of its own, far under the one of any tmux call: the
-	// one that never answers is given up on long before its sleep ends.
+	// one that never answers is given up on long before its sleep ends. The
+	// bound stays roomy for a screen that does answer: a runner busy with other
+	// tests is slow to start the fake tmux, and a screen cut short by a tight
+	// bound reads as one that never came.
 	prevCapture, prevTmux := termCaptureTimeout, tmuxTimeout
-	termCaptureTimeout, tmuxTimeout = 50*time.Millisecond, time.Minute
+	termCaptureTimeout, tmuxTimeout = 500*time.Millisecond, time.Minute
 	t.Cleanup(func() { termCaptureTimeout, tmuxTimeout = prevCapture, prevTmux })
 
 	began := time.Now()
