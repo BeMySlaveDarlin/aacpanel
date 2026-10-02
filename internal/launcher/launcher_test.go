@@ -243,6 +243,17 @@ func TestLeaksIgnoreProfileRoute(t *testing.T) {
 	}
 }
 
+// What the launcher puts into a session on purpose is never a leak: a start
+// that reported its own variables would cry wolf on every session.
+func TestLeaksIgnoreWhatTheLauncherSets(t *testing.T) {
+	fakeProc(t)
+	env, _ := childEnv([]string{"HOME=/home/u", "CLAUDE_PROFILE=work"}, Params{tools: "{}"}, ":10", "", "/home/u/.claude-contours/work")
+	fakeProc(t, fproc{pid: 200, comm: "claude", env: env})
+	if got := leaks(200); len(got) != 0 {
+		t.Errorf("the launcher's own variables were counted as a leak: %v", got)
+	}
+}
+
 func TestBusWarningLooksBehindTheAddress(t *testing.T) {
 	dir := t.TempDir()
 	plain := filepath.Join(dir, "not-a-socket")

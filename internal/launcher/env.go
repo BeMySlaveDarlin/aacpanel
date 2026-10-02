@@ -17,7 +17,7 @@ var routeVars = []string{"CLAUDE_PROFILE", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAU
 
 func isRouteVar(name string) bool { return slices.Contains(routeVars, name) }
 
-var grantedVars = append(append([]string{}, routeVars...), "CLAUDE_CODE_TMPDIR")
+var grantedVars = append(append([]string{}, routeVars...), "CLAUDE_CODE_TMPDIR", toolset.WordEnv)
 
 func isGrantedVar(name string) bool { return slices.Contains(grantedVars, name) }
 
