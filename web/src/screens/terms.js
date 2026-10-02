@@ -13,9 +13,9 @@ import { Term } from "./chat/term.js";
 import { Pages, useProfilePage } from "./sessions/pages.js";
 import { tabName, useTerms } from "../data/terms.js";
 import {
-    afterClose, CONTOUR_KEY, contoursOf, homeOf, pageOf, pickOf, placesOf, tabsOf,
+    CONTOUR_KEY, contoursOf, homeOf, pageOf, pickOf, placesOf, tabsOf,
 } from "./terms/places.js";
-import { useTermActs } from "./terms/acts.js";
+import { useTabClose, useTermActs } from "./terms/acts.js";
 import {
     CloseTab, NewButton, PlaceHead, PlacePicker, RenameTab, TabMenu, TermCard, TermTabs,
 } from "./terms/parts.js";
@@ -134,22 +134,24 @@ function ContourPage({ page, onNew, onOpen }) {
 // tabs under it, the terminal itself, and what is done to the tab behind ⋯.
 function TermLayer({ open, places, acts, onOpen, onNew, onBack }) {
     useBackClose(true, onBack);
-    const [look, setLook] = useState("");
     const { entry, tabs, t } = tabsOf(places, open);
-
-    // A closed tab gives way to the tab typed into last; the last one closed
-    // puts the place down.
-    const closed = (gone) => {
-        const next = afterClose(entry, gone);
-        if (next) onOpen({ id: next.id, place: open.place });
-        else onBack();
-    };
+    // look is the sheet over the terminal and the tab it is about: the menu
+    // and the new name are of the open tab, the question before closing of
+    // the tab it was asked for — the open one from the menu, any tab from its
+    // ×. The tab is read from the list by its id, so the question follows
+    // what runs in it while it is open.
+    const [look, setLook] = useState(null);
+    const lookAt = (what, it = t) => setLook({ what, id: it.id });
+    const done = () => setLook(null);
+    const about = look && tabs.find((it) => it.id === look.id);
+    const what = about ? look.what : "";
+    const closing = useTabClose({ acts, entry, open, onOpen, onBack, ask: (it) => lookAt("close", it) });
 
     return html`
         <${BackHead} kind="talk" onBack=${onBack} label="to the places"
                      tools=${html`
                          <button class="pmore" type="button" aria-label="what to do with the tab"
-                                 onClick=${() => setLook("menu")}>${Icon.more()}</button>
+                                 onClick=${() => lookAt("menu")}>${Icon.more()}</button>
                      `}>
             <div class="chathead">
                 <h2>${entry.label}</h2>
@@ -161,17 +163,20 @@ function TermLayer({ open, places, acts, onOpen, onNew, onBack }) {
         <${TermTabs}
             tabs=${tabs}
             current=${open.id}
+            acts=${acts}
+            going=${closing.going}
             onPick=${(it) => onOpen({ id: it.id, place: open.place })}
+            onClose=${closing.press}
             onNew=${() => onNew(open.place)}
         />
         <${Term} key=${open.id} term=${open.id} />
-        <${Sheet} open=${Boolean(look)} onClose=${() => setLook("")} inner
-                  label=${look === "rename" ? "rename the tab" : look === "close" ? "close the tab" : tabName(t)}>
-            ${look === "menu" && html`<${TabMenu} t=${t} acts=${acts} onLook=${setLook}
-                                                   onNew=${() => onNew(open.place)} onDone=${() => setLook("")} />`}
-            ${look === "rename" && html`<${RenameTab} t=${t} acts=${acts} onDone=${() => setLook("")} />`}
-            ${look === "close" && html`<${CloseTab} t=${t} acts=${acts} onClosed=${closed}
-                                                    onDone=${() => setLook("")} />`}
+        <${Sheet} open=${Boolean(what)} onClose=${done} inner
+                  label=${what === "rename" ? "rename the tab" : what === "close" ? "close the tab" : tabName(about)}>
+            ${what === "menu" && html`<${TabMenu} t=${about} acts=${acts} onLook=${(next) => lookAt(next, about)}
+                                                   onNew=${() => onNew(open.place)} onDone=${done} />`}
+            ${what === "rename" && html`<${RenameTab} t=${about} acts=${acts} onDone=${done} />`}
+            ${what === "close" && html`<${CloseTab} t=${about} acts=${acts} onClosed=${closing.closed}
+                                                    onDone=${done} />`}
         <//>
     `;
 }

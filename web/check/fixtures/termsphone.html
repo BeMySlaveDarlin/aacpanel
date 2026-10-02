@@ -8,9 +8,10 @@
 // The terminals of places on a phone, walked in the whole shell the way a
 // person walks them: the bottom menu and the menu under the logo, the pager
 // of contours with the places under them, the choice of where a new terminal
-// starts, the terminal of a place with its tabs, what ⋯ does to a tab, and
-// the question before a tab is closed. The host is played by the page: it keeps the list, answers the
-// actions and records what was asked.
+// starts, the terminal of a place with its tabs, what ⋯ does to a tab, the
+// question before a tab is closed, and the × of each tab. The host is played
+// by the page: it keeps the list, answers the actions and records what was
+// asked.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { MobileShell } from "/src/mobile/shell.js";
@@ -62,6 +63,15 @@ const profileMap = [
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const asked = [];
 let made = 0;
+// held keeps the answer to the next close back until the walk lets it go, so
+// the walk can look at a tab whose close is on its way.
+let held = null;
+const holdClose = () => {
+    let release;
+    const answered = new Promise((r) => { release = r; });
+    held = { answered, release };
+    return held;
+};
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u === "/api/term") return json({ available: true });
@@ -79,7 +89,10 @@ window.fetch = async (url, init) => {
                 .sort((a, b) => a.place.localeCompare(b.place) || a.created - b.created);
             return json({ ok: true, detail: "", logged: true, id });
         }
-        if (body.kind === "term.close") terms = terms.filter((t) => t.id !== p.id);
+        if (body.kind === "term.close") {
+            if (held) await held.answered;
+            terms = terms.filter((t) => t.id !== p.id);
+        }
         if (body.kind === "term.rename") terms = terms.map((t) => (t.id === p.id ? { ...t, name: p.name } : t));
         return json({ ok: true, detail: "", logged: true });
     }
@@ -198,6 +211,49 @@ const pageOf = (label) => {
     return all(".pfpages > .pfpage")[at] || null;
 };
 const actions = (kind) => asked.filter((a) => a.kind === kind);
+const closesOf = (id) => actions("term.close").filter((a) => a.params.id === id).length;
+// The tabs over a terminal read as their names, the open one starred.
+const cells = () => all(".ttabs .ttabcell");
+const tabRow = () => cells().map((c) => `${text(c.querySelector("[role=tab]"))}${c.classList.contains("on") ? "*" : ""}`);
+const xOf = (i) => (cells()[i] ? cells()[i].querySelector(".ttabx") : null);
+// inkOf is the colour a variable of the theme paints with where the tabs stand.
+const inkOf = (name) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${name})`;
+    document.querySelector(".ttabs").appendChild(probe);
+    const ink = getComputedStyle(probe).color;
+    probe.remove();
+    return ink;
+};
+// A tab and its × read as how they stand: the name of the × and whether it is
+// inside the tab, the role of the cell around them, whether the × stands after
+// the name on its line and as tall as the tab, how wide it is and its mark,
+// whether it is drawn, the colour of its mark against the faint ink and the
+// accent, and whether the name is cut with an ellipsis.
+const cellShot = (c) => {
+    const tab = c.querySelector("[role=tab]");
+    const x = c.querySelector(".ttabx");
+    const name = tab.querySelector(".ttabname");
+    const [tr, xr, nr, ir] = [tab, x, name, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
+    const style = getComputedStyle(x);
+    return {
+        name: text(name),
+        on: c.classList.contains("on"),
+        label: x.getAttribute("aria-label"),
+        nested: tab.contains(x),
+        role: c.getAttribute("role") || "",
+        after: xr.left >= nr.right - 0.5,
+        sameLine: Math.abs((xr.top + xr.bottom) / 2 - (nr.top + nr.bottom) / 2) <= 2,
+        tall: xr.height >= tr.height - 0.5,
+        width: Math.round(xr.width),
+        icon: Math.round(Math.max(ir.width, ir.height)),
+        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
+        ink: style.color === inkOf("--accent") ? "accent" : style.color === inkOf("--ink-faint") ? "faint" : style.color,
+        cut: name.scrollWidth > name.clientWidth,
+        ellipsis: getComputedStyle(name).textOverflow === "ellipsis",
+    };
+};
+const LONG = "tail -f /var/log/aacpanel/collector.log";
 
 window.done = (async () => {
     const out = {};
@@ -210,8 +266,12 @@ window.done = (async () => {
         document.querySelector("header .host").click();
         await until(() => sheet() && sheet().querySelector(".item"));
         out.logoMenu = all(".sheet.on .item").map(text);
-        document.querySelector(".scrim.on") && document.querySelector(".scrim.on").click();
+        // The cross puts the menu away at once. The scrim does it only once
+        // the menu has joined the back gesture, after its first paint, and a
+        // menu left open would stand in for every sheet the walk looks for.
+        document.querySelector(".sheet.on .sheetclose").click();
         await until(() => !sheet());
+        if (sheet()) throw new Error("the menu under the logo did not close");
 
         navButton("Terminals").click();
         await until(() => all(".pftab").length === 3 && pageOf("personal") && pageOf("personal").querySelector(".tcard"));
@@ -330,6 +390,70 @@ window.done = (async () => {
         document.querySelector(".phead .pback").click();
         await until(() => document.querySelector(".pftab.on") && navButton("Terminals"));
         out.back = { current: placeTab(document.querySelector(".pftab.on")), nav: navItems() };
+
+        // The × of each tab. Home holds an idle zsh and htop running; two more
+        // shells start there, the last one takes a name too long for its tab,
+        // and the first zsh is opened again: the tabs typed into later stand
+        // after it, so a close that moved the screen would be seen.
+        all(".tplace", pageOf("personal")).find((sec) => text(sec.querySelector(".theadname")) === "Home")
+            .querySelector(".tcard").click();
+        await until(() => document.querySelector(".ttabs .tadd") && lastStream() && lastStream().url.includes("term=t-h1"));
+        document.querySelector(".ttabs .tadd").click();
+        await until(() => actions("term.start").length === 3 && lastStream().url.includes("term=t-new3"));
+        document.querySelector(".ttabs .tadd").click();
+        await until(() => actions("term.start").length === 4 && lastStream().url.includes("term=t-new4"));
+        await until(() => !sheet());
+        document.querySelector(".phead .pmore").click();
+        await until(() => rowOf("Rename tab"));
+        rowOf("Rename tab").click();
+        const longField = await until(() => document.querySelector(".sheet.on .rnname"));
+        longField.value = LONG;
+        longField.dispatchEvent(new Event("input", { bubbles: true }));
+        await until(() => !all(".sheet.on .btn.primary").pop().disabled);
+        all(".sheet.on .btn.primary").pop().click();
+        await until(() => !sheet() && tabRow().includes(`${LONG}*`));
+        cells()[0].querySelector("[role=tab]").click();
+        await until(() => tabRow()[0] === "zsh*" && lastStream().url.includes("term=t-h1"));
+        out.x = { before: tabRow(), cells: cells().map(cellShot) };
+        await pause("X");
+
+        // × on an idle tab that is not the open one closes it at once; the
+        // host keeps its answer back for a moment, and the × stays down
+        // meanwhile, a second press sending nothing.
+        const hold = holdClose();
+        xOf(3).click();
+        await until(() => closesOf("t-new4") === 1);
+        const down = await until(() => xOf(3) && xOf(3).disabled);
+        xOf(3).click();
+        const twice = closesOf("t-new4");
+        held = null;
+        hold.release();
+        await until(() => tabRow().length === 3);
+        out.x.idle = { down: Boolean(down), sentTwice: twice > 1, closes: closesOf("t-new4"), sheet: Boolean(sheet()), row: tabRow() };
+
+        // × on a tab where something runs asks first, naming what runs, and
+        // sends nothing until the question is answered; the open tab stays.
+        xOf(1).click();
+        await until(() => document.querySelector(".sheet.on .tclose"));
+        out.x.running = {
+            title: text(document.querySelector(".sheet.on .tclose .stitle")),
+            sub: text(document.querySelector(".sheet.on .tclose .ssub")),
+            closedBefore: closesOf("t-h2"),
+        };
+        all(".sheet.on .tclose .btn").find((b) => text(b) === "Close tab").click();
+        await until(() => closesOf("t-h2") === 1 && tabRow().length === 2 && !sheet());
+        out.x.running.closes = closesOf("t-h2");
+        out.x.running.row = tabRow();
+
+        // × on the open tab gives way to the one typed into last.
+        xOf(0).click();
+        await until(() => closesOf("t-h1") === 1 && tabRow().length === 1 && lastStream().url.includes("term=t-new3"));
+        out.x.open = { closes: closesOf("t-h1"), sheet: Boolean(sheet()), row: tabRow(), stream: lastStream().url.replace(/&cols=.*$/, "") };
+
+        // × on the last tab puts the place down.
+        xOf(0).click();
+        await until(() => closesOf("t-new3") === 1 && !document.querySelector(".ttabs") && document.querySelector(".pftab.on"));
+        out.x.last = { closes: closesOf("t-new3"), layer: Boolean(document.querySelector(".ttabs")), pager: Boolean(document.querySelector(".pftab.on")) };
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

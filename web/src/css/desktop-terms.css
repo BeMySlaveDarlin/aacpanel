@@ -24,8 +24,8 @@
     .tcard:hover { background: var(--glass-2); }
 
     /* An open terminal: the way back and the tabs where a head would be, the
-       window and the closing at the end of the line, the terminal under them
-       taking the rest. */
+       window at the end of the line, the terminal under them taking the
+       rest. */
     .dkterm { padding: 0 .8rem .8rem; gap: .6rem; }
     .dkterm .dkheadtop .ttabsdesk { flex: 0 1 auto; min-width: 0; overflow-x: auto; }
     .dkterm .dkheadtop .tgrow { flex: 1 1 0; }
@@ -33,6 +33,16 @@
     .ttabsdesk .dktab { font-family: var(--mono); white-space: nowrap; }
     .ttabsdesk .dktab.tadd { color: var(--accent); }
     .ttabsdesk .dktab svg { width: var(--i-sm); height: var(--i-sm); }
+
+    /* A tab and its × are one segment: the fill of the open tab, and of the
+       one under the pointer, is drawn on the cell rather than on the tab, so
+       the × stands inside the segment, as tall as it. */
+    .ttabsdesk .ttabcell { border-radius: calc(var(--r-small) - 2px); }
+    .ttabsdesk .ttabcell .dktab { min-width: 0; padding-right: .1rem; background: none; box-shadow: none; }
+    .ttabsdesk .ttabcell:hover { background: var(--glass); }
+    .ttabsdesk .ttabcell.on { background: var(--accent-bg); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
+    .ttabsdesk .ttabx { width: 1.75rem; min-height: 0; }
+    .ttabsdesk .ttabx:hover:not(:disabled) { color: var(--ink); }
     .dktab.tback { color: var(--accent); font-weight: 600; }
     .dktab.tback .chev { display: flex; width: var(--i-sm); height: var(--i-sm); }
     .dktab.tback .chev svg { width: var(--i-sm); height: var(--i-sm); }

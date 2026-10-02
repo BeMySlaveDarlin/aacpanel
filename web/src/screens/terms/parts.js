@@ -48,23 +48,38 @@ export function NewButton({ onNew }) {
     `;
 }
 
-// TermTabs are the terminals of one place, the open one lit, and a tab that
-// starts one more there. The phone draws them as words on a line, the wide
-// screen as the segments its conversations switch views with.
-export function TermTabs({ tabs, current, onPick, onNew, wide = false }) {
+// TermTabs are the terminals of one place, the open one lit, each with an ×
+// that closes it, and a tab that starts one more there. The phone draws them
+// as words on a line, the wide screen as the segments its conversations switch
+// views with. A tab and its × stand side by side in a cell without a role of
+// its own, so the list holds the tabs themselves and no button sits inside
+// another. going are the ids of the tabs whose close is on its way: their ×
+// stays down, as every × does when the executor cannot close a tab, saying
+// why.
+export function TermTabs({ tabs, current, acts, going = [], onPick, onClose, onNew, wide = false }) {
     const box = wide ? "dktabs ttabsdesk" : "ttabs";
     const one = wide ? "dktab" : "ttab";
     return html`
         <div class=${box} role="tablist" aria-label="terminals of the place">
-            ${tabs.map((t) => html`
-                <button key=${t.id} type="button" role="tab"
-                        class=${`${one}${t.id === current ? " on" : ""}`}
-                        aria-selected=${t.id === current ? "true" : "false"}
-                        onClick=${() => t.id !== current && onPick(t)}>
-                    ${runs(t) && html`<span class="tdot run"></span>`}
-                    <span class="ttabname">${tabName(t)}</span>
-                </button>
-            `)}
+            ${tabs.map((t) => {
+                const on = t.id === current;
+                return html`
+                    <span key=${t.id} class=${`ttabcell${on ? " on" : ""}`} role="presentation">
+                        <button type="button" role="tab" class=${`${one}${on ? " on" : ""}`}
+                                aria-selected=${on ? "true" : "false"}
+                                onClick=${() => !on && onPick(t)}>
+                            ${runs(t) && html`<span class="tdot run"></span>`}
+                            <span class="ttabname">${tabName(t)}</span>
+                        </button>
+                        <button type="button" class="ttabx" aria-label=${`close ${tabName(t)}`}
+                                disabled=${!acts.can.close || going.includes(t.id)}
+                                title=${acts.can.close ? undefined : acts.why.close}
+                                onClick=${() => onClose(t)}>
+                            ${Icon.close()}
+                        </button>
+                    </span>
+                `;
+            })}
             <button type="button" class=${`${one} tadd`} aria-label="a new tab in this place" onClick=${onNew}>
                 ${Icon.plus()}
             </button>

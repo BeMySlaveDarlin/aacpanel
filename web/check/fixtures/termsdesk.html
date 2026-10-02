@@ -8,8 +8,8 @@
 // The terminals section of the wide screen: its button after the sessions,
 // the places side by side as columns with home first, the choice of the ones
 // shown and the button of a new terminal above them, and a card opening its
-// terminal under the tabs of its place, with the window and the closing of
-// the tab at the end of the line.
+// terminal under the tabs of its place, each with the × that closes it, and
+// the window at the end of the line.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { DesktopShell } from "/src/desktop/shell.js";
@@ -85,12 +85,15 @@ const exec = { available: true, kinds: ["term.start", "term.close", "term.rename
 const snapshot = { at: 1, hostName: "helios", sessions: [], profileMap, limits: null, host: { home: "/home/u" } };
 const wait = { opening: () => [], of: () => null };
 const alerts = { kind: "ready", alerts: [], older: [], reload: () => {} };
-render(h(ToastHost, null, h(GateHost, null, html`<${DesktopShell} snapshot=${snapshot}
+// mount draws the shell, and draws it again over itself with another
+// executor: one that does not know how to close a tab.
+const mount = (exec) => render(h(ToastHost, null, h(GateHost, null, html`<${DesktopShell} snapshot=${snapshot}
     tree=${{ stacks: [], running: 0, total: 0 }} treeError=${null} hostError=${null} ageSec=${1} history=${[]} faults=${[]}
     alerts=${alerts} openAlerts=${0} exec=${exec} onRefresh=${() => {}} wait=${wait}
     theme="space" onTheme=${() => {}} updateReady=${false} updating=${false} onApplyUpdate=${() => {}}
     route=${{ here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }}
     jump=${null} onJumped=${() => {}} />`)), document.getElementById("root"));
+mount(exec);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms = 3000) => {
@@ -105,6 +108,48 @@ const until = async (fn, ms = 3000) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const all = (sel, from = document) => Array.from(from.querySelectorAll(sel));
 const sections = () => all(".dktop .dkibs")[0];
+const sheet = () => document.querySelector(".sheet.on");
+const closes = () => asked.filter((a) => a.kind === "term.close");
+// The tabs over a terminal read as their names, the open one starred.
+const cells = () => all(".dkterm .ttabsdesk .ttabcell");
+const tabRow = () => cells().map((c) => `${text(c.querySelector("[role=tab]"))}${c.classList.contains("on") ? "*" : ""}`);
+const xNamed = (name) => {
+    const cell = cells().find((c) => text(c.querySelector("[role=tab]")) === name);
+    return cell ? cell.querySelector(".ttabx") : null;
+};
+// inkOf is the colour a variable of the theme paints with where the tabs stand.
+const inkOf = (name) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${name})`;
+    document.querySelector(".ttabsdesk").appendChild(probe);
+    const ink = getComputedStyle(probe).color;
+    probe.remove();
+    return ink;
+};
+// A tab and its × read as on the phone.
+const cellShot = (c) => {
+    const tab = c.querySelector("[role=tab]");
+    const x = c.querySelector(".ttabx");
+    const name = tab.querySelector(".ttabname");
+    const [tr, xr, nr, ir] = [tab, x, name, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
+    const style = getComputedStyle(x);
+    return {
+        name: text(name),
+        on: c.classList.contains("on"),
+        label: x.getAttribute("aria-label"),
+        nested: tab.contains(x),
+        role: c.getAttribute("role") || "",
+        after: xr.left >= nr.right - 0.5,
+        sameLine: Math.abs((xr.top + xr.bottom) / 2 - (nr.top + nr.bottom) / 2) <= 2,
+        tall: xr.height >= tr.height - 0.5,
+        width: Math.round(xr.width),
+        icon: Math.round(Math.max(ir.width, ir.height)),
+        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
+        ink: style.color === inkOf("--accent") ? "accent" : style.color === inkOf("--ink-faint") ? "faint" : style.color,
+        cut: name.scrollWidth > name.clientWidth,
+        ellipsis: getComputedStyle(name).textOverflow === "ellipsis",
+    };
+};
 // A card reads as its name, its dot and the last line of its screen, with how
 // that line is set, as on the phone.
 const cardShot = (c) => {
@@ -170,6 +215,7 @@ window.done = (async () => {
             buttons: all(":scope > .btn", head).map(text),
             stream: lastStream().url.replace(/&cols=.*$/, ""),
             columns: Boolean(document.querySelector(".pfdesk")),
+            cells: cells().map(cellShot),
         };
         const s = lastStream();
         await until(() => s.on.ready && s.onmessage);
@@ -183,15 +229,33 @@ window.done = (async () => {
 
         all(":scope > .btn", head).find((b) => text(b) === "Open in a window").click();
         await until(() => asked.some((a) => a.kind === "term.console"));
-        all(":scope > .btn", head).find((b) => text(b) === "Close tab").click();
+        // × on the open tab, where make runs, asks first.
+        xNamed("make check").click();
         await until(() => document.querySelector(".sheet.on .tclose"));
         out.asked = asked.map((a) => a.kind);
+        out.question = text(document.querySelector(".sheet.on .tclose .stitle"));
         all(".sheet.on .tclose .btn").find((b) => text(b) === "Close tab").click();
-        await until(() => asked.some((a) => a.kind === "term.close") && lastStream().url.includes("term=t-s2"));
+        await until(() => closes().length === 1 && lastStream().url.includes("term=t-s2"));
         out.closed = {
-            action: asked.find((a) => a.kind === "term.close"),
+            action: closes()[0],
             on: text(document.querySelector(".dkterm .ttabsdesk .dktab.on")),
         };
+
+        // × on the third tab, idle and not the open one, closes it at once
+        // and leaves zsh open.
+        await until(() => !sheet());
+        xNamed("git log").click();
+        await until(() => closes().length === 2 && tabRow().length === 1);
+        out.other = { action: closes()[1], sheet: Boolean(sheet()), row: tabRow(), stream: lastStream().url.replace(/&cols=.*$/, "") };
+
+        // An executor that does not know how to close a tab keeps every ×
+        // down, saying why.
+        mount({ ...exec, kinds: exec.kinds.filter((k) => k !== "term.close") });
+        await until(() => xNamed("zsh") && xNamed("zsh").disabled);
+        out.unknown = cells().map((c) => {
+            const x = c.querySelector(".ttabx");
+            return { disabled: x.disabled, title: x.getAttribute("title") || "" };
+        });
 
         document.querySelector(".dkterm .tback").click();
         await until(() => document.querySelector(".pfdesk.row"));

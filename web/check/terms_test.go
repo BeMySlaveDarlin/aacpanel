@@ -48,6 +48,59 @@ func (c termCard) lastReads(want string, long bool) string {
 	return ""
 }
 
+// tabCell is a tab over an open terminal and the × beside it, as a fixture
+// reads them; ink is "faint" or "accent" when the mark wears one of the two.
+type tabCell struct {
+	Name     string `json:"name"`
+	On       bool   `json:"on"`
+	Label    string `json:"label"`
+	Nested   bool   `json:"nested"`
+	Role     string `json:"role"`
+	After    bool   `json:"after"`
+	SameLine bool   `json:"sameLine"`
+	Tall     bool   `json:"tall"`
+	Width    int    `json:"width"`
+	Icon     int    `json:"icon"`
+	Shown    bool   `json:"shown"`
+	Ink      string `json:"ink"`
+	Cut      bool   `json:"cut"`
+	Ellipsis bool   `json:"ellipsis"`
+}
+
+// xReads says what is wrong with the × of a tab, or nothing: it is named
+// after the tab it closes, stands beside the tab button rather than inside
+// it, in a cell that takes no part in the list of tabs, and is drawn without
+// a pointer over it, after the name on its line. It is pressed over the whole
+// height of the tab and about a finger wide, its mark small and faint, in the
+// accent on the open tab.
+func (c tabCell) xReads() string {
+	ink := "faint"
+	if c.On {
+		ink = "accent"
+	}
+	switch {
+	case c.Label != "close "+c.Name:
+		return fmt.Sprintf("the × is called %q", c.Label)
+	case c.Nested:
+		return "the × is inside the tab button"
+	case c.Role != "presentation":
+		return fmt.Sprintf("the cell of the tab and its × has the role %q — the list of tabs would hold it", c.Role)
+	case !c.Shown:
+		return "the × is not drawn"
+	case !c.After || !c.SameLine:
+		return fmt.Sprintf("the × stands after the name %v, on its line %v", c.After, c.SameLine)
+	case !c.Tall:
+		return "the × is lower than the tab"
+	case c.Width < 28 || c.Width > 32:
+		return fmt.Sprintf("the × is %dpx wide, expected 28–32", c.Width)
+	case c.Icon > 16:
+		return fmt.Sprintf("the mark of the × is %dpx", c.Icon)
+	case c.Ink != ink:
+		return fmt.Sprintf("the mark of the × is in %s, expected %s", c.Ink, ink)
+	}
+	return ""
+}
+
 type termsPhoneShot struct {
 	Error    string   `json:"error"`
 	Nav      []string `json:"nav"`
@@ -110,6 +163,35 @@ type termsPhoneShot struct {
 		Current string   `json:"current"`
 		Nav     []string `json:"nav"`
 	} `json:"back"`
+	X struct {
+		Before []string  `json:"before"`
+		Cells  []tabCell `json:"cells"`
+		Idle   struct {
+			Down      bool     `json:"down"`
+			SentTwice bool     `json:"sentTwice"`
+			Closes    int      `json:"closes"`
+			Sheet     bool     `json:"sheet"`
+			Row       []string `json:"row"`
+		} `json:"idle"`
+		Running struct {
+			Title        string   `json:"title"`
+			Sub          string   `json:"sub"`
+			ClosedBefore int      `json:"closedBefore"`
+			Closes       int      `json:"closes"`
+			Row          []string `json:"row"`
+		} `json:"running"`
+		Open struct {
+			Closes int      `json:"closes"`
+			Sheet  bool     `json:"sheet"`
+			Row    []string `json:"row"`
+			Stream string   `json:"stream"`
+		} `json:"open"`
+		Last struct {
+			Closes int  `json:"closes"`
+			Layer  bool `json:"layer"`
+			Pager  bool `json:"pager"`
+		} `json:"last"`
+	} `json:"x"`
 }
 
 // The terminals of places on a phone, walked once in the whole shell; every
@@ -287,6 +369,75 @@ func TestTerminalsOnThePhone(t *testing.T) {
 				got.Back.Current, got.Back.Nav)
 		}
 	})
+
+	// Home holds zsh, htop running, two shells started after them — the last
+	// with a name too long for its tab — and zsh open again.
+	long := "tail -f /var/log/aacpanel/collector.log"
+	x := got.X
+
+	t.Run("every tab has its own × after its name", func(t *testing.T) {
+		if want := []string{"zsh*", "htop", "zsh", long}; !equalStrings(x.Before, want) {
+			t.Fatalf("the tabs of home read %v, expected %v", x.Before, want)
+		}
+		if len(x.Cells) != 4 {
+			t.Fatalf("%d tabs read, expected 4", len(x.Cells))
+		}
+		for _, c := range x.Cells {
+			if trouble := c.xReads(); trouble != "" {
+				t.Errorf("%s: %s", c.Name, trouble)
+			}
+		}
+		if c := x.Cells[3]; !c.Cut || !c.Ellipsis {
+			t.Errorf("a name too long for its tab is cut %v, with an ellipsis %v — it has to give way before the ×", c.Cut, c.Ellipsis)
+		}
+	})
+
+	// × on a tab where only the shell runs closes it with no question, and
+	// the tab whose close is on its way keeps its × down.
+	t.Run("× on an idle tab closes it at once", func(t *testing.T) {
+		i := x.Idle
+		if i.Closes != 1 || i.Sheet {
+			t.Errorf("× on an idle tab sent %d closes of it and opened a sheet %v, expected one close and no sheet", i.Closes, i.Sheet)
+		}
+		if !i.Down || i.SentTwice {
+			t.Errorf("while the close was on its way the × was down %v, and a second press sent another %v", i.Down, i.SentTwice)
+		}
+	})
+
+	t.Run("× on a running tab asks first", func(t *testing.T) {
+		r := x.Running
+		if r.ClosedBefore != 0 {
+			t.Fatal("the tab was closed before the question was answered")
+		}
+		if r.Title != "Close htop?" || !strings.Contains(r.Sub, "htop runs in it") {
+			t.Errorf("the question reads %q / %q — it has to name the tab whose × was pressed and what runs in it", r.Title, r.Sub)
+		}
+		if r.Closes != 1 {
+			t.Errorf("the answer sent %d closes of htop, expected one", r.Closes)
+		}
+	})
+
+	// Closing a tab that is not the open one, at once or after the question,
+	// leaves the open tab open, though the tab typed into last stands by.
+	t.Run("× on another tab keeps the open one", func(t *testing.T) {
+		if want := []string{"zsh*", "htop", "zsh"}; !equalStrings(x.Idle.Row, want) {
+			t.Errorf("the idle tab closed, the tabs read %v, expected %v", x.Idle.Row, want)
+		}
+		if want := []string{"zsh*", "zsh"}; !equalStrings(x.Running.Row, want) {
+			t.Errorf("the running tab closed, the tabs read %v, expected %v", x.Running.Row, want)
+		}
+	})
+
+	t.Run("× on the open tab gives way, and the last puts the place down", func(t *testing.T) {
+		o := x.Open
+		if o.Closes != 1 || o.Sheet || !equalStrings(o.Row, []string{"zsh*"}) || o.Stream != "/api/term/stream?term=t-new3" {
+			t.Errorf("× on the open tab left %+v, expected one close, no sheet, and the shell started third open", o)
+		}
+		l := x.Last
+		if l.Closes != 1 || l.Layer || !l.Pager {
+			t.Errorf("× on the last tab left %+v, expected one close and the places again", l)
+		}
+	})
 }
 
 // The terminal button of a conversation goes to the terminal of the session's
@@ -373,7 +524,7 @@ func TestNoTerminalRouteNoTerminals(t *testing.T) {
 
 // The wide screen: the section after the sessions, the places side by side
 // with home first, and a card opening E2 — the tabs of its place where a head
-// would be, the window and the closing at the end, the terminal filling the
+// would be, each with its ×, the window at the end, the terminal filling the
 // rest.
 func TestTerminalsOnTheDesk(t *testing.T) {
 	type column struct {
@@ -392,23 +543,35 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		Chooser   string   `json:"chooser"`
 		NewButton string   `json:"newButton"`
 		Opened    struct {
-			Back    string   `json:"back"`
-			Tabs    []string `json:"tabs"`
-			On      string   `json:"on"`
-			Buttons []string `json:"buttons"`
-			Stream  string   `json:"stream"`
-			Columns bool     `json:"columns"`
+			Back    string    `json:"back"`
+			Tabs    []string  `json:"tabs"`
+			On      string    `json:"on"`
+			Buttons []string  `json:"buttons"`
+			Stream  string    `json:"stream"`
+			Columns bool      `json:"columns"`
+			Cells   []tabCell `json:"cells"`
 		} `json:"opened"`
 		Fills struct {
 			Height int  `json:"height"`
 			Window int  `json:"window"`
 			Keys   bool `json:"keys"`
 		} `json:"fills"`
-		Asked  []string `json:"asked"`
-		Closed struct {
+		Asked    []string `json:"asked"`
+		Question string   `json:"question"`
+		Closed   struct {
 			Action termAction `json:"action"`
 			On     string     `json:"on"`
 		} `json:"closed"`
+		Other struct {
+			Action termAction `json:"action"`
+			Sheet  bool       `json:"sheet"`
+			Row    []string   `json:"row"`
+			Stream string     `json:"stream"`
+		} `json:"other"`
+		Unknown []struct {
+			Disabled bool   `json:"disabled"`
+			Title    string `json:"title"`
+		} `json:"unknown"`
 		Back []string `json:"back"`
 	}
 	runWideFixture(t, "termsdesk.html", &got)
@@ -474,8 +637,8 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 		if want := []string{"make check", "zsh", "git log"}; !equalStrings(o.Tabs, want) {
 			t.Errorf("the tabs read %v, expected %v", o.Tabs, want)
 		}
-		if want := []string{"Open in a window", "Close tab"}; !equalStrings(o.Buttons, want) {
-			t.Errorf("the end of the line reads %v, expected %v", o.Buttons, want)
+		if want := []string{"Open in a window"}; !equalStrings(o.Buttons, want) {
+			t.Errorf("the end of the line reads %v, expected %v — a tab is closed by its ×", o.Buttons, want)
 		}
 		if o.Stream != "/api/term/stream?term=t-s1" {
 			t.Errorf("the terminal attached with %q, expected t-s1", o.Stream)
@@ -484,14 +647,54 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 			t.Errorf("the terminal is %dpx of %dpx, keys row drawn %v — it has to fill the section, with no phone keys",
 				got.Fills.Height, got.Fills.Window, got.Fills.Keys)
 		}
+		if want := []string{"Home", "lab", "shop"}; !equalStrings(got.Back, want) {
+			t.Errorf("back shows %v, expected the columns again", got.Back)
+		}
+	})
+
+	t.Run("every tab has its own × after its name", func(t *testing.T) {
+		if len(got.Opened.Cells) != 3 {
+			t.Fatalf("%d tabs read, expected 3", len(got.Opened.Cells))
+		}
+		for _, c := range got.Opened.Cells {
+			if trouble := c.xReads(); trouble != "" {
+				t.Errorf("%s: %s", c.Name, trouble)
+			}
+		}
+	})
+
+	// × on the open tab, where make runs, asks first; the answer closes it
+	// and the tab typed into last takes its place.
+	t.Run("× on a running tab asks first", func(t *testing.T) {
 		if contains("term.close", got.Asked) || !contains("term.console", got.Asked) {
 			t.Errorf("before the question was answered the host was asked %v", got.Asked)
+		}
+		if got.Question != "Close make check?" {
+			t.Errorf("the question reads %q, expected it to name make check", got.Question)
 		}
 		if got.Closed.Action.Kind != "term.close" || got.Closed.Action.Params["id"] != "t-s1" || got.Closed.On != "zsh" {
 			t.Errorf("the closing left %+v, expected t-s1 closed and zsh open", got.Closed)
 		}
-		if want := []string{"Home", "lab", "shop"}; !equalStrings(got.Back, want) {
-			t.Errorf("back shows %v, expected the columns again", got.Back)
+	})
+
+	t.Run("× on another idle tab closes it at once and keeps the open one", func(t *testing.T) {
+		o := got.Other
+		if o.Action.Kind != "term.close" || o.Action.Params["id"] != "t-s3" || o.Sheet {
+			t.Errorf("× on the third tab sent %+v and opened a sheet %v, expected term.close of t-s3 and no sheet", o.Action, o.Sheet)
+		}
+		if !equalStrings(o.Row, []string{"zsh*"}) || o.Stream != "/api/term/stream?term=t-s2" {
+			t.Errorf("the tabs read %v and the terminal shows %q, expected zsh still open", o.Row, o.Stream)
+		}
+	})
+
+	t.Run("× is down where the executor cannot close a tab", func(t *testing.T) {
+		if len(got.Unknown) == 0 {
+			t.Fatal("no tab read under an executor without term.close")
+		}
+		for i, x := range got.Unknown {
+			if !x.Disabled || !strings.Contains(x.Title, "does not know the action “term.close”") {
+				t.Errorf("tab %d: the × is down %v, its title %q — expected down, saying the host does not know term.close", i, x.Disabled, x.Title)
+			}
 		}
 	})
 }

@@ -12,9 +12,9 @@ import { Term } from "../screens/chat/term.js";
 import { Pages, useProfilePage } from "../screens/sessions/pages.js";
 import { useTerms } from "../data/terms.js";
 import {
-    afterClose, homeOf, pickOf, PLACE_KEY, placeLabel, placesOf, SHOW_KEY, tabsOf,
+    homeOf, pickOf, PLACE_KEY, placeLabel, placesOf, SHOW_KEY, tabsOf,
 } from "../screens/terms/places.js";
-import { useTermActs } from "../screens/terms/acts.js";
+import { useTabClose, useTermActs } from "../screens/terms/acts.js";
 import { CloseTab, NewButton, PlaceHead, PlacePicker, TermCard, TermTabs } from "../screens/terms/parts.js";
 
 // TermsDesk is the centre of the section. open is the terminal on screen,
@@ -84,18 +84,19 @@ export function TermsDesk({ snapshot, exec, open, onOpen }) {
 }
 
 // DeskTerm is a terminal of a place on the wide screen: the way back to the
-// places and the tabs of this one where a head would be, the window and the
-// closing of the tab at the end of the line, and the terminal under them.
+// places and the tabs of this one, each with its ×, where a head would be, the
+// window at the end of the line, and the terminal under them.
 function DeskTerm({ open, places, acts, onOpen, onNew, onBack }) {
     // The back of the browser puts the terminal down, as the crumb does.
     useBackClose(true, onBack);
-    const [closing, setClosing] = useState(false);
     const { entry, tabs, t } = tabsOf(places, open);
-    const closed = (gone) => {
-        const next = afterClose(entry, gone);
-        if (next) onOpen({ id: next.id, place: open.place });
-        else onBack();
-    };
+    // asking is the id of the tab the question before closing is open for,
+    // which need not be the open one: the × of any tab where something runs
+    // asks it. The tab is read from the list, so the question follows what
+    // runs in it.
+    const [asking, setAsking] = useState("");
+    const about = tabs.find((it) => it.id === asking);
+    const closing = useTabClose({ acts, entry, open, onOpen, onBack, ask: (it) => setAsking(it.id) });
 
     return html`
         <section class="dkcenter dkterm">
@@ -104,20 +105,20 @@ function DeskTerm({ open, places, acts, onOpen, onNew, onBack }) {
                     <button class="dktab tback" type="button" aria-label="back to the places" onClick=${onBack}>
                         <span class="chev back">${Icon.chevron()}</span>${entry.label}
                     </button>
-                    <${TermTabs} wide tabs=${tabs} current=${open.id}
+                    <${TermTabs} wide tabs=${tabs} current=${open.id} acts=${acts} going=${closing.going}
                                  onPick=${(it) => onOpen({ id: it.id, place: open.place })}
+                                 onClose=${closing.press}
                                  onNew=${() => onNew(open.place)} />
                     <span class="tgrow"></span>
                     <button class="btn" type="button" disabled=${!acts.can.console}
                             data-tip=${acts.can.console ? "A window on the desktop of the machine, on the same tmux" : acts.why.console}
                             onClick=${() => acts.window(t)}>Open in a window</button>
-                    <button class="btn danger" type="button" disabled=${!acts.can.close}
-                            onClick=${() => setClosing(true)}>Close tab</button>
                 </div>
             </div>
             <${Term} key=${open.id} term=${open.id} />
-            <${Sheet} open=${closing} onClose=${() => setClosing(false)} label="close the tab">
-                ${closing && html`<${CloseTab} t=${t} acts=${acts} onClosed=${closed} onDone=${() => setClosing(false)} />`}
+            <${Sheet} open=${Boolean(about)} onClose=${() => setAsking("")} label="close the tab">
+                ${about && html`<${CloseTab} t=${about} acts=${acts} onClosed=${closing.closed}
+                                             onDone=${() => setAsking("")} />`}
             <//>
         </section>
     `;
