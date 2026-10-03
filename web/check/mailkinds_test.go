@@ -42,7 +42,7 @@ func TestTheFeedDrawsEveryKindOfLetterAsALetter(t *testing.T) {
 		t.Fatalf("%d letters drawn, wanted three: %+v", len(shot.Rows), shot.Rows)
 	}
 	for i, want := range []struct{ kind, label, from, peek string }{
-		{"session", "from session", "infra-rework", "Four sets green"},
+		{"session", "from agent", "infra-rework", "Four sets green"},
 		{"agent", "from agent", "aecca89632fbfe14e", "Both commands went through, nothing skipped."},
 		{"hook", "stop hook", "", "the router did not pass"},
 	} {

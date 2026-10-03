@@ -182,14 +182,17 @@ function onTheWay(state) {
 // up. All four arrive among the prompts, the first three wrapped in a preamble
 // nobody reads twice, so all four are drawn the same way — a card of the build
 // of the files sent to the person: who and when on its head, the first lines
-// of the letter, and the rest opened by a row under them.
+// of the letter, and the rest opened by a row under them. A letter between
+// sessions and a letter of an agent are headed alike, from agent and to agent,
+// as the harness marks both: which of the two it is the feed cannot always
+// tell.
 const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook", wake: "wake" };
 
-const MAIL_WHO = { session: "neighbour session", agent: "agent", hook: "stop hook" };
+const MAIL_WHO = { session: "agent", agent: "agent", hook: "stop hook" };
 
 const MAIL_LABEL = {
     agent: ["from agent", "to agent"],
-    session: ["from session", "to session"],
+    session: ["from agent", "to agent"],
     hook: ["stop hook", "stop hook"],
     wake: ["wake-up", "wake-up"],
 };
