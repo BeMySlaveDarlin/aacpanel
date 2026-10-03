@@ -68,21 +68,28 @@ const read = (id) => {
     const line = root.querySelector(".ckline");
     const kids = bar ? Array.from(bar.children) : [];
     const step = root.querySelector(".ckstep");
+    const now = root.querySelector(".nowbar");
     return {
         bar: Boolean(bar),
         line: Boolean(line),
         first: Boolean(line) && kids[0] === line,
         kids: kids.map((k) => k.className),
         word: text(root.querySelector(".ckword")),
+        icon: Boolean(root.querySelector(".ckline > .ckicon svg")),
         num: text(root.querySelector(".cknum")),
+        label: line ? line.getAttribute("aria-label") : "",
+        // From the foot of the checklist line to the top of the now line, and
+        // the padding the bar of the now holds above its line.
+        gap: line && now ? box(now.querySelector(".nowtop")).top - box(line).bottom : -1,
+        pad: now ? parseFloat(getComputedStyle(now).paddingTop) : -1,
         step: text(step),
         stepWidth: step ? Math.round(box(step).width) : 0,
         ticks: Array.from(root.querySelectorAll(".ckticks i")).map((i) => i.className),
         ticksRight: line ? Math.round(box(line).right - box(root.querySelector(".ckticks")).right) : -1,
-        lineAbove: Boolean(line && root.querySelector(".nowbar")) && box(line).bottom <= box(root.querySelector(".nowbar")).top + 1,
+        lineAbove: Boolean(line && now) && box(line).bottom <= box(now).top + 1,
         inside: Boolean(line && bar) && box(line).left >= box(bar).left - 0.5 && box(line).right <= box(bar).right + 0.5,
         oneLine: Boolean(line) && box(line).height < 44,
-        now: Boolean(root.querySelector(".nowbar")),
+        now: Boolean(now),
     };
 };
 

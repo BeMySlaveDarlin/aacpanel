@@ -58,7 +58,7 @@ func TestACompactionIsSaidAboveTheComposer(t *testing.T) {
 	if got.Compacting.PctRight < 0 || got.Compacting.PctRight > 24 {
 		t.Errorf("the share stands %.0fpx off the far end of the line", got.Compacting.PctRight)
 	}
-	if got.Busy.NowTop != "now thinking" || got.Busy.Text != "" || got.Busy.Pct != "" {
+	if got.Busy.NowTop != "thinking" || got.Busy.Text != "" || got.Busy.Pct != "" {
 		t.Errorf("a session at work with no call yet says %q / %q / %q, expected that it is thinking", got.Busy.NowTop, got.Busy.Text, got.Busy.Pct)
 	}
 	if got.Idle != "" {

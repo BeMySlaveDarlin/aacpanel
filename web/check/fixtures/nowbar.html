@@ -1,13 +1,19 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/dist/bundle.css">
-<style>html,body{margin:0}</style>
+<style>html,body{margin:0} .room{overflow:hidden}</style>
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="composerbox" id="root"></div>
 <div class="composerbox" id="think"></div>
+<div class="composerbox" id="back"></div>
+<div class="composerbox" id="narrow" style="width:360px"></div>
+<div class="room"><div class="composerbox" id="roomy" style="width:900px"></div></div>
 <script type="module">
 // The bar above the composer of a session at work: a command going out ten
-// seconds ago, a read that failed before it in the same run.
+// seconds ago, a read that failed before it in the same run; a turn that has
+// only thought; a turn thinking after its last call came back; and a long
+// command with a badge of every kind on a screen 360px wide, beside the same
+// bar with all the room it could want.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { WorkStatus } from "/src/screens/chat/work.js";
@@ -21,8 +27,10 @@ const feed = [
       calls: [{ name: "Bash", arg: "go test ./web/check/", pos: 6, index: 0, at: ago(10), open: true }] },
 ];
 let opened = "";
+let call = "";
 render(html`<${WorkStatus} work=${null} busy=${true} compacting="" feed=${feed}
-    onCalls=${(run) => { opened = String(run); }} />`, document.getElementById("root"));
+    onCalls=${(run) => { opened = String(run); }}
+    onCall=${(run, c) => { call = `${run}:${c.pos}:${c.index}`; }} />`, document.getElementById("root"));
 // A turn that has only thought so far: short words, one badge, no call.
 const thinking = [
     { role: "me", text: "and now?", at: ago(8), pos: 1 },
@@ -30,13 +38,62 @@ const thinking = [
 ];
 render(html`<${WorkStatus} work=${null} busy=${true} compacting="" feed=${thinking} onCalls=${() => {}} />`,
     document.getElementById("think"));
+// The command came back four seconds ago: the session thinks over it.
+const back = [
+    { role: "me", text: "and the logs?", at: ago(30), pos: 1 },
+    { role: "tools", kind: "bash", run: 4, pos: 4, at: ago(12),
+      calls: [{ name: "Bash", arg: "journalctl -u aacpanel -n 50", pos: 4, index: 0, at: ago(12), open: false }] },
+    { role: "ai", text: "Reading them.", at: ago(4), pos: 5 },
+];
+render(html`<${WorkStatus} work=${null} busy=${true} compacting="" feed=${back} onCalls=${() => {}} />`,
+    document.getElementById("back"));
+const long = [
+    { role: "me", text: "deploy it", at: ago(50), pos: 1 },
+    { role: "think", run: 7, pos: 2, at: ago(45), count: 1, tokens: 400 },
+    { role: "tools", kind: "files", run: 7, pos: 3, at: ago(40),
+      calls: [{ name: "Read", arg: "deploy/site.sh", pos: 3, index: 0, at: ago(40) }] },
+    { role: "tools", kind: "bash", run: 7, pos: 4, at: ago(30),
+      calls: [{ name: "Bash", arg: "ssh -p 69 -o BatchMode=yes deploy@fi-vps 'tar -x -C /opt/aacpanel-site/html --strip-components=1'",
+                pos: 4, index: 0, at: ago(30), open: true }] },
+];
+for (const id of ["narrow", "roomy"]) {
+    render(html`<${WorkStatus} work=${null} busy=${true} compacting="" feed=${long} onCalls=${() => {}} />`,
+        document.getElementById(id));
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await sleep(20); };
+const box = (el) => el.getBoundingClientRect();
+
+// How tall the bar is against one line of its own font, and where its
+// clock stands: the content box of the bar beside the height of the state
+// word, which is one line of the line's font, and the clock beside that word.
+const shape = (id) => {
+    const root = document.getElementById(id);
+    const bar = root.querySelector(".nowbar");
+    const line = root.querySelector(".nowtop");
+    const state = root.querySelector(".nowstate");
+    const clock = root.querySelector(".nowel");
+    const css = getComputedStyle(bar);
+    const content = bar.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom);
+    return {
+        top: text(line),
+        state: text(state),
+        clock: text(clock),
+        order: Array.from(line.children).map((k) => k.className.split(" ")[0]),
+        parts: Array.from(line.children).map((k) => text(k)),
+        lines: content / box(state).height,
+        clockSize: `${getComputedStyle(clock).fontSize} ${getComputedStyle(line).fontSize}`,
+        clockGap: Math.round(box(clock).left - box(state).right),
+        lineGap: parseFloat(getComputedStyle(line).columnGap),
+    };
+};
+
 window.done = (async () => {
     const out = {};
     try {
-        for (let i = 0; i < 50 && !document.querySelector(".nowbar"); i++) await sleep(20);
+        await until(() => document.querySelectorAll(".nowbar").length >= 5);
         const root = document.getElementById("root");
         out.top = text(root.querySelector(".nowtop"));
         out.arg = text(root.querySelector(".nowarg"));
@@ -47,15 +104,50 @@ window.done = (async () => {
         out.opened = opened;
         out.old = /handling the request/.test(document.getElementById("root").textContent);
         out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
-        // The time and the badges keep to the far end of the bar, however
-        // little the bar says.
+
+        // The call is a button of its own, inside no other, named after the
+        // call it opens; a press hands the run and the very call over.
+        const button = root.querySelector(".nowcall");
+        out.call = {
+            tag: button ? button.tagName : "",
+            nested: Boolean(button && button.parentElement.closest("button")),
+            label: button ? button.getAttribute("aria-label") : "",
+            text: text(button),
+        };
+        if (button) button.click();
+        out.called = call;
+        out.running = shape("root");
+        out.back = shape("back");
+
+        // The badges keep to the far end of the bar, however little the bar
+        // says.
         const think = document.getElementById("think");
         const bar = think.querySelector(".workbar").getBoundingClientRect();
-        const el = think.querySelector(".nowel");
         const chips = think.querySelector(".nowchips");
-        out.thinkTop = text(think.querySelector(".nowtop"));
-        out.thinkTimeGap = el ? Math.round(bar.right - el.getBoundingClientRect().right) : -1;
+        out.thinking = shape("think");
         out.thinkChipsGap = chips ? Math.round(bar.right - chips.getBoundingClientRect().right) : -1;
+
+        // 360px: the call gives way, cut with an ellipsis, while the state,
+        // the clock and the badges are whole and as wide as with room to spare.
+        const narrow = document.getElementById("narrow");
+        const roomy = document.getElementById("roomy");
+        const cut = narrow.querySelector(".nowcalltext");
+        const width = (root, sel) => Array.from(root.querySelectorAll(sel)).map((el) => Math.round(box(el).width * 10) / 10);
+        const whole = (el) => el.scrollWidth <= el.clientWidth;
+        out.narrow = {
+            ...shape("narrow"),
+            text: text(cut),
+            cut: cut.scrollWidth > cut.clientWidth + 1,
+            ellipsis: getComputedStyle(cut).textOverflow,
+            nameWhole: box(narrow.querySelector(".nowname")).right <= box(cut).right + 0.5,
+            stateWhole: whole(narrow.querySelector(".nowstate")),
+            clockWhole: whole(narrow.querySelector(".nowel")),
+            clockWidth: width(narrow, ".nowel"),
+            roomyClockWidth: width(roomy, ".nowel"),
+            badgeWidths: width(narrow, ".nowchips .mtools"),
+            roomyBadgeWidths: width(roomy, ".nowchips .mtools"),
+            chipsOut: Math.round(box(narrow.querySelector(".nowchips")).right - box(narrow.querySelector(".nowbar")).right),
+        };
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

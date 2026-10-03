@@ -7,10 +7,12 @@
 <div class="composerbox" id="flows"></div>
 <div class="composerbox" id="none"></div>
 <div class="composerbox" id="going"></div>
+<div class="composerbox" id="narrowwait" style="width:200px"></div>
 <script type="module">
 // The bar above the composer of a session whose own turn is over while the
 // work it sent off goes on: two agents at work, the older since 400 seconds
-// ago, and one stopped long before; the last call of the turn was a stop.
+// ago, and one stopped long before; the last call of the turn was a stop. The
+// same bar stands once more on a screen too narrow for its words.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { WorkStatus } from "/src/screens/chat/work.js";
@@ -38,9 +40,35 @@ put("flows", { work: { tasks: [], agents: [agent("audit", "stopped", 900)],
                        workflows: [{ id: "w1", status: "running", at: ago(60) }] }, turnOver: true });
 put("none", { work: { tasks: [], agents: [agent("audit", "stopped", 900)], workflows: [] }, turnOver: true });
 put("going", { work, turnOver: false });
+put("narrowwait", { work, turnOver: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const box = (el) => el.getBoundingClientRect();
+
+// The bar of the agents laid out as the bar of a turn is: its parts in order,
+// its height in lines of the line's own font — the height of its words — and
+// the clock beside the words, whole, however narrow the screen.
+const shape = (id) => {
+    const root = document.getElementById(id);
+    const bar = root.querySelector(".nowbar");
+    const line = root.querySelector(".nowtop");
+    const words = root.querySelector(".nowstate");
+    const clock = root.querySelector(".nowel");
+    const css = getComputedStyle(bar);
+    const content = bar.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom);
+    return {
+        order: Array.from(line.children).map((k) => k.className.split(" ")[0]),
+        words: text(words),
+        clock: text(clock),
+        lines: content / box(words).height,
+        clockGap: Math.round(box(clock).left - box(words).right),
+        lineGap: parseFloat(getComputedStyle(line).columnGap),
+        clockWhole: clock.scrollWidth <= clock.clientWidth,
+        inside: box(clock).right <= box(bar).right + 0.5,
+    };
+};
+
 window.done = (async () => {
     const out = {};
     try {
@@ -51,12 +79,13 @@ window.done = (async () => {
         const bar = wait.querySelector(".nowbar");
         out.waitIsButton = Boolean(bar && bar.tagName === "BUTTON");
         // The button is the bar and nothing else: no face of a button of its
-        // own, and the time at the far end of the bar, as in the bar it stands for.
+        // own, and as wide as the card it stands in.
         const face = bar ? getComputedStyle(bar) : null;
         out.waitFace = face ? `${face.backgroundColor} ${face.borderTopWidth}` : "";
         const frame = wait.querySelector(".workbar").getBoundingClientRect();
-        const clock = wait.querySelector(".nowel");
-        out.waitTimeGap = clock ? Math.round(frame.right - clock.getBoundingClientRect().right) : -1;
+        out.waitShort = bar ? Math.round(frame.width - bar.getBoundingClientRect().width) : -1;
+        out.wait = shape("wait");
+        out.narrow = shape("narrowwait");
         if (bar) bar.click();
         const flows = document.getElementById("flows");
         out.flowsTop = text(flows.querySelector(".nowtop"));

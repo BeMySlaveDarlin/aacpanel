@@ -1,6 +1,6 @@
-// What the session does now, above the composer: the call going out this very
-// moment, how long it has been out and the calls of its run so far — or, with
-// the call back, that the session is thinking and for how long.
+// What the session does now, above the composer: running a call or thinking
+// between calls, how long it has stood so, the call it is on and the calls of
+// its run so far.
 
 import { useEffect, useState } from "preact/hooks";
 
@@ -104,12 +104,16 @@ export function useTick() {
     }, []);
 }
 
-// NowBar is the bar above the composer while a session is at work. Its badges
-// open the calls of the run going on. With to — the session, when the panel
-// can reach it — a call the turn waits on goes to the background from here:
-// the one going out by itself on the stream, and every one of them at once
-// where there are several, or in the console, where one key moves them all.
-export function NowBar({ now, onCalls, to }) {
+// NowBar is the bar above the composer while a session is at work, one line
+// of it: the state — thinking between calls, running while a call is out —
+// and how long it has stood so, then the call, the one going out or the last
+// one back, and the badges of the run at the far end. The call opens itself
+// among the calls of the run; the badges open the list of them. With to — the
+// session, when the panel can reach it — a call the turn waits on goes to the
+// background from a line under it: the one going out by itself on the stream,
+// and every one of them at once where there are several, or in the console,
+// where one key moves them all.
+export function NowBar({ now, onCalls, onCall, to }) {
     useTick();
     const { call, kind, running, think, kinds } = now;
     const fore = (to && now.fore) || [];
@@ -121,47 +125,41 @@ export function NowBar({ now, onCalls, to }) {
         <div class=${`nowbar${running ? " running" : ""}`} aria-live="polite">
             <div class="nowtop">
                 <span class="nowdot"></span>
-                <span class="nowword">now</span>
-                ${running
-                    ? html`
+                <b class="nowstate">${running ? "running" : "thinking"}</b>
+                ${took && html`<span class="nowel">${took}</span>`}
+                ${call && html`
+                    <span class="nowsep" aria-hidden="true">·</span>
+                    <button class="nowcall" type="button" onClick=${() => onCall && onCall(call)}
+                            aria-label=${`open the call ${call.name}`}>
                         <span class=${`nowkind k-${kind}`}>${kindIcon(kind)}</span>
-                        <b class="nowname">${call.name}</b>
-                        <span class="nowkindname">${KIND_NAMES[kind] || ""}</span>`
-                    : html`<b class="nowname">thinking</b>`}
-                ${took && html`<span class="nowel"><span>${running ? "running" : "for"}</span> ${took}</span>`}
-            </div>
-            ${(call || badges) && html`
-                <div class="nowrow">
-                    <div class="nowargbox">
-                        ${call && !running && html`<span class="nowlast">last call <b>${call.name}</b></span>`}
-                        ${call && html`<code class="nowarg">${call.arg || "no arguments"}</code>`}
-                    </div>
-                    ${badges && html`
-                        <span class="nowchips">
-                            ${think && think.count > 0 && html`
-                                <button class="mtools mthink" type="button" onClick=${onCalls}
-                                        title=${`thinking: ${think.count}${think.tokens ? ` · ${shortTokens(think.tokens)} ${tokenWord(think.tokens)}` : ""}`}
-                                        aria-label=${`thinking blocks: ${think.count}`}>
-                                    <span class="mticon">${Icon.thinking()}</span>
-                                    <span class="mtnum">${think.count}</span>
+                        <span class="nowcalltext"><b class="nowname">${call.name}</b> <code class="nowarg">${call.arg || ""}</code></span>
+                    </button>
+                `}
+                ${badges && html`
+                    <span class="nowchips">
+                        ${think && think.count > 0 && html`
+                            <button class="mtools mthink" type="button" onClick=${onCalls}
+                                    title=${`thinking: ${think.count}${think.tokens ? ` · ${shortTokens(think.tokens)} ${tokenWord(think.tokens)}` : ""}`}
+                                    aria-label=${`thinking blocks: ${think.count}`}>
+                                <span class="mticon">${Icon.thinking()}</span>
+                                <span class="mtnum">${think.count}</span>
+                            </button>
+                        `}
+                        ${kinds.map((k) => {
+                            const label = KIND_NAMES[k.kind] || KIND_NAMES.other;
+                            const broke = k.failed > 0 ? ` · ${k.failed} failed` : "";
+                            return html`
+                                <button class=${`mtools k-${k.kind}${k.failed > 0 ? " mtfail" : ""}`} type="button"
+                                        key=${k.kind} onClick=${onCalls} title=${`${label}${broke}`}
+                                        aria-label=${`${label}: ${k.count} ${callWord(k.count)}${broke}`}>
+                                    <span class="mticon">${kindIcon(k.kind)}</span>
+                                    <span class="mtnum">${k.count}</span>
                                 </button>
-                            `}
-                            ${kinds.map((k) => {
-                                const label = KIND_NAMES[k.kind] || KIND_NAMES.other;
-                                const broke = k.failed > 0 ? ` · ${k.failed} failed` : "";
-                                return html`
-                                    <button class=${`mtools k-${k.kind}${k.failed > 0 ? " mtfail" : ""}`} type="button"
-                                            key=${k.kind} onClick=${onCalls} title=${`${label}${broke}`}
-                                            aria-label=${`${label}: ${k.count} ${callWord(k.count)}${broke}`}>
-                                        <span class="mticon">${kindIcon(k.kind)}</span>
-                                        <span class="mtnum">${k.count}</span>
-                                    </button>
-                                `;
-                            })}
-                        </span>
-                    `}
-                </div>
-            `}
+                            `;
+                        })}
+                    </span>
+                `}
+            </div>
             ${(one || all) && html`
                 <div class="nowbg">
                     ${one && html`<${ToBackground} to=${to} call=${one} key=${`one-${one.use}`} />`}
@@ -174,7 +172,8 @@ export function NowBar({ now, onCalls, to }) {
 
 // WaitBar is the bar while a session waits on the work it sent off: its own
 // turn is over, and what holds it busy is that work, at it since the first of
-// it began. A tap opens its list.
+// it began. It reads as the bar of a turn does — what holds the session and
+// the clock beside it, on one line — and a tap opens its list.
 export function WaitBar({ waits, onOpen }) {
     useTick();
     const took = Number.isFinite(waits.since) ? clock((Date.now() - waits.since) / 1000) : "";
@@ -182,10 +181,9 @@ export function WaitBar({ waits, onOpen }) {
         <button class="nowbar nowwait" type="button" onClick=${() => onOpen && onOpen({ kind: waits.kind })}>
             <span class="nowtop">
                 <span class="nowdot"></span>
-                <span class="nowword">now</span>
                 <span class="nowkind">${waits.kind === "agents" ? Icon.robot() : Icon.flow()}</span>
-                <b class="nowname">${waits.word}</b>
-                ${took && html`<span class="nowel"><span>for</span> ${took}</span>`}
+                <b class="nowstate">${waits.word}</b>
+                ${took && html`<span class="nowel">${took}</span>`}
             </span>
         </button>
     `;

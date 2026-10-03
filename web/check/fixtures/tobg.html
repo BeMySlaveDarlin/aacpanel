@@ -86,10 +86,12 @@ window.done = (async () => {
         }));
         out.consoleSheet = pills("#consolesheet");
         out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;
-        // The buttons take a line of their own: the command keeps its room,
-        // and the badges stay inside the bar.
+        // The buttons take a line of their own: the command keeps the room it
+        // has in the bar of a session the panel does not reach, where there
+        // are none, and the badges stay inside the bar.
         const barBox = document.querySelector("#stream .nowbar").getBoundingClientRect();
-        out.argWidth = Math.round(document.querySelector("#stream .nowarg").getBoundingClientRect().width);
+        out.callWidth = Math.round(document.querySelector("#stream .nowcall").getBoundingClientRect().width);
+        out.bareCallWidth = Math.round(document.querySelector("#away .nowcall").getBoundingClientRect().width);
         out.chipsOut = Math.round(document.querySelector("#stream .nowchips").getBoundingClientRect().right - barBox.right);
 
         // One call by its id, then every call at once.

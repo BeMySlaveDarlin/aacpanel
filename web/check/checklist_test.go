@@ -76,7 +76,11 @@ type checklistLineSeen struct {
 	First      bool     `json:"first"`
 	Kids       []string `json:"kids"`
 	Word       string   `json:"word"`
+	Icon       bool     `json:"icon"`
 	Num        string   `json:"num"`
+	Label      string   `json:"label"`
+	Gap        float64  `json:"gap"`
+	Pad        float64  `json:"pad"`
 	Step       string   `json:"step"`
 	StepWidth  int      `json:"stepWidth"`
 	Ticks      []string `json:"ticks"`
@@ -87,9 +91,11 @@ type checklistLineSeen struct {
 	Now        bool     `json:"now"`
 }
 
-// On a phone the checklist heads the card over the composer: the word, where
-// the session is, the step it is on and a tick for every step, above what the
-// session is doing this moment. A quiet session keeps the line alone over the
+// On a phone the checklist heads the card over the composer: a check mark and
+// where the session is as a count, the step it is on and a tick for every
+// step, right above what the session is doing this moment — no more room
+// between the two lines than the bar under it holds as its padding. Its label
+// says the checklist in words. A quiet session keeps the line alone over the
 // composer, a checklist all behind says it is done, forty steps still leave
 // room for the step, and a session with no checklist draws nothing of it. A
 // tap on the line opens the checklist.
@@ -113,26 +119,34 @@ func TestTheChecklistHeadsTheCardOverTheComposer(t *testing.T) {
 	if !b.Line || !b.First || !b.LineAbove || !b.Inside || !b.Now {
 		t.Errorf("the checklist does not head the card of a session at work, inside it and over what it does: %+v", b)
 	}
-	if b.Word != "Checklist" || b.Num != "4 of 7" || !strings.HasPrefix(b.Step, "the watcher waits") || !b.OneLine {
-		t.Errorf("the line says %q %q %q (one line %v), expected Checklist, 4 of 7 and the step at work", b.Word, b.Num, b.Step, b.OneLine)
+	if !b.Icon || b.Word != "" || b.Num != "4/7" || !strings.HasPrefix(b.Step, "the watcher waits") || !b.OneLine {
+		t.Errorf("the line heads with mark %v, %q, %q and says %q (one line %v), expected the mark, 4/7 and the step at work",
+			b.Icon, b.Word, b.Num, b.Step, b.OneLine)
+	}
+	if !strings.HasPrefix(b.Label, "checklist: step 4 of 7, the watcher waits") || !strings.HasSuffix(b.Label, "open the checklist") {
+		t.Errorf("the line is labelled %q, expected the checklist in words", b.Label)
+	}
+	if b.Pad <= 0 || b.Gap < 0 || b.Gap > b.Pad+0.5 {
+		t.Errorf("the now line stands %.1fpx under the checklist line, the bar's padding is %.1fpx", b.Gap, b.Pad)
 	}
 	wantTicks := []string{"t-done", "t-done", "t-done", "t-active now", "t-pending", "t-pending", "t-pending"}
 	if !reflect.DeepEqual(b.Ticks, wantTicks) {
 		t.Errorf("the ticks are %v, expected %v", b.Ticks, wantTicks)
 	}
 	i := got.Idle
-	if !i.Line || i.Now || len(i.Kids) != 1 || i.Num != "4 of 7" {
+	if !i.Line || i.Now || len(i.Kids) != 1 || i.Num != "4/7" {
 		t.Errorf("a quiet session with a checklist does not keep the line alone over the composer: %+v", i)
 	}
 	o := got.Over
-	if o.Word != "Checklist done" || o.Num != "7 of 7" || o.Step != "" || o.TicksRight > 40 {
-		t.Errorf("a checklist all behind says %q %q %q, its ticks %dpx from the end — expected Checklist done, 7 of 7", o.Word, o.Num, o.Step, o.TicksRight)
+	if !o.Icon || o.Word != "" || o.Num != "7/7" || o.Step != "" || o.TicksRight > 40 || !strings.HasPrefix(o.Label, "checklist done, 7 of 7") {
+		t.Errorf("a checklist all behind heads with mark %v, %q, %q, says %q, labelled %q, its ticks %dpx from the end — expected the mark, 7/7 and checklist done in words",
+			o.Icon, o.Word, o.Num, o.Step, o.Label, o.TicksRight)
 	}
 	if n := len(o.Ticks); n != 7 || o.Ticks[6] != "t-dropped" {
 		t.Errorf("the ticks of the checklist done are %v, the dropped step not marked", o.Ticks)
 	}
 	l := got.Long
-	if len(l.Ticks) != 40 || l.Num != "21 of 40" || l.StepWidth < 80 || !l.OneLine {
+	if len(l.Ticks) != 40 || l.Num != "21/40" || l.StepWidth < 80 || !l.OneLine {
 		t.Errorf("forty steps: %d ticks, %q, the step %dpx wide (one line %v)", len(l.Ticks), l.Num, l.StepWidth, l.OneLine)
 	}
 	if got.None.Bar || got.None.Line {
@@ -178,7 +192,7 @@ func TestTheLineOpensTheWholeChecklist(t *testing.T) {
 	if got.Error != "" {
 		t.Fatalf("the fixture broke: %s", got.Error)
 	}
-	if !got.LineFirst || !strings.Contains(got.Line, "4 of 7") || !strings.Contains(got.Line, "mutate the lines") {
+	if !got.LineFirst || !strings.Contains(got.Line, "4/7") || !strings.Contains(got.Line, "mutate the lines") {
 		t.Errorf("the card over the composer of the conversation does not open with the checklist: first %v, %q", got.LineFirst, got.Line)
 	}
 	if got.Title != "checklist" || got.Label != "checklist" || !strings.HasPrefix(got.Sub, "4 of 7 · 2 done · 1 dropped · updated ") {

@@ -411,6 +411,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                turnOver=${Boolean(live.turnOver)}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""}
                                feed=${feed} onCalls=${(run) => setCalls({ list: runCalls(feed, run) })}
+                               onCall=${(run, call) => setCalls({ list: runCalls(feed, run), first: call })}
                                to=${toBackground}
                                checklist=${wide ? null : checklist}
                                onChecklist=${() => setLook({ kind: "checklist" })}
@@ -480,6 +481,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
 
         <${Sheet} open=${Boolean(calls)} onClose=${() => setCalls(null)} label="tool calls" inner>
             <${Calls} session=${name} id=${id} calls=${calls ? calls.list : []} turn=${calls && calls.turn}
+                      first=${calls && calls.first}
                       onFile=${(file) => setLook({ kind: "file", ...file })} to=${toBackground} />
         <//>
 

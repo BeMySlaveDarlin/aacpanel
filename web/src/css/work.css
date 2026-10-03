@@ -645,12 +645,11 @@
     overflow-wrap: anywhere;
 }
 
-/* Now: the call going out and how long it has been out, its command, and the
-   badges of its run; between calls, the thinking and since when. */
-/* The bar it stands in is a row (it is a status as well), so the now takes the
-   whole of it: the time and the badges keep to the far end whatever is said. */
-.nowbar { flex: 1 1 auto; display: flex; flex-direction: column; gap: .3rem; padding: .5rem .7rem .55rem; min-width: 0; text-align: left; }
-.nowtop { display: flex; align-items: center; gap: .45rem; min-width: 0; font-size: var(--t-sm); }
+/* Now: one line — the state and how long it has stood so, the call the session
+   is on, and the badges of its run at the far end. The bar it stands in is a
+   row (it is a status as well), so the now takes the whole of it. */
+.nowbar { flex: 1 1 auto; display: flex; flex-direction: column; gap: .3rem; padding: .5rem .7rem; min-width: 0; text-align: left; }
+.nowtop { display: flex; align-items: center; gap: .45rem; min-width: 0; font-size: var(--t-sm); white-space: nowrap; }
 .nowdot {
     flex: none;
     width: 6px;
@@ -661,40 +660,41 @@
     animation: pulse 1.6s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) { .nowdot { animation: none; } }
-.nowword { font-weight: 800; color: var(--accent); }
+/* The call gives way first and the state after it: the clock and the badges
+   keep their width whatever is said, so a narrow screen still says how long. */
+.nowstate { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 700; color: var(--accent); }
+/* The clock in the size of the line, its digits of one width: the line does
+   not shift as they change. */
+.nowel { flex: none; font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.nowsep { flex: none; color: var(--ink-faint); }
+/* The call takes the rest of the line and opens itself: its name and argument
+   are one string cut at its end. The press reaches past the line's own height,
+   into the padding of the bar, so a thumb finds it. */
+.nowcall {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    margin: -.3rem 0;
+    padding: .3rem 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    overflow: hidden;
+    cursor: pointer;
+}
 .nowkind { display: flex; flex: none; width: 15px; height: 15px; color: var(--ink-dim); }
 .nowkind svg { width: 100%; height: 100%; }
 .nowkind.k-bash { color: var(--accent); }
 .nowkind.k-files { color: var(--accent-2); }
-/* A long name of a call gives way before the time does: the kind is said by the icon too. */
-.nowname { flex: 0 1 auto; min-width: 2.5rem; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nowkindname { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--ink-faint); }
-.nowel {
-    flex: none;
-    margin-left: auto;
-    display: flex;
-    align-items: baseline;
-    gap: .3rem;
-    font-family: var(--mono);
-    font-variant-numeric: tabular-nums;
-    font-size: var(--t-lg);
-    color: var(--ink);
-}
-.nowel span { font-family: var(--sans); font-size: var(--t-xs); color: var(--ink-faint); }
-.nowrow { display: flex; align-items: center; gap: .6rem; min-width: 0; }
-.nowargbox { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: .4rem; }
-.nowlast { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
-.nowlast b { font-weight: 600; color: var(--ink-dim); }
-.nowarg {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--code);
-    font-size: var(--t-xs);
-    color: var(--ink-dim);
-}
-.nowchips { flex: none; display: flex; align-items: center; gap: .3rem; }
+.nowcalltext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-dim); }
+.nowname { font-weight: 600; color: var(--ink); }
+.nowarg { font-family: var(--code); font-size: var(--t-xs); color: var(--ink-dim); }
+.nowcall:active .nowname { color: var(--accent); }
+.nowchips { flex: none; margin-left: auto; display: flex; align-items: center; gap: .3rem; }
 /* The bar of a session waiting on its agents is one button: it opens their list. */
 .nowwait { width: 100%; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .nowwait .nowkind { color: var(--accent-2); }

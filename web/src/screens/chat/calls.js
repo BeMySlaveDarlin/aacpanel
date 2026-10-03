@@ -15,8 +15,20 @@ import { aims, inForeground, ToBackground } from "./tobg.js";
 // of a turn, it lists every call of the turn and says how long it took. With
 // to — the live session on the stream — a call the turn waits on goes to the
 // background from its row and from the call itself.
-export function Calls({ session, id, calls, turn, onFile, to }) {
-    const [pick, setPick] = useState(null);
+//
+// With first — a call of the list, the one the bar above the composer names —
+// the page opens on that call, and its way back leads to the list, as if the
+// call had been picked from it. A page given another list or another first
+// call starts over from them.
+export function Calls({ session, id, calls, turn, onFile, to, first }) {
+    const firstAt = () => {
+        if (!first) return null;
+        const n = calls.findIndex((call) => !call.still && call.pos === first.pos
+            && (call.index || 0) === (first.index || 0));
+        return n >= 0 ? n : null;
+    };
+    const [pick, setPick] = useState(firstAt);
+    useEffect(() => setPick(firstAt()), [calls, first]);
     const real = calls.filter((call) => !call.still);
     const place = (n) => real.indexOf(calls[n]) + 1;
 
@@ -113,7 +125,13 @@ function fetchCall(session, id, at) {
 function CallView({ session, id, call, place, onBack, onFile, to }) {
     const [state, setState] = useState({ kind: "loading" });
 
-    useBackClose(true, onBack);
+    // The call joins the back gesture a render after it is drawn. Opened
+    // together with its sheet, it would join first — effects run child first —
+    // and stand under the sheet, so a back would close the sheet rather than
+    // lead to the list of the calls.
+    const [drawn, setDrawn] = useState(false);
+    useEffect(() => setDrawn(true), []);
+    useBackClose(drawn, onBack);
 
     useEffect(() => {
         let alive = true;

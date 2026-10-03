@@ -33,7 +33,10 @@ import { ChecklistLine, checklistOf } from "./checklist.js";
 // alone above the composer when there is nothing else to say: where the session
 // is in its work belongs beside what it is doing this moment, and a quiet
 // session is still somewhere in its checklist.
-export function WorkStatus({ work, busy, turnOver, compacting, feed, checklist, onCalls, onOpen, onChecklist, to }) {
+//
+// onCalls opens the calls of the run going on; onCall opens them on one call
+// of that run, the one the bar names.
+export function WorkStatus({ work, busy, turnOver, compacting, feed, checklist, onCalls, onCall, onOpen, onChecklist, to }) {
     const line = checklistOf(checklist)
         ? html`<${ChecklistLine} checklist=${checklist} onOpen=${onChecklist} />`
         : null;
@@ -47,7 +50,8 @@ export function WorkStatus({ work, busy, turnOver, compacting, feed, checklist, 
         return bar(waits && html`<${WaitBar} waits=${waits} onOpen=${onOpen} />`);
     }
     const now = nowOf(feed);
-    return bar(html`<${NowBar} now=${now} to=${to} onCalls=${() => now.run != null && onCalls && onCalls(now.run)} />`);
+    return bar(html`<${NowBar} now=${now} to=${to} onCalls=${() => now.run != null && onCalls && onCalls(now.run)}
+                               onCall=${(call) => now.run != null && onCall && onCall(now.run, call)} />`);
 }
 
 // compactPct is how far a compaction has got, the way the terminal shows it.

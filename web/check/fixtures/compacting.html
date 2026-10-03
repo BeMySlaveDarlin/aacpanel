@@ -38,8 +38,7 @@ const read = (id) => {
     const fill = bar && bar.querySelector("i");
     return {
         text: (box.querySelector(".working") || { textContent: "" }).textContent.trim(),
-        nowTop: [".nowword", ".nowname"].map((sel) => (box.querySelector(sel) || { textContent: "" }).textContent.trim())
-            .filter(Boolean).join(" "),
+        nowTop: (box.querySelector(".nowtop") || { textContent: "" }).textContent.replace(/\s+/g, " ").trim(),
         pct: (box.querySelector(".workpct") || { textContent: "" }).textContent.trim(),
         now: bar ? bar.getAttribute("aria-valuenow") : "",
         fill: fill ? fill.style.width : "",

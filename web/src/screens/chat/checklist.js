@@ -86,12 +86,22 @@ function Ticks({ p }) {
     `;
 }
 
-// The words every form of the checklist heads with: the checklist and where
-// the session is in it, or that it is done.
+// The words the sheet and the desk head the checklist with: the checklist and
+// where the session is in it, or that it is done.
 function Head({ p }) {
     return html`
         <span class="ckword">${p.over ? "Checklist done" : "Checklist"}</span>
         <span class="cknum">${p.n} of ${p.total}</span>
+    `;
+}
+
+// The line over the composer heads with a check mark and the count alone: the
+// card of a phone gives the checklist one line, and the room the words would
+// take is the step's. The label of the line says the checklist in words.
+function LineHead({ p }) {
+    return html`
+        <span class="ckicon" aria-hidden="true">${Icon.check()}</span>
+        <span class="cknum">${p.n}/${p.total}</span>
     `;
 }
 
@@ -109,7 +119,7 @@ export function ChecklistLine({ checklist, onOpen }) {
     return html`
         <button class=${`ckline${p.over ? " over" : ""}`} type="button" onClick=${onOpen}
                 aria-label=${`${said(p)} — open the checklist`}>
-            <${Head} p=${p} />
+            <${LineHead} p=${p} />
             ${!p.over && html`<span class="ckstep">${p.step}</span>`}
             <${Ticks} p=${p} />
             <span class="ckchev">${Icon.chevron()}</span>
