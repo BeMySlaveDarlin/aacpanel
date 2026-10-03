@@ -177,7 +177,7 @@ function onTheWay(state) {
     return null;
 }
 
-// What a letter is: a session next door, a subagent of this one, a hook of the
+// What a letter is: a session next door, an agent of this one, a hook of the
 // session speaking at the end of a turn, or an alarm of the session waking it
 // up. All four arrive among the prompts, the first three wrapped in a preamble
 // nobody reads twice, so all four are drawn the same way — a card of the build
@@ -185,10 +185,10 @@ function onTheWay(state) {
 // of the letter, and the rest opened by a row under them.
 const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook", wake: "wake" };
 
-const MAIL_WHO = { session: "neighbour session", agent: "subagent", hook: "stop hook" };
+const MAIL_WHO = { session: "neighbour session", agent: "agent", hook: "stop hook" };
 
 const MAIL_LABEL = {
-    agent: ["from subagent", "to subagent"],
+    agent: ["from agent", "to agent"],
     session: ["from session", "to session"],
     hook: ["stop hook", "stop hook"],
     wake: ["wake-up", "wake-up"],
