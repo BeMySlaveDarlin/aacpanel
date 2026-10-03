@@ -45,11 +45,14 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], on
     const ok = seen.filter((state) => state === "ok").length;
     const up = uptime(snapshot && snapshot.host && snapshot.host.uptime);
 
+    // Without onBack the page is one of the host tab, named by its pager.
     return html`
-        <${BackHead} onBack=${onBack} label="to the containers">
-            <h2>Machine</h2>
-            ${up && html`<span class="hint">${up}</span>`}
-        <//>
+        ${onBack && html`
+            <${BackHead} onBack=${onBack} label="back">
+                <h2>Machine</h2>
+                ${up && html`<span class="hint">${up}</span>`}
+            <//>
+        `}
 
         <div class="mgrid">
             <${Resources} snapshot=${snapshot} error=${error} ageSec=${ageSec} filter="all"
@@ -67,7 +70,7 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], on
     `;
 }
 
-// machineStats returns the three host figures for the containers header.
+// machineStats returns the three host figures for the strip over the containers.
 export function machineStats(snapshot) {
     const host = snapshot && snapshot.host;
     if (!host) return null;

@@ -15,7 +15,7 @@
 /* The rows under the bar keep the page gutter; the bar itself runs nearly to
    the edges, because its buttons are 44 px targets with the mark drawn in the
    middle, and a gutter on top of that would push the words off a 360 screen. */
-.top > .search, .top > .hostbar { margin: 0 calc(1rem - 2px) .6rem calc(1rem - 4px); width: auto; }
+.top > .search { margin: 0 calc(1rem - 2px) .6rem calc(1rem - 4px); width: auto; }
 
 /* One line, 48 px, at every width and in every state: nothing in the bar
    wraps. Words that do not fit are cut inside their own box, so no button is
@@ -483,6 +483,16 @@
     -webkit-backdrop-filter: none;
     border-bottom: 0;
     padding: 0 0 .45rem;
+}
+
+/* Filters on a page of a pager turn with the page: no band of their own, and
+   the first chip stands on the gutter of the cards under it. */
+.pfcol > .chips {
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 0;
+    padding-inline: 0;
 }
 
 .chips::-webkit-scrollbar { display: none; }

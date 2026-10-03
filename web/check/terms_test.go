@@ -346,11 +346,11 @@ func TestTerminalsOnThePhone(t *testing.T) {
 		t.Fatalf("the walk broke off: %s", got.Error)
 	}
 
-	// Sessions and profiles stand left of the home button, containers and
+	// Sessions and profiles stand left of the home button, the host and the
 	// terminals right of it; usage is among the live tiles that lead the menu
 	// under the logo.
 	t.Run("the bottom menu and the menu under the logo", func(t *testing.T) {
-		if want := []string{"Sessions", "Profiles", "(home)", "Containers", "Terminals"}; !equalStrings(got.Nav, want) {
+		if want := []string{"Sessions", "Profiles", "(home)", "Host", "Terminals"}; !equalStrings(got.Nav, want) {
 			t.Errorf("the bottom menu reads %v, expected %v", got.Nav, want)
 		}
 		if len(got.LogoMenu) < 3 || !equalStrings(got.LogoMenu[:3], []string{"Machine", "Usage", "Briefs"}) {
@@ -635,7 +635,7 @@ func TestTheSessionTerminalButton(t *testing.T) {
 
 // A listener without the terminal route draws nothing of the terminals: no
 // item in the bottom menu, no section on the wide screen, no button in a
-// conversation, and a tab kept from elsewhere goes back to the containers.
+// conversation, and a tab kept from elsewhere goes back to the host.
 func TestNoTerminalRouteNoTerminals(t *testing.T) {
 	var got struct {
 		Error       string   `json:"error"`
@@ -652,10 +652,10 @@ func TestNoTerminalRouteNoTerminals(t *testing.T) {
 		t.Fatalf("the fixture broke off: %s", got.Error)
 	}
 	if contains("Terminals", got.Nav) || len(got.Nav) != 3 {
-		t.Errorf("the bottom menu reads %v, expected Sessions, Containers, Profiles", got.Nav)
+		t.Errorf("the bottom menu reads %v, expected Sessions, Profiles, Host", got.Nav)
 	}
-	if got.Tab != "containers" {
-		t.Errorf("a kept terminals tab stays %q, expected the containers", got.Tab)
+	if got.Tab != "host" {
+		t.Errorf("a kept terminals tab stays %q, expected the host", got.Tab)
 	}
 	if contains("Terminals", got.Sections) || len(got.Sections) == 0 {
 		t.Errorf("the sections of the wide screen read %v, expected no terminals", got.Sections)

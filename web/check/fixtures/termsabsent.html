@@ -47,7 +47,10 @@ const exec = { available: true, kinds: ["term.start", "term.close", "term.rename
 const live = { session: "shop", sessionId: "s1", transport: "stream", status: "idle", pct: 12.4, tokensIn: 1000,
     tokensOut: 100, cwd: "/srv/proj/shop", lastRequestAt: new Date().toISOString(),
     project: { id: 11, name: "shop", path: "/srv/proj/shop" } };
-const snapshot = { at: 1, hostName: "helios", sessions: [live], profileMap: [], limits: null, host: { home: "/home/u" } };
+// The host block as the agent sends it: the host tab draws the machine.
+const host = { home: "/home/u", cpuPct: 12, cpus: 8, load: [0.4, 0.3, 0.2], uptime: 86400,
+    mem: { pct: 30, used: 5 << 30, total: 16 << 30 }, disks: [], net: [] };
+const snapshot = { at: 1, hostName: "helios", sessions: [live], profileMap: [], limits: null, host };
 const wait = { opening: () => [], of: () => null };
 const alerts = { kind: "ready", alerts: [], older: [], reload: () => {} };
 const shared = {

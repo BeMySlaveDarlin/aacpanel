@@ -8,13 +8,13 @@ import { openLimits } from "../screens/sessions/limits.js";
 import { Icon } from "./icons.js";
 import { connection } from "./route.js";
 import { Sheet } from "./sheet.js";
-import { level, pct, rate, uptime } from "../format.js";
+import { level, pct, uptime } from "../format.js";
 
 // The bar is one line at any phone width and in any state. The chip of the
 // connection keeps the words of the state; a long host name gives way instead.
 // The theme and the install live in the host menu; the caret lights up while
 // the install waits there, or it would never be found.
-export function Header({ hostName = "host", ageSec, conn, route, flag = false, machine, onMachine, alerts = 0, query, onQuery, onMenu, onAlerts }) {
+export function Header({ hostName = "host", ageSec, conn, route, flag = false, alerts = 0, query, onQuery, onMenu, onAlerts }) {
     const [searching, setSearching] = useState(false);
     const state = connection({ conn, ageSec, route });
     const leg = state.leg !== undefined;
@@ -74,20 +74,6 @@ export function Header({ hostName = "host", ageSec, conn, route, flag = false, m
                     value=${query}
                     onInput=${(event) => onQuery(event.target.value)}
                 />
-            `}
-
-            ${machine && html`
-                <div class="hostbar">
-                    <div class="hstats">
-                        <${Stat} title="cpu" value=${pct(machine.cpuPct)} fill=${machine.cpuPct} />
-                        <${Stat} title="memory" value=${pct(machine.memPct)} fill=${machine.memPct} />
-                        <${Stat} title="network" value=${rate(machine.net)} fill=${null} />
-                    </div>
-                    <button class="hdetails" type="button" onClick=${onMachine}>
-                        details
-                        <span class="chev">${Icon.chevron()}</span>
-                    </button>
-                </div>
             `}
         </header>
     `;
@@ -261,18 +247,4 @@ function useMenuCounts(open) {
         };
     }, [open]);
     return counts;
-}
-
-function Stat({ title, value, fill }) {
-    return html`
-        <div class="hstat">
-            <span class="hstat-title">${title}</span>
-            <span class="hstat-value">${value}</span>
-            <div class=${`bar${fill == null ? " blank" : ""}`}>
-                ${fill != null && html`
-                    <i class=${level(fill)} style=${`width:${Math.min(100, fill)}%`}></i>
-                `}
-            </div>
-        </div>
-    `;
 }

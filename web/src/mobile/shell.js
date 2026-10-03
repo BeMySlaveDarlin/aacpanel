@@ -10,8 +10,8 @@ import { HomeButton } from "../ui/home.js";
 import { LogBar } from "../ui/logbar.js";
 import { useToastHide } from "../ui/toasts.js";
 import { Alerts } from "../screens/alerts.js";
-import { Containers, filterChips } from "../screens/containers.js";
-import { Machine, machineStats } from "../screens/machine.js";
+import { Host } from "../screens/host.js";
+import { Machine } from "../screens/machine.js";
 import { Sessions, sessionChips } from "../screens/sessions.js";
 import { Terminals } from "../screens/terms.js";
 import { useTermAvailable } from "../screens/chat/term.js";
@@ -24,13 +24,15 @@ import { Settings } from "../screens/settings.js";
 
 const TAB_KEY = "aacpanel.tab";
 
+// lastTab returns the tab the phone was left on. A tab the menu no longer has
+// opens the host: the containers kept from before are a page of it now.
 function lastTab() {
     try {
         const saved = window.localStorage.getItem(TAB_KEY);
         if (saved && TABS.some((s) => s.id === saved)) return saved;
     } catch (err) {
     }
-    return "containers";
+    return "host";
 }
 
 export function MobileShell({
@@ -39,7 +41,7 @@ export function MobileShell({
     route, jump, onJumped,
 }) {
     const [tab, setTab] = useState(lastTab);
-    const [filters, setFilters] = useState({ containers: "all", sessions: "all" });
+    const [filters, setFilters] = useState({ host: "all", sessions: "all" });
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState(() => new Set());
 
@@ -109,7 +111,7 @@ export function MobileShell({
     }, [goTab]);
 
     // The terminals exist where the listener has the terminal route; a tab
-    // kept from a listener that had it goes back to the containers.
+    // kept from a listener that had it goes back to the host.
     const term = useTermAvailable();
     const [wantTerm, setWantTerm] = useState(null);
     const goTerm = useCallback((target) => {
@@ -118,7 +120,7 @@ export function MobileShell({
         setWantTerm(target);
     }, [goTab]);
     useEffect(() => {
-        if (tab === "terminals" && term.known && !term.route) goTab("containers");
+        if (tab === "terminals" && term.known && !term.route) goTab("host");
     }, [tab, term.known, term.route, goTab]);
     useEffect(() => {
         if (!jump) return;
@@ -128,15 +130,9 @@ export function MobileShell({
 
     const chips = useMemo(() => {
         if (layer) return null;
-        if (tab === "containers") return filterChips(tree);
         if (tab === "sessions") return sessionChips(snapshot);
         return null;
-    }, [tab, tree, snapshot, layer]);
-
-    const machine = useMemo(
-        () => (tab === "containers" && !layer && !page ? machineStats(snapshot) : null),
-        [tab, layer, page, snapshot],
-    );
+    }, [tab, snapshot, layer]);
 
 
     return html`
@@ -148,8 +144,6 @@ export function MobileShell({
                 ageSec=${ageSec}
                 conn=${conn}
                 route=${route}
-                machine=${machine}
-                onMachine=${() => setPage("machine")}
                 alerts=${openAlerts}
                 onAlerts=${() => setPage("alerts")}
                 query=${query}
@@ -183,6 +177,7 @@ export function MobileShell({
                     tree=${tree}
                     snapshot=${snapshot}
                     filter=${filter}
+                    onFilter=${setFilter}
                     query=${query}
                     open=${open}
                     onToggle=${toggleStack}
@@ -193,6 +188,7 @@ export function MobileShell({
                     treeError=${treeError}
                     hostError=${hostError}
                     ageSec=${ageSec}
+                    history=${history}
                     faults=${faults}
                     onLayer=${setLayer}
                     want=${want}
@@ -258,8 +254,8 @@ export function MobileShell({
 }
 
 function Screen({
-    tab, tree, snapshot, filter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec, faults,
-    onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm,
+    tab, tree, snapshot, filter, onFilter, query, open, onToggle, onLogs, onDone, wait, exec, treeError, hostError, ageSec,
+    history, faults, onLayer, want, onWanted, onUsage, terms, wantTerm, onWantedTerm, onTerm,
 }) {
     if (tab === "sessions") {
         return html`<${Sessions} snapshot=${snapshot} error=${hostError} ageSec=${ageSec} filter=${filter}
@@ -270,6 +266,7 @@ function Screen({
         return html`<${Terminals} snapshot=${snapshot} exec=${exec} onLayer=${onLayer}
             want=${wantTerm} onWanted=${onWantedTerm} />`;
     }
-    return html`<${Containers} tree=${tree} error=${treeError} filter=${filter} query=${query} open=${open}
-        onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec} />`;
+    return html`<${Host} tree=${tree} treeError=${treeError} filter=${filter} onFilter=${onFilter} query=${query}
+        open=${open} onToggle=${onToggle} onLogs=${onLogs} onDone=${onDone} exec=${exec}
+        snapshot=${snapshot} hostError=${hostError} ageSec=${ageSec} history=${history} faults=${faults} />`;
 }

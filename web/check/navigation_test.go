@@ -36,7 +36,7 @@ func TestEveryMenuSectionOpensSomething(t *testing.T) {
 		if strings.Contains(screen, `tab === "`+id+`"`) {
 			continue
 		}
-		if strings.Contains(screen, `<${Containers}`) && id == "containers" {
+		if strings.Contains(screen, `<${Host}`) && id == "host" {
 			continue
 		}
 		t.Errorf("tab %q is in the menu, but Screen does not know it — the button lights up and opens nothing", id)

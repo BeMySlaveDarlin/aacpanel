@@ -1,0 +1,255 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The host tab of the phone, walked in the whole shell: a phone that kept the
+// containers tab from before opens on it, its three pages are turned by a
+// swipe and by their names, the page chosen comes back after another tab and
+// after a new start, the row of pages stands in one place on every page with
+// the strip of the machine and the filters inside the containers page, details
+// on that strip turns to the machine page, and the host menu still opens the
+// machine and the journal over the screen with the way back. Headless has no touch gestures, so a swipe is
+// followed the way the browser routes one: the element under the finger, then
+// the nearest box above it that scrolls sideways — that box is scrolled by a
+// page, and the pager's own scroll handler decides which page is current.
+import { h, render } from "preact";
+import { MobileShell } from "/src/mobile/shell.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+// A frame to look at: #shot=containers stops the walk on that page.
+const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
+const pause = async (name) => {
+    if (shot !== name) return;
+    await sleep(400);
+    document.body.dataset.shot = name;
+    await new Promise(() => {});
+};
+
+localStorage.setItem("aacpanel.tab", "containers");
+
+const now = Date.now();
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const actions = [
+    { id: 41, kind: "container.restart", target: "shop-web", result: "ok", ts: new Date(now - 4 * 60e3).toISOString(),
+      device_name: "phone", duration_ms: 2300 },
+    { id: 40, kind: "stack.up", target: "chat-bridge", result: "failed", error: "port 8080 is taken",
+      ts: new Date(now - 50 * 60e3).toISOString(), device_name: "laptop", duration_ms: 900 },
+    { id: 39, kind: "container.stop", target: "lab-worker", result: "ok", ts: new Date(now - 3 * 3600e3).toISOString(),
+      device_name: "phone", duration_ms: 1200 },
+];
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/term")) return new Response("404 page not found", { status: 404 });
+    if (u.startsWith("/api/actions")) return json({ actions });
+    if (u === "/api/probes") return json({ probes: [] });
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/briefs")) return json({ briefs: [] });
+    if (u.startsWith("/api/devices")) return json({ devices: [], revoked: [], current: 1 });
+    return json({});
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const GB = 1 << 30;
+const MB = 1 << 20;
+const box = (name, state = "running", extra = {}) =>
+    ({ id: name, name, service: name, state, status: state === "running" ? "Up 2 days" : "Exited (0) 3 hours ago",
+       cpu: state === "running" ? 1.5 : 0, mem: state === "running" ? 180 * MB : 0, ...extra });
+const tree = { running: 6, total: 8, stacks: [
+    { name: "shop", running: 3, total: 3, hasStats: true, cpu: 4.5, mem: 540 * MB,
+      containers: [box("shop-web"), box("shop-db"), box("shop-cache")] },
+    { name: "chat-bridge", running: 2, total: 3, hasStats: true, cpu: 3, mem: 360 * MB,
+      containers: [box("bot"), box("worker", "running", { health: "unhealthy" }), box("bridge-db", "exited")] },
+    { name: "lab", running: 1, total: 2, hasStats: true, cpu: 1.5, mem: 180 * MB,
+      containers: [box("lab-api"), box("lab-worker", "exited")] },
+] };
+const snapshot = {
+    at: 1, hostName: "helios", sessions: [], profileMap: [], limits: null,
+    host: {
+        cpuPct: 23.4, cpus: 16, load: [2.1, 1.8, 1.6], uptime: 12 * 86400 + 3 * 3600,
+        mem: { pct: 41.2, used: 25.6 * GB, total: 62 * GB },
+        disks: [{ mount: "/", pct: 38.5, free: 560 * GB }],
+        net: [{ name: "eth0", rxRate: 182000, txRate: 46000, state: "up", speed: 1000 }],
+    },
+};
+const exec = { available: true, kinds: ["container.restart", "container.stop", "container.start", "stack.up"] };
+const wait = { opening: () => [], of: () => null };
+const alerts = { kind: "ready", alerts: [], older: [], reload: () => {} };
+const props = {
+    snapshot, tree, treeError: null, hostError: null, ageSec: 1, history: [], faults: [], alerts, openAlerts: 0,
+    exec, onRefresh: () => {}, wait, conn: { kind: "live" }, theme: "space", onTheme: () => {}, updateReady: false,
+    updating: false, onApplyUpdate: () => {}, installable: false, onInstall: () => {},
+    route: { here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }, jump: null, onJumped: () => {},
+};
+const root = document.getElementById("root");
+const start = () => render(h(ToastHost, null, h(GateHost, null, h(MobileShell, props))), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        const got = fn();
+        if (got) return got;
+        await sleep(30);
+    }
+    return fn();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const nav = () => Array.from(document.querySelectorAll("nav.tabs > button"));
+const navOn = () => text(nav().find((b) => b.getAttribute("aria-current") === "true"));
+const navTo = (label) => {
+    const button = nav().find((b) => text(b) === label);
+    if (button) button.click();
+};
+const pages = () => document.querySelector(".pfpages");
+const names = () => Array.from(document.querySelectorAll(".pftab")).map(text);
+const current = () => text(document.querySelector(".pftab.on"));
+const pageAt = (i) => pages() && pages().children[i];
+// settled says the pager stands on the page it names, not on the way to it.
+const settled = (name) => {
+    const at = names().indexOf(name);
+    const el = pages();
+    const kid = pageAt(at);
+    if (current() !== name || !kid) return false;
+    return Math.abs(kid.getBoundingClientRect().left - el.getBoundingClientRect().left) < 2;
+};
+const scrolls = (el) => {
+    const style = getComputedStyle(el);
+    if (style.overflowX !== "auto" && style.overflowX !== "scroll") return false;
+    return el.scrollWidth > el.clientWidth;
+};
+const scrollerAt = (x, y) => {
+    for (let el = document.elementFromPoint(x, y); el && el !== document.documentElement; el = el.parentElement) {
+        if (scrolls(el)) return el;
+    }
+    return null;
+};
+// swipe moves the sideways box under the middle of the pages by one page and
+// says which page the pager settles on.
+const swipe = async (by, to) => {
+    const r = pages().getBoundingClientRect();
+    const x = Math.round(r.left + r.width / 2);
+    const y = Math.round(r.top + Math.min(r.height / 2, 200));
+    const scroller = scrollerAt(x, y);
+    if (!scroller) return { box: "", page: current() };
+    scroller.scrollBy({ left: by * scroller.clientWidth, behavior: "instant" });
+    await until(() => settled(to), 2000);
+    return { box: scroller.className, page: current() };
+};
+const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : -1);
+const bottom = (el) => (el ? Math.round(el.getBoundingClientRect().bottom) : -1);
+// look reads what stands on the screen with the pager on the page it names:
+// where the row of pages stands, and the strip of the machine and the filters
+// — those of the page, and any standing outside the pages.
+const look = (name) => {
+    const page = pageAt(names().indexOf(name));
+    const strip = page && page.querySelector(".hostbar");
+    const chips = page && page.querySelector(".chips");
+    const row = document.querySelector(".pftabs");
+    return {
+        page: current(),
+        kept: localStorage.getItem("aacpanel.host.page") || "",
+        back: Boolean(page && page.querySelector(".pback")),
+        head: page ? Array.from(page.querySelectorAll(".phead h2")).map(text) : [],
+        rowTop: top(row),
+        rowBottom: bottom(row),
+        strip: Boolean(strip),
+        stripTop: top(strip),
+        filters: chips ? Array.from(chips.querySelectorAll(".chip")).map((c) => c.firstChild.textContent.trim()) : [],
+        filtersTop: top(chips),
+        outside: Array.from(document.querySelectorAll(".hostbar, .chips"))
+            .filter((el) => !el.closest(".pfpages")).map((el) => el.className),
+        stacks: page ? page.querySelectorAll(".stack").length : 0,
+        grid: Boolean(page && page.querySelector(".mgrid")),
+        entries: page ? page.querySelectorAll(".entry").length : 0,
+    };
+};
+// layer reads a page the host menu opened over the screen.
+const layer = () => {
+    const head = document.querySelector(".body > .phead");
+    return {
+        title: text(head && head.querySelector("h2")),
+        back: Boolean(head && head.querySelector(".pback")),
+        pager: Boolean(document.querySelector(".pfpager")),
+        nav: Boolean(document.querySelector("nav.tabs")),
+    };
+};
+const openMenu = async (item) => {
+    document.querySelector("header.top .host").click();
+    await until(() => document.querySelector(".sheet.on .hm-live"));
+    const door = Array.from(document.querySelectorAll(".sheet.on .hm-tile, .sheet.on .hm-q"))
+        .find((b) => text(b.querySelector(".t")) === item);
+    door.click();
+    await until(() => layer().title === item);
+    await sleep(100);
+    return layer();
+};
+const closeLayer = async (name) => {
+    document.querySelector(".body > .phead .pback").click();
+    await until(() => settled(name));
+    return { pager: Boolean(document.querySelector(".pfpager")), page: current(), title: layer().title };
+};
+
+window.done = (async () => {
+    const out = {};
+    try {
+        start();
+        await document.fonts.ready;
+        await until(() => settled("Containers") && pageAt(0).querySelector(".stack"));
+        out.nav = nav().map(text);
+        out.navOn = navOn();
+        out.pages = names();
+        out.first = look("Containers");
+        await pause("containers");
+
+        out.forward = await swipe(1, "Machine");
+        out.machine = look("Machine");
+        await pause("machine");
+        out.further = await swipe(1, "Journal");
+        await until(() => pageAt(2).querySelector(".entry"));
+        out.journal = look("Journal");
+        await pause("journal");
+        out.backward = await swipe(-1, "Machine");
+
+        // Another tab and back, then a new start of the whole shell.
+        navTo("Sessions");
+        await until(() => navOn() === "Sessions" && !document.querySelector(".pftab"));
+        navTo("Host");
+        await until(() => settled("Machine"), 2000);
+        out.again = current();
+        render(null, root);
+        start();
+        await until(() => settled("Machine"), 2000);
+        out.reopened = { page: current(), navOn: navOn(), tab: localStorage.getItem("aacpanel.tab") };
+
+        // A tap on a name turns the pager there; details on the strip of the
+        // machine turns it to the machine page rather than opening a layer.
+        Array.from(document.querySelectorAll(".pftab")).find((b) => text(b) === "Containers").click();
+        await until(() => settled("Containers") && pageAt(0).querySelector(".hdetails"), 2000);
+        out.tapped = look("Containers");
+        // A strip that left the page leaves nothing here to press: the walk
+        // goes on, and the reading says where the tab stayed.
+        const details = pageAt(0).querySelector(".hdetails");
+        if (details) details.click();
+        await until(() => settled("Machine"), 2000);
+        await sleep(100);
+        out.details = { ...layer(), page: current(), kept: localStorage.getItem("aacpanel.host.page") || "" };
+
+        // The host menu opens the machine and the journal over the screen.
+        out.menuMachine = await openMenu("Machine");
+        out.menuMachineBack = await closeLayer("Machine");
+        out.menuJournal = await openMenu("Journal");
+        out.menuJournalBack = await closeLayer("Machine");
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>
