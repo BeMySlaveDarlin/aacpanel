@@ -57,7 +57,7 @@ func fakeClaude() int {
 		b, _ = json.Marshal(map[string]any{"type": "command_lifecycle", "command_uuid": msg["uuid"], "state": "completed"})
 		fmt.Println(string(b))
 	}
-	model, ultra := "claude-sonnet-5", false
+	model, ultra, effort := "claude-sonnet-5", false, "xhigh"
 	// The calls a turn waits on, as claude -p 2.1.283 registers them: a
 	// task in the foreground, named by the call that started it.
 	var foreground []map[string]any
@@ -116,10 +116,14 @@ func fakeClaude() int {
 				// the init of the next turn.
 				model, _ = req["model"].(string)
 			case "apply_flag_settings":
-				// Claude answers success either way, and a model without
-				// xhigh turns nothing on.
-				on, _ := req["settings"].(map[string]any)["ultracode"].(bool)
+				// Claude answers success either way: a model without xhigh
+				// turns nothing on, and haiku keeps the level it ran at.
+				settings := req["settings"].(map[string]any)
+				on, _ := settings["ultracode"].(bool)
 				ultra = on && model != "haiku"
+				if level, ok := settings["effortLevel"].(string); ok && model != "haiku" {
+					effort = level
+				}
 			case "side_question":
 				body = map[string]any{"response": "tangerine", "synthetic": false}
 			case "get_settings":
@@ -129,7 +133,7 @@ func fakeClaude() int {
 						"hooks":       map[string]any{"Stop": []any{}},
 						"model":       "opus[1m]", "theme": "dark"},
 					"sources": []any{map[string]any{"source": "userSettings", "settings": map[string]any{"env": "glpat-secret"}}},
-					"applied": map[string]any{"model": model, "effort": "xhigh", "advisor": nil, "ultracode": ultra},
+					"applied": map[string]any{"model": model, "effort": effort, "advisor": nil, "ultracode": ultra},
 				}
 			case "get_hooks_listing":
 				body = map[string]any{
@@ -1194,6 +1198,14 @@ func TestSettingsRequestsPassOnlyThePanelsShape(t *testing.T) {
 		{"apply_flag_settings", map[string]any{"settings": map[string]any{"ultracode": true, "hooks": map[string]any{"Stop": "rm"}}}},
 		{"apply_flag_settings", map[string]any{"settings": map[string]any{"permissions": map[string]any{"allow": "Bash"}}}},
 		{"apply_flag_settings", map[string]any{"settings": map[string]any{"ultracode": "yes"}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"effortLevel": "high", "ultracode": true}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"effortLevel": "high"}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"effortLevel": "high", "ultracode": "false"}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"effortLevel": "high", "ultracode": false,
+			"hooks": map[string]any{"Stop": "rm"}}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"effortLevel": "turbo", "ultracode": false}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"effortLevel": 3, "ultracode": false}}},
+		{"apply_flag_settings", map[string]any{"settings": map[string]any{"effortLevel": "high", "ultracode": false}, "scope": "user"}},
 		{"update_settings", map[string]any{"source": "localSettings", "settings": map[string]any{"effortLevel": "high"}}},
 		{"update_settings", map[string]any{"source": "userSettings", "settings": map[string]any{"effortLevel": "max"}}},
 		{"update_settings", map[string]any{"source": "userSettings", "settings": map[string]any{"effortLevel": "high", "model": "x"}}},
@@ -1212,7 +1224,8 @@ func TestSettingsRequestsPassOnlyThePanelsShape(t *testing.T) {
 			t.Errorf("%s %v was passed on", c.subtype, c.fields)
 		}
 	}
-	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "get_settings", "rename_session", "remote_control"} {
+	for _, word := range []string{"hooks", "permissions", "localSettings", `"max"`, `"model":"x"`, "effortLevel",
+		"get_settings", "rename_session", "remote_control"} {
 		if strings.Contains(r.received(), word) {
 			t.Errorf("claude read %s", word)
 		}
@@ -1306,6 +1319,45 @@ func TestUltracodeIsTheEffortOnlyOnceClaudeRunsIt(t *testing.T) {
 
 	r.ask(Request{Op: OpControl, Subtype: "apply_flag_settings", Fields: map[string]any{"settings": map[string]any{"ultracode": false}}})
 	r.waitFor("ultracode off", func(s State) bool { return s.Effort == "xhigh" })
+}
+
+// A level of effort is the one claude reports the session runs at by the time
+// the request is answered: claude writes no event about it, a switch starts
+// the other side with it, and a level the model does not take is a failure
+// that names the level the session kept.
+func TestALevelOfEffortIsTheOneClaudeRuns(t *testing.T) {
+	r := start(t, nil)
+	r.waitFor("the handshake", func(s State) bool { return len(s.Init) > 0 })
+	level := func(name string) Request {
+		return Request{Op: OpControl, Subtype: "apply_flag_settings",
+			Fields: map[string]any{"settings": map[string]any{"effortLevel": name, "ultracode": false}}}
+	}
+
+	if reply := r.ask(level("max")); !reply.OK {
+		t.Fatalf("a level claude runs was refused: %+v", reply)
+	}
+	r.eventually(`"effortLevel":"max"`)
+	if s := r.state(); s.Effort != "max" {
+		t.Errorf("the state says effort %q once max is set", s.Effort)
+	}
+	r.summary(func(sum Summary) bool { return sum.Effort == "max" })
+
+	r.ask(Request{Op: OpControl, Subtype: "apply_flag_settings", Fields: map[string]any{"settings": map[string]any{"ultracode": true}}})
+	r.waitFor("ultracode in the state", func(s State) bool { return s.Effort == Ultracode })
+	if reply := r.ask(level("high")); !reply.OK {
+		t.Fatalf("a level picked after ultracode was refused: %+v", reply)
+	}
+	if s := r.state(); s.Effort != "high" {
+		t.Errorf("the state says effort %q once high is set over ultracode", s.Effort)
+	}
+
+	r.ask(Request{Op: OpControl, Subtype: "set_model", Fields: map[string]any{"model": "haiku"}})
+	if reply := r.ask(level("low")); reply.OK || !strings.Contains(reply.Error, "runs at high") {
+		t.Errorf("a level the model does not take was reported set: %+v", reply)
+	}
+	if s := r.state(); s.Effort != "high" {
+		t.Errorf("the state says effort %q where claude runs at high", s.Effort)
+	}
 }
 
 func TestAQuestionAsidePassesInClaudesShapeOnly(t *testing.T) {

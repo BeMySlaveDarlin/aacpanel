@@ -373,6 +373,90 @@ func TestAModelTheStreamRefusesIsNotReportedSet(t *testing.T) {
 	}
 }
 
+// An effort named with the command is set by the request claude's own client
+// sends, and a busy session runs on it from that moment: as a message it would
+// wait for the turn to end.
+func TestAnEffortCommandOnTheStreamIsSetPastTheQueue(t *testing.T) {
+	f := onTheStream(t, true)
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "effort", Arg: "high"}
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := only(t, f); !levelSet(got, "high") {
+		t.Errorf("the holder was asked %+v, expected apply_flag_settings with effort high and ultracode off", got)
+	}
+	if !strings.Contains(detail, "/effort high set on demo on the stream at once") {
+		t.Errorf("the report %q does not say the effort was set at once", detail)
+	}
+}
+
+// Ultracode named with the command is the flag of the session, set at once the
+// same way.
+func TestUltracodeCommandOnTheStreamIsTheFlag(t *testing.T) {
+	f := onTheStream(t, true)
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "effort", Arg: action.Ultracode}
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := only(t, f)
+	settings, _ := got.Fields["settings"].(map[string]any)
+	if got.Op != stream.OpControl || got.Subtype != "apply_flag_settings" || settings["ultracode"] != true || len(settings) != 1 {
+		t.Errorf("the holder was asked %+v", got)
+	}
+	for _, say := range []string{"ultracode", "at once", "this session only"} {
+		if !strings.Contains(detail, say) {
+			t.Errorf("the report %q does not say %q", detail, say)
+		}
+	}
+}
+
+// An effort the session does not run on comes back as claude's word on what
+// it runs instead, rather than as a command reported set.
+func TestAnEffortTheStreamRefusesIsNotReportedSet(t *testing.T) {
+	f := onTheStream(t, false)
+	f.fails = map[string]string{stream.OpControl: "effort max did not take in this session: it runs at high"}
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "effort", Arg: "max"}
+	detail, err := e.Execute(context.Background(), r)
+	if err == nil || !strings.Contains(err.Error(), "runs at high") {
+		t.Errorf("the refusal came back as %v, the report as %q", err, detail)
+	}
+}
+
+// A holder that passes on only ultracode refuses a level by the shape of the
+// request, and takes it as a message: the command goes that way, and the
+// session runs on the level once its turn ends.
+func TestAnEffortAHolderCannotSetGoesAsAMessage(t *testing.T) {
+	f := onTheStream(t, true)
+	f.fails = map[string]string{stream.OpControl: "apply_flag_settings passes on only {settings: {ultracode}}"}
+	e, _ := newTest(t, "")
+	r := req(action.SessionCommand, "demo")
+	r.Command = &action.Command{Name: "effort", Arg: "high"}
+	detail, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatalf("a level the holder takes as a message came back as %v", err)
+	}
+	var sent []stream.Request
+	for _, got := range f.asked() {
+		if got.Op == stream.OpSend {
+			sent = append(sent, got)
+		}
+	}
+	if len(sent) != 1 || sent[0].Text != "/effort high" {
+		t.Errorf("the holder was sent %+v, expected the one message /effort high", sent)
+	}
+	if !strings.Contains(detail, "/effort high sent to demo on the stream: it is busy, the command waits in its queue") {
+		t.Errorf("the report %q does not say the command waits in the queue", detail)
+	}
+}
+
 // A reload goes to the holder as the line typed, its dash and all: claude runs
 // it itself and writes its answer into the transcript.
 func TestAReloadToAStreamSessionIsTheLineTyped(t *testing.T) {
@@ -510,17 +594,15 @@ func TestTheModelsOfAStreamSessionAreTheOnesClaudeListed(t *testing.T) {
 }
 
 // A model and an effort picked from the list go the way a person types them,
-// which the holder remembers across a switch: the model by the request that
-// sets it, the effort as the slash command.
+// which the holder remembers across a switch: each by the request that sets
+// it.
 func TestAModelPickedOnTheStreamIsTheSlashCommand(t *testing.T) {
 	for _, c := range []struct {
 		set     action.Setting
-		op      string
 		subtype string
-		line    string
 	}{
-		{action.Setting{Model: "claude-opus-4-8"}, stream.OpControl, "set_model", ""},
-		{action.Setting{Effort: "max"}, stream.OpSend, "", "/effort max"},
+		{action.Setting{Model: "claude-opus-4-8"}, "set_model"},
+		{action.Setting{Effort: "max"}, "apply_flag_settings"},
 	} {
 		f := onTheStream(t, false)
 		e, _ := newTest(t, "")
@@ -531,11 +613,14 @@ func TestAModelPickedOnTheStreamIsTheSlashCommand(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := only(t, f)
-		if got.Op != c.op || got.Subtype != c.subtype || got.Text != c.line {
-			t.Errorf("the holder was asked %+v, expected %s %q %q", got, c.op, c.subtype, c.line)
+		if got.Op != stream.OpControl || got.Subtype != c.subtype {
+			t.Errorf("the holder was asked %+v, expected %s", got, c.subtype)
 		}
 		if c.set.Model != "" && got.Fields["model"] != c.set.Model {
 			t.Errorf("set_model carried %v, expected %q", got.Fields, c.set.Model)
+		}
+		if c.set.Effort != "" && !levelSet(got, c.set.Effort) {
+			t.Errorf("apply_flag_settings carried %v, expected effort %q with ultracode off", got.Fields, c.set.Effort)
 		}
 	}
 }

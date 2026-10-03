@@ -13,7 +13,7 @@ import (
 )
 
 // How long a pick holds depends on where the session lives. On the stream
-// claude takes a model or an effort typed as a command for the session alone,
+// claude takes a model or an effort set by its requests for the session alone,
 // and a default is written besides: an effort by claude itself, into the
 // settings of the model it runs, and a model by the executor, into the
 // settings of the contour. In a terminal claude saves a model or an effort
@@ -54,13 +54,6 @@ func (e *Executor) setEffort(ctx context.Context, target, effort, scope string) 
 			return "", termSavesPicks(s)
 		}
 		return e.sessionCommand(ctx, target, cmd)
-	}
-	if effort == action.Ultracode {
-		if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpControl, Subtype: "apply_flag_settings",
-			Fields: map[string]any{"settings": map[string]any{"ultracode": true}}}); err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("%s runs on ultracode now: xhigh, with workflows for every task — for this session only", s.Name), nil
 	}
 	saved := ""
 	if scope == action.ScopeDefault {

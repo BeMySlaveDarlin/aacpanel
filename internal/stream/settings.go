@@ -23,6 +23,9 @@ const Ultracode = "ultracode"
 // them: claude keeps it for the session it is set in.
 var savedEfforts = []string{"low", "medium", "high", "xhigh"}
 
+// sessionEfforts are the levels a session takes while it runs.
+var sessionEfforts = []string{"low", "medium", "high", "xhigh", "max"}
+
 // Applied is what a session runs with right now, as claude reports it.
 type Applied struct {
 	Model     string  `json:"model"`
@@ -35,13 +38,7 @@ type Applied struct {
 func vetSettings(subtype string, fields map[string]any) error {
 	switch subtype {
 	case "apply_flag_settings":
-		settings, ok := onlyKey(fields, "settings")
-		if !ok || len(settings) != 1 {
-			return fmt.Errorf("apply_flag_settings passes on only {settings: {ultracode}}")
-		}
-		if _, ok := settings["ultracode"].(bool); !ok {
-			return fmt.Errorf("apply_flag_settings passes on only ultracode, as true or false")
-		}
+		return vetFlags(fields)
 	case "update_settings":
 		if len(fields) != 2 || fields["source"] != "userSettings" {
 			return fmt.Errorf("update_settings passes on only the settings of the user")
@@ -74,6 +71,28 @@ func vetSettings(subtype string, fields map[string]any) error {
 		if _, ok := fields["enabled"].(bool); len(fields) != 1 || !ok {
 			return fmt.Errorf("remote_control passes on only {enabled: true|false}")
 		}
+	}
+	return nil
+}
+
+// vetFlags passes the two changes of effort the panel makes in a session:
+// ultracode on or off, or a level with ultracode off — the way claude's own
+// client sends a level, so that a level picked after ultracode is the level
+// alone.
+func vetFlags(fields map[string]any) error {
+	settings, ok := onlyKey(fields, "settings")
+	if !ok {
+		return fmt.Errorf("apply_flag_settings passes on only {settings: {ultracode}} or {settings: {effortLevel, ultracode: false}}")
+	}
+	if _, leveled := settings["effortLevel"]; !leveled {
+		if _, ok := settings["ultracode"].(bool); !ok || len(settings) != 1 {
+			return fmt.Errorf("apply_flag_settings passes on only ultracode, as true or false")
+		}
+		return nil
+	}
+	level, isText := settings["effortLevel"].(string)
+	if len(settings) != 2 || !isText || !slices.Contains(sessionEfforts, level) || settings["ultracode"] != false {
+		return fmt.Errorf("apply_flag_settings passes on a level only as {effortLevel: one of %v, ultracode: false}", sessionEfforts)
 	}
 	return nil
 }
@@ -204,13 +223,15 @@ func (h *Holder) applied(ctx context.Context) (Applied, error) {
 	return *body.Response.Applied, nil
 }
 
-// flagsApplied follows a change of ultracode through to what the session runs
-// with. Claude answers the request with success even where ultracode cannot
-// hold — a model without xhigh, workflows turned off — and turns nothing on;
-// only what it reports next tells.
+// flagsApplied follows a change of effort through to what the session runs
+// with. Claude answers the request with success even where the change cannot
+// hold — ultracode on a model without xhigh or with workflows off, a level the
+// model does not take — and writes no event about the effort it runs at; only
+// what it reports next tells.
 func (h *Holder) flagsApplied(ctx context.Context, fields map[string]any) error {
 	settings, _ := fields["settings"].(map[string]any)
 	want, _ := settings["ultracode"].(bool)
+	level, leveled := settings["effortLevel"].(string)
 	got, err := h.applied(ctx)
 	if err != nil {
 		return err
@@ -219,7 +240,7 @@ func (h *Holder) flagsApplied(ctx context.Context, fields map[string]any) error 
 	switch {
 	case got.Ultracode:
 		h.state.Effort = Ultracode
-	case h.state.Effort == Ultracode:
+	case leveled || h.state.Effort == Ultracode:
 		h.state.Effort = ""
 		if got.Effort != nil {
 			h.state.Effort = *got.Effort
@@ -227,8 +248,15 @@ func (h *Holder) flagsApplied(ctx context.Context, fields map[string]any) error 
 	}
 	h.mu.Unlock()
 	h.saveSummary()
-	if want && !got.Ultracode {
+	switch {
+	case want && !got.Ultracode:
 		return fmt.Errorf("ultracode did not take in this session: its model does not take xhigh, or workflows are off")
+	case leveled && (got.Effort == nil || *got.Effort != level):
+		runs := "with no level of effort at all"
+		if got.Effort != nil {
+			runs = "at " + *got.Effort
+		}
+		return fmt.Errorf("effort %s did not take in this session: it runs %s, as its model does not take %s", level, runs, level)
 	}
 	return nil
 }

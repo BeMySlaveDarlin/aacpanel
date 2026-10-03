@@ -27,6 +27,10 @@ const (
 	// whole input, and a person decides on the whole of it: the ceiling is
 	// only against a runaway, and what passes it is shown cut and says so.
 	permLines = 400
+	// How a holder that passes on only ultracode refuses a level of effort.
+	// Such a holder takes a level only as a message, and the command goes to
+	// it as one: the session runs on the level once its turn ends.
+	onlyUltracode = "apply_flag_settings passes on only {settings: {ultracode}}"
 )
 
 // onStream says whether a live session is held on the stream.
@@ -80,21 +84,27 @@ func streamSend(ctx context.Context, s liveSession, text, messageID string) (str
 // streamCommand sends a slash command the way claude -p takes one: as a
 // message. Clearing is the exception: on the stream it starts a conversation
 // under a new id that the holder does not keep, and the session would drop
-// off the panel. A model named with the command is the other: as a message it
-// would wait in the queue for a busy session to end its turn, while claude's
-// own client sets it at once with the request of the protocol.
+// off the panel. A model or an effort named with the command are the others:
+// as a message either would wait in the queue for a busy session to end its
+// turn, while claude's own client sets them at once with the requests of the
+// protocol.
 func streamCommand(ctx context.Context, s liveSession, cmd *action.Command) (string, error) {
 	if cmd.Name == "clear" {
 		return "", fmt.Errorf("/clear is not sent to %s: on the stream it starts a conversation under a new id, "+
 			"and the session would drop off the panel. Close the session and open a new one instead", s.Name)
 	}
 	line := commandLine(cmd)
-	if cmd.Name == "model" && cmd.Arg != "" {
-		if _, err := streamAsk(ctx, s, stream.Request{Op: stream.OpControl, Subtype: "set_model",
-			Fields: map[string]any{"model": cmd.Arg}}); err != nil {
+	if set, ok := setAtOnce(cmd); ok {
+		reply, err := streamAsk(ctx, s, set)
+		switch {
+		case err == nil && cmd.Name == "effort" && cmd.Arg == action.Ultracode:
+			return fmt.Sprintf("%s runs on ultracode now, set at once past its queue: xhigh, with workflows for every task — "+
+				"for this session only", s.Name), nil
+		case err == nil:
+			return fmt.Sprintf("%s set on %s on the stream at once, past its queue", line, s.Name), nil
+		case cmd.Name != "effort" || reply.Error != onlyUltracode:
 			return "", err
 		}
-		return fmt.Sprintf("%s set on %s on the stream at once, past its queue", line, s.Name), nil
 	}
 	st, err := streamState(ctx, s)
 	if err != nil {
@@ -107,6 +117,28 @@ func streamCommand(ctx context.Context, s liveSession, cmd *action.Command) (str
 		return fmt.Sprintf("%s sent to %s on the stream: it is busy, the command waits in its queue", line, s.Name), nil
 	}
 	return fmt.Sprintf("%s sent to %s on the stream", line, s.Name), nil
+}
+
+// setAtOnce is the request that sets what a command names, for the commands
+// claude's own client does not send as a message. A level of effort goes with
+// ultracode off, as that client sends it: a level picked after ultracode is
+// the level alone.
+func setAtOnce(cmd *action.Command) (stream.Request, bool) {
+	if cmd.Arg == "" {
+		return stream.Request{}, false
+	}
+	switch cmd.Name {
+	case "model":
+		return stream.Request{Op: stream.OpControl, Subtype: "set_model", Fields: map[string]any{"model": cmd.Arg}}, true
+	case "effort":
+		settings := map[string]any{"effortLevel": cmd.Arg, "ultracode": false}
+		if cmd.Arg == action.Ultracode {
+			settings = map[string]any{"ultracode": true}
+		}
+		return stream.Request{Op: stream.OpControl, Subtype: "apply_flag_settings",
+			Fields: map[string]any{"settings": settings}}, true
+	}
+	return stream.Request{}, false
 }
 
 // sessionShell has a session on the stream run a command typed after "!". A

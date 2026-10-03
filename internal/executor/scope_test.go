@@ -19,6 +19,14 @@ func pick(t *testing.T, target string, set action.Setting) (string, error) {
 	return e.Execute(context.Background(), r)
 }
 
+// levelSet says whether a request sets a level of effort in the session the
+// way claude's own client does: the level, with ultracode off.
+func levelSet(r stream.Request, level string) bool {
+	settings, _ := r.Fields["settings"].(map[string]any)
+	return r.Op == stream.OpControl && r.Subtype == "apply_flag_settings" && len(r.Fields) == 1 &&
+		len(settings) == 2 && settings["effortLevel"] == level && settings["ultracode"] == false
+}
+
 func TestUltracodeOnTheStreamIsAFlagOfTheSession(t *testing.T) {
 	f := onTheStream(t, false)
 	detail, err := pick(t, "demo", action.Setting{Effort: action.Ultracode})
@@ -58,8 +66,8 @@ func TestADefaultEffortOnTheStreamIsSavedByClaude(t *testing.T) {
 	if save.Subtype != "update_settings" || save.Fields["source"] != "userSettings" || settings["effortLevel"] != "high" {
 		t.Errorf("the default was asked for as %+v", save)
 	}
-	if set.Op != stream.OpSend || set.Text != "/effort high" {
-		t.Errorf("the session itself was asked %+v, expected /effort high", set)
+	if !levelSet(set, "high") {
+		t.Errorf("the session itself was asked %+v, expected effort high with ultracode off", set)
 	}
 	if !strings.Contains(detail, "default effort") {
 		t.Errorf("the report does not say the default was saved: %q", detail)
@@ -71,7 +79,7 @@ func TestAnEffortForTheSessionOnTheStreamSavesNothing(t *testing.T) {
 	if _, err := pick(t, "demo", action.Setting{Effort: "high", Scope: action.ScopeSession}); err != nil {
 		t.Fatal(err)
 	}
-	if got := only(t, f); got.Op != stream.OpSend || got.Text != "/effort high" {
+	if got := only(t, f); !levelSet(got, "high") {
 		t.Errorf("the holder was asked %+v", got)
 	}
 }
@@ -82,8 +90,8 @@ func TestMaxAsADefaultHoldsForTheSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := only(t, f); got.Op != stream.OpSend || got.Text != "/effort max" {
-		t.Errorf("the holder was asked %+v, expected only /effort max", got)
+	if got := only(t, f); !levelSet(got, "max") {
+		t.Errorf("the holder was asked %+v, expected only max for the session", got)
 	}
 	if !strings.Contains(detail, "does not save it as a default") {
 		t.Errorf("the report does not say max was not saved: %q", detail)
@@ -96,10 +104,8 @@ func TestADefaultThatWasNotSavedLeavesTheSessionAlone(t *testing.T) {
 	if _, err := pick(t, "demo", action.Setting{Effort: "high", Scope: action.ScopeDefault}); err == nil {
 		t.Fatal("a default claude refused to save was reported saved")
 	}
-	for _, r := range f.asked() {
-		if r.Op == stream.OpSend {
-			t.Errorf("the session was changed although its default was not saved: %+v", r)
-		}
+	if got := only(t, f); got.Subtype != "update_settings" {
+		t.Errorf("the session was changed although its default was not saved: %+v", got)
 	}
 }
 
