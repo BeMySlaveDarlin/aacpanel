@@ -220,11 +220,27 @@ func TestLiveCloseKillsOnlyTheSessionTheLauncherStarted(t *testing.T) {
 		t.Fatal("the shell of the session started by hand ran nothing in five seconds")
 	}
 
+	// A pane read right after its session was made may still be tmux's child on
+	// its way to exec, with TERM not yet back to its default: sent then, the
+	// signal is lost and the close waits out its bound. The panes are closed
+	// once they run what they were started with.
+	sleeping := func(name string) int {
+		t.Helper()
+		pid := paneOf(name)
+		for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+			comm, _ := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "comm"))
+			if strings.TrimSpace(string(comm)) == "sleep" {
+				return pid
+			}
+		}
+		t.Fatalf("the pane of %s did not start its program in five seconds", name)
+		return 0
+	}
 	e := &Executor{poll: 10 * time.Millisecond, soft: 5 * time.Second}
 	for _, c := range []struct {
 		name string
 		pid  int
-	}{{"probe", paneOf("probe")}, {"lone", paneOf("lone")}, {"work", typed}} {
+	}{{"probe", sleeping("probe")}, {"lone", sleeping("lone")}, {"work", typed}} {
 		if _, err := e.closeAgent(ctx, agentProc{Session: c.name, Agent: c.pid}); err != nil {
 			t.Fatalf("closing %s: %v", c.name, err)
 		}
