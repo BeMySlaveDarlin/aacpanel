@@ -101,6 +101,7 @@ async function takeOver() {
         if (worker.state === "installed" && !told.has(worker)) {
             told.add(worker);
             worker.postMessage({ type: "SKIP_WAITING" });
+            letGo();
         }
         if (worker.state === "installing" || worker.state === "installed") {
             const left = deadline - Date.now();
@@ -117,6 +118,18 @@ async function takeOver() {
         reload("takeover");
         return;
     }
+}
+
+// letGo asks the worker that controls the page to cut every request it still
+// has out: an answer it streams to any page holds the new worker back, and
+// only the old worker can end it. It is asked as the new worker is told to
+// take over, not at the tap — what the page fetches while the new one installs
+// would hold it back again. The takeover follows from the old worker going
+// quiet, not from its answer, so none is waited for: a worker from before the
+// question does not know it, and the page waits the grace out as it always did.
+function letGo() {
+    const worker = navigator.serviceWorker.controller;
+    if (worker) worker.postMessage({ type: "RELEASE" });
 }
 
 // candidate is the worker the tap is about: the one waiting at the
@@ -151,12 +164,13 @@ function after(ms) {
 
 // reload sends the page for a reload and leaves the reason behind. A page
 // that came back from its own reload over the same reason gains nothing by
-// turning the round again, so it stays where it is and says so instead.
+// turning the round again, so it stays where it is and says so instead, with
+// what the old worker still has out when it can tell.
 function reload(why) {
     if (reloading) return;
     const mark = read();
     if (mark && mark.why === why && Date.now() - mark.at < loopWindow) {
-        if (stuck) stuck();
+        if (stuck) holding().then(stuck);
         return;
     }
     write({ why, at: Date.now() });
@@ -196,9 +210,25 @@ function forget() {
 
 // watchStuck hands the page the news that an update is not installing: the
 // page has already come back from a reload over this one and will not turn
-// the same round again.
+// the same round again. The news comes with what holding found.
 export function watchStuck(onStuck) {
     stuck = onStuck;
+}
+
+// holding names as many requests as a line of the note has room for, and
+// gives the worker a second to answer: one that does not know the question
+// never will.
+const heldShown = 3;
+const heldWait = 1000;
+
+// holding asks the worker that controls the page which requests it still has
+// out, the longest-running first — on a phone the one way to see what keeps
+// an update from installing. null when no worker answered: one from before
+// the question does not know it, and that is not the same as having nothing.
+async function holding() {
+    const answer = await ask("INFLIGHT", heldWait);
+    if (!answer || !Array.isArray(answer.live)) return null;
+    return answer.live.sort((a, b) => b.secs - a.secs).slice(0, heldShown);
 }
 
 export function watchInstall(onChange) {
@@ -240,23 +270,32 @@ export function watchOpen(onOpen) {
 // The version the page is running under, asked of the worker that controls it.
 // Empty when no worker controls the page at all.
 export async function runningVersion() {
+    const answer = await ask("VERSION", 2000);
+    return answer && typeof answer.version === "string" ? answer.version : "";
+}
+
+// ask puts a question to the worker that controls the page over a channel of
+// its own, apart from the rest of what the worker says, and resolves with the
+// answer — or with null when no worker controls the page or none answered
+// within ms.
+function ask(type, ms) {
     const worker = navigator.serviceWorker && navigator.serviceWorker.controller;
-    if (!worker) return "";
-    const answer = await new Promise((resolve) => {
+    if (!worker) return Promise.resolve(null);
+    return new Promise((resolve) => {
         const channel = new MessageChannel();
-        const timer = setTimeout(() => resolve(null), 2000);
-        channel.port1.onmessage = (event) => {
+        const done = (answer) => {
             clearTimeout(timer);
-            resolve(event.data);
+            channel.port1.close();
+            resolve(answer);
         };
+        const timer = setTimeout(() => done(null), ms);
+        channel.port1.onmessage = (event) => done(event.data);
         try {
-            worker.postMessage({ type: "VERSION" }, [channel.port2]);
+            worker.postMessage({ type }, [channel.port2]);
         } catch {
-            clearTimeout(timer);
-            resolve(null);
+            done(null);
         }
     });
-    return answer && typeof answer.version === "string" ? answer.version : "";
 }
 
 // The version the server is serving. It is asked for at the root rather than

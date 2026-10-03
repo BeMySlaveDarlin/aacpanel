@@ -220,6 +220,122 @@ func TestUpdateStopsAfterAFruitlessReload(t *testing.T) {
 	}
 }
 
+// The browser holds the new worker back for as long as the old one streams an
+// answer to a page, and only the old worker can cut one. The page asks it to
+// as the new one is told to take over, and does not wait for an answer: a
+// worker from before the question gives none, and the takeover follows from
+// the old worker going quiet anyway.
+func TestUpdateAsksTheOldWorkerToLetGo(t *testing.T) {
+	cases := []struct {
+		world    pwaWorld
+		sent     []string
+		reloadAt int
+		reloadBy string
+		why      string
+	}{
+		{
+			world:    pwaWorld{Name: "the old worker knows the request", Waiting: "new", Controller: true, OnSkip: "activate", Knows: true},
+			sent:     []string{"SKIP_WAITING to new", "RELEASE to old"},
+			reloadAt: 0,
+			reloadBy: "controllerchange",
+			why:      "the old worker lets go of what it streams, and the new one takes over at once",
+		},
+		{
+			world:    pwaWorld{Name: "the old worker is from before the request", Waiting: "new", Controller: true, OnSkip: "hold"},
+			sent:     []string{"SKIP_WAITING to new", "RELEASE to old"},
+			reloadAt: 15000,
+			reloadBy: "page",
+			why: "a worker that does not know the request ignores it, and the page goes the way it went " +
+				"before: it waits the grace out and reloads",
+		},
+		{
+			world:    pwaWorld{Name: "the tap came while the worker was still installing", Installing: "next", Controller: true, OnSkip: "activate", Knows: true},
+			sent:     []string{"SKIP_WAITING to next", "RELEASE to old"},
+			reloadAt: 500,
+			reloadBy: "controllerchange",
+			why: "the old worker is asked as the new one is told, not at the tap: what the page fetches " +
+				"while the new one installs would hold it back again",
+		},
+		{
+			world:    pwaWorld{Name: "nothing is waiting", Controller: true, Knows: true},
+			sent:     []string{},
+			reloadAt: 0,
+			reloadBy: "page",
+			why:      "with nobody to take over, the old worker is not asked to cut what the page is reading",
+		},
+	}
+
+	worlds := make([]pwaWorld, 0, len(cases))
+	for _, c := range cases {
+		worlds = append(worlds, c.world)
+	}
+	got := runPWA(t, worlds)
+	for i, c := range cases {
+		if strings.Join(got[i].Sent, ", ") != strings.Join(c.sent, ", ") {
+			t.Errorf("%s: the page sent %v, expected %v — %s", c.world.Name, got[i].Sent, c.sent, c.why)
+		}
+		if got[i].ReloadAt != c.reloadAt || got[i].ReloadBy != c.reloadBy {
+			t.Errorf("%s: reload at %dms by %q, expected %dms by %q — %s",
+				c.world.Name, got[i].ReloadAt, got[i].ReloadBy, c.reloadAt, c.reloadBy, c.why)
+		}
+	}
+}
+
+// A phone has no developer tools, so when an update will not install the page
+// asks the old worker what it still has out and hands that on with the news —
+// the longest-running first, as many as a line holds. A worker that cannot
+// tell is not taken for one that has nothing.
+func TestStuckUpdateComesWithWhatHoldsIt(t *testing.T) {
+	held := func(name string, knows bool, live []liveRequest) pwaWorld {
+		return pwaWorld{
+			Name: name, Waiting: "new", Controller: true, OnSkip: "hold", Knows: knows, Live: live,
+			Again: &pwaWorld{Name: name + ", second round", Waiting: "new", Controller: true, OnSkip: "hold", Knows: knows, Live: live},
+		}
+	}
+	cases := []struct {
+		world pwaWorld
+		held  string
+		why   string
+	}{
+		{
+			world: held("the old worker names what it has out", true, []liveRequest{
+				{Path: "/api/host", Secs: 3}, {Path: "/api/chat", Secs: 42}, {Path: "/api/tree", Secs: 1}, {Path: "/dist/term.js", Secs: 40},
+			}),
+			held: `[{"path":"/api/chat","secs":42},{"path":"/dist/term.js","secs":40},{"path":"/api/host","secs":3}]`,
+			why:  "the request hanging longest is the likeliest holder, and the note has room for three",
+		},
+		{
+			world: held("the old worker has nothing out", true, []liveRequest{}),
+			held:  `[]`,
+			why:   "an empty answer is news too: whatever holds the update is not a request of the worker",
+		},
+		{
+			world: held("the old worker is from before the question", false, nil),
+			held:  `null`,
+			why:   "no answer is not the same as nothing out, and the note must not say otherwise",
+		},
+	}
+
+	worlds := make([]pwaWorld, 0, len(cases))
+	for _, c := range cases {
+		worlds = append(worlds, c.world)
+	}
+	got := runPWA(t, worlds)
+	for i, c := range cases {
+		again := got[i].Again
+		if again == nil {
+			t.Fatalf("%s: the page never came back for a second round", c.world.Name)
+		}
+		if !again.Stuck {
+			t.Errorf("%s: the page did not tell the person the update is not installing", c.world.Name)
+			continue
+		}
+		if string(again.Held) != c.held {
+			t.Errorf("%s: the news came with %s, expected %s — %s", c.world.Name, again.Held, c.held, c.why)
+		}
+	}
+}
+
 // pwaWorld is the state of the registration when the banner is tapped.
 // Waiting and Installing name workers at the registration; Announced names a
 // worker the banner was shown for that a newer one has since replaced. OnSkip
@@ -228,33 +344,41 @@ func TestUpdateStopsAfterAFruitlessReload(t *testing.T) {
 // installed, as it does while the old worker has an event in flight). Without
 // Controller the page was loaded before any worker controlled it. NoStorage is
 // a window with site data switched off, where the storage throws instead of
-// answering. Again is the page after its own reload: the same tab, the same
-// storage, the clock running on.
+// answering. Knows is an old worker that understands the questions about what
+// it has out, and Live is what it answers; without Knows it is a worker from
+// before them, silent to both. Again is the page after its own reload: the
+// same tab, the same storage, the clock running on.
 type pwaWorld struct {
-	Name       string    `json:"name"`
-	Waiting    string    `json:"waiting"`
-	Installing string    `json:"installing"`
-	Announced  string    `json:"announced"`
-	Controller bool      `json:"controller"`
-	OnSkip     string    `json:"onSkip"`
-	NoStorage  bool      `json:"noStorage"`
-	Again      *pwaWorld `json:"again,omitempty"`
+	Name       string        `json:"name"`
+	Waiting    string        `json:"waiting"`
+	Installing string        `json:"installing"`
+	Announced  string        `json:"announced"`
+	Controller bool          `json:"controller"`
+	OnSkip     string        `json:"onSkip"`
+	NoStorage  bool          `json:"noStorage"`
+	Knows      bool          `json:"knows"`
+	Live       []liveRequest `json:"live"`
+	Again      *pwaWorld     `json:"again,omitempty"`
 }
 
 // pwaRun is what the page did on the harness clock: who got SKIP_WAITING, when
 // the first reload came (-1: never, counted from the start of the round) and
 // what caused it — "controllerchange" or "page", the page's own decision — how
 // many reloads came within five seconds and in the round altogether, and
-// whether the page told the person the update is not installing. Again is the
-// round the reload led to, when the world asked for one.
+// whether the page told the person the update is not installing. Sent is every
+// message the page posted to a worker, in order, as "TYPE to name" — the old
+// worker is "old". Held is what the news of a stuck update came with. Again is
+// the round the reload led to, when the world asked for one.
 type pwaRun struct {
-	Told        []string `json:"told"`
-	ReloadAt    int      `json:"reloadAt"`
-	ReloadBy    string   `json:"reloadBy"`
-	ReloadsBy5s int      `json:"reloadsBy5s"`
-	Reloads     int      `json:"reloads"`
-	Stuck       bool     `json:"stuck"`
-	Again       *pwaRun  `json:"again"`
+	Told        []string        `json:"told"`
+	ReloadAt    int             `json:"reloadAt"`
+	ReloadBy    string          `json:"reloadBy"`
+	ReloadsBy5s int             `json:"reloadsBy5s"`
+	Reloads     int             `json:"reloads"`
+	Stuck       bool            `json:"stuck"`
+	Sent        []string        `json:"sent"`
+	Held        json.RawMessage `json:"held"`
+	Again       *pwaRun         `json:"again"`
 }
 
 func runPWA(t *testing.T, worlds []pwaWorld) []pwaRun {
@@ -332,6 +456,8 @@ for (const top of worlds) {
     const round = async (world) => {
         const base = now;
         const told = [];
+        const sent = [];
+        let held = "none";
         let reloads = 0;
         let reloadAt = -1;
         let reloadBy = "";
@@ -347,6 +473,7 @@ for (const top of worlds) {
                 removeEventListener: (type, fn) => { w.handlers = w.handlers.filter((h) => h !== fn); },
                 set: (s) => { w.state = s; for (const fn of [...w.handlers]) fn(); },
                 postMessage: (msg) => {
+                    if (msg) sent.push(msg.type + " to " + name);
                     if (!msg || msg.type !== "SKIP_WAITING") return;
                     told.push(name);
                     if (world.onSkip === "hold") return;
@@ -363,8 +490,17 @@ for (const top of worlds) {
         // as getters, and a plain assignment to one of those throws.
         const define = (name, value) =>
             Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+        // The old worker: one that knows the questions answers what it has out
+        // over the channel it is handed; one from before them says nothing.
+        const old = {
+            postMessage: (msg, ports) => {
+                sent.push(msg.type + " to old");
+                const port = ports && ports[0];
+                if (world.knows && msg.type === "INFLIGHT" && port) port.postMessage({ live: world.live || [] });
+            },
+        };
         const sw = {
-            controller: world.controller ? {} : null,
+            controller: world.controller ? old : null,
             register: () => Promise.resolve(registration),
             addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
         };
@@ -383,7 +519,7 @@ for (const top of worlds) {
         }
 
         const pwa = await import(` + "`" + `${` + jsString("file://"+bundle) + `}?w=${encodeURIComponent(world.name)}&n=${++loaded}` + "`" + `);
-        pwa.watchStuck(() => { stuck = true; });
+        pwa.watchStuck((what) => { stuck = true; held = what; });
         if (world.announced) {
             // The banner was shown for this worker; a newer one has replaced it since.
             const stale = worker(world.announced, "installed");
@@ -400,14 +536,14 @@ for (const top of worlds) {
         }
         await pwa.register(() => {});
         // The first worker has taken the page over by the time the banner is tapped.
-        if (!world.controller) sw.controller = {};
+        if (!world.controller) sw.controller = old;
 
         pwa.apply();
         await flush();
         await advance(base + 5000);
         const reloadsBy5s = reloads;
         await advance(base + 20000);
-        return { told, reloadAt, reloadBy, reloadsBy5s, reloads, stuck, again: null };
+        return { told, reloadAt, reloadBy, reloadsBy5s, reloads, stuck, sent, held, again: null };
     };
 
     const run = await round(top);

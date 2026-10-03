@@ -180,6 +180,13 @@ type swRun struct {
 // been over it.
 func builtWorker(t *testing.T) string {
 	t.Helper()
+	return builtWorkerAs(t, "test")
+}
+
+// builtWorkerAs is builtWorker released as version: a test that updates the
+// worker serves two builds the browser can tell apart.
+func builtWorkerAs(t *testing.T, version string) string {
+	t.Helper()
 	root, err := webbuild.FindRoot(".")
 	if err != nil {
 		t.Fatalf("repository root: %v", err)
@@ -198,7 +205,7 @@ func builtWorker(t *testing.T) string {
 		Format:      esbuild.FormatIIFE,
 		Platform:    esbuild.PlatformBrowser,
 		Alias:       alias,
-		Define:      map[string]string{"__VERSION__": `"test"`, "__ASSETS__": "[]"},
+		Define:      map[string]string{"__VERSION__": jsString(version), "__ASSETS__": "[]"},
 		Write:       false,
 	})
 	if len(built.Errors) > 0 {

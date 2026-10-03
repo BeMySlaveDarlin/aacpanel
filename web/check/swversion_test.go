@@ -56,17 +56,26 @@ process.stdout.write(JSON.stringify(said));
 }
 
 // The page asks the worker over a channel of its own and gives up rather than
-// waiting for an answer that is not coming.
+// waiting for an answer that is not coming — which version it is, and what it
+// has out when an update will not install.
 func TestAskingTheWorkerForItsVersionHasADeadline(t *testing.T) {
 	src := stripComments(srcFiles(t)["src/pwa.js"])
-	body := funcBody(t, src, "export async function runningVersion(")
+	body := funcBody(t, src, "function ask(")
 	for _, want := range []struct{ code, why string }{
-		{"navigator.serviceWorker.controller", "the version is asked of whatever worker is at hand rather than of the one running the page"},
+		{"navigator.serviceWorker.controller", "the question goes to whatever worker is at hand rather than to the one running the page"},
 		{"new MessageChannel()", "the answer comes back over the general message channel, where it is mixed with the rest of what the worker says"},
-		{"setTimeout", "a worker that never answers leaves the settings screen reading forever"},
+		{"setTimeout", "a worker that never answers leaves the settings screen reading forever, and the news of a stuck update never comes"},
 	} {
 		if !strings.Contains(body, want.code) {
-			t.Errorf("runningVersion has no %s: %s", want.code, want.why)
+			t.Errorf("ask has no %s: %s", want.code, want.why)
+		}
+	}
+	for head, question := range map[string]string{
+		"export async function runningVersion(": `ask("VERSION"`,
+		"async function holding(":               `ask("INFLIGHT"`,
+	} {
+		if !strings.Contains(funcBody(t, src, head), question) {
+			t.Errorf("%s does not put its question through ask: it would wait on a worker that does not answer", head)
 		}
 	}
 }

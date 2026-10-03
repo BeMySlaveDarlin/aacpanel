@@ -45,10 +45,15 @@ self.addEventListener("message", (event) => {
     // Which version is actually running. A phone has no developer tools, so
     // this is the only way to tell a worker that stepped aside from one that
     // says it did.
-    if (type === "VERSION") {
-        const port = event.ports && event.ports[0];
-        if (port) port.postMessage({ version: VERSION });
-    }
+    if (type === "VERSION") reply(event, { version: VERSION });
+    // The page is handing itself to a newer worker, and the browser holds that
+    // one back for as long as this one still streams an answer. Every request
+    // still out is cut, the answer already on its way to a page with it, and
+    // the page is told what was cut.
+    if (type === "RELEASE") reply(event, { released: release() });
+    // What this worker has out right now. An update that does not install has
+    // to be explained on a phone, and nothing else there can see the worker.
+    if (type === "INFLIGHT") reply(event, { live: listed() });
     if (type === "CLEAR_DATA") event.waitUntil(caches.delete(DATA_CACHE));
     if (type === "ENDPOINTS" && Array.isArray(event.data.origins)) {
         ENDPOINTS = event.data.origins.filter((o) => typeof o === "string");
@@ -59,6 +64,11 @@ self.addEventListener("message", (event) => {
         event.waitUntil(saveRoute());
     }
 });
+
+function reply(event, data) {
+    const port = event.ports && event.ports[0];
+    if (port) port.postMessage(data);
+}
 
 async function saveRoute() {
     try {
@@ -203,21 +213,95 @@ function isShellAsset(pathname) {
 
 const NET_MS = 5000;
 
-function fetchWithin(request, ms = NET_MS) {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), ms);
-    return fetch(request, { signal: ctl.signal }).finally(() => clearTimeout(timer));
+// The requests the worker has out on the page's behalf, each from the moment
+// it is sent until the page has had its body to the end, or it failed. The
+// browser keeps a new worker waiting for as long as the old one streams an
+// answer, and a body that stalls never ends: only the worker can cut what it
+// fetched, so it keeps every request where a word from the page reaches it.
+const live = new Set();
+const sent = new WeakMap();
+
+// fetchWithin asks the network on the page's behalf and counts the request
+// among the live ones until its answer is handed on or given up. ms bounds the
+// wait for the answer to begin; its body takes as long as it takes.
+async function fetchWithin(request, ms = NET_MS) {
+    const entry = { path: new URL(request.url).pathname, since: Date.now(), ctl: new AbortController() };
+    live.add(entry);
+    const timer = Number.isFinite(ms) ? setTimeout(() => entry.ctl.abort(), ms) : null;
+    try {
+        const response = await fetch(request, { signal: entry.ctl.signal });
+        sent.set(response, entry);
+        return response;
+    } catch (err) {
+        live.delete(entry);
+        throw err;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+// handed passes an answer on to the page through the worker, which sees its
+// body end and can still cut it: aborting the request errors the body the page
+// is reading, and only then does the browser stop counting it as work. An
+// answer without a body — a redirect the browser follows itself — goes as it is.
+//
+// The body is cut at the page's end, not through the pipe: a pipe told to
+// stop first waits out the bytes it has in hand, and one that cancels its
+// source waits for the copy kept for the cache to finish reading. A page that
+// walks away from the answer ends the request for good — copy and all.
+function handed(response) {
+    const entry = sent.get(response);
+    if (!entry) return response;
+    const done = () => live.delete(entry);
+    if (!response.body) {
+        done();
+        return response;
+    }
+    let gate = null;
+    const pass = new TransformStream({ start: (controller) => { gate = controller; } });
+    entry.ctl.signal.addEventListener("abort", () => gate.error(entry.ctl.signal.reason));
+    response.body
+        .pipeTo(pass.writable, { preventCancel: true })
+        .catch(() => entry.ctl.abort())
+        .then(done);
+    return new Response(pass.readable, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+    });
+}
+
+// forgo lets go of an answer nobody is going to read.
+function forgo(response) {
+    const entry = sent.get(response);
+    if (!entry) return;
+    entry.ctl.abort();
+    live.delete(entry);
+}
+
+function listed() {
+    const now = Date.now();
+    return [...live].map((entry) => ({ path: entry.path, secs: Math.round((now - entry.since) / 1000) }));
+}
+
+// release cuts every request still out and says which they were.
+function release() {
+    const cut = listed();
+    for (const entry of live) entry.ctl.abort();
+    return cut;
 }
 
 async function navigation(request) {
     const cache = await caches.open(SHELL_CACHE);
+    let response = null;
     try {
-        const response = await fetchWithin(request);
+        response = await fetchWithin(request);
         if (response.ok && !response.redirected && new URL(request.url).pathname === SHELL_URL) {
             await cache.put(SHELL_URL, response.clone());
         }
-        return response;
+        return handed(response);
     } catch (err) {
+        if (response) forgo(response);
         const hit = await cache.match(SHELL_URL);
         if (hit) return mark(hit);
         return offlinePage();
@@ -236,7 +320,7 @@ async function data(request) {
     try {
         const response = await fetchWithin(request);
         if (response.ok) keep(cache, key, response.clone());
-        return response;
+        return handed(response);
     } catch (err) {
         const hit = await cache.match(key);
         if (hit) return mark(hit);
@@ -262,7 +346,7 @@ async function code(request) {
     try {
         const response = await fetchWithin(request);
         if (response.ok) cache.put(request, response.clone());
-        return response;
+        return handed(response);
     } catch (err) {
         const hit = await cache.match(request);
         if (hit) return mark(hit);
@@ -274,34 +358,40 @@ async function fromNear(request) {
     await loadRoute();
     if (!BASE) return null;
     const here = new URL(request.url);
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), NEAR_MS);
     try {
         const there = new URL(here.pathname + here.search, BASE);
-        const r = await fetch(there, { mode: "cors", credentials: "omit", signal: ctl.signal });
-        if (!r.ok) throw new Error(`response ${r.status}`);
-        return new Response(r.body, { status: r.status, statusText: r.statusText, headers: r.headers });
+        const r = await fetchWithin(new Request(there, { mode: "cors", credentials: "omit" }), NEAR_MS);
+        if (!r.ok) {
+            forgo(r);
+            throw new Error(`response ${r.status}`);
+        }
+        // The answer is built anew on its way to the page, and that is what
+        // code from another origin needs to be served as code of this one.
+        return handed(r);
     } catch (err) {
         BASE = "";
         await saveRoute();
         return null;
-    } finally {
-        clearTimeout(timer);
     }
 }
 
+// asset answers a file of the shell from the cache and refreshes the copy
+// behind it. The refresh reaches no page and holds nothing up; a file fetched
+// for the page counts among the live requests and waits as long as it takes.
 async function asset(request) {
     const cache = await caches.open(SHELL_CACHE);
     const hit = await cache.match(request);
-    const fresh = fetch(request)
-        .then((response) => {
-            if (response.ok) cache.put(request, response.clone());
-            return response;
-        })
-        .catch(() => null);
-
-    const response = hit || (await fresh);
-    return response || new Response("", { status: 504, statusText: "no connection" });
+    if (hit) {
+        fetch(request).then((response) => (response.ok ? cache.put(request, response) : null)).catch(() => {});
+        return hit;
+    }
+    try {
+        const response = await fetchWithin(request, Infinity);
+        if (response.ok) cache.put(request, response.clone());
+        return handed(response);
+    } catch (err) {
+        return new Response("", { status: 504, statusText: "no connection" });
+    }
 }
 
 async function stamp(response) {

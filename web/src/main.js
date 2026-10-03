@@ -67,17 +67,26 @@ function Shell() {
 // installing, and nothing on the screen changes by itself then. UpdateStuck
 // says so once and gives the banner its button back: the tap is the person's
 // to repeat, or to leave until the application is opened anew.
-function UpdateStuck({ onStuck }) {
+export function UpdateStuck({ onStuck }) {
     const toast = useToast();
 
     useEffect(() => {
-        pwa.watchStuck(() => {
+        pwa.watchStuck((held) => {
             onStuck();
-            toast("The update is not installing", "a reload brought the page back to the same version", true);
+            toast("The update is not installing", stuckWhy(held), true);
         });
     }, [onStuck, toast]);
 
     return null;
+}
+
+// stuckWhy is the line under the note. A phone has no developer tools, so
+// what the old worker still has out is the one clue to what holds the update;
+// a worker that cannot tell leaves the line as it was rather than guessed at.
+function stuckWhy(held) {
+    if (!held) return "a reload brought the page back to the same version";
+    if (!held.length) return "the old version has no request open";
+    return "held by " + held.map((r) => `${r.path} ${r.secs}s`).join(", ");
 }
 
 api.install();

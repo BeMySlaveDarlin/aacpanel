@@ -286,54 +286,11 @@ func parallel(t *testing.T) {
 var disposeWait = 10 * time.Second
 
 func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage, error) {
-	var created struct {
-		BrowserContextID string `json:"browserContextId"`
+	session, close, err := b.open(ctx, url, screen)
+	if err != nil {
+		return nil, err
 	}
-	raw, err := b.call(ctx, "", "Target.createBrowserContext", map[string]any{})
-	if err != nil || json.Unmarshal(raw, &created) != nil {
-		return nil, fmt.Errorf("no browser context: %v", err)
-	}
-	// The context goes whatever became of the run, and on a bound of its own:
-	// a Chrome that stopped answering would hold the dispose, and the whole
-	// package with it, long after the run itself gave up.
-	defer func() {
-		done, cancel := context.WithTimeout(context.Background(), disposeWait)
-		defer cancel()
-		_, _ = b.call(done, "", "Target.disposeBrowserContext", map[string]any{"browserContextId": created.BrowserContextID})
-	}()
-
-	var target struct {
-		TargetID string `json:"targetId"`
-	}
-	raw, err = b.call(ctx, "", "Target.createTarget", map[string]any{"url": "about:blank", "browserContextId": created.BrowserContextID})
-	if err != nil || json.Unmarshal(raw, &target) != nil {
-		return nil, fmt.Errorf("no tab: %v", err)
-	}
-	var attached struct {
-		SessionID string `json:"sessionId"`
-	}
-	raw, err = b.call(ctx, "", "Target.attachToTarget", map[string]any{"targetId": target.TargetID, "flatten": true})
-	if err != nil || json.Unmarshal(raw, &attached) != nil {
-		return nil, fmt.Errorf("the tab did not attach: %v", err)
-	}
-	session := attached.SessionID
-	defer b.forget(session)
-
-	for _, step := range []struct {
-		method string
-		params any
-	}{
-		{"Runtime.enable", map[string]any{}},
-		// Every tab of the browser is in front: a page in the background has
-		// its timers slowed and its animation frames stopped.
-		{"Emulation.setFocusEmulationEnabled", map[string]any{"enabled": true}},
-		{"Emulation.setDeviceMetricsOverride", json.RawMessage(screen)},
-		{"Page.navigate", map[string]any{"url": url}},
-	} {
-		if _, err := b.call(ctx, session, step.method, step.params); err != nil {
-			return nil, err
-		}
-	}
+	defer close()
 	for {
 		raw, err := b.call(ctx, session, "Runtime.evaluate", map[string]any{
 			"expression": "window.done", "awaitPromise": true, "returnByValue": true})
@@ -373,6 +330,66 @@ func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage,
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+// open makes a tab in a browser context of its own and sends it to url.
+// close takes the context away, whatever became of the page.
+func (b *browser) open(ctx context.Context, url, screen string) (session string, close func(), err error) {
+	var created struct {
+		BrowserContextID string `json:"browserContextId"`
+	}
+	raw, err := b.call(ctx, "", "Target.createBrowserContext", map[string]any{})
+	if err != nil || json.Unmarshal(raw, &created) != nil {
+		return "", nil, fmt.Errorf("no browser context: %v", err)
+	}
+	// The context goes on a bound of its own: a Chrome that stopped answering
+	// would hold the dispose, and the whole package with it, long after the
+	// run itself gave up.
+	dispose := func() {
+		done, cancel := context.WithTimeout(context.Background(), disposeWait)
+		defer cancel()
+		_, _ = b.call(done, "", "Target.disposeBrowserContext", map[string]any{"browserContextId": created.BrowserContextID})
+	}
+
+	var target struct {
+		TargetID string `json:"targetId"`
+	}
+	raw, err = b.call(ctx, "", "Target.createTarget", map[string]any{"url": "about:blank", "browserContextId": created.BrowserContextID})
+	if err != nil || json.Unmarshal(raw, &target) != nil {
+		dispose()
+		return "", nil, fmt.Errorf("no tab: %v", err)
+	}
+	var attached struct {
+		SessionID string `json:"sessionId"`
+	}
+	raw, err = b.call(ctx, "", "Target.attachToTarget", map[string]any{"targetId": target.TargetID, "flatten": true})
+	if err != nil || json.Unmarshal(raw, &attached) != nil {
+		dispose()
+		return "", nil, fmt.Errorf("the tab did not attach: %v", err)
+	}
+	session = attached.SessionID
+	close = func() {
+		b.forget(session)
+		dispose()
+	}
+
+	for _, step := range []struct {
+		method string
+		params any
+	}{
+		{"Runtime.enable", map[string]any{}},
+		// Every tab of the browser is in front: a page in the background has
+		// its timers slowed and its animation frames stopped.
+		{"Emulation.setFocusEmulationEnabled", map[string]any{"enabled": true}},
+		{"Emulation.setDeviceMetricsOverride", json.RawMessage(screen)},
+		{"Page.navigate", map[string]any{"url": url}},
+	} {
+		if _, err := b.call(ctx, session, step.method, step.params); err != nil {
+			close()
+			return "", nil, err
+		}
+	}
+	return session, close, nil
 }
 
 func TestMain(m *testing.M) {
