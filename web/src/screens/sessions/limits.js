@@ -2,6 +2,7 @@
 
 import { html } from "../../html.js";
 import { share } from "../../format.js";
+import { pageNames, pickedPage } from "./pages.js";
 
 const LIMITS_STALE_SEC = 900;
 
@@ -42,6 +43,27 @@ export function contourOf(limits, profile, contour) {
         if (own) return own;
     }
     return known.find((c) => c.profile === profile) || null;
+}
+
+// openLimits returns the limits of the contour the sessions page stands on,
+// the two windows as bare shares with the tone of the five hours, or null when
+// that contour has no snapshot of limits. A window the snapshot does not carry
+// is null rather than a zero: a place that shows it leaves it out.
+export function openLimits(snapshot) {
+    const profiles = (snapshot && snapshot.profileMap) || [];
+    const limits = (snapshot && snapshot.limits) || null;
+    const name = pickedPage(pageNames(profiles, limits));
+    const c = contourOf(limits, name, (profiles.find((p) => p.profile === name) || {}).id || 0);
+    if (!c) return null;
+    const part = (data) => (data && typeof data.pct === "number" ? data.pct : null);
+    const five = part(c.fiveHour);
+    return {
+        contour: name,
+        five,
+        week: part(c.sevenDay),
+        tone: five === null ? "" : limitClass(five),
+        stale: staleLimits(c),
+    };
 }
 
 // ProfileLimits renders the two subscription bars of this contour and their age.

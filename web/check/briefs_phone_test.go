@@ -29,8 +29,19 @@ func TestTerminalsSitInTheBottomMenuAndUsageUnderTheLogo(t *testing.T) {
 			t.Errorf("%s has no entry in the sheet under the logo: there is no way into it at all", page)
 		}
 	}
-	if first := strings.Index(sheet, `onPage(`); first < 0 || !strings.HasPrefix(sheet[first:], `onPage("usage")`) {
-		t.Error("usage does not lead the sheet under the logo: it came from the bottom menu, and it is looked for first")
+	// The live tiles lead the sheet: the machine, the usage that came from the
+	// bottom menu and the briefs, before the quiet doors.
+	var order []string
+	for rest := sheet; ; {
+		at := strings.Index(rest, `onPage("`)
+		if at < 0 {
+			break
+		}
+		rest = rest[at+len(`onPage("`):]
+		order = append(order, rest[:strings.Index(rest, `"`)])
+	}
+	if len(order) < 3 || strings.Join(order[:3], ",") != "machine,usage,briefs" {
+		t.Errorf("the sheet under the logo opens %v — the live tiles machine, usage and briefs do not lead it", order)
 	}
 
 	shell := stripComments(files["src/mobile/shell.js"])

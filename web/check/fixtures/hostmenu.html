@@ -1,0 +1,267 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The host menu on a phone: the head with the way to the host, three live
+// tiles, the strip of the install or the update, three quiet doors and the
+// footer. Each scenario stubs what the service answers and what the snapshot
+// carries, and reads what the menu says and where its presses go.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { HostMenu } from "/src/ui/header.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 5000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(25);
+    return ok();
+};
+const box = (el) => {
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { width: Math.round(b.width), height: Math.round(b.height), top: Math.round(b.top), bottom: Math.round(b.bottom),
+             left: Math.round(b.left), right: Math.round(b.right) };
+};
+
+// What the service answers, scenario by scenario, and how often it was asked.
+const today = new Date();
+const yesterday = new Date(today.getTime() - 36 * 3600 * 1000);
+const server = { briefs: [], failed: [], devices: [], down: false, hold: null };
+const asked = { briefs: 0, actions: 0, devices: 0, other: [] };
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u === "/api/briefs") {
+        asked.briefs++;
+        if (server.hold) await server.hold;
+        return json({ briefs: server.briefs });
+    }
+    if (u.startsWith("/api/actions?")) {
+        asked.actions++;
+        if (server.down) return new Response("the database is not answering", { status: 503 });
+        return json({ actions: server.failed });
+    }
+    if (u === "/api/devices") {
+        asked.devices++;
+        if (server.down) return json({ error: "passkey is unavailable" }, 503);
+        return json({ devices: server.devices, revoked: [], current: 1 });
+    }
+    asked.other.push(u);
+    return new Response("", { status: 404 });
+};
+
+const at = new Date();
+const full = {
+    hostName: "HELIOS",
+    host: { cpuPct: 18.4, mem: { pct: 32.2 }, uptime: 12 * 86400 + 3 * 3600 + 120 },
+    profileMap: [{ profile: "personal", id: 1 }, { profile: "algo", id: 2 }],
+    limits: { contours: [
+        { profile: "personal", contour: 1, ageSec: 60, fiveHour: { pct: 7.2, resetsAt: 0 }, sevenDay: { pct: 21.4, resetsAt: 0 } },
+        { profile: "algo", contour: 2, ageSec: 60, fiveHour: { pct: 64, resetsAt: 0 }, sevenDay: { pct: 40, resetsAt: 0 } },
+    ] },
+};
+const lan = { here: "lan", via: "", why: "here", onRecheck: () => {}, onOpen: () => {} };
+
+const log = { pages: [], themes: 0, installs: 0, updates: 0, closed: 0 };
+const root = document.getElementById("root");
+let props = {};
+const show = (extra) => {
+    props = { ...props, ...extra };
+    render(html`<${HostMenu} ...${props} />`, root);
+};
+const base = (extra) => ({
+    open: true,
+    hostName: "HELIOS",
+    snapshot: full,
+    conn: { kind: "live", at },
+    ageSec: 3,
+    route: lan,
+    installable: false,
+    updateReady: false,
+    updating: false,
+    theme: "space",
+    onClose: () => { log.closed++; },
+    onPage: (id) => { log.pages.push(id); },
+    onInstall: () => { log.installs++; },
+    onApplyUpdate: () => { log.updates++; },
+    // The theme flips the way the app flips it, so the menu is drawn again
+    // while it stays open.
+    onTheme: () => { log.themes++; show({ theme: props.theme === "sky" ? "space" : "sky" }); },
+    ...extra,
+});
+
+const sheet = () => root.querySelector(".sheet.on");
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : null);
+const read = () => {
+    const m = sheet();
+    return {
+        name: text(m.querySelector(".hm-name")),
+        sub: text(m.querySelector(".hm-sub")),
+        dot: m.querySelector(".hm-sub .cdot") ? m.querySelector(".hm-sub .cdot").dataset.dot : "",
+        tiles: [...m.querySelectorAll(".hm-live > .hm-tile")].map((t) => ({
+            title: text(t.querySelector(".t")),
+            n: text(t.querySelector(".n")),
+            s: text(t.querySelector(".s")),
+            fill: t.querySelector(".bar i") ? t.querySelector(".bar i").style.width : null,
+            lit: t.classList.contains("wait"),
+            stale: t.hasAttribute("data-stale"),
+            label: t.getAttribute("title") || "",
+            box: box(t),
+        })),
+        strips: [...m.querySelectorAll(".hm-strip")].map((b) => ({ text: text(b), disabled: b.disabled })),
+        quiet: [...m.querySelectorAll(".hm-quiet > .hm-q")].map((b) => ({
+            title: text(b.querySelector(".t")),
+            sub: text(b.querySelector("small")),
+            crit: Boolean(b.querySelector("small.crit")),
+        })),
+        theme: [...m.querySelectorAll(".hm-seg button")].map((b) => `${text(b)}:${b.getAttribute("aria-pressed")}`),
+        themeBox: [...m.querySelectorAll(".hm-seg button")].map(box),
+        out: text(m.querySelector(".hm-foot .hm-out")),
+        outBox: box(m.querySelector(".hm-foot .hm-out")),
+        words: text(root),
+    };
+};
+
+// tile is the live tile of that title as read, or an empty one when the menu
+// has none: a missing tile is the test's to report, not the page's to throw on.
+const tile = (r, title) => r.tiles.find((t) => t.title === title) || { title, n: null, s: null, fill: null, lit: false };
+
+// fit says whether the whole menu is in view at the height the sheet opens
+// to: the sheet stands at its first stop, nothing inside it scrolls, and the
+// footer ends inside the sheet and inside the screen.
+const fit = async () => {
+    const m = sheet();
+    await until(() => m.getBoundingClientRect().bottom <= innerHeight + 0.5);
+    await sleep(350);
+    const body = m.querySelector(".sheetbody");
+    return {
+        half: m.classList.contains("half"),
+        screen: { width: innerWidth, height: innerHeight },
+        sheet: box(m),
+        body: box(body),
+        scroll: body.scrollHeight,
+        client: body.clientHeight,
+        foot: box(m.querySelector(".hm-foot")),
+    };
+};
+
+// A door that is not there is not pressed: what it should have opened is
+// missing from the pages, and the test says which.
+const press = (el) => { if (el) el.click(); };
+const pressTile = (title) => press([...sheet().querySelectorAll(".hm-tile")].find((t) => text(t.querySelector(".t")) === title));
+const pressQuiet = (title) => press([...sheet().querySelectorAll(".hm-q")].find((t) => text(t.querySelector(".t")) === title));
+const pressTheme = (word) => press([...sheet().querySelectorAll(".hm-seg button")].find((b) => text(b) === word));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = {};
+
+    // Everything known, the install waiting, the briefs held back: the menu
+    // is drawn before the shelf answers and fills in when it does.
+    let release;
+    server.hold = new Promise((r) => { release = r; });
+    server.briefs = [
+        { id: "a", sent: false, questions: 5, answered: 0 },
+        { id: "b", sent: true, questions: 3, answered: 3 },
+        { id: "c", sent: false, questions: 2, answered: 2 },
+    ];
+    server.failed = [
+        { id: 9, ts: today.toISOString(), result: "failed" },
+        { id: 8, ts: yesterday.toISOString(), result: "failed" },
+    ];
+    server.devices = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    show(base({ installable: true }));
+    await until(() => sheet() && sheet().querySelector(".hm-tile") && asked.briefs === 1);
+    out.before = read();
+    release();
+    await until(() => {
+        const r = read();
+        return tile(r, "Briefs").n !== null && r.quiet.length > 1 && r.quiet[0].sub !== null && r.quiet[1].sub !== null;
+    });
+    out.full = read();
+    out.fit = await fit();
+
+    // Each door opens its page: the tiles, then the quiet ones.
+    await until(() => sheet().querySelector(".hm-tile"));
+    for (const title of ["Machine", "Usage", "Briefs"]) pressTile(title);
+    for (const title of ["Journal", "Devices", "Settings"]) pressQuiet(title);
+    out.pages = log.pages.slice();
+
+    // The theme: Dark on the dark theme does nothing, Light flips it, and the
+    // menu drawn again with the new theme asks the service nothing anew.
+    pressTheme("Dark");
+    out.darkOnDark = log.themes;
+    pressTheme("Light");
+    await until(() => read().theme.join(",") === "Dark:false,Light:true");
+    out.lightOnDark = log.themes;
+    out.themeAfter = read().theme;
+    pressTheme("Light");
+    out.lightOnLight = log.themes;
+    out.askedOpen = { briefs: asked.briefs, actions: asked.actions, devices: asked.devices };
+
+    // The install closes the menu and runs.
+    press(sheet().querySelector(".hm-strip"));
+    out.installs = log.installs;
+    out.closedOnInstall = log.closed;
+
+    // Closed and opened again on another contour of the sessions page: the
+    // counts are asked anew, and the usage is that contour's.
+    show({ open: false });
+    await sleep(30);
+    localStorage.setItem("aacpanel.sessions.profile", "algo");
+    show({ open: true });
+    await until(() => asked.briefs === 2 && tile(read(), "Briefs").n !== null);
+    out.reopened = { asked: { briefs: asked.briefs, actions: asked.actions, devices: asked.devices }, usage: tile(read(), "Usage") };
+    localStorage.removeItem("aacpanel.sessions.profile");
+
+    // An update waits: it takes the strip, the install with it, and its press
+    // runs the update; while it runs the strip says so and does not run twice.
+    show({ open: false });
+    await sleep(30);
+    server.briefs = [{ id: "b", sent: true, questions: 3, answered: 3 }];
+    show({ open: true, installable: true, updateReady: true });
+    out.reopenFirst = tile(read(), "Briefs");
+    await until(() => tile(read(), "Briefs").n !== null);
+    out.update = read();
+    press(sheet().querySelector(".hm-strip"));
+    out.updates = log.updates;
+    show({ updating: true });
+    await sleep(30);
+    out.updating = read().strips;
+    out.updateFit = await fit();
+
+    // Installed and up to date: no strip at all.
+    show({ installable: false, updateReady: false, updating: false });
+    await sleep(30);
+    out.installed = read().strips;
+
+    // What the app does not have: a snapshot with no memory, no uptime and
+    // no week, a service with no database, no map of addresses. Each line
+    // that has no value is left out.
+    show({ open: false });
+    await sleep(30);
+    server.down = true;
+    show({
+        open: true,
+        route: { here: "", via: "", why: "no-map", onRecheck: () => {}, onOpen: () => {} },
+        snapshot: {
+            hostName: "HELIOS",
+            host: { cpuPct: 40 },
+            limits: { ageSec: 60, fiveHour: { pct: 50, resetsAt: 0 } },
+        },
+    });
+    await until(() => asked.devices === 4 && asked.actions === 4);
+    await sleep(60);
+    out.partial = read();
+
+    // Nothing at all: no snapshot yet and the link still loading.
+    show({ snapshot: null, conn: { kind: "loading" }, ageSec: null });
+    await sleep(30);
+    out.bare = read();
+    out.other = asked.other;
+    return out;
+})();
+</script>

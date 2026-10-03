@@ -169,33 +169,139 @@
 .icons .iconbtn svg { width: var(--i-md); height: var(--i-md); }
 .icons .badge { top: 6px; right: 5px; }
 
-/* The host menu carries the install while it waits, and the theme. */
-.sheet .item.install {
-    display: flex;
-    align-items: center;
-    gap: .75rem;
-    color: var(--accent);
-    font-weight: 600;
-}
-.sheet .item.install svg { flex: none; width: var(--i-md); height: var(--i-md); }
-.sheet .item.install small { margin-left: auto; font-size: var(--t-sm); font-weight: 400; color: var(--ink-faint); }
+/* The host menu: the host and how the app reaches it, three live tiles that
+   are doors to their pages, one strip for the install or the update while it
+   waits, three quiet doors and a footer with the theme and the way out. All of
+   it fits the height the sheet opens to on a phone. */
+.hm-head { padding: 0 2.6rem .2rem .5rem; }
+.hm-name { font-weight: 800; font-size: var(--t-lg); letter-spacing: .04em; }
+.hm-sub { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; font-size: var(--t-xs); color: var(--ink-dim); }
+.hm-sub .cdot { width: 6px; height: 6px; }
+.hm-sub[data-tone="warn"] .cdot { background: var(--warn); }
+.hm-sub[data-tone="crit"] .cdot { background: var(--crit); }
+.hm-sub .cdot[data-dot="off"] { background: none; box-shadow: inset 0 0 0 1.5px currentColor; }
 
-.themerow {
+.hm-live { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; margin-top: .6rem; }
+.hm-tile {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 96px;
+    padding: .55rem .6rem .6rem;
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--glass);
+    box-shadow: inset 0 0 0 var(--hair) var(--edge), var(--gloss);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.hm-tile:active { background: var(--glass-2); }
+.hm-tile .t { display: flex; align-items: center; gap: .3rem; font-size: var(--t-xs); font-weight: 600; color: var(--ink-dim); }
+.hm-tile .t svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
+.hm-tile .n { margin-top: .35rem; font-size: var(--t-xl); font-weight: 600; letter-spacing: -.01em; line-height: 1.1; white-space: nowrap; }
+.hm-tile .n small { margin-left: .2rem; font-size: var(--t-xs); font-weight: 500; color: var(--ink-faint); letter-spacing: 0; }
+.hm-tile .s { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; }
+.hm-tile .bar { display: block; width: 100%; margin-top: auto; }
+/* Limits nobody has renewed for a while are the last known ones: they stay,
+   quieter, the way the sessions page shows them. */
+.hm-tile[data-stale] .n, .hm-tile[data-stale] .s { color: var(--ink-faint); }
+.hm-tile.wait {
+    background: var(--accent-bg);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent), var(--gloss), var(--glow);
+}
+.hm-tile.wait .s { margin-top: auto; color: var(--accent); font-family: var(--sans); font-weight: 600; }
+
+.hm-strip {
     display: flex;
     align-items: center;
-    gap: .5rem;
-    margin-top: .5rem;
-    padding: 0 .5rem;
-    min-height: 48px;
+    gap: .65rem;
+    width: 100%;
+    min-height: 46px;
+    margin-top: .45rem;
+    padding: 0 .75rem;
+    border: 0;
+    border-radius: var(--r-card);
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+.hm-strip:active { background: var(--accent-bg); }
+.hm-strip:disabled { opacity: .55; }
+.hm-strip svg { flex: none; width: var(--i-md); height: var(--i-md); }
+.hm-strip small { margin-left: auto; font-weight: 400; font-size: var(--t-xs); color: var(--ink-faint); }
+
+.hm-quiet { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; margin-top: .45rem; }
+.hm-q {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .1rem;
+    min-height: 58px;
+    padding: .5rem .6rem;
+    border: 0;
+    border-radius: var(--r-card);
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--edge);
+    color: var(--ink);
+    font: inherit;
     font-weight: 500;
+    text-align: left;
+    cursor: pointer;
 }
-.themerow > svg { flex: none; width: var(--i-md); height: var(--i-md); color: var(--ink-dim); margin-right: .25rem; }
-.themerow .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
-.themerow .btn svg { width: var(--i-sm); height: var(--i-sm); }
-.themerow .btn[aria-pressed="true"] {
+.hm-q:active { background: var(--glass-2); }
+.hm-q .t { display: flex; align-items: center; gap: .35rem; font-size: var(--t-sm); }
+.hm-q .t svg { flex: none; width: var(--i-sm); height: var(--i-sm); color: var(--ink-dim); }
+.hm-q small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; }
+.hm-q small.crit { color: var(--crit); }
+
+.hm-foot { display: flex; align-items: center; gap: .5rem; margin-top: .55rem; padding-top: .45rem; border-top: var(--hair) solid var(--line); }
+.hm-seg { display: flex; border-radius: var(--r-small); box-shadow: inset 0 0 0 var(--hair) var(--edge); }
+.hm-seg button {
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: 0 .7rem;
+    border: 0;
+    border-radius: var(--r-small);
+    background: none;
+    color: var(--ink-faint);
+    font: inherit;
+    font-size: var(--t-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+.hm-seg button svg { width: var(--i-sm); height: var(--i-sm); }
+.hm-seg button[aria-pressed="true"] {
+    color: var(--ink);
     background: var(--accent-bg);
-    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 45%, transparent);
 }
+/* Signing out is a way out, not an alarm: a word at the edge of the footer. */
+.hm-out {
+    margin-left: auto;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: 0 .5rem;
+    border: 0;
+    background: none;
+    color: var(--crit);
+    font: inherit;
+    font-size: var(--t-sm);
+    font-weight: 500;
+    cursor: pointer;
+}
+.hm-out svg { width: var(--i-sm); height: var(--i-sm); }
 
 .badge, .tbadge {
     position: absolute;

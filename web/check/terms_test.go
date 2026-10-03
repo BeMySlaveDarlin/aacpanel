@@ -347,13 +347,14 @@ func TestTerminalsOnThePhone(t *testing.T) {
 	}
 
 	// Sessions and profiles stand left of the home button, containers and
-	// terminals right of it; usage leads the menu under the logo.
+	// terminals right of it; usage is among the live tiles that lead the menu
+	// under the logo.
 	t.Run("the bottom menu and the menu under the logo", func(t *testing.T) {
 		if want := []string{"Sessions", "Profiles", "(home)", "Containers", "Terminals"}; !equalStrings(got.Nav, want) {
 			t.Errorf("the bottom menu reads %v, expected %v", got.Nav, want)
 		}
-		if len(got.LogoMenu) == 0 || got.LogoMenu[0] != "Usage" {
-			t.Errorf("the menu under the logo reads %v — usage leads it, it left the bottom menu for there", got.LogoMenu)
+		if len(got.LogoMenu) < 3 || !equalStrings(got.LogoMenu[:3], []string{"Machine", "Usage", "Briefs"}) {
+			t.Errorf("the menu under the logo reads %v — the live tiles lead it, usage among them: it left the bottom menu for there", got.LogoMenu)
 		}
 	})
 

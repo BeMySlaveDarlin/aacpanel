@@ -164,25 +164,28 @@ window.done = (async () => {
         theme=${theme} onClose=${() => { closed++; }} onInstall=${() => { installs++; }} onTheme=${() => { themes++; }}
         onPage=${() => {}} />`, sheetRoot);
     menu(true, "space");
-    await sleep(30);
+    await until(() => document.querySelector(".sheet.on .hm-seg button"));
     const m = document.querySelector(".sheet.on");
-    const pressed = () => [...m.querySelectorAll(".themerow .btn")].map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-pressed")}`);
+    // The doors of the menu in the order it reads: the tiles, the strip, the
+    // quiet ones and the way out.
+    const doors = (sheet) => [...sheet.querySelectorAll(".hm-tile .t, .hm-strip, .hm-q .t, .hm-out")].map((b) => b.textContent.trim());
+    const pressed = (sheet) => [...sheet.querySelectorAll(".hm-seg button")].map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-pressed")}`);
     out.menu = {
-        items: [...m.querySelectorAll(".item")].map((b) => b.textContent.trim()),
-        theme: pressed(),
-        themeBox: [...m.querySelectorAll(".themerow .btn")].map(box),
+        items: doors(m),
+        theme: pressed(m),
+        themeBox: [...m.querySelectorAll(".hm-seg button")].map(box),
     };
-    [...m.querySelectorAll(".themerow .btn")].find((b) => b.textContent.trim() === "Dark").click();
+    [...m.querySelectorAll(".hm-seg button")].find((b) => b.textContent.trim() === "Dark").click();
     out.menu.darkOnDark = themes;
-    [...m.querySelectorAll(".themerow .btn")].find((b) => b.textContent.trim() === "Light").click();
+    [...m.querySelectorAll(".hm-seg button")].find((b) => b.textContent.trim() === "Light").click();
     out.menu.lightOnDark = themes;
-    m.querySelector(".item.install").click();
+    m.querySelector(".hm-strip").click();
     out.menu.installs = installs;
     out.menu.closedOnInstall = closed;
     menu(false, "sky");
     await sleep(30);
-    out.menu.itemsInstalled = [...document.querySelectorAll(".sheet.on .item")].map((b) => b.textContent.trim());
-    out.menu.themeLight = [...document.querySelectorAll(".sheet.on .themerow .btn")].map((b) => `${b.textContent.trim()}:${b.getAttribute("aria-pressed")}`);
+    out.menu.itemsInstalled = doors(document.querySelector(".sheet.on"));
+    out.menu.themeLight = pressed(document.querySelector(".sheet.on"));
     return out;
 })();
 </script>

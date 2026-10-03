@@ -207,12 +207,19 @@ export function MobileShell({
             <${HostMenu}
                 open=${menu}
                 onClose=${() => setMenu(false)}
+                onPage=${(id) => { setMenu(false); setPage(id); }}
                 hostName=${(snapshot && snapshot.hostName) || "host"}
+                snapshot=${snapshot}
+                conn=${conn}
+                ageSec=${ageSec}
+                route=${route}
                 installable=${installable}
                 onInstall=${onInstall}
+                updateReady=${updateReady}
+                updating=${updating}
+                onApplyUpdate=${onApplyUpdate}
                 theme=${theme}
                 onTheme=${onTheme}
-                onPage=${(id) => { setMenu(false); setPage(id); }}
             />
 
             ${logs && html`

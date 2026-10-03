@@ -294,10 +294,10 @@ window.done = (async () => {
         await until(() => navButton("Terminals"));
         out.nav = navItems();
 
-        // The menu under the logo leads with usage.
+        // The menu under the logo leads with its live tiles, usage among them.
         document.querySelector("header .host").click();
-        await until(() => sheet() && sheet().querySelector(".item"));
-        out.logoMenu = all(".sheet.on .item").map(text);
+        await until(() => sheet() && sheet().querySelector(".hm-tile"));
+        out.logoMenu = all(".sheet.on .hm-tile .t, .sheet.on .hm-q .t").map(text);
         // The cross puts the menu away at once. The scrim does it only once
         // the menu has joined the back gesture, after its first paint, and a
         // menu left open would stand in for every sheet the walk looks for.

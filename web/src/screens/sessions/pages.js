@@ -28,16 +28,32 @@ export function pageNames(profiles, limits) {
     return names;
 }
 
+function readPick(key) {
+    try {
+        return localStorage.getItem(key) || "";
+    } catch {
+        return "";
+    }
+}
+
+// pageOf returns the kept choice while it still has a page, the first page
+// otherwise.
+function pageOf(picked, names) {
+    return names.includes(picked) ? picked : (names[0] || "");
+}
+
+// pickedPage reads the contour the sessions page stands on, without a choice
+// of its own: what useProfilePage starts with right now. A screen that only
+// shows the contour reads it when it is drawn; a hook of its own would keep
+// the contour it was mounted with after the page moved on.
+export function pickedPage(names, key = PICK_KEY) {
+    return pageOf(readPick(key), names);
+}
+
 // useProfilePage returns the chosen contour and how to change it. The pager
 // pages places as well as contours; each keeps its choice under its own key.
 export function useProfilePage(names, key = PICK_KEY) {
-    const [picked, setPicked] = useState(() => {
-        try {
-            return localStorage.getItem(key) || "";
-        } catch {
-            return "";
-        }
-    });
+    const [picked, setPicked] = useState(() => readPick(key));
 
     const pick = useCallback((name) => {
         setPicked(name);
@@ -47,7 +63,7 @@ export function useProfilePage(names, key = PICK_KEY) {
         }
     }, [key]);
 
-    return [names.includes(picked) ? picked : (names[0] || ""), pick];
+    return [pageOf(picked, names), pick];
 }
 
 // useProfilePicks returns which contours are shown on the wide screen.
