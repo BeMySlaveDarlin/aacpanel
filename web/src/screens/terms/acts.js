@@ -77,19 +77,22 @@ export function useTermActs(exec, reload) {
     return { can, why, start, close, rename, window };
 }
 
-// useTabClose is the closing of the tabs of the open place by their ×. A tab
+// useTabClose is the closing of terminals by their ×: the tabs of the open
+// place, or the cards of the list, where no terminal is open. A terminal
 // where nothing runs but the shell closes at once; one where something runs
 // is handed to ask, which puts the question naming it, since what runs ends
 // with the shell. going are the ids whose close is on its way: their × stays
 // down, so a second press does not send a second close. closed is what
 // follows a close, from the × or from the question: the open tab gives way to
 // the one typed into last and the last one puts the place down, while any
-// other tab closed leaves the open one where it is.
-export function useTabClose({ acts, entry, open, onOpen, onBack, ask }) {
+// other tab closed leaves the open one where it is. On the list nothing
+// follows: acts.close has asked the list again, and the card of the closed
+// terminal has left it.
+export function useTabClose({ acts, entry, open = null, onOpen, onBack, ask }) {
     const [going, setGoing] = useState([]);
 
     const closed = (gone) => {
-        if (gone.id !== open.id) return;
+        if (!open || gone.id !== open.id) return;
         const next = afterClose(entry, gone);
         if (next) onOpen({ id: next.id, place: open.place });
         else onBack();

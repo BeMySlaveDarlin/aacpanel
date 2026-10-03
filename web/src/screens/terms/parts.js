@@ -12,17 +12,29 @@ export const NAME_MAX = 40;
 
 // TermCard is a terminal on the page of its place: what it is called, whether
 // something runs in it, when it was typed into last and the last line on its
-// screen.
-export function TermCard({ t, onOpen }) {
+// screen, and an × at its top right that closes it. The card and its × stand
+// in a cell without a role of its own, so the list holds the cards themselves
+// and the × is not inside the card: pressing it never opens the terminal. As
+// on a tab, the × of a card whose close is on its way stays down, and every ×
+// is down when the executor cannot close a terminal, saying why.
+export function TermCard({ t, acts, going = [], onOpen, onClose }) {
     const busy = runs(t);
     return html`
-        <button class=${`tcard${busy ? " running" : ""}`} type="button" onClick=${() => onOpen(t)}
-                aria-label=${`terminal ${tabName(t)}${busy ? ", something runs in it" : ""}`}>
-            <span class=${`tdot${busy ? " run" : ""}`}></span>
-            <span class="tcardname">${tabName(t)}</span>
-            <span class="tcardwhen">${typed(t.activity)}</span>
-            ${t.last && html`<span class="tcardlast">${t.last}</span>`}
-        </button>
+        <div class="tcardcell" role="presentation">
+            <button class=${`tcard${busy ? " running" : ""}`} type="button" onClick=${() => onOpen(t)}
+                    aria-label=${`terminal ${tabName(t)}${busy ? ", something runs in it" : ""}`}>
+                <span class=${`tdot${busy ? " run" : ""}`}></span>
+                <span class="tcardname">${tabName(t)}</span>
+                <span class="tcardwhen">${typed(t.activity)}</span>
+                ${t.last && html`<span class="tcardlast">${t.last}</span>`}
+            </button>
+            <button type="button" class="tcardx" aria-label=${`close ${tabName(t)}`}
+                    disabled=${!acts.can.close || going.includes(t.id)}
+                    title=${acts.can.close ? undefined : acts.why.close}
+                    onClick=${() => onClose(t)}>
+                ${Icon.close()}
+            </button>
+        </div>
     `;
 }
 

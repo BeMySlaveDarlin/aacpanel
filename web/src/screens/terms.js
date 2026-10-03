@@ -36,6 +36,12 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
     // The contour whose projects the choice of a place offers: the one of the
     // page New was pressed on, until a chip picks another.
     const [contour, setContour] = useState("");
+    // asking is the id of the terminal whose card asked the question before
+    // closing, since something runs in it. The terminal is read from the
+    // list, so the question follows what runs in it.
+    const [asking, setAsking] = useState("");
+    const about = asking ? (terms || []).find((t) => t.id === asking) : null;
+    const closing = useTabClose({ acts, ask: (t) => setAsking(t.id) });
 
     const show = (target) => {
         if (!target) return;
@@ -91,11 +97,14 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
                     <${ContourPage}
                         key=${key}
                         page=${pageBy(key)}
+                        acts=${acts}
+                        going=${closing.going}
                         onNew=${() => {
                             setContour(pageBy(key).contour);
                             setPicking(true);
                         }}
                         onOpen=${(t) => show({ id: t.id, place: t.place })}
+                        onClose=${closing.press}
                     />
                 `}
             />
@@ -104,13 +113,17 @@ export function Terminals({ snapshot, exec, onLayer, want, onWanted }) {
             ${picking && html`<${PlacePicker} pick=${pickOf(map, home)} contour=${contour} onContour=${setContour}
                                               why=${acts.can.start ? "" : acts.why.start} onPick=${startIn} />`}
         <//>
+        <${Sheet} open=${Boolean(about)} onClose=${() => setAsking("")} label="close the terminal">
+            ${about && html`<${CloseTab} t=${about} acts=${acts} onClosed=${closing.closed}
+                                         onDone=${() => setAsking("")} />`}
+        <//>
     `;
 }
 
 // ContourPage is the page of one contour: its name, the button of a new
 // terminal, and the places with terminals, each under a heading of its name
 // and where it is.
-function ContourPage({ page, onNew, onOpen }) {
+function ContourPage({ page, acts, going, onNew, onOpen, onClose }) {
     if (!page) return null;
     return html`
         <div class="tpage">
@@ -123,7 +136,10 @@ function ContourPage({ page, onNew, onOpen }) {
                 : page.places.map((entry) => html`
                     <section class="tplace" key=${entry.place}>
                         <${PlaceHead} label=${entry.label} path=${shortPath(entry.place)} />
-                        ${entry.terms.map((t) => html`<${TermCard} key=${t.id} t=${t} onOpen=${onOpen} />`)}
+                        ${entry.terms.map((t) => html`
+                            <${TermCard} key=${t.id} t=${t} acts=${acts} going=${going} onOpen=${onOpen}
+                                         onClose=${onClose} />
+                        `)}
                     </section>
                 `)}
         </div>

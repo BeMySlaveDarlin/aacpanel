@@ -22,6 +22,7 @@
     .pfdesk.row .pfstack > .empty { padding: .3rem; text-align: left; font-size: var(--t-xs); }
 
     .tcard:hover { background: var(--glass-2); }
+    .tcardx:hover:not(:disabled) { color: var(--ink); }
 
     /* An open terminal: the way back and the tabs where a head would be, the
        window at the end of the line, the terminal under them taking the

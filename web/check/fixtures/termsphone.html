@@ -9,9 +9,9 @@
 // person walks them: the bottom menu and the menu under the logo, the pager
 // of contours with the places under them, the choice of where a new terminal
 // starts, the terminal of a place with its tabs, what ⋯ does to a tab, the
-// question before a tab is closed, and the × of each tab. The host is played
-// by the page: it keeps the list, answers the actions and records what was
-// asked.
+// question before a tab is closed, the × of each tab and the × of each card.
+// The host is played by the page: it keeps the list, answers the actions and
+// records what was asked.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { MobileShell } from "/src/mobile/shell.js";
@@ -127,13 +127,16 @@ const exec = { available: true, kinds: ["term.start", "term.close", "term.rename
 const snapshot = { at: 1, hostName: "helios", sessions: [], profileMap, limits: null, host: { home: "/home/u" } };
 const wait = { opening: () => [], of: () => null };
 const alerts = { kind: "ready", alerts: [], older: [], reload: () => {} };
-render(h(ToastHost, null, h(GateHost, null, html`<${MobileShell} snapshot=${snapshot}
+// mount draws the shell, and draws it again over itself with another
+// executor: one that does not know how to close a terminal.
+const mount = (exec) => render(h(ToastHost, null, h(GateHost, null, html`<${MobileShell} snapshot=${snapshot}
     tree=${{ stacks: [], running: 0, total: 0 }} treeError=${null} hostError=${null} ageSec=${1} history=${[]} faults=${[]}
     alerts=${alerts} openAlerts=${0} exec=${exec} onRefresh=${() => {}} wait=${wait} conn=${{ kind: "live" }}
     theme="space" onTheme=${() => {}} updateReady=${false} updating=${false} onApplyUpdate=${() => {}}
     installable=${false} onInstall=${() => {}}
     route=${{ here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }}
     jump=${null} onJumped=${() => {}} />`)), document.getElementById("root"));
+mount(exec);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms = 3000) => {
@@ -216,11 +219,12 @@ const closesOf = (id) => actions("term.close").filter((a) => a.params.id === id)
 const cells = () => all(".ttabs .ttabcell");
 const tabRow = () => cells().map((c) => `${text(c.querySelector("[role=tab]"))}${c.classList.contains("on") ? "*" : ""}`);
 const xOf = (i) => (cells()[i] ? cells()[i].querySelector(".ttabx") : null);
-// inkOf is the colour a variable of the theme paints with where the tabs stand.
-const inkOf = (name) => {
+// inkOf is the colour a variable of the theme paints with where the tabs
+// stand, or where the element at says.
+const inkOf = (name, at = ".ttabs") => {
     const probe = document.createElement("span");
     probe.style.color = `var(${name})`;
-    document.querySelector(".ttabs").appendChild(probe);
+    document.querySelector(at).appendChild(probe);
     const ink = getComputedStyle(probe).color;
     probe.remove();
     return ink;
@@ -254,6 +258,34 @@ const cellShot = (c) => {
     };
 };
 const LONG = "tail -f /var/log/aacpanel/collector.log";
+// A card and its × read as how they stand: the name of the × and whether it
+// is inside the card, the role of the cell around them, how far the × stands
+// from the right edge and the top of the card, how big it is and its mark,
+// whether it is drawn, the colour of its mark, and the parts of the card's
+// text it stands over.
+const cardXShot = (cell) => {
+    const card = cell.querySelector(".tcard");
+    const x = cell.querySelector(".tcardx");
+    const [cr, xr, ir] = [card, x, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
+    const style = getComputedStyle(x);
+    const meets = (r) => r.width > 0 && r.left < xr.right && xr.left < r.right && r.top < xr.bottom && xr.top < r.bottom;
+    return {
+        name: text(card.querySelector(".tcardname")),
+        label: x.getAttribute("aria-label"),
+        nested: card.contains(x),
+        role: cell.getAttribute("role") || "",
+        right: Math.round(cr.right - xr.right),
+        top: Math.round(xr.top - cr.top),
+        width: Math.round(xr.width),
+        height: Math.round(xr.height),
+        icon: Math.round(Math.max(ir.width, ir.height)),
+        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
+        ink: style.color === inkOf("--ink-faint", ".tcardcell") ? "faint" : style.color,
+        under: all(".tdot, .tcardname, .tcardwhen, .tcardlast", card)
+            .filter((el) => meets(el.getBoundingClientRect())).map((el) => el.className),
+    };
+};
+const termStreams = () => streams.filter((s) => s.url.startsWith("/api/term/stream")).length;
 
 window.done = (async () => {
     const out = {};
@@ -284,6 +316,7 @@ window.done = (async () => {
             .map(cardShot);
         out.bareCard = cardShot(all(".tplace", pageOf("personal"))
             .find((sec) => text(sec.querySelector(".theadname")) === "misc").querySelector(".tcard"));
+        out.cards = { x: all(".tcardcell", pageOf("personal")).map(cardXShot) };
         await pause("A");
 
         all(".pftab").find((b) => text(b).startsWith("work")).click();
@@ -454,6 +487,60 @@ window.done = (async () => {
         xOf(0).click();
         await until(() => closesOf("t-new3") === 1 && !document.querySelector(".ttabs") && document.querySelector(".pftab.on"));
         out.x.last = { closes: closesOf("t-new3"), layer: Boolean(document.querySelector(".ttabs")), pager: Boolean(document.querySelector(".pftab.on")) };
+
+        // The × of each card, on the page of personal the walk came back to:
+        // misc holds an idle zsh, api runs npm. Neither opens a terminal, and
+        // a walk that finds one opened goes on to say so rather than breaking
+        // off: the helpers answer nothing where the page is gone.
+        const placeOf = (label) => (pageOf("personal") ? all(".tplace", pageOf("personal"))
+            .find((sec) => text(sec.querySelector(".theadname")) === label) || null : null);
+        const cardX = (label) => (placeOf(label) ? placeOf(label).querySelector(".tcardx") : null);
+        const cardCount = () => (pageOf("personal") ? all(".tcard", pageOf("personal")).length : 0);
+        const press = (el) => el && el.click();
+        const seen = termStreams();
+        const opened = () => Boolean(document.querySelector(".ttabs")) || termStreams() !== seen || !navButton("Terminals");
+        await until(() => cardX("misc") && !cardX("misc").disabled && cardX("api"));
+        const before = cardCount();
+
+        // × on the idle card closes it at once; the host keeps its answer back
+        // for a moment, and the × stays down meanwhile, a second press
+        // sending nothing.
+        const cardHold = holdClose();
+        cardX("misc").click();
+        await until(() => closesOf("t-misc") === 1);
+        const cardDown = await until(() => cardX("misc") && cardX("misc").disabled);
+        press(cardX("misc"));
+        const cardTwice = closesOf("t-misc");
+        const heldSheet = Boolean(sheet());
+        held = null;
+        cardHold.release();
+        await until(() => !placeOf("misc"));
+        out.cards.idle = {
+            closes: closesOf("t-misc"), down: Boolean(cardDown), sentTwice: cardTwice > 1,
+            sheet: heldSheet || Boolean(sheet()), opened: opened(), gone: !placeOf("misc"), before, after: cardCount(),
+        };
+
+        // × on the card where npm runs asks first, naming it, and sends
+        // nothing until the question is answered.
+        press(cardX("api"));
+        await until(() => document.querySelector(".sheet.on .tclose"));
+        await sleep(100);
+        out.cards.running = {
+            title: text(document.querySelector(".sheet.on .tclose .stitle")),
+            sub: text(document.querySelector(".sheet.on .tclose .ssub")),
+            closedBefore: closesOf("t-api"),
+        };
+        press(all(".sheet.on .tclose .btn").find((b) => text(b) === "Close tab"));
+        await until(() => closesOf("t-api") === 1 && !placeOf("api") && !sheet());
+        Object.assign(out.cards.running, { closes: closesOf("t-api"), gone: !placeOf("api"), opened: opened() });
+
+        // An executor that does not know how to close a terminal keeps the ×
+        // of every card down, saying why.
+        mount({ ...exec, kinds: exec.kinds.filter((k) => k !== "term.close") });
+        await until(() => all(".tcardx").length > 0 && all(".tcardx").every((b) => b.disabled));
+        out.cards.unknown = all(".tcardx").map((b) => ({
+            name: b.getAttribute("aria-label"), disabled: b.disabled, title: b.getAttribute("title") || "",
+        }));
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

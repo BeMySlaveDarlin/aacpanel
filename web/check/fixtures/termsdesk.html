@@ -7,9 +7,9 @@
 <script type="module">
 // The terminals section of the wide screen: its button after the sessions,
 // the places side by side as columns with home first, the choice of the ones
-// shown and the button of a new terminal above them, and a card opening its
+// shown and the button of a new terminal above them, a card opening its
 // terminal under the tabs of its place, each with the × that closes it, and
-// the window at the end of the line.
+// the window at the end of the line, and the × of each card.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { DesktopShell } from "/src/desktop/shell.js";
@@ -49,6 +49,15 @@ const profileMap = [
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const asked = [];
+// held keeps the answer to the next close back until the walk lets it go, so
+// the walk can look at a card whose close is on its way.
+let held = null;
+const holdClose = () => {
+    let release;
+    const answered = new Promise((r) => { release = r; });
+    held = { answered, release };
+    return held;
+};
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u === "/api/term") return json({ available: true });
@@ -57,7 +66,10 @@ window.fetch = async (url, init) => {
     if (u === "/api/actions" && init && init.method === "POST") {
         const body = JSON.parse(init.body);
         asked.push(body);
-        if (body.kind === "term.close") terms = terms.filter((t) => t.id !== body.params.id);
+        if (body.kind === "term.close") {
+            if (held) await held.answered;
+            terms = terms.filter((t) => t.id !== body.params.id);
+        }
         return json({ ok: true, detail: "", logged: true });
     }
     if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 24, offset: 0 });
@@ -117,11 +129,12 @@ const xNamed = (name) => {
     const cell = cells().find((c) => text(c.querySelector("[role=tab]")) === name);
     return cell ? cell.querySelector(".ttabx") : null;
 };
-// inkOf is the colour a variable of the theme paints with where the tabs stand.
-const inkOf = (name) => {
+// inkOf is the colour a variable of the theme paints with where the tabs
+// stand, or where the element at says.
+const inkOf = (name, at = ".ttabsdesk") => {
     const probe = document.createElement("span");
     probe.style.color = `var(${name})`;
-    document.querySelector(".ttabsdesk").appendChild(probe);
+    document.querySelector(at).appendChild(probe);
     const ink = getComputedStyle(probe).color;
     probe.remove();
     return ink;
@@ -150,6 +163,30 @@ const cellShot = (c) => {
         ellipsis: getComputedStyle(name).textOverflow === "ellipsis",
     };
 };
+// A card and its × read as on the phone.
+const cardXShot = (cell) => {
+    const card = cell.querySelector(".tcard");
+    const x = cell.querySelector(".tcardx");
+    const [cr, xr, ir] = [card, x, x.querySelector("svg")].map((el) => el.getBoundingClientRect());
+    const style = getComputedStyle(x);
+    const meets = (r) => r.width > 0 && r.left < xr.right && xr.left < r.right && r.top < xr.bottom && xr.top < r.bottom;
+    return {
+        name: text(card.querySelector(".tcardname")),
+        label: x.getAttribute("aria-label"),
+        nested: card.contains(x),
+        role: cell.getAttribute("role") || "",
+        right: Math.round(cr.right - xr.right),
+        top: Math.round(xr.top - cr.top),
+        width: Math.round(xr.width),
+        height: Math.round(xr.height),
+        icon: Math.round(Math.max(ir.width, ir.height)),
+        shown: xr.width > 0 && xr.height > 0 && style.visibility === "visible" && style.opacity !== "0",
+        ink: style.color === inkOf("--ink-faint", ".tcardcell") ? "faint" : style.color,
+        under: all(".tdot, .tcardname, .tcardwhen, .tcardlast", card)
+            .filter((el) => meets(el.getBoundingClientRect())).map((el) => el.className),
+    };
+};
+const termStreams = () => streams.filter((s) => s.url.startsWith("/api/term/stream")).length;
 // A card reads as its name, its dot and the last line of its screen, with how
 // that line is set, as on the phone.
 const cardShot = (c) => {
@@ -202,6 +239,7 @@ window.done = (async () => {
         });
         out.chooser = text(document.querySelector(".pfdesk.row > .pfsel .pfsellabel"));
         out.newButton = text(document.querySelector(".pfdesk.row > .pfsel .tnew"));
+        out.cards = { x: all(".tcardcell").map(cardXShot) };
         await pause("E");
 
         // A card opens its terminal under the tabs of its place.
@@ -260,6 +298,64 @@ window.done = (async () => {
         document.querySelector(".dkterm .tback").click();
         await until(() => document.querySelector(".pfdesk.row"));
         out.back = all(".pfdesk.row > .pfstack .theadname").map(text);
+
+        // The executor still does not know how to close a terminal: the × of
+        // every card is down too, saying why.
+        await until(() => all(".tcardx").length > 0);
+        out.cards.unknown = all(".tcardx").map((b) => ({
+            name: b.getAttribute("aria-label"), disabled: b.disabled, title: b.getAttribute("title") || "",
+        }));
+
+        // With one that does, the × of each card closes it without opening a
+        // terminal: home holds an idle zsh and htop running.
+        mount(exec);
+        const cardOf = (head, name) => {
+            const stack = all(".pfdesk.row > .pfstack").find((st) => text(st.querySelector(".theadname")) === head);
+            return stack ? all(".tcardcell", stack).find((c) => text(c.querySelector(".tcardname")) === name) || null : null;
+        };
+        const cardX = (head, name) => (cardOf(head, name) ? cardOf(head, name).querySelector(".tcardx") : null);
+        // A walk that finds a terminal opened goes on to say so rather than
+        // breaking off.
+        const press = (el) => el && el.click();
+        const seen = termStreams();
+        const opened = () => Boolean(document.querySelector(".dkterm")) || termStreams() !== seen;
+        await until(() => cardX("Home", "zsh") && !cardX("Home", "zsh").disabled && cardX("Home", "htop"));
+        const before = all(".tcard").length;
+
+        // × on the idle card closes it at once; the host keeps its answer back
+        // for a moment, and the × stays down meanwhile, a second press
+        // sending nothing.
+        const hold = holdClose();
+        cardX("Home", "zsh").click();
+        await until(() => closes().filter((a) => a.params.id === "t-h1").length === 1);
+        const down = await until(() => cardX("Home", "zsh") && cardX("Home", "zsh").disabled);
+        press(cardX("Home", "zsh"));
+        const twice = closes().filter((a) => a.params.id === "t-h1").length;
+        const heldSheet = Boolean(sheet());
+        held = null;
+        hold.release();
+        await until(() => !cardOf("Home", "zsh"));
+        out.cards.idle = {
+            closes: closes().filter((a) => a.params.id === "t-h1").length, down: Boolean(down), sentTwice: twice > 1,
+            sheet: heldSheet || Boolean(sheet()), opened: opened(), gone: !cardOf("Home", "zsh"),
+            before, after: all(".tcard").length,
+        };
+
+        // × on the card where htop runs asks first, naming it, and sends
+        // nothing until the question is answered.
+        press(cardX("Home", "htop"));
+        await until(() => document.querySelector(".sheet.on .tclose"));
+        await sleep(100);
+        out.cards.running = {
+            title: text(document.querySelector(".sheet.on .tclose .stitle")),
+            sub: text(document.querySelector(".sheet.on .tclose .ssub")),
+            closedBefore: closes().filter((a) => a.params.id === "t-h2").length,
+        };
+        press(all(".sheet.on .tclose .btn").find((b) => text(b) === "Close tab"));
+        await until(() => closes().some((a) => a.params.id === "t-h2") && !cardOf("Home", "htop") && !sheet());
+        Object.assign(out.cards.running, {
+            closes: closes().filter((a) => a.params.id === "t-h2").length, gone: !cardOf("Home", "htop"), opened: opened(),
+        });
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

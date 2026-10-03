@@ -101,6 +101,148 @@ func (c tabCell) xReads() string {
 	return ""
 }
 
+// cardX is a card of a terminal and the × beside it, as a fixture reads them:
+// right and top are how far the × stands from the right edge and the top of
+// the card, under the parts of the card's text it stands over.
+type cardX struct {
+	Name   string   `json:"name"`
+	Label  string   `json:"label"`
+	Nested bool     `json:"nested"`
+	Role   string   `json:"role"`
+	Right  int      `json:"right"`
+	Top    int      `json:"top"`
+	Width  int      `json:"width"`
+	Height int      `json:"height"`
+	Icon   int      `json:"icon"`
+	Shown  bool     `json:"shown"`
+	Ink    string   `json:"ink"`
+	Under  []string `json:"under"`
+}
+
+// xReads says what is wrong with the × of a card, or nothing: it is named
+// after the terminal it closes, stands beside the card button rather than
+// inside it, in a cell that takes no part in the list, and is drawn without a
+// pointer over it at the top right corner of the card. It is pressed over a
+// square about a finger wide, its mark small and faint, and no text of the
+// card runs under it.
+func (c cardX) xReads() string {
+	switch {
+	case c.Label != "close "+c.Name:
+		return fmt.Sprintf("the × is called %q", c.Label)
+	case c.Nested:
+		return "the × is inside the card button — pressing it would open the terminal"
+	case c.Role != "presentation":
+		return fmt.Sprintf("the cell of the card and its × has the role %q — the list would hold it", c.Role)
+	case !c.Shown:
+		return "the × is not drawn"
+	case c.Right < 0 || c.Right > 8 || c.Top < 0 || c.Top > 8:
+		return fmt.Sprintf("the × stands %dpx from the right edge of the card and %dpx from its top, expected its top right corner", c.Right, c.Top)
+	case c.Width < 28 || c.Width > 36 || c.Height < 28 || c.Height > 36:
+		return fmt.Sprintf("the × is %d×%dpx, expected about 32×32", c.Width, c.Height)
+	case c.Icon > 16:
+		return fmt.Sprintf("the mark of the × is %dpx", c.Icon)
+	case c.Ink != "faint":
+		return fmt.Sprintf("the mark of the × is in %s, expected the faint ink", c.Ink)
+	case len(c.Under) > 0:
+		return fmt.Sprintf("the text of the card runs under the ×: %v", c.Under)
+	}
+	return ""
+}
+
+// cardClose is the × of the cards walked by a fixture: how every card stands
+// with its ×, a press on the × of an idle card and of a running one, and the
+// × of every card under an executor that cannot close a terminal.
+type cardClose struct {
+	X    []cardX `json:"x"`
+	Idle struct {
+		Closes    int  `json:"closes"`
+		Down      bool `json:"down"`
+		SentTwice bool `json:"sentTwice"`
+		Sheet     bool `json:"sheet"`
+		Opened    bool `json:"opened"`
+		Gone      bool `json:"gone"`
+		Before    int  `json:"before"`
+		After     int  `json:"after"`
+	} `json:"idle"`
+	Running struct {
+		Title        string `json:"title"`
+		Sub          string `json:"sub"`
+		ClosedBefore int    `json:"closedBefore"`
+		Closes       int    `json:"closes"`
+		Gone         bool   `json:"gone"`
+		Opened       bool   `json:"opened"`
+	} `json:"running"`
+	Unknown []struct {
+		Name     string `json:"name"`
+		Disabled bool   `json:"disabled"`
+		Title    string `json:"title"`
+	} `json:"unknown"`
+}
+
+// cardsClose demands of the × of the cards what the × of a tab does: a card
+// where nothing runs but the shell closes at once, one where something runs
+// asks first, naming the terminal and what runs, and neither opens a
+// terminal; the × stays down while its close is on its way, and every × is
+// down with the reason when the executor cannot close a terminal. cards is
+// how many cards the walk measured, title and runs what the question says of
+// the running one.
+func cardsClose(t *testing.T, c cardClose, cards int, title, runs string) {
+	t.Helper()
+	t.Run("every card has its own × at its top right", func(t *testing.T) {
+		if len(c.X) != cards {
+			t.Fatalf("%d cards read, expected %d", len(c.X), cards)
+		}
+		for _, x := range c.X {
+			if trouble := x.xReads(); trouble != "" {
+				t.Errorf("%s: %s", x.Name, trouble)
+			}
+		}
+	})
+
+	t.Run("× on an idle card closes it at once", func(t *testing.T) {
+		i := c.Idle
+		if i.Closes != 1 || i.Sheet {
+			t.Errorf("× on an idle card sent %d closes of it and opened a sheet %v, expected one close and no sheet", i.Closes, i.Sheet)
+		}
+		if !i.Down || i.SentTwice {
+			t.Errorf("while the close was on its way the × was down %v, and a second press sent another %v", i.Down, i.SentTwice)
+		}
+		if i.Opened {
+			t.Error("× on an idle card opened a terminal")
+		}
+		if !i.Gone || i.After != i.Before-1 {
+			t.Errorf("after the close the card is gone %v, and %d cards of %d stand — expected only that card gone", i.Gone, i.After, i.Before)
+		}
+	})
+
+	t.Run("× on a running card asks first", func(t *testing.T) {
+		r := c.Running
+		if r.ClosedBefore != 0 {
+			t.Fatal("the terminal was closed before the question was answered")
+		}
+		if r.Title != title || !strings.Contains(r.Sub, runs) {
+			t.Errorf("the question reads %q / %q — expected %q, saying %q", r.Title, r.Sub, title, runs)
+		}
+		if r.Closes != 1 || !r.Gone {
+			t.Errorf("the answer sent %d closes and the card is gone %v, expected one close and the card gone", r.Closes, r.Gone)
+		}
+		if r.Opened {
+			t.Error("× on a running card opened a terminal")
+		}
+	})
+
+	t.Run("× on a card is down where the executor cannot close a terminal", func(t *testing.T) {
+		if len(c.Unknown) == 0 {
+			t.Fatal("no card read under an executor without term.close")
+		}
+		for _, x := range c.Unknown {
+			if !x.Disabled || !strings.Contains(x.Title, "does not know the action “term.close”") {
+				t.Errorf("%s: down %v, its title %q — expected down, saying the host does not know term.close", x.Name, x.Disabled, x.Title)
+			}
+		}
+	})
+}
+
 type termsPhoneShot struct {
 	Error    string   `json:"error"`
 	Nav      []string `json:"nav"`
@@ -192,6 +334,7 @@ type termsPhoneShot struct {
 			Pager  bool `json:"pager"`
 		} `json:"last"`
 	} `json:"x"`
+	Cards cardClose `json:"cards"`
 }
 
 // The terminals of places on a phone, walked once in the whole shell; every
@@ -438,6 +581,11 @@ func TestTerminalsOnThePhone(t *testing.T) {
 			t.Errorf("× on the last tab left %+v, expected one close and the places again", l)
 		}
 	})
+
+	// The page of personal holds seven cards, htop's last line longer than
+	// the card; back on it after the tabs, misc holds an idle zsh and api
+	// runs npm.
+	cardsClose(t, got.Cards, 7, "Close npm run dev?", "npm runs in it")
 }
 
 // The terminal button of a conversation goes to the terminal of the session's
@@ -572,7 +720,8 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 			Disabled bool   `json:"disabled"`
 			Title    string `json:"title"`
 		} `json:"unknown"`
-		Back []string `json:"back"`
+		Back  []string  `json:"back"`
+		Cards cardClose `json:"cards"`
 	}
 	runWideFixture(t, "termsdesk.html", &got)
 	if got.Error != "" {
@@ -697,6 +846,11 @@ func TestTerminalsOnTheDesk(t *testing.T) {
 			}
 		}
 	})
+
+	// The columns hold six cards, make check's last line longer than the
+	// card; back on them after the tabs, home holds an idle zsh and htop
+	// running.
+	cardsClose(t, got.Cards, 6, "Close htop?", "htop runs in it")
 }
 
 type personalLayout struct {

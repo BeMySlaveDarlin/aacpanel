@@ -27,6 +27,12 @@ export function TermsDesk({ snapshot, exec, open, onOpen }) {
     const names = places.map((p) => p.place);
     const [current, pick] = useProfilePage(names, PLACE_KEY);
     const [picking, setPicking] = useState(false);
+    // asking is the id of the terminal whose card asked the question before
+    // closing, since something runs in it. The terminal is read from the
+    // list, so the question follows what runs in it.
+    const [asking, setAsking] = useState("");
+    const about = asking ? (terms || []).find((t) => t.id === asking) : null;
+    const closing = useTabClose({ acts, ask: (t) => setAsking(t.id) });
 
     const startIn = async (place) => {
         setPicking(false);
@@ -73,12 +79,18 @@ export function TermsDesk({ snapshot, exec, open, onOpen }) {
                         return it.terms.length === 0
                             ? html`<p class="empty">No terminals here yet.</p>`
                             : it.terms.map((t) => html`
-                                <${TermCard} key=${t.id} t=${t} onOpen=${() => onOpen({ id: t.id, place: it.place })} />
+                                <${TermCard} key=${t.id} t=${t} acts=${acts} going=${closing.going}
+                                             onOpen=${() => onOpen({ id: t.id, place: it.place })}
+                                             onClose=${closing.press} />
                             `);
                     }}
                 />
             `}
             ${picker}
+            <${Sheet} open=${Boolean(about)} onClose=${() => setAsking("")} label="close the terminal">
+                ${about && html`<${CloseTab} t=${about} acts=${acts} onClosed=${closing.closed}
+                                             onDone=${() => setAsking("")} />`}
+            <//>
         </section>
     `;
 }

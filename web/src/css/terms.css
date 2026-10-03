@@ -85,6 +85,29 @@
     white-space: pre;
 }
 
+/* A card and its × share a cell: the × stands over the top right corner of
+   the card, drawn without a pointer over it, pressed over a square about a
+   finger wide while its mark stays small and faint. The card keeps its text
+   clear of that corner, so a long name or last line gives way before the ×. */
+.tcardcell { position: relative; }
+.tcardcell .tcard { padding-right: 2.4rem; }
+.tcardx {
+    position: absolute;
+    top: .2rem;
+    right: .2rem;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-faint);
+    cursor: pointer;
+}
+.tcardx:disabled { opacity: .4; cursor: default; }
+.tcardx svg { width: calc(var(--i-sm) * .75); height: calc(var(--i-sm) * .75); }
+
 .tdot { flex: none; width: .45rem; height: .45rem; border-radius: 50%; background: var(--line); }
 .tdot.run { background: var(--accent); box-shadow: 0 0 .4rem var(--accent); }
 
