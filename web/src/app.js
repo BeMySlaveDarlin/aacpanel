@@ -65,7 +65,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
     const [snapshot, setSnapshot] = useState(null);
     const [treeError, setTreeError] = useState(null);
     const [hostError, setHostError] = useState(null);
-    const [history, setHistory] = useState([]);
+    const [hostHistory, setHostHistory] = useState([]);
     const [ageSec, setAgeSec] = useState(null);
     const [conn, setConn] = useState({ kind: "loading" });
     const faults = useFaults();
@@ -125,7 +125,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
             const { snapshot: fresh, ageSec: age } = hostResult.value;
             setSnapshot(fresh);
             setAgeSec(age);
-            setHistory((prev) => trim([...prev, point(fresh)]));
+            setHostHistory((prev) => trim([...prev, point(fresh)]));
             setHostError(null);
             setHostName(fresh.hostName);
             if (fresh.hostName) document.title = fresh.hostName;
@@ -214,7 +214,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
     }, []);
 
     const shared = {
-        snapshot, tree, treeError, hostError, ageSec, history, faults,
+        snapshot, tree, treeError, hostError, ageSec, history: hostHistory, faults,
         alerts, openAlerts, exec, onRefresh: refresh, wait, theme, onTheme,
         updateReady, updating, onApplyUpdate, jump, onJumped,
         route: { here, via, why: routeWhy, onRecheck, onOpen: openRoute },

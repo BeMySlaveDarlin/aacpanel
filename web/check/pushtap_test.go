@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -88,6 +89,10 @@ func TestPageOpensTheSessionTheAddressNames(t *testing.T) {
 	}
 	if !strings.Contains(app, "watchOpen(") {
 		t.Error("src/app.js: the page does not listen to the worker — when the browser refuses the navigation the tap does nothing")
+	}
+	if regexp.MustCompile(`\b(?:const|let|var)\s*\[?\s*history\b`).MatchString(app) {
+		t.Error("src/app.js: a name of its own called history hides window.history — the page a push opens on a " +
+			"session throws as it clears the address, and the effects after it never run")
 	}
 	if pwa := withoutComments(files["src/pwa.js"]); !strings.Contains(pwa, `type === "OPEN"`) {
 		t.Error("src/pwa.js: the address sent by the worker is not handed to the page")
