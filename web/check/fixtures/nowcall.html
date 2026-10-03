@@ -55,7 +55,7 @@ render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="lab" id="s1" liv
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
-const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await sleep(30); };
+const until = async (ok) => { for (let i = 0; i < 300 && !ok(); i++) await sleep(30); };
 const sheet = () => document.querySelector(".sheet.on[aria-label='tool calls']");
 const depth = () => (history.state && history.state.overlay ? Number(history.state.depth) : 0);
 
@@ -72,10 +72,13 @@ const seen = () => {
         rows: Array.from(s.querySelectorAll(".calltime .callnode")).map((n) => text(n.querySelector(".cnname"))),
     };
 };
+// A sheet gives its entry of the history back after it is gone, and the next
+// one opened before that lands would count on the entry about to go: the walk
+// waits until the history is back where it was.
 const close = async () => {
     if (!sheet()) return;
     sheet().querySelector(".sheetclose").click();
-    await until(() => !sheet());
+    await until(() => !sheet() && depth() === 0);
 };
 
 window.done = (async () => {
@@ -90,6 +93,11 @@ window.done = (async () => {
         // The call of the bar opens itself, and its arrow leads to the list.
         document.querySelector(".composerbox .nowcall").click();
         await until(() => sheet() && sheet().querySelector(".phead h2"));
+        // The call asks the host from an effect after it is drawn, and joins
+        // the back gesture a render later: both are waited for, or a slow
+        // machine reads the call before it asked and presses its arrow before
+        // the arrow leads anywhere.
+        await until(() => asked.length > 0 && depth() >= 2);
         out.call = seen();
         out.asked = asked.slice();
         const arrow = sheet() && sheet().querySelector(".pback");
