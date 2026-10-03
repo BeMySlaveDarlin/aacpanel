@@ -6,9 +6,10 @@
 <div id="root"></div>
 <script type="module">
 // The host menu on a phone: the head with the way to the host, three live
-// tiles, the strip of the install or the update, three quiet doors and the
-// footer. Each scenario stubs what the service answers and what the snapshot
-// carries, and reads what the menu says and where its presses go.
+// tiles, the strip of the install or the update, three doors that do not open
+// yet, three quiet doors and the footer. Each scenario stubs what the service
+// answers and what the snapshot carries, and reads what the menu says and
+// where its presses go.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { HostMenu } from "/src/ui/header.js";
@@ -111,11 +112,20 @@ const read = () => {
             label: t.getAttribute("title") || "",
             box: box(t),
         })),
-        strips: [...m.querySelectorAll(".hm-strip")].map((b) => ({ text: text(b), disabled: b.disabled })),
-        quiet: [...m.querySelectorAll(".hm-quiet > .hm-q")].map((b) => ({
+        strips: [...m.querySelectorAll(".hm-strip")].map((b) => ({ text: text(b), disabled: b.disabled, box: box(b) })),
+        accounts: [...m.querySelectorAll(".hm-accounts > .hm-q")].map((b) => ({
+            title: text(b.querySelector(".t")),
+            sub: text(b.querySelector("small")),
+            disabled: b.disabled,
+            opacity: getComputedStyle(b).opacity,
+            box: box(b),
+        })),
+        quiet: [...m.querySelectorAll(".hm-quiet:not(.hm-accounts) > .hm-q")].map((b) => ({
             title: text(b.querySelector(".t")),
             sub: text(b.querySelector("small")),
             crit: Boolean(b.querySelector("small.crit")),
+            opacity: getComputedStyle(b).opacity,
+            box: box(b),
         })),
         theme: [...m.querySelectorAll(".hm-seg button")].map((b) => `${text(b)}:${b.getAttribute("aria-pressed")}`),
         themeBox: [...m.querySelectorAll(".hm-seg button")].map(box),
@@ -153,6 +163,7 @@ const fit = async () => {
 const press = (el) => { if (el) el.click(); };
 const pressTile = (title) => press([...sheet().querySelectorAll(".hm-tile")].find((t) => text(t.querySelector(".t")) === title));
 const pressQuiet = (title) => press([...sheet().querySelectorAll(".hm-q")].find((t) => text(t.querySelector(".t")) === title));
+const accountsDoor = (title) => [...sheet().querySelectorAll(".hm-accounts > .hm-q")].find((t) => text(t.querySelector(".t")) === title);
 const pressTheme = (word) => press([...sheet().querySelectorAll(".hm-seg button")].find((b) => text(b) === word));
 
 window.done = (async () => {
@@ -189,6 +200,13 @@ window.done = (async () => {
     for (const title of ["Machine", "Usage", "Briefs"]) pressTile(title);
     for (const title of ["Journal", "Devices", "Settings"]) pressQuiet(title);
     out.pages = log.pages.slice();
+
+    // The doors that do not open yet are pressed and open nothing.
+    const soon = ["Claude", "Codex", "Balancer"].map(accountsDoor).filter(Boolean);
+    soon.forEach(press);
+    out.soonPressed = soon.length;
+    out.soonPages = log.pages.slice(out.pages.length);
+    out.soonClosed = log.closed;
 
     // The theme: Dark on the dark theme does nothing, Light flips it, and the
     // menu drawn again with the new theme asks the service nothing anew.

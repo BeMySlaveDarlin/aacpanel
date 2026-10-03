@@ -238,16 +238,17 @@ func TestTheConnectionSheetSaysItAll(t *testing.T) {
 }
 
 // The host menu took the theme and the install from the bar: the live tiles
-// first, the install while the app is not installed, the pages that have no
-// tab, and the theme as two words with the one in use pressed.
+// first, the install while the app is not installed, the doors that do not
+// open yet, the pages that have no tab, and the theme as two words with the
+// one in use pressed.
 func TestTheHostMenuCarriesThemeAndInstall(t *testing.T) {
 	var got appBar
 	runFixture(t, "appbar.html", &got)
 	m := got.Menu
-	if strings.Join(m.Items, "|") != "Machine|Usage|Briefs|Install the appnot installed yet|Journal|Devices|Settings|Sign out" {
+	if strings.Join(m.Items, "|") != "Machine|Usage|Briefs|Install the appnot installed yet|Claude|Codex|Balancer|Journal|Devices|Settings|Sign out" {
 		t.Errorf("the menu reads %q", m.Items)
 	}
-	if strings.Join(m.ItemsInstalled, "|") != "Machine|Usage|Briefs|Journal|Devices|Settings|Sign out" {
+	if strings.Join(m.ItemsInstalled, "|") != "Machine|Usage|Briefs|Claude|Codex|Balancer|Journal|Devices|Settings|Sign out" {
 		t.Errorf("an installed app still offers the install: %q", m.ItemsInstalled)
 	}
 	if strings.Join(m.Theme, ",") != "Dark:true,Light:false" || strings.Join(m.ThemeLight, ",") != "Dark:false,Light:true" {

@@ -96,9 +96,11 @@ export function Header({ hostName = "host", ageSec, conn, route, flag = false, m
 // HostMenu is the sheet behind the host name. It opens on what the machine is
 // doing — the load, the limits of the contour, the briefs waiting — each a
 // door to its page, then the install or the update while one waits, the pages
-// that have no tab of their own, the theme and the way out. It fits the height
-// the sheet opens to: nothing in it needs a drag to be found. A value the app
-// does not have leaves its line out; the menu says less rather than a zero.
+// that have no tab of their own, the theme and the way out. Above those pages
+// stand the accounts of Claude and Codex and the balancer between them, doors
+// that do not open yet. It fits the height the sheet opens to: nothing in it
+// needs a drag to be found. A value the app does not have leaves its line out;
+// the menu says less rather than a zero.
 export function HostMenu({
     open, onClose, onPage, hostName = "host", snapshot, conn, ageSec, route,
     installable = false, onInstall, updateReady = false, updating = false, onApplyUpdate, theme, onTheme,
@@ -157,6 +159,20 @@ export function HostMenu({
                         ${Icon.download()}Install the app<small>not installed yet</small>
                     </button>
                 `}
+            <div class="hm-quiet hm-accounts">
+                <button class="hm-q" type="button" disabled>
+                    <span class="t">${Icon.robot()}Claude</span>
+                    <small>accounts · soon</small>
+                </button>
+                <button class="hm-q" type="button" disabled>
+                    <span class="t">${Icon.braces()}Codex</span>
+                    <small>accounts · soon</small>
+                </button>
+                <button class="hm-q" type="button" disabled>
+                    <span class="t">${Icon.flow()}Balancer</span>
+                    <small>settings · soon</small>
+                </button>
+            </div>
             <div class="hm-quiet">
                 <button class="hm-q" type="button" onClick=${() => onPage("journal")}>
                     <span class="t">${Icon.list()}Journal</span>

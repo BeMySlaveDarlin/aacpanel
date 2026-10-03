@@ -1,6 +1,7 @@
 package check
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -17,14 +18,26 @@ type menuTile struct {
 }
 
 type menuStrip struct {
-	Text     string `json:"text"`
-	Disabled bool   `json:"disabled"`
+	Text     string  `json:"text"`
+	Disabled bool    `json:"disabled"`
+	Box      *barBox `json:"box"`
 }
 
 type menuQuiet struct {
-	Title string  `json:"title"`
-	Sub   *string `json:"sub"`
-	Crit  bool    `json:"crit"`
+	Title   string  `json:"title"`
+	Sub     *string `json:"sub"`
+	Crit    bool    `json:"crit"`
+	Opacity string  `json:"opacity"`
+	Box     *barBox `json:"box"`
+}
+
+// menuSoon is a door of the row that does not open yet.
+type menuSoon struct {
+	Title    string  `json:"title"`
+	Sub      *string `json:"sub"`
+	Disabled bool    `json:"disabled"`
+	Opacity  string  `json:"opacity"`
+	Box      *barBox `json:"box"`
 }
 
 type menuRead struct {
@@ -33,6 +46,7 @@ type menuRead struct {
 	Dot      string      `json:"dot"`
 	Tiles    []menuTile  `json:"tiles"`
 	Strips   []menuStrip `json:"strips"`
+	Accounts []menuSoon  `json:"accounts"`
 	Quiet    []menuQuiet `json:"quiet"`
 	Theme    []string    `json:"theme"`
 	ThemeBox []*barBox   `json:"themeBox"`
@@ -65,6 +79,9 @@ type hostMenu struct {
 	Full            menuRead  `json:"full"`
 	Fit             menuFit   `json:"fit"`
 	Pages           []string  `json:"pages"`
+	SoonPressed     int       `json:"soonPressed"`
+	SoonPages       []string  `json:"soonPages"`
+	SoonClosed      int       `json:"soonClosed"`
 	DarkOnDark      int       `json:"darkOnDark"`
 	LightOnDark     int       `json:"lightOnDark"`
 	ThemeAfter      []string  `json:"themeAfter"`
@@ -127,6 +144,7 @@ func TestTheHostMenu(t *testing.T) {
 		{"opensOnWhatTheMachineIsDoing", menuOpensOnWhatTheMachineIsDoing},
 		{"opensAtOnceAndAsksWhenItOpens", menuOpensAtOnceAndAsksWhenItOpens},
 		{"doorsOpenTheirPages", menuDoorsOpenTheirPages},
+		{"accountsDoNotOpenYet", menuAccountsDoNotOpenYet},
 		{"themeSwitchFlipsTheTheme", menuThemeSwitchFlipsTheTheme},
 		{"stripIsTheInstallOrTheUpdate", menuStripIsTheInstallOrTheUpdate},
 		{"leavesOutWhatItDoesNotHave", menuLeavesOutWhatItDoesNotHave},
@@ -246,6 +264,51 @@ func menuOpensAtOnceAndAsksWhenItOpens(t *testing.T, got hostMenu) {
 func menuDoorsOpenTheirPages(t *testing.T, got hostMenu) {
 	if strings.Join(got.Pages, ",") != "machine,usage,briefs,journal,devices,settings" {
 		t.Errorf("the doors opened %v", got.Pages)
+	}
+}
+
+// Over the quiet doors stands a row of the same doors that do not open yet:
+// the accounts of Claude and Codex and the balancer, a word on top and what it
+// is with soon under it, drawn quieter than a door that opens, and pressing
+// them opens no page.
+func menuAccountsDoNotOpenYet(t *testing.T, got hostMenu) {
+	m := got.Full
+	doors := make([]string, 0, len(m.Accounts))
+	for _, a := range m.Accounts {
+		doors = append(doors, a.Title+": "+shown(a.Sub))
+	}
+	if strings.Join(doors, "|") != "Claude: accounts · soon|Codex: accounts · soon|Balancer: settings · soon" {
+		t.Fatalf("the row of doors that do not open yet reads %q", strings.Join(doors, "|"))
+	}
+	if len(m.Quiet) == 0 || len(m.Strips) == 0 {
+		t.Fatalf("the menu has no quiet doors (%+v) or no strip (%+v) to stand between", m.Quiet, m.Strips)
+	}
+	journal := m.Quiet[0]
+	open, err := strconv.ParseFloat(journal.Opacity, 64)
+	if err != nil {
+		t.Fatalf("the opacity of %s reads %q", journal.Title, journal.Opacity)
+	}
+	for _, a := range m.Accounts {
+		if !a.Disabled {
+			t.Errorf("%s can be pressed: it is not disabled", a.Title)
+		}
+		if quiet, err := strconv.ParseFloat(a.Opacity, 64); err != nil || quiet >= open {
+			t.Errorf("%s is drawn at the opacity %q next to %s at %q — as loud as a door that opens",
+				a.Title, a.Opacity, journal.Title, journal.Opacity)
+		}
+		if a.Box == nil || journal.Box == nil || m.Strips[0].Box == nil {
+			t.Fatalf("the row was not measured: %+v, %+v, %+v", a.Box, journal.Box, m.Strips[0].Box)
+		}
+		if a.Box.Top != m.Accounts[0].Box.Top || a.Box.Height != journal.Box.Height {
+			t.Errorf("%s stands at %+v, not in one row of the height of %s %+v", a.Title, a.Box, journal.Title, journal.Box)
+		}
+		if a.Box.Top < m.Strips[0].Box.Bottom || a.Box.Bottom > journal.Box.Top {
+			t.Errorf("%s stands at %+v, not between the strip %+v and the quiet doors %+v",
+				a.Title, a.Box, m.Strips[0].Box, journal.Box)
+		}
+	}
+	if got.SoonPressed != 3 || len(got.SoonPages) != 0 || got.SoonClosed != 0 {
+		t.Errorf("pressing %d of the three opened %v and closed the menu %d times", got.SoonPressed, got.SoonPages, got.SoonClosed)
 	}
 }
 

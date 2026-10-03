@@ -171,8 +171,9 @@
 
 /* The host menu: the host and how the app reaches it, three live tiles that
    are doors to their pages, one strip for the install or the update while it
-   waits, three quiet doors and a footer with the theme and the way out. All of
-   it fits the height the sheet opens to on a phone. */
+   waits, three doors that do not open yet, three quiet doors and a footer with
+   the theme and the way out. All of it fits the height the sheet opens to on a
+   phone. */
 .hm-head { padding: 0 2.6rem .2rem .5rem; }
 .hm-name { font-weight: 800; font-size: var(--t-lg); letter-spacing: .04em; }
 .hm-sub { display: flex; align-items: center; gap: .4rem; margin-top: .1rem; font-size: var(--t-xs); color: var(--ink-dim); }
@@ -257,6 +258,7 @@
     cursor: pointer;
 }
 .hm-q:active { background: var(--glass-2); }
+.hm-q:disabled { opacity: .55; cursor: default; }
 .hm-q .t { display: flex; align-items: center; gap: .35rem; font-size: var(--t-sm); }
 .hm-q .t svg { flex: none; width: var(--i-sm); height: var(--i-sm); color: var(--ink-dim); }
 .hm-q small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: var(--t-xs); color: var(--ink-faint); white-space: nowrap; }
