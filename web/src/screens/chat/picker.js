@@ -277,7 +277,7 @@ export function PickSheet({ what, onClose, name, live, exec }) {
     useEffect(() => { if (what) setPane(what); }, [what]);
     // The effort opens over the model list, inside the same sheet: the gesture
     // back takes it off and leaves the list, not the whole sheet.
-    useBackClose(Boolean(what) && what !== "effort" && pane === "effort", () => setPane("model"));
+    useBackClose(Boolean(what) && pane === "effort", () => setPane("model"));
     const can = knows(exec, "session.set");
     const data = useModels(name, Boolean(what));
     const [chosen, setChosen] = useState({});
@@ -391,10 +391,12 @@ export function PickWords({ live, exec, onPick, lead = null }) {
                 aria-label=${can ? `${label} — pick another` : label} title=${why || undefined}
                 onClick=${() => onPick(what)}>${body}</button>
     `;
+    // The effort rides in the model's word: the sheet the model opens changes
+    // the effort too, so a word of its own would be a second door to it.
+    const effort = live.effort ? html`<span class="pkeff">· ${effortName(live.effort)}</span>` : "";
     return html`
         ${lead}
-        ${word("model", "model", title(live.model || ""))}
-        ${word("effort", "effort", effortName(live.effort))}
+        ${word("model", "model and effort", html`${title(live.model || "")}${effort}`)}
         ${word("mode", "permission mode", html`${Icon.bolt()}${modeName(live.mode)}`, modeLoud(live.mode))}
     `;
 }

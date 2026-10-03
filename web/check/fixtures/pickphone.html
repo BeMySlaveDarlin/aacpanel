@@ -95,6 +95,9 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     await sleep(150);
     const head = Array.from(document.querySelectorAll(".cstrip .pkchip"));
     out.head = head.map((b) => b.textContent.trim());
+    // How tall the line is against a button of the field, in the unit of the scale.
+    out.stripTall = head.length ? head[0].getBoundingClientRect().height : 0;
+    out.rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
 
     await tap(document.querySelector(".cstrip .pkchip[data-pick=model]"));
     await sleep(200);

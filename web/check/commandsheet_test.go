@@ -47,8 +47,8 @@ func TestTheCommandsButtonDoesWhatTypingDoes(t *testing.T) {
 		t.Errorf("the commands button stands in the strip of the composer: %v, in the row under it: %v — "+
 			"it belongs after the paperclip", got.InStrip, got.InDeck)
 	}
-	if strings.Join(got.Order, ",") != "file,commands,model,effort,mode" {
-		t.Errorf("the strip reads %v: the paperclip, the commands, then the model, the effort and the mode", got.Order)
+	if strings.Join(got.Order, ",") != "file,commands,model,mode" {
+		t.Errorf("the strip reads %v: the paperclip, the commands, then the model with its effort and the mode", got.Order)
 	}
 	for i, gap := range got.Gaps {
 		if gap < 6 {

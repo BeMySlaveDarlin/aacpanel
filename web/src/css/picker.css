@@ -207,9 +207,11 @@
    commands, the model, its effort and the mode. It is a band of its own,
    darker than the field and running to the edges of the frame, with words a
    size smaller and a shade quieter than what is typed: settings under the
-   field, not more of it. */
+   field, not more of it. Everything in it stands --strip-h tall, a sixth or so
+   under a button of the field, so the band takes little of the screen. */
 .composer:has(.cstrip) { flex-wrap: wrap; row-gap: 0; }
 .cstrip {
+    --strip-h: calc(2.5rem * .85);
     flex: 0 0 auto;
     width: calc(100% + 1.05rem);
     display: flex;
@@ -222,15 +224,16 @@
     border-radius: 0 0 var(--r-card) var(--r-card);
 }
 .cstrip .pickbar { flex: 1 1 auto; gap: .4rem; padding: 0; }
-.cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: 2.5rem; padding: 0 .55rem; font-size: var(--t-sm); color: var(--ink-dim); }
+.cstrip .pkchip { display: flex; align-items: center; gap: .35rem; min-height: var(--strip-h); padding: 0 calc(.55rem * .85); font-size: var(--t-sm); color: var(--ink-dim); }
 .cstrip .pkchip svg { width: var(--i-sm); height: var(--i-sm); }
-.cstrip .pickfile { width: 2.5rem; height: 2.5rem; }
+.cstrip .pickfile { width: var(--strip-h); height: var(--strip-h); }
+.cstrip .pkeff { margin-left: .35em; color: var(--ink-faint); }
 /* On a wide screen what the session has in flight stands at the right end of
    the band rather than in a row of its own under the frame: the band has room
    to spare there, and the chips grow to the height of the words beside them. */
 .cstrip .cwork { flex: none; display: flex; align-items: center; gap: .35rem; margin-left: auto; }
 .cstrip .cwork .wchips { gap: .35rem; }
-.cstrip .cwork .wchip { height: 2.5rem; padding: 0 .65rem; gap: .4rem; font-size: var(--t-md); }
+.cstrip .cwork .wchip { height: var(--strip-h); padding: 0 calc(.65rem * .85); gap: .4rem; font-size: var(--t-md); }
 .cstrip .cwork .wchip svg { width: var(--i-md); height: var(--i-md); }
 /* The panel's commands follow the paperclip: not a setting like the words
    after it, so not one of them, but the same height and hover, and as wide as
@@ -239,8 +242,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 2.5rem;
-    min-height: 2.5rem;
+    min-width: var(--strip-h, 2.5rem);
+    min-height: var(--strip-h, 2.5rem);
     padding: 0;
     border: 0;
     border-radius: var(--r-small);

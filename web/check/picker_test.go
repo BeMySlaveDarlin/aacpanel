@@ -1,6 +1,7 @@
 package check
 
 import (
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -8,6 +9,8 @@ import (
 
 type pickPhoneShot struct {
 	Head           []string `json:"head"`
+	StripTall      float64  `json:"stripTall"`
+	RootPx         float64  `json:"rootPx"`
 	ModelTitle     string   `json:"modelTitle"`
 	Main           []string `json:"main"`
 	MainDesc       []string `json:"mainDesc"`
@@ -49,8 +52,12 @@ func TestThePhonePicksAModelFromTheListClaudeGives(t *testing.T) {
 	var got pickPhoneShot
 	runFixture(t, "pickphone.html", &got)
 
-	if !reflect.DeepEqual(got.Head, []string{"Opus 5.5", "Extra", "Auto"}) {
+	if !reflect.DeepEqual(got.Head, []string{"Opus 5.5· Extra", "Auto"}) {
 		t.Errorf("the line inside the composer offers %v", got.Head)
+	}
+	// The line stands at 0.85 of the 2.5rem a button of the field takes.
+	if got.RootPx == 0 || math.Abs(got.StripTall/(2.5*got.RootPx)-0.85) > 0.02 {
+		t.Errorf("the line with the model is %.1f px tall at a root of %.1f px — it stands at 0.85 of 2.5rem", got.StripTall, got.RootPx)
 	}
 	if got.ModelTitle != "Select model" {
 		t.Errorf("the model list opens as %q", got.ModelTitle)
@@ -163,7 +170,7 @@ func TestTheComposerStripKeepsItsWordsAndItsWarning(t *testing.T) {
 	if !reflect.DeepEqual(got.Loud, []string{"Bypass"}) {
 		t.Errorf("a session past the questions shows %v in red", got.Loud)
 	}
-	if !reflect.DeepEqual(got.Bare, []string{"Opus 5.5 off", "Extra off", "Auto off"}) {
+	if !reflect.DeepEqual(got.Bare, []string{"Opus 5.5· Extra off", "Auto off"}) {
 		t.Errorf("without a way to change them the strip reads %v", got.Bare)
 	}
 }

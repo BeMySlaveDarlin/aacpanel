@@ -79,6 +79,8 @@ const seg = (name) => Array.from(sheet().querySelectorAll(".pkseg")).find((b) =>
 const toastSub = () => text(".toast.on .tsub")[0] || "";
 const close = async () => { document.querySelector(".sheet.on .sheetclose").click(); await sleep(300); };
 const chip = (what) => document.querySelector(`.cstrip .pkchip[data-pick=${what}]`);
+// The effort is a row of the model's sheet: the strip has no word of its own for it.
+const effortSheet = async () => { await tap(chip("model")); await sleep(200); await tap(sheet().querySelector(".pkmore")); };
 
 window.done = (async () => {
     show(stream);
@@ -86,7 +88,7 @@ window.done = (async () => {
     const out = {};
 
     // The effort of a session on the stream: five levels and ultracode past them.
-    await tap(chip("effort"));
+    await effortSheet();
     await sleep(200);
     out.stops = labels();
     const ultra = stop("Ultracode");
@@ -124,8 +126,8 @@ window.done = (async () => {
     effortNow = "ultracode";
     show({ ...stream, effort: "ultracode" });
     await sleep(300);
-    out.ultraChip = chip("effort").textContent.trim();
-    await tap(chip("effort"));
+    out.ultraChip = chip("model").querySelector(".pkeff").textContent.replace(/^·\s*/, "").trim();
+    await effortSheet();
     await sleep(200);
     const on = sheet().querySelector(".pkstop.on");
     out.ultraOn = on ? on.getAttribute("aria-label") : "";
@@ -138,7 +140,7 @@ window.done = (async () => {
     transport = "console";
     show(terminal);
     await sleep(400);
-    await tap(chip("effort"));
+    await effortSheet();
     await sleep(200);
     out.termScopes = sheet().querySelectorAll(".pkscope").length;
     out.termNote = text(".sheet.on .pknote")[0] || "";
