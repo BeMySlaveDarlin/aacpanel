@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The live sessions of a project as the list lays them out: the session named
+// after the project first whatever it does, the rest by their last request,
+// the latest on top — a run a session started stays folded under it.
+import { blocksOf } from "/src/screens/sessions/blocks.js";
+import { inOrder } from "/src/screens/sessions/of.js";
+import { kinOf } from "/src/screens/sessions/kin.js";
+
+const ago = (min) => new Date(Date.now() - min * 60 * 1000).toISOString();
+const project = { id: 7, name: "evirma", session: "evirma", path: "/srv/evirma" };
+const profile = { profile: "evirma", groups: [{ name: "Backend", projects: [project] }] };
+const live = (session, min, extra = {}) => ({ session, status: "idle", project: { id: 7 }, lastRequestAt: ago(min), ...extra });
+const sessions = [
+    live("zd-vm", 9),
+    live("zd-lead", 12),
+    live("evirma", 40),
+    live("zd-old", 300),
+    live("zd-run", 1, { parent: { session: "zd-lead" } }),
+];
+
+window.done = (async () => {
+    const out = {};
+    try {
+        const blocks = blocksOf({ profile, sessions });
+        out.order = blocks.length ? blocks[0].live.map((s) => s.session) : [];
+        const kin = kinOf(blocks.length ? blocks[0].live : []);
+        out.roots = kin.own.map((s) => s.session);
+        out.folded = (kin.kids.get("zd-lead") || []).map((s) => s.session);
+        out.alone = inOrder(project, [live("zd-a", 5), live("zd-b", 2)]).map((s) => s.session);
+        out.second = inOrder(project, [live("zd-a", 1), live("evirma-2", 30)]).map((s) => s.session);
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

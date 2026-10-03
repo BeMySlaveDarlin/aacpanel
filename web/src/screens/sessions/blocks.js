@@ -16,7 +16,7 @@ import { hostLabel } from "../../actions/registry.js";
 import { knows, whyNot } from "../../exec.js";
 import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
-import { sessionsOf } from "./of.js";
+import { inOrder, sessionsOf } from "./of.js";
 import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
 import { stamp, when } from "./card.js";
 
@@ -148,6 +148,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
     }
 
     for (const block of out.values()) {
+        block.live = inOrder(block.project, block.live);
         const tones = block.live.map((s) => stateOf(s).tone);
         block.rank = tones.includes("wait") ? RANK.wait
             : tones.includes("busy") || block.ghosts.length > 0 ? RANK.busy

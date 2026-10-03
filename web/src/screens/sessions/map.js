@@ -11,7 +11,7 @@ import { plural } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
-import { sessionsOf } from "./of.js";
+import { inOrder, sessionsOf } from "./of.js";
 
 export { sessionsOf };
 import { GhostLine, LiveLines, PastLine, SessionSheet } from "./blocks.js";
@@ -174,7 +174,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
     const [shown, setShown] = useState(PROJECT_PAGE);
 
     const run = useAction();
-    const own = sessionsOf(project, sessions);
+    const own = inOrder(project, sessionsOf(project, sessions));
     const ready = knows(exec, "session.open");
     const why = whyNot(exec, "session.open");
     const opening = wait ? wait.of("open", project.session) : null;
