@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The archive of a contour on a phone, with a page of thirty conversations
+// across ten projects: the groups to start a session in stand over that page,
+// on the first screen, rather than under it.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Past } from "/src/screens/sessions/past.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const ago = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+const projects = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `zd-${i + 1}`, path: `/srv/zd-${i + 1}`, group: "Backend" }));
+const rows = Array.from({ length: 30 }, (_, i) => {
+    const project = projects[i % 10];
+    return { sessionId: `past-${i}`, name: project.name, cwd: project.path, profile: "algo", project,
+             model: "claude-opus-5-5", pct: 10, pctMax: 30, tokens: 100000, tokensMax: 300000, limit: 1000000,
+             messages: 40 + i, lastAt: ago(i + 1), startedAt: ago(i + 2) };
+});
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/sessions/archive")) return json({ rows, total: 3645, limit: 60, offset: 0 });
+    return json({});
+};
+const map = { profile: "algo", id: 3, groups: [
+    { name: "Backend", projects: projects.slice(0, 6) },
+    { name: "Common", projects: projects.slice(6) },
+] };
+const exec = { available: true, kinds: ["session.open"] };
+render(h(ToastHost, null, h(GateHost, null, html`<${Past} profile="algo" contour=${3} map=${map} sessions=${[]}
+    onBack=${() => {}} onProject=${() => {}} exec=${exec} chat=${() => {}} />`)), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await sleep(30); };
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+window.done = (async () => {
+    const out = {};
+    try {
+        const root = document.getElementById("root");
+        await until(() => root.querySelectorAll(".card .pjrow, .card .pjpast").length > 0);
+        const heads = Array.from(root.querySelectorAll(".grouphead"));
+        const groups = heads.find((el) => text(el) === "project groups");
+        const card = root.querySelector("section.card");
+        out.heads = heads.map(text);
+        out.groupsTop = groups ? groups.getBoundingClientRect().top : -1;
+        out.cardTop = card ? card.getBoundingClientRect().top : -1;
+        out.cardTall = card ? card.getBoundingClientRect().height : 0;
+        out.screen = innerHeight;
+        out.stacks = root.querySelectorAll(".stack").length;
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

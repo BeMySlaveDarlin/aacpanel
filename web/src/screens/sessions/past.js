@@ -1,5 +1,7 @@
-// The session archive: the conversations of a contour by project, the fill
-// chart over them, and every project of the contour to start a session in.
+// The session archive: every project of the contour to start a session in,
+// and under them the conversations of the contour by project with the fill
+// chart over them. The projects come first: a page of the archive is long, and
+// a new session should not wait at the bottom of it.
 
 import { useEffect, useState } from "preact/hooks";
 
@@ -68,6 +70,9 @@ export function Past({ profile = "", contour = 0, map = null, sessions = [], onB
             <span class="where">${profile ? `${profile} · ` : ""}by project, the latest on top</span>
         <//>
 
+        ${map && html`<${Groups} profile=${map} sessions=${sessions} onOpen=${onProject} exec=${exec} />`}
+
+        <div class="grouphead">archive</div>
         <section class="card">
             <${Chips}
                 items=${PERIODS.filter((p) => p.id === "24h" || p.id === "7d" || p.id === "30d")}
@@ -103,8 +108,6 @@ export function Past({ profile = "", contour = 0, map = null, sessions = [], onB
                 onGo=${setOffset}
             />`}
         </section>
-
-        ${map && html`<${Groups} profile=${map} sessions=${sessions} onOpen=${onProject} exec=${exec} />`}
     `;
 }
 
