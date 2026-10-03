@@ -402,11 +402,15 @@ export function PickWords({ live, exec, onPick, lead = null }) {
 }
 
 // PickBar is the wide screen's way in: inside the frame of the composer, the
-// model, its effort and the mode on the left, each opening its menu above it,
-// after what leads the row.
+// model with its effort and the mode on the left, each opening its menu above
+// it, after what leads the row. The effort is changed from a row of the
+// model's menu, beside it, as the phone changes it from a row of the model's
+// sheet.
 export function PickBar({ name, live, exec, lead = null }) {
     const [menu, setMenu] = useState("");
-    const [more, setMore] = useState(false);
+    // Which list the model's menu has open beside it: the older models or the
+    // effort. One at a time — both would stand in the same place.
+    const [sub, setSub] = useState("");
     const box = useRef(null);
     const data = useModels(name, Boolean(menu));
     const [chosen, setChosen] = useState({});
@@ -426,7 +430,7 @@ export function PickBar({ name, live, exec, lead = null }) {
     const where = scoped(transport, scope);
     const modes = DESK_MODES.map((v) => MODE_OPTIONS.find((m) => m.value === v));
 
-    const close = () => { setMenu(""); setMore(false); };
+    const close = () => { setMenu(""); setSub(""); };
     const choose = async (setting, said) => {
         close();
         await pick(setting, said, transport);
@@ -456,20 +460,20 @@ export function PickBar({ name, live, exec, lead = null }) {
         };
     }, [menu, data, terminal, scope]);
 
-    const toggle = (which) => { setMore(false); setMenu(menu === which ? "" : which); };
+    const toggle = (which) => { setSub(""); setMenu(menu === which ? "" : which); };
+    const beside = (which) => setSub(sub === which ? "" : which);
 
     if (!knows(exec, "session.set")) return html`<${PickWords} live=${live} exec=${exec} lead=${lead} />`;
 
+    // The effort rides in the model's word: the model's menu changes it, so a
+    // word of its own would be a second door to it.
+    const effortPart = effort ? html`<span class="pkeff">· ${effortName(effort)}</span>` : "";
     return html`
         <div class="pickbar" ref=${box}>
             ${lead}
             <button type="button" class=${`pkchip${menu === "model" ? " open" : ""}`} data-pick="model"
                     aria-expanded=${menu === "model" ? "true" : "false"} onClick=${() => toggle("model")}>
-                ${shown ? shown.title : title(live.model || "")}
-            </button>
-            <button type="button" class=${`pkchip${menu === "effort" ? " open" : ""}`} data-pick="effort"
-                    aria-expanded=${menu === "effort" ? "true" : "false"} onClick=${() => toggle("effort")}>
-                ${effortName(effort)}
+                ${shown ? shown.title : title(live.model || "")}${effortPart}
             </button>
             <button type="button" class=${`pkchip${menu === "mode" ? " open" : ""}${modeLoud(mode) ? " crit" : ""}`} data-pick="mode"
                     aria-expanded=${menu === "mode" ? "true" : "false"} onClick=${() => toggle("mode")}>
@@ -497,13 +501,20 @@ export function PickBar({ name, live, exec, lead = null }) {
                     `)}
                     ${choices.other.length > 0 && html`
                         <div class="pkmenusep"></div>
-                        <button type="button" class=${`pkrow pkmorerow${more ? " open" : ""}`}
-                                aria-expanded=${more ? "true" : "false"} onClick=${() => setMore(!more)}>
+                        <button type="button" class=${`pkrow pkmorerow${sub === "more" ? " open" : ""}`}
+                                aria-expanded=${sub === "more" ? "true" : "false"} onClick=${() => beside("more")}>
                             <span class="pkbody"><span class="pkname">More models</span></span>
                             <span class="crgo">${Icon.chevron()}</span>
                         </button>
                     `}
-                    ${more && html`
+                    <div class="pkmenusep"></div>
+                    <button type="button" class=${`pkrow pkmorerow${sub === "effort" ? " open" : ""}`}
+                            aria-expanded=${sub === "effort" ? "true" : "false"} onClick=${() => beside("effort")}>
+                        <span class="pkbody"><span class="pkname">Effort</span></span>
+                        ${effort && html`<span class="pkrowval">${effortName(effort)}</span>`}
+                        <span class="crgo">${Icon.chevron()}</span>
+                    </button>
+                    ${sub === "more" && html`
                         <div class="pkmenu pksub" role="menu" aria-label="more models">
                             ${choices.other.map((m) => html`
                                 <${Row} key=${m.value} on=${m.value === model} name=${m.title}
@@ -511,15 +522,15 @@ export function PickBar({ name, live, exec, lead = null }) {
                             `)}
                         </div>
                     `}
-                </div>
-            `}
-            ${menu === "effort" && html`
-                <div class="pkmenu left pkeffort" role="dialog" aria-label="effort">
-                    <div class="pkmenuhead"><span>Effort</span><b>${effortName(effort)}</b></div>
-                    <${Scope} transport=${transport} value=${scope} onChange=${setScope} effort />
-                    <${EffortScale} levels=${levels} value=${effort}
-                                    ultraOff=${where.scope === "default" ? ULTRA_OFF : ""}
-                                    onPick=${(level) => choose({ effort: level, ...where }, `Effort: ${effortName(level)}`)} />
+                    ${sub === "effort" && html`
+                        <div class="pkmenu pksub pkeffort" role="dialog" aria-label="effort">
+                            <div class="pkmenuhead"><span>Effort</span><b>${effortName(effort)}</b></div>
+                            <${Scope} transport=${transport} value=${scope} onChange=${setScope} effort />
+                            <${EffortScale} levels=${levels} value=${effort}
+                                            ultraOff=${where.scope === "default" ? ULTRA_OFF : ""}
+                                            onPick=${(level) => choose({ effort: level, ...where }, `Effort: ${effortName(level)}`)} />
+                        </div>
+                    `}
                 </div>
             `}
         </div>

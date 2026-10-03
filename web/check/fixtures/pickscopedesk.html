@@ -5,8 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="deskshell"><div class="shell no-nav"><main class="body" id="root"></main></div></div>
 <script type="module">
-// Where a pick goes, on a wide screen: the menus of the model and the effort
-// carry the choice between this session and the default, a digit takes it
+// Where a pick goes, on a wide screen: the model's menu and the effort beside
+// it carry the choice between this session and the default, a digit takes it
 // along, and a terminal says instead that its pick is the default.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -64,39 +64,50 @@ const show = (live) => render(h(ToastHost, null, h(GateHost, null,
     html`<${Chat} name="helios" id="s1" live=${live} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
-const pick = (what) => document.querySelector(`.pickbar .pkchip[data-pick=${what}]`);
+const until = async (ok, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (!ok() && Date.now() < end) await sleep(20);
+};
+const text = (sel) => Array.from(root.querySelectorAll(sel)).map((n) => n.textContent.trim());
+const pick = (what) => root.querySelector(`.pickbar .pkchip[data-pick=${what}]`);
 const key = async (k) => { document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })); await sleep(250); };
 const tap = async (el) => { el.click(); await sleep(300); };
 
-const seg = (name) => Array.from(document.querySelectorAll(".pkmenu .pkseg")).find((b) => b.textContent.trim() === name);
+const seg = (within, name) => Array.from(root.querySelectorAll(`${within} .pkseg`)).find((b) => b.textContent.trim() === name);
+// The effort opens from a row of the model's menu, beside it.
+const effort = ".pkmenu[aria-label=model] > .pkmenu.pksub.pkeffort";
+const effortRow = () => Array.from(root.querySelectorAll(".pkmenu[aria-label=model] > .pkmorerow"))
+    .find((r) => r.querySelector(".pkname").textContent.trim() === "Effort");
 
 window.done = (async () => {
     show(stream);
-    await sleep(500);
+    await until(() => pick("model"));
     const out = {};
 
-    await tap(pick("effort"));
-    out.stops = Array.from(document.querySelectorAll(".pkmenu.pkeffort .pkstop")).map((b) => b.getAttribute("aria-label"));
-    out.scope = text(".pkmenu.pkeffort .pkseg");
-    await tap(seg("Default"));
-    out.stillOpen = document.querySelectorAll(".pkmenu.pkeffort").length;
-    out.ultraOff = document.querySelector('.pkmenu.pkeffort .pkstop[aria-label="Ultracode"]').disabled;
-    await tap(document.querySelector('.pkmenu.pkeffort .pkstop[aria-label="High"]'));
+    await tap(pick("model"));
+    await until(() => effortRow());
+    await tap(effortRow());
+    await until(() => root.querySelector(effort));
+    out.stops = Array.from(root.querySelectorAll(`${effort} .pkstop`)).map((b) => b.getAttribute("aria-label"));
+    out.scope = text(`${effort} .pkseg`);
+    await tap(seg(effort, "Default"));
+    out.stillOpen = root.querySelectorAll(effort).length;
+    out.ultraOff = root.querySelector(`${effort} .pkstop[aria-label="Ultracode"]`).disabled;
+    await tap(root.querySelector(`${effort} .pkstop[aria-label="High"]`));
 
     await tap(pick("model"));
-    out.modelScopeOn = text(".pkmenu[aria-label=model] .pkseg.on");
+    out.modelScopeOn = text(".pkmenu[aria-label=model] > .pkscope .pkseg.on");
     await key("3");
     // The choice changed while the menu is open goes with the next digit.
     await tap(pick("model"));
-    await tap(seg("This session"));
+    await tap(seg(".pkmenu[aria-label=model] > .pkscope", "This session"));
     await key("4");
 
     transport = "console";
     show(terminal);
     await sleep(400);
     await tap(pick("model"));
-    out.termScopes = document.querySelectorAll(".pkmenu .pkscope").length;
+    out.termScopes = root.querySelectorAll(".pkmenu .pkscope").length;
     out.termNote = text(".pkmenu[aria-label=model] .pknote")[0] || "";
     await key("2");
 

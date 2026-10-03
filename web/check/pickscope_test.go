@@ -156,18 +156,19 @@ type pickScopeDeskShot struct {
 	Sent         []string `json:"sent"`
 }
 
-// On a wide screen the menus of the effort and the model carry the same
-// choice: it does not close the menu, it stays for the next menu, and a digit
-// that picks a model takes along the choice as it stands at the press. A
+// On a wide screen the effort beside the model's menu and the menu itself
+// carry the same choice: it does not close the effort, it stays for the next
+// menu, and a digit that picks a model takes along the choice as it stands at
+// the press. Ultracode is off while the pick would be saved as a default. A
 // terminal says its pick is the default.
 func TestTheDesktopMenusSayWhereAPickGoes(t *testing.T) {
 	var got pickScopeDeskShot
 	runWideFixture(t, "pickscopedesk.html", &got)
 	if !reflect.DeepEqual(got.Stops, []string{"Low", "Medium", "High", "Extra", "Max", "Ultracode"}) {
-		t.Errorf("the effort menu has the stops %v", got.Stops)
+		t.Errorf("the effort beside the model menu has the stops %v", got.Stops)
 	}
 	if !reflect.DeepEqual(got.Scope, []string{"This session", "Default"}) || got.StillOpen != 1 || !got.UltraOff {
-		t.Errorf("the effort menu offers %v, stays open after the choice %d, ultracode off as a default %v",
+		t.Errorf("the effort beside the model menu offers %v, stays open after the choice %d, ultracode off as a default %v",
 			got.Scope, got.StillOpen, got.UltraOff)
 	}
 	if !reflect.DeepEqual(got.ModelScopeOn, []string{"Default"}) {

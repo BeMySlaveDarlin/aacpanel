@@ -139,8 +139,8 @@
 .pkseg.on { background: var(--surface); color: var(--ink); box-shadow: var(--hairline); }
 .pkmenu .pkscope { margin: .1rem .2rem .45rem; }
 
-/* Under the composer on a wide screen: the model, its effort and the mode on
-   the left, each a quiet word until pressed. */
+/* Under the composer on a wide screen: the model with its effort and the mode
+   on the left, each a quiet word until pressed. */
 .pickbar {
     position: relative;
     display: flex;
@@ -198,8 +198,11 @@
 .pkmenuhead b { font-weight: 600; font-size: var(--t-sm); color: var(--ink); }
 .pkmenusep { height: var(--hair); margin: .25rem .4rem; background: var(--line); }
 .pkmorerow.open { background: var(--surface); }
-/* The older models open beside the menu rather than under it: the list they
-   stand in is the one the eye came from. */
+/* A row that opens a list beside the menu says what stands in it now, at its
+   end before the chevron. */
+.pkrowval { flex: none; font-size: var(--t-sm); color: var(--ink-dim); }
+/* The older models and the effort open beside the menu rather than under it:
+   the list they stand in is the one the eye came from. */
 .pkmenu.pksub { bottom: 0; left: calc(100% + .3rem); min-width: 11rem; }
 .pkmenu.pkeffort { width: 17rem; padding: .4rem .6rem .2rem; }
 

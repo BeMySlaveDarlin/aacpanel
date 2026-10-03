@@ -176,35 +176,54 @@ func TestTheComposerStripKeepsItsWordsAndItsWarning(t *testing.T) {
 }
 
 type pickDeskShot struct {
-	Chips       []string `json:"chips"`
-	InComposer  int      `json:"inComposer"`
-	ModelMenu   []string `json:"modelMenu"`
-	Numbers     []string `json:"numbers"`
-	Marked      []string `json:"marked"`
-	More        []string `json:"more"`
-	AfterKey    int      `json:"afterKey"`
-	ModeMenu    []string `json:"modeMenu"`
-	ModeOn      []string `json:"modeOn"`
-	AfterEscape int      `json:"afterEscape"`
-	AfterAway   int      `json:"afterAway"`
-	EffortHead  string   `json:"effortHead"`
-	AfterEffort int      `json:"afterEffort"`
-	Sent        []string `json:"sent"`
-	Confirm     bool     `json:"confirm"`
+	Chips           []string `json:"chips"`
+	InComposer      int      `json:"inComposer"`
+	ModelMenu       []string `json:"modelMenu"`
+	Numbers         []string `json:"numbers"`
+	Marked          []string `json:"marked"`
+	EffortRow       []string `json:"effortRow"`
+	More            []string `json:"more"`
+	SubsMore        []string `json:"subsMore"`
+	SubsEffort      []string `json:"subsEffort"`
+	ExpandedEffort  []string `json:"expandedEffort"`
+	EffortHead      string   `json:"effortHead"`
+	EffortStops     []string `json:"effortStops"`
+	EffortOn        string   `json:"effortOn"`
+	EffortBeside    bool     `json:"effortBeside"`
+	InsideKeeps     int      `json:"insideKeeps"`
+	SubsBack        []string `json:"subsBack"`
+	ExpandedBack    []string `json:"expandedBack"`
+	AfterKey        int      `json:"afterKey"`
+	ModeMenu        []string `json:"modeMenu"`
+	ModeOn          []string `json:"modeOn"`
+	AfterModeEscape int      `json:"afterModeEscape"`
+	AfterEscape     int      `json:"afterEscape"`
+	AfterAway       int      `json:"afterAway"`
+	AfterEffort     int      `json:"afterEffort"`
+	ChipsAfter      []string `json:"chipsAfter"`
+	Sent            []string `json:"sent"`
+	Confirm         bool     `json:"confirm"`
+	Bare            []string `json:"bare"`
 }
 
-// On a wide screen the three sit inside the composer and open menus over it:
-// the models numbered, the older ones beside them, the mode that most sessions
-// run in first, the effort a scale. A digit picks, Esc and a press elsewhere
-// close, and a pick goes out as one change with no sheet in front of it.
+// On a wide screen two words sit inside the composer, the model with its
+// effort and the mode, and open menus over it: the models numbered, the older
+// ones and the effort behind rows of the model's menu, the mode that most
+// sessions run in first. A digit picks a model even with the effort open
+// beside the menu, Esc and a press elsewhere close everything, and a pick goes
+// out as one change with no sheet in front of it, the words following it.
 func TestTheDesktopPicksFromMenusOverTheComposer(t *testing.T) {
 	var got pickDeskShot
 	runWideFixture(t, "pickdesk.html", &got)
 
-	if !reflect.DeepEqual(got.Chips, []string{"Opus 5.5", "Extra", "Auto"}) || got.InComposer != 1 {
-		t.Errorf("the strip inside the composer reads %v (strips there: %d)", got.Chips, got.InComposer)
+	if !reflect.DeepEqual(got.Chips, []string{"Opus 5.5· Extra", "Auto"}) || got.InComposer != 1 {
+		t.Errorf("the strip inside the composer reads %v (strips there: %d) — the model with its effort, then the mode",
+			got.Chips, got.InComposer)
 	}
-	if !reflect.DeepEqual(got.ModelMenu, []string{"Opus 5.5", "Fable 5.1", "Sonnet 5", "Haiku 4.5", "More models"}) ||
+	if !reflect.DeepEqual(got.Bare, []string{"Opus 5.5", "Auto"}) {
+		t.Errorf("a session that says no effort reads %v", got.Bare)
+	}
+	if !reflect.DeepEqual(got.ModelMenu, []string{"Opus 5.5", "Fable 5.1", "Sonnet 5", "Haiku 4.5", "More models", "Effort"}) ||
 		!reflect.DeepEqual(got.Numbers, []string{"1", "2", "3", "4"}) || !reflect.DeepEqual(got.Marked, []string{"Opus 5.5"}) {
 		t.Errorf("the model menu is %v numbered %v, marked %v", got.ModelMenu, got.Numbers, got.Marked)
 	}
@@ -215,16 +234,47 @@ func TestTheDesktopPicksFromMenusOverTheComposer(t *testing.T) {
 		!reflect.DeepEqual(got.ModeOn, []string{"Auto"}) {
 		t.Errorf("the mode menu is %v, marked %v", got.ModeMenu, got.ModeOn)
 	}
-	if got.AfterKey != 0 || got.AfterEscape != 0 || got.AfterAway != 0 || got.AfterEffort != 0 {
-		t.Errorf("menus left open: after a digit %d, Esc %d, a press elsewhere %d, an effort %d",
-			got.AfterKey, got.AfterEscape, got.AfterAway, got.AfterEffort)
-	}
-	if got.EffortHead != "EffortExtra" {
-		t.Errorf("the effort menu is headed %q", got.EffortHead)
+	if got.AfterKey != 0 || got.AfterModeEscape != 0 || got.AfterEscape != 0 || got.AfterAway != 0 || got.AfterEffort != 0 {
+		t.Errorf("menus left open: after a digit %d, Esc on the modes %d, Esc on the effort %d, a press elsewhere %d, an effort %d",
+			got.AfterKey, got.AfterModeEscape, got.AfterEscape, got.AfterAway, got.AfterEffort)
 	}
 	want := []string{`session.set:{"model":"sonnet","scope":"session"}`, `session.set:{"effort":"high","scope":"session"}`,
 		`session.set:{"mode":"acceptEdits"}`}
 	if !reflect.DeepEqual(got.Sent, want) || got.Confirm {
 		t.Errorf("the host got %v (a sheet in front: %v), want %v", got.Sent, got.Confirm, want)
+	}
+	if !reflect.DeepEqual(got.ChipsAfter, []string{"Sonnet 5· High", "Accept edits"}) {
+		t.Errorf("after the picks the strip reads %v", got.ChipsAfter)
+	}
+}
+
+// The effort has no word of its own on a wide screen: it is a row of the
+// model's menu that says the current effort and opens the scale beside the
+// menu, in the place of the older models. One list stands beside the menu at a
+// time, and a press inside it is a press inside the menu.
+func TestTheDesktopEffortOpensBesideTheModelMenu(t *testing.T) {
+	var got pickDeskShot
+	runWideFixture(t, "pickdesk.html", &got)
+
+	if !reflect.DeepEqual(got.EffortRow, []string{"Extra"}) {
+		t.Errorf("the effort row of the model menu says %v", got.EffortRow)
+	}
+	if !reflect.DeepEqual(got.SubsMore, []string{"more models"}) || !reflect.DeepEqual(got.SubsEffort, []string{"effort"}) ||
+		!reflect.DeepEqual(got.SubsBack, []string{"more models"}) {
+		t.Errorf("beside the menu: after More models %v, after Effort %v, after More models again %v — one list at a time",
+			got.SubsMore, got.SubsEffort, got.SubsBack)
+	}
+	if !reflect.DeepEqual(got.ExpandedEffort, []string{"Effort"}) || !reflect.DeepEqual(got.ExpandedBack, []string{"More models"}) {
+		t.Errorf("the rows say they are open: %v with the effort, %v with the older models", got.ExpandedEffort, got.ExpandedBack)
+	}
+	if !got.EffortBeside {
+		t.Error("the effort does not open beside the model menu, bottom to bottom")
+	}
+	if got.EffortHead != "EffortExtra" || got.EffortOn != "Extra" ||
+		!reflect.DeepEqual(got.EffortStops, []string{"Low", "Medium", "High", "Extra", "Max", "Ultracode"}) {
+		t.Errorf("the effort beside the menu is headed %q, at %q, with the stops %v", got.EffortHead, got.EffortOn, got.EffortStops)
+	}
+	if got.InsideKeeps != 1 {
+		t.Error("a press inside the effort beside the menu closed it")
 	}
 }
