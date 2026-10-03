@@ -1,5 +1,6 @@
-// A file as an attachment: the row in the feed and in the call details, and
-// the card of the files a call delivered to the human.
+// A file as an attachment: the row in the feed and in the call details, the
+// card of the files a call delivered to the human, and the files the person
+// sent with a message.
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -112,6 +113,19 @@ export function SentCard({ item, onOpen }) {
                     <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} tag=${fileTag(file)} />
                 `)}
             </div>
+        </div>
+    `;
+}
+
+// HandedFiles renders the files the person sent with a message, under it and
+// on its side of the feed: one row per file with its type, as the files a
+// session delivers stand, and every row opens its file the same way.
+export function HandedFiles({ files, onOpen }) {
+    return html`
+        <div class="mflist mfhanded">
+            ${files.map((file) => html`
+                <${FileCard} key=${file.path} file=${file} onOpen=${onOpen} tag=${fileTag(file)} />
+            `)}
         </div>
     `;
 }

@@ -201,6 +201,14 @@
 .sentcap p:last-child { margin-bottom: 0; }
 .sent .mflist { background: var(--glass-2); }
 
+/* Files the person sent with a message stand under it on its side of the
+   feed, at one width whatever their names, and never wider than the bubble
+   may grow. */
+.mfhanded {
+    align-self: flex-end;
+    width: min(84%, 20rem);
+}
+
 .mfile.tagged {
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding: .45rem .55rem;

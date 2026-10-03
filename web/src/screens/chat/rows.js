@@ -10,7 +10,7 @@ import { dedent, leadOf, render } from "../../md.js";
 import { plural, stopwatch } from "../../format.js";
 import { resend } from "./again.js";
 import { CommandCard } from "./command.js";
-import { FileAtts, SentCard } from "./files.js";
+import { FileAtts, HandedFiles, SentCard } from "./files.js";
 import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, stampText, tokenWord } from "./labels.js";
@@ -94,12 +94,15 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, co
     const wait = onTheWay(item.state);
     const again = failed ? resend(item.from, item.error) : null;
     // The pictures the panel sent with a message stand over it, drawn the way
-    // pasted ones are, and the lines of their paths leave its words.
+    // pasted ones are, and the other files it sent stand under it as files;
+    // the lines of their paths leave its words.
     const sent = mine ? (item.shots || []) : [];
-    const said = sent.length ? withoutShotPaths(item.text, sent) : item.text;
+    const handed = mine ? (item.files || []) : [];
+    const brought = sent.length > 0 || handed.length > 0;
+    const said = brought ? withoutSentPaths(item.text, [...sent, ...handed]) : item.text;
     return html`
         ${sent.length > 0 && html`<${Shots} shots=${sent} session=${session} id=${id} pos=${item.pos} />`}
-        ${(said || !sent.length || failed) && html`
+        ${(said || !brought || failed) && html`
             <div class=${`msg ${mine ? "me" : "ai"}${wait && !gone ? " queued" : ""}${failed ? " failed" : ""}${gone ? " withdrawn" : ""}`}>
                 ${render(said, { breaks: mine })}
                 ${!mine && html`<${FileAtts} files=${item.files} onOpen=${onFile} />`}
@@ -108,15 +111,16 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, co
                 ${again && item.done && html`<${SendAgain} again=${again} onDone=${item.done} />`}
             </div>
         `}
+        ${handed.length > 0 && html`<${HandedFiles} files=${handed} onOpen=${onFile} />`}
         ${mine && (wait || item.at) && html`<div class="mstamp">${wait || stampText(item.at)}</div>`}
     `;
 }
 
-// withoutShotPaths returns the words of a message without the lines naming the
-// pictures drawn over it: the host puts the path of every file it saved on a
-// line of its own.
-function withoutShotPaths(text, shots) {
-    const drawn = new Set(shots.map((shot) => shot.path));
+// withoutSentPaths returns the words of a message without the lines naming the
+// files the panel sent with it: the host puts the path of every file it saved
+// on a line of its own.
+function withoutSentPaths(text, files) {
+    const drawn = new Set(files.map((file) => file.path));
     return String(text || "").split("\n").filter((line) => !drawn.has(line.trim())).join("\n").trim();
 }
 

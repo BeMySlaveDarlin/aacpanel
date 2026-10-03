@@ -19,7 +19,7 @@ from .locate import subagent_path, transcript_cwd, transcript_path
 from .mail import agent_mail
 from .repo import answer as repo_answer
 from .spots import call, image
-from .uploads import upload
+from .uploads import sent_as, upload, uploads_home
 from .window import feed
 
 import chat
@@ -223,9 +223,9 @@ def _answer(request):
 
     want = request.get("raw")
     if isinstance(want, str) and want:
-        found = read_raw(want, transcript_cwd(path),
-                         offset=request.get("offset") or 0,
-                         limit=request.get("bytes") or MAX_RAW)
+        found = read_in_place(read_raw, want, path,
+                              offset=request.get("offset") or 0,
+                              limit=request.get("bytes") or MAX_RAW)
         if found is None:
             return {"ok": False,
                     "error": "the file was not opened: it either does not exist, or lies "
@@ -234,9 +234,9 @@ def _answer(request):
 
     want = request.get("file")
     if isinstance(want, str) and want:
-        found = read_file(want, transcript_cwd(path),
-                          offset=request.get("offset") or 0,
-                          limit=request.get("bytes") or MAX_FILE)
+        found = read_in_place(read_file, want, path,
+                              offset=request.get("offset") or 0,
+                              limit=request.get("bytes") or MAX_FILE)
         if found is None:
             return {"ok": False,
                     "error": "the file was not opened: it either does not exist, or lies "
@@ -288,6 +288,21 @@ def _answer(request):
                 found = {**found, "checklist": checklist}
             reply["state"] = found
     return reply
+
+
+def read_in_place(reader, want, path, **window):
+    """Reads a file asked for from the feed of a transcript inside the directory it may lie in.
+
+    A file is read inside the directory of the conversation. A file the panel
+    sent lies outside every one: the message names it by its full path in the
+    directory the executor keeps such files in, and it is read inside that one
+    and named by the name it went under.
+    """
+    home = uploads_home(want)
+    found = reader(want, home or transcript_cwd(path), **window)
+    if found and home:
+        found["name"] = sent_as(found["name"])
+    return found
 
 
 def conversation_checklist(session, path):

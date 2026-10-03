@@ -74,7 +74,8 @@ type Item struct {
 	Pos  int64           `json:"pos"`
 }
 
-// FileRef is a file attachment named in a reply.
+// FileRef is a file attachment named in a reply, or a file the panel sent
+// that a message of the person names.
 type FileRef struct {
 	Path  string `json:"path"`
 	Name  string `json:"name"`

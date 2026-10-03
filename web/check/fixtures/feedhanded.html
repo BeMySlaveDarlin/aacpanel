@@ -1,0 +1,129 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body"><div id="root"></div><div id="sheet"></div></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Files the panel sent with a message, which reach the session as the paths
+// the host saved them under. The collector names each file it still keeps by
+// the name it went under; a picture comes as a shot, any other file as a file.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { Row } from "/src/screens/chat/rows.js";
+import { Look } from "/src/screens/chat/look.js";
+import { rows, weld } from "/src/screens/chat/feed.js";
+import { FeedGrid } from "/src/screens/chat/timeline.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const at = "2026-10-03T17:57:57Z";
+const files = "/home/dev/.local/share/aacpanel-exec/files";
+const diag = `${files}/20261003-175757-ec828d-diag.txt`;
+const report = `${files}/20261003-175757-0a1b2c-report.pdf`;
+const logs = `${files}/20261003-175757-3d4e5f-logs.tar.gz`;
+const board = `${files}/20261003-175757-ab12cd-board.png`;
+const notes = `${files}/20261003-175757-cd34ef-notes.zip`;
+const typed = "/srv/proj/shop/docs/diag.txt";
+const png = Uint8Array.from(atob(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="),
+    (c) => c.charCodeAt(0));
+
+const asked = [];
+window.fetch = async (url) => {
+    const u = String(url);
+    asked.push(u);
+    if (u.startsWith("/api/chat/image?")) {
+        return new Response(new Blob([png], { type: "image/png" }), { status: 200 });
+    }
+    if (u.startsWith("/api/chat/file?")) {
+        return new Response(JSON.stringify({ kind: "text", text: "cpu 12%\nmemory 31%\n", name: "diag.txt",
+            size: 100627, offset: 0 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("not here", { status: 404 });
+};
+
+const items = [
+    { role: "me", text: `the measurements from the boss\n${diag}`, pos: 10, at,
+      files: [{ path: diag, name: "diag.txt", size: 100627 }] },
+    { role: "ai", text: "Read.", pos: 20, at },
+    { role: "me", text: `${report}\n${logs}`, pos: 30, at,
+      files: [{ path: report, name: "report.pdf", size: 2048 }, { path: logs, name: "logs.tar.gz", size: 5 << 20 }] },
+    { role: "ai", text: "Both are in.", pos: 40, at },
+    { role: "me", text: `and the board\n${board}\n${notes}`, pos: 50, at,
+      shots: [{ upload: "20261003-175757-ab12cd-board.png", path: board, media: "image/png", bytes: 70 }],
+      files: [{ path: notes, name: "notes.zip", size: 900 }] },
+    { role: "ai", text: "The board is read.", pos: 60, at },
+    { role: "me", text: `and the old one is here\n${typed}`, pos: 70, at },
+];
+
+const opened = [];
+const sheet = document.getElementById("sheet");
+// A tap on a file does what the chat screen does with it: the file opens in
+// the sheet of the conversation by the path it came with.
+const onFile = (file) => {
+    opened.push(file.path);
+    render(html`<${ToastHost}><${Look} session="shop" id="" look=${{ kind: "file", ...file }} /><//>`, sheet);
+};
+render(html`<div class="chatfeed"><${FeedGrid} rows=${rows(weld(items))} wide=${false}
+    row=${(item) => html`<${Row} item=${item} session="shop" id="" onFile=${onFile} />`} /></div>`,
+    document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const loaded = (img) => Boolean(img && img.complete && img.naturalWidth === 1);
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const box = (el) => el.getBoundingClientRect();
+const cards = (row) => Array.from(row.querySelectorAll(".mfhanded .mfile")).map((card) => ({
+    name: text(card.querySelector(".mfname")),
+    tag: text(card.querySelector(".mftag")),
+    size: text(card.querySelector(".mfsize")),
+    button: card.tagName === "BUTTON",
+}));
+// under reports whether the files stand under the bubble and on its side: the
+// list starts below the bubble and ends where the bubble ends.
+const under = (list, bubble) => Boolean(list && bubble) && box(list).top >= box(bubble).bottom
+    && Math.abs(box(list).right - box(bubble).right) <= 1;
+
+(async () => {
+    await until(() => document.querySelectorAll("#root .feedrow.r-me").length === 4
+        && loaded(document.querySelector("#root .mshot img")));
+    const [captioned, alone, pictured, typedRow] = Array.from(document.querySelectorAll("#root .feedrow.r-me"));
+    const bubble = captioned.querySelector(".msg.me");
+    const pictureBubble = pictured.querySelector(".msg.me");
+    const strip = pictured.querySelector(".mshots");
+    const feed = {
+        captionWords: text(bubble),
+        captionCards: cards(captioned),
+        captionUnder: under(captioned.querySelector(".mfhanded"), bubble),
+        captionRowWords: text(captioned),
+        aloneBubbles: alone.querySelectorAll(".msg").length,
+        aloneCards: cards(alone),
+        aloneStamp: text(alone.querySelector(".mstamp")),
+        aloneRowWords: text(alone),
+        picturePictures: pictured.querySelectorAll(".mshot img").length,
+        pictureOverBubble: strip ? box(strip).bottom <= box(pictureBubble).top : false,
+        pictureWords: text(pictureBubble),
+        pictureCards: cards(pictured),
+        pictureUnder: under(pictured.querySelector(".mfhanded"), pictureBubble),
+        typedCards: typedRow.querySelectorAll(".mfile").length,
+        typedWords: text(typedRow.querySelector(".msg.me")),
+    };
+
+    const card = captioned.querySelector(".mfhanded .mfile");
+    await until(() => card && !card.disabled);
+    card.click();
+    await until(() => text(sheet.querySelector(".callbody")).includes("cpu 12%"));
+    const look = {
+        opened,
+        title: text(sheet.querySelector(".chatwho h2")),
+        body: text(sheet.querySelector(".callbody")),
+    };
+
+    window.done = {
+        feed,
+        look,
+        asked: asked.filter((u) => !u.startsWith("/api/chat/image?")),
+    };
+})();
+</script>

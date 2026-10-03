@@ -130,6 +130,86 @@ class Uploads(unittest.TestCase):
             with self.subTest(path=os.path.basename(path)):
                 self.write(prompt(f"here\n{path}"))
                 self.assertNotIn("shots", self.mine()[-1])
+                self.assertEqual([f["path"] for f in self.mine()[-1].get("files", [])],
+                                 [] if path == gone else [path],
+                                 "a file that is not drawn stands as a file while it is there")
+
+    def test_a_message_sent_with_a_file_carries_it_as_a_file(self):
+        path = self.sent("20261003-175757-ec828d-diag.txt", b"plain words")
+        self.write(prompt(f"the measurements\n{path}"))
+        me = self.mine()[-1]
+        self.assertEqual(me.get("files"), [{"path": path, "name": "diag.txt", "size": len(b"plain words")}])
+        self.assertNotIn("shots", me)
+        self.assertEqual(me["text"], f"the measurements\n{path}",
+                         "the words stay whole: the screen takes the paths out, the queue matches by them")
+
+    def test_a_message_of_files_alone_carries_each_once_beside_its_pictures(self):
+        report = self.sent("20261003-175757-ec828d-report.pdf", b"%PDF-1.4 the report")
+        logs = self.sent("20261003-175757-0a1b2c-logs.tar.gz", b"\x1f\x8b\0\0 the logs")
+        shot = self.sent("20261003-175757-ab12cd-shot.png")
+        self.write(prompt(f"{report}\n{shot}\n{logs}\n{report}"))
+        me = self.mine()[-1]
+        self.assertEqual([(f["name"], f["path"]) for f in me["files"]],
+                         [("report.pdf", report), ("logs.tar.gz", logs)])
+        self.assertEqual([s["upload"] for s in me["shots"]], ["20261003-175757-ab12cd-shot.png"],
+                         "a picture is drawn as it was, not made a file")
+
+    def test_a_file_the_executor_did_not_name_keeps_its_name(self):
+        for name in ("notes.txt", "2026-10-03-notes.txt", "20261003-175757-EC828D-notes.txt",
+                     "20261003-175757-ec828d-"):
+            with self.subTest(name=name):
+                path = self.sent(name, b"plain words")
+                self.write(prompt(path))
+                self.assertEqual([f["name"] for f in self.mine()[-1]["files"]], [name])
+
+    def test_a_path_typed_to_a_file_elsewhere_stays_words(self):
+        self.sent("20261003-175757-ec828d-diag.txt", b"plain words")
+        elsewhere = os.path.join(self.cwd, "20261003-175757-ec828d-diag.txt")
+        with open(elsewhere, "wb") as f:
+            f.write(b"plain words")
+        self.write(prompt(f"the measurements\n{elsewhere}\nand {self.files}/20261003-175757-ec828d-diag.txt"))
+        self.assertNotIn("files", self.mine()[-1], "only a path on a line of its own is the executor's")
+
+    def test_only_a_file_still_kept_in_the_directory_stands_as_a_file(self):
+        outside = os.path.join(self.root, "secret.txt")
+        with open(outside, "wb") as f:
+            f.write(b"not sent")
+        os.symlink(outside, os.path.join(self.files, "20261003-175757-ec828d-link.txt"))
+        os.makedirs(os.path.join(self.files, "20261003-175757-ec828d-dir.txt"))
+        self.sent("20261003-175757-ec828d-empty.txt", b"")
+        self.sent(".hidden.txt", b"plain words")
+        for name in ("20261003-175757-ec828d-gone.txt", "20261003-175757-ec828d-link.txt",
+                     "20261003-175757-ec828d-dir.txt", "20261003-175757-ec828d-empty.txt", ".hidden.txt"):
+            with self.subTest(name=name):
+                self.write(prompt(f"here\n{os.path.join(self.files, name)}"))
+                self.assertNotIn("files", self.mine()[-1])
+
+    def test_a_file_the_panel_sent_opens_by_its_path(self):
+        path = self.sent("20261003-175757-ec828d-diag.txt", b"plain words")
+        self.write(prompt(path))
+        read = chat.answer({"session": UUID, "file": path})
+        self.assertTrue(read["ok"], read.get("error"))
+        self.assertEqual((read["kind"], read["text"], read["name"]), ("text", "plain words", "diag.txt"))
+        saved = chat.answer({"session": UUID, "raw": path})
+        self.assertTrue(saved["ok"], saved.get("error"))
+        self.assertEqual((base64.b64decode(saved["data"]), saved["name"]), (b"plain words", "diag.txt"),
+                         "the file is saved under the name it went under")
+
+    def test_the_directory_of_sent_files_opens_nothing_but_the_files_in_it(self):
+        outside = os.path.join(self.root, "secret.txt")
+        with open(outside, "wb") as f:
+            f.write(b"not sent")
+        link = os.path.join(self.files, "20261003-175757-ec828d-link.txt")
+        os.symlink(outside, link)
+        copy = self.copy("20261003-175757-ec828d-IMG_0001.heic")
+        self.write()
+        for path in (outside, link, os.path.join(self.files, "..", "secret.txt"), copy):
+            for kind in ("file", "raw"):
+                with self.subTest(path=path, kind=kind):
+                    reply = chat.answer({"session": UUID, kind: path})
+                    self.assertFalse(reply["ok"], reply)
+                    self.assertNotIn("data", reply)
+                    self.assertNotIn("text", reply)
 
     def test_a_picture_the_panel_sent_is_served_by_its_name(self):
         self.sent("20260920-100000-ab12cd-shot.png")
@@ -161,7 +241,10 @@ class Uploads(unittest.TestCase):
             with self.subTest(name=name):
                 path = self.sent(name, b"\0\0\0\x18ftypheic")
                 self.write(prompt(path))
-                self.assertNotIn("shots", self.mine()[-1], "a HEIC with no copy is its path")
+                self.assertNotIn("shots", self.mine()[-1], "a HEIC with no copy is not drawn")
+                self.assertEqual(self.mine()[-1]["files"],
+                                 [{"path": path, "name": name[len("20260920-100000-ab12cd-"):], "size": 12}],
+                                 "a HEIC with no copy is a file")
                 self.copy(name)
                 self.write(prompt(path))
                 shots = self.mine()[-1]["shots"]
