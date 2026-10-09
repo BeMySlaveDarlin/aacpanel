@@ -184,7 +184,11 @@ func (e *Executor) sessionKill(ctx context.Context, target string) (string, erro
 }
 
 func (e *Executor) waitGone(ctx context.Context, pid int, limit time.Duration) bool {
-	alive := func() bool { return e.signal(pid, 0) == nil }
+	// A process that has ended stays in the table until its parent collects
+	// it, and a signal still finds it there: the parent of an agent is a tmux
+	// server or a holder, and a busy one collects late. It is gone all the
+	// same — it wrote what it had to write before it ended.
+	alive := func() bool { return e.signal(pid, 0) == nil && !exited(pid) }
 
 	deadline := time.Now().Add(limit)
 	for time.Now().Before(deadline) {

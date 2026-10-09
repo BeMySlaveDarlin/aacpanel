@@ -216,6 +216,22 @@ func procCwd(pid int) string {
 	return strings.TrimRight(dir, "/")
 }
 
+// exited reports that a process has ended and waits only to be collected by
+// its parent: a zombie, or one on its way out of the table.
+func exited(pid int) bool {
+	raw, err := os.ReadFile(filepath.Join(procDir(), strconv.Itoa(pid), "stat"))
+	if err != nil {
+		return false
+	}
+	line := string(raw)
+	i := strings.LastIndex(line, ")")
+	if i < 0 {
+		return false
+	}
+	fields := strings.Fields(line[i+1:])
+	return len(fields) > 0 && (fields[0] == "Z" || fields[0] == "X")
+}
+
 func procDir() string {
 	if p := os.Getenv(procEnv); p != "" {
 		return p

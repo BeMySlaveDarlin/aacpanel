@@ -964,6 +964,8 @@ type fakeProc struct {
 	ppid  int
 	cwd   string
 	start string
+	// state is the state letter of the stat line: S unless given.
+	state string
 }
 
 func procFS(t *testing.T, procs ...fakeProc) {
@@ -985,8 +987,12 @@ func procFS(t *testing.T, procs ...fakeProc) {
 		if start == "" {
 			start = "1000"
 		}
+		state := p.state
+		if state == "" {
+			state = "S"
+		}
 		fields := make([]string, 0, 20)
-		fields = append(fields, "S", strconv.Itoa(p.ppid))
+		fields = append(fields, state, strconv.Itoa(p.ppid))
 		for len(fields) < 19 {
 			fields = append(fields, "0")
 		}
