@@ -1,0 +1,232 @@
+{
+  "about": "Messages the panel writes into a session on the person's behalf. Each sample is the input of its writer, the exact text the writer makes of it and what the feed reads back from that text. The Go tests of the writers rebuild the text from the input; the fixture panelsaid.html reads the text with the parser of the feed. Bubbles are texts that must stay messages of the person.",
+  "secret": [
+    {
+      "input": {
+        "name": "aacpanel-live-check",
+        "path": "/home/u/.local/state/aacpanel/secrets/aacpanel-live-check",
+        "text": "# the notepad of the live check\nCHECK_VALUE=ok-4f1d9e\nLEFT_EMPTY=\n\n# end\n"
+      },
+      "text": "The secret \"aacpanel-live-check\" is saved: /home/u/.local/state/aacpanel/secrets/aacpanel-live-check (0600, 5 lines). Keys: CHECK_VALUE, LEFT_EMPTY; left empty: LEFT_EMPTY. Use it by its path and never read or print it: whatever you read goes into the transcript.",
+      "said": {
+        "kind": "secret",
+        "name": "aacpanel-live-check",
+        "path": "/home/u/.local/state/aacpanel/secrets/aacpanel-live-check",
+        "dir": "/home/u/.local/state/aacpanel/secrets/",
+        "lines": 5,
+        "keys": ["CHECK_VALUE", "LEFT_EMPTY"],
+        "empty": ["LEFT_EMPTY"]
+      }
+    },
+    {
+      "input": {
+        "name": "github-token",
+        "path": "/home/u/.local/state/aacpanel/secrets/github-token",
+        "text": "GH_TOKEN=not-a-real-token\n"
+      },
+      "text": "The secret \"github-token\" is saved: /home/u/.local/state/aacpanel/secrets/github-token (0600, 1 line). Keys: GH_TOKEN. Use it by its path and never read or print it: whatever you read goes into the transcript.",
+      "said": {
+        "kind": "secret",
+        "name": "github-token",
+        "path": "/home/u/.local/state/aacpanel/secrets/github-token",
+        "dir": "/home/u/.local/state/aacpanel/secrets/",
+        "lines": 1,
+        "keys": ["GH_TOKEN"],
+        "empty": []
+      }
+    },
+    {
+      "input": {
+        "name": "db.password",
+        "path": "/srv/state/secrets/db.password",
+        "text": "a password and no keys\non two lines"
+      },
+      "text": "The secret \"db.password\" is saved: /srv/state/secrets/db.password (0600, 2 lines). Use it by its path and never read or print it: whatever you read goes into the transcript.",
+      "said": {
+        "kind": "secret",
+        "name": "db.password",
+        "path": "/srv/state/secrets/db.password",
+        "dir": "/srv/state/secrets/",
+        "lines": 2,
+        "keys": [],
+        "empty": []
+      }
+    }
+  ],
+  "brief": [
+    {
+      "input": {
+        "brief": {
+          "id": "panel-messages",
+          "sessionId": "s1",
+          "title": "Messages of the panel in the feed",
+          "questions": [
+            {
+              "id": "r1", "n": "01", "title": "Where the answer to a brief stands", "kind": "pick",
+              "options": [
+                { "key": "A", "label": "A line pointing at the source" },
+                { "key": "B", "label": "A card where the message stands" }
+              ]
+            },
+            {
+              "id": "r2", "n": "02", "title": "What shows before it opens", "kind": "pick",
+              "options": [
+                { "key": "A", "label": "The title and the count of answers" },
+                { "key": "B", "label": "Every answer" }
+              ]
+            },
+            { "id": "r3", "n": "03", "title": "The path of the secret file", "kind": "text" },
+            {
+              "id": "r4", "n": "04", "title": "The raw text the model got", "kind": "pick",
+              "options": [
+                { "key": "A", "label": "Hidden" },
+                { "key": "B", "label": "Under a fold, in monospace" }
+              ]
+            },
+            {
+              "id": "r5", "n": "05", "title": "The desk", "kind": "pick",
+              "options": [
+                { "key": "A", "label": "The same card, wider" },
+                { "key": "B", "label": "A sheet of its own" }
+              ]
+            },
+            { "id": "r6", "n": "06", "title": "Old transcripts", "kind": "text" },
+            { "id": "r7", "n": "07", "title": "The deadline", "kind": "text" }
+          ]
+        },
+        "draft": {
+          "answers": {
+            "r1": { "picks": ["B"], "note": "opens on a tap, like a letter" },
+            "r2": { "picks": ["A"] },
+            "r3": { "skip": true },
+            "r4": { "picks": ["B"] },
+            "r5": { "picks": ["A"], "note": "question and answer in two columns" }
+          }
+        }
+      },
+      "text": "Brief \"Messages of the panel in the feed\" · panel-messages\nAnswered 5 of 7\n\n01 Where the answer to a brief stands\n   B · A card where the message stands\n   note: opens on a tap, like a letter\n\n02 What shows before it opens\n   A · The title and the count of answers\n\n03 The path of the secret file\n   skipped\n\n04 The raw text the model got\n   B · Under a fold, in monospace\n\n05 The desk\n   A · The same card, wider\n   note: question and answer in two columns\n\n06 Old transcripts\n   no answer\n\n07 The deadline\n   no answer\n",
+      "said": {
+        "kind": "brief",
+        "title": "Messages of the panel in the feed",
+        "id": "panel-messages",
+        "answered": 5,
+        "total": 7,
+        "skipped": 1,
+        "none": 2,
+        "rows": [
+          { "n": "01", "title": "Where the answer to a brief stands", "picks": [{ "key": "B", "label": "A card where the message stands" }], "skipped": false, "none": false, "note": "opens on a tap, like a letter" },
+          { "n": "02", "title": "What shows before it opens", "picks": [{ "key": "A", "label": "The title and the count of answers" }], "skipped": false, "none": false, "note": "" },
+          { "n": "03", "title": "The path of the secret file", "picks": [], "skipped": true, "none": false, "note": "" },
+          { "n": "04", "title": "The raw text the model got", "picks": [{ "key": "B", "label": "Under a fold, in monospace" }], "skipped": false, "none": false, "note": "" },
+          { "n": "05", "title": "The desk", "picks": [{ "key": "A", "label": "The same card, wider" }], "skipped": false, "none": false, "note": "question and answer in two columns" },
+          { "n": "06", "title": "Old transcripts", "picks": [], "skipped": false, "none": true, "note": "" },
+          { "n": "07", "title": "The deadline", "picks": [], "skipped": false, "none": true, "note": "" }
+        ]
+      }
+    },
+    {
+      "input": {
+        "brief": {
+          "id": "quoted-title",
+          "sessionId": "s1",
+          "title": "The \"stream\" path \\ and back",
+          "questions": [
+            {
+              "id": "q1", "n": "1", "title": "Which transports", "kind": "pick",
+              "options": [
+                { "key": "A", "label": "Stream" },
+                { "key": "B", "label": "tmux" }
+              ]
+            },
+            { "id": "q2", "n": "2", "title": "Where this came from", "kind": "none" },
+            { "id": "q3", "n": "3", "title": "Anything else", "kind": "text" }
+          ]
+        },
+        "draft": {
+          "answers": {
+            "q1": { "picks": ["A", "C"], "note": "the first line\nand the second" },
+            "q3": { "note": "  only a note  " }
+          }
+        }
+      },
+      "text": "Brief \"The \\\"stream\\\" path \\\\ and back\" · quoted-title\nAnswered 2 of 3\n\n1 Which transports\n   A · Stream\n   C · (an option the document no longer offers)\n   note: the first line\nand the second\n\n3 Anything else\n   note: only a note\n",
+      "said": {
+        "kind": "brief",
+        "title": "The \"stream\" path \\ and back",
+        "id": "quoted-title",
+        "answered": 2,
+        "total": 3,
+        "skipped": 0,
+        "none": 0,
+        "rows": [
+          { "n": "1", "title": "Which transports", "picks": [{ "key": "A", "label": "Stream" }, { "key": "C", "label": "(an option the document no longer offers)" }], "skipped": false, "none": false, "note": "the first line\nand the second" },
+          { "n": "3", "title": "Anything else", "picks": [], "skipped": false, "none": false, "note": "only a note" }
+        ]
+      }
+    }
+  ],
+  "reading": [
+    {
+      "input": { "path": "/var/lib/aacpanel/reviews/helios-20260101-090000.json", "notes": 4 },
+      "text": "A reading of this branch is waiting for you: /var/lib/aacpanel/reviews/helios-20260101-090000.json — 4 notes, each with the line it stands on. Read the file and answer here.",
+      "said": {
+        "kind": "reading",
+        "path": "/var/lib/aacpanel/reviews/helios-20260101-090000.json",
+        "id": "helios-20260101-090000",
+        "notes": 4
+      }
+    },
+    {
+      "input": { "path": "/srv/state/reviews/s1-20260101-091500.json", "notes": 1 },
+      "text": "A reading of this branch is waiting for you: /srv/state/reviews/s1-20260101-091500.json — 1 note, each with the line it stands on. Read the file and answer here.",
+      "said": {
+        "kind": "reading",
+        "path": "/srv/state/reviews/s1-20260101-091500.json",
+        "id": "s1-20260101-091500",
+        "notes": 1
+      }
+    }
+  ],
+  "bubbles": [
+    {
+      "why": "a word of the secret message changed",
+      "text": "The secret \"github-token\" is stored: /home/u/.local/state/aacpanel/secrets/github-token (0600, 1 line). Keys: GH_TOKEN. Use it by its path and never read or print it: whatever you read goes into the transcript."
+    },
+    {
+      "why": "a sentence added after the secret message",
+      "text": "The secret \"github-token\" is saved: /home/u/.local/state/aacpanel/secrets/github-token (0600, 1 line). Keys: GH_TOKEN. Use it by its path and never read or print it: whatever you read goes into the transcript. Then deploy."
+    },
+    {
+      "why": "the count of lines disagrees with its word",
+      "text": "The secret \"github-token\" is saved: /home/u/.local/state/aacpanel/secrets/github-token (0600, 1 lines). Keys: GH_TOKEN. Use it by its path and never read or print it: whatever you read goes into the transcript."
+    },
+    {
+      "why": "the path does not end with the name of the secret",
+      "text": "The secret \"github-token\" is saved: /home/u/.local/state/aacpanel/secrets/other (0600, 1 line). Keys: GH_TOKEN. Use it by its path and never read or print it: whatever you read goes into the transcript."
+    },
+    {
+      "why": "a word of the head of the brief changed",
+      "text": "Brief \"Messages of the panel in the feed\" · panel-messages\nReplied 1 of 1\n\n01 Where the answer to a brief stands\n   B · A card where the message stands\n"
+    },
+    {
+      "why": "the count of the head disagrees with the answers",
+      "text": "Brief \"Messages of the panel in the feed\" · panel-messages\nAnswered 2 of 2\n\n01 Where the answer to a brief stands\n   B · A card where the message stands\n\n02 Old transcripts\n   no answer\n"
+    },
+    {
+      "why": "a note of the brief holds a blank line",
+      "text": "Brief \"Messages of the panel in the feed\" · panel-messages\nAnswered 1 of 1\n\n01 Where the answer to a brief stands\n   B · A card where the message stands\n   note: the first paragraph\n\nthe second paragraph\n"
+    },
+    {
+      "why": "a question of the brief with nothing under it",
+      "text": "Brief \"Messages of the panel in the feed\" · panel-messages\nAnswered 0 of 1\n\n01 Where the answer to a brief stands\n"
+    },
+    {
+      "why": "a word of the reading signal changed",
+      "text": "A reading of this branch is waiting for you: /var/lib/aacpanel/reviews/helios-20260101-090000.json — 4 notes, each with the line it stands on. Read the file and reply here."
+    },
+    {
+      "why": "a message of the person that starts the same way",
+      "text": "The secret \"github-token\" is saved, right? Check it before the deploy."
+    }
+  ]
+}

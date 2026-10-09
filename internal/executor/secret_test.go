@@ -218,6 +218,39 @@ func TestTheSessionHearsTheKeysAndNotTheValues(t *testing.T) {
 	}
 }
 
+// The feed of the panel recognises the message of a saved secret by its whole
+// text and draws it as a card; the samples it is checked against are the ones
+// read here. A message worded otherwise than its sample is one the feed no
+// longer recognises: the sample, and the feed's parser with it, change in the
+// same commit as the words.
+func TestTheSecretMessageIsTheOneTheFeedReads(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "web", "check", "testdata", "panel-said.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var samples struct {
+		Secret []struct {
+			Input struct {
+				Name string `json:"name"`
+				Path string `json:"path"`
+				Text string `json:"text"`
+			} `json:"input"`
+			Text string `json:"text"`
+		} `json:"secret"`
+	}
+	if err := json.Unmarshal(raw, &samples); err != nil {
+		t.Fatalf("the samples do not parse: %v", err)
+	}
+	if len(samples.Secret) == 0 {
+		t.Fatal("no samples of a secret message: the check compares nothing")
+	}
+	for _, s := range samples.Secret {
+		if got := secretMessage(s.Input.Name, s.Input.Path, s.Input.Text); got != s.Text {
+			t.Errorf("the secret %s is told as\n%q\nand the feed reads\n%q", s.Input.Name, got, s.Text)
+		}
+	}
+}
+
 // The list shows what the notepad saved and nothing else: no temporary file
 // of a write under way, no file of another name, no directory and no link.
 // Nobody has saved anything yet — the list is empty, not missing.

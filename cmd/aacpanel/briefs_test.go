@@ -105,6 +105,38 @@ func TestBriefReplyNamesAPickTheDocumentNoLongerOffers(t *testing.T) {
 	}
 }
 
+// The feed of the panel recognises the answers to a brief by their whole text
+// and draws them as a card; the samples it is checked against are the ones
+// read here. A reply worded otherwise than its sample is one the feed no
+// longer recognises: the sample, and the feed's parser with it, change in the
+// same commit as the words.
+func TestBriefReplyIsTheOneTheFeedReads(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "web", "check", "testdata", "panel-said.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var samples struct {
+		Brief []struct {
+			Input struct {
+				Brief chat.Brief       `json:"brief"`
+				Draft store.BriefDraft `json:"draft"`
+			} `json:"input"`
+			Text string `json:"text"`
+		} `json:"brief"`
+	}
+	if err := json.Unmarshal(raw, &samples); err != nil {
+		t.Fatalf("the samples do not parse: %v", err)
+	}
+	if len(samples.Brief) == 0 {
+		t.Fatal("no samples of a brief reply: the check compares nothing")
+	}
+	for _, s := range samples.Brief {
+		if got := briefReply(&s.Input.Brief, s.Input.Draft); got != s.Text {
+			t.Errorf("the brief %s is answered as\n%q\nand the feed reads\n%q", s.Input.Brief.ID, got, s.Text)
+		}
+	}
+}
+
 func TestBriefDraftRefusesWhatIsNotAnAnswer(t *testing.T) {
 	long := strings.Repeat("x", briefMaxNote+1)
 	cases := map[string]map[string]store.BriefAnswer{

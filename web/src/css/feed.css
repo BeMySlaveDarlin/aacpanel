@@ -657,8 +657,8 @@ code.path {
 .mletter.k-hook .sentico { color: var(--warn); }
 .mletterlost { flex: none; color: var(--warn); font-size: var(--t-xs); }
 .mletterwhy { margin: 0; white-space: pre-line; }
-.mlettermore .mfico { color: var(--ink-faint); }
-.mlettermore .mfname { font-weight: 500; color: var(--ink-dim); }
+.mlettermore .mfico, .pnmmore .mfico { color: var(--ink-faint); }
+.mlettermore .mfname, .pnmmore .mfname { font-weight: 500; color: var(--ink-dim); }
 
 /* Tasks done: a row per task, its mark saying how it ended — the head says
    what ran. The mark is one glyph in a square of its own, so the names start
@@ -733,3 +733,119 @@ div.mtask { cursor: default; }
 /* A wake-up is the session's own alarm, not a correspondent: its mark is the
    quiet ink rather than the accent. */
 .mletter.k-wake .sentico { color: var(--ink-dim); }
+
+/* What the panel said for the person — a secret saved, the answers to a
+   brief, a reading of the branch: a card of the same build, on the person's
+   side and in the tone of their bubble, with the text the session got a row
+   away. A message still in the queue, or taken back, fades as a bubble does. */
+.sent.pnm {
+    align-self: flex-end;
+    width: min(88%, 24rem);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    box-shadow: var(--hairline), inset 0 0 0 var(--hair) color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: var(--r-bubble) var(--r-bubble) var(--r-small) var(--r-bubble);
+}
+.sent.pnm.queued { opacity: .55; }
+.sent.pnm.withdrawn { opacity: .45; }
+.pnm .hint { margin: 0; }
+.pnmtitle {
+    font-size: var(--t-md);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--ink);
+}
+.pnmtitle.pnmcode { font-family: var(--code); font-size: var(--t-sm); }
+.pnmmeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .15rem .5rem;
+    font-size: var(--t-xs);
+    line-height: 1.45;
+    color: var(--ink-faint);
+}
+.pnmmeta b { font-weight: 600; color: var(--ink-dim); }
+/* A path breaks after a slash: each piece is a box of its own, and only a
+   piece wider than the line breaks inside. */
+.pnmpath { font-family: var(--code); }
+.pnmpath > span { display: inline-block; max-width: 100%; }
+.pnmkeys { display: flex; flex-wrap: wrap; gap: .3rem; }
+.pnmkey {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .35rem;
+    padding: .12rem .4rem;
+    border-radius: var(--r-small);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    line-height: 1.35;
+}
+.pnmkey.empty {
+    background: none;
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    color: var(--ink-dim);
+}
+.pnmkey small { font-family: var(--sans); font-size: var(--t-xs); color: var(--ink-faint); }
+.pnmbar { height: 2px; border-radius: 1px; background: var(--line); overflow: hidden; }
+.pnmbar i { display: block; height: 100%; background: var(--accent); }
+.pnmraw {
+    margin: 0;
+    padding: .5rem .6rem;
+    border-radius: var(--r-small);
+    background: var(--code-bg);
+    box-shadow: inset 0 0 0 var(--hair) var(--line);
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    line-height: 1.5;
+    color: var(--ink-dim);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.pnmgo .mfname { font-weight: 500; }
+.pnmgo .crgo { width: 12px; height: 12px; color: var(--ink-faint); }
+/* The rows a card opens are rows of a round of questions: the picks one a
+   line, the note in italics after a dash, the line a note stands on in the
+   face of code. The tag of a note is a file name and keeps its case. */
+.pnmpicks { white-space: pre-line; }
+.pnmnote {
+    font-size: var(--t-sm);
+    line-height: 1.4;
+    color: var(--ink-dim);
+    font-style: italic;
+    white-space: pre-line;
+}
+.pnmnote::before { content: "— "; font-style: normal; color: var(--ink-faint); }
+.pnmquote {
+    font-family: var(--code);
+    font-size: var(--t-xs);
+    line-height: 1.45;
+    color: var(--ink-faint);
+}
+.askedrow.pnmrow .mftag { text-transform: none; }
+/* A question of a brief: its number in a column of its own, the question,
+   the answer and the note under one another beside it. */
+.askedrow.pnmq {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: .55rem;
+    row-gap: .2rem;
+    align-items: baseline;
+}
+.askedrow.pnmq .mftag { grid-column: 1; grid-row: 1 / span 3; }
+.askedrow.pnmq > :not(.mftag) { grid-column: 2; }
+
+/* The desk: the card is wider, and a question and its answer stand side by
+   side. */
+@media (min-width: 1100px) {
+    .sent.pnm { width: min(80%, 36rem); }
+    .askedrow.pnmq {
+        grid-template-columns: 2.4rem minmax(0, 1fr) minmax(0, 1.1fr);
+        column-gap: .7rem;
+        row-gap: .15rem;
+    }
+    .askedrow.pnmq .mftag { grid-row: 1 / span 2; justify-self: start; }
+    .askedrow.pnmq .askedq { grid-column: 2; grid-row: 1 / span 2; }
+    .askedrow.pnmq .askeda,
+    .askedrow.pnmq .pnmnote { grid-column: 3; }
+}

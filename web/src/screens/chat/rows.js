@@ -1,6 +1,6 @@
 // Feed entries: what a row of the conversation looks like.
 
-import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
@@ -15,11 +15,14 @@ import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, stampText, tokenWord } from "./labels.js";
 import { savedAfter } from "../../data/secrets.js";
+import { state as briefState } from "../../data/briefs.js";
+import { reading } from "../repo/notes.js";
+import { panelSaid } from "./panelsaid.js";
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, copies, onPage, onTask, secrets, onSecret }) {
+export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, secrets, onSecret }) {
     if (item.role === "shots") {
         return html`<${Shots} shots=${item.shots} session=${session} id=${id} pos=${item.pos} />`;
     }
@@ -60,7 +63,8 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, co
     }
 
     if (item.role === "brief") {
-        return html`<${BriefDoc} item=${item} onOpen=${onBrief} />`;
+        const card = (briefs || []).find((c) => c.id === item.id) || null;
+        return html`<${BriefDoc} item=${item} card=${card} onOpen=${onBrief} />`;
     }
 
     if (item.role === "secret") {
@@ -88,6 +92,14 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, co
     }
     if (item.role === "shellout") {
         return html`<${ShellOutput} item=${item} onOpen=${onShell} />`;
+    }
+
+    // A message the panel wrote on the person's behalf is drawn as what it
+    // says. One that did not go out stays a bubble, since sending it again is
+    // the bubble's, and so does one cut short: it is not the whole text.
+    const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
+    if (panel) {
+        return html`<${PanelCard} said=${panel} item=${item} onBrief=${onBrief} />`;
     }
 
     const failed = item.state === "failed";
@@ -261,6 +273,181 @@ function Letter({ item }) {
                     </button>
                 </div>
             `}
+        </div>
+    `;
+}
+
+// A message the panel wrote into the session on the person's behalf: the
+// secret a notepad saved, the answers to a brief, a reading of the branch.
+// It stands where the message stands and on the person's side, in the tone of
+// their bubble, and says what the message says rather than the sentence the
+// session read; the sentence is one row away, word for word. The head names
+// the kind, the gist is under it, and what there is more opens on a row.
+const PANEL_CARDS = {
+    secret: { icon: Icon.key, label: "secret saved", Gist: SecretGist },
+    brief: {
+        icon: Icon.plan, label: "brief answers", Gist: BriefGist, Body: BriefAnswers,
+        more: "The answers", fold: "Fold the answers", count: (said) => said.rows.length,
+    },
+    reading: {
+        icon: Icon.files, label: "notes on the branch", Gist: ReadingGist, Body: ReadingNotes,
+        more: "The notes", fold: "Fold the notes", count: (said) => said.notes,
+    },
+};
+
+function PanelCard({ said, item, onBrief }) {
+    const card = PANEL_CARDS[said.kind];
+    const [body, setBody] = useState(false);
+    const [raw, setRaw] = useState(false);
+    // A message on its way says so under the card, where a bubble says it.
+    const wait = onTheWay(item.state);
+    const gone = item.state === "withdrawn";
+    // The notes of a reading are fetched by the name of its file; a file
+    // named otherwise leaves the card its path alone.
+    const opens = Boolean(card.Body) && (said.kind !== "reading" || said.id !== "");
+    return html`
+        <div class=${`sent pnm k-${said.kind}${wait && !gone ? " queued" : ""}${gone ? " withdrawn" : ""}`}>
+            <div class="senthead">
+                <span class="sentico">${card.icon()}</span>
+                <span class="sentlabel">${card.label}</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            <${card.Gist} said=${said} />
+            ${opens && body && html`<${card.Body} said=${said} />`}
+            ${raw && html`<pre class="pnmraw">${item.text}</pre>`}
+            <div class="mflist">
+                ${opens && html`
+                    <${Unfold} open=${body} onToggle=${() => setBody(!body)}
+                               more=${card.more} fold=${card.fold} count=${card.count(said)} />
+                `}
+                <${Unfold} open=${raw} onToggle=${() => setRaw(!raw)}
+                           more="What the session got" fold="Fold the text" count=${sizeOf(item.text)} />
+                ${said.kind === "brief" && onBrief && html`
+                    <button class="mfile pnmgo" type="button" onClick=${() => onBrief(said.id)}>
+                        <span class="mfico">${Icon.file()}</span>
+                        <span class="mfname">Open the brief</span>
+                        <span class="crgo">${Icon.chevron()}</span>
+                    </button>
+                `}
+            </div>
+        </div>
+        ${wait && html`<div class="mstamp">${wait}</div>`}
+    `;
+}
+
+// Unfold is the row that opens a part of a card and folds it back.
+function Unfold({ open, onToggle, more, fold, count }) {
+    return html`
+        <button class="mfile pnmmore" type="button" aria-expanded=${open ? "true" : "false"} onClick=${onToggle}>
+            <span class="mfico">${open ? Icon.close() : Icon.list()}</span>
+            <span class="mfname">${open ? fold : more}</span>
+            <span class="mfsize">${count}</span>
+        </button>
+    `;
+}
+
+// PathText is a path that breaks after a slash and never inside a name: only
+// a name longer than the line breaks where it has to.
+function PathText({ path }) {
+    const parts = path.split("/").map((part, i, all) => (i < all.length - 1 ? `${part}/` : part)).filter(Boolean);
+    return html`<span class="pnmpath">${parts.map((part, i) => html`<span key=${i}>${part}</span>`)}</span>`;
+}
+
+// SecretGist is the file the notepad became: its name, the variables it sets
+// with the empty ones marked, its size and where it lies. A value never is.
+function SecretGist({ said }) {
+    const empty = new Set(said.empty);
+    return html`
+        <div class="pnmtitle pnmcode">${said.name}</div>
+        ${said.keys.length > 0 && html`
+            <div class="pnmkeys">
+                ${said.keys.map((key) => (empty.has(key)
+                    ? html`<span class="pnmkey empty" key=${key}>${key}<small>empty</small></span>`
+                    : html`<span class="pnmkey" key=${key}>${key}</span>`))}
+            </div>
+        `}
+        <div class="pnmmeta">
+            <span>${`${said.lines} ${plural(said.lines, "line", "lines")} · 0600`}</span>
+            <${PathText} path=${said.dir} />
+        </div>
+    `;
+}
+
+// BriefGist is the brief and how much of it was answered.
+function BriefGist({ said }) {
+    const rest = [
+        said.skipped > 0 && `${said.skipped} skipped`,
+        said.none > 0 && `${said.none} without an answer`,
+    ].filter(Boolean).join(" · ");
+    const share = said.total > 0 ? Math.round((said.answered / said.total) * 100) : 0;
+    return html`
+        <div class="pnmtitle">${said.title}</div>
+        <div class="pnmmeta">
+            <b>${`Answered ${said.answered} of ${said.total}`}</b>
+            ${rest && html`<span>${rest}</span>`}
+        </div>
+        <div class="pnmbar" aria-hidden="true"><i style=${`width: ${share}%`}></i></div>
+    `;
+}
+
+// answerOf is what a question got, the brightest words of its row.
+function answerOf(row) {
+    if (row.skipped) return html`<span class="askeda skip">skipped</span>`;
+    if (row.none) return html`<span class="askeda skip">no answer</span>`;
+    if (!row.picks.length) return null;
+    return html`<span class="askeda pnmpicks">${row.picks.map((p) => `${p.key} · ${p.label}`).join("\n")}</span>`;
+}
+
+// BriefAnswers is a row a question, built as a round of questions is: the
+// number as the tag, the question, what was picked and the note under it.
+function BriefAnswers({ said }) {
+    return html`
+        <div class="mflist">
+            ${said.rows.map((row, n) => html`
+                <div class=${`mfile askedrow pnmq${row.skipped || row.none ? " s-faint" : ""}`} key=${n}>
+                    <span class="mftag">${row.n}</span>
+                    <span class="askedq">${row.title}</span>
+                    ${answerOf(row)}
+                    ${row.note && html`<span class="pnmnote">${row.note}</span>`}
+                </div>
+            `)}
+        </div>
+    `;
+}
+
+// ReadingGist is the count of the notes and the file they were written to.
+function ReadingGist({ said }) {
+    return html`
+        <div class="pnmtitle">${`${said.notes} ${plural(said.notes, "note", "notes")} on the lines of the branch`}</div>
+        <div class="pnmmeta"><${PathText} path=${said.path} /></div>
+    `;
+}
+
+// ReadingNotes are the notes as the panel keeps them: the message carries the
+// file and the count, and the notes come back by the name of the file.
+function ReadingNotes({ said }) {
+    const [got, setGot] = useState({ kind: "loading", notes: [], error: "" });
+    useEffect(() => {
+        let alive = true;
+        reading(said.id)
+            .then((r) => alive && setGot({ kind: "ready", notes: r.notes || [], error: "" }))
+            .catch((e) => alive && setGot({ kind: "failed", notes: [], error: String((e && e.message) || e) }));
+        return () => { alive = false; };
+    }, [said.id]);
+    if (got.kind === "loading") return html`<p class="hint">Reading the notes…</p>`;
+    if (got.kind === "failed") return html`<p class="hint crit">${got.error}</p>`;
+    if (!got.notes.length) {
+        return html`<p class="hint">The panel keeps no notes of this reading: they are in the file.</p>`;
+    }
+    return html`
+        <div class="mflist">
+            ${got.notes.map((note, n) => html`
+                <div class="mfile askedrow pnmrow" key=${note.id || n}>
+                    <span class="mftag" title=${note.path}>${`${String(note.path || "").split("/").pop()}:${note.line}`}</span>
+                    ${note.quote && html`<span class="pnmquote">${note.quote.trim()}</span>`}
+                    <span class="askeda">${note.text}</span>
+                </div>
+            `)}
         </div>
     `;
 }
@@ -504,8 +691,10 @@ function PageCard({ item, copy, onOpen }) {
 
 // BriefDoc is a brief the session published: the head says so, and the
 // document is the row on the plate that opens it, as the shelf of briefs has
-// it.
-function BriefDoc({ item, onOpen }) {
+// it — with the mark of the shelf, so a brief whose answers went out says sent
+// here as well.
+function BriefDoc({ item, card, onOpen }) {
+    const row = card ? { ...item, mark: briefState(card) } : item;
     return html`
         <div class="sent mbrief">
             <div class="senthead">
@@ -514,7 +703,7 @@ function BriefDoc({ item, onOpen }) {
                 ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
             </div>
             <div class="mflist">
-                <${BriefCard} item=${item} onOpen=${onOpen} named=${false} />
+                <${BriefCard} item=${row} onOpen=${onOpen} named=${false} />
             </div>
         </div>
     `;

@@ -181,6 +181,13 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
         return () => { alive = false; };
     }, [id]);
 
+    // Answers sent from here mark their card at once: the shelf was read when
+    // the conversation opened, and its own mark is written after the send.
+    const sentBrief = (briefId) => {
+        setBriefs((was) => was.map((card) => (card.id === briefId ? { ...card, sent: true } : card)));
+        setLook(null);
+    };
+
     const asksSecret = state.items.some((item) => item.role === "secret");
     const loadSecrets = useCallback(() => {
         secretShelf().then(setSecrets).catch(() => setSecrets(null));
@@ -402,6 +409,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                     onPage=${(card) => setLook({ kind: "artifact", card })}
                     onFile=${(file) => setLook({ kind: "file", ...file })}
                     onBrief=${openBrief}
+                    briefs=${briefs}
                     secrets=${secrets}
                     onSecret=${live && !live.outside ? openSecret : null}
                     onCommand=${(row) => setLook({ kind: "command", item: row })}
@@ -512,7 +520,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             ${look && (look.kind === "brief"
                 ? html`<${Brief} id=${look.id} snapshot=${snapshot} exec=${exec}
                                  onBack=${() => setLook(null)}
-                                 onSession=${() => setLook(null)} />`
+                                 onSession=${() => sentBrief(look.id)} />`
                 : look.kind === "artifact"
                 ? html`<${ArtifactPage} card=${look.card} />`
                 : look.kind === "command"

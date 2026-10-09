@@ -36,6 +36,13 @@ async function readings(session) {
     return got.reviews || [];
 }
 
+// reading returns one reading with its notes. A name the panel has never
+// heard of comes back as a reading with none.
+export async function reading(id) {
+    const r = await fetch(`/api/reviews/${encodeURIComponent(id)}`);
+    return body(r, "the reading did not open");
+}
+
 // onShelf writes the reading out as a file and answers with where it landed.
 // The file is put there before the session hears about it: the signal carries a
 // path, and a path to nothing is worse than no signal at all.
@@ -324,8 +331,7 @@ export function useReview(cwd, session, base) {
         const at = box.current;
         if (!at.id) return;
         try {
-            const r = await fetch(`/api/reviews/${encodeURIComponent(at.id)}`);
-            const got = await body(r, "the reading did not open");
+            const got = await reading(at.id);
             at.sent = Boolean(got.sentAt);
             at.notes = got.notes || at.notes;
             setState({

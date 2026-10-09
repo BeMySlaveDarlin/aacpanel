@@ -1,0 +1,210 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// Messages the panel wrote into a session on the person's behalf, read back
+// from the samples the writers are checked against. The parser of the feed
+// reads every sample, signal() of the reading writes its own, and the real
+// conversation draws them: a secret the session asked for and its notepad
+// saved, the answers to a brief published here and marked sent on the shelf,
+// a reading of the branch whose notes the panel keeps, a text one word away
+// from the panel's, and two messages still on their way.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { panelSaid } from "/src/screens/chat/panelsaid.js";
+import { signal } from "/src/screens/repo/notes.js";
+
+const root = document.getElementById("root");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 4000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(25);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+const own = window.fetch.bind(window);
+
+const DIR = "/home/u/.local/state/aacpanel/secrets";
+const READING = "helios-20260101-090000";
+const notes = [
+    { id: "n1", path: "web/src/screens/chat/rows.js", line: 112, quote: "    ${render(said, { breaks: mine })}", text: "a path breaks in the middle of a word here" },
+    { id: "n2", path: "web/src/css/feed.css", line: 25, quote: ".msg.me {", text: "the card does not need the whole colour of the bubble" },
+    { id: "n3", path: "agent/chat/records.py", line: 456, quote: "out.append({\"role\": \"me\"", text: "keep the role: the start of a turn is read by it" },
+    { id: "n4", path: "internal/executor/secret.go", line: 138, quote: "return msg + \" Use it by its path", text: "the text for the model stays as it is" },
+];
+// The conversation, written with the samples once they are read.
+const feed = (samples) => [
+    { role: "me", text: "check the notepad live", at: "2026-01-01T08:59:00Z", pos: 1 },
+    { role: "secret", use: "toolu_s1", name: "aacpanel-live-check", title: "The live check of the notepad",
+      template: "CHECK_VALUE=\nLEFT_EMPTY=\n", at: "2026-01-01T09:00:00Z", pos: 2 },
+    { role: "me", text: samples.secret[0].text, at: "2026-01-01T09:05:00Z", pos: 3 },
+    { role: "brief", id: "panel-messages", title: "Messages of the panel in the feed", eyebrow: "after reading the feed",
+      questions: 7, at: "2026-01-01T09:06:00Z", pos: 4 },
+    { role: "me", text: samples.brief[0].text, at: "2026-01-01T09:10:00Z", pos: 5 },
+    { role: "me", text: samples.reading[0].text, at: "2026-01-01T09:11:00Z", pos: 6 },
+    { role: "me", text: samples.bubbles[0].text, at: "2026-01-01T09:12:00Z", pos: 7 },
+    { role: "me", text: samples.brief[1].text, at: "2026-01-01T09:13:00Z", pos: 8, state: "queued" },
+    { role: "me", text: samples.reading[1].text, at: "2026-01-01T09:14:00Z", pos: 9, state: "withdrawn" },
+];
+const requests = [];
+let items = [];
+
+window.fetch = async (url, init) => {
+    const u = String(url);
+    requests.push(u);
+    if (u.startsWith("/api/chat?")) {
+        return json({ items, first: 1, last: items.length, total: items.length, moreBefore: false, state: null });
+    }
+    if (u === "/api/secrets") {
+        return json({ dir: DIR, secrets: [{ name: "aacpanel-live-check", bytes: 70, at: "2026-01-01T09:05:00Z" }] });
+    }
+    if (u === "/api/briefs") {
+        return json({ briefs: [{ id: "panel-messages", title: "Messages of the panel in the feed", cwd: "/srv/proj",
+            questions: 7, answered: 5, sent: true }] });
+    }
+    if (u === `/api/reviews/${READING}`) {
+        return json({ id: READING, session: "helios", cwd: "/srv/proj", notes, sentAt: "2026-01-01T09:11:00Z" });
+    }
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/session/")) return json({ to: "" });
+    return json({});
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const exec = { available: true, kinds: ["session.send", "secret.put"] };
+const session = { session: "helios", sessionId: "s1", status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
+    limit: 1000000, cwd: "/srv/proj", model: "claude-opus-5-5", effort: "xhigh", mode: "auto", profile: "personal" };
+
+const cards = () => Array.from(root.querySelectorAll(".sent.pnm"));
+const cardOf = (kind) => root.querySelector(`.sent.pnm.k-${kind}`);
+const rowNamed = (card, word) => Array.from(card.querySelectorAll(".mflist > .mfile"))
+    .find((b) => text(b.querySelector(".mfname")) === word);
+const box = (el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width };
+};
+
+// natural is how wide an element's text is when nothing makes it wrap: the
+// same words in the same face, laid out on one line beside it.
+const natural = (el) => {
+    const twin = el.cloneNode(true);
+    twin.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;width:max-content;max-width:none";
+    el.parentNode.appendChild(twin);
+    const width = twin.getBoundingClientRect().width;
+    twin.remove();
+    return width;
+};
+const measure = (el) => (el ? { text: text(el), width: el.getBoundingClientRect().width, natural: natural(el) } : null);
+
+const readCard = (card) => ({
+    label: text(card.querySelector(".sentlabel")),
+    at: text(card.querySelector(".sentat")),
+    title: text(card.querySelector(".pnmtitle")),
+    meta: Array.from(card.querySelectorAll(".pnmmeta")).map((m) => Array.from(m.children).map(text).join(" | ")),
+    keys: Array.from(card.querySelectorAll(".pnmkey")).map(text),
+    // The rows that open and fold are the last plate of the card: what they
+    // open stands above them.
+    rows: Array.from(card.querySelectorAll(":scope > .mflist:last-child > .mfile")).map((b) => text(b.querySelector(".mfname"))),
+    queued: card.classList.contains("queued"),
+    withdrawn: card.classList.contains("withdrawn"),
+    stamp: card.nextElementSibling && card.nextElementSibling.classList.contains("mstamp")
+        ? text(card.nextElementSibling) : "",
+    side: getComputedStyle(card).alignSelf,
+});
+
+// raw opens the text the session got and reads it back as it stands.
+const raw = async (card) => {
+    rowNamed(card, "What the session got").click();
+    await until(() => card.querySelector(".pnmraw"));
+    return card.querySelector(".pnmraw").textContent;
+};
+
+window.done = (async () => {
+    const out = {};
+    try {
+        const samples = await (await own("/check/testdata/panel-said.json")).json();
+        items = feed(samples);
+        out.parsed = {
+            secret: samples.secret.map((s) => panelSaid(s.text)),
+            brief: samples.brief.map((s) => panelSaid(s.text)),
+            reading: samples.reading.map((s) => panelSaid(s.text)),
+        };
+        out.bubbles = samples.bubbles.map((b) => ({ why: b.why, said: panelSaid(b.text) }));
+        out.signals = samples.reading.map((s) => signal(s.input.path, s.input.notes));
+
+        render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${session}
+            snapshot=${{ at: 1, sessions: [session] }} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+        await until(() => cards().length === 5 && root.querySelector(".msecret .sksaved")
+            && root.querySelector(".mbrief .brstate"));
+        await sleep(100);
+
+        out.cards = cards().map((card) => ({ kind: card.className.replace(/.*\bk-(\w+).*/, "$1"), ...readCard(card) }));
+        out.bubbleTexts = Array.from(root.querySelectorAll(".msg.me")).map(text);
+        out.briefMark = text(root.querySelector(".mbrief .brstate"));
+        out.secretName = measure(root.querySelector(".msecret .armeta > span:first-child"));
+        out.secretSaved = text(root.querySelector(".msecret .sksaved"));
+
+        // A kind the feed did not draw as a card is said by the list of cards
+        // above; the parts below read only the cards that are there.
+        const secret = cardOf("secret");
+        const brief = cardOf("brief");
+        const reading = cardOf("reading");
+
+        // The secret: the text the session got, word for word.
+        if (secret) out.secretRaw = await raw(secret);
+
+        // The brief: the answers a row a question, then the text.
+        if (brief) {
+            rowNamed(brief, "The answers").click();
+            await until(() => brief.querySelectorAll(".askedrow.pnmq").length > 0);
+            out.answers = Array.from(brief.querySelectorAll(".askedrow.pnmq")).map((row) => ({
+                n: text(row.querySelector(".mftag")),
+                question: text(row.querySelector(".askedq")),
+                answer: row.querySelector(".askeda") ? row.querySelector(".askeda").textContent : "",
+                note: text(row.querySelector(".pnmnote")),
+                faint: row.classList.contains("s-faint"),
+            }));
+            const first = brief.querySelector(".askedrow.pnmq");
+            out.firstRow = { question: box(first.querySelector(".askedq")), answer: box(first.querySelector(".askeda")) };
+            out.briefRows = readCard(brief).rows;
+            out.briefRaw = await raw(brief);
+        }
+
+        // The reading: the notes come back from the panel by the name of the file.
+        if (reading) {
+            rowNamed(reading, "The notes").click();
+            await until(() => reading.querySelectorAll(".askedrow.pnmrow").length > 0);
+            out.notes = Array.from(reading.querySelectorAll(".askedrow.pnmrow")).map((row) => ({
+                tag: text(row.querySelector(".mftag")),
+                quote: text(row.querySelector(".pnmquote")),
+                text: text(row.querySelector(".askeda")),
+            }));
+            out.asked = requests.filter((u) => u.startsWith("/api/reviews/"));
+            out.readingRaw = await raw(reading);
+        }
+
+        // Open the brief opens the document the answers went to.
+        if (brief) {
+                rowNamed(brief, "Open the brief").click();
+                await until(() => requests.includes("/api/briefs/panel-messages") && document.querySelector(".sheet.on"));
+                out.opened = requests.includes("/api/briefs/panel-messages") && Boolean(document.querySelector(".sheet.on"));
+        }
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>
