@@ -250,6 +250,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		} else {
 			want, found, err = s.launchProject(r.Context(), body.Params, cwd, req.Target)
 		}
+		if err == nil && want != nil && req.Kind == action.SessionOpen {
+			err = startsClaude(found.project.Name, want.Launch)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -473,6 +476,33 @@ func (s *Server) apiSessionModels(w http.ResponseWriter, r *http.Request) {
 	}
 	out["state"], out["session"] = "ok", models
 	writeJSON(w, out)
+}
+
+// apiCodexModels says what codex offers to pick from: the models the daemon
+// of a codex home lists, with the efforts each takes. It names no session —
+// a launch parameter is picked before any session runs.
+func (s *Server) apiCodexModels(w http.ResponseWriter, r *http.Request) {
+	if s.exec == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
+		return
+	}
+	models, err := s.exec.CodexModels(r.Context())
+	if err != nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
+		return
+	}
+	// The list crosses the socket with omitempty and arrives as nothing when
+	// it is empty; the screen is handed a list either way, and so is every
+	// model's list of efforts.
+	if models == nil {
+		models = []action.CodexModel{}
+	}
+	for i := range models {
+		if models[i].Efforts == nil {
+			models[i].Efforts = []string{}
+		}
+	}
+	writeJSON(w, map[string]any{"state": "ok", "models": models})
 }
 
 // apiSessionMcp says what a live session knows about its MCP servers.
@@ -783,6 +813,9 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 	want, found, err := s.launchProject(ctx, nil, live.CWD, "")
 	if err != nil || want == nil {
 		return way, err
+	}
+	if err := startsClaude(found.project.Name, want.Launch); err != nil {
+		return restartWay{}, fmt.Errorf("session %s is not restarted: %w", way.Name, err)
 	}
 	want.Session = way.Name
 	launch, err := restartLaunch(want.Launch)

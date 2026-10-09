@@ -837,6 +837,75 @@ func (l *Link) Respond(ctx context.Context, threadID, key string, decision json.
 	return nil
 }
 
+// Model is one model of the catalogue a codex daemon lists: the name codex
+// takes, the one a person reads, the efforts it takes and the one it starts at.
+type Model struct {
+	Model   string
+	Name    string
+	Efforts []string
+	Effort  string
+}
+
+// Models lists the models codex offers, through the daemon of the first home
+// that answers: the catalogue is codex's, and model/list asks no account. The
+// models codex keeps out of its own picker stay out of this list too:
+// model/list leaves them out unless it is asked for them.
+func (ls *Links) Models(ctx context.Context) ([]Model, error) {
+	if ls == nil || len(ls.list) == 0 {
+		return nil, errors.New("the executor knows no codex home")
+	}
+	var last error
+	for _, l := range ls.list {
+		out, err := l.models(ctx)
+		if err == nil {
+			return out, nil
+		}
+		last = err
+	}
+	return nil, last
+}
+
+func (l *Link) models(ctx context.Context) ([]Model, error) {
+	c, err := l.client()
+	if err != nil {
+		return nil, err
+	}
+	var out []Model
+	cursor := ""
+	for range 20 {
+		params := map[string]any{}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		var page struct {
+			Data []struct {
+				Model       string `json:"model"`
+				DisplayName string `json:"displayName"`
+				Efforts     []struct {
+					Effort string `json:"reasoningEffort"`
+				} `json:"supportedReasoningEfforts"`
+				Effort string `json:"defaultReasoningEffort"`
+			} `json:"data"`
+			Next string `json:"nextCursor"`
+		}
+		if err := within(ctx, c, "model/list", params, &page); err != nil {
+			return nil, fmt.Errorf("the codex daemon of %s did not list its models: %w", l.home, err)
+		}
+		for _, m := range page.Data {
+			efforts := make([]string, 0, len(m.Efforts))
+			for _, e := range m.Efforts {
+				efforts = append(efforts, e.Effort)
+			}
+			out = append(out, Model{Model: m.Model, Name: m.DisplayName, Efforts: efforts, Effort: m.Effort})
+		}
+		if page.Next == "" || page.Next == cursor {
+			break
+		}
+		cursor = page.Next
+	}
+	return out, nil
+}
+
 // Changes reads the change to files an approval asks about: the request names
 // the item, and the item holds the change.
 func (l *Link) Changes(ctx context.Context, threadID, turnID, itemID string) ([]Change, error) {

@@ -1,7 +1,8 @@
 // What the settings pages of a contour and of a project share: the draft that
-// is asked of the service as it changes, where the session lives as two
-// cards, a row per launch parameter, the one bar of the draft, the question
-// before a draft is left and the frame of the page on a wide screen.
+// is asked of the service as it changes, the keys of each agent under its own
+// tab, where a claude session lives as two cards, a row per launch parameter,
+// the one bar of the draft, the question before a draft is left and the frame
+// of the page on a wide screen.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -13,10 +14,39 @@ import {
 } from "./controls.js";
 import { paramOf } from "./schema.js";
 
-export const LAUNCH_ORDER = [
-    "model", "effort", "permissionMode", "remoteControl", "intent", "panelTools",
-    "contextCap", "autoRestart", "restartIntent", "env", "args",
-];
+// keysOf returns the keys of one agent in the schema's order — "" for the
+// ones both agents read — without where a claude session lives: that is the
+// two cards above the rows of its tab.
+export function keysOf(params, agent) {
+    return params.filter((p) => (p.agent || "") === agent && p.key !== "transport").map((p) => p.key);
+}
+
+// What the Codex tab says in place of the command the Claude tab shows.
+export const CODEX_LAUNCH = "launching codex from the panel comes with the codex stream mode";
+
+// useAgentTab holds which agent's tab is open: the one the owner starts, and
+// the one it is switched to, until the person opens the other.
+export function useAgentTab(agent) {
+    const [open, setOpen] = useState(agent);
+    useEffect(() => setOpen(agent), [agent]);
+    return [open, setOpen];
+}
+
+const AGENTS = [["claude", "Claude"], ["codex", "Codex"]];
+
+// AgentTabs lays the keys of each agent out under its own tab: the two differ
+// too much to share rows — claude has no sandbox, codex no permission modes.
+export function AgentTabs({ open, onOpen, claude, codex }) {
+    return html`
+        <div class="pztabs" role="tablist" aria-label="agent">
+            ${AGENTS.map(([id, name]) => html`
+                <button key=${id} class="pztab" type="button" role="tab" aria-selected=${open === id ? "true" : "false"}
+                        onClick=${() => onOpen(id)}>${name}</button>
+            `)}
+        </div>
+        <div class="pztabpanel" role="tabpanel" data-agent=${open}>${open === "codex" ? codex : claude}</div>
+    `;
+}
 
 // usePreview asks the service what a draft would come to if it were saved:
 // the effective values, what the launch would refuse and, for a project, the
@@ -168,26 +198,31 @@ export function modelHolds({ schema, draft, owner, effective, trait, model }) {
     return { blocked, strikes };
 }
 
-// LaunchRow is one launch parameter drawn by its kind.
-export function LaunchRow({ p, mine, catalog, trait, model, strike, note, onSet, onModel, picker }) {
+// LaunchRow is one launch parameter drawn by its kind. A model of codex is
+// picked from the rows given; offer, when given, is the values an enum offers
+// of its options — the efforts the chosen codex model takes.
+export function LaunchRow({ p, mine, catalog, rows, offer, trait, model, strike, note, onSet, onModel, picker }) {
     const { param, eff } = p;
     let control = null;
     let foot = null;
-    if (param.kind === "model") {
+    if (param.kind === "model" || param.kind === "codexModel") {
         control = html`
             <div class="pzanchor">
-                <${ModelRow} param=${param} eff=${eff} mine=${mine} catalog=${catalog} onOpen=${onModel} />
+                <${ModelRow} param=${param} eff=${eff} mine=${mine} catalog=${catalog} rows=${rows} onOpen=${onModel} />
                 ${picker}
             </div>
         `;
     } else if (param.kind === "enum" || param.kind === "bool") {
         const why = (value) => struck(param, value, trait, model.value);
-        control = html`<${Options} param=${param} eff=${eff} mine=${mine} options=${optionsOf(param)} why=${why}
+        const options = offer ? optionsOf(param).filter((o) => offer.includes(o.value)) : optionsOf(param);
+        control = html`<${Options} param=${param} eff=${eff} mine=${mine} options=${options} why=${why}
             onPick=${onSet} />`;
         const chosen = mine !== null ? mine : eff.value;
+        const held = (param.held || []).includes(chosen);
         foot = html`
             ${mine === null && html`<span class="pzhelp pzfrom">${outcome(param, eff)}</span>`}
             ${param.kind === "enum" && html`<${Meaning} param=${param} value=${chosen} />`}
+            ${held && html`<span class="pzhelp warn">${chosen} — kept as the map stores it, never offered here</span>`}
             ${strike && html`<span class="pzhelp warn">${strike}</span>`}
         `;
     } else if (param.kind === "int") {

@@ -52,6 +52,21 @@ func (e *Executor) codexSession(target string) (*codex.Thread, error) {
 	return &found[0], nil
 }
 
+// CodexModels lists the models codex offers, as the daemon of a home the
+// executor is linked to lists them: the screens pick a codex model from it
+// before any session runs.
+func (e *Executor) CodexModels(ctx context.Context) ([]action.CodexModel, error) {
+	list, err := e.codex.Models(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]action.CodexModel, 0, len(list))
+	for _, m := range list {
+		out = append(out, action.CodexModel{Model: m.Model, Name: m.Name, Efforts: m.Efforts, Effort: m.Effort})
+	}
+	return out, nil
+}
+
 func codexRefusal(name string) error {
 	return fmt.Errorf("%s is a codex session: the panel does not do this for codex yet", name)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
 	"aacpanel/internal/host"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -169,5 +171,60 @@ func TestRestartLaunchWithoutAMessageSaysNothing(t *testing.T) {
 	json.Unmarshal(raw, &launch)
 	if launch["intent"] != "" {
 		t.Errorf("an explicit empty message after a restart became %q", launch["intent"])
+	}
+}
+
+// New and a restart of a project whose agent is codex are refused with the
+// reason before the executor hears of them: the panel starts claude alone, and
+// claude started in codex's place would contradict the map. A project that
+// says claude over its contour's codex starts as before, and a move between
+// tmux and the stream is the session's own and goes on.
+func TestACodexProjectStartsNoClaudePG(t *testing.T) {
+	srv, fake, _ := switchServer(t, "stream", "")
+	list, err := srv.db.Profiles(t.Context())
+	if err != nil || len(list) != 1 {
+		t.Fatalf("the map: %v, %v", list, err)
+	}
+	if _, err := srv.db.UpdateProfile(t.Context(), list[0].ID, store.ProfileEdit{LaunchSet: map[string]any{
+		"agent": "codex", "codexModel": "gpt-5.5",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	project := list[0].Groups[0].Projects[0].ID
+	open := `{"kind":"session.open","target":"aacpanel","params":{"project":` + strconv.Itoa(project) + `}}`
+
+	for name, body := range map[string]string{
+		"New":       open,
+		"a restart": `{"kind":"session.restart","params":{"conversation":"` + switchSID + `"}}`,
+		"a restart going on": `{"kind":"session.restart","params":{"conversation":"` + switchSID +
+			`","resume":true}}`,
+	} {
+		w := post(t, srv, body)
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), schema.CodexNotStarted) {
+			t.Errorf("%s of a codex project: %d %s", name, w.Code, w.Body.String())
+		}
+	}
+	select {
+	case got := <-fake.got:
+		t.Fatalf("a refused start reached the executor: %+v", got)
+	default:
+	}
+
+	w := post(t, srv, `{"kind":"session.switch","target":"aacpanel-2","params":{"to":"stream"}}`)
+	if w.Code != http.StatusOK {
+		t.Errorf("a move of the claude session of a codex project: %d %s", w.Code, w.Body.String())
+	}
+	<-fake.got
+
+	if _, err := srv.db.UpdateProject(t.Context(), project, store.ProjectEdit{LaunchSet: map[string]any{
+		"agent": "claude",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if w := post(t, srv, open); w.Code != http.StatusOK {
+		t.Fatalf("a project saying claude over a codex contour: %d %s", w.Code, w.Body.String())
+	}
+	if got := <-fake.got; got.Project == nil || !strings.Contains(string(got.Project.Launch), `"agent":"claude"`) {
+		t.Errorf("New of a claude project reached the executor as %+v", got)
 	}
 }

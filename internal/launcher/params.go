@@ -22,6 +22,7 @@ const (
 	keyIntent         = "intent"
 	keyTransport      = "transport"
 	keyPanelTools     = "panelTools"
+	keyAgent          = "agent"
 )
 
 // How a session is kept. A terminal in tmux is the default; the stream is
@@ -44,6 +45,10 @@ type Params struct {
 	Transport      string
 	// PanelTools is off only where the map says so: the panel's default is on.
 	PanelTools *bool
+	// Agent is what the project starts: claude where the map says nothing.
+	// This launcher starts claude alone, and refuses a new conversation of a
+	// project whose agent is codex rather than start claude in its place.
+	Agent string
 
 	// tools is the MCP configuration that hands the session the panel's
 	// tools. The launch sets it, not the map: it names the executor's own
@@ -90,7 +95,8 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 		}
 		// A parameter the host reads is not the launch's: the context guard
 		// and the prompt stamp take it from what the executor keeps of the map.
-		if known.Host {
+		// A parameter of codex is not claude's launch to read.
+		if known.Host || known.Agent == schema.AgentCodex {
 			continue
 		}
 		switch key {
@@ -112,6 +118,13 @@ func parseParams(raw json.RawMessage) (Params, []string) {
 			str(key, &p.PermissionMode)
 		case keyIntent:
 			str(key, &p.Intent)
+		case keyAgent:
+			str(key, &p.Agent)
+			if p.Agent != schema.AgentClaude && p.Agent != schema.AgentCodex {
+				warns = append(warns, fmt.Sprintf("parameter agent is %q, neither %q nor %q — the session starts claude",
+					p.Agent, schema.AgentClaude, schema.AgentCodex))
+				p.Agent = ""
+			}
 		case keyTransport:
 			str(key, &p.Transport)
 			if p.Transport != TransportTmux && p.Transport != TransportStream {

@@ -1250,3 +1250,40 @@ func TestSessionStatusPassesTheAnswerOn(t *testing.T) {
 		t.Errorf("a request without a session name gave %d, expected 400", w.Code)
 	}
 }
+
+// The models codex offers are asked of the executor as a question of no
+// session and handed to the screen as a list — every model's efforts too —
+// even when the catalogue is empty; a failure is said with its reason.
+func TestCodexModelsComeFromTheExecutor(t *testing.T) {
+	client, exec := startFakeExec(t, action.Response{OK: true, CodexModels: []action.CodexModel{
+		{Model: "gpt-5.5", Name: "GPT-5.5", Efforts: []string{"low", "high"}, Effort: "low"},
+		{Model: "gpt-mini", Name: "GPT mini"},
+	}})
+	srv := &Server{exec: client}
+	rec := httptest.NewRecorder()
+	srv.routes(srv.localGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/codex/models", nil))
+	want := `{"models":[{"model":"gpt-5.5","name":"GPT-5.5","efforts":["low","high"],"effort":"low"},` +
+		`{"model":"gpt-mini","name":"GPT mini","efforts":[]}],"state":"ok"}`
+	if got := strings.TrimSpace(rec.Body.String()); got != want {
+		t.Errorf("the models are\n%s\ninstead of\n%s", got, want)
+	}
+	if got := <-exec.got; got.Ask != action.AskCodexModels || got.Target != "" {
+		t.Errorf("the executor was asked %+v", got)
+	}
+
+	client, _ = startFakeExec(t, action.Response{OK: true})
+	srv = &Server{exec: client}
+	rec = httptest.NewRecorder()
+	srv.routes(srv.localGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/codex/models", nil))
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"models":[],"state":"ok"}` {
+		t.Errorf("an empty catalogue is %s — the screen reads a list", got)
+	}
+
+	client, _ = startFakeExec(t, action.Response{OK: false, Error: "the executor knows no codex home"})
+	srv = &Server{exec: client}
+	rec = httptest.NewRecorder()
+	srv.routes(srv.localGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/codex/models", nil))
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"reason":"the executor knows no codex home","state":"unknown"}` {
+		t.Errorf("a failure reads %s", got)
+	}
+}

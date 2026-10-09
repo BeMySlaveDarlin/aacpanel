@@ -1,24 +1,42 @@
 // Package schema describes the launch parameters of the profile map as data:
 // what each one is, where it may be stored, what its options mean, what an
-// absent value leaves to and when a live session takes a change. The service
-// validates the map and draws its screens by it; the launcher reads exactly
-// the keys it lists, and a test holds the two lists equal.
+// absent value leaves to, when a live session takes a change and which agent
+// it is for. The service validates the map and draws its screens by it; the
+// claude launcher reads exactly its common keys and claude's, and a test holds
+// the two lists equal.
 package schema
 
-import "slices"
+import (
+	"regexp"
+	"slices"
+)
 
 // Kind is how a value is typed, and so how a screen edits it.
 type Kind string
 
 const (
-	KindEnum   Kind = "enum"
-	KindModel  Kind = "model"
-	KindBool   Kind = "bool"
-	KindInt    Kind = "int"
-	KindText   Kind = "text"
-	KindKV     Kind = "kv"
-	KindTokens Kind = "tokens"
+	KindEnum  Kind = "enum"
+	KindModel Kind = "model"
+	// KindCodexModel is a model of the codex catalogue: picked from the list
+	// the codex daemon gives, never typed.
+	KindCodexModel Kind = "codexModel"
+	KindBool       Kind = "bool"
+	KindInt        Kind = "int"
+	KindText       Kind = "text"
+	KindKV         Kind = "kv"
+	KindTokens     Kind = "tokens"
 )
+
+// The agents a project's sessions start as. A parameter names the one it is
+// for; a parameter of both names none.
+const (
+	AgentClaude = "claude"
+	AgentCodex  = "codex"
+)
+
+// CodexNotStarted is why New and a restart of a project whose agent is codex
+// start nothing: claude started in its place would contradict the map.
+const CodexNotStarted = "the panel does not start codex sessions yet"
 
 // Level is where a value may be stored.
 type Level string
@@ -70,6 +88,9 @@ type Param struct {
 	Label string `json:"label"`
 	Help  string `json:"help,omitempty"`
 	Kind  Kind   `json:"kind"`
+	// Agent is the agent the parameter is for: claude, codex, or empty for
+	// one both read. A screen lays the parameters of each agent out apart.
+	Agent string `json:"agent,omitempty"`
 	// Levels are where a value may be stored.
 	Levels []Level `json:"levels"`
 	// Options are the values offered, in order. Held are accepted where they
@@ -110,9 +131,23 @@ const accountRoute = "moves the session into another account — change the cont
 
 const ownFlag = "the panel sets it from its own parameter"
 
+// What New and a restart of a project start, and the keys of each agent's
+// launch: a key of one agent is passed over by the launch of the other.
 var params = []Param{
 	{
-		Key: "transport", Label: "Where it lives", Kind: KindEnum,
+		Key: "agent", Label: "Agent", Kind: KindEnum,
+		Levels: []Level{LevelContour, LevelProject},
+		Help:   "what New and a restart of a project start; a session that runs keeps its agent",
+		Options: []Option{
+			{Value: AgentClaude, Label: "Claude Code", Meaning: "claude, as the Claude tab says"},
+			{Value: AgentCodex, Label: "Codex", Meaning: "a thread of the codex daemon of the contour, as the Codex tab says; " +
+				CodexNotStarted},
+		},
+		Unset: "Claude Code", Merge: MergeOverride,
+		Live: map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNextStart},
+	},
+	{
+		Key: "transport", Label: "Where it lives", Kind: KindEnum, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject},
 		Options: []Option{
 			{Value: TransportTmux, Label: "tmux",
@@ -124,13 +159,13 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
 	{
-		Key: "model", Label: "Model", Kind: KindModel,
+		Key: "model", Label: "Model", Kind: KindModel, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject},
 		Unset:  "the account's model", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "effort", Label: "Effort", Kind: KindEnum,
+		Key: "effort", Label: "Effort", Kind: KindEnum, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject},
 		Help:   "ultracode is not among them: claude does not take it at launch, a live session takes it from the composer",
 		Options: []Option{
@@ -144,7 +179,7 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "permissionMode", Label: "Permissions", Kind: KindEnum,
+		Key: "permissionMode", Label: "Permissions", Kind: KindEnum, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject},
 		Options: []Option{
 			{Value: "default", Label: "Manual", Meaning: "asks before every change"},
@@ -157,7 +192,7 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNow},
 	},
 	{
-		Key: "remoteControl", Label: "Remote Control", Kind: KindBool,
+		Key: "remoteControl", Label: "Remote Control", Kind: KindBool, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject},
 		Help:   "the session is reachable from the Claude app and claude.ai",
 		Unset:  "Off", Merge: MergeOverride,
@@ -171,7 +206,7 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNextStart},
 	},
 	{
-		Key: "panelTools", Label: "Panel tools", Kind: KindBool,
+		Key: "panelTools", Label: "Panel tools", Kind: KindBool, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject}, Default: true,
 		Help: "the session gets the panel's tools over MCP: the checklist of its work, briefs, a call to the " +
 			"phone, credentials asked for in a notepad of the panel, its own restart, letters to other sessions and " +
@@ -181,7 +216,7 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
 	{
-		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax,
+		Key: "contextCap", Label: "Context cap", Kind: KindInt, Unit: "%", Min: CapMin, Max: CapMax, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject}, Default: CapDefault, Host: true,
 		Help: "the share of the model's window a session works up to: the prompt stamp names it, and past it " +
 			"a session with Auto restart wraps up and starts afresh",
@@ -189,7 +224,7 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "autoRestart", Label: "Auto restart", Kind: KindBool,
+		Key: "autoRestart", Label: "Auto restart", Kind: KindBool, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject}, Default: false, Host: true,
 		Help: "past the context cap the session puts its work on disk and starts afresh in the same place, " +
 			"with the project's parameters; needs the context guard hook in the account",
@@ -197,14 +232,14 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: 500,
+		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: 500, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject}, Host: true,
 		Help:  "the first message of the session a restart brings up, automatic or asked for",
 		Unset: "the session comes back without a message and waits", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "env", Label: "Environment", Kind: KindKV,
+		Key: "env", Label: "Environment", Kind: KindKV, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject},
 		Unset:  "the host's own environment", Merge: MergeByKey,
 		Reserved: map[string]string{
@@ -215,7 +250,7 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
 	{
-		Key: "args", Label: "Extra arguments", Kind: KindTokens,
+		Key: "args", Label: "Extra arguments", Kind: KindTokens, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject},
 		Help:   "added to the end of the claude command, a word each — the project's list replaces the contour's",
 		Unset:  "none", Merge: MergeOverride,
@@ -236,6 +271,82 @@ var params = []Param{
 		},
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},
 	},
+	{
+		Key: "codexTransport", Label: "Where it lives", Kind: KindEnum, Agent: AgentCodex,
+		Levels: []Level{LevelContour, LevelProject},
+		Options: []Option{
+			{Value: "daemon", Label: "Daemon",
+				Meaning: "the thread lives in the daemon of the contour, and the panel is its client"},
+			{Value: TransportTmux, Label: "tmux", Meaning: "codex in a terminal in tmux, on the same daemon"},
+		},
+		Unset: "Daemon", Merge: MergeOverride,
+		Live: codexLive,
+	},
+	{
+		Key: "codexModel", Label: "Model", Kind: KindCodexModel, Agent: AgentCodex,
+		Levels: []Level{LevelContour, LevelProject},
+		Help:   "picked from the models the codex daemon lists",
+		Unset:  codexHome, Merge: MergeOverride,
+		Live: codexLive,
+	},
+	{
+		Key: "codexEffort", Label: "Effort", Kind: KindEnum, Agent: AgentCodex,
+		Levels: []Level{LevelContour, LevelProject},
+		Help:   "a model takes the efforts the codex daemon lists for it",
+		Options: []Option{
+			{Value: "low", Label: "Low"},
+			{Value: "medium", Label: "Medium"},
+			{Value: "high", Label: "High"},
+			{Value: "xhigh", Label: "Extra"},
+			{Value: "max", Label: "Max"},
+			{Value: "ultra", Label: "Ultra"},
+		},
+		Unset: codexHome, Merge: MergeOverride,
+		Live: codexLive,
+	},
+	{
+		// Never asking at all is held as bypassPermissions is for claude: a
+		// map that says it is kept, a tap on a phone does not choose it.
+		Key: "codexApproval", Label: "Approvals", Kind: KindEnum, Agent: AgentCodex,
+		Levels: []Level{LevelContour, LevelProject},
+		Options: []Option{
+			{Value: "untrusted", Label: "Untrusted", Meaning: "asks about everything not known to be safe"},
+			{Value: "on-request", Label: "On request", Meaning: "asks when the model asks"},
+		},
+		Held:  []string{"never"},
+		Unset: codexHome, Merge: MergeOverride,
+		Live: codexLive,
+	},
+	{
+		// Full access is held for the same reason: the sandbox off is chosen
+		// on the host or not at all.
+		Key: "codexSandbox", Label: "Sandbox", Kind: KindEnum, Agent: AgentCodex,
+		Levels: []Level{LevelContour, LevelProject},
+		Options: []Option{
+			{Value: "read-only", Label: "Read only", Meaning: "reads the machine, writes nothing"},
+			{Value: "workspace-write", Label: "Workspace", Meaning: "writes in the project's directory, reads the rest"},
+		},
+		Held:  []string{"danger-full-access"},
+		Unset: codexHome, Merge: MergeOverride,
+		Live: codexLive,
+	},
+}
+
+// What a codex key left unset comes to, and when a change of one reaches a
+// session: the panel changes nothing of a running codex thread, so only a new
+// start takes it.
+const codexHome = "what config.toml of the contour's codex home says"
+
+var codexLive = map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNextStart}
+
+// codexModelName is the shape of a codex model's name. Which models exist is
+// the daemon's to say; the shape keeps a name from reading as a flag or
+// carrying a space.
+var codexModelName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$`)
+
+// CodexModelName says whether a name has the shape of a codex model.
+func CodexModelName(name string) bool {
+	return codexModelName.MatchString(name)
 }
 
 var retired = []Retired{

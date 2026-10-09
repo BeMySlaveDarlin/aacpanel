@@ -15,6 +15,8 @@ import (
 func TestTheContourSettingsPage(t *testing.T) {
 	var got struct {
 		Rows           []string       `json:"rows"`
+		Tabs           []string       `json:"tabs"`
+		OpenTab        string         `json:"openTab"`
 		Groups         []string       `json:"groups"`
 		Raise          []string       `json:"raise"`
 		Files          string         `json:"files"`
@@ -39,8 +41,11 @@ func TestTheContourSettingsPage(t *testing.T) {
 	}
 	runFixtureServing(t, "contoursettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	if len(got.Rows) != 11 || got.Rows[0] != "Model" {
-		t.Errorf("the contour's rows are %v, meant the eleven a project has", got.Rows)
+	if len(got.Rows) != 12 || got.Rows[0] != "Agent" || got.Rows[1] != "First message" || got.Rows[2] != "Model" {
+		t.Errorf("the contour's rows are %v, meant the twelve a project has with claude's tab open", got.Rows)
+	}
+	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenTab != "Claude" {
+		t.Errorf("the tabs are %v with %q open, meant Claude and Codex with Claude open", got.Tabs, got.OpenTab)
 	}
 	if strings.Join(got.Groups, " ") != "home side" {
 		t.Errorf("the groups read %v", got.Groups)

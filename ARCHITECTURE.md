@@ -150,10 +150,12 @@ silently break the link until the container was recreated.
 **Questions go down the same socket.** Besides actions, the service asks the
 executor what it can do here, which permission a session is standing on,
 whether it has a window open, its models, its MCP servers, what it says about
-itself, its commands, one of its read-only screens of settings, and a question
-aside. A question changes nothing on the host and is written to no journal, but
-its list is closed the same way (`internal/action/validate.go`): an unknown one
-is refused without being parsed.
+itself, its commands, one of its read-only screens of settings, a question
+aside, and the models codex offers — asked of the daemon of any codex home,
+since a launch parameter is picked before any session runs. A question changes
+nothing on the host and is written to no journal, but its list is closed the
+same way (`internal/action/validate.go`): an unknown one is refused without
+being parsed.
 
 One question does write: the service hands the executor the context guard of
 every place the map knows — the cap and whether a session past it restarts —
@@ -681,9 +683,22 @@ project starts with is not a set of form fields but a schema
 how a project's value lies over the contour's, and when a running session takes
 a change — now, on a move between tmux and the stream, or at the next
 start. The screens are drawn from it (`GET /api/profiles/schema`, answered
-without the database), the launcher reads exactly its keys, and a test holds
-the two lists equal. Retired keys are named with the reason, not silently
-dropped.
+without the database), the claude launcher reads exactly its common keys and
+claude's, and a test holds the two lists equal. Retired keys are named with the
+reason, not silently dropped.
+
+**Every key is of an agent.** `agent` — Claude Code or Codex, Claude Code where
+nothing is said — is what New and a restart of a project start; it and the first
+message are common, every other key is claude's or codex's (`Param.Agent`), and
+a settings page lays each agent's keys out under a tab of its own. The codex
+keys — where codex lives, its model picked from what the codex daemon lists
+(the question `codex.models`), the effort, the approvals and the sandbox — are
+saved and checked like the rest, never asking and the sandbox off are held as
+`bypassPermissions` is, and an unset one leaves it to the `config.toml` of the
+codex home. The panel does not start codex sessions yet, and the price is
+plain: New and a restart of a project whose agent is codex are refused with
+that reason, never started as claude in its place. A conversation resumed or
+moved between tmux and the stream is claude's and goes on.
 
 **Effective values carry their layer.** A project's value comes from the
 project, its contour, the account, the panel's own default or claude

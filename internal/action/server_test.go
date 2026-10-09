@@ -478,3 +478,27 @@ func TestAQuestionAsideCrossesTheSocketWithItsHistory(t *testing.T) {
 		t.Errorf("the commands came back as %+v (%v)", cmds, err)
 	}
 }
+
+type codexExec struct{}
+
+func (codexExec) Execute(context.Context, Request) (string, error) { return "", nil }
+func (codexExec) CodexModels(context.Context) ([]CodexModel, error) {
+	return []CodexModel{{Model: "gpt-5.5", Name: "GPT-5.5", Efforts: []string{"low", "high"}, Effort: "low"}}, nil
+}
+
+// The models of codex are a question of no session: it crosses the socket to
+// an executor that knows them, and one that does not says so.
+func TestTheModelsOfCodexCrossTheSocket(t *testing.T) {
+	got, err := serve(t, codexExec{}).CodexModels(context.Background())
+	if err != nil || len(got) != 1 || got[0].Model != "gpt-5.5" || strings.Join(got[0].Efforts, " ") != "low high" ||
+		got[0].Effort != "low" {
+		t.Errorf("the models came back as %+v (%v)", got, err)
+	}
+	if _, err := serve(t, okExecutor("done")).CodexModels(context.Background()); err == nil ||
+		!strings.Contains(err.Error(), "models of codex") {
+		t.Errorf("an executor without codex answered %v", err)
+	}
+	if err := (Request{Ask: AskCodexModels, Target: "aacpanel"}).Validate(); err == nil {
+		t.Error("the models of codex were asked of a session")
+	}
+}

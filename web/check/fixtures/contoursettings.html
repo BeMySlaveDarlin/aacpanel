@@ -166,6 +166,8 @@ window.done = mode === "paths" ? (async () => {
     const out = {};
     await until(() => all(".pzrow").length > 0);
     out.rows = all(".pzrow").map((r) => text(r.querySelector(".pzname")));
+    out.tabs = all(".pztab").map(text);
+    out.openTab = text(document.querySelector(".pztab[aria-selected='true']"));
     out.groups = all(".pzgroupname").map(text);
     out.raise = all(".pzhint span").map(text);
     out.files = text(document.querySelector(".pzfacts"));

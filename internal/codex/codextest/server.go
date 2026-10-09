@@ -34,6 +34,20 @@ type Thread struct {
 	Flags  []string
 }
 
+// Model is a model of the catalogue the daemon lists.
+type Model struct {
+	ID      string
+	Model   string
+	Name    string
+	Efforts []string
+	Default string
+	Hidden  bool
+}
+
+// modelPage is how many models one answer of model/list holds: fewer than a
+// catalogue, so a client that reads one page sees only part of it.
+const modelPage = 2
+
 // Call is a request a client made, as it came.
 type Call struct {
 	Method string
@@ -84,6 +98,7 @@ type Server struct {
 	calls     []Call
 	answers   []Answer
 	approvals []*approval
+	models    []Model
 	nextID    int
 	turnN     int
 }
@@ -147,6 +162,13 @@ func (s *Server) Close() {
 		_ = c.ws.CloseNow()
 	}
 	_ = os.Remove(s.Socket())
+}
+
+// Catalogue sets the models the daemon lists.
+func (s *Server) Catalogue(models ...Model) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.models = models
 }
 
 // Add puts a thread on the daemon.
@@ -381,6 +403,8 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		ThreadID       string `json:"threadId"`
 		TurnID         string `json:"turnId"`
 		ExpectedTurnID string `json:"expectedTurnId"`
+		Cursor         string `json:"cursor"`
+		IncludeHidden  bool   `json:"includeHidden"`
 	}
 	_ = json.Unmarshal(raw, &p)
 	s.mu.Lock()
@@ -397,6 +421,9 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 			}
 		}
 		return map[string]any{"data": data, "nextCursor": nil}, nil, ""
+	}
+	if method == "model/list" {
+		return s.modelList(p.Cursor, p.IncludeHidden), nil, ""
 	}
 	t := s.threads[p.ThreadID]
 	if t == nil {
@@ -458,6 +485,40 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		return map[string]any{"data": data, "nextCursor": nil, "backwardsCursor": nil}, nil, ""
 	}
 	return nil, nil, "method not found: " + method
+}
+
+// modelList is a page of the catalogue as model/list gives it, the cursor
+// being where the page starts. A hidden model is listed only when asked for.
+func (s *Server) modelList(cursor string, hidden bool) map[string]any {
+	var shown []Model
+	for _, m := range s.models {
+		if hidden || !m.Hidden {
+			shown = append(shown, m)
+		}
+	}
+	from := 0
+	if cursor != "" {
+		_, _ = fmt.Sscanf(cursor, "at-%d", &from)
+	}
+	data := []any{}
+	var next any
+	for i := from; i < len(shown); i++ {
+		if len(data) == modelPage {
+			next = fmt.Sprintf("at-%d", i)
+			break
+		}
+		m := shown[i]
+		efforts := []any{}
+		for _, e := range m.Efforts {
+			efforts = append(efforts, map[string]any{"reasoningEffort": e, "description": "thinks " + e})
+		}
+		data = append(data, map[string]any{
+			"id": m.ID, "model": m.Model, "displayName": m.Name, "description": "a model of the catalogue",
+			"hidden": m.Hidden, "isDefault": i == 0, "supportedReasoningEfforts": efforts,
+			"defaultReasoningEffort": m.Default, "inputModalities": []string{"text", "image"},
+		})
+	}
+	return map[string]any{"data": data, "nextCursor": next}
 }
 
 func (t *thread) last() *turn {

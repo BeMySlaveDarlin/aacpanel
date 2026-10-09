@@ -1,9 +1,11 @@
 package launcher
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"aacpanel/internal/schema"
@@ -17,6 +19,8 @@ func sample(t *testing.T, p schema.Param) any {
 		return p.Options[len(p.Options)-1].Value
 	case schema.KindModel:
 		return "opus"
+	case schema.KindCodexModel:
+		return "gpt-5.5"
 	case schema.KindBool:
 		return true
 	case schema.KindInt:
@@ -32,13 +36,16 @@ func sample(t *testing.T, p schema.Param) any {
 	return nil
 }
 
-// The schema is the list of what a launch can say, and the launcher reads it
-// whole: every key of it lands in the parameters of the launch, a key the
-// host reads and a retired one pass without a word, and a key outside it is
-// named — so a parameter added to the screens without a launcher behind it
-// fails here, not on the host.
+// The schema is the list of what a launch can say, and the claude launcher
+// reads its part whole: every common key and every key of claude lands in the
+// parameters of the launch, a key the host reads, a key of codex and a retired
+// one pass without a word, and a key outside it is named — so a parameter
+// added to the screens without a launcher behind it fails here, not on the
+// host.
 func TestTheLauncherTakesEveryKeyOfTheSchema(t *testing.T) {
+	agents := map[string]int{}
 	for _, p := range schema.Params() {
+		agents[p.Agent]++
 		raw, err := json.Marshal(map[string]any{p.Key: sample(t, p)})
 		if err != nil {
 			t.Fatal(err)
@@ -47,12 +54,21 @@ func TestTheLauncherTakesEveryKeyOfTheSchema(t *testing.T) {
 		if len(warns) != 0 {
 			t.Errorf("%s: the launcher complained about a value the schema accepts: %v", p.Key, warns)
 		}
+		passed := p.Host || p.Agent == schema.AgentCodex
 		switch empty := reflect.DeepEqual(got, Params{}); {
-		case p.Host && !empty:
-			t.Errorf("%s is the host's, and the launch took it: %+v", p.Key, got)
-		case !p.Host && empty:
+		case passed && !empty:
+			t.Errorf("%s is not the claude launch's (host %v, agent %q), and the launch took it: %+v", p.Key, p.Host, p.Agent, got)
+		case !passed && empty:
 			t.Errorf("%s: the launcher read the key and kept nothing of it", p.Key)
 		}
+	}
+	for agent, n := range agents {
+		if agent != "" && agent != schema.AgentClaude && agent != schema.AgentCodex {
+			t.Errorf("%d parameters name agent %q, which no launcher reads", n, agent)
+		}
+	}
+	if agents[""] == 0 || agents[schema.AgentClaude] == 0 || agents[schema.AgentCodex] == 0 {
+		t.Errorf("the parameters by agent are %v: common, claude's and codex's are each expected", agents)
 	}
 	for _, r := range schema.RetiredKeys() {
 		if _, warns := parseParams(json.RawMessage(`{"` + r.Key + `":"x"}`)); len(warns) != 0 {
@@ -92,6 +108,15 @@ func TestPreviewIsTheCommandTheLaunchRuns(t *testing.T) {
 		t.Errorf("a project with the panel's tools off previews them: %v", off)
 	}
 
+	// The keys of codex and the agent itself put no word into the command of
+	// claude: the line of a project that names them is the line without them.
+	codex := json.RawMessage(`{"model":"opus","effort":"high","remoteControl":true,"intent":"go","args":["--verbose"],` +
+		`"agent":"claude","codexTransport":"tmux","codexModel":"gpt-5.5","codexEffort":"ultra",` +
+		`"codexApproval":"never","codexSandbox":"danger-full-access"}`)
+	if got := Preview("panel", codex); !reflect.DeepEqual(got, line) {
+		t.Errorf("the keys of codex changed the claude line:\n%+v\nagainst\n%+v", got, line)
+	}
+
 	stream := Preview("panel", json.RawMessage(`{"transport":"stream","remoteControl":true,"intent":"go"}`))
 	if stream.Words[1].Key != keyTransport || len(stream.Then) != 2 || stream.Then[0].Key != keyRemoteControl {
 		t.Errorf("the stream line is %+v", stream)
@@ -100,5 +125,19 @@ func TestPreviewIsTheCommandTheLaunchRuns(t *testing.T) {
 		if w.Text == "go" || w.Text == "--remote-control" {
 			t.Errorf("the stream command carries %q, which the holder does itself", w.Text)
 		}
+	}
+}
+
+// A project whose agent is codex starts no claude: New is refused with the
+// reason before anything is looked for, while a conversation that goes on is
+// claude's and the agent of the project does not stand in its way.
+func TestANewConversationOfACodexProjectIsRefused(t *testing.T) {
+	_, err := Run(context.Background(), Spec{Dir: "/srv/proj", Session: "shop", Launch: json.RawMessage(`{"agent":"codex"}`)})
+	if err == nil || !strings.Contains(err.Error(), schema.CodexNotStarted) {
+		t.Fatalf("a new conversation of a codex project: %v", err)
+	}
+	p, warns := parseParams(json.RawMessage(`{"agent":"cursor"}`))
+	if p.Agent != "" || len(warns) != 1 || !strings.Contains(warns[0], "the session starts claude") {
+		t.Errorf("an agent no launcher knows reads as %q with %v", p.Agent, warns)
 	}
 }

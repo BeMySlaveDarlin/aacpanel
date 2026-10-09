@@ -1,8 +1,9 @@
 // The settings page of a contour: its groups in the order they stand, the
-// defaults its projects start with — the same rows a project has, over what
-// the account says — with the map's hints about values its projects all repeat,
-// the account and its files as the host has them, the journal of the map and
-// the deletion of an empty contour. One draft and one bar, as on a project.
+// defaults its projects start with — the same rows and agent tabs a project
+// has, over what the account says — with the map's hints about values its
+// projects all repeat, the account and its files as the host has them, the
+// journal of the map and the deletion of an empty contour. One draft and one
+// bar, as on a project.
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -17,8 +18,10 @@ import { ModelPopover, ModelSheet, catalogRows, traitOf } from "./controls.js";
 import { paramOf, useSchema } from "./schema.js";
 import { authState } from "./pick.js";
 import { hooksWarning } from "./page.js";
+import { effortOffer, pickList, useCodexModels } from "./codex.js";
 import {
-    Bar, DragRows, LAUNCH_ORDER, LaunchRow, Layer, LeaveSheet, Where, launchAsk, modelHolds, problemOf, useDraft, usePreview,
+    AgentTabs, Bar, CODEX_LAUNCH, DragRows, LaunchRow, Layer, LeaveSheet, Where, keysOf, launchAsk, modelHolds,
+    problemOf, useAgentTab, useDraft, usePreview,
 } from "./kit.js";
 
 // The button says what the confirmation sheet will say: profile.remove.
@@ -210,14 +213,17 @@ function Files({ contour, draft, catalog, setField }) {
 export function ContourSettings({ contour, catalog, order, onClose, onDone, onRemove, onForm, onJournal, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
-    const [modelOpen, setModelOpen] = useState(false);
+    const [picking, setPicking] = useState("");
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState("");
-    const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, modelOpen, onDirty);
+    const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, picking !== "", onDirty);
     topRef.current = useBackClose(true, onClose, hold).isTop;
     const wide = useWide();
     const preview = usePreview("contour", contour.id, JSON.stringify(contour.launch || {}), launchAsk(draft));
     const changes = count(draft);
+    // Nothing below a contour names an agent: what it says is what it starts.
+    const [tab, setTab] = useAgentTab(own(draft, contour, "agent") || "claude");
+    const codex = useCodexModels(tab === "codex");
     const groups = (contour.groups || []).filter((g) => g && g.id);
     const baseOrder = groups.map((g) => g.id);
     const groupOrder = fieldOf(draft, { order: baseOrder }, "order") || baseOrder;
@@ -305,19 +311,35 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
         onUnset: () => set(key, null),
     });
 
-    const modelPicker = () => html`<${ModelPopover}
-        open=${modelOpen}
-        param=${paramOf(schema, "model")}
-        eff=${effOf("model")}
-        mine=${own(draft, contour, "model")}
-        catalog=${catalog}
-        contour=${contour.name}
-        onPick=${(value) => set("model", value)}
-        onClose=${() => setModelOpen(false)}
-        bar=${bar()}
-    />`;
+    // The list a model is picked from: claude's from the catalogue of the
+    // account, codex's from what its daemon lists.
+    const pickerOf = (key) => ({
+        param: paramOf(schema, key),
+        eff: effOf(key),
+        mine: own(draft, contour, key),
+        catalog,
+        contour: contour.name,
+        ...pickList(key, codex),
+        onPick: (value) => set(key, value),
+        onClose: () => setPicking(""),
+        bar: bar(),
+    });
+    const modelPicker = (key) => html`<${ModelPopover} open=${picking === key} ...${pickerOf(key)} />`;
     const bar = () => html`<${Bar} changes=${changes} problem=${problem} busy=${busy}
         onSave=${save} onDiscard=${() => { setConflict(""); setDraft({ fields: {}, launch: {} }); }} onExit=${runExit} />`;
+
+    const offer = effortOffer(codex, effective);
+    const rows = (keys) => keys.map((key) => {
+        const p = rowProps(key);
+        if (!p.param) return null;
+        const mine = own(draft, contour, key);
+        const picked = p.param.kind === "model" || p.param.kind === "codexModel";
+        return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}
+            rows=${pickList(key, codex).rows} offer=${key === "codexEffort" ? offer.efforts : null}
+            strike=${key === "codexEffort" ? offer.strike : strikes[key]}
+            picker=${picked && wide ? modelPicker(key) : null} note=${touched(draft, key) ? followers(contour, key) : ""}
+            onSet=${(value) => set(key, value)} onModel=${() => setPicking(key)} />`;
+    });
 
     const raised = raises(params, contour, effective);
     const copied = copies(params, contour).filter((c) => !touched(draft, c.key));
@@ -351,24 +373,28 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
                 <button class="btn" type="button" onClick=${() => unpin(c)}>Remove the copies</button>
             </div>
         `)}
-        <${Where}
-            param=${paramOf(schema, "transport")}
-            draft=${draft}
-            owner=${contour}
-            effective=${effective}
-            below=${below}
-            params=${params}
-            onPick=${(value) => set("transport", value)}
+        ${rows(keysOf(params, ""))}
+        <${AgentTabs}
+            open=${tab}
+            onOpen=${setTab}
+            claude=${html`
+                <${Where}
+                    param=${paramOf(schema, "transport")}
+                    draft=${draft}
+                    owner=${contour}
+                    effective=${effective}
+                    below=${below}
+                    params=${params}
+                    onPick=${(value) => set("transport", value)}
+                />
+                ${touched(draft, "transport") && html`<p class="pzhelp pznote">${followers(contour, "transport")}</p>`}
+                ${rows(keysOf(params, "claude"))}
+            `}
+            codex=${html`
+                <p class="pzhelp pzsoon">${CODEX_LAUNCH}</p>
+                ${rows(keysOf(params, "codex"))}
+            `}
         />
-        ${touched(draft, "transport") && html`<p class="pzhelp pznote">${followers(contour, "transport")}</p>`}
-        ${LAUNCH_ORDER.map((key) => {
-            const p = rowProps(key);
-            if (!p.param) return null;
-            const mine = own(draft, contour, key);
-            return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}
-                strike=${strikes[key]} picker=${key === "model" && wide ? modelPicker() : null} note=${touched(draft, key) ? followers(contour, key) : ""}
-                onSet=${(value) => set(key, value)} onModel=${() => setModelOpen(true)} />`;
-        })}
         ${pinned.map((h) => html`
             <div class="pzhint" key=${`pin-${h.key}`}>
                 <span>${h.text}</span>
@@ -409,19 +435,7 @@ export function ContourSettings({ contour, catalog, order, onClose, onDone, onRe
 
         ${bar()}
 
-        ${!wide && html`
-            <${ModelSheet}
-            open=${modelOpen}
-            param=${paramOf(schema, "model")}
-            eff=${effOf("model")}
-            mine=${own(draft, contour, "model")}
-            catalog=${catalog}
-            contour=${contour.name}
-            onPick=${(value) => set("model", value)}
-            onClose=${() => setModelOpen(false)}
-            bar=${bar()}
-        />
-        `}
+        ${!wide && html`<${ModelSheet} open=${picking !== ""} ...${pickerOf(picking || "model")} />`}
 
         <${LeaveSheet}
             open=${leaving}

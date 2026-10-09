@@ -251,6 +251,22 @@ func (s *Server) launchOf(found mapProject) (*action.Project, error) {
 	}, nil
 }
 
+// startsClaude refuses New and a restart of a project whose agent is codex:
+// the panel starts claude alone, and claude started in codex's place would
+// contradict the map. A conversation resumed from the archive is not asked:
+// it is claude's whatever the project says now.
+func startsClaude(project string, launch json.RawMessage) error {
+	var l struct {
+		Agent string `json:"agent"`
+	}
+	_ = json.Unmarshal(launch, &l)
+	if l.Agent != schema.AgentCodex {
+		return nil
+	}
+	return fmt.Errorf("the agent of project %q is codex, and %s — set its agent to Claude Code to start claude there",
+		project, schema.CodexNotStarted)
+}
+
 func (s *Server) worktrees() map[string]string {
 	if s.host == nil {
 		return nil

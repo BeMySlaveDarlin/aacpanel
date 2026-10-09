@@ -268,7 +268,7 @@ for".
 | `TestMigrationsHaveUniqueNumbers` | no two migrations take the same number: a duplicate stops the service from coming up |
 | `TestRetiredMigrationNumbersStayRetired` | the number of a removed migration never gets a file again: a database that logged it would skip the new file without a word |
 | `TestActionTextsPromiseNoSpecificEnvironment` | action texts do not promise somebody else's environment |
-| `TestTheLauncherTakesEveryKeyOfTheSchema` | the launcher reads exactly the launch parameters the schema lists: a key one of them knows and the other does not is saved and then never launched |
+| `TestTheLauncherTakesEveryKeyOfTheSchema` | the claude launcher reads exactly the launch parameters the schema lists as common or claude's, and passes codex's over: a key one of them knows and the other does not is saved and then never launched |
 | `TestPreviewIsTheCommandTheLaunchRuns` | the command a settings page shows is the one the launch runs, built by the same code |
 | `TestProfilesSchemaNeedsNoDatabase` | the schema is answered with the database down: the screens are drawn from it |
 | `TestSchemaIsWellFormed` | every parameter of the schema names its levels, what an absent value leaves to and when a live session takes a change |

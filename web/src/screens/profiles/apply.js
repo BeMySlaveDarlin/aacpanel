@@ -16,7 +16,8 @@ export function offers(keys, effective, params, session) {
     const out = [];
     for (const key of keys) {
         const param = params.find((p) => p.key === key);
-        if (!param) continue;
+        // A running session is claude's: a key of codex reaches none of it.
+        if (!param || param.agent === "codex") continue;
         const value = valueOf(effective, key).value;
         const said = value === null ? param.unset : label(param, value);
         const live = (param.live || {})[onStream ? "stream" : "tmux"];

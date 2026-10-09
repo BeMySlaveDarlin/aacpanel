@@ -34,6 +34,8 @@ type Response struct {
 	Terms []Term `json:"terms,omitempty"`
 
 	Secrets *Secrets `json:"secrets,omitempty"`
+
+	CodexModels []CodexModel `json:"codexModels,omitempty"`
 }
 
 // Failed builds a refusal response.

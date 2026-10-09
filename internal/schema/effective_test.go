@@ -23,7 +23,7 @@ func valueOf(t *testing.T, vs []Value, key string) Value {
 func TestEffectiveNamesTheLayerOfEveryValue(t *testing.T) {
 	account := map[string]any{"model": "opus[1m]", "effort": "xhigh", "permissionMode": "auto"}
 	contour := map[string]any{"remoteControl": true, "effort": "high", "env": map[string]any{"A": "1", "B": "2"}}
-	project := map[string]any{"remoteControl": false, "intent": "", "env": map[string]any{"B": "3"}}
+	project := map[string]any{"remoteControl": false, "intent": "", "env": map[string]any{"B": "3"}, "codexModel": "gpt-5.5"}
 
 	got := Effective(account, contour, project)
 	if len(got) != len(Params()) {
@@ -49,6 +49,9 @@ func TestEffectiveNamesTheLayerOfEveryValue(t *testing.T) {
 		{"autoRestart", false, LayerPanel},
 		{"restartIntent", nil, LayerClaude},
 		{"panelTools", true, LayerPanel},
+		{"agent", nil, LayerClaude},
+		{"codexModel", "gpt-5.5", LayerProject},
+		{"codexApproval", nil, LayerClaude},
 	}
 	for _, c := range cases {
 		v := valueOf(t, got, c.key)

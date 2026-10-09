@@ -1,9 +1,10 @@
-// The settings page of one project: the command its next launch runs at the
-// top, where the session lives as two cards, the launch parameters as rows
-// drawn from the schema, the project itself, the map's hints and the
-// deletion. Every change goes into a draft: one bar at the foot says how many
-// there are and saves them together, and a draft the launch would refuse
-// holds the bar with the reason and one press out of it.
+// The settings page of one project: the agent it starts and its first
+// message at the top, then a tab per agent — claude's with the command its
+// next launch runs, where the session lives as two cards and its rows, codex's
+// with its own rows drawn from the schema — the project itself, the map's
+// hints and the deletion. Every change goes into a draft: one bar at the foot
+// says how many there are and saves them together, and a draft the launch
+// would refuse holds the bar with the reason and one press out of it.
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
@@ -19,8 +20,10 @@ import { Apply } from "./apply.js";
 import { sessionsOf } from "../sessions/of.js";
 import { isCodex } from "../../agent.js";
 import { paramOf, useSchema } from "./schema.js";
+import { effortOffer, pickList, useCodexModels } from "./codex.js";
 import {
-    Bar, LAUNCH_ORDER, LaunchRow, Layer, LeaveSheet, Where, launchAsk, modelHolds, problemOf, useDraft, usePreview,
+    AgentTabs, Bar, CODEX_LAUNCH, LaunchRow, Layer, LeaveSheet, Where, keysOf, launchAsk, modelHolds, problemOf,
+    useAgentTab, useDraft, usePreview,
 } from "./kit.js";
 
 // The button says what the confirmation sheet will say: project.remove.
@@ -47,17 +50,20 @@ function Account({ contour, effective, stream }) {
 export function ProjectSettings({ project, contour, group, catalog, sessions, tools, onClose, onDone, onRemove, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
-    const [modelOpen, setModelOpen] = useState(false);
+    const [picking, setPicking] = useState("");
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState("");
     const [saved, setSaved] = useState(null);
-    const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, modelOpen, onDirty);
+    const { draft, setDraft, leaving, setLeaving, leave, hold, topRef } = useDraft(onClose, picking !== "", onDirty);
     topRef.current = useBackClose(true, onClose, hold).isTop;
     const wide = useWide();
     const preview = usePreview("project", project.id,
         `${JSON.stringify(project.launch || {})}:${project.session}:${project.path}`,
         launchAsk(draft, ["session", "path"]));
     const changes = count(draft);
+    const effectiveNow = (preview && preview.effective) || overlay(project.effective, draft, contour.effective);
+    const [tab, setTab] = useAgentTab(valueOf(effectiveNow, "agent").value || "claude");
+    const codex = useCodexModels(tab === "codex");
 
     const groups = (contour.groups || []).filter((g) => g && g.id);
     const groupNow = fieldOf(draft, project, "groupId") ?? project.groupId;
@@ -70,7 +76,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
     if (!schema) return html`${head}<p class=${error ? "hint crit" : "empty"}>${error || "Loading…"}</p>`;
 
     const params = schema.params || [];
-    const effective = (preview && preview.effective) || overlay(project.effective, draft, contour.effective);
+    const effective = effectiveNow;
     const line = (preview && preview.line) || project.line;
     const contourEffective = contour.effective || [];
     const transport = valueOf(effective, "transport").value || "tmux";
@@ -140,19 +146,34 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
         onUnset: () => set(key, null),
     });
 
-    const modelPicker = () => html`<${ModelPopover}
-        open=${modelOpen}
-        param=${paramOf(schema, "model")}
-        eff=${effOf("model")}
-        mine=${own(draft, project, "model")}
-        catalog=${catalog}
-        contour=${contour.name}
-        onPick=${(value) => set("model", value)}
-        onClose=${() => setModelOpen(false)}
-        bar=${bar()}
-    />`;
+    // The list a model is picked from: claude's from the catalogue of the
+    // account, codex's from what its daemon lists.
+    const pickerOf = (key) => ({
+        param: paramOf(schema, key),
+        eff: effOf(key),
+        mine: own(draft, project, key),
+        catalog,
+        contour: contour.name,
+        ...pickList(key, codex),
+        onPick: (value) => set(key, value),
+        onClose: () => setPicking(""),
+        bar: bar(),
+    });
+    const modelPicker = (key) => html`<${ModelPopover} open=${picking === key} ...${pickerOf(key)} />`;
     const bar = () => html`<${Bar} changes=${changes} problem=${problem} busy=${busy}
         onSave=${save} onDiscard=${() => { setConflict(""); setDraft(emptyDraft()); }} onExit=${runExit} />`;
+
+    const offer = effortOffer(codex, effective);
+    const rows = (keys) => keys.map((key) => {
+        const p = rowProps(key);
+        if (!p.param) return null;
+        const mine = own(draft, project, key);
+        const picked = p.param.kind === "model" || p.param.kind === "codexModel";
+        return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}
+            rows=${pickList(key, codex).rows} offer=${key === "codexEffort" ? offer.efforts : null}
+            strike=${key === "codexEffort" ? offer.strike : strikes[key]}
+            picker=${picked && wide ? modelPicker(key) : null} onSet=${(value) => set(key, value)} onModel=${() => setPicking(key)} />`;
+    });
 
     const hints = pins(params, draft, project, contourEffective);
     const pathNow = String(fieldOf(draft, project, "path") || "");
@@ -164,32 +185,37 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
     return html`
         ${head}
 
-        <div class="pzlineblock">
-            <${LaunchLine} line=${line} changed=${new Set([...Object.keys(draft.launch), ...("session" in draft.fields ? ["session"] : [])])} />
-            <${Account} contour=${contour} effective=${effective} stream=${transport === "stream"} />
-        </div>
         <${Apply} saved=${saved && saved.keys.length > 0 ? saved : null} params=${params}
             sessions=${running} onClose=${() => setSaved(null)} />
 
-        <div class="pfsub">where it lives</div>
-        <${Where}
-            param=${paramOf(schema, "transport")}
-            draft=${draft}
-            owner=${project}
-            effective=${effective}
-            below=${contourEffective}
-            params=${params}
-            onPick=${(value) => set("transport", value)}
-        />
-
         <div class="pfsub">launch</div>
-        ${LAUNCH_ORDER.map((key) => {
-            const p = rowProps(key);
-            if (!p.param) return null;
-            const mine = own(draft, project, key);
-            return html`<${LaunchRow} key=${key} p=${p} mine=${mine} catalog=${catalog} trait=${trait} model=${model}
-                strike=${strikes[key]} picker=${key === "model" && wide ? modelPicker() : null} onSet=${(value) => set(key, value)} onModel=${() => setModelOpen(true)} />`;
-        })}
+        ${rows(keysOf(params, ""))}
+
+        <${AgentTabs}
+            open=${tab}
+            onOpen=${setTab}
+            claude=${html`
+                <div class="pzlineblock">
+                    <${LaunchLine} line=${line} changed=${new Set([...Object.keys(draft.launch), ...("session" in draft.fields ? ["session"] : [])])} />
+                    <${Account} contour=${contour} effective=${effective} stream=${transport === "stream"} />
+                </div>
+                <div class="pfsub">where it lives</div>
+                <${Where}
+                    param=${paramOf(schema, "transport")}
+                    draft=${draft}
+                    owner=${project}
+                    effective=${effective}
+                    below=${contourEffective}
+                    params=${params}
+                    onPick=${(value) => set("transport", value)}
+                />
+                ${rows(keysOf(params, "claude"))}
+            `}
+            codex=${html`
+                <p class="pzhelp pzsoon">${CODEX_LAUNCH}</p>
+                ${rows(keysOf(params, "codex"))}
+            `}
+        />
 
         <div class="pfsub">project</div>
         <label class="pffield">
@@ -253,19 +279,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
 
         ${bar()}
 
-        ${!wide && html`
-            <${ModelSheet}
-            open=${modelOpen}
-            param=${paramOf(schema, "model")}
-            eff=${effOf("model")}
-            mine=${own(draft, project, "model")}
-            catalog=${catalog}
-            contour=${contour.name}
-            onPick=${(value) => set("model", value)}
-            onClose=${() => setModelOpen(false)}
-            bar=${bar()}
-        />
-        `}
+        ${!wide && html`<${ModelSheet} open=${picking !== ""} ...${pickerOf(picking || "model")} />`}
 
         <${LeaveSheet}
             open=${leaving}

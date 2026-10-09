@@ -20,8 +20,14 @@ import { ToastHost } from "/src/ui/toasts.js";
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const real = window.fetch.bind(window);
 
+// The test names the case it runs: the whole draft by default, a model that
+// takes no effort and no Auto, or a contour whose projects start codex.
+const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
+const codexMode = mode === "codex";
+
 const account = { model: "opus[1m]", effort: "xhigh", permissionMode: "auto" };
 const contourEff = [
+    codexMode ? { key: "agent", value: "codex", layer: "contour" } : { key: "agent", value: null, layer: "claude" },
     { key: "transport", value: null, layer: "claude" },
     { key: "model", value: "opus[1m]", layer: "account" },
     { key: "effort", value: "xhigh", layer: "account" },
@@ -33,6 +39,11 @@ const contourEff = [
     { key: "restartIntent", value: "Carry on", layer: "contour" },
     { key: "env", value: null, layer: "claude" },
     { key: "args", value: null, layer: "claude" },
+    { key: "codexTransport", value: null, layer: "claude" },
+    { key: "codexModel", value: null, layer: "claude" },
+    { key: "codexEffort", value: null, layer: "claude" },
+    { key: "codexApproval", value: null, layer: "claude" },
+    { key: "codexSandbox", value: null, layer: "claude" },
 ];
 
 // effectiveOf lays a project's own launch over the contour's values, as the
@@ -57,17 +68,16 @@ function lineOf(launch, session) {
     return { words };
 }
 
-// The test names the case it runs: the whole draft by default, or a model
-// that takes no effort and no Auto.
-const mode = await real("/mode").then((r) => (r.ok ? r.text() : ""));
 let project = {
     id: 4, groupId: 3, name: "host session", path: "/srv/proj/home", session: "helios", base: "", sort: 0,
-    launch: mode === "haiku" ? { model: "haiku", effort: "high" } : { remoteControl: true, permissionMode: "auto" },
+    launch: mode === "haiku" ? { model: "haiku", effort: "high" }
+        : codexMode ? { codexApproval: "never" } : { remoteControl: true, permissionMode: "auto" },
 };
 project.effective = effectiveOf(project.launch);
 project.line = lineOf(project.launch, "helios");
 const contour = () => ({
-    id: 3, name: "personal", auth: "builtin", contextGuard: true, account, launch: { contextCap: 80, restartIntent: "Carry on" },
+    id: 3, name: "personal", auth: "builtin", contextGuard: true, account,
+    launch: { contextCap: 80, restartIntent: "Carry on", ...(codexMode ? { agent: "codex" } : {}) },
     effective: contourEff,
     groups: [{ id: 3, name: "home", projects: [project] }, { id: 5, name: "side", projects: [] }],
 });
@@ -75,9 +85,17 @@ const contour = () => ({
 const previews = [];
 const patches = [];
 const actions = [];
+let codexAsks = 0;
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u === "/api/profiles/schema") return real(u);
+    if (u === "/api/codex/models") {
+        codexAsks += 1;
+        return json({ state: "ok", models: [
+            { model: "gpt-5.5-codex", name: "GPT-5.5 Codex", efforts: ["low", "medium", "high", "xhigh"], effort: "medium" },
+            { model: "gpt-5.5", name: "GPT-5.5", efforts: ["low", "high"], effort: "low" },
+        ] });
+    }
     if (u === "/api/projects/4/preview") {
         const body = JSON.parse(init.body);
         previews.push(body);
@@ -158,7 +176,65 @@ const typeInto = async (el, value) => {
     await sleep(60);
 };
 
-window.done = mode === "haiku" ? (async () => {
+const tab = (name) => all(".pztab").find((b) => text(b) === name);
+const openTab = () => text(document.querySelector(".pztab[aria-selected='true']"));
+const chips = (name) => Array.from((row(name) || document).querySelectorAll(".pzopt")).map(text);
+const names = () => all(".pzrow").map((r) => text(r.querySelector(".pzname")));
+
+window.done = codexMode ? (async () => {
+    const out = {};
+    await until(() => all(".pzrow").length > 0 && tab("Codex"));
+    out.tabs = all(".pztab").map(text);
+    out.openAtStart = openTab();
+    out.rows = names();
+    out.soon = text(document.querySelector(".pztabpanel .pzsoon"));
+    out.lineInCodex = Boolean(document.querySelector(".pzlineblock"));
+    out.agentFrom = text(row("Agent").querySelector(".pzfrom"));
+    out.approvals = chips("Approvals");
+    out.approvalHeld = text(row("Approvals").querySelector(".pzhelp.warn"));
+    out.sandboxes = chips("Sandbox");
+    out.placesOfCodex = chips("Where it lives");
+    out.effortsBefore = chips("Effort");
+
+    row("Model").querySelector(".pzpick").click();
+    const sheet = await until(() => document.querySelector(".sheet.on .pzlist"));
+    await until(() => sheet.querySelectorAll(".pzline").length > 1);
+    out.models = Array.from(sheet.querySelectorAll(".pzlinename")).map(text);
+    out.modelsSaid = text(document.querySelector(".sheet.on .pzsheet > .pzhelp"));
+    Array.from(sheet.querySelectorAll(".pzline")).find((b) => text(b.querySelector(".pzlinename")) === "GPT-5.5").click();
+    await until(() => bar());
+    document.querySelector(".sheet.on .sheetclose").click();
+    await until(() => !document.querySelector(".sheet.on"));
+    out.modelNow = text(row("Model").querySelector(".pzpickval"));
+    await until(() => chips("Effort").length === 2);
+    out.effortsOfModel = chips("Effort");
+    chip("Effort", "High").click();
+    await until(() => text(bar().querySelector(".pzbarsay")) === "2 changes");
+    row("Approvals").querySelector(".pzback").click();
+    await until(() => text(bar().querySelector(".pzbarsay")) === "3 changes");
+    out.approvalAfter = text(row("Approvals").querySelector(".pzfrom"));
+
+    tab("Claude").click();
+    await until(() => document.querySelector(".pzlineblock"));
+    out.claudeRows = names();
+    await until(() => previews.some((p) => p.launchSet && p.launchSet.codexEffort === "high"));
+    await until(() => document.querySelector(".pzlineblock .lw"));
+    out.claudeDrafted = drafted();
+    out.codexAsks = codexAsks;
+
+    tab("Codex").click();
+    await until(() => row("Sandbox"));
+    chip("Agent", "Claude Code").click();
+    await until(() => openTab() === "Claude");
+    out.followed = openTab();
+
+    bar().querySelector(".btn.primary").click();
+    await until(() => patches.length > 0);
+    out.patch = patches[0];
+    await until(() => document.querySelector(".pzapply"));
+    out.applyLater = all(".pzapply .pzhelp").map(text);
+    return out;
+})() : mode === "haiku" ? (async () => {
     await until(() => all(".pzrow").length > 0);
     await sleep(300);
     return {

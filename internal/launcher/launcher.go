@@ -16,6 +16,7 @@ import (
 
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/hostcfg"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/stream"
 )
 
@@ -65,6 +66,11 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	}
 
 	params, warns := parseParams(spec.Launch)
+	// A conversation that goes on is claude's whatever the project says now;
+	// a new one of a project whose agent is codex is not claude's to start.
+	if params.Agent == schema.AgentCodex && spec.Resume == "" {
+		return Report{}, fmt.Errorf("the project's agent is codex: %s", schema.CodexNotStarted)
+	}
 
 	choice, err := claudeBin(spec.ClaudeBin)
 	if err != nil {

@@ -158,10 +158,11 @@ export function Meaning({ param, value }) {
     return html`<span class="pzhelp">${option.label}: ${option.meaning}</span>`;
 }
 
-// ModelRow shows the model as its outcome and opens the sheet of choices.
-export function ModelRow({ param, eff, mine, catalog, onOpen }) {
+// ModelRow shows the model as its outcome and opens the sheet of choices:
+// claude's from the catalogue of the account, or the rows given — codex's.
+export function ModelRow({ param, eff, mine, catalog, rows, onOpen }) {
     const value = mine !== null ? mine : eff.value;
-    const row = modelRows(catalog).find((r) => r.value === value);
+    const row = (rows || modelRows(catalog)).find((r) => r.value === value);
     return html`
         <button class="pzpick" type="button" onClick=${onOpen}>
             <span class="pzpickval" data-inherited=${mine === null ? "1" : "0"}>
@@ -195,14 +196,17 @@ export function ModelPopover({ open, param, onClose, ...rest }) {
 // ModelList is the list of models: a check, the name and what choosing it
 // means; the last row goes back to what the layers below give. The draft's
 // bar is at its foot: Save there saves the whole draft, not the model alone.
-function ModelList({ param, eff, mine, catalog, contour, onPick, bar }) {
-    const rows = modelRows(catalog);
+// Claude's models come from the catalogue of the account; codex's are given
+// as rows, with what is said of where they came from.
+function ModelList({ param, eff, mine, catalog, contour, rows: given, note, onPick, bar }) {
+    const rows = given || modelRows(catalog);
     const fromCatalogue = catalogRows(catalog).length > 0;
     const below = eff.below || { layer: "claude", value: null };
+    const agent = param.agent === "codex" ? "codex" : "claude";
     return html`
         <div class="pzsheet">
             <h3>${param.label}</h3>
-            <p class="pzhelp">${fromCatalogue
+            <p class="pzhelp">${note !== undefined ? note : fromCatalogue
                 ? "aliases follow the newest of a family; the catalogue of the host pins a version"
                 : `account ${contour}: the catalogue was not read — aliases, not checked against this account`}</p>
             <div class="pzlist" role="listbox" aria-label=${param.label}>
@@ -223,7 +227,7 @@ function ModelList({ param, eff, mine, catalog, contour, onPick, bar }) {
                     <span class="pzcheck">${mine === null ? Icon.check() : ""}</span>
                     <span class="pzlinebody">
                         <span class="pzlinename">${below.layer === "claude"
-                            ? "Leave it to claude"
+                            ? `Leave it to ${agent}`
                             : `Use ${sourceOf(below.layer)}'s value (${label(param, below.value)})`}</span>
                         <span class="pzhelp">${below.layer === "claude" ? param.unset : "followed when it changes there"}</span>
                     </span>

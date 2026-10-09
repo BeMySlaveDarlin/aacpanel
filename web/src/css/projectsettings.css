@@ -1,5 +1,6 @@
-/* The settings page of a project: the command on top, where the session lives
-   as two cards, a row per launch parameter, one bar of the draft at the foot.
+/* The settings page of a project: the agent on top, then a tab per agent —
+   claude's with the command and where the session lives as two cards — a row
+   per launch parameter, one bar of the draft at the foot.
    What the project sets itself is filled, what it gets from below is dashed,
    what the draft changed and did not save is marked. */
 
@@ -19,6 +20,21 @@
     font-size: var(--t-xs); font-weight: 500; color: var(--wait);
     margin-left: .35rem;
 }
+
+/* The keys of each agent under its own tab, the open one underlined; the
+   Codex tab says what stands in place of the command. */
+.pztabs {
+    display: flex; gap: 1.1rem; margin-top: .9rem;
+    border-bottom: var(--hair) solid var(--line);
+}
+.pztab {
+    font: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--ink-faint);
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    padding: .45rem 0; margin-bottom: calc(-1 * var(--hair)); cursor: pointer;
+}
+.pztab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.pztabpanel { display: flex; flex-direction: column; padding-top: .5rem; }
+.pzsoon { padding: .2rem 0 .4rem; }
 
 /* Where it lives: two cards, the chosen one lit, the inherited one dashed. */
 .pzwhere { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .4rem; }

@@ -54,7 +54,8 @@ func TestTheProjectSettingsPageStrikesWhatTheModelDoesNotTake(t *testing.T) {
 }
 
 // The settings page of a project draws a row per launch parameter of the
-// schema; a change goes into the draft and the one bar counts it; the command
+// schema — the common ones, then claude's under its open tab; a change goes
+// into the draft and the one bar counts it; the command
 // is asked of the service again with the draft and the changed words are
 // marked; the feed turns the permissions live; a draft the launch refuses
 // holds Save with one press out; a plain Save goes without a sheet and sends
@@ -103,8 +104,8 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
-	want := []string{"Model", "Effort", "Permissions", "Remote Control", "First message", "Panel tools", "Context cap",
-		"Auto restart", "Message after a restart", "Environment", "Extra arguments"}
+	want := []string{"Agent", "First message", "Model", "Effort", "Permissions", "Remote Control", "Panel tools",
+		"Context cap", "Auto restart", "Message after a restart", "Environment", "Extra arguments"}
 	if strings.Join(got.Rows, "|") != strings.Join(want, "|") {
 		t.Errorf("the rows are %v, meant %v", got.Rows, want)
 	}
@@ -180,5 +181,100 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	if got.Previews == 0 {
 		t.Error("the command was never asked of the service for the draft")
+	}
+}
+
+// A project whose contour starts codex opens on the Codex tab: the common
+// keys stand above both tabs, the codex keys under their own, and the line in
+// place of the command says when codex is launched from the panel. What a
+// phone does not choose is not offered — never asking, the sandbox off — and
+// one the map stores is said. The model is picked from the daemon's list, and
+// the efforts offered are the chosen model's. The command of claude is under
+// its own tab and no codex change marks a word of it. Picking Claude Code
+// opens its tab, and Save sends what changed key by key.
+func TestTheProjectSettingsPageLaysTheAgentsOutInTabs(t *testing.T) {
+	var got struct {
+		Tabs           []string       `json:"tabs"`
+		OpenAtStart    string         `json:"openAtStart"`
+		Rows           []string       `json:"rows"`
+		Soon           string         `json:"soon"`
+		LineInCodex    bool           `json:"lineInCodex"`
+		AgentFrom      string         `json:"agentFrom"`
+		Approvals      []string       `json:"approvals"`
+		ApprovalHeld   string         `json:"approvalHeld"`
+		Sandboxes      []string       `json:"sandboxes"`
+		PlacesOfCodex  []string       `json:"placesOfCodex"`
+		EffortsBefore  []string       `json:"effortsBefore"`
+		Models         []string       `json:"models"`
+		ModelsSaid     string         `json:"modelsSaid"`
+		ModelNow       string         `json:"modelNow"`
+		EffortsOfModel []string       `json:"effortsOfModel"`
+		ApprovalAfter  string         `json:"approvalAfter"`
+		ClaudeRows     []string       `json:"claudeRows"`
+		ClaudeDrafted  []string       `json:"claudeDrafted"`
+		CodexAsks      int            `json:"codexAsks"`
+		Followed       string         `json:"followed"`
+		Patch          map[string]any `json:"patch"`
+		ApplyLater     []string       `json:"applyLater"`
+	}
+	serve := schemaAnswer(map[string]any{})
+	serve["/mode"] = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("codex")) })
+	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, serve, &got)
+
+	if strings.Join(got.Tabs, "|") != "Claude|Codex" || got.OpenAtStart != "Codex" {
+		t.Errorf("the tabs are %v with %q open, meant Codex open — the agent the contour starts", got.Tabs, got.OpenAtStart)
+	}
+	if want := "Agent|First message|Where it lives|Model|Effort|Approvals|Sandbox"; strings.Join(got.Rows, "|") != want {
+		t.Errorf("the rows are %v, meant %s", got.Rows, want)
+	}
+	if got.Soon != "launching codex from the panel comes with the codex stream mode" || got.LineInCodex {
+		t.Errorf("the Codex tab says %q and shows the command of claude: %v", got.Soon, got.LineInCodex)
+	}
+	if got.AgentFrom != "Codex — the contour" {
+		t.Errorf("the agent from the contour reads %q", got.AgentFrom)
+	}
+	if strings.Join(got.Approvals, "|") != "Untrusted|On request" || strings.Join(got.Sandboxes, "|") != "Read only|Workspace" {
+		t.Errorf("approvals %v and sandboxes %v are offered — never asking and the sandbox off are not", got.Approvals, got.Sandboxes)
+	}
+	if !strings.HasPrefix(got.ApprovalHeld, "never — kept as the map stores it") {
+		t.Errorf("the stored never reads %q", got.ApprovalHeld)
+	}
+	if strings.Join(got.PlacesOfCodex, "|") != "Daemon|tmux" || len(got.EffortsBefore) != 6 {
+		t.Errorf("codex lives in %v and offers the efforts %v before a model is chosen", got.PlacesOfCodex, got.EffortsBefore)
+	}
+	if strings.Join(got.Models, "|") != "GPT-5.5 Codex|GPT-5.5|Leave it to codex" || got.ModelsSaid != "the models the codex daemon lists" {
+		t.Errorf("the list of models is %v, said %q", got.Models, got.ModelsSaid)
+	}
+	if got.ModelNow != "GPT-5.5" || strings.Join(got.EffortsOfModel, "|") != "Low|High" {
+		t.Errorf("the model reads %q and offers %v, meant GPT-5.5 offering Low and High", got.ModelNow, got.EffortsOfModel)
+	}
+	if got.ApprovalAfter != "what config.toml of the contour's codex home says" {
+		t.Errorf("with the stored never removed the approvals read %q", got.ApprovalAfter)
+	}
+	if len(got.ClaudeRows) != 12 || got.ClaudeRows[2] != "Model" || got.ClaudeRows[11] != "Extra arguments" {
+		t.Errorf("the Claude tab's rows are %v", got.ClaudeRows)
+	}
+	if len(got.ClaudeDrafted) != 0 {
+		t.Errorf("codex changes marked words of the claude command: %v", got.ClaudeDrafted)
+	}
+	if got.CodexAsks != 1 {
+		t.Errorf("the models of codex were asked %d times, meant once the tab opened", got.CodexAsks)
+	}
+	if got.Followed != "Claude" {
+		t.Errorf("after picking Claude Code the %q tab is open", got.Followed)
+	}
+	set, _ := got.Patch["launchSet"].(map[string]any)
+	unset, _ := got.Patch["launchUnset"].([]any)
+	if len(got.Patch) != 2 || len(set) != 3 || set["codexModel"] != "gpt-5.5" || set["codexEffort"] != "high" ||
+		set["agent"] != "claude" || len(unset) != 1 || unset[0] != "codexApproval" {
+		t.Errorf("Save sent %v, meant the model, the effort and the agent set and the stored approval removed", got.Patch)
+	}
+	for _, line := range got.ApplyLater {
+		if !strings.HasPrefix(line, "Agent Claude Code") {
+			t.Errorf("a running claude session is offered %q — a key of codex reaches none of it", line)
+		}
+	}
+	if len(got.ApplyLater) == 0 {
+		t.Error("the running sessions were told nothing of the agent")
 	}
 }

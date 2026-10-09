@@ -70,6 +70,14 @@ func checkOne(level Level, key string, value any) string {
 		if !action.ModelName(s) {
 			return fmt.Sprintf("%q is neither an alias nor a model id", s)
 		}
+	case KindCodexModel:
+		s, ok := value.(string)
+		if !ok {
+			return fmt.Sprintf("a model name is expected, not %s", typeName(value))
+		}
+		if !CodexModelName(s) {
+			return fmt.Sprintf("%q is not the name of a codex model", s)
+		}
 	case KindBool:
 		if _, ok := value.(bool); !ok {
 			return fmt.Sprintf("on or off is expected, not %s", typeName(value))

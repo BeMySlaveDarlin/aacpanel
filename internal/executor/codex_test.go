@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -244,5 +245,39 @@ func TestAClaudeSessionOfTheSameNameWins(t *testing.T) {
 	th, err := e.codexSession(codexName)
 	if err != nil || th != nil {
 		t.Errorf("a live claude session is named %s, and the action went to codex: %+v, %v", codexName, th, err)
+	}
+}
+
+// The models codex offers come from the daemon's own catalogue, every page of
+// it, each with the efforts it takes and the one it starts at; a model codex
+// keeps out of its picker stays out. The question names no session and asks
+// no thread: a launch parameter is picked before any session runs.
+func TestCodexModelsAreTheDaemonsCatalogue(t *testing.T) {
+	srv, e := onCodex(t, func(srv *codextest.Server) {
+		srv.Catalogue(
+			codextest.Model{ID: "gpt-5.5-codex", Model: "gpt-5.5-codex", Name: "GPT-5.5 Codex",
+				Efforts: []string{"low", "medium", "high", "xhigh"}, Default: "medium"},
+			codextest.Model{ID: "gpt-5.5", Model: "gpt-5.5", Name: "GPT-5.5", Efforts: []string{"minimal", "low", "high"}, Default: "low"},
+			codextest.Model{ID: "gpt-old", Model: "gpt-old", Name: "GPT old", Efforts: []string{"medium"}, Hidden: true},
+			codextest.Model{ID: "gpt-5.5-mini", Model: "gpt-5.5-mini", Name: "GPT-5.5 mini", Efforts: []string{"medium"}, Default: "medium"},
+		)
+	})
+	got, err := e.CodexModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []action.CodexModel{
+		{Model: "gpt-5.5-codex", Name: "GPT-5.5 Codex", Efforts: []string{"low", "medium", "high", "xhigh"}, Effort: "medium"},
+		{Model: "gpt-5.5", Name: "GPT-5.5", Efforts: []string{"minimal", "low", "high"}, Effort: "low"},
+		{Model: "gpt-5.5-mini", Name: "GPT-5.5 mini", Efforts: []string{"medium"}, Effort: "medium"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the models are\n%+v\nmeant\n%+v", got, want)
+	}
+	if n := len(srv.Calls("model/list")); n != 2 {
+		t.Errorf("model/list was asked %d times — the catalogue is two pages", n)
+	}
+	if n := len(srv.Calls("thread/resume")) + len(srv.Calls("turn/start")); n != 0 {
+		t.Errorf("listing the models touched a thread %d times", n)
 	}
 }

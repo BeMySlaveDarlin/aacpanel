@@ -93,6 +93,19 @@ func (c *Client) Terms(ctx context.Context) ([]Term, error) {
 	return resp.Terms, nil
 }
 
+// CodexModels asks for the models codex offers. The list crosses the socket
+// with omitempty, so an empty catalogue arrives as nil.
+func (c *Client) CodexModels(ctx context.Context) ([]CodexModel, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskCodexModels})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.CodexModels, nil
+}
+
 // Secrets asks for the secrets the host keeps.
 func (c *Client) Secrets(ctx context.Context) (*Secrets, error) {
 	resp, err := c.Do(ctx, Request{Ask: AskSecrets})
