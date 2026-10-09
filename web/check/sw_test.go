@@ -148,6 +148,24 @@ func TestWorkerLetsAFileOnItsWayToADevicePastIt(t *testing.T) {
 	}
 }
 
+// A search of a conversation goes around the worker: kept in the data cache,
+// its answer would come back with no connection as the matches of a
+// transcript that has moved on, and the host reading a long transcript is a
+// slow answer the worker's five seconds would cut off.
+func TestWorkerLetsTheSearchOfAConversationPastIt(t *testing.T) {
+	const origin = "https://panel.example"
+	got := runWorker(t, []swWorld{
+		{Name: "the search", Requests: []string{"/api/chat/search?session=warden&q=kestrel"}},
+		{Name: "the feed beside it", Requests: []string{"/api/chat?session=warden&limit=40"}},
+	})
+	if strings.Join(got[0].Asked, " ") != "" || strings.Join(got[0].Bodies, " ") != "past the worker" {
+		t.Errorf("the worker took the search: it asked %v and answered %v", got[0].Asked, got[0].Bodies)
+	}
+	if strings.Join(got[1].Asked, " ") != origin+"/api/chat?session=warden&limit=40" {
+		t.Errorf("the feed went to %v — the search let more than itself past the worker", got[1].Asked)
+	}
+}
+
 func TestChatImagesTravelAsBytes(t *testing.T) {
 	src := screenSrc(t, "src/screens/chat.js")
 	made := strings.Count(src, "createObjectURL")

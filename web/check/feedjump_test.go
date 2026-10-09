@@ -50,7 +50,7 @@ func TestFeedJumpAndStickinessShareOneEndRule(t *testing.T) {
 			t.Fatalf("%s not found — the test is looking in the wrong place", feed)
 		}
 		feedBox := jsUntil(t, feed, body, `class="chatfeed"`, "\n        </div>")
-		if !strings.Contains(feedBox, "${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}") {
+		if !strings.Contains(feedBox, "${!atEnd && html`<${JumpToEnd} onJump=${toEnd}") {
 			t.Errorf("%s: the feed does not draw the jump by the shared end rule, or draws it outside the feed — "+
 				"outside, the feed's own edge no longer keeps it above the composer", feed)
 		}

@@ -18,6 +18,7 @@ from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
 from .locate import subagent_path, transcript_cwd, transcript_path
 from .mail import agent_mail
 from .repo import answer as repo_answer
+from .search import refusal, search
 from .spots import call, image
 from .uploads import sent_as, upload, uploads_home
 from .window import feed
@@ -250,6 +251,21 @@ def _answer(request):
         except OSError as e:
             return {"ok": False, "error": f"the letters were not read: {e}"}
         return {"ok": True, "session": session, "letters": letters}
+
+    # The feed holds a window of the conversation and the search goes through
+    # the whole of it: here, where the transcript lies, rather than on the
+    # screen, which has only the window, or in the service, which has no
+    # parser of transcripts.
+    want = request.get("search")
+    if isinstance(want, dict):
+        why = refusal(want.get("q"))
+        if why:
+            return {"ok": False, "error": why}
+        try:
+            found = search(path, want["q"], want.get("limit"), sidechain=bool(sub))
+        except (OSError, ValueError, TypeError) as e:
+            return {"ok": False, "error": f"the transcript was not searched: {e}"}
+        return {"ok": True, "session": session, **found}
 
     before = request.get("before")
     after = request.get("after")

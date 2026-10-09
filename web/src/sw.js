@@ -15,6 +15,13 @@ const SHELL_URL = "/app";
 // copy of itself stored on the same phone.
 const DOWNLOAD_URL = "/api/chat/file/download";
 
+// A search of a conversation goes around the worker as well. Its answer belongs
+// to one question at one moment: a copy kept for the time without a connection
+// would show the matches of a transcript that has moved on since, and the host
+// reading a long transcript may take longer than the five seconds the worker
+// gives an answer.
+const SEARCH_URL = "/api/chat/search";
+
 let ENDPOINTS = [];
 
 let BASE = "";
@@ -181,7 +188,7 @@ self.addEventListener("fetch", (event) => {
 
     const url = new URL(request.url);
 
-    if (url.pathname === DOWNLOAD_URL) return;
+    if (url.pathname === DOWNLOAD_URL || url.pathname === SEARCH_URL) return;
 
     if (request.headers.get("Accept") === "text/event-stream") return;
 

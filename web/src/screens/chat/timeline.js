@@ -443,7 +443,9 @@ function DeskColumn({ groups, checklist, onOpen }) {
 // way, as { key, role, node } — set as rows are, so a message keeps its place
 // when the transcript echoes it; onOpen gets a group of marks when one is
 // tapped; checklist is the checklist of the work, drawn at the top of the desk
-// column.
+// column. A row carries the position of its item and its number among the
+// rows of one role its record gave: the search names a match by them, and
+// finds its row on screen by them.
 export function FeedGrid({ rows, wide, row, tail, checklist, onOpen }) {
     const { prose, marks } = useMemo(() => book(rows), [rows]);
     const col = useRef(null);
@@ -458,7 +460,8 @@ export function FeedGrid({ rows, wide, row, tail, checklist, onOpen }) {
         <div class=${`feedgrid${wide ? " desk" : ""}`}>
             <div class="feedcol" ref=${col}>
                 ${prose.map((item, n) => html`
-                    <div class=${`feedrow r-${item.role}`} key=${`${item.pos}-${item.role}-${n}`}>${row(item, n)}</div>
+                    <div class=${`feedrow r-${item.role}`} key=${`${item.pos}-${item.role}-${n}`}
+                         data-pos=${item.pos} data-nth=${item.nth || undefined}>${row(item, n)}</div>
                 `)}
                 ${(tail || []).map((t) => html`<div class=${`feedrow r-${t.role}`} key=${t.key}>${t.node}</div>`)}
             </div>

@@ -1,4 +1,5 @@
-// The feed window: the first read, paging upwards and the stream of new items.
+// The feed window: the first read, paging upwards and the stream of new items,
+// and a window around one item away from the end of the conversation.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
@@ -8,6 +9,10 @@ import { merge } from "./feed.js";
 import { idParam } from "./api.js";
 
 export const PAGE = 40;
+
+// A window around an item asks for this many items on either side of it: one
+// page in all, the item in the middle of it.
+const AROUND = PAGE / 2;
 
 const FRESH_RETRY_MS = 3000;
 
@@ -59,20 +64,33 @@ export function wakeNeeded(visibility, readyState) {
 // JumpToEnd renders the button that takes a scrolled-up feed to its end. It
 // lives inside the feed as its last child: the feed's own bottom edge is the
 // one place that stays above the composer, the chips and whatever else stands
-// under the feed, on every screen and with nothing under it at all.
-export function JumpToEnd({ onJump }) {
+// under the feed, on every screen and with nothing under it at all. Over a
+// window away from the end it says so in words: the end it goes back to is not
+// below the rows on screen, and a bare arrow reads as one more page down.
+export function JumpToEnd({ onJump, away }) {
     return html`
-        <button class="feedjump" type="button" aria-label="to the end of the conversation"
-                onClick=${onJump}>${Icon.chevron()}</button>
+        <button class=${`feedjump${away ? " feedaway" : ""}`} type="button"
+                aria-label=${away ? "back to the end of the conversation" : "to the end of the conversation"}
+                onClick=${onJump}>${away && html`<span>Back to the end</span>`}${Icon.chevron()}</button>
     `;
 }
 
 // useFeedWindow returns the feed and everything needed to show it.
+//
+// The feed shows one of two lists. The tail is the end of the conversation: the
+// first read, the pages above it and whatever the stream brings. A window away
+// from the end is a piece around one item, asked for by show(pos) when the item
+// is not among the rows on screen; it pages up as the tail does and down past
+// its own last row. While the window is on screen the tail goes on taking the
+// stream out of sight — the rows the reader is looking at do not move under new
+// messages — and toEnd puts the tail back, at its end, with everything that
+// arrived in between.
 export function useFeedWindow({ name, id, live }) {
     const [state, setState] = useState({ kind: "loading", items: [] });
     const [more, setMore] = useState(false);
     const feedRef = useRef(null);
     const topRef = useRef(null);
+    const bottomRef = useRef(null);
     const busyRef = useRef(false);
     const lastRef = useRef(null);
     const firstRef = useRef(null);
@@ -81,8 +99,22 @@ export function useFeedWindow({ name, id, live }) {
     const putRef = useRef(null);
     const watchRef = useRef(null);
     const [atEnd, setAtEnd] = useState(true);
+    // The window away from the end, or null while the tail is on screen. The
+    // ref is what callbacks made in an earlier render read; trip tells one
+    // window from the next, so a page asked for one is not sewn onto another.
+    const [away, setAway] = useState(null);
+    const awayRef = useRef(null);
+    const tripRef = useRef(0);
+    const tailRef = useRef(state.items);
+    tailRef.current = state.items;
+    // drawnRef holds what show() waits on: called once the window it asked for
+    // is on screen. homeRef says the window was left for the end of the tail.
+    const drawnRef = useRef(null);
+    const homeRef = useRef(false);
 
     const base = `session=${encodeURIComponent(name)}${idParam(id)}`;
+    const baseRef = useRef(base);
+    baseRef.current = base;
 
     // The key of the feed is read out of a ref: an observer or a listener made for one
     // box outlives the render that made it, and would go on writing the position of a
@@ -92,12 +124,23 @@ export function useFeedWindow({ name, id, live }) {
 
     // settle reads the position of the box once and tells both sides of it, and the
     // feed is written down where it stands — every scroll of the box comes through
-    // here, the reader's own and the ones the feed makes for itself.
+    // here, the reader's own and the ones the feed makes for itself. The bottom of a
+    // window away from the end is not the end: there the feed neither follows new
+    // messages nor hides the way back.
     const settle = (box) => {
-        const near = nearEnd(box);
+        const near = !awayRef.current && nearEnd(box);
         stickRef.current = near;
         setAtEnd(near);
         keepAt(keyRef.current, box);
+    };
+
+    // leave puts a window on screen in place of the tail, or the tail back in
+    // place of a window.
+    const leave = (win) => {
+        awayRef.current = win;
+        stickRef.current = !win;
+        setAway(win);
+        if (win) setAtEnd(false);
     };
 
     // put returns a box to where the feed was left: to the end if the feed was
@@ -115,6 +158,9 @@ export function useFeedWindow({ name, id, live }) {
 
     useEffect(() => {
         const at = leftAt(feedKey(name, id));
+        awayRef.current = null;
+        homeRef.current = false;
+        setAway(null);
         stickRef.current = !at || at.end;
         putRef.current = null;
         // A feed left scrolled up gets its button back from the reading of the box it
@@ -248,33 +294,130 @@ export function useFeedWindow({ name, id, live }) {
         if (watchRef.current) watchRef.current.disconnect();
     }, []);
 
+    // A window put on screen: show() goes on once its rows are drawn. The tail
+    // put back by toEnd: the box goes to its end — the end as it is now, with
+    // what the stream brought while the window was on screen.
+    useLayoutEffect(() => {
+        const drawn = drawnRef.current;
+        if (away && drawn) {
+            drawnRef.current = null;
+            drawn(true);
+        }
+        if (away || !homeRef.current) return;
+        homeRef.current = false;
+        const box = feedRef.current;
+        if (!box) return;
+        box.scrollTop = box.scrollHeight;
+        settle(box);
+    }, [away]);
+
+    // ask reads a piece of the conversation: what comes before a position or after it.
+    const ask = async (where, limit) => {
+        const r = await fetch(`/api/chat?${baseRef.current}&limit=${limit}&${where}`);
+        if (!r.ok) throw new Error((await r.text()).trim() || `response ${r.status}`);
+        return r.json();
+    };
+
+    // trip names the list on screen: the tail, or one window away from the end.
+    const tripOf = () => (awayRef.current ? awayRef.current.trip : 0);
+
     const loadUp = async () => {
         const box = feedRef.current;
-        const before = firstRef.current;
+        const win = awayRef.current;
+        const before = win ? win.first : firstRef.current;
         if (before == null || !box || busyRef.current) return;
         busyRef.current = true;
+        const trip = tripOf();
         const wasHeight = box.scrollHeight;
         const wasTop = box.scrollTop;
         try {
-            const r = await fetch(`/api/chat?${base}&limit=${PAGE}&before=${before}`);
-            if (!r.ok) throw new Error((await r.text()).trim() || `response ${r.status}`);
-            const data = await r.json();
-            firstRef.current = data.first ?? before;
-            setMore(Boolean(data.moreBefore));
-            setState((prev) => ({ ...prev, items: merge(data.items || [], prev.items) }));
+            const data = await ask(`before=${before}`, PAGE);
+            if (win) {
+                if (tripOf() !== trip) return;
+                const now = awayRef.current;
+                leave({ ...now, items: merge(data.items || [], now.items),
+                        first: data.first ?? before, moreBefore: Boolean(data.moreBefore) });
+            } else {
+                firstRef.current = data.first ?? before;
+                setMore(Boolean(data.moreBefore));
+                setState((prev) => ({ ...prev, items: merge(data.items || [], prev.items) }));
+            }
+            // The page grows over the rows the reader is on, and the box keeps them
+            // where they were — unless another list took the screen meanwhile.
             requestAnimationFrame(() => {
+                if (tripOf() !== trip) return;
                 box.scrollTop = wasTop + (box.scrollHeight - wasHeight);
             });
         } catch (e) {
-            setMore(false);
+            if (win) {
+                if (tripOf() === trip) leave({ ...awayRef.current, moreBefore: false });
+            } else {
+                setMore(false);
+            }
             setState((prev) => ({ ...prev, note: String(e.message || e) }));
         } finally {
             busyRef.current = false;
         }
     };
 
+    // loadDown takes a window away from the end a page further down. A page
+    // after a position has no word for "there is more": a full page says there
+    // may be, a short one that the end of the conversation is reached.
+    const loadDown = async () => {
+        const box = feedRef.current;
+        const win = awayRef.current;
+        if (!win || !win.moreAfter || !box || busyRef.current) return;
+        busyRef.current = true;
+        try {
+            const data = await ask(`after=${win.last}`, PAGE);
+            if (tripOf() !== win.trip) return;
+            const now = awayRef.current;
+            const items = data.items || [];
+            leave({ ...now, items: merge(now.items, items), last: data.last ?? now.last,
+                    moreAfter: items.filter((item) => item.pos > now.last).length >= PAGE });
+        } catch (e) {
+            if (tripOf() === win.trip) leave({ ...awayRef.current, moreAfter: false });
+            setState((prev) => ({ ...prev, note: String(e.message || e) }));
+        } finally {
+            busyRef.current = false;
+        }
+    };
+
+    // show makes the item at a position part of the list on screen, and resolves
+    // once it is drawn: at once for an item already there, otherwise after a
+    // window around it has been read and has taken the place of the list. The
+    // window is two reads side by side — up to the item and past it — since a
+    // position names a record, not a count of rows to step back by. Resolves
+    // false when the conversation changed under the reads.
+    const show = async (pos) => {
+        const shown = awayRef.current ? awayRef.current.items : tailRef.current;
+        if (shown.some((item) => item.pos === pos)) return true;
+        const key = keyRef.current;
+        const [up, down] = await Promise.all([ask(`before=${pos + 1}`, AROUND), ask(`after=${pos}`, AROUND)]);
+        if (keyRef.current !== key) return false;
+        const later = (down.items || []).filter((item) => item.pos > pos).length;
+        tripRef.current += 1;
+        // A window asked for while another was still on its way takes its place:
+        // the one before it will not be drawn.
+        if (drawnRef.current) drawnRef.current(false);
+        const drawn = new Promise((resolve) => { drawnRef.current = resolve; });
+        leave({
+            trip: tripRef.current,
+            items: merge(up.items || [], down.items || []),
+            first: up.first ?? pos,
+            last: down.last ?? pos,
+            moreBefore: Boolean(up.moreBefore),
+            moreAfter: later >= AROUND,
+        });
+        return drawn;
+    };
+
+    const shownItems = away ? away.items : state.items;
+    const upMore = away ? away.moreBefore : more;
+    const downMore = Boolean(away && away.moreAfter);
+
     useEffect(() => {
-        if (!more || state.kind !== "ready") return undefined;
+        if (!upMore || state.kind !== "ready") return undefined;
         const box = feedRef.current;
         const sentinel = topRef.current;
         if (!box || !sentinel || typeof IntersectionObserver !== "function") return undefined;
@@ -284,17 +427,40 @@ export function useFeedWindow({ name, id, live }) {
         }, { root: box, rootMargin: "300px 0px 0px 0px" });
         io.observe(sentinel);
         return () => io.disconnect();
-    }, [more, state.kind, state.items.length]);
+    }, [upMore, state.kind, shownItems.length, away]);
+
+    useEffect(() => {
+        if (!downMore || state.kind !== "ready") return undefined;
+        const box = feedRef.current;
+        const sentinel = bottomRef.current;
+        if (!box || !sentinel || typeof IntersectionObserver !== "function") return undefined;
+
+        const io = new IntersectionObserver((entries) => {
+            if (entries.some((e) => e.isIntersecting)) loadDown();
+        }, { root: box, rootMargin: "0px 0px 300px 0px" });
+        io.observe(sentinel);
+        return () => io.disconnect();
+    }, [downMore, state.kind, shownItems.length, away]);
 
     const onScroll = (event) => settle(event.currentTarget);
 
     // toEnd takes the feed to its end and makes it follow new messages again.
+    // From a window away from the end that is the tail put back, and the box
+    // goes to its end once the tail is drawn.
     const toEnd = () => {
         const box = feedRef.current;
         if (!box) return;
+        if (awayRef.current) {
+            homeRef.current = true;
+            leave(null);
+            return;
+        }
         box.scrollTop = box.scrollHeight;
         settle(box);
     };
 
-    return { state, more, feedRef, topRef, onScroll, atEnd, toEnd };
+    return {
+        state, shown: shownItems, away: Boolean(away), more: upMore, later: downMore,
+        feedRef, topRef, bottomRef, onScroll, atEnd, toEnd, show,
+    };
 }

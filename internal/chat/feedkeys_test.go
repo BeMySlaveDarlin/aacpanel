@@ -49,14 +49,23 @@ var notTheFeed = map[string]string{
 	"queue.py:remember:texts":              "the texts the queue has drawn, by text",
 	"tail.py:view:_locks":                  "the locks of the parsed ends of transcripts, by file",
 	"tail.py:view:_pieces":                 "the parsed ends of transcripts, by file",
-	"records.py:parse:calls":               "the calls waiting for a result, by id",
-	"records.py:parse:asks":                "the rounds of questions waiting for an answer, by id",
-	"records.py:parse:briefs":              "the calls that may publish a brief or ask for a secret, by id",
+	"records.py:rows_of:calls":             "the calls waiting for a result, by id",
+	"records.py:rows_of:asks":              "the rounds of questions waiting for an answer, by id",
+	"records.py:rows_of:briefs":            "the calls that may publish a brief or ask for a secret, by id",
+	"records.py:parse:seen":                "how many rows of each role a record gave so far, by role",
 	"records.py:cutoff:calls":              "the calls waiting for a result, by id",
 	"records.py:command_card:unanswered":   "the commands waiting for an answer, by the record it will name",
 	"records.py:command_answer:unanswered": "the commands waiting for an answer, by the record it will name",
 	"window.py:fold:window":                "the list of the rows of a window, by place",
 	"window.py:fold:<return>":              "the window itself, under Reply",
+	"search.py:take:counted":               "the hits of the rows a later record may draw again, by place, role and number",
+}
+
+// Dicts of the collector that answer a request of their own rather than make
+// a row of the feed, by file, and the structures the service carries them in:
+// a key with no field there is dropped on the way just the same.
+var answersOfTheirOwn = map[string][]any{
+	"search.py": {Match{}, Found{}},
 }
 
 // Keys a row carries that the collector reads and the screen never does: they
@@ -105,6 +114,16 @@ func TestEveryKeyTheFeedCarriesHasAField(t *testing.T) {
 	rows, kept := 0, map[string]bool{}
 	for _, p := range places {
 		if elsewhere(p) != "" {
+			continue
+		}
+		if held, ok := answersOfTheirOwn[p.File]; ok {
+			names := jsonNames(held...)
+			for _, key := range p.Keys {
+				if !names[key] {
+					t.Errorf("%s:%s:%d puts %q into an answer (%q) whose structures have nowhere to put it: "+
+						"the service drops it on the way to the screen", p.File, p.Function, p.Line, key, p.Var)
+				}
+			}
 			continue
 		}
 		if strings.ToUpper(p.Var) == p.Var && p.Var != "" {

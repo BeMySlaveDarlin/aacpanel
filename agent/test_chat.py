@@ -3574,3 +3574,68 @@ class WakeAcrossPolls(unittest.TestCase):
                          "the fix is addressed to a row other than the one on screen")
         self.assertEqual(rows[0].get("fixes"), "me",
                          "without the flag the client will not merge the card with the bubble and will show both")
+
+
+class SeveralRowsOfOneRecord(unittest.TestCase):
+    """A record of several rows of one role shows them all, and a row drawn again shows once."""
+
+    def setUp(self):
+        self.dir = test_barrier.tmp_dir()
+        self.addCleanup(self.dir.cleanup)
+        self.path = os.path.join(self.dir.name, f"{UUID}.jsonl")
+
+    def write(self, *raws, mode="w"):
+        with open(self.path, mode, encoding="utf-8") as f:
+            f.write("".join(raws))
+
+    LETTERS = ('<teammate-message teammate_id="a">{"from":"a","result":"first report"}</teammate-message>\n'
+               '<teammate-message teammate_id="b">{"from":"b","result":"second report"}</teammate-message>')
+
+    def rows(self, items):
+        return [(i["role"], i.get("text"), i.get("nth")) for i in items if i["role"] in ("me", "ai", "mail")]
+
+    def test_letters_of_several_agents_in_one_record_are_rows_of_their_own(self):
+        self.write(user(self.LETTERS))
+        got = chat.feed(self.path)["items"]
+        self.assertEqual(self.rows(got), [("mail", "first report", None), ("mail", "second report", 1)])
+        self.assertEqual(got[0]["pos"], got[1]["pos"], "both letters stand at the place of their record")
+
+    def test_an_answer_of_several_blocks_of_text_is_a_row_a_block(self):
+        self.write(user("go"), assistant(text_block("first part"), tool_block("Bash", command="ls"),
+                                         text_block("second part")))
+        got = chat.feed(self.path)["items"]
+        self.assertEqual([i["role"] for i in got], ["me", "ai", "tools", "ai"])
+        self.assertEqual(self.rows(got), [("me", "go", None), ("ai", "first part", None), ("ai", "second part", 1)])
+
+    def test_a_record_read_again_does_not_draw_its_rows_twice(self):
+        self.write(user(self.LETTERS), assistant(text_block("one"), text_block("two")))
+        first = chat.feed(self.path)
+        self.assertEqual(len(first["items"]), 4)
+        self.write(user("next"), mode="a")
+        again = chat.feed(self.path)
+        self.assertEqual(self.rows(again["items"]),
+                         [("mail", "first report", None), ("mail", "second report", 1),
+                          ("ai", "one", None), ("ai", "two", 1), ("me", "next", None)],
+                         "the piece read on gave the rows of a record it had read once more")
+        self.assertEqual(self.rows(chat.feed(self.path, after=first["last"])["items"]), [("me", "next", None)])
+        page = chat.feed(self.path, before=again["items"][-1]["pos"])
+        self.assertEqual(self.rows(page["items"]), self.rows(first["items"]))
+
+    def test_a_bubble_the_queue_drew_comes_again_in_its_place_and_unnumbered(self):
+        self.write(enqueue("first", "2026-10-09T10:00:00Z"), enqueue("second", "2026-10-09T10:00:01Z"),
+                   assistant(text_block("read both"), text_block("and answered")))
+        got = chat.feed(self.path)["items"]
+        self.assertEqual([(i["role"], i.get("text"), i.get("state"), i.get("nth")) for i in got],
+                         [("me", "first", None, None), ("me", "second", None, None),
+                          ("ai", "read both", None, None), ("ai", "and answered", None, 1)],
+                         "a delivered bubble took the place of another row or came twice")
+        delivered = [i for i in chat.parse(json.loads(assistant(text_block("x"))), 99, self.pending_of_two())
+                     if i["role"] == "me"]
+        self.assertEqual([(i["pos"], i.get("nth")) for i in delivered], [(0, None), (10, None)],
+                         "rows drawn again are numbered as rows of their record")
+
+    def pending_of_two(self):
+        pending = chat.Pending()
+        chat.parse(json.loads(enqueue("first", "2026-10-09T10:00:00Z")), 0, pending)
+        chat.parse(json.loads(enqueue("second", "2026-10-09T10:00:01Z")), 10, pending)
+        return pending

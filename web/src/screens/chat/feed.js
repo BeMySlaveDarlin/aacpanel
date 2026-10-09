@@ -80,7 +80,12 @@ export function merge(items, incoming) {
         // calls never seen go on to be placed.
         const item = raw.role === "tools" ? renew(out, raw) : raw;
         if (!item) continue;
+        // A row is found by its place, its number among the rows of one role
+        // its record gives — the letters of several agents at once — and its
+        // role, or the role of the row it is drawn again over. A row drawn
+        // again carries no number: it stands over the first row of its role.
         const i = out.findIndex((was) => was.pos === item.pos
+            && (was.nth || 0) === (item.nth || 0)
             && (was.role === item.role || was.role === item.fixes)
             && (item.role !== "tools" || was.kind === item.kind));
         if (i >= 0) {

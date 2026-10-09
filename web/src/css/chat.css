@@ -319,12 +319,126 @@ a.mcprow.toolrow { text-decoration: none; }
     bottom: calc(.5rem + env(safe-area-inset-bottom));
 }
 
+/* Over a window away from the end the button says where it goes: the end is
+   not under the rows on screen. The same height, so the room it gives back in
+   flow stays the same; the ground of a toast, so its words are read over the
+   words of the feed behind it. */
+.feedjump.feedaway {
+    width: auto;
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    padding: 0 .55rem 0 .75rem;
+    background: var(--toast-bg);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--t-sm);
+    opacity: 1;
+}
+
+/* ---- the search of the conversation ----
+
+   A bar over the feed, in the glass of the button at its end: the field,
+   where the walk stands, older and newer, and the way out. */
+.findbar {
+    display: flex;
+    align-items: center;
+    gap: .1rem;
+    min-width: 0;
+    margin-top: .2rem;
+    padding: .1rem .15rem .1rem .6rem;
+    border-radius: var(--r-card);
+    background: var(--glass);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    box-shadow: var(--hairline), var(--drop), var(--gloss);
+}
+.findbaricon { flex: none; display: grid; color: var(--ink-faint); }
+.findbaricon svg { width: var(--i-sm); height: var(--i-sm); }
+.findbarin {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 2.25rem;
+    padding: 0 .35rem;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--t-base);
+}
+.findbarin:focus { outline: none; }
+.findbarin::placeholder { color: var(--ink-faint); }
+.findbarn {
+    flex: none;
+    padding: 0 .35rem;
+    color: var(--ink-dim);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.findbarbtn {
+    flex: none;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-small);
+    background: none;
+    color: var(--ink-dim);
+    cursor: pointer;
+}
+.findbarbtn svg { width: var(--i-md); height: var(--i-md); }
+.findbarbtn.findolder svg { transform: rotate(-90deg); }
+.findbarbtn.findnewer svg { transform: rotate(90deg); }
+.findbarbtn:active:not(:disabled) { background: var(--glass-2); color: var(--ink); }
+.findbarbtn:disabled { opacity: .35; cursor: default; }
+.findbarnote {
+    margin: .15rem .6rem 0;
+    color: var(--crit);
+    font-size: var(--t-xs);
+    overflow-wrap: anywhere;
+}
+
+/* The matches the feed shows, and the one the bar stands on over them. The
+   marks are ranges over the text of the rows, not elements in them. */
+::highlight(feedfind) {
+    background-color: color-mix(in srgb, var(--accent-2) 32%, transparent);
+}
+::highlight(feedfindnow) {
+    background-color: var(--accent-2);
+    color: var(--on-accent);
+}
+
+/* The row of the current match, where its words cannot be marked: a browser
+   without the API, or a row that does not draw the words it was found by. */
+.feedrow.findnow {
+    outline: 1.5px solid var(--accent-2);
+    outline-offset: 4px;
+    border-radius: var(--r-card);
+}
+
 .chatnone { display: none; }
 
 @media (min-width: 1100px) {
     :is(.chatfeed, .composerbox, .deck) {
         --chat-measure: 1.25rem;
         padding-inline: var(--chat-measure);
+    }
+
+    /* At a desk the bar keeps to the right of the column, the measure of the
+       feed in from its edge, the way a find stands in an editor. */
+    .dkchat > .findbar {
+        align-self: flex-end;
+        width: min(32rem, calc(100% - 2.5rem));
+        margin: .45rem 1.25rem 0;
+    }
+    .dkchat > .findbarnote {
+        align-self: flex-end;
+        width: min(32rem, calc(100% - 2.5rem));
+        margin: 0 1.25rem;
     }
 
     .dkchatname { min-width: 0; }

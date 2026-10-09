@@ -74,7 +74,53 @@ func TestMergeLaysTheAnswerOnTheCardOfItsCommand(t *testing.T) {
 	}
 }
 
+// One record can give several rows of one role — the letters of several
+// agents at once — and every one after the first carries its number in nth.
+// Each is a row of its own: found by its place alone, the second takes the
+// place of the first, and two letters read as one. A row drawn again over one
+// the queue drew carries no number and still finds the first row of its role.
+func TestMergeKeepsTheRowsOfOneRecordApart(t *testing.T) {
+	first := map[string]any{"role": "mail", "from": "builder", "text": "the fan is fixed", "pos": 70}
+	second := map[string]any{"role": "mail", "from": "tester", "text": "the checks passed", "pos": 70, "nth": 1}
+	again := map[string]any{"role": "mail", "from": "tester", "text": "the checks passed, all of them", "pos": 70, "nth": 1}
+	bubble := map[string]any{"role": "me", "text": "Continue the loop", "pos": 90}
+	card := map[string]any{"role": "wake", "text": "Continue the loop", "pos": 90, "fixes": "me"}
+
+	cases := []struct {
+		name  string
+		items []map[string]any
+		incom []map[string]any
+		want  []string
+	}{
+		{"two letters of one record arriving together both stay",
+			nil, []map[string]any{first, second}, []string{"the fan is fixed", "the checks passed"}},
+		{"the second letter arriving later stays beside the first",
+			[]map[string]any{first}, []map[string]any{second}, []string{"the fan is fixed", "the checks passed"}},
+		{"a numbered letter drawn again takes its own place, not the first one's",
+			[]map[string]any{first, second}, []map[string]any{again},
+			[]string{"the fan is fixed", "the checks passed, all of them"}},
+		{"a row drawn again over the queue's bubble still takes its place",
+			[]map[string]any{bubble}, []map[string]any{card}, []string{"Continue the loop"}},
+	}
+	for _, c := range cases {
+		got := runMergeJS(t, c.items, c.incom, "text")
+		if strings.Join(got, " | ") != strings.Join(c.want, " | ") {
+			t.Errorf("%s: %q, expected %q", c.name, got, c.want)
+		}
+	}
+	if got := runFeedJS(t, []map[string]any{bubble}, []map[string]any{card}); strings.Join(got, " ") != "wake" {
+		t.Errorf("the card drawn again over the bubble left %v, not the card alone", got)
+	}
+}
+
 func runFeedJS(t *testing.T, items, incoming []map[string]any) []string {
+	t.Helper()
+	return runMergeJS(t, items, incoming, "role")
+}
+
+// runMergeJS merges incoming into items with the feed's own merge and returns
+// one field of every row, in order.
+func runMergeJS(t *testing.T, items, incoming []map[string]any, field string) []string {
 	t.Helper()
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -87,10 +133,10 @@ func runFeedJS(t *testing.T, items, incoming []map[string]any) []string {
 	script := `
 import { readFileSync } from "node:fs";
 import { merge } from ` + jsString("file://"+path) + `;
-const [items, incoming] = JSON.parse(readFileSync(0, "utf8"));
-process.stdout.write(JSON.stringify(merge(items, incoming).map((i) => i.role)));
+const [items, incoming, field] = JSON.parse(readFileSync(0, "utf8"));
+process.stdout.write(JSON.stringify(merge(items || [], incoming || []).map((i) => String(i[field]))));
 `
-	raw, err := json.Marshal([]any{items, incoming})
+	raw, err := json.Marshal([]any{items, incoming, field})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import { Permit } from "./chat/permit.js";
 import { ago, tokens } from "../format.js";
 import { closed, lastPos, rows, runCalls, turnCalls, unarrived, weld } from "./chat/feed.js";
 import { JumpToEnd, useFeedWindow } from "./chat/feedwindow.js";
+import { FindBar, useFeedFind } from "./chat/find.js";
 import { SubChat, subFeedId } from "./chat/subchat.js";
 import { RepoView } from "./repo/view.js";
 import { onShelf, sealed, signal } from "./repo/notes.js";
@@ -66,9 +67,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     useViewing(live ? name : "");
     const [sub, setSub] = useState(null);
     const [repo, setRepo] = useState(false);
-    const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({
-        name, id, live: live && !sub,
-    });
+    const {
+        state, shown, away, more, later, feedRef, topRef, bottomRef, onScroll, atEnd, toEnd, show,
+    } = useFeedWindow({ name, id, live: live && !sub });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
     // The pages this conversation published and the panel kept a copy of. The
@@ -188,7 +189,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
         setLook(null);
     };
 
-    const asksSecret = state.items.some((item) => item.role === "secret");
+    const asksSecret = state.items.some((item) => item.role === "secret")
+        || (away && shown.some((item) => item.role === "secret"));
     const loadSecrets = useCallback(() => {
         secretShelf().then(setSecrets).catch(() => setSecrets(null));
     }, []);
@@ -211,7 +213,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
         setInsert(null);
     }, [name, id]);
 
-    useBackClose(true, onBack);
+    const backChat = useBackClose(true, onBack);
+    // The search of the conversation: the bar over the feed, Ctrl+F at a
+    // keyboard, an item of the tools on a phone.
+    const find = useFeedFind({ name, id, feedRef, show, on: feedShown && !sub && !repo, under: backChat });
 
 
     // The rows still on their way are what the feed draws after its items;
@@ -311,6 +316,9 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     }
 
     const feed = weld(state.items);
+    // What the feed draws: the tail, or a window away from the end of the
+    // conversation. The work under the feed is always the tail's.
+    const drawn = away ? weld(shown) : feed;
     // The checklist of the work: on a phone a line over the composer, at a
     // desk a block at the top of the timeline column, where the room is.
     const checklist = (state.work && state.work.checklist) || null;
@@ -368,6 +376,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             : view === "term"
             ? html`<${Term} name=${name} />`
             : html`
+        <${FindBar} find=${find} />
         <div
             class="chatfeed"
             ref=${feedRef}
@@ -396,10 +405,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
             `}
             ${state.note && html`<p class="hint warn">${state.note}</p>`}
             <${FeedGrid}
-                rows=${rows(feed)}
+                rows=${rows(drawn)}
                 wide=${wide}
                 checklist=${checklist}
-                onOpen=${(g, badge) => setCalls(callsOf(g, feed, runCalls, turnCalls, badge))}
+                onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
                 row=${(item, n) => html`<${Row}
                     key=${`${item.pos}-${n}`}
                     item=${item}
@@ -418,7 +427,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                         ? openAgent({ id: task.id, name: task.name, kind: "background" })
                         : setLook({ kind: "task", id: task.id, text: task.name }))}
                 />`}
-                tail=${pending.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
+                tail=${away ? [] : pending.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
                     <${Row} item=${row} />
                     ${row.state === "queued" && live && live.transport === "stream" && html`
                         <${TakeBack} row=${row} name=${name} exec=${exec}
@@ -427,7 +436,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                     `}
                 ` }))}
             />
-            ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
+            ${later && html`<div class="mlater" ref=${bottomRef}>there is more below</div>`}
+            ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} away=${away} />`}
         </div>
         `}
         ${live && feedShown && !hasWork(state.work, live.status === "busy" || Boolean(live.compacting)) && live.lastRequestAt && html`
@@ -551,6 +561,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 : look.kind === "tools"
                 ? html`<${SessionTools} ...${tools}
                                         onRepo=${here ? () => { setLook(null); setRepo(true); } : null}
+                                        onFind=${feedShown ? () => { setLook(null); find.start(); } : null}
                                         onPick=${(next) => { setLook(null); pickView(next); }}
                                         onDone=${() => setLook(null)} />`
                 : look.kind === "setup"

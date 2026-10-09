@@ -207,6 +207,33 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
           briefs=None, shelf=None, calls=None, permits=None, unanswered=None):
     """Returns the feed items of one transcript record, from none to many.
 
+    A row is found again by its place and its role: a later record draws a
+    bubble the queue drew again in its place — delivered, taken back, found
+    to be an alarm — and the fold and the screen put the new row where the
+    old one stood. A record may also give several rows of one role beside
+    one another — the letters of several agents at once, an answer of
+    several blocks of text — and those are rows of their own: each after the
+    first carries its number among them in nth, so none is taken for another
+    drawn again. A row drawn again stands at the place of an earlier record
+    and is never numbered: the queue draws one row of a role a record.
+    """
+    seen, out = {}, []
+    for item in rows_of(record, pos, pending, asks, sidechain, sent, briefs, shelf,
+                        calls, permits, unanswered):
+        role = item.get("role")
+        if role not in MARKS and item.get("pos") == pos:
+            nth = seen.get(role, 0)
+            seen[role] = nth + 1
+            if nth:
+                item = dict(item, nth=nth)
+        out.append(item)
+    return out
+
+
+def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
+            briefs=None, shelf=None, calls=None, permits=None, unanswered=None):
+    """Returns the feed items of one transcript record before parse() numbers them.
+
     Asks, sent and briefs are the calls of their kind still waiting for an
     answer, by call id: the card for a question round, for a delivery and for
     a published brief is drawn from the answer, and the answer is another

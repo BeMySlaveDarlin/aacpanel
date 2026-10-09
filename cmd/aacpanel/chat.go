@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"aacpanel/internal/chat"
 	"aacpanel/internal/store"
@@ -74,7 +75,7 @@ func chatFail(w http.ResponseWriter, err error) {
 			http.StatusServiceUnavailable)
 		return
 	}
-	if errors.Is(err, chat.ErrNoSubagents) {
+	if errors.Is(err, chat.ErrNoSubagents) || errors.Is(err, chat.ErrNoSearch) {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
@@ -111,6 +112,33 @@ func (s *Server) apiChat(w http.ResponseWriter, r *http.Request) {
 		body["state"] = reply.State
 	}
 	writeJSON(w, body)
+}
+
+// apiChatSearch finds a question in the whole of a conversation. The search
+// runs on the host, where the transcript lies: the screen holds only the
+// window it has loaded, and the service has no parser of transcripts.
+func (s *Server) apiChatSearch(w http.ResponseWriter, r *http.Request) {
+	if !s.chat.Available() {
+		http.Error(w, "chat is unavailable: the collector socket is not mounted", http.StatusServiceUnavailable)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if n := utf8.RuneCountInString(q); n < chat.MinQuestion || n > chat.MaxQuestion {
+		http.Error(w, fmt.Sprintf("the question is %d characters long, and %d to %d are searched for",
+			n, chat.MinQuestion, chat.MaxQuestion), http.StatusBadRequest)
+		return
+	}
+	target, err := s.chatTarget(r, r.URL.Query().Get("session"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	found, err := s.chat.Search(r.Context(), target, q)
+	if err != nil {
+		chatFail(w, err)
+		return
+	}
+	writeJSON(w, found)
 }
 
 func (s *Server) apiChatImage(w http.ResponseWriter, r *http.Request) {

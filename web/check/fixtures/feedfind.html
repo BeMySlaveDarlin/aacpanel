@@ -1,0 +1,359 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<div id="stage"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The search of a conversation, in the real screen of a phone or of a desk.
+// The conversation is longer than the feed has loaded: its tail holds two
+// matches, one message of them twice, and two more lie far above, in pages the
+// feed never read. The host answers the search the way the contract says, the
+// feed reads the pieces it asks for, and the stream brings a message while the
+// feed stands away from the end. The fixture opens the bar — from the tools on
+// a phone, with Ctrl+F at a desk — types, walks the matches newest first,
+// steps off the loaded rows, closes the bar both ways and comes back to the end.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+import { nearEnd } from "/src/screens/chat/feedwindow.js";
+
+const wide = innerWidth >= 1100;
+document.getElementById("stage").innerHTML = wide
+    ? `<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="root"></section></div></div>`
+    : `<div class="shell no-nav"><main class="body" id="root"></main></div>`;
+const root = document.getElementById("root");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 4000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(20);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+// The history steps the fixture asks for land in their own time; landed says
+// every one asked for has.
+let stepsAsked = 0;
+let stepsLanded = 0;
+const stepBack = history.back.bind(history);
+history.back = () => {
+    stepsAsked += 1;
+    stepBack();
+};
+window.addEventListener("popstate", () => { stepsLanded += 1; });
+const landed = () => stepsLanded >= stepsAsked;
+const gesture = async () => {
+    await until(landed);
+    history.back();
+    await until(landed);
+    await sleep(60);
+};
+
+// The conversation: 200 old items far up, and the tail the feed opens on. One
+// record of the tail draws three rows at one position — two letters the model
+// sent, the second numbered, and its answer beside them — the letters first.
+// The first letter has the word in its second paragraph, which a closed letter
+// does not draw.
+const at = (pos) => `2026-01-0${pos > 1000 ? 2 : 1}T${String(8 + (pos % 12)).padStart(2, "0")}:00:00Z`;
+const words = {
+    120: "where does kestrel live these days?",
+    200: "Kestrel is the build box in the second rack, the one with the loud fan.",
+    1030: "ask kestrel again whether the deploy went out",
+    1036: "kestrel one passed the checks, and the Kestrel two passed them as well.",
+};
+const asked = new Set([120, 1030]);
+const item = (pos) => ({
+    role: asked.has(pos) || pos % 2 ? "me" : "ai",
+    text: words[pos] || `Line ${pos} of the conversation: the build, the deploy and the notes on both, `
+        + "written out long enough to take a few lines of the feed on a phone.",
+    at: at(pos),
+    pos,
+});
+const old = [];
+for (let pos = 101; pos <= 300; pos += 1) old.push(item(pos));
+const tail = [];
+for (let pos = 1001; pos <= 1040; pos += 1) {
+    if (pos === 1036) {
+        tail.push({ role: "mail", dir: "out", source: "agent", from: "builder",
+                    text: "The fan is fixed.\n\nkestrel runs cool now.", at: at(pos), pos });
+        tail.push({ role: "mail", dir: "out", source: "agent", from: "tester", text: "kestrel: the checks passed.",
+                    at: at(pos), pos, nth: 1 });
+    }
+    tail.push(item(pos));
+}
+const all = [...old, ...tail];
+
+// The answer of the host: oldest first, one match a hit.
+const hit = (pos, n, role) => {
+    const t = words[pos];
+    let from = -1;
+    for (let k = 0; k <= n; k += 1) from = t.toLowerCase().indexOf("kestrel", from + 1);
+    return { pos, at: at(pos), role, snippet: t, hit: [from, 7] };
+};
+const KESTREL = [hit(120, 0, "me"), hit(200, 0, "assistant"), hit(1030, 0, "me"),
+    hit(1036, 0, "assistant"), hit(1036, 1, "assistant"),
+    { pos: 1036, at: at(1036), role: "letter", snippet: "The fan is fixed. kestrel runs cool now.", hit: [18, 7] },
+    { pos: 1036, nth: 1, at: at(1036), role: "letter", snippet: "kestrel: the checks passed.", hit: [0, 7] }];
+
+const searches = [];
+const pieces = [];
+window.fetch = async (url) => {
+    const u = new URL(String(url), location.href);
+    if (u.pathname === "/api/chat") {
+        const p = u.searchParams;
+        const limit = Number(p.get("limit") || 40);
+        if (p.has("before")) {
+            const before = Number(p.get("before"));
+            pieces.push(`before=${before}&limit=${limit}`);
+            const up = all.filter((i) => i.pos < before);
+            const items = up.slice(-limit);
+            return json({ items, first: items.length ? items[0].pos : null, last: items.length ? items[items.length - 1].pos : null,
+                total: items.length, moreBefore: up.length > limit });
+        }
+        if (p.has("after")) {
+            const after = Number(p.get("after"));
+            pieces.push(`after=${after}&limit=${limit}`);
+            const items = all.filter((i) => i.pos > after).slice(0, limit);
+            return json({ items, first: items.length ? items[0].pos : null, last: items.length ? items[items.length - 1].pos : null,
+                total: items.length, moreBefore: false });
+        }
+        return json({ items: tail, first: 1001, last: 1040, total: tail.length, moreBefore: true, state: null });
+    }
+    if (u.pathname === "/api/chat/search") {
+        const q = u.searchParams.get("q");
+        searches.push({ q, session: u.searchParams.get("session"), id: u.searchParams.get("id"), at: performance.now() });
+        if (q === "slowword") {
+            await sleep(700);
+            return json({ matches: [hit(200, 0, "assistant"), hit(1030, 0, "me"), hit(1036, 0, "assistant")], total: 3, cut: false });
+        }
+        await sleep(20);
+        if (q === "kestrel") return json({ matches: KESTREL, total: KESTREL.length, cut: false });
+        return json({ matches: [], total: 0, cut: false });
+    }
+    if (u.pathname.startsWith("/api/term")) return json({ available: false });
+    if (u.pathname.startsWith("/api/session/window")) return json({ state: "none" });
+    if (u.pathname.startsWith("/api/session/")) return json({ to: "" });
+    return json({});
+};
+
+// The stream of the conversation, driven by hand.
+const streams = [];
+window.EventSource = class {
+    constructor(url) {
+        this.url = url;
+        this.readyState = 1;
+        this.on = {};
+        streams.push(this);
+    }
+    addEventListener(type, fn) { (this.on[type] = this.on[type] || []).push(fn); }
+    close() { this.readyState = 2; }
+};
+const emit = (type, data) => {
+    for (const es of streams) {
+        if (es.readyState !== 2) for (const fn of es.on[type] || []) fn({ data: JSON.stringify(data) });
+    }
+};
+
+const ID = "0b6c1a2e-3d4f-4a5b-8c6d-7e8f9a0b1c2d";
+const exec = { available: true, kinds: ["session.send"] };
+const session = { session: "helios", sessionId: ID, status: "idle", transport: "stream", pct: 12.4, tokens: 124000,
+    limit: 1000000, cwd: "/srv/proj", model: "claude-opus-5-5", profile: "personal" };
+const closed = [];
+
+const box = () => root.querySelector(".chatfeed");
+const bar = () => root.querySelector(".findbar");
+const field = () => root.querySelector(".findbarin");
+const count = () => text(root.querySelector(".findbarn"));
+const row = (pos) => root.querySelector(`.feedrow[data-pos="${pos}"]`);
+const away = () => root.querySelector(".feedjump.feedaway");
+const marks = (name) => {
+    const set = CSS.highlights.get(name);
+    if (!set) return [];
+    return [...set].map((r) => {
+        const el = r.startContainer.parentElement && r.startContainer.parentElement.closest(".feedrow");
+        const role = el ? [...el.classList].find((c) => c.startsWith("r-")) || "" : "";
+        return { text: r.toString(), pos: el ? Number(el.dataset.pos) : 0, role: role.slice(2),
+                 nth: el ? Number(el.dataset.nth || 0) : 0, offset: r.startOffset };
+    });
+};
+const marked = () => ({ all: marks("feedfind").length, now: marks("feedfindnow") });
+// outlined names the rows drawn with the outline of the current match.
+const outlined = () => [...root.querySelectorAll(".feedrow.findnow")].map((el) => ({
+    pos: Number(el.dataset.pos), role: [...el.classList].find((c) => c.startsWith("r-")).slice(2),
+    nth: Number(el.dataset.nth || 0),
+}));
+const shown = (el) => {
+    const r = el.getBoundingClientRect();
+    const b = box().getBoundingClientRect();
+    return r.height > 0 && r.top >= b.top - 1 && r.bottom <= b.bottom + 1;
+};
+const press = (target, key, mods = {}) => {
+    const ev = new KeyboardEvent("keydown", { key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+        bubbles: true, cancelable: true, ...mods });
+    target.dispatchEvent(ev);
+    return ev;
+};
+const ctrlF = () => press(document.activeElement || document.body, "f", { ctrlKey: true });
+const type = async (words, gap = 40) => {
+    for (let i = 1; i <= words.length; i += 1) {
+        field().value = words.slice(0, i);
+        field().dispatchEvent(new Event("input", { bubbles: true }));
+        if (i < words.length) await sleep(gap);
+    }
+    return performance.now();
+};
+// now is the current mark once it stands in the row of this position, role and number.
+const nowAt = (pos, role = "", nth = 0) => {
+    const m = marked().now;
+    return m.length === 1 && m[0].pos === pos && (!role || m[0].role === role) && m[0].nth === nth ? m[0] : null;
+};
+
+// Opening the bar: from the tools of the session on a phone, with Ctrl+F at a desk.
+const openBar = async () => {
+    if (!wide) {
+        root.querySelector(".phead .pmore").click();
+        await until(() => [...document.querySelectorAll(".tools .toolrow")].some((b) => text(b) === "Find in the conversation"));
+        const item = [...document.querySelectorAll(".tools .toolrow")].find((b) => text(b) === "Find in the conversation");
+        if (!item) return { item: false };
+        item.click();
+        await until(() => bar() && !document.querySelector(".sheet.on"));
+        await sleep(60);
+        return { item: true, bar: Boolean(bar()), sheetGone: !document.querySelector(".sheet.on"),
+                 focused: document.activeElement === field() };
+    }
+    const ev = ctrlF();
+    await until(() => bar() && document.activeElement === field());
+    return { item: false, prevented: ev.defaultPrevented, bar: Boolean(bar()), focused: document.activeElement === field() };
+};
+
+window.done = (async () => {
+    const out = { wide };
+    try {
+        // Room to go back into: a gesture that walks past the fixture leaves the page.
+        history.pushState({ pad: 1 }, "", location.href);
+        history.pushState({ pad: 2 }, "", location.href);
+        render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id=${ID} live=${session}
+            snapshot=${{ at: 1, sessions: [session] }} exec=${exec}
+            onBack=${() => closed.push("chat")} onUsage=${() => {}} />`)), root);
+        await document.fonts.ready;
+        await until(() => row(1040) && streams.length > 0);
+        await sleep(200);
+        out.tailEnd = box() ? nearEnd(box()) : false;
+
+        out.opened = await openBar();
+
+        // Typing: one question, asked a while after the last key.
+        const lastKey = await type("kestrel");
+        await sleep(150);
+        out.earlyAsks = searches.length;
+        await until(() => searches.length > 0, 2000);
+        await sleep(400);
+        out.asks = searches.map((s) => ({ q: s.q, session: s.session, id: s.id }));
+        out.askDelay = searches.length ? Math.round(searches[0].at - lastKey) : -1;
+
+        // The newest match first: the second letter, the last of its record.
+        await until(() => count() === "1 of 7" && nowAt(1036, "mail", 1));
+        const letter = root.querySelector('.feedrow.r-mail[data-pos="1036"][data-nth="1"]');
+        out.first = { count: count(), now: marked().now, all: marked().all, shown: Boolean(letter) && shown(letter) };
+
+        // The first letter: its word is not drawn, so its row is outlined and
+        // nothing in the letter beside it is taken for it.
+        press(field(), "Enter");
+        await until(() => count() === "2 of 7" && outlined().length === 1);
+        out.hidden = { count: count(), now: marked().now, outlined: outlined() };
+
+        // Then the answer beside them, its hits from the last.
+        press(field(), "Enter");
+        await until(() => count() === "3 of 7" && nowAt(1036, "ai"));
+        out.second = { count: count(), now: marked().now, outlined: outlined() };
+        press(field(), "Enter");
+        await until(() => count() === "4 of 7" && nowAt(1036, "ai") && nowAt(1036, "ai").offset === 0);
+        out.third = { count: count(), now: marked().now };
+        press(field(), "Enter");
+        await until(() => count() === "5 of 7" && nowAt(1030));
+        out.fourth = { count: count(), now: marked().now };
+        press(field(), "Enter", { shiftKey: true });
+        await until(() => count() === "4 of 7" && nowAt(1036, "ai"));
+        out.back = { count: count(), now: marked().now };
+
+        // Past the loaded rows: the feed reads a window around the match.
+        press(field(), "Enter");
+        await until(() => count() === "5 of 7");
+        press(field(), "Enter");
+        await until(() => count() === "6 of 7" && row(200) && nowAt(200));
+        await sleep(120);
+        out.far = {
+            count: count(),
+            now: marked().now,
+            pieces: [...pieces],
+            row: Boolean(row(200)),
+            shown: Boolean(row(200)) && shown(row(200)),
+            tailGone: !row(1040),
+            way: text(away()),
+        };
+
+        // A message arrives while the feed stands away from the end.
+        emit("chat", { items: [{ role: "ai", text: "fresh news from the stream", at: at(1041), pos: 1041 }], total: 41 });
+        await sleep(250);
+        out.held = { drawn: Boolean(row(1041)) };
+
+        // The first close: the gesture on a phone, Esc at a desk.
+        if (!wide) {
+            await gesture();
+        } else {
+            press(field(), "Escape");
+        }
+        await until(() => !bar());
+        await sleep(60);
+        out.firstClose = { bar: Boolean(bar()), marks: marked(), away: Boolean(away()), chat: closed.length };
+
+        // The way back to the end, where there is one: a feed that never left
+        // the end has none, and the parts above say why.
+        if (away()) away().click();
+        await until(() => row(1041) && !row(200));
+        await sleep(200);
+        out.home = { last: Boolean(row(1041)), tail: Boolean(row(1040)), far: Boolean(row(200)),
+                     end: nearEnd(box()), away: Boolean(away()) };
+
+        // Ctrl+F again, a slow answer to an old question and a fast one to the new.
+        const ev = ctrlF();
+        await until(() => bar() && document.activeElement === field());
+        out.keys = { prevented: ev.defaultPrevented, bar: Boolean(bar()), focused: document.activeElement === field(),
+                     selected: field().selectionStart === 0 && field().selectionEnd === field().value.length };
+        const before = searches.length;
+        await type("slowword", 10);
+        await until(() => searches.length > before, 2000);
+        await type("nomatch", 10);
+        await until(() => count() === "No matches", 2000);
+        await sleep(900);
+        out.stale = { count: count(), asks: searches.slice(before).map((s) => s.q), marks: marked() };
+
+        // The second close: Esc on a phone, the gesture at a desk. A search
+        // with marks first, so there is something to take off.
+        field().value = "kestrel";
+        field().dispatchEvent(new Event("input", { bubbles: true }));
+        await until(() => count() === "1 of 7" && nowAt(1036, "mail", 1));
+        out.again = { count: count(), now: marked().now };
+        if (!wide) {
+            press(field(), "Escape");
+        } else {
+            await gesture();
+        }
+        await until(() => !bar());
+        await sleep(60);
+        out.secondClose = { bar: Boolean(bar()), marks: marked(), chat: closed.length };
+
+        // The conversation itself is still a layer the gesture closes.
+        await gesture();
+        await until(() => closed.length > 0, 1500);
+        out.chatClosed = [...closed];
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

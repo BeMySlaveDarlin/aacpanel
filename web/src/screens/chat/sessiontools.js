@@ -34,9 +34,10 @@ export function MoreButton({ onOpen }) {
 }
 
 // SessionTools fills the sheet on a phone: who the session is and where it
-// works, what to look at it with, then the sections of what is done to it.
+// works, finding in its conversation, what to look at it with, then the
+// sections of what is done to it.
 export function SessionTools(props) {
-    const { name, live, archive, pct, cwd, view, sides, onRepo, onPick } = props;
+    const { name, live, archive, pct, cwd, view, sides, onRepo, onFind, onPick } = props;
     const toast = useToast();
     const where = cwd ? shortPath(cwd) : "";
     return html`
@@ -53,6 +54,12 @@ export function SessionTools(props) {
             `}
             <ul class="cmdrows mcpfacts">${facts(live, pct)}</ul>
             <ul class="mcplist toollist">
+                ${onFind && html`
+                    <li><button type="button" class="mcprow toolrow" onClick=${onFind}>
+                        <span class="toolicon">${Icon.search()}</span>
+                        <span class="toollabel">Find in the conversation</span>
+                    </button></li>
+                `}
                 ${onRepo && html`
                     <li><button type="button" class="mcprow toolrow" onClick=${onRepo}>
                         <span class="toolicon">${Icon.files()}</span>

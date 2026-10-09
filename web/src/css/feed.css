@@ -40,6 +40,13 @@
     padding: .35rem 0 .1rem;
 }
 
+.mlater {
+    align-self: center;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+    padding: .1rem 0 .35rem;
+}
+
 .mshots {
     align-self: flex-end;
     max-width: 78%;

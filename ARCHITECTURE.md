@@ -961,6 +961,26 @@ is set for the user's manager alone: `AACP_FILES` goes into the host
 description, which both units read. A picture a call returned is in the
 transcript already, inside the result: the feed carries its place on the call.
 
+**A search of a conversation runs where the transcript lies.** The screen holds
+only the window of the feed it has loaded, and the service has no parser of
+transcripts, so the question goes to the collector (`search` on `chat.sock`,
+`GET /api/chat/search`). It reads the transcript once from its head, through
+the same parser the feed is folded from, and keeps no more than its answer: the
+newest three hundred matches and the count of all. What is searched is what the
+feed shows as the conversation — the person's messages, the model's answers,
+letters, the title of a brief, of a secret asked for and of a published page;
+not a call, what it was given and what it returned, thinking, or what the
+harness and the hooks say: a search that found its words in the output of
+every grep would bury the one place the person remembers. Case does not count,
+and neither does a line break. A match names its row as the feed does: by the
+position of its record and its role, and, where a record gives several rows
+of one role — the letters of several agents at once, an answer of several
+blocks of text — by its number among them; a row the queue drew comes again
+under the same name and takes its own place, never a neighbour's. The screen
+opens the window that ends with the match by asking for the rows before the
+next position. The price is a read of the whole
+transcript for every question — under a second for one of fifty megabytes.
+
 **`/mcp` is a screen of the panel, asked of the session.** On the stream the
 panel asks claude for its MCP servers each time the screen opens, and changes
 one of them — reconnect, enable, disable — with claude's own requests.

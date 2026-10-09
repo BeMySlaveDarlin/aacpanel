@@ -37,6 +37,7 @@ func TestReplyKeepsEveryFieldAgentSends(t *testing.T) {
 			            "shots": [{"index": 0, "part": 0, "pos": 64, "media": "image/png", "bytes": 512}]}]},
 			{"role": "mail", "from": "phase-hint", "source": "agent", "text": "done", "at": "2026-08-24T10:00:06Z", "pos": 70},
 			{"role": "mail", "from": "notes", "source": "session", "text": "got it", "at": "2026-08-24T10:00:06Z", "pos": 71},
+			{"role": "mail", "from": "review", "source": "agent", "text": "also done", "at": "2026-08-24T10:00:06Z", "pos": 71, "nth": 1},
 			{"role": "mail", "from": "review-draft", "source": "agent", "dir": "out", "text": "send the verdict", "at": "2026-08-24T10:00:06Z", "pos": 72},
 			{"role": "mail", "from": "coordinator", "source": "agent", "dir": "out", "text": "done", "use": "toolu_01Send",
 			 "undelivered": "No agent named 'coordinator' is reachable.", "at": "2026-08-24T10:00:06Z", "pos": 73},

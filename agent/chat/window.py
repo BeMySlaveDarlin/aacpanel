@@ -88,7 +88,7 @@ def fold(rows, limit, before, after):
 
     def place(item):
         for i, was in enumerate(window):
-            if was["pos"] != item["pos"]:
+            if was["pos"] != item["pos"] or was.get("nth", 0) != item.get("nth", 0):
                 continue
             if was["role"] == item["role"] or was["role"] == item.get("fixes"):
                 window[i] = dict(item)

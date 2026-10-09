@@ -75,6 +75,11 @@ type Item struct {
 	// panel carries it to the screen and never looks inside.
 	Data json.RawMessage `json:"data,omitempty"`
 	Pos  int64           `json:"pos"`
+	// Nth tells apart rows of one role a record gives beside one another —
+	// the letters of several agents at once, the blocks of one answer: each
+	// after the first carries its number among them. A row is found again by
+	// Pos, Role and Nth, and one drawn again in its place has no number.
+	Nth int `json:"nth,omitempty"`
 }
 
 // FileRef is a file attachment named in a reply, or a file the panel sent
@@ -422,6 +427,30 @@ type Reply struct {
 	// calls it has taken.
 	Notes []SessionNote `json:"notes,omitempty"`
 	Seq   *int64        `json:"seq,omitempty"`
+
+	// Matches are the places of a conversation a search found: Total counts
+	// them all, and Cut says there are more than came.
+	Matches []Match `json:"matches,omitempty"`
+}
+
+// Match is one hit of a search in a conversation: the row of the feed it is
+// in, by the position and the number the feed knows that row by, and the
+// words around it. Hit is where the hit stands in Snippet, as a start and a
+// length in UTF-16 units — the way the screen counts a string.
+type Match struct {
+	Pos     int64  `json:"pos"`
+	Nth     int    `json:"nth,omitempty"`
+	At      string `json:"at"`
+	Role    string `json:"role"`
+	Snippet string `json:"snippet"`
+	Hit     [2]int `json:"hit"`
+}
+
+// Found is what a search of a conversation found.
+type Found struct {
+	Matches []Match `json:"matches"`
+	Total   int     `json:"total"`
+	Cut     bool    `json:"cut"`
 }
 
 // Letter is one message from a subagent.
@@ -467,7 +496,23 @@ type Req struct {
 	State     bool        `json:"state,omitempty"`
 	Repo      *RepoReq    `json:"repo,omitempty"`
 	Subagent  string      `json:"subagent,omitempty"`
+	Search    *SearchReq  `json:"search,omitempty"`
 }
+
+// SearchReq is a question asked of a whole conversation, and how many of its
+// matches to return at most: the newest of them.
+type SearchReq struct {
+	Q     string `json:"q"`
+	Limit int    `json:"limit,omitempty"`
+}
+
+// The length of a question, in characters after the space around it is
+// trimmed, and how many matches one answer carries.
+const (
+	MinQuestion = 2
+	MaxQuestion = 200
+	MaxMatches  = 300
+)
 
 // TaskRef says which background task is wanted.
 type TaskRef struct {
@@ -497,6 +542,10 @@ type ImageRef struct {
 
 // ErrUnavailable means the agent does not answer.
 var ErrUnavailable = errors.New("the session collector is not answering")
+
+// ErrNoSearch means the host collector does not search conversations.
+var ErrNoSearch = errors.New("the session collector on the host does not search conversations: " +
+	"update aacpanel-agent on the host (systemctl restart aacpanel-agent@<user>)")
 
 // ErrNoSubagents means the host collector does not know subagent feeds.
 var ErrNoSubagents = errors.New("the session collector on the host knows nothing about subagent feeds: " +
@@ -594,6 +643,21 @@ type Target struct {
 // TaskOutput fetches the output tail of a background task.
 func (c *Client) TaskOutput(ctx context.Context, t Target, id string) (Reply, error) {
 	return c.Feed(ctx, Req{Session: t.Session, Subagent: t.Subagent, Task: &TaskRef{ID: id}})
+}
+
+// Search asks for the places in a conversation that say the question. A
+// collector that answers without matches does not know the question: it took
+// the request for one of a window of the feed.
+func (c *Client) Search(ctx context.Context, t Target, q string) (Found, error) {
+	reply, err := c.Feed(ctx, Req{Session: t.Session, Subagent: t.Subagent,
+		Search: &SearchReq{Q: q, Limit: MaxMatches}})
+	if err != nil {
+		return Found{}, err
+	}
+	if reply.Matches == nil {
+		return Found{}, ErrNoSearch
+	}
+	return Found{Matches: reply.Matches, Total: reply.Total, Cut: reply.Cut}, nil
 }
 
 // AgentMail fetches the letters of a subagent by name.
