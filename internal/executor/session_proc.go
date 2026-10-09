@@ -18,7 +18,7 @@ func isAncestor(pid int) bool {
 		if cur == pid {
 			return true
 		}
-		ppid, ok := parentFrom("/proc", cur)
+		ppid, ok := parentFrom(procDir(), cur)
 		if !ok || ppid <= 1 || ppid == cur {
 			return false
 		}

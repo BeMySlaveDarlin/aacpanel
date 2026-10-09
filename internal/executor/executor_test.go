@@ -1116,6 +1116,24 @@ func TestSessionNameFromSessionFile(t *testing.T) {
 		}
 	})
 
+	// The processes of a test are made up, but the test itself runs as a real
+	// one: a made-up session under the pid of a real process above the test
+	// is still not the one the executor runs in.
+	t.Run("a made-up pid that a real ancestor also has is not the executor's own", func(t *testing.T) {
+		pid := os.Getppid()
+		procFS(t,
+			fakeProc{pid: pid, comm: "claude", args: []string{"claude", "-n", "probe"},
+				ppid: 1, cwd: "/srv/proj/Beta/rnd/probe", start: "7788"},
+		)
+		sessionFiles(t, fakeSession{pid: pid, name: "probe", start: "7788"})
+		e, _ := newTest(t, "")
+		withSignals(t, e, map[int]bool{pid: true}, map[int]int{pid: 1})
+
+		if _, err := e.Execute(ctx, req(action.SessionClose, "probe")); err != nil {
+			t.Fatalf("a made-up session was taken for the executor's own: %v", err)
+		}
+	})
+
 	t.Run("a file left by a dead namesake does not count", func(t *testing.T) {
 		procFS(t,
 			fakeProc{pid: 2002, comm: "claude", args: []string{"claude", "-n", "alive"},
