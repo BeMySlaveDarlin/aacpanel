@@ -20,6 +20,7 @@
         --ctx-2: #6b9c83;
         --ctx-3: #cbab7f;
         --ctx-4: #cb9490;
+        --agent-claude: #a9a3d8;
     }
 
     :root.sky .deskshell {
@@ -33,6 +34,7 @@
         --ctx-2: #3c6b56;
         --ctx-3: #7a6537;
         --ctx-4: #965855;
+        --agent-claude: #5a5596;
     }
 
     .dktop {
@@ -492,8 +494,8 @@
     .dkhome { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 
     /* A mark says only what is unusual: the stream is where a session lives by
-       default and goes unmarked, a session in tmux, a session the panel did
-       not start and a codex thread are marked. */
+       default and goes unmarked, a session in tmux and a session the panel did
+       not start are marked. Who runs it opens the quiet line of its model. */
     .dkmark {
         flex: none;
         display: inline-flex;
@@ -1048,7 +1050,7 @@
 
     .dkwhosub .dkheadpath { flex: 1 1 0; min-width: 0; font-size: var(--t-xs); }
 
-    .dkwhosub .dkword, .dkwhosub .dkpct { font-size: var(--t-xs); }
+    .dkwhosub .dkword, .dkwhosub .dkpct, .dkwhosub .agentword { font-size: var(--t-xs); }
 
     .dkheadsep { font-size: var(--t-xs); color: var(--ink-faint); opacity: .6; }
 

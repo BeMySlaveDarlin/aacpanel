@@ -160,6 +160,8 @@ const facts = (name) => {
     const size = parseFloat(getComputedStyle(d).fontSize);
     return {
         all: spans.map(text),
+        // Whose word opens the line: the agent it is painted as.
+        agent: spans.length && spans[0].classList.contains("agentword") ? spans[0].dataset.agent || "" : "",
         levels: spans.map((sp) => sp.dataset.level || ""),
         shown: spans.filter((s) => s.offsetTop === top).map(text),
         lines: Math.round(d.getBoundingClientRect().height / (size * 1.4)),
@@ -353,6 +355,10 @@ window.done = (async () => {
             twoLines: sub.top >= name.bottom - 1,
             gap: Math.round(label.width - inked),
             sub: words(chat.querySelector(".dkwhosub")),
+            agent: (() => {
+                const word = chat.querySelector(".dkwhosub").firstElementChild;
+                return word && word.classList.contains("agentword") ? word.dataset.agent || "" : "";
+            })(),
             place: text(chat.querySelector(".dkplace")),
         };
     };

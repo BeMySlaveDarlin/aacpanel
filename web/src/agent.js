@@ -13,6 +13,16 @@ export function isCodex(s) {
     return Boolean(s) && s.agent === "codex";
 }
 
+// agentKey and agentName say who runs a live session: the key its word is
+// painted by, and the word that opens the line of its model.
+export function agentKey(s) {
+    return isCodex(s) ? "codex" : "claude";
+}
+
+export function agentName(s) {
+    return isCodex(s) ? "Codex" : "Claude";
+}
+
 // noTurn says why a codex thread has no turn to stop, or nothing when it has
 // one: a turn runs while codex works or waits on what it asked.
 export function noTurn(s) {

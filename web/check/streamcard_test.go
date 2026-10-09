@@ -10,8 +10,9 @@ import (
 // before the button of what can be done to it, whatever the length of the name.
 // A session with Remote Control up says so before where it lives, and only it.
 // A tap anywhere on the row opens the conversation, but on the row's button of
-// what can be done to it, which opens that. The state stands whole, and when
-// and what else on a line of its own under it, not cut to fit one line.
+// what can be done to it, which opens that. The state stands whole, and under
+// it, on a line of its own and not cut to fit one line, who runs the session —
+// the word of its agent first — on which model, since when and what else.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
 		Name       string `json:"name"`
@@ -19,6 +20,8 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		State      string `json:"state"`
 		StateCut   bool   `json:"stateCut"`
 		Since      string `json:"since"`
+		Agent      string `json:"agent"`
+		AgentKey   string `json:"agentKey"`
 		SinceCut   bool   `json:"sinceCut"`
 		SinceBelow bool   `json:"sinceBelow"`
 		TapPct     string `json:"tapPct"`
@@ -58,18 +61,21 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		if c.TapMore != "more:"+session {
 			t.Errorf("%s: a tap on the button of what can be done does %q", session, c.TapMore)
 		}
-		wantState, wantSince := "idle", "2 min ago"
+		wantState, wantSince := "idle", "Claude · Opus 5.5 · 2 min ago"
 		switch session {
 		case "aacpanel":
-			wantSince = "2 min ago · 1 background task"
+			wantSince = "Claude · Opus 5.5 · 2 min ago · 1 background task"
 		case "person":
-			wantState, wantSince = "no requests yet", ""
+			wantState, wantSince = "no requests yet", "Claude · Opus 5.5"
 		}
 		if c.State != wantState || c.StateCut {
 			t.Errorf("%s: the state reads %q (cut %v), expected %q whole", session, c.State, c.StateCut, wantState)
 		}
-		if c.Since != wantSince || (wantSince != "" && (c.SinceCut || !c.SinceBelow)) {
+		if c.Since != wantSince || c.SinceCut || !c.SinceBelow {
 			t.Errorf("%s: under the state stands %q (cut %v, on a line of its own %v), expected %q", session, c.Since, c.SinceCut, c.SinceBelow, wantSince)
+		}
+		if c.Agent != "Claude" || c.AgentKey != "claude" {
+			t.Errorf("%s: the line under the state opens with %q painted as %q's, expected the word of its agent, Claude", session, c.Agent, c.AgentKey)
 		}
 		remote := strings.HasPrefix(c.Name, "acme")
 		if remote && (c.RC != "RC" || !c.RCShown) {

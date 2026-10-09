@@ -18,7 +18,8 @@ import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
 import { inOrder, sessionsOf } from "./of.js";
 import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
-import { isCodex, noTurn } from "../../agent.js";
+import { agentKey, agentName, isCodex, noTurn } from "../../agent.js";
+import { modelTitle } from "../chat/head.js";
 import { stamp, when } from "./card.js";
 
 // The order of the list: who waits for the person, who works, who is quiet.
@@ -228,9 +229,10 @@ function KinFold({ kids, line }) {
 }
 
 // LiveLine is a live session inside its project: what it is doing and where
-// it is in the checklist of its work, where it lives, how full it is, and the
-// button of what can be done to it. The checklist takes what room the state
-// leaves on its line and gives way first: the state is read whole.
+// it is in the checklist of its work, who runs it on which model and when it
+// last asked, where it lives, how full it is, and the button of what can be
+// done to it. The checklist takes what room the state leaves on its line and
+// gives way first: the state is read whole.
 export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
@@ -238,7 +240,10 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
     const restarting = wait ? wait.of("restart", session.session) : null;
     const busy = closing || restarting;
     const place = placeOf(session);
-    const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, codex: Icon.braces }[place];
+    const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, daemon: Icon.plug }[place];
+    // The quiet line opens with who runs the session, in the hue of its agent.
+    const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.since]
+        .filter(Boolean).map((part) => ` · ${part}`).join("");
     return html`
         <div class=${`pjrow${kid ? " pjkid" : ""}`}>
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
@@ -248,7 +253,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
                     ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 </span>
-                ${state.since && html`<span class="pjsince">${state.since}</span>`}
+                <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
             </button>
             ${session.remote && html`<span class="pjrc" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
             <span class="pjtag">${tag()}${place}</span>
@@ -377,8 +382,10 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
             <div class="pjsheet">
                 <div class="pjsheethead">
                     <span class="pjsheetname">${name}</span>
-                    <span class="pjsheetsub">${[placeOf(session), session.model ? session.model.replace(/^claude-/, "") : "",
-                        session.effort || "", session.noRequests ? "" : `${Math.round(session.pct || 0)}%`].filter(Boolean).join(" · ")}</span>
+                    <span class="pjsheetsub"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${[
+                        session.model ? session.model.replace(/^claude-/, "") : "", session.effort || "",
+                        session.noRequests ? "" : `${Math.round(session.pct || 0)}%`, placeOf(session),
+                    ].filter(Boolean).map((part) => ` · ${part}`).join("")}</span>
                 </div>
                 ${lines.map((l) => html`
                     <button key=${l.key} class=${`pjact${l.danger ? " pjdanger" : ""}`} type="button"

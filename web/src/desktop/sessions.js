@@ -20,7 +20,7 @@ import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contoursOf } from "../screens/sessions/map.js";
 import { kinLabel, kinOf, outsideNote } from "../screens/sessions/kin.js";
-import { CODEX_NOTE, isCodex } from "../agent.js";
+import { CODEX_NOTE, agentKey, agentName, isCodex } from "../agent.js";
 import { aboutOf, stateOf, stopsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
@@ -109,13 +109,16 @@ function levelOf(full) {
 
 // factsOf is the quiet line under the state of a live session, in the words
 // the panel says them with elsewhere, most telling first: a column too narrow
-// for all of it drops them from the end, whole. The share of the context
+// for all of it drops them from the end, whole. It opens with who runs the
+// session and on which model, the agent in its hue. The share of the context
 // stands right after its tokens, in the tone of how full it is; a share the
-// session cannot know yet is left out rather than guessed.
+// session cannot know yet is left out rather than guessed. The group of the
+// project comes after them: the column is narrow, and the name of a row
+// mostly says its project already.
 export function factsOf(s, group, usual = "default") {
     const out = [];
-    const say = (text, level = "") => out.push({ text, level });
-    if (group && group.toLowerCase() !== String(s.session || "").toLowerCase()) say(group);
+    const say = (text, level = "", agent = "") => out.push({ text, level, agent });
+    say(agentName(s), "", agentKey(s));
     const model = [s.model ? modelTitle(s.model, { withWindow: false }) : "", s.effort ? effortName(s.effort) : ""]
         .filter(Boolean).join(" · ");
     if (model) say(model);
@@ -127,6 +130,7 @@ export function factsOf(s, group, usual = "default") {
         say(`${tokens(s.tokens)}${of}`);
         if (s.limitKnown !== false && !s.noRequests) say(pct(s.pct || 0), levelOf(s.pct || 0));
     }
+    if (group && group.toLowerCase() !== String(s.session || "").toLowerCase()) say(group);
     const up = age(s.startedAt);
     if (up) say(`up ${up}`);
     if (s.compacts > 0) say(`${s.compacts} ${plural(s.compacts, "compaction", "compactions")}`);
@@ -199,11 +203,6 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                         <${Icon.terminal} />tmux
                     </span>
                 `}
-                ${codex && html`
-                    <span class="dkmark" data-tip=${CODEX_NOTE}>
-                        <${Icon.braces} />codex
-                    </span>
-                `}
                 ${s.remote && html`<span class="dkrc" data-tip="Remote Control is on: the session is open on claude.ai too">RC</span>`}
             </span>
             <span class="dksay">
@@ -242,7 +241,9 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                 `}
             </span>
             ${facts.length > 0 && html`
-                <span class="dkdetail">${facts.map((fact, i) => html`<span key=${i} data-level=${fact.level || undefined}>${fact.text}</span>`)}</span>
+                <span class="dkdetail">${facts.map((fact, i) => html`<span key=${i} class=${fact.agent ? "agentword" : undefined}
+                    data-agent=${fact.agent || undefined} data-tip=${fact.agent === "codex" ? CODEX_NOTE : undefined}
+                    data-level=${fact.level || undefined}>${fact.text}</span>`)}</span>
             `}
             ${!s.noRequests && html`
                 <span class=${`dksessbar ${fill(full)}`}><i style=${`width:${Math.min(100, full)}%`}></i></span>

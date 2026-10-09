@@ -7,9 +7,10 @@
 <div id="phone"></div>
 <div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section></div></div>
 <script type="module">
-// A codex thread beside a claude session: marked codex on both lists and in
-// the header of its conversation, offered on the phone's sheet only what the
-// host does for it, and in its conversation a composer that takes text alone
+// A codex thread beside a claude session: named Codex, in a hue of its own, at
+// the head of the line of its model on both lists and in the header of its
+// conversation, living on the daemon, offered on the phone's sheet only what
+// the host does for it, and in its conversation a composer that takes text alone
 // with nothing of claude's around it — no pickers, no commands, no files, no
 // terminal, no move, no window, no Remote Control, no end. The screen never
 // asks the host about what it does not offer.
@@ -86,6 +87,14 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
 const rowOf = (root, name) => Array.from(root.querySelectorAll(".dksess"))
     .find((r) => text(r.querySelector(".dkname")) === name);
+// agentOf reads the word that opens a quiet line: what it says, whose it is,
+// its tip and the hue it is painted in.
+const agentOf = (line) => {
+    const word = line && line.firstElementChild;
+    if (!word || !word.classList.contains("agentword")) return { text: "", agent: "", tip: "", colour: "" };
+    return { text: text(word), agent: word.dataset.agent || "", tip: word.dataset.tip || "",
+        colour: getComputedStyle(word).color };
+};
 
 // type puts words into the composer the way a keyboard does: preact reads
 // the field on its input event.
@@ -105,22 +114,30 @@ window.done = (async () => {
     const deskRow = rowOf(desk, codex.session);
     const claudeRow = rowOf(desk, "shop");
     out.deskMarks = names(deskRow, ".dksessmain .dkmark");
-    out.deskMarkTip = deskRow.querySelector(".dksessmain .dkmark").dataset.tip || "";
+    out.deskFacts = names(deskRow, ".dkdetail > span");
+    out.deskAgent = agentOf(deskRow.querySelector(".dkdetail"));
     out.deskActs = deskRow.querySelectorAll(".dkrowacts .dkact").length;
     out.deskSay = text(deskRow.querySelector(".dksay"));
     out.claudeMarks = names(claudeRow, ".dksessmain .dkmark");
+    out.claudeAgent = agentOf(claudeRow.querySelector(".dkdetail"));
     out.claudeActs = claudeRow.querySelectorAll(".dkrowacts .dkact").length;
 
     out.phoneTags = names(phone, ".pjblock .pjrow .pjtag");
-    out.phoneState = text(Array.from(phone.querySelectorAll(".pjblock .pjrow"))
-        .find((r) => text(r.querySelector(".pjsess")) === codex.session).querySelector(".pjstate"));
+    const phoneRows = Array.from(phone.querySelectorAll(".pjblock .pjrow"));
+    const phoneRow = phoneRows.find((r) => text(r.querySelector(".pjsess")) === codex.session);
+    out.phoneState = text(phoneRow.querySelector(".pjstate"));
+    out.phoneSince = text(phoneRow.querySelector(".pjsince"));
+    out.phoneAgents = phoneRows.map((r) => agentOf(r.querySelector(".pjsince")));
     if (!await until(() => document.querySelector(".pjsheet .pjact"))) throw new Error("the sheet did not open");
     out.sheetSub = text(document.querySelector(".pjsheetsub"));
+    out.sheetAgent = agentOf(document.querySelector(".pjsheetsub"));
     out.sheet = Array.from(document.querySelectorAll(".pjsheet .pjact"))
         .map((b) => ({ text: text(b.querySelector("b")), off: b.disabled }));
 
     if (!await until(() => chat.querySelector(".composer textarea"))) throw new Error("the composer did not show");
-    out.headMark = text(chat.querySelector(".dkwhoname .dkmark"));
+    out.headMarks = names(chat, ".dkheadtop .dkmark");
+    out.headSub = Array.from(chat.querySelector(".dkwhosub").children).map(text).filter(Boolean).join(" ");
+    out.headAgent = agentOf(chat.querySelector(".dkwhosub"));
     out.tabs = names(chat, ".dktabs .dktab");
     out.place = text(chat.querySelector(".dkplace"));
     out.claudeTools = {

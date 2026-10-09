@@ -21,7 +21,7 @@ import { copyText } from "./copy.js";
 import { shortPath } from "./head.js";
 import { useRemote } from "./remote.js";
 import { moveSession, stops } from "./switch.js";
-import { outsideNote } from "../sessions/kin.js";
+import { outsideNote, placeOf } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
 import { CODEX_NOTE, isCodex, noTurn } from "../../agent.js";
 
@@ -403,7 +403,7 @@ export function SessionButton(props) {
                     aria-label="the session: where it lives, Remote Control and what can be done to it"
                     onClick=${() => onOpen(!open)}>
                 <span class="dkplaceicon">${Icon.pin()}</span>
-                <span>${isCodex(live) ? "codex" : live.outside ? "outside" : stream ? "stream" : "tmux"}</span>
+                <span>${placeOf(live)}</span>
                 ${!stream && win.kind === "open" && html`<span class="dkplacewin">window</span>`}
                 ${live.remote && html`<span class="dkrc">RC</span>`}
                 <span class="dkplacechev">${Icon.chevron()}</span>

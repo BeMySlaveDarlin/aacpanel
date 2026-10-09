@@ -120,6 +120,11 @@
     /* A session waiting for the person: the one warm colour, so that it is
        told from a session at work without reading the word beside it. */
     --wait: #e3c97a;
+    /* Who runs a session: claude in a cool lilac, codex in plain ink. Neither
+       is warm — warm is the session that waits for the person — and neither
+       is a colour of a state. */
+    --agent-claude: #aab2ff;
+    --agent-codex: var(--ink);
 
     --ctx-1: #7fe3d4;
     --ctx-2: #63a8ff;
@@ -208,6 +213,7 @@
     --warn: #1f5580;
     --crit: #5b3a9e;
     --wait: #7a5a12;
+    --agent-claude: #4f5bc0;
 
     --ctx-1: #12857a;
     --ctx-2: #2f7fc8;

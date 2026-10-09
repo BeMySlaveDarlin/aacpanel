@@ -5,7 +5,8 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
-// The conversation of a codex thread on a phone: the mark beside its name, a
+// The conversation of a codex thread on a phone: the name alone in the
+// heading and Codex with its model opening the line under it, a
 // composer of text alone with no band of claude's settings under it, the
 // tools of the header with nothing but where it lives, its id and the stop of
 // its turn; then the same thread waiting on a command, and the card with the
@@ -76,7 +77,14 @@ window.done = (async () => {
     render(page(thread), root);
     if (!await until(() => root.querySelector(".composer textarea"))) throw new Error("the composer did not show");
     const out = {};
-    out.mark = text(root.querySelector(".chathead h2 .talkmark"));
+    const head = root.querySelector(".chathead");
+    out.headExtra = Array.from(head.querySelector("h2").children)
+        .filter((el) => !el.matches(".talkdot, .midname")).map((el) => el.className || el.tagName);
+    const sub = head.querySelector(".chatsub");
+    const word = sub.firstElementChild;
+    out.agent = word && word.classList.contains("agentword")
+        ? { text: text(word), agent: word.dataset.agent || "" } : { text: "", agent: "" };
+    out.sub = Array.from(sub.children).map(text).filter(Boolean).join(" ");
     const composer = root.querySelector(".composer");
     out.strip = Boolean(composer.querySelector(".cstrip"));
     out.claudeTools = Array.from(composer.querySelectorAll(".pickfile, .pkchip, .pkcmds")).map((el) => el.className);

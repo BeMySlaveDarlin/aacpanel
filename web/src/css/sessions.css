@@ -501,9 +501,13 @@ span.pjname { cursor: default; }
 .pj-busy { color: var(--accent); }
 .pj-idle { color: var(--ink-faint); font-weight: 500; }
 .pj-idle .pjdot { background: var(--ok); opacity: .75; }
-/* Where a session lives, as a mark on its row; the header of a conversation
-   carries the same mark beside the name of a session that is not claude. */
-.pjtag, .talkmark {
+/* Who runs a session, as the word that opens the line of its model — on its
+   row, in its sheet and under the name in its conversation: in the hue of
+   its agent and a step heavier than the quiet words after it. */
+.agentword { font-weight: 600; color: var(--agent-claude); }
+.agentword[data-agent="codex"] { color: var(--agent-codex); }
+/* Where a session lives, as a mark on its row. */
+.pjtag {
     flex: none;
     display: inline-flex;
     align-items: center;
@@ -516,7 +520,7 @@ span.pjname { cursor: default; }
     line-height: 1;
     color: var(--ink-dim);
 }
-.pjtag svg, .talkmark svg { width: var(--i-sm); height: var(--i-sm); }
+.pjtag svg { width: var(--i-sm); height: var(--i-sm); }
 /* Remote Control up: the session is open on claude.ai as well, marked the way
    the session's own tools mark it. */
 .pjrc {

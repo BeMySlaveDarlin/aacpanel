@@ -40,7 +40,7 @@ import { ANSWER_LAG_MS, answered, hidesAsk, lagging, recall, remember, settle } 
 import { useAction } from "../actions/gate.js";
 import { QuoteTip, useSelectionQuote } from "./chat/quotetip.js";
 import { SideChat, useSideChat } from "./chat/sidechat.js";
-import { MidName, shortPath, stateOf } from "./chat/head.js";
+import { MidName, modelTitle, shortPath, stateOf } from "./chat/head.js";
 import { MoreButton, SessionButton, SessionTools, ViewTabs } from "./chat/sessiontools.js";
 import { AttachSheet } from "./chat/tools.js";
 import { PickBar, PickSheet, PickWords } from "./chat/picker.js";
@@ -56,7 +56,7 @@ import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 import { useAsOf } from "../ui/asof.js";
 import { Icon } from "../ui/icons.js";
-import { isCodex } from "../agent.js";
+import { agentKey, agentName, isCodex } from "../agent.js";
 
 
 export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, onUsage, onOpenChat, onTerm }) {
@@ -363,9 +363,13 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 <h2>
                     <span class="talkdot" data-tone=${stand.tone} title=${stand.say}></span>
                     <${MidName} text=${name} />
-                    ${codex && html`<span class="talkmark">${Icon.braces()}codex</span>`}
                 </h2>
                 <div class="chatsub">
+                    ${live && html`
+                        <span class="agentword" data-agent=${agentKey(live)}>${agentName(live)}</span>
+                        ${live.model && html`<span class="sep">·</span><span>${modelTitle(live.model, { withWindow: false })}</span>`}
+                        <span class="sep">·</span>
+                    `}
                     ${pct != null && html`
                         <span class="chatpct">${pct.toFixed(1)}<span class="u">%</span></span>
                         <span class="sep">·</span>

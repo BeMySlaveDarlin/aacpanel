@@ -36,6 +36,12 @@ render(
 
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const cut = (el) => Boolean(el) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
+// agentOf reads the word that opens the line under the state, and whose it is.
+const agentOf = (line) => {
+    const word = line && line.firstElementChild;
+    return word && word.classList.contains("agentword")
+        ? { agent: text(word), agentKey: word.dataset.agent || "" } : { agent: "", agentKey: "" };
+};
 const below = (el, over) => Boolean(el && over) && el.getBoundingClientRect().top >= over.getBoundingClientRect().bottom - 1;
 
 // A tap lands where the finger is: on whatever the page has at that point.
@@ -64,6 +70,7 @@ window.done = (async () => {
             since: text(block.querySelector(".pjsince")),
             sinceCut: cut(block.querySelector(".pjsince")),
             sinceBelow: below(block.querySelector(".pjsince"), block.querySelector(".pjstate")),
+            ...agentOf(block.querySelector(".pjsince")),
             tapPct: tapAt(block.querySelector(".pjpct")),
             tapTag: tapAt(tag),
             tapMore: tapAt(block.querySelector(".pjmore")),

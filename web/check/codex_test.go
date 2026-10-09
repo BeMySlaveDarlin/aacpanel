@@ -6,31 +6,49 @@ import (
 	"testing"
 )
 
-// A codex thread stands on the lists beside claude sessions with a mark of
-// its own, and the panel offers it exactly what the host does for codex:
-// text into its turn, a stop of the turn, and the answer to what it asks.
-// Everything claude's — the pickers, the commands, the shell, the files, the
-// terminal, the move, the window, Remote Control, the name, the end — is not
-// there, and the screen does not ask the host about any of it.
+// agentWord is the word that opens the quiet line of a live session's model,
+// as a fixture reads it: what it says, whose it is, its tip and its hue.
+type agentWord struct {
+	Text   string `json:"text"`
+	Agent  string `json:"agent"`
+	Tip    string `json:"tip"`
+	Colour string `json:"colour"`
+}
+
+// A codex thread stands on the lists beside claude sessions, told from them
+// by the word that opens the line of its model: Codex, in a hue of its own,
+// where theirs says Claude; it lives on the daemon, not on the stream. The
+// panel offers it exactly what the host does for codex: text into its turn,
+// a stop of the turn, and the answer to what it asks. Everything claude's —
+// the pickers, the commands, the shell, the files, the terminal, the move, the
+// window, Remote Control, the name, the end — is not there, and the screen
+// does not ask the host about any of it.
 func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	var got struct {
-		DeskMarks   []string `json:"deskMarks"`
-		DeskMarkTip string   `json:"deskMarkTip"`
-		DeskActs    int      `json:"deskActs"`
-		DeskSay     string   `json:"deskSay"`
-		ClaudeMarks []string `json:"claudeMarks"`
-		ClaudeActs  int      `json:"claudeActs"`
-		PhoneTags   []string `json:"phoneTags"`
-		PhoneState  string   `json:"phoneState"`
-		SheetSub    string   `json:"sheetSub"`
+		DeskMarks   []string    `json:"deskMarks"`
+		DeskFacts   []string    `json:"deskFacts"`
+		DeskAgent   agentWord   `json:"deskAgent"`
+		DeskActs    int         `json:"deskActs"`
+		DeskSay     string      `json:"deskSay"`
+		ClaudeMarks []string    `json:"claudeMarks"`
+		ClaudeAgent agentWord   `json:"claudeAgent"`
+		ClaudeActs  int         `json:"claudeActs"`
+		PhoneTags   []string    `json:"phoneTags"`
+		PhoneState  string      `json:"phoneState"`
+		PhoneSince  string      `json:"phoneSince"`
+		PhoneAgents []agentWord `json:"phoneAgents"`
+		SheetSub    string      `json:"sheetSub"`
+		SheetAgent  agentWord   `json:"sheetAgent"`
 		Sheet       []struct {
 			Text string `json:"text"`
 			Off  bool   `json:"off"`
 		} `json:"sheet"`
-		HeadMark    string          `json:"headMark"`
+		HeadMarks   []string        `json:"headMarks"`
+		HeadSub     string          `json:"headSub"`
+		HeadAgent   agentWord       `json:"headAgent"`
 		Tabs        []string        `json:"tabs"`
 		Place       string          `json:"place"`
 		ClaudeTools map[string]bool `json:"claudeTools"`
@@ -58,12 +76,33 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	const name = "codex-5afc361b"
 	plainSend := "send to session " + name
 
-	// The mark, on both lists and in the header.
-	if strings.Join(got.DeskMarks, ",") != "codex" || !strings.Contains(got.DeskMarkTip, "codex thread") {
-		t.Errorf("the desktop row of the codex thread is marked %v (tip %q), expected codex alone", got.DeskMarks, got.DeskMarkTip)
+	// Who runs it opens the line of its model, on both lists and in the
+	// header; no mark beside the name says it a second time.
+	codexWord := func(where string, w agentWord) {
+		t.Helper()
+		if w.Text != "Codex" || w.Agent != "codex" {
+			t.Errorf("%s opens with %+v, expected the word Codex, painted as codex's", where, w)
+		}
+	}
+	codexWord("the line under the desktop row", got.DeskAgent)
+	if !strings.Contains(got.DeskAgent.Tip, "codex thread") {
+		t.Errorf("the word Codex on the desktop row has the tip %q, expected what the panel does to a codex thread", got.DeskAgent.Tip)
+	}
+	if len(got.DeskFacts) < 2 || got.DeskFacts[1] != "gpt-6-astra · Extra" {
+		t.Errorf("the desktop row of the codex thread runs on %v, expected Codex and then its model", got.DeskFacts)
+	}
+	if len(got.DeskMarks) != 0 {
+		t.Errorf("the desktop row of the codex thread is marked %v beside the name: who runs it opens the line of its model", got.DeskMarks)
+	}
+	if got.ClaudeAgent.Text != "Claude" || got.ClaudeAgent.Agent != "claude" || got.ClaudeAgent.Tip != "" {
+		t.Errorf("the claude row beside it opens with %+v, expected the word Claude with no tip", got.ClaudeAgent)
+	}
+	if got.DeskAgent.Colour == "" || got.DeskAgent.Colour == got.ClaudeAgent.Colour {
+		t.Errorf("Codex is painted %q and Claude %q on the desktop rows: each agent has a hue of its own",
+			got.DeskAgent.Colour, got.ClaudeAgent.Colour)
 	}
 	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 1 {
-		t.Errorf("the claude row beside it carries marks %v and %d actions: it is drawn as before, unmarked and closable",
+		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked and closable",
 			got.ClaudeMarks, got.ClaudeActs)
 	}
 	if got.DeskActs != 0 {
@@ -72,14 +111,32 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if !strings.Contains(got.DeskSay, "waiting") {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)
 	}
-	if strings.Join(got.PhoneTags, ",") != "stream,codex" {
-		t.Errorf("the phone marks the rows %v, expected the claude session on the stream and the codex thread as codex", got.PhoneTags)
+	if strings.Join(got.PhoneTags, ",") != "stream,daemon" {
+		t.Errorf("the phone marks the rows %v, expected the claude session on the stream and the codex thread on the daemon", got.PhoneTags)
 	}
 	if !strings.Contains(got.PhoneState, "waiting") {
 		t.Errorf("the phone row of a waiting codex thread says %q", got.PhoneState)
 	}
-	if got.HeadMark != "codex" {
-		t.Errorf("the header of the conversation marks it %q, expected codex", got.HeadMark)
+	if got.PhoneSince != "Codex · gpt-6-astra" {
+		t.Errorf("under the state of the codex thread on the phone stands %q, expected who runs it and on which model", got.PhoneSince)
+	}
+	if len(got.PhoneAgents) != 2 {
+		t.Fatalf("the phone shows %d rows with a line under the state: %+v", len(got.PhoneAgents), got.PhoneAgents)
+	}
+	codexWord("the line under the state on the phone", got.PhoneAgents[1])
+	if got.PhoneAgents[0].Text != "Claude" || got.PhoneAgents[0].Agent != "claude" {
+		t.Errorf("the claude row on the phone opens with %+v, expected the word Claude", got.PhoneAgents[0])
+	}
+	if got.PhoneAgents[1].Colour == "" || got.PhoneAgents[1].Colour == got.PhoneAgents[0].Colour {
+		t.Errorf("Codex is painted %q and Claude %q on the phone rows: each agent has a hue of its own",
+			got.PhoneAgents[1].Colour, got.PhoneAgents[0].Colour)
+	}
+	codexWord("the line under the name in the header", got.HeadAgent)
+	if !strings.HasPrefix(got.HeadSub, "Codex · gpt-6-astra · answering") {
+		t.Errorf("the line under the name in the header reads %q, expected who runs it, its model and how it stands", got.HeadSub)
+	}
+	if len(got.HeadMarks) != 0 {
+		t.Errorf("the header of the conversation carries the marks %v beside the name", got.HeadMarks)
 	}
 
 	// The phone's sheet: open it, answer it, stop its turn — nothing else.
@@ -93,16 +150,17 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if strings.Join(sheet, ",") != "Open the conversation,Answer what it asks,Stop the turn" {
 		t.Errorf("the phone's sheet of a waiting codex thread offers %v", sheet)
 	}
-	if !strings.HasPrefix(got.SheetSub, "codex · gpt-6-astra") {
-		t.Errorf("the sheet says %q under the name, expected where it lives and what it runs", got.SheetSub)
+	codexWord("the line under the name in the sheet", got.SheetAgent)
+	if !strings.HasPrefix(got.SheetSub, "Codex · gpt-6-astra ·") || !strings.HasSuffix(got.SheetSub, "· daemon") {
+		t.Errorf("the sheet says %q under the name, expected who runs it on which model, and where it lives last", got.SheetSub)
 	}
 
 	// The conversation: the feed and its files, no terminal, no move.
 	if strings.Join(got.Tabs, ",") != "Feed,Files" {
 		t.Errorf("the conversation of a codex thread is watched with %v, expected the feed and the files alone", got.Tabs)
 	}
-	if !strings.Contains(got.Place, "codex") {
-		t.Errorf("the session button says %q — the thread lives with codex", got.Place)
+	if !strings.Contains(got.Place, "daemon") {
+		t.Errorf("the session button says %q — the thread lives on the daemon", got.Place)
 	}
 	for tool, shown := range got.ClaudeTools {
 		if shown {
@@ -151,8 +209,9 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	}
 }
 
-// On a phone the conversation of a codex thread carries its mark beside the
-// name, a composer of text alone with no band of claude's settings under it,
+// On a phone the conversation of a codex thread has the name alone in its
+// heading, and the line under it opens with Codex and the model it runs; a
+// composer of text alone with no band of claude's settings under it,
 // and in the header's tools nothing but where it lives, its id and the stop
 // of its turn. Waiting on a command, it shows the card with the answers codex
 // gave, every one of them and in its order, and a press sends the number of
@@ -162,13 +221,15 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	var got struct {
-		Mark        string   `json:"mark"`
-		Strip       bool     `json:"strip"`
-		ClaudeTools []string `json:"claudeTools"`
-		Placeholder string   `json:"placeholder"`
-		Tools       []string `json:"tools"`
-		StopOff     *bool    `json:"stopOff"`
-		StopWhy     string   `json:"stopWhy"`
+		HeadExtra   []string  `json:"headExtra"`
+		Agent       agentWord `json:"agent"`
+		Sub         string    `json:"sub"`
+		Strip       bool      `json:"strip"`
+		ClaudeTools []string  `json:"claudeTools"`
+		Placeholder string    `json:"placeholder"`
+		Tools       []string  `json:"tools"`
+		StopOff     *bool     `json:"stopOff"`
+		StopWhy     string    `json:"stopWhy"`
 		Permit      struct {
 			Tool    string `json:"tool"`
 			Action  string `json:"action"`
@@ -186,8 +247,12 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	}
 	runFixture(t, "codexchat.html", &got)
 
-	if got.Mark != "codex" {
-		t.Errorf("the header marks the thread %q, expected codex", got.Mark)
+	if len(got.HeadExtra) != 0 {
+		t.Errorf("the heading carries %v beside the dot and the name", got.HeadExtra)
+	}
+	if got.Agent.Text != "Codex" || got.Agent.Agent != "codex" || !strings.HasPrefix(got.Sub, "Codex · gpt-6-astra ·") {
+		t.Errorf("the line under the name reads %q and opens with %+v, expected Codex, painted as codex's, and its model",
+			got.Sub, got.Agent)
 	}
 	if got.Strip || len(got.ClaudeTools) != 0 {
 		t.Errorf("the composer of a codex thread has the band of settings %v and claude's tools %v", got.Strip, got.ClaudeTools)

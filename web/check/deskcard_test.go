@@ -17,6 +17,7 @@ type deskCardSection struct {
 
 type deskCardFacts struct {
 	All    []string `json:"all"`
+	Agent  string   `json:"agent"`
 	Levels []string `json:"levels"`
 	Shown  []string `json:"shown"`
 	Lines  int      `json:"lines"`
@@ -36,6 +37,7 @@ type deskCardHead struct {
 	TwoLines bool   `json:"twoLines"`
 	Gap      int    `json:"gap"`
 	Sub      string `json:"sub"`
+	Agent    string `json:"agent"`
 	Place    string `json:"place"`
 }
 
@@ -222,26 +224,30 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 }
 
 // Under the state stands a quiet line of what the session runs on, in the
-// words the panel uses elsewhere and in the order of what tells most: the
-// group of its project unless it is the name, the model and its effort, the
-// mode where it is not the one the account starts in (a mode that stops the
-// session asking is said always), the context in tokens and right after them
-// how full it is, how long it has been up, and its compactions. One line:
-// what does not fit drops from the end, a whole fact at a time. The share is
-// quiet while there is room and loud when the context is nearly spent.
+// words the panel uses elsewhere and in the order of what tells most: who runs
+// it, in the hue of its agent, the model and its effort, the mode where it is
+// not the one the account starts in (a mode that stops the session asking is
+// said always), the context in tokens and right after them how full it is,
+// the group of its project unless it is the name, how long it has been up,
+// and its compactions. One line: what does not fit drops from the end, a
+// whole fact at a time. The share is quiet while there is room and loud when
+// the context is nearly spent.
 func TestDeskRowTellsWhatTheSessionRunsOn(t *testing.T) {
 	got := runDeskCard(t)
 
 	for name, want := range map[string]string{
-		"aacpanel": "Side|Opus 5.5 · Extra|418k of 1m|42%|up 3 h|2 compactions",
-		"api":      "Platform|Opus 5.5 · Extra|Plan|370k of 1m|37%|up 3 h",
-		"shop":     "Opus 5.5 · Extra|Bypass|260k of 1m|26%|up 3 h",
-		"helios":   "Host|Opus 5.5 · Extra|100k of 1m|10%|up 3 h",
-		"scratch":  "Opus 5.5 · Extra|50k of 1m|5%|up 3 h",
+		"aacpanel": "Claude|Opus 5.5 · Extra|418k of 1m|42%|Side|up 3 h|2 compactions",
+		"api":      "Claude|Opus 5.5 · Extra|Plan|370k of 1m|37%|Platform|up 3 h",
+		"shop":     "Claude|Opus 5.5 · Extra|Bypass|260k of 1m|26%|up 3 h",
+		"helios":   "Claude|Opus 5.5 · Extra|100k of 1m|10%|Host|up 3 h",
+		"scratch":  "Claude|Opus 5.5 · Extra|50k of 1m|5%|up 3 h",
 	} {
 		f := got.Facts[name]
 		if strings.Join(f.All, "|") != want {
 			t.Errorf("%s runs on %q, expected %q", name, strings.Join(f.All, "|"), want)
+		}
+		if f.Agent != "claude" {
+			t.Errorf("%s: the line opens with a word painted as %q's, expected the word of its agent, claude", name, f.Agent)
 		}
 		if f.Lines != 1 {
 			t.Errorf("%s: the line of what it runs on takes %d lines", name, f.Lines)
@@ -382,8 +388,8 @@ func TestDeskShelfHoldsTheClosedConversations(t *testing.T) {
 }
 
 // The header of a conversation on the wide screen stands in two lines on the
-// left — the name, and under it the state, the share and the path — with the
-// tools in one line on the right. The tools never leave the header, with the
+// left — the name, and under it who runs the session on which model, the
+// state, the share and the path — with the tools in one line on the right. The tools never leave the header, with the
 // right panel open or without it, and a short name leaves no hole after it.
 func TestDeskChatHeaderStandsInTwoLines(t *testing.T) {
 	got := runDeskCard(t)
@@ -398,8 +404,9 @@ func TestDeskChatHeaderStandsInTwoLines(t *testing.T) {
 		if head.Gap > 1 {
 			t.Errorf("%s the name leaves a hole of %d px after it", label, head.Gap)
 		}
-		if !strings.HasPrefix(head.Sub, "answering · 26% ·") {
-			t.Errorf("%s the line under the name reads %q: the state, the share, the path", label, head.Sub)
+		if !strings.HasPrefix(head.Sub, "Claude · Opus 5.5 · answering · 26% ·") || head.Agent != "claude" {
+			t.Errorf("%s the line under the name reads %q, opened by a word painted as %q's: the agent, the model, the state, the share, the path",
+				label, head.Sub, head.Agent)
 		}
 		if !strings.Contains(head.Place, "RC") {
 			t.Errorf("%s the session button reads %q", label, head.Place)
