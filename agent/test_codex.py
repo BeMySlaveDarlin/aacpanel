@@ -116,6 +116,15 @@ class Rows(Runtime):
             "lastRequestAt": "2026-10-09T12:00:00.000Z", "status": "idle",
         }])
 
+    def test_a_thread_carries_the_account_of_the_contour_its_home_is_named_after(self):
+        claude = os.path.join(self.root, ".claude-profiles", "work")
+        os.makedirs(claude)
+        put_env(self, contours.HOME_ENV, os.pathsep.join([os.path.join(self.root, ".claude"), claude]))
+        self.follow()
+        self.assertEqual(ctx.codex_sessions()[0].get("configDir"), claude)
+        self.follow(contour="elsewhere")
+        self.assertNotIn("configDir", ctx.codex_sessions()[0], "a home named like no account has none")
+
     def test_a_thread_whose_executor_is_gone_is_no_row(self):
         self.follow(holder=self.dead_pid())
         self.assertEqual(ctx.codex_sessions(), [])

@@ -322,6 +322,14 @@ def codex_row(data):
     }
     if not found["at"]:
         row["noRequests"] = True
+    # The map knows a contour by the config directory of its claude account,
+    # and a codex home is named after the contour it belongs to: the thread
+    # carries that directory, and the service puts it on the contour the
+    # claude sessions of the same name are on. A home no claude account is
+    # named like has none, and lands where a session of no known contour does.
+    config_dir = dict(contours.profiles()).get(contour) if contour else None
+    if config_dir:
+        row["configDir"] = config_dir
     wait = held.waiting_for(data)
     if wait:
         row["status"] = "waiting"
