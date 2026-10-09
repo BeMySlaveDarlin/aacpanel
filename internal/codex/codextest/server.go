@@ -101,6 +101,7 @@ type Server struct {
 	models    []Model
 	nextID    int
 	turnN     int
+	startN    int
 }
 
 // New starts a daemon in a home of its own. The home is short on purpose: a
@@ -425,6 +426,9 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 	if method == "model/list" {
 		return s.modelList(p.Cursor, p.IncludeHidden), nil, ""
 	}
+	if method == "thread/start" {
+		return s.start(c, raw), nil, ""
+	}
 	t := s.threads[p.ThreadID]
 	if t == nil {
 		return nil, nil, "thread not found: " + p.ThreadID
@@ -447,6 +451,8 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 	case "thread/unsubscribe":
 		delete(t.subs, c)
 		return map[string]any{"status": "unsubscribed"}, nil, ""
+	case "thread/name/set":
+		return map[string]any{}, nil, ""
 	case "turn/start":
 		t.subs[c] = true
 		s.turnN++
@@ -485,6 +491,40 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		return map[string]any{"data": data, "nextCursor": nil, "backwardsCursor": nil}, nil, ""
 	}
 	return nil, nil, "method not found: " + method
+}
+
+// start makes a thread the way thread/start does: in the directory asked,
+// with the model and the effort asked or the home's own, idle and with the
+// caller as its client. Its id ends in the number of the thread.
+func (s *Server) start(c *client, raw json.RawMessage) map[string]any {
+	var p struct {
+		CWD      string `json:"cwd"`
+		Model    string `json:"model"`
+		Approval string `json:"approvalPolicy"`
+		Sandbox  string `json:"sandbox"`
+		Config   struct {
+			Effort string `json:"model_reasoning_effort"`
+		} `json:"config"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	s.startN++
+	th := Thread{ID: fmt.Sprintf("019a2000-0000-7000-8000-0000beef%04x", s.startN), CWD: p.CWD, Model: p.Model,
+		Effort: p.Config.Effort, Status: "idle", Created: time.Now().Unix()}
+	if th.Model == "" {
+		th.Model = "gpt-home"
+	}
+	s.order = append(s.order, th.ID)
+	t := &thread{Thread: th, items: map[string][]map[string]any{}, subs: map[*client]bool{c: true}}
+	s.threads[th.ID] = t
+	approval, sandbox := p.Approval, p.Sandbox
+	if approval == "" {
+		approval = "on-request"
+	}
+	if sandbox == "" {
+		sandbox = "workspace-write"
+	}
+	return map[string]any{"thread": t.json(), "model": th.Model, "approvalPolicy": approval,
+		"sandbox": map[string]any{"type": sandbox}, "cwd": th.CWD}
 }
 
 // modelList is a page of the catalogue as model/list gives it, the cursor

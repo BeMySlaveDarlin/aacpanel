@@ -269,6 +269,8 @@ for".
 | `TestRetiredMigrationNumbersStayRetired` | the number of a removed migration never gets a file again: a database that logged it would skip the new file without a word |
 | `TestActionTextsPromiseNoSpecificEnvironment` | action texts do not promise somebody else's environment |
 | `TestTheLauncherTakesEveryKeyOfTheSchema` | the claude launcher reads exactly the launch parameters the schema lists as common or claude's, and passes codex's over: a key one of them knows and the other does not is saved and then never launched |
+| `TestTheCodexLaunchTakesEveryKeyOfCodex` | a codex session starts with every codex key and common key of the schema, and none of claude's: a key added to the codex tab without a start behind it fails here |
+| `TestAuditedAnswersEveryQuestionTheExecutorAnswers` | the journal wrapper of the executor answers every question the executor does, New's name of the session included: a method it does not pass on reaches the panel as "this executor cannot" |
 | `TestPreviewIsTheCommandTheLaunchRuns` | the command a settings page shows is the one the launch runs, built by the same code |
 | `TestProfilesSchemaNeedsNoDatabase` | the schema is answered with the database down: the screens are drawn from it |
 | `TestSchemaIsWellFormed` | every parameter of the schema names its levels, what an absent value leaves to and when a live session takes a change |

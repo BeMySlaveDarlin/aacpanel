@@ -33,6 +33,9 @@ type Executor struct {
 
 	// codex holds the links to the codex daemons of the contours.
 	codex *codex.Links
+	// daemons serialises starting the codex daemons: two News at once would
+	// both find no daemon and both start one.
+	daemons sync.Mutex
 }
 
 // busy is a set of names something is under way for.
@@ -116,7 +119,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.StackDown:
 		return e.stackDown(ctx, req.Target)
 	case action.SessionOpen:
-		return e.sessionOpen(ctx, req.Target, req.Project)
+		detail, _, err := e.sessionOpen(ctx, req.Target, req.Project)
+		return detail, err
 	case action.SessionResume:
 		return e.sessionResume(ctx, req.Target, req.Resume, req.Project)
 	case action.SessionClose:

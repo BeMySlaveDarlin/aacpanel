@@ -235,11 +235,25 @@ type Link struct {
 	pending map[string][]Request
 	said    string
 
+	// held are the threads the panel started and stays a client of until it
+	// closes them: nothing else holds such a thread, and the daemon unloads a
+	// thread a while after its last client leaves. Each is marked on the disk
+	// too, so an executor started again takes them back before the daemon
+	// lets them go.
+	held map[string]bool
+	// closed are the threads the panel let go that the daemon has not unloaded
+	// yet: they are no session any more, unless a turn runs in them again.
+	// Each is kept with the turn the close interrupted.
+	closed map[string]string
+
 	// sub serialises what changes a subscription: the poll subscribing and
 	// leaving, and a message starting a turn. A thread/unsubscribe crossing a
 	// turn/start on the wire would take the panel off the turn it started, and
 	// the approval that turn asks for would never reach the phone.
 	sub sync.Mutex
+
+	// wake asks Run to dial now rather than at the next round.
+	wake chan struct{}
 }
 
 // NewLink makes the link to the daemon of a codex home; Run keeps it.
@@ -247,6 +261,7 @@ func NewLink(home, contour string) *Link {
 	return &Link{
 		home: home, contour: contour, socket: SocketPath(home), holder: os.Getpid(),
 		threads: map[string]*thread{}, pending: map[string][]Request{},
+		held: map[string]bool{}, closed: map[string]string{}, wake: make(chan struct{}, 1),
 	}
 }
 
@@ -272,6 +287,19 @@ func Start(ctx context.Context, homes []contours.CodexHome) *Links {
 // Wait returns once every link has ended, its state files gone with it.
 func (ls *Links) Wait() {
 	ls.runs.Wait()
+}
+
+// Home is the link of a codex home, nil when the executor keeps none to it.
+func (ls *Links) Home(dir string) *Link {
+	if ls == nil {
+		return nil
+	}
+	for _, l := range ls.list {
+		if l.home == dir {
+			return l
+		}
+	}
+	return nil
 }
 
 // Thread is a thread of a daemon, as the panel names it.
@@ -346,6 +374,7 @@ func (l *Link) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-l.wake:
 		case <-time.After(redialEvery):
 		}
 	}
@@ -393,6 +422,7 @@ func (l *Link) serve(ctx context.Context) error {
 	}
 	l.mu.Lock()
 	l.conn = c
+	l.held = heldMarks(l.contour)
 	l.mu.Unlock()
 	defer func() {
 		l.mu.Lock()
@@ -448,7 +478,14 @@ func within(ctx context.Context, c *conn, method string, params, out any) error 
 // the subscriptions to them. A subagent's thread is part of its parent's turn
 // and is not a session of its own.
 func (l *Link) poll(ctx context.Context, c *conn) error {
+	// A thread started meanwhile is not in the list yet: what the panel keeps
+	// of the unloaded ones is let go only while no thread is being started.
+	l.sub.Lock()
 	ids, err := loaded(ctx, c)
+	if err == nil {
+		l.unloaded(ids)
+	}
+	l.sub.Unlock()
 	if err != nil {
 		return err
 	}
@@ -463,6 +500,9 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 			continue
 		}
 		if info.Parent != "" || info.Status.Type == "notLoaded" || info.Status.Type == "" {
+			continue
+		}
+		if l.letGo(ctx, c, id, info.Status.Type == "active") {
 			continue
 		}
 		live[id] = true
@@ -539,9 +579,16 @@ func (l *Link) keep(ctx context.Context, c *conn, id string) {
 	waiting := slices.Contains(t.info.Status.Flags, flagApproval)
 	asking := len(l.pending[id]) > 0
 	subscribed, ours := t.subscribed, t.ours
+	held := l.held[id]
 	l.mu.Unlock()
 
 	switch {
+	case held:
+		// A thread the panel holds is left only when the panel closes it, and
+		// joined again after the connection dropped.
+		if !subscribed || (waiting && !asking) {
+			l.join(ctx, c, id)
+		}
 	case !active && !asking:
 		if !subscribed {
 			l.set(id, func(t *thread) { t.ours = false })
@@ -569,13 +616,17 @@ func (l *Link) keep(ctx context.Context, c *conn, id string) {
 		// — a turn/start that went into a running turn subscribes nobody. A
 		// resume of a running thread joins it again and brings the waiting
 		// request with it.
-		if within(ctx, c, "thread/resume", map[string]any{"threadId": id, "excludeTurns": true}, nil) == nil {
-			l.set(id, func(t *thread) { t.subscribed = true })
-		}
+		l.join(ctx, c, id)
 	case !subscribed && (ours || asking):
-		if within(ctx, c, "thread/resume", map[string]any{"threadId": id, "excludeTurns": true}, nil) == nil {
-			l.set(id, func(t *thread) { t.subscribed = true })
-		}
+		l.join(ctx, c, id)
+	}
+}
+
+// join makes the link a client of a thread: a resume of a loaded thread
+// subscribes the one who asks, and brings what it waits on with it.
+func (l *Link) join(ctx context.Context, c *conn, id string) {
+	if within(ctx, c, "thread/resume", map[string]any{"threadId": id, "excludeTurns": true}, nil) == nil {
+		l.set(id, func(t *thread) { t.subscribed = true })
 	}
 }
 
@@ -756,10 +807,7 @@ func (l *Link) Send(ctx context.Context, threadID, text, messageID string) (bool
 	if err != nil {
 		return false, err
 	}
-	params := map[string]any{
-		"threadId": threadID,
-		"input":    []any{map[string]any{"type": "text", "text": text, "text_elements": []any{}}},
-	}
+	params := map[string]any{"threadId": threadID, "input": textInput(text)}
 	if messageID != "" {
 		params["clientUserMessageId"] = messageID
 	}
@@ -797,21 +845,8 @@ func (l *Link) Interrupt(ctx context.Context, threadID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	info, err := read(ctx, c, threadID)
-	if err != nil {
-		return false, err
-	}
-	if info.Status.Type != "active" {
-		return false, nil
-	}
-	turn, err := runningTurn(ctx, c, threadID)
-	if err != nil || turn == "" {
-		return false, err
-	}
-	if err := within(ctx, c, "turn/interrupt", map[string]any{"threadId": threadID, "turnId": turn}, nil); err != nil {
-		return false, err
-	}
-	return true, nil
+	turn, err := interrupt(ctx, c, threadID)
+	return turn != "", err
 }
 
 // Respond answers a request of a thread with a decision, sent as it is.

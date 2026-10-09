@@ -628,12 +628,11 @@ a terminal.
 
 A codex conversation is a thread of the app-server daemon of its codex home
 (`AACP_CODEX_HOMES`, `~/.codex` by default), which serves every client of that
-home — the terminal client of codex, an editor, the panel. Codex starts the
-daemon itself the first time it runs in a home; the panel does not. The daemon plays
+home — the terminal client of codex, an editor, the panel. The daemon plays
 the holder's part: it outlives its clients and keeps the turn and the requests
 that wait for a person. The executor keeps one connection per home, WebSocket
 over the daemon's control socket, and dials again ten seconds after the socket
-appears or the connection drops.
+appears or the connection drops — at once when an action waits for it.
 
 - **The threads are read, not followed.** Every two seconds the executor lists
   the loaded threads and reads each one, and writes a state file per thread in
@@ -646,7 +645,11 @@ appears or the connection drops.
   keep every thread it ever saw loaded. So the executor subscribes while the
   thread waits on an approval — the daemon sends the waiting request again to a
   new client — or while a turn the panel started runs, and leaves once the
-  thread is free and nothing waits.
+  thread is free and nothing waits. A thread the panel started in the daemon is
+  the exception: the panel is its only client and holds it until it closes it.
+  Each such thread is marked in the holders' directory, so an executor started
+  again joins it before the daemon lets it go; the mark of a thread the daemon
+  no longer has is dropped.
 - **The executor stays blind to the conversation.** The notifications that
   carry it are turned off at the handshake, the state file holds no text — not
   the preview of the thread, not its name — and the only words it keeps are
@@ -656,21 +659,65 @@ appears or the connection drops.
   the decisions the request offers, in its order, and the pick goes back as it
   came; the first answer of any client wins, and the others are told the
   request is gone.
+- **New of a project whose agent is codex starts a thread in the daemon of the
+  project's contour**, the home named after the contour; a contour without one
+  is refused with that reason. The panel starts the thread with `thread/start`
+  in the project's directory, with the model, the effort, the approvals and
+  the sandbox of the map where it chose them — the `config.toml` of the home
+  decides the rest — and New answers with the session's name, `codex-<8 hex>`,
+  so the screen opens it as it opens a claude session. Where it lives is the
+  map's `codexTransport`:
+  - *In the daemon* (the default) the panel is the thread's client and sends
+    the first message of the project as its first turn.
+  - *In tmux* codex resumes the thread in a tmux session under the project's
+    session name, started through the launcher as claude is: `codex resume
+    <id> -C <directory>` with the home in `CODEX_HOME` and the first message as
+    its prompt. The thread is named after the project's session at its start:
+    the daemon writes a thread to the disk at its first turn or its naming,
+    and codex resumes only a thread written there. The choices of the map are
+    not passed again as flags: the thread has them from its start, the effort
+    among them, and codex given a configuration override — the only way a
+    terminal takes an effort — refuses a thread the daemon holds loaded. The
+    id in the command tmux keeps for the pane is how a close finds the
+    session.
+- **The panel starts the daemon where none runs.** A home without its control
+  socket gets `codex app-server daemon start` with the home in `CODEX_HOME`, in
+  a transient unit of its own and in the project's directory: started from the
+  executor the daemon would live in the executor's unit and its sandbox, and
+  from a session in that session's unit, going down with whichever stops
+  first. The executor waits for the socket in that home and for its
+  connection; a daemon that puts up no socket there is named — most often a
+  program that chose the home by itself. The program is `AACP_CODEX`, or
+  `codex` from the executor's `PATH`. The daemon updates itself as codex does,
+  and a turn an update cuts is resumed like any other.
+- **A close lets the thread go.** The turn that runs is interrupted, the panel
+  stops holding the thread and leaves it, and the tmux session whose pane the
+  launcher started with codex resuming that thread is killed by its exact
+  name. The thread is not archived: the daemon unloads it once no client is
+  left, its rollout stays, and the panel shows it no more unless another client
+  starts a turn in it. **A restart is refused**: the daemon keeps the thread,
+  and no process of the panel's is there to start again.
 - **Only what the protocol does is done.** A message starts a turn on a free
   thread and goes into the running turn of a busy one, a stop interrupts the
   turn, Esc declines what waits. Every other action over a codex session is
   refused by name: none of the claude ways — keys, signals, a holder's socket —
-  reaches it. The panel does not start a codex session and does not change the
-  model, the effort or the permissions of a thread: those stay with the client
-  that started it.
+  reaches it. The panel does not change the model, the effort or the
+  permissions of a running thread: those stay with the client that started
+  it.
 - **The feed is the rollout, read by the collector.** Codex writes every thread
   to a file of its own under the home's `sessions`, and the collector reads it
   as it reads a claude transcript: the messages, the summaries of reasoning, the
   commands with their output and the changes of files, from the records codex
   writes once an item is done. The raw records of the model beside them say the
   same again and are not shown.
-- **The way back is codex itself.** With the panel down, `codex resume <id>` in
-  a terminal joins the same thread on the same daemon.
+- **The way back is codex itself.** With the panel down, `codex resume <id>`
+  in a terminal joins the same thread on the same daemon, loaded or not,
+  whoever else follows it; a model, approvals or a sandbox given as flags are
+  applied to the thread. Given a configuration override (`-c`, the effort
+  among them) it refuses a thread the daemon holds loaded: it says the
+  conversation is open in another app, and its retry succeeds only once the
+  daemon has unloaded the thread, a minute after its last client left. So the
+  way back is the command without `-c`.
 
 ---
 
@@ -695,10 +742,11 @@ keys — where codex lives, its model picked from what the codex daemon lists
 (the question `codex.models`), the effort, the approvals and the sandbox — are
 saved and checked like the rest, never asking and the sandbox off are held as
 `bypassPermissions` is, and an unset one leaves it to the `config.toml` of the
-codex home. The panel does not start codex sessions yet, and the price is
-plain: New and a restart of a project whose agent is codex are refused with
-that reason, never started as claude in its place. A conversation resumed or
-moved between tmux and the stream is claude's and goes on.
+codex home. New of a project whose agent is codex starts a codex session, as
+"Codex sessions" says. A restart of a claude session of such a project is
+refused: a codex thread does not take the place of a claude conversation. A
+conversation resumed or moved between tmux and the stream is claude's and goes
+on.
 
 **Effective values carry their layer.** A project's value comes from the
 project, its contour, the account, the panel's own default or claude

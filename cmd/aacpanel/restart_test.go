@@ -11,7 +11,6 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
 	"aacpanel/internal/host"
-	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -174,13 +173,15 @@ func TestRestartLaunchWithoutAMessageSaysNothing(t *testing.T) {
 	}
 }
 
-// New and a restart of a project whose agent is codex are refused with the
-// reason before the executor hears of them: the panel starts claude alone, and
-// claude started in codex's place would contradict the map. A project that
-// says claude over its contour's codex starts as before, and a move between
-// tmux and the stream is the session's own and goes on.
-func TestACodexProjectStartsNoClaudePG(t *testing.T) {
-	srv, fake, _ := switchServer(t, "stream", "")
+// New of a project whose agent is codex goes to the executor with the
+// project's launch, and its answer names the session the executor brought up:
+// a codex thread is named by its id, which the screen does not know before. A
+// restart is refused before the executor hears of it — of a codex thread,
+// since its daemon keeps it, and of a claude session of the project, since a
+// codex thread does not take the place of a claude conversation. A move
+// between tmux and the stream is the claude session's own and goes on.
+func TestACodexProjectStartsCodexAndIsNotRestartedPG(t *testing.T) {
+	srv, fake, dir := switchServer(t, "stream", "")
 	list, err := srv.db.Profiles(t.Context())
 	if err != nil || len(list) != 1 {
 		t.Fatalf("the map: %v, %v", list, err)
@@ -194,19 +195,18 @@ func TestACodexProjectStartsNoClaudePG(t *testing.T) {
 	open := `{"kind":"session.open","target":"aacpanel","params":{"project":` + strconv.Itoa(project) + `}}`
 
 	for name, body := range map[string]string{
-		"New":       open,
 		"a restart": `{"kind":"session.restart","params":{"conversation":"` + switchSID + `"}}`,
 		"a restart going on": `{"kind":"session.restart","params":{"conversation":"` + switchSID +
 			`","resume":true}}`,
 	} {
 		w := post(t, srv, body)
-		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), schema.CodexNotStarted) {
-			t.Errorf("%s of a codex project: %d %s", name, w.Code, w.Body.String())
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "does not take the place of a claude") {
+			t.Errorf("%s of the claude session of a codex project: %d %s", name, w.Code, w.Body.String())
 		}
 	}
 	select {
 	case got := <-fake.got:
-		t.Fatalf("a refused start reached the executor: %+v", got)
+		t.Fatalf("a refused restart reached the executor: %+v", got)
 	default:
 	}
 
@@ -216,15 +216,25 @@ func TestACodexProjectStartsNoClaudePG(t *testing.T) {
 	}
 	<-fake.got
 
-	if _, err := srv.db.UpdateProject(t.Context(), project, store.ProjectEdit{LaunchSet: map[string]any{
-		"agent": "claude",
-	}}); err != nil {
-		t.Fatal(err)
+	client, opened := startFakeExec(t, action.Response{OK: true, Detail: "started", Session: "codex-0000beef"})
+	srv.exec = client
+	w = post(t, srv, open)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"session":"codex-0000beef"`) {
+		t.Fatalf("New of a codex project: %d %s", w.Code, w.Body.String())
 	}
-	if w := post(t, srv, open); w.Code != http.StatusOK {
-		t.Fatalf("a project saying claude over a codex contour: %d %s", w.Code, w.Body.String())
+	if got := <-opened.got; got.Project == nil || !strings.Contains(string(got.Project.Launch), `"agent":"codex"`) {
+		t.Errorf("New of a codex project reached the executor as %+v", got)
 	}
-	if got := <-fake.got; got.Project == nil || !strings.Contains(string(got.Project.Launch), `"agent":"claude"`) {
-		t.Errorf("New of a claude project reached the executor as %+v", got)
+
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"codex-0000abcd","sessionId":`+
+		`"019a1f00-0000-7000-8000-00000000abcd","cwd":"`+dir+`","transport":"stream","agent":"codex"}]}`))
+	w = post(t, srv, `{"kind":"session.restart","target":"codex-0000abcd"}`)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), action.CodexNotRestarted) {
+		t.Errorf("a restart of a codex thread: %d %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-opened.got:
+		t.Fatalf("a refused restart reached the executor: %+v", got)
+	default:
 	}
 }

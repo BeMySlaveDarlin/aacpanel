@@ -179,6 +179,43 @@ func CodexContour(dir string) string {
 	return strings.TrimLeft(name, ".")
 }
 
+// ContourOf names the contour of a claude config directory: as the registry
+// names it, and otherwise after the directory, the way a codex home is named —
+// the default one is the personal contour, any other is its name without the
+// leading dot. No directory is the default one.
+func ContourOf(configDir string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+	if strings.TrimSpace(configDir) == "" {
+		return Personal
+	}
+	dir := filepath.Clean(expand(strings.TrimSpace(configDir), home))
+	for _, c := range fromRegistry(home) {
+		if filepath.Clean(c.Config) == dir {
+			return c.Profile
+		}
+	}
+	if IsDefaultConfig(dir, home) {
+		return Personal
+	}
+	return strings.TrimLeft(filepath.Base(dir), ".")
+}
+
+// CodexHomeOf is the codex home of the contour a claude config directory
+// stands for: the home named after that contour. A contour without one has no
+// codex daemon for its projects.
+func CodexHomeOf(configDir string) (CodexHome, bool) {
+	contour := ContourOf(configDir)
+	for _, h := range CodexHomes() {
+		if h.Contour == contour {
+			return h, true
+		}
+	}
+	return CodexHome{Contour: contour}, false
+}
+
 func expand(dir, home string) string {
 	if home != "" && strings.HasPrefix(dir, "~/") {
 		return filepath.Join(home, dir[2:])

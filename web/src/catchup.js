@@ -18,9 +18,11 @@ export function noteAction(kind, target, params) {
 
 // answerAction lands a wait in flight: an action done leaves it to the
 // snapshot and to the ceiling from now on, a refused one takes it away —
-// nothing is coming to wait for.
-export function answerAction(kind, target, ok) {
-    if (kind && target && held) held.answer(kind, target, ok);
+// nothing is coming to wait for. A New that names the session it brought up
+// is waited for by that name: a codex thread comes up under a name of its
+// own, not the project's.
+export function answerAction(kind, target, ok, named) {
+    if (kind && target && held) held.answer(kind, target, ok, named);
 }
 
 // liveOf finds the live session a conversation on screen belongs to. A
@@ -80,6 +82,7 @@ export function settled(task, names, at = 0, ids = {}) {
     if (task.kind === "restart" || task.kind === "switch") {
         return names.includes(task.target) && ids[task.target] !== task.was;
     }
+    if (task.named) return names.includes(task.named);
     return names.some((name) => !task.before.includes(name) && ownName(name, task.target));
 }
 
@@ -110,13 +113,13 @@ export function useCatchUp(snapshot, refresh) {
             }));
             if (now.refresh) now.refresh();
         };
-        const answer = (kind, target, ok) => {
+        const answer = (kind, target, ok, named) => {
             const key = waitKey(kind, target);
             setWaits((prev) => {
                 const task = prev[key];
                 if (!task || !task.flying) return prev;
                 const next = { ...prev };
-                if (ok) next[key] = { ...task, flying: false, answered: Date.now() };
+                if (ok) next[key] = { ...task, flying: false, answered: Date.now(), ...(named ? { named } : {}) };
                 else delete next[key];
                 return next;
             });

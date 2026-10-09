@@ -502,3 +502,27 @@ func TestTheModelsOfCodexCrossTheSocket(t *testing.T) {
 		t.Error("the models of codex were asked of a session")
 	}
 }
+
+// opener starts sessions under names of their own.
+type opener struct{ ExecutorFunc }
+
+func (opener) Open(_ context.Context, req Request) (string, string, error) {
+	return "started", "codex-0000beef", nil
+}
+
+// New answers with the session it brought up where the executor names it;
+// every other action goes the plain way and names none.
+func TestNewAnswersWithTheSessionItBroughtUp(t *testing.T) {
+	plain := ExecutorFunc(func(context.Context, Request) (string, error) { return "done", nil })
+	client := serve(t, opener{plain})
+	req := request("req-open", SessionOpen, "shop")
+	req.Project = &Project{Path: "/srv/shop", Session: "shop"}
+	resp, err := client.Do(context.Background(), req)
+	if err != nil || !resp.OK || resp.Session != "codex-0000beef" || resp.Detail != "started" {
+		t.Fatalf("New answered %+v, %v", resp, err)
+	}
+	resp, err = client.Do(context.Background(), request("req-stop", ContainerStop, "shop"))
+	if err != nil || resp.Session != "" || resp.Detail != "done" {
+		t.Errorf("another action answered %+v, %v", resp, err)
+	}
+}

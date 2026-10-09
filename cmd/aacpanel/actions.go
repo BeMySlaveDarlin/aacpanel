@@ -13,6 +13,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -250,9 +251,6 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		} else {
 			want, found, err = s.launchProject(r.Context(), body.Params, cwd, req.Target)
 		}
-		if err == nil && want != nil && req.Kind == action.SessionOpen {
-			err = startsClaude(found.project.Name, want.Launch)
-		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -395,6 +393,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	}
 	if contour != "" {
 		out["contour"] = contour
+	}
+	if resp.Session != "" {
+		out["session"] = resp.Session
 	}
 	writeJSON(w, out)
 }
@@ -801,6 +802,9 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 		}
 		way.Name = live.Name
 	}
+	if ok && live.Agent == schema.AgentCodex {
+		return restartWay{}, fmt.Errorf("session %s is not restarted: %s", way.Name, action.CodexNotRestarted)
+	}
 	if resume {
 		if !ok || live.SessionID == "" {
 			return restartWay{}, fmt.Errorf("the conversation of session %s is not known, so it cannot go on", name)
@@ -814,7 +818,7 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 	if err != nil || want == nil {
 		return way, err
 	}
-	if err := startsClaude(found.project.Name, want.Launch); err != nil {
+	if err := restartsClaude(found.project.Name, want.Launch); err != nil {
 		return restartWay{}, fmt.Errorf("session %s is not restarted: %w", way.Name, err)
 	}
 	want.Session = way.Name

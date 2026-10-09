@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A New waits for the session it brought up: by the name the executor answered
+// with when it gave one — a codex thread comes up under a name of its own —
+// and by the project's name otherwise.
+import { settled } from "/src/catchup.js";
+
+const open = (named) => ({ kind: "open", target: "shop", before: ["shop"], ...(named ? { named } : {}) });
+window.done = (async () => ({
+    namedUp: settled(open("codex-5afc361b"), ["shop", "codex-5afc361b"]),
+    namedNotYet: settled(open("codex-5afc361b"), ["shop", "shop-2"]),
+    plainUp: settled(open(), ["shop", "shop-2"]),
+    plainNotYet: settled(open(), ["shop", "codex-5afc361b"]),
+}))();
+</script>

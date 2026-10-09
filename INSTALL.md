@@ -826,7 +826,15 @@ like the claude ones; unset, it is `~/.codex`. No question asks for it: a
 machine with codex in another `CODEX_HOME` adds the directory by hand. The
 panel shows the conversations of the daemon codex starts in each of them, under
 the contour named the way a claude account is — `~/.codex` is the personal one,
-any other directory its name without the leading dot.
+any other directory its name without the leading dot. New of a project whose
+agent is codex starts in the home named after the project's contour, and a
+contour with no home of its own is refused.
+
+`AACP_CODEX` names the codex program the panel starts the daemon of a home and
+codex in tmux with; unset, it is `codex` from the executor's `PATH`. The panel
+sets `CODEX_HOME` itself, so a wrapper that picks the home by the directory
+overrules it — on such a machine `AACP_CODEX` names the codex program itself,
+or a New waits for a daemon in a home that never gets one and says so.
 
 ## S4. `root` — Root part
 

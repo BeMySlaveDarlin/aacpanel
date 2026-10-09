@@ -28,6 +28,8 @@ type Spec struct {
 	Launch    json.RawMessage `json:"launch,omitempty"`
 	ClaudeBin string          `json:"claudeBin,omitempty"`
 	ConfigDir string          `json:"configDir,omitempty"`
+	// Codex starts codex in tmux on a thread instead of claude.
+	Codex *CodexSpec `json:"codex,omitempty"`
 }
 
 // Report describes what came out of a launch.
@@ -60,6 +62,9 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	if spec.Dir == "" || !strings.HasPrefix(spec.Dir, "/") {
 		return Report{}, fmt.Errorf("project directory %q is not absolute", spec.Dir)
 	}
+	if spec.Codex != nil {
+		return runCodex(ctx, spec)
+	}
 
 	if err := checkResume(spec.Dir, spec.Resume); err != nil {
 		return Report{}, err
@@ -69,7 +74,7 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 	// A conversation that goes on is claude's whatever the project says now;
 	// a new one of a project whose agent is codex is not claude's to start.
 	if params.Agent == schema.AgentCodex && spec.Resume == "" {
-		return Report{}, fmt.Errorf("the project's agent is codex: %s", schema.CodexNotStarted)
+		return Report{}, fmt.Errorf("the project's agent is codex, and claude is not started in its place")
 	}
 
 	choice, err := claudeBin(spec.ClaudeBin)

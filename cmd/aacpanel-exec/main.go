@@ -506,21 +506,49 @@ func (a audited) Setup(ctx context.Context, target, part string) (*action.Setup,
 }
 
 func (a audited) Execute(ctx context.Context, req action.Request) (string, error) {
+	detail, _, err := a.audit(req, func() (string, string, error) {
+		detail, err := a.next.Execute(ctx, req)
+		return detail, "", err
+	})
+	return detail, err
+}
+
+// Open starts a session through the wrapped executor, audited as the action
+// it is, and passes on the name of the session it brought up.
+func (a audited) Open(ctx context.Context, req action.Request) (string, string, error) {
+	opener, ok := a.next.(action.Opener)
+	if !ok {
+		detail, err := a.Execute(ctx, req)
+		return detail, "", err
+	}
+	return a.audit(req, func() (string, string, error) { return opener.Open(ctx, req) })
+}
+
+// CodexModels asks the wrapped executor for the models codex offers.
+func (a audited) CodexModels(ctx context.Context) ([]action.CodexModel, error) {
+	asker, ok := a.next.(action.CodexModelsAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know the models of codex")
+	}
+	return asker.CodexModels(ctx)
+}
+
+func (a audited) audit(req action.Request, run func() (string, string, error)) (string, string, error) {
 	log.Printf("audit phase=start action=%s target=%s device=%q request=%s",
 		req.Kind, req.Target, req.Device, req.ID)
 
 	started := time.Now()
-	detail, err := a.next.Execute(ctx, req)
+	detail, session, err := run()
 	took := time.Since(started).Milliseconds()
 
 	if err != nil {
 		log.Printf("audit phase=done action=%s target=%s device=%q request=%s result=failed duration_ms=%d error=%q",
 			req.Kind, req.Target, req.Device, req.ID, took, err.Error())
-		return detail, err
+		return detail, session, err
 	}
 	log.Printf("audit phase=done action=%s target=%s device=%q request=%s result=ok duration_ms=%d detail=%q",
 		req.Kind, req.Target, req.Device, req.ID, took, detail)
-	return detail, nil
+	return detail, session, nil
 }
 
 func startTerminals(ctx context.Context, socket string) (net.Listener, error) {

@@ -253,7 +253,7 @@ func TestSessionActionsDeclareWhatToWaitFor(t *testing.T) {
 		t.Error("the gate does not start the wait from the declared consequence: then every button " +
 			"starts it itself again, and the next button forgets again")
 	}
-	if !strings.Contains(gate, "answerAction(watch, target, result.ok)") {
+	if !strings.Contains(gate, "answerAction(watch, target, result.ok") {
 		t.Error("the gate does not tell the wait how the action ended: the panel will wait for the " +
 			"consequences of a refused action")
 	}

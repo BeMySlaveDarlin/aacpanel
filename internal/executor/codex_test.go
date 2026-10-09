@@ -210,7 +210,7 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	_, e := onCodex(t, nil)
 	ctx := context.Background()
 	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionStop: true, action.SessionEscape: true,
-		action.SessionPermit: true}
+		action.SessionPermit: true, action.SessionClose: true}
 	for _, k := range action.Kinds {
 		if !sessionTarget(k) || taken[k] {
 			continue

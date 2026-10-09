@@ -59,6 +59,14 @@ type SetupAsker interface {
 	Setup(ctx context.Context, target, part string) (*Setup, error)
 }
 
+// Opener is an executor that names the session a New brought up. Claude
+// comes up under the name of its project or the first free one after it; a
+// codex thread is named by its id, which nobody knows before the daemon makes
+// it, and the screen opens the session by this name.
+type Opener interface {
+	Open(ctx context.Context, req Request) (detail, session string, err error)
+}
+
 // Capable is an executor that does not do everything listed in Kinds.
 type Capable interface {
 	Kinds() []Kind
@@ -347,7 +355,13 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 
 	started := time.Now()
 	runCtx, cancel := context.WithTimeout(ctx, s.timeout)
-	detail, err := s.exec.Execute(runCtx, req)
+	var detail, session string
+	var err error
+	if opener, ok := s.exec.(Opener); ok && req.Kind == SessionOpen {
+		detail, session, err = opener.Open(runCtx, req)
+	} else {
+		detail, err = s.exec.Execute(runCtx, req)
+	}
 	cancel()
 	took := time.Since(started)
 
@@ -356,6 +370,7 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		log.Printf("aacpanel-exec: %s %s (%s): %v", req.Kind, req.Target, took.Round(time.Millisecond), err)
 	} else {
 		cur.resp = Done(req.ID, detail, took)
+		cur.resp.Session = session
 		log.Printf("aacpanel-exec: %s %s done in %s", req.Kind, req.Target, took.Round(time.Millisecond))
 	}
 	close(cur.done)

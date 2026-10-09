@@ -115,6 +115,8 @@ type LiveSession struct {
 	// of the user's tmux or of a terminal of the panel, so neither side can take
 	// it over.
 	Outside bool `json:"outside"`
+	// Agent is "codex" for a thread of a codex daemon, empty for claude.
+	Agent string `json:"agent"`
 }
 
 // Worktrees maps the git worktrees the agent saw on disk to their main

@@ -169,7 +169,8 @@ func TestAuditedAnswersEveryQuestionTheExecutorAnswers(t *testing.T) {
 		reflect.TypeFor[action.Asker](), reflect.TypeFor[action.WindowAsker](), reflect.TypeFor[action.ModelsAsker](),
 		reflect.TypeFor[action.McpAsker](), reflect.TypeFor[action.StatusAsker](), reflect.TypeFor[action.CommandsAsker](),
 		reflect.TypeFor[action.SideAsker](), reflect.TypeFor[action.SetupAsker](), reflect.TypeFor[action.GuardKeeper](),
-		reflect.TypeFor[action.Capable](),
+		reflect.TypeFor[action.Capable](), reflect.TypeFor[action.Opener](), reflect.TypeFor[action.CodexModelsAsker](),
+		reflect.TypeFor[action.TermsAsker](), reflect.TypeFor[action.SecretsAsker](),
 	}
 	exec := reflect.TypeFor[*executor.Executor]()
 	wrap := reflect.TypeFor[audited]()
@@ -177,5 +178,20 @@ func TestAuditedAnswersEveryQuestionTheExecutorAnswers(t *testing.T) {
 		if exec.Implements(asker) && !wrap.Implements(asker) {
 			t.Errorf("the executor is a %s and the wrapper is not: the panel is told the executor cannot", asker)
 		}
+	}
+}
+
+type openingExec struct{ muteExec }
+
+func (openingExec) Open(context.Context, action.Request) (string, string, error) {
+	return "started", "codex-0000beef", nil
+}
+
+// The wrapper passes on the name of the session New brought up: the screen
+// opens the session by it.
+func TestAuditedPassesOnTheSessionNewBroughtUp(t *testing.T) {
+	detail, session, err := audited{next: openingExec{}}.Open(t.Context(), action.Request{Kind: action.SessionOpen})
+	if err != nil || detail != "started" || session != "codex-0000beef" {
+		t.Errorf("New through the wrapper answered %q %q %v", detail, session, err)
 	}
 }

@@ -133,7 +133,7 @@ func TestPreviewIsTheCommandTheLaunchRuns(t *testing.T) {
 // claude's and the agent of the project does not stand in its way.
 func TestANewConversationOfACodexProjectIsRefused(t *testing.T) {
 	_, err := Run(context.Background(), Spec{Dir: "/srv/proj", Session: "shop", Launch: json.RawMessage(`{"agent":"codex"}`)})
-	if err == nil || !strings.Contains(err.Error(), schema.CodexNotStarted) {
+	if err == nil || !strings.Contains(err.Error(), "claude is not started in its place") {
 		t.Fatalf("a new conversation of a codex project: %v", err)
 	}
 	p, warns := parseParams(json.RawMessage(`{"agent":"cursor"}`))

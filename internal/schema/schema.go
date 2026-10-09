@@ -34,10 +34,6 @@ const (
 	AgentCodex  = "codex"
 )
 
-// CodexNotStarted is why New and a restart of a project whose agent is codex
-// start nothing: claude started in its place would contradict the map.
-const CodexNotStarted = "the panel does not start codex sessions yet"
-
 // Level is where a value may be stored.
 type Level string
 
@@ -140,8 +136,7 @@ var params = []Param{
 		Help:   "what New and a restart of a project start; a session that runs keeps its agent",
 		Options: []Option{
 			{Value: AgentClaude, Label: "Claude Code", Meaning: "claude, as the Claude tab says"},
-			{Value: AgentCodex, Label: "Codex", Meaning: "a thread of the codex daemon of the contour, as the Codex tab says; " +
-				CodexNotStarted},
+			{Value: AgentCodex, Label: "Codex", Meaning: "a thread of the codex daemon of the contour, as the Codex tab says"},
 		},
 		Unset: "Claude Code", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNextStart},

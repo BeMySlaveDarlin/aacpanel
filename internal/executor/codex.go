@@ -15,10 +15,11 @@ import (
 // A codex session is a thread of the codex daemon of a contour, held by the
 // daemon rather than by anything the panel started. It is reached only through
 // the daemon's protocol: a message is a turn or a steer, a stop is an
-// interrupt, an approval is a reply to the daemon's request. None of the ways
-// of a claude session — keys into tmux, signals to a pid, the socket of a
-// holder — apply to it, and an action the panel has no codex way for is
-// refused rather than tried the claude way.
+// interrupt, an approval is a reply to the daemon's request, a close is an
+// interrupt and the panel leaving the thread. None of the ways of a claude
+// session — keys into tmux, signals to a pid, the socket of a holder — apply
+// to it, and an action the panel has no codex way for is refused rather than
+// tried the claude way.
 
 // StartCodex links the executor to the codex daemons of the contours until
 // ctx ends.
@@ -94,6 +95,10 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexEscape(ctx, th)
 	case action.SessionPermit:
 		return codexPermit(ctx, th, req.Permit)
+	case action.SessionClose:
+		return e.codexClose(ctx, th)
+	case action.SessionRestart:
+		return "", fmt.Errorf("%s is a codex session: %s", th.Name, action.CodexNotRestarted)
 	}
 	return "", codexRefusal(th.Name)
 }

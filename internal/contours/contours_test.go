@@ -216,3 +216,39 @@ func TestCodexHomesAreNamedLikeClaudeContours(t *testing.T) {
 		}
 	}
 }
+
+// The codex home of a project is found by its contour: the registry's name for
+// the claude config directory of the contour, or the name of the directory
+// itself where the registry holds none — the same name a codex home is given.
+// A contour that names no codex home has none, and says which it is.
+func TestTheCodexHomeOfAContourIsTheOneNamedAfterIt(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	reg := filepath.Join(home, "registry.conf")
+	body := "algo   | /srv/algo/ | ~/.claude-profiles/algo | -\n" +
+		"acme   | /srv/acme/ | ~/.claude-profiles/client | -\n" +
+		"personal | *        | ~/.claude | -\n"
+	if err := os.WriteFile(reg, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(RegistryEnv, reg)
+	t.Setenv(CodexHomesEnv, strings.Join([]string{"~/.codex", "~/.codex-profiles/acme", "~/.codex-profiles/lab"},
+		string(os.PathListSeparator)))
+
+	for configDir, want := range map[string]string{
+		"":                                  filepath.Join(home, ".codex"),
+		filepath.Join(home, ".claude"):      filepath.Join(home, ".codex"),
+		"~/.claude-profiles/client":         filepath.Join(home, ".codex-profiles", "acme"),
+		filepath.Join(home, "x", ".lab"):    filepath.Join(home, ".codex-profiles", "lab"),
+		filepath.Join(home, ".claude-algo"): "",
+		"~/.claude-profiles/algo":           "",
+	} {
+		got, ok := CodexHomeOf(configDir)
+		if ok != (want != "") || got.Dir != want {
+			t.Errorf("the codex home of %q is %+v (%v), expected %q", configDir, got, ok, want)
+		}
+	}
+	if got, _ := CodexHomeOf("~/.claude-profiles/algo"); got.Contour != "algo" {
+		t.Errorf("a contour with no codex home is named %q", got.Contour)
+	}
+}

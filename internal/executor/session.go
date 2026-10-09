@@ -11,6 +11,8 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/claudecfg"
 	"aacpanel/internal/hostcfg"
+	"aacpanel/internal/launcher"
+	"aacpanel/internal/schema"
 )
 
 const projectRootsEnv = hostcfg.ProjectRootsEnv
@@ -31,10 +33,20 @@ type project struct {
 	FromMap   bool
 }
 
-func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.Project) (string, error) {
+// Open starts a session of a project, as New does, and names the session it
+// brought up: claude comes up under the name of its project or the first free
+// one after it, and a codex thread under the tail of its id.
+func (e *Executor) Open(ctx context.Context, req action.Request) (string, string, error) {
+	return e.sessionOpen(ctx, req.Target, req.Project)
+}
+
+func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.Project) (string, string, error) {
 	p, err := chooseProject(target, want)
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+	if c, warns := launcher.ParseCodex(p.Launch); c.Agent == schema.AgentCodex {
+		return e.codexOpen(ctx, p, c, warns)
 	}
 
 	trusted, err := projectTrusted(p.Path)
@@ -50,7 +62,7 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 	if !trusted {
 		if !p.FromMap {
 			if claudecfg.AsksForTrust(p.Path) {
-				return "", fmt.Errorf(
+				return "", "", fmt.Errorf(
 					"%s has never been opened in Claude Code: it is a repository, and a session started here "+
 						"would stop at the directory trust question, which cannot be answered from the phone. "+
 						"The panel grants trust only to projects from the map — add this directory as a "+
@@ -60,7 +72,7 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 		} else {
 			ok, err := trustProject(p.Path)
 			if err != nil {
-				return "", fmt.Errorf("%s is not trusted, and granting trust failed: %w", p.Path, err)
+				return "", "", fmt.Errorf("%s is not trusted, and granting trust failed: %w", p.Path, err)
 			}
 			granted = ok
 		}
@@ -68,13 +80,13 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 
 	rep, err := e.runLauncher(ctx, p, "")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	detail := describeConsole(rep)
 	if granted {
 		detail += "; trust for directory " + p.Path + " was granted by the panel — claude itself never asked about it"
 	}
-	return detail, nil
+	return detail, rep.Session, nil
 }
 
 func chooseProject(target string, want *action.Project) (project, error) {

@@ -19,7 +19,7 @@ async function send(id, target, params) {
     const watch = ACTIONS[id].watch;
     noteAction(watch, target, params);
     const result = await post(id, target, params);
-    answerAction(watch, target, result.ok);
+    answerAction(watch, target, result.ok, result.ok && result.data ? result.data.session : "");
     return result;
 }
 

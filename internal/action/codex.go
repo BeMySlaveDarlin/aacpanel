@@ -17,6 +17,12 @@ type CodexModel struct {
 	Effort  string   `json:"effort,omitempty"`
 }
 
+// CodexNotRestarted is why a codex session is not restarted: the daemon of
+// its home keeps the thread, and no process of the panel's is there to start
+// again.
+const CodexNotRestarted = "its thread is kept by the codex daemon, and there is nothing to restart — " +
+	"close it and start another with New"
+
 // CodexModelsAsker is an executor that knows the models codex offers.
 type CodexModelsAsker interface {
 	CodexModels(ctx context.Context) ([]CodexModel, error)
