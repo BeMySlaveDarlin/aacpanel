@@ -129,6 +129,56 @@ func envDirs(home string) []string {
 	return strings.Split(raw, string(os.PathListSeparator))
 }
 
+// CodexHomesEnv lists the CODEX_HOME directories of the codex contours,
+// separated by colons.
+const CodexHomesEnv = "AACP_CODEX_HOMES"
+
+// CodexHome is the home directory of one codex contour: where its daemon keeps
+// its control socket and its conversations.
+type CodexHome struct {
+	Dir     string
+	Contour string
+}
+
+// CodexHomes returns the codex homes of the contours, ~/.codex when none is named.
+func CodexHomes() []CodexHome {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+	raw := strings.TrimSpace(os.Getenv(CodexHomesEnv))
+	if raw == "" {
+		if home == "" {
+			return nil
+		}
+		raw = filepath.Join(home, ".codex")
+	}
+	var out []CodexHome
+	for _, dir := range strings.Split(raw, string(os.PathListSeparator)) {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
+		}
+		dir = filepath.Clean(expand(dir, home))
+		if slices.ContainsFunc(out, func(h CodexHome) bool { return h.Dir == dir }) {
+			continue
+		}
+		out = append(out, CodexHome{Dir: dir, Contour: CodexContour(dir)})
+	}
+	return out
+}
+
+// CodexContour names the contour of a codex home the way a claude contour is
+// named by its config directory: the default one is the personal contour, any
+// other is its directory's name without the leading dot.
+func CodexContour(dir string) string {
+	name := filepath.Base(dir)
+	if name == ".codex" {
+		return Personal
+	}
+	return strings.TrimLeft(name, ".")
+}
+
 func expand(dir, home string) string {
 	if home != "" && strings.HasPrefix(dir, "~/") {
 		return filepath.Join(home, dir[2:])

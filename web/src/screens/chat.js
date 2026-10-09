@@ -55,6 +55,8 @@ import { useViewPick } from "./chat/viewpick.js";
 import { useViewing } from "../viewing.js";
 import { useWide } from "../ui/wide.js";
 import { useAsOf } from "../ui/asof.js";
+import { Icon } from "../ui/icons.js";
+import { isCodex } from "../agent.js";
 
 
 export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, onUsage, onOpenChat, onTerm }) {
@@ -98,17 +100,21 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     const wide = useWide();
     const still = useAsOf();
     const term = useTermAvailable();
+    // A codex thread is written to, stopped and answered, and nothing more:
+    // it takes text alone, and lives where no move, window or terminal of the
+    // panel reaches.
+    const codex = isCodex(live);
     // A claude out of the panel's reach lives in no pane of a tmux the panel
     // attaches to: there is no screen of it to attach to.
-    const canTerm = term.ok && Boolean(live) && !live.outside;
+    const canTerm = term.ok && Boolean(live) && !live.outside && !codex;
     // What to watch it with is the session's own choice on this device.
     const [picked, pickView] = useViewPick(name, canTerm, wide);
 
     // Where the session lives decides what the pair of views does: see
     // sidesOf. The window on the host is asked here, since it holds tmux.
     const transport = (live && live.transport) || "";
-    const way = useSwitchWay(live ? name : "", transport);
-    const [win, askWindow] = useWindow(live ? name : "", transport);
+    const way = useSwitchWay(live && !codex ? name : "", transport);
+    const [win, askWindow] = useWindow(live && !codex ? name : "", transport);
     const sides = live
         ? sidesOf({ live, way, held: win.kind === "open", picked, canTerm, exec })
         : { view: picked, pair: false, moves: "", tip: "", why: "" };
@@ -134,12 +140,14 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     const myBriefs = useMemo(() => mine(briefs), [mine, briefs]);
 
     // Questions asked aside: on the stream the panel asks them itself, and
-    // they reach neither the conversation nor its transcript.
+    // they reach neither the conversation nor its transcript. A codex thread
+    // is asked nothing aside.
     const sideChat = useSideChat(name, id);
     const onStream = Boolean(live) && live.transport === "stream";
+    const asksAside = onStream && !codex;
     // A call the turn waits on goes to the background in a live session the
     // panel reaches: on the stream by its id, in the console all at once.
-    const toBackground = live && !live.outside ? { name, exec, stream: onStream } : null;
+    const toBackground = live && !live.outside && !codex ? { name, exec, stream: onStream } : null;
 
     const quote = useSelectionQuote();
     const [insert, setInsert] = useState(null);
@@ -355,6 +363,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 <h2>
                     <span class="talkdot" data-tone=${stand.tone} title=${stand.say}></span>
                     <${MidName} text=${name} />
+                    ${codex && html`<span class="talkmark">${Icon.braces()}codex</span>`}
                 </h2>
                 <div class="chatsub">
                     ${pct != null && html`
@@ -429,7 +438,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 />`}
                 tail=${away ? [] : pending.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
                     <${Row} item=${row} />
-                    ${row.state === "queued" && live && live.transport === "stream" && html`
+                    ${row.state === "queued" && live && live.transport === "stream" && !codex && html`
                         <${TakeBack} row=${row} name=${name} exec=${exec}
                                      onGone=${(key) => setLocal((was) => was.filter((l) => l.key !== key))}
                                      onEdit=${(text) => setInsert({ key: Date.now(), text, message: true })} />
@@ -466,6 +475,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                       onAnswered=${() => mark(answered(live, ""))} />`
                     : html`
                         <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"} stream=${live.transport === "stream"}
+                                     plain=${codex}
                                      hold=${holding}
                                      files=${files}
                                      onAsk=${() => setAsking(true)}
@@ -478,14 +488,15 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                      insert=${insert}
                                      onPicker=${knows(exec, "session.set") ? setPicking : null}
                                      onScreen=${screenLook}
-                                     onSide=${onStream ? sideChat.ask : null}
+                                     onSide=${asksAside ? sideChat.ask : null}
                                      strip=${wide
-                                         ? html`<${PickBar} name=${name} live=${live} exec=${exec} lead=${commandsChip} />
+                                         ? html`${!codex && html`<${PickBar} name=${name} live=${live} exec=${exec} lead=${commandsChip} />`}
                                              ${view !== "term" && html`<div class="cwork">
                                                  <${Work} work=${state.work} onOpen=${(what) => setLook(what)} />
                                                  <${WorkRefs} work=${state.work} pages=${myPages} briefs=${myBriefs} onOpen=${(what) => setLook(what)} />
                                                  ${termJump}
                                              </div>`}`
+                                         : codex ? null
                                          : html`<${PickWords} live=${live} exec=${exec} onPick=${setPicking} lead=${commandsChip} />`}
                                      focus=${`${name}|${id || ""}|${view}`} />
                     `}
@@ -547,7 +558,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 : look.kind === "commands"
                 ? html`<${CommandsSheet} name=${name} live=${live} exec=${exec} onScreen=${screenLook}
                                          onPicker=${knows(exec, "session.set") ? (what) => { setLook(null); setPicking(what); } : null}
-                                         onSide=${onStream ? () => { setLook(null); setInsert({ key: Date.now(), text: "/btw ", command: true }); } : null}
+                                         onSide=${asksAside ? () => { setLook(null); setInsert({ key: Date.now(), text: "/btw ", command: true }); } : null}
                                          onDone=${() => setLook(null)} />`
                 : look.kind === "rename"
                 ? (live ? html`<${RenameSheet} name=${name} exec=${exec} onDone=${() => setLook(null)}
@@ -576,7 +587,7 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                                  onBack=${pageLook(look) ? () => setLook(null) : undefined} />`)}
         <//>
 
-        ${onStream && feedShown && html`<${SideChat} chat=${sideChat} wide=${wide} feedRef=${feedRef} />`}
+        ${asksAside && feedShown && html`<${SideChat} chat=${sideChat} wide=${wide} feedRef=${feedRef} />`}
 
         <${QuoteTip} quote=${quote} onQuote=${takeQuote} />
     `;

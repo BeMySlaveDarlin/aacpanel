@@ -10,6 +10,7 @@ import archive
 import chat
 import contours
 import held
+from chat import codex
 
 SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
 
@@ -201,7 +202,7 @@ def live_sessions():
         name = data.get("name") or os.path.basename(cwd.rstrip("/")) or cwd
         out.append({
             "name": name, "sessionId": sid, "cwd": cwd, "pid": pid,
-            "transcript": chat.transcript_path(sid),
+            "transcript": chat.claude_path(sid),
             "procStartedAt": started_at(pid),
         })
     return out
@@ -295,6 +296,44 @@ def _row(live):
         "lastRequestAt": found.get("lastRequestAt"),
         **_mode(found),
     }
+
+
+def codex_row(data):
+    """Returns the row of a codex thread a live executor follows.
+
+    The executor knows what the thread is doing — busy, what waits for a
+    person, the model and the effort; how full the context is codex writes
+    into the rollout, and the row reads it there, as a claude row reads its
+    transcript.
+    """
+    sid = data["sessionId"]
+    name = data.get("name") if isinstance(data.get("name"), str) and data["name"] else f"codex-{sid[-8:]}"
+    contour = data.get("contour") if isinstance(data.get("contour"), str) else ""
+    path = codex.rollout_path(sid, contour)
+    found = (codex.context(path) if path else None) or {"tokens": 0, "limit": 0, "at": ""}
+    tokens, limit = found["tokens"], found["limit"]
+    row = {
+        "session": name, "sessionId": sid, "cwd": data.get("cwd") or "",
+        "profile": contour, "agent": "codex", "transport": "stream",
+        "model": data.get("model") or "", "effort": data.get("effort") or "",
+        "startedAt": data.get("started") or None,
+        "tokens": tokens, "limit": limit, "pct": round(tokens / limit * 100, 1) if limit else 0.0,
+        "limitKnown": limit > 0, "lastRequestAt": found["at"] or None,
+    }
+    if not found["at"]:
+        row["noRequests"] = True
+    wait = held.waiting_for(data)
+    if wait:
+        row["status"] = "waiting"
+        row["waitingFor"] = wait
+    else:
+        row["status"] = "busy" if data.get("busy") is True else "idle"
+    return row
+
+
+def codex_sessions():
+    """Returns the rows of the codex threads live executors follow."""
+    return [codex_row(data) for data in held.codex_threads()]
 
 
 def sessions():

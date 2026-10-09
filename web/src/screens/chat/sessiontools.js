@@ -23,6 +23,7 @@ import { useRemote } from "./remote.js";
 import { moveSession, stops } from "./switch.js";
 import { outsideNote } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
+import { CODEX_NOTE, isCodex, noTurn } from "../../agent.js";
 
 // MoreButton opens the tools of the session from the header on a phone.
 export function MoreButton({ onOpen }) {
@@ -115,6 +116,28 @@ function Watch({ view, note, onPick }) {
 // its own, and two layers over the run fight for the way back.
 export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, way, work, onDone, onWindow, onLook }) {
     const run = useAction();
+    // A codex thread lives with codex: the panel writes to it, stops its turn
+    // and answers what it asks, and has nothing else to offer — no move, no
+    // window, no bridge, no name to change and no end.
+    if (isCodex(live)) {
+        return html`
+            <section class="toolsec">
+                <div class="cmdsechead"><span>Where it lives</span></div>
+                <ul class="mcplist toollist"><${Place} live=${live} win=${win} /></ul>
+            </section>
+            <section class="toolsec">
+                <div class="cmdsechead"><span>Session</span></div>
+                <ul class="mcplist toollist">
+                    <${SessionLines} name=${name} live=${live} exec=${exec} cwd=${cwd} onDone=${onDone} onLook=${onLook} />
+                </ul>
+            </section>
+            <section class="toolsec toolend">
+                <ul class="mcplist toollist">
+                    <${StopLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
+                </ul>
+            </section>
+        `;
+    }
     // A claude the panel did not start is only read: it has no side to move
     // from, no window, no bridge, and the panel does not end what it did not
     // begin.
@@ -166,10 +189,12 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
 // Place says where the session lives now.
 function Place({ live, win }) {
     const stream = live.transport === "stream";
-    const note = live.outside ? outsideNote(live)
+    const codex = isCodex(live);
+    const note = codex ? CODEX_NOTE
+        : live.outside ? outsideNote(live)
         : stream ? `claude -p held by the panel: no terminal and no window on ${hostLabel()}`
         : `a terminal on ${hostLabel()}${win.kind === "open" ? " · a window shows it" : ""}`;
-    const label = live.outside ? "Outside the panel" : stream ? "On the stream" : "In tmux";
+    const label = codex ? "With codex" : live.outside ? "Outside the panel" : stream ? "On the stream" : "In tmux";
     return html`
         <li class="toolline">
             <span class="toolicon">${Icon.pin()}</span>
@@ -231,11 +256,14 @@ export function RemoteLine({ name, live, exec, snapshot }) {
     `;
 }
 
-// SessionLines names the session and says how to find it again.
+// SessionLines names the session and says how to find it again. A codex
+// thread has only its id here: the name, the info screen and the way to
+// resume are claude's.
 function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
     const toast = useToast();
+    const codex = isCodex(live);
     const id = live.sessionId || "";
-    const resume = id ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
+    const resume = id && !codex ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
     const renameWhy = live.outside
         ? "the panel did not start this session and cannot rename it"
         : live.transport !== "stream"
@@ -252,8 +280,8 @@ function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
         </button></li>
     `;
     return html`
-        ${row(Icon.pencil, "Rename…", "", () => { onDone(); onLook("rename"); }, "", renameWhy)}
-        ${row(Icon.info, "Session info", "the model, the context, the tokens in and out",
+        ${!codex && row(Icon.pencil, "Rename…", "", () => { onDone(); onLook("rename"); }, "", renameWhy)}
+        ${!codex && row(Icon.info, "Session info", "the model, the context, the tokens in and out",
             () => { onDone(); onLook("status"); }, "/status")}
         ${id && row(Icon.copy, "Copy the session ID", "", () => copyText(id, toast, "Copied", "Session ID"), id.slice(0, 8))}
         ${resume && row(Icon.copy, "Copy the resume command", `claude --resume ${id.slice(0, 8)}…`,
@@ -277,6 +305,22 @@ function EndLine({ name, live, exec, work, run, onDone }) {
             <span class="toolbody">
                 <span class="toollabel">${live.home ? "Restart the session" : "Close the session"}</span>
                 <span class=${`toolnote${why ? " why" : ""}`}>${why || (lost ? `stops ${lost} · ${note}` : note)}</span>
+            </span>
+        </button></li>
+    `;
+}
+
+// StopLine breaks off the turn a codex thread is running: the one way the
+// panel ends anything of it, and the thread stays.
+function StopLine({ name, live, exec, run, onDone }) {
+    const why = noTurn(live) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
+    return html`
+        <li><button type="button" class="mcprow toolrow toolstop" disabled=${Boolean(why)}
+                    onClick=${() => { onDone(); run("session.stop", name, {}); }}>
+            <span class="toolicon">${Icon.stopsquare()}</span>
+            <span class="toolbody">
+                <span class="toollabel">Stop the turn</span>
+                <span class=${`toolnote${why ? " why" : ""}`}>${why || "codex breaks off the turn it is running; the thread stays"}</span>
             </span>
         </button></li>
     `;
@@ -359,7 +403,7 @@ export function SessionButton(props) {
                     aria-label="the session: where it lives, Remote Control and what can be done to it"
                     onClick=${() => onOpen(!open)}>
                 <span class="dkplaceicon">${Icon.pin()}</span>
-                <span>${live.outside ? "outside" : stream ? "stream" : "tmux"}</span>
+                <span>${isCodex(live) ? "codex" : live.outside ? "outside" : stream ? "stream" : "tmux"}</span>
                 ${!stream && win.kind === "open" && html`<span class="dkplacewin">window</span>`}
                 ${live.remote && html`<span class="dkrc">RC</span>`}
                 <span class="dkplacechev">${Icon.chevron()}</span>

@@ -11,6 +11,9 @@ import (
 // file names, and on the stream the account claude named at the handshake. A
 // terminal has no handshake to read, and its account stays unsaid.
 func (e *Executor) Status(ctx context.Context, target string) (*action.Status, error) {
+	if err := e.notCodex(target); err != nil {
+		return nil, err
+	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return nil, err

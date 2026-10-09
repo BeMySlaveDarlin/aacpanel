@@ -222,8 +222,10 @@ export function asksSend(e, wide) {
     return Boolean(wide || e.ctrlKey || e.metaKey);
 }
 
-// Composer writes into a live session.
-export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
+// Composer writes into a live session. A plain one takes text alone, for a
+// session that is not claude: no commands, no shell, no files, and nothing
+// to take back from a queue — the words go into its turn as they are.
+export function Composer({ name, id, exec, busy, stream, plain = false, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -269,10 +271,10 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const why = whyNot(exec, "session.send");
     const canStop = knows(exec, "session.stop");
     const stopWhy = whyNot(exec, "session.stop");
-    const canFile = knows(exec, "session.file");
-    const fileWhy = whyNot(exec, "session.file");
-    const canCmd = knows(exec, "session.command");
-    const canShell = knows(exec, "session.shell");
+    const canFile = !plain && knows(exec, "session.file");
+    const fileWhy = plain ? "the session takes text only" : whyNot(exec, "session.file");
+    const canCmd = !plain && knows(exec, "session.command");
+    const canShell = !plain && knows(exec, "session.shell");
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
     const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
@@ -284,7 +286,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
     const opens = cmd && cmd.screen && onScreen ? cmd.command : "";
     // A question aside on the stream is the panel's to ask: it goes to the side
     // chat and never into the conversation.
-    const side = stream && onSide && !pack.length ? parseSide(text) : null;
+    const side = stream && !plain && onSide && !pack.length ? parseSide(text) : null;
     // A leading "!" on the stream is a command for the shell of the session,
     // as it is in the composer of a terminal; a session in tmux takes it as
     // typed.
@@ -395,7 +397,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
         if (bang) return sendShell(body);
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");
-        const messageId = messageID(stream, pack);
+        const messageId = messageID(stream && !plain, pack);
         // A row that did not go out is drawn among the rows of the feed, and
         // those are written from the transcript — nothing is handed to them.
         // So the row carries what a second attempt takes: where the message
@@ -475,7 +477,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                 onPaste=${paste}
                 onKeyDown=${keys}
             ></textarea>
-            ${!strip && pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
+            ${!strip && !plain && pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
             ${stopping
                 ? html`
                     <button
@@ -502,7 +504,7 @@ export function Composer({ name, id, exec, busy, stream, hold, files, onFiles, o
                     >${asMic || hear.live ? Icon.mic() : Icon.arrowup()}</button>
                 `}
             ${strip && html`<div class="cstrip">
-                ${pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
+                ${!plain && pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
                 ${strip}
             </div>`}
         </div>

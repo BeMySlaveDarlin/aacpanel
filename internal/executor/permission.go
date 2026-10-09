@@ -571,6 +571,13 @@ func (e *Executor) Permission(ctx context.Context, target string) (*action.Permi
 }
 
 func (e *Executor) sessionPermission(ctx context.Context, target string) (*action.Permission, error) {
+	th, err := e.codexSession(target)
+	if err != nil {
+		return nil, err
+	}
+	if th != nil {
+		return codexPermission(ctx, *th)
+	}
 	s, err := permSession(target)
 	if err != nil {
 		return nil, err

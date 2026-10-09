@@ -1,6 +1,7 @@
 """Reading by address: an attachment and a whole tool call."""
 import json
 
+from . import codex
 from .limits import MAX_ARGS, MAX_RESULT, cut
 from .notices import hook_said
 
@@ -110,6 +111,8 @@ def call(path, pos, index):
             return None
         if record.get("type") == "attachment":
             return hook_spot(record, index)
+        if record.get("type") in codex.KINDS:
+            return codex.details(record, index)
         content = ((record.get("message") or {}).get("content")) or []
         if not isinstance(content, list) or not (0 <= index < len(content)):
             return None

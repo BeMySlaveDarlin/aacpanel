@@ -1,0 +1,184 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:600px} .dkbody{height:600px} #phone{width:390px} #chat{height:700px;display:flex;flex-direction:column}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody" id="desk"></div></div>
+<div id="phone"></div>
+<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section></div></div>
+<script type="module">
+// A codex thread beside a claude session: marked codex on both lists and in
+// the header of its conversation, offered on the phone's sheet only what the
+// host does for it, and in its conversation a composer that takes text alone
+// with nothing of claude's around it — no pickers, no commands, no files, no
+// terminal, no move, no window, no Remote Control, no end. The screen never
+// asks the host about what it does not offer.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const at = new Date(Date.now() - 60000).toISOString();
+const items = [
+    { role: "me", pos: 1, at, text: "Touch late.txt and say what you did." },
+    { role: "mind", pos: 2, at, text: "A single command is enough." },
+    { role: "tools", kind: "bash", run: 3, pos: 3, at, calls: [{ name: "Bash", arg: "touch late.txt", pos: 3, index: 0 }] },
+    { role: "ai", pos: 4, at, text: "Done: late.txt is there." },
+];
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const asked = [];
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    asked.push(u.split("?")[0]);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 4, total: 4, moreBefore: false, state: null });
+    if (u === "/api/term") return json({ available: true });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true });
+    }
+    if (u.startsWith("/api/session/switch")) return json({ to: "console" });
+    if (u.startsWith("/api/session/window")) return json({ state: "closed" });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const codex = {
+    session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", contour: 4, profile: "Acme",
+    agent: "codex", transport: "stream", status: "waiting", waitingFor: "dialog open",
+    model: "gpt-6-astra", effort: "xhigh", tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/shop",
+};
+const sessions = [
+    { session: "shop", sessionId: "c1", contour: 4, profile: "Acme", transport: "stream", status: "idle", pct: 20,
+      cwd: "/srv/shop", model: "claude-opus-5-5", effort: "high" },
+    codex,
+];
+const working = { ...codex, status: "busy", waitingFor: "" };
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.switch", "window.open",
+    "session.send", "session.stop", "session.escape", "session.permit", "session.set", "session.command",
+    "session.shell", "session.file", "session.rename", "session.remote", "session.unqueue", "session.background",
+    "term.start"] };
+const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }];
+render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: 1, sessions, profileMap, limits: null }, profiles: { profiles: [] }, limits: null,
+    current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+}))), document.getElementById("desk"));
+render(h(ToastHost, null, h(GateHost, null, html`
+    <section class="pjblock"><${LiveLines} list=${sessions} named=${() => true} notes=${null} wait=${null}
+                                           onOpen=${() => {}} onMore=${() => {}} /></section>
+    <${SessionSheet} session=${codex} exec=${exec} onClose=${() => {}} onOpen=${() => {}} />
+`)), document.getElementById("phone"));
+render(h(ToastHost, null, h(GateHost, null, h(Chat, {
+    name: codex.session, id: codex.sessionId, live: working, exec, snapshot: { sessions }, onBack() {}, onUsage() {},
+    onTerm() {},
+}))), document.getElementById("chat"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
+const rowOf = (root, name) => Array.from(root.querySelectorAll(".dksess"))
+    .find((r) => text(r.querySelector(".dkname")) === name);
+
+// type puts words into the composer the way a keyboard does: preact reads
+// the field on its input event.
+const type = (area, words) => {
+    area.value = words;
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const desk = document.getElementById("desk");
+    const phone = document.getElementById("phone");
+    const chat = document.getElementById("chat");
+    const out = {};
+
+    if (!await until(() => rowOf(desk, codex.session))) throw new Error("the desktop column has no codex row");
+    const deskRow = rowOf(desk, codex.session);
+    const claudeRow = rowOf(desk, "shop");
+    out.deskMarks = names(deskRow, ".dksessmain .dkmark");
+    out.deskMarkTip = deskRow.querySelector(".dksessmain .dkmark").dataset.tip || "";
+    out.deskActs = deskRow.querySelectorAll(".dkrowacts .dkact").length;
+    out.deskSay = text(deskRow.querySelector(".dksay"));
+    out.claudeMarks = names(claudeRow, ".dksessmain .dkmark");
+    out.claudeActs = claudeRow.querySelectorAll(".dkrowacts .dkact").length;
+
+    out.phoneTags = names(phone, ".pjblock .pjrow .pjtag");
+    out.phoneState = text(Array.from(phone.querySelectorAll(".pjblock .pjrow"))
+        .find((r) => text(r.querySelector(".pjsess")) === codex.session).querySelector(".pjstate"));
+    if (!await until(() => document.querySelector(".pjsheet .pjact"))) throw new Error("the sheet did not open");
+    out.sheetSub = text(document.querySelector(".pjsheetsub"));
+    out.sheet = Array.from(document.querySelectorAll(".pjsheet .pjact"))
+        .map((b) => ({ text: text(b.querySelector("b")), off: b.disabled }));
+
+    if (!await until(() => chat.querySelector(".composer textarea"))) throw new Error("the composer did not show");
+    out.headMark = text(chat.querySelector(".dkwhoname .dkmark"));
+    out.tabs = names(chat, ".dktabs .dktab");
+    out.place = text(chat.querySelector(".dkplace"));
+    out.claudeTools = {
+        pickbar: Boolean(chat.querySelector(".pickbar, .pkchip")),
+        commands: Boolean(chat.querySelector(".pkcmds")),
+        file: Boolean(chat.querySelector(".pickfile")),
+        term: Boolean(chat.querySelector(".term, .xterm")),
+    };
+    const composer = chat.querySelector(".composer");
+    const area = composer.querySelector("textarea");
+    const stopButton = composer.querySelector(".iconbtn.danger");
+    out.stopLabel = stopButton ? stopButton.getAttribute("aria-label") : "";
+    out.stopOff = stopButton ? stopButton.disabled : null;
+
+    // A slash is a word like any other: no list of commands opens under it,
+    // and a leading "!" is not a command for a shell.
+    // Each word typed is waited for by the button it turns the stop into.
+    type(area, "/mo");
+    await until(() => composer.querySelector(".sendbtn"));
+    out.slashList = Boolean(chat.querySelector(".slashbox"));
+    out.slashLabel = composer.querySelector(".sendbtn").getAttribute("aria-label");
+    type(area, "");
+    await until(() => composer.querySelector(".iconbtn.danger"));
+    type(area, "!ls");
+    await until(() => composer.querySelector(".sendbtn"));
+    out.bangLabel = composer.querySelector(".sendbtn").getAttribute("aria-label");
+
+    // A file pasted into the field stays out of it, and the toast says why.
+    const files = new DataTransfer();
+    files.items.add(new File(["x"], "shot.png", { type: "image/png" }));
+    area.dispatchEvent(new ClipboardEvent("paste", { clipboardData: files, bubbles: true, cancelable: true }));
+    await until(() => document.querySelector(".toast.on"));
+    out.pasteToast = names(document, ".toast.on").join(" | ");
+    out.clipped = Boolean(chat.querySelector(".clippack"));
+
+    // A message goes out as text alone, with nothing to take it back by.
+    type(area, "and now say it in one word");
+    await until(() => composer.querySelector(".sendbtn:not([disabled])"));
+    composer.querySelector(".sendbtn").click();
+    const local = () => Array.from(chat.querySelectorAll(".chatfeed .msg.me.queued"))
+        .find((m) => text(m).includes("say it in one word"));
+    await until(() => sent.some((s) => s.kind === "session.send") && local());
+    out.send = sent.filter((s) => s.kind === "session.send");
+    out.queued = Boolean(local());
+    out.takeBack = Boolean(chat.querySelector(".mqueue"));
+
+    // The session panel: where it lives, its id, and the stop of its turn.
+    chat.querySelector(".dkplace").click();
+    await until(() => document.querySelector(".dkpanel .toollabel"));
+    out.panel = names(document, ".dkpanel .toollabel");
+    const stop = Array.from(document.querySelectorAll(".dkpanel .toolrow"))
+        .find((b) => text(b.querySelector(".toollabel")) === "Stop the turn");
+    out.panelStopOff = stop ? stop.disabled : null;
+    if (stop) stop.click();
+    await until(() => sent.some((s) => s.kind === "session.stop"));
+    out.stopSent = sent.filter((s) => s.kind === "session.stop").map((s) => s.target);
+
+    out.asked = [...new Set(asked)].sort();
+    return out;
+})();
+</script>

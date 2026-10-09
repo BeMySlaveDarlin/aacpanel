@@ -622,6 +622,54 @@ container, and a restart of the executor leaves the holders alive. A holder
 that ends ends its session: the conversation stays on the disk and resumes in
 a terminal.
 
+### Codex sessions
+
+A codex conversation is a thread of the app-server daemon of its codex home
+(`AACP_CODEX_HOMES`, `~/.codex` by default), which serves every client of that
+home — the terminal client of codex, an editor, the panel. Codex starts the
+daemon itself the first time it runs in a home; the panel does not. The daemon plays
+the holder's part: it outlives its clients and keeps the turn and the requests
+that wait for a person. The executor keeps one connection per home, WebSocket
+over the daemon's control socket, and dials again ten seconds after the socket
+appears or the connection drops.
+
+- **The threads are read, not followed.** Every two seconds the executor lists
+  the loaded threads and reads each one, and writes a state file per thread in
+  the holders' directory: the claude holder's summary plus `agent: "codex"`,
+  the directory, the contour, the home and the rollout. A thread that is
+  unloaded loses its file; a subagent's thread is part of its parent's turn and
+  gets none. The panel names a thread by the tail of its id, `codex-<8 hex>`.
+- **A subscription lasts only while it is needed.** The daemon unloads a thread
+  a while after its last client leaves, and a panel subscribed for good would
+  keep every thread it ever saw loaded. So the executor subscribes while the
+  thread waits on an approval — the daemon sends the waiting request again to a
+  new client — or while a turn the panel started runs, and leaves once the
+  thread is free and nothing waits.
+- **The executor stays blind to the conversation.** The notifications that
+  carry it are turned off at the handshake, the state file holds no text — not
+  the preview of the thread, not its name — and the only words it keeps are
+  those a person decides on: the command of an approval, and the change to
+  files, which the request names and the item of the turn holds.
+- **An approval is answered with the daemon's own decisions.** The options are
+  the decisions the request offers, in its order, and the pick goes back as it
+  came; the first answer of any client wins, and the others are told the
+  request is gone.
+- **Only what the protocol does is done.** A message starts a turn on a free
+  thread and goes into the running turn of a busy one, a stop interrupts the
+  turn, Esc declines what waits. Every other action over a codex session is
+  refused by name: none of the claude ways — keys, signals, a holder's socket —
+  reaches it. The panel does not start a codex session and does not change the
+  model, the effort or the permissions of a thread: those stay with the client
+  that started it.
+- **The feed is the rollout, read by the collector.** Codex writes every thread
+  to a file of its own under the home's `sessions`, and the collector reads it
+  as it reads a claude transcript: the messages, the summaries of reasoning, the
+  commands with their output and the changes of files, from the records codex
+  writes once an item is done. The raw records of the model beside them say the
+  same again and are not shown.
+- **The way back is codex itself.** With the panel down, `codex resume <id>` in
+  a terminal joins the same thread on the same daemon.
+
 ---
 
 ## The map

@@ -67,6 +67,14 @@ if _reason:
     sys.stderr.flush()
     os._exit(1)
 
+# The live sessions of the machine are found by the files their holders and
+# the executor keep in the runtime directory, and a codex conversation by the
+# codex homes: a run looking there would put the machine's own sessions on the
+# list a test counts, and read their conversations. Both point into the state
+# directory of the run, where nothing is; a test that needs them names its own.
+os.environ["XDG_RUNTIME_DIR"] = os.path.join(os.environ["AACP_STATE_DIR"], "run")
+os.environ["AACP_CODEX_HOMES"] = os.path.join(os.environ["AACP_STATE_DIR"], "codex")
+
 
 class Reason(unittest.TestCase):
     def setUp(self):

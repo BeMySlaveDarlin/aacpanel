@@ -5,7 +5,7 @@ import re
 import sesstate
 from sesstate.feed import TURN_ENDS
 
-from . import commands
+from . import codex, commands
 from .cards import (BRIEF_TOOL, SECRET_TOOL, artifact_card, ask_round, brief_card, permit_card, permit_row,
                     secret_call, secret_card, sent_card, wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
@@ -254,6 +254,8 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
         return []
 
     kind = record.get("type")
+    if kind in codex.KINDS:
+        return codex.rows(record, pos)
     message = record.get("message") or {}
     at = record.get("timestamp") or ""
 

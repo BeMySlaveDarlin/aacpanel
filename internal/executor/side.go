@@ -14,6 +14,9 @@ import (
 // the skills among the commands. A terminal lists nothing, and says where it
 // lives so the panel keeps to its own list.
 func (e *Executor) Commands(ctx context.Context, target string) (*action.SessionCommands, error) {
+	if err := e.notCodex(target); err != nil {
+		return nil, err
+	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return nil, err
@@ -55,6 +58,9 @@ func initCommands(init json.RawMessage) []action.SlashCommand {
 // and it remembers no side chat either: the one so far comes with every
 // question.
 func (e *Executor) Side(ctx context.Context, target, question string, history []action.SideTurn) (*action.Side, error) {
+	if err := e.notCodex(target); err != nil {
+		return nil, err
+	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return nil, err

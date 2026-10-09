@@ -177,3 +177,42 @@ func TestConfigDirsSayEachDirOnce(t *testing.T) {
 		t.Errorf("the directory is named twice: %v", got)
 	}
 }
+
+func TestCodexHomesDefaultToTheCodexDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, value := range []string{"", "  "} {
+		t.Setenv(CodexHomesEnv, value)
+		got := CodexHomes()
+		if len(got) != 1 || got[0].Dir != filepath.Join(home, ".codex") || got[0].Contour != Personal {
+			t.Errorf("with %s=%q the homes are %+v", CodexHomesEnv, value, got)
+		}
+	}
+	os.Unsetenv(CodexHomesEnv)
+	if got := CodexHomes(); len(got) != 1 || got[0].Dir != filepath.Join(home, ".codex") {
+		t.Errorf("with %s unset the homes are %+v", CodexHomesEnv, got)
+	}
+}
+
+func TestCodexHomesAreNamedLikeClaudeContours(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv(CodexHomesEnv, strings.Join([]string{
+		"~/.codex", "~/.codex-profiles/acme", "", filepath.Join(home, ".codex-work") + "/", "~/.codex/",
+	}, string(os.PathListSeparator)))
+
+	got := CodexHomes()
+	want := []CodexHome{
+		{Dir: filepath.Join(home, ".codex"), Contour: Personal},
+		{Dir: filepath.Join(home, ".codex-profiles", "acme"), Contour: "acme"},
+		{Dir: filepath.Join(home, ".codex-work"), Contour: "codex-work"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("the homes are %+v, expected %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("home %d is %+v, expected %+v", i, got[i], want[i])
+		}
+	}
+}

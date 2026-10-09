@@ -110,6 +110,9 @@ func (e *Executor) windowClose(ctx context.Context, target string) (string, erro
 
 // Window answers the window question for the named session.
 func (e *Executor) Window(ctx context.Context, target string) (*action.Window, error) {
+	if err := e.notCodex(target); err != nil {
+		return nil, err
+	}
 	pane, err := windowPane(ctx, target)
 	if err != nil {
 		return nil, err

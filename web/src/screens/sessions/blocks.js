@@ -18,6 +18,7 @@ import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
 import { inOrder, sessionsOf } from "./of.js";
 import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
+import { isCodex, noTurn } from "../../agent.js";
 import { stamp, when } from "./card.js";
 
 // The order of the list: who waits for the person, who works, who is quiet.
@@ -237,7 +238,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
     const restarting = wait ? wait.of("restart", session.session) : null;
     const busy = closing || restarting;
     const place = placeOf(session);
-    const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit }[place];
+    const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, codex: Icon.braces }[place];
     return html`
         <div class=${`pjrow${kid ? " pjkid" : ""}`}>
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
@@ -311,19 +312,36 @@ function spanOf(from, to) {
 export function SessionSheet({ session, exec, onClose, onOpen }) {
     const run = useAction();
     const name = session ? session.session : "";
-    const way = useSwitchWay(name, session ? session.transport : "");
+    const codex = isCodex(session);
+    // A codex thread moves nowhere: the panel does not ask where it could go.
+    const way = useSwitchWay(codex ? "" : name, session ? session.transport : "");
     if (!session) return html`<${Sheet} open=${false} onClose=${onClose} label="session actions"><//>`;
     const stream = session.transport === "stream";
     const act = (fn) => async () => { onClose(); await fn(); };
+    const open = act(async () => onOpen && onOpen(session.session, session.sessionId));
     const lines = [];
     lines.push({ key: "open", icon: Icon.feed(), text: "Open the conversation", note: "the feed of this session",
-        press: act(async () => onOpen && onOpen(session.session, session.sessionId)) });
+        press: open });
     // A claude the panel did not start is only read: nothing else is offered.
     if (session.outside) {
         lines.push({ key: "outside", icon: Icon.exit(), text: "Outside the panel", note: outsideNote(session), why: "",
             press: null });
     }
-    if (!session.outside && (way.to === "console" || way.to === "stream")) {
+    // A codex thread is offered what the host does for it and nothing more:
+    // what it asks is answered on the card in its conversation, and its turn
+    // is stopped from here.
+    if (codex) {
+        if (session.status === "waiting") {
+            lines.push({ key: "permit", icon: Icon.hand(), text: "Answer what it asks",
+                note: "codex waits for a yes or a no — the card is in the conversation", press: open });
+        }
+        lines.push({ key: "stop", icon: Icon.stopsquare(), text: "Stop the turn", danger: true,
+            note: "codex breaks off the turn it is running; the thread stays",
+            why: noTurn(session) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop")),
+            press: act(async () => run("session.stop", name, {})) });
+    }
+    const reach = !session.outside && !codex;
+    if (reach && (way.to === "console" || way.to === "stream")) {
         const to = way.to;
         lines.push({ key: "move", icon: to === "stream" ? Icon.feed() : Icon.terminal(),
             text: to === "stream" ? "Move to the stream" : "Move to tmux",
@@ -331,7 +349,7 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
             why: whyNot(exec, "session.switch"),
             press: act(async () => moveSession({ run, exec, name, to })) });
     }
-    if (!stream && !session.outside) {
+    if (!stream && reach) {
         lines.push({ key: "window", icon: Icon.monitor(), text: `Open a window on ${hostLabel()}`,
             note: "a terminal on the host's desktop",
             why: knows(exec, "window.open") ? "" : whyNot(exec, "window.open"),
@@ -353,7 +371,7 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
         why: knows(exec, "session.close") ? "" : whyNot(exec, "session.close"),
         press: act(async () => run("session.close", name, {})),
     };
-    if (!session.outside) lines.push(restartLine || closeLine);
+    if (reach) lines.push(restartLine || closeLine);
     return html`
         <${Sheet} open=${true} onClose=${onClose} label=${`actions of session ${name}`}>
             <div class="pjsheet">

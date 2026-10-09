@@ -821,6 +821,13 @@ account and `*` takes every directory no other line does. The collector reads
 the accounts from it after `AACP_CLAUDE_HOME`, and a new contour on the map is
 taken from them — without a registry a contour's paths are typed by hand.
 
+`AACP_CODEX_HOMES` names the codex accounts the panel watches, joined by `:`
+like the claude ones; unset, it is `~/.codex`. No question asks for it: a
+machine with codex in another `CODEX_HOME` adds the directory by hand. The
+panel shows the conversations of the daemon codex starts in each of them, under
+the contour named the way a claude account is — `~/.codex` is the personal one,
+any other directory its name without the leading dot.
+
 ## S4. `root` — Root part
 
 Everything as root, in one call. **Ask the person first**, with the command

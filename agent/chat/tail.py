@@ -18,6 +18,7 @@ from collections import deque
 
 import held
 
+from .locate import record_cwd
 from .queue import Pending
 from .records import parse
 
@@ -139,8 +140,8 @@ class Stream:
                 record = record_of(raw)
                 if record is None:
                     continue
-                if not self.cwd and isinstance(record.get("cwd"), str):
-                    self.cwd = record["cwd"]
+                if not self.cwd:
+                    self.cwd = record_cwd(record)
                 items = parse(record, line_pos, pending, asks, self.sidechain, sent,
                               briefs, shelf_of(), calls, permits, unanswered)
                 if items:
@@ -220,8 +221,8 @@ class Piece:
                 record = record_of(raw)
                 if record is None:
                     continue
-                if not self.cwd and isinstance(record.get("cwd"), str):
-                    self.cwd = record["cwd"]
+                if not self.cwd:
+                    self.cwd = record_cwd(record)
                 items = parse(record, line_pos, self.pending, self.asks,
                               self.sidechain, self.sent, self.briefs, shelf_of(),
                               self.calls, permits, self.unanswered)

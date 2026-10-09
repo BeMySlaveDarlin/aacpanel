@@ -10,6 +10,8 @@ import { ContextBar } from "../../ui/bar.js";
 import { fill, share } from "../../format.js";
 import { useAsOf } from "../../ui/asof.js";
 import { MidName, shortPath, stateOf } from "./head.js";
+import { Icon } from "../../ui/icons.js";
+import { CODEX_NOTE, isCodex } from "../../agent.js";
 
 // DeskHead renders the conversation header on the wide screen; the tools come
 // ready from the conversation.
@@ -23,6 +25,7 @@ export function DeskHead({ name, live, archive, pct, move, tools }) {
                     <div class="dkwhoname">
                         <span class=${`dkdot ${state.tone ? `dk${state.tone}` : ""}`.trim()} title=${state.say}></span>
                         <span class="dkheadname dkchatname"><${MidName} text=${name} /></span>
+                        ${isCodex(live) && html`<span class="dkmark" data-tip=${CODEX_NOTE}>${Icon.braces()}codex</span>`}
                     </div>
                     <div class="dkwhosub">
                         ${state.word && html`

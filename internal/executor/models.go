@@ -17,6 +17,9 @@ import (
 // with the efforts each model takes. A terminal session has no such list to
 // give, and the answer says where it lives so the panel knows to fall back.
 func (e *Executor) Models(ctx context.Context, target string) (*action.Models, error) {
+	if err := e.notCodex(target); err != nil {
+		return nil, err
+	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return nil, err

@@ -9,10 +9,13 @@ from .mail import mails
 # whatever it was still doing.
 INTERRUPTED = "[Request interrupted"
 
+STOPPED = "the human interrupted the answer"
+
+COMPACTED = "the context was compacted, the conversation continues from a summary"
+
 NOTES = (
-    (INTERRUPTED, "the human interrupted the answer"),
-    ("This session is being continued from a previous conversation",
-     "the context was compacted, the conversation continues from a summary"),
+    (INTERRUPTED, STOPPED),
+    ("This session is being continued from a previous conversation", COMPACTED),
 )
 
 SKIP = (

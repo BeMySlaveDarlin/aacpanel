@@ -17,6 +17,7 @@ import {
 import { ModelPopover, ModelSheet, traitOf } from "./controls.js";
 import { Apply } from "./apply.js";
 import { sessionsOf } from "../sessions/of.js";
+import { isCodex } from "../../agent.js";
 import { paramOf, useSchema } from "./schema.js";
 import {
     Bar, LAUNCH_ORDER, LaunchRow, Layer, LeaveSheet, Where, launchAsk, modelHolds, problemOf, useDraft, usePreview,
@@ -156,6 +157,9 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
     const hints = pins(params, draft, project, contourEffective);
     const pathNow = String(fieldOf(draft, project, "path") || "");
     const dirName = pathNow.split("/").filter(Boolean).pop() || "";
+    // What a save is offered to: the claude sessions the project launches. A
+    // codex thread working in the same directory takes none of these settings.
+    const running = sessionsOf(project, sessions || []).filter((s) => !isCodex(s));
 
     return html`
         ${head}
@@ -165,7 +169,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
             <${Account} contour=${contour} effective=${effective} stream=${transport === "stream"} />
         </div>
         <${Apply} saved=${saved && saved.keys.length > 0 ? saved : null} params=${params}
-            sessions=${sessionsOf(project, sessions || [])} onClose=${() => setSaved(null)} />
+            sessions=${running} onClose=${() => setSaved(null)} />
 
         <div class="pfsub">where it lives</div>
         <${Where}

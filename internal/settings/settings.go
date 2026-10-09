@@ -79,6 +79,7 @@ var specs = map[string]spec{
 	"AACP_CLAUDE":           {groupMachine, CostSession, false, "what runs claude; the profile map wins over this"},
 	"AACP_CLAUDE_HOME":      {groupMachine, CostExec, false, "the directories of claude contours"},
 	"AACP_CLAUDE_REGISTRY":  {groupMachine, CostExec, false, "the registry of contours"},
+	"AACP_CODEX_HOMES":      {groupMachine, CostExec, false, "the home directories of codex contours"},
 	hostcfg.ProjectRootsEnv: {groupMachine, CostService, false, "where sessions may be opened; the service and the executor read this apart"},
 	"AACP_PROJECT_SCAN":     {groupMachine, CostAgent, false, "what to walk when looking for projects"},
 	"AACP_PROBE_PORTS":      {groupMachine, CostAgent, false, "the port checks the collector runs"},

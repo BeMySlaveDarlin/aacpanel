@@ -9,6 +9,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/charmbracelet/x/ansi v0.11.8
+	github.com/coder/websocket v1.8.15
 	github.com/evanw/esbuild v0.28.2
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/jackc/pgx/v5 v5.10.0

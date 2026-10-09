@@ -15,6 +15,9 @@ import (
 // stream is asked with claude's own request; a terminal lists its servers on a
 // screen driven by keys, and the answer says where it lives.
 func (e *Executor) Mcp(ctx context.Context, target string) (*action.Mcp, error) {
+	if err := e.notCodex(target); err != nil {
+		return nil, err
+	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return nil, err

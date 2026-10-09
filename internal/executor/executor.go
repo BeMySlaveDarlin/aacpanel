@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/codex"
 	"aacpanel/internal/launcher"
 )
 
@@ -29,6 +30,9 @@ type Executor struct {
 	// restart at a stop can ask again there: a second restart taken while the
 	// first still closes the session would start a second one.
 	restarting busy
+
+	// codex holds the links to the codex daemons of the contours.
+	codex *codex.Links
 }
 
 // busy is a set of names something is under way for.
@@ -95,6 +99,15 @@ func (e *Executor) Kinds() []action.Kind {
 
 // Execute runs one action request and reports what happened.
 func (e *Executor) Execute(ctx context.Context, req action.Request) (string, error) {
+	if sessionTarget(req.Kind) {
+		th, err := e.codexSession(req.Target)
+		if err != nil {
+			return "", err
+		}
+		if th != nil {
+			return e.codexAction(ctx, *th, req)
+		}
+	}
 	switch req.Kind {
 	case action.ContainerStart, action.ContainerStop, action.ContainerRestart:
 		return e.container(ctx, req)

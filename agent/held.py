@@ -48,6 +48,27 @@ def summary(sid, pid=None):
     return data
 
 
+def codex_threads():
+    """Returns the state of every codex thread a live executor follows.
+
+    The executor writes a file for a thread beside the holders' files, with
+    no process of its own: the holder it names is the executor, and a file
+    whose executor is gone is a thread nobody follows any more.
+    """
+    try:
+        names = sorted(os.listdir(stream_dir()))
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        data = summary(name[:-len(".json")])
+        if data is not None and data.get("agent") == "codex":
+            out.append(data)
+    return out
+
+
 def waiting_for(data):
     """Says what a held session waits on, in the words claude in a terminal uses for it.
 

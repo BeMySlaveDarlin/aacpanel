@@ -14,6 +14,7 @@ import pages
 import reviews
 import sesstate
 
+from .codex import is_rollout
 from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
 from .locate import subagent_path, transcript_cwd, transcript_path
 from .mail import agent_mail
@@ -290,7 +291,9 @@ def _answer(request):
         "last": chunk.get("last") if items else None,
         "size": os.path.getsize(path),
     }
-    if request.get("state") and not sub:
+    # The state of a session — its background work, agents, questions and
+    # checklist — is claude's: a codex thread has none of it.
+    if request.get("state") and not sub and not is_rollout(path):
         state = sesstate.SHARED.state(path)
         found = state.snapshot() if state else None
         if found is not None:

@@ -44,6 +44,10 @@ var notTheFeed = map[string]string{
 	"disk.py:task_output":             "the reply of the output of a task, under Reply",
 
 	"records.py:result_mark": "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
+	"codex.py:_call:mark":    "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
+	"codex.py:details":       "the reply of one call opened from the feed, under Call",
+	"codex.py:context":       "how full the context of a codex thread is, for its row in the snapshot",
+	"codex.py:_take":         "how full the context of a codex thread is, for its row in the snapshot",
 
 	"mail.py::_PEER_NAMES":                 "the names of the sessions next door, by pid",
 	"queue.py:remember:texts":              "the texts the queue has drawn, by text",

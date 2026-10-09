@@ -501,7 +501,9 @@ span.pjname { cursor: default; }
 .pj-busy { color: var(--accent); }
 .pj-idle { color: var(--ink-faint); font-weight: 500; }
 .pj-idle .pjdot { background: var(--ok); opacity: .75; }
-.pjtag {
+/* Where a session lives, as a mark on its row; the header of a conversation
+   carries the same mark beside the name of a session that is not claude. */
+.pjtag, .talkmark {
     flex: none;
     display: inline-flex;
     align-items: center;
@@ -514,7 +516,7 @@ span.pjname { cursor: default; }
     line-height: 1;
     color: var(--ink-dim);
 }
-.pjtag svg { width: var(--i-sm); height: var(--i-sm); }
+.pjtag svg, .talkmark svg { width: var(--i-sm); height: var(--i-sm); }
 /* Remote Control up: the session is open on claude.ai as well, marked the way
    the session's own tools mark it. */
 .pjrc {

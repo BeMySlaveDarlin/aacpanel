@@ -38,6 +38,9 @@
 .talkdot[data-tone="idle"] { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
 .talkdot[data-tone="off"] { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-faint); }
 .talkword[data-tone="waiting"] { color: var(--wait); }
+/* The mark of a session that is not claude, beside its name: drawn as the
+   mark on its row (see .pjtag), not in the weight of the heading. */
+.talkmark { font-weight: 400; letter-spacing: 0; }
 
 /* A name too long for its line loses its middle: the head is cut, the tail
    that tells one session of a project from another stays whole. */

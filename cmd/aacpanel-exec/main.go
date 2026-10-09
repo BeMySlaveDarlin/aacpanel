@@ -331,6 +331,7 @@ func run(socket, dockerHost, self string) error {
 	}
 
 	go keepLimits(ctx)
+	exec.StartCodex(ctx)
 
 	kinds := exec.Kinds()
 	log.Printf("listening on %s, actions allowed: %d of %d", socket, len(kinds), len(action.Kinds))

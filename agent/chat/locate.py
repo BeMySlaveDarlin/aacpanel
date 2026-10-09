@@ -9,6 +9,8 @@ import contours
 
 import chat
 
+from . import codex
+
 
 def profile_dirs():
     """Returns pairs of profile and conversation directory, personal one first."""
@@ -28,7 +30,14 @@ UUID_RE = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 
 
 def transcript_path(session_id, profile=None):
-    """Returns the conversation file found by its uuid."""
+    """Returns the conversation file found by its uuid: a claude transcript, else a codex rollout."""
+    if not UUID_RE.match(session_id or ""):
+        return ""
+    return claude_path(session_id, profile) or codex.rollout_path(session_id, profile)
+
+
+def claude_path(session_id, profile=None):
+    """Returns the claude transcript found by its uuid."""
     if not UUID_RE.match(session_id or ""):
         return ""
     name = f"{session_id}.jsonl"
@@ -51,11 +60,19 @@ def subagent_path(session_id, agent_id, profile=None):
     """Returns the subagent feed stored next to its parent transcript."""
     if not SUBAGENT_ID_RE.match(agent_id or ""):
         return ""
-    base = transcript_path(session_id, profile)
+    base = claude_path(session_id, profile)
     if not base:
         return ""
     path = os.path.join(base[: -len(".jsonl")], "subagents", f"agent-{agent_id}.jsonl")
     return path if os.path.isfile(path) else ""
+
+
+def record_cwd(record):
+    """Returns the directory a record names: claude names it on its records, codex at the head of a rollout."""
+    cwd = record.get("cwd")
+    if isinstance(cwd, str) and cwd:
+        return cwd
+    return codex.cwd_of(record)
 
 
 def transcript_cwd(path):
@@ -67,8 +84,8 @@ def transcript_cwd(path):
                     record = json.loads(raw.decode("utf-8", "replace"))
                 except ValueError:
                     continue
-                cwd = record.get("cwd")
-                if isinstance(cwd, str) and cwd:
+                cwd = record_cwd(record)
+                if cwd:
                     return cwd
     except OSError:
         return ""

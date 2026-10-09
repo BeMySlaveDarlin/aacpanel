@@ -26,9 +26,29 @@ def _env_dirs():
     return out
 
 
-def _name_of(config_dir):
+def _name_of(config_dir, own=".claude"):
     name = os.path.basename(config_dir.rstrip("/")) or config_dir
-    return PERSONAL if name == ".claude" else name.lstrip(".")
+    return PERSONAL if name == own else name.lstrip(".")
+
+
+CODEX_ENV = "AACP_CODEX_HOMES"
+CODEX_HOME = "~/.codex"
+
+
+def codex_homes():
+    """Returns the codex homes as pairs of contour name and directory, in the order named.
+
+    A home is named the way a claude config directory is: ~/.codex is the
+    personal contour, any other by its last part without the leading dot, so
+    ~/.codex-profiles/work is work — the claude contour of the same name.
+    """
+    raw = os.environ.get(CODEX_ENV) or ""
+    out = []
+    for part in (raw.split(os.pathsep) if raw.strip() else [CODEX_HOME]):
+        d = os.path.expanduser(part.strip())
+        if d and d not in out:
+            out.append(d)
+    return [(_name_of(d, ".codex"), d) for d in out]
 
 
 def config_dirs():

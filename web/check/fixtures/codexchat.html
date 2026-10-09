@@ -1,0 +1,116 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The conversation of a codex thread on a phone: the mark beside its name, a
+// composer of text alone with no band of claude's settings under it, the
+// tools of the header with nothing but where it lives, its id and the stop of
+// its turn; then the same thread waiting on a command, and the card with the
+// three answers codex gave, in its order, the second of them pressed.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const at = new Date(Date.now() - 60000).toISOString();
+const items = [
+    { role: "me", pos: 1, at, text: "Touch late.txt." },
+    { role: "ai", pos: 2, at, text: "Asking to run it." },
+];
+const permission = {
+    tool: "Bash",
+    action: ["touch late.txt"],
+    note: [],
+    options: [
+        { n: 1, text: "Yes" },
+        { n: 2, text: "Yes, and don't ask again for commands that start with `touch late.txt`", lasting: true },
+        { n: 3, text: "No, and stop: tell Codex what to do differently" },
+    ],
+    fingerprint: "req-7",
+    tail: "",
+    raw: [],
+};
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
+    if (u.startsWith("/api/session/permission")) return json({ state: "ok", permission });
+    if (u === "/api/term") return json({ available: true });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.send", "session.stop", "session.escape", "session.permit",
+    "session.set", "session.command", "session.shell", "session.file", "session.rename", "session.switch",
+    "session.close", "window.open", "session.remote"] };
+const thread = {
+    session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", profile: "acme", agent: "codex",
+    transport: "stream", status: "idle", model: "gpt-6-astra", effort: "xhigh", tokens: 41000, limit: 272000, pct: 15,
+    cwd: "/srv/shop",
+};
+const root = document.getElementById("root");
+const page = (live) => h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${live} exec=${exec}
+                  onBack=${() => {}} onUsage=${() => {}} />`));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
+
+window.done = (async () => {
+    await document.fonts.ready;
+    render(page(thread), root);
+    if (!await until(() => root.querySelector(".composer textarea"))) throw new Error("the composer did not show");
+    const out = {};
+    out.mark = text(root.querySelector(".chathead h2 .talkmark"));
+    const composer = root.querySelector(".composer");
+    out.strip = Boolean(composer.querySelector(".cstrip"));
+    out.claudeTools = Array.from(composer.querySelectorAll(".pickfile, .pkchip, .pkcmds")).map((el) => el.className);
+    out.placeholder = composer.querySelector("textarea").placeholder;
+
+    // The tools are opened once the feed has come: the header binds its
+    // buttons after the screen has drawn.
+    if (!await until(() => root.querySelector(".chatfeed .msg.ai"))) throw new Error("the feed did not come");
+    root.querySelector(".phead .pmore").click();
+    if (!await until(() => document.querySelector(".tools .toollabel"))) throw new Error("the tools did not open");
+    const sheet = document.querySelector(".tools");
+    out.tools = names(sheet, ".toollabel");
+    const stop = Array.from(sheet.querySelectorAll(".toolrow"))
+        .find((b) => text(b.querySelector(".toollabel")) === "Stop the turn");
+    out.stopOff = stop ? stop.disabled : null;
+    out.stopWhy = stop ? text(stop.querySelector(".toolnote")) : "";
+
+    render(null, root);
+    render(page({ ...thread, status: "waiting", waitingFor: "dialog open" }), root);
+    if (!await until(() => root.querySelector(".permit .askpick"))) throw new Error("the permission did not show");
+    const card = root.querySelector(".permit");
+    out.permit = {
+        tool: text(card.querySelector(".permittool")),
+        action: text(card.querySelector(".permitaction")),
+        options: Array.from(card.querySelectorAll(".askopt")).map((o) => ({
+            n: text(o.querySelector(".permitn")),
+            text: text(o.querySelector(".askname")),
+            lasting: Boolean(o.querySelector(".permitlast")),
+        })),
+    };
+    out.composerUnder = Boolean(root.querySelector(".composer"));
+    card.querySelectorAll(".askpick")[1].click();
+    await until(() => sent.some((s) => s.kind === "session.permit"));
+    out.permitSent = sent.filter((s) => s.kind === "session.permit");
+    return out;
+})();
+</script>

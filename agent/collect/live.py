@@ -1,4 +1,4 @@
-"""Live claude sessions: where their files are, what they are busy with and what goes into the snapshot."""
+"""Live sessions: where their files are, what they are busy with and what goes into the snapshot."""
 import json
 import os
 
@@ -338,6 +338,9 @@ def sessions():
                     s["work"] = work
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
+    # A codex thread has none of what the rows above are filled with: no file
+    # of a claude session, no transcript of claude, no checklist of the panel.
+    data.setdefault("sessions", []).extend(ctx.codex_sessions())
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
     asked.BOOK.sweep(alive)
     notes.BOARD.sweep(alive)

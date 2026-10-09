@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Chat of a claude session: transcript parsing and windowed delivery over a socket."""
+"""Chat of a session, claude or codex: transcript parsing and windowed delivery over a socket."""
 import os
 
 import paths
@@ -19,8 +19,9 @@ from .harness import (COMMAND_RE, NOTES, PANEL_NOTE, SKIP, TASK_FIELD_RE,  # noq
                       TASK_NOTE_RE, classify, service, strip_panel_note, task_done)
 from .limits import (DEFAULT_LIMIT, MAX_ARG, MAX_ARGS, MAX_LIMIT,  # noqa: E402,F401
                      MAX_RESULT, MAX_TEXT, cut)
-from .locate import (SUBAGENT_ID_RE, UUID_RE, dirs_for, profile_dirs,  # noqa: E402,F401
-                     subagent_path, transcript_cwd, transcript_path)
+from .locate import (SUBAGENT_ID_RE, UUID_RE, claude_path, dirs_for,  # noqa: E402,F401
+                     profile_dirs, record_cwd, subagent_path, transcript_cwd,
+                     transcript_path)
 from .mail import MAIL_ATTR_RE, MAIL_RE, agent_mail, mails  # noqa: E402,F401
 from .queue import Pending, delivered  # noqa: E402,F401
 from .records import parse  # noqa: E402,F401

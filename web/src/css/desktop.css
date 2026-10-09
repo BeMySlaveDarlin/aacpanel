@@ -492,8 +492,8 @@
     .dkhome { flex: none; font-size: var(--t-xs); color: var(--ink-faint); }
 
     /* A mark says only what is unusual: the stream is where a session lives by
-       default and goes unmarked, a session in tmux and a session the panel did
-       not start are marked. */
+       default and goes unmarked, a session in tmux, a session the panel did
+       not start and a codex thread are marked. */
     .dkmark {
         flex: none;
         display: inline-flex;

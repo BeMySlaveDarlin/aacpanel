@@ -5,8 +5,12 @@
 // to, moved or shown in a window. A claude typed into a terminal of the panel
 // is not among them: the panel reaches the tmux of its terminals.
 
-// placeOf names where a live session lives, for its mark.
+import { isCodex } from "../../agent.js";
+
+// placeOf names where a live session lives, for its mark. A codex thread
+// lives with codex, not on the panel's stream, whatever its transport says.
 export function placeOf(s) {
+    if (isCodex(s)) return "codex";
     if (s.transport === "stream") return "stream";
     if (s.outside) return "outside";
     return "tmux";
