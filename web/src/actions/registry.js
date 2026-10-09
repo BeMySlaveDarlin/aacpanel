@@ -1,6 +1,7 @@
 // Registry of state-changing actions: what to tell the person before it happens.
 
 let hostName = "";
+let profileMap = [];
 
 export function setHostName(name) {
     if (name) hostName = name;
@@ -9,6 +10,52 @@ export function setHostName(name) {
 // hostLabel returns the name to call the host by in texts.
 export function hostLabel() {
     return hostName || "this machine";
+}
+
+// setProfileMap keeps the map the host last gave: the sheet of New reads
+// from it which agent a project starts and whether its contour has codex.
+export function setProfileMap(map) {
+    profileMap = Array.isArray(map) ? map : [];
+}
+
+const AGENTS = [["claude", "Claude Code"], ["codex", "Codex"]];
+
+// agentChoice is what the sheet of New offers: the agent the project starts,
+// marked as the project's and picked already, and the other one beside it for
+// this start alone. Codex runs in the daemon of the project's contour, so it
+// is offered switched off, with the reason, where there is none to run in —
+// a project the map does not hold has no contour at all.
+function agentChoice(target, params) {
+    const found = onTheMap(params && params.project);
+    const own = found && found.project.agent === "codex" ? "codex" : "claude";
+    const noCodex = !found
+        ? "the project is not on the map"
+        : !found.contour.codexHome
+            ? `contour ${found.contour.profile} has no codex home: AACP_CODEX_HOMES names none for it`
+            : "";
+    return {
+        param: "agent",
+        label: "agent to start",
+        value: own,
+        options: AGENTS.map(([value, label]) => ({
+            value,
+            label,
+            mark: found && value === own ? "project" : "",
+            off: value === "codex" ? noCodex : "",
+        })),
+    };
+}
+
+// onTheMap finds a project of the map by its id, with its contour.
+function onTheMap(id) {
+    if (!id) return null;
+    for (const contour of profileMap) {
+        for (const group of contour.groups || []) {
+            const project = (group.projects || []).find((p) => p.id === id);
+            if (project) return { contour, project };
+        }
+    }
+    return null;
 }
 
 function count(n, one, many) {
@@ -553,6 +600,7 @@ export const ACTIONS = {
         effect: () => `The session comes up on ${hostLabel()}. The limits it spends come out of the shared quota.`,
         done: (target) => `Session ${target} is up`,
         ok: "Open",
+        choice: agentChoice,
     },
     "session.resume": {
         watch: "open",

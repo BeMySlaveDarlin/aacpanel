@@ -29,6 +29,9 @@ type projectNode struct {
 	// Own is what the project sets otherwise than its contour would: the
 	// row of a project shows these and nothing it merely inherits.
 	Own []schema.Value `json:"own,omitempty"`
+	// Agent is what New of the project starts, claude or codex, said in
+	// full: the sheet of New offers it first and the other one beside it.
+	Agent string `json:"agent"`
 }
 
 type groupNode struct {
@@ -39,11 +42,16 @@ type groupNode struct {
 // profileNode is a contour of the map. Default marks the one kept in the
 // default config directory of the owner: the personal contour, which the
 // screens take for whatever no other contour holds, wherever the map puts it.
+//
+// CodexHome is the codex home of the contour where the host has one: without
+// it codex has no daemon for the contour's projects, and the sheet of New
+// offers it switched off rather than let the press be refused.
 type profileNode struct {
-	ID      int         `json:"id"`
-	Profile string      `json:"profile"`
-	Default bool        `json:"default,omitempty"`
-	Groups  []groupNode `json:"groups"`
+	ID        int         `json:"id"`
+	Profile   string      `json:"profile"`
+	Default   bool        `json:"default,omitempty"`
+	CodexHome string      `json:"codexHome,omitempty"`
+	Groups    []groupNode `json:"groups"`
 }
 
 func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
@@ -122,6 +130,7 @@ func profileMap(list []store.Profile, home string) []profileNode {
 					Session: sessionNameOf(p),
 					Line:    p.Line,
 					Own:     ownValues(profile.Effective, p.Effective),
+					Agent:   agentOf(p.Effective),
 				})
 			}
 			if len(projects) == 0 {
@@ -133,9 +142,20 @@ func profileMap(list []store.Profile, home string) []profileNode {
 			continue
 		}
 		out = append(out, profileNode{ID: profile.ID, Profile: profile.Name,
-			Default: contours.IsDefaultConfig(profile.ConfigDir, home), Groups: groups})
+			Default: contours.IsDefaultConfig(profile.ConfigDir, home), CodexHome: profile.CodexHome, Groups: groups})
 	}
 	return out
+}
+
+// agentOf is the agent the effective values of a project start: codex where
+// they say so, and claude for anything else, as the executor reads the launch.
+func agentOf(values []schema.Value) string {
+	for _, v := range values {
+		if v.Key == "agent" && v.Value == schema.AgentCodex {
+			return schema.AgentCodex
+		}
+	}
+	return schema.AgentClaude
 }
 
 func sessionNameOf(p store.ProfileProject) string {
@@ -480,6 +500,20 @@ func openDir(kind action.Kind, params map[string]any) (string, error) {
 		return "", fmt.Errorf("a session is opened by the project's id or by a directory, not by both")
 	}
 	return dir, nil
+}
+
+// agentFromParams is the agent a New names for this start over the project's
+// own, empty where it names none.
+func agentFromParams(params map[string]any) (string, error) {
+	raw, ok := params["agent"]
+	if !ok || raw == nil {
+		return "", nil
+	}
+	agent, _ := raw.(string)
+	if agent != schema.AgentClaude && agent != schema.AgentCodex {
+		return "", fmt.Errorf("the agent to start did not arrive as %s or %s", schema.AgentClaude, schema.AgentCodex)
+	}
+	return agent, nil
 }
 
 // ownValues returns the values a project sets itself and that differ from what

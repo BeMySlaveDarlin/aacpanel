@@ -171,6 +171,15 @@ def _hooks_state(base, config_dir):
     return "same" if hooks == base else "diverged"
 
 
+def _codex_home_of(name):
+    """Returns the codex home named after a contour, the first one as the executor
+    takes it, or None where none is named or its directory is not there."""
+    for contour, d in codex_homes():
+        if contour == name:
+            return d if os.path.isdir(d) else None
+    return None
+
+
 def described():
     """Returns the profiles with the state of their authorization and hooks."""
     base = _hooks_of(HOME)
@@ -194,6 +203,11 @@ def described():
         if settings is not None:
             row["account"] = _account_of(settings)
             row["contextGuard"] = _guarded(settings)
+        # New offers codex only in a contour with a home of its own: without
+        # one the executor has no daemon to start the thread in.
+        codex = _codex_home_of(name)
+        if codex is not None:
+            row["codexHome"] = codex
         out.append(row)
     return out
 

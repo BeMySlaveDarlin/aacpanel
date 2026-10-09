@@ -659,10 +659,11 @@ appears or the connection drops — at once when an action waits for it.
   the decisions the request offers, in its order, and the pick goes back as it
   came; the first answer of any client wins, and the others are told the
   request is gone.
-- **New of a project whose agent is codex starts a thread in the daemon of the
-  project's contour**, the home named after the contour; a contour without one
-  is refused with that reason. The panel starts the thread with `thread/start`
-  in the project's directory, with the model, the effort, the approvals and
+- **New of a project whose agent is codex, or with Codex picked on its sheet,
+  starts a thread in the daemon of the project's contour**, the home named
+  after the contour; a contour without one is refused with that reason. The
+  panel starts the thread with `thread/start` in the project's directory,
+  with the model, the effort, the approvals and
   the sandbox of the map where it chose them — the `config.toml` of the home
   decides the rest — and New answers with the session's name, `codex-<8 hex>`,
   so the screen opens it as it opens a claude session. Where it lives is the
@@ -743,8 +744,16 @@ keys — where codex lives, its model picked from what the codex daemon lists
 saved and checked like the rest, never asking and the sandbox off are held as
 `bypassPermissions` is, and an unset one leaves it to the `config.toml` of the
 codex home. New of a project whose agent is codex starts a codex session, as
-"Codex sessions" says. A restart of a claude session of such a project is
-refused: a codex thread does not take the place of a claude conversation. A
+"Codex sessions" says. The sheet that confirms New offers both agents, the
+project's taken and marked, so Open alone starts what the map says; the other
+one picked there goes as `params.agent` and is laid over the launch for that
+start alone — the map stays as it was, and the next New offers the project's
+agent again. Codex is offered switched off, with the reason, where the
+contour has no codex home (`codexHome` of the contour in the map, from the
+collector) or the project is not on the map, and the service refuses codex for
+a session the map does not hold and any agent for a resume, whose conversation
+is claude's. A restart of a claude session of a project whose agent is codex
+is refused: a codex thread does not take the place of a claude conversation. A
 conversation resumed or moved between tmux and the stream is claude's and goes
 on.
 

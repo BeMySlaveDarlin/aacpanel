@@ -137,6 +137,7 @@
     cursor: pointer;
 }
 .pkseg.on { background: var(--surface); color: var(--ink); box-shadow: var(--hairline); }
+.pkseg:disabled { opacity: .45; cursor: default; }
 .pkmenu .pkscope { margin: .1rem .2rem .45rem; }
 
 /* Under the composer on a wide screen: the model with its effort and the mode

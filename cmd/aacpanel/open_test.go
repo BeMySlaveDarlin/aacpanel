@@ -142,3 +142,122 @@ func TestASessionOpensInADirectoryOnlyWithTheMap(t *testing.T) {
 	default:
 	}
 }
+
+// New starts the agent picked on its sheet, for this once: the launch the
+// executor is handed names the picked agent and keeps the rest of the map's
+// choices, and the journal says which agent was asked for. Without a pick the
+// project's own agent starts, as the map says.
+func TestNewStartsTheAgentPickedOnItsSheetPG(t *testing.T) {
+	srv, root := hostServer(t, `{"at":1}`)
+	id := fillMap(t, srv, root)
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "started"})
+	srv.exec, srv.auth = client, &auth.Service{}
+
+	open := func(t *testing.T, params string) (map[string]any, map[string]any) {
+		t.Helper()
+		w := post(t, srv, `{"kind":"session.open","target":"aacpanel","params":{"project":`+strconv.Itoa(id)+params+`}}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+		}
+		var got action.Request
+		select {
+		case got = <-fake.got:
+		case <-time.After(3 * time.Second):
+			t.Fatal("the executor did not get the request")
+		}
+		if got.Project == nil {
+			t.Fatal("New reached the executor without its project")
+		}
+		var launch map[string]any
+		if err := json.Unmarshal(got.Project.Launch, &launch); err != nil {
+			t.Fatalf("the launch was not parsed: %v", err)
+		}
+		list, err := srv.db.Actions(t.Context(), store.ActionsReq{Limit: 1})
+		if err != nil || len(list) == 0 {
+			t.Fatalf("the action did not reach the journal: %v", err)
+		}
+		return launch, list[0].Params
+	}
+
+	t.Run("codex over a claude project", func(t *testing.T) {
+		launch, journal := open(t, `,"agent":"codex"`)
+		if launch["agent"] != "codex" || launch["model"] != "opus" || launch["effort"] != "high" {
+			t.Errorf("the executor was handed %v: codex with the rest of the map's launch was meant", launch)
+		}
+		if journal["agent"] != "codex" {
+			t.Errorf("the journal holds %v: it does not say the press started codex", journal)
+		}
+	})
+
+	if _, err := srv.db.UpdateProject(t.Context(), id, store.ProjectEdit{LaunchSet: map[string]any{
+		"agent": "codex", "codexModel": "gpt-5.5",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("claude over a codex project", func(t *testing.T) {
+		launch, journal := open(t, `,"agent":"claude"`)
+		if launch["agent"] != "claude" || launch["model"] != "opus" || launch["codexModel"] != "gpt-5.5" {
+			t.Errorf("the executor was handed %v: claude with the rest of the map's launch was meant", launch)
+		}
+		if journal["agent"] != "claude" {
+			t.Errorf("the journal holds %v: it does not say the press started claude", journal)
+		}
+	})
+
+	t.Run("no pick starts the project's own", func(t *testing.T) {
+		launch, journal := open(t, ``)
+		if launch["agent"] != "codex" {
+			t.Errorf("the executor was handed %v: the project's codex was meant", launch)
+		}
+		if _, ok := journal["agent"]; ok {
+			t.Errorf("the journal holds %v: no agent was asked for", journal)
+		}
+	})
+}
+
+// An agent New cannot start is refused before the executor is asked: a word
+// that is no agent, codex for a session the map does not hold — its daemon is
+// the one of a project's contour — and any agent named for a resume, which
+// goes on a conversation of claude's. Claude for a session off the map goes
+// on, as a New without a pick does.
+func TestNewRefusesAnAgentItCannotStart(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "session lab started"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+
+	for name, c := range map[string]struct{ body, says string }{
+		"a word that is no agent": {`{"kind":"session.open","target":"lab","params":{"agent":"gemini"}}`,
+			"did not arrive as claude or codex"},
+		"an agent that is no word": {`{"kind":"session.open","target":"lab","params":{"agent":7}}`,
+			"did not arrive as claude or codex"},
+		"codex off the map": {`{"kind":"session.open","target":"lab","params":{"agent":"codex"}}`,
+			"codex starts only in a project of the map"},
+		"a resume with an agent": {`{"kind":"session.resume","target":"lab","params":{"agent":"claude"}}`,
+			"a resume takes no agent"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := post(t, srv, c.body)
+			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), c.says) {
+				t.Errorf("status %d, body %q, meant 400 saying %q", w.Code, w.Body.String(), c.says)
+			}
+		})
+	}
+	select {
+	case got := <-fake.got:
+		t.Fatalf("a refused open went to the executor: %+v", got)
+	default:
+	}
+
+	w := post(t, srv, `{"kind":"session.open","target":"lab","params":{"agent":"claude"}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("claude off the map: status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.Target != "lab" || got.Project != nil {
+			t.Errorf("claude off the map reached the executor as %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("claude off the map did not reach the executor")
+	}
+}

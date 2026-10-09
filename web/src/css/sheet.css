@@ -166,6 +166,14 @@
     padding: .55rem .7rem;
 }
 
+/* A pick the sheet asks beside its question, over its buttons: the segments
+   of the picker, the one the project names marked with a quiet word, and why
+   a segment is off said beneath it. */
+.gtchoice { margin-top: .8rem; }
+.gtchoice .pkscope { margin: 0; }
+.gtchoice .hint { margin: .35rem 0 0; }
+.gtmark { margin-left: .4rem; font-size: var(--t-xs); font-weight: 400; color: var(--ink-faint); }
+
 .btnrow { display: flex; gap: .4rem; margin-top: .8rem; }
 .btnrow > .btn, .rename > .btn { flex: 1; }
 

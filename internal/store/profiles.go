@@ -51,6 +51,10 @@ type Profile struct {
 	// the directory a session starts in picks it there, so the account fields
 	// of the map only mirror the registry.
 	Route *ProfileRoute `json:"route,omitempty"`
+	// CodexHome is the codex home of the contour as the collector found it on
+	// the host; empty where none is named after the contour, and then codex
+	// has no daemon to start a session of its projects in.
+	CodexHome string `json:"codexHome,omitempty"`
 	// Effective is what the contour's projects start with where they say
 	// nothing themselves, parameter by parameter, with the layer of each.
 	Effective []schema.Value `json:"effective"`

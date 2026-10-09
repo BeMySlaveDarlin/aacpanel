@@ -483,3 +483,53 @@ func TestProfileMapAddressesContourByID(t *testing.T) {
 		t.Errorf("the config directory went out into the tree: %s", raw)
 	}
 }
+
+// The map tells the sheet of New what to offer: every project names the agent
+// it starts, claude said in full, and a contour the codex home it has — none
+// where the host has none, so the sheet switches codex off for its projects.
+func TestProfileMapNamesTheAgentAndTheCodexHome(t *testing.T) {
+	list := tree()
+	list[0].Groups[0].Projects[0].Launch = json.RawMessage(`{"effort":"low","agent":"codex"}`)
+	list[0].CodexHome = "/home/u/.codex"
+	store.FillEffective(list)
+
+	out := profileMap(list, "/home/u")
+	if len(out) != 2 {
+		t.Fatalf("the map came out as %+v", out)
+	}
+	projects := out[0].Groups[0].Projects
+	if projects[0].Agent != "codex" || projects[1].Agent != "claude" || out[1].Groups[0].Projects[0].Agent != "claude" {
+		t.Errorf("the agents went out as %q, %q, %q: the codex project and two of claude were meant",
+			projects[0].Agent, projects[1].Agent, out[1].Groups[0].Projects[0].Agent)
+	}
+	if out[0].CodexHome != "/home/u/.codex" || out[1].CodexHome != "" {
+		t.Errorf("the codex homes went out as %q and %q", out[0].CodexHome, out[1].CodexHome)
+	}
+	raw, err := json.Marshal(out[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"agent":"claude"`) || strings.Contains(string(raw), "codexHome") {
+		t.Errorf("a contour without codex went out as %s", raw)
+	}
+}
+
+// The codex home of a contour comes from the collector's word about the host,
+// and reaches the map the screens draw from.
+func TestTheMapCarriesTheCodexHomeTheCollectorFoundPG(t *testing.T) {
+	srv, root := hostServer(t, `{"at":1}`)
+	fillMap(t, srv, root)
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"profiles":[{"name":"personal","configDir":"`+root+
+		`","codexHome":"/home/u/.codex"}]}`))
+
+	profiles := hostMap(t, srv)
+	if len(profiles) != 1 || len(profiles[0].Groups) != 1 {
+		t.Fatalf("the map came out as %+v", profiles)
+	}
+	if profiles[0].CodexHome != "/home/u/.codex" {
+		t.Errorf("the contour went out with the codex home %q", profiles[0].CodexHome)
+	}
+	if got := profiles[0].Groups[0].Projects[0].Agent; got != "claude" {
+		t.Errorf("a project that names no agent went out as %q", got)
+	}
+}

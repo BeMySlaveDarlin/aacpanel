@@ -249,6 +249,33 @@ class Contours(unittest.TestCase):
         by = {p["name"]: p for p in contours.described()}
         self.assertEqual(by["work"]["hooks"], "unknown")
 
+    def codex_homes(self, *dirs):
+        old = os.environ.get(contours.CODEX_ENV)
+        self.addCleanup(lambda: os.environ.pop(contours.CODEX_ENV, None) if old is None
+                        else os.environ.__setitem__(contours.CODEX_ENV, old))
+        os.environ[contours.CODEX_ENV] = os.pathsep.join(dirs)
+
+    def test_a_contour_carries_the_codex_home_named_after_it(self):
+        work = self.contour()
+        self.registry(("work", work, "-"))
+        home = os.path.join(self.root, ".codex-profiles", "work")
+        os.makedirs(home)
+        self.codex_homes(os.path.join(self.root, ".codex"), home)
+        by = {p["name"]: p for p in contours.described()}
+        self.assertEqual(by["work"].get("codexHome"), home)
+        self.assertNotIn("codexHome", by["personal"],
+                         "the personal home is named but not on the disk: New would offer codex with no daemon to run it")
+
+    def test_a_contour_no_codex_home_is_named_after_carries_none(self):
+        work = self.contour()
+        self.registry(("work", work, "-"))
+        other = os.path.join(self.root, ".codex-profiles", "acme")
+        os.makedirs(other)
+        self.codex_homes(other)
+        by = {p["name"]: p for p in contours.described()}
+        self.assertNotIn("codexHome", by["work"])
+        self.assertNotIn("codexHome", by["personal"])
+
     def rate(self, config, five, seven, at=None):
         import time
         with open(os.path.join(config, "rate-limits.json"), "w", encoding="utf-8") as f:

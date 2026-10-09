@@ -1,0 +1,133 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The sheet of New over a fake service and a map of two contours: personal,
+// whose host has a codex home, and acme, which has none, each holding a
+// project of claude and one of codex. A press opens the sheet the way every
+// entry of New does, the agent is read off it, left or picked, and Open sent.
+import { h, render } from "preact";
+import { GateHost, useAction } from "/src/actions/gate.js";
+import { setProfileMap } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+setProfileMap([
+    { id: 1, profile: "personal", default: true, codexHome: "/home/u/.codex", groups: [
+        { name: "Services", projects: [
+            { id: 10, name: "api", path: "/srv/proj/api", session: "api", agent: "claude" },
+            { id: 11, name: "shop", path: "/srv/proj/shop", session: "shop", agent: "codex" },
+        ] },
+    ] },
+    { id: 2, profile: "acme", groups: [
+        { name: "Infra", projects: [
+            { id: 20, name: "infra", path: "/srv/proj/infra", session: "infra", agent: "claude" },
+            { id: 21, name: "edge", path: "/srv/proj/edge", session: "edge", agent: "codex" },
+        ] },
+    ] },
+]);
+
+const sent = [];
+window.fetch = async (url, init) => {
+    if (String(url) === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ ok: true, detail: "up", logged: true }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+let run = null;
+function Grab() {
+    run = useAction();
+    return null;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Grab))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end && !ok()) await sleep(20);
+    return ok();
+};
+const root = document.getElementById("root");
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const seen = (el) => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.height > 0 && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight + 0.5;
+};
+const segments = () => Array.from(root.querySelectorAll(".gtchoice [role=radio]"));
+// labelOf is the name of a segment without the word that marks it.
+const labelOf = (b) => Array.from(b.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim();
+
+// read says what the open sheet offers: each segment with whether it is taken,
+// switched off and marked, the reasons under it, and whether the pick stands
+// between the consequence and the buttons where a person sees it.
+const read = () => {
+    const choice = root.querySelector(".gtchoice");
+    const warn = root.querySelector(".warnline");
+    const buttons = root.querySelector(".btnrow");
+    return {
+        segments: segments().map((b) => ({
+            label: labelOf(b),
+            on: b.getAttribute("aria-checked") === "true" && b.classList.contains("on"),
+            off: b.disabled,
+            mark: text(b.querySelector(".gtmark")),
+        })),
+        reasons: Array.from(root.querySelectorAll(".gtchoice .hint")).map((p) => ({ text: text(p), seen: seen(p) })),
+        placed: Boolean(choice && warn && buttons)
+            && warn.getBoundingClientRect().bottom <= choice.getBoundingClientRect().top + 0.5
+            && choice.getBoundingClientRect().bottom <= buttons.getBoundingClientRect().top + 0.5,
+        seen: seen(choice) && seen(buttons),
+    };
+};
+
+// press runs New of a project as the screens do, reads the sheet, presses the
+// segment named by pick, if any, and Open.
+const press = async (target, params, pick) => {
+    const answer = run("session.open", target, params);
+    if (!(await until(() => root.querySelector(".gtchoice") && root.querySelector(".btnrow .btn.primary")))) {
+        return { trouble: `the sheet of New for ${target} came up without the choice of agent` };
+    }
+    // The sheet slides up from under the screen: what it shows is read once it
+    // stands, or once it was given the time to and did not.
+    await until(() => [root.querySelector(".gtchoice"), root.querySelector(".btnrow"),
+        ...root.querySelectorAll(".gtchoice .hint")].every(seen));
+    const sheet = read();
+    if (pick) {
+        const seg = segments().find((b) => labelOf(b) === pick);
+        if (!seg) return { trouble: `no segment ${pick} on the sheet for ${target}` };
+        seg.click();
+        await until(() => seg.classList.contains("on"), 500);
+    }
+    sheet.after = segments().filter((b) => b.classList.contains("on")).map(labelOf);
+    const before = sent.length;
+    root.querySelector(".btnrow .btn.primary").click();
+    const result = await answer;
+    await until(() => !root.querySelector(".btnrow"));
+    return { ...sheet, ok: Boolean(result && result.ok), request: sent.length > before ? sent[sent.length - 1] : null };
+};
+
+window.done = (async () => {
+    const cases = {};
+    cases.claudePickedCodex = await press("api", { project: 10 }, "Codex");
+    cases.codexLeft = await press("shop", { project: 11 });
+    cases.noHome = await press("infra", { project: 20 }, "Codex");
+    cases.codexNoHome = await press("edge", { project: 21 });
+    cases.offTheMap = await press("lab", {});
+    cases.gone = await press("ghost", { project: 999 });
+
+    // Another action keeps its sheet as it was: no choice on it, and nothing
+    // laid over what it sends.
+    const resumed = run("session.resume", "api", {});
+    await until(() => root.querySelector(".btnrow .btn.primary"));
+    await sleep(0);
+    const other = { title: text(root.querySelector(".stitle")), choice: Boolean(root.querySelector(".gtchoice")) };
+    root.querySelector(".btnrow .btn.primary").click();
+    await resumed;
+    other.params = sent[sent.length - 1] ? sent[sent.length - 1].params : null;
+    return { cases, other, sent: sent.length };
+})();
+</script>

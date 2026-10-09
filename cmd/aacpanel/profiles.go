@@ -400,6 +400,7 @@ func (s *Server) fillMap(list []store.Profile) {
 		st := states.of(list[i])
 		list[i].Auth, list[i].Hooks = st.Auth, st.Hooks
 		list[i].Account, list[i].ContextGuard = st.Account, st.ContextGuard
+		list[i].CodexHome = st.CodexHome
 		if st.Routed {
 			list[i].Route = &store.ProfileRoute{Prefix: st.Prefix}
 		}

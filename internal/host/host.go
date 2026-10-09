@@ -210,6 +210,10 @@ type ContourState struct {
 	// the prefix of the rest.
 	Routed bool
 	Prefix string
+	// CodexHome is the codex home named after the contour, where the
+	// collector found its directory: New starts codex only in a contour that
+	// has one.
+	CodexHome string
 }
 
 // Contours returns the host contours from the agent snapshot, in snapshot order.
@@ -228,6 +232,7 @@ func (h *Reader) Contours() []ContourState {
 			ContextGuard *bool             `json:"contextGuard"`
 			Routed       bool              `json:"routed"`
 			Prefix       string            `json:"prefix"`
+			CodexHome    string            `json:"codexHome"`
 		} `json:"profiles"`
 	}
 	if err := json.Unmarshal(payload, &snapshot); err != nil {
@@ -239,7 +244,7 @@ func (h *Reader) Contours() []ContourState {
 			continue
 		}
 		row := ContourState{Name: c.Name, ConfigDir: c.ConfigDir, Account: c.Account, ContextGuard: c.ContextGuard,
-			Routed: c.Routed, Prefix: c.Prefix}
+			Routed: c.Routed, Prefix: c.Prefix, CodexHome: c.CodexHome}
 		switch c.Auth {
 		case AuthBuiltin, AuthToken, AuthMissing:
 			row.Auth = c.Auth

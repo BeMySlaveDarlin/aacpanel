@@ -70,6 +70,13 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 
 	var cwd string
 	if req.Kind == action.SessionResume {
+		// The conversation a resume goes on is claude's, whatever the project
+		// starts now: an agent named for it is refused before the archive is
+		// asked, rather than dropped without a word.
+		if _, named := body.Params["agent"]; named {
+			http.Error(w, "a resume takes no agent: the conversation it goes on is claude's", http.StatusBadRequest)
+			return
+		}
 		sessionID, dir, err := s.resumeTarget(r, body.Target, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -237,8 +244,17 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	// wants one of its own: the project is the one of the map the directory
 	// belongs to, and the session is named after it unless a name is given.
 	// The answer names the contour, the account the new session spends.
+	//
+	// New may name the agent to start for this once, over the project's own:
+	// the agent is a key of the launch, so the rest of the launch stays the
+	// map's and each agent reads only its own keys from it.
 	var contour string
 	if req.Kind == action.SessionOpen || req.Kind == action.SessionResume {
+		agent, err := agentFromParams(body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		dir, err := openDir(req.Kind, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -264,6 +280,19 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			}
 			req.Project, contour = want, found.profile.Name
 			params = map[string]any{"project": found.project.ID, "path": want.Path}
+			if agent != "" {
+				launch, err := withAgent(want.Launch, agent)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				want.Launch = launch
+				params["agent"] = agent
+			}
+		} else if agent == schema.AgentCodex {
+			http.Error(w, "codex starts only in a project of the map: its daemon is the one of the project's contour, "+
+				"and a session the map does not hold has no contour to take it from", http.StatusBadRequest)
+			return
 		}
 	}
 
@@ -844,6 +873,20 @@ func restartLaunch(raw json.RawMessage) (json.RawMessage, error) {
 	}
 	intent, _ := launch["restartIntent"].(string)
 	launch["intent"] = intent
+	return json.Marshal(launch)
+}
+
+// withAgent lays the agent a New asked for over the effective launch of its
+// project. Only the agent changes: the launch of each agent passes the keys
+// of the other over, so the map's choices for both travel as they are.
+func withAgent(raw json.RawMessage, agent string) (json.RawMessage, error) {
+	launch := map[string]any{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &launch); err != nil {
+			return nil, fmt.Errorf("the launch of the project was not parsed: %w", err)
+		}
+	}
+	launch["agent"] = agent
 	return json.Marshal(launch)
 }
 

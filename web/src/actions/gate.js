@@ -5,6 +5,7 @@ import { useCallback, useContext, useMemo, useRef, useState } from "preact/hooks
 import { ACTIONS, known } from "./registry.js";
 import { answerAction, noteAction } from "../catchup.js";
 import { html } from "../html.js";
+import { Choice } from "../ui/choice.js";
 import { Sheet } from "../ui/sheet.js";
 import { useToast } from "../ui/toasts.js";
 
@@ -98,8 +99,11 @@ export function GateHost({ children }) {
             return result;
         }
 
+        // A choice is read once, as the sheet opens: what the person sees on
+        // it is what goes, even if a snapshot changes the map under the sheet.
+        const choice = ACTIONS[id].choice ? ACTIONS[id].choice(target, params) : null;
         return new Promise((resolve) => {
-            setPending({ id, target, params, step: 1, resolve });
+            setPending({ id, target, params, step: 1, resolve, choice, picked: choice ? choice.value : undefined });
         });
     }, [toast]);
 
@@ -113,8 +117,12 @@ export function GateHost({ children }) {
         if (!pending) return;
         const next = ACTIONS[pending.id].escalate;
         if (!next) return;
-        setPending({ ...pending, id: next, step: 1 });
+        setPending({ ...pending, id: next, step: 1, choice: null });
     }, [pending]);
+
+    const pick = useCallback((value) => {
+        setPending((prev) => (prev ? { ...prev, picked: value } : prev));
+    }, []);
 
     const confirm = useCallback(async () => {
         if (!pending || fired.current === pending) return;
@@ -126,7 +134,12 @@ export function GateHost({ children }) {
         }
 
         fired.current = pending;
-        const { id, target, params, resolve } = pending;
+        const { id, target, resolve } = pending;
+        // The pick goes by name every time, the one left as offered too: the
+        // host starts what the sheet showed rather than work it out again.
+        const params = pending.choice
+            ? { ...pending.params, [pending.choice.param]: pending.picked }
+            : pending.params;
         setPending(null);
 
         const result = await send(id, target, params);
@@ -169,6 +182,9 @@ export function GateHost({ children }) {
                     <div class="warnline">
                         ${typeof screen.effect === "function" ? screen.effect(pending.params) : screen.effect}
                     </div>
+                    ${pending.choice && html`
+                        <${Choice} choice=${pending.choice} value=${pending.picked} onPick=${pick} />
+                    `}
                     <div class="btnrow">
                         <button class="btn" type="button" onClick=${cancel}>Cancel</button>
                         <button

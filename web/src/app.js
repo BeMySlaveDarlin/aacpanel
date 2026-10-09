@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "./html.js";
 import { loadHost, loadTree } from "./data.js";
-import { setHostName } from "./actions/registry.js";
+import { setHostName, setProfileMap } from "./actions/registry.js";
 import { useCatchUp } from "./catchup.js";
 import { useFaults } from "./faults.js";
 import { useExec, useTreeStream } from "./exec.js";
@@ -128,6 +128,7 @@ export function App({ updateReady, updating, onApplyUpdate, installable, onInsta
             setHostHistory((prev) => trim([...prev, point(fresh)]));
             setHostError(null);
             setHostName(fresh.hostName);
+            setProfileMap(fresh.profileMap);
             if (fresh.hostName) document.title = fresh.hostName;
         } else {
             setAgeSec(null);
