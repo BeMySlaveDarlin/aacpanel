@@ -41,22 +41,30 @@ function App() {
     `;
 }
 
+// Room to go back into, pushed before anything is drawn: the fixture itself is
+// the first entry of this history, the layers push theirs as they are drawn,
+// and a gesture that walks past them leaves the page rather than closing a
+// layer, which would end the run instead of failing it.
+history.pushState({ pad: 1 }, "", location.href);
+history.pushState({ pad: 2 }, "", location.href);
+
 render(html`<${App} />`, document.getElementById("root"));
 
-(async () => {
-    // Room to go back into: the fixture itself is the first entry of this
-    // history, and a gesture that walks past it leaves the page rather than
-    // closing a layer, which would end the run instead of failing it.
-    history.pushState({ pad: 1 }, "", location.href);
-    history.pushState({ pad: 2 }, "", location.href);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end && !ok()) await sleep(20);
+};
 
-    await new Promise((r) => setTimeout(r, 150));
+(async () => {
+    // The page stands on an entry of its own before the gesture comes.
+    await until(() => history.state && history.state.overlay);
     const before = { doc: Boolean(document.getElementById("doc")), page: Boolean(document.getElementById("page")) };
 
-    // One gesture is the whole question: what comes off first. A second would
-    // walk out of the fixture itself and leave nothing to report.
+    // One gesture is the whole question here: what comes off first. What the
+    // next one does is the question of backsheet.
     history.back();
-    await new Promise((r) => setTimeout(r, 250));
+    await until(() => closed.length > 0 && !document.getElementById(closed[0]));
     const afterOne = { doc: Boolean(document.getElementById("doc")), page: Boolean(document.getElementById("page")) };
 
     window.done = { before, afterOne, closed };

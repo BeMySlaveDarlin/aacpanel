@@ -7,13 +7,33 @@
 // The way a brief is opened out of a conversation: a sheet is open over the
 // chat, a tap inside it closes the sheet and opens a page with a document on
 // it, all in one turn. Three claims on the back gesture come and go at once,
-// and the question is which one the gesture finds on top.
-import { h, render } from "preact";
+// and the question is which one the gesture finds on top — and, once the
+// document is put down, whether the page under it still has a gesture of its
+// own.
+import { render } from "preact";
 import { useState } from "preact/hooks";
 import { html } from "/src/html.js";
 import { useBackClose } from "/src/ui/back.js";
 
 const closed = [];
+
+// Room to go back into, pushed before anything is drawn: the fixture itself is
+// the first entry of this history, and a gesture that walks past the layers
+// lands on a pad rather than leaving the page, which would end the run instead
+// of failing it.
+history.pushState({ pad: 1 }, "", location.href);
+history.pushState({ pad: 2 }, "", location.href);
+const base = JSON.stringify(history.state);
+
+// Steps back, the module's and the walk's own gestures alike, against the
+// popstates that landed them: the history has arrived when the two agree.
+let asked = 0;
+let landed = 0;
+const step = history.go.bind(history);
+history.go = (delta) => { asked += 1; step(delta); };
+history.back = () => { asked += 1; step(-1); };
+window.addEventListener("popstate", () => { landed += 1; });
+const arrived = () => landed === asked;
 
 // The conversation is a layer too, and it goes away in the same turn: its
 // cleanup collapses the history entry it pushed.
@@ -37,20 +57,21 @@ function Page({ hasDoc, onCloseDoc, onClose, children }) {
 }
 
 function App() {
+    const [chat, setChat] = useState(true);
     const [sheet, setSheet] = useState(true);
     const [page, setPage] = useState(false);
     const [doc, setDoc] = useState(false);
 
-
     // What the tap inside the sheet does, in one turn.
     window.openDoc = () => {
+        setChat(false);
         setSheet(false);
         setPage(true);
         setDoc(true);
     };
 
     return html`
-        ${!page && html`
+        ${chat && html`
             <${Chat} onBack=${() => { closed.push("chat"); }}>
                 <${Sheet} open=${sheet} onClose=${() => { closed.push("sheet"); setSheet(false); }} />
             <//>
@@ -67,33 +88,38 @@ function App() {
 
 render(html`<${App} />`, document.getElementById("root"));
 
-(async () => {
-    // Room to go back into: the fixture itself is the first entry of this
-    // history, and a gesture that walks past it leaves the page rather than
-    // closing a layer, which would end the run instead of failing it.
-    history.pushState({ pad: 1 }, "", location.href);
-    history.pushState({ pad: 2 }, "", location.href);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => { for (let i = 0; i < 150 && !ok(); i++) await sleep(20); return ok(); };
+const depth = () => (history.state && history.state.overlay ? Number(history.state.depth) : 0);
+const seen = (id) => Boolean(document.getElementById(id));
 
-    await new Promise((r) => setTimeout(r, 150));
+window.done = (async () => {
+    // The conversation and the sheet over it both stand on entries of their own.
+    await until(() => depth() === 2 && arrived());
+
     window.openDoc();
-    await new Promise((r) => setTimeout(r, 300));
+    await until(() => !seen("sheet") && seen("doc") && depth() === 1 && arrived());
     const before = {
-        sheet: Boolean(document.getElementById("sheet")),
-        page: Boolean(document.getElementById("page")),
-        doc: Boolean(document.getElementById("doc")),
+        sheet: seen("sheet"),
+        page: seen("page"),
+        doc: seen("doc"),
         // The layer now open has to stand on an entry of its own. Without one
         // the next gesture walks past the application instead of closing it.
         mine: Boolean(history.state && history.state.overlay),
     };
 
+    // The gesture puts down the document, and the page it was on stays: it
+    // has to stand on an entry again, or the next swipe has nothing to take.
     history.back();
-    await new Promise((r) => setTimeout(r, 350));
-    const after = {
-        sheet: Boolean(document.getElementById("sheet")),
-        page: Boolean(document.getElementById("page")),
-        doc: Boolean(document.getElementById("doc")),
-    };
+    await until(() => arrived() && !seen("doc") && depth() === 1);
+    const after = { sheet: seen("sheet"), page: seen("page"), doc: seen("doc"), kept: JSON.stringify(history.state) };
 
-    window.done = { before, after, closed };
+    // The second gesture closes the page and lands where the fixture stood
+    // before anything was opened.
+    history.back();
+    await until(() => arrived() && !seen("page"));
+    const second = { page: seen("page"), left: JSON.stringify(history.state), base };
+
+    return { before, after, second, closed };
 })();
 </script>

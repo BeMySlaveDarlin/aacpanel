@@ -307,6 +307,7 @@ func TestTheCallInTheBarOpensItselfInTheCallsOfTheRun(t *testing.T) {
 		Again    sheetSeen `json:"again"`
 		Gesture  sheetSeen `json:"gesture"`
 		Badge    sheetSeen `json:"badge"`
+		Shut     int       `json:"shut"`
 		Overflow int       `json:"overflow"`
 		Error    string    `json:"error"`
 	}
@@ -325,6 +326,10 @@ func TestTheCallInTheBarOpensItselfInTheCallsOfTheRun(t *testing.T) {
 		if !s.Open || s.View || s.Title != "Calls" || strings.Join(s.Rows, ",") != strings.Join(list, ",") {
 			t.Errorf("%s over the call leads to %+v, expected the list of the run in the open sheet", name, s)
 		}
+	}
+	if got.Shut != 0 {
+		t.Errorf("the sheet shut over a call left %d entries of the history behind it: "+
+			"the next swipe closes nothing", got.Shut)
 	}
 	if a := got.Again; !a.Open || !a.View || a.Title != "Bash" {
 		t.Errorf("opened again from the bar after another call, the sheet shows %+v, expected the command", a)

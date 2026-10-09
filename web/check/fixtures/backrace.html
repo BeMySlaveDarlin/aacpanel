@@ -1,0 +1,159 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// Layers coming and going while a step back of the history is on its way. The
+// browser lands such a step in its own time, and until it does history.state
+// still names the entry that is going. A busy phone opens that window by
+// chance; here every step is held until the walk lets it go, so the window is
+// open every time.
+import { render } from "preact";
+import { useEffect, useState } from "preact/hooks";
+import { html } from "/src/html.js";
+import { useBackClose } from "/src/ui/back.js";
+
+// Steps back asked of the browser wait here. The swipe of the walk is not
+// held: it goes straight to the browser, the way a person's does.
+const held = [];
+let asked = 0;
+const step = history.go.bind(history);
+history.go = (delta) => { asked += 1; held.push(delta); };
+history.back = () => { asked += 1; held.push(-1); };
+let pushed = 0;
+const push = history.pushState.bind(history);
+history.pushState = (...args) => { pushed += 1; return push(...args); };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => { for (let i = 0; i < 200 && !ok(); i++) await sleep(15); return ok(); };
+const popped = () => new Promise((r) => window.addEventListener("popstate", r, { once: true }));
+const at = () => JSON.stringify(history.state);
+
+// land lets the held steps go one at a time, each landed before the next, and
+// so do the steps asked as they land.
+const land = async () => {
+    for (;;) {
+        await sleep(60);
+        if (!held.length) return;
+        const landed = popped();
+        step(held.shift());
+        await Promise.race([landed, sleep(1000)]);
+    }
+};
+// swipe is the back gesture of a person.
+const swipe = async () => {
+    const landed = popped();
+    step(-1);
+    await Promise.race([landed, sleep(1000)]);
+    await sleep(60);
+};
+
+// What each layer has told the back gesture: effects run in order, so the
+// one after useBackClose runs once the claim is made or taken back.
+const claims = {};
+function Layer({ name, open = true, onClose, children }) {
+    useBackClose(open, onClose);
+    useEffect(() => {
+        claims[name] = open;
+        return () => { claims[name] = false; };
+    }, [open]);
+    return open ? html`<div id=${name}>${name}${children}</div>` : null;
+}
+
+let set = () => {};
+function App() {
+    const [s, setS] = useState({});
+    set = (next) => setS((was) => ({ ...was, ...next }));
+    const off = (name) => () => set({ [name]: false });
+    return html`
+        ${s.a && html`<${Layer} name="a" onClose=${off("a")} />`}
+        ${s.b && html`<${Layer} name="b" onClose=${off("b")} />`}
+        <${Layer} name="sheet" open=${Boolean(s.sheet)} onClose=${off("sheet")}>
+            ${s.sheet && s.call && html`<${Layer} name="call" onClose=${off("call")} />`}
+        <//>
+        ${s.chat && html`
+            <${Layer} name="chat" onClose=${off("chat")}>
+                <${Layer} name="calls" onClose=${off("chat")} />
+            <//>
+        `}
+        ${s.page && html`
+            <${Layer} name="page" onClose=${() => (s.doc ? set({ doc: false }) : set({ page: false }))}>
+                ${s.doc && html`<div id="doc">a document</div>`}
+            <//>
+        `}
+    `;
+}
+render(html`<${App} />`, document.getElementById("root"));
+
+// open sets the state and waits for the named layers to claim the gesture,
+// then for the history to settle.
+const open = async (next, ...names) => {
+    set(next);
+    await until(() => names.every((n) => claims[n]));
+    await land();
+};
+
+window.done = (async () => {
+    const out = {};
+    try {
+        // Room to go back into: a walk past the layers lands on a pad of its
+        // own rather than leaving the fixture.
+        for (const pad of [1, 2, 3]) history.pushState({ pad }, "", location.href);
+        await until(() => "sheet" in claims);
+
+        // A layer goes, and before its step lands another opens on the same
+        // depth and goes too. The second has no entry of its own to give back.
+        let base = at();
+        await open({ a: true }, "a");
+        set({ a: false });
+        await until(() => claims.a === false);
+        set({ b: true });
+        await until(() => claims.b);
+        set({ b: false });
+        await until(() => claims.b === false);
+        await land();
+        out.again = { base, left: at() };
+
+        // A sheet shut with a call open on it, in one press: both let go of the
+        // gesture before the first step lands.
+        base = at();
+        await open({ sheet: true }, "sheet");
+        await open({ call: true }, "call");
+        set({ sheet: false, call: false });
+        await until(() => claims.sheet === false && claims.call === false);
+        await land();
+        out.shut = { base, left: at() };
+
+        // A swipe over a sheet that stays drawn closed. The swipe has taken
+        // the entry, and nothing is pushed or given back after it: an entry
+        // given and taken back a frame later is a window in which the next
+        // swipe is taken for that step.
+        base = at();
+        await open({ sheet: true }, "sheet");
+        pushed = 0;
+        asked = 0;
+        await swipe();
+        await until(() => claims.sheet === false);
+        await land();
+        out.swiped = { base, left: at(), pushed, asked };
+
+        // A conversation and a sheet over it go and a page with a document
+        // opens, in one turn, before the step of the conversation lands. The
+        // page stands on the entry the conversation left.
+        history.pushState({ pad: 4 }, "", location.href);
+        await open({ chat: true }, "chat", "calls");
+        pushed = 0;
+        set({ chat: false, page: true, doc: true });
+        await until(() => claims.page && claims.chat === false && claims.calls === false);
+        await land();
+        out.handed = { left: at(), pushed };
+        await swipe();
+        out.handed.doc = Boolean(document.getElementById("doc"));
+        out.handed.page = Boolean(document.getElementById("page"));
+    } catch (err) {
+        out.error = String((err && err.stack) || err);
+    }
+    return out;
+})();
+</script>

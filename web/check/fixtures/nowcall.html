@@ -48,6 +48,12 @@ window.EventSource = class {
     close() { this.readyState = 2; }
 };
 
+// Room to go back into, pushed before anything is drawn: the layers push
+// their entries as they are drawn, and a gesture that walks past them leaves
+// the fixture rather than failing it.
+history.pushState({ pad: 1 }, "", location.href);
+history.pushState({ pad: 2 }, "", location.href);
+
 const exec = { available: true, kinds: ["session.send"] };
 const live = { status: "busy", transport: "stream", pct: 40.2, tokens: 402000, limit: 1000000, cwd: "/srv/proj" };
 render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="lab" id="s1" live=${live} exec=${exec}
@@ -75,9 +81,10 @@ const seen = () => {
         rows: Array.from(s.querySelectorAll(".calltime .callnode")).map((n) => text(n.querySelector(".cnname"))),
     };
 };
-// A sheet gives its entry of the history back after it is gone, and the next
-// one opened before that lands would count on the entry about to go: the walk
-// waits until the history is back where it was.
+// A sheet gives its entries of the history back after it is gone, in steps the
+// browser lands in its own time: the walk waits until the history is back
+// where it was, and an entry still standing when the wait runs out is there
+// for the walk to report.
 const close = async () => {
     if (!sheet()) return;
     sheet().querySelector(".sheetclose").click();
@@ -87,10 +94,6 @@ const close = async () => {
 window.done = (async () => {
     const out = {};
     try {
-        // Room to go back into: a gesture that walks past the layers leaves
-        // the fixture rather than failing it.
-        history.pushState({ pad: 1 }, "", location.href);
-        history.pushState({ pad: 2 }, "", location.href);
         await until(() => document.querySelector(".composerbox .nowcall") && depth() >= 1);
         base = depth();
 
@@ -116,6 +119,10 @@ window.done = (async () => {
         if (read) read.click();
         await until(() => sheet() && text(sheet().querySelector(".phead h2")) === "Read");
         await close();
+        // The sheet and the call on it went in one press, and both entries of
+        // theirs have to go with them: one left behind is a swipe that closes
+        // nothing.
+        out.shut = depth() - base;
         document.querySelector(".composerbox .nowcall").click();
         await until(() => sheet() && sheet().querySelector(".phead h2"));
         out.again = seen();

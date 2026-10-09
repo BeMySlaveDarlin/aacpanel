@@ -1,10 +1,11 @@
 // The phone back gesture closes the topmost open layer, not the application.
-import { useCallback, useEffect, useRef } from "preact/hooks";
+import { useCallback, useLayoutEffect, useRef } from "preact/hooks";
 
 import { html } from "../html.js";
 import { Icon } from "./icons.js";
 
 let stack = [];
+// Steps back this module asked of the browser that have not landed yet.
 let collapsing = 0;
 
 // How deep the entry the browser is standing on was pushed. The history itself
@@ -18,12 +19,42 @@ function depthNow() {
     return Number.isFinite(depth) && depth > 0 ? depth : 1;
 }
 
+// sync brings the history to one entry per open layer: the browser stands on
+// the entry pushed at the depth of the stack. Entries belong to no layer and
+// only their number is kept, so layers changing hands in one turn — a sheet and
+// a conversation going while a page opens — cannot take the page's entry with
+// them: the page stands on whatever entry is at its depth once the history
+// settles.
+//
+// A step back lands when the browser gets to it, and until then history.state
+// still names the entry that is going. A depth read in that window is the old
+// one, and acting on it either keeps an entry no layer stands on — a swipe
+// that closes nothing — or gives one back twice, and the swipe walks past the
+// application. So while a step of this module is on its way sync does nothing,
+// and the popstate that lands the step calls it again with the stack as it is
+// by then. The price: a layer opened in that window gets its entry only after
+// the step lands, and a swipe made while a step is on its way is taken for it.
+function sync() {
+    if (collapsing > 0) return;
+    const have = depthNow();
+    const want = stack.length;
+    for (let depth = have + 1; depth <= want; depth += 1) {
+        window.history.pushState({ overlay: true, depth }, "");
+    }
+    if (have > want) {
+        collapsing += 1;
+        window.history.go(want - have);
+    }
+}
+
 if (typeof window !== "undefined") {
     window.addEventListener("popstate", () => {
-        // A step back this module took itself, to give away the entry of a
-        // layer that has gone: it is not the reader asking for anything.
+        // A step back this module took itself has landed: it is not the reader
+        // asking for anything, and the history can be read again — whatever
+        // opened or went while the step was on its way is brought in now.
         if (collapsing > 0) {
             collapsing -= 1;
+            sync();
             return;
         }
         const top = stack[stack.length - 1];
@@ -31,10 +62,20 @@ if (typeof window !== "undefined") {
         // A layer holding something unsaved asks before it goes: the entry
         // the gesture took is given back, so the layer stays where it was.
         if (top.hold()) {
-            window.history.pushState({ overlay: true, depth: stack.length }, "");
+            sync();
             return;
         }
         top.close();
+        // A layer may put down only what is open on it and stay — a page
+        // closing the document on it — while the gesture has taken its entry
+        // all the same. Once the close is drawn the history is brought in: a
+        // layer that went changes nothing, one that stayed gets its entry
+        // back, or the next swipe walks out of the application. Preact draws a
+        // change of state in a microtask and a layer lets go of the gesture
+        // within that render, so a timer of zero comes after both. The price:
+        // a layer whose close finishes later than that gets its entry back
+        // first and gives it back when it does go.
+        setTimeout(sync, 0);
     });
 }
 
@@ -55,37 +96,26 @@ export function useBackClose(open, onClose, hold) {
 
     const mine = useRef(null);
 
-    useEffect(() => {
+    // The claim is made and taken back in the commit of a render, not after
+    // the paint: a sheet that stays drawn closed lets go of the gesture in the
+    // render that closed it, so the sync after a gesture finds it gone rather
+    // than giving it an entry and taking that back a frame later. The price:
+    // whatever else pushes entries has to do it before the layers are drawn,
+    // or its entries land above theirs.
+    useLayoutEffect(() => {
         if (!open) return undefined;
 
         const layer = { close: () => close.current(), hold: () => Boolean(keep.current && keep.current()) };
         mine.current = layer;
         stack.push(layer);
-        const depth = stack.length;
-        // An entry of its own, unless the layer it replaced left one standing
-        // at this depth for it.
-        if (depthNow() < depth) {
-            window.history.pushState({ overlay: true, depth }, "");
-        }
+        sync();
 
-        // A layer gives its entry back as it goes, and it does so at once. Left
-        // to the next frame, the count and the history part company whenever
-        // layers change hands in one turn — a sheet and a conversation closing
-        // while a page opens — and the entry a new layer was counting on is
-        // taken out from under it. The first swipe then walks past the
-        // application instead of putting down what is open.
-        // A layer gives its entry back as it goes, and only the entry that is
-        // its own: the depth in the history says which one that is. Left to the
-        // next frame, or counted rather than read, this is where the count and
-        // the history part company — a sheet and a conversation closing while a
-        // page opens, and the entry the new layer was counting on goes with
-        // them.
+        // A layer that goes takes the history down with it, whether it was on
+        // top or under another: an entry left standing above the open layers
+        // is a swipe that closes nothing.
         return () => {
-            const wasTop = stack[stack.length - 1] === layer;
             stack = stack.filter((was) => was !== layer);
-            if (!wasTop || depthNow() !== depth) return;
-            collapsing += 1;
-            window.history.back();
+            sync();
         };
     }, [open]);
 
