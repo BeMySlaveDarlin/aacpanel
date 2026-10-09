@@ -242,7 +242,12 @@ func TestLiveCloseKillsOnlyTheSessionTheLauncherStarted(t *testing.T) {
 		pid  int
 	}{{"probe", sleeping("probe")}, {"lone", sleeping("lone")}, {"work", typed}} {
 		if _, err := e.closeAgent(ctx, agentProc{Session: c.name, Agent: c.pid}); err != nil {
-			t.Fatalf("closing %s: %v", c.name, err)
+			// The close outlives its bound on a busy runner now and then and
+			// never here: what the process and tmux were at that moment says
+			// whether the signal was held off or the dead pane not reaped.
+			panes, _ := tmuxRun(ctx, "list-panes", "-a", "-F",
+				"#{session_name} #{pane_pid} dead=#{pane_dead} #{pane_current_command}")
+			t.Fatalf("closing %s: %v\n%s\npanes:\n%s", c.name, err, procSignals(c.pid), panes)
 		}
 	}
 	if alive("probe") {
@@ -696,4 +701,22 @@ func wholeEscape(s string) bool {
 		}
 	}
 	return false
+}
+
+// procSignals is what /proc says of a process a signal was sent to: its
+// state, its parent and how it takes signals.
+func procSignals(pid int) string {
+	raw, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "status"))
+	if err != nil {
+		return fmt.Sprintf("process %d: %v", pid, err)
+	}
+	var keep []string
+	for _, line := range strings.Split(string(raw), "\n") {
+		for _, key := range []string{"Name:", "State:", "PPid:", "SigPnd:", "ShdPnd:", "SigBlk:", "SigIgn:", "SigCgt:"} {
+			if strings.HasPrefix(line, key) {
+				keep = append(keep, line)
+			}
+		}
+	}
+	return fmt.Sprintf("process %d: %s", pid, strings.Join(keep, "; "))
 }
