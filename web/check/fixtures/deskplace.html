@@ -61,6 +61,29 @@ const show = (jump) => render(h(ToastHost, null, h(GateHost, null, html`<${Deskt
     theme="space" onTheme=${() => {}} updateReady=${false} updating=${false} onApplyUpdate=${() => {}}
     route=${{ here: "", via: "", why: "", onRecheck: () => {}, onOpen: () => {} }}
     jump=${jump} onJumped=${() => {}} />`)), root);
+// The shell walks the browser history as its layers come and go: a layer that
+// closes gives its entry back with a step back, and the browser lands the step
+// in its own time, later on a busy machine. landed says every step asked for
+// has landed.
+let stepsAsked = 0;
+let stepsLanded = 0;
+const stepBack = history.back.bind(history);
+history.back = () => {
+    stepsAsked += 1;
+    stepBack();
+};
+window.addEventListener("popstate", () => { stepsLanded += 1; });
+const landed = () => stepsLanded >= stepsAsked;
+// takeDown takes the shell off the page, on a history that has landed on both
+// sides. A real reload finds the history where it stands; this one runs the
+// layers' cleanups, and a layer that reads the depth while a step is still on
+// its way takes the entry that is going for its own and gives it back a
+// second time — one step past the fixture, out of the page.
+const takeDown = async () => {
+    await until(landed);
+    render(null, root);
+    await until(landed);
+};
 // A reload comes a while after the last press: by then the shell has written
 // down where it stands, and the page is only taken down after that.
 const reload = async () => {
@@ -68,7 +91,7 @@ const reload = async () => {
         const k = kept();
         return k && k.section === here();
     });
-    render(null, root);
+    await takeDown();
     asked.length = 0;
     show(null);
 };
@@ -153,7 +176,7 @@ window.done = (async () => {
 
         // A conversation, opened the way a push opens it, stays open over a
         // reload and under the pages opened from it.
-        render(null, root);
+        await takeDown();
         show({ name: "aacpanel", id: "live-1" });
         await until(() => talk() && document.querySelector(".dkchat textarea"));
         await reload();
@@ -179,7 +202,7 @@ window.done = (async () => {
         // A kept section the shell does not have, and a kept value that is not
         // a place at all, both open home.
         for (const [name, value] of [["unknownSection", JSON.stringify({ section: "briefs", from: "", chat: null })], ["garbage", "{not json"]]) {
-            render(null, root);
+            await takeDown();
             localStorage.setItem(KEY, value);
             show(null);
             out[name] = await seen("home");

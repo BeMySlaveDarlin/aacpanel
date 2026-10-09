@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -30,9 +32,83 @@ type browser struct {
 	mu      sync.Mutex
 	seq     int
 	waiting map[int]chan cdpMessage
-	thrown  map[string][]string
+	pages   map[string]*page
 	dead    error
 	stderr  *tailBuffer
+}
+
+// page is what the browser tells of one tab besides the answers to its
+// commands: what its page threw, and what took the page away from under a
+// fixture — the renderer crashing, the tab closing, the main frame going to
+// another document.
+type page struct {
+	thrown  []string
+	crashed bool
+	closed  bool
+	// urls are the documents the main frame committed, in order.
+	urls []string
+	// news is closed, and replaced, whenever the page crashes, closes or
+	// navigates: everyone waiting on the page hears it.
+	news chan struct{}
+}
+
+// errRendererCrashed is a run cut short by the renderer under the page: the
+// machine, not the page, and the fixture is worth running again.
+var errRendererCrashed = errors.New("the renderer crashed")
+
+// end says what took the page away from url, or nil while it stands.
+func (p *page) end(url string) error {
+	if p.crashed {
+		return errRendererCrashed
+	}
+	if p.closed {
+		return errors.New("the tab was closed")
+	}
+	// The first document committed at url is the page itself; whatever the
+	// main frame commits after it is the page gone somewhere else.
+	for i, at := range p.urls {
+		if at == url && i+1 < len(p.urls) {
+			return fmt.Errorf("the page navigated to %s", p.urls[i+1])
+		}
+	}
+	return nil
+}
+
+func (p *page) tell() {
+	close(p.news)
+	p.news = make(chan struct{})
+}
+
+// note keeps what an event of the page's own session says.
+func (p *page) note(msg cdpMessage) {
+	switch msg.Method {
+	case "Runtime.exceptionThrown":
+		var ev struct {
+			ExceptionDetails struct {
+				Text      string `json:"text"`
+				Exception struct {
+					Description string `json:"description"`
+				} `json:"exception"`
+			} `json:"exceptionDetails"`
+		}
+		_ = json.Unmarshal(msg.Params, &ev)
+		p.thrown = append(p.thrown, strings.TrimSpace(ev.ExceptionDetails.Text+" "+ev.ExceptionDetails.Exception.Description))
+	case "Inspector.targetCrashed":
+		p.crashed = true
+		p.tell()
+	case "Page.frameNavigated":
+		var ev struct {
+			Frame struct {
+				ParentID string `json:"parentId"`
+				URL      string `json:"url"`
+			} `json:"frame"`
+		}
+		_ = json.Unmarshal(msg.Params, &ev)
+		if ev.Frame.ParentID == "" {
+			p.urls = append(p.urls, ev.Frame.URL)
+			p.tell()
+		}
+	}
 }
 
 type cdpMessage struct {
@@ -109,7 +185,7 @@ func startBrowser(chrome, pointer string) (*browser, error) {
 	}
 	b := &browser{
 		to: to, profile: profile, stderr: &tailBuffer{limit: 8 << 10},
-		waiting: map[int]chan cdpMessage{}, thrown: map[string][]string{},
+		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{},
 	}
 	b.cmd = exec.Command(chrome, "--headless=new", "--remote-debugging-pipe", "--user-data-dir="+profile,
 		"--password-store=basic", "--no-first-run", "--no-default-browser-check",
@@ -143,23 +219,25 @@ func (b *browser) read(from io.ReadCloser) {
 			continue
 		}
 		b.mu.Lock()
-		if msg.ID != 0 {
+		switch {
+		case msg.ID != 0:
 			if ch := b.waiting[msg.ID]; ch != nil {
 				delete(b.waiting, msg.ID)
 				ch <- msg
 			}
-		} else if msg.Method == "Runtime.exceptionThrown" && msg.SessionID != "" {
+		case msg.SessionID != "":
+			if p := b.pages[msg.SessionID]; p != nil {
+				p.note(msg)
+			}
+		case msg.Method == "Target.detachedFromTarget":
 			var ev struct {
-				ExceptionDetails struct {
-					Text      string `json:"text"`
-					Exception struct {
-						Description string `json:"description"`
-					} `json:"exception"`
-				} `json:"exceptionDetails"`
+				SessionID string `json:"sessionId"`
 			}
 			_ = json.Unmarshal(msg.Params, &ev)
-			b.thrown[msg.SessionID] = append(b.thrown[msg.SessionID],
-				strings.TrimSpace(ev.ExceptionDetails.Text+" "+ev.ExceptionDetails.Exception.Description))
+			if p := b.pages[ev.SessionID]; p != nil {
+				p.closed = true
+				p.tell()
+			}
 		}
 		b.mu.Unlock()
 	}
@@ -224,17 +302,84 @@ func (b *browser) call(ctx context.Context, session, method string, params any) 
 	}
 }
 
+// track starts keeping what the browser tells of the tab of a session.
+func (b *browser) track(session string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.pages[session] = &page{news: make(chan struct{})}
+}
+
 // thrownIn returns what the page of a session threw so far.
 func (b *browser) thrownIn(session string) []string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]string(nil), b.thrown[session]...)
+	if p := b.pages[session]; p != nil {
+		return append([]string(nil), p.thrown...)
+	}
+	return nil
+}
+
+// ended waits until the browser tells what took the page of a session away
+// from url and returns it, or nil once done is closed first.
+func (b *browser) ended(done <-chan struct{}, session, url string) error {
+	for {
+		b.mu.Lock()
+		p := b.pages[session]
+		var err error
+		var news chan struct{}
+		if p != nil {
+			err, news = p.end(url), p.news
+		}
+		b.mu.Unlock()
+		if p == nil || err != nil {
+			return err
+		}
+		select {
+		case <-news:
+		case <-done:
+			return nil
+		}
+	}
+}
+
+// pageCall is call on the page of a session that ends with the page. A
+// renderer that crashed leaves the command unanswered, and a navigation
+// answers it with a bare "navigated or closed": either way the error says what
+// took the page away from url.
+func (b *browser) pageCall(ctx context.Context, session, url, method string, params any) (json.RawMessage, error) {
+	callCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	watched := make(chan struct{})
+	go func() {
+		defer close(watched)
+		if end := b.ended(callCtx.Done(), session, url); end != nil {
+			cancel(end)
+		}
+	}()
+	raw, err := b.call(callCtx, session, method, params)
+	cancel(nil)
+	<-watched
+	if err == nil || ctx.Err() != nil {
+		return raw, err
+	}
+	if end := context.Cause(callCtx); end != context.Canceled {
+		return nil, end
+	}
+	// The answer cut short can come before the event that says why.
+	if b.alive() == nil {
+		within, stop := context.WithTimeout(ctx, endWait)
+		defer stop()
+		if end := b.ended(within.Done(), session, url); end != nil {
+			return nil, fmt.Errorf("%w (%v)", end, err)
+		}
+	}
+	return nil, err
 }
 
 func (b *browser) forget(session string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	delete(b.thrown, session)
+	delete(b.pages, session)
 }
 
 func (b *browser) close() {
@@ -280,11 +425,17 @@ func parallel(t *testing.T) {
 	}
 }
 
-// run opens a page in a context of its own, waits for the promise the page
-// leaves in window.done and returns what it resolved to.
 // disposeWait bounds the dispose of a run's browser context.
 var disposeWait = 10 * time.Second
 
+// endWait bounds how long a command cut short waits for the browser to say
+// what took the page away.
+const endWait = 2 * time.Second
+
+// run opens a page in a context of its own, waits for the promise the page
+// leaves in window.done and returns what it resolved to. A page taken away
+// before it answers says how: the renderer crashed (errRendererCrashed), the
+// tab closed, or the page navigated, and to where.
 func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage, error) {
 	session, close, err := b.open(ctx, url, screen)
 	if err != nil {
@@ -292,7 +443,7 @@ func (b *browser) run(ctx context.Context, url, screen string) (json.RawMessage,
 	}
 	defer close()
 	for {
-		raw, err := b.call(ctx, session, "Runtime.evaluate", map[string]any{
+		raw, err := b.pageCall(ctx, session, url, "Runtime.evaluate", map[string]any{
 			"expression": "window.done", "awaitPromise": true, "returnByValue": true})
 		if err != nil {
 			return nil, err
@@ -368,6 +519,7 @@ func (b *browser) open(ctx context.Context, url, screen string) (session string,
 		return "", nil, fmt.Errorf("the tab did not attach: %v", err)
 	}
 	session = attached.SessionID
+	b.track(session)
 	close = func() {
 		b.forget(session)
 		dispose()
@@ -378,6 +530,10 @@ func (b *browser) open(ctx context.Context, url, screen string) (session string,
 		params any
 	}{
 		{"Runtime.enable", map[string]any{}},
+		// What the main frame commits and a crash of the renderer: a page that
+		// goes before it answers says how it went.
+		{"Page.enable", map[string]any{}},
+		{"Inspector.enable", map[string]any{}},
 		// Every tab of the browser is in front: a page in the background has
 		// its timers slowed and its animation frames stopped.
 		{"Emulation.setFocusEmulationEnabled", map[string]any{"enabled": true}},
@@ -451,7 +607,7 @@ func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = to.Close(); _ = fromChrome.Close(); _ = toChrome.Close() })
 	b := &browser{to: to, stderr: &tailBuffer{limit: 1 << 10},
-		waiting: map[int]chan cdpMessage{}, thrown: map[string][]string{}}
+		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{}}
 	go b.read(from)
 	go func() {
 		in := bufio.NewReader(toChrome)
@@ -481,4 +637,121 @@ func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the run on a Chrome that stopped answering never came back: the dispose waits on it unbounded")
 	}
+}
+
+// pageAt finds the tab of the shared browsers whose main frame stands at url.
+func pageAt(url string) (*browser, string) {
+	browsersMu.Lock()
+	defer browsersMu.Unlock()
+	for _, pool := range browsers {
+		for _, b := range pool {
+			if b == nil {
+				continue
+			}
+			b.mu.Lock()
+			for session, p := range b.pages {
+				if n := len(p.urls); n > 0 && p.urls[n-1] == url {
+					b.mu.Unlock()
+					return b, session
+				}
+			}
+			b.mu.Unlock()
+		}
+	}
+	return nil, ""
+}
+
+// A page taken away before it answers says how it went. A renderer crashed
+// under it is the machine, not the page: the fixture runs once more and
+// passes, and the log says why. A page that navigates is the page's own doing:
+// it fails at once, with where it went, and is not run again.
+func TestAPageTakenAwaySaysHow(t *testing.T) {
+	chrome := chromeBinary()
+	if chrome == "" {
+		t.Skip("no Chrome on this machine")
+	}
+	serve := func(t *testing.T, pages map[string]func(w http.ResponseWriter, r *http.Request)) string {
+		mux := http.NewServeMux()
+		for path, h := range pages {
+			mux.HandleFunc(path, h)
+		}
+		server := httptest.NewServer(mux)
+		t.Cleanup(server.Close)
+		return server.URL
+	}
+	htmlPage := func(script string) func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprintf(w, "<script>%s</script>", script)
+		}
+	}
+
+	t.Run("the renderer crashed", func(t *testing.T) {
+		parallel(t)
+		var visits atomic.Int32
+		var url string
+		url = serve(t, map[string]func(w http.ResponseWriter, r *http.Request){
+			"/page": htmlPage(`window.done = fetch("/visit").then((r) => (r.ok ? r.json() : new Promise(() => {})));`),
+			"/visit": func(w http.ResponseWriter, r *http.Request) {
+				if visits.Add(1) > 1 {
+					fmt.Fprint(w, `{"ok":true}`)
+					return
+				}
+				// The first visit has its renderer crashed under it.
+				for end := time.Now().Add(5 * time.Second); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
+					if b, session := pageAt(url + "/page"); b != nil {
+						go func() {
+							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							defer cancel()
+							_, _ = b.call(ctx, session, "Page.crash", map[string]any{})
+						}()
+						break
+					}
+				}
+				w.WriteHeader(http.StatusServiceUnavailable)
+			},
+		})
+		var logMu sync.Mutex
+		var logged []string
+		logf := func(format string, args ...any) {
+			logMu.Lock()
+			defer logMu.Unlock()
+			logged = append(logged, fmt.Sprintf(format, args...))
+		}
+		out, err := runInChrome(chrome, phonePointer, url+"/page", phoneScreen, logf)
+		if err != nil {
+			t.Fatalf("a page whose renderer crashed once did not pass on the run that followed: %v", err)
+		}
+		if string(out) != `{"ok":true}` {
+			t.Errorf("the run after the crash answered %s", out)
+		}
+		if visits.Load() < 2 {
+			t.Errorf("the page was visited %d times — the crash was never met, the test proves nothing", visits.Load())
+		}
+		logMu.Lock()
+		defer logMu.Unlock()
+		if len(logged) != 1 || !strings.Contains(logged[0], "renderer crashed") {
+			t.Errorf("the run once more is logged as %q, not as the renderer crashing", logged)
+		}
+	})
+
+	t.Run("the page navigated", func(t *testing.T) {
+		parallel(t)
+		var loads atomic.Int32
+		url := serve(t, map[string]func(w http.ResponseWriter, r *http.Request){
+			"/page": func(w http.ResponseWriter, r *http.Request) {
+				loads.Add(1)
+				htmlPage(`window.done = new Promise(() => {});
+setTimeout(() => { location.href = "/elsewhere"; }, 100);`)(w, r)
+			},
+			"/elsewhere": htmlPage(""),
+		})
+		_, err := runInChrome(chrome, phonePointer, url+"/page", phoneScreen, t.Logf)
+		if err == nil || !strings.Contains(err.Error(), "navigated to "+url+"/elsewhere") {
+			t.Fatalf("a page that navigated away failed as %v, not with where it went", err)
+		}
+		if loads.Load() != 1 {
+			t.Errorf("a page that navigated away was loaded %d times — a navigation is the page's doing, not to be run again", loads.Load())
+		}
+	})
 }

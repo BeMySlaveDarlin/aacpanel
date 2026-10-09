@@ -3,6 +3,8 @@ package check
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -97,17 +99,33 @@ func runFixtureServing(t *testing.T, fixture, screen, pointer string, serve map[
 	defer server.Close()
 
 	started := time.Now()
-	b, err := sharedBrowser(chrome, pointer)
-	if err != nil {
-		t.Fatalf("Chrome did not start: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	out, err := b.run(ctx, server.URL+"/fixture.html", screen)
+	out, err := runInChrome(chrome, pointer, server.URL+"/fixture.html", screen, t.Logf)
 	if err != nil {
 		t.Fatalf("%s under Chrome (%s): %v", fixture, time.Since(started).Round(time.Millisecond), err)
 	}
 	if err := json.Unmarshal(out, into); err != nil {
 		t.Fatalf("the fixture's answer did not parse: %v: %s", err, out)
 	}
+}
+
+// runInChrome runs the page at url in one of the shared browsers and returns
+// its answer. A renderer that crashed under the page is the machine, not the
+// page: the run goes once more, and logf says why. A page that navigated away
+// fails at once — that is the page's own doing.
+func runInChrome(chrome, pointer, url, screen string, logf func(string, ...any)) (json.RawMessage, error) {
+	once := func() (json.RawMessage, error) {
+		b, err := sharedBrowser(chrome, pointer)
+		if err != nil {
+			return nil, fmt.Errorf("Chrome did not start: %v", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		return b.run(ctx, url, screen)
+	}
+	out, err := once()
+	if errors.Is(err, errRendererCrashed) {
+		logf("%v; running the page once more", err)
+		out, err = once()
+	}
+	return out, err
 }
