@@ -246,3 +246,41 @@ func TestReadyDialsAtOnce(t *testing.T) {
 		t.Fatalf("the link waited for the next round: %v", err)
 	}
 }
+
+// A close may land while a poll reads the thread, between what the daemon said
+// and what the link does with it. Closed before the poll takes what it read,
+// the thread is not taken back; closed after, the link finds nothing to keep
+// and goes on, its lock free for the next caller.
+func TestAThreadClosedWhileAPollReadsItStaysGone(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	l := NewLink(t.TempDir(), "acme")
+	info := threadInfo{ID: "th-closed", Status: threadStatus{Type: "idle"}}
+
+	l.closed[info.ID] = ""
+	if l.seen(info, time.Now()) || l.threads[info.ID] != nil {
+		t.Error("a poll took back a thread the panel closed while it was read")
+	}
+
+	delete(l.closed, info.ID)
+	if !l.seen(info, time.Now()) {
+		t.Fatal("a poll did not take a thread nobody closed")
+	}
+	l.remove(info.ID)
+	done := make(chan any)
+	go func() {
+		defer func() { done <- recover() }()
+		l.keep(context.Background(), nil, info.ID)
+	}()
+	select {
+	case broke := <-done:
+		if broke != nil {
+			t.Fatalf("keep of a thread closed since it was seen: %v", broke)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("keep of a thread closed since it was seen did not return")
+	}
+	if !l.mu.TryLock() {
+		t.Fatal("the link's lock stayed held")
+	}
+	l.mu.Unlock()
+}

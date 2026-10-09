@@ -505,8 +505,10 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 		if l.letGo(ctx, c, id, info.Status.Type == "active") {
 			continue
 		}
+		if !l.seen(info, asked) {
+			continue
+		}
 		live[id] = true
-		l.seen(info, asked)
 		l.keep(ctx, c, id)
 		l.save(id)
 	}
@@ -547,10 +549,15 @@ func read(ctx context.Context, c *conn, id string) (threadInfo, error) {
 
 // seen takes what the daemon said of a thread. A thread whose turn is over
 // waits on nothing: a request that came before the question was asked was
-// answered or dropped with the turn, whatever the link heard of it.
-func (l *Link) seen(info threadInfo, asked time.Time) {
+// answered or dropped with the turn, whatever the link heard of it. A thread
+// the panel closed while it was being read is not taken back: what the daemon
+// said of it is older than the close.
+func (l *Link) seen(info threadInfo, asked time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if _, closed := l.closed[info.ID]; closed {
+		return false
+	}
 	t := l.threads[info.ID]
 	if t == nil {
 		t = &thread{}
@@ -562,6 +569,7 @@ func (l *Link) seen(info threadInfo, asked time.Time) {
 			return r.Since.Before(asked)
 		})
 	}
+	return true
 }
 
 // keep holds the link subscribed to a thread only while it is needed. The
@@ -569,12 +577,17 @@ func (l *Link) seen(info threadInfo, asked time.Time) {
 // subscribed for good would keep every thread it ever saw loaded. So the link
 // subscribes when the thread waits on an approval — the daemon then sends the
 // request again, to the new client too — or when a turn the panel started
-// runs, and leaves once the thread is free and nothing waits.
+// runs, and leaves once the thread is free and nothing waits. A thread closed
+// since it was seen is gone from the link, and there is nothing to keep.
 func (l *Link) keep(ctx context.Context, c *conn, id string) {
 	l.sub.Lock()
 	defer l.sub.Unlock()
 	l.mu.Lock()
 	t := l.threads[id]
+	if t == nil {
+		l.mu.Unlock()
+		return
+	}
 	active := t.info.Status.Type == "active"
 	waiting := slices.Contains(t.info.Status.Flags, flagApproval)
 	asking := len(l.pending[id]) > 0
