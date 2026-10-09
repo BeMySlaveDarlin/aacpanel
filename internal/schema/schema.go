@@ -174,7 +174,8 @@ var params = []Param{
 		Key: "panelTools", Label: "Panel tools", Kind: KindBool,
 		Levels: []Level{LevelContour, LevelProject}, Default: true,
 		Help: "the session gets the panel's tools over MCP: the checklist of its work, briefs, a call to the " +
-			"phone, its own restart, letters to other sessions and new sessions opened as projects of the map. " +
+			"phone, credentials asked for in a notepad of the panel, its own restart, letters to other sessions and " +
+			"new sessions opened as projects of the map. " +
 			"A session started by hand outside the panel does not have them",
 		Unset: "On", Merge: MergeOverride,
 		Live: map[string]Live{TransportTmux: LiveOnMove, TransportStream: LiveOnMove},

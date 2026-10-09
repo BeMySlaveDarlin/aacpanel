@@ -14,11 +14,12 @@ import { FileAtts, HandedFiles, SentCard } from "./files.js";
 import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
 import { shortTokens, stampText, tokenWord } from "./labels.js";
+import { savedAfter } from "../../data/secrets.js";
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, copies, onPage, onTask }) {
+export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, copies, onPage, onTask, secrets, onSecret }) {
     if (item.role === "shots") {
         return html`<${Shots} shots=${item.shots} session=${session} id=${id} pos=${item.pos} />`;
     }
@@ -60,6 +61,10 @@ export function Row({ item, session, id, onFile, onBrief, onCommand, onShell, co
 
     if (item.role === "brief") {
         return html`<${BriefDoc} item=${item} onOpen=${onBrief} />`;
+    }
+
+    if (item.role === "secret") {
+        return html`<${SecretCard} item=${item} shelf=${secrets} onOpen=${onSecret} />`;
     }
 
     if (item.role === "asked") {
@@ -510,6 +515,37 @@ function BriefDoc({ item, onOpen }) {
             </div>
             <div class="mflist">
                 <${BriefCard} item=${item} onOpen=${onOpen} named=${false} />
+            </div>
+        </div>
+    `;
+}
+
+// SecretCard is a secret a session asked for: what it wants, the name of the
+// file it will get, and the button that opens the notepad. Once the host holds
+// a file of that name written after the question, the card says when; the
+// text itself is never on the card, not even the template.
+function SecretCard({ item, shelf, onOpen }) {
+    const saved = savedAfter(shelf, item);
+    return html`
+        <div class="sent msecret">
+            <div class="senthead">
+                <span class="sentico">${Icon.key()}</span>
+                <span class="sentlabel">secret</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            <div class="mflist">
+                <div class="artifact skcard">
+                    <span class="arbody">
+                        <span class="artitle">${item.title}</span>
+                        <span class="armeta">
+                            <span>${item.name}</span>
+                            ${saved && html`<span class="sksaved">saved ${stampText(saved.at)}</span>`}
+                        </span>
+                    </span>
+                    ${onOpen && html`
+                        <button class="btn primary skfill" type="button" onClick=${() => onOpen(item)}>Fill in</button>
+                    `}
+                </div>
             </div>
         </div>
     `;

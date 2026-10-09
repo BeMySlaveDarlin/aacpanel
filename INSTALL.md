@@ -1198,7 +1198,7 @@ first in the chain and passes the payload on to the command that was there:
   "permissions": {"allow": [
     "mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish",
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
-    "mcp__aacpanel__session_restart"]}
+    "mcp__aacpanel__secret_ask", "mcp__aacpanel__session_restart"]}
 }
 ```
 

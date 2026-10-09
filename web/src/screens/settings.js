@@ -10,6 +10,7 @@ import { useWide } from "../ui/wide.js";
 import { askMicrophone, dictation, setDictation, speech } from "./chat/dictate.js";
 import * as pwa from "../pwa.js";
 import { byGroup, clash, costOf, SOURCE, valueText, valueTone } from "./settings/model.js";
+import { SecretsShelf } from "./secrets.js";
 
 const SETTINGS_URL = "/api/settings";
 
@@ -30,7 +31,7 @@ function useSettings() {
     return state;
 }
 
-export function Settings({ onClose }) {
+export function Settings({ onClose, exec }) {
     const wide = useWide();
 
     useBackClose(wide, onClose);
@@ -63,7 +64,7 @@ export function Settings({ onClose }) {
                             ${Icon.close()}
                         </button>
                     </div>
-                    <div class="dkmodalbody"><${List} state=${state} /></div>
+                    <div class="dkmodalbody"><${List} state=${state} exec=${exec} /></div>
                 </div>
             </div>
         `;
@@ -73,13 +74,15 @@ export function Settings({ onClose }) {
         <${BackHead} onBack=${onClose} label="back">
             <h2>Settings</h2>
         <//>
-        <${List} state=${state} />
+        <${List} state=${state} exec=${exec} />
     `;
 }
 
-function List({ state }) {
+function List({ state, exec }) {
     return html`
         <${Device} />
+
+        <${SecretsShelf} exec=${exec} />
 
         <div class="grouphead">The host</div>
         <p class="hint sethead">

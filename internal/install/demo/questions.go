@@ -203,7 +203,7 @@ func kit() *ui.Block {
 		Options: []ui.Option{
 			part(gAlways, "relay", "Question relay", "a session's questions reach your phone"),
 			part(gAlways, "limits", "Limits snapshot", "5-hour and weekly limits, before your status line"),
-			part(gAlways, "tools", "Panel tools", "checklist, briefs, a call to your phone, restart"),
+			part(gAlways, "tools", "Panel tools", "checklist, briefs, secrets, a phone call, restart"),
 			part(gQuiet, "copies", "Page copies", "a published page opens on the phone under any account"),
 			part(gQuiet, "brief", "Brief reminder", "a session learns that an answered brief waits"),
 			part(gQuiet, "cap", "Context cap", "stops a session at the cap, restarts it with your line"),

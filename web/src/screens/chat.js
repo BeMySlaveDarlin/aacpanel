@@ -23,12 +23,14 @@ import { StatusSheet } from "./chat/status.js";
 import { SetupSheet, SETUP_TITLES } from "./chat/setup.js";
 import { CommandsChip, CommandsSheet } from "./chat/commands.js";
 import { RenameSheet } from "./chat/rename.js";
+import { SecretPad } from "./chat/secret.js";
 import { Calls } from "./chat/calls.js";
 import { Look, LOOK_NAMES, pageLook, WORK_LISTS } from "./chat/look.js";
 import { ArtifactPage } from "./artifact.js";
 import { Brief } from "./brief.js";
 import { index, shelf as pageShelf } from "../data/artifacts.js";
 import { shelf as briefShelf } from "../data/briefs.js";
+import { list as secretShelf } from "../data/secrets.js";
 import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./chat/work.js";
 import { ChecklistSheet } from "./chat/checklist.js";
 import { Composer, deliver, outcome } from "./chat/composer.js";
@@ -75,6 +77,10 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
     const [copies, setCopies] = useState(null);
     const [pages, setPages] = useState([]);
     const [briefs, setBriefs] = useState([]);
+    // The secrets of the host, asked only by a conversation that has a card
+    // of one: the card says when its file was saved, the notepad what it
+    // would replace.
+    const [secrets, setSecrets] = useState(null);
     const [local, setLocal] = useState([]);
     const [, redraw] = useState(0);
     const answer = recall(name);
@@ -175,8 +181,21 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
         return () => { alive = false; };
     }, [id]);
 
+    const asksSecret = state.items.some((item) => item.role === "secret");
+    const loadSecrets = useCallback(() => {
+        secretShelf().then(setSecrets).catch(() => setSecrets(null));
+    }, []);
+    useEffect(() => {
+        if (asksSecret) loadSecrets();
+    }, [asksSecret, id, loadSecrets]);
+    const openSecret = useCallback((card) => {
+        setLook({ kind: "secret", item: card });
+        loadSecrets();
+    }, [loadSecrets]);
+
     useEffect(() => {
         setSub(null);
+        setSecrets(null);
         setLocal([]);
         setFiles([]);
         setCalls(null);
@@ -383,6 +402,8 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                     onPage=${(card) => setLook({ kind: "artifact", card })}
                     onFile=${(file) => setLook({ kind: "file", ...file })}
                     onBrief=${openBrief}
+                    secrets=${secrets}
+                    onSecret=${live && !live.outside ? openSecret : null}
                     onCommand=${(row) => setLook({ kind: "command", item: row })}
                     onShell=${(row) => setLook({ kind: "shell", item: row })}
                     onTask=${(task) => (task.agent
@@ -514,6 +535,11 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                 ? (live ? html`<${RenameSheet} name=${name} exec=${exec} onDone=${() => setLook(null)}
                                                taken=${((snapshot && snapshot.sessions) || []).map((s) => s.session)} />`
                     : html`<p class="cmdnote">The session has ended: there is nothing to rename.</p>`)
+                : look.kind === "secret"
+                ? (live ? html`<${SecretPad} key=${look.item.use || look.item.name} item=${look.item} session=${name}
+                                             exec=${exec} shelf=${secrets} onSaved=${loadSecrets}
+                                             onDone=${() => setLook(null)} />`
+                    : html`<p class="cmdnote">The session has ended: there is no one to hand the secret to.</p>`)
                 : look.kind === "tools"
                 ? html`<${SessionTools} ...${tools}
                                         onRepo=${here ? () => { setLook(null); setRepo(true); } : null}

@@ -38,6 +38,7 @@ func tools() []mcp.Tool {
 		collector.BriefPublish(collector.BriefSocket(), collector.HostGuide()),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
+		collector.SecretAsk(collector.NotifySocket()),
 		session.Restart(session.Here()),
 		session.Letter(session.Here()),
 		session.Open(session.Here()),

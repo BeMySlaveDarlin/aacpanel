@@ -39,6 +39,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__brief_publish",
 		"mcp__aacpanel__brief_delete",
 		"mcp__aacpanel__notify",
+		"mcp__aacpanel__secret_ask",
 		"mcp__aacpanel__session_restart",
 	}
 	if got := Allowed(); !slices.Equal(got, want) {
@@ -101,6 +102,7 @@ func TestEveryToolOfTheCollectorReachesItsOwnSocket(t *testing.T) {
 		{"brief_publish", `{"doc":{"id":"a-brief","title":"A brief"}}`, briefs},
 		{"brief_delete", `{"id":"a-brief"}`, briefs},
 		{"notify", `{"text":"stuck on the migration"}`, calls},
+		{"secret_ask", `{"name":"github-token","title":"GitHub token"}`, calls},
 	} {
 		at := slices.IndexFunc(list, func(t mcp.Tool) bool { return t.Name == c.tool })
 		if at < 0 {

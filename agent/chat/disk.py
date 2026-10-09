@@ -153,6 +153,33 @@ def is_exec(real, st):
     return head.startswith(EXEC_MAGIC)
 
 
+def secrets_dir():
+    """Returns the directory the executor keeps the secrets in, named as the executor names it."""
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    return os.path.join(base, "aacpanel", "secrets")
+
+
+def in_place(raw, cwd):
+    """Returns the real path of a file the feed may open inside cwd, or None.
+
+    A secret is never one of them, though a conversation that runs in the home
+    directory holds the directory of secrets: the session is told a secret by
+    its path, the feed makes a path a link, and the service worker would keep
+    what the link opened on the phone. Real paths on both sides, so a link
+    into the directory is refused as well.
+    """
+    found = sesstate.inside(raw, cwd)
+    if not found:
+        return None
+    root = os.path.realpath(secrets_dir())
+    try:
+        if os.path.commonpath([found, root]) == root:
+            return None
+    except ValueError:
+        pass
+    return found
+
+
 def named_files(text, cwd):
     """Returns files named in a prompt: name, size and the path to read them by."""
     if not text or not cwd:
@@ -165,7 +192,7 @@ def named_files(text, cwd):
         seen.add(raw)
         if "/" not in raw and not PATHISH.search(raw):
             continue
-        real = sesstate.inside(raw, cwd)
+        real = in_place(raw, cwd)
         if not real:
             continue
         try:
@@ -233,7 +260,7 @@ def disk_files(paths, cwd):
     """Returns the ones of the paths that are readable regular files inside cwd."""
     out = []
     for raw in paths:
-        real = sesstate.inside(raw, cwd)
+        real = in_place(raw, cwd)
         if not real:
             continue
         try:
@@ -263,7 +290,7 @@ def read_raw(path_in_repo, cwd, offset=0, limit=MAX_RAW):
     there the whole point is the bytes as they lie on disk. The cap is on one
     range, not on the file: the caller walks it by the offsets it gets back.
     """
-    real = sesstate.inside(path_in_repo, cwd)
+    real = in_place(path_in_repo, cwd)
     if not real:
         return None
     try:
@@ -319,7 +346,7 @@ def read_file(path_in_repo, cwd, offset=0, limit=MAX_FILE):
     A chunk of text is MAX_FILE long unless the reader asks for more, and
     never longer than MAX_WINDOW.
     """
-    real = sesstate.inside(path_in_repo, cwd)
+    real = in_place(path_in_repo, cwd)
     if not real:
         return None
     try:

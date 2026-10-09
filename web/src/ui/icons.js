@@ -139,4 +139,8 @@ export const Icon = {
     more: () => html`<svg ...${stroke}><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none" /></svg>`,
 
     download: () => html`<svg ...${stroke}><path d="M12 4v10M8 10.5l4 4 4-4M5 19h14" /></svg>`,
+
+    // A secret a session asked for: a file of the host the session uses by
+    // its path and never reads.
+    key: () => html`<svg ...${stroke}><circle cx="7.5" cy="15.5" r="4" /><path d="m10.4 12.6 9.1-9.1M16 7l2.8 2.8M13.4 9.6l2 2" /></svg>`,
 };

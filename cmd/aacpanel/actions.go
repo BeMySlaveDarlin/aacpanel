@@ -153,6 +153,17 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Text, req.From = text, from
 		params = map[string]any{"chars": len([]rune(text)), "from": from}
 	}
+	// The notepad of a secret reaches the executor and nothing else: the
+	// journal keeps its name and length, the way a message is kept.
+	if req.Kind == action.SecretPut {
+		name, _ := body.Params["name"].(string)
+		text, _ := body.Params["text"].(string)
+		req.Secret = &action.Secret{Name: name, Text: text}
+		params = map[string]any{"name": name, "chars": len([]rune(text))}
+	}
+	if req.Kind == action.SecretDrop {
+		params = map[string]any{}
+	}
 	if req.Kind == action.SessionBackground {
 		req.Use, _ = body.Params["use"].(string)
 		params = map[string]any{"use": req.Use}

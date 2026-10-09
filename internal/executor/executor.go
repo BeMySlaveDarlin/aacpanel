@@ -81,6 +81,10 @@ func (e *Executor) Kinds() []action.Kind {
 			continue
 		case !sessions && action.TermKind(k):
 			continue
+		case !sessions && k == action.SecretPut:
+			// The secret is saved for a session and told to it: with no
+			// sessions there is nobody to tell. Removing one needs none.
+			continue
 		case !canOpen && (k == action.WindowOpen || k == action.TermConsole):
 			continue
 		}
@@ -166,6 +170,10 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.termRename(ctx, req.Target, req.Rename)
 	case action.TermConsole:
 		return e.termConsole(ctx, req.Target)
+	case action.SecretPut:
+		return e.secretPut(ctx, req.Target, req.Secret)
+	case action.SecretDrop:
+		return secretDrop(req.Target)
 	default:
 		return "", fmt.Errorf("action %s is not supported by the executor", req.Kind)
 	}

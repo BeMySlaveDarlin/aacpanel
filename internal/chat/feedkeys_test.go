@@ -51,7 +51,7 @@ var notTheFeed = map[string]string{
 	"tail.py:view:_pieces":                 "the parsed ends of transcripts, by file",
 	"records.py:parse:calls":               "the calls waiting for a result, by id",
 	"records.py:parse:asks":                "the rounds of questions waiting for an answer, by id",
-	"records.py:parse:briefs":              "the calls that may publish a brief, by id",
+	"records.py:parse:briefs":              "the calls that may publish a brief or ask for a secret, by id",
 	"records.py:cutoff:calls":              "the calls waiting for a result, by id",
 	"records.py:command_card:unanswered":   "the commands waiting for an answer, by the record it will name",
 	"records.py:command_answer:unanswered": "the commands waiting for an answer, by the record it will name",

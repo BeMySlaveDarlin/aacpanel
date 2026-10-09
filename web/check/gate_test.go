@@ -198,6 +198,10 @@ var instantActions = map[string]bool{
 	// Remote Control is a switch in the header: it says which way it stands,
 	// and the same press puts it back.
 	"session.remote": true,
+	// The notepad of a secret is filled in on a sheet of its own and saved
+	// with its button: the sheet is where the person decided, and what it
+	// writes is a file the same name replaces.
+	"secret.put": true,
 	// The draft of a contour's or a project's settings is saved from the bar
 	// that counts its changes, with Discard beside it; a new directory, group
 	// or account path goes through the .edit action and its sheet.
@@ -238,6 +242,7 @@ var instantExecActions = map[string]bool{
 	"session.mcp":        true,
 	"session.rename":     true,
 	"session.remote":     true,
+	"secret.put":         true,
 	"term.start":         true,
 	"term.close":         true,
 	"term.rename":        true,

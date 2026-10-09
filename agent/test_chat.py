@@ -1841,6 +1841,137 @@ class Briefs(unittest.TestCase):
         self.assertEqual([i["role"] for i in got], [])
 
 
+class Secrets(unittest.TestCase):
+    """A secret the session asked for leaves a card in the run, drawn from the call and its answer."""
+
+    ARGS = {"name": "github-token", "title": "GitHub token to push the release",
+            "template": "# Settings, Developer settings, Tokens\nGH_TOKEN=\n"}
+
+    ASKED = ("Asked as github-token.\nThe person fills the notepad in the panel; a message with the path "
+             "comes into this session when it is saved. Do not wait for it in this turn.")
+
+    def parse(self, raw, waiting):
+        return chat.parse(json.loads(raw), 0, briefs=waiting)
+
+    def tool(self, args=None, name="mcp__aacpanel__secret_ask", use="toolu_secret"):
+        return line({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": name, "id": use, "input": self.ARGS if args is None else args},
+        ]}, "timestamp": "2026-10-09T10:00:00Z"})
+
+    def tool_answer(self, text, error=False, use="toolu_secret"):
+        block = {"type": "tool_result", "tool_use_id": use, "content": [{"type": "text", "text": text}]}
+        if error:
+            block["is_error"] = True
+        return line({"type": "user", "message": {"content": [block]}, "timestamp": "2026-10-09T10:00:04Z"})
+
+    def test_an_ask_gives_a_card_with_the_name_the_title_and_the_notepad(self):
+        waiting = {}
+        self.assertEqual([i["role"] for i in self.parse(self.tool(), waiting)], ["tool"],
+                         "the call stands in the run as a call until its answer")
+        got = self.parse(self.tool_answer(self.ASKED), waiting)
+        self.assertEqual(got, [{"role": "secret", "use": "toolu_secret", "name": "github-token",
+                                "title": "GitHub token to push the release",
+                                "template": "# Settings, Developer settings, Tokens\nGH_TOKEN=\n",
+                                "at": "2026-10-09T10:00:04Z", "pos": 0}])
+        self.assertEqual(waiting, {}, "the call stays waiting after its answer")
+
+    def test_the_name_is_the_one_the_answer_gives(self):
+        waiting = {}
+        self.parse(self.tool(dict(self.ARGS, name="forged")), waiting)
+        got = self.parse(self.tool_answer(self.ASKED), waiting)
+        self.assertEqual([i["name"] for i in got], ["github-token"])
+
+    def test_an_ask_without_a_notepad_has_an_empty_one(self):
+        waiting = {}
+        self.parse(self.tool({"name": "github-token", "title": "GitHub token"}), waiting)
+        got = self.parse(self.tool_answer(self.ASKED + "\nTheir phone was not called: the panel's collector "
+                                          "is not listening on /run/x.sock; the card waits in the conversation."),
+                         waiting)
+        self.assertEqual([(i["role"], i["template"]) for i in got], [("secret", "")])
+
+    def test_a_refused_ask_gives_no_card(self):
+        for answer in ("Nothing was asked: name is the file of the secret, 1 to 64 characters of a-z, 0-9.",
+                       "Nothing was asked: the panel does not know this conversation yet. Try again in a moment."):
+            with self.subTest(answer=answer):
+                waiting = {}
+                self.parse(self.tool(), waiting)
+                got = self.parse(self.tool_answer(answer, error=True), waiting)
+                self.assertEqual([i["role"] for i in got], [])
+                self.assertEqual(waiting, {})
+
+    def test_words_of_the_tool_printed_by_another_call_give_no_card(self):
+        waiting = {}
+        self.parse(self.tool({"command": "cat notes.txt"}, name="Bash"), waiting)
+        got = self.parse(self.tool_answer(self.ASKED), waiting)
+        self.assertEqual([i["role"] for i in got], [])
+
+
+class SecretFiles(unittest.TestCase):
+    """The feed opens no secret, though a conversation in the home directory holds the directory of them."""
+
+    def setUp(self):
+        from unittest import mock
+        self.root = os.path.realpath(test_barrier.tmp_path(prefix="chat-secrets-"))
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.home = os.path.join(self.root, "home")
+        env = mock.patch.dict(os.environ, {"HOME": self.home})
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop("XDG_STATE_HOME", None)
+
+        self.secrets = os.path.join(self.home, ".local", "state", "aacpanel", "secrets")
+        os.makedirs(self.secrets)
+        self.secret = os.path.join(self.secrets, "github-token")
+        with open(self.secret, "w", encoding="utf-8") as f:
+            f.write("GH_TOKEN=ghp_not_for_the_panel\n")
+        with open(os.path.join(self.home, "notes.txt"), "w", encoding="utf-8") as f:
+            f.write("plain words\n")
+        os.symlink(self.secret, os.path.join(self.home, "token-link"))
+
+        projects = os.path.join(self.root, "projects")
+        os.makedirs(os.path.join(projects, "-home"))
+        with open(os.path.join(projects, "-home", f"{UUID}.jsonl"), "w", encoding="utf-8") as f:
+            f.write(line({"type": "user", "cwd": self.home, "message": {"content": "hello"},
+                          "timestamp": "2026-10-09T10:00:00Z"}))
+        self.old, chat.PROJECTS_DIR = chat.PROJECTS_DIR, projects
+        self.addCleanup(lambda: setattr(chat, "PROJECTS_DIR", self.old))
+        chat.tail.PIECES.forget()
+
+    def refused(self, path):
+        for kind in ("file", "raw"):
+            with self.subTest(path=path, kind=kind):
+                reply = chat.answer({"session": UUID, kind: path})
+                self.assertFalse(reply["ok"], reply)
+                self.assertNotIn("data", reply)
+                self.assertNotIn("text", reply)
+                self.assertNotIn("ghp_not_for_the_panel", json.dumps(reply))
+
+    def test_a_file_of_the_home_directory_opens(self):
+        reply = chat.answer({"session": UUID, "file": "notes.txt"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual(reply["text"], "plain words\n")
+
+    def test_a_secret_is_refused_by_every_path_to_it(self):
+        for path in (self.secret, ".local/state/aacpanel/secrets/github-token",
+                     "~/.local/state/aacpanel/secrets/github-token", "token-link",
+                     os.path.join(self.home, "x", "..", ".local", "state", "aacpanel", "secrets", "github-token")):
+            self.refused(path)
+
+    def test_the_directory_moves_with_the_state_of_the_owner(self):
+        state = os.path.join(self.home, "state")
+        moved = os.path.join(state, "aacpanel", "secrets", "db.env")
+        os.makedirs(os.path.dirname(moved))
+        with open(moved, "w", encoding="utf-8") as f:
+            f.write("DB_PASSWORD=ghp_not_for_the_panel\n")
+        os.environ["XDG_STATE_HOME"] = state
+        self.refused(moved)
+
+    def test_a_secret_named_in_an_answer_is_no_file_to_open(self):
+        named = chat.named_files("saved to `.local/state/aacpanel/secrets/github-token` and `docs/../notes.txt`",
+                                 self.home)
+        self.assertEqual([f["name"] for f in named], ["notes.txt"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

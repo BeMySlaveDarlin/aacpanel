@@ -198,6 +198,18 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		return Response{ID: req.ID, OK: true, Terms: terms}
 	}
 
+	if req.Ask == AskSecrets {
+		asker, ok := s.exec.(SecretsAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor keeps no secrets"), 0)
+		}
+		secrets, err := asker.Secrets(ctx)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Secrets: secrets}
+	}
+
 	if req.Ask == AskGuards {
 		keeper, ok := s.exec.(GuardKeeper)
 		if !ok {

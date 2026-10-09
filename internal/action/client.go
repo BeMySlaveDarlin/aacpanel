@@ -93,6 +93,21 @@ func (c *Client) Terms(ctx context.Context) ([]Term, error) {
 	return resp.Terms, nil
 }
 
+// Secrets asks for the secrets the host keeps.
+func (c *Client) Secrets(ctx context.Context) (*Secrets, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskSecrets})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	if resp.Secrets == nil {
+		return nil, errors.New("the executor answered without the list of secrets")
+	}
+	return resp.Secrets, nil
+}
+
 // Permission asks which permission prompt a session is standing on.
 func (c *Client) Permission(ctx context.Context, target string) (*Permission, error) {
 	resp, err := c.Do(ctx, Request{Ask: AskPermission, Target: target})

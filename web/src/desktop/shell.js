@@ -449,7 +449,7 @@ export function DesktopShell({
                 `}
             </div>
 
-            ${settings && html`<${Settings} onClose=${() => setSettings(false)} />`}
+            ${settings && html`<${Settings} onClose=${() => setSettings(false)} exec=${exec} />`}
 
             ${mapOpen && html`
                 <${MapSettings}

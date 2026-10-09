@@ -1,4 +1,4 @@
-"""Feed cards: artifact, brief, files sent to the human, answered question round, answered permissions, alarm firing."""
+"""Feed cards: artifact, brief, secret asked for, files sent to the human, answered question round, answered permissions, alarm firing."""
 import re
 
 import sesstate
@@ -83,6 +83,35 @@ def brief_card(text, by, shelf, use, at, pos):
         card["title"] = brief_id
         card["questions"] = 0
     return card
+
+
+# The call that asks the person for a secret through the panel's server, by
+# the name claude gives it. The tool answers with the name first, and only
+# when it asked: a refusal says what was wrong and names nothing.
+SECRET_TOOL = "mcp__aacpanel__secret_ask"
+
+SECRET_ASKED = re.compile(r"Asked as ([a-z0-9][a-z0-9._-]{0,63})\.").match
+
+
+def secret_call(data):
+    """Returns what the card of a secret takes from its call, kept until the answer comes."""
+    data = data if isinstance(data, dict) else {}
+    return {"title": str(data.get("title") or ""), "template": str(data.get("template") or "")}
+
+
+def secret_card(text, call, use, at, pos):
+    """Returns a card for a secret the session asked for, or None when it asked nothing.
+
+    The name comes from the answer, the title and the notepad from the call:
+    a call the tool refused gives no card, and the panel keeps nothing of the
+    request but this transcript.
+    """
+    found = SECRET_ASKED(text or "")
+    if not found:
+        return None
+    return {"role": "secret", "use": use or "", "name": found.group(1),
+            "title": call.get("title", ""), "template": call.get("template", ""),
+            "at": at, "pos": pos}
 
 
 def mark_outside(items, cwd):

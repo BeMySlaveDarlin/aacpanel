@@ -408,6 +408,23 @@ export const ACTIONS = {
                 : `File sent to ${target}`;
         },
     },
+    // The notepad of a secret is filled in and saved on a sheet of its own:
+    // the press of Save there is the decision, and the same name saved again
+    // replaces the file, which is how a token is rotated.
+    "secret.put": {
+        instant: true,
+        effect: "The host writes the text into a file of its secrets directory that only its user can read, "
+            + "and tells the session the path and the names of the keys; the values do not enter the conversation.",
+        done: (target, params) => `${(params && params.name) || "The secret"} is saved for ${target}`,
+    },
+    "secret.drop": {
+        title: (target) => `Remove the secret ${target}?`,
+        effect: "The file leaves the host for good: a session that uses it by its path finds nothing there, "
+            + "and the values come back only by filling a notepad in again.",
+        done: (target) => `The secret ${target} is removed`,
+        ok: "Remove",
+        danger: true,
+    },
     "session.command": {
         title: (target, params) => `Send ${commandLine(params)} to ${target}?`,
         effect: (params) => command(params).effect,
@@ -880,6 +897,8 @@ const NAMES = {
     "session.mcp": "Change an MCP server",
     "session.rename": "Rename the session",
     "session.remote": "Remote Control",
+    "secret.put": "Save a secret",
+    "secret.drop": "Remove a secret",
     "window.open": "Open window",
     "window.close": "Close window",
     "term.start": "Start a terminal",

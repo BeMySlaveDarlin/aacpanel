@@ -245,7 +245,8 @@ const StatusNextEnv = "AACP_STATUSLINE_NEXT"
 // The allow rules of the panel's tools, and the one of the restart, which
 // lets a session restart itself with nobody at the screen.
 var (
-	toolRules   = []string{"mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish", "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify"}
+	toolRules = []string{"mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish", "mcp__aacpanel__brief_delete",
+		"mcp__aacpanel__notify", "mcp__aacpanel__secret_ask"}
 	restartRule = "mcp__aacpanel__session_restart"
 )
 

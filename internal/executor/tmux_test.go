@@ -501,6 +501,8 @@ var sessionKinds = []action.Kind{
 	action.SessionKill, action.SessionSend, action.SessionAnswer, action.SessionDismiss, action.SessionStop,
 	action.SessionBackground, action.SessionEscape, action.SessionFile, action.SessionCommand, action.SessionShell, action.SessionPermit, action.SessionSwitch, action.SessionUnqueue, action.SessionSet,
 	action.SessionMcp, action.SessionRename, action.SessionRemote, action.SessionLetter,
+	// A secret is saved for a session and told to it.
+	action.SecretPut,
 }
 
 var windowKinds = []action.Kind{action.WindowOpen, action.WindowClose}
@@ -558,7 +560,7 @@ func TestKindsDropSessionsWithoutTmux(t *testing.T) {
 		if !hasKind(got, action.ProjectCreate) {
 			t.Error("project.create disappeared along with the sessions — there is nothing left to start a project with on such a machine")
 		}
-		if known := len(sessionKinds) + len(windowKinds) + len(workKinds) + len(termKinds) + 6; len(action.Kinds) != known {
+		if known := len(sessionKinds) + len(windowKinds) + len(workKinds) + len(termKinds) + 7; len(action.Kinds) != known {
 			t.Errorf("action.Kinds changed: it holds %d kinds while the test knows %d", len(action.Kinds), known)
 		}
 	})

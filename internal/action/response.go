@@ -32,6 +32,8 @@ type Response struct {
 	Commands *SessionCommands `json:"commands,omitempty"`
 
 	Terms []Term `json:"terms,omitempty"`
+
+	Secrets *Secrets `json:"secrets,omitempty"`
 }
 
 // Failed builds a refusal response.

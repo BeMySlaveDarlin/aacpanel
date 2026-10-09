@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"aacpanel/internal/toolset"
 )
 
 const repo = "/home/u/aacpanel"
@@ -83,6 +85,21 @@ func TestWiringANewOrEmptyFile(t *testing.T) {
 		if !strings.Contains(out, "\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"AskUserQuestion\",") || !strings.HasSuffix(out, "}\n") {
 			t.Errorf("%q: not written the way claude writes it:\n%s", raw, out)
 		}
+	}
+}
+
+// The installer allows the panel's tools by a list of its own, since the
+// kit splits them into two parts: the restart is a part apart. A tool the
+// server allows and the list does not would ask for permission on every
+// call in a session started by hand, and one the list allows and the server
+// does not have is a rule for nothing.
+func TestTheToolRulesAreWhatTheServerAllows(t *testing.T) {
+	got := append(append([]string{}, toolRules...), restartRule)
+	want := toolset.Allowed()
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("the installer allows %v, the server allows %v", got, want)
 	}
 }
 

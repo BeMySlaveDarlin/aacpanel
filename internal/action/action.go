@@ -104,6 +104,13 @@ const (
 	// TermConsole opens a terminal window on the host attached to a terminal
 	// of the panel.
 	TermConsole Kind = "term.console"
+
+	// SecretPut saves the notepad of credentials a session asked the person
+	// for into a file only the owner reads, and tells the session its path.
+	// The target is the session; the text is in the request and nowhere else.
+	SecretPut Kind = "secret.put"
+	// SecretDrop removes a secret from the host. The target is its name.
+	SecretDrop Kind = "secret.drop"
 )
 
 // Kinds is the full list of what the executor can do.
@@ -112,7 +119,7 @@ var Kinds = []Kind{
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, TaskStop, AgentStop, WindowOpen, WindowClose,
-	ProjectCreate, TermStart, TermClose, TermRename, TermConsole,
+	ProjectCreate, TermStart, TermClose, TermRename, TermConsole, SecretPut, SecretDrop,
 }
 
 // Valid reports whether the executor knows this kind of action.

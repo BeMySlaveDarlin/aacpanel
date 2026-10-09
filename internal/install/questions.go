@@ -81,7 +81,7 @@ const (
 var Kit = []Part{
 	{"relay", "Question relay", "a session's questions reach your phone", GroupAlways, "agent/ask-hook.py"},
 	{"limits", "Limits snapshot", "5-hour and weekly limits, before your status line", GroupAlways, "agent/rate-snapshot.sh"},
-	{"tools", "Panel tools", "checklist, briefs, a call to your phone, restart", GroupAlways, ""},
+	{"tools", "Panel tools", "checklist, briefs, secrets, a phone call, restart", GroupAlways, ""},
 	{"copies", "Page copies", "a published page opens on the phone under any account", GroupQuiet, "deploy/claude/artifact-copy.py"},
 	{"brief", "Brief reminder", "a session learns that an answered brief waits", GroupQuiet, "deploy/claude/brief-waiting.py"},
 	{"cap", "Context cap", "stops a session at the cap, restarts it with your line", GroupQuiet, "deploy/claude/context-guard.py"},

@@ -56,6 +56,9 @@ type Item struct {
 	Eyebrow   string  `json:"eyebrow,omitempty"`
 	Questions int     `json:"questions,omitempty"`
 	Asked     []Asked `json:"asked,omitempty"`
+	// A card of a secret asked for: the notepad the person starts from. The
+	// secret is named in Name and said in Title.
+	Template string `json:"template,omitempty"`
 	// A card of permissions: each call a person was asked about and the answer.
 	Rows  []Permitted `json:"rows,omitempty"`
 	Files []FileRef   `json:"files,omitempty"`

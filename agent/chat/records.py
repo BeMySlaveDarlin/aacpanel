@@ -6,8 +6,8 @@ import sesstate
 from sesstate.feed import TURN_ENDS
 
 from . import commands
-from .cards import (BRIEF_TOOL, artifact_card, ask_round, brief_card, permit_card, permit_row, sent_card,
-                    wake_item)
+from .cards import (BRIEF_TOOL, SECRET_TOOL, artifact_card, ask_round, brief_card, permit_card, permit_row,
+                    secret_call, secret_card, sent_card, wake_item)
 from .harness import (AGENT_STOPPED, classify, coordinator_letter, interrupted,
                       service, strip_panel_note, unwrap_pasted)
 from .mail import LETTER_TOOL, peer_name, peer_pid, undelivered
@@ -210,14 +210,15 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
     Asks, sent and briefs are the calls of their kind still waiting for an
     answer, by call id: the card for a question round, for a delivery and for
     a published brief is drawn from the answer, and the answer is another
-    record. Shelf reads a published brief by its name, for what the card says
-    about it. Calls are all the calls still waiting, for what a card of
-    permissions says a call was about and for whether a call is still
-    running: a reader that keeps them gets a call marked open and a mark when
-    its result comes or its turn ends without one. Permits are the answers a
-    person gave to permissions, by call, and the card stands by the result of
-    the call. Unanswered is the cards of local commands still waiting for an
-    answer, by the record the answer will name as its parent.
+    record. Briefs keeps a call that asks for a secret as well, by what its
+    card takes from the call. Shelf reads a published brief by its name, for
+    what the card says about it. Calls are all the calls still waiting, for
+    what a card of permissions says a call was about and for whether a call
+    is still running: a reader that keeps them gets a call marked open and a
+    mark when its result comes or its turn ends without one. Permits are the
+    answers a person gave to permissions, by call, and the card stands by the
+    result of the call. Unanswered is the cards of local commands still
+    waiting for an answer, by the record the answer will name as its parent.
     """
     if not isinstance(record, dict) or (record.get("isSidechain") and not sidechain):
         return []
@@ -344,7 +345,11 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                             links.append(card)
                         continue
                     if briefs is not None and use in briefs:
-                        card = brief_card(sesstate.result_text(b), briefs.pop(use), shelf, use, at, pos)
+                        by = briefs.pop(use)
+                        if isinstance(by, dict):
+                            card = secret_card(sesstate.result_text(b), by, use, at, pos)
+                        else:
+                            card = brief_card(sesstate.result_text(b), by, shelf, use, at, pos)
                         if card:
                             links.append(card)
                             continue
@@ -552,6 +557,11 @@ def parse(record, pos, pending=None, asks=None, sidechain=False, sent=None,
                     # The call stays in the run as a call: whether a document
                     # reached the shelf is known only from its answer.
                     briefs[block.get("id") or ""] = "tool" if name == BRIEF_TOOL else "shell"
+                if name == SECRET_TOOL and briefs is not None:
+                    # The call stays in the run as a call: whether anything
+                    # was asked is known only from its answer, and the card
+                    # takes the title and the notepad from the call.
+                    briefs[block.get("id") or ""] = secret_call(block.get("input"))
                 if name == sesstate.SENT_TOOL and sent is not None:
                     # The call goes into the run as a call: whether anything
                     # reached the human is known only from the answer, and

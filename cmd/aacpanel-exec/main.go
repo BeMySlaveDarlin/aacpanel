@@ -440,6 +440,16 @@ func (a audited) Terms(ctx context.Context) ([]action.Term, error) {
 	return asker.Terms(ctx)
 }
 
+// Secrets asks the wrapped executor for the secrets of the host: names, sizes
+// and times, nothing a file holds.
+func (a audited) Secrets(ctx context.Context) (*action.Secrets, error) {
+	asker, ok := a.next.(action.SecretsAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor keeps no secrets")
+	}
+	return asker.Secrets(ctx)
+}
+
 // Models asks the wrapped executor what a session can be switched to.
 func (a audited) Models(ctx context.Context, target string) (*action.Models, error) {
 	asker, ok := a.next.(action.ModelsAsker)

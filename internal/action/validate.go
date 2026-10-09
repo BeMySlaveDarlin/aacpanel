@@ -19,11 +19,11 @@ func badRequest(format string, args ...any) error {
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
 	if r.Ask != "" {
-		if r.Kind != "" || r.Resume != "" {
+		if r.Kind != "" || r.Resume != "" || r.Secret != nil {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
-		case AskKinds, AskTerms:
+		case AskKinds, AskTerms, AskSecrets:
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
@@ -392,6 +392,16 @@ func (r Request) Validate() error {
 		if !safeUUID(r.Resume) {
 			return badRequest("the conversation id does not look like a uuid")
 		}
+	}
+	if r.Kind == SecretPut || r.Kind == SecretDrop {
+		if err := validateSecret(r); err != nil {
+			return err
+		}
+	} else if r.Secret != nil {
+		return badRequest("action %s saves no secret", r.Kind)
+	}
+	if r.Kind == SecretDrop {
+		return nil
 	}
 	if r.Kind == ProjectCreate {
 		if !strings.HasPrefix(r.Target, "/") {

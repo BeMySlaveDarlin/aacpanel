@@ -68,6 +68,9 @@ type Request struct {
 	// Remote is whether session.remote switches Remote Control on or off.
 	Remote *bool `json:"remote,omitempty"`
 
+	// Secret is what secret.put saves.
+	Secret *Secret `json:"secret,omitempty"`
+
 	Ask string `json:"ask,omitempty"`
 
 	// Part names the screen a setup question asks for.

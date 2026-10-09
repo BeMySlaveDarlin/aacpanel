@@ -299,6 +299,47 @@ thread of the collector held by the waiting request and a fresh request every
 few seconds while nobody calls. Whether the phone is looking at that session is
 still asked when the push is sent.
 
+**The notepad of secrets.** A session that needs a credential — a token, a
+password, the env file of a database — asks the person for it with
+`secret_ask`, not in the conversation, where the value would settle in the
+transcript, in the feed and in whatever the phone keeps of the feed. The tool
+takes a name, a title and the notepad to start from — `KEY=` lines with a
+comment on where each value is found — calls the phone through `notify.sock`,
+and answers with the name first. The feed draws a card from the call and that
+answer, as it draws the card of a brief, and the panel keeps nothing of the
+request: the transcript is the only record that it was made. A brief is no
+model for it — its answers are drafts in the database, and a secret has no
+place there.
+
+The person fills the notepad in on a sheet of the panel and saves it. The text
+travels in the body of `secret.put` and nowhere else: the service journals the
+name and the length, the executor writes the file and answers with the name
+and the size, and no journal, audit line, log, snapshot, socket answer or
+refusal carries a byte of it. The sheet holds the text in memory until it
+closes, never in a draft or in the storage of the browser, and the service
+worker keeps only answers to GET, which never carry it. The file is
+`~/.local/state/aacpanel/secrets/<name>` (`$XDG_STATE_HOME` moves it), 0600 in a
+directory of 0700 — outside the state directory of the panel, which is mounted
+into the container, and outside the directory of files sent from the phone,
+which the feed opens. A save under a name already there replaces the file
+through a temporary one beside it and a rename: that is how a token is rotated.
+Then the session is told the path the way any message of the panel reaches it —
+typed, sent on the stream, or queued behind a busy composer — with the names of
+the keys and of the ones left empty, never a value; a session that could not be
+told leaves the file in place, and the refusal names it. The list on the screen
+is a question to the executor that names the files with their sizes and
+times, and `secret.drop` removes one.
+
+**What keeps a secret out of the transcript is a rule, not a wall.** The
+session runs as the owner, and the owner reads the owner's files: the tool's
+word tells the model to use the file by its path — `--env-file`, a redirect,
+`--password-stdin` — and never to read or print it, since whatever it reads
+goes into the transcript, and nothing on the host enforces that. What the panel
+holds itself is its reader of files: it refuses a path whose real path lies in
+the directory of secrets, even for a conversation running in the home
+directory, because the message names the path, the feed makes a path a link,
+and the service worker would keep what the link opened on the phone.
+
 ---
 
 ## Sessions on the stream
@@ -678,17 +719,18 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Thirty-five actions, and the list is closed.
+Thirty-eight actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
 | terminals of the panel | `term.start`, `term.close`, `term.rename`, `term.console` |
+| secrets | `secret.put`, `secret.drop` |
 
 What is deliberately not on the list: removing containers, images and volumes,
 `docker exec`, editing compose, package operations, restarting itself.
@@ -987,13 +1029,16 @@ starts the same server: a live session keeps the
 MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries
 the brief — `brief_publish`, whose call without a document returns the rules of
-writing one, and `brief_delete` — and the call to the person, `notify`. They
+writing one, and `brief_delete` — the call to the person, `notify`, and the
+notepad of secrets, `secret_ask`. They
 speak to the collector's sockets under the conversation and the directory the
 server finds for its claude rather than any the model names, so a brief lands
 on the shelf of the session that published it and its answers go back to that
 session. The feed draws the card of a published brief from the tool's answer,
 which names the brief first, and never from what the call was given: a check
-publishes nothing, and neither does a call the collector refused.
+publishes nothing, and neither does a call the collector refused. The card of a
+secret is drawn the same way, its name from the answer and its title and
+notepad from the call, and a call the tool refused gives none.
 
 **The checklist of a session is the model's own, kept by a tool of the
 panel.** The tool is `checklist` on the panel's server, allowed, so an update

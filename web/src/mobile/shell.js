@@ -161,7 +161,7 @@ export function MobileShell({
                     : page === "usage"
                     ? html`<${Usage} snapshot=${snapshot} exec=${exec} onBack=${() => setPage(null)} />`
                     : page === "settings"
-                    ? html`<${Settings} onClose=${() => setPage(null)} />`
+                    ? html`<${Settings} onClose=${() => setPage(null)} exec=${exec} />`
                     : page === "profiles"
                     ? html`<${Profiles} sessions=${snapshot && snapshot.sessions} />`
                     : page === "journal"
