@@ -69,6 +69,9 @@ const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.
         out.title = text(".sheet.on .cmdhead")[0] || "";
         const field = document.querySelector(".sheet.on .rnname");
         out.value = field ? field.value : "";
+        // The keyboard stays out of a name: what the live field carries, not
+        // what the markup says.
+        out.spell = field ? `${field.getAttribute("spellcheck")}:${field.spellcheck}` : "";
         out.sameOff = save().disabled;
 
         await typeInto(field, "my session");

@@ -52,7 +52,7 @@ export function ProfilePage({ profile, open, onToggle, onForm, gone, loose, onLo
             <input
                 class="search pfsearch"
                 type="search"
-                spellcheck="false"
+                spellcheck=${false}
                 placeholder="project or path"
                 value=${query}
                 onInput=${(e) => setQuery(e.target.value)}

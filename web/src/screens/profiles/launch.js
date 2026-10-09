@@ -337,7 +337,7 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
 
         <label class="pffield">
             <span class="pflabel">Starting intent</span>
-            <textarea class="search" rows="2" spellcheck="false"
+            <textarea class="search" rows="2" spellcheck=${false}
                       placeholder="the first message of the session — a word, a phrase or a slash command"
                       value=${intent}
                       onInput=${(e) => set({ intent: intentValue(e.target.value, muted) })}></textarea>
@@ -353,7 +353,7 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
 
         <label class="pffield">
             <span class="pflabel">Environment variables</span>
-            <textarea class="search" rows="3" spellcheck="false"
+            <textarea class="search" rows="3" spellcheck=${false}
                       placeholder="KEY=value, one per line"
                       value=${envDraft}
                       onInput=${(e) => { setEnvDraft(e.target.value); set({ env: parseEnv(e.target.value) }); }}></textarea>
@@ -361,7 +361,7 @@ export function LaunchFields({ value, onChange, inherited, catalog }) {
 
         <label class="pffield">
             <span class="pflabel">Extra arguments</span>
-            <input class="search" spellcheck="false" placeholder="--verbose"
+            <input class="search" spellcheck=${false} placeholder="--verbose"
                    value=${argsDraft}
                    onInput=${(e) => { setArgsDraft(e.target.value); set({ args: parseArgs(e.target.value) }); }} />
             <span class="pfhelp">split on spaces: there are no quotes and no escaping here</span>

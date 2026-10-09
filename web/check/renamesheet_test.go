@@ -12,6 +12,7 @@ func TestRenameSheetSavesASoundNameAndTheScreenFollows(t *testing.T) {
 	var got struct {
 		Title        string   `json:"title"`
 		Value        string   `json:"value"`
+		Spell        string   `json:"spell"`
 		SameOff      bool     `json:"sameOff"`
 		SpaceOff     bool     `json:"spaceOff"`
 		SpaceWhy     string   `json:"spaceWhy"`
@@ -30,6 +31,9 @@ func TestRenameSheetSavesASoundNameAndTheScreenFollows(t *testing.T) {
 	}
 	if got.Title != "Rename the session" || got.Value != "helios" || !got.SameOff {
 		t.Errorf("the sheet opened as %q with %q (save off on the same name: %v)", got.Title, got.Value, got.SameOff)
+	}
+	if got.Spell != "false:false" {
+		t.Errorf("the name field checks the spelling: attribute:property is %q", got.Spell)
 	}
 	if !got.SpaceOff || !strings.Contains(got.SpaceWhy, "latin") {
 		t.Errorf("a name with a space can be saved (%v): %q", !got.SpaceOff, got.SpaceWhy)

@@ -189,7 +189,7 @@ export function RenameTab({ t, acts, onDone }) {
             <div class="shead cmdtitle"><span class="cmdhead">Rename the tab</span></div>
             <p class="cmdnote">The tab keeps this name instead of the command running in it.</p>
             <input class="rnname" type="text" aria-label="the new name of the tab" value=${value}
-                   maxlength=${NAME_MAX} autocomplete="off" autocapitalize="off" spellcheck="false"
+                   maxlength=${NAME_MAX} autocomplete="off" autocapitalize="off" spellcheck=${false}
                    onInput=${(e) => setValue(e.currentTarget.value)}
                    onKeyDown=${(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
             ${value && trouble && html`<p class="cmdnote stpwarn">${trouble}</p>`}

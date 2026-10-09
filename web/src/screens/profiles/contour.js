@@ -163,7 +163,7 @@ function Files({ contour, draft, catalog, setField }) {
     const fieldRow = (name, title, placeholder, help) => html`
         <label class="pffield">
             <span class="pflabel">${title} ${touched(draft, name) && html`<span class="pzdraft">not saved</span>`}</span>
-            <input class="search" spellcheck="false" placeholder=${placeholder}
+            <input class="search" spellcheck=${false} placeholder=${placeholder}
                    value=${fieldOf(draft, contour, name) || ""} onInput=${(e) => setField(name, e.target.value)} />
             <span class="pfhelp">${help}</span>
         </label>
@@ -171,7 +171,7 @@ function Files({ contour, draft, catalog, setField }) {
     return html`
         <label class="pffield">
             <span class="pflabel">Name ${touched(draft, "name") && html`<span class="pzdraft">not saved</span>`}</span>
-            <input class="search" spellcheck="false" disabled=${locked}
+            <input class="search" spellcheck=${false} disabled=${locked}
                    value=${fieldOf(draft, contour, "name") || ""} onInput=${(e) => setField("name", e.target.value)} />
             <span class="pfhelp">${locked
                 ? `the personal contour is called ${PERSONAL}: by that name the panel and the collector find its directory`

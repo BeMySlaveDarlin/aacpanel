@@ -247,7 +247,7 @@ export function TextRow({ param, eff, mine, onSet }) {
         `;
     }
     return html`
-        <textarea class="search pztext" rows="2" spellcheck="false" maxlength=${param.maxLen || undefined}
+        <textarea class="search pztext" rows="2" spellcheck=${false} maxlength=${param.maxLen || undefined}
                   placeholder=${outcome(param, eff)}
                   value=${text}
                   onInput=${(e) => onSet(e.target.value === "" ? null : e.target.value)}
@@ -295,9 +295,9 @@ export function EnvRows({ eff, mine, layer, onSet }) {
             ${adding
                 ? html`
                     <div class="pzkvadd">
-                        <input class="search" spellcheck="false" placeholder="KEY" value=${key}
+                        <input class="search" spellcheck=${false} placeholder="KEY" value=${key}
                                onInput=${(e) => setKey(e.target.value)} />
-                        <input class="search" spellcheck="false" placeholder="value" value=${value}
+                        <input class="search" spellcheck=${false} placeholder="value" value=${value}
                                onInput=${(e) => setValue(e.target.value)}
                                onKeyDown=${(e) => { if (e.key === "Enter") add(); }} />
                         <button class="btn" type="button" onClick=${add}>Add</button>
@@ -334,7 +334,7 @@ export function ArgTokens({ eff, mine, layer, onSet }) {
             `)}
             ${below.map((word, i) => html`<span class="pztoken" data-inherited="1" key=${`b${i}`}><code>${word}</code></span>`)}
             <span class="pztokenadd">
-                <input class="search" spellcheck="false" placeholder="+ Add" value=${text}
+                <input class="search" spellcheck=${false} placeholder="+ Add" value=${text}
                        onInput=${(e) => setText(e.target.value)}
                        onKeyDown=${(e) => { if (e.key === "Enter") add(); }} />
                 ${text.trim() && html`<button class="btn" type="button" onClick=${add}>Add</button>`}

@@ -251,7 +251,7 @@ function ProfileForm({ catalog, onClose, onDone }) {
     return html`
         <label class="pffield">
             <span class="pflabel">Name</span>
-            <input class="search" spellcheck="false" placeholder=${PERSONAL}
+            <input class="search" spellcheck=${false} placeholder=${PERSONAL}
                    value=${name} onInput=${(e) => { setName(e.target.value); clearNameProblem(); }} />
             ${nameProblem
                 ? html`<span class="pfhelp warn">${nameProblem}</span>`
@@ -260,21 +260,21 @@ function ProfileForm({ catalog, onClose, onDone }) {
 
         <label class="pffield">
             <span class="pflabel">Config directory</span>
-            <input class="search" spellcheck="false" placeholder="~/.claude"
+            <input class="search" spellcheck=${false} placeholder="~/.claude"
                    value=${dir} onInput=${(e) => setDir(e.target.value)} />
             <span class="pfhelp">the token, the settings and the conversation archive of this contour live there</span>
         </label>
 
         <label class="pffield">
             <span class="pflabel">Path prefix</span>
-            <input class="search" spellcheck="false" placeholder="/srv/proj"
+            <input class="search" spellcheck=${false} placeholder="/srv/proj"
                    value=${prefix} onInput=${(e) => setPrefix(e.target.value)} />
             <span class="pfhelp">the wrapper picks the profile by it for the directory it was called from</span>
         </label>
 
         <label class="pffield">
             <span class="pflabel">What to launch with</span>
-            <input class="search" spellcheck="false" placeholder="/usr/local/bin/claude"
+            <input class="search" spellcheck=${false} placeholder="/usr/local/bin/claude"
                    value=${bin} onInput=${(e) => setBin(e.target.value)} />
             ${binNow
                 ? html`<span class="pfhelp">the host checks the file at launch: the service lives in a container
@@ -414,7 +414,7 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
 
         <label class="pffield">
             <span class="pflabel">Path</span>
-            <input class="search" spellcheck="false" placeholder="/srv/proj/Beta/panel"
+            <input class="search" spellcheck=${false} placeholder="/srv/proj/Beta/panel"
                    value=${path} onInput=${(e) => setPath(e.target.value)} />
             <span class="pfhelp">absolute; the host will check that it is inside the allowed roots</span>
         </label>
@@ -430,7 +430,7 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
 
         <label class="pffield">
             <span class="pflabel">Session name</span>
-            <input class="search" spellcheck="false" placeholder="after the directory name"
+            <input class="search" spellcheck=${false} placeholder="after the directory name"
                    value=${session} onInput=${(e) => setSession(e.target.value)} />
             <span class="pfhelp">empty — the launcher names it after the directory</span>
         </label>
@@ -438,7 +438,7 @@ function ProjectForm({ form, catalog, disk, onClose, onDone }) {
         <div class="pfsub">git</div>
         <label class="pffield">
             <span class="pflabel">Base branch</span>
-            <input class="search" spellcheck="false" placeholder="main"
+            <input class="search" spellcheck=${false} placeholder="main"
                    value=${base} onInput=${(e) => setBase(e.target.value)} />
             <span class="pfhelp">what a review of this branch is measured against; empty — main,
                 and the screen says so rather than writing it in for you</span>

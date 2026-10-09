@@ -45,7 +45,7 @@ export function RenameSheet({ name, exec, taken, onDone }) {
             <p class="cmdnote">Enter a new name for this session. Its conversation stays as it is; the panel and the host
                 find the session by the new name.</p>
             <input class="rnname" type="text" aria-label="the new name of the session" value=${value}
-                   autocomplete="off" autocapitalize="off" spellcheck="false"
+                   autocomplete="off" autocapitalize="off" spellcheck=${false}
                    onInput=${(e) => setValue(e.currentTarget.value)}
                    onKeyDown=${(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
             ${trouble && html`<p class="cmdnote stpwarn">${trouble}</p>`}

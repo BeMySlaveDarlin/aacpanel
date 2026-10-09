@@ -70,7 +70,7 @@ export function Header({ hostName = "host", ageSec, conn, route, flag = false, a
                     type="search"
                     placeholder="Filter by name"
                     autocomplete="off"
-                    spellcheck="false"
+                    spellcheck=${false}
                     value=${query}
                     onInput=${(event) => onQuery(event.target.value)}
                 />

@@ -195,7 +195,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
         </label>
         <label class="pffield">
             <span class="pflabel">Directory ${touched(draft, "path") && html`<span class="pzdraft">not saved</span>`}</span>
-            <input class="search" spellcheck="false" value=${pathNow}
+            <input class="search" spellcheck=${false} value=${pathNow}
                    onInput=${(e) => setField("path", e.target.value)} />
             <span class=${touched(draft, "path") ? "pfhelp warn" : "pfhelp"}>${touched(draft, "path")
                 ? `the conversations of ${project.path} stay in the archive and no longer resume here`
@@ -203,7 +203,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
         </label>
         <label class="pffield">
             <span class="pflabel">Session name ${touched(draft, "session") && html`<span class="pzdraft">not saved</span>`}</span>
-            <input class="search" spellcheck="false" placeholder=${`from the directory name: ${dirName}`}
+            <input class="search" spellcheck=${false} placeholder=${`from the directory name: ${dirName}`}
                    value=${fieldOf(draft, project, "session") || ""}
                    onInput=${(e) => setField("session", e.target.value)} />
         </label>
@@ -221,7 +221,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
         `}
         <label class="pffield">
             <span class="pflabel">Base branch ${touched(draft, "base") && html`<span class="pzdraft">not saved</span>`}</span>
-            <input class="search" spellcheck="false" placeholder="main — nobody picked one"
+            <input class="search" spellcheck=${false} placeholder="main — nobody picked one"
                    value=${fieldOf(draft, project, "base") || ""}
                    onInput=${(e) => setField("base", e.target.value)} />
             <span class="pfhelp">what a review of this branch is measured against</span>
