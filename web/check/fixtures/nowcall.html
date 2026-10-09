@@ -58,6 +58,9 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const until = async (ok) => { for (let i = 0; i < 300 && !ok(); i++) await sleep(30); };
 const sheet = () => document.querySelector(".sheet.on[aria-label='tool calls']");
 const depth = () => (history.state && history.state.overlay ? Number(history.state.depth) : 0);
+// The conversation is a layer of its own, so the screen under the sheets
+// already stands on an entry: every depth below is counted from it.
+let base = 0;
 
 // What the calls sheet shows: the call opened in it, or the list of the run.
 const seen = () => {
@@ -78,7 +81,7 @@ const seen = () => {
 const close = async () => {
     if (!sheet()) return;
     sheet().querySelector(".sheetclose").click();
-    await until(() => !sheet() && depth() === 0);
+    await until(() => !sheet() && depth() === base);
 };
 
 window.done = (async () => {
@@ -88,7 +91,8 @@ window.done = (async () => {
         // the fixture rather than failing it.
         history.pushState({ pad: 1 }, "", location.href);
         history.pushState({ pad: 2 }, "", location.href);
-        await until(() => document.querySelector(".composerbox .nowcall"));
+        await until(() => document.querySelector(".composerbox .nowcall") && depth() >= 1);
+        base = depth();
 
         // The call of the bar opens itself, and its arrow leads to the list.
         document.querySelector(".composerbox .nowcall").click();
@@ -97,7 +101,7 @@ window.done = (async () => {
         // the back gesture a render later: both are waited for, or a slow
         // machine reads the call before it asked and presses its arrow before
         // the arrow leads anywhere.
-        await until(() => asked.length > 0 && depth() >= 2);
+        await until(() => asked.length > 0 && depth() >= base + 2);
         out.call = seen();
         out.asked = asked.slice();
         const arrow = sheet() && sheet().querySelector(".pback");
@@ -118,7 +122,7 @@ window.done = (async () => {
 
         // The back gesture over the call leads to the list too, the sheet
         // staying open: the call takes its place on the gesture above the sheet.
-        await until(() => depth() >= 2);
+        await until(() => depth() >= base + 2);
         history.back();
         await until(() => !sheet() || !sheet().querySelector(".phead"));
         out.gesture = seen();
