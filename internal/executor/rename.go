@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/stream"
 )
 
@@ -14,6 +15,11 @@ import (
 // answers to is refused: the two would answer to it at once. A terminal is
 // renamed on its own screen, /rename with keys.
 func (e *Executor) sessionRename(ctx context.Context, target, name string) (string, error) {
+	// A claude session named like a codex thread passed the check of a
+	// thread's name; its own name is a key, and keeps to the stricter rule.
+	if err := action.ValidSessionName(name); err != nil {
+		return "", err
+	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return "", err

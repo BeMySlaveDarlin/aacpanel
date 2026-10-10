@@ -48,7 +48,7 @@ func onCodexContour(t *testing.T) (*codextest.Server, *Executor, *action.Project
 
 	ctx, cancel := context.WithCancel(context.Background())
 	e := New(nil, "")
-	e.codex = codex.Start(ctx, registry.CodexHomes())
+	e.codex = codex.Start(ctx, registry.CodexHomes(), nil)
 	t.Cleanup(func() {
 		cancel()
 		e.codex.Wait()

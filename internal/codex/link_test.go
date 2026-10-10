@@ -102,10 +102,11 @@ func TestPollWritesTheStateOfAThreadAndNothingOfTheConversation(t *testing.T) {
 	if !strings.Contains(string(raw), `"waiting":[]`) {
 		t.Errorf("a thread that waits on nothing has to say so with an empty list: %s", raw)
 	}
-	for _, words := range []string{"the first words", "a title made of"} {
-		if strings.Contains(string(raw), words) {
-			t.Errorf("the state file carries the conversation (%q): %s", words, raw)
-		}
+	if strings.Contains(string(raw), "the first words") {
+		t.Errorf("the state file carries the preview of the thread, its first message: %s", raw)
+	}
+	if st.Title != "" || st.Ask != nil || st.Goal != nil {
+		t.Errorf("a thread with no name, no goal and nothing asked says %s", raw)
 	}
 	time.Sleep(5 * pollEvery)
 	if _, _, ok := stateOf(t, threadB); ok {
@@ -143,6 +144,9 @@ func TestPollWritesTheStateOfAThreadAndNothingOfTheConversation(t *testing.T) {
 		t.Error("the word that a request was answered is turned off: a request answered in the TUI would wait on the phone")
 	}
 	for m, why := range map[string]string{
+		"thread/name/updated":        "a name given in the TUI would wait for the next read",
+		"thread/goal/updated":        "the goal would stand as it was until the next read",
+		"thread/goal/cleared":        "a goal cleared in the TUI would stay on the row until the next read",
 		"thread/status/changed":      "a thread that turns free would wait a round for the next message of the queue",
 		"thread/settings/updated":    "a model or a mode changed in the TUI would not reach the panel",
 		"thread/tokenUsage/updated":  "the fill of the context would wait for the rollout",
@@ -400,7 +404,7 @@ func TestSweepRemovesOnlyTheFilesOfADeadExecutor(t *testing.T) {
 		}
 	}
 
-	Start(context.Background(), nil)
+	Start(context.Background(), nil, nil)
 
 	for name, keep := range map[string]bool{"dead-codex": false, "live-codex": true, "dead-claude": true} {
 		_, err := os.Stat(filepath.Join(stream.Dir(), name+".json"))

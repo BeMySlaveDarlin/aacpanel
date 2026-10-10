@@ -81,6 +81,10 @@ type Request struct {
 
 	// Guards are what the host keeps of the context guard of every place.
 	Guards []Guard `json:"guards,omitempty"`
+
+	// Contour names the contour whose codex daemon the question of the codex
+	// models asks; empty asks the first daemon that answers.
+	Contour string `json:"contour,omitempty"`
 }
 
 // Project is the project to open.
@@ -121,10 +125,16 @@ type File struct {
 	Preview []byte `json:"preview,omitempty"`
 }
 
-// Command is a slash command for session.command.
+// Command is a slash command for session.command. A command of codex that
+// needs more than one word carries it in a field of its own: what a review
+// looks at, what a goal does.
 type Command struct {
 	Name string `json:"name"`
 	Arg  string `json:"arg,omitempty"`
+
+	Review *Review `json:"review,omitempty"`
+
+	Goal *Goal `json:"goal,omitempty"`
 }
 
 // Work is one background job of a session.
@@ -168,9 +178,14 @@ var Commands = map[string][]string{
 }
 
 func commandNames() []string {
-	out := make([]string, 0, len(Commands))
+	out := make([]string, 0, len(Commands)+len(CodexCommands))
 	for name := range Commands {
 		out = append(out, name)
+	}
+	for name := range CodexCommands {
+		if _, both := Commands[name]; !both {
+			out = append(out, name)
+		}
 	}
 	slices.Sort(out)
 	return out

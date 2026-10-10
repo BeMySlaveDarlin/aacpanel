@@ -223,11 +223,23 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 		if !ok {
 			return Failed(req.ID, errors.New("this executor does not know the models of codex"), 0)
 		}
-		models, err := asker.CodexModels(ctx)
+		models, err := asker.CodexModels(ctx, req.Contour)
 		if err != nil {
 			return Failed(req.ID, err, 0)
 		}
 		return Response{ID: req.ID, OK: true, CodexModels: models}
+	}
+
+	if req.Ask == AskProcesses {
+		asker, ok := s.exec.(ProcessesAsker)
+		if !ok {
+			return Failed(req.ID, errors.New("this executor does not know the background terminals of codex"), 0)
+		}
+		list, err := asker.Processes(ctx, req.Target)
+		if err != nil {
+			return Failed(req.ID, err, 0)
+		}
+		return Response{ID: req.ID, OK: true, Processes: list}
 	}
 
 	if req.Ask == AskGuards {

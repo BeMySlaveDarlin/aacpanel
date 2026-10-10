@@ -5,8 +5,12 @@ import "strings"
 // Mcp is what a session says about its MCP servers. A session on the stream
 // answers claude's own request for them; a terminal lists them on a screen
 // driven by keys, and the answer only says where it lives.
+//
+// A codex session answers with codex's own list, and Agent says so: its
+// servers are those of the codex home, with the thread's connections to them.
 type Mcp struct {
 	Transport string      `json:"transport"`
+	Agent     string      `json:"agent,omitempty"`
 	Servers   []McpServer `json:"servers,omitempty"`
 }
 
@@ -26,6 +30,9 @@ type McpServer struct {
 	Version     string   `json:"version,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Tools       []string `json:"tools,omitempty"`
+	// Auth is how a server of codex is signed in: unsupported, notLoggedIn,
+	// bearerToken, oAuth or unknown, as codex says it.
+	Auth string `json:"auth,omitempty"`
 }
 
 // What session.mcp does to a server.

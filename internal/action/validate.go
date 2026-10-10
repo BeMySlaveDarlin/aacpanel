@@ -18,6 +18,9 @@ func badRequest(format string, args ...any) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Contour != "" && r.Ask != AskCodexModels {
+		return badRequest("only the question of the codex models names a contour")
+	}
 	if r.Ask != "" {
 		if r.Kind != "" || r.Resume != "" || r.Secret != nil {
 			return badRequest("question %q performs no actions", r.Ask)
@@ -27,9 +30,12 @@ func (r Request) Validate() error {
 			if r.Target != "" {
 				return badRequest("question %q has no target", r.Ask)
 			}
+			if r.Contour != "" && !safeID(r.Contour) {
+				return badRequest("the contour %q is not a name of one", r.Contour)
+			}
 		case AskGuards:
 			return validateGuards(r)
-		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup:
+		case AskPermission, AskWindow, AskModels, AskMcp, AskStatus, AskCommands, AskSide, AskSetup, AskProcesses:
 			if r.Target == "" {
 				return badRequest("question %q without a session name", r.Ask)
 			}
@@ -236,7 +242,13 @@ func (r Request) Validate() error {
 		if r.Command == nil || r.Command.Name == "" {
 			return badRequest("a slash command without a name")
 		}
+		if err := r.Command.validateCodex(); err != nil {
+			return err
+		}
 		args, ok := Commands[r.Command.Name]
+		if _, codex := CodexCommands[r.Command.Name]; codex && !ok {
+			args, ok = nil, true
+		}
 		if !ok {
 			return badRequest("command %q is not in the allowed list: %s",
 				r.Command.Name, strings.Join(commandNames(), ", "))
@@ -267,6 +279,10 @@ func (r Request) Validate() error {
 		return badRequest("action %s changes no MCP server", r.Kind)
 	}
 	switch {
+	case r.Kind == SessionRename && CodexName(r.Target):
+		if err := safeThreadName(r.Rename); err != nil {
+			return err
+		}
 	case r.Kind == SessionRename:
 		if err := safeSessionName(r.Rename); err != nil {
 			return err

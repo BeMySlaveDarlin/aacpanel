@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -168,10 +169,28 @@ func interrupt(ctx context.Context, c *conn, threadID string) (string, error) {
 	if err != nil || turn == "" {
 		return "", err
 	}
-	if err := within(ctx, c, "turn/interrupt", map[string]any{"threadId": threadID, "turnId": turn}, nil); err != nil {
+	err = within(ctx, c, "turn/interrupt", map[string]any{"threadId": threadID, "turnId": turn}, nil)
+	// A review runs an inner turn under the root turn the thread lists, and
+	// the daemon interrupts only the inner one, naming it in its refusal.
+	if m := innerTurn.FindStringSubmatch(errText(err)); m != nil && refused(err) {
+		turn = m[1]
+		err = within(ctx, c, "turn/interrupt", map[string]any{"threadId": threadID, "turnId": turn}, nil)
+	}
+	if err != nil {
 		return "", err
 	}
 	return turn, nil
+}
+
+// innerTurn reads the turn the daemon interrupts out of its refusal of
+// another one.
+var innerTurn = regexp.MustCompile(`expected active turn id \S+ but found (\S+)`)
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 // letGo says a thread the panel closed is no session of its own any more: it

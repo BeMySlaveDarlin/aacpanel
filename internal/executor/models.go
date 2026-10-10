@@ -16,9 +16,14 @@ import (
 // is asked nothing new: its holder kept the list claude gave at the handshake,
 // with the efforts each model takes. A terminal session has no such list to
 // give, and the answer says where it lives so the panel knows to fall back.
+//
+// A codex session answers with the catalogue of the daemon of its contour.
 func (e *Executor) Models(ctx context.Context, target string) (*action.Models, error) {
-	if err := e.notCodex(target); err != nil {
-		return nil, err
+	if th, err := e.codexSession(target); err != nil || th != nil {
+		if err != nil {
+			return nil, err
+		}
+		return codexModels(ctx, *th)
 	}
 	s, err := findOneLiveSession(target)
 	if err != nil {

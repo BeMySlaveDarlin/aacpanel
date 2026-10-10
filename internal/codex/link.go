@@ -10,10 +10,11 @@
 // put the session on the map, in the shape of a claude holder's.
 //
 // The executor stays blind to the conversation the way it is with claude: the
-// notifications that carry it are turned off at the handshake, the state file
-// carries no text, and the only words it holds are those a person decides on —
-// the command or the change an approval asks about, and the messages that wait
-// in the panel's queue for a thread to be free.
+// notifications that carry it are turned off at the handshake, and the only
+// words it holds are those a person decides on or reads to decide — the
+// command or the change an approval asks about, the questions and the forms a
+// thread waits on, the name and the goal of a thread, and the messages that
+// wait in the panel's queue for a thread to be free.
 package codex
 
 import (
@@ -51,18 +52,22 @@ const (
 	flagApproval     = "waitingOnApproval"
 )
 
+// waitsForPerson are the requests of a daemon the link holds for a person.
+var waitsForPerson = []string{methodCommand, methodFileChange, methodPermissions, methodUserInput, methodElicitation}
+
 // quiet are the notifications a link turns off at the handshake. It reads the
 // word that a request was answered, the status of a thread — a thread that
 // turns free takes the next message of the panel's queue at once — its
-// settings, how full its context is and the rate limits of the account; none
-// of them carries a word of the conversation. Every other notification the
+// settings, its name and its goal, how full its context is and the rate limits
+// of the account; none of them carries a word of the conversation beyond a
+// name and a goal a person gives. Every other notification the
 // protocol knows is off: most carry the conversation — items, their deltas,
 // diffs, plans, the items of a finished turn — and the rest is traffic nobody
 // reads. A notification a newer daemon adds arrives and is dropped unread.
 var quiet = []string{
 	"error", "thread/started", "thread/archived", "thread/deleted",
-	"thread/unarchived", "thread/closed", "thread/reverted", "skills/changed", "thread/name/updated",
-	"thread/attachment/updated", "thread/goal/updated", "thread/prediction/updated", "thread/goal/cleared",
+	"thread/unarchived", "thread/closed", "thread/reverted", "skills/changed",
+	"thread/attachment/updated", "thread/prediction/updated",
 	"thread/queue/changed", "project/changed", "thread/project/updated", "thread/environment/connected",
 	"thread/environment/disconnected",
 	"turn/started", "hook/started", "turn/completed", "hook/completed", "turn/diff/updated",
@@ -109,8 +114,9 @@ func SessionName(threadID string) string {
 
 // State is the state file of a codex thread: the summary a claude holder
 // writes, with what the collector needs to find the rollout and the contour.
-// No text of the conversation is in it — not the preview of the thread, not
-// its name.
+// No text of the conversation is in it — not the preview of the thread — save
+// what a person reads to decide or gave the thread: its name, its goal, and
+// the question or the form it waits on. The file is the owner's alone.
 type State struct {
 	stream.Summary
 	Agent     string `json:"agent"`
@@ -126,6 +132,21 @@ type State struct {
 	// Context is how full the context of the thread is, as the daemon said
 	// with the last request the link heard of; absent before that.
 	Context *Context `json:"context,omitempty"`
+	// Title is the name of the thread, given in the panel or in codex; absent
+	// while it has none. The session keeps the name the panel addresses it by.
+	Title string `json:"title,omitempty"`
+	// Goal is the goal of the thread; absent while it has none or the daemon
+	// has not said.
+	Goal *Goal `json:"goal,omitempty"`
+	// Processes is how many background terminals of the thread run, as last
+	// read; absent while it is not known.
+	Processes *int `json:"processes,omitempty"`
+	// Ask is the question or the form the thread waits on a person for, the
+	// oldest first, in the shape the panel keeps a question of claude's in.
+	Ask *Ask `json:"ask,omitempty"`
+	// Terminal is the tmux session the panel started codex in on the thread,
+	// empty for a thread no terminal of the panel holds.
+	Terminal string `json:"terminal,omitempty"`
 }
 
 // Context is how full the context of a thread is, as the daemon said with the
@@ -137,9 +158,9 @@ type Context struct {
 	At     time.Time `json:"at"`
 }
 
-// Approval is what a request for an approval asks: the params of the request,
-// the part the panel shows.
-type Approval struct {
+// Params are the params of a request that waits for a person, the part the
+// panel shows. One struct reads every kind, each filling its own fields.
+type Params struct {
 	ThreadID  string `json:"threadId"`
 	TurnID    string `json:"turnId"`
 	ItemID    string `json:"itemId"`
@@ -154,14 +175,21 @@ type Approval struct {
 	// Decisions are the answers the daemon takes, in its order; absent from
 	// an older daemon and from a change to files.
 	Offered []json.RawMessage `json:"availableDecisions"`
+	// Permissions are what a request for more permissions asks for, as it
+	// came: the grant sends them back.
+	Permissions json.RawMessage `json:"permissions"`
+	// Questions are the questions of plan mode.
+	Questions []Question `json:"questions"`
+	Elicitation
 }
 
 // Request is a request of a daemon that waits for a person: an approval of a
-// command or of a change to files.
+// command or of a change to files, a grant of permissions, a question of plan
+// mode, or what an MCP server asks.
 type Request struct {
 	ID     json.RawMessage
 	Method string
-	Approval
+	Params
 	Since time.Time
 }
 
@@ -172,10 +200,19 @@ func (r Request) Key() string { return idKey(r.ID) }
 func (r Request) FileChange() bool { return r.Method == methodFileChange }
 
 // Tool names the request the way the feed names the call: a command is Bash,
-// a change to files is Edit.
+// a change to files is Edit, and a question or a form is the question of
+// claude's, AskUserQuestion — what the row says a session waits for is read
+// off these names.
 func (r Request) Tool() string {
-	if r.FileChange() {
+	switch {
+	case r.Asks():
+		return "AskUserQuestion"
+	case r.FileChange():
 		return "Edit"
+	case r.Method == methodPermissions:
+		return "Permissions"
+	case r.Method == methodElicitation:
+		return "MCP"
 	}
 	return "Bash"
 }
@@ -224,7 +261,9 @@ type threadInfo struct {
 	Parent    string       `json:"parentThreadId"`
 	Model     string       `json:"model"`
 	Effort    string       `json:"reasoningEffort"`
+	Name      *string      `json:"name"`
 	CreatedAt int64        `json:"createdAt"`
+	UpdatedAt int64        `json:"updatedAt"`
 	Status    threadStatus `json:"status"`
 	Path      string       `json:"path"`
 	CWD       string       `json:"cwd"`
@@ -240,6 +279,17 @@ type thread struct {
 	ours bool
 	// settings are what the daemon said of the thread's settings.
 	settings settings
+	// goal is the goal of the thread, goalKnown that the daemon said it.
+	goal      *Goal
+	goalKnown bool
+	// processes is how many background terminals run, nil while not known;
+	// extrasAt is when the goal and the terminals were last read, and
+	// extrasSeen the time of the thread's last change then.
+	processes  *int
+	extrasAt   time.Time
+	extrasSeen int64
+	// terminal is the tmux session the panel started codex in on the thread.
+	terminal string
 	// written is the state last written, without its time.
 	written []byte
 }
@@ -266,6 +316,10 @@ type Link struct {
 	// is the last failure to read them, logged once.
 	limits     *Limits
 	limitsSaid string
+	// noGoals and noProcesses say the daemon of this connection knows no
+	// goals or no background terminals, and is not asked them again.
+	noGoals     bool
+	noProcesses bool
 
 	// held are the threads the panel started and stays a client of until it
 	// closes them: nothing else holds such a thread, and the daemon unloads a
@@ -284,6 +338,10 @@ type Link struct {
 	// the approval that turn asks for would never reach the phone.
 	sub sync.Mutex
 
+	// terminals tells which threads codex runs in a tmux session of the
+	// panel's; nil where nobody tells.
+	terminals Terminals
+
 	// wake asks Run to dial now rather than at the next round.
 	wake chan struct{}
 	// kick asks the connected link to read the daemon now: a thread turned
@@ -301,6 +359,11 @@ func NewLink(home, contour string) *Link {
 	}
 }
 
+// Terminals tells which of the threads codex runs in a tmux session the panel
+// started — codex resumed on the thread in a terminal — with the name of that
+// session. The executor knows its terminals; the link asks at every poll.
+type Terminals func(ctx context.Context, ids []string) (map[string]string, error)
+
 // Links are the links of every codex home of the host.
 type Links struct {
 	list []*Link
@@ -308,12 +371,14 @@ type Links struct {
 }
 
 // Start removes the state files a stopped executor left behind and keeps a
-// link to the daemon of every home until ctx ends.
-func Start(ctx context.Context, homes []contours.CodexHome) *Links {
+// link to the daemon of every home until ctx ends; terminals, where given,
+// tells which threads codex runs in a terminal of the panel.
+func Start(ctx context.Context, homes []contours.CodexHome, terminals Terminals) *Links {
 	Sweep()
 	ls := &Links{}
 	for _, h := range homes {
 		l := NewLink(h.Dir, h.Contour)
+		l.terminals = terminals
 		ls.list = append(ls.list, l)
 		ls.runs.Go(func() { l.Run(ctx) })
 	}
@@ -459,6 +524,9 @@ func (l *Link) serve(ctx context.Context) error {
 	l.mu.Lock()
 	l.conn = c
 	l.held = heldMarks(l.contour)
+	// The daemon may have updated itself since the last connection: what the
+	// old one did not know, the new one is asked again.
+	l.noGoals, l.noProcesses = false, false
 	l.mu.Unlock()
 	defer func() {
 		l.mu.Lock()
@@ -531,6 +599,13 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 	if err != nil {
 		return err
 	}
+	// A failure to read the terminals leaves the threads as they were last
+	// told, rather than moving every one out of its terminal for a round.
+	var terms map[string]string
+	termsErr := errors.New("nobody tells the terminals")
+	if l.terminals != nil && len(ids) > 0 {
+		terms, termsErr = l.terminals(ctx, ids)
+	}
 	live := map[string]bool{}
 	for _, id := range ids {
 		asked := time.Now()
@@ -551,8 +626,12 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 			continue
 		}
 		live[id] = true
+		if termsErr == nil {
+			l.set(id, func(t *thread) { t.terminal = terms[id] })
+		}
 		l.keep(ctx, c, id)
 		l.drain(ctx, c, id)
+		l.extras(ctx, c, id)
 		l.save(id)
 	}
 	l.drop(live)
@@ -606,6 +685,10 @@ func (l *Link) seen(info threadInfo, asked time.Time) bool {
 		t = &thread{}
 		l.threads[info.ID] = t
 	}
+	if info.Name == nil {
+		// A rename the panel made is newer than a read that crossed it.
+		info.Name = t.info.Name
+	}
 	t.info = info
 	if info.Status.Type != "active" {
 		l.pending[info.ID] = slices.DeleteFunc(l.pending[info.ID], func(r Request) bool {
@@ -634,7 +717,7 @@ func (l *Link) keep(ctx context.Context, c *conn, id string) {
 		return
 	}
 	active := t.info.Status.Type == "active"
-	waiting := slices.Contains(t.info.Status.Flags, flagApproval)
+	waiting := slices.Contains(t.info.Status.Flags, flagApproval) || slices.Contains(t.info.Status.Flags, flagUserInput)
 	asking := len(l.pending[id]) > 0
 	subscribed, ours := t.subscribed, t.ours
 	held := l.held[id]
@@ -718,10 +801,10 @@ func runningTurn(ctx context.Context, c *conn, id string) (string, error) {
 	return out.Data[0].ID, nil
 }
 
-// handle takes what the daemon sends on its own: the requests for an approval,
-// the word that a request was answered, and the notifications the link reads.
-// The other requests are left to the clients that know them — the TUI shows
-// them, the panel does not answer them.
+// handle takes what the daemon sends on its own: the requests that wait for a
+// person, the word that a request was answered, and the notifications the
+// link reads. The other requests are left to the clients that know them —
+// the TUI shows them, the panel does not answer them.
 func (l *Link) handle(msg message) {
 	switch {
 	case len(msg.ID) == 0 && msg.Method == "thread/status/changed":
@@ -737,12 +820,41 @@ func (l *Link) handle(msg message) {
 		l.onUsage(msg.Params)
 	case len(msg.ID) == 0 && msg.Method == "account/rateLimits/updated":
 		l.onLimits(msg.Params)
-	case len(msg.ID) > 0 && (msg.Method == methodCommand || msg.Method == methodFileChange):
-		var a Approval
+	case len(msg.ID) == 0 && msg.Method == "thread/name/updated":
+		var p struct {
+			ThreadID string  `json:"threadId"`
+			Name     *string `json:"threadName"`
+		}
+		if json.Unmarshal(msg.Params, &p) != nil || p.ThreadID == "" {
+			return
+		}
+		name := ""
+		if p.Name != nil {
+			name = *p.Name
+		}
+		l.set(p.ThreadID, func(t *thread) { t.info.Name = &name })
+		l.save(p.ThreadID)
+	case len(msg.ID) == 0 && msg.Method == "thread/goal/updated":
+		var p struct {
+			ThreadID string `json:"threadId"`
+			Goal     *Goal  `json:"goal"`
+		}
+		if json.Unmarshal(msg.Params, &p) == nil && p.ThreadID != "" && p.Goal != nil {
+			l.onGoal(p.ThreadID, p.Goal)
+		}
+	case len(msg.ID) == 0 && msg.Method == "thread/goal/cleared":
+		var p struct {
+			ThreadID string `json:"threadId"`
+		}
+		if json.Unmarshal(msg.Params, &p) == nil && p.ThreadID != "" {
+			l.onGoal(p.ThreadID, nil)
+		}
+	case len(msg.ID) > 0 && slices.Contains(waitsForPerson, msg.Method):
+		var a Params
 		if json.Unmarshal(msg.Params, &a) != nil || a.ThreadID == "" {
 			return
 		}
-		r := Request{ID: msg.ID, Method: msg.Method, Approval: a, Since: time.Now()}
+		r := Request{ID: msg.ID, Method: msg.Method, Params: a, Since: time.Now()}
 		l.mu.Lock()
 		list := slices.DeleteFunc(l.pending[a.ThreadID], func(p Request) bool { return p.Key() == r.Key() })
 		l.pending[a.ThreadID] = append(list, r)
@@ -843,8 +955,12 @@ func (l *Link) save(id string) {
 
 func (l *Link) state(t *thread) State {
 	waiting := []string{}
+	var ask *Ask
 	for _, r := range l.pending[t.info.ID] {
 		waiting = append(waiting, r.Tool())
+		if ask == nil {
+			ask = r.Ask()
+		}
 	}
 	// The thread waits on something the link holds no request for: one it
 	// has not been sent yet, or one the panel does not answer. It waits on a
@@ -868,6 +984,10 @@ func (l *Link) state(t *thread) State {
 	if u, ok := l.usage[t.info.ID]; ok {
 		st.Context = &u
 	}
+	if t.info.Name != nil {
+		st.Title = *t.info.Name
+	}
+	st.Goal, st.Processes, st.Ask, st.Terminal = t.goal, t.processes, ask, t.terminal
 	return st
 }
 
@@ -945,8 +1065,13 @@ func (l *Link) Interrupt(ctx context.Context, threadID string) (bool, error) {
 	return turn != "", err
 }
 
-// Respond answers a request of a thread with a decision, sent as it is.
+// Respond answers an approval of a thread with a decision, sent as it is.
 func (l *Link) Respond(ctx context.Context, threadID, key string, decision json.RawMessage) error {
+	return l.Reply(ctx, threadID, key, map[string]any{"decision": decision})
+}
+
+// Reply answers a request of a thread with the result its kind takes.
+func (l *Link) Reply(ctx context.Context, threadID, key string, result any) error {
 	c, err := l.client()
 	if err != nil {
 		return err
@@ -960,7 +1085,7 @@ func (l *Link) Respond(ctx context.Context, threadID, key string, decision json.
 	if id == nil {
 		return ErrAnswered
 	}
-	if err := c.reply(ctx, id, map[string]any{"decision": decision}); err != nil {
+	if err := c.reply(ctx, id, result); err != nil {
 		return err
 	}
 	l.resolve(threadID, key)
@@ -977,13 +1102,22 @@ type Model struct {
 	Effort  string
 }
 
-// Models lists the models codex offers, through the daemon of the first home
-// that answers: the catalogue is codex's, and model/list asks no account. The
-// models codex keeps out of its own picker stay out of this list too:
-// model/list leaves them out unless it is asked for them.
-func (ls *Links) Models(ctx context.Context) ([]Model, error) {
+// Models lists the models codex offers, through the daemon of the contour's
+// home, or of the first home that answers when no contour is named: the
+// catalogue is codex's, and model/list asks no account, but a daemon serves
+// the catalogue of its own release. The models codex keeps out of its own
+// picker stay out of this list too: model/list leaves them out unless it is
+// asked for them.
+func (ls *Links) Models(ctx context.Context, contour string) ([]Model, error) {
 	if ls == nil || len(ls.list) == 0 {
 		return nil, errors.New("the executor knows no codex home")
+	}
+	if contour != "" {
+		l := ls.Contour(contour)
+		if l == nil {
+			return nil, fmt.Errorf("contour %s has no codex home the executor keeps a link to", contour)
+		}
+		return l.models(ctx)
 	}
 	var last error
 	for _, l := range ls.list {
@@ -994,6 +1128,34 @@ func (ls *Links) Models(ctx context.Context) ([]Model, error) {
 		last = err
 	}
 	return nil, last
+}
+
+// Contour is the link of the codex home of a contour, nil when the executor
+// keeps none.
+func (ls *Links) Contour(name string) *Link {
+	if ls == nil {
+		return nil
+	}
+	for _, l := range ls.list {
+		if l.contour == name {
+			return l
+		}
+	}
+	return nil
+}
+
+// Models lists the models the daemon of this home offers.
+func (l *Link) Models(ctx context.Context) ([]Model, error) { return l.models(ctx) }
+
+// Settings are the model, the effort and the mode a thread runs, as the link
+// last heard them; the mode is empty while the daemon has not said it.
+func (l *Link) Settings(threadID string) (model, effort, mode string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if t := l.threads[threadID]; t != nil {
+		return t.info.Model, t.info.Effort, t.settings.mode()
+	}
+	return "", "", ""
 }
 
 func (l *Link) models(ctx context.Context) ([]Model, error) {

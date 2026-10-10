@@ -9,6 +9,10 @@ on which kind of file it reads.
 The feed is read off the items codex reports finished (an event_msg of type
 item_completed). The raw input and output of the model beside them
 (response_item) say the same again, and the counts of tokens are no row.
+Beside the items, codex writes what a person decided on in records of their
+own: a question of plan mode and its answer (retained_context of type
+verified_answer), and every goal set or changed (an event_msg of type
+thread_goal_updated).
 """
 import datetime as dt
 import glob
@@ -20,11 +24,30 @@ import contours
 import held
 
 from .harness import COMPACTED, STOPPED
+from .cards import MAX_ASK_QUESTIONS, MAX_ASK_TEXT
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
 from .tools import one_line, tool_kind
 
 KINDS = ("session_meta", "world_state", "turn_context", "response_item",
-         "token_usage_record", "compacted", "event_msg")
+         "token_usage_record", "compacted", "event_msg", "retained_context")
+
+# What the feed says of a turn codex started by itself to go on with its goal:
+# its input is codex's own words, not a message of the person's.
+GOAL_TURN = "codex goes on with its goal"
+
+# How many findings of a review the feed carries.
+MAX_FINDINGS = 20
+
+# The key under which a reader of a rollout keeps the id of its thread: a
+# review runs in a thread of its own, and its items are written into the
+# rollout of the thread that asked for it.
+OWN = "codex-thread"
+
+# The mark codex's clients put before the words a person adds beside a pick.
+NOTE = "user_note: "
+
+# What the panel answers a question put away with, as the executor sends it.
+DISMISSED = "The person put the question away and will answer in the conversation."
 
 # A call of codex is drawn as the claude call that does the same, so the feed
 # groups and colours it the same way.
@@ -39,6 +62,14 @@ FAILED = ("failed", "declined")
 
 # How far back the context is looked for before the whole rollout is read.
 TAIL_STEPS = (64 * 1024, 1024 * 1024)
+
+
+def own(path):
+    """Returns the state a reader of a file starts with: the id of the thread of a rollout, nothing for a transcript."""
+    name = os.path.basename(path or "")
+    if not is_rollout(path):
+        return {}
+    return {OWN: name[:-len(".jsonl")][-36:]}
 
 
 def is_rollout(path):
@@ -216,21 +247,144 @@ def _call(name, arg, use, index, failed, at, pos, edited=""):
     return [call, mark]
 
 
-def rows(record, pos):
+def _asked(record, at, pos):
+    """Returns the card of a question of plan mode and its answer, as a claude question is drawn, or None.
+
+    Codex keeps the pair in one record: each question with its options under
+    it, a line an option, and the answer a line a label, the words a person
+    added beside a pick marked as a note. A question put away from the panel
+    is answered with the note that the person will answer in the
+    conversation, and the card says it was put away.
+    """
+    payload = record.get("payload")
+    if (record.get("type") != "retained_context" or not isinstance(payload, dict)
+            or payload.get("type") != "verified_answer" or not isinstance(payload.get("questions"), list)):
+        return None
+    rows, put_away = [], True
+    for item in payload["questions"][:MAX_ASK_QUESTIONS]:
+        if not isinstance(item, dict) or not isinstance(item.get("question"), str):
+            continue
+        text = cut(" ".join(item["question"].split("\n", 1)[0].split()), MAX_ASK_TEXT)[0]
+        if not text:
+            continue
+        row = {"text": text}
+        lines = [line.strip() for line in str(item.get("answer") or "").split("\n") if line.strip()]
+        notes = [line[len(NOTE):].strip() for line in lines if line.startswith(NOTE)]
+        answer = [cut(line, MAX_ASK_TEXT)[0] for line in lines if not line.startswith(NOTE)]
+        if answer:
+            row["answer"] = answer
+        if notes and notes != [DISMISSED]:
+            row["note"] = cut(" ".join(notes), MAX_ASK_TEXT)[0]
+        put_away = put_away and not answer and notes == [DISMISSED]
+        rows.append(row)
+    if not rows:
+        return None
+    card = {"role": "asked", "use": payload.get("call_id") if isinstance(payload.get("call_id"), str) else "",
+            "asked": rows, "at": at, "pos": pos}
+    if put_away:
+        card["status"] = "rejected"
+    return card
+
+
+def _goal(record, at, pos):
+    """Returns the row of a goal set or changed, or None.
+
+    Codex writes the goal whole at every change a client makes: what it works
+    towards, how it stands, what it has spent and its budget.
+    """
+    payload = record.get("payload")
+    goal = payload.get("goal") if isinstance(payload, dict) else None
+    if (not isinstance(goal, dict) or record.get("type") != "event_msg"
+            or payload.get("type") != "thread_goal_updated" or not isinstance(goal.get("objective"), str)):
+        return None
+    body, trimmed = cut(goal["objective"], MAX_TEXT)
+    return {"role": "goal", "text": body, "cut": trimmed, "status": str(goal.get("status") or ""),
+            "tokensUsed": _count(goal.get("tokensUsed")) or 0, "tokenBudget": _count(goal.get("tokenBudget")),
+            "timeUsedSeconds": _count(goal.get("timeUsedSeconds")) or 0, "at": at, "pos": pos}
+
+
+def _goal_turn(record):
+    """Reports whether a record starts a turn codex began by itself to go on with its goal."""
+    payload = record.get("payload")
+    started = payload.get("turn_attribution") if isinstance(payload, dict) else None
+    return (isinstance(started, dict) and record.get("type") == "event_msg"
+            and payload.get("type") == "task_started" and started.get("turn_trigger") == "goal")
+
+
+def _finding(raw):
+    if not isinstance(raw, dict):
+        return None
+    where = raw.get("code_location") if isinstance(raw.get("code_location"), dict) else {}
+    span = where.get("line_range") if isinstance(where.get("line_range"), dict) else {}
+    found = {"title": cut(str(raw.get("title") or ""), MAX_ASK_TEXT)[0],
+             "body": cut(str(raw.get("body") or ""), MAX_TEXT)[0],
+             "priority": _count(raw.get("priority")),
+             "path": where.get("absolute_file_path") if isinstance(where.get("absolute_file_path"), str) else "",
+             "lines": [_count(span.get("start")), _count(span.get("end"))]}
+    score = raw.get("confidence_score")
+    if isinstance(score, (int, float)) and not isinstance(score, bool):
+        found["confidence"] = score
+    return found
+
+
+def _review(item, at, pos):
+    """Returns the row a review begins or ends with.
+
+    A review begins with what it looks at, in codex's own words, and ends with
+    its verdict, the explanation and the findings, each with its place in the
+    code. Codex then writes the findings as an answer as well, which the feed
+    draws as one.
+    """
+    if item.get("type") == "EnteredReviewMode":
+        hint = item.get("user_facing_hint") if isinstance(item.get("user_facing_hint"), str) else ""
+        return {"role": "review", "state": "start", "text": hint, "at": at, "pos": pos}
+    out = item.get("review_output") if isinstance(item.get("review_output"), dict) else {}
+    body, trimmed = cut(str(out.get("overall_explanation") or ""), MAX_TEXT)
+    findings = [f for f in (_finding(raw) for raw in (out.get("findings") or [])[:MAX_FINDINGS]) if f]
+    row = {"role": "review", "state": "end", "verdict": str(out.get("overall_correctness") or ""),
+           "text": body, "cut": trimmed, "findings": findings, "at": at, "pos": pos}
+    score = out.get("overall_confidence_score")
+    if isinstance(score, (int, float)) and not isinstance(score, bool):
+        row["confidence"] = score
+    return row
+
+
+# The items a review runs in its own thread that the rollout of the thread
+# that asked for it shows: the work, not the words. The words of that thread
+# — its prompt and its answers — are codex's to itself, and the review says
+# its findings in the thread that asked.
+WORK = ("CommandExecution", "FileChange", "Extension")
+
+
+def rows(record, pos, state=None):
     """Returns the feed items of one rollout record, from none to many.
 
     A change of several files is a call a file, as claude makes them: each
-    names the file it changed, and its details open that file's diff.
+    names the file it changed, and its details open that file's diff. State
+    is what the reader keeps for the whole file: the id of the thread the
+    rollout is of.
     """
     at = record.get("timestamp") or ""
     if _stopped(record):
         return [{"role": "note", "text": STOPPED, "at": at, "pos": pos}]
+    if _goal_turn(record):
+        return [{"role": "note", "text": GOAL_TURN, "at": at, "pos": pos}]
+    for card in (_asked(record, at, pos), _goal(record, at, pos)):
+        if card:
+            return [card]
     found = _item(record)
     if found is None:
         return []
-    _, item = found
+    payload, item = found
     kind = item.get("type")
     use = item.get("id") if isinstance(item.get("id"), str) else ""
+    mine = (state or {}).get(OWN)
+    if mine and payload.get("thread_id") not in (None, "", mine) and kind not in WORK:
+        return []
+    if kind == "Plan":
+        return _said("plan", item.get("text") if isinstance(item.get("text"), str) else "", at, pos)
+    if kind in ("EnteredReviewMode", "ExitedReviewMode"):
+        return [_review(item, at, pos)]
     if kind == "UserMessage":
         return _said("me", _text(item.get("content"), "text"), at, pos)
     if kind == "AgentMessage":

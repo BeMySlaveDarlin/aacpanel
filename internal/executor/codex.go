@@ -12,6 +12,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	registry "aacpanel/internal/contours"
+	"aacpanel/internal/launcher"
 )
 
 // A codex session is a thread of the codex daemon of a contour, held by the
@@ -27,7 +28,39 @@ import (
 // StartCodex links the executor to the codex daemons of the contours until
 // ctx ends.
 func (e *Executor) StartCodex(ctx context.Context) {
-	e.codex = codex.Start(ctx, registry.CodexHomes())
+	e.codex = codex.Start(ctx, registry.CodexHomes(), codexTerminals)
+}
+
+// listCodexPanes lists the panes of the user's tmux with the command each was
+// started with.
+var listCodexPanes = func(ctx context.Context) (string, error) {
+	return userTmux.run(ctx, "list-panes", "-a", "-F", codexPanes)
+}
+
+// codexTerminals tells which of the threads the launcher started codex in tmux
+// on, by the command tmux keeps for each pane — the way a close finds them —
+// with the name of the tmux session. No tmux server is no terminal.
+func codexTerminals(ctx context.Context, ids []string) (map[string]string, error) {
+	out, err := listCodexPanes(ctx)
+	if err != nil {
+		if noTmuxServer(err) {
+			return map[string]string{}, nil
+		}
+		return nil, err
+	}
+	found := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		name, command, ok := strings.Cut(line, "\t")
+		if !ok {
+			continue
+		}
+		for _, id := range ids {
+			if _, seen := found[id]; !seen && launcher.LaunchedCodex(command, id) {
+				found[id] = name
+			}
+		}
+	}
+	return found, nil
 }
 
 // sessionTarget says whether an action names a live session as its target.
@@ -56,11 +89,11 @@ func (e *Executor) codexSession(target string) (*codex.Thread, error) {
 	return &found[0], nil
 }
 
-// CodexModels lists the models codex offers, as the daemon of a home the
-// executor is linked to lists them: the screens pick a codex model from it
-// before any session runs.
-func (e *Executor) CodexModels(ctx context.Context) ([]action.CodexModel, error) {
-	list, err := e.codex.Models(ctx)
+// CodexModels lists the models codex offers, as the daemon of the contour's
+// home lists them, or the first daemon that answers when no contour is named:
+// the screens pick a codex model from it before any session runs.
+func (e *Executor) CodexModels(ctx context.Context, contour string) ([]action.CodexModel, error) {
+	list, err := e.codex.Models(ctx, contour)
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +137,16 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexEscape(ctx, th)
 	case action.SessionPermit:
 		return codexPermit(ctx, th, req.Permit)
+	case action.SessionAnswer:
+		return codexAnswer(ctx, th, req.Answer)
+	case action.SessionDismiss:
+		return codexDismiss(ctx, th, req.Answer)
+	case action.SessionCommand:
+		return codexCommand(ctx, th, req.Command)
+	case action.SessionRename:
+		return codexRename(ctx, th, req.Rename)
+	case action.TaskStop:
+		return codexTaskStop(ctx, th, req.Work)
 	case action.SessionClose:
 		return e.codexClose(ctx, th)
 	case action.SessionRestart:
@@ -254,9 +297,11 @@ func codexStop(ctx context.Context, th codex.Thread) (string, error) {
 	return fmt.Sprintf("%s stopped: the turn was interrupted", th.Name), nil
 }
 
-// codexEscape puts away what the session holds a person to: the approvals it
-// waits on, each declined — the turn goes on without what it asked for — or
-// cancelled where the request offers no decline.
+// codexEscape puts away what the session holds a person to: an approval is
+// declined — the turn goes on without what it asked for — or cancelled where
+// the request offers no decline; a grant of permissions is refused, a question
+// put away to be answered in the conversation, and a request of an MCP server
+// cancelled.
 func codexEscape(ctx context.Context, th codex.Thread) (string, error) {
 	pending := th.Link.Pending(th.ID)
 	if len(pending) == 0 {
@@ -264,13 +309,24 @@ func codexEscape(ctx context.Context, th codex.Thread) (string, error) {
 	}
 	put := 0
 	for _, r := range pending {
-		answer := json.RawMessage(`"cancel"`)
-		for _, d := range r.Decisions() {
-			if string(d) == `"decline"` {
-				answer = d
+		var answer any
+		switch {
+		case r.Grants():
+			answer = r.Deny()
+		case r.Elicits():
+			answer = codex.Elicit("cancel", nil)
+		case r.Asks():
+			answer = r.Dismiss()
+		default:
+			decision := json.RawMessage(`"cancel"`)
+			for _, d := range r.Decisions() {
+				if string(d) == `"decline"` {
+					decision = d
+				}
 			}
+			answer = map[string]any{"decision": decision}
 		}
-		err := th.Link.Respond(ctx, th.ID, r.Key(), answer)
+		err := th.Link.Reply(ctx, th.ID, r.Key(), answer)
 		switch {
 		case errors.Is(err, codex.ErrAnswered):
 			continue
@@ -282,16 +338,18 @@ func codexEscape(ctx context.Context, th codex.Thread) (string, error) {
 	return fmt.Sprintf("%s: %s put away", th.Name, plural(put, "request", "requests")), nil
 }
 
-// codexPermission reads the oldest approval a codex session waits on as the
-// permission the screen already knows how to draw. Its options are the
-// decisions the daemon offers, in its order; its fingerprint is the id of the
-// request, so a press meant for one request never lands on the next.
+// codexPermission reads the oldest request a codex session waits on that is
+// a choice among a few — an approval, a grant of permissions, a yes or a no of
+// an MCP server — as the permission the screen already knows how to draw. A
+// question or a form is not one: the feed draws it from the state of the
+// session. The options of an approval are the decisions the daemon offers, in
+// its order; the fingerprint is the id of the request, so a press meant for
+// one request never lands on the next.
 func codexPermission(ctx context.Context, th codex.Thread) (*action.Permission, error) {
-	pending := th.Link.Pending(th.ID)
-	if len(pending) == 0 {
+	r, ok := firstChoice(th.Link.Pending(th.ID))
+	if !ok {
 		return nil, nil
 	}
-	r := pending[0]
 	d := &action.Permission{
 		Tool:        r.Tool(),
 		Action:      codexLines(ctx, th, r),
@@ -299,6 +357,9 @@ func codexPermission(ctx context.Context, th codex.Thread) (*action.Permission, 
 		Fingerprint: r.Key(),
 		Note:        []string{},
 		Raw:         []string{},
+	}
+	if r.Elicits() {
+		d.Note = append(d.Note, elicitNotes(r)...)
 	}
 	if r.Network != nil {
 		d.Note = append(d.Note, fmt.Sprintf("network access to %s over %s", r.Network.Host, r.Network.Protocol))
@@ -318,6 +379,10 @@ func codexPermission(ctx context.Context, th codex.Thread) (*action.Permission, 
 func codexLines(ctx context.Context, th codex.Thread, r codex.Request) []string {
 	var lines []string
 	switch {
+	case r.Grants():
+		lines = r.Asked()
+	case r.Elicits():
+		lines = elicitLines(r)
 	case !r.FileChange():
 		lines = strings.Split(r.Command, "\n")
 	default:
@@ -347,9 +412,8 @@ func codexLines(ctx context.Context, th codex.Thread, r codex.Request) []string 
 
 func codexOptions(r codex.Request) []action.PermOption {
 	var out []action.PermOption
-	for i, d := range r.Decisions() {
-		text, lasting := decisionText(d)
-		out = append(out, action.PermOption{N: i + 1, Text: text, Lasting: lasting})
+	for i, c := range codexChoices(r) {
+		out = append(out, action.PermOption{N: i + 1, Text: c.text, Lasting: c.lasting})
 	}
 	return out
 }
@@ -397,37 +461,37 @@ func decisionText(raw json.RawMessage) (string, bool) {
 	return string(raw), false
 }
 
-// codexPermit answers the request the person looked at with the decision of
-// the item they pressed, sent to the daemon as the daemon offered it.
+// codexPermit answers the request the person looked at with the reply of the
+// item they pressed: a decision of an approval as the daemon offered it, a
+// grant of permissions, or the answer to an MCP server.
 func codexPermit(ctx context.Context, th codex.Thread, pick *action.Permit) (string, error) {
 	if pick == nil {
 		return "", fmt.Errorf("it is not said which item to press")
 	}
 	pending := th.Link.Pending(th.ID)
-	if len(pending) == 0 {
+	if _, ok := firstChoice(pending); !ok {
 		return "", fmt.Errorf("session %s is asking nothing — the request is already answered", th.Name)
 	}
 	var r *codex.Request
 	for i := range pending {
-		if pending[i].Key() == pick.Fingerprint {
+		if pending[i].Key() == pick.Fingerprint && !pending[i].Asks() {
 			r = &pending[i]
 		}
 	}
 	if r == nil {
 		return "", fmt.Errorf("the request of session %s changed while you were looking — look again", th.Name)
 	}
-	decisions := r.Decisions()
-	if pick.Option < 1 || pick.Option > len(decisions) {
+	choices := codexChoices(*r)
+	if pick.Option < 1 || pick.Option > len(choices) {
 		return "", fmt.Errorf("there is no item %d in the request of session %s", pick.Option, th.Name)
 	}
-	chosen := decisions[pick.Option-1]
-	err := th.Link.Respond(ctx, th.ID, r.Key(), chosen)
+	chosen := choices[pick.Option-1]
+	err := th.Link.Reply(ctx, th.ID, r.Key(), chosen.result)
 	switch {
 	case errors.Is(err, codex.ErrAnswered):
 		return "", fmt.Errorf("session %s is asking nothing — the request is already answered", th.Name)
 	case err != nil:
 		return "", fmt.Errorf("session %s: %w", th.Name, err)
 	}
-	text, _ := decisionText(chosen)
-	return fmt.Sprintf("%s answered in session %s: %s", r.Tool(), th.Name, text), nil
+	return fmt.Sprintf("%s answered in session %s: %s", r.Tool(), th.Name, chosen.text), nil
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/codex"
 	"aacpanel/internal/stream"
 )
 
@@ -22,7 +23,7 @@ const (
 	refusedByPanel = "The person refused this from the panel."
 	// What the model reads when a person put a question away to answer it in
 	// the conversation instead.
-	dismissedByPanel = "The person put the question away and will answer in the conversation."
+	dismissedByPanel = codex.Dismissed
 	// How many lines of a tool's input a permission shows. The stream has the
 	// whole input, and a person decides on the whole of it: the ceiling is
 	// only against a runaway, and what passes it is shown cut and says so.

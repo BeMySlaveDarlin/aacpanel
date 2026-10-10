@@ -201,13 +201,12 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		params = map[string]any{"files": names, "bytes": bytes, "chars": len([]rune(caption))}
 	}
 	if req.Kind == action.SessionCommand {
-		name, _ := body.Params["command"].(string)
-		arg, _ := body.Params["arg"].(string)
-		req.Command = &action.Command{Name: name, Arg: arg}
-		params = map[string]any{"command": name}
-		if arg != "" {
-			params["arg"] = arg
+		cmd, logged, err := commandFromParams(body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
+		req.Command, params = cmd, logged
 	}
 	if req.Kind == action.SessionSet {
 		set := &action.Setting{}
@@ -516,13 +515,16 @@ func (s *Server) apiSessionModels(w http.ResponseWriter, r *http.Request) {
 
 // apiCodexModels says what codex offers to pick from: the models the daemon
 // of a codex home lists, with the efforts each takes. It names no session —
-// a launch parameter is picked before any session runs.
+// a launch parameter is picked before any session runs — and may name the
+// contour whose daemon to ask (?contour=): a daemon lists the catalogue of its
+// own release, and contours update theirs apart. Without it the first daemon
+// that answers is asked.
 func (s *Server) apiCodexModels(w http.ResponseWriter, r *http.Request) {
 	if s.exec == nil {
 		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
 		return
 	}
-	models, err := s.exec.CodexModels(r.Context())
+	models, err := s.exec.CodexModels(r.Context(), r.URL.Query().Get("contour"))
 	if err != nil {
 		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
 		return
@@ -539,6 +541,31 @@ func (s *Server) apiCodexModels(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, map[string]any{"state": "ok", "models": models})
+}
+
+// apiSessionProcesses says which background terminals the turns of a codex
+// session left running.
+func (s *Server) apiSessionProcesses(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "it is not said whose background terminals to list", http.StatusBadRequest)
+		return
+	}
+	if s.exec == nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": "the executor is not configured"})
+		return
+	}
+	list, err := s.exec.Processes(r.Context(), name)
+	if err != nil {
+		writeJSON(w, map[string]any{"state": "unknown", "reason": err.Error()})
+		return
+	}
+	// The list crosses the socket with omitempty and arrives as nothing when it
+	// is empty; the screen is handed a list either way.
+	if list == nil {
+		list = []action.Process{}
+	}
+	writeJSON(w, map[string]any{"state": "ok", "processes": list})
 }
 
 // apiSessionMcp says what a live session knows about its MCP servers.
@@ -567,7 +594,13 @@ func (s *Server) apiSessionMcp(w http.ResponseWriter, r *http.Request) {
 	if servers == nil {
 		servers = []action.McpServer{}
 	}
-	writeJSON(w, map[string]any{"state": "ok", "transport": mcp.Transport, "servers": servers})
+	out := map[string]any{"state": "ok", "transport": mcp.Transport, "servers": servers}
+	// A codex session says so: its servers are codex's, and it has no
+	// reconnect or switch of claude's.
+	if mcp.Agent != "" {
+		out["agent"] = mcp.Agent
+	}
+	writeJSON(w, out)
 }
 
 // apiSessionStatus says what a live session says about itself.
@@ -622,6 +655,9 @@ func (s *Server) apiSessionSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := map[string]any{"state": "ok", "transport": setup.Transport}
+	if setup.Agent != "" {
+		out["agent"] = setup.Agent
+	}
 	if setup.Transport == action.SwitchStream {
 		out[part] = setupPart(setup, part)
 	}

@@ -255,7 +255,7 @@ def rows_of(record, pos, pending=None, asks=None, sidechain=False, sent=None,
 
     kind = record.get("type")
     if kind in codex.KINDS:
-        return codex.rows(record, pos)
+        return codex.rows(record, pos, asks)
     message = record.get("message") or {}
     at = record.get("timestamp") or ""
 

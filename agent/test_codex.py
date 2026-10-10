@@ -268,8 +268,8 @@ class Feed(Runtime):
                          [("ls -la src/router", False, False), ("go test ./src/router", True, False)])
         files = reply["items"][4]["calls"]
         self.assertEqual([(c["use"], c["index"]) for c in files], [("patch-1#0", 0), ("patch-1#1", 1)])
-        self.assertNotIn("state", chat.answer({"session": THREAD, "limit": 50, "state": True}),
-                         "the state of a session is claude's")
+        self.assertEqual(chat.answer({"session": THREAD, "limit": 50, "state": True}).get("state"),
+                         {"tasks": [], "agents": []}, "the work of a session is claude's")
 
     def test_the_answer_after_a_change_carries_the_files_it_changed(self):
         work = os.path.join(self.root, "demo")
@@ -370,6 +370,113 @@ class Location(Runtime):
     def test_a_rollout_is_told_from_a_transcript_by_its_name(self):
         self.assertTrue(codex.is_rollout(self.rollout))
         self.assertFalse(codex.is_rollout(f"/x/projects/-srv/{CLAUDE}.jsonl"))
+
+
+DECISIONS = os.path.join(HERE, "testdata", "codex-decisions.jsonl")
+
+
+class Decisions(Runtime):
+    """What a person decides on in a codex thread, drawn in the feed: questions, plans, goals and reviews."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.copy(DECISIONS, self.rollout)
+
+    def items(self):
+        reply = chat.answer({"session": THREAD, "limit": 200})
+        self.assertTrue(reply["ok"], reply)
+        return reply["items"]
+
+    def test_a_question_of_plan_mode_is_a_card_with_its_answer_and_note(self):
+        cards = [i for i in self.items() if i["role"] == "asked"]
+        self.assertEqual([(c["use"], c["asked"], c.get("status")) for c in cards], [
+            ("call_98cbdb05caae472f9653ea18994208a0",
+             [{"text": "Which indentation style do you prefer?", "answer": ["Spaces (Recommended)"],
+               "note": "keep it short"}], None),
+            ("call_dismissed", [{"text": "Which file first?"}], "rejected"),
+        ], "a question put away from the panel is a card of a question refused")
+
+    def test_a_plan_is_a_row_of_its_own(self):
+        plans = [i for i in self.items() if i["role"] == "plan"]
+        self.assertEqual(len(plans), 1)
+        self.assertTrue(plans[0]["text"].startswith("1. Add a root `.editorconfig`"), plans[0])
+
+    def test_a_goal_is_a_row_at_every_change_and_a_turn_of_its_own_says_so(self):
+        items = self.items()
+        goals = [(i["text"], i["status"], i["tokensUsed"], i["tokenBudget"]) for i in items if i["role"] == "goal"]
+        self.assertEqual(goals[:2], [("Reply with the word OK", "active", 0, 2000),
+                                     ("Reply with the word OK", "budgetLimited", 2330, 2000)])
+        self.assertEqual(len(goals), 5)
+        notes = [i["text"] for i in items if i["role"] == "note"]
+        self.assertEqual(notes.count(codex.GOAL_TURN), 2, "a turn codex starts for its goal says why it started")
+        self.assertNotIn("codex_internal_context", json.dumps(items), "the words codex gives itself are no row")
+
+    def test_a_review_begins_and_ends_with_its_findings(self):
+        reviews = [i for i in self.items() if i["role"] == "review"]
+        self.assertEqual([(r["state"], r.get("verdict"), len(r.get("findings", []))) for r in reviews],
+                         [("start", None, 0), ("end", "patch is incorrect", 1),
+                          ("start", None, 0), ("end", "patch is correct", 0)])
+        self.assertEqual(reviews[0]["text"], "current changes")
+        found = reviews[1]["findings"][0]
+        self.assertEqual((found["title"], found["priority"], found["path"], found["lines"]),
+                         ("[P1] Preserve addition semantics in `add`", 1, "/srv/proj/calc.py", [2, 2]))
+
+    def test_the_thread_of_a_review_shows_its_work_and_not_its_words(self):
+        items = self.items()
+        self.assertFalse([i for i in items if i["role"] == "me"],
+                         "the prompt codex gives the thread of a review is no message of the person's")
+        calls = [c for i in items if i["role"] == "tools" for c in i.get("calls", [])]
+        self.assertTrue(any(c["arg"].startswith("pwd; find ..") for c in calls), "the review's commands are its work")
+
+    def test_a_single_record_reads_the_same_without_the_reader(self):
+        with open(DECISIONS, "rb") as f:
+            for pos, raw in enumerate(f):
+                self.assertIsInstance(chat.parse(json.loads(raw), pos), list)
+
+
+class Asks(Runtime):
+    """The question or the form a codex thread waits on, offered as a question of claude's."""
+
+    ASK = {"sessionId": THREAD, "toolUseId": "0", "at": "2026-10-10T08:40:00Z",
+           "questions": [{"id": "indent", "text": "Tabs or spaces?", "header": "Indent", "multi": False,
+                          "options": [{"label": "Tabs", "description": ""}], "other": True}]}
+
+    def test_the_feed_carries_the_question_the_thread_waits_on(self):
+        self.follow(waiting=["AskUserQuestion"], ask=self.ASK)
+        reply = chat.answer({"session": THREAD, "limit": 50, "state": True})
+        self.assertEqual(reply.get("state"), {"tasks": [], "agents": [], "ask": self.ASK})
+        self.assertEqual(ctx.codex_sessions()[0]["waitingFor"], "input needed")
+        self.assertNotIn("ask", ctx.codex_sessions()[0], "the words of a question stay out of the snapshot")
+
+    def test_a_thread_that_asks_nothing_has_a_state_without_a_question(self):
+        self.follow(ask={"questions": []})
+        reply = chat.answer({"session": THREAD, "limit": 50, "state": True})
+        self.assertEqual(reply.get("state"), {"tasks": [], "agents": []},
+                         "a question answered leaves the screen only when a state without it comes")
+        self.assertNotIn("state", chat.answer({"session": THREAD, "limit": 50}), "a state not asked for")
+
+
+class Extras(Runtime):
+    def test_the_name_the_goal_and_the_terminals_come_from_the_executor(self):
+        goal = {"objective": "ship it", "status": "active", "tokensUsed": 12, "tokenBudget": None,
+                "timeUsedSeconds": 3, "updatedAt": 1791621270}
+        self.follow(title="login-bug", goal=goal, processes=2)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["title"], row["goal"], row["processes"], row["session"]),
+                         ("login-bug", goal, 2, "codex-0000abcd"))
+        self.follow(processes=0, goal={"objective": "", "status": "active"})
+        row = ctx.codex_sessions()[0]
+        for key in ("title", "goal", "processes"):
+            self.assertNotIn(key, row)
+
+    def test_a_thread_codex_runs_in_a_terminal_of_the_panel_lives_in_tmux(self):
+        self.follow(terminal="shop")
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["transport"], row["tmux"]), ("tmux", "shop"))
+        self.follow()
+        row = ctx.codex_sessions()[0]
+        self.assertEqual(row["transport"], "stream", "a thread the daemon alone holds is reached through the panel")
+        self.assertNotIn("tmux", row)
 
 
 if __name__ == "__main__":

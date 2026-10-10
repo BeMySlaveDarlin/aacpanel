@@ -43,6 +43,16 @@ type Thread struct {
 	Profile  string
 	Sandbox  string
 	Plan     bool
+	// Name is the name of the thread, empty for none.
+	Name string
+	// Updated is the time of the thread's last change, in seconds.
+	Updated int64
+	// Goal is the goal of the thread as thread/goal/get gives it, nil for
+	// none.
+	Goal map[string]any
+	// Processes are the background terminals of the thread, as
+	// thread/backgroundTerminals/list gives them.
+	Processes []map[string]any
 }
 
 // Model is a model of the catalogue the daemon lists.
@@ -74,6 +84,9 @@ type Answer struct {
 type turn struct {
 	id     string
 	status string
+	// inner is the turn a review runs under its root turn: the daemon
+	// interrupts only it.
+	inner string
 }
 
 type thread struct {
@@ -123,6 +136,9 @@ type Server struct {
 	// lag leaves a thread as it was after turn/start: the daemon answers
 	// turn/start before the thread turns active.
 	lag bool
+	// mcp and skills are what mcpServerStatus/list and skills/list answer.
+	mcp    []map[string]any
+	skills []map[string]any
 }
 
 // New starts a daemon in a home of its own. The home is short on purpose: a
@@ -200,6 +216,39 @@ func (s *Server) Lag() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lag = true
+}
+
+// Mcp sets the servers mcpServerStatus/list answers with, in the shape of the
+// protocol.
+func (s *Server) Mcp(servers ...map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mcp = servers
+}
+
+// Skills sets the skills skills/list answers with for any directory.
+func (s *Server) Skills(skills ...map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.skills = skills
+}
+
+// Notify sends a notification to the clients of a thread, as the daemon does.
+func (s *Server) Notify(id, method string, params map[string]any) {
+	s.mu.Lock()
+	subs := clientsOf(s.threads[id])
+	s.mu.Unlock()
+	params["threadId"] = id
+	for _, c := range subs {
+		c.send(map[string]any{"method": method, "params": params})
+	}
+}
+
+// Accept makes the daemon know a method it refused, as a release after it.
+func (s *Server) Accept(method string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.refuse, method)
 }
 
 // Refuse makes the daemon refuse a method as one it does not know.
@@ -340,8 +389,9 @@ func (s *Server) Item(threadID, turnID string, item map[string]any) {
 	t.items[turnID] = append(t.items[turnID], item)
 }
 
-// Ask makes a request for an approval in a thread and sends it to every
-// client of the thread. It returns the id of the request.
+// Ask makes a request that waits for a person in a thread and sends it to
+// every client of the thread: an approval, a grant, a question or what an MCP
+// server asks. It returns the id of the request.
 func (s *Server) Ask(threadID, method string, params map[string]any) int {
 	s.mu.Lock()
 	t := s.threads[threadID]
@@ -350,8 +400,8 @@ func (s *Server) Ask(threadID, method string, params map[string]any) int {
 	a.params["threadId"] = threadID
 	s.approvals = append(s.approvals, a)
 	t.Status = "active"
-	if !slices.Contains(t.Flags, "waitingOnApproval") {
-		t.Flags = append(t.Flags, "waitingOnApproval")
+	if flag := flagOf(method); !slices.Contains(t.Flags, flag) {
+		t.Flags = append(t.Flags, flag)
 	}
 	subs := clientsOf(t)
 	s.mu.Unlock()
@@ -381,10 +431,21 @@ func (s *Server) resolve(id int) ([]*client, string) {
 	a := s.approvals[i]
 	s.approvals = slices.Delete(s.approvals, i, i+1)
 	t := s.threads[a.thread]
-	if !slices.ContainsFunc(s.approvals, func(o *approval) bool { return o.thread == a.thread }) {
-		t.Flags = slices.DeleteFunc(t.Flags, func(f string) bool { return f == "waitingOnApproval" })
+	flag := flagOf(a.method)
+	if !slices.ContainsFunc(s.approvals, func(o *approval) bool { return o.thread == a.thread && flagOf(o.method) == flag }) {
+		t.Flags = slices.DeleteFunc(t.Flags, func(f string) bool { return f == flag })
 	}
 	return clientsOf(t), a.thread
+}
+
+// flagOf is the flag a thread shows while a request of the method waits: a
+// question of plan mode waits on the person's input, anything else on an
+// approval.
+func flagOf(method string) string {
+	if method == "item/tool/requestUserInput" {
+		return "waitingOnUserInput"
+	}
+	return "waitingOnApproval"
 }
 
 // Calls returns the params of the requests clients made with the method.
@@ -570,6 +631,21 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 	if method == "thread/start" {
 		return s.start(c, raw), nil, ""
 	}
+	if method == "skills/list" {
+		var q struct {
+			CWDs []string `json:"cwds"`
+		}
+		_ = json.Unmarshal(raw, &q)
+		data := []any{}
+		for _, cwd := range q.CWDs {
+			skills := []any{}
+			for _, sk := range s.skills {
+				skills = append(skills, sk)
+			}
+			data = append(data, map[string]any{"cwd": cwd, "skills": skills, "errors": []any{}})
+		}
+		return map[string]any{"data": data}, nil, ""
+	}
 	t := s.threads[p.ThreadID]
 	if t == nil {
 		return nil, nil, "thread not found: " + p.ThreadID
@@ -596,7 +672,96 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		delete(t.subs, c)
 		return map[string]any{"status": "unsubscribed"}, nil, ""
 	case "thread/name/set":
+		var q struct {
+			Name string `json:"name"`
+		}
+		_ = json.Unmarshal(raw, &q)
+		t.Name = q.Name
+		note := map[string]any{"method": "thread/name/updated", "params": map[string]any{"threadId": t.ID,
+			"threadName": q.Name}, "to": clientsOf(t)}
+		return map[string]any{}, []map[string]any{note}, ""
+	case "thread/goal/get":
+		if t.Goal == nil {
+			return map[string]any{"goal": nil}, nil, ""
+		}
+		return map[string]any{"goal": t.Goal}, nil, ""
+	case "thread/goal/set":
+		var q struct {
+			Objective *string `json:"objective"`
+			Status    *string `json:"status"`
+			Budget    *int64  `json:"tokenBudget"`
+		}
+		_ = json.Unmarshal(raw, &q)
+		if t.Goal == nil {
+			if q.Objective == nil {
+				return nil, nil, "thread has no goal to update"
+			}
+			t.Goal = map[string]any{"threadId": t.ID, "objective": "", "status": "active", "tokenBudget": nil,
+				"tokensUsed": 0, "timeUsedSeconds": 0, "createdAt": 1791554348, "updatedAt": 1791554348}
+		}
+		if q.Objective != nil {
+			t.Goal["objective"] = *q.Objective
+		}
+		if q.Status != nil {
+			t.Goal["status"] = *q.Status
+		}
+		if q.Budget != nil {
+			t.Goal["tokenBudget"] = *q.Budget
+		}
+		t.Goal["updatedAt"] = time.Now().Unix()
+		note := map[string]any{"method": "thread/goal/updated", "params": map[string]any{"threadId": t.ID,
+			"turnId": nil, "goal": t.Goal}, "to": clientsOf(t)}
+		return map[string]any{"goal": t.Goal}, []map[string]any{note}, ""
+	case "thread/goal/clear":
+		had := t.Goal != nil
+		t.Goal = nil
+		note := map[string]any{"method": "thread/goal/cleared", "params": map[string]any{"threadId": t.ID},
+			"to": clientsOf(t)}
+		return map[string]any{"cleared": had}, []map[string]any{note}, ""
+	case "thread/compact/start":
+		// A compaction is a turn of its own, even on a thread with nothing
+		// to compact.
+		s.turnN++
+		t.turns = append(t.turns, turn{id: fmt.Sprintf("turn-%d", s.turnN), status: "inProgress"})
+		t.Status = "active"
+		note := t.statusChanged()
+		note["to"] = clientsOf(t)
+		return map[string]any{}, []map[string]any{note}, ""
+	case "review/start":
+		// A review answers with its root turn and runs an inner one under
+		// another id, the one turn/interrupt takes.
+		t.subs[c] = true
+		s.turnN++
+		id := fmt.Sprintf("turn-%d", s.turnN)
+		t.turns = append(t.turns, turn{id: id, status: "inProgress", inner: id + "-review"})
+		t.Status = "active"
+		note := t.statusChanged()
+		note["to"] = clientsOf(t)
+		return map[string]any{"turn": map[string]any{"id": id, "items": []any{}, "status": "inProgress"},
+			"reviewThreadId": t.ID}, []map[string]any{note}, ""
+	case "thread/backgroundTerminals/list":
+		data := []any{}
+		for _, p := range t.Processes {
+			data = append(data, p)
+		}
+		return map[string]any{"data": data, "nextCursor": nil}, nil, ""
+	case "thread/backgroundTerminals/terminate":
+		var q struct {
+			ID string `json:"processId"`
+		}
+		_ = json.Unmarshal(raw, &q)
+		n := len(t.Processes)
+		t.Processes = slices.DeleteFunc(t.Processes, func(p map[string]any) bool { return p["processId"] == q.ID })
+		return map[string]any{"terminated": len(t.Processes) < n}, nil, ""
+	case "thread/backgroundTerminals/clean":
+		t.Processes = nil
 		return map[string]any{}, nil, ""
+	case "mcpServerStatus/list":
+		data := []any{}
+		for _, m := range s.mcp {
+			data = append(data, m)
+		}
+		return map[string]any{"data": data, "nextCursor": nil}, nil, ""
 	case "turn/start":
 		var q struct {
 			Model  string `json:"model"`
@@ -635,7 +800,10 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		return map[string]any{"turnId": last.id}, nil, ""
 	case "turn/interrupt":
 		last := t.last()
-		if last == nil || last.id != p.TurnID {
+		if last != nil && last.inner != "" && last.inner != p.TurnID {
+			return nil, nil, "expected active turn id " + p.TurnID + " but found " + last.inner
+		}
+		if last == nil || (last.id != p.TurnID && last.inner != p.TurnID) {
 			return nil, nil, "no such turn"
 		}
 		last.status = "interrupted"
@@ -846,8 +1014,8 @@ func (t *thread) last() *turn {
 	return &t.turns[len(t.turns)-1]
 }
 
-// json is the thread as thread/read gives it, with the fields a client must
-// not keep: the preview of the thread is its first message.
+// json is the thread as thread/read gives it, with a field a client must not
+// keep: the preview of the thread is its first message.
 func (t *thread) json() map[string]any {
 	status := map[string]any{"type": t.Status}
 	if t.Status == "active" {
@@ -855,9 +1023,9 @@ func (t *thread) json() map[string]any {
 	}
 	return map[string]any{
 		"id": t.ID, "sessionId": t.ID, "parentThreadId": nullable(t.Parent),
-		"preview": "the first words of the conversation", "name": "a title made of the conversation",
+		"preview": "the first words of the conversation", "name": nullable(t.Name),
 		"ephemeral": false, "modelProvider": "openai", "model": nullable(t.Model),
-		"reasoningEffort": nullable(t.Effort), "createdAt": t.Created, "updatedAt": t.Created,
+		"reasoningEffort": nullable(t.Effort), "createdAt": t.Created, "updatedAt": max(t.Created, t.Updated),
 		"status": status, "path": nullable(t.Path), "cwd": t.CWD, "cliVersion": "0.162.0",
 		"source": "vscode", "turns": []any{},
 	}

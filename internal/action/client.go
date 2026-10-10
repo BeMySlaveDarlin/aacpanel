@@ -93,10 +93,11 @@ func (c *Client) Terms(ctx context.Context) ([]Term, error) {
 	return resp.Terms, nil
 }
 
-// CodexModels asks for the models codex offers. The list crosses the socket
-// with omitempty, so an empty catalogue arrives as nil.
-func (c *Client) CodexModels(ctx context.Context) ([]CodexModel, error) {
-	resp, err := c.Do(ctx, Request{Ask: AskCodexModels})
+// CodexModels asks for the models codex offers, through the daemon of the
+// contour when one is named. The list crosses the socket with omitempty, so an
+// empty catalogue arrives as nil.
+func (c *Client) CodexModels(ctx context.Context, contour string) ([]CodexModel, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskCodexModels, Contour: contour})
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +105,19 @@ func (c *Client) CodexModels(ctx context.Context) ([]CodexModel, error) {
 		return nil, fmt.Errorf("%s", resp.Error)
 	}
 	return resp.CodexModels, nil
+}
+
+// Processes asks a codex session for the background terminals its turns left
+// running. The list crosses the socket with omitempty, so none arrives as nil.
+func (c *Client) Processes(ctx context.Context, target string) ([]Process, error) {
+	resp, err := c.Do(ctx, Request{Ask: AskProcesses, Target: target})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Processes, nil
 }
 
 // Secrets asks for the secrets the host keeps.

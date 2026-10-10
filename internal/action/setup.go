@@ -20,8 +20,12 @@ var SetupParts = map[string]bool{
 // shows it. A session on the stream answers claude's own requests for the rows
 // of those screens; a terminal draws them itself on screens driven by keys,
 // and the answer only says where it lives. Only the part asked for is filled.
+//
+// A codex session answers only its skills, as codex lists them for its
+// directory, and Agent says so.
 type Setup struct {
 	Transport string        `json:"transport"`
+	Agent     string        `json:"agent,omitempty"`
 	Hooks     *Hooks        `json:"hooks,omitempty"`
 	Memory    *Memory       `json:"memory,omitempty"`
 	Skills    []Skill       `json:"skills,omitempty"`

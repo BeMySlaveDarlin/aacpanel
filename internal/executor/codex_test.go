@@ -35,7 +35,7 @@ func onCodex(t *testing.T, setup func(*codextest.Server)) (*codextest.Server, *E
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	e := New(nil, "")
-	e.codex = codex.Start(ctx, []registry.CodexHome{{Dir: srv.Home, Contour: "acme"}})
+	e.codex = codex.Start(ctx, []registry.CodexHome{{Dir: srv.Home, Contour: "acme"}}, nil)
 	t.Cleanup(func() {
 		cancel()
 		e.codex.Wait()
@@ -211,7 +211,8 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	ctx := context.Background()
 	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionStop: true, action.SessionEscape: true,
 		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
-		action.SessionFile: true}
+		action.SessionFile: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
+		action.SessionRename: true, action.TaskStop: true}
 	for _, k := range action.Kinds {
 		if !sessionTarget(k) || taken[k] {
 			continue
@@ -224,8 +225,6 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 
 	asks := map[string]func() error{
 		"window":   func() error { _, err := e.Window(ctx, codexName); return err },
-		"models":   func() error { _, err := e.Models(ctx, codexName); return err },
-		"mcp":      func() error { _, err := e.Mcp(ctx, codexName); return err },
 		"status":   func() error { _, err := e.Status(ctx, codexName); return err },
 		"commands": func() error { _, err := e.Commands(ctx, codexName); return err },
 		"side":     func() error { _, err := e.Side(ctx, codexName, "why?", nil); return err },
@@ -263,7 +262,7 @@ func TestCodexModelsAreTheDaemonsCatalogue(t *testing.T) {
 			codextest.Model{ID: "gpt-5.5-mini", Model: "gpt-5.5-mini", Name: "GPT-5.5 mini", Efforts: []string{"medium"}, Default: "medium"},
 		)
 	})
-	got, err := e.CodexModels(context.Background())
+	got, err := e.CodexModels(context.Background(), "")
 	if err != nil {
 		t.Fatal(err)
 	}

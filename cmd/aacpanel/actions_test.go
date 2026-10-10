@@ -1312,3 +1312,139 @@ func TestCodexModelsComeFromTheExecutor(t *testing.T) {
 		t.Errorf("a failure reads %s", got)
 	}
 }
+
+// The models of a contour are asked of the daemon of that contour.
+func TestCodexModelsOfAContour(t *testing.T) {
+	client, exec := startFakeExec(t, action.Response{OK: true})
+	srv := &Server{exec: client}
+	rec := httptest.NewRecorder()
+	srv.routes(srv.localGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/codex/models?contour=acme", nil))
+	if got := <-exec.got; got.Ask != action.AskCodexModels || got.Contour != "acme" || got.Target != "" {
+		t.Errorf("the executor was asked %+v", got)
+	}
+}
+
+// A review and a goal of codex reach the executor whole; the journal keeps
+// what they look at and do, and of the person's words only their length.
+func TestRunActionCarriesTheCommandsOfCodex(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	for _, c := range []struct {
+		body  string
+		check func(*action.Command) bool
+	}{
+		{`{"command":"review","review":{"target":"custom","instructions":"look at the locks"}}`,
+			func(c *action.Command) bool {
+				return c.Review != nil && c.Review.Target == "custom" && c.Review.Instructions == "look at the locks"
+			}},
+		{`{"command":"review","review":{"target":"commit","commit":"abc1234","title":"fix"}}`,
+			func(c *action.Command) bool {
+				return c.Review != nil && c.Review.Commit == "abc1234" && c.Review.Title == "fix"
+			}},
+		{`{"command":"goal","goal":{"do":"set","objective":"ship the fix","budget":5000}}`,
+			func(c *action.Command) bool {
+				return c.Goal != nil && c.Goal.Do == "set" && c.Goal.Objective == "ship the fix" && c.Goal.Budget == 5000
+			}},
+		{`{"command":"stop"}`, func(c *action.Command) bool { return c.Name == "stop" && c.Review == nil && c.Goal == nil }},
+	} {
+		w := post(t, srv, `{"kind":"session.command","target":"codex-0000abcd","params":`+c.body+`}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: status %d, %s", c.body, w.Code, w.Body.String())
+		}
+		select {
+		case got := <-fake.got:
+			if got.Command == nil || !c.check(got.Command) {
+				t.Errorf("%s reached the executor as %+v", c.body, got.Command)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("the executor did not get the request")
+		}
+	}
+	for _, body := range []string{
+		`{"command":"review","review":"uncommitted"}`,
+		`{"command":"goal","goal":{"do":"set","objective":"x","budget":1.5}}`,
+		`{"command":"review","review":{"target":"branch","branch":"--force"}}`,
+	} {
+		if w := post(t, srv, `{"kind":"session.command","target":"codex-0000abcd","params":`+body+`}`); w.Code != http.StatusBadRequest {
+			t.Errorf("%s passed with %d", body, w.Code)
+		}
+	}
+}
+
+// The background terminals of a codex session are the executor's answer, and
+// none is an empty list.
+func TestSessionProcessesPassesTheListOn(t *testing.T) {
+	pid := int64(4242)
+	client, fake := startFakeExec(t, action.Response{OK: true, Processes: []action.Process{
+		{ID: "71", Command: "sleep 300", CWD: "/srv/proj", PID: &pid}}})
+	srv := &Server{exec: client}
+	rec := httptest.NewRecorder()
+	srv.routes(srv.localGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/session/processes?name=codex-0000abcd", nil))
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"processes":[{"id":"71","command":"sleep 300","cwd":"/srv/proj","pid":4242}],"state":"ok"}` {
+		t.Errorf("the processes are %s", got)
+	}
+	if got := <-fake.got; got.Ask != action.AskProcesses || got.Target != "codex-0000abcd" {
+		t.Errorf("the executor was asked %+v", got)
+	}
+	client, _ = startFakeExec(t, action.Response{OK: true})
+	srv = &Server{exec: client}
+	rec = httptest.NewRecorder()
+	srv.routes(srv.localGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/session/processes?name=codex-0000abcd", nil))
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"processes":[],"state":"ok"}` {
+		t.Errorf("no processes are %s — the screen reads a list", got)
+	}
+}
+
+// The journal keeps what a review looks at and what a goal does, and of the
+// person's words only their length.
+func TestTheJournalKeepsNoWordsOfACodexCommandPG(t *testing.T) {
+	dsn := testdb.DSN(t)
+	db, err := store.New(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	client, _ := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client, db: db}
+	for _, body := range []string{
+		`{"command":"review","review":{"target":"custom","instructions":"look at the locks"}}`,
+		`{"command":"review","review":{"target":"commit","commit":"abc1234"}}`,
+		`{"command":"goal","goal":{"do":"set","objective":"ship the fix","budget":5000}}`,
+	} {
+		if w := post(t, srv, `{"kind":"session.command","target":"codex-0000abcd","params":`+body+`}`); w.Code != http.StatusOK {
+			t.Fatalf("%s: status %d, %s", body, w.Code, w.Body.String())
+		}
+	}
+	list, err := db.Actions(t.Context(), store.ActionsReq{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	logged, _ := json.Marshal(list)
+	for _, words := range []string{"look at the locks", "ship the fix"} {
+		if strings.Contains(string(logged), words) {
+			t.Errorf("the journal keeps the words %q: %s", words, logged)
+		}
+	}
+	for _, kept := range []string{`"chars":17`, `"commit":"abc1234"`, `"budget":5000`, `"do":"set"`} {
+		if !strings.Contains(string(logged), kept) {
+			t.Errorf("the journal lost %s: %s", kept, logged)
+		}
+	}
+}
+
+// The MCP servers and the skills of a codex session say they are codex's.
+func TestTheAnswersOfACodexSessionSayTheyAreCodexs(t *testing.T) {
+	client, _ := startFakeExec(t, action.Response{OK: true, Mcp: &action.Mcp{Transport: "stream", Agent: "codex"},
+		Setup: &action.Setup{Transport: "stream", Agent: "codex", Skills: []action.Skill{{Name: "pdf", State: "on"}}}})
+	srv := &Server{exec: client}
+	for _, path := range []string{"/api/session/mcp?name=codex-0000abcd", "/api/session/setup?name=codex-0000abcd&part=skills"} {
+		rec := httptest.NewRecorder()
+		srv.routes(srv.localGate()).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if !strings.Contains(rec.Body.String(), `"agent":"codex"`) {
+			t.Errorf("%s answers %s", path, rec.Body.String())
+		}
+	}
+}

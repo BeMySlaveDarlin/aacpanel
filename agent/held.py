@@ -69,6 +69,22 @@ def codex_threads():
     return out
 
 
+def codex_ask(sid):
+    """Returns the question or the form a codex thread waits on, as the executor keeps it, or None.
+
+    The executor writes it into the state file of the thread in the shape the
+    panel keeps a question of claude's in: the questions with their options,
+    and the id an answer names.
+    """
+    data = summary(sid)
+    if not isinstance(data, dict) or data.get("agent") != "codex":
+        return None
+    ask = data.get("ask")
+    if not isinstance(ask, dict) or not isinstance(ask.get("questions"), list) or not ask["questions"]:
+        return None
+    return ask
+
+
 def codex_limits():
     """Returns the rate limits of the codex accounts, by contour, as live executors last heard them.
 

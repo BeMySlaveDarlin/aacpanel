@@ -743,3 +743,82 @@ func TestRemoteSaysOnOrOff(t *testing.T) {
 		})
 	}
 }
+
+// A command of codex says what it does in a field of its own, and the check
+// holds each field to its command and to the shape codex takes.
+func TestTheCommandsOfCodexCarryTheirOwnFields(t *testing.T) {
+	cmd := func(c Command) Request {
+		return Request{ID: "a1", Kind: SessionCommand, Target: "codex-0000abcd", Command: &c}
+	}
+	good := map[string]Command{
+		"compact":            {Name: "compact"},
+		"stop":               {Name: "stop"},
+		"uncommitted":        {Name: "review", Review: &Review{Target: ReviewUncommitted}},
+		"a branch":           {Name: "review", Review: &Review{Target: ReviewBranch, Branch: "origin/main"}},
+		"a commit":           {Name: "review", Review: &Review{Target: ReviewCommit, Commit: "abc1234", Title: "fix it"}},
+		"words":              {Name: "review", Review: &Review{Target: ReviewCustom, Instructions: "look at the locks"}},
+		"a goal":             {Name: "goal", Goal: &Goal{Do: GoalSet, Objective: "ship it", Budget: 50_000}},
+		"a goal, no budget":  {Name: "goal", Goal: &Goal{Do: GoalSet, Objective: "ship it"}},
+		"a pause":            {Name: "goal", Goal: &Goal{Do: GoalPause}},
+		"a resume":           {Name: "goal", Goal: &Goal{Do: GoalResume}},
+		"a clear":            {Name: "goal", Goal: &Goal{Do: GoalClear}},
+		"claude's own model": {Name: "model", Arg: "opus"},
+	}
+	for name, c := range good {
+		if err := cmd(c).Validate(); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	bad := map[string]Command{
+		"a review that says nothing":      {Name: "review"},
+		"a review of nothing known":       {Name: "review", Review: &Review{Target: "everything"}},
+		"a branch with no name":           {Name: "review", Review: &Review{Target: ReviewBranch}},
+		"a branch that is a flag":         {Name: "review", Review: &Review{Target: ReviewBranch, Branch: "--force"}},
+		"a branch out of the path":        {Name: "review", Review: &Review{Target: ReviewBranch, Branch: "a/../b"}},
+		"a commit that is no hash":        {Name: "review", Review: &Review{Target: ReviewCommit, Commit: "HEAD~1"}},
+		"a title on two lines":            {Name: "review", Review: &Review{Target: ReviewCommit, Commit: "abc1234", Title: "a\nb"}},
+		"words with nothing in them":      {Name: "review", Review: &Review{Target: ReviewCustom, Instructions: "  "}},
+		"a branch beside the uncommitted": {Name: "review", Review: &Review{Target: ReviewUncommitted, Branch: "main"}},
+		"a goal with no objective":        {Name: "goal", Goal: &Goal{Do: GoalSet}},
+		"a goal with a debt":              {Name: "goal", Goal: &Goal{Do: GoalSet, Objective: "x", Budget: -1}},
+		"a pause with an objective":       {Name: "goal", Goal: &Goal{Do: GoalPause, Objective: "x"}},
+		"a goal that does nothing known":  {Name: "goal", Goal: &Goal{Do: "finish"}},
+		"a goal that says nothing":        {Name: "goal"},
+		"a review beside compact":         {Name: "compact", Review: &Review{Target: ReviewUncommitted}},
+		"a goal beside stop":              {Name: "stop", Goal: &Goal{Do: GoalClear}},
+		"stop with a word":                {Name: "stop", Arg: "all"},
+		"a command nobody has":            {Name: "ps"},
+	}
+	for name, c := range bad {
+		if err := cmd(c).Validate(); err == nil {
+			t.Errorf("%s went", name)
+		}
+	}
+}
+
+// A codex thread is named with any printable words on one line; a claude
+// session with a key.
+func TestTheNameOfACodexThreadIsWords(t *testing.T) {
+	rename := func(target, name string) Request {
+		return Request{ID: "a1", Kind: SessionRename, Target: target, Rename: name}
+	}
+	for _, name := range []string{"Σφάλμα σύνδεσης — δεύτερη φορά", "login bug (take 2)"} {
+		if err := rename("codex-0000abcd", name).Validate(); err != nil {
+			t.Errorf("%q for a codex thread: %v", name, err)
+		}
+		if err := rename("aacpanel", name).Validate(); err == nil {
+			t.Errorf("%q went for a claude session", name)
+		}
+	}
+	for _, name := range []string{"   ", "two\nlines", "a\tb", strings.Repeat("ω", 121), "x\u0085y"} {
+		if err := rename("codex-0000abcd", name).Validate(); err == nil {
+			t.Errorf("%q went for a codex thread", name)
+		}
+	}
+	for name, codex := range map[string]bool{"codex-0000abcd": true, "codex-0000ABCD": false, "codex-000abcd": false,
+		"xcodex-0000abcd": false} {
+		if CodexName(name) != codex {
+			t.Errorf("%s is a codex name: %v", name, !codex)
+		}
+	}
+}

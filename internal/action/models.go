@@ -72,8 +72,13 @@ const Ultracode = "ultracode"
 // Models is what a session can be switched to. A session on the stream
 // lists its models as claude does, with the efforts each takes; a terminal
 // lists nothing, and the panel falls back on the catalogue of the account.
+//
+// A codex session lists the catalogue of the daemon of its contour, and Agent
+// says so: its models are codex's, picked with session.set, and its mode is
+// one of CodexModes.
 type Models struct {
 	Transport string  `json:"transport"`
+	Agent     string  `json:"agent,omitempty"`
 	List      []Model `json:"list,omitempty"`
 	Mode      string  `json:"mode,omitempty"`
 	Effort    string  `json:"effort,omitempty"`
@@ -88,6 +93,8 @@ type Model struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description,omitempty"`
 	Efforts     []string `json:"efforts,omitempty"`
+	// Effort is the effort a codex model starts at.
+	Effort string `json:"effort,omitempty"`
 }
 
 // ModelName says whether /model may take this: an alias of the list, or a

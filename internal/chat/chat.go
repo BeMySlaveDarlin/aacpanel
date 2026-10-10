@@ -71,6 +71,16 @@ type Item struct {
 	// succeeded exits with 0, which is not an absent code.
 	Code    *int   `json:"code,omitempty"`
 	Command string `json:"command,omitempty"`
+	// The end of a review of codex: its verdict, how sure codex is of it, and
+	// the findings.
+	Verdict    string    `json:"verdict,omitempty"`
+	Confidence *float64  `json:"confidence,omitempty"`
+	Findings   []Finding `json:"findings,omitempty"`
+	// A goal of codex: the tokens it has spent, its budget, none for none,
+	// and the seconds it has taken.
+	TokensUsed      int64  `json:"tokensUsed,omitempty"`
+	TokenBudget     *int64 `json:"tokenBudget,omitempty"`
+	TimeUsedSeconds int64  `json:"timeUsedSeconds,omitempty"`
 	// The answer of a slash command, read into numbers by the collector. The
 	// panel carries it to the screen and never looks inside.
 	Data json.RawMessage `json:"data,omitempty"`
@@ -94,11 +104,25 @@ type FileRef struct {
 	Outside bool `json:"outside,omitempty"`
 }
 
-// Asked is one question of a round together with the answer given.
+// Asked is one question of a round together with the answer given, and the
+// note a person added beside a pick.
 type Asked struct {
 	Text   string   `json:"text"`
 	Header string   `json:"header,omitempty"`
 	Answer []string `json:"answer,omitempty"`
+	Note   string   `json:"note,omitempty"`
+}
+
+// Finding is one finding of a review of codex: what is wrong, why, how much
+// it matters (0 the most) and how sure codex is, and where in the code — the
+// file and its first and last line.
+type Finding struct {
+	Title      string   `json:"title"`
+	Body       string   `json:"body,omitempty"`
+	Priority   *int     `json:"priority,omitempty"`
+	Confidence *float64 `json:"confidence,omitempty"`
+	Path       string   `json:"path,omitempty"`
+	Lines      []int    `json:"lines,omitempty"`
 }
 
 // Permitted is one call of a card of permissions: what it was about and what
@@ -290,14 +314,25 @@ type Ask struct {
 	CWD       string        `json:"cwd,omitempty"`
 	At        string        `json:"at,omitempty"`
 	Questions []AskQuestion `json:"questions"`
+	// Server and Message are what an MCP server asks through codex: its name
+	// and its words above the fields of its form.
+	Server  string `json:"server,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
-// AskQuestion is one question of a round.
+// AskQuestion is one question of a round. A question of codex is answered by
+// its ID, and says whether it takes words of the person's own (Other), whether
+// they are not shown as they are typed (Secret), and whether a form goes
+// without it (Required); absent is false.
 type AskQuestion struct {
-	Text    string      `json:"text"`
-	Header  string      `json:"header,omitempty"`
-	Multi   bool        `json:"multi"`
-	Options []AskOption `json:"options"`
+	ID       string      `json:"id,omitempty"`
+	Text     string      `json:"text"`
+	Header   string      `json:"header,omitempty"`
+	Multi    bool        `json:"multi"`
+	Options  []AskOption `json:"options"`
+	Other    bool        `json:"other,omitempty"`
+	Secret   bool        `json:"secret,omitempty"`
+	Required bool        `json:"required,omitempty"`
 }
 
 // AskOption is one answer option.

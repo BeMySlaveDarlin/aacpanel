@@ -27,8 +27,11 @@ func (e *Executor) Setup(ctx context.Context, target, part string) (*action.Setu
 	if !action.SetupParts[part] {
 		return nil, fmt.Errorf("there is no screen %q of what a session is set up with", part)
 	}
-	if err := e.notCodex(target); err != nil {
-		return nil, err
+	if th, err := e.codexSession(target); err != nil || th != nil {
+		if err != nil {
+			return nil, err
+		}
+		return codexSetup(ctx, *th, part)
 	}
 	s, err := findOneLiveSession(target)
 	if err != nil {

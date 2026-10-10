@@ -332,14 +332,37 @@ def _fill(data, sid, contour):
     return found
 
 
+def _goal(raw):
+    """Returns the goal of a thread as a row carries it, or None.
+
+    What codex works towards across turns: the objective, how it stands —
+    active, paused, blocked, usageLimited, budgetLimited or complete — the
+    tokens spent, the budget (None for none) and the seconds it has taken.
+    """
+    if not isinstance(raw, dict):
+        return None
+    objective, status = raw.get("objective"), raw.get("status")
+    if not isinstance(objective, str) or not objective or not isinstance(status, str) or not status:
+        return None
+
+    def count(value):
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+    return {"objective": objective, "status": status, "tokensUsed": count(raw.get("tokensUsed")) or 0,
+            "tokenBudget": count(raw.get("tokenBudget")),
+            "timeUsedSeconds": count(raw.get("timeUsedSeconds")) or 0,
+            "updatedAt": count(raw.get("updatedAt"))}
+
+
 def codex_row(data):
     """Returns the row of a codex thread a live executor follows.
 
     The executor knows what the thread is doing — busy, what waits for a
     person, the model, the effort, the mode and the plan where the daemon
-    told them, the messages that wait in the panel's queue, and how full the
-    context is as the daemon last said it; the rollout says the fill when the
-    executor heard nothing newer, as a claude row reads its transcript.
+    told them, the name and the goal of the thread, how many background
+    terminals run, the messages that wait in the panel's queue, and how full
+    the context is as the daemon last said it; the rollout says the fill when
+    the executor heard nothing newer, as a claude row reads its transcript.
     """
     sid = data["sessionId"]
     name = data.get("name") if isinstance(data.get("name"), str) and data["name"] else f"codex-{sid[-8:]}"
@@ -356,10 +379,28 @@ def codex_row(data):
     }
     if not found["at"]:
         row["noRequests"] = True
+    # A thread codex runs in a tmux session the panel started lives in that
+    # terminal, as a claude session in tmux does; one the daemon alone holds is
+    # reached the way a session on the stream is, through the panel.
+    terminal = data.get("terminal")
+    if isinstance(terminal, str) and terminal:
+        row["transport"], row["tmux"] = "tmux", terminal
     if isinstance(data.get("mode"), str) and data["mode"]:
         row["mode"] = data["mode"]
     if isinstance(data.get("plan"), bool):
         row["plan"] = data["plan"]
+    # The name of the thread, given in the panel or in codex: the session
+    # keeps the name the panel addresses it by, and the screen shows this
+    # beside it.
+    if isinstance(data.get("title"), str) and data["title"]:
+        row["title"] = data["title"]
+    goal = _goal(data.get("goal"))
+    if goal:
+        row["goal"] = goal
+    # Background terminals a turn left running, as the executor last read them.
+    processes = data.get("processes")
+    if isinstance(processes, int) and not isinstance(processes, bool) and processes > 0:
+        row["processes"] = processes
     # Messages that wait in the panel's queue, counted as a claude row counts
     # the queue of its holder.
     queued = data.get("queue")

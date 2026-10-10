@@ -11,6 +11,11 @@ func (e *Executor) sessionCommand(ctx context.Context, target string, cmd *actio
 	if cmd == nil || cmd.Name == "" {
 		return "", fmt.Errorf("no command arrived: there is nothing to send")
 	}
+	// A command of codex's alone is refused before it reaches claude, which
+	// may have a command of the same name that does something else.
+	if _, claude := action.Commands[cmd.Name]; !claude {
+		return "", fmt.Errorf("/%s is a command of codex's: %s is a claude session", cmd.Name, target)
+	}
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return "", err

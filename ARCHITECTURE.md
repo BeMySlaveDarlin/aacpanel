@@ -639,12 +639,30 @@ appears or the connection drops — at once when an action waits for it.
   the holders' directory: the claude holder's summary plus `agent: "codex"`,
   the directory, the contour, the home and the rollout. A thread that is
   unloaded loses its file; a subagent's thread is part of its parent's turn and
-  gets none. The panel names a thread by the tail of its id, `codex-<8 hex>`.
+  gets none, and so does the thread a review runs in. The panel names a thread
+  by the tail of its id, `codex-<8 hex>`, and keeps that name whatever the
+  thread is called: actions find the session by it. The name of the thread —
+  given in the panel or in codex, which names none by itself — is shown beside
+  it.
+- **What `thread/read` does not say is read beside it**: the goal of the
+  thread and how many background terminals run. Both are asked when the thread
+  runs, has changed since the last read or has terminals running, and every
+  thirty seconds otherwise; the daemon also tells the goal to the clients of the
+  thread. The terminals are an experimental part of the protocol: a daemon that
+  does not know them is not asked again on that connection, and the row says
+  nothing of them; a new connection asks again, for the daemon may have updated
+  itself.
+- **A thread codex runs in a terminal of the panel lives in tmux.** The executor
+  reads the panes of the user's tmux at every poll and finds the one the
+  launcher started codex in on the thread by the command tmux keeps for it, the
+  way a close finds it; the row of such a thread says `tmux` and names the tmux
+  session, and a thread the daemon alone holds says `stream`, since it is
+  reached through the panel as a session on the stream is.
 - **A subscription lasts only while it is needed.** The daemon unloads a thread
   a while after its last client leaves, and a panel subscribed for good would
   keep every thread it ever saw loaded. So the executor subscribes while the
-  thread waits on an approval — the daemon sends the waiting request again to a
-  new client — while a turn the panel started runs, or while messages of the
+  thread waits on an approval or a question — the daemon sends the waiting
+  request again to a new client — while a turn the panel started runs, or while messages of the
   panel's queue wait for it, and leaves once the thread is free and nothing
   waits. A thread the panel started in the daemon is
   the exception: the panel is its only client and holds it until it closes it.
@@ -652,17 +670,40 @@ appears or the connection drops — at once when an action waits for it.
   again joins it before the daemon lets it go; the mark of a thread the daemon
   no longer has is dropped.
 - **The executor stays blind to the conversation.** The notifications that
-  carry it are turned off at the handshake, the state file holds no text — not
-  the preview of the thread, not its name — and the only words it keeps are
-  those a person decides on: the command of an approval, the change to files,
-  which the request names and the item of the turn holds, and the messages
-  that wait in the panel's queue. It reads the notifications that carry none:
-  the status of a thread, its settings, how full its context is and the
-  limits of the account.
+  carry it are turned off at the handshake, the state file holds no text of it
+  — not the preview of the thread — and the only words it keeps are those a
+  person decides on or gives: the command of an approval, the change to files,
+  which the request names and the item of the turn holds, the question or the
+  form a thread waits on, the name and the goal of a thread, and the messages
+  that wait in the panel's queue. It reads the notifications that carry no
+  more: the status of a thread, its settings, its name and goal, how full its
+  context is and the limits of the account.
 - **An approval is answered with the daemon's own decisions.** The options are
   the decisions the request offers, in its order, and the pick goes back as it
   came; the first answer of any client wins, and the others are told the
-  request is gone.
+  request is gone — an answer in codex's own terminal closes the request on the
+  phone.
+- **Codex waits for a person on three more requests, and each is answered the
+  way the screen already answers claude.** A grant of permissions the sandbox
+  does not give is the permission sheet: for the turn, for the session, or
+  none, the grant sending back what the request asked for. A question of plan
+  mode is a question of claude's: the executor keeps it in the state file of
+  the thread in the shape the collector keeps claude's, named by the item of
+  the call that asks it — the id the rollout names the call by, so the card of
+  the answered question closes it — and the feed offers it with the state of
+  the conversation, which goes with every answer, a question or none, for a
+  question answered leaves the screen only when a state without it comes.
+  `session.answer` sends the labels picked,
+  the person's own words, and a note beside a pick as codex's own clients mark
+  one; putting it away answers every question with the note that the person
+  will answer in the conversation. What an MCP server asks through codex is a
+  question a field when it is a form — the answer is a value of the kind each
+  field is of, a required field left empty stops it, and putting it away
+  declines it — and the permission sheet otherwise: a page to open, accepted
+  with no content, a yes or a no, or what the panel can only refuse — a check
+  of the person only codex can make, a form of more fields or values than the
+  sheet of a question shows, for one left out could be required, and a request
+  in a mode the panel does not know. The question of plan mode is an experimental part of the protocol.
 - **New of a project whose agent is codex, or with Codex picked on its sheet,
   starts a thread in the daemon of the project's contour**, the home named
   after the contour; a contour without one is refused with that reason. The
@@ -703,11 +744,26 @@ appears or the connection drops — at once when an action waits for it.
   starts a turn in it. **A restart is refused**: the daemon keeps the thread,
   and no process of the panel's is there to start again.
 - **Only what the protocol does is done.** A message starts a turn on a free
-  thread, a stop interrupts the turn, Esc declines what waits, a file goes
-  where a claude session gets it — a picture into the turn as a file codex
-  reads itself, any other file as its path. Every other action over a codex
-  session is refused by name: none of the claude ways — keys, signals, a
-  holder's socket — reaches it.
+  thread, a stop interrupts the turn — the inner turn of a review, which the
+  daemon names when it refuses the root one — Esc declines what waits, a file
+  goes where a claude session gets it — a picture into the turn as a file codex
+  reads itself, any other file as its path. The commands of codex's own
+  terminal go as `session.command`, each saying what it does in a field of its
+  own rather than in words to parse: `compact`, a turn that summarises the
+  conversation; `review` of the uncommitted changes, of the work against a
+  branch, of one commit or of what the person describes, a turn of its own and
+  so refused while one runs; `goal`, set with its budget, paused, resumed or
+  cleared — an active goal starts a turn at once and the next ones after it, and
+  pausing does not stop the turn that runs; and `stop`, every background
+  terminal of the thread. `session.rename` names the thread — any words on one
+  line, since the name is a title and not the key the session is found by —
+  `task.stop` stops
+  one background terminal by the id codex gives it. The models, the MCP servers
+  and the skills of a codex session are codex's own lists, answered in the
+  shapes of claude's — the models of the daemon of the session's contour, which
+  lists the catalogue of its own release; `/api/codex/models` takes the contour
+  too. Every other action over a codex session is refused by name: none of the
+  claude ways — keys, signals, a holder's socket — reaches it.
 - **A busy thread gets a message in the panel's queue**, not in the turn that
   runs: it goes as a turn of its own once the thread is free — the daemon says
   so to its clients, and the poll finds it besides — one message a turn, in
@@ -745,8 +801,13 @@ appears or the connection drops — at once when an action waits for it.
   to a file of its own under the home's `sessions`, and the collector reads it
   as it reads a claude transcript: the messages, the summaries of reasoning, the
   commands with their output and the changes of files, from the records codex
-  writes once an item is done. The raw records of the model beside them say the
-  same again and are not shown.
+  writes once an item is done; the plan of plan mode, the start of a review and
+  its findings, every goal set or changed and the turns codex starts for it,
+  and each question of plan mode with its answer, drawn as an answered question
+  of claude's. The raw records of the model beside them say the same again and
+  are not shown. A review runs in a thread of its own and codex writes its
+  items into the rollout of the thread that asked for it: the feed shows its
+  work and none of its words, which codex says to itself.
 - **The way back is codex itself.** With the panel down, `codex resume <id>`
   in a terminal joins the same thread on the same daemon, loaded or not,
   whoever else follows it; a model, approvals or a sandbox given as flags are

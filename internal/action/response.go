@@ -40,6 +40,8 @@ type Response struct {
 	Secrets *Secrets `json:"secrets,omitempty"`
 
 	CodexModels []CodexModel `json:"codexModels,omitempty"`
+
+	Processes []Process `json:"processes,omitempty"`
 }
 
 // Failed builds a refusal response.

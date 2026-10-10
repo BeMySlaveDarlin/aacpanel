@@ -482,24 +482,51 @@ func TestAQuestionAsideCrossesTheSocketWithItsHistory(t *testing.T) {
 type codexExec struct{}
 
 func (codexExec) Execute(context.Context, Request) (string, error) { return "", nil }
-func (codexExec) CodexModels(context.Context) ([]CodexModel, error) {
-	return []CodexModel{{Model: "gpt-5.5", Name: "GPT-5.5", Efforts: []string{"low", "high"}, Effort: "low"}}, nil
+func (codexExec) CodexModels(_ context.Context, contour string) ([]CodexModel, error) {
+	return []CodexModel{{Model: "gpt-5.5", Name: "GPT-5.5 of " + contour, Efforts: []string{"low", "high"}, Effort: "low"}}, nil
+}
+func (codexExec) Processes(_ context.Context, target string) ([]Process, error) {
+	pid := int64(4242)
+	return []Process{{ID: "71", Command: "sleep 300 in " + target, CWD: "/srv/proj", PID: &pid}}, nil
 }
 
 // The models of codex are a question of no session: it crosses the socket to
-// an executor that knows them, and one that does not says so.
+// an executor that knows them, with the contour whose daemon to ask, and one
+// that does not know them says so.
 func TestTheModelsOfCodexCrossTheSocket(t *testing.T) {
-	got, err := serve(t, codexExec{}).CodexModels(context.Background())
+	got, err := serve(t, codexExec{}).CodexModels(context.Background(), "acme")
 	if err != nil || len(got) != 1 || got[0].Model != "gpt-5.5" || strings.Join(got[0].Efforts, " ") != "low high" ||
-		got[0].Effort != "low" {
+		got[0].Effort != "low" || got[0].Name != "GPT-5.5 of acme" {
 		t.Errorf("the models came back as %+v (%v)", got, err)
 	}
-	if _, err := serve(t, okExecutor("done")).CodexModels(context.Background()); err == nil ||
+	if _, err := serve(t, okExecutor("done")).CodexModels(context.Background(), ""); err == nil ||
 		!strings.Contains(err.Error(), "models of codex") {
 		t.Errorf("an executor without codex answered %v", err)
 	}
 	if err := (Request{Ask: AskCodexModels, Target: "aacpanel"}).Validate(); err == nil {
 		t.Error("the models of codex were asked of a session")
+	}
+	if err := (Request{Ask: AskCodexModels, Contour: "acme/../x"}).Validate(); err == nil {
+		t.Error("a contour that is no name went")
+	}
+	if err := (Request{Ask: AskModels, Target: "aacpanel", Contour: "acme"}).Validate(); err == nil {
+		t.Error("a contour went with a question that names none")
+	}
+}
+
+// The background terminals of a codex session cross the socket whole.
+func TestTheProcessesOfCodexCrossTheSocket(t *testing.T) {
+	got, err := serve(t, codexExec{}).Processes(context.Background(), "codex-0000abcd")
+	if err != nil || len(got) != 1 || got[0].ID != "71" || got[0].Command != "sleep 300 in codex-0000abcd" ||
+		got[0].PID == nil || *got[0].PID != 4242 || got[0].CPU != nil {
+		t.Errorf("the processes came back as %+v (%v)", got, err)
+	}
+	if _, err := serve(t, okExecutor("done")).Processes(context.Background(), "codex-0000abcd"); err == nil ||
+		!strings.Contains(err.Error(), "background terminals") {
+		t.Errorf("an executor without codex answered %v", err)
+	}
+	if err := (Request{Ask: AskProcesses}).Validate(); err == nil {
+		t.Error("the processes were asked of no session")
 	}
 }
 

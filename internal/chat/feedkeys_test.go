@@ -31,6 +31,8 @@ var notTheFeed = map[string]string{
 	"spots.py":  "the reply of one call opened from the feed",
 	"locate.py": "where the transcripts lie",
 
+	"codex.py:own": "the state a reader of a rollout starts with, the id of its thread",
+
 	"commands.py:usage_from_markdown": "the numbers of an answer, carried whole in Data",
 	"commands.py:usage_from_record":   "the numbers of an answer, carried whole in Data",
 	"commands.py:usage_report":        "the numbers of an answer, carried whole in Data",
@@ -113,7 +115,7 @@ func TestEveryKeyTheFeedCarriesHasAField(t *testing.T) {
 	}
 
 	row := jsonNames(Item{})
-	part := jsonNames(Item{}, ToolCall{}, Shot{}, ThinkSpot{}, FileRef{}, Asked{}, Permitted{})
+	part := jsonNames(Item{}, ToolCall{}, Shot{}, ThinkSpot{}, FileRef{}, Asked{}, Permitted{}, Finding{})
 
 	rows, kept := 0, map[string]bool{}
 	for _, p := range places {

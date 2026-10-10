@@ -238,7 +238,7 @@ const codexPanes = "#{session_name}\t#{pane_start_command}"
 // closeCodexTerminal kills the tmux sessions the launcher started codex in on
 // a thread, each by its exact name.
 func closeCodexTerminal(ctx context.Context, thread string) ([]string, error) {
-	out, err := userTmux.run(ctx, "list-panes", "-a", "-F", codexPanes)
+	out, err := listCodexPanes(ctx)
 	if err != nil {
 		if noTmuxServer(err) {
 			return nil, nil

@@ -525,12 +525,22 @@ func (a audited) Open(ctx context.Context, req action.Request) (string, string, 
 }
 
 // CodexModels asks the wrapped executor for the models codex offers.
-func (a audited) CodexModels(ctx context.Context) ([]action.CodexModel, error) {
+func (a audited) CodexModels(ctx context.Context, contour string) ([]action.CodexModel, error) {
 	asker, ok := a.next.(action.CodexModelsAsker)
 	if !ok {
 		return nil, fmt.Errorf("this executor does not know the models of codex")
 	}
-	return asker.CodexModels(ctx)
+	return asker.CodexModels(ctx, contour)
+}
+
+// Processes asks the wrapped executor for the background terminals of a codex
+// session.
+func (a audited) Processes(ctx context.Context, target string) ([]action.Process, error) {
+	asker, ok := a.next.(action.ProcessesAsker)
+	if !ok {
+		return nil, fmt.Errorf("this executor does not know the background terminals of codex")
+	}
+	return asker.Processes(ctx, target)
 }
 
 func (a audited) audit(req action.Request, run func() (string, string, error)) (string, string, error) {

@@ -14,9 +14,14 @@ import (
 // Mcp answers what a session says about its MCP servers. A session on the
 // stream is asked with claude's own request; a terminal lists its servers on a
 // screen driven by keys, and the answer says where it lives.
+//
+// A codex session answers with codex's own list of its servers.
 func (e *Executor) Mcp(ctx context.Context, target string) (*action.Mcp, error) {
-	if err := e.notCodex(target); err != nil {
-		return nil, err
+	if th, err := e.codexSession(target); err != nil || th != nil {
+		if err != nil {
+			return nil, err
+		}
+		return codexMcp(ctx, *th)
 	}
 	s, err := findOneLiveSession(target)
 	if err != nil {

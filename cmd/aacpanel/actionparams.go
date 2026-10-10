@@ -166,6 +166,68 @@ func note(reason string) string {
 	return ": " + reason
 }
 
+// commandFromParams reads a slash command and what the journal keeps of it.
+// A review and a goal of codex come as objects of their own; the words a person
+// gives them — what to review, the objective — are kept as their length, the
+// way a message is.
+func commandFromParams(params map[string]any) (*action.Command, map[string]any, error) {
+	name, _ := params["command"].(string)
+	arg, _ := params["arg"].(string)
+	cmd := &action.Command{Name: name, Arg: arg}
+	logged := map[string]any{"command": name}
+	if arg != "" {
+		logged["arg"] = arg
+	}
+	if raw, ok := params["review"]; ok {
+		review, isMap := raw.(map[string]any)
+		if !isMap {
+			return nil, nil, fmt.Errorf("what a review looks at did not arrive as an object")
+		}
+		r := &action.Review{}
+		r.Target, _ = review["target"].(string)
+		r.Branch, _ = review["branch"].(string)
+		r.Commit, _ = review["commit"].(string)
+		r.Title, _ = review["title"].(string)
+		r.Instructions, _ = review["instructions"].(string)
+		cmd.Review = r
+		kept := map[string]any{"target": r.Target}
+		for key, v := range map[string]string{"branch": r.Branch, "commit": r.Commit} {
+			if v != "" {
+				kept[key] = v
+			}
+		}
+		if r.Instructions != "" {
+			kept["chars"] = len([]rune(r.Instructions))
+		}
+		logged["review"] = kept
+	}
+	if raw, ok := params["goal"]; ok {
+		goal, isMap := raw.(map[string]any)
+		if !isMap {
+			return nil, nil, fmt.Errorf("what a goal does did not arrive as an object")
+		}
+		g := &action.Goal{}
+		g.Do, _ = goal["do"].(string)
+		g.Objective, _ = goal["objective"].(string)
+		if budget, ok := goal["budget"].(float64); ok {
+			if budget != math.Trunc(budget) {
+				return nil, nil, fmt.Errorf("the budget of a goal did not arrive as a whole number of tokens")
+			}
+			g.Budget = int64(budget)
+		}
+		cmd.Goal = g
+		kept := map[string]any{"do": g.Do}
+		if g.Objective != "" {
+			kept["chars"] = len([]rune(g.Objective))
+		}
+		if g.Budget != 0 {
+			kept["budget"] = g.Budget
+		}
+		logged["goal"] = kept
+	}
+	return cmd, logged, nil
+}
+
 func workFromParams(params map[string]any) (*action.Work, error) {
 	id, _ := params["id"].(string)
 	if id == "" {
