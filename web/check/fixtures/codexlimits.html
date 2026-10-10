@@ -7,8 +7,9 @@
 <script type="module">
 // The usage page with the limits of every contour at its top: claude's five
 // hours and seven days, and beside them codex's week where its account told
-// one; a contour codex alone spent in has codex's line alone, and an account
-// that told no week, or ran into its limit, says so.
+// one, its bar in codex's hue; a contour codex alone spent in has codex's line
+// alone, and an account that told no week, or ran into its limit, says so —
+// the sentence on one line across the phone.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Usage } from "/src/screens/usage.js";
@@ -32,8 +33,8 @@ const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
 const limits = { contours: [
     { profile: "acme", contour: 4, ageSec: 30, fiveHour: part(7, 3.4), sevenDay: part(41, 98),
       codex: { at: now - 30, ageSec: 30, codexHome: "/home/u/.codex", plan: "pro",
-               windows: [{ pct: 12, resetsAt: now + 3600, windowMins: 300 }, { pct: 63, resetsAt: now + 52 * 3600, windowMins: 10080 }],
-               sevenDay: part(63, 52) } },
+               windows: [{ pct: 12, resetsAt: now + 3600, windowMins: 300 }, { pct: 23, resetsAt: now + 52 * 3600, windowMins: 10080 }],
+               sevenDay: part(23, 52) } },
     { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2.2), sevenDay: part(24, 100) },
     { profile: "lab", codex: { at: now - 30, ageSec: 30, codexHome: "/home/u/.codex-lab", windows: [], reached: "rate_limit" } },
 ] };
@@ -45,6 +46,20 @@ const until = async (ok) => {
     return ok();
 };
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+// lineCount counts the lines an element's words are set in on the screen.
+const lineCount = (el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
+};
+// hue is a colour of the palette as the screen paints a background with it.
+const hue = (name) => {
+    const probe = document.body.appendChild(document.createElement("i"));
+    probe.style.background = `var(${name})`;
+    const got = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return got;
+};
 
 window.done = (async () => {
     await document.fonts.ready;
@@ -52,7 +67,7 @@ window.done = (async () => {
         exec=${{ available: true, kinds: [] }} onBack=${() => {}} />`)), root);
     if (!await until(() => root.querySelector(".ulimits .ulimit"))) throw new Error("the limits did not show");
     const card = root.querySelector(".ulimits");
-    const out = {};
+    const out = { codexHue: hue("--agent-codex") };
     out.after = card.previousElementSibling ? card.previousElementSibling.className : "";
     out.contours = Array.from(card.querySelectorAll(".ulimit")).map((c) => {
         const lines = [];
@@ -65,6 +80,10 @@ window.done = (async () => {
                 lines[lines.length - 1].windows = Array.from(el.querySelectorAll(".limit")).map((l) =>
                     [text(l.querySelector(".lname")), text(l.querySelector(".lval")), text(l.querySelector(".lsub"))].filter(Boolean).join(" "));
                 lines[lines.length - 1].width = Math.round(el.querySelector(".limit").getBoundingClientRect().width);
+                const fill = el.querySelector(".limit .fill");
+                lines[lines.length - 1].fill = fill ? getComputedStyle(fill).backgroundColor : "";
+                const empty = el.querySelector(".limit.lempty .lsub");
+                lines[lines.length - 1].emptyLines = empty ? lineCount(empty) : 0;
             } else if (el.textContent.trim()) {
                 lines[lines.length - 1].note = text(el);
             }

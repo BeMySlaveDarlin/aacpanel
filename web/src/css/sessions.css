@@ -195,8 +195,7 @@
    its title. Codex's window alone is as wide as one of claude's, and the
    line of an account that told no week, with no bar to compare, takes the
    row, where it reads in one piece; beside claude's it is short and stands
-   where their last lines do. The bar is in codex's hue, as its ring at a
-   desk is, until it nears its end. */
+   where their last lines do. */
 .pflimits .pfcodex > .limit { flex: 0 1 calc(50% - .25rem); }
 .pflimits .pfcodex > .limit.lempty { flex: 1; }
 .pflimits.pfthree { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .5rem; }
@@ -204,7 +203,6 @@
 .pflimits.pfthree > .limits-note { grid-column: 1 / -1; }
 .pflimits.pfthree .limit { flex: 1; min-width: 0; }
 .pflimits.pfthree .limit.lempty { justify-content: space-between; }
-.pflimits .limit[data-agent="codex"] .fill.ok { background: var(--agent-codex); }
 .pflimits .pfold { opacity: .45; }
 
 .srow .sdot, .srow .cmark { display: none; }

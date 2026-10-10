@@ -50,12 +50,15 @@
 .uscango { width: 100%; }
 
 /* The limits of every contour: a line per agent, its word first and its
-   windows after it. Codex has one window, the width of one of claude's two. */
+   windows after it. Codex has one window, the width of one of claude's two.
+   The line of an account that told no week has no bar to compare and takes
+   the row: in half of it the sentence breaks in two on a phone. */
 .ulimit + .ulimit { margin-top: .55rem; }
 .ulimitname { margin: .1rem 0 .35rem; font-size: var(--t-md); }
 .ulimitrows { display: grid; grid-template-columns: auto 1fr; gap: .45rem .6rem; align-items: center; }
 .ulimitrows .agentword { font-size: var(--t-xs); }
 .ulhalf > .limit { flex: 0 1 calc(50% - .25rem); }
+.ulhalf > .limit.lempty { flex: 1; }
 .ulold { opacity: .45; }
 .ulreached { margin: 0; }
 .ulimitnote { margin: .5rem 0 0; }

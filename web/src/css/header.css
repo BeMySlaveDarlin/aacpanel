@@ -364,6 +364,12 @@
 .fill.warn { background: var(--warn); }
 .fill.crit { background: var(--crit); }
 
+/* A window of codex's is in codex's hue wherever it is drawn — the page of a
+   contour, the usage page — as its ring at a desk is, until it nears its end
+   and takes the colour of its state as any window does. In the accent it
+   would read as one more window of claude's. */
+.limit[data-agent="codex"] .fill.ok { background: var(--agent-codex); }
+
 .hostbar {
     display: flex;
     align-items: flex-start;
