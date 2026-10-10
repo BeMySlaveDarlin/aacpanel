@@ -106,7 +106,9 @@ every method, field and value the panel uses — and with the reference of the
 release it last passed, kept beside it. A field the panel decodes or sends that
 is gone or changed is red with its name; a new kind of item, status or
 notification is a warning. Once the report is read,
-`make codex-contract CONTRACT_ARGS=-write` takes the release as the reference.
+`make codex-contract CONTRACT_ARGS=-write` takes the release as the reference —
+the release codex names as it writes its schema, so a directory handed over
+with `-schema` is refused there: it does not say which release wrote it.
 A call added to `internal/codex` goes into `uses.txt` with it: a test of the
 package fails while the contract does not name a method the link uses.
 

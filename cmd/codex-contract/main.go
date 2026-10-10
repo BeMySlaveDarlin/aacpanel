@@ -14,7 +14,8 @@
 //
 // -write puts the schema, cut to what the panel uses, in place of the
 // reference, once the report has been read. A release that took something the
-// panel uses is not written: the panel is brought to it first.
+// panel uses is not written: the panel is brought to it first. Nor is a
+// -schema directory: it does not say which release wrote it.
 package main
 
 import (
@@ -57,6 +58,14 @@ func run(codex, schemaDir string, asJSON, write bool) int {
 	panel, err := contract.Panel()
 	if err != nil {
 		return say(2, "the contract of the panel does not read: %v", err)
+	}
+	// The reference names the release it is of, and a directory of schema
+	// does not say which codex wrote it: the codex installed now may be
+	// another, and the name of the directory is a path of this machine, which
+	// the tree does not keep.
+	if write && schemaDir != "" {
+		return say(2, "-write takes a release of codex as the reference, and a directory of schema does not say "+
+			"which release wrote it: run without -schema, and codex writes its schema and names its version")
 	}
 	ref, err := contract.Reference()
 	if err != nil {

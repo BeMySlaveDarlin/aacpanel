@@ -70,3 +70,37 @@ func TestNoCodexExitsTwo(t *testing.T) {
 		t.Fatalf("a directory with no schema in it exits %d", code)
 	}
 }
+
+// A directory of schema is not written as the reference: it does not say which
+// release of codex wrote it, and its name is a path of this machine. The run
+// says why and leaves the reference as it is.
+func TestASchemaDirectoryIsNotWrittenAsTheReference(t *testing.T) {
+	schema := t.TempDir()
+	if err := os.WriteFile(filepath.Join(schema, "codex_app_server_protocol.schemas.json"), referenceBundle(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The run writes the reference under the go.mod it finds above its
+	// directory: a root of its own keeps the tree's reference out of reach.
+	root := t.TempDir()
+	ref := filepath.Join(root, "internal", "codex", "contract", "reference.json")
+	if err := os.MkdirAll(filepath.Dir(ref), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for path, body := range map[string]string{filepath.Join(root, "go.mod"): "module probe\n", ref: "kept\n"} {
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(root)
+
+	if code := run("", schema, true, true); code != 2 {
+		t.Errorf("-write with -schema exits %d", code)
+	}
+	if body, err := os.ReadFile(ref); err != nil || string(body) != "kept\n" {
+		t.Errorf("the reference became %.80q (%v)", body, err)
+	}
+	// The check of the directory alone still runs.
+	if code := run("", schema, true, false); code != 0 {
+		t.Errorf("a check of a directory of schema exits %d", code)
+	}
+}
