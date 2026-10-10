@@ -41,9 +41,9 @@ window.done = (async () => {
     const out = {};
     const head = document.querySelector(".chathead");
     out.headUse = Boolean(head && head.querySelector(".deckuse"));
-    // Where the session works stands in the line under the name: the home as
-    // a tilde, and a path too long for the line cut at its start, so its end
-    // — the project — stays in sight on the line of the state.
+    // Where the session works stands on a line of its own under the line of
+    // the state: the home as a tilde, and a path too long for the line cut at
+    // its start, so its end — the project — stays in sight.
     const path = head && head.querySelector(".chatpath");
     out.headPath = path ? path.textContent.trim() : "";
     if (path) {
@@ -56,7 +56,10 @@ window.done = (async () => {
         out.headPathCut = path.scrollWidth > path.clientWidth;
         out.headTailShown = last.width > 0 && last.left >= box.left - 1 && last.right <= box.right + 1;
         const word = head.querySelector(".talkword").getBoundingClientRect();
-        out.headPathOnLine = Math.abs((box.top + box.bottom) / 2 - (word.top + word.bottom) / 2) < 4;
+        const line = path.closest(".chatwhere");
+        out.headPathBelow = !path.closest(".chatsub") && box.top >= word.bottom - 1;
+        out.headPathWhole = Boolean(line)
+            && Math.abs(line.getBoundingClientRect().width - head.getBoundingClientRect().width) < 2;
     }
     out.deck = Boolean(document.querySelector(".deck"));
     const use = document.querySelector(".deck .deckuse");

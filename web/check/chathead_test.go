@@ -11,7 +11,8 @@ type chatHeadSeen struct {
 	HeadPath        string  `json:"headPath"`
 	HeadPathCut     bool    `json:"headPathCut"`
 	HeadTailShown   bool    `json:"headTailShown"`
-	HeadPathOnLine  bool    `json:"headPathOnLine"`
+	HeadPathBelow   bool    `json:"headPathBelow"`
+	HeadPathWhole   bool    `json:"headPathWhole"`
 	DeckUse         bool    `json:"deckUse"`
 	DeckUseLeftGap  float64 `json:"deckUseLeftGap"`
 	DeckUseFirst    bool    `json:"deckUseFirst"`
@@ -24,9 +25,10 @@ type chatHeadSeen struct {
 	StripChipsRight float64 `json:"stripChipsRight"`
 }
 
-// On a phone the header of a conversation says where the session works on the
-// line of how it stands: the home as a tilde, and a path too long for the line
-// cut at its start, so the project at its end stays in sight. The tools hold
+// On a phone the header of a conversation says where the session works on a
+// line of its own under the line of how it stands, which has no room left for
+// it: the home as a tilde, and a path too long for the line cut at its start,
+// so the project at its end stays in sight. The tools hold
 // the path whole, and the tokens in and out stand at the left of the row under
 // the composer.
 func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
@@ -42,8 +44,9 @@ func TestThePhoneToolsSayWhereTheSessionWorks(t *testing.T) {
 		t.Errorf("a path longer than the line is not cut at its start (cut %v, its end in sight %v) — the project at its end is what tells one session from another",
 			got.HeadPathCut, got.HeadTailShown)
 	}
-	if !got.HeadPathOnLine {
-		t.Error("the path took a line of its own — it stands on the line of how the session stands")
+	if !got.HeadPathBelow || !got.HeadPathWhole {
+		t.Errorf("the path is not on a line of its own under how the session stands (below %v, the width of the header %v) — "+
+			"the line of the agent, the model and the state has no room left for it", got.HeadPathBelow, got.HeadPathWhole)
 	}
 	if got.HeadUse {
 		t.Error("the tokens in and out are in the header again")

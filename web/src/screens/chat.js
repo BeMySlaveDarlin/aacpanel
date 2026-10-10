@@ -375,11 +375,12 @@ export function Chat({ name, id, live, archive, exec, snapshot, wait, onBack, on
                         <span class="sep">·</span>
                     `}
                     <span class="talkword" data-tone=${stand.tone}>${stand.word || (archive ? "peak" : "")}</span>
-                    ${here && html`
-                        <span class="sep">·</span>
-                        <span class="chatpath" title=${here}><bdi>${shortPath(here)}</bdi></span>
-                    `}
                 </div>
+                ${here && html`
+                    <div class="chatwhere">
+                        <span class="chatpath" title=${here}><bdi>${shortPath(here)}</bdi></span>
+                    </div>
+                `}
             </div>
         <//>
         `}

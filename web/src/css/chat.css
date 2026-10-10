@@ -56,9 +56,17 @@
     color: var(--ink-faint);
 }
 .chatsub .sep { color: rgba(150, 170, 255, .3); margin: 0 .35rem; }
-/* Where the session works takes what is left of the line. A path too long for
-   it keeps its end, which names the project: the line is laid out right to
-   left around a path kept left to right. */
+/* Where the session works has a line of its own under how it stands: the line
+   of the agent, the model and the state has no room left for it on a phone. A
+   path too long for its line keeps its end, which names the project: the line
+   is laid out right to left around a path kept left to right. */
+.chatwhere {
+    display: flex;
+    min-width: 0;
+    line-height: 1.2;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
 .chatpath {
     flex: 1 1 0;
     min-width: 0;
