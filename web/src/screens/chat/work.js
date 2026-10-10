@@ -115,9 +115,7 @@ function briefRow(card) {
 
 export function Work({ work, onOpen }) {
     const tasks = (work && work.tasks) || [];
-    const agents = (work && work.agents) || [];
     const flows = (work && work.workflows) || [];
-    const { live } = splitAgents(agents);
     const liveTasks = running(tasks);
     const liveFlows = flows.filter((f) => f.status === "running");
 
@@ -128,17 +126,28 @@ export function Work({ work, onOpen }) {
                     aria-label=${taskLabel(tasks)}>
                 ${Icon.clock()}${liveTasks.length > 0 && html`<span class="wnum">${liveTasks.length}</span>`}
             </button>
-            <button class=${`wchip${live.length > 0 ? "" : " idle"}`} type="button"
-                    onClick=${() => onOpen({ kind: "agents" })}
-                    aria-label=${agentLabel(agents, live)}>
-                ${Icon.robot()}${live.length > 0 && html`<span class="wnum">${live.length}</span>`}
-            </button>
+            <${AgentsChip} work=${work} onOpen=${onOpen} />
             <button class=${`wchip${liveFlows.length > 0 ? "" : " idle"}`} type="button"
                     onClick=${() => onOpen({ kind: "workflows" })}
                     aria-label=${flowLabel(flows, liveFlows)}>
                 ${Icon.flow()}${liveFlows.length > 0 && html`<span class="wnum">${liveFlows.length}</span>`}
             </button>
         </div>
+    `;
+}
+
+// AgentsChip counts the subagents at work and opens their list: a chip of the
+// row of claude's counters, and the one a codex thread has beside what it
+// left running.
+export function AgentsChip({ work, onOpen }) {
+    const agents = (work && work.agents) || [];
+    const { live } = splitAgents(agents);
+    return html`
+        <button class=${`wchip${live.length > 0 ? "" : " idle"}`} type="button"
+                onClick=${() => onOpen({ kind: "agents" })}
+                aria-label=${agentLabel(agents, live)}>
+            ${Icon.robot()}${live.length > 0 && html`<span class="wnum">${live.length}</span>`}
+        </button>
     `;
 }
 

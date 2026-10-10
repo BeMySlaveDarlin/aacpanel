@@ -56,8 +56,8 @@ func TestTheBandOfACodexThreadOpensMenusAtADesk(t *testing.T) {
 	if strings.Join(got.Band, ",") != "clip,think,perm,thread,cwork" {
 		t.Errorf("the band at a desk holds %v, expected the paperclip, the three words and the work at its end", got.Band)
 	}
-	if strings.Join(got.Procs, "|") != "background processes: 3 running" {
-		t.Errorf("the end of the band counts %v, expected the background processes alone", got.Procs)
+	if strings.Join(got.Procs, "|") != "background processes: 3 running|subagents: none" {
+		t.Errorf("the end of the band counts %v, expected the background processes and the agents", got.Procs)
 	}
 	if strings.Join(got.Thread, "|") != "1 Compact|2 Review|3 Rename|4 Goal" || !got.GoalPane.MenuDown || got.GoalPane.Back {
 		t.Errorf("the menu of the thread is %v, and its goal opens as %+v — a sheet with nothing to go back to", got.Thread, got.GoalPane)

@@ -77,8 +77,8 @@ func TestTheThreadOfACodexThreadIsDoneFromItsBand(t *testing.T) {
 	if strings.Join(got.Band, ",") != "clip,think,perm,thread" || !got.ThreadAtEnd {
 		t.Errorf("the band holds %v, the thread at its far end %v", got.Band, got.ThreadAtEnd)
 	}
-	if strings.Join(got.Deck, "|") != "background processes: 2 running" {
-		t.Errorf("under the composer stand %v, expected the count of background processes alone", got.Deck)
+	if strings.Join(got.Deck, "|") != "background processes: 2 running|subagents: none" {
+		t.Errorf("under the composer stand %v, expected the count of background processes and of the agents", got.Deck)
 	}
 	wantRows := []string{"Compact: 35% of the context used", "Review: changes, a branch, a commit, your words",
 		"Rename: Cart flakes", "Goal: none set"}

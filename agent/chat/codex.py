@@ -786,6 +786,100 @@ def _second_details(record, payload, f):
     return out
 
 
+# The bytes a record that may say something of the agents of a thread holds:
+# an item of a call to agents of either set, and a call of the second set,
+# which names the role a start asked for and whether a word to an agent gave
+# it a task more. Only such a line of the rollout is parsed: a command's
+# output can make a line of megabytes.
+CREW_MARKS = tuple(json.dumps(word).encode() for word in (COLLAB, ACTIVITY, SECOND))
+
+
+def crew(path, known=None):
+    """Returns the agents a thread started and how each stands, as its rollout says, read on from what was known.
+
+    Known is what an earlier call returned: the place the reading stopped,
+    the agents by their threads and the calls of the second set met so far.
+    An agent stands as the last word codex wrote of it — a start, an item of
+    the second set, the states a call of the first set came back with — and
+    at the moment it was written; a rollout shorter than the place is
+    another file, read from its start. An item of another thread — a review,
+    the history an agent's thread takes over from its parent — is passed by.
+    """
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return known
+    if known is None or known["pos"] > size:
+        known = {"pos": 0, "agents": {}, SECOND_CALLS: {}, OWN: own(path).get(OWN, "")}
+    if known["pos"] == size:
+        return known
+    known = {**known, "agents": dict(known["agents"]), SECOND_CALLS: dict(known[SECOND_CALLS])}
+    try:
+        with open(path, "rb") as f:
+            f.seek(known["pos"])
+            for raw in f:
+                if not raw.endswith(b"\n"):
+                    break
+                known["pos"] += len(raw)
+                if any(mark in raw for mark in CREW_MARKS):
+                    _crew_take(raw, known)
+    except OSError:
+        return known
+    return known
+
+
+def _crew_take(raw, known):
+    try:
+        record = json.loads(raw)
+    except ValueError:
+        return
+    payload = record.get("payload") if isinstance(record, dict) else None
+    if not isinstance(payload, dict):
+        return
+    at = record.get("timestamp") or ""
+    if record.get("type") == "response_item":
+        if _second(payload):
+            tool, use = _second(payload)
+            known[SECOND_CALLS][use] = (tool, _word(_arguments(payload).get("agent_type")))
+        return
+    found = _item(record)
+    if found is None or found[0].get("thread_id") not in (None, "", known[OWN]):
+        return
+    item = found[1]
+    if item.get("type") == COLLAB and item.get("tool") == SPAWN:
+        for agent in _agents(item):
+            known["agents"][agent["id"]] = {
+                "id": agent["id"], "name": agent["name"] or agent["role"] or agent["id"][-8:], "role": agent["role"],
+                "model": _word(item.get("model")), "state": agent["state"] or "pending_init", "at": at}
+        return
+    if item.get("type") == COLLAB:
+        for agent in _agents(item):
+            _crew_stands(known, agent["id"], agent["state"], at)
+        return
+    if item.get("type") != ACTIVITY:
+        return
+    for row in _activity(item, at, 0, known):
+        if row["role"] == "spawn":
+            for agent in row["spawned"]:
+                known["agents"][agent["id"]] = {"id": agent["id"], "name": agent["name"], "role": agent["role"],
+                                                "model": agent["model"], "state": agent["state"], "at": at}
+        elif row["role"] == "agentstates":
+            for agent in row["spawned"]:
+                _crew_stands(known, agent["id"], agent["state"], at)
+
+
+def _crew_stands(known, thread, state, at):
+    """Sets how an agent of the thread stands, and since when it is over when it is."""
+    agent = known["agents"].get(thread)
+    if agent is None or not state or state == agent["state"]:
+        return
+    agent = {**agent, "state": state}
+    agent.pop("doneAt", None)
+    if state not in ("pending_init", "running"):
+        agent["doneAt"] = at
+    known["agents"][thread] = agent
+
+
 # How many records after a call its answer is looked for: what the other
 # agents write meanwhile stands between a wait and its answer.
 ANSWER_LIMIT = 512

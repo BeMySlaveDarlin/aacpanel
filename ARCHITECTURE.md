@@ -889,6 +889,17 @@ appears or the connection drops — at once when an action waits for it.
   review runs in a thread of its own and codex writes its items into the
   rollout of the thread that asked for it: the feed shows its work and none of
   its words, which codex says to itself.
+- **The agents a thread started are its agents**, listed as a claude
+  session's are and each opening its own thread. The collector reads them
+  off the rollout of the thread, on from where it last stopped: an agent
+  stands as the last word codex wrote of it there — at work from its start
+  until its turn is over, it is interrupted or it fails, at work again with
+  a task more. Codex lets the thread go once its own turn is over while its
+  agents work on, so the row of such a thread is busy with its turn over, as
+  a claude session waiting for its agents is: the screen says the agents
+  work, and a message starts a turn at once. The price: the rollout of the
+  thread is all that is read, and an agent whose thread died with the daemon
+  stands at work until the thread writes otherwise.
 - **The way back is codex itself.** With the panel down, `codex resume <id>`
   in a terminal joins the same thread on the same daemon, loaded or not,
   whoever else follows it; a model, approvals or a sandbox given as flags are

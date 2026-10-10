@@ -300,17 +300,15 @@ function minutes(sec) {
     return m < 60 ? `${Math.max(1, m)} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 }
 
-// ProcessesChip counts what the thread left running, under the composer where
-// claude's agents and workflows are counted: codex has neither.
+// ProcessesChip counts the background processes the thread left running, a
+// chip of the row under the composer, while there is something to count.
 export function ProcessesChip({ count, onOpen }) {
     if (!(count > 0)) return null;
     return html`
-        <div class="wchips">
-            <button class="wchip" type="button" onClick=${onOpen}
-                    aria-label=${`background processes: ${count} running`}>
-                ${Icon.terminal()}<span class="wnum">${count}</span>
-            </button>
-        </div>
+        <button class="wchip" type="button" onClick=${onOpen}
+                aria-label=${`background processes: ${count} running`}>
+            ${Icon.terminal()}<span class="wnum">${count}</span>
+        </button>
     `;
 }
 

@@ -63,7 +63,9 @@ export function spoke(row) {
 }
 
 // noTurn says why a codex thread has no turn to stop, or nothing when it has
-// one: a turn runs while codex works or waits on what it asked.
+// one: a turn runs while codex works or waits on what it asked. A thread busy
+// with its agents alone has its own turn over.
 export function noTurn(s) {
+    if (s.status === "busy" && s.turnOver) return "the turn is over, the thread's agents work on";
     return s.status === "busy" || s.status === "waiting" ? "" : "codex is not running a turn";
 }

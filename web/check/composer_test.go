@@ -146,7 +146,12 @@ func TestWorkRowKeepsEveryButtonWithNothingToShow(t *testing.T) {
 	const workFile = "src/screens/chat/work.js"
 	src := screenSrc(t, workFile)
 
+	// The agents' chip is a component the row draws, and a part of the row.
 	left := jsBlock(t, workFile, src, "export function Work(")
+	if !strings.Contains(left, "<${AgentsChip}") {
+		t.Errorf("%s: the row under the composer does not draw the agents' chip", workFile)
+	}
+	left += jsBlock(t, workFile, src, "export function AgentsChip(")
 	if strings.Contains(left, "return null") {
 		t.Errorf("%s: the left-hand group leaves the row when the session holds nothing — half "+
 			"the buttons of the row go with it", workFile)

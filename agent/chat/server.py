@@ -295,14 +295,15 @@ def _answer(request):
         "size": os.path.getsize(path),
     }
     # The state of a session — its background work, agents, questions and
-    # checklist — is claude's. A codex thread has only the question or the
-    # form it waits on, which the executor keeps in the thread's state file in
-    # the shape of a question of claude's. The state goes with every answer,
-    # with no question too: a question answered goes off the screen only when
-    # a state without it arrives. Its lists are always there, and empty for a
-    # thread of codex: the screen counts them.
+    # checklist — is claude's. A codex thread has the agents it started, as
+    # its rollout says they stand, and the question or the form it waits on,
+    # which the executor keeps in the thread's state file in the shape of a
+    # question of claude's. The state goes with every answer, with no question
+    # too: a question answered goes off the screen only when a state without
+    # it arrives. Its lists are always there, empty or not: the screen counts
+    # them.
     if request.get("state") and not sub and is_rollout(path):
-        reply["state"] = {"tasks": [], "agents": []}
+        reply["state"] = {"tasks": [], "agents": ctx.codex_crew(path)}
         ask = held.codex_ask(session)
         if ask:
             reply["state"]["ask"] = ask

@@ -53,6 +53,9 @@ var notTheFeed = map[string]string{
 	"codex.py:_agent_spot":         "the reply of one call to agents opened from the feed, under Call",
 	"codex.py:_second_answer:mark": "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
 	"codex.py:_second_details":     "the reply of one call to agents of the second set opened from the feed, under Call",
+	"codex.py:crew":                "the agents of a codex thread as its rollout says they stand, listed in its state as WorkAgent",
+	"codex.py:_crew_take":          "the agents of a codex thread as its rollout says they stand, listed in its state as WorkAgent",
+	"codex.py:_crew_stands":        "the agents of a codex thread as its rollout says they stand, listed in its state as WorkAgent",
 	"codex.py:context":             "how full the context of a codex thread is, for its row in the snapshot",
 	"codex.py:_take":               "how full the context of a codex thread is, for its row in the snapshot",
 

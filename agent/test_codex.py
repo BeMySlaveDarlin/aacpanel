@@ -656,6 +656,14 @@ class Agents(Runtime):
         sent = chat.answer({"session": THREAD, "call": {"pos": self.at("send-1"), "index": 0}})
         self.assertEqual(json.loads(sent["args"])["prompt"], "Stop after the first failure.")
 
+    def test_the_state_of_the_thread_lists_its_agents_as_the_last_call_said(self):
+        reply = chat.answer({"session": THREAD, "limit": 50, "state": True})
+        self.assertEqual([(a["name"], a.get("text"), a["status"], a.get("doneAt"), a["model"])
+                          for a in reply["state"]["agents"]],
+                         [("Hopper", "checker", "closed", "2026-10-09T12:00:08.000Z", "gpt-6-astra"),
+                          ("Euclid", "worker", "completed", "2026-10-09T12:00:04.000Z", "gpt-6-astra")],
+                         "named by its nickname with its role under it, and over since the call that said so")
+
     def test_the_feed_of_an_agent_is_its_own_thread_by_its_id(self):
         self.assertEqual(chat.transcript_path(WORKER), self.worker)
         reply = chat.answer({"session": WORKER, "limit": 50})
@@ -807,6 +815,52 @@ class SecondAgents(Runtime):
                                 "namespace": "collaboration", "arguments": "{}", "call_id": f"second-{name}"}}
             rows = chat.parse(call, 1, asks={})
             self.assertEqual([r.get("name") for r in rows], [] if word == "Agent" else [word], f"{name} of the second set")
+
+    def state(self):
+        reply = chat.answer({"session": THREAD, "limit": 50, "state": True})
+        self.assertTrue(reply["ok"], reply)
+        return reply["state"]
+
+    def finish_tests(self):
+        """Writes into the rollout that the agent tests finished its turn."""
+        with open(SECOND, encoding="utf-8") as f:
+            done = json.loads(next(line for line in f if '"kind": "completed"' in line))
+        done["timestamp"] = "2026-10-09T13:00:40.000Z"
+        done["payload"]["item"].update(id=f"subagent-completed-{TESTS}", agent_thread_id=TESTS,
+                                       agent_path="/root/tests")
+        with open(self.rollout, "a", encoding="utf-8") as f:
+            f.write(json.dumps(done) + "\n")
+
+    def test_the_state_of_the_thread_lists_its_agents_as_they_stand(self):
+        self.assertEqual(self.state()["agents"], [
+            {"agent": "codex", "kind": "subagent", "id": TESTS, "name": "tests", "status": "active",
+             "at": "2026-10-09T13:00:08.000Z", "model": "gpt-6-astra"},
+            {"agent": "codex", "kind": "subagent", "id": LEXER, "name": "lexer", "text": "explorer",
+             "status": "completed", "at": "2026-10-09T13:00:05.000Z", "doneAt": "2026-10-09T13:00:24.000Z",
+             "model": "gpt-6-astra"}],
+            "the one at work first; an agent interrupted and given a task more is at work again")
+        self.finish_tests()
+        self.assertEqual([(a["name"], a["status"], a.get("doneAt")) for a in self.state()["agents"]],
+                         [("tests", "completed", "2026-10-09T13:00:40.000Z"),
+                          ("lexer", "completed", "2026-10-09T13:00:24.000Z")],
+                         "the rollout is read on, and the freshest end stands first")
+
+    def test_a_thread_whose_agents_work_is_busy_with_its_turn_over(self):
+        self.follow(busy=False)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["status"], row.get("turnOver"), row.get("work")),
+                         ("busy", True, {"tasks": 0, "agents": 1}))
+        self.follow(busy=True)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["status"], row.get("turnOver"), row.get("work")),
+                         ("busy", None, {"tasks": 0, "agents": 1}), "a turn of its own is no turn over")
+        self.follow(busy=False, waiting=["AskUserQuestion"])
+        self.assertEqual(ctx.codex_sessions()[0]["status"], "waiting", "a person waited for comes first")
+        self.finish_tests()
+        self.follow(busy=False)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["status"], "turnOver" in row, "work" in row), ("idle", False, False),
+                         "a thread whose agents are over is free")
 
     def test_the_feed_of_an_agent_is_its_own_thread_and_none_of_its_parents(self):
         self.assertEqual(chat.transcript_path(LEXER), self.lexer)

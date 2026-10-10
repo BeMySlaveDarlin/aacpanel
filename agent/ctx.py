@@ -12,6 +12,7 @@ import contours
 import held
 from chat import codex
 from sesstate import ordered_agents
+from sesstate.background import ACTIVE
 from sesstate.limits import MAX_ITEMS
 
 SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
@@ -321,13 +322,12 @@ def _heard(data):
     return {"tokens": tokens, "limit": window, "at": at}
 
 
-def _fill(data, sid, contour):
+def _fill(data, path):
     """Returns how full the context of a thread is: the fresher of what the daemon said and the rollout.
 
     The executor hears the daemon only while it is a client of the thread,
     and a turn another client runs reaches it through the rollout alone.
     """
-    path = codex.rollout_path(sid, contour)
     found = (codex.context(path) if path else None) or {"tokens": 0, "limit": 0, "at": ""}
     heard = _heard(data)
     if heard and (not found["at"] or _epoch(heard["at"]) >= (_epoch(found["at"]) or 0)):
@@ -389,17 +389,19 @@ def codex_row(data):
     told them, the name and the goal of the thread, how many background
     terminals run, the messages that wait in the panel's queue, and how full
     the context is as the daemon last said it; the rollout says the fill when
-    the executor heard nothing newer, as a claude row reads its transcript.
+    the executor heard nothing newer, as a claude row reads its transcript,
+    and the agents the thread has at work.
     """
     sid = data["sessionId"]
     name = data.get("name") if isinstance(data.get("name"), str) and data["name"] else f"codex-{sid[-8:]}"
     contour = data.get("contour") if isinstance(data.get("contour"), str) else ""
+    path = codex.rollout_path(sid, contour)
     row = {
         "session": name, "sessionId": sid, "cwd": data.get("cwd") or "",
         "profile": contour, "agent": "codex", "transport": "stream",
         "model": data.get("model") or "", "effort": data.get("effort") or "",
         "startedAt": data.get("started") or None,
-        **_filled(_fill(data, sid, contour)),
+        **_filled(_fill(data, path)),
     }
     # A thread codex runs in a tmux session the panel started lives in that
     # terminal, as a claude session in tmux does; one the daemon alone holds is
@@ -438,12 +440,72 @@ def codex_row(data):
         row["waitingFor"] = wait
     else:
         row["status"] = "busy" if data.get("busy") is True else "idle"
-    return row
+    return _with_crew(row, path)
 
 
 def codex_sessions():
     """Returns the rows of the codex threads live executors follow."""
     return [codex_row(data) for data in held.codex_threads()]
+
+
+# What the rollouts of codex threads say of the agents they started, by the
+# rollout: read on at every look, as a claude transcript is for its agents.
+_crews = {}
+MAX_CREWS = 256
+
+# How the panel says an agent of a codex thread stands, by the word codex says
+# it with: at work, or how it ended, in the words the list of agents knows.
+CREW_STATUSES = {"pending_init": ACTIVE, "running": ACTIVE, "completed": "completed", "interrupted": "stopped",
+                 "errored": "failed", "shutdown": "closed", "not_found": "gone"}
+
+
+def codex_crew(path):
+    """Returns the agents a codex thread started, as the agents of a session are listed: the ones at work first.
+
+    An agent stands as the last word of it in the rollout of the thread: at
+    work from its start until its turn is over, it is interrupted or it
+    fails, and at work again when the thread gives it a task more. It is
+    named by its nickname, else by its path or its role, with the role under
+    the name, and its conversation is its own thread, by the id the agent
+    carries. The rollout of the thread is all that is read: an agent whose
+    thread died with the daemon stays at work until the thread hears of it.
+    """
+    if not path:
+        return []
+    found = codex.crew(path, _crews.get(path))
+    if found is None:
+        return []
+    if path not in _crews and len(_crews) >= MAX_CREWS:
+        _crews.clear()
+    _crews[path] = found
+    agents = []
+    for one in found["agents"].values():
+        agent = {"agent": CODEX, "kind": "subagent", "id": one["id"], "name": one["name"],
+                 "status": CREW_STATUSES.get(one["state"], one["state"]), "at": one["at"]}
+        if one["role"] and one["role"] != one["name"]:
+            agent["text"] = one["role"]
+        if one["model"]:
+            agent["model"] = one["model"]
+        if one.get("doneAt"):
+            agent["doneAt"] = one["doneAt"]
+        agents.append(agent)
+    return ordered_agents(agents)[:MAX_ITEMS]
+
+
+def _with_crew(row, path):
+    """Returns the row of a codex thread with the agents it has at work, busy while they work.
+
+    Codex lets a thread go once its own turn is over, while the agents it
+    started work on; the row is then busy with the turn over, as a claude
+    session waiting for its agents is, and counts them as a claude row does.
+    """
+    working = sum(1 for agent in codex_crew(path) if agent["status"] == ACTIVE)
+    if not working:
+        return row
+    row["work"] = {"tasks": 0, "agents": working}
+    if row.get("status") == "idle":
+        row["status"], row["turnOver"] = "busy", True
+    return row
 
 
 # A codex is found by its process too, beside the threads the executors
@@ -782,7 +844,7 @@ def codex_own_row(proc):
     config_dir = _account(proc["contour"])
     if config_dir:
         row["configDir"] = config_dir
-    return row
+    return _with_crew(row, proc["rollout"])
 
 
 def codex_own_rows(procs):

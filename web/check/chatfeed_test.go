@@ -195,12 +195,13 @@ func TestWorkChipsOpenTheirOwnSection(t *testing.T) {
 	const chatFile = "src/screens/chat.js"
 	body := screenSrc(t, chatFile)
 	work := jsBlock(t, chatFile, body, "function Work(") +
+		jsBlock(t, chatFile, body, "function AgentsChip(") +
 		jsBlock(t, chatFile, body, "function WorkRefs(")
 
 	// What the row draws is what matters here; counting over a list to put a
 	// number on a chip is the row doing its job. So the markup is what is
 	// looked at, not the arithmetic above it.
-	for _, name := range []string{"function Work(", "function WorkRefs("} {
+	for _, name := range []string{"function Work(", "function AgentsChip(", "function WorkRefs("} {
 		block := jsBlock(t, chatFile, body, name)
 		if at := strings.Index(block, "return html"); at >= 0 {
 			block = block[at:]

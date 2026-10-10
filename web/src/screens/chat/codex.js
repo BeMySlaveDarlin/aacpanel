@@ -3,7 +3,9 @@
 // the panel's: there is no terminal of it to watch, no window, no move and no
 // question aside. The panel writes to it — words and files, into a queue of
 // its own while a turn runs — sets how it thinks and what it may do from the
-// band under the field, stops its turn, answers what it asks and closes it.
+// band under the field, stops its turn, answers what it asks and closes it;
+// the agents the thread started are listed as claude's are, each opening its
+// own thread.
 
 import { useState } from "preact/hooks";
 
@@ -16,6 +18,7 @@ import { Conversation } from "./conversation.js";
 import { CodexSheets, CodexStrip, useCatalog, useCodexPick } from "./codexpick.js";
 import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
 import { LOOK_NAMES } from "./look.js";
+import { AgentsChip } from "./work.js";
 import { McpSheet } from "./mcp.js";
 import { SetupSheet } from "./setup.js";
 import { IdLine, PlaceLine, ToolRow } from "./sessiontools.js";
@@ -63,10 +66,12 @@ export function CodexChat(props) {
         // A question of codex is answered by its protocol wherever it lives:
         // codex in tmux has no screen of claude's to press keys into.
         askStream: true,
-        work: ({ setLook }) => html`<${ProcessesChip} count=${live.processes}
-                                                      onOpen=${() => setLook({ kind: "processes" })} />`,
+        work: ({ work, setLook }) => html`<${CodexWork} work=${work} processes=${live.processes} onOpen=${setLook} />`,
         sections: CodexSections,
-        composer: () => ({ ids: true, waits: waits(live) }),
+        // A thread whose own turn is over is free while its agents work: a
+        // message starts a turn at once, and there is no turn for the button
+        // to stop.
+        composer: () => ({ ids: true, waits: waits(live), busy: live.status === "busy" && !live.turnOver }),
         strip: ({ wide }) => html`<${CodexStrip} wide=${wide} exec=${exec} live=${live} pct=${pct} now=${pick.now}
                                                   open=${open} onOpen=${setOpen} onCompact=${compact}
                                                   catalog=${catalog} set=${pick.set} cwd=${cwd} />`,
@@ -87,6 +92,19 @@ export function CodexChat(props) {
         aside: () => null,
     };
     return html`<${Conversation} ...${props} parts=${parts} />`;
+}
+
+// CodexWork counts what a thread has in flight under the composer, where
+// claude's counters stand and in their order: what it left running, while
+// something is, and the agents it started — a chip that stands whatever the
+// thread holds, as claude's does.
+function CodexWork({ work, processes, onOpen }) {
+    return html`
+        <div class="wchips">
+            <${ProcessesChip} count=${processes} onOpen=${() => onOpen({ kind: "processes" })} />
+            <${AgentsChip} work=${work} onOpen=${onOpen} />
+        </div>
+    `;
 }
 
 // waits is what the field says while a turn runs: a message written now goes

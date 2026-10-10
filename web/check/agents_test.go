@@ -84,14 +84,19 @@ func TestAgentCountMatchesAgentList(t *testing.T) {
 		t.Fatalf("%s: no splitAgents — the counter and the list split agents each in their own way again", chatFile)
 	}
 
-	for _, head := range []string{"function Work(", "function WorkList(", "function AgentRow("} {
+	for _, head := range []string{"function AgentsChip(", "function WorkList(", "function AgentRow("} {
 		block := withoutComments(jsBlock(t, chatFile, body, head))
 		if strings.Contains(block, `"reported"`) {
 			t.Errorf("%s: %s knows about \"reported\" on its own — only splitAgents may decide "+
 				"the state of an agent, otherwise the counter drifts from the list", chatFile, head)
 		}
 	}
-	for _, head := range []string{"function Work(", "function WorkList("} {
+	// The agents' chip is a component of its own, drawn by the row of claude
+	// and by the row of a codex thread alike.
+	if !strings.Contains(jsBlock(t, chatFile, body, "function Work("), "<${AgentsChip}") {
+		t.Errorf("%s: the row under the composer does not draw the agents' chip", chatFile)
+	}
+	for _, head := range []string{"function AgentsChip(", "function WorkList("} {
 		if !strings.Contains(jsBlock(t, chatFile, body, head), "splitAgents(") {
 			t.Errorf("%s: %s does not ask splitAgents — the number in the row and the list in the sheet "+
 				"count agents differently", chatFile, head)
@@ -110,7 +115,7 @@ func TestAgentCountMatchesAgentList(t *testing.T) {
 			"and what the session is waiting for has to come first", chatFile)
 	}
 
-	work := jsBlock(t, chatFile, body, "function Work(")
+	work := jsBlock(t, chatFile, body, "function AgentsChip(")
 	if strings.Contains(work, "agents.length > 0 && html") {
 		t.Errorf("%s: the agent counter is drawn only when the session has had agents — it stands "+
 			"in the row whatever it holds and says by going dim that it holds nothing", chatFile)
