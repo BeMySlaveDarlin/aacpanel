@@ -25,6 +25,7 @@ import (
 func onCodexContour(t *testing.T) (*codextest.Server, *Executor, *action.Project) {
 	t.Helper()
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	sessionFiles(t)
 	srv := codextest.New(t)
 	home := filepath.Join(t.TempDir(), "acme")

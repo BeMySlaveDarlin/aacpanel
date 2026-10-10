@@ -389,9 +389,10 @@ def codex_row(data):
         row["mode"] = data["mode"]
     if isinstance(data.get("plan"), bool):
         row["plan"] = data["plan"]
-    # The name of the thread, given in the panel or in codex: the session
-    # keeps the name the panel addresses it by, and the screen shows this
-    # beside it.
+    # The name the panel gave the thread, while codex still calls the thread
+    # by it — the executor leaves out a name codex made up or was given in its
+    # own terminal: the session keeps the name the panel addresses it by, and
+    # the screen shows this in its place.
     if isinstance(data.get("title"), str) and data["title"]:
         row["title"] = data["title"]
     goal = _goal(data.get("goal"))

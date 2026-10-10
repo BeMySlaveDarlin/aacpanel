@@ -14,9 +14,10 @@ import (
 	"aacpanel/internal/codex/codextest"
 )
 
-// A name given in the panel and one given in codex both reach the row; the
+// A name given in the panel reaches the row, and stays there only while codex
+// calls the thread by it: a name given in codex's terminal does not; the
 // session keeps the name the panel finds it by.
-func TestTheNameOfAThreadReachesTheState(t *testing.T) {
+func TestTheNameThePanelGaveReachesTheStateWhileTheThreadKeepsIt(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
 	if err := l.Rename(context.Background(), threadA, "login-bug"); err != nil {
@@ -29,22 +30,95 @@ func TestTheNameOfAThreadReachesTheState(t *testing.T) {
 	if st.Title != "login-bug" || st.Name != "codex-0000abcd" {
 		t.Errorf("the state names the thread %q, the session %q", st.Title, st.Name)
 	}
+	polls()
+	if st, _, _ := stateOf(t, threadA); st.Title != "login-bug" {
+		t.Errorf("the name the panel gave went from the state as the daemon was read again: %q", st.Title)
+	}
 	srv.Update(threadA, func(th *codextest.Thread) { th.Name = "from the tui" })
-	until(t, "a name given elsewhere to reach the state", func() bool {
+	until(t, "a name given elsewhere to take the panel's off the state", func() bool {
 		st, _, _ := stateOf(t, threadA)
-		return st.Title == "from the tui"
+		return st.Title == ""
 	})
 }
 
-func TestTheNameTheDaemonSaysToItsClientsReachesTheState(t *testing.T) {
-	srv, l := linked(t, idle(threadA))
+// A name codex makes up by itself — its terminal titles a thread after the
+// first request — is no name of the panel's, and the row does not show it.
+func TestANameCodexGaveTheThreadIsNotOnTheState(t *testing.T) {
+	th := idle(threadA)
+	th.Name = "Look into the router"
+	_, l := linked(t, th)
 	until(t, "the state file", written(t, threadA))
+	until(t, "the link to know the name", func() bool { return calledAs(l, threadA) == "Look into the router" })
+	polls()
+	if st, raw, _ := stateOf(t, threadA); st.Title != "" {
+		t.Errorf("the state shows the name codex gave the thread: %s", raw)
+	}
+}
+
+// A name the daemon tells its clients of a thread the panel never named does
+// not reach the row; its word that a thread the panel named is called another
+// way now takes the panel's name off.
+func TestTheNameTheDaemonSaysToItsClientsIsShownOnlyIfThePanelGaveIt(t *testing.T) {
+	srv, l := linked(t, idle(threadA), idle(threadB))
+	until(t, "the state files", func() bool { return written(t, threadA)() && written(t, threadB)() })
 	l.join(context.Background(), mustClient(t, l), threadA)
-	srv.Notify(threadA, "thread/name/updated", map[string]any{"threadName": "renamed"})
-	until(t, "the name to reach the state", func() bool {
+	l.join(context.Background(), mustClient(t, l), threadB)
+
+	srv.Notify(threadB, "thread/name/updated", map[string]any{"threadName": "Look into the router"})
+	until(t, "the link to hear the name", func() bool { return calledAs(l, threadB) == "Look into the router" })
+	polls()
+	if st, raw, _ := stateOf(t, threadB); st.Title != "" {
+		t.Errorf("a name the daemon told of a thread the panel never named reached the state: %s", raw)
+	}
+
+	if err := l.Rename(context.Background(), threadA, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if st, _, _ := stateOf(t, threadA); st.Title != "admin" {
+		t.Fatalf("the name the panel gave is not on the state: %q", st.Title)
+	}
+	srv.Update(threadA, func(th *codextest.Thread) { th.Name = "Look into the router" })
+	srv.Notify(threadA, "thread/name/updated", map[string]any{"threadName": "Look into the router"})
+	until(t, "the word of another name to take the panel's off the state", func() bool {
 		st, _, _ := stateOf(t, threadA)
-		return st.Title == "renamed"
+		return st.Title == ""
 	})
+}
+
+// The name the panel gave outlives the executor: the one started after it
+// knows the name from the disk, and the row keeps it.
+func TestTheNameThePanelGaveOutlivesTheExecutor(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	srv := codextest.New(t)
+	srv.Add(idle(threadA))
+	first := NewLink(srv.Home, "acme")
+	stop := running(t, first)
+	until(t, "the state file", written(t, threadA))
+	if err := first.Rename(context.Background(), threadA, "login-bug"); err != nil {
+		t.Fatal(err)
+	}
+	stop()
+	if _, _, ok := stateOf(t, threadA); ok {
+		t.Fatal("the state file outlived the link that wrote it")
+	}
+
+	running(t, NewLink(srv.Home, "acme"))
+	until(t, "the next link's state file", written(t, threadA))
+	if st, raw, _ := stateOf(t, threadA); st.Title != "login-bug" {
+		t.Errorf("the executor started again lost the name the panel gave: %s", raw)
+	}
+}
+
+// calledAs is the name the link last heard a thread called by, empty while
+// it heard none.
+func calledAs(l *Link, id string) string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if t := l.threads[id]; t != nil && t.info.Name != nil {
+		return *t.info.Name
+	}
+	return ""
 }
 
 func mustClient(t *testing.T, l *Link) *conn {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,26 +29,40 @@ const (
 )
 
 // linked starts a fake daemon with the thread on it and a link to it. The
-// state files go to a runtime directory of the test's own.
+// state files go to a runtime directory of the test's own, and what outlives
+// an executor to a state directory of its own.
 func linked(t *testing.T, threads ...codextest.Thread) (*codextest.Server, *Link) {
 	t.Helper()
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	srv := codextest.New(t)
 	for _, th := range threads {
 		srv.Add(th)
 	}
 	l := NewLink(srv.Home, "acme")
+	running(t, l)
+	return srv, l
+}
+
+// running keeps the link until the test ends or stop is called, the way an
+// executor keeps it until it stops.
+func running(t *testing.T, l *Link) (stop func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
 		l.Run(ctx)
 		close(done)
 	}()
-	t.Cleanup(func() {
-		cancel()
-		<-done
-	})
-	return srv, l
+	var once sync.Once
+	stop = func() {
+		once.Do(func() {
+			cancel()
+			<-done
+		})
+	}
+	t.Cleanup(stop)
+	return stop
 }
 
 func until(t *testing.T, what string, cond func() bool) {
@@ -144,7 +159,7 @@ func TestPollWritesTheStateOfAThreadAndNothingOfTheConversation(t *testing.T) {
 		t.Error("the word that a request was answered is turned off: a request answered in the TUI would wait on the phone")
 	}
 	for m, why := range map[string]string{
-		"thread/name/updated":        "a name given in the TUI would wait for the next read",
+		"thread/name/updated":        "a name changed in the TUI would leave the panel's on the row until the next read",
 		"thread/goal/updated":        "the goal would stand as it was until the next read",
 		"thread/goal/cleared":        "a goal cleared in the TUI would stay on the row until the next read",
 		"thread/status/changed":      "a thread that turns free would wait a round for the next message of the queue",

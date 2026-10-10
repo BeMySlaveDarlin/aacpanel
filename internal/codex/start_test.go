@@ -73,7 +73,9 @@ func TestAThreadStartsWithWhatTheMapChoseAndNothingElse(t *testing.T) {
 }
 
 // A thread for codex in a terminal is named at its start: the naming writes
-// it to the disk, and codex resumes only a thread written there.
+// it to the disk, and codex resumes only a thread written there. The name is
+// the panel's and the row shows it, until codex in the terminal titles the
+// thread after its first request.
 func TestAThreadForATerminalIsNamed(t *testing.T) {
 	srv, l := linked(t)
 	ready(t, l)
@@ -85,6 +87,14 @@ func TestAThreadForATerminalIsNamed(t *testing.T) {
 	if len(names) != 1 || !reflect.DeepEqual(params(t, names[0]), map[string]any{"threadId": id, "name": "shop"}) {
 		t.Errorf("thread/name/set went as %s", names)
 	}
+	if st, raw, _ := stateOf(t, id); st.Title != "shop" {
+		t.Errorf("the name the panel gave at the start is not on the state: %s", raw)
+	}
+	srv.Update(id, func(th *codextest.Thread) { th.Name = "Look into the router" })
+	until(t, "the title codex gave to take the panel's name off the state", func() bool {
+		st, _, _ := stateOf(t, id)
+		return st.Title == ""
+	})
 }
 
 // A first message starts the first turn at once, with the effort of the map

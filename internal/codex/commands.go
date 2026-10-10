@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"slices"
 	"sort"
 	"strings"
 	"time"
+
+	"aacpanel/internal/stream"
 )
 
 // The commands of codex's own terminal client a thread takes through the
@@ -138,8 +142,9 @@ func (l *Link) StartReview(ctx context.Context, threadID string, r Review) error
 }
 
 // Rename names a thread, as /rename does in codex's terminal. The name is
-// what the panel shows for the session; the session keeps the name the panel
-// addresses it by.
+// what the panel shows for the session for as long as codex calls the thread
+// by it, and it is kept on the disk for the executor started after this one;
+// the session keeps the name the panel addresses it by.
 func (l *Link) Rename(ctx context.Context, threadID, name string) error {
 	c, err := l.client()
 	if err != nil {
@@ -148,9 +153,51 @@ func (l *Link) Rename(ctx context.Context, threadID, name string) error {
 	if err := within(ctx, c, "thread/name/set", map[string]any{"threadId": threadID, "name": name}, nil); err != nil {
 		return err
 	}
-	l.set(threadID, func(t *thread) { t.info.Name = &name })
-	l.save(threadID)
+	l.give(threadID, name)
 	return nil
+}
+
+// give takes a name the daemon has just given a thread at the panel's word:
+// the thread is called by it now, and it is the panel's to show. It is kept on
+// the disk first, so a thread the link has let go of meanwhile has it back
+// when it is seen again.
+func (l *Link) give(threadID, name string) {
+	body, err := json.Marshal(givenName{Name: name})
+	if err == nil {
+		err = write(stream.NamedPath(threadID), body)
+	}
+	if err != nil {
+		log.Printf("codex %s: the name the panel gave thread %s was not kept on the disk, and the row loses it "+
+			"when the executor starts again: %v", l.home, threadID, err)
+	}
+	l.set(threadID, func(t *thread) { t.info.Name, t.given = &name, name })
+	l.save(threadID)
+}
+
+// givenName is the file of the name the panel gave a thread.
+type givenName struct {
+	Name string `json:"name"`
+}
+
+// named is the name the panel gave a thread, as kept on the disk; empty when
+// it gave none.
+func named(threadID string) string {
+	raw, err := os.ReadFile(stream.NamedPath(threadID))
+	if err != nil {
+		return ""
+	}
+	var kept givenName
+	if json.Unmarshal(raw, &kept) != nil {
+		return ""
+	}
+	return kept.Name
+}
+
+// sameName says the thread is still called by the name the panel gave it.
+// The spaces at the ends of a name do not make it another: codex may keep the
+// name trimmed.
+func sameName(called, given string) bool {
+	return strings.TrimSpace(called) == strings.TrimSpace(given)
 }
 
 // SetGoal gives a thread a goal, or changes how its goal stands: an objective

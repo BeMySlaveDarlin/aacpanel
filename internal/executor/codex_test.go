@@ -27,6 +27,7 @@ const (
 func onCodex(t *testing.T, setup func(*codextest.Server)) (*codextest.Server, *Executor) {
 	t.Helper()
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	sessionFiles(t)
 	srv := codextest.New(t)
 	srv.Add(codextest.Thread{ID: codexThread, CWD: "/srv/proj", Model: "gpt-test", Created: 1791554348})

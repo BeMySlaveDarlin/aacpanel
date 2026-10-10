@@ -31,12 +31,15 @@ export function agentName(s) {
     return isCodex(s) ? "Codex" : "Claude";
 }
 
-// shownName is the name a person reads for a live session: a codex thread's
-// own title where it has one, and the name the panel finds the session by
-// otherwise. The session keeps that name as its address all the same: actions,
-// links and keys go by it.
+// shownName is the name a person reads for a live session. A codex thread
+// reads by the name the panel gave it, while codex still calls the thread by
+// it, and by the session of its project otherwise, as a claude session there
+// reads; the name the panel finds the session by is left for a thread no
+// project holds. The session keeps that name as its address all the same:
+// actions, links and keys go by it.
 export function shownName(s, fallback = "") {
     if (isCodex(s) && s.title) return s.title;
+    if (isCodex(s) && s.project && s.project.session) return s.project.session;
     return (s && s.session) || fallback;
 }
 

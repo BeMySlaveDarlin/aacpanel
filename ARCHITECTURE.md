@@ -641,9 +641,16 @@ appears or the connection drops — at once when an action waits for it.
   unloaded loses its file; a subagent's thread is part of its parent's turn and
   gets none, and so does the thread a review runs in. The panel names a thread
   by the tail of its id, `codex-<8 hex>`, and keeps that name whatever the
-  thread is called: actions find the session by it. The name of the thread —
-  given in the panel or in codex, which names none by itself — is shown beside
-  it.
+  thread is called: actions find the session by it. The screen reads the
+  thread by the name the panel gave it — a rename, or the project's session at
+  a start in tmux — for as long as codex calls the thread by it, and by the
+  session of its project otherwise, as a claude session there reads; a thread
+  no project holds reads by `codex-<8 hex>`. A name codex gave the thread is
+  not shown: its terminal titles a thread after the first request, and the
+  protocol tells that title from a person's name in no way, so a name given in
+  codex's terminal is not shown either. The name the panel gave is kept per
+  thread in `~/.local/state/aacpanel-stream/named/` (`$XDG_STATE_HOME` moves
+  it) for the executor started after a restart.
 - **What `thread/read` does not say is read beside it**: the goal of the
   thread and how many background terminals run. Both are asked when the thread
   runs, has changed since the last read or has terminals running, and every

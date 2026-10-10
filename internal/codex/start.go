@@ -34,7 +34,9 @@ type Begin struct {
 	Hold bool
 	// Name is given to the thread at its start. Naming writes the thread to
 	// the disk — the daemon writes a thread at its first turn or its naming —
-	// and codex in a terminal resumes only a thread written there.
+	// and codex in a terminal resumes only a thread written there. It is the
+	// panel's name, shown as a rename is, until codex calls the thread
+	// otherwise.
 	Name string
 }
 
@@ -112,6 +114,7 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 		if err := within(ctx, c, "thread/name/set", map[string]any{"threadId": id, "name": b.Name}, nil); err != nil {
 			return id, fmt.Errorf("the thread was not named, and codex in a terminal cannot resume it: %w", err)
 		}
+		l.give(id, b.Name)
 	}
 	if b.Message == "" {
 		return id, nil

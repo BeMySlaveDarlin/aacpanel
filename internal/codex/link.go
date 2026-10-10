@@ -132,8 +132,12 @@ type State struct {
 	// Context is how full the context of the thread is, as the daemon said
 	// with the last request the link heard of; absent before that.
 	Context *Context `json:"context,omitempty"`
-	// Title is the name of the thread, given in the panel or in codex; absent
-	// while it has none. The session keeps the name the panel addresses it by.
+	// Title is the name the panel gave the thread, while codex still calls the
+	// thread by it; absent otherwise. A name codex made up by itself or was
+	// given in its own terminal is not here: the protocol does not tell one
+	// from a person's, and the row reads by the session of its project then,
+	// as a claude session there does. The session keeps the name the panel
+	// addresses it by.
 	Title string `json:"title,omitempty"`
 	// Goal is the goal of the thread; absent while it has none or the daemon
 	// has not said.
@@ -290,6 +294,9 @@ type thread struct {
 	extrasSeen int64
 	// terminal is the tmux session the panel started codex in on the thread.
 	terminal string
+	// given is the name the panel gave the thread, as kept on the disk; empty
+	// while it gave none.
+	given string
 	// written is the state last written, without its time.
 	written []byte
 }
@@ -682,7 +689,8 @@ func (l *Link) seen(info threadInfo, asked time.Time) bool {
 	}
 	t := l.threads[info.ID]
 	if t == nil {
-		t = &thread{}
+		// The name the panel gave outlives the executor that gave it.
+		t = &thread{given: named(info.ID)}
 		l.threads[info.ID] = t
 	}
 	if info.Name == nil {
@@ -1025,7 +1033,7 @@ func (l *Link) state(t *thread) State {
 	if u, ok := l.usage[t.info.ID]; ok {
 		st.Context = &u
 	}
-	if t.info.Name != nil {
+	if t.info.Name != nil && t.given != "" && sameName(*t.info.Name, t.given) {
 		st.Title = *t.info.Name
 	}
 	st.Goal, st.Processes, st.Ask, st.Terminal = t.goal, t.processes, ask, t.terminal

@@ -75,6 +75,16 @@ func PermitsPath(sessionID string) string {
 	return filepath.Join(keptDir(), "permits", sessionID+".json")
 }
 
+// NamedPath keeps the name the panel gave one codex thread. Codex names a
+// thread by itself too — its terminal makes a title of the first request — and
+// the protocol tells such a name from one a person gave in no way, so the
+// panel shows the name of a thread only while it is the one the panel gave;
+// the executor started after a restart has to know which one that was. It
+// holds the words of that name and nothing else.
+func NamedPath(sessionID string) string {
+	return filepath.Join(keptDir(), "named", sessionID+".json")
+}
+
 // Permit is an answer to a permission, by the call it was given for.
 type Permit struct {
 	Use  string `json:"use"`
