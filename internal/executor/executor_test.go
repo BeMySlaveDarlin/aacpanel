@@ -30,10 +30,13 @@ type fakeDocker struct {
 	containers []Container
 	calls      []string
 	fail       map[string]string
-	after      func(calls int)
-	slow       time.Duration
-	inFlight   int
-	peak       int
+	// hold is asked with the number of each call; a call it holds is not
+	// answered at all until the executor gives up on it, the way a stop of
+	// docker runs past the time the executor has.
+	hold     func(calls int) bool
+	slow     time.Duration
+	inFlight int
+	peak     int
 }
 
 func (f *fakeDocker) server(t *testing.T) *httptest.Server {
@@ -76,7 +79,7 @@ func (f *fakeDocker) server(t *testing.T) *httptest.Server {
 			if f.inFlight > f.peak {
 				f.peak = f.inFlight
 			}
-			calls, after, slow := len(f.calls), f.after, f.slow
+			calls, hold, slow := len(f.calls), f.hold, f.slow
 			f.mu.Unlock()
 
 			defer func() {
@@ -85,8 +88,9 @@ func (f *fakeDocker) server(t *testing.T) *httptest.Server {
 				f.mu.Unlock()
 			}()
 
-			if after != nil {
-				after(calls)
+			if hold != nil && hold(calls) {
+				<-r.Context().Done()
+				return
 			}
 			if slow > 0 {
 				select {
@@ -517,19 +521,26 @@ func TestStackDown(t *testing.T) {
 		}
 	})
 
+	// The front of the stack stops in time, and the time runs out while
+	// docker still stops the layer behind it. The stops of a layer go out
+	// together, so the time is taken away inside them, and they are held
+	// until the executor gives up on them: a stop that answers anyway would
+	// leave nothing cut off, and the run would rightly be a success.
 	t.Run("time ran out — we say who is left", func(t *testing.T) {
 		e, fake := newTest(t, "",
-			Container{ID: "a", Name: "s-1", Project: "s", State: "running"},
-			Container{ID: "b", Name: "s-2", Project: "s", State: "running"},
-			Container{ID: "c", Name: "s-3", Project: "s", State: "running"},
+			Container{ID: "a", Name: "s-1", Project: "s", Service: "web", DependsOn: []string{"db", "cache"}, State: "running"},
+			Container{ID: "b", Name: "s-2", Project: "s", Service: "db", State: "running"},
+			Container{ID: "c", Name: "s-3", Project: "s", Service: "cache", State: "running"},
 		)
 		short, cancel := context.WithCancel(ctx)
-		fake.after = func(calls int) {
-			if calls == 1 {
-				cancel()
-			}
-		}
 		defer cancel()
+		fake.hold = func(calls int) bool {
+			if calls == 1 {
+				return false
+			}
+			cancel()
+			return true
+		}
 
 		_, err := e.Execute(short, req(action.StackDown, "s"))
 		if err == nil {
@@ -538,8 +549,8 @@ func TestStackDown(t *testing.T) {
 		if !strings.Contains(err.Error(), "not enough time") {
 			t.Errorf("the error %q does not explain that time ran out", err)
 		}
-		if !strings.Contains(err.Error(), "s-2") || !strings.Contains(err.Error(), "s-1") {
-			t.Errorf("the error %q names neither the stopped ones nor the ones left running", err)
+		if !strings.Contains(err.Error(), "stopped s-1, still up s-2, s-3") {
+			t.Errorf("the error %q does not name the stopped ones and the ones left running", err)
 		}
 	})
 
