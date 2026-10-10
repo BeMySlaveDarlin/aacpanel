@@ -273,20 +273,46 @@ func (r Request) Asked() []string {
 	return out
 }
 
-// entryPath words the path of an entry of a file system grant: a path as it
-// is, or the special place codex names by a kind.
+// entryPath words the path of an entry of a file system grant. Codex writes
+// it as a union told by its type: a path, a glob pattern, or a special place
+// whose kind is inside its value — the project roots, the temporary
+// directory, a place of a kind this panel does not know by its path — with
+// the part under it. A path is shown as it is, a pattern as it is written and
+// a special place by its kind or path, then the part under it: the type is a
+// word of the protocol, not a place a person grants. A type codex has since
+// added is shown as codex wrote it.
 func entryPath(raw json.RawMessage) string {
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
 		return s
 	}
-	var obj map[string]any
-	if json.Unmarshal(raw, &obj) == nil {
-		for _, key := range []string{"path", "value", "kind", "type"} {
-			if v, ok := obj[key].(string); ok && v != "" {
-				return v
-			}
+	var p struct {
+		Type    string `json:"type"`
+		Path    string `json:"path"`
+		Pattern string `json:"pattern"`
+		Value   struct {
+			Kind    string `json:"kind"`
+			Path    string `json:"path"`
+			Subpath string `json:"subpath"`
+		} `json:"value"`
+	}
+	if json.Unmarshal(raw, &p) != nil {
+		return string(raw)
+	}
+	switch p.Type {
+	case "path":
+		return p.Path
+	case "glob_pattern":
+		return p.Pattern
+	case "special":
+		place := p.Value.Kind
+		if p.Value.Path != "" {
+			place = p.Value.Path
 		}
+		if p.Value.Subpath != "" {
+			place = strings.TrimRight(place, "/") + "/" + p.Value.Subpath
+		}
+		return place
 	}
 	return string(raw)
 }

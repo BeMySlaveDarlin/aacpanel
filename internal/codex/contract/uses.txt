@@ -284,7 +284,12 @@ answer item/permissions/requestApproval
   read permissions.network.enabled
   read permissions.fileSystem.read[]
   read permissions.fileSystem.write[]
-  read permissions.fileSystem.entries[].path
+  read permissions.fileSystem.entries[].path.type: path glob_pattern special
+  read permissions.fileSystem.entries[].path<path>.path
+  read permissions.fileSystem.entries[].path<glob_pattern>.pattern
+  read permissions.fileSystem.entries[].path<special>.value.kind
+  read permissions.fileSystem.entries[].path<special>.value.path
+  read permissions.fileSystem.entries[].path<special>.value.subpath
   read permissions.fileSystem.entries[].access
   send permissions.network
   send permissions.fileSystem

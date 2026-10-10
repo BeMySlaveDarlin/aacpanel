@@ -184,7 +184,9 @@ func TestCodexGrantAndPageAreChoices(t *testing.T) {
 	srv, e := onCodex(t, func(srv *codextest.Server) {
 		srv.Ask(codexThread, "item/permissions/requestApproval", map[string]any{"turnId": "turn-x", "itemId": "call_p",
 			"environmentId": nil, "startedAtMs": 1, "cwd": "/srv/proj", "reason": "it writes the report",
-			"permissions": map[string]any{"network": nil, "fileSystem": map[string]any{"read": nil, "write": []string{"/srv/out"}}}})
+			"permissions": map[string]any{"network": nil, "fileSystem": map[string]any{"read": nil, "write": []string{"/srv/out"},
+				"entries": []any{map[string]any{"access": "read",
+					"path": map[string]any{"type": "glob_pattern", "pattern": "/srv/proj/**/*.go"}}}}}})
 	})
 	ctx := context.Background()
 	d := askedPermission(t, e)
@@ -192,7 +194,7 @@ func TestCodexGrantAndPageAreChoices(t *testing.T) {
 	for _, o := range d.Options {
 		texts = append(texts, o.Text)
 	}
-	if d.Tool != "Permissions" || !reflect.DeepEqual(d.Action, []string{"write /srv/out"}) ||
+	if d.Tool != "Permissions" || !reflect.DeepEqual(d.Action, []string{"write /srv/out", "read /srv/proj/**/*.go"}) ||
 		strings.Join(texts, "|") != "Yes, grant these permissions for this turn|Yes, grant these permissions for this session|No, go on without them" ||
 		!d.Options[1].Lasting || len(d.Note) != 1 || !strings.Contains(d.Note[0], "the report") {
 		t.Errorf("the grant reads as %+v", d)
@@ -202,7 +204,8 @@ func TestCodexGrantAndPageAreChoices(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, "the grant to reach the daemon", func() bool { return len(srv.Answers()) == 1 })
-	if got := string(srv.Answers()[0].Result); got != `{"permissions":{"fileSystem":{"read":null,"write":["/srv/out"]}},"scope":"session"}` {
+	if got := string(srv.Answers()[0].Result); got != `{"permissions":{"fileSystem":{"entries":[{"access":"read",`+
+		`"path":{"pattern":"/srv/proj/**/*.go","type":"glob_pattern"}}],"read":null,"write":["/srv/out"]}},"scope":"session"}` {
 		t.Errorf("the daemon got %s", got)
 	}
 

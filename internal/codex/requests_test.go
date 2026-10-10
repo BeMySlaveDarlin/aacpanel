@@ -113,6 +113,31 @@ func TestAGrantOfPermissionsSendsBackWhatWasAsked(t *testing.T) {
 	}
 }
 
+// An entry of a file system grant reads as the place it grants: a path as it
+// is, a glob pattern as it is written, a special place by its kind or its
+// path with the part under it — never as the word of the protocol that tells
+// which of them it is.
+func TestTheEntriesOfAGrantReadAsTheirPlaces(t *testing.T) {
+	r := Request{Method: methodPermissions, Params: Params{Permissions: json.RawMessage(`{"fileSystem":{"entries":[
+		{"access":"write","path":{"type":"path","path":"/srv/out"}},
+		{"access":"read","path":{"type":"glob_pattern","pattern":"/srv/proj/**/*.go"}},
+		{"access":"write","path":{"type":"special","value":{"kind":"project_roots","subpath":"build"}}},
+		{"access":"write","path":{"type":"special","value":{"kind":"tmpdir"}}},
+		{"access":"read","path":{"type":"special","value":{"kind":"unknown","path":"/srv/cache","subpath":"go"}}},
+		{"access":"deny","path":{"type":"mount","source":"/srv/disk"}}]}}`)}}
+	want := []string{
+		"write /srv/out",
+		"read /srv/proj/**/*.go",
+		"write project_roots/build",
+		"write tmpdir",
+		"read /srv/cache/go",
+		`deny {"type":"mount","source":"/srv/disk"}`,
+	}
+	if got := r.Asked(); !slices.Equal(got, want) {
+		t.Errorf("the entries read\n%q\nnot\n%q", got, want)
+	}
+}
+
 func form(schema string) Request {
 	return Request{ID: json.RawMessage(`7`), Method: methodElicitation, Params: Params{ThreadID: threadA,
 		Elicitation: Elicitation{Server: "tracker", Mode: "form", Message: "File the bug", Schema: json.RawMessage(schema)}}}
