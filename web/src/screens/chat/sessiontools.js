@@ -238,7 +238,7 @@ export function RemoteLine({ name, live, exec, snapshot }) {
 
 // ToolRow is a line of the tools that does something on a press: its icon,
 // what it does, and under it a note, or why it cannot be done when it cannot.
-export function ToolRow({ icon, label, note = "", aside = "", off = "", stop = false, onPress }) {
+export function ToolRow({ icon, label, note = "", aside = "", off = "", stop = false, more = false, onPress }) {
     return html`
         <li><button type="button" class=${`mcprow toolrow${stop ? " toolstop" : ""}`} disabled=${Boolean(off)} onClick=${onPress}>
             <span class="toolicon">${icon()}</span>
@@ -247,6 +247,7 @@ export function ToolRow({ icon, label, note = "", aside = "", off = "", stop = f
                 ${(off || note) && html`<span class=${`toolnote${off ? " why" : ""}`}>${off || note}</span>`}
             </span>
             ${aside && html`<span class="toolaside">${aside}</span>`}
+            ${more && html`<span class="crgo">${Icon.chevron()}</span>`}
         </button></li>
     `;
 }

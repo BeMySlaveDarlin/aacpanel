@@ -14,6 +14,10 @@ import { useAction } from "../../actions/gate.js";
 import { CODEX_CLOSE, CODEX_NOTE, noTurn } from "../../agent.js";
 import { Conversation } from "./conversation.js";
 import { CodexSheets, CodexStrip, useCatalog, useCodexPick } from "./codexpick.js";
+import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
+import { LOOK_NAMES } from "./look.js";
+import { McpSheet } from "./mcp.js";
+import { SetupSheet } from "./setup.js";
 import { IdLine, PlaceLine, ToolRow } from "./sessiontools.js";
 import { useTermAvailable } from "./term.js";
 
@@ -30,28 +34,55 @@ const PLACE = {
     onWindow: () => {},
 };
 
+// What a thread has and what it left running open as sheets of its own: its
+// MCP servers and skills, read-only, and its background processes.
+const OWN_LOOKS = {
+    mcp: LOOK_NAMES.mcp,
+    skills: "skills",
+    processes: "background processes",
+};
+
 export function CodexChat(props) {
-    const { name, live } = props;
+    const { name, live, exec } = props;
     const term = useTermAvailable();
-    // Which list of the band is open: how codex thinks, or what it may do.
+    // Which list or pane of the band is open: how codex thinks, what it may
+    // do, the thread, or a pane of the thread.
     const [open, setOpen] = useState("");
-    const catalog = useCatalog(open);
+    const catalog = useCatalog(name, open);
     const pick = useCodexPick(name, live, catalog);
+    const compact = useCompact(name);
     const cwd = (live && live.cwd) || "";
+    const pct = live ? live.pct : null;
 
     const parts = {
         term,
         place: PLACE,
         toBackground: null,
         takesBack: true,
-        work: false,
+        // A question of codex is answered by its protocol wherever it lives:
+        // codex in tmux has no screen of claude's to press keys into.
+        askStream: true,
+        work: ({ setLook }) => html`<${ProcessesChip} count=${live.processes}
+                                                      onOpen=${() => setLook({ kind: "processes" })} />`,
         sections: CodexSections,
         composer: () => ({ ids: true, waits: waits(live) }),
-        strip: ({ wide }) => html`<${CodexStrip} wide=${wide} exec=${props.exec} now=${pick.now} open=${open}
-                                                  onOpen=${setOpen} catalog=${catalog} set=${pick.set} cwd=${cwd} />`,
-        look: () => null,
-        sheets: ({ wide }) => !wide && html`<${CodexSheets} open=${open} onClose=${() => setOpen("")} now=${pick.now}
-                                                             catalog=${catalog} set=${pick.set} cwd=${cwd} />`,
+        strip: ({ wide }) => html`<${CodexStrip} wide=${wide} exec=${exec} live=${live} pct=${pct} now=${pick.now}
+                                                  open=${open} onOpen=${setOpen} onCompact=${compact}
+                                                  catalog=${catalog} set=${pick.set} cwd=${cwd} />`,
+        look: (look) => {
+            if (!OWN_LOOKS[look.kind]) return null;
+            const node = look.kind === "mcp"
+                ? html`<${McpSheet} name=${name} exec=${exec} readOnly />`
+                : look.kind === "skills"
+                ? html`<${SetupSheet} name=${name} part="skills"
+                                      readNote="Read-only: a skill is turned on or off in codex's config." />`
+                : html`<${ProcessesSheet} name=${name} exec=${exec} />`;
+            return { label: OWN_LOOKS[look.kind], node };
+        },
+        sheets: ({ wide }) => html`<${CodexSheets} wide=${wide} name=${name} live=${live} exec=${exec} pct=${pct}
+                                                    open=${open} onOpen=${setOpen} onClose=${() => setOpen("")}
+                                                    onCompact=${compact} now=${pick.now} catalog=${catalog}
+                                                    set=${pick.set} cwd=${cwd} />`,
         aside: () => null,
     };
     return html`<${Conversation} ...${props} parts=${parts} />`;
@@ -65,10 +96,10 @@ function waits(live) {
     return ahead > 0 ? `goes after the turn, behind ${ahead} queued` : "goes after the turn";
 }
 
-// CodexSections are the tools of a thread: where it lives, its id, the stop of
-// its turn and its close — no move, no window, no bridge and no name to
-// change.
-export function CodexSections({ name, live, exec, onDone }) {
+// CodexSections are the tools of a thread: where it lives, what it has, its
+// id, the stop of its turn and its close — no move, no window and no bridge.
+// Its name is changed from the thread, behind the band.
+export function CodexSections({ name, live, exec, onDone, onLook }) {
     const run = useAction();
     const stopWhy = noTurn(live) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     const closeWhy = knows(exec, "session.close") ? "" : whyNot(exec, "session.close");
@@ -76,6 +107,15 @@ export function CodexSections({ name, live, exec, onDone }) {
         <section class="toolsec">
             <div class="cmdsechead"><span>Where it lives</span></div>
             <ul class="mcplist toollist"><${PlaceLine} label="With codex" note=${CODEX_NOTE} /></ul>
+        </section>
+        <section class="toolsec">
+            <div class="cmdsechead"><span>What it has</span></div>
+            <ul class="mcplist toollist">
+                <${ToolRow} icon=${Icon.plug} label="MCP servers" note="what codex can reach, as it reports it"
+                            more onPress=${() => { onDone(); onLook("mcp"); }} />
+                <${ToolRow} icon=${Icon.skill} label="Skills" note="read-only: set in codex's config"
+                            more onPress=${() => { onDone(); onLook("skills"); }} />
+            </ul>
         </section>
         <section class="toolsec">
             <div class="cmdsechead"><span>Session</span></div>

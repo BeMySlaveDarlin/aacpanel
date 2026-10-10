@@ -20,7 +20,7 @@ import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contoursOf } from "../screens/sessions/map.js";
 import { kinLabel, kinOf, outsideNote } from "../screens/sessions/kin.js";
-import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex } from "../agent.js";
+import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex, shownName } from "../agent.js";
 import { aboutOf, stateOf, stopsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
@@ -191,7 +191,7 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
         >
             <span class="dkkey">${index >= 0 && index < 9 ? index + 1 : ""}</span>
             <span class="dksessmain">
-                <span class="dkname">${s.session}</span>
+                <span class="dkname" title=${shownName(s) !== s.session ? s.session : undefined}>${shownName(s)}</span>
                 ${s.home && html`<span class="dkhome">home</span>`}
                 ${s.outside && !kid && html`
                     <span class="dkmark" data-tip=${outsideNote(s)}>
@@ -318,11 +318,12 @@ function limitLevel(value) {
 // the share inside it, and under it how long until the window starts over —
 // or the window itself when that is not known. The fill is one colour, which
 // steps at the thresholds of limitLevel.
-function Ring({ label, title, part }) {
+function Ring({ label, title, part, agent = "" }) {
     const value = Math.round((part && part.pct) || 0);
     const when = resetIn(part);
     return html`
-        <span class=${`dkring ${limitLevel(value)}`.trim()} data-tip=${when ? `${title}: resets in ${when}` : title}>
+        <span class=${`dkring ${limitLevel(value)}`.trim()} data-agent=${agent || undefined}
+              data-tip=${when ? `${title}: resets in ${when}` : title}>
             <span class="dkringdial" style=${`--share:${Math.min(100, value)}`}><b>${value}</b></span>
             <span class="dkringlabel">${shortLeft(part) || label}</span>
         </span>
@@ -354,6 +355,10 @@ export function ContourLimits({ limits, name, profiles }) {
     const id = ((profiles || []).find((p) => p.profile === name) || {}).id || 0;
     const c = contourOf(limits, name, id);
     if (!c) return html`<span class="dkrings dknone">no numbers yet</span>`;
+    // Codex's week stands beside claude's two windows, a ring of its own in
+    // codex's hue; a contour codex alone has spent in has that ring alone.
+    const claude = Boolean(c.fiveHour || c.sevenDay);
+    const week = (c.codex && c.codex.sevenDay) || null;
     const old = staleLimits(c)
         ? `The numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers`
         : "";
@@ -362,14 +367,20 @@ export function ContourLimits({ limits, name, profiles }) {
             <button class=${`dkrings${old ? " dkold" : ""}`} type="button" aria-expanded=${open ? "true" : "false"}
                     aria-label=${`the limits of contour ${name}`} onClick=${() => setOpen(!open)}>
                 ${old && html`<span class="dkringsage">${agoText(c.ageSec)}</span>`}
-                <${Ring} label="5h" title="Five hours" part=${c.fiveHour} />
-                <${Ring} label="7d" title="Seven days" part=${c.sevenDay} />
+                ${claude && html`
+                    <${Ring} label="5h" title="Five hours" part=${c.fiveHour} />
+                    <${Ring} label="7d" title="Seven days" part=${c.sevenDay} />
+                `}
+                ${week && html`<${Ring} label="7d" title="Codex, seven days" part=${week} agent="codex" />`}
             </button>
             <${Popover} open=${open} onClose=${close} label=${`the limits of contour ${name}`}>
                 <div class="dklimpop">
                     <div class="dklimpophead">${name}</div>
-                    <${Window} title="Five hours" part=${c.fiveHour} />
-                    <${Window} title="Seven days" part=${c.sevenDay} />
+                    ${claude && html`
+                        <${Window} title="Five hours" part=${c.fiveHour} />
+                        <${Window} title="Seven days" part=${c.sevenDay} />
+                    `}
+                    ${week && html`<${Window} title="Codex · seven days" part=${week} />`}
                     ${old && html`<p class="dklimpopnote">${old}</p>`}
                 </div>
             <//>

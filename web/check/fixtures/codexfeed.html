@@ -1,0 +1,123 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The feed of a codex thread with what codex alone writes: the questions of
+// plan mode answered with a note and put away, the plan, a review begun and
+// ended with a finding — and the answer that repeats it — a review that found
+// nothing, and a goal set, run out of its budget and gone on with.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const at = (n) => new Date(Date.now() - (40 - n) * 60000).toISOString();
+const explanation = "The patch regresses the existing `add` function by changing its result from a sum to a difference.";
+const body = "This changes the existing `add(a, b)` contract from addition to subtraction, so every caller "
+    + "expecting the original behavior now receives incorrect results (for example, `add(2, 3)` returns `-1` "
+    + "instead of `5`). Keep the addition operation here; add subtraction as a separate function if that "
+    + "behavior is needed.";
+let pos = 0;
+const items = [];
+const push = (item) => { pos += 1; items.push({ pos, at: at(pos), ...item }); };
+push({ role: "me", text: "Propose a plan for the indentation." });
+push({ role: "asked", use: "call_98cb", asked: [{ text: "Which indentation style do you prefer?", answer: ["Spaces (Recommended)"], note: "keep it short" }] });
+push({ role: "asked", use: "call_dismissed", asked: [{ text: "Which file first?" }], status: "rejected" });
+push({ role: "plan", text: "1. Add a root `.editorconfig` setting `indent_style = space`.\n2. Verify the file applies to every file of the project.\n", cut: false });
+push({ role: "ai", text: "The plan is above." });
+push({ role: "review", state: "start", text: "current changes" });
+push({ role: "review", state: "end", verdict: "patch is incorrect", text: explanation, cut: false, confidence: 0.99,
+       findings: [{ title: "[P1] Preserve addition semantics in `add`", body, priority: 1, confidence: 0.99, path: "/srv/proj/calc.py", lines: [2, 2] }] });
+push({ role: "ai", text: `${explanation}\n\nReview comment:\n\n- [P1] Preserve addition semantics in \`add\` — /srv/proj/calc.py:2-2\n  ${body}` });
+push({ role: "review", state: "start", text: "changes against no-such-branch" });
+push({ role: "review", state: "end", verdict: "patch is correct", text: "The only committed change adds `add(a, b)` with the expected addition behavior.", cut: false, confidence: 0.9, findings: [] });
+push({ role: "ai", text: "Nothing to fix in the committed change." });
+push({ role: "goal", text: "Make CI green on main", cut: false, status: "active", tokensUsed: 41000, tokenBudget: 200000, timeUsedSeconds: 0 });
+push({ role: "note", text: "codex goes on with its goal" });
+push({ role: "goal", text: "Make CI green on main", cut: false, status: "budgetLimited", tokensUsed: 203300, tokenBudget: 200000, timeUsedSeconds: 754 });
+
+const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: pos, total: pos, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u === "/api/actions") return json({ logged: true, ok: true });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.send", "session.stop", "session.close"] };
+const thread = {
+    session: "shop-checkout", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", profile: "acme", agent: "codex",
+    transport: "stream", status: "idle", model: "gpt-6-astra", tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/shop",
+};
+setLiveSessions([thread]);
+const root = document.getElementById("root");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 150 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel) => Array.from(root.querySelectorAll(sel));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${thread}
+        exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    if (!await until(() => all(".chatfeed .xrgoal").length === 2)) throw new Error("the goals did not come");
+    await settled();
+
+    const out = {
+        ai: all(".chatfeed .msg.ai").map(text),
+        asked: all(".chatfeed .sent.asked").map((card) => ({
+            off: card.classList.contains("off"),
+            why: text(card.querySelector(".askedwhy")),
+            answer: text(card.querySelector(".askeda")),
+            note: text(card.querySelector(".pnmnote")),
+        })),
+        plan: all(".chatfeed .xrplan").map((card) => ({
+            label: text(card.querySelector(".sentlabel")),
+            items: card.querySelectorAll(".sentcap li").length,
+            text: text(card.querySelector(".sentcap")),
+        })),
+        starts: all(".chatfeed .xrstart").map(text),
+        reviews: all(".chatfeed .xrreview").map((card) => ({
+            tone: Array.from(card.classList).find((c) => c.startsWith("v-")) || "",
+            verdict: text(card.querySelector(".xrverdict")),
+            text: text(card.querySelector(".sentcap")),
+            findings: Array.from(card.querySelectorAll(".xrfind")).map((row) => ({
+                tag: text(row.querySelector(".mftag")),
+                title: text(row.querySelector(".askeda")),
+                at: text(row.querySelector(".askedsubj")),
+                tone: Array.from(row.classList).find((c) => c.startsWith("s-")) || "",
+                clamped: row.querySelector(".xrbody").scrollHeight > row.querySelector(".xrbody").clientHeight + 1,
+            })),
+        })),
+        goals: all(".chatfeed .xrgoal").map((card) => ({
+            word: text(card.querySelector(".xrgoalword")),
+            title: text(card.querySelector(".pnmtitle")),
+            meta: Array.from(card.querySelector(".pnmmeta").children).map(text).join(" | "),
+            bar: card.querySelector(".pnmbar i") ? card.querySelector(".pnmbar i").style.width : "",
+        })),
+        notes: all(".chatfeed .mnote").map(text),
+    };
+
+    // A finding opens to its whole body.
+    const row = root.querySelector(".chatfeed .xrfind");
+    if (row) {
+        row.click();
+        await settled();
+        const b = row.querySelector(".xrbody");
+        out.opened = { expanded: row.getAttribute("aria-expanded"), clamped: b.scrollHeight > b.clientHeight + 1 };
+    }
+    return out;
+})();
+</script>

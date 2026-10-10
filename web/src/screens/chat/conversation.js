@@ -34,7 +34,7 @@ import { Brief } from "../brief.js";
 import { index, shelf as pageShelf } from "../../data/artifacts.js";
 import { shelf as briefShelf } from "../../data/briefs.js";
 import { list as secretShelf } from "../../data/secrets.js";
-import { hasWork, Work, WorkList, WorkRefs, WorkStatus } from "./work.js";
+import { hasWork, WorkList, WorkRefs, WorkStatus } from "./work.js";
 import { ChecklistSheet } from "./checklist.js";
 import { Composer, deliver, outcome } from "./composer.js";
 import { knows, whyNot } from "../../exec.js";
@@ -53,7 +53,7 @@ import { TermJump } from "../terms/jump.js";
 import { useViewing } from "../../viewing.js";
 import { useWide } from "../../ui/wide.js";
 import { useAsOf } from "../../ui/asof.js";
-import { agentKey, agentName } from "../../agent.js";
+import { agentKey, agentName, isCodex, shownName } from "../../agent.js";
 
 // Conversation draws the screen; parts carry what its agent brings:
 //
@@ -63,7 +63,10 @@ import { agentKey, agentName } from "../../agent.js";
 //   toBackground what a call the turn waits on is sent to the background by,
 //                or null where nothing is
 //   takesBack    whether a queued message can be taken back from its queue
-//   work         whether the agents, workflows and tasks of the turn show
+//   askStream    whether a question of the agent is answered by its protocol
+//                rather than by keys in a terminal
+//   work         ctx → what runs beside the turn: claude's agents, workflows
+//                and tasks, codex's background processes
 //   sections     the sections of the session's tools
 //   composer     ctx → what the composer reads in the words beyond them
 //   strip        ctx → the band under the field, after the paperclip
@@ -334,11 +337,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const termJump = onTerm && term.route && live && termPlace && knows(exec, "term.start")
         ? html`<${TermJump} place=${termPlace} exec=${exec} onTerm=${onTerm} />`
         : null;
-    const work = parts.work ? html`<${Work} work=${state.work} onOpen=${(what) => setLook(what)} />` : null;
+    const work = parts.work(ctx);
 
     return html`
         ${wide
-            ? html`<${DeskHead} name=${name} live=${live} archive=${archive} pct=${pct} move=${move} tools=${deskTools} />`
+            ? html`<${DeskHead} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} move=${move} tools=${deskTools} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
                      foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
@@ -346,7 +349,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             <div class="chathead">
                 <h2>
                     <span class="talkdot" data-tone=${stand.tone} title=${stand.say}></span>
-                    <${MidName} text=${name} />
+                    <${MidName} text=${shownName(live, name)} />
                 </h2>
                 <div class="chatsub">
                     ${live && html`
@@ -457,7 +460,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     ? html`<p class="outsidenote">${outsideNote(live)}</p>`
                     : state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
                     && !hidesAsk(answer, state.work.ask.toolUseId)
-                    ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${live.transport === "stream"}
+                    ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
                                    onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))} />`
                     : live.status === "waiting" && !holding
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor}

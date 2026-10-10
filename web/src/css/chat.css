@@ -43,7 +43,9 @@
    that tells one session of a project from another stays whole. */
 .midname { display: flex; min-width: 0; overflow: hidden; white-space: nowrap; }
 .midhead { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.midtail { flex: none; }
+/* The tail keeps the space it starts with: a title of words splits before one,
+   and a flex item would drop it, gluing the words together. */
+.midtail { flex: none; white-space: pre; }
 
 .chatsub {
     display: flex;

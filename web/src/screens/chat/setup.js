@@ -54,7 +54,7 @@ function Head({ title, onBack, onAgain }) {
 
 // SetupSheet is what /hooks, /memory, /skills, /agents and /config open in a
 // session on the stream.
-export function SetupSheet({ name, part }) {
+export function SetupSheet({ name, part, readNote = "" }) {
     const [tick, setTick] = useState(0);
     const data = useSetup(name, part, tick);
     const title = SETUP_TITLES[part] || part;
@@ -71,7 +71,7 @@ export function SetupSheet({ name, part }) {
     switch (part) {
     case "hooks": return html`<${HooksView} hooks=${data.hooks} head=${head} />`;
     case "memory": return html`<${MemoryView} memory=${data.memory} head=${head} />`;
-    case "skills": return html`<${SkillsView} skills=${data.skills} head=${head} />`;
+    case "skills": return html`<${SkillsView} skills=${data.skills} head=${head} note=${readNote} />`;
     case "agents": return html`<${AgentsView} agents=${data.agents} head=${head} />`;
     default: return html`<${ConfigView} config=${data.config} head=${head} />`;
     }
@@ -256,7 +256,7 @@ function Expandable({ title, note, tag, text, dim }) {
     `;
 }
 
-function SkillsView({ skills, head }) {
+function SkillsView({ skills, head, note }) {
     const [typed, setTyped] = useState("");
     const rows = skills || [];
     const shown = matches(rows, typed);
@@ -273,7 +273,7 @@ function SkillsView({ skills, head }) {
                 `)}
             </ul>
             ${shown.length === 0 && html`<p class="cmdnote">No skill has these words.</p>`}
-            <p class="cmdnote">Read-only: a skill is turned on or off in the terminal, /skills with keys.</p>
+            <p class="cmdnote">${note || "Read-only: a skill is turned on or off in the terminal, /skills with keys."}</p>
         </div>
     `;
 }

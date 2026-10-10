@@ -18,6 +18,7 @@ import { savedAfter } from "../../data/secrets.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
+import { GoalCard, PlanCard, ReviewCard } from "./codexrows.js";
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
@@ -73,6 +74,17 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
 
     if (item.role === "asked") {
         return html`<${AskedCard} item=${item} />`;
+    }
+
+    // What codex alone writes: a plan, a review and a goal.
+    if (item.role === "plan") {
+        return html`<${PlanCard} item=${item} />`;
+    }
+    if (item.role === "review") {
+        return html`<${ReviewCard} item=${item} />`;
+    }
+    if (item.role === "goal") {
+        return html`<${GoalCard} item=${item} />`;
     }
 
     if (item.role === "permitted") {
@@ -601,9 +613,9 @@ const ROUND_NAMES = {
 
 // AskedCard is a round of questions the person answered, a card of the build
 // of the files sent to them: the head says what it was and when, and each
-// question is a row on the plate — its header as the tag, the question, and
-// what was picked. A question left without an answer has its tag dimmed, so
-// the round reads at a glance.
+// question is a row on the plate — its header as the tag, the question, what
+// was picked and the note the person added beside it. A question left without
+// an answer has its tag dimmed, so the round reads at a glance.
 function AskedCard({ item }) {
     const rows = item.asked || [];
     const note = ROUND_NAMES[item.status];
@@ -625,6 +637,7 @@ function AskedCard({ item }) {
                             ${answer.length
                                 ? html`<span class="askeda">${answer.join(" · ")}</span>`
                                 : !item.status && html`<span class="askeda skip">skipped</span>`}
+                            ${row.note && html`<span class="pnmnote">${row.note}</span>`}
                         </div>
                     `;
                 })}

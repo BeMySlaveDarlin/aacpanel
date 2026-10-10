@@ -937,6 +937,10 @@
         mask: radial-gradient(farthest-side, transparent calc(100% - 2.4px), #000 calc(100% - 2px));
     }
 
+    /* Codex's week is a ring in codex's hue beside claude's two, until it
+       nears its end and takes the tone every ring takes then. */
+    .dkring[data-agent="codex"] .dkringdial { --ring: var(--agent-codex); }
+
     .dkring.dkwarn .dkringdial { --ring: var(--warn); }
 
     .dkring.dkcrit .dkringdial { --ring: var(--crit); }

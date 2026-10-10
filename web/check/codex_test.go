@@ -200,8 +200,8 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 
 	// The composer: codex's band, the stop of a busy turn, and a field that
 	// says a message goes after the turn.
-	if strings.Join(got.Band, ",") != "clip,think,perm" {
-		t.Errorf("the band under the field of a codex thread holds %v, expected the paperclip, how it thinks and what it may do", got.Band)
+	if strings.Join(got.Band, ",") != "clip,think,perm,thread" {
+		t.Errorf("the band under the field of a codex thread holds %v, expected the paperclip, how it thinks, what it may do and the thread", got.Band)
 	}
 	if got.Placeholder != "Goes after the turn" {
 		t.Errorf("the field of a busy codex thread says %q, expected that a message goes after the turn", got.Placeholder)
@@ -238,7 +238,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 
 	// The session panel: where it lives, its id, the stop of its turn and the
 	// close.
-	if strings.Join(got.Panel, ",") != "With codex,Copy the session ID,Stop the turn,Close the session" {
+	if strings.Join(got.Panel, ",") != "With codex,MCP servers,Skills,Copy the session ID,Stop the turn,Close the session" {
 		t.Errorf("the session panel of a codex thread lists %v", got.Panel)
 	}
 	if got.PanelStopOff == nil || *got.PanelStopOff || strings.Join(got.StopSent, ",") != name {
@@ -323,7 +323,7 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 		t.Errorf("the line under the name reads %q and opens with %+v, expected Codex, painted as codex's, and its model",
 			got.Sub, got.Agent)
 	}
-	if !got.Strip || strings.Join(got.Band, ",") != "clip,think,perm" || len(got.ClaudeTools) != 0 {
+	if !got.Strip || strings.Join(got.Band, ",") != "clip,think,perm,thread" || len(got.ClaudeTools) != 0 {
 		t.Errorf("the composer of a codex thread has the band %v of %v and claude's tools %v, expected the paperclip, "+
 			"how it thinks and what it may do", got.Strip, got.Band, got.ClaudeTools)
 	}
@@ -336,7 +336,7 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if strings.Join(got.Attach, ",") != "Camera,Photos,Files" {
 		t.Errorf("the paperclip of a codex thread opens %v, expected where files come from, as claude's does", got.Attach)
 	}
-	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,Copy the session ID,Stop the turn,Close the session" {
+	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,MCP servers,Skills,Copy the session ID,Stop the turn,Close the session" {
 		t.Errorf("the tools of a codex thread list %v", got.Tools)
 	}
 	if got.Close == nil || got.Close.Off {

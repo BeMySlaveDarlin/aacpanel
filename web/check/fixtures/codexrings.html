@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:700px} .dkbody{height:700px} #phone{width:390px}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody" id="desk"></div></div>
+<div id="phone"></div>
+<script type="module">
+// The column of sessions at a desk: in each contour's heading claude's two
+// rings and, beside them, codex's week in codex's hue, opening to the details
+// of every window; a contour codex alone spent in has that ring alone. A
+// codex thread with a title of its own is listed by it, on the desk and on the
+// phone and in its sheet, and the panel still finds it by its address.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
+import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const now = Math.floor(Date.now() / 1000);
+const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
+const limits = { contours: [
+    { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(7, 3.4), sevenDay: part(41, 98),
+      codex: { ageSec: 30, windows: [], sevenDay: part(63, 52) } },
+    { profile: "Lab", contour: 5, codex: { ageSec: 30, windows: [], sevenDay: part(18, 130) } },
+] };
+const profileMap = [{ id: 4, profile: "Acme", name: "Acme", groups: [] }, { id: 5, profile: "Lab", name: "Lab", groups: [] }];
+const codex = { session: "codex-5afc361b", sessionId: "0199c3a2", contour: 4, profile: "Acme", agent: "codex",
+    transport: "stream", status: "idle", model: "gpt-6-astra", effort: "high", pct: 15, cwd: "/srv/shop", title: "Cart flakes" };
+const sessions = [codex];
+setLiveSessions(sessions);
+window.fetch = async () => new Response(JSON.stringify({ rows: [], total: 0, limit: 30, offset: 0 }), { headers: { "Content-Type": "application/json" } });
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+const exec = { available: true, kinds: ["session.close", "session.stop", "session.permit"] };
+const opened = [];
+render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
+    snapshot: { at: now, sessions, profileMap, limits }, profiles: { profiles: [] }, limits,
+    current: "", onPick(p) { opened.push(p); }, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
+}))), document.getElementById("desk"));
+render(h(ToastHost, null, h(GateHost, null, html`
+    <section class="pjblock"><${LiveLines} list=${sessions} named=${() => true} notes=${null} wait=${null}
+                                           onOpen=${(n) => opened.push({ name: n })} onMore=${() => {}} /></section>
+    <${SessionSheet} session=${codex} exec=${exec} onClose=${() => {}} onOpen=${() => {}} />
+`)), document.getElementById("phone"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const desk = document.getElementById("desk");
+    if (!await until(() => desk.querySelectorAll(".dklimhead").length === 2)) throw new Error("the contours did not show");
+    const out = {};
+    out.heads = Array.from(desk.querySelectorAll(".dklimhead")).map((head) => ({
+        name: text(head.querySelector(".dkcontourname")),
+        rings: Array.from(head.querySelectorAll(".dkring")).map((r) => ({
+            tip: r.dataset.tip || "", value: text(r.querySelector(".dkringdial b")), agent: r.dataset.agent || "",
+            hue: getComputedStyle(r.querySelector(".dkringdial")).getPropertyValue("--ring").trim(),
+        })),
+    }));
+    desk.querySelector(".dklimhead .dkrings").click();
+    await until(() => document.querySelector(".dklimpop"));
+    out.pop = Array.from(document.querySelectorAll(".dklimpop .dklimwintitle")).map(text);
+    const row = Array.from(desk.querySelectorAll(".dksess")).find((r) => r.querySelector(".dkname"));
+    out.deskName = { text: text(row.querySelector(".dkname")), tip: row.querySelector(".dkname").title };
+    row.click();
+    out.phoneName = text(document.querySelector("#phone .pjsess"));
+    document.querySelector("#phone .pjopen").click();
+    out.sheetName = text(document.querySelector(".pjsheetname"));
+    out.opened = opened.map((o) => o.name);
+    return out;
+})();
+</script>

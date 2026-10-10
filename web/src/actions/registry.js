@@ -127,6 +127,39 @@ export const COMMANDS = {
     },
 };
 
+// CODEX_COMMANDS are the commands of codex's own client a codex thread takes
+// from the panel, as COMMANDS are claude's: a claude session refuses these and
+// a codex thread refuses claude's, compact alone being in both. A review and a
+// goal say what they do in a field of their own, not in words after the
+// command.
+export const CODEX_COMMANDS = {
+    compact: {
+        name: "Compact the context",
+        effect: "The conversation collapses into a retelling: the details of its beginning are lost, and the compaction itself costs a request to the model.",
+        danger: true,
+    },
+    review: {
+        name: "Review",
+        effect: "Codex looks at what it is pointed at in a turn of its own and answers in the feed with what it found. It changes nothing, and the turn spends the limit as any other.",
+    },
+    goal: {
+        name: "Goal",
+        effect: (params) => GOAL_EFFECTS[(params && params.goal && params.goal.do) || ""] || "",
+    },
+    stop: {
+        name: "Stop the background processes",
+        effect: "Every command codex left running in this thread breaks off wherever it has got to: a server stops serving, a test run stops halfway. Codex starts them again only when asked.",
+        danger: true,
+    },
+};
+
+const GOAL_EFFECTS = {
+    set: "Codex takes the goal and starts working towards it at once, turn after turn between your messages, until it is met, paused or its budget is spent.",
+    pause: "Codex stops working towards the goal after the turn under way; the goal stays, with what it has spent.",
+    resume: "Codex goes on working towards the goal, starting a turn at once.",
+    clear: "The goal goes: codex stops working towards it after the turn under way, and what it spent stays spent.",
+};
+
 // SCREENS lists the slash commands the panel answers with a screen of its own
 // rather than sending them: the session is asked for the data. In tmux each
 // is a screen driven by keys, and the composer does not type into it —
@@ -175,12 +208,16 @@ function mcpDone(params) {
 }
 
 function command(params) {
-    return (params && COMMANDS[params.command]) || {};
+    return (params && (COMMANDS[params.command] || CODEX_COMMANDS[params.command])) || {};
 }
 
-// commandLine renders how a command looks in the session composer.
+// commandLine renders how a command looks in the session composer. A command
+// of codex's carries what it does in a field, and its line names that.
 export function commandLine(params) {
-    if (!params || !COMMANDS[params.command]) return "";
+    if (!params) return "";
+    if (params.review) return `/review ${params.review.target}`;
+    if (params.goal) return `/goal ${params.goal.do}`;
+    if (!COMMANDS[params.command] && !CODEX_COMMANDS[params.command]) return "";
     return params.arg ? `/${params.command} ${params.arg}` : `/${params.command}`;
 }
 
@@ -408,8 +445,14 @@ export const ACTIONS = {
     },
     "session.dismiss": {
         title: (target) => `Dismiss the question in ${target}?`,
-        effect: "the question disappears unanswered: the model gets neither a choice nor words, "
-            + "and the session goes back to waiting for an ordinary message. There is nothing to bring the question back with",
+        // Codex is told what became of its question: a question of its plan
+        // learns the answer comes in the conversation, and a form is declined
+        // to the server that sent it.
+        effect: (params, target) => (codexTarget(target)
+            ? "the question goes unanswered: a question of codex's plan is told you will answer in the conversation, "
+                + "and a form is declined to the server that sent it. There is nothing to bring the question back with"
+            : "the question disappears unanswered: the model gets neither a choice nor words, "
+                + "and the session goes back to waiting for an ordinary message. There is nothing to bring the question back with"),
         done: (target) => `Question dismissed in ${target}`,
         ok: "Dismiss the question",
     },
@@ -496,7 +539,10 @@ export const ACTIONS = {
     },
     "session.command": {
         title: (target, params) => `Send ${commandLine(params)} to ${target}?`,
-        effect: (params) => command(params).effect,
+        effect: (params) => {
+            const said = command(params).effect;
+            return typeof said === "function" ? said(params) : said;
+        },
         done: (target, params) => `${commandLine(params)} sent to ${target}`,
         ok: "Send",
         danger: (params) => Boolean(command(params).danger),

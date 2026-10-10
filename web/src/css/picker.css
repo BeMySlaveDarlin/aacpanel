@@ -274,3 +274,15 @@
    rows of the lists under it do. */
 .cxplanbox { padding: 0 .85rem; background: var(--surface); }
 .cxsandbox { padding: 0 .2rem; }
+/* The word of the thread stands at the far end of the band on a phone, apart
+   from the settings; at a desk it follows them inside the bar. */
+.cstrip > .cxthread { margin-left: auto; }
+/* The fields of the thread's panes take the width of the sheet, one under
+   another. */
+.cxfield { display: block; width: 100%; margin: 0 0 .5rem; resize: vertical; }
+.cmdnote.cxwhy { color: var(--ink-faint); }
+.cxgoalacts { margin-top: .2rem; }
+/* A background process: its command and where it runs, and its stop. */
+.mcprow.cxproc { cursor: default; gap: .6rem; }
+.cxprocbody { display: grid; gap: .1rem; flex: 1 1 auto; min-width: 0; }
+.cxprocbody .cmdname { font-family: var(--mono); font-size: var(--t-sm); overflow-wrap: anywhere; }

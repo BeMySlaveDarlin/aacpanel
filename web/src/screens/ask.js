@@ -12,8 +12,31 @@ const OWN_MAX = 4000;
 // Ask renders the whole bottom of the screen while the session is asking.
 // On the stream an answer is structure rather than keys, so the limits a
 // terminal dialog puts on a layout do not hold there, and a note can go beside
-// a pick.
-export function Ask({ ask, name, exec, stream, onAnswered }) {
+// a pick. A codex thread is answered by its protocol wherever it lives, and
+// what an MCP server asks through it is a form rather than a round of
+// questions.
+export function Ask(props) {
+    const { ask, codex } = props;
+    return codex && ask && (ask.server || ask.message)
+        ? html`<${Form} ...${props} />`
+        : html`<${Round} ...${props} />`;
+}
+
+// askLabel names who asks over a question: its header for claude, and for
+// codex the header beside the word that the question is codex's — a question
+// of codex comes from plan mode.
+function askLabel(q, name, codex) {
+    if (codex) return `${q.header || "Plan"} · codex asks`;
+    return q.header || `${name} asks`;
+}
+
+// Round is a round of questions: one at a time when there are several, an
+// option picked or words of the person's own.
+//
+// A question of codex says itself whether it takes words beside its options
+// (other), and one without options takes nothing else; words it asks to keep
+// out of sight (secret) are typed into a field that hides them.
+function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const run = useAction();
     const [picks, setPicks] = useState([]);
     const [step, setStep] = useState(0);
@@ -45,10 +68,13 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
 
     if (!questions.length) return null;
 
+    // The answer goes as structure: on the stream, and for codex always.
+    const proto = Boolean(stream || codex);
     const many = questions.length;
     const stepped = many > 1;
+    const free = (n) => !(questions[n].options || []).length;
     const hasPreview = questions.some((q) => (q.options || []).some((o) => o.preview));
-    const instant = many === 1 && !questions[0].multi && !hasPreview;
+    const instant = many === 1 && !questions[0].multi && !hasPreview && !free(0);
     const ready = Boolean(id) && knows(exec, "session.answer");
     const why = !id
         ? "the question came without an id — there is nothing to match it against on the host"
@@ -61,14 +87,18 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
 
     const ownReady = ready && dropReady;
 
-    const dropBlocked = !stream && (questions[0].options || []).some((o) => o.preview)
+    const dropBlocked = !proto && (questions[0].options || []).some((o) => o.preview)
         ? "the options have previews, and in that layout the “discuss” item is drawn without a number"
         : "";
 
     const chosen = (n) => picks[n] || [];
     const own = (n) => texts[n] || "";
+    // Words of codex's own question go with the answer and need nothing else
+    // of the host.
+    const offersOwn = (n) => !codex || Boolean(questions[n].other);
     const ownBlocked = (n) => {
-        if (stream) return ownReady ? "" : dropWhy;
+        if (codex) return ready ? "" : why;
+        if (proto) return ownReady ? "" : dropWhy;
         if (questions[n].multi) {
             return "this one takes several choices, and a free answer in tmux is a checkbox, not a field";
         }
@@ -87,7 +117,7 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
         setOpen(false);
         const params = { ask: id, picks: all };
         if (words.some((text) => text !== "")) params.texts = words;
-        const noted = all.map((list, n) => (stream && list.length ? (notes[n] || "").trim() : ""));
+        const noted = all.map((list, n) => (proto && list.length ? (notes[n] || "").trim() : ""));
         if (noted.some((note) => note !== "")) params.notes = noted;
         const result = await run("session.answer", name, params);
         setSending(false);
@@ -167,24 +197,12 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
     const shown = stepped && !review ? [step] : questions.map((_, n) => n);
 
     return html`
-        ${!open && html`
-            <button
-                class=${`waitbar${fail ? " bad" : sending ? " sent" : ""}`}
-                type="button"
-                onClick=${() => setOpen(true)}
-            >
-                <span class="askdot"></span>
-                <span class="waittext">
-                    ${sending ? "Sending the answer…" : fail ? `Did not go out: ${fail}` : "The session is waiting for an answer"}
-                </span>
-                <span class="waitgo">open</span>
-            </button>
-        `}
+        ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)} />`}
 
         <${Sheet} open=${open} onClose=${() => setOpen(false)} label="session question" inner>
             <div class="askhead">
                 <span class="asklabel">
-                    ${review ? "almost done" : (questions[shown[0]].header || `${name} asks`)}
+                    ${review ? "almost done" : askLabel(questions[shown[0]], name, codex)}
                 </span>
                 ${!ready && html`<span class="askwhy">${why}</span>`}
             </div>
@@ -211,6 +229,15 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
                         `}
                         <p class="asktext">${questions[n].text}</p>
                         ${questions[n].multi && html`<p class="askhint">several can be picked</p>`}
+                        ${free(n) ? html`
+                            <${Words}
+                                text=${own(n)}
+                                secret=${Boolean(questions[n].secret)}
+                                disabled=${Boolean(ownBlocked(n)) || sending}
+                                why=${ownBlocked(n)}
+                                onText=${(text) => words(n, text)}
+                            />
+                        ` : html`
                         <div class="askopts">
                             ${(questions[n].options || []).map((opt, k) => html`
                                 <${Option}
@@ -223,17 +250,21 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
                                 />
                             `)}
 
-                            <${OwnWords}
-                                open=${writing === n}
-                                text=${own(n)}
-                                stepped=${stepped}
-                                disabled=${Boolean(ownBlocked(n)) || sending}
-                                why=${ownBlocked(n)}
-                                onOpen=${() => openOwn(n)}
-                                onText=${(text) => words(n, text)}
-                            />
+                            ${offersOwn(n) && html`
+                                <${OwnWords}
+                                    open=${writing === n}
+                                    text=${own(n)}
+                                    stepped=${stepped}
+                                    secret=${Boolean(questions[n].secret)}
+                                    disabled=${Boolean(ownBlocked(n)) || sending}
+                                    why=${ownBlocked(n)}
+                                    onOpen=${() => openOwn(n)}
+                                    onText=${(text) => words(n, text)}
+                                />
+                            `}
                         </div>
-                        ${stream && !instant && chosen(n).length > 0 && html`
+                        `}
+                        ${proto && !instant && chosen(n).length > 0 && html`
                             <textarea
                                 class="askinput asknote"
                                 rows="2"
@@ -278,7 +309,8 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
                             ? forward
                             : () => send(questions.map((_, i) => chosen(i)), questions.map((_, i) => own(i)))}
                     >
-                        ${label({ sending, stepped, review, step, many, nothing, writing, answered })}
+                        ${label({ sending, stepped, review, step, many, nothing, writing, answered,
+                                  wordsOnly: questions.every((_, i) => free(i)) })}
                     </button>
                 </div>
             `}
@@ -297,10 +329,24 @@ export function Ask({ ask, name, exec, stream, onAnswered }) {
     `;
 }
 
-function label({ sending, stepped, review, step, many, nothing, writing, answered }) {
+// WaitBar stands where the card was while it is put down: what became of the
+// answer, and the way back to the card.
+function WaitBar({ sending, fail, onOpen }) {
+    return html`
+        <button class=${`waitbar${fail ? " bad" : sending ? " sent" : ""}`} type="button" onClick=${onOpen}>
+            <span class="askdot"></span>
+            <span class="waittext">
+                ${sending ? "Sending the answer…" : fail ? `Did not go out: ${fail}` : "The session is waiting for an answer"}
+            </span>
+            <span class="waitgo">open</span>
+        </button>
+    `;
+}
+
+function label({ sending, stepped, review, step, many, nothing, writing, answered, wordsOnly }) {
     if (sending) return "Sending…";
     if (writing >= 0 && !answered(writing)) return "Write the answer";
-    if (!stepped || review) return nothing ? "Pick an option" : "Send";
+    if (!stepped || review) return nothing ? (wordsOnly ? "Write the answer" : "Pick an option") : "Send";
     if (!answered(step)) return "Skip";
     return step === many - 1 ? "To the review" : "Next";
 }
@@ -346,7 +392,7 @@ function Option({ opt, on, disabled, onPick, onPreview }) {
     `;
 }
 
-function OwnWords({ open, text, stepped, disabled, why, onOpen, onText }) {
+function OwnWords({ open, text, stepped, secret, disabled, why, onOpen, onText }) {
     return html`
         <div class=${`askopt askown${open ? " on" : ""}${disabled ? " off" : ""}`}>
             <button class="askpick" type="button" disabled=${disabled} onClick=${onOpen}>
@@ -359,18 +405,51 @@ function OwnWords({ open, text, stepped, disabled, why, onOpen, onText }) {
                 </span>
             </button>
         </div>
-        ${open && html`
-            <textarea
+        ${open && html`<${Field} text=${text} secret=${secret} disabled=${disabled} onText=${onText} focus />`}
+    `;
+}
+
+// Words are the answer to a question that has no options to pick: the field
+// stands open, and what stops it is said under it.
+function Words({ text, secret, disabled, why, onText }) {
+    return html`
+        <div class="askopts">
+            <${Field} text=${text} secret=${secret} disabled=${disabled} onText=${onText} />
+            ${why && html`<p class="askhint">${why}</p>`}
+        </div>
+    `;
+}
+
+// Field is where the person writes an answer. Words the question asks to keep
+// out of sight go into a field that shows dots, a line rather than a box: a
+// password is not written in paragraphs.
+function Field({ text, secret, disabled, onText, focus }) {
+    if (secret) {
+        return html`
+            <input
                 class="askinput"
-                rows="3"
-                autofocus
+                type="password"
+                autocomplete="off"
+                autofocus=${focus}
                 maxLength=${OWN_MAX}
-                placeholder="what to answer the session"
+                placeholder="what to answer the session — it is not shown"
                 value=${text}
                 disabled=${disabled}
                 onInput=${(e) => onText(e.target.value)}
-            ></textarea>
-        `}
+            />
+        `;
+    }
+    return html`
+        <textarea
+            class="askinput"
+            rows="3"
+            autofocus=${focus}
+            maxLength=${OWN_MAX}
+            placeholder="what to answer the session"
+            value=${text}
+            disabled=${disabled}
+            onInput=${(e) => onText(e.target.value)}
+        ></textarea>
     `;
 }
 
@@ -381,16 +460,225 @@ function Review({ questions, picks, texts, onEdit }) {
             ${questions.map((q, n) => {
                 const labels = (picks[n] || []).map((pick) => (q.options[pick - 1] || {}).label).filter(Boolean);
                 const said = (texts[n] || "").trim();
+                const shown = said && q.secret ? "•••••• (hidden)" : said;
                 return html`
                     <div class="askrow" key=${n}>
                         <span class="askrowq">${q.header || q.text}</span>
                         <span class=${`askrowa${labels.length || said ? "" : " skip"}`}>
-                            ${said || (labels.length ? labels.join(", ") : "skipped")}
+                            ${shown || (labels.length ? labels.join(", ") : "skipped")}
                         </span>
                         <button class="askedit" type="button" onClick=${() => onEdit(n)}>change</button>
                     </div>
                 `;
             })}
+        </div>
+    `;
+}
+
+// The kinds of field a form is drawn with. The host words every field as a
+// question: a field with nothing to pick takes words, a list takes several
+// picks, and a yes or a no is a switch. A pick of a few is a row of segments,
+// and of more a list that opens.
+const SEGMENTS_MAX = 4;
+
+function fieldKind(q) {
+    const options = q.options || [];
+    if (!options.length) return "words";
+    if (q.multi) return "many";
+    if (options.length === 2 && options[0].label === "Yes" && options[1].label === "No") return "switch";
+    return options.length <= SEGMENTS_MAX ? "segments" : "list";
+}
+
+// startPicks are what a form shows before a hand touches it: a switch stands
+// off, which is an answer of its own — no — and every other field is empty.
+function startPicks(fields) {
+    return fields.map((q) => (fieldKind(q) === "switch" ? [2] : []));
+}
+
+// Form is what an MCP server asks through codex: its name and its words over
+// the fields of its form. The answer goes to the server, not into the
+// conversation, so there is no note beside a field and no "discuss": the form
+// is sent or declined. A field the server requires holds the form back until
+// it is given.
+function Form({ ask, name, exec, onAnswered }) {
+    const run = useAction();
+    const id = ask.toolUseId;
+    const fields = ask.questions || [];
+    const [picks, setPicks] = useState(() => startPicks(fields));
+    const [texts, setTexts] = useState(() => fields.map(() => ""));
+    const [sending, setSending] = useState(false);
+    const [open, setOpen] = useState(true);
+    const [fail, setFail] = useState("");
+
+    useEffect(() => {
+        setPicks(startPicks(fields));
+        setTexts(fields.map(() => ""));
+        setSending(false);
+        setOpen(true);
+        setFail("");
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
+
+    const ready = Boolean(id) && knows(exec, "session.answer");
+    const why = !id
+        ? "the form came without an id — there is nothing to match it against on the host"
+        : whyNot(exec, "session.answer");
+    const declineReady = Boolean(id) && knows(exec, "session.dismiss");
+
+    const given = (n) => (picks[n] || []).length > 0 || (texts[n] || "").trim() !== "";
+    const missing = fields.filter((q, n) => q.required && !given(n)).map((q) => q.text);
+
+    // A field is set over what the others hold now, not over the values of
+    // the last draw: two fields filled before the screen draws again would
+    // otherwise leave the first one empty.
+    const setPick = (n, list) => setPicks((was) => fields.map((_, i) => (i === n ? list : was[i] || [])));
+    const setText = (n, text) => setTexts((was) => fields.map((_, i) => (i === n ? text : was[i] || "")));
+
+    const send = async () => {
+        if (sending || missing.length) return;
+        setSending(true);
+        setFail("");
+        setOpen(false);
+        const params = { ask: id, picks: fields.map((_, n) => picks[n] || []) };
+        if (texts.some((text) => text.trim() !== "")) params.texts = fields.map((_, n) => (texts[n] || "").trim());
+        const result = await run("session.answer", name, params);
+        setSending(false);
+        if (!result.ok) {
+            setFail(result.error || "the form did not go out");
+            setOpen(true);
+            return;
+        }
+        if (onAnswered) onAnswered(id);
+    };
+
+    const decline = async () => {
+        if (!declineReady || sending) return;
+        setSending(true);
+        setFail("");
+        const result = await run("session.dismiss", name, { ask: id });
+        setSending(false);
+        if (!result.ok) {
+            if (!result.cancelled) setFail(result.error || "the form was not declined");
+            return;
+        }
+        setOpen(false);
+        if (onAnswered) onAnswered(id);
+    };
+
+    const off = !ready || sending;
+    return html`
+        ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)} />`}
+
+        <${Sheet} open=${open} onClose=${() => setOpen(false)} label="a form from an MCP server" inner>
+            <div class="askhead">
+                <span class="asklabel">${ask.server ? `${ask.server} · MCP server asks` : "An MCP server asks"}</span>
+                ${!ready && html`<span class="askwhy">${why}</span>`}
+            </div>
+            <p class="asktext">${ask.message || "Fill in the form"}</p>
+
+            ${fields.map((q, n) => html`
+                <${FormField}
+                    key=${n}
+                    q=${q}
+                    picks=${picks[n] || []}
+                    text=${texts[n] || ""}
+                    disabled=${off}
+                    onPick=${(list) => setPick(n, list)}
+                    onText=${(text) => setText(n, text)}
+                />
+            `)}
+
+            <p class="askformnote">
+                ${missing.length
+                    ? `Still to fill in: ${missing.join(", ")}.`
+                    : "The answer goes to the server, not into the conversation."}
+            </p>
+
+            ${fail && html`<p class="askfail">${fail}</p>`}
+
+            <div class="askfoot">
+                <button class="btn" type="button" disabled=${!declineReady || sending}
+                        title=${declineReady ? "the server hears that the form was declined" : whyNot(exec, "session.dismiss")}
+                        onClick=${decline}>Decline</button>
+                <button class="btn primary" type="button" disabled=${off || missing.length > 0} onClick=${send}>
+                    ${sending ? "Sending…" : "Send"}
+                </button>
+            </div>
+        <//>
+    `;
+}
+
+// FormField is one field of a form: its name over it, marked when the server
+// requires it, and the control of its kind.
+function FormField({ q, picks, text, disabled, onPick, onText }) {
+    const kind = fieldKind(q);
+    const options = q.options || [];
+    if (kind === "switch") {
+        const on = picks[0] === 1;
+        return html`
+            <button class="nfrow askswitch" type="button" role="switch" aria-checked=${on ? "true" : "false"}
+                    disabled=${disabled} onClick=${() => onPick([on ? 2 : 1])}>
+                <span class="nfbody"><span class="nftitle">${q.text}</span></span>
+                <span class="nfsw" aria-hidden="true"></span>
+            </button>
+        `;
+    }
+    const head = html`
+        <span class="askfieldname">
+            ${q.text}${q.required && html`<span class="askreq">required</span>`}
+        </span>
+    `;
+    if (kind === "words") {
+        return html`
+            <label class="askfield">
+                ${head}
+                <input class="askinput" type=${q.secret ? "password" : "text"} autocomplete="off"
+                       maxLength=${OWN_MAX} value=${text} disabled=${disabled}
+                       onInput=${(e) => onText(e.target.value)} />
+            </label>
+        `;
+    }
+    if (kind === "list") {
+        return html`
+            <label class="askfield">
+                ${head}
+                <select class="askinput askselect" disabled=${disabled} value=${String(picks[0] || 0)}
+                        onChange=${(e) => onPick(e.target.value === "0" ? [] : [Number(e.target.value)])}>
+                    <option value="0">${q.required ? "Pick one" : "Nothing picked"}</option>
+                    ${options.map((o, k) => html`<option key=${k} value=${String(k + 1)}>${o.label}</option>`)}
+                </select>
+            </label>
+        `;
+    }
+    if (kind === "segments") {
+        return html`
+            <div class="askfield">
+                ${head}
+                <div class="pkscope askseg" role="radiogroup">
+                    ${options.map((o, k) => html`
+                        <button key=${k} type="button" role="radio" aria-checked=${picks[0] === k + 1 ? "true" : "false"}
+                                class=${`pkseg${picks[0] === k + 1 ? " on" : ""}`} disabled=${disabled}
+                                onClick=${() => onPick(picks[0] === k + 1 && !q.required ? [] : [k + 1])}>${o.label}</button>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+    return html`
+        <div class="askfield">
+            ${head}
+            <div class="askopts">
+                ${options.map((o, k) => html`
+                    <${Option}
+                        key=${k}
+                        opt=${o}
+                        on=${picks.includes(k + 1)}
+                        disabled=${disabled}
+                        onPick=${() => onPick(picks.includes(k + 1) ? picks.filter((p) => p !== k + 1) : [...picks, k + 1])}
+                        onPreview=${() => {}}
+                    />
+                `)}
+            </div>
         </div>
     `;
 }

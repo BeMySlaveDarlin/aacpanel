@@ -20,8 +20,14 @@ func TestTheBandOfACodexThreadOpensMenusAtADesk(t *testing.T) {
 	}
 	var got struct {
 		PlanWord string   `json:"planWord"`
-		Band     []string `json:"band"`
-		Think    struct {
+		Procs    []string `json:"procs"`
+		Thread   []string `json:"thread"`
+		GoalPane struct {
+			MenuDown bool `json:"menuDown"`
+			Back     bool `json:"back"`
+		} `json:"goalPane"`
+		Band  []string `json:"band"`
+		Think struct {
 			Label  string   `json:"label"`
 			Plan   bool     `json:"plan"`
 			Models []string `json:"models"`
@@ -47,8 +53,14 @@ func TestTheBandOfACodexThreadOpensMenusAtADesk(t *testing.T) {
 	if got.PlanWord != "Plan · gpt-6-astra · High" {
 		t.Errorf("the word of a planning thread at a desk reads %q, expected the plan, the model and the effort", got.PlanWord)
 	}
-	if strings.Join(got.Band, ",") != "clip,think,perm,cwork" {
-		t.Errorf("the band at a desk holds %v, expected the paperclip, the two words and the work at its end", got.Band)
+	if strings.Join(got.Band, ",") != "clip,think,perm,thread,cwork" {
+		t.Errorf("the band at a desk holds %v, expected the paperclip, the three words and the work at its end", got.Band)
+	}
+	if strings.Join(got.Procs, "|") != "background processes: 3 running" {
+		t.Errorf("the end of the band counts %v, expected the background processes alone", got.Procs)
+	}
+	if strings.Join(got.Thread, "|") != "1 Compact|2 Review|3 Rename|4 Goal" || !got.GoalPane.MenuDown || got.GoalPane.Back {
+		t.Errorf("the menu of the thread is %v, and its goal opens as %+v — a sheet with nothing to go back to", got.Thread, got.GoalPane)
 	}
 	if got.Think.Label != "how codex thinks" || !got.Think.Plan || !got.Think.Above ||
 		strings.Join(got.Think.Models, "|") != "1 gpt-6-astra|2 gpt-6-astra-mini" ||

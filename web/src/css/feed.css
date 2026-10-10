@@ -720,6 +720,44 @@ div.mtask { cursor: default; }
 .askedwhy { flex: 1 1 auto; min-width: 0; color: var(--warn); }
 .asked.off { opacity: .78; }
 
+/* What codex alone writes. A plan is read whole, as an answer is. A review
+   says its verdict first, in the tone of a task's end, and a finding is a row
+   of a round of questions: its priority as the tag, the title, the place in
+   the code, and the body two lines long until the row is opened. A goal is
+   the build of a brief's card: what it is, its spend and the bar of its
+   budget, the head saying how it stands. */
+.xrverdict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .2rem .6rem;
+    font-size: var(--t-xs);
+    color: var(--ink-faint);
+}
+.xrverdict b { font-size: var(--t-md); font-weight: 600; color: var(--ink); }
+.xrreview.v-ok .xrverdict b { color: var(--ok); }
+.xrreview.v-crit .xrverdict b { color: var(--crit); }
+.xrreview.v-crit > .senthead .sentico { color: var(--crit); }
+.askedrow.xrfind { cursor: pointer; }
+.askedrow.xrfind:active { background: var(--glass-2); }
+.askedrow.s-warn .mftag { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.xrbody {
+    font-size: var(--t-sm);
+    line-height: 1.4;
+    color: var(--ink-dim);
+    white-space: pre-line;
+}
+.xrfind:not(.open) .xrbody {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.xrgoalword { flex: 1 1 auto; min-width: 0; color: var(--accent); }
+.xrgoal.g-ok .xrgoalword { color: var(--ok); }
+.xrgoal.g-warn .xrgoalword { color: var(--warn); }
+.xrgoal.g-faint .xrgoalword { color: var(--ink-faint); }
+
 /* A page and a brief: the row the shelf lists them by is the row on the plate
    of their card, set to the build of the row of a file. */
 .mflist > .artifact {

@@ -6,81 +6,134 @@ import (
 )
 
 // On the phone every live session says where it lives on its row — the feed or
-// the console — right before its percentage, and the percentage stands just
-// before the button of what can be done to it, whatever the length of the name.
-// A session with Remote Control up says so before where it lives, and only it.
-// A tap anywhere on the row opens the conversation, but on the row's button of
-// what can be done to it, which opens that. The state stands whole, and under
-// it, on a line of its own and not cut to fit one line, who runs the session —
-// the word of its agent first — on which model and since when; what runs in
-// its background stands on a third line, the second having no room for it.
+// the console — in a narrow column on the right that goes down the lines of
+// the row: how full the session is and the button of what can be done to it
+// level with the state, where it lives under them, Remote Control under that
+// for a session that has it up, all on one right edge. The column is as wide
+// as its widest mark and no wider, so the words on the left keep the rest of
+// the row: who runs the session on which model and since when stands on one
+// line. A row of two lines keeps its height; a mark past the last line grows
+// the row instead of spilling out of it. The name of the session, when the row
+// has one, stands over both across the whole width, so a long one does not
+// wrap. A tap anywhere on the row opens the conversation, the marks included,
+// but on the row's button of what can be done to it — and a little past its
+// dots — which opens that. The state stands whole, and under it, on a line of
+// its own, who runs the session — the word of its agent first; what runs in
+// its background stands on a third line.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
-		Name       string `json:"name"`
-		Mark       string `json:"mark"`
-		State      string `json:"state"`
-		StateCut   bool   `json:"stateCut"`
-		Since      string `json:"since"`
-		Agent      string `json:"agent"`
-		AgentKey   string `json:"agentKey"`
-		SinceCut   bool   `json:"sinceCut"`
-		SinceBelow bool   `json:"sinceBelow"`
-		Work       string `json:"work"`
-		NameStands bool   `json:"nameStands"`
-		WorkBelow  bool   `json:"workBelow"`
-		TapPct     string `json:"tapPct"`
-		TapTag     string `json:"tapTag"`
-		TapMore    string `json:"tapMore"`
-		RC         string `json:"rc"`
-		RCShown    bool   `json:"rcShown"`
-		Shown      bool   `json:"shown"`
-		Gap        int    `json:"gap"`
-		PctInside  bool   `json:"pctInside"`
-		PctRight   int    `json:"pctRight"`
-		Overflow   int    `json:"overflow"`
+		Name             string  `json:"name"`
+		Mark             string  `json:"mark"`
+		State            string  `json:"state"`
+		StateCut         bool    `json:"stateCut"`
+		Since            string  `json:"since"`
+		Agent            string  `json:"agent"`
+		AgentKey         string  `json:"agentKey"`
+		SinceCut         bool    `json:"sinceCut"`
+		SinceLines       int     `json:"sinceLines"`
+		SinceBelow       bool    `json:"sinceBelow"`
+		Work             string  `json:"work"`
+		NameStands       bool    `json:"nameStands"`
+		NameLines        int     `json:"nameLines"`
+		NameAcross       bool    `json:"nameAcross"`
+		WorkBelow        bool    `json:"workBelow"`
+		TapPct           string  `json:"tapPct"`
+		TapTag           string  `json:"tapTag"`
+		TapRC            string  `json:"tapRC"`
+		TapMore          string  `json:"tapMore"`
+		TapCorner        string  `json:"tapCorner"`
+		RC               string  `json:"rc"`
+		Shown            bool    `json:"shown"`
+		Column           bool    `json:"column"`
+		PctOff           float64 `json:"pctOff"`
+		PctBeside        bool    `json:"pctBeside"`
+		TagUnder         bool    `json:"tagUnder"`
+		RCUnder          bool    `json:"rcUnder"`
+		RightEdges       []int   `json:"rightEdges"`
+		Narrow           int     `json:"narrow"`
+		LeftGives        int     `json:"leftGives"`
+		ColumnInside     bool    `json:"columnInside"`
+		ColumnAddsHeight int     `json:"columnAddsHeight"`
+		Overflow         int     `json:"overflow"`
 	}
 	runFixture(t, "streamcard.html", &got)
 	if len(got) != 3 {
 		t.Fatalf("%d cards, wanted 3: %+v", len(got), got)
 	}
 	for _, c := range got {
-		stream := !strings.HasSuffix(c.Name, "aacpanel")
-		want := map[bool]string{true: "stream", false: "tmux"}[stream]
-		if c.Mark != want || !c.Shown {
-			t.Errorf("%s: the row does not say %q where it can be seen: %+v", c.Name, want, c)
-		}
-		if c.Gap < 0 || c.Gap > 16 {
-			t.Errorf("%s: the mark stands %dpx from the percentage — it floats in the middle of the row", c.Name, c.Gap)
-		}
-		if !c.PctInside || c.PctRight > 16 {
-			t.Errorf("%s: the percentage left its place before the actions button (%dpx short): %+v", c.Name, c.PctRight, c)
-		}
 		session := c.Name
 		if !strings.HasPrefix(session, "acme") && session != "aacpanel" && session != "person" {
 			t.Fatalf("an unknown block %q", session)
 		}
-		if c.TapPct != "open:"+session || c.TapTag != "open:"+session {
-			t.Errorf("%s: a tap on the percentage opens %q and on where it lives %q — the whole row opens the conversation", session, c.TapPct, c.TapTag)
+		stream := session != "aacpanel"
+		remote := strings.HasPrefix(session, "acme")
+		want := map[bool]string{true: "stream", false: "tmux"}[stream]
+		if c.Mark != want || !c.Shown {
+			t.Errorf("%s: the row does not say %q where it can be seen: %+v", session, want, c)
 		}
-		if c.TapMore != "more:"+session {
-			t.Errorf("%s: a tap on the button of what can be done does %q", session, c.TapMore)
+		if !c.Column {
+			t.Fatalf("%s: the row has no column of its marks on the right", session)
+		}
+		if c.PctOff > 3 || !c.PctBeside {
+			t.Errorf("%s: the percentage stands %.1fpx off the state's line (beside the actions button %v) — "+
+				"the top of the column is level with the state", session, c.PctOff, c.PctBeside)
+		}
+		if !c.TagUnder {
+			t.Errorf("%s: where the session lives is not under the percentage and its button: %+v", session, c)
+		}
+		if remote && (c.RC != "RC" || !c.RCUnder) {
+			t.Errorf("%s: Remote Control is up and the column does not say so under where the session lives: %+v", session, c)
+		}
+		if !remote && c.RC != "" {
+			t.Errorf("%s: the row says Remote Control is up, and it is not", session)
+		}
+		for _, edge := range c.RightEdges {
+			if edge < -1 || edge > 1 {
+				t.Errorf("%s: the column's lines end at %v px from the mark of where it lives — not one right edge", session, c.RightEdges)
+				break
+			}
+		}
+		if c.Narrow < 0 || c.Narrow > 1 {
+			t.Errorf("%s: the column is %dpx wider than its widest mark", session, c.Narrow)
+		}
+		if c.LeftGives < 0 || c.LeftGives > 10 {
+			t.Errorf("%s: the words on the left stop %dpx short of the column — they give the column more than it takes", session, c.LeftGives)
+		}
+		if !c.ColumnInside {
+			t.Errorf("%s: the column spills out of its row: %+v", session, c)
+		}
+		if !remote && c.ColumnAddsHeight > 1 {
+			t.Errorf("%s: the column of two marks runs %dpx past the lines on the left — it makes the row taller", session, c.ColumnAddsHeight)
+		}
+		if c.TapPct != "open:"+session || c.TapTag != "open:"+session || (remote && c.TapRC != "open:"+session) {
+			t.Errorf("%s: a tap on the percentage opens %q, on where it lives %q, on Remote Control %q — the whole row opens the conversation",
+				session, c.TapPct, c.TapTag, c.TapRC)
+		}
+		if c.TapMore != "more:"+session || c.TapCorner != "more:"+session {
+			t.Errorf("%s: a tap on the button of what can be done does %q, and just past its dots %q", session, c.TapMore, c.TapCorner)
 		}
 		wantState, wantSince, wantWork := "idle", "Claude · Opus 5.5 · 2 min ago", ""
-		switch session {
-		case "aacpanel":
+		switch {
+		case session == "aacpanel":
 			wantWork = "1 background task"
-		case "person":
+		case session == "person":
 			wantState, wantSince = "no requests yet", "Claude · Opus 5.5"
+		case remote:
+			wantSince = "Claude · Opus 5.5 · 18 min ago"
 		}
 		if c.State != wantState || c.StateCut {
 			t.Errorf("%s: the state reads %q (cut %v), expected %q whole", session, c.State, c.StateCut, wantState)
 		}
-		if c.Since != wantSince || c.SinceCut || !c.SinceBelow {
-			t.Errorf("%s: under the state stands %q (cut %v, on a line of its own %v), expected %q", session, c.Since, c.SinceCut, c.SinceBelow, wantSince)
+		if c.Since != wantSince || c.SinceCut || !c.SinceBelow || c.SinceLines != 1 {
+			t.Errorf("%s: under the state stands %q (cut %v, on a line of its own %v, on %d lines), expected %q on one",
+				session, c.Since, c.SinceCut, c.SinceBelow, c.SinceLines, wantSince)
 		}
 		if !c.NameStands {
 			t.Errorf("%s: the name of the session reads as a caption — it is what tells two sessions of one project apart, "+
 				"and stands bolder, larger and in another ink than the line under the state", session)
+		}
+		if !c.NameAcross || c.NameLines != 1 {
+			t.Errorf("%s: the name stands across the row %v, on %d lines — it goes over both columns and fits one", session, c.NameAcross, c.NameLines)
 		}
 		if c.Work != wantWork || (wantWork != "" && !c.WorkBelow) {
 			t.Errorf("%s: the line of what runs in the background reads %q (under who runs it %v), expected %q",
@@ -88,13 +141,6 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		}
 		if c.Agent != "Claude" || c.AgentKey != "claude" {
 			t.Errorf("%s: the line under the state opens with %q painted as %q's, expected the word of its agent, Claude", session, c.Agent, c.AgentKey)
-		}
-		remote := strings.HasPrefix(c.Name, "acme")
-		if remote && (c.RC != "RC" || !c.RCShown) {
-			t.Errorf("%s: Remote Control is up and the row does not say so before where it lives: %+v", c.Name, c)
-		}
-		if !remote && c.RC != "" {
-			t.Errorf("%s: the row says Remote Control is up, and it is not", c.Name)
 		}
 		if c.Overflow > 0 {
 			t.Errorf("the page scrolls sideways by %dpx", c.Overflow)

@@ -8,7 +8,7 @@
 // carries them only where the daemon told them: a thread the panel only reads
 // carries neither, and then they are shown as not known rather than guessed.
 
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { useAction } from "../../actions/gate.js";
@@ -16,9 +16,9 @@ import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { Sheet } from "../../ui/sheet.js";
 import { useToast } from "../../ui/toasts.js";
-import { useCodexModels } from "../profiles/codex.js";
 import { shortPath } from "./head.js";
 import { EffortScale, effortName, PickRow } from "./picker.js";
+import { GoalPane, RenamePane, ReviewPane, ThreadMenu, ThreadPane } from "./codexthread.js";
 
 // The permission modes the panel sets a thread to, in the order the lists
 // offer them. Full access is not among them: it is chosen when the thread
@@ -30,6 +30,13 @@ export const CODEX_MODES = [
 ];
 
 const READ_ONLY = "the panel only reads this thread";
+
+// MENUS are the lists the words of the band open: menus over the composer on a
+// wide screen. The panes they lead to are sheets there too.
+const MENUS = new Set(["think", "perm", "thread"]);
+
+// The panes of the thread open from its list, and go back to it.
+const THREAD_PANES = new Set(["review", "rename", "goal"]);
 
 // modeOf says what the row of a session knows of the permissions of a thread:
 // one of the modes, settings of its own that match none of them, or nothing.
@@ -107,25 +114,39 @@ function ThinkWord({ now, wide }) {
 // CodexStrip is the band under the field of a codex thread: how it thinks and
 // what it may do, each a word that opens its list. On a wide screen the lists
 // are menus over the composer, held here.
-export function CodexStrip({ wide, exec, now, open, onOpen, catalog, set, cwd }) {
+export function CodexStrip({ wide, exec, live, pct, now, open, onOpen, onCompact, catalog, set, cwd }) {
     const can = knows(exec, "session.set");
     const why = can ? "" : whyNot(exec, "session.set");
     const mode = modeOf(now.mode);
     const box = useRef(null);
     const close = () => onOpen("");
-    const menu = wide ? open : "";
+    const menu = wide && MENUS.has(open) ? open : "";
     const models = modelsOf(catalog);
     // A pick from a menu puts it down, as claude's menus do; the plan is a
     // switch, and the menu stays to show where it stands.
     const choose = (setting, said) => { close(); return set(setting, said); };
 
-    useEffect(() => {
+    // The listeners go on in the commit that draws the menu, not a frame
+    // later: a press outside that lands in between would leave the menu open.
+    useLayoutEffect(() => {
         if (!menu) return undefined;
         const away = (event) => { if (box.current && !box.current.contains(event.target)) close(); };
         const keys = (event) => {
             if (event.key === "Escape") { close(); return; }
             const n = Number(event.key);
             if (!Number.isInteger(n) || n < 1) return;
+            if (menu === "thread") {
+                const kinds = ["compact", "review", "rename", "goal"];
+                if (!kinds[n - 1]) return;
+                event.preventDefault();
+                if (kinds[n - 1] === "compact") {
+                    close();
+                    onCompact();
+                } else {
+                    onOpen(kinds[n - 1]);
+                }
+                return;
+            }
             const one = menu === "perm" ? CODEX_MODES[n - 1] : menu === "think" ? models[n - 1] : null;
             if (!one) return;
             event.preventDefault();
@@ -151,6 +172,9 @@ export function CodexStrip({ wide, exec, now, open, onOpen, catalog, set, cwd })
                 aria-expanded=${menu === "perm" ? "true" : "false"}
                 aria-label=${mode.preset && can ? `what codex may do: ${mode.word} — pick another` : `what codex may do: ${mode.word}`}
                 onClick=${() => toggle("perm")}>${Icon.key()}<span class="cxword">${mode.word}</span></button>
+        <button type="button" class=${`pkchip cxchip cxthread${menu === "thread" ? " open" : ""}`} data-pick="thread"
+                aria-expanded=${menu === "thread" ? "true" : "false"} aria-label="the thread: compact, review, rename, goal"
+                onClick=${() => toggle("thread")}>${Icon.list()}<span class="cxword">Thread</span></button>
     `;
     if (!wide) return chips;
     return html`
@@ -170,6 +194,10 @@ export function CodexStrip({ wide, exec, now, open, onOpen, catalog, set, cwd })
                     <div class="pkmenuhead"><span>Effort</span><b>${effortName(now.effort)}</b></div>
                     <div class="cxscale"><${Effort} catalog=${catalog} now=${now} set=${choose} /></div>
                 </div>
+            `}
+            ${menu === "thread" && html`
+                <${ThreadMenu} live=${live} pct=${pct}
+                               onPick=${(kind) => (kind === "compact" ? (close(), onCompact()) : onOpen(kind))} />
             `}
             ${menu === "perm" && html`
                 <div class="pkmenu left cxmenu" role="menu" aria-label="what codex may do">
@@ -234,11 +262,22 @@ function sandboxOf(mode, cwd) {
 }
 
 // CodexSheets are the phone's lists behind the words of the band.
-export function CodexSheets({ open, onClose, now, catalog, set, cwd }) {
-    const labels = { think: "how codex thinks", perm: "what codex may do" };
+export function CodexSheets({ wide, name, live, exec, pct, open, onOpen, onClose, onCompact, now, catalog, set, cwd }) {
+    const pane = wide && MENUS.has(open) ? "" : open;
+    const labels = { think: "how codex thinks", perm: "what codex may do", thread: "the thread",
+        review: "review", rename: "rename the thread", goal: "goal" };
+    // On a phone a pane of the thread goes back to its list; a wide screen
+    // opened it from a menu, and there is no list to go back to.
+    const back = !wide && THREAD_PANES.has(pane) ? () => onOpen("thread") : null;
     return html`
-        <${Sheet} open=${Boolean(open)} onClose=${onClose} label=${labels[open] || "codex"} inner>
-            ${open === "think" && html`
+        <${Sheet} open=${Boolean(pane)} onClose=${onClose} label=${labels[pane] || "codex"} inner>
+            ${pane === "thread" && html`<${ThreadPane} live=${live} pct=${pct} onPane=${onOpen}
+                                                       onCompact=${() => { onClose(); onCompact(); }} />`}
+            ${pane === "review" && html`<${ReviewPane} name=${name} live=${live} exec=${exec} cwd=${cwd}
+                                                       onBack=${back} onDone=${onClose} />`}
+            ${pane === "rename" && html`<${RenamePane} name=${name} live=${live} exec=${exec} onBack=${back} onDone=${onClose} />`}
+            ${pane === "goal" && html`<${GoalPane} name=${name} live=${live} exec=${exec} onBack=${back} onDone=${onClose} />`}
+            ${pane === "think" && html`
                 <div class="shead pkhead">
                     <div class="pktitles">
                         <span class="stitle">How codex thinks</span>
@@ -260,7 +299,7 @@ export function CodexSheets({ open, onClose, now, catalog, set, cwd }) {
                 <div class="pkgroup">Effort · <span class="pkval">${effortName(now.effort)}</span></div>
                 <${Effort} catalog=${catalog} now=${now} set=${set} />
             `}
-            ${open === "perm" && html`
+            ${pane === "perm" && html`
                 <div class="shead pkhead">
                     <div class="pktitles">
                         <span class="stitle">What codex may do</span>
@@ -287,8 +326,38 @@ export function CodexSheets({ open, onClose, now, catalog, set, cwd }) {
     `;
 }
 
-// useCatalog asks for the catalogue of codex the first time a list of how it
-// thinks is opened: a conversation nobody picks in does not wake the daemon.
-export function useCatalog(open) {
-    return useCodexModels(open === "think");
+// useCatalog asks for what the thread can be switched to each time the list of
+// how it thinks opens: the catalogue of the daemon of its own contour, which
+// updates codex apart from the others. Nothing is asked while the list is
+// shut, and another thread starts with nothing.
+export function useCatalog(name, open) {
+    const [got, setGot] = useState(null);
+    const wanted = open === "think";
+    useEffect(() => { setGot(null); }, [name]);
+    useEffect(() => {
+        if (!wanted || !name) return undefined;
+        let alive = true;
+        (async () => {
+            let body;
+            try {
+                const r = await fetch(`/api/session/models?name=${encodeURIComponent(name)}`, { credentials: "same-origin" });
+                body = r.ok ? await r.json() : { state: "unknown", reason: `the server answered ${r.status}` };
+            } catch {
+                body = { state: "unknown", reason: "the network is unavailable" };
+            }
+            if (alive) setGot(catalogOf(body));
+        })();
+        return () => { alive = false; };
+    }, [name, wanted]);
+    return got;
+}
+
+// catalogOf reads the models of a session's answer in the shape the lists
+// draw from: the name codex takes, the one a person reads, the efforts.
+function catalogOf(body) {
+    if (!body || body.state !== "ok" || !body.session) {
+        return { state: "unknown", reason: (body && body.reason) || "the panel did not answer" };
+    }
+    const list = body.session.list || [];
+    return { state: "ok", models: list.map((m) => ({ model: m.value, name: m.name || m.value, efforts: m.efforts || [], effort: m.effort || "" })) };
 }

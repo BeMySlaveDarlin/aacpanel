@@ -77,8 +77,10 @@ function useMcp(name, tick) {
     return answer;
 }
 
-// McpSheet is what /mcp opens in a session on the stream.
-export function McpSheet({ name, exec }) {
+// McpSheet is what /mcp opens in a session on the stream. A codex thread's
+// servers are only read: codex sets them in its config, and the panel does
+// not reconnect or turn them off.
+export function McpSheet({ name, exec, readOnly = false }) {
     const [tick, setTick] = useState(0);
     const [open, setOpen] = useState("");
     const data = useMcp(name, tick);
@@ -107,7 +109,7 @@ export function McpSheet({ name, exec }) {
     const servers = data.servers || [];
     const chosen = open && servers.find((s) => s.name === open);
     if (chosen) {
-        return html`<${McpServer} name=${name} exec=${exec} server=${chosen}
+        return html`<${McpServer} name=${name} exec=${exec} server=${chosen} readOnly=${readOnly}
                                   onBack=${() => setOpen("")} onDone=${again} />`;
     }
     return html`
@@ -134,6 +136,7 @@ export function McpSheet({ name, exec }) {
                     </ul>
                 </section>
             `)}
+            ${readOnly && html`<p class="cmdnote">Read-only: codex's servers are set in its config.toml and in codex itself.</p>`}
         </div>
     `;
 }
@@ -141,7 +144,7 @@ export function McpSheet({ name, exec }) {
 // McpServer is one server: how it stands, where it lives, and what can be
 // done to it. Authentication goes through a browser that comes back to the
 // host, and a phone is not that browser — it is left to the host.
-function McpServer({ name, exec, server, onBack, onDone }) {
+function McpServer({ name, exec, server, readOnly, onBack, onDone }) {
     const run = useAction();
     const [busy, setBusy] = useState("");
     const st = statusOf(server);
@@ -182,13 +185,13 @@ function McpServer({ name, exec, server, onBack, onDone }) {
             ${server.description && html`<p class="cmdnote">${server.description}</p>`}
             ${server.status === "needs-auth" && html`
                 <p class="cmdnote">Authentication opens a browser and comes back to the host: do it in the terminal on the host.</p>`}
-            <div class="mcpacts">
+            ${!readOnly && html`<div class="mcpacts">
                 ${!off && html`
                     <button type="button" class="btn" disabled=${!can || Boolean(busy)} title=${why || undefined}
                             onClick=${() => act("reconnect")}>${busy === "reconnect" ? "Reconnecting…" : "Reconnect"}</button>`}
                 <button type="button" class="btn" disabled=${!can || Boolean(busy)} title=${why || undefined}
                         onClick=${() => act(off ? "enable" : "disable")}>${off ? "Enable" : "Disable"}</button>
-            </div>
+            </div>`}
             ${tools.length > 0 && html`
                 <section class="cmdsec">
                     <div class="cmdsechead"><span>Tools</span><span class="cmdaside">${tools.length}</span></div>

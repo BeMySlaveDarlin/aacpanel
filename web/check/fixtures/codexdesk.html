@@ -31,7 +31,8 @@ const sent = [];
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
-    if (u.startsWith("/api/codex/models")) return json({ state: "ok", models });
+    if (u.startsWith("/api/session/models")) return json({ state: "ok", session: { agent: "codex", transport: "stream",
+            list: models.map((m) => ({ value: m.model, name: m.name, efforts: m.efforts, effort: m.effort })) } });
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u === "/api/actions") {
         sent.push(JSON.parse((init && init.body) || "{}"));
@@ -82,7 +83,8 @@ window.done = (async () => {
     const out = {};
     await show({ ...thread, plan: true });
     out.planWord = said(chip("think"));
-    await show(thread);
+    await show({ ...thread, processes: 3 });
+    out.procs = Array.from(box.querySelectorAll(".cwork > .wchips .wchip")).map((b) => b.getAttribute("aria-label"));
     const strip = box.querySelector(".composer .cstrip");
     out.band = Array.from(strip.querySelectorAll(".pickfile, [data-pick], .cwork"))
         .map((el) => el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : "cwork"));
@@ -117,9 +119,29 @@ window.done = (async () => {
     out.byPress = sets(n);
     out.permWord = said(chip("perm"));
 
-    // A press outside puts a menu down and sends nothing.
+    // The thread is a menu too, and its panes are sheets over the screen.
+    chip("thread").click();
+    await until(() => menu() && menu().getAttribute("aria-label") === "the thread");
+    out.thread = Array.from(menu().querySelectorAll(".pkrow")).map((r) => `${text(r.querySelector(".pknum"))} ${text(r.querySelector(".pkname"))}`);
+    await settled();
+    key("4");
+    await until(() => !menu() && document.querySelector('.sheet.on [aria-label="the goal"]'));
+    out.goalPane = { menuDown: !menu(), back: Boolean(document.querySelector(".sheet.on .pkback")) };
+    document.querySelector(".sheet.on .btnrow .btn").click();
+    await until(() => !document.querySelector(".sheet.on"));
+
+    // A press outside puts a menu down and sends nothing — even one that lands
+    // the moment the menu is drawn, before the next frame: the menu answers
+    // presses from its first frame.
     chip("think").click();
-    await until(() => menu());
+    await new Promise((resolve) => {
+        const seen = new MutationObserver(() => {
+            if (!menu()) return;
+            seen.disconnect();
+            resolve();
+        });
+        seen.observe(box, { childList: true, subtree: true });
+    });
     n = sent.length;
     box.querySelector(".chatfeed").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
     await until(() => !menu());

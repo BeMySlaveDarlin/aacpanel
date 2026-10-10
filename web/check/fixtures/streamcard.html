@@ -5,8 +5,9 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <script type="module">
 // Live rows of the sessions list at the width of a phone, each in the block of
-// its project: two sessions on the stream — one with a long name and Remote
-// Control up, one with no requests yet — and one in tmux.
+// its project: two sessions on the stream — one with a long name, Remote
+// Control up and its last request 18 minutes back, one with no requests yet —
+// and one in tmux with a task in its background.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -20,7 +21,7 @@ const base = {
 };
 const rows = [
     { ...base, session: "acme-fingerprint-rotation-second", sessionId: "a", transport: "stream",
-      remote: "https://claude.ai/code/session_01abc" },
+      remote: "https://claude.ai/code/session_01abc", lastRequestAt: new Date(Date.now() - 18 * 60e3).toISOString() },
     { ...base, session: "aacpanel", sessionId: "b", work: { tasks: 1 } },
     { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },
 ];
@@ -36,6 +37,7 @@ render(
 
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const cut = (el) => Boolean(el) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
+const lines = (el) => (el ? Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)) : 0);
 // agentOf reads the word that opens the line under the state, and whose it is.
 const agentOf = (line) => {
     const word = line && line.firstElementChild;
@@ -43,54 +45,88 @@ const agentOf = (line) => {
         ? { agent: text(word), agentKey: word.dataset.agent || "" } : { agent: "", agentKey: "" };
 };
 const below = (el, over) => Boolean(el && over) && el.getBoundingClientRect().top >= over.getBoundingClientRect().bottom - 1;
+const mid = (r) => r.top + r.height / 2;
 
 // A tap lands where the finger is: on whatever the page has at that point.
-const tapAt = (el) => {
-    const box = el.getBoundingClientRect();
-    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+const tapPoint = (x, y) => {
+    const hit = document.elementFromPoint(x, y);
     pressed.length = 0;
     if (hit) hit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     return pressed.join(",");
 };
+const tapAt = (el) => {
+    if (!el) return "";
+    const box = el.getBoundingClientRect();
+    return tapPoint(box.left + box.width / 2, box.top + box.height / 2);
+};
 
 window.done = (async () => {
+    await document.fonts.ready;
     await new Promise((r) => setTimeout(r, 200));
     const blocks = Array.from(document.querySelectorAll(".pjblock"));
     return blocks.map((block) => {
-        const row = block.querySelector(".pjrow").getBoundingClientRect();
+        const rowEl = block.querySelector(".pjrow");
+        const row = rowEl.getBoundingClientRect();
+        const open = block.querySelector(".pjopen").getBoundingClientRect();
+        const side = block.querySelector(".pjside");
+        const col = side ? side.getBoundingClientRect() : null;
         const tag = block.querySelector(".pjtag");
         const box = tag.getBoundingClientRect();
         const pct = block.querySelector(".pjpct").getBoundingClientRect();
+        // Where the figure itself ends, whatever the width of its box.
+        const figure = (() => { const r = document.createRange(); r.selectNodeContents(block.querySelector(".pjpct")); return r.getBoundingClientRect(); })();
         const more = block.querySelector(".pjmore").getBoundingClientRect();
+        const dots = block.querySelector(".pjmore svg").getBoundingClientRect();
+        const said = block.querySelector(".pjtext");
+        const saidBox = said.getBoundingClientRect();
+        const stateLine = parseFloat(getComputedStyle(said).lineHeight);
         const rc = block.querySelector(".pjrc");
         const rcBox = rc ? rc.getBoundingClientRect() : null;
+        const name = block.querySelector(".pjsess");
+        const nameBox = name ? name.getBoundingClientRect() : null;
+        // The widest line of the column: the percentage with its button, the
+        // mark of where the session lives, Remote Control.
+        const widest = Math.max(more.right - pct.left, box.width, rcBox ? rcBox.width : 0);
         return {
-            state: text(block.querySelector(".pjtext")),
-            stateCut: cut(block.querySelector(".pjtext")),
+            state: text(said),
+            stateCut: cut(said),
             since: text(block.querySelector(".pjsince")),
             sinceCut: cut(block.querySelector(".pjsince")),
+            sinceLines: lines(block.querySelector(".pjsince")),
             sinceBelow: below(block.querySelector(".pjsince"), block.querySelector(".pjstate")),
             work: text(block.querySelector(".pjwork")),
             nameStands: (() => {
-                const name = block.querySelector(".pjsess");
                 const since = block.querySelector(".pjsince");
                 if (!name || !since) return false;
                 const n = getComputedStyle(name), w = getComputedStyle(since);
                 return Number(n.fontWeight) >= 600 && parseFloat(n.fontSize) > parseFloat(w.fontSize) && n.color !== w.color;
             })(),
+            nameLines: lines(name),
+            nameAcross: Boolean(nameBox && col) && nameBox.right >= col.right - 1 && nameBox.bottom <= Math.min(open.top, col.top) + 1,
             workBelow: below(block.querySelector(".pjwork"), block.querySelector(".pjsince")),
             ...agentOf(block.querySelector(".pjsince")),
             tapPct: tapAt(block.querySelector(".pjpct")),
             tapTag: tapAt(tag),
+            tapRC: tapAt(rc),
             tapMore: tapAt(block.querySelector(".pjmore")),
+            // The corner of the row over the button: a finger that lands a
+            // little past the dots still reaches them.
+            tapCorner: tapPoint(Math.min(more.right + 6, row.right - 2), Math.max(more.top - 4, row.top + 2)),
             name: block.querySelector(".pjname").textContent.trim(),
             rc: rc ? rc.textContent.trim() : "",
-            rcShown: Boolean(rcBox) && rcBox.width > 0 && rcBox.left >= row.left && rcBox.right <= box.left,
             mark: tag.textContent.trim(),
             shown: box.width > 0 && box.height > 0 && box.right <= row.right,
-            gap: Math.round(pct.left - box.right),
-            pctInside: pct.right <= more.left + 0.5,
-            pctRight: Math.round(more.left - pct.right),
+            column: Boolean(col),
+            // How far the percentage sits from the middle of the state's first line.
+            pctOff: Math.round(Math.abs(mid(pct) - (saidBox.top + stateLine / 2)) * 10) / 10,
+            pctBeside: figure.right <= more.left + 0.5 && more.left - figure.right <= 4 && Math.abs(mid(pct) - mid(more)) <= 2,
+            tagUnder: box.top >= Math.max(pct.bottom, more.bottom) - 0.5,
+            rcUnder: Boolean(rcBox) && rcBox.width > 0 && rcBox.top >= box.bottom - 0.5 && rcBox.left > box.left + 4,
+            rightEdges: [dots.right, box.right, rcBox ? rcBox.right : box.right].map((r) => Math.round(r - box.right)),
+            narrow: col ? Math.round(col.width - widest) : -1,
+            leftGives: col ? Math.round(col.left - open.right) : -1,
+            columnInside: Boolean(col) && col.right <= row.right && col.bottom <= row.bottom - 4,
+            columnAddsHeight: col ? Math.round(col.bottom - open.bottom) : 0,
             overflow: document.scrollingElement.scrollWidth - window.innerWidth,
         };
     });

@@ -434,6 +434,21 @@ span.pjname { cursor: default; }
     border-top: var(--hair) solid var(--line);
 }
 .pjrow > .ctxbar.edge { top: auto; bottom: 0; }
+/* The row of a live session is two columns under its name: what the session
+   says on the left, and a column on the right as narrow as its widest mark,
+   whose lines go down level with the lines on the left. The name spans both,
+   so a long one wraps across the whole row rather than in the left column.
+   The row keeps the padding itself, so both columns start on the state's
+   line whether a name stands over them or not. */
+.pjrow.pjcard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .12rem .5rem;
+    padding: .45rem .75rem;
+}
+.pjcard > .pjsess { grid-column: 1 / -1; }
+.pjcard > .pjopen { padding: 0; }
 /* The whole row opens the conversation, not only its words: the open button
    reaches over the row, and the buttons in the row stand above it. */
 .pjopen::after { content: ""; position: absolute; inset: 0; }
@@ -520,13 +535,24 @@ span.pjname { cursor: default; }
    its agent and a step heavier than the quiet words after it. */
 .agentword { font-weight: 600; color: var(--agent-claude); }
 .agentword[data-agent="codex"] { color: var(--agent-codex); }
+/* The right column of a live row: how full the session is and the button of
+   what can be done to it on the state's line, then where it lives, then
+   Remote Control — one under another on one right edge. Each is no taller
+   than a line on the left, so a row of two lines keeps its height and a mark
+   past the last line grows the row rather than spilling out of it. */
+.pjside {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    justify-items: end;
+}
+.pjside > .pjtag, .pjside > .pjrc { grid-column: 1 / -1; }
 /* Where a session lives, as a mark on its row. */
 .pjtag {
-    flex: none;
     display: inline-flex;
     align-items: center;
     gap: .22rem;
-    padding: .18rem .34rem;
+    padding: 0 .34rem;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
     font-family: var(--mono);
@@ -538,11 +564,10 @@ span.pjname { cursor: default; }
 /* Remote Control up: the session is open on claude.ai as well, marked the way
    the session's own tools mark it. */
 .pjrc {
-    flex: none;
     display: inline-flex;
     align-items: center;
     gap: .25rem;
-    padding: .18rem .34rem;
+    padding: .12rem .34rem;
     border-radius: var(--r-pill);
     font-size: var(--t-xs);
     font-weight: 600;
@@ -551,13 +576,17 @@ span.pjname { cursor: default; }
     background: color-mix(in srgb, var(--ok) 14%, transparent);
 }
 .pjrc::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
-.pjpct { flex: none; font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-dim); }
+.pjpct { font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-dim); }
+/* The button is as tall as the state's line and takes a finger past its box:
+   up to the edge of the row and right to its side, but not down onto the
+   mark under it, which opens the conversation like the rest of the row. Its
+   dots stand at its right end, on the edge the marks under it keep. */
 .pjmore {
-    flex: none;
     display: grid;
-    place-items: center;
-    width: 2.75rem;
-    height: 2.75rem;
+    place-items: center end;
+    width: 2rem;
+    height: var(--i-md);
+    padding: 0;
     border: 0;
     border-radius: var(--r-pill);
     background: none;
@@ -565,6 +594,7 @@ span.pjname { cursor: default; }
     cursor: pointer;
 }
 .pjmore svg { width: var(--i-md); height: var(--i-md); }
+.pjmore::before { content: ""; position: absolute; inset: -.45rem -.75rem -.05rem 0; }
 .pjbusy {
     position: absolute;
     inset: 0;

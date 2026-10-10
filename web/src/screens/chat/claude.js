@@ -21,6 +21,7 @@ import { PickBar, PickSheet, PickWords } from "./picker.js";
 import { SessionSections } from "./sessiontools.js";
 import { SideChat, useSideChat } from "./sidechat.js";
 import { useWindow } from "./window.js";
+import { Work } from "./work.js";
 import { sidesOf, useMove, useSwitchWay } from "./switch.js";
 import { useTermAvailable } from "./term.js";
 import { useViewPick } from "./viewpick.js";
@@ -72,7 +73,8 @@ export function ClaudeChat(props) {
         // A message is named for the queue only on the stream: a terminal
         // session's queue is on its screen.
         takesBack: Boolean(live) && live.transport === "stream",
-        work: true,
+        askStream: onStream,
+        work: ({ work, setLook }) => html`<${Work} work=${work} onOpen=${(what) => setLook(what)} />`,
         sections: SessionSections,
         composer: ({ setLook }) => ({
             commands: true,

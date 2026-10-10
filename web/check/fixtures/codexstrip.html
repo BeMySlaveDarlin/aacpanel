@@ -34,9 +34,10 @@ let catalogAsked = 0;
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
-    if (u.startsWith("/api/codex/models")) {
+    if (u.startsWith("/api/session/models")) {
         catalogAsked += 1;
-        return json({ state: "ok", models });
+        return json({ state: "ok", session: { agent: "codex", transport: "stream",
+            list: models.map((m) => ({ value: m.model, name: m.name, efforts: m.efforts, effort: m.effort })) } });
     }
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u === "/api/actions") {

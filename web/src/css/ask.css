@@ -204,3 +204,16 @@
     border-radius: var(--r-card);
     overflow-wrap: anywhere;
 }
+
+/* A form of an MCP server: a field under its name, set as the fields of the
+   settings are. The segments and the switch are the picker's and the
+   notifications' own; here they only take the room of a field. */
+.askfield { display: flex; flex-direction: column; gap: .3rem; margin-top: .7rem; }
+.askfield .askopts { margin-top: 0; }
+.askfieldname { font-size: var(--t-xs); font-weight: 500; color: var(--ink-faint); }
+.askreq { margin-left: .4rem; color: var(--warn); font-weight: 400; }
+.askseg { margin: 0; }
+.askseg .pkseg { min-height: 40px; }
+.askselect { resize: none; cursor: pointer; }
+.askswitch { margin-top: .5rem; }
+.askformnote { margin: .7rem 0 0; color: var(--ink-faint); font-size: var(--t-xs); line-height: 1.35; }

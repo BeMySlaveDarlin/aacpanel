@@ -172,6 +172,7 @@ export function rows(items) {
         // it that arrived earlier, when the news was queued, gives way.
         if (raw.role === "taskdone" && raw.use && done.get(raw.use) !== raw) continue;
         const prev = out[out.length - 1];
+        if (raw.role === "ai" && echoesReview(prev, raw)) continue;
         if (LINES.has(raw.role) && prev && prev.role === "toolrow") {
             prev.lines = [...(prev.lines || []), raw];
             continue;
@@ -200,6 +201,15 @@ export function rows(items) {
         out.push(item);
     }
     return out;
+}
+
+// echoesReview reports whether an answer of codex says again the review that
+// ended right before it: codex writes the explanation and the findings of a
+// review as an answer too, and the card of the review already shows both.
+function echoesReview(prev, item) {
+    if (!prev || prev.role !== "review" || prev.state !== "end") return false;
+    const said = String(prev.text || "").trim();
+    return said !== "" && String(item.text || "").trim().startsWith(said);
 }
 
 function withDone(item, done) {

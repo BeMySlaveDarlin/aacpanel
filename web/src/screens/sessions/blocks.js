@@ -18,7 +18,7 @@ import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
 import { inOrder, sessionsOf } from "./of.js";
 import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
-import { CODEX_CLOSE, agentKey, agentName, isCodex, noTurn } from "../../agent.js";
+import { CODEX_CLOSE, agentKey, agentName, isCodex, noTurn, shownName } from "../../agent.js";
 import { modelTitle } from "../chat/head.js";
 import { stamp, when } from "./card.js";
 
@@ -236,9 +236,12 @@ function KinFold({ kids, line }) {
 // LiveLine is a live session inside its project, a line for each question:
 // what it is doing and for how long it has lived, where it is in the
 // checklist of its work, who runs it on which model and when it last asked,
-// and what runs in its background — then where it lives, how full it is, and
-// the button of what can be done to it. On a phone one line holds no more
-// than one of these: the state is read whole, the checklist cut at its end.
+// and what runs in its background. On a phone one line holds no more than one
+// of these: the state is read whole, the checklist cut at its end. A narrow
+// column on the right goes down the same lines — how full the session is and
+// the button of what can be done to it level with the state, where it lives
+// under them, Remote Control under that — and the name, when the row has one,
+// stands over both across the whole width.
 export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
@@ -252,10 +255,10 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
     const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.when]
         .filter(Boolean).map((part) => ` · ${part}`).join("");
     return html`
-        <div class=${`pjrow${kid ? " pjkid" : ""}`}>
+        <div class=${`pjrow pjcard${kid ? " pjkid" : ""}`}>
+            ${named && html`<span class="pjsess">${shownName(session)}</span>`}
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
                     onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
-                ${named && html`<span class="pjsess">${session.session}</span>`}
                 <span class=${`pjstate pj-${state.tone}`}>
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
                     ${lived && html`<span class="pjlived">${lived}</span>`}
@@ -264,11 +267,13 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
                 ${state.work && html`<span class="pjwork">${state.work}</span>`}
             </button>
-            ${session.remote && html`<span class="pjrc" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
-            <span class="pjtag">${tag()}${place}</span>
-            <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
-            <button class="pjmore" type="button" aria-label=${`what to do with session ${session.session}`}
-                    onClick=${() => onMore(session)}>${Icon.more()}</button>
+            <div class="pjside">
+                <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
+                <button class="pjmore" type="button" aria-label=${`what to do with session ${session.session}`}
+                        onClick=${() => onMore(session)}>${Icon.more()}</button>
+                <span class="pjtag">${tag()}${place}</span>
+                ${session.remote && html`<span class="pjrc" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+            </div>
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
         </div>
@@ -393,7 +398,7 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
         <${Sheet} open=${true} onClose=${onClose} label=${`actions of session ${name}`}>
             <div class="pjsheet">
                 <div class="pjsheethead">
-                    <span class="pjsheetname">${name}</span>
+                    <span class="pjsheetname">${shownName(session, name)}</span>
                     <span class="pjsheetsub"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${[
                         session.model ? session.model.replace(/^claude-/, "") : "", session.effort || "",
                         session.noRequests ? "" : `${Math.round(session.pct || 0)}%`, placeOf(session),

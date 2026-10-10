@@ -68,7 +68,7 @@ window.done = (async () => {
                 return Math.abs(r.top - a.top) < 4 && r.left >= a.right - 1;
             })(),
             checklistWidth: b ? Math.round(b.width) : 0,
-            checklistInside: Boolean(b) && b.right <= block.querySelector(".pjtag").getBoundingClientRect().left + 0.5,
+            checklistInside: Boolean(b) && b.right <= block.querySelector(".pjside").getBoundingClientRect().left + 0.5,
         };
     }
     out.overflow = document.scrollingElement.scrollWidth - window.innerWidth;

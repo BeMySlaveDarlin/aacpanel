@@ -31,6 +31,15 @@ export function agentName(s) {
     return isCodex(s) ? "Codex" : "Claude";
 }
 
+// shownName is the name a person reads for a live session: a codex thread's
+// own title where it has one, and the name the panel finds the session by
+// otherwise. The session keeps that name as its address all the same: actions,
+// links and keys go by it.
+export function shownName(s, fallback = "") {
+    if (isCodex(s) && s.title) return s.title;
+    return (s && s.session) || fallback;
+}
+
 // noTurn says why a codex thread has no turn to stop, or nothing when it has
 // one: a turn runs while codex works or waits on what it asked.
 export function noTurn(s) {
