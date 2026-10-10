@@ -894,6 +894,20 @@ appears or the connection drops — at once when an action waits for it.
   review runs in a thread of its own and codex writes its items into the
   rollout of the thread that asked for it: the feed shows its work and none of
   its words, which codex says to itself.
+- **A question codex asks without waiting is a card of the feed.** Outside
+  plan mode codex asks with a tool that does not wait: the question goes to
+  the person as an answer delivered apart, its questions and their options
+  beside the words, and the turn goes on. Nothing in the protocol takes the
+  answer or clears the question: the person answers with a message, and the
+  next message of the person after the question is its answer. A tap on an
+  option sends it as a message naming the question (`session.send` with
+  `asked`), which goes into the turn that runs (`turn/steer`) — codex asked
+  so as to go on, and an answer in the panel's queue behind that turn would
+  come after the work it was for — or starts a turn on a free thread; words of
+  one's own go from the composer like any message. While no message has come
+  after it, the question stands on the thread's row as a question of
+  claude's does — the list says the session asks and a push goes out — and
+  the row stays as busy or as free as the thread is.
 - **The agents a thread started are its agents**, listed as a claude
   session's are and each opening its own thread. The collector reads them
   off the rollout of the thread, on from where it last stopped: an agent

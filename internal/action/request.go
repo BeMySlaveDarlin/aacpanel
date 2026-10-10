@@ -48,6 +48,11 @@ type Request struct {
 	// be taken back from the queue while it waits there.
 	MessageID string `json:"messageId,omitempty"`
 
+	// Asked names the question a codex thread asked without waiting that a
+	// session.send answers, by the id codex gives it: the answer goes into
+	// the turn that runs rather than into the panel's queue behind it.
+	Asked string `json:"asked,omitempty"`
+
 	// From is the conversation of the session a session.letter comes from:
 	// the sender is found by it, not by a name the request could make up. A
 	// letter of a codex thread names the thread.

@@ -359,6 +359,14 @@ func (r Request) Validate() error {
 	} else if r.Kind == SessionUnqueue {
 		return badRequest("action %s without the message to take back", r.Kind)
 	}
+	if r.Asked != "" {
+		if r.Kind != SessionSend {
+			return badRequest("action %s answers no question", r.Kind)
+		}
+		if len(r.Asked) > idMax || !safeID(r.Asked) {
+			return badRequest("the id of the question is not an id of codex's")
+		}
+	}
 	if r.Use != "" {
 		if r.Kind != SessionBackground {
 			return badRequest("action %s moves no call", r.Kind)

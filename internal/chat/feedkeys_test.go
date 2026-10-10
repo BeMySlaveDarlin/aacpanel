@@ -123,7 +123,7 @@ func TestEveryKeyTheFeedCarriesHasAField(t *testing.T) {
 	}
 
 	row := jsonNames(Item{})
-	part := jsonNames(Item{}, ToolCall{}, Shot{}, ThinkSpot{}, FileRef{}, Asked{}, Permitted{}, Finding{}, Spawned{})
+	part := jsonNames(Item{}, ToolCall{}, Shot{}, ThinkSpot{}, FileRef{}, Asked{}, Permitted{}, Finding{}, Spawned{}, AsyncAsk{})
 
 	rows, kept := 0, map[string]bool{}
 	for _, p := range places {

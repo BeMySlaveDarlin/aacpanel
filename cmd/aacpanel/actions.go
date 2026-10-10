@@ -173,6 +173,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			req.MessageID = id
 			params["message"] = id
 		}
+		if asked, _ := body.Params["asked"].(string); asked != "" {
+			req.Asked = asked
+			params["asked"] = asked
+		}
 	}
 	// A shell command is kept out of the journal as a message is: it is part
 	// of the conversation, where the transcript holds it, and a line like

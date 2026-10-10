@@ -207,6 +207,35 @@ func TestCodexSendAndStopGoThroughTheDaemon(t *testing.T) {
 	}
 }
 
+// The answer to a question codex asked without waiting goes into the turn
+// that runs, where codex goes on and reads it, and starts a turn on a free
+// thread; it never waits in the panel's queue behind the turn it is for.
+func TestAnAnswerToAQuestionCodexDidNotWaitForGoesIntoTheTurnThatRuns(t *testing.T) {
+	srv, e := onCodex(t, func(srv *codextest.Server) { srv.Running(codexThread, "turn-r") })
+	ctx := context.Background()
+	answer := action.Request{Kind: action.SessionSend, Target: codexName, Text: "Blue", Asked: "call_ask1"}
+
+	detail, err := e.Execute(ctx, answer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	steers := srv.Calls("turn/steer")
+	if len(steers) != 1 || !strings.Contains(string(steers[0]), `"expectedTurnId":"turn-r"`) ||
+		!strings.Contains(string(steers[0]), `"Blue"`) || len(srv.Calls("turn/start")) != 0 ||
+		!strings.Contains(detail, "into the turn that runs") {
+		t.Fatalf("the answer to a busy thread said %q, steered %s, started %s", detail, steers, srv.Calls("turn/start"))
+	}
+
+	srv.Set(codexThread, "idle")
+	detail, err = e.Execute(ctx, answer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(srv.Calls("turn/start")) != 1 || len(srv.Calls("turn/steer")) != 1 || !strings.Contains(detail, "a turn started") {
+		t.Errorf("the answer to a free thread said %q, started %s", detail, srv.Calls("turn/start"))
+	}
+}
+
 // An agent of a codex thread is stopped in its own thread: the turn it runs
 // there is interrupted, by the id of that thread. A thread the session did
 // not start is no agent of it and is not touched, and an agent with no turn

@@ -79,6 +79,11 @@ export function stateOf(live, still = null, move = null) {
             ? { tone: "off", say: `no fresh data since ${still} — the session may stand otherwise now`, word: `as of ${still}` }
             : { tone: "off", say: "no fresh data — the session may stand otherwise now", word: "not live" };
     }
+    // A question codex asked without waiting leaves it at work: the head says
+    // it asks and goes on, rather than that it waits.
+    if (live.ask && live.ask.async && live.status === "busy") {
+        return { tone: "busy", say: "asked a question and works on", word: "asks you" };
+    }
     if (live.ask || live.waitingFor || live.status === "waiting") {
         return {
             tone: "waiting",

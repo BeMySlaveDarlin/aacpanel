@@ -982,6 +982,9 @@
        "enum": [
         "turn/steer"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/TurnSteerParams"
       }
      }
     },
@@ -6507,6 +6510,37 @@
      "inProgress"
     ],
     "type": "string"
+   },
+   "TurnSteerParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "clientUserMessageId": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "expectedTurnId": {
+      "description": "Required active turn id precondition. The request fails when it does not match the currently active turn.",
+      "type": "string"
+     },
+     "input": {
+      "items": {
+       "$ref": "#/definitions/v2/UserInput"
+      },
+      "type": "array"
+     },
+     "threadId": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "expectedTurnId",
+     "input",
+     "threadId"
+    ],
+    "title": "TurnSteerParams",
+    "type": "object"
    },
    "UserInput": {
     "oneOf": [

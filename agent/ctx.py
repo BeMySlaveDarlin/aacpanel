@@ -493,14 +493,9 @@ def codex_crew(path):
     the id the agent carries. An agent whose thread died with the daemon in
     the middle of a turn stays at work.
     """
-    if not path:
-        return []
-    found = codex.crew(path, _crews.get(path))
+    found = _crew(path)
     if found is None:
         return []
-    if path not in _crews and len(_crews) >= MAX_CREWS:
-        _crews.clear()
-    _crews[path] = found
     agents = []
     for one in found["agents"].values():
         agent = {"agent": CODEX, "kind": "subagent", "id": one["id"], "name": one["name"],
@@ -554,13 +549,34 @@ def _agent_rollout(parent, agent):
     return ""
 
 
+def _crew(path):
+    """Returns what the rollout of a codex thread says it has going beside its turn, read on from the last look."""
+    if not path:
+        return None
+    found = codex.crew(path, _crews.get(path))
+    if found is None:
+        return None
+    if path not in _crews and len(_crews) >= MAX_CREWS:
+        _crews.clear()
+    _crews[path] = found
+    return found
+
+
 def _with_crew(row, path):
-    """Returns the row of a codex thread with the agents it has at work, busy while they work.
+    """Returns the row of a codex thread with the agents it has at work and the question it left hanging.
 
     Codex lets a thread go once its own turn is over, while the agents it
     started work on; the row is then busy with the turn over, as a claude
     session waiting for its agents is, and counts them as a claude row does.
+    A question codex asked without waiting stands on the row as a question
+    of claude's does — the list says the session asks and a push goes out —
+    and leaves it with the next message of the person; the row stays as busy
+    or as free as the thread is, since codex goes on.
     """
+    asked = (_crew(path) or {}).get("asked")
+    if asked:
+        row["ask"] = {"header": "", "text": asked["text"], "count": asked["count"], "at": asked["at"],
+                      "async": True}
     working = sum(1 for agent in codex_crew(path) if agent["status"] == ACTIVE)
     if not working:
         return row

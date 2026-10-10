@@ -111,6 +111,18 @@ call turn/start
   send model
   send effort
 
+# The answer to a question codex asked without waiting, into the turn that runs.
+call turn/steer
+  send threadId
+  send expectedTurnId
+  send input[].type: text localImage
+  send input[]<text>.type
+  send input[]<text>.text
+  send input[]<text>.text_elements
+  send input[]<localImage>.type
+  send input[]<localImage>.path
+  send clientUserMessageId
+
 call turn/interrupt
   send threadId
   send turnId

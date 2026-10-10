@@ -84,6 +84,9 @@ type Item struct {
 	// The agents codex started, on the card of their start, and how they
 	// stand after a later call to them, on a row the screen does not draw.
 	Spawned []Spawned `json:"spawned,omitempty"`
+	// The questions codex asked without waiting, on their card: each with
+	// the options it offers.
+	Asks []AsyncAsk `json:"asks,omitempty"`
 	// The answer of a slash command, read into numbers by the collector. The
 	// panel carries it to the screen and never looks inside.
 	Data json.RawMessage `json:"data,omitempty"`
@@ -114,6 +117,13 @@ type Asked struct {
 	Header string   `json:"header,omitempty"`
 	Answer []string `json:"answer,omitempty"`
 	Note   string   `json:"note,omitempty"`
+}
+
+// AsyncAsk is one question codex asked without waiting, and the options it
+// offers; none means the answer is words of one's own.
+type AsyncAsk struct {
+	Title   string   `json:"title"`
+	Options []string `json:"options"`
 }
 
 // Finding is one finding of a review of codex: what is wrong, why, how much

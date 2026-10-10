@@ -3,6 +3,7 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -179,6 +180,46 @@ func (l *Link) Send(ctx context.Context, threadID string, m Message) (int, error
 	l.save(threadID)
 	l.nudge()
 	return n, nil
+}
+
+// Answer gives a thread the answer to a question it asked without waiting. A
+// turn that runs takes it at once, as codex's own terminal hands it — codex
+// asked so as to go on, and an answer behind that turn would come after the
+// work it was for — and a free thread starts a turn with it. It reports
+// whether the turn that runs took it. A turn that ends between the look and
+// the answer leaves the thread free, and the answer starts a turn of its own.
+func (l *Link) Answer(ctx context.Context, threadID string, m Message) (bool, error) {
+	c, err := l.client()
+	if err != nil {
+		return false, err
+	}
+	l.sub.Lock()
+	defer l.sub.Unlock()
+	turn, err := runningTurn(ctx, c, threadID)
+	if err != nil {
+		return false, err
+	}
+	if turn != "" {
+		params := map[string]any{"threadId": threadID, "expectedTurnId": turn, "input": m.input()}
+		if m.ID != "" {
+			params["clientUserMessageId"] = m.ID
+		}
+		err = within(ctx, c, "turn/steer", params, nil)
+		if err == nil {
+			return true, nil
+		}
+		if !refused(err) {
+			return false, err
+		}
+		refusal := err
+		if turn, err = runningTurn(ctx, c, threadID); err != nil {
+			return false, err
+		}
+		if turn != "" {
+			return false, fmt.Errorf("the turn that runs did not take the answer: %w", refusal)
+		}
+	}
+	return false, l.start(ctx, c, threadID, m)
 }
 
 // Unqueue takes a message back from the panel's queue of a thread before it

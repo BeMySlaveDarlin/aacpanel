@@ -758,6 +758,15 @@ div.mtask { cursor: default; }
 .xrgoal.g-warn .xrgoalword { color: var(--warn); }
 .xrgoal.g-faint .xrgoalword { color: var(--ink-faint); }
 
+/* A question codex asked and went on: its words, its options as the options
+   of a question of claude's, and once answered what it was answered with. */
+.xrquestion > .senthead .sentico { color: var(--accent); }
+.xrquestion.answered > .senthead .sentico { color: var(--ink-faint); }
+.xrquestionone + .xrquestionone { margin-top: .6rem; }
+.xrquestionone .asktext { margin: 0; }
+.xranswer { margin: .5rem 0 0; font-size: var(--t-sm); color: var(--ink); overflow-wrap: anywhere; }
+.xranswer span { margin-right: .35rem; color: var(--ink-faint); font-size: var(--t-xs); }
+
 /* A page and a brief: the row the shelf lists them by is the row on the plate
    of their card, set to the build of the row of a file. */
 .mflist > .artifact {

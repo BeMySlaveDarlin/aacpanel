@@ -425,6 +425,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     item=${item}
                     session=${name}
                     id=${id}
+                    exec=${live && !live.outside ? exec : null}
                     copies=${copies}
                     onPage=${(card) => setLook({ kind: "artifact", card })}
                     onFile=${(file) => setLook({ kind: "file", ...file })}

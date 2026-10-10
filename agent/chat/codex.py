@@ -30,7 +30,7 @@ import contours
 import held
 
 from .harness import COMPACTED, STOPPED
-from .cards import MAX_ASK_QUESTIONS, MAX_ASK_TEXT
+from .cards import MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
 from .mail import LETTER_TOOL, mails, peer_name, undelivered
 from .tools import one_line, tool_arg, tool_kind, tool_label
@@ -480,6 +480,30 @@ def _asked(record, at, pos):
     return card
 
 
+# Codex asks outside plan mode too, with a tool that does not wait: the
+# question goes to the person as an answer of the turn, delivered apart
+# (delivery async), with its questions beside the words, and the turn goes on.
+# Nothing in the protocol takes the answer: the person answers with a message,
+# into the turn that runs or as a turn of its own, and the next message of the
+# person is the answer.
+ASYNC = "async"
+
+
+def _questions(item):
+    """Returns the questions of an answer codex delivered apart — each its title and its options — or none."""
+    if item.get("delivery") != ASYNC:
+        return []
+    out = []
+    for raw in _list(item.get("questions"))[:MAX_ASK_QUESTIONS]:
+        title = raw.get("title") if isinstance(raw, dict) else None
+        if not isinstance(title, str) or not title.strip():
+            continue
+        options = [cut(" ".join(one.split()), MAX_ASK_TEXT)[0] for one in _list(raw.get("options"))
+                   if isinstance(one, str) and one.strip()]
+        out.append({"title": cut(title.strip(), MAX_ASK_TEXT)[0], "options": options[:MAX_ASK_ANSWERS]})
+    return out
+
+
 def _goal(record, at, pos):
     """Returns the row of a goal set or changed, or None.
 
@@ -786,31 +810,35 @@ def _second_details(record, payload, f):
     return out
 
 
-# The bytes a record that may say something of the agents of a thread holds:
-# an item of a call to agents of either set, and a call of the second set,
-# which names the role a start asked for and whether a word to an agent gave
-# it a task more. Only such a line of the rollout is parsed: a command's
-# output can make a line of megabytes.
-CREW_MARKS = tuple(json.dumps(word).encode() for word in (COLLAB, ACTIVITY, SECOND))
+# The bytes a record that may say something of the agents of a thread or of
+# a question it left hanging holds: an item of a call to agents of either set,
+# a call of the second set, which names the role a start asked for and
+# whether a word to an agent gave it a task more, an answer delivered apart
+# and a message of the person. Only such a line of the rollout is parsed: a
+# command's output can make a line of megabytes.
+CREW_MARKS = tuple(json.dumps(word).encode() for word in (COLLAB, ACTIVITY, SECOND, ASYNC, "UserMessage"))
 
 
 def crew(path, known=None):
-    """Returns the agents a thread started and how each stands, as its rollout says, read on from what was known.
+    """Returns what a thread has going beside its turn, as its rollout says, read on from what was known.
 
+    That is the agents it started, each as it stands, and the question it
+    asked without waiting while no message of the person has come after it.
     Known is what an earlier call returned: the place the reading stopped,
-    the agents by their threads and the calls of the second set met so far.
-    An agent stands as the last word codex wrote of it — a start, an item of
-    the second set, the states a call of the first set came back with — and
-    at the moment it was written; a rollout shorter than the place is
-    another file, read from its start. An item of another thread — a review,
-    the history an agent's thread takes over from its parent — is passed by.
+    the agents by their threads, the calls of the second set met so far and
+    the question that hangs. An agent stands as the last word codex wrote of
+    it — a start, an item of the second set, the states a call of the first
+    set came back with — and at the moment it was written; a rollout shorter
+    than the place is another file, read from its start. An item of another
+    thread — a review, the history an agent's thread takes over from its
+    parent — is passed by.
     """
     try:
         size = os.path.getsize(path)
     except OSError:
         return known
     if known is None or known["pos"] > size:
-        known = {"pos": 0, "agents": {}, SECOND_CALLS: {}, OWN: own(path).get(OWN, "")}
+        known = {"pos": 0, "agents": {}, SECOND_CALLS: {}, OWN: own(path).get(OWN, ""), "asked": None}
     if known["pos"] == size:
         return known
     known = {**known, "agents": dict(known["agents"]), SECOND_CALLS: dict(known[SECOND_CALLS])}
@@ -846,6 +874,15 @@ def _crew_take(raw, known):
     if found is None or found[0].get("thread_id") not in (None, "", known[OWN]):
         return
     item = found[1]
+    if item.get("type") == "UserMessage":
+        known["asked"] = None
+        return
+    asked = _questions(item) if item.get("type") == "AgentMessage" else []
+    if asked:
+        was = known["asked"] or {"count": 0}
+        known["asked"] = {"id": item.get("id") if isinstance(item.get("id"), str) else "",
+                          "text": asked[0]["title"], "count": was["count"] + len(asked), "at": at}
+        return
     if item.get("type") == COLLAB and item.get("tool") == SPAWN:
         for agent in _agents(item):
             known["agents"][agent["id"]] = {
@@ -956,6 +993,9 @@ def rows(record, pos, state=None):
         role = TASK if (state or {}).get(DRIVEN) else "me"
         return _said(role, text, at, pos)
     if kind == "AgentMessage":
+        asked = _questions(item)
+        if asked:
+            return [{"role": "question", "use": use, "asks": asked, "at": at, "pos": pos}]
         return _said("ai", _text(item.get("content"), "Text"), at, pos)
     if kind == "Reasoning":
         summary = item.get("summary_text")

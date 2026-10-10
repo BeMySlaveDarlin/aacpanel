@@ -1,11 +1,14 @@
 // The rows of a codex thread that claude has no word for: the plan codex
-// wrote in plan mode, a review begun and ended, a goal set or changed, and an
-// agent started. They are cards of the build the feed draws what arrives
-// with — a head that says what it is and when, and the plate under it.
+// wrote in plan mode, a review begun and ended, a goal set or changed, an
+// agent started and a question asked without waiting. They are cards of the
+// build the feed draws what arrives with — a head that says what it is and
+// when, and the plate under it.
 
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
+import { useAction } from "../../actions/gate.js";
+import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { dedent, inline, render } from "../../md.js";
 import { stopwatch, tokens } from "../../format.js";
@@ -137,6 +140,84 @@ export function GoalCard({ item }) {
             ${budget > 0 && html`<div class="pnmbar" aria-hidden="true"><i style=${`width: ${share}%`}></i></div>`}
         </div>
     `;
+}
+
+// QuestionCard is a question codex asked without waiting — outside plan mode
+// codex asks and goes on — a card of the build of the tasks done: each
+// question with its options as the options of a question of claude's, a tap
+// on one the answer. The answer goes as a message of the person into the turn
+// that runs, the way codex's own terminal hands it, or starts a turn on a free
+// thread; words of one's own go from the composer. The next message of the
+// person in the feed answers the question, and the card then says what it was
+// answered with and offers nothing more.
+export function QuestionCard({ item, session, exec }) {
+    const run = useAction();
+    const [sent, setSent] = useState(null);
+    const [fail, setFail] = useState("");
+    const questions = item.asks || [];
+    const answered = item.answer !== undefined;
+    // A conversation that is over, or a host whose executor cannot write to a
+    // session, shows the options without taking a tap.
+    const ready = Boolean(exec) && knows(exec, "session.send");
+    const why = !exec ? "the session is not live: there is nobody to answer" : whyNot(exec, "session.send");
+    const pick = async (question, option) => {
+        if (sent || answered || !session || !ready) return;
+        const text = questions.length > 1 ? `${question.title}: ${option}` : option;
+        setSent({ question, option });
+        setFail("");
+        const result = await run("session.send", session, { text, asked: item.use });
+        if (!result.ok) {
+            setSent(null);
+            if (!result.cancelled) setFail(result.error || "the answer did not go");
+        }
+    };
+    const head = answered ? "codex asked" : sent ? "the answer is on its way" : "codex asks, and goes on";
+    return html`
+        <div class=${`sent xrquestion${answered ? " answered" : ""}`}>
+            <div class="senthead">
+                <span class="sentico">${Icon.ask()}</span>
+                <span class="sentlabel">${head}</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            ${questions.map((question, n) => html`
+                <div class="xrquestionone" key=${n}>
+                    <p class="asktext">${inline(question.title)}</p>
+                    ${!answered && question.options.length > 0 && html`
+                        <div class="askopts">
+                            ${question.options.map((option) => {
+                                const on = sent && sent.question === question && sent.option === option;
+                                return html`
+                                    <div class=${`askopt${on ? " on" : ""}${sent && !on ? " off" : ""}`} key=${option}>
+                                        <button class="askpick" type="button" title=${ready ? "" : why}
+                                                disabled=${Boolean(sent) || !session || !ready}
+                                                onClick=${() => pick(question, option)}>
+                                            <span class="asktick"></span>
+                                            <span class="askbody"><span class="askname">${option}</span></span>
+                                        </button>
+                                    </div>
+                                `;
+                            })}
+                        </div>
+                    `}
+                </div>
+            `)}
+            ${answered
+                ? html`<p class="xranswer"><span>answered</span> ${firstLine(item.answer)}</p>`
+                : html`<p class="hint">${questions.some((q) => q.options.length > 0)
+                    ? "A tap answers; words of your own go from the composer."
+                    : "Answer from the composer: the next message is the answer."}</p>`}
+            ${fail && html`<p class="hint warn">${fail}</p>`}
+        </div>
+    `;
+}
+
+// ANSWER_SHOWN is how much of the message that answered a question its card
+// repeats: the message itself stands in the feed below.
+const ANSWER_SHOWN = 160;
+
+function firstLine(text) {
+    const line = String(text || "").split("\n")[0];
+    return line.length > ANSWER_SHOWN ? `${line.slice(0, ANSWER_SHOWN)}…` : line;
 }
 
 // How codex says an agent stands: the word of its row, the mark of its tag

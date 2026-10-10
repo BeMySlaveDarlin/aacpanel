@@ -18,12 +18,12 @@ import { savedAfter } from "../../data/secrets.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
-import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
+import { GoalCard, PlanCard, QuestionCard, ReviewCard, SpawnCard } from "./codexrows.js";
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret }) {
+export function Row({ item, session, id, exec, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret }) {
     if (item.role === "shots") {
         return html`<${Shots} shots=${item.shots} session=${session} id=${id} pos=${item.pos} />`;
     }
@@ -82,7 +82,8 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         return html`<${AskedCard} item=${item} />`;
     }
 
-    // What codex alone writes: a plan, a review, a goal and an agent started.
+    // What codex alone writes: a plan, a review, a goal, an agent started and a
+    // question asked without waiting.
     if (item.role === "plan") {
         return html`<${PlanCard} item=${item} />`;
     }
@@ -94,6 +95,9 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     }
     if (item.role === "spawn") {
         return html`<${SpawnCard} item=${item} onAgent=${onAgent} />`;
+    }
+    if (item.role === "question") {
+        return html`<${QuestionCard} item=${item} session=${session} exec=${exec} />`;
     }
 
     if (item.role === "permitted") {

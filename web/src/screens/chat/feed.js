@@ -190,6 +190,12 @@ export function rows(items) {
             item = { ...item, url, again: Boolean(url && seen.has(url)) };
             if (url) seen.add(url);
         }
+        // A question codex asked without waiting is answered by the next
+        // message of the person, wherever it stands after the question.
+        if (item.role === "question") {
+            const next = items.find((later) => later.role === "me" && later.pos > item.pos);
+            if (next) item = { ...item, answer: String(next.text || "").trim() };
+        }
         // An agent stands as the last call to it said: the start knows only
         // that it was started.
         if (item.role === "spawn" && (item.spawned || []).some((agent) => stood.has(agent.id))) {

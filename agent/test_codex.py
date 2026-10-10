@@ -908,6 +908,58 @@ class SecondAgents(Runtime):
                          "the messages it took of its parent are not its feed, and the parent is named by its path")
 
 
+ASYNC_QUESTIONS = os.path.join(HERE, "testdata", "codex-async-questions.jsonl")
+
+
+class AsyncQuestions(Runtime):
+    """The questions codex asks without waiting: a card in the feed, and a question on the row while it hangs."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.copy(ASYNC_QUESTIONS, self.rollout)
+
+    def items(self):
+        reply = chat.answer({"session": THREAD, "limit": 50})
+        self.assertTrue(reply["ok"], reply)
+        return reply["items"]
+
+    def test_a_question_asked_without_waiting_is_a_card_of_its_questions_and_options(self):
+        items = self.items()
+        cards = [(i["use"], i["asks"]) for i in items if i["role"] == "question"]
+        self.assertEqual(cards, [
+            ("call_ask_theme", [{"title": "Which theme should the page take?", "options": ["Light", "Dark"]}]),
+            ("call_ask_logo", [{"title": "Should the logo stay?", "options": []}])])
+        said = [i["text"] for i in items if i["role"] == "ai"]
+        self.assertEqual(said, ["I ask, then go on.", "The page is dark now.", "The header is done."],
+                         "the words codex delivered with the question are the question, not an answer beside it")
+        rows = [i["role"] for i in items if i["role"] in ("question", "me")]
+        self.assertEqual(rows, ["me", "question", "me", "me", "question"],
+                         "the answer stands after its question, where the person sent it")
+
+    def test_a_question_nobody_answered_stands_on_the_row_and_leaves_it_with_the_next_message(self):
+        self.follow(busy=True)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual(row.get("ask"), {"header": "", "text": "Should the logo stay?", "count": 1,
+                                          "at": "2026-10-09T14:00:15.000Z", "async": True},
+                         "the question answered by the next message is gone, the last one hangs")
+        self.assertEqual(row["status"], "busy", "codex goes on: a question it did not wait for holds nothing")
+        with open(ASYNC_QUESTIONS, encoding="utf-8") as f:
+            answer = json.loads(next(line for line in f if '"Dark"' in line and "UserMessage" in line))
+        answer["timestamp"] = "2026-10-09T14:00:40.000Z"
+        with open(self.rollout, "a", encoding="utf-8") as f:
+            f.write(json.dumps(answer) + "\n")
+        self.assertNotIn("ask", ctx.codex_sessions()[0])
+
+    def test_questions_in_a_row_are_counted_together(self):
+        with open(ASYNC_QUESTIONS, encoding="utf-8") as f:
+            lines = f.readlines()
+        asked = next(line for line in lines if '"call_ask_logo"' in line and '"async"' in line)
+        with open(self.rollout, "a", encoding="utf-8") as f:
+            f.write(asked.replace("call_ask_logo", "call_ask_more"))
+        self.follow()
+        self.assertEqual(ctx.codex_sessions()[0]["ask"]["count"], 2)
+
+
 class Asks(Runtime):
     """The question or the form a codex thread waits on, offered as a question of claude's."""
 

@@ -125,6 +125,9 @@ func (e *Executor) notCodex(target string) error {
 func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.Request) (string, error) {
 	switch req.Kind {
 	case action.SessionSend:
+		if req.Asked != "" {
+			return codexAnswerAsked(ctx, th, codex.Message{ID: req.MessageID, Text: req.Text})
+		}
 		return codexSend(ctx, th, codex.Message{ID: req.MessageID, Text: req.Text})
 	case action.SessionLetter:
 		return e.codexLetterTo(ctx, th, req.From, req.FromCodex, req.Text)
@@ -175,6 +178,21 @@ func codexSend(ctx context.Context, th codex.Thread, m codex.Message) (string, e
 	}
 	return fmt.Sprintf("%s is busy: the message waits in the panel's queue, %s, and goes as a turn of its own "+
 		"once the turn that runs ends", th.Name, ordinal(place)), nil
+}
+
+// codexAnswerAsked gives a thread the answer to a question it asked without
+// waiting: into the turn that runs, or as a turn of its own on a free thread.
+func codexAnswerAsked(ctx context.Context, th codex.Thread, m codex.Message) (string, error) {
+	steered, err := th.Link.Answer(ctx, th.ID, m)
+	if err != nil {
+		return "", fmt.Errorf("session %s did not take the answer: %w", th.Name, err)
+	}
+	if steered {
+		return fmt.Sprintf("the answer went to %s into the turn that runs, %d characters", th.Name,
+			len([]rune(m.Text))), nil
+	}
+	return fmt.Sprintf("the answer went to %s (free — a turn started with it), %d characters", th.Name,
+		len([]rune(m.Text))), nil
 }
 
 func ordinal(n int) string {
