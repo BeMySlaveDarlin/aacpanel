@@ -6,55 +6,51 @@ import (
 )
 
 // On the phone every live session says where it lives on its row — the feed or
-// the console — in a narrow column on the right that goes down the lines of
-// the row: how full the session is and the button of what can be done to it
-// level with the state, where it lives under them, Remote Control under that
-// for a session that has it up, all on one right edge. The column is as wide
-// as its widest mark and no wider, so the words on the left keep the rest of
-// the row: who runs the session on which model and since when stands on one
-// line. A row of two lines keeps its height; a mark past the last line grows
-// the row instead of spilling out of it. The name of the session, when the row
-// has one, stands over both across the whole width, so a long one does not
-// wrap. A tap anywhere on the row opens the conversation, the marks included,
-// but on the row's button of what can be done to it — and a little past its
-// dots — which opens that. The state stands whole, and under it, on a line of
-// its own, who runs the session — the word of its agent first; what runs in
-// its background stands on a third line.
+// the console — in a narrow column on the right: where it lives and the button
+// of what can be done to it side by side, how full the session is under them,
+// and Remote Control, for a session that has it up, as a word on the state's
+// line rather than a mark of the column. The column is as wide as its pair and
+// no wider, so the words on the left keep the rest of the row: who runs the
+// session on which model and since when stands on one line. The column runs
+// no further down than the lines on the left, so it never makes the row
+// taller. The name of the session, when the row has one, stands over both
+// across the whole width, so a long one does not wrap. A tap anywhere on the
+// row opens the conversation, the marks and the word of Remote Control
+// included, but on the row's button of what can be done to it — and a little
+// past its dots — which opens that. The state stands whole, and under it, on a
+// line of its own, who runs the session — the word of its agent first; what
+// runs in its background stands on a third line.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
-		Name             string  `json:"name"`
-		Mark             string  `json:"mark"`
-		State            string  `json:"state"`
-		StateCut         bool    `json:"stateCut"`
-		Since            string  `json:"since"`
-		Agent            string  `json:"agent"`
-		AgentKey         string  `json:"agentKey"`
-		SinceCut         bool    `json:"sinceCut"`
-		SinceLines       int     `json:"sinceLines"`
-		SinceBelow       bool    `json:"sinceBelow"`
-		Work             string  `json:"work"`
-		NameStands       bool    `json:"nameStands"`
-		NameLines        int     `json:"nameLines"`
-		NameAcross       bool    `json:"nameAcross"`
-		WorkBelow        bool    `json:"workBelow"`
-		TapPct           string  `json:"tapPct"`
-		TapTag           string  `json:"tapTag"`
-		TapRC            string  `json:"tapRC"`
-		TapMore          string  `json:"tapMore"`
-		TapCorner        string  `json:"tapCorner"`
-		RC               string  `json:"rc"`
-		Shown            bool    `json:"shown"`
-		Column           bool    `json:"column"`
-		PctOff           float64 `json:"pctOff"`
-		PctBeside        bool    `json:"pctBeside"`
-		TagUnder         bool    `json:"tagUnder"`
-		RCUnder          bool    `json:"rcUnder"`
-		RightEdges       []int   `json:"rightEdges"`
-		Narrow           int     `json:"narrow"`
-		LeftGives        int     `json:"leftGives"`
-		ColumnInside     bool    `json:"columnInside"`
-		ColumnAddsHeight int     `json:"columnAddsHeight"`
-		Overflow         int     `json:"overflow"`
+		Name             string `json:"name"`
+		Mark             string `json:"mark"`
+		State            string `json:"state"`
+		StateCut         bool   `json:"stateCut"`
+		Since            string `json:"since"`
+		Agent            string `json:"agent"`
+		AgentKey         string `json:"agentKey"`
+		SinceCut         bool   `json:"sinceCut"`
+		SinceLines       int    `json:"sinceLines"`
+		SinceBelow       bool   `json:"sinceBelow"`
+		Work             string `json:"work"`
+		NameStands       bool   `json:"nameStands"`
+		NameLines        int    `json:"nameLines"`
+		NameAcross       bool   `json:"nameAcross"`
+		WorkBelow        bool   `json:"workBelow"`
+		TapPct           string `json:"tapPct"`
+		TapTag           string `json:"tapTag"`
+		TapRC            string `json:"tapRC"`
+		TapMore          string `json:"tapMore"`
+		TapCorner        string `json:"tapCorner"`
+		RC               string `json:"rc"`
+		RCElsewhere      bool   `json:"rcElsewhere"`
+		Shown            bool   `json:"shown"`
+		Column           bool   `json:"column"`
+		Narrow           int    `json:"narrow"`
+		LeftGives        int    `json:"leftGives"`
+		ColumnInside     bool   `json:"columnInside"`
+		ColumnAddsHeight int    `json:"columnAddsHeight"`
+		Overflow         int    `json:"overflow"`
 	}
 	runFixture(t, "streamcard.html", &got)
 	if len(got) != 3 {
@@ -74,27 +70,17 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		if !c.Column {
 			t.Fatalf("%s: the row has no column of its marks on the right", session)
 		}
-		if c.PctOff > 3 || !c.PctBeside {
-			t.Errorf("%s: the percentage stands %.1fpx off the state's line (beside the actions button %v) — "+
-				"the top of the column is level with the state", session, c.PctOff, c.PctBeside)
-		}
-		if !c.TagUnder {
-			t.Errorf("%s: where the session lives is not under the percentage and its button: %+v", session, c)
-		}
-		if remote && (c.RC != "RC" || !c.RCUnder) {
-			t.Errorf("%s: Remote Control is up and the column does not say so under where the session lives: %+v", session, c)
+		if remote && c.RC != "RC" {
+			t.Errorf("%s: Remote Control is up and the state's line does not say so: %+v", session, c)
 		}
 		if !remote && c.RC != "" {
 			t.Errorf("%s: the row says Remote Control is up, and it is not", session)
 		}
-		for _, edge := range c.RightEdges {
-			if edge < -1 || edge > 1 {
-				t.Errorf("%s: the column's lines end at %v px from the mark of where it lives — not one right edge", session, c.RightEdges)
-				break
-			}
+		if c.RCElsewhere {
+			t.Errorf("%s: Remote Control is said somewhere else on the row than the state's line", session)
 		}
 		if c.Narrow < 0 || c.Narrow > 1 {
-			t.Errorf("%s: the column is %dpx wider than its widest mark", session, c.Narrow)
+			t.Errorf("%s: the column is %dpx wider than its widest line", session, c.Narrow)
 		}
 		if c.LeftGives < 0 || c.LeftGives > 10 {
 			t.Errorf("%s: the words on the left stop %dpx short of the column — they give the column more than it takes", session, c.LeftGives)
@@ -102,8 +88,8 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		if !c.ColumnInside {
 			t.Errorf("%s: the column spills out of its row: %+v", session, c)
 		}
-		if !remote && c.ColumnAddsHeight > 1 {
-			t.Errorf("%s: the column of two marks runs %dpx past the lines on the left — it makes the row taller", session, c.ColumnAddsHeight)
+		if c.ColumnAddsHeight > 1 {
+			t.Errorf("%s: the column runs %dpx past the lines on the left — it makes the row taller", session, c.ColumnAddsHeight)
 		}
 		if c.TapPct != "open:"+session || c.TapTag != "open:"+session || (remote && c.TapRC != "open:"+session) {
 			t.Errorf("%s: a tap on the percentage opens %q, on where it lives %q, on Remote Control %q — the whole row opens the conversation",

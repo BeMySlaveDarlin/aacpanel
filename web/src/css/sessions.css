@@ -507,9 +507,11 @@ span.pjname { cursor: default; }
     overflow: hidden;
     overflow-wrap: anywhere;
 }
-/* How long the session has lived, after its state on the state's line. */
-.pjlived { flex: none; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
-.pjlived::before { content: "·"; margin-right: .45rem; }
+/* How long the session has lived, and Remote Control when it is up — the
+   session is open on claude.ai as well — after its state on the state's line,
+   both as quiet words. */
+.pjlived, .pjremote { flex: none; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
+.pjlived::before, .pjremote::before { content: "·"; margin-right: .45rem; }
 /* Where the session is in the checklist of its work: a line of its own under
    the state, cut at its end rather than wrapped. */
 .pjchecklist {
@@ -535,66 +537,49 @@ span.pjname { cursor: default; }
    its agent and a step heavier than the quiet words after it. */
 .agentword { font-weight: 600; color: var(--agent-claude); }
 .agentword[data-agent="codex"] { color: var(--agent-codex); }
-/* The right column of a live row: how full the session is and the button of
-   what can be done to it on the state's line, then where it lives, then
-   Remote Control — one under another on one right edge. Each is no taller
-   than a line on the left, so a row of two lines keeps its height and a mark
-   past the last line grows the row rather than spilling out of it. */
+/* The right column of a live row, as tall as the lines on the left: where the
+   session lives and the button of what can be done to it side by side on the
+   state's line, and how full the session is at the foot of the column, in the
+   bottom right corner of the row. The pair is no taller than the state's line
+   and the figure no taller than the last line, so a row of two lines keeps
+   its height. */
+.pjcard > .pjside { align-self: stretch; }
 .pjside {
     display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto 1fr;
+    column-gap: .25rem;
+    align-items: start;
     justify-items: end;
 }
-.pjside > .pjtag, .pjside > .pjrc { grid-column: 1 / -1; }
-/* Where a session lives, as a mark on its row. */
-.pjtag {
+.pjside > .pjpct { grid-column: 1 / -1; align-self: end; }
+/* Where a session lives and the button of what can be done to it are one
+   kind of mark: the same height, edge, corners, type and padding, so the two
+   read as a pair. One is a word and the other a button, and only the button
+   answers a finger; a tap on the word opens the conversation like the rest
+   of the row. */
+.pjtag, .pjmore {
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     gap: .22rem;
-    padding: 0 .34rem;
+    height: 1.15rem;
+    padding: 0 .3rem;
     border-radius: var(--r-pill);
     border: var(--hair) solid var(--line);
+    background: none;
     font-family: var(--mono);
     font-size: var(--t-xs);
+    font-weight: 400;
     line-height: 1;
     color: var(--ink-dim);
 }
-.pjtag svg { width: var(--i-sm); height: var(--i-sm); }
-/* Remote Control up: the session is open on claude.ai as well, marked the way
-   the session's own tools mark it. */
-.pjrc {
-    display: inline-flex;
-    align-items: center;
-    gap: .25rem;
-    padding: .12rem .34rem;
-    border-radius: var(--r-pill);
-    font-size: var(--t-xs);
-    font-weight: 600;
-    line-height: 1;
-    color: var(--ok);
-    background: color-mix(in srgb, var(--ok) 14%, transparent);
-}
-.pjrc::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
-.pjpct { font-family: var(--mono); font-size: var(--t-sm); color: var(--ink-dim); }
-/* The button is as tall as the state's line and takes a finger past its box:
-   up to the edge of the row and right to its side, but not down onto the
-   mark under it, which opens the conversation like the rest of the row. Its
-   dots stand at its right end, on the edge the marks under it keep. */
-.pjmore {
-    display: grid;
-    place-items: center end;
-    width: 2rem;
-    height: var(--i-md);
-    padding: 0;
-    border: 0;
-    border-radius: var(--r-pill);
-    background: none;
-    color: var(--ink-dim);
-    cursor: pointer;
-}
-.pjmore svg { width: var(--i-md); height: var(--i-md); }
+.pjtag svg, .pjmore svg { flex: none; width: var(--i-sm); height: var(--i-sm); }
+/* The button takes a finger past its box: up to the edge of the row and right
+   to its side, but not left onto the mark beside it. */
+.pjmore { cursor: pointer; }
 .pjmore::before { content: ""; position: absolute; inset: -.45rem -.75rem -.05rem 0; }
+.pjpct { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-dim); }
 .pjbusy {
     position: absolute;
     inset: 0;

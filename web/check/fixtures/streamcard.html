@@ -45,7 +45,12 @@ const agentOf = (line) => {
         ? { agent: text(word), agentKey: word.dataset.agent || "" } : { agent: "", agentKey: "" };
 };
 const below = (el, over) => Boolean(el && over) && el.getBoundingClientRect().top >= over.getBoundingClientRect().bottom - 1;
-const mid = (r) => r.top + r.height / 2;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await sleep(25);
+    return ok();
+};
 
 // A tap lands where the finger is: on whatever the page has at that point.
 const tapPoint = (x, y) => {
@@ -61,8 +66,8 @@ const tapAt = (el) => {
 };
 
 window.done = (async () => {
+    await until(() => document.querySelectorAll(".pjcard .pjside").length === rows.length);
     await document.fonts.ready;
-    await new Promise((r) => setTimeout(r, 200));
     const blocks = Array.from(document.querySelectorAll(".pjblock"));
     return blocks.map((block) => {
         const rowEl = block.querySelector(".pjrow");
@@ -73,20 +78,14 @@ window.done = (async () => {
         const tag = block.querySelector(".pjtag");
         const box = tag.getBoundingClientRect();
         const pct = block.querySelector(".pjpct").getBoundingClientRect();
-        // Where the figure itself ends, whatever the width of its box.
-        const figure = (() => { const r = document.createRange(); r.selectNodeContents(block.querySelector(".pjpct")); return r.getBoundingClientRect(); })();
         const more = block.querySelector(".pjmore").getBoundingClientRect();
-        const dots = block.querySelector(".pjmore svg").getBoundingClientRect();
         const said = block.querySelector(".pjtext");
-        const saidBox = said.getBoundingClientRect();
-        const stateLine = parseFloat(getComputedStyle(said).lineHeight);
-        const rc = block.querySelector(".pjrc");
-        const rcBox = rc ? rc.getBoundingClientRect() : null;
+        const rc = block.querySelector(".pjstate .pjremote");
         const name = block.querySelector(".pjsess");
         const nameBox = name ? name.getBoundingClientRect() : null;
-        // The widest line of the column: the percentage with its button, the
-        // mark of where the session lives, Remote Control.
-        const widest = Math.max(more.right - pct.left, box.width, rcBox ? rcBox.width : 0);
+        // The widest line of the column: the place with the button, or the
+        // percentage under them.
+        const widest = Math.max(more.right - box.left, pct.width);
         return {
             state: text(said),
             stateCut: cut(said),
@@ -114,15 +113,10 @@ window.done = (async () => {
             tapCorner: tapPoint(Math.min(more.right + 6, row.right - 2), Math.max(more.top - 4, row.top + 2)),
             name: block.querySelector(".pjname").textContent.trim(),
             rc: rc ? rc.textContent.trim() : "",
+            rcElsewhere: Array.from(rowEl.querySelectorAll("*")).some((el) => el !== rc && el.children.length === 0 && el.textContent.trim() === "RC"),
             mark: tag.textContent.trim(),
             shown: box.width > 0 && box.height > 0 && box.right <= row.right,
             column: Boolean(col),
-            // How far the percentage sits from the middle of the state's first line.
-            pctOff: Math.round(Math.abs(mid(pct) - (saidBox.top + stateLine / 2)) * 10) / 10,
-            pctBeside: figure.right <= more.left + 0.5 && more.left - figure.right <= 4 && Math.abs(mid(pct) - mid(more)) <= 2,
-            tagUnder: box.top >= Math.max(pct.bottom, more.bottom) - 0.5,
-            rcUnder: Boolean(rcBox) && rcBox.width > 0 && rcBox.top >= box.bottom - 0.5 && rcBox.left > box.left + 4,
-            rightEdges: [dots.right, box.right, rcBox ? rcBox.right : box.right].map((r) => Math.round(r - box.right)),
             narrow: col ? Math.round(col.width - widest) : -1,
             leftGives: col ? Math.round(col.left - open.right) : -1,
             columnInside: Boolean(col) && col.right <= row.right && col.bottom <= row.bottom - 4,

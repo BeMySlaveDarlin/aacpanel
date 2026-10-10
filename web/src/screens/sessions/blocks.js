@@ -234,14 +234,15 @@ function KinFold({ kids, line }) {
 }
 
 // LiveLine is a live session inside its project, a line for each question:
-// what it is doing and for how long it has lived, where it is in the
-// checklist of its work, who runs it on which model and when it last asked,
-// and what runs in its background. On a phone one line holds no more than one
-// of these: the state is read whole, the checklist cut at its end. A narrow
-// column on the right goes down the same lines — how full the session is and
-// the button of what can be done to it level with the state, where it lives
-// under them, Remote Control under that — and the name, when the row has one,
-// stands over both across the whole width.
+// what it is doing, for how long it has lived and whether Remote Control is
+// up, where it is in the checklist of its work, who runs it on which model
+// and when it last asked, and what runs in its background. On a phone one
+// line holds no more than one of these: the state is read whole, the
+// checklist cut at its end. A narrow column on the right holds two marks of
+// one kind side by side level with the state — where the session lives and
+// the button of what can be done to it — and how full the session is in the
+// bottom right corner of the row, level with the last line on the left. The
+// name, when the row has one, stands over both across the whole width.
 export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
@@ -262,17 +263,17 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
                 <span class=${`pjstate pj-${state.tone}`}>
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
                     ${lived && html`<span class="pjlived">${lived}</span>`}
+                    ${session.remote && html`<span class="pjremote" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
                 </span>
                 ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
                 ${state.work && html`<span class="pjwork">${state.work}</span>`}
             </button>
             <div class="pjside">
-                <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
+                <span class="pjtag">${tag()}${place}</span>
                 <button class="pjmore" type="button" aria-label=${`what to do with session ${session.session}`}
                         onClick=${() => onMore(session)}>${Icon.more()}</button>
-                <span class="pjtag">${tag()}${place}</span>
-                ${session.remote && html`<span class="pjrc" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
+                <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
             </div>
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
