@@ -59,7 +59,14 @@ window.done = (async () => {
             stateLines: Math.round(a.height / parseFloat(getComputedStyle(said).lineHeight)),
             checklist: text(checklist),
             inState: Boolean(checklist) && checklist.parentElement === state,
-            sameLine: Boolean(b) && Math.abs(b.top - a.top) < 2 && b.left >= a.right,
+            below: Boolean(b) && b.top >= state.getBoundingClientRect().bottom - 1,
+            lived: text(block.querySelector(".pjlived")),
+            livedOnLine: (() => {
+                const l = block.querySelector(".pjlived");
+                if (!l) return false;
+                const r = l.getBoundingClientRect();
+                return Math.abs(r.top - a.top) < 4 && r.left >= a.right - 1;
+            })(),
             checklistWidth: b ? Math.round(b.width) : 0,
             checklistInside: Boolean(b) && b.right <= block.querySelector(".pjtag").getBoundingClientRect().left + 0.5,
         };

@@ -26,6 +26,7 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		SinceCut   bool   `json:"sinceCut"`
 		SinceBelow bool   `json:"sinceBelow"`
 		Work       string `json:"work"`
+		NameStands bool   `json:"nameStands"`
 		WorkBelow  bool   `json:"workBelow"`
 		TapPct     string `json:"tapPct"`
 		TapTag     string `json:"tapTag"`
@@ -76,6 +77,10 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		}
 		if c.Since != wantSince || c.SinceCut || !c.SinceBelow {
 			t.Errorf("%s: under the state stands %q (cut %v, on a line of its own %v), expected %q", session, c.Since, c.SinceCut, c.SinceBelow, wantSince)
+		}
+		if !c.NameStands {
+			t.Errorf("%s: the name of the session reads as a caption — it is what tells two sessions of one project apart, "+
+				"and stands bolder, larger and in another ink than the line under the state", session)
 		}
 		if c.Work != wantWork || (wantWork != "" && !c.WorkBelow) {
 			t.Errorf("%s: the line of what runs in the background reads %q (under who runs it %v), expected %q",

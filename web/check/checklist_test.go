@@ -308,10 +308,10 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 	}
 }
 
-// A card of the sessions list says where a session is in its checklist on the
-// line of its state, after the state and in the room it leaves: the state
-// stays whole on one line, the checklist is cut before it is, and a session
-// with no checklist says nothing of one.
+// A card of the sessions list says where a session is in its checklist on a
+// line of its own under the state, cut at its end; the state stays whole on
+// one line, with how long the session has lived after it, and a session with
+// no checklist says nothing of one.
 func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 	type card struct {
 		State           string `json:"state"`
@@ -319,7 +319,9 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 		StateLines      int    `json:"stateLines"`
 		Checklist       string `json:"checklist"`
 		InState         bool   `json:"inState"`
-		SameLine        bool   `json:"sameLine"`
+		Below           bool   `json:"below"`
+		Lived           string `json:"lived"`
+		LivedOnLine     bool   `json:"livedOnLine"`
 		ChecklistWidth  int    `json:"checklistWidth"`
 		ChecklistInside bool   `json:"checklistInside"`
 	}
@@ -340,9 +342,13 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 		"done": {got.Done, "checklist done · 7/7", "idle"},
 		"asks": {got.Asks, "2/3 · later 1", "asks you · Which way"},
 	} {
-		if c.Checklist != c.checklist || !c.InState || !c.SameLine || c.ChecklistWidth < 40 || !c.ChecklistInside {
-			t.Errorf("%s: the card says %q (in the state %v, on its line %v, %dpx, inside %v), expected %q",
-				name, c.Checklist, c.InState, c.SameLine, c.ChecklistWidth, c.ChecklistInside, c.checklist)
+		if c.Checklist != c.checklist || c.InState || !c.Below || c.ChecklistWidth < 40 || !c.ChecklistInside {
+			t.Errorf("%s: the card says %q (in the state %v, on a line under it %v, %dpx, inside %v), expected %q",
+				name, c.Checklist, c.InState, c.Below, c.ChecklistWidth, c.ChecklistInside, c.checklist)
+		}
+		if c.Lived != "3 h 0 m" || !c.LivedOnLine {
+			t.Errorf("%s: after the state the card says the session has lived %q (on the state's line %v), expected 3 h 0 m",
+				name, c.Lived, c.LivedOnLine)
 		}
 		if c.State != c.state || c.StateCut || c.StateLines != 1 {
 			t.Errorf("%s: the state reads %q on %d lines (cut %v), expected %q whole on one", name, c.State, c.StateLines, c.StateCut, c.state)

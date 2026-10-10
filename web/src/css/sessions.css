@@ -475,7 +475,9 @@ span.pjname { cursor: default; }
     text-align: left;
     cursor: pointer;
 }
-.pjsess { font-size: var(--t-xs); color: var(--ink-dim); font-family: var(--mono); }
+/* The name of a session is what tells apart two sessions of one project, so
+   it reads first and in full ink rather than as a caption. */
+.pjsess { font-size: var(--t-sm); font-weight: 600; color: var(--ink); font-family: var(--mono); overflow-wrap: anywhere; }
 /* The row of a session is as tall as what it says: the state whole, on two
    lines at most, who runs it and since when under it on a line of its own,
    and what runs in its background on a third — on a phone the second line
@@ -490,12 +492,22 @@ span.pjname { cursor: default; }
     overflow: hidden;
     overflow-wrap: anywhere;
 }
-/* Where the session is in the checklist of its work: after the state, on its
-   line, in the room the state leaves. It grows from nothing, so the state
-   never wraps to make room for it, and it is cut before the state is. */
-.pjstate.checklisted { align-self: stretch; }
-.pjchecklist { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink-dim); }
-.pjchecklist::before { content: "·"; margin-right: .45rem; color: var(--ink-faint); }
+/* How long the session has lived, after its state on the state's line. */
+.pjlived { flex: none; font-weight: 500; color: var(--ink-faint); white-space: nowrap; }
+.pjlived::before { content: "·"; margin-right: .45rem; }
+/* Where the session is in the checklist of its work: a line of its own under
+   the state, cut at its end rather than wrapped. */
+.pjchecklist {
+    align-self: stretch;
+    min-width: 0;
+    padding-left: .95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--t-xs);
+    font-weight: 500;
+    color: var(--ink-dim);
+}
 .pjsince, .pjwork { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
 .pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.65em - .25rem); border-radius: 50%; background: currentColor; }
 .pj-wait { color: var(--wait); }

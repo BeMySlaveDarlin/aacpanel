@@ -6,7 +6,7 @@
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { ago, plural } from "../../format.js";
+import { ago, plural, since } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { Sheet } from "../../ui/sheet.js";
 import { ContextBar } from "../../ui/bar.js";
@@ -233,12 +233,12 @@ function KinFold({ kids, line }) {
     `;
 }
 
-// LiveLine is a live session inside its project: what it is doing and where
-// it is in the checklist of its work, who runs it on which model and when it
-// last asked, what runs in its background on a line of its own, where it
-// lives, how full it is, and the button of what can be done to it. The
-// checklist takes what room the state leaves on its line and gives way first:
-// the state is read whole.
+// LiveLine is a live session inside its project, a line for each question:
+// what it is doing and for how long it has lived, where it is in the
+// checklist of its work, who runs it on which model and when it last asked,
+// and what runs in its background — then where it lives, how full it is, and
+// the button of what can be done to it. On a phone one line holds no more
+// than one of these: the state is read whole, the checklist cut at its end.
 export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
@@ -248,6 +248,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
     const place = placeOf(session);
     const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, daemon: Icon.plug }[place];
     // The quiet line opens with who runs the session, in the hue of its agent.
+    const lived = session.startedAt ? since(session.startedAt) : "";
     const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.when]
         .filter(Boolean).map((part) => ` · ${part}`).join("");
     return html`
@@ -255,10 +256,11 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
                     onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
                 ${named && html`<span class="pjsess">${session.session}</span>`}
-                <span class=${`pjstate pj-${state.tone}${steps ? " checklisted" : ""}`}>
+                <span class=${`pjstate pj-${state.tone}`}>
                     <i class="pjdot"></i><span class="pjtext">${state.text}</span>
-                    ${steps && html`<span class="pjchecklist">${steps}</span>`}
+                    ${lived && html`<span class="pjlived">${lived}</span>`}
                 </span>
+                ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
                 ${state.work && html`<span class="pjwork">${state.work}</span>`}
             </button>

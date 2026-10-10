@@ -71,6 +71,13 @@ window.done = (async () => {
             sinceCut: cut(block.querySelector(".pjsince")),
             sinceBelow: below(block.querySelector(".pjsince"), block.querySelector(".pjstate")),
             work: text(block.querySelector(".pjwork")),
+            nameStands: (() => {
+                const name = block.querySelector(".pjsess");
+                const since = block.querySelector(".pjsince");
+                if (!name || !since) return false;
+                const n = getComputedStyle(name), w = getComputedStyle(since);
+                return Number(n.fontWeight) >= 600 && parseFloat(n.fontSize) > parseFloat(w.fontSize) && n.color !== w.color;
+            })(),
             workBelow: below(block.querySelector(".pjwork"), block.querySelector(".pjsince")),
             ...agentOf(block.querySelector(".pjsince")),
             tapPct: tapAt(block.querySelector(".pjpct")),
