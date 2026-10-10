@@ -11,13 +11,38 @@ import (
 	"testing"
 )
 
+// TestMain gives the run a runtime directory and a home of its own. The
+// launcher reads the account a session starts in — its .claude.json in
+// CLAUDE_CONFIG_DIR or else in HOME, the registry of contours in the home —
+// and the stream keeps its files under XDG_STATE_HOME. Against the machine's,
+// a test reads what this machine's account says — claude in Chrome by default
+// puts --chrome into every argv a test compares — and writes where live
+// holders keep theirs. make test substitutes the home too, but a run of this
+// package alone does not, and neither touches CLAUDE_CONFIG_DIR a session of a
+// contour carries.
+//
+// The runtime directory is the run's directory itself: a socket path under it
+// is near the 108 bytes a unix socket takes, and one level more puts it over.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "aacpanel-launcher-test-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "the directory for this run was not created:", err)
 		os.Exit(1)
 	}
+	home := filepath.Join(dir, "home")
+	if err := os.Mkdir(home, 0o700); err != nil {
+		fmt.Fprintln(os.Stderr, "the home of this run was not created:", err)
+		os.Exit(1)
+	}
 	os.Setenv("XDG_RUNTIME_DIR", dir)
+	os.Setenv("HOME", home)
+	for name, sub := range map[string]string{
+		"XDG_CONFIG_HOME": ".config", "XDG_DATA_HOME": ".local/share",
+		"XDG_STATE_HOME": ".local/state", "XDG_CACHE_HOME": ".cache",
+	} {
+		os.Setenv(name, filepath.Join(home, sub))
+	}
+	os.Unsetenv("CLAUDE_CONFIG_DIR")
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)
