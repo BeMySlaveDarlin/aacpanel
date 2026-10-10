@@ -204,9 +204,10 @@ func (r Request) Key() string { return idKey(r.ID) }
 func (r Request) FileChange() bool { return r.Method == methodFileChange }
 
 // Tool names the request the way the feed names the call: a command is Bash,
-// a change to files is Edit, and a question or a form is the question of
-// claude's, AskUserQuestion — what the row says a session waits for is read
-// off these names.
+// a change to files is Edit, a question or a form is the question of
+// claude's, AskUserQuestion, and a call of a tool of an MCP server is named
+// as claude names it — what the row says a session waits for is read off
+// these names.
 func (r Request) Tool() string {
 	switch {
 	case r.Asks():
@@ -216,6 +217,9 @@ func (r Request) Tool() string {
 	case r.Method == methodPermissions:
 		return "Permissions"
 	case r.Method == methodElicitation:
+		if call := r.ToolCall(); call != nil {
+			return call.Name()
+		}
 		return "MCP"
 	}
 	return "Bash"

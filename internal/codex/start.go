@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/mcp"
 	"aacpanel/internal/stream"
 )
 
@@ -38,6 +40,18 @@ type Begin struct {
 	// panel's name, shown as a rename is, until codex calls the thread
 	// otherwise.
 	Name string
+	// Tools is the program of the panel's MCP server the thread gets, beside
+	// the servers of its config.toml; empty gives the thread only those. A
+	// home whose config.toml names the server already gets the same one.
+	Tools string
+}
+
+// toolsConfig is the panel's MCP server as a thread's configuration names
+// it, key by key: a key of its own overrides the same key of config.toml and
+// leaves the rest of the server as config.toml has it.
+func toolsConfig(program string) map[string]any {
+	server := "mcp_servers." + mcp.ServerName
+	return map[string]any{server + ".command": program, server + ".args": []string{mcp.Flag}}
 }
 
 // Up says whether the daemon of the home has its control socket: whether
@@ -83,8 +97,15 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 			params[key] = value
 		}
 	}
+	config := map[string]any{}
 	if b.Effort != "" {
-		params["config"] = map[string]any{"model_reasoning_effort": b.Effort}
+		config["model_reasoning_effort"] = b.Effort
+	}
+	if b.Tools != "" {
+		maps.Copy(config, toolsConfig(b.Tools))
+	}
+	if len(config) > 0 {
+		params["config"] = config
 	}
 	l.sub.Lock()
 	defer l.sub.Unlock()

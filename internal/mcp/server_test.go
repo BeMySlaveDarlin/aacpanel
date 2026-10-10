@@ -241,6 +241,41 @@ func TestACallGoesToTheToolItNames(t *testing.T) {
 	}
 }
 
+// A server with a caller finds who calls by each call's own _meta and not by
+// its parent: codex holds many threads in one process and names the thread
+// in the call. The handshake carries no call, and the place it is told of is
+// Bind's.
+func TestACallerFindsWhoCallsByTheCallsMeta(t *testing.T) {
+	var calls []called
+	var metas []string
+	thread := Binding{Place: Place{ConfigDir: "/srv/codex", Dir: "/srv/proj/shop"}, SessionID: "019a1f00-0000-7000-8000-00000000abcd",
+		PID: 77, Codex: true}
+	caller := func(meta json.RawMessage) Bind {
+		metas = append(metas, string(meta))
+		return func() (Binding, error) {
+			if string(meta) == "" {
+				return Binding{}, errors.New("the call names no thread")
+			}
+			return thread, nil
+		}
+	}
+	c := serve(t, &Server{Tools: []Tool{fake("first", &calls)}, Bind: lost, Caller: caller})
+
+	res := c.result("tools/call", map[string]any{"name": "first", "arguments": map[string]any{},
+		"_meta": map[string]any{"threadId": thread.SessionID}})
+	if res["isError"] != nil || len(calls) != 1 || calls[0].bound != thread {
+		t.Fatalf("the call answered %v and the tool was called %+v", res, calls)
+	}
+	if len(metas) != 1 || metas[0] != `{"threadId":"`+thread.SessionID+`"}` {
+		t.Errorf("the caller was asked with %q", metas)
+	}
+
+	res = c.result("tools/call", map[string]any{"name": "first", "arguments": map[string]any{}})
+	if res["isError"] != true || text(res) != "first could not: the call names no thread" {
+		t.Errorf("a call with no _meta answered %v", res)
+	}
+}
+
 // What a tool could not do is its own error, which the model reads: the
 // protocol has nothing to say of it.
 func TestWhatAToolCouldNotDoComesBackAsItsError(t *testing.T) {

@@ -142,9 +142,25 @@ func TestALetterReachesTheExecutorWithItsSender(t *testing.T) {
 		t.Fatal("the executor did not get the request")
 	}
 
+	// A thread of codex names itself and where it runs.
+	w = post(t, srv, `{"kind":"session.letter","target":"shop","params":{"text":"hello","from":"`+switchSID+`",`+
+		`"fromCodex":{"home":"/home/u/.codex","dir":"/srv/proj/lab"}}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.From != switchSID || got.FromCodex == nil || *got.FromCodex != (action.CodexSender{Home: "/home/u/.codex", Dir: "/srv/proj/lab"}) {
+			t.Errorf("the letter of codex reached the executor as %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the letter of codex")
+	}
+
 	for _, body := range []string{
 		`{"kind":"session.letter","target":"shop","params":{"text":"hello","from":"lab"}}`,
 		`{"kind":"session.letter","target":"shop","params":{"text":"hello"}}`,
+		`{"kind":"session.letter","target":"shop","params":{"text":"hello","from":"` + switchSID + `","fromCodex":{"dir":"/srv"}}}`,
 	} {
 		if w := post(t, srv, body); w.Code != http.StatusBadRequest {
 			t.Errorf("%s gave %d: a letter with no conversation to come from has no sender", body, w.Code)

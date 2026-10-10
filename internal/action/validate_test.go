@@ -577,6 +577,20 @@ func TestALetterNamesTheConversationItComesFrom(t *testing.T) {
 			Text: strings.Repeat("x", TextMax+1), From: id}, false},
 		{"a letter with a control character", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "a\x1bb", From: id}, false},
 		{"a letter to a path", Request{ID: "1", Kind: SessionLetter, Target: "../a", Text: "hi", From: id}, false},
+		{"a letter of codex", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi", From: id,
+			FromCodex: &CodexSender{Home: "/home/u/.codex", Dir: "/srv/proj/shop lab"}}, true},
+		{"a letter of codex from no thread", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi",
+			FromCodex: &CodexSender{Home: "/home/u/.codex", Dir: "/srv/proj"}}, false},
+		{"a letter of codex without its home", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi", From: id,
+			FromCodex: &CodexSender{Dir: "/srv/proj"}}, false},
+		{"a letter of codex from a relative directory", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi",
+			From: id, FromCodex: &CodexSender{Home: "/home/u/.codex", Dir: "srv/proj"}}, false},
+		{"a letter of codex from a winding directory", Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi",
+			From: id, FromCodex: &CodexSender{Home: "/home/u/.codex", Dir: "/srv/../etc"}}, false},
+		{"a letter of codex from a directory with a control", Request{ID: "1", Kind: SessionLetter, Target: "a",
+			Text: "hi", From: id, FromCodex: &CodexSender{Home: "/home/u/.codex", Dir: "/srv/a\nb"}}, false},
+		{"a codex sender riding a message", Request{ID: "1", Kind: SessionSend, Target: "a", Text: "hi",
+			FromCodex: &CodexSender{Home: "/home/u/.codex", Dir: "/srv/proj"}}, false},
 	}
 	err := Request{ID: "1", Kind: SessionLetter, Target: "a", Text: "hi"}.Validate()
 	if err == nil || !strings.Contains(err.Error(), "without the conversation it comes from") {

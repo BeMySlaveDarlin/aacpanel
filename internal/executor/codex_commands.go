@@ -80,9 +80,15 @@ func elicitLines(r codex.Request) []string {
 	return lines
 }
 
-// elicitNotes say who asks, and what the panel cannot do of it.
+// elicitNotes say who asks, and what the panel cannot do of it. Before a call
+// of a tool the words of codex's question go first: the lines above them are
+// the call.
 func elicitNotes(r codex.Request) []string {
-	notes := []string{"asked by the MCP server " + r.Server}
+	var notes []string
+	if r.ToolCall() != nil && strings.TrimSpace(r.Message) != "" {
+		notes = append(notes, r.Message)
+	}
+	notes = append(notes, "asked by the MCP server "+r.Server)
 	switch {
 	case r.Verification():
 		notes = append(notes, "codex asks for a check of the person only codex itself makes: answer it in codex, "+

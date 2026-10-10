@@ -764,7 +764,8 @@ appears or the connection drops — at once when an action waits for it.
   after the contour; a contour without one is refused with that reason. The
   panel starts the thread with `thread/start` in the project's directory,
   with the model, the effort, the approvals and
-  the sandbox of the map where it chose them — the `config.toml` of the home
+  the sandbox of the map where it chose them, and the panel's MCP server
+  beside the servers of the home — the `config.toml` of the home
   decides the rest — and New answers with the session's name, `codex-<8 hex>`,
   so the screen opens it as it opens a claude session. Where it lives is the
   map's `codexTransport`:
@@ -799,7 +800,7 @@ appears or the connection drops — at once when an action waits for it.
   starts a turn in it. **A restart is refused**: the daemon keeps the thread,
   and no process of the panel's is there to start again.
 - **Only what the protocol does is done.** A message starts a turn on a free
-  thread, a stop interrupts the turn — the inner turn of a review, which the
+  thread, and so does a letter of another session, in its envelope; a stop interrupts the turn — the inner turn of a review, which the
   daemon names when it refuses the root one — Esc declines what waits, a file
   goes where a claude session gets it — a picture into the turn as a file codex
   reads itself, any other file as its path. The commands of codex's own
@@ -1401,7 +1402,26 @@ refused. That is also why a letter is a kind of its own and not a field of
 in, where one that does not know the kind refuses it. The letter does not
 claim the sender's permission class, which the panel does not know for sure,
 so a recipient that runs without permission prompts and has no
-`crossSessionInbound` setting holds it for its person. `session_open` asks for
+`crossSessionInbound` setting holds it for its person. A codex thread writes and
+is written to the same way. Codex starts a server of its own for every thread
+it holds — a daemon holds many from one process — in the thread's directory,
+with an environment that names no thread, and names the thread in the `_meta`
+of every call as `threadId`: the server under codex takes the sender from the
+call, and only a thread whose lock the codex that started it holds among its
+open files (`<CODEX_HOME>/thread-writer-locks/<thread>.lock`), which says the
+home too. It offers the letter alone: the other tools find a claude session
+by its account and directory, and a codex thread is neither. A letter of a
+thread goes as `session.letter` naming the thread, its home and its directory,
+signed `codex-<tail> — <contour> — <directory>`: claude's envelope has no field
+for where a sender works, and a codex has no socket to be answered at, so
+letters go one way and an answer is a letter of its own. A letter to a thread
+goes through the daemon as a message of the panel — a turn on a free thread,
+the panel's queue on a busy one — in the same envelope, with the words claude
+puts around a letter for its model written out by the panel, and the feed of
+the thread draws it as the card of a letter. A thread the panel starts gets
+the server in its configuration at `thread/start`; the threads of a terminal
+and the runs of `codex exec` get it from `config.toml` of the home.
+`session_open` asks for
 `session.open` with a directory, and with a name only where the model gives
 one: the panel finds the project of the map the directory belongs to — the
 project's own, one inside it or a worktree of it, as a restart finds it — and

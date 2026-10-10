@@ -214,13 +214,18 @@ func mcpFlags(set *flag.FlagSet) *bool {
 	return on
 }
 
-// runMCP serves the panel's tools to one claude: its parent, which started it
-// as an MCP server. The place that process works in is found anew on every
-// call of a tool, and the checklists nobody has touched for a month are swept
-// once at the start.
+// runMCP serves the panel's tools to one claude or codex: its parent, which
+// started it as an MCP server. The place that process works in is found anew
+// on every call of a tool — for codex, the thread the call names — and the
+// checklists nobody has touched for a month are swept once at the start.
 func runMCP(in io.Reader, out io.Writer, parent int) int {
 	checklist.Sweep(checklist.Dir(), time.Now())
 	srv := toolset.Server(func() (mcp.Binding, error) { return launcher.Where(parent) })
+	if launcher.IsCodex(parent) {
+		srv = toolset.CodexServer(func(meta json.RawMessage) (mcp.Binding, error) {
+			return launcher.CodexCaller(parent, meta)
+		})
+	}
 	if err := srv.Serve(context.Background(), in, out); err != nil {
 		fmt.Fprintf(os.Stderr, "aacpanel-exec: the MCP server: %v\n", err)
 		return 1

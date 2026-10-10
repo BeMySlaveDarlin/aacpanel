@@ -18,6 +18,20 @@ import (
 	"aacpanel/internal/launcher"
 )
 
+// panelTools is the program of the panel's MCP server in the tests: the
+// executor names itself.
+const panelTools = "/opt/aacpanel/bin/aacpanel-exec"
+
+// withTools is the configuration of a thread the panel starts: what the map
+// chose, and the panel's MCP server beside the servers of config.toml.
+func withTools(config map[string]any) map[string]any {
+	out := map[string]any{"mcp_servers.aacpanel.command": panelTools, "mcp_servers.aacpanel.args": []any{"-mcp"}}
+	for k, v := range config {
+		out[k] = v
+	}
+	return out
+}
+
 // onCodexContour starts a fake codex daemon as the home of contour acme and
 // an executor linked to it, and returns the project New hands the executor:
 // a directory in the roots, and the claude config directory the registry
@@ -46,6 +60,9 @@ func onCodexContour(t *testing.T) (*codextest.Server, *Executor, *action.Project
 		t.Fatal(err)
 	}
 	t.Setenv(projectRootsEnv, root)
+	server := toolServer
+	toolServer = func() (string, error) { return panelTools, nil }
+	t.Cleanup(func() { toolServer = server })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	e := New(nil, "")
@@ -82,9 +99,9 @@ func paramsOf(t *testing.T, raw json.RawMessage) map[string]any {
 
 // New of a project whose agent is codex starts a thread in the daemon of the
 // project's contour: in its directory, with the model, the effort, the
-// approvals and the sandbox of the map where it chose them, and the first
-// message as the first turn at the map's effort. The answer names the session
-// by the thread.
+// approvals and the sandbox of the map where it chose them, the panel's MCP
+// server beside the servers of its config.toml, and the first message as the
+// first turn at the map's effort. The answer names the session by the thread.
 func TestNewOfACodexProjectStartsAThreadInTheDaemonOfItsContour(t *testing.T) {
 	srv, e, p := onCodexContour(t)
 
@@ -99,7 +116,7 @@ func TestNewOfACodexProjectStartsAThreadInTheDaemonOfItsContour(t *testing.T) {
 	}
 	starts := srv.Calls("thread/start")
 	want := map[string]any{"cwd": p.Path, "model": "gpt-5.5", "approvalPolicy": "untrusted", "sandbox": "read-only",
-		"config": map[string]any{"model_reasoning_effort": "high"}}
+		"config": withTools(map[string]any{"model_reasoning_effort": "high"})}
 	if len(starts) != 1 || !reflect.DeepEqual(paramsOf(t, starts[0]), want) {
 		t.Fatalf("thread/start went as %s", starts)
 	}
@@ -122,7 +139,7 @@ func TestNewOfACodexProjectStartsAThreadInTheDaemonOfItsContour(t *testing.T) {
 		t.Fatal(err)
 	}
 	starts = srv.Calls("thread/start")
-	if got := paramsOf(t, starts[1]); !reflect.DeepEqual(got, map[string]any{"cwd": p.Path}) {
+	if got := paramsOf(t, starts[1]); !reflect.DeepEqual(got, map[string]any{"cwd": p.Path, "config": withTools(nil)}) {
 		t.Errorf("a map that chose nothing started the thread with %v", got)
 	}
 	if n := len(srv.Calls("turn/start")); n != 1 {

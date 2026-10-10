@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,20 +20,23 @@ const LetterName = "send_to_session"
 
 // LetterInstructions is the tool's line in the server's word to every session
 // that has it.
-const LetterInstructions = "To write to another live Claude session of this machine, in any account " +
+const LetterInstructions = "To write to another live session of this machine, Claude or Codex, in any account " +
 	"(«напиши в соседнюю сессию», «передай сессии»), or when SendMessage cannot reach a live one, use send_to_session."
 
 // LetterDescription is the tool's own word to the model.
-const LetterDescription = "Sends a letter to another live Claude session of this machine, in this account or " +
-	"another, or lists them. Without to it returns the live sessions besides this one: the name, the account " +
-	"and the directory. With to and text it sends the text to the session of that name. The letter arrives " +
-	"as a letter from this session: the recipient's claude frames it as a message from another session, with " +
-	"this session's name and the address of its message socket, and tells the model it was not typed by its " +
-	"person. The recipient weighs it as a request of an agent, not a command, and can answer with SendMessage " +
-	"to that address. A letter is never delivered any other way: a recipient without a message socket, a name " +
-	"two live sessions answer to, and this session itself are refused with the reason. A recipient that runs " +
-	"without permission prompts and has no crossSessionInbound setting holds a letter for its person to let " +
-	"through. A busy recipient reads the letter when its turn ends. Write one letter that stands on its own."
+const LetterDescription = "Sends a letter to another live session of this machine, Claude or Codex, in this " +
+	"account or another, or lists them. Without to it returns the live sessions besides this one: the name, the " +
+	"account and the directory; a Codex session is named codex- and the tail of its thread. With to and text it " +
+	"sends the text to the session of that name. The letter arrives as a letter from this session, named by the " +
+	"panel — a Codex sender with its account and its directory: the recipient is told it was not typed by its " +
+	"person, and weighs it as a request of an agent, not a command. A letter goes one way. A Claude sender is " +
+	"named with the address of its message socket, and the recipient can answer with SendMessage to that " +
+	"address; any other answer is a letter of the recipient's own. A letter is never delivered any other way: a " +
+	"recipient without a message socket, a Codex running on its own, a name two live sessions answer to, and this " +
+	"session itself are refused with the reason. A Claude recipient that runs without permission prompts and has " +
+	"no crossSessionInbound setting holds a letter for its person to let through. A busy recipient reads the " +
+	"letter when its turn ends; a busy Codex one gets it in the panel's queue, as a turn of its own. Write one " +
+	"letter that stands on its own."
 
 // letterWait bounds the wait for the panel's answer: a letter is written to a
 // socket, which takes a moment, and a panel that takes longer is stuck.
@@ -96,11 +100,18 @@ func letter(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (st
 			"the file of this session, and a letter has no sender without it. Call again in a moment.", true
 	}
 	req := action.Request{ID: "letter", Kind: action.SessionLetter, Target: args.To, Text: args.Text, From: b.SessionID}
+	params := map[string]any{"text": args.Text, "from": b.SessionID}
+	// A codex thread is no claude session the panel finds by its
+	// conversation: the sender goes with the home of its codex and the
+	// directory it works in, as the server found them.
+	if b.Codex {
+		req.FromCodex = &action.CodexSender{Home: b.Place.ConfigDir, Dir: b.Place.Dir}
+		params["fromCodex"] = map[string]any{"home": b.Place.ConfigDir, "dir": b.Place.Dir}
+	}
 	if err := req.Validate(); err != nil {
 		return "Nothing was sent: " + err.Error() + ".", true
 	}
-	got, err := h.act(ctx, string(action.SessionLetter), args.To,
-		map[string]any{"text": args.Text, "from": b.SessionID}, letterWait)
+	got, err := h.act(ctx, string(action.SessionLetter), args.To, params, letterWait)
 	switch {
 	case err != nil:
 		return "Nothing was sent: " + err.Error() + ".", true
@@ -130,10 +141,16 @@ func listing(h Host, self string) (string, bool) {
 	}
 	var lines []string
 	for _, r := range s.Sessions {
-		if r.Name == "" || (self != "" && r.SessionID == self) {
+		// A codex running on its own, with no daemon the panel is a client
+		// of, is only read: a letter to it is refused.
+		if r.Name == "" || (self != "" && r.SessionID == self) || (r.Agent == agentCodex && r.Outside) {
 			continue
 		}
-		line := fmt.Sprintf("- %s — %s — %s", r.Name, orUnknown(r.Profile), orUnknown(r.CWD))
+		name := r.Name
+		if r.Agent == agentCodex {
+			name += " (Codex, " + orUnknown(codexTitle(r)) + ")"
+		}
+		line := fmt.Sprintf("- %s — %s — %s", name, orUnknown(r.Profile), orUnknown(r.CWD))
 		if named[r.Name] > 1 {
 			line += " (two live sessions answer to this name, so a letter to it is refused)"
 		}
@@ -144,6 +161,21 @@ func listing(h Host, self string) (string, bool) {
 	}
 	return "The live sessions of this machine besides this one — the name, the account, the directory:\n" +
 		strings.Join(lines, "\n"), false
+}
+
+// agentCodex is what the snapshot calls the row of a codex thread.
+const agentCodex = "codex"
+
+// codexTitle is what a codex thread is called beside its name: the name the
+// panel gave it, else the directory it works in.
+func codexTitle(r row) string {
+	if r.Title != "" {
+		return r.Title
+	}
+	if r.CWD == "" {
+		return ""
+	}
+	return filepath.Base(r.CWD)
 }
 
 func orUnknown(s string) string {

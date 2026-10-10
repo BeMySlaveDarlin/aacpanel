@@ -2,6 +2,7 @@ package action
 
 import (
 	"bytes"
+	"path"
 	"strings"
 	"unicode"
 )
@@ -146,6 +147,29 @@ func safeTarget(s string) error {
 		case r == '-', r == '_', r == '.', r == '/':
 		default:
 			return badRequest("the target contains a forbidden character %q", r)
+		}
+	}
+	return nil
+}
+
+// codexPathMax bounds a path a letter of codex names its sender's place by.
+const codexPathMax = 4096
+
+// codexPlace checks a path a letter of codex names where its sender runs: an
+// absolute path in its clean form, with no control characters. Nothing is done
+// in it; the recipient reads it.
+func codexPlace(what, dir string) error {
+	switch {
+	case dir == "":
+		return badRequest("a letter of codex without %s its sender runs in", what)
+	case len(dir) > codexPathMax:
+		return badRequest("%s of the sender is longer than %d bytes", what, codexPathMax)
+	case !path.IsAbs(dir) || path.Clean(dir) != dir:
+		return badRequest("%s of the sender, %q, is no absolute path in its clean form", what, dir)
+	}
+	for _, r := range dir {
+		if r < 0x20 || r == 0x7f {
+			return badRequest("%s of the sender contains a control character %q", what, r)
 		}
 	}
 	return nil

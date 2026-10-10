@@ -210,7 +210,7 @@ func TestCodexSendAndStopGoThroughTheDaemon(t *testing.T) {
 func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	_, e := onCodex(t, nil)
 	ctx := context.Background()
-	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionStop: true, action.SessionEscape: true,
+	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionLetter: true, action.SessionStop: true, action.SessionEscape: true,
 		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
 		action.SessionFile: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
 		action.SessionRename: true, action.TaskStop: true}

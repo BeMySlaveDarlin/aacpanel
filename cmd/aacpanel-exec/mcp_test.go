@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -151,5 +153,79 @@ func TestTheServerKeepsTheChecklistOfItsParentsSession(t *testing.T) {
 	if !strings.HasPrefix(said, noChecklist+" This session already has a checklist") ||
 		!strings.Contains(said, "1 of 2 steps finished, the current step: “write the tests”") {
 		t.Errorf("the session started again under its name was not told of its checklist: %q", said)
+	}
+}
+
+// fakeCodex puts a live codex into a fake /proc: a daemon holding the locks
+// of the threads given, under home.
+func fakeCodex(t *testing.T, proc, home string, pid int, threads ...string) {
+	t.Helper()
+	dir := filepath.Join(proc, fmt.Sprint(pid))
+	if err := os.MkdirAll(filepath.Join(dir, "fd"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "comm"), []byte("codex\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for i, thread := range threads {
+		lock := filepath.Join(home, "thread-writer-locks", thread+".lock")
+		if err := os.Symlink(lock, filepath.Join(dir, "fd", fmt.Sprint(20+i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// The server under codex serves one codex thread a call: the one the call
+// names in its _meta, held by the codex that started the server. It offers the
+// letter alone, and a letter goes from that thread, with the home of its codex
+// and the directory codex started the server in; a call that names no thread
+// sends nothing.
+func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
+	const (
+		first  = "019a1f00-0000-7000-8000-00000000aaaa"
+		second = "019a1f00-0000-7000-8000-00000000bbbb"
+	)
+	proc, home, dir := t.TempDir(), filepath.Join(t.TempDir(), ".codex"), t.TempDir()
+	t.Setenv("AACP_PROC", proc)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Chdir(dir)
+	fakeCodex(t, proc, home, 800, first, second)
+	var asked []map[string]any
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		asked = append(asked, body)
+		_, _ = w.Write([]byte(`{"ok":true,"detail":"a letter from codex-0000bbbb to lab"}`))
+	}))
+	t.Cleanup(panel.Close)
+	t.Setenv("AACP_PANEL_URL", panel.URL)
+
+	replies := talk(t, 800, handshake,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"send_to_session","arguments":{"to":"lab","text":"done"},`+
+			`"_meta":{"threadId":"`+second+`","callId":"call_1"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"send_to_session","arguments":{"to":"lab","text":"done"}}}`,
+	)
+	if len(replies) != 4 {
+		t.Fatalf("meant four replies: %v", replies)
+	}
+	list, _ := replies[1]["result"].(map[string]any)
+	tools, _ := list["tools"].([]any)
+	if len(tools) != 1 || tools[0].(map[string]any)["name"] != "send_to_session" {
+		t.Errorf("codex was offered %v", tools)
+	}
+	if res, _ := replies[2]["result"].(map[string]any); res == nil || res["isError"] != nil {
+		t.Fatalf("the letter answered %v", replies[2])
+	}
+	if res, _ := replies[3]["result"].(map[string]any); res == nil || res["isError"] != true {
+		t.Errorf("a call naming no thread answered %v", replies[3])
+	}
+	if len(asked) != 1 {
+		t.Fatalf("the panel was asked %v", asked)
+	}
+	params, _ := asked[0]["params"].(map[string]any)
+	sender, _ := params["fromCodex"].(map[string]any)
+	if params["from"] != second || sender["home"] != home || sender["dir"] != dir {
+		t.Errorf("the letter went as %v", asked[0])
 	}
 }

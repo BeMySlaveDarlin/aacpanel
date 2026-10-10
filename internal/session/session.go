@@ -55,13 +55,18 @@ func Here() Host {
 	}
 }
 
-// row is a live session as the snapshot has it.
+// row is a live session as the snapshot has it. Agent is "codex" for a codex
+// thread, which Outside marks as running on its own, out of the panel's
+// reach, and Title names as the panel does.
 type row struct {
 	Name      string
 	SessionID string
 	Profile   string
 	CWD       string
 	Work      json.RawMessage
+	Agent     string
+	Outside   bool
+	Title     string
 }
 
 // snapshot is what the tools read of the collector's snapshot: the live
@@ -97,6 +102,8 @@ func (h Host) read() (snapshot, error) {
 		out.Sessions = append(out.Sessions, row{
 			Name: text(fields["session"]), SessionID: text(fields["sessionId"]),
 			Profile: text(fields["profile"]), CWD: text(fields["cwd"]), Work: fields["work"],
+			Agent: text(fields["agent"]), Outside: string(bytes.TrimSpace(fields["outside"])) == "true",
+			Title: text(fields["title"]),
 		})
 	}
 	if json.Unmarshal(file.SessionsAt, &out.At) == nil && string(bytes.TrimSpace(file.SessionsAt)) != "null" {

@@ -1,8 +1,8 @@
 // Package mcp is the panel's MCP server: the executor serves it over stdio to
-// the claude that started it, and every tool the panel gives a session is one
-// of its tools. The server speaks the protocol — the handshake, the list of
-// tools and their calls — and finds where the claude it serves works; what a
-// tool does is the tool's own.
+// the claude or the codex that started it, and every tool the panel gives a
+// session is one of its tools. The server speaks the protocol — the handshake,
+// the list of tools and their calls — and finds where the session it serves
+// works; what a tool does is the tool's own.
 package mcp
 
 import (
@@ -56,6 +56,10 @@ type Binding struct {
 	Name      string
 	SessionID string
 	PID       int
+	// Codex is a caller that is a thread of codex rather than a claude:
+	// SessionID is the thread, Place.ConfigDir its CODEX_HOME and Place.Dir
+	// the directory it works in, and PID the codex that holds the thread.
+	Codex bool
 }
 
 // Bind finds where the claude the server serves works and the conversation it

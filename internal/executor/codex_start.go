@@ -19,6 +19,11 @@ import (
 // the directory and would overrule the one the panel names.
 const codexEnv = "AACP_CODEX"
 
+// toolServer is the program of the panel's MCP server a codex thread the
+// panel starts gets: this very binary, as for a claude session the launcher
+// starts. A test puts a path of its own here.
+var toolServer = os.Executable
+
 // How long a daemon the executor started has to put up its socket, and a
 // link to take its connection.
 var (
@@ -52,6 +57,12 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 
 	tmux := c.Transport == launcher.TransportTmux
 	begin := codex.Begin{CWD: p.Path, Model: c.Model, Approval: c.Approval, Sandbox: c.Sandbox, Effort: c.Effort}
+	if path, err := toolServer(); err == nil {
+		begin.Tools = path
+	} else {
+		warns = append(warns, "the session starts without the panel's tools: the executor does not know its own path: "+
+			err.Error())
+	}
 	if tmux {
 		begin.Name = p.Session
 	} else {

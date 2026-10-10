@@ -380,6 +380,16 @@ func (r Request) Validate() error {
 	} else if r.From != "" {
 		return badRequest("action %s carries no letter", r.Kind)
 	}
+	if r.FromCodex != nil {
+		if r.Kind != SessionLetter {
+			return badRequest("action %s carries no letter", r.Kind)
+		}
+		for what, dir := range map[string]string{"the codex home": r.FromCodex.Home, "the directory": r.FromCodex.Dir} {
+			if err := codexPlace(what, dir); err != nil {
+				return err
+			}
+		}
+	}
 	if r.Kind == SessionSwitch {
 		if r.Switch == nil {
 			return badRequest("action %s without where to move the session", r.Kind)

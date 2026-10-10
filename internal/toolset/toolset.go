@@ -8,6 +8,8 @@
 package toolset
 
 import (
+	"encoding/json"
+	"errors"
 	"time"
 
 	"aacpanel/internal/checklist"
@@ -48,6 +50,28 @@ func tools() []mcp.Tool {
 // Server is the panel's MCP server for the claude bind finds.
 func Server(bind mcp.Bind) *mcp.Server {
 	return &mcp.Server{Lead: lead, Tools: tools(), Bind: bind}
+}
+
+// codexTools are the tools the panel gives a thread of codex: the letter
+// alone. The others are a claude session's — its checklist, briefs, calls and
+// secrets are shown by the claude account and the directory it works in, and
+// the restart is a claude one — and none knows a codex thread for a session.
+func codexTools() []mcp.Tool {
+	return []mcp.Tool{session.Letter(session.Here())}
+}
+
+// CodexServer is the panel's MCP server for a codex: caller finds the thread
+// each call comes from, since one codex holds many threads. Nothing is known
+// of the thread before a call, and the server's word says nothing of it.
+func CodexServer(caller func(meta json.RawMessage) (mcp.Binding, error)) *mcp.Server {
+	return &mcp.Server{Lead: lead, Tools: codexTools(),
+		Bind: func() (mcp.Binding, error) {
+			return mcp.Binding{}, errors.New("a codex thread is known by its call alone")
+		},
+		Caller: func(meta json.RawMessage) mcp.Bind {
+			return func() (mcp.Binding, error) { return caller(meta) }
+		},
+	}
 }
 
 // Allowed are the tools the launcher allows a session, by the names claude

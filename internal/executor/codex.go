@@ -125,6 +125,8 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 	switch req.Kind {
 	case action.SessionSend:
 		return codexSend(ctx, th, codex.Message{ID: req.MessageID, Text: req.Text})
+	case action.SessionLetter:
+		return e.codexLetterTo(ctx, th, req.From, req.FromCodex, req.Text)
 	case action.SessionFile:
 		return codexFile(ctx, th, req.Text, req.Files)
 	case action.SessionUnqueue:
@@ -381,6 +383,8 @@ func codexLines(ctx context.Context, th codex.Thread, r codex.Request) []string 
 	switch {
 	case r.Grants():
 		lines = r.Asked()
+	case r.ToolCall() != nil:
+		lines = r.ToolCall().Lines()
 	case r.Elicits():
 		lines = elicitLines(r)
 	case !r.FileChange():

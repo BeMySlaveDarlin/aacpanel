@@ -187,12 +187,19 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 	// A session writing to another names its own conversation: the executor
-	// finds the sender by it and sends the letter from that session.
+	// finds the sender by it and sends the letter from that session. A thread
+	// of codex names itself and where it runs.
 	if req.Kind == action.SessionLetter {
 		text, _ := body.Params["text"].(string)
 		from, _ := body.Params["from"].(string)
 		req.Text, req.From = text, from
 		params = map[string]any{"chars": len([]rune(text)), "from": from}
+		if sender, ok := body.Params["fromCodex"].(map[string]any); ok {
+			home, _ := sender["home"].(string)
+			dir, _ := sender["dir"].(string)
+			req.FromCodex = &action.CodexSender{Home: home, Dir: dir}
+			params["fromCodex"] = map[string]any{"home": home, "dir": dir}
+		}
 	}
 	// The notepad of a secret reaches the executor and nothing else: the
 	// journal keeps its name and length, the way a message is kept.

@@ -27,6 +27,12 @@ type Server struct {
 	Tools []Tool
 	// Bind finds where the claude this server serves works.
 	Bind Bind
+	// Caller, where the server has it, finds who makes one call from what the
+	// call says of itself, its _meta, in place of Bind: one codex process
+	// holds many threads and starts a server for each, so the process alone
+	// does not tell which thread calls, and codex names the thread in the
+	// call.
+	Caller func(meta json.RawMessage) Bind
 }
 
 // Allowed are the tools of the server the launcher allows, by the names
@@ -175,6 +181,7 @@ func (s *Server) call(ctx context.Context, id json.RawMessage, params json.RawMe
 	var c struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
+		Meta      json.RawMessage `json:"_meta"`
 	}
 	if err := json.Unmarshal(params, &c); err != nil {
 		return failed(id, codeInvalidParams, "the call is not parsed: "+err.Error())
@@ -183,7 +190,11 @@ func (s *Server) call(ctx context.Context, id json.RawMessage, params json.RawMe
 	if at < 0 {
 		return failed(id, codeInvalidParams, fmt.Sprintf("the server has no tool %q", c.Name))
 	}
-	text, isError := s.Tools[at].Call(ctx, s.Bind, c.Arguments)
+	bind := s.Bind
+	if s.Caller != nil {
+		bind = s.Caller(c.Meta)
+	}
+	text, isError := s.Tools[at].Call(ctx, bind, c.Arguments)
 	return done(id, toolText(text, isError))
 }
 

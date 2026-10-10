@@ -432,6 +432,35 @@ What no command checks:
    executor's probe writes them shortly after its start, and the status line
    keeps them fresh while a terminal of the account is open.
 
+**Codex.** The installer gives the panel's server to claude accounts alone. A
+codex thread the panel starts gets it on its own; for the threads of codex in a
+terminal and the runs of `codex exec`, every codex home the panel watches
+(`AACP_CODEX_HOMES`, `~/.codex` unset) gets it through codex's own command,
+which writes `[mcp_servers.aacpanel]` into the home's `config.toml`:
+
+```bash
+CODEX_HOME=<codex home> <codex> mcp add aacpanel -- <home>/bin/aacpanel-exec -mcp   # every codex home
+CODEX_HOME=<codex home> <codex> mcp get aacpanel                                    # the command above
+```
+
+`<codex>` is the program `AACP_CODEX` names, or `codex` without it: a wrapper
+that picks the home by the directory writes into another home. A second `add`
+of the name replaces the first. The server under codex offers the letter
+alone, `send_to_session`: one codex serves many threads, and the server takes
+the thread that writes from the call itself. Codex asks the person before a
+call of a tool of a server, as claude does; a run that may not ask
+(`approval_policy = "never"`) has the call refused, unless the home lets the
+letter through:
+
+```toml
+[mcp_servers.aacpanel.tools.send_to_session]
+approval_mode = "approve"
+```
+
+A run started with `--ignore-user-config` reads no `config.toml` and gets the
+server only from its own command line:
+`-c 'mcp_servers.aacpanel.command="<home>/bin/aacpanel-exec"' -c 'mcp_servers.aacpanel.args=["-mcp"]'`.
+
 **`./install.sh check [--session]`** walks the chain the panel works through, a
 line a link: `/healthz` on the panel's address and on the local listener, the
 age of the collector's snapshot, `aacpanel-exec -list`, the executor's socket and
@@ -1441,7 +1470,9 @@ question of every session.
    (put back the command after `AACP_STATUSLINE_NEXT=`, or remove the status
    line), the hooks of `deploy/claude`, the rules allowing `mcp__aacpanel__*`.
    Then `claude mcp remove aacpanel -s user` in every account that has the
-   server, or each session there starts with a server that fails to connect.
+   server, or each session there starts with a server that fails to connect,
+   and `CODEX_HOME=<codex home> codex mcp remove aacpanel` in every codex home
+   given it.
 2. The units and the executor:
 
    ```bash

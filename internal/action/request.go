@@ -49,8 +49,13 @@ type Request struct {
 	MessageID string `json:"messageId,omitempty"`
 
 	// From is the conversation of the session a session.letter comes from:
-	// the sender is found by it, not by a name the request could make up.
+	// the sender is found by it, not by a name the request could make up. A
+	// letter of a codex thread names the thread.
 	From string `json:"from,omitempty"`
+
+	// FromCodex says a session.letter comes from the codex thread From names,
+	// and where that thread runs.
+	FromCodex *CodexSender `json:"fromCodex,omitempty"`
 
 	// Setting is what session.set changes.
 	Setting *Setting `json:"setting,omitempty"`
@@ -91,6 +96,14 @@ type Request struct {
 	// thread of the codex daemon of Contour, empty for a conversation of
 	// claude.
 	Agent string `json:"agent,omitempty"`
+}
+
+// CodexSender is where the codex thread a letter comes from runs: the home of
+// its codex and the directory it works in. The letter names them to its
+// recipient; nothing is done in either.
+type CodexSender struct {
+	Home string `json:"home"`
+	Dir  string `json:"dir"`
 }
 
 // Project is the project to open.

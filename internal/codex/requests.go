@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -301,6 +302,106 @@ type Elicitation struct {
 	URL         string          `json:"url"`
 	Title       string          `json:"title"`
 	Description string          `json:"description"`
+	// Meta is what codex adds of its own: for a call of a tool it asks to
+	// let through, the call itself.
+	Meta json.RawMessage `json:"_meta"`
+}
+
+// approvalToolCall is how codex marks the request it makes before it calls a
+// tool of an MCP server: a yes or a no, with the call in the request's _meta.
+const approvalToolCall = "mcp_tool_call"
+
+// ToolCall is the call of a tool of an MCP server a request asks to let
+// through: the server, the tool and what it is called with, each argument as
+// codex shows it.
+type ToolCall struct {
+	Server string
+	Tool   string
+	Params []ToolParam
+}
+
+// ToolParam is one argument of a call, its value in words: a string as it
+// is, anything else as JSON.
+type ToolParam struct {
+	Name  string
+	Value string
+}
+
+// calledTool reads the tool out of the words codex asks with: its _meta does
+// not name the tool.
+var calledTool = regexp.MustCompile(`run tool "([^"]+)"`)
+
+// ToolCall is the call a request asks to let through, nil for a request of an
+// MCP server that is not one.
+func (r Request) ToolCall() *ToolCall {
+	if r.Method != methodElicitation || len(r.Meta) == 0 {
+		return nil
+	}
+	var meta struct {
+		Kind    string `json:"codex_approval_kind"`
+		Title   string `json:"tool_title"`
+		Display []struct {
+			Name  string          `json:"name"`
+			Shown string          `json:"display_name"`
+			Value json.RawMessage `json:"value"`
+		} `json:"tool_params_display"`
+		Params json.RawMessage `json:"tool_params"`
+	}
+	if json.Unmarshal(r.Meta, &meta) != nil || meta.Kind != approvalToolCall {
+		return nil
+	}
+	call := &ToolCall{Server: r.Server, Tool: meta.Title}
+	if m := calledTool.FindStringSubmatch(r.Message); m != nil {
+		call.Tool = m[1]
+	}
+	for _, p := range meta.Display {
+		name := p.Shown
+		if name == "" {
+			name = p.Name
+		}
+		call.Params = append(call.Params, ToolParam{Name: name, Value: valueText(p.Value)})
+	}
+	if len(meta.Display) == 0 {
+		names, values, _ := ordered(meta.Params)
+		for i, name := range names {
+			call.Params = append(call.Params, ToolParam{Name: name, Value: valueText(values[i])})
+		}
+	}
+	return call
+}
+
+// Name is the call's tool the way claude names a tool of a server.
+func (c ToolCall) Name() string {
+	if c.Server == "" || c.Tool == "" {
+		return "MCP"
+	}
+	return "mcp__" + c.Server + "__" + c.Tool
+}
+
+// Lines are the arguments of the call a line each, a value of several lines
+// going on under its name.
+func (c ToolCall) Lines() []string {
+	var out []string
+	for _, p := range c.Params {
+		lines := strings.Split(strings.TrimRight(p.Value, "\n"), "\n")
+		out = append(out, p.Name+": "+lines[0])
+		for _, l := range lines[1:] {
+			out = append(out, "  "+l)
+		}
+	}
+	return out
+}
+
+func valueText(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var compact bytes.Buffer
+	if json.Compact(&compact, raw) == nil {
+		return compact.String()
+	}
+	return string(raw)
 }
 
 // Verification says the request asks for a check only codex itself can make.

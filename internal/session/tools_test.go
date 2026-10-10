@@ -264,6 +264,77 @@ func TestALetterWithoutARecipientListsTheSessions(t *testing.T) {
 	}
 }
 
+const codexThread = "019a1f00-0000-7000-8000-00000000abcd"
+
+// withCodex is a machine with codex threads beside its claude sessions: one a
+// daemon holds, one the panel named, and one running on its own.
+const withCodex = `{"sessionsAt":1,"sessions":[` +
+	`{"session":"lab","sessionId":"` + mine + `","profile":"personal","cwd":"/srv/proj/lab"},` +
+	`{"session":"codex-0000abcd","sessionId":"` + codexThread + `","profile":"acme","cwd":"/srv/acme/shop","agent":"codex","transport":"stream"},` +
+	`{"session":"codex-0000beef","sessionId":"019a1f00-0000-7000-8000-00000000beef","profile":"personal","cwd":"/srv/proj/docs","agent":"codex","title":"docs review"},` +
+	`{"session":"codex-0000f00d","sessionId":"019a1f00-0000-7000-8000-00000000f00d","profile":"acme","cwd":"/srv/acme/own","agent":"codex","outside":true}]}`
+
+// codexBound is the server under codex at a call of the thread it names.
+func codexBound() (mcp.Binding, error) {
+	return mcp.Binding{Place: mcp.Place{ConfigDir: "/home/u/.codex-profiles/acme", Dir: "/srv/acme/shop"},
+		Name: "codex-0000abcd", SessionID: codexThread, PID: 800, Codex: true}, nil
+}
+
+// The list names a codex thread as the panel does, with what it is and where
+// it works, so the model can tell it from a claude session; a codex running
+// on its own takes no letters and is left out. A codex thread calling is not
+// in its own list.
+func TestTheListOfSessionsNamesTheCodexThreads(t *testing.T) {
+	_, url := startPanel(t, http.StatusOK, `{"ok":true}`)
+	said, failed := call(t, Letter(hostWith(t, withCodex, url)), bound(mine), map[string]any{})
+	if failed {
+		t.Fatalf("the list answered %q", said)
+	}
+	for _, want := range []string{"- codex-0000abcd (Codex, shop) — acme — /srv/acme/shop",
+		"- codex-0000beef (Codex, docs review) — personal — /srv/proj/docs"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the list does not say %q:\n%s", want, said)
+		}
+	}
+	if strings.Contains(said, "codex-0000f00d") {
+		t.Errorf("the list names a codex out of the panel's reach:\n%s", said)
+	}
+
+	said, failed = call(t, Letter(hostWith(t, withCodex, url)), codexBound, map[string]any{})
+	if failed || strings.Contains(said, "codex-0000abcd") || !strings.Contains(said, "- lab — personal — /srv/proj/lab") {
+		t.Errorf("the list for the codex thread calling is %q", said)
+	}
+}
+
+// A letter of a codex thread goes from the thread the server found, with the
+// home of its codex and its directory, and with nothing of the model's choice.
+func TestALetterOfCodexGoesFromTheThreadCalling(t *testing.T) {
+	p, url := startPanel(t, http.StatusOK, `{"ok":true,"detail":"a letter from codex-0000abcd to lab"}`)
+	said, failed := call(t, Letter(hostWith(t, withCodex, url)), codexBound, map[string]any{"to": "lab", "text": "hello"})
+	if failed || !strings.Contains(said, "a letter from codex-0000abcd to lab") {
+		t.Fatalf("the letter answered %q (error %v)", said, failed)
+	}
+	asked := p.calls()
+	if len(asked) != 1 {
+		t.Fatalf("the panel was asked %v", asked)
+	}
+	params, _ := asked[0]["params"].(map[string]any)
+	sender, _ := params["fromCodex"].(map[string]any)
+	if asked[0]["kind"] != "session.letter" || params["from"] != codexThread || params["text"] != "hello" ||
+		sender["home"] != "/home/u/.codex-profiles/acme" || sender["dir"] != "/srv/acme/shop" {
+		t.Errorf("the panel was asked %v", asked[0])
+	}
+
+	if _, failed := call(t, Letter(hostWith(t, withCodex, url)), bound(mine),
+		map[string]any{"to": "codex-0000abcd", "text": "hi"}); failed {
+		t.Fatal("a letter of claude to a codex thread failed")
+	}
+	asked = p.calls()
+	if params, _ := asked[len(asked)-1]["params"].(map[string]any); params["from"] != mine || params["fromCodex"] != nil {
+		t.Errorf("a letter of claude went as %v", asked[len(asked)-1])
+	}
+}
+
 // A letter goes to the panel as a message to the recipient from the
 // conversation of the session calling — the one its server finds, never a
 // name of the model's choosing.

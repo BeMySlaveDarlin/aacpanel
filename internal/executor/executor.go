@@ -142,7 +142,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.SessionSend:
 		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID)
 	case action.SessionLetter:
-		return e.sessionLetter(ctx, req.Target, req.From, req.Text)
+		return e.sessionLetter(ctx, req.Target, req.From, req.FromCodex, req.Text)
 	case action.SessionUnqueue:
 		return e.sessionUnqueue(ctx, req.Target, req.MessageID)
 	case action.SessionAnswer:

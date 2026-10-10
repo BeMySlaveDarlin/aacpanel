@@ -30,7 +30,8 @@ import held
 from .harness import COMPACTED, STOPPED
 from .cards import MAX_ASK_QUESTIONS, MAX_ASK_TEXT
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
-from .tools import one_line, tool_kind
+from .mail import LETTER_TOOL, mails, peer_name, undelivered
+from .tools import one_line, tool_arg, tool_kind, tool_label
 
 KINDS = ("session_meta", "world_state", "turn_context", "response_item",
          "token_usage_record", "compacted", "event_msg", "retained_context")
@@ -286,6 +287,80 @@ def _said(role, text, at, pos):
         return []
     body, trimmed = cut(text, MAX_TEXT)
     return [{"role": role, "text": body, "cut": trimmed, "at": at, "pos": pos}]
+
+
+# A letter of another session reaches a codex thread as a message of the
+# panel: the envelope claude sends a letter in, with the panel's words around
+# it saying who wrote and that the person did not. The feed draws it as the
+# feed of claude draws one — a card of a letter from the session that wrote —
+# and leaves the panel's words out.
+LETTER_TAG = "<cross-session-message"
+
+
+def _letters(text, at, pos):
+    """Returns the cards of the letters a message of the thread carries, none for a message of the person."""
+    if LETTER_TAG not in text:
+        return []
+    out = []
+    for who, source, said in mails(text):
+        body, trimmed = cut(said, MAX_TEXT)
+        out.append({"role": "mail", "from": who, "source": source, "text": body, "cut": trimmed,
+                    "at": at, "pos": pos})
+    return out
+
+
+# A call of a tool of an MCP server. It is named the way claude names one,
+# mcp__<server>__<tool>, so it is drawn as claude's: among the calls, by its
+# server and tool, what it answered opened from it. The panel's letter is an
+# outgoing letter, as in the feed of claude.
+MCP_CALL = "McpToolCall"
+
+
+def _mcp_name(item):
+    server, tool = item.get("server"), item.get("tool")
+    if not isinstance(server, str) or not isinstance(tool, str) or not server or not tool:
+        return ""
+    return f"mcp__{server}__{tool}"
+
+
+def _mcp_args(item):
+    args = item.get("arguments")
+    return args if isinstance(args, dict) else {}
+
+
+def _mcp_said(item):
+    """Returns what an MCP call answered: the words of its result, or why it did not run."""
+    error = item.get("error")
+    if isinstance(error, dict) and isinstance(error.get("message"), str):
+        return error["message"]
+    result = item.get("result")
+    content = result.get("content") if isinstance(result, dict) else None
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(c["text"] for c in content
+                     if isinstance(c, dict) and c.get("type") == "text" and isinstance(c.get("text"), str))
+
+
+def _mcp_call(item, use, at, pos):
+    """Returns the rows of a call of an MCP tool: a call among the calls, or an outgoing letter.
+
+    A letter that reached nobody says why, from the answer that came with it.
+    """
+    name = _mcp_name(item)
+    if not name:
+        return []
+    args = _mcp_args(item)
+    said = args.get("text")
+    if name == LETTER_TOOL and isinstance(said, str) and said.strip():
+        body, trimmed = cut(said.strip(), MAX_TEXT)
+        letter = {"role": "mail", "dir": "out", "from": peer_name(str(args.get("to") or "")),
+                  "source": "session", "text": body, "cut": trimmed, "use": use, "at": at, "pos": pos}
+        lost = undelivered(_mcp_said(item), _failed(item))
+        if lost:
+            letter["undelivered"] = lost
+        return [letter]
+    return _call(tool_label(name, args), tool_arg(args, name), use, 0, _failed(item), at, pos,
+                 kind=tool_kind(name))
 
 
 def command_line(command):
@@ -580,8 +655,12 @@ def rows(record, pos, state=None):
     if kind in ("EnteredReviewMode", "ExitedReviewMode"):
         return [_review(item, at, pos)]
     if kind == "UserMessage":
+        text = _text(item.get("content"), "text")
+        letters = _letters(text, at, pos)
+        if letters:
+            return letters
         role = TASK if (state or {}).get(DRIVEN) else "me"
-        return _said(role, _text(item.get("content"), "text"), at, pos)
+        return _said(role, text, at, pos)
     if kind == "AgentMessage":
         return _said("ai", _text(item.get("content"), "Text"), at, pos)
     if kind == "Reasoning":
@@ -609,6 +688,8 @@ def rows(record, pos, state=None):
         if item.get("tool") == SPAWN:
             return [_spawn(item, use, at, pos)]
         return _agent_call(item, use, at, pos)
+    if kind == MCP_CALL:
+        return _mcp_call(item, use, at, pos)
     return []
 
 
@@ -671,6 +752,10 @@ def details(record, index):
         name, shown, said = SEARCH, "", ""
     elif kind == COLLAB and index == 0:
         name, shown, said = _agent_spot(item)
+    elif kind == MCP_CALL and index == 0 and _mcp_name(item):
+        name = _mcp_name(item)
+        shown = json.dumps(_mcp_args(item), ensure_ascii=False, indent=2, sort_keys=True)
+        said = _mcp_said(item)
     else:
         return None
     at = record.get("timestamp") or ""
