@@ -9,6 +9,7 @@ import re
 import archive
 import chat
 import checklists
+import codex_archive
 import contours
 import held
 from chat import codex
@@ -599,13 +600,20 @@ def _with_crew(row, path):
 
 # A codex is found by its process too, beside the threads the executors
 # follow: a run of codex exec a claude session started — a reviewer, a
-# worker — and a codex in a terminal with the server of its threads built in.
-# Codex calls its process codex whoever started it. A process of the daemon of
-# a home — the daemon itself, or a client that reaches it with --remote — runs
-# threads the executor follows through that daemon, and is passed by.
+# worker — codex as an MCP server of a claude session, and a codex in a
+# terminal with the server of its threads built in. Codex calls its process
+# codex whoever started it. A process of the daemon of a home — the daemon
+# itself, or a client that reaches it with --remote — runs threads the
+# executor follows through that daemon, and is passed by.
 CODEX = "codex"
 CODEX_DAEMON = "app-server"
 CODEX_REMOTE = "--remote"
+
+# Codex as an MCP server runs a thread for every call of its tool and keeps
+# each loaded for a call that goes on with it, as long as the claude session
+# that started the server lives: every thread it writes is a run of its own,
+# and the server's life says nothing of whether one is at work.
+CODEX_MCP = "mcp-server"
 
 # Codex holds a lock on a thread while it writes it: a file named by the
 # thread, under its home.
@@ -619,8 +627,10 @@ CODEX_VARS = ("CODEX_HOME", "CLAUDE_CODE_SESSION_ID", "CODEX_AGENT_ROLE")
 # is: the head carries the instructions of the model too.
 CODEX_HEAD = 1024 * 1024
 
-# What a run of codex exec is called when it was started with no role.
+# What a run of codex exec, or a thread of codex as an MCP server, is called
+# when it was started with no role.
 CODEX_EXEC = "codex exec"
+CODEX_MCP_RUN = "codex mcp-server"
 
 
 def _environ(pid, names):
@@ -655,8 +665,8 @@ def _open_files(pid):
     return out
 
 
-def _codex_thread(pid, home):
-    """Returns the thread a codex process writes and its rollout, by the files it holds open.
+def _codex_threads(pid, home):
+    """Returns the threads a codex process writes, the eldest first, and the rollouts it holds open, by thread.
 
     A codex with subagents writes their threads too and holds a lock on each;
     its own is the eldest: a codex id grows with time, and a subagent is
@@ -671,19 +681,20 @@ def _codex_thread(pid, home):
             threads.append(name[:-len(".lock")])
         elif path.startswith(sessions) and codex.is_rollout(path):
             rollouts[codex.own(path)[codex.OWN]] = path
-    ids = sorted(t for t in (threads or rollouts) if chat.UUID_RE.match(t))
-    if not ids:
-        return "", ""
-    thread = ids[0]
+    return sorted(t for t in (threads or rollouts) if chat.UUID_RE.match(t)), rollouts
+
+
+def _codex_rollout(home, thread, rollouts):
+    """Returns the rollout of a thread a codex writes: the one it holds open, else the one of its id under the home."""
     if thread in rollouts:
-        return thread, rollouts[thread]
+        return rollouts[thread]
     found = sorted(glob.glob(os.path.join(glob.escape(home), "sessions", "*", "*", "*",
                                           f"rollout-*-{thread}.jsonl")))
-    return thread, found[-1] if found else ""
+    return found[-1] if found else ""
 
 
 def _codex_head(path):
-    """Returns what the head of a rollout says of its thread: how it was started and where, or None.
+    """Returns what the head of a rollout says of its thread: how and when it was started and where, or None.
 
     A thread of codex exec says exec; one of a terminal, of an editor or of a
     subagent says otherwise. A head not written whole yet says nothing.
@@ -698,7 +709,8 @@ def _codex_head(path):
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return None
-    return {"exec": payload.get("source") == "exec", "cwd": codex.cwd_of(record)}
+    return {"exec": payload.get("source") == "exec", "agent": codex.subagent(payload), "cwd": codex.cwd_of(record),
+            "at": _epoch(payload.get("timestamp") or record.get("timestamp"))}
 
 
 def _cwd(pid):
@@ -709,52 +721,67 @@ def _cwd(pid):
 
 
 def _codex_process(pid, followed):
-    """Returns what a process says of the codex thread it runs, or None for any other.
+    """Returns what a process says of the codex threads it runs, none for any other process.
 
     The contour is that of the home CODEX_HOME names, ~/.codex with none, and
     never the program's: one program serves every home. A codex that writes no
-    thread yet, or one whose rollout has no head yet, has nothing to read.
+    thread yet, or one whose rollout has no head yet, has nothing to read. A
+    codex runs one thread of its own, and codex as an MCP server one for every
+    call of its tool; the threads of their subagents are part of their turns.
     """
     if _comm(pid) != CODEX:
-        return None
+        return []
     try:
         if os.stat(f"{PROC}/{pid}").st_uid != os.getuid():
-            return None
+            return []
     except OSError:
-        return None
+        return []
     args = proc_args(pid)[1:]
     if CODEX_DAEMON in args or any(a == CODEX_REMOTE or a.startswith(CODEX_REMOTE + "=") for a in args):
-        return None
+        return []
     env = _environ(pid, CODEX_VARS)
     home = os.path.normpath(os.path.expanduser(env.get("CODEX_HOME") or contours.CODEX_HOME))
-    thread, rollout = _codex_thread(pid, home)
-    if not thread or thread in followed or not rollout:
-        return None
-    head = _codex_head(rollout)
-    if head is None:
-        return None
-    return {
-        "pid": pid, "home": home, "contour": contours.codex_contour(home),
-        "thread": thread, "rollout": rollout, "born": started_at(pid),
-        "cwd": head["cwd"] or _cwd(pid), "exec": head["exec"],
-        "claude": env.get("CLAUDE_CODE_SESSION_ID") or "", "role": env.get("CODEX_AGENT_ROLE") or "",
-    }
+    threads, rollouts = _codex_threads(pid, home)
+    server = CODEX_MCP in args
+    out = []
+    for thread in (threads if server else threads[:1]):
+        rollout = "" if thread in followed else _codex_rollout(home, thread, rollouts)
+        head = _codex_head(rollout) if rollout else None
+        if head is None or (server and head["agent"]):
+            continue
+        found = {
+            "pid": pid, "home": home, "contour": contours.codex_contour(home),
+            "thread": thread, "rollout": rollout, "born": started_at(pid),
+            "cwd": head["cwd"] or _cwd(pid), "exec": head["exec"],
+            "claude": env.get("CLAUDE_CODE_SESSION_ID") or "", "role": env.get("CODEX_AGENT_ROLE") or "",
+        }
+        if server:
+            found["mcp"] = True
+            found["born"] = head["at"] or found["born"]
+        out.append(found)
+    return out
 
 
 def codex_processes():
-    """Returns the live codex processes of the user whose threads no executor follows.
+    """Returns the live codex processes of the user whose threads no executor follows, one for each such thread.
 
     Each says its pid, its home and the contour of the home, the thread it
-    writes and the rollout of it, when it was born and in what directory,
-    whether it is a run of codex exec, and the claude session and the role it
-    was started with.
+    writes and the rollout of it, when it was born and in what directory —
+    for a thread of codex as an MCP server, when the thread was — whether it
+    is a run of codex exec or a thread of codex as an MCP server, and the
+    claude session and the role it was started with.
     """
     try:
         pids = [int(name) for name in os.listdir(PROC) if name.isdigit()]
     except OSError:
         return []
     followed = {data.get("sessionId") for data in held.codex_threads()}
-    return [found for found in (_codex_process(pid, followed) for pid in sorted(pids)) if found]
+    return [found for pid in sorted(pids) for found in _codex_process(pid, followed)]
+
+
+def _driven(proc):
+    """Reports whether a claude session drives a thread: a run of codex exec, or one of codex as its MCP server."""
+    return proc["exec"] or proc.get("mcp", False)
 
 
 def live_rollout(thread, contour=None):
@@ -766,7 +793,7 @@ def live_rollout(thread, contour=None):
 
 
 def codex_parent(proc, owners, sessions):
-    """Returns the id of the live claude session that started a run of codex exec, empty for none.
+    """Returns the id of the live claude session that started a run of codex, empty for none.
 
     Up the chain of parents, the first live session is it. A codex met on the
     way started the run itself: a daemon keeps the environment of the claude
@@ -790,13 +817,14 @@ def codex_parent(proc, owners, sessions):
 
 
 def codex_live(lives=None):
-    """Returns the codex processes no executor follows, a run of codex exec with the session that started it.
+    """Returns the codex processes no executor follows, a run of a claude session with the session that started it.
 
-    `lives` are the live claude sessions as live_sessions returns them, read
-    afresh when not given.
+    A run is one of codex exec or a thread of codex as an MCP server. `lives`
+    are the live claude sessions as live_sessions returns them, read afresh
+    when not given.
     """
     procs = codex_processes()
-    if not any(proc["exec"] for proc in procs):
+    if not any(_driven(proc) for proc in procs):
         return procs
     if lives is None:
         lives = live_sessions()
@@ -804,7 +832,7 @@ def codex_live(lives=None):
               for live in lives if live.get("pid")}
     sessions = {live["sessionId"] for live in lives}
     for proc in procs:
-        if proc["exec"]:
+        if _driven(proc):
             proc["parent"] = codex_parent(proc, owners, sessions)
     return procs
 
@@ -817,16 +845,26 @@ def _utc(ts):
 
 
 def codex_agent(proc):
-    """Returns a run of codex exec as an agent of the claude session that started it.
+    """Returns a run of codex as an agent of the claude session that started it.
 
-    It is at work while its process lives, named by its role, and its
-    conversation is its thread: the id of the agent is the id of the thread,
-    which the feed opens as a conversation of its own. Nothing of what it was
-    asked goes with it: the prompt of a role carries the words of the work.
+    A run of codex exec is at work while its process lives. A thread of codex
+    as an MCP server is at work while a turn of it runs, and idle otherwise:
+    the server lives as long as the session, and a call of its tool may go on
+    with the thread. A run is named by its role, and its conversation is its
+    thread: the id of the agent is the id of the thread, which the feed opens
+    as a conversation of its own. Nothing of what it was asked goes with it:
+    the prompt of a role carries the words of the work.
     """
-    agent = {"agent": CODEX, "id": proc["thread"], "name": proc["role"] or CODEX_EXEC,
-             "status": "active", "at": _utc(proc["born"])}
-    return _with_context(agent, codex.context(proc["rollout"]) or {})
+    found = codex.context(proc["rollout"]) or {}
+    status = CREW_IDLE if proc.get("mcp") and not found.get("busy") else ACTIVE
+    agent = {"agent": CODEX, "id": proc["thread"], "name": _run_name(proc), "status": status,
+             "at": _utc(proc["born"])}
+    return _with_context(agent, found)
+
+
+def _run_name(proc):
+    """Returns what a run of codex is called: its role, else the command it was started with."""
+    return proc["role"] or (CODEX_MCP_RUN if proc.get("mcp") else CODEX_EXEC)
 
 
 def _with_context(agent, found, model=""):
@@ -881,7 +919,7 @@ def codex_run_over(run):
 
 
 def codex_runs(procs):
-    """Maps a claude session to the runs of codex exec it started, as its agents, the newest first."""
+    """Maps a claude session to the runs of codex it started, as its agents, the newest first."""
     out = {}
     for proc in sorted(procs, key=lambda p: -(p["born"] or 0)):
         if proc.get("parent"):
@@ -890,21 +928,22 @@ def codex_runs(procs):
 
 
 def with_codex_runs(state, runs, over=()):
-    """Returns the state of a claude session with the runs of codex exec it started among its agents.
+    """Returns the state of a claude session with the runs of codex it started among its agents.
 
-    A run at work stands first. A run that is over stands among the agents
-    that are, by when it was last heard of; while its process lives the run
-    is at work, whatever its thread says.
+    A run at work stands first. A run that is over, and an idle thread of
+    codex as an MCP server, stand among the agents that are, by when they
+    were last heard of; while the process of a run of codex exec lives the
+    run is at work, whatever its thread says.
     """
     runs = list(runs or ())
     live = {run["id"] for run in runs}
-    over = [run for run in over if run["id"] not in live]
-    if not runs and not over:
+    rest = [run for run in runs if run["status"] != ACTIVE] + [run for run in over if run["id"] not in live]
+    if not runs and not rest:
         return state
     agents = list(state.get("agents") or [])
-    if over:
-        agents = ordered_agents(agents + over)
-    return {**state, "agents": (runs + agents)[:MAX_ITEMS]}
+    if rest:
+        agents = ordered_agents(agents + rest)
+    return {**state, "agents": ([run for run in runs if run["status"] == ACTIVE] + agents)[:MAX_ITEMS]}
 
 
 def codex_own_row(proc):
@@ -914,8 +953,10 @@ def codex_own_row(proc):
     and this one runs in a process of its own: the row is only read, out of
     the panel's reach as a claude typed into a terminal of its own is. It is
     called the way a thread of a daemon is, by the tail of its id, and reads
-    by its role for a run of codex exec, else by the name the panel gave the
-    thread while a daemon held it.
+    by its role for a run of codex exec or of codex as an MCP server, else by
+    the name the panel gave the thread while a daemon held it, for as long as
+    codex calls the thread by it: a name given in codex's own terminal since
+    is not shown, as it is not for a thread a daemon holds.
     """
     thread = proc["thread"]
     found = codex.context(proc["rollout"]) or {"tokens": 0, "limit": 0, "at": "", "model": "",
@@ -927,13 +968,19 @@ def codex_own_row(proc):
         "status": "busy" if found["busy"] else "idle",
         **_filled(found),
     }
-    title = (proc["role"] or CODEX_EXEC) if proc["exec"] else held.given_name(thread)
+    title = _run_name(proc) if _driven(proc) else _given_name(proc["home"], thread)
     if title:
         row["title"] = title
     config_dir = _account(proc["contour"])
     if config_dir:
         row["configDir"] = config_dir
     return _with_crew(_with_checklist(row), proc["rollout"])
+
+
+def _given_name(home, thread):
+    """Returns the name the panel gave a thread while codex calls the thread by it, empty otherwise."""
+    given = held.given_name(thread)
+    return given if given and codex_archive.called(home, thread).strip() == given else ""
 
 
 def codex_own_rows(procs):
@@ -944,8 +991,8 @@ def codex_own_rows(procs):
 def sessions():
     """Returns the live sessions as {"sessions": [...], "notes": [], "codex": [...]}, the fullest first.
 
-    The codex processes no executor follows go along: the runs of codex exec
-    a session started ride on its row under codexRuns, for the reader of its
+    The codex processes no executor follows go along: the runs of codex a
+    session started ride on its row under codexRuns, for the reader of its
     state to take off, and the rest are rows of their own under codex.
     """
     lives = live_sessions()

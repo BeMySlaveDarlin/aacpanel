@@ -59,6 +59,7 @@ var notTheFeed = map[string]string{
 	"codex.py:_crew_stands":     "the agents of a codex thread as its rollout says they stand, listed in its state as WorkAgent",
 	"codex.py:context":          "how full the context of a codex thread is, for its row in the snapshot",
 	"codex.py:_take":            "how full the context of a codex thread is, for its row in the snapshot",
+	"codex.py:_settings_before": "the model a codex thread last named before the tail of its rollout, for its row in the snapshot",
 
 	"mail.py::_PEER_NAMES":                 "the names of the sessions next door, by pid",
 	"queue.py:remember:texts":              "the texts the queue has drawn, by text",

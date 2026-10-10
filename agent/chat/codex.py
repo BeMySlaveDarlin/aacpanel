@@ -186,9 +186,13 @@ def driven(record):
     payload = record.get("payload")
     if record.get("type") != "session_meta" or not isinstance(payload, dict):
         return False
+    return payload.get("source") == "exec" or subagent(payload)
+
+
+def subagent(payload):
+    """Reports whether the head of a rollout, by its payload, says the thread is an agent another thread started."""
     source = payload.get("source")
-    return (source == "exec" or payload.get("thread_source") == "subagent"
-            or (isinstance(source, dict) and "subagent" in source))
+    return payload.get("thread_source") == "subagent" or (isinstance(source, dict) and "subagent" in source)
 
 
 def is_rollout(path):
@@ -253,6 +257,9 @@ def context(path):
     come the model and the effort the last turn ran with, and whether a turn
     still runs: one runs from its start to its end or its abort, and a report
     with neither before it lies inside a turn that started before the tail.
+    A turn names its model once, at its start, and a long one writes its
+    tail full of reports: a tail that names no model has it looked for before
+    the tail.
     """
     try:
         size = os.path.getsize(path)
@@ -275,8 +282,67 @@ def context(path):
             return None
         if out["at"] or start == 0:
             break
+    if not out["model"] and start:
+        out["model"], out["effort"] = _settings_before(path, start, size)
     out["busy"] = out.pop("turn") == "on"
     return out
+
+
+# What the last turn_context of a rollout before its tail said, by the
+# rollout: the place the look stopped, and the model and the effort of that
+# record. A run of codex exec names its model once, at the start of its only
+# turn, and writes megabytes after it; a rollout only grows, so the look reads
+# on from where it stopped rather than from the start at every reading of the
+# context.
+_settings = {}
+MAX_SETTINGS = 256
+SETTINGS_MARK = b"turn_context"
+
+
+def _settings_before(path, end, size):
+    """Returns the model and the effort of the last turn_context that starts before end, read on from the last look.
+
+    A rollout shorter than the place the look stopped at is another file,
+    read from its start. A line not written whole yet is read at the next
+    look.
+    """
+    known = _settings.get(path)
+    if known is None or known["pos"] > size:
+        known = {"pos": 0, "model": "", "effort": ""}
+    if known["pos"] < end:
+        known = dict(known)
+        try:
+            with open(path, "rb") as f:
+                f.seek(known["pos"])
+                for raw in f:
+                    if not raw.endswith(b"\n"):
+                        break
+                    if SETTINGS_MARK in raw:
+                        _take_settings(raw, known)
+                    known["pos"] += len(raw)
+                    if known["pos"] >= end:
+                        break
+        except OSError:
+            return "", ""
+        if path not in _settings and len(_settings) >= MAX_SETTINGS:
+            _settings.clear()
+        _settings[path] = known
+    return known["model"], known["effort"]
+
+
+def _take_settings(raw, known):
+    try:
+        record = json.loads(raw)
+    except ValueError:
+        return
+    if not isinstance(record, dict) or record.get("type") != "turn_context":
+        return
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        return
+    for key in ("model", "effort"):
+        value = payload.get(key)
+        known[key] = value if isinstance(value, str) else ""
 
 
 def _take(raw, out):

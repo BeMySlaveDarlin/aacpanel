@@ -174,6 +174,30 @@ def given_name(tid):
     return name.strip() if isinstance(name, str) else ""
 
 
+CALLED = "SELECT name FROM threads WHERE id = ?"
+
+
+def called(home, tid):
+    """Returns the name codex calls a thread of a home by, as its state database keeps it, empty for none.
+
+    Codex keeps there the name a thread was last given, by the panel or in
+    its own terminal. A database that cannot be read says no name.
+    """
+    path = os.path.join(home, STATE_DB)
+    if not os.path.isfile(path):
+        return ""
+    try:
+        db = connect(path)
+        try:
+            row = db.execute(CALLED, (tid,)).fetchone()
+        finally:
+            db.close()
+    except (sqlite3.Error, OSError) as e:
+        say(home, e)
+        return ""
+    return row[0] if row and isinstance(row[0], str) else ""
+
+
 def name_of(found):
     """Returns the name a thread reads by and whether it was guessed.
 

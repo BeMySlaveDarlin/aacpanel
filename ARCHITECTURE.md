@@ -681,11 +681,21 @@ appears or the connection drops — at once when an action waits for it.
   when the chain reaches the top with neither. It stands among the session's
   agents with `agent: "codex"` and the thread as its id, is counted at work
   while its process lives, has no stop, and its feed is the rollout of the
-  thread; it is named by `CODEX_AGENT_ROLE`, never by what it was asked. Any
-  other such codex — a run no live session started, codex in a terminal with
-  its server of threads built in — is a session of its own, outside and only
-  read, as a claude typed into a terminal is; the service refuses an action
-  aimed at it.
+  thread; it is named by `CODEX_AGENT_ROLE`, never by what it was asked. Codex
+  as an MCP server of a claude session (`codex mcp-server`) is a run of that
+  session for every thread it writes, one per call of its tool, the threads
+  of their subagents aside: the server lives as long as the session and keeps
+  each thread for a call that goes on with it, so a thread is at work while a
+  turn of it runs and idle otherwise. Any other such codex — a run no live
+  session started, codex in a terminal with its server of threads built in —
+  is a session of its own, outside and only read, as a claude typed into a
+  terminal is; the service refuses an action aimed at it. It reads by the name
+  the panel gave the thread for as long as the state database of its home
+  says codex calls the thread by it, as a thread of a daemon does. The model
+  of a run or a thread is the one its last turn named: a turn names it once,
+  at its start, and a long one writes megabytes after it, so the record is
+  looked for before the tail the fill is read from, reading on from where the
+  last look stopped.
 - **A run of `codex exec` that is over is found by the call that started it.**
   Its process is gone, and claude's transcript has no word of its thread: the
   reader of a session's state keeps every call of the shell whose command
