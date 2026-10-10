@@ -23,7 +23,6 @@ import { useRemote } from "./remote.js";
 import { moveSession, stops } from "./switch.js";
 import { outsideNote, placeOf } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
-import { CODEX_CLOSE, CODEX_NOTE, isCodex, noTurn } from "../../agent.js";
 
 // MoreButton opens the tools of the session from the header on a phone.
 export function MoreButton({ onOpen }) {
@@ -36,9 +35,9 @@ export function MoreButton({ onOpen }) {
 
 // SessionTools fills the sheet on a phone: who the session is and where it
 // works, finding in its conversation, what to look at it with, then the
-// sections of what is done to it.
+// sections of what is done to it, which are its agent's own.
 export function SessionTools(props) {
-    const { name, live, archive, pct, cwd, view, sides, onRepo, onFind, onPick } = props;
+    const { name, live, archive, pct, cwd, view, sides, sections: Sections, onRepo, onFind, onPick } = props;
     const toast = useToast();
     const where = cwd ? shortPath(cwd) : "";
     return html`
@@ -70,7 +69,7 @@ export function SessionTools(props) {
                 `}
                 ${live && sides.pair && html`<${Watch} view=${view} note=${sides.tip} onPick=${onPick} />`}
             </ul>
-            ${live ? html`<${SessionSections} ...${props} />`
+            ${live ? html`<${Sections} ...${props} />`
                 : archive && html`<p class="cmdnote">The conversation is closed: it can be resumed from the history.</p>`}
         </div>
     `;
@@ -116,29 +115,6 @@ function Watch({ view, note, onPick }) {
 // its own, and two layers over the run fight for the way back.
 export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, way, work, onDone, onWindow, onLook }) {
     const run = useAction();
-    // A codex thread lives with codex: the panel writes to it, stops its turn,
-    // answers what it asks and closes it, and has nothing else to offer — no
-    // move, no window, no bridge and no name to change.
-    if (isCodex(live)) {
-        return html`
-            <section class="toolsec">
-                <div class="cmdsechead"><span>Where it lives</span></div>
-                <ul class="mcplist toollist"><${Place} live=${live} win=${win} /></ul>
-            </section>
-            <section class="toolsec">
-                <div class="cmdsechead"><span>Session</span></div>
-                <ul class="mcplist toollist">
-                    <${SessionLines} name=${name} live=${live} exec=${exec} cwd=${cwd} onDone=${onDone} onLook=${onLook} />
-                </ul>
-            </section>
-            <section class="toolsec toolend">
-                <ul class="mcplist toollist">
-                    <${StopLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
-                    <${EndLine} name=${name} live=${live} exec=${exec} work=${work} run=${run} onDone=${onDone} />
-                </ul>
-            </section>
-        `;
-    }
     // A claude the panel did not start is only read: it has no side to move
     // from, no window, no bridge, and the panel does not end what it did not
     // begin.
@@ -190,12 +166,15 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
 // Place says where the session lives now.
 function Place({ live, win }) {
     const stream = live.transport === "stream";
-    const codex = isCodex(live);
-    const note = codex ? CODEX_NOTE
-        : live.outside ? outsideNote(live)
+    const note = live.outside ? outsideNote(live)
         : stream ? `claude -p held by the panel: no terminal and no window on ${hostLabel()}`
         : `a terminal on ${hostLabel()}${win.kind === "open" ? " · a window shows it" : ""}`;
-    const label = codex ? "With codex" : live.outside ? "Outside the panel" : stream ? "On the stream" : "In tmux";
+    const label = live.outside ? "Outside the panel" : stream ? "On the stream" : "In tmux";
+    return html`<${PlaceLine} label=${label} note=${note} />`;
+}
+
+// PlaceLine is the line that says where a session lives, in its agent's words.
+export function PlaceLine({ label, note }) {
     return html`
         <li class="toolline">
             <span class="toolicon">${Icon.pin()}</span>
@@ -257,21 +236,11 @@ export function RemoteLine({ name, live, exec, snapshot }) {
     `;
 }
 
-// SessionLines names the session and says how to find it again. A codex
-// thread has only its id here: the name, the info screen and the way to
-// resume are claude's.
-function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
-    const toast = useToast();
-    const codex = isCodex(live);
-    const id = live.sessionId || "";
-    const resume = id && !codex ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
-    const renameWhy = live.outside
-        ? "the panel did not start this session and cannot rename it"
-        : live.transport !== "stream"
-        ? "a session in tmux is renamed on its own screen, /rename with keys"
-        : knows(exec, "session.rename") ? "" : whyNot(exec, "session.rename");
-    const row = (icon, label, note, press, aside = "", off = "") => html`
-        <li><button type="button" class="mcprow toolrow" disabled=${Boolean(off)} onClick=${press}>
+// ToolRow is a line of the tools that does something on a press: its icon,
+// what it does, and under it a note, or why it cannot be done when it cannot.
+export function ToolRow({ icon, label, note = "", aside = "", off = "", stop = false, onPress }) {
+    return html`
+        <li><button type="button" class=${`mcprow toolrow${stop ? " toolstop" : ""}`} disabled=${Boolean(off)} onClick=${onPress}>
             <span class="toolicon">${icon()}</span>
             <span class="toolbody">
                 <span class="toollabel">${label}</span>
@@ -280,53 +249,50 @@ function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
             ${aside && html`<span class="toolaside">${aside}</span>`}
         </button></li>
     `;
+}
+
+// IdLine copies the id a session is found again by.
+export function IdLine({ id }) {
+    const toast = useToast();
+    if (!id) return null;
+    return html`<${ToolRow} icon=${Icon.copy} label="Copy the session ID" aside=${id.slice(0, 8)}
+                            onPress=${() => copyText(id, toast, "Copied", "Session ID")} />`;
+}
+
+// SessionLines names the session and says how to find it again.
+function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
+    const toast = useToast();
+    const id = live.sessionId || "";
+    const resume = id ? `${cwd ? `cd ${cwd} && ` : ""}claude --resume ${id}` : "";
+    const renameWhy = live.outside
+        ? "the panel did not start this session and cannot rename it"
+        : live.transport !== "stream"
+        ? "a session in tmux is renamed on its own screen, /rename with keys"
+        : knows(exec, "session.rename") ? "" : whyNot(exec, "session.rename");
     return html`
-        ${!codex && row(Icon.pencil, "Rename…", "", () => { onDone(); onLook("rename"); }, "", renameWhy)}
-        ${!codex && row(Icon.info, "Session info", "the model, the context, the tokens in and out",
-            () => { onDone(); onLook("status"); }, "/status")}
-        ${id && row(Icon.copy, "Copy the session ID", "", () => copyText(id, toast, "Copied", "Session ID"), id.slice(0, 8))}
-        ${resume && row(Icon.copy, "Copy the resume command", `claude --resume ${id.slice(0, 8)}…`,
-            () => copyText(resume, toast, "Copied", "the resume command"))}
+        <${ToolRow} icon=${Icon.pencil} label="Rename…" off=${renameWhy} onPress=${() => { onDone(); onLook("rename"); }} />
+        <${ToolRow} icon=${Icon.info} label="Session info" note="the model, the context, the tokens in and out"
+                    aside="/status" onPress=${() => { onDone(); onLook("status"); }} />
+        <${IdLine} id=${id} />
+        ${resume && html`<${ToolRow} icon=${Icon.copy} label="Copy the resume command" note=${`claude --resume ${id.slice(0, 8)}…`}
+                                     onPress=${() => copyText(resume, toast, "Copied", "the resume command")} />`}
     `;
 }
 
 // EndLine ends the session: a session of its own home starts over, any other
-// closes and leaves its conversation to the history. A codex thread says what
-// a close does to it instead: the turn it runs is the work that stops.
+// closes and leaves its conversation to the history.
 function EndLine({ name, live, exec, work, run, onDone }) {
-    const codex = isCodex(live);
     const kind = live.home ? "session.restart" : "session.close";
     const why = knows(exec, kind) ? "" : whyNot(exec, kind);
-    const lost = codex ? "" : stops(work);
+    const lost = stops(work);
     const note = live.home
         ? "the conversation ends and a new one starts with an empty context"
-        : codex ? CODEX_CLOSE
         : "the process ends; the conversation stays in the history";
     return html`
-        <li><button type="button" class="mcprow toolrow toolstop" disabled=${Boolean(why)}
-                    onClick=${() => { onDone(); run(kind, name, {}); }}>
-            <span class="toolicon">${live.home ? Icon.refresh() : Icon.stop()}</span>
-            <span class="toolbody">
-                <span class="toollabel">${live.home ? "Restart the session" : "Close the session"}</span>
-                <span class=${`toolnote${why ? " why" : ""}`}>${why || (lost ? `stops ${lost} · ${note}` : note)}</span>
-            </span>
-        </button></li>
-    `;
-}
-
-// StopLine breaks off the turn a codex thread is running, and the thread
-// stays.
-function StopLine({ name, live, exec, run, onDone }) {
-    const why = noTurn(live) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
-    return html`
-        <li><button type="button" class="mcprow toolrow toolstop" disabled=${Boolean(why)}
-                    onClick=${() => { onDone(); run("session.stop", name, {}); }}>
-            <span class="toolicon">${Icon.stopsquare()}</span>
-            <span class="toolbody">
-                <span class="toollabel">Stop the turn</span>
-                <span class=${`toolnote${why ? " why" : ""}`}>${why || "codex breaks off the turn it is running; the thread stays"}</span>
-            </span>
-        </button></li>
+        <${ToolRow} icon=${live.home ? Icon.refresh : Icon.stop} stop
+                    label=${live.home ? "Restart the session" : "Close the session"}
+                    note=${lost ? `stops ${lost} · ${note}` : note} off=${why}
+                    onPress=${() => { onDone(); run(kind, name, {}); }} />
     `;
 }
 
@@ -398,7 +364,7 @@ export function ViewTabs({ view, sides, canTerm, onView, onRepo, onMove }) {
 // says where the session lives, whether a window shows it and whether Remote
 // Control is on; the panel under it holds the sections.
 export function SessionButton(props) {
-    const { live, win, open, onOpen } = props;
+    const { live, win, open, sections: Sections, onOpen } = props;
     const close = useCallback(() => onOpen(false), [onOpen]);
     const stream = live.transport === "stream";
     return html`
@@ -414,7 +380,7 @@ export function SessionButton(props) {
             </button>
             <${Popover} open=${open} onClose=${close} label="the session">
                 <div class="cmdsheet tools dkpanel">
-                    <${SessionSections} ...${props} onDone=${close} />
+                    <${Sections} ...${props} onDone=${close} />
                 </div>
             <//>
         </span>

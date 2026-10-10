@@ -18,11 +18,12 @@ type agentWord struct {
 // A codex thread stands on the lists beside claude sessions, told from them
 // by the word that opens the line of its model: Codex, in a hue of its own,
 // where theirs says Claude; it lives on the daemon, not on the stream. The
-// panel offers it exactly what the host does for codex: text into its turn,
-// a stop of the turn, the answer to what it asks, and a close. Everything
-// claude's — the pickers, the commands, the shell, the files, the terminal,
-// the move, the window, Remote Control, the name, the restart — is not there,
-// and the screen does not ask the host about any of it. The close says what it
+// panel offers it exactly what the host does for codex: words and files into
+// its turn, named in the queue of a busy thread so they can be taken back, how
+// it thinks and what it may do, a stop of the turn, the answer to what it
+// asks, and a close. Everything claude's — its pickers, the commands, the
+// shell, the terminal, the move, the window, Remote Control, the name, the
+// restart — is not there, and the screen does not ask the host about any of it. The close says what it
 // does to codex wherever it is offered: the desktop row, the phone's sheet and
 // the session panel, and the sheet of the gate behind each of them, which has
 // no kill under it — the host does not kill codex.
@@ -63,13 +64,25 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		BangLabel   string          `json:"bangLabel"`
 		PasteToast  string          `json:"pasteToast"`
 		Clipped     bool            `json:"clipped"`
-		Send        []struct {
+		Band        []string        `json:"band"`
+		Placeholder string          `json:"placeholder"`
+		FileSent    []struct {
+			Target string   `json:"target"`
+			Text   string   `json:"text"`
+			Files  []string `json:"files"`
+		} `json:"fileSent"`
+		Send []struct {
 			Kind   string         `json:"kind"`
 			Target string         `json:"target"`
 			Params map[string]any `json:"params"`
 		} `json:"send"`
-		Queued       bool     `json:"queued"`
-		TakeBack     bool     `json:"takeBack"`
+		Queued   bool `json:"queued"`
+		TakeBack bool `json:"takeBack"`
+		Unqueued []struct {
+			Target string         `json:"target"`
+			Params map[string]any `json:"params"`
+		} `json:"unqueued"`
+		Gone         bool     `json:"gone"`
 		Panel        []string `json:"panel"`
 		PanelStopOff *bool    `json:"panelStopOff"`
 		StopSent     []string `json:"stopSent"`
@@ -185,7 +198,14 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		}
 	}
 
-	// The composer: the stop of a busy turn, and text alone.
+	// The composer: codex's band, the stop of a busy turn, and a field that
+	// says a message goes after the turn.
+	if strings.Join(got.Band, ",") != "clip,think,perm" {
+		t.Errorf("the band under the field of a codex thread holds %v, expected the paperclip, how it thinks and what it may do", got.Band)
+	}
+	if got.Placeholder != "Goes after the turn" {
+		t.Errorf("the field of a busy codex thread says %q, expected that a message goes after the turn", got.Placeholder)
+	}
 	if got.StopOff == nil || *got.StopOff || !strings.Contains(got.StopLabel, "stop the work of session "+name) {
 		t.Errorf("an empty composer of a busy codex thread offers the stop %q (off %v)", got.StopLabel, got.StopOff)
 	}
@@ -195,17 +215,25 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if got.BangLabel != plainSend {
 		t.Errorf("a leading ! typed to codex goes out as %q, expected a plain message", got.BangLabel)
 	}
-	if got.Clipped || !strings.Contains(got.PasteToast, "takes text only") {
-		t.Errorf("a pasted file is attached (%v) or the toast says %q", got.Clipped, got.PasteToast)
+	if !got.Clipped || got.PasteToast != "" {
+		t.Errorf("a pasted file is attached %v, and the toast says %q", got.Clipped, got.PasteToast)
+	}
+	if len(got.FileSent) != 1 || got.FileSent[0].Target != name || got.FileSent[0].Text != "here it is" ||
+		strings.Join(got.FileSent[0].Files, ",") != "shot.png" {
+		t.Errorf("the file went out as %+v, expected session.file with the words and shot.png", got.FileSent)
 	}
 	if len(got.Send) != 1 || got.Send[0].Target != name || got.Send[0].Params["text"] != "and now say it in one word" {
 		t.Fatalf("the message went out as %+v", got.Send)
 	}
-	if _, ok := got.Send[0].Params["messageId"]; ok || len(got.Send[0].Params) != 1 {
-		t.Errorf("the message to codex carries %v: text alone goes to codex, with nothing to take it back by", got.Send[0].Params)
+	id, _ := got.Send[0].Params["messageId"].(string)
+	if len(id) != 36 || len(got.Send[0].Params) != 2 {
+		t.Errorf("the message to codex carries %v, expected its words and the name it is taken back by", got.Send[0].Params)
 	}
-	if !got.Queued || got.TakeBack {
+	if !got.Queued || !got.TakeBack {
 		t.Errorf("the message sent stands in the feed %v, with the buttons to take it back %v", got.Queued, got.TakeBack)
+	}
+	if len(got.Unqueued) != 1 || got.Unqueued[0].Target != name || got.Unqueued[0].Params["messageId"] != id || !got.Gone {
+		t.Errorf("taking it back sent %+v and left the row %v, expected session.unqueue by the name it went with", got.Unqueued, !got.Gone)
 	}
 
 	// The session panel: where it lives, its id, the stop of its turn and the
@@ -243,7 +271,8 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 
 // On a phone the conversation of a codex thread has the name alone in its
 // heading, and the line under it opens with Codex and the model it runs; a
-// composer of text alone with no band of claude's settings under it,
+// composer with codex's own band under it — the paperclip, how it thinks and
+// what it may do — and nothing of claude's,
 // and in the header's tools nothing but where it lives, its id, the stop
 // of its turn and its close, which says and asks what a close does to codex. Waiting on a command, it shows the card with the answers codex
 // gave, every one of them and in its order, and a press sends the number of
@@ -258,6 +287,7 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 		Sub         string    `json:"sub"`
 		Strip       bool      `json:"strip"`
 		ClaudeTools []string  `json:"claudeTools"`
+		Band        []string  `json:"band"`
 		Placeholder string    `json:"placeholder"`
 		Tools       []string  `json:"tools"`
 		StopOff     *bool     `json:"stopOff"`
@@ -276,8 +306,10 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 				Lasting bool   `json:"lasting"`
 			} `json:"options"`
 		} `json:"permit"`
-		ComposerUnder bool `json:"composerUnder"`
-		PermitSent    []struct {
+		ComposerUnder   bool     `json:"composerUnder"`
+		BusyPlaceholder string   `json:"busyPlaceholder"`
+		Attach          []string `json:"attach"`
+		PermitSent      []struct {
 			Target string         `json:"target"`
 			Params map[string]any `json:"params"`
 		} `json:"permitSent"`
@@ -291,11 +323,18 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 		t.Errorf("the line under the name reads %q and opens with %+v, expected Codex, painted as codex's, and its model",
 			got.Sub, got.Agent)
 	}
-	if got.Strip || len(got.ClaudeTools) != 0 {
-		t.Errorf("the composer of a codex thread has the band of settings %v and claude's tools %v", got.Strip, got.ClaudeTools)
+	if !got.Strip || strings.Join(got.Band, ",") != "clip,think,perm" || len(got.ClaudeTools) != 0 {
+		t.Errorf("the composer of a codex thread has the band %v of %v and claude's tools %v, expected the paperclip, "+
+			"how it thinks and what it may do", got.Strip, got.Band, got.ClaudeTools)
 	}
 	if got.Placeholder != "Write to codex-5afc361b" {
 		t.Errorf("the field says %q", got.Placeholder)
+	}
+	if got.BusyPlaceholder != "Goes after the turn, behind 2 queued" {
+		t.Errorf("the field of a busy thread with two queued says %q", got.BusyPlaceholder)
+	}
+	if strings.Join(got.Attach, ",") != "Camera,Photos,Files" {
+		t.Errorf("the paperclip of a codex thread opens %v, expected where files come from, as claude's does", got.Attach)
 	}
 	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,Copy the session ID,Stop the turn,Close the session" {
 		t.Errorf("the tools of a codex thread list %v", got.Tools)

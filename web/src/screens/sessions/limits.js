@@ -93,7 +93,8 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
     `;
 }
 
-function Limit({ name, data }) {
+// Limit is one window of a limit: its share, a bar and when it starts over.
+export function Limit({ name, data }) {
     if (!data) return null;
     const kind = limitClass(data.pct);
     return html`

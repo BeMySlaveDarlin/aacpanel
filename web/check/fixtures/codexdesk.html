@@ -1,0 +1,129 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:800px} .dkbody{height:800px} #chat{height:800px;display:flex;flex-direction:column}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody"><aside class="dkleft"></aside><section class="dkcenter dkchat" id="chat"></section></div></div>
+<script type="module">
+// The band of a codex thread at a desk: the paperclip, how it thinks with the
+// model named even while it plans, what it may do, and what the turn made at
+// its right end. Each word opens a menu over the composer: the plan, the
+// models by number and the scale of efforts; the three modes by number with
+// the sandbox under them. A number picks, and the menu goes down.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const at = new Date(Date.now() - 60000).toISOString();
+const items = [
+    { role: "me", pos: 1, at, text: "Find out why the cart test is flaky." },
+    { role: "ai", pos: 2, at, text: "It reads the clock twice." },
+];
+const models = [
+    { model: "gpt-6-astra", name: "gpt-6-astra", efforts: ["low", "medium", "high", "xhigh"], effort: "medium" },
+    { model: "gpt-6-astra-mini", name: "gpt-6-astra-mini", efforts: ["low", "medium"], effort: "medium" },
+];
+const sent = [];
+window.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
+    if (u.startsWith("/api/codex/models")) return json({ state: "ok", models });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true });
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() { this.readyState = 2; } };
+
+const exec = { available: true, kinds: ["session.send", "session.stop", "session.set", "session.file", "session.unqueue", "session.close"] };
+const thread = {
+    session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", profile: "acme", agent: "codex",
+    transport: "stream", status: "idle", model: "gpt-6-astra", effort: "high", mode: "ask", plan: false,
+    tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/shop",
+};
+const box = document.getElementById("chat");
+const show = async (live) => {
+    render(null, box);
+    setLiveSessions([live]);
+    render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${live.session} id=${live.sessionId} live=${live}
+        exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), box);
+    if (!await until(() => chip("think") && box.querySelector(".chatfeed .msg.ai"))) throw new Error("the band did not show");
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+// said reads a word of the band as it is seen: the pieces a margin keeps
+// apart are words of their own.
+const said = (el) => {
+    if (!el) return "";
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const parts = [];
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.textContent.trim()) parts.push(n.textContent.trim());
+    return parts.join(" ");
+};
+const chip = (what) => box.querySelector(`.composer .cstrip .pkchip[data-pick="${what}"]`);
+const menu = () => box.querySelector(".cstrip .pkmenu");
+const sets = (n) => sent.slice(n).filter((s) => s.kind === "session.set").map((s) => s.params);
+const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
+const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = {};
+    await show({ ...thread, plan: true });
+    out.planWord = said(chip("think"));
+    await show(thread);
+    const strip = box.querySelector(".composer .cstrip");
+    out.band = Array.from(strip.querySelectorAll(".pickfile, [data-pick], .cwork"))
+        .map((el) => el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : "cwork"));
+
+    chip("think").click();
+    if (!await until(() => menu() && menu().querySelectorAll(".pkrow:not(.cxplan)").length === 2)) throw new Error("the menu of how codex thinks did not open");
+    out.think = {
+        label: menu().getAttribute("aria-label"),
+        plan: Boolean(menu().querySelector(".cxplan[role=switch]")),
+        models: Array.from(menu().querySelectorAll(".pkrow:not(.cxplan)")).map((r) => `${text(r.querySelector(".pknum"))} ${text(r.querySelector(".pkname"))}`),
+        stops: Array.from(menu().querySelectorAll(".pkstop")).map((s) => s.getAttribute("aria-label")),
+        above: menu().getBoundingClientRect().bottom <= strip.getBoundingClientRect().top,
+    };
+    // The keys are heard once the menu's effects are bound, after it is drawn.
+    await settled();
+    let n = sent.length;
+    key("2");
+    await until(() => sets(n).length === 1 && !menu());
+    out.byNumber = sets(n);
+    out.closed = !menu();
+
+    chip("perm").click();
+    if (!await until(() => menu() && menu().querySelector(".cxnote"))) throw new Error("the menu of what codex may do did not open");
+    out.perm = {
+        label: menu().getAttribute("aria-label"),
+        rows: Array.from(menu().querySelectorAll(".pkrow")).map((r) => `${text(r.querySelector(".pknum"))} ${text(r.querySelector(".pkname"))}`),
+        note: text(menu().querySelector(".cxnote")),
+    };
+    n = sent.length;
+    Array.from(menu().querySelectorAll(".pkrow")).find((r) => text(r.querySelector(".pkname")) === "Read only").click();
+    await until(() => sets(n).length === 1 && !menu());
+    out.byPress = sets(n);
+    out.permWord = said(chip("perm"));
+
+    // A press outside puts a menu down and sends nothing.
+    chip("think").click();
+    await until(() => menu());
+    n = sent.length;
+    box.querySelector(".chatfeed").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await until(() => !menu());
+    out.away = { closed: !menu(), sent: sent.length - n };
+    return out;
+})();
+</script>

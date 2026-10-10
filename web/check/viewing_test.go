@@ -164,12 +164,12 @@ process.stdout.write(JSON.stringify(asked));
 }
 
 func TestChatScreenNamesOnlyTheLiveSession(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join(webDir, "src", "screens", "chat.js"))
+	src, err := os.ReadFile(filepath.Join(webDir, "src", "screens", "chat", "conversation.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(src)
-	if !strings.Contains(text, `import { useViewing } from "../viewing.js";`) {
+	if !strings.Contains(text, `import { useViewing } from "../../viewing.js";`) {
 		t.Fatal("the conversation screen does not take the presence mark: a push arrives for a question already on screen")
 	}
 	if !strings.Contains(text, "useViewing(live ? name : \"\")") {

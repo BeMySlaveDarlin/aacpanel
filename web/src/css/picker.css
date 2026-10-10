@@ -257,3 +257,20 @@
 }
 .pkcmds:hover { background: var(--surface); color: var(--ink); }
 .pkcmds svg { width: var(--i-sm); height: var(--i-sm); }
+
+/* The band of a codex thread: how it thinks and what it may do. A phone has
+   the width of the band for both words and the paperclip, so a long model
+   name gives way at its end rather than pushing the next word off. */
+.cxchip { flex: 0 1 auto; min-width: 0; }
+.cxchip svg { flex: none; }
+.cxword { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cxplanword { color: var(--accent); }
+.cxbar { min-width: 0; }
+.pkmenu.cxmenu { width: 22rem; }
+.pkmenuhead .cxwhen { margin-left: auto; color: var(--ink-faint); }
+.cxscale { padding: 0 .55rem; }
+.pknote.cxnote { margin: .2rem .55rem .3rem; }
+/* The switch of the plan stands in a card of its own on a phone, the way the
+   rows of the lists under it do. */
+.cxplanbox { padding: 0 .85rem; background: var(--surface); }
+.cxsandbox { padding: 0 .2rem; }

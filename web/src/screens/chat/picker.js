@@ -26,7 +26,10 @@ export const ULTRA = "ultracode";
 
 export const EFFORTS = COMMANDS.effort.args.filter((level) => level !== ULTRA);
 
+// The names of the efforts both agents take; codex starts lower than claude,
+// with none and minimal.
 export const EFFORT_NAMES = {
+    none: "None", minimal: "Minimal",
     low: "Low", medium: "Medium", high: "High", xhigh: "Extra", max: "Max", ultracode: "Ultracode",
 };
 
@@ -220,7 +223,7 @@ function transportOf(data) {
     return (data && data.session && data.session.transport) || "";
 }
 
-function Row({ on, icon, tone, name, desc, onPick, disabled, number }) {
+export function PickRow({ on, icon, tone, name, desc, onPick, disabled, number }) {
     return html`
         <button type="button" class=${`pkrow${on ? " on" : ""}`} disabled=${disabled}
                 aria-pressed=${on ? "true" : "false"} onClick=${onPick}>
@@ -236,13 +239,14 @@ function Row({ on, icon, tone, name, desc, onPick, disabled, number }) {
 }
 
 // EffortScale is the effort as a scale from faster to smarter: a stop per
-// level the model takes, the one the session runs at under the knob. A model
-// that takes xhigh takes ultracode too, and it gets the stop past the line;
-// where the pick would be saved as a default, that stop is off — ultracode is
-// set per session.
-export function EffortScale({ levels, value, onPick, disabled, ultraOff }) {
+// level the model takes, the one the session runs at under the knob. A claude
+// model that takes xhigh takes ultracode too, and it gets the stop past the
+// line; where the pick would be saved as a default, that stop is off —
+// ultracode is set per session. Codex has no ultracode, and its scale is the
+// levels alone.
+export function EffortScale({ levels, value, onPick, disabled, ultraOff, ultra = true }) {
     const base = levels.filter((level) => level !== ULTRA);
-    const stops = base.includes("xhigh") ? [...base, ULTRA] : base;
+    const stops = ultra && base.includes("xhigh") ? [...base, ULTRA] : base;
     const at = stops.indexOf(value);
     return html`
         <div class="pkscale">
@@ -338,7 +342,7 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why, scope, se
             `}
             <div class="pklist">
                 ${MODE_OPTIONS.map((m) => html`
-                    <${Row} key=${m.value} on=${m.value === mode} icon=${m.icon} tone=${m.tone}
+                    <${PickRow} key=${m.value} on=${m.value === mode} icon=${m.icon} tone=${m.tone}
                             name=${m.name} desc=${m.desc} disabled=${terminal || off}
                             onPick=${() => pick({ mode: m.value }, `Mode: ${m.name}`, transport)} />
                 `)}
@@ -353,7 +357,7 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why, scope, se
         <${Scope} transport=${transport} value=${scope} onChange=${setScope} />
         <div class="pklist">
             ${choices.main.map((m) => html`
-                <${Row} key=${m.value} on=${m.value === model} name=${m.title} desc=${m.desc} disabled=${off}
+                <${PickRow} key=${m.value} on=${m.value === model} name=${m.title} desc=${m.desc} disabled=${off}
                         onPick=${() => pick({ model: m.value, ...where }, `Model: ${m.title}`, transport)} />
             `)}
         </div>
@@ -371,7 +375,7 @@ function PickPane({ pane, setPane, data, live, chosen, pick, off, why, scope, se
             <div class="pkgroup">Other models</div>
             <div class="pklist">
                 ${choices.other.map((m) => html`
-                    <${Row} key=${m.value} on=${m.value === model} name=${m.title} disabled=${off}
+                    <${PickRow} key=${m.value} on=${m.value === model} name=${m.title} disabled=${off}
                             onPick=${() => pick({ model: m.value, ...where }, `Model: ${m.title}`, transport)} />
                 `)}
             </div>
@@ -485,7 +489,7 @@ export function PickBar({ name, live, exec, lead = null }) {
                     <div class="pkmenuhead">Mode</div>
                     ${terminal && html`<p class="pknote">In a terminal the mode is switched on its own screen with shift+tab.</p>`}
                     ${modes.map((m, i) => html`
-                        <${Row} key=${m.value} on=${m.value === mode} name=${m.name} desc=${m.desc}
+                        <${PickRow} key=${m.value} on=${m.value === mode} name=${m.name} desc=${m.desc}
                                 number=${i + 1} disabled=${terminal}
                                 onPick=${() => choose({ mode: m.value }, `Mode: ${m.name}`)} />
                     `)}
@@ -496,7 +500,7 @@ export function PickBar({ name, live, exec, lead = null }) {
                     ${data && data.state !== "ok" && html`<p class="pknote">${data.reason}</p>`}
                     <${Scope} transport=${transport} value=${scope} onChange=${setScope} />
                     ${choices.main.map((m, i) => html`
-                        <${Row} key=${m.value} on=${m.value === model} name=${m.title} number=${i + 1}
+                        <${PickRow} key=${m.value} on=${m.value === model} name=${m.title} number=${i + 1}
                                 onPick=${() => choose({ model: m.value, ...where }, `Model: ${m.title}`)} />
                     `)}
                     ${choices.other.length > 0 && html`
@@ -517,7 +521,7 @@ export function PickBar({ name, live, exec, lead = null }) {
                     ${sub === "more" && html`
                         <div class="pkmenu pksub" role="menu" aria-label="more models">
                             ${choices.other.map((m) => html`
-                                <${Row} key=${m.value} on=${m.value === model} name=${m.title}
+                                <${PickRow} key=${m.value} on=${m.value === model} name=${m.title}
                                         onPick=${() => choose({ model: m.value, ...where }, `Model: ${m.title}`)} />
                             `)}
                         </div>

@@ -44,7 +44,7 @@ func TestFeedJumpAndStickinessShareOneEndRule(t *testing.T) {
 		}
 	}
 
-	for _, feed := range []string{"src/screens/chat.js", "src/screens/chat/subchat.js"} {
+	for _, feed := range []string{"src/screens/chat/conversation.js", "src/screens/chat/subchat.js"} {
 		body, ok := files[feed]
 		if !ok {
 			t.Fatalf("%s not found — the test is looking in the wrong place", feed)

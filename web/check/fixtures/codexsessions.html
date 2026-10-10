@@ -10,9 +10,11 @@
 // A codex thread beside a claude session: named Codex, in a hue of its own, at
 // the head of the line of its model on both lists and in the header of its
 // conversation, living on the daemon, offered on the phone's sheet only what
-// the host does for it, and in its conversation a composer that takes text alone
-// with nothing of claude's around it — no pickers, no commands, no files, no
-// terminal, no move, no window, no Remote Control. Each of the three places
+// the host does for it, and in its conversation a composer with codex's own
+// band — the paperclip, how it thinks and what it may do — and nothing of
+// claude's around it: no commands, no shell, no terminal, no move, no window,
+// no Remote Control. A file goes as a file, and a message to the busy thread
+// waits in the panel's queue, named so it can be taken back. Each of the three places
 // closes it, saying what a close does to codex, and the sheet of the gate asks
 // in codex's words with no kill under it. The screen never asks the host about
 // what it does not offer.
@@ -165,13 +167,15 @@ window.done = (async () => {
     out.tabs = names(chat, ".dktabs .dktab");
     out.place = text(chat.querySelector(".dkplace"));
     out.claudeTools = {
-        pickbar: Boolean(chat.querySelector(".pickbar, .pkchip")),
+        pickers: Boolean(chat.querySelector("[data-pick=model], [data-pick=mode]")),
         commands: Boolean(chat.querySelector(".pkcmds")),
-        file: Boolean(chat.querySelector(".pickfile")),
         term: Boolean(chat.querySelector(".term, .xterm")),
     };
     const composer = chat.querySelector(".composer");
+    out.band = Array.from(composer.querySelectorAll(".cstrip .pickfile, .cstrip [data-pick]"))
+        .map((el) => el.dataset.pick || "clip");
     const area = composer.querySelector("textarea");
+    out.placeholder = area.placeholder;
     const stopButton = composer.querySelector(".iconbtn.danger");
     out.stopLabel = stopButton ? stopButton.getAttribute("aria-label") : "";
     out.stopOff = stopButton ? stopButton.disabled : null;
@@ -189,24 +193,38 @@ window.done = (async () => {
     await until(() => composer.querySelector(".sendbtn"));
     out.bangLabel = composer.querySelector(".sendbtn").getAttribute("aria-label");
 
-    // A file pasted into the field stays out of it, and the toast says why.
+    // A file pasted into the field goes with the words as a file.
+    type(area, "");
+    await until(() => composer.querySelector(".iconbtn.danger"));
     const files = new DataTransfer();
     files.items.add(new File(["x"], "shot.png", { type: "image/png" }));
     area.dispatchEvent(new ClipboardEvent("paste", { clipboardData: files, bubbles: true, cancelable: true }));
-    await until(() => document.querySelector(".toast.on"));
-    out.pasteToast = names(document, ".toast.on").join(" | ");
+    await until(() => chat.querySelector(".clippack"));
     out.clipped = Boolean(chat.querySelector(".clippack"));
+    out.pasteToast = names(document, ".toast.on").join(" | ");
+    type(area, "here it is");
+    await until(() => composer.querySelector(".sendbtn:not([disabled])"));
+    composer.querySelector(".sendbtn").click();
+    await until(() => sent.some((s) => s.kind === "session.file") && !chat.querySelector(".clippack"));
+    out.fileSent = sent.filter((s) => s.kind === "session.file")
+        .map((s) => ({ target: s.target, text: s.params.text, files: s.params.files.map((f) => f.name) }));
 
-    // A message goes out as text alone, with nothing to take it back by.
+    // A message to the busy thread is named, waits in the queue, and is
+    // taken back by its name.
     type(area, "and now say it in one word");
     await until(() => composer.querySelector(".sendbtn:not([disabled])"));
     composer.querySelector(".sendbtn").click();
     const local = () => Array.from(chat.querySelectorAll(".chatfeed .msg.me.queued"))
         .find((m) => text(m).includes("say it in one word"));
-    await until(() => sent.some((s) => s.kind === "session.send") && local());
+    await until(() => sent.some((s) => s.kind === "session.send") && local() && chat.querySelector(".mqueue"));
     out.send = sent.filter((s) => s.kind === "session.send");
     out.queued = Boolean(local());
     out.takeBack = Boolean(chat.querySelector(".mqueue"));
+    const back = Array.from(chat.querySelectorAll(".mqueue .btn")).find((b) => text(b) === "take back");
+    if (back) back.click();
+    await until(() => sent.some((s) => s.kind === "session.unqueue") && !local());
+    out.unqueued = sent.filter((s) => s.kind === "session.unqueue").map((s) => ({ target: s.target, params: s.params }));
+    out.gone = !local();
 
     // The session panel: where it lives, its id, and the stop of its turn.
     chat.querySelector(".dkplace").click();

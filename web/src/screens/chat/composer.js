@@ -200,11 +200,11 @@ export function deliver(run, name, { text, files, messageId }) {
         : run("session.send", name, messageId ? { text, messageId } : { text });
 }
 
-// messageID names a message to a session on the stream, so that it can be
-// taken back while it waits in the queue. A terminal session gets none: its
-// queue is on its screen.
-function messageID(stream, pack) {
-    if (!stream || pack.length || typeof crypto === "undefined" || !crypto.randomUUID) return undefined;
+// messageID names a message to a session whose queue the panel can take it
+// back from while it waits there. A message with files goes as files, and the
+// queue knows no name for it.
+function messageID(named, pack) {
+    if (!named || pack.length || typeof crypto === "undefined" || !crypto.randomUUID) return undefined;
     return crypto.randomUUID();
 }
 
@@ -222,10 +222,12 @@ export function asksSend(e, wide) {
     return Boolean(wide || e.ctrlKey || e.metaKey);
 }
 
-// Composer writes into a live session. A plain one takes text alone, for a
-// session that is not claude: no commands, no shell, no files, and nothing
-// to take back from a queue — the words go into its turn as they are.
-export function Composer({ name, id, exec, busy, stream, plain = false, hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
+// Composer writes into a live session. What it reads in the words beyond the
+// words is the agent's to plug in: commands after a leading "/" and their
+// list, a command for the shell after a leading "!", a name on each message
+// it can be taken back from the queue by, and what the field says while a
+// busy session would only queue it. Without them the words go as they are.
+export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -271,10 +273,10 @@ export function Composer({ name, id, exec, busy, stream, plain = false, hold, fi
     const why = whyNot(exec, "session.send");
     const canStop = knows(exec, "session.stop");
     const stopWhy = whyNot(exec, "session.stop");
-    const canFile = !plain && knows(exec, "session.file");
-    const fileWhy = plain ? "the session takes text only" : whyNot(exec, "session.file");
-    const canCmd = !plain && knows(exec, "session.command");
-    const canShell = !plain && knows(exec, "session.shell");
+    const canFile = knows(exec, "session.file");
+    const fileWhy = whyNot(exec, "session.file");
+    const canCmd = commands && knows(exec, "session.command");
+    const canShell = shell && knows(exec, "session.shell");
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
     const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
@@ -286,7 +288,7 @@ export function Composer({ name, id, exec, busy, stream, plain = false, hold, fi
     const opens = cmd && cmd.screen && onScreen ? cmd.command : "";
     // A question aside on the stream is the panel's to ask: it goes to the side
     // chat and never into the conversation.
-    const side = stream && !plain && onSide && !pack.length ? parseSide(text) : null;
+    const side = stream && onSide && !pack.length ? parseSide(text) : null;
     // A leading "!" on the stream is a command for the shell of the session,
     // as it is in the composer of a terminal; a session in tmux takes it as
     // typed.
@@ -343,7 +345,7 @@ export function Composer({ name, id, exec, busy, stream, plain = false, hold, fi
     // the shell, not into the composer of the session.
     const sendShell = async (body) => {
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const runId = messageID(stream, pack);
+        const runId = messageID(ids, pack);
         setText("");
         setSending(true);
         if (onLocal) {
@@ -397,7 +399,7 @@ export function Composer({ name, id, exec, busy, stream, plain = false, hold, fi
         if (bang) return sendShell(body);
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");
-        const messageId = messageID(stream && !plain, pack);
+        const messageId = messageID(ids, pack);
         // A row that did not go out is drawn among the rows of the feed, and
         // those are written from the transcript — nothing is handed to them.
         // So the row carries what a second attempt takes: where the message
@@ -470,14 +472,14 @@ export function Composer({ name, id, exec, busy, stream, plain = false, hold, fi
             <textarea
                 rows="1"
                 ref=${(el) => { area.current = el; grow(el); }}
-                placeholder=${placeholder(ready, why, name, pack)}
+                placeholder=${placeholder(ready, why, name, pack, busy ? waits : "")}
                 disabled=${!ready || sending}
                 value=${text}
                 onInput=${(e) => { setText(e.target.value); grow(e.target); }}
                 onPaste=${paste}
                 onKeyDown=${keys}
             ></textarea>
-            ${!strip && !plain && pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
+            ${!strip && pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
             ${stopping
                 ? html`
                     <button
@@ -494,7 +496,7 @@ export function Composer({ name, id, exec, busy, stream, plain = false, hold, fi
                         class=${`iconbtn accent sendbtn${hear.live ? " hearing" : ""}`}
                         type="button"
                         aria-label=${micLabel(asMic, hear.live, cmd, name, side, bang)}
-                        title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang)}
+                        title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang, busy ? waits : "")}
                         disabled=${cantSend}
                         onClick=${() => { if (!hear.tap(asMic)) send(); }}
                         onPointerDown=${(e) => hear.down(e, asMic)}
@@ -504,7 +506,7 @@ export function Composer({ name, id, exec, busy, stream, plain = false, hold, fi
                     >${asMic || hear.live ? Icon.mic() : Icon.arrowup()}</button>
                 `}
             ${strip && html`<div class="cstrip">
-                ${!plain && pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
+                ${pack.length < FILES_MAX && html`<${PickFile} exec=${exec} onAsk=${onAsk} />`}
                 ${strip}
             </div>`}
         </div>
@@ -573,9 +575,12 @@ function grow(el) {
     el.style.height = Math.min(el.scrollHeight, MAX_COMPOSER) + "px";
 }
 
-function placeholder(ready, why, name, pack) {
+// placeholder says what the field takes. While a busy session would only
+// queue a message, the words of its agent for that stand in the field: what is
+// written now does not reach the turn under way.
+function placeholder(ready, why, name, pack, waits) {
     if (!ready) return why;
-    if (!pack.length) return `Write to ${name}`;
+    if (!pack.length) return waits ? waits[0].toUpperCase() + waits.slice(1) : `Write to ${name}`;
     return pack.length > 1 ? "A caption for the files — optional" : "A caption for the file — optional";
 }
 
@@ -587,10 +592,12 @@ function micLabel(asMic, live, cmd, name, side, bang) {
     return cmd ? `send a command to session ${name}` : `send to session ${name}`;
 }
 
-function micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd, bang) {
+function micTitle(hear, asMic, hold, ready, why, canFile, fileWhy, pack, cmd, bang, waits) {
     if (hear.live) return "listening — press again to stop, and the words stay in the field";
     if (asMic) return "press to talk";
-    const plain = hold ? "will go out when the session is free" : sendTitle(ready, why, canFile, fileWhy, pack, cmd, bang);
+    const plain = hold ? "will go out when the session is free"
+        : waits && ready && !pack.length && !cmd && !bang ? waits
+        : sendTitle(ready, why, canFile, fileWhy, pack, cmd, bang);
     return hear.on ? `${plain} · hold to talk` : plain;
 }
 

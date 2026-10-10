@@ -271,7 +271,7 @@ func TestPanelTakesFocusOnlyWhereThereIsNoKeyboard(t *testing.T) {
 		}
 	}
 
-	chat := stripComments(files["src/screens/chat.js"])
+	chat := stripComments(files["src/screens/chat/conversation.js"])
 	if !strings.Contains(chat, "focus=${`${name}|${id || \"\"}|${view}`}") {
 		t.Error("the composer does not know the chat or the view changed: the focus is set once " +
 			"in the life of the screen, and switching the feed with the terminal does not move it")
@@ -309,7 +309,7 @@ func TestAttachmentTargetsEachHaveTheirOwnInput(t *testing.T) {
 		t.Error("the sheet is drawn inside the composer: `position: fixed` inside glass is " +
 			"not fixed, and a closed sheet peeks out above the bottom edge")
 	}
-	if !strings.Contains(stripComments(files["src/screens/chat.js"]), "${live && html`<${AttachSheet}") {
+	if !strings.Contains(stripComments(files["src/screens/chat/conversation.js"]), "${live && html`<${AttachSheet}") {
 		t.Error("the chat screen does not draw the target sheet for a live session — then someone " +
 			"below draws it, and below there is only the composer with its glass")
 	}

@@ -7,6 +7,7 @@ import { ago, bytes, plural, share, tokens } from "../format.js";
 import { BackHead } from "../ui/back.js";
 import { Chips } from "../ui/chips.js";
 import { Chat } from "./chat.js";
+import { agoText, Limit, staleLimits } from "./sessions/limits.js";
 import {
     BY_PROJECT,
     BY_SESSION,
@@ -97,6 +98,8 @@ export function Usage({ snapshot, exec, onBack }) {
             <${Projects} state=${options} current=${project} onPick=${setProject} />
         </section>
 
+        <${Limits} limits=${snapshot && snapshot.limits} />
+
         <${Totals} state=${totals} />
 
         <section class="card">
@@ -119,6 +122,58 @@ export function Usage({ snapshot, exec, onBack }) {
         />
 
         <${Rescan} state=${scan} />
+    `;
+}
+
+// Limits are what each contour may still spend: claude's five hours and
+// seven days, and beside them codex's week where its account told one. A
+// contour codex alone has spent in has a line of codex's alone.
+function Limits({ limits }) {
+    const known = !limits ? []
+        : limits.contours && limits.contours.length ? limits.contours
+        : limits.fiveHour || limits.sevenDay || limits.codex ? [limits] : [];
+    if (!known.length) return null;
+    return html`
+        <section class="card ulimits">
+            <h2>Limits</h2>
+            ${known.map((c, i) => html`
+                <div class="ulimit" key=${c.profile || c.configDir || i}>
+                    ${c.profile && html`<div class="ulimitname">${c.profile}</div>`}
+                    <div class="ulimitrows">
+                        ${(c.fiveHour || c.sevenDay) && html`
+                            <span class="agentword" data-agent="claude">Claude</span>
+                            <div class=${`limits${staleLimits(c) ? " ulold" : ""}`}
+                                 title=${staleLimits(c) ? `the numbers are from ${agoText(c.ageSec)}` : undefined}>
+                                <${Limit} name="5 hours" data=${c.fiveHour} />
+                                <${Limit} name="7 days" data=${c.sevenDay} />
+                            </div>
+                        `}
+                        ${c.codex && html`
+                            <span class="agentword" data-agent="codex">Codex</span>
+                            <${CodexWeek} codex=${c.codex} />
+                        `}
+                    </div>
+                </div>
+            `)}
+            ${known.some((c) => c.codex) && html`
+                <p class="hint ulimitnote">codex shows its week; the share is renewed while the panel holds a thread of the contour</p>
+            `}
+        </section>
+    `;
+}
+
+// CodexWeek is the weekly window of a codex account. An account that told no
+// week says so rather than showing an empty bar, and one that ran into its
+// limit says that too.
+function CodexWeek({ codex }) {
+    const old = staleLimits(codex);
+    return html`
+        <div class=${`limits ulhalf${old ? " ulold" : ""}`} title=${old ? `the numbers are from ${agoText(codex.ageSec)}` : undefined}>
+            ${codex.sevenDay
+                ? html`<${Limit} name="7 days" data=${codex.sevenDay} />`
+                : html`<div class="limit"><span class="lsub">codex has told no weekly window yet</span></div>`}
+        </div>
+        ${codex.reached && html`<span></span><p class="lsub crit ulreached">codex says the limit is reached</p>`}
     `;
 }
 

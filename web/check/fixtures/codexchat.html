@@ -6,12 +6,13 @@
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
 // The conversation of a codex thread on a phone: the name alone in the
-// heading and Codex with its model opening the line under it, a
-// composer of text alone with no band of claude's settings under it, the
-// tools of the header with nothing but where it lives, its id, the stop of
-// its turn and its close, the close asking on the sheet of the gate in codex's
-// words; then the same thread waiting on a command, and the card with the
-// three answers codex gave, in its order, the second of them pressed.
+// heading and Codex with its model opening the line under it, a composer with
+// the band of codex's own under it — the paperclip, how it thinks and what it
+// may do — and nothing of claude's, the tools of the header with nothing but
+// where it lives, its id, the stop of its turn and its close, the close asking
+// on the sheet of the gate in codex's words; then the same thread waiting on a
+// command, and the card with the three answers codex gave, in its order, the
+// second of them pressed.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -92,7 +93,9 @@ window.done = (async () => {
     out.sub = Array.from(sub.children).map(text).filter(Boolean).join(" ");
     const composer = root.querySelector(".composer");
     out.strip = Boolean(composer.querySelector(".cstrip"));
-    out.claudeTools = Array.from(composer.querySelectorAll(".pickfile, .pkchip, .pkcmds")).map((el) => el.className);
+    out.claudeTools = Array.from(composer.querySelectorAll(".pkcmds, [data-pick=model], [data-pick=mode]")).map((el) => el.className);
+    out.band = Array.from(composer.querySelectorAll(".cstrip .pickfile, .cstrip [data-pick]"))
+        .map((el) => el.dataset.pick || "clip");
     out.placeholder = composer.querySelector("textarea").placeholder;
 
     // The tools are opened once the feed has come: the header binds its
@@ -144,6 +147,18 @@ window.done = (async () => {
     card.querySelectorAll(".askpick")[1].click();
     await until(() => sent.some((s) => s.kind === "session.permit"));
     out.permitSent = sent.filter((s) => s.kind === "session.permit");
+
+    // A busy thread with two messages already queued: the field says where
+    // the next one goes, and the paperclip opens where files come from.
+    render(null, root);
+    render(page({ ...thread, status: "busy", queued: 2 }), root);
+    if (!await until(() => root.querySelector(".composer .cstrip .pickfile") && root.querySelector(".chatfeed .msg.ai"))) {
+        throw new Error("the busy thread did not show");
+    }
+    out.busyPlaceholder = root.querySelector(".composer textarea").placeholder;
+    root.querySelector(".composer .cstrip .pickfile").click();
+    await until(() => document.querySelector(".sheet.on .addctx"));
+    out.attach = names(document, ".sheet.on .addctxtile");
     return out;
 })();
 </script>

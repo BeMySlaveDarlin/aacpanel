@@ -71,9 +71,9 @@ func TestABriefOnAPhoneTakesTheScreen(t *testing.T) {
 // in the sheet is a document. Without that word the brief is drawn as every
 // other layer of the run — a dialog the width of a question.
 func TestTheConversationCallsABriefADocument(t *testing.T) {
-	src := srcFiles(t)["src/screens/chat.js"]
+	src := srcFiles(t)["src/screens/chat/conversation.js"]
 	if src == "" {
-		t.Fatal("src/screens/chat.js not found — the test is looking in the wrong place")
+		t.Fatal("src/screens/chat/conversation.js not found — the test is looking in the wrong place")
 	}
 	if !strings.Contains(src, "doc=") {
 		t.Fatal("the conversation never calls anything a document — a brief opened over it is drawn as a dialog")

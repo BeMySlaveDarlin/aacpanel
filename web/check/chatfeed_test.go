@@ -10,7 +10,7 @@ import (
 func TestFeedsWireCodeCopy(t *testing.T) {
 	files := srcFiles(t)
 
-	for _, feed := range []string{"src/screens/chat.js", "src/screens/chat/subchat.js"} {
+	for _, feed := range []string{"src/screens/chat/conversation.js", "src/screens/chat/subchat.js"} {
 		src, ok := files[feed]
 		if !ok {
 			t.Fatalf("%s not found — the test is looking in the wrong place", feed)
@@ -307,15 +307,18 @@ func TestChatDropsPreviousSessionState(t *testing.T) {
 }
 
 func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
-	const chatFile = "src/screens/chat.js"
+	// The view is claude's to pick, and the reset on a session switch is the
+	// conversation's: each is read where it lives.
+	const claudeFile = "src/screens/chat/claude.js"
+	const chatFile = "src/screens/chat/conversation.js"
 	src := srcFiles(t)[chatFile]
 	if src == "" {
 		t.Fatalf("%s not found — the test is useless", chatFile)
 	}
 
-	if !strings.Contains(src, "useViewPick(name,") {
+	if !strings.Contains(srcFiles(t)[claudeFile], "useViewPick(name,") {
 		t.Errorf("%s: the layout is not taken from the session's own choice on the device — the choice is lost "+
-			"on the very first move to a neighbouring chat", chatFile)
+			"on the very first move to a neighbouring chat", claudeFile)
 	}
 
 	end := strings.Index(src, "}, [name, id]);")
@@ -338,7 +341,7 @@ func TestChatViewOutlivesTheSessionSwitch(t *testing.T) {
 	// the panel of the wide screen hold one set of sections, fed one set of
 	// facts, and cannot drift apart.
 	tools := screenSrc(t, "src/screens/chat/sessiontools.js")
-	if n := strings.Count(tools, "<${SessionSections}"); n != 2 {
+	if n := strings.Count(tools, "<${Sections}"); n != 2 {
 		t.Errorf("the sections of the session are drawn in %d places, not in the phone's sheet and the "+
 			"wide screen's panel alone — the two drift apart silently", n)
 	}

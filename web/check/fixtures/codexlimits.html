@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The usage page with the limits of every contour at its top: claude's five
+// hours and seven days, and beside them codex's week where its account told
+// one; a contour codex alone spent in has codex's line alone, and an account
+// that told no week, or ran into its limit, says so.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Usage } from "/src/screens/usage.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/usage/contours")) return json({ contours: ["acme", "personal"] });
+    if (u.startsWith("/api/usage/summary")) return json({ summary: { output: 1000, answers: 2000, sessions: 3 }, inbound: 5000, subShareIn: 0, subShareOut: 0 });
+    if (u.startsWith("/api/usage/series")) return json({ points: [], step: "day" });
+    if (u.startsWith("/api/usage/breakdown")) return json({ rows: [] });
+    if (u.startsWith("/api/usage/scan")) return json({ available: true, scannedAt: 0, files: 0, state: { running: false, contours: [] } });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const now = Math.floor(Date.now() / 1000);
+const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
+const limits = { contours: [
+    { profile: "acme", contour: 4, ageSec: 30, fiveHour: part(7, 3.4), sevenDay: part(41, 98),
+      codex: { at: now - 30, ageSec: 30, codexHome: "/home/u/.codex", plan: "pro",
+               windows: [{ pct: 12, resetsAt: now + 3600, windowMins: 300 }, { pct: 63, resetsAt: now + 52 * 3600, windowMins: 10080 }],
+               sevenDay: part(63, 52) } },
+    { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2.2), sevenDay: part(24, 100) },
+    { profile: "lab", codex: { at: now - 30, ageSec: 30, codexHome: "/home/u/.codex-lab", windows: [], reached: "rate_limit" } },
+] };
+
+const root = document.getElementById("root");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+window.done = (async () => {
+    await document.fonts.ready;
+    render(h(ToastHost, null, h(GateHost, null, html`<${Usage} snapshot=${{ sessions: [], limits }}
+        exec=${{ available: true, kinds: [] }} onBack=${() => {}} />`)), root);
+    if (!await until(() => root.querySelector(".ulimits .ulimit"))) throw new Error("the limits did not show");
+    const card = root.querySelector(".ulimits");
+    const out = {};
+    out.after = card.previousElementSibling ? card.previousElementSibling.className : "";
+    out.contours = Array.from(card.querySelectorAll(".ulimit")).map((c) => {
+        const lines = [];
+        let agent = "";
+        for (const el of c.querySelector(".ulimitrows").children) {
+            if (el.classList.contains("agentword")) {
+                agent = text(el);
+                lines.push({ agent, windows: [], colour: getComputedStyle(el).color });
+            } else if (el.classList.contains("limits")) {
+                lines[lines.length - 1].windows = Array.from(el.querySelectorAll(".limit")).map((l) =>
+                    [text(l.querySelector(".lname")), text(l.querySelector(".lval")), text(l.querySelector(".lsub"))].filter(Boolean).join(" "));
+                lines[lines.length - 1].width = Math.round(el.querySelector(".limit").getBoundingClientRect().width);
+            } else if (el.textContent.trim()) {
+                lines[lines.length - 1].note = text(el);
+            }
+        }
+        return { name: text(c.querySelector(".ulimitname")), lines };
+    });
+    return out;
+})();
+</script>

@@ -51,7 +51,7 @@ func TestLiveChatOpensInTerminal(t *testing.T) {
 }
 
 func TestTerminalIsItsOwnComposer(t *testing.T) {
-	const chatFile = "src/screens/chat.js"
+	const chatFile = "src/screens/chat/conversation.js"
 	src := srcFiles(t)[chatFile]
 	if src == "" {
 		t.Fatalf("%s not found", chatFile)
@@ -397,7 +397,7 @@ func TestTheTerminalRowCarriesAStickyCtrl(t *testing.T) {
 // not under a terminal: there it stands between the keys and the edge of the
 // screen and says nothing about what is on it.
 func TestTheRequestLineStaysOutOfTheTerminal(t *testing.T) {
-	const jsFile = "src/screens/chat.js"
+	const jsFile = "src/screens/chat/conversation.js"
 	src := stripComments(srcFiles(t)[jsFile])
 	if src == "" {
 		t.Fatalf("%s not found", jsFile)

@@ -9,7 +9,7 @@ import (
 // way in to where it comes from, on both shells.
 func TestTheDeckCounterOpensUsage(t *testing.T) {
 	files := srcFiles(t)
-	chat := funcBody(t, files["src/screens/chat.js"], "export function Chat(")
+	chat := funcBody(t, files["src/screens/chat/conversation.js"], "export function Conversation(")
 	if !strings.Contains(chat, `class="deckuse"`) || !strings.Contains(chat, "onClick=${onUsage}") {
 		t.Error("the deck counter is not a way to the usage screen")
 	}
