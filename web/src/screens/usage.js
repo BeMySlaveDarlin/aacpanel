@@ -7,7 +7,7 @@ import { ago, bytes, plural, share, tokens } from "../format.js";
 import { BackHead } from "../ui/back.js";
 import { Chips } from "../ui/chips.js";
 import { Chat } from "./chat.js";
-import { agoText, Limit, staleLimits } from "./sessions/limits.js";
+import { agoText, CODEX_REACHED, CodexWeek, Limit, staleLimits } from "./sessions/limits.js";
 import {
     BY_PROJECT,
     BY_SESSION,
@@ -150,7 +150,7 @@ function Limits({ limits }) {
                         `}
                         ${c.codex && html`
                             <span class="agentword" data-agent="codex">Codex</span>
-                            <${CodexWeek} codex=${c.codex} />
+                            <${CodexLine} codex=${c.codex} />
                         `}
                     </div>
                 </div>
@@ -162,18 +162,16 @@ function Limits({ limits }) {
     `;
 }
 
-// CodexWeek is the weekly window of a codex account. An account that told no
-// week says so rather than showing an empty bar, and one that ran into its
-// limit says that too.
-function CodexWeek({ codex }) {
+// CodexLine is codex's line of a contour: its week, as wide as one of
+// claude's windows and dimmed while its numbers are old, and the word that
+// the account ran into its limit.
+function CodexLine({ codex }) {
     const old = staleLimits(codex);
     return html`
         <div class=${`limits ulhalf${old ? " ulold" : ""}`} title=${old ? `the numbers are from ${agoText(codex.ageSec)}` : undefined}>
-            ${codex.sevenDay
-                ? html`<${Limit} name="7 days" data=${codex.sevenDay} />`
-                : html`<div class="limit"><span class="lsub">codex has told no weekly window yet</span></div>`}
+            <${CodexWeek} codex=${codex} name="7 days" />
         </div>
-        ${codex.reached && html`<span></span><p class="lsub crit ulreached">codex says the limit is reached</p>`}
+        ${codex.reached && html`<span></span><p class="lsub crit ulreached">${CODEX_REACHED}</p>`}
     `;
 }
 

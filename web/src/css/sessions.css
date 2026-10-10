@@ -187,6 +187,17 @@
 
 .limitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 
+/* Codex's week stands on a row of its own under claude's two windows, as
+   wide as one of them, so its bar is read on their scale; a third window
+   beside them leaves none of the three room for the time to its reset. The
+   line of an account that told no week has no bar to compare and takes the
+   row, where it reads in one piece. The bar is in codex's hue, as its ring at
+   a desk is, until it nears its end. */
+.pflimits .pfcodex > .limit { flex: 0 1 calc(50% - .25rem); }
+.pflimits .pfcodex > .limit.lempty { flex: 1; }
+.pflimits .limit[data-agent="codex"] .fill.ok { background: var(--agent-codex); }
+.pflimits .pfold { opacity: .45; }
+
 .srow .sdot, .srow .cmark { display: none; }
 
 @media (min-width: 1100px) {

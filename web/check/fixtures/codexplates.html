@@ -1,0 +1,145 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div class="shell" id="shell"></div>
+<script type="module">
+// The limits at the top of every contour page of the phone: claude's five
+// hours and seven days, and under them codex's week where its account told
+// one, signed Codex in codex's hue. A contour without codex keeps claude's
+// two, a contour codex alone spent in has codex's alone, and an account that
+// told no week, ran into its limit or has not renewed its numbers for a while
+// says so. Every page is measured for words cut off or windows run into one
+// another, at whatever width the screen of the run is.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Sessions } from "/src/screens/sessions.js";
+import { Nav } from "/src/ui/nav.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    return json({});
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const now = Math.floor(Date.now() / 1000);
+// Half an hour past the whole hour, so the hours left read the same through the run.
+const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 + 1800 });
+const codex = (ageSec, more) => ({ at: now - ageSec, ageSec, codexHome: "/home/u/.codex", windows: [], ...more });
+const profileMap = [
+    { id: 4, profile: "Acme", name: "Acme", groups: [] },
+    { id: 3, profile: "personal", name: "personal", groups: [] },
+    { id: 5, profile: "lab", name: "lab", groups: [] },
+    { id: 6, profile: "globex", name: "globex", groups: [] },
+];
+const limits = { contours: [
+    { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(7, 3), sevenDay: part(41, 98),
+      codex: codex(30, { plan: "pro", sevenDay: part(38, 52) }) },
+    { profile: "personal", contour: 3, ageSec: 30, fiveHour: part(12, 2), sevenDay: part(24, 100) },
+    { profile: "lab", codex: codex(30, { reached: "rate_limit" }) },
+    { profile: "globex", contour: 6, ageSec: 30, fiveHour: part(30, 4), sevenDay: part(55, 101),
+      codex: codex(4000, { sevenDay: part(92, 102), reached: "rate_limit" }) },
+] };
+const run = (session, contour) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream",
+    pct: 12, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
+const sessions = [run("shop", 4), run("infra", 4), run("notes", 3)];
+const exec = { available: true, kinds: ["session.send"] };
+const wait = { opening: () => [], of: () => null };
+const shell = document.getElementById("shell");
+
+render(h(ToastHost, null, h(GateHost, null, html`
+    <main class="body">
+        <${Sessions} snapshot=${{ at: 1, sessions, profileMap, limits }} error=${null} ageSec=${1} exec=${exec}
+                     wait=${wait} faults=${[]} onLayer=${() => {}} onUsage=${() => {}} />
+    </main>
+    <${Nav} current="sessions" onSelect=${() => {}} home=${null} />
+`)), shell);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+// hue is the colour a custom property of the theme comes to on this page.
+const hue = (name) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${name})`;
+    document.body.appendChild(probe);
+    const got = getComputedStyle(probe).color;
+    probe.remove();
+    return got;
+};
+// lines counts the lines a box of text takes.
+const lines = (el) => {
+    if (!el) return 0;
+    const step = parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.2;
+    return Math.round(el.getBoundingClientRect().height / step);
+};
+const meets = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > .5
+    && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > .5;
+const within = (inner, outer) => inner.left >= outer.left - .5 && inner.right <= outer.right + .5
+    && inner.top >= outer.top - .5 && inner.bottom <= outer.bottom + .5;
+
+window.done = (async () => {
+    await document.fonts.ready;
+    if (!await until(() => document.querySelectorAll(".pfpage .pflimits").length === profileMap.length)) {
+        throw new Error("the contour pages did not show their limits");
+    }
+    const out = { width: window.innerWidth, codexHue: hue("--agent-codex"), accent: hue("--accent"), pages: [] };
+    Array.from(document.querySelectorAll(".pfpage")).forEach((page, i) => {
+        const box = page.querySelector(".pflimits");
+        const edge = box.getBoundingClientRect();
+        const plates = Array.from(box.querySelectorAll(".limit"));
+        const cut = [];
+        for (const el of box.querySelectorAll("*")) {
+            if (getComputedStyle(el).display === "inline") continue;
+            if (el.scrollWidth > el.clientWidth) cut.push(`${el.className}: ${text(el)} (${el.scrollWidth} > ${el.clientWidth})`);
+        }
+        const overlaps = [];
+        plates.forEach((a, j) => plates.slice(j + 1).forEach((b) => {
+            if (meets(a.getBoundingClientRect(), b.getBoundingClientRect())) overlaps.push(`${text(a)} | ${text(b)}`);
+        }));
+        out.pages.push({
+            name: profileMap[i].profile,
+            dim: getComputedStyle(box).opacity,
+            plates: plates.map((l) => {
+                const word = l.querySelector(".agentword");
+                const fill = l.querySelector(".fill");
+                const rect = l.getBoundingClientRect();
+                return {
+                    name: text(l.querySelector(".lname")),
+                    value: text(l.querySelector(".lval")),
+                    sub: text(l.querySelector(".lsub")),
+                    agent: l.dataset.agent || "",
+                    word: text(word),
+                    wordAgent: word ? word.dataset.agent || "" : "",
+                    wordHue: word ? getComputedStyle(word).color : "",
+                    fillHue: fill ? getComputedStyle(fill).backgroundColor : "",
+                    fillShare: fill ? Math.round(fill.getBoundingClientRect().width / fill.parentElement.getBoundingClientRect().width * 100) : -1,
+                    dim: getComputedStyle(l.parentElement).opacity,
+                    x: Math.round(rect.left - edge.left),
+                    y: Math.round(rect.top - edge.top),
+                    width: Math.round(rect.width),
+                    lines: [".lname", ".lval", ".lsub"].map((sel) => lines(l.querySelector(sel))),
+                    inside: within(rect, edge),
+                };
+            }),
+            notes: Array.from(box.querySelectorAll(".limits-note")).map(text),
+            none: text(box.querySelector(".limitnone")),
+            cut,
+            overlaps,
+        });
+    });
+    return out;
+})();
+</script>
