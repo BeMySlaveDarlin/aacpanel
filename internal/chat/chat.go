@@ -81,6 +81,9 @@ type Item struct {
 	TokensUsed      int64  `json:"tokensUsed,omitempty"`
 	TokenBudget     *int64 `json:"tokenBudget,omitempty"`
 	TimeUsedSeconds int64  `json:"timeUsedSeconds,omitempty"`
+	// The agents codex started, on the card of their start, and how they
+	// stand after a later call to them, on a row the screen does not draw.
+	Spawned []Spawned `json:"spawned,omitempty"`
 	// The answer of a slash command, read into numbers by the collector. The
 	// panel carries it to the screen and never looks inside.
 	Data json.RawMessage `json:"data,omitempty"`
@@ -123,6 +126,18 @@ type Finding struct {
 	Confidence *float64 `json:"confidence,omitempty"`
 	Path       string   `json:"path,omitempty"`
 	Lines      []int    `json:"lines,omitempty"`
+}
+
+// Spawned is one agent codex started: its thread, by which its feed opens,
+// its nickname and role, the model and effort it runs on, and how it stands
+// in codex's word.
+type Spawned struct {
+	ID     string `json:"id"`
+	Name   string `json:"name,omitempty"`
+	Role   string `json:"role,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
+	State  string `json:"state,omitempty"`
 }
 
 // Permitted is one call of a card of permissions: what it was about and what

@@ -13,17 +13,17 @@ import { CommandCard } from "./command.js";
 import { FileAtts, HandedFiles, SentCard } from "./files.js";
 import { Shots } from "./shots.js";
 import { ShellCommand, ShellOutput } from "./shell.js";
-import { shortTokens, stampText, tokenWord } from "./labels.js";
+import { shortTokens, sizeOf, stampText, tokenWord } from "./labels.js";
 import { savedAfter } from "../../data/secrets.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
-import { GoalCard, PlanCard, ReviewCard } from "./codexrows.js";
+import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, secrets, onSecret }) {
+export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret }) {
     if (item.role === "shots") {
         return html`<${Shots} shots=${item.shots} session=${session} id=${id} pos=${item.pos} />`;
     }
@@ -76,7 +76,7 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
         return html`<${AskedCard} item=${item} />`;
     }
 
-    // What codex alone writes: a plan, a review and a goal.
+    // What codex alone writes: a plan, a review, a goal and an agent started.
     if (item.role === "plan") {
         return html`<${PlanCard} item=${item} />`;
     }
@@ -85,6 +85,9 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     }
     if (item.role === "goal") {
         return html`<${GoalCard} item=${item} />`;
+    }
+    if (item.role === "spawn") {
+        return html`<${SpawnCard} item=${item} onAgent=${onAgent} />`;
     }
 
     if (item.role === "permitted") {
@@ -235,11 +238,6 @@ const MAIL_ICONS = { session: Icon.envelope, agent: Icon.envelope, hook: Icon.ho
 // What the row under a letter calls it: a wake-up is the prompt the session
 // set itself, not a letter anyone wrote.
 const MAIL_WORD = { session: "letter", agent: "letter", hook: "letter", wake: "prompt" };
-
-function sizeOf(text) {
-    const n = text.length;
-    return n >= 1000 ? `${(n / 1000).toFixed(1)}k chars` : `${n} chars`;
-}
 
 // A letter sent is drawn when it is sent, and whether it reached anyone comes
 // later, from claude's answer: one that reached nobody says so on its head and

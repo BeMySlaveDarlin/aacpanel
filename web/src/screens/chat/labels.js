@@ -56,6 +56,13 @@ export function shortTokens(n) {
     return String(n);
 }
 
+// sizeOf says how long a text folded on a card is, the way the row that
+// opens it names its size.
+export function sizeOf(text) {
+    const n = text.length;
+    return n >= 1000 ? `${(n / 1000).toFixed(1)}k chars` : `${n} chars`;
+}
+
 // stampText renders when a message was written, the day in numbers as the
 // charts write it: a month name would come in the language of the locale.
 export function stampText(iso) {

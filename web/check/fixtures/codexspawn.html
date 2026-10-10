@@ -1,0 +1,148 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The feed of a codex thread that started agents: a card of each start with
+// whom it started, on what and how it stands as the last call to it said, the
+// task folded under it; the waits and the other calls among the calls of the
+// run; and a tap on an agent opens the feed of its own thread by the id of the
+// thread — an agent of that agent opens over it the same way.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { rows } from "/src/screens/chat/feed.js";
+import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const PARENT = "01a12345-0000-7000-8000-00000000abcd";
+const WORKER = "01a12346-0000-7000-8000-0000000000a1";
+const CHECKER = "01a12346-0000-7000-8000-0000000000a2";
+const HELPER = "01a12347-0000-7000-8000-0000000000b1";
+const TASK = "Read src/parser and list what it misses.\n\nAnswer in one line.";
+
+const at = (n) => new Date(Date.now() - (40 - n) * 60000).toISOString();
+// The window as the collector folds it: the waits of a run in one group of
+// calls to agents, the command beside them, and how the agents stand after
+// each wait on rows of their own.
+const items = [
+    { pos: 1, role: "me", text: "Check the parser with two agents" },
+    { pos: 2, role: "spawn", use: "spawn-1", text: TASK, cut: false,
+      spawned: [{ id: WORKER, name: "Euclid", role: "worker", model: "gpt-6-astra", effort: "medium", state: "pending_init" }] },
+    { pos: 3, role: "spawn", use: "spawn-2", text: "Run the tests of src/parser.", cut: false,
+      spawned: [{ id: CHECKER, name: "Hopper", role: "checker", model: "gpt-6-astra", effort: "low", state: "pending_init" }] },
+    { pos: 4, role: "tools", kind: "agents", run: 4, calls: [
+        { name: "Wait", arg: "Euclid, Hopper", seq: 0, pos: 4, index: 0, use: "wait-1" },
+        { name: "Wait", arg: "Hopper", seq: 2, pos: 6, index: 0, use: "wait-2" }] },
+    { pos: 4, role: "agentstates", spawned: [{ id: WORKER, state: "completed" }, { id: CHECKER, state: "running" }] },
+    { pos: 5, role: "tools", kind: "bash", run: 4, calls: [{ name: "Bash", arg: "ls src/parser", seq: 1, pos: 5, index: 0, use: "cmd-1" }] },
+    { pos: 6, role: "agentstates", spawned: [{ id: CHECKER, state: "errored" }] },
+    { pos: 7, role: "spawn", use: "spawn-3", text: "Write the docs of the parser.", cut: false, spawned: [], status: "failed" },
+    { pos: 8, role: "ai", text: "Euclid found the missing escapes; the tests crash." },
+].map((item) => ({ at: at(item.pos), ...item }));
+
+const workerItems = [
+    { pos: 1, at: at(2), role: "me", text: "Read src/parser and list what it misses." },
+    { pos: 2, at: at(3), role: "spawn", use: "spawn-9", text: "Look at the lexer.", cut: false,
+      spawned: [{ id: HELPER, name: "Noether", role: "explorer", model: "gpt-6-astra", effort: "low", state: "running" }] },
+    { pos: 3, at: at(4), role: "ai", text: "The parser misses escapes." },
+];
+const helperItems = [{ pos: 1, at: at(3), role: "ai", text: "The lexer is fine." }];
+
+const asked = [];
+const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
+const feed = (list) => json({ items: list, first: 1, last: list[list.length - 1].pos, total: list.length,
+                              moreBefore: false, state: null });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) {
+        asked.push(u);
+        if (u.includes(`id=${WORKER}&`)) return feed(workerItems);
+        if (u.includes(`id=${HELPER}&`)) return feed(helperItems);
+        return feed(items);
+    }
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u === "/api/actions") return json({ logged: true, ok: true });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.send", "session.stop", "session.close"] };
+const thread = {
+    session: "codex-0000abcd", sessionId: PARENT, profile: "acme", agent: "codex",
+    transport: "stream", status: "idle", model: "gpt-6-astra", tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/parser",
+};
+setLiveSessions([thread]);
+const root = document.getElementById("root");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 150 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const all = (sel) => Array.from(root.querySelectorAll(sel));
+const card = (el) => ({
+    label: text(el.querySelector(".sentlabel")),
+    agents: Array.from(el.querySelectorAll(".mtask")).map((row) => ({
+        name: text(row.querySelector(".mfname")).replace(text(row.querySelector(".mfnote")), "").trim(),
+        note: text(row.querySelector(".mfnote")),
+        tag: text(row.querySelector(".mftag")),
+        tone: Array.from(row.classList).find((c) => c.startsWith("s-")) || "",
+        opens: row.tagName === "BUTTON",
+    })),
+    more: el.querySelector(".xrtaskmore")
+        ? `${text(el.querySelector(".xrtaskmore .mfname"))} | ${text(el.querySelector(".xrtaskmore .mfsize"))}` : "",
+    task: Array.from(el.querySelectorAll(".xrtask p")).map(text).join(" | "),
+});
+const asks = (thread) => asked.filter((u) => u.includes(`id=${thread}&`)).length;
+
+window.done = (async () => {
+    await document.fonts.ready;
+    render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${thread}
+        exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    if (!await until(() => all(".chatfeed .xrspawn").length === 3)) throw new Error("the starts of the agents did not come");
+    await settled();
+
+    const folded = rows(items).filter((r) => r.role === "toolrow").map((r) => r.groups.map((g) => g.kind));
+    const out = {
+        cards: all(".chatfeed .xrspawn").map(card),
+        hidden: all(".chatfeed .feedrow.r-agentstates").length,
+        runs: folded,
+    };
+
+    // The task opens on a tap, and folds back.
+    const first = all(".chatfeed .xrspawn")[0];
+    first.querySelector(".xrtaskmore").click();
+    await settled();
+    out.opened = { expanded: first.querySelector(".xrtaskmore").getAttribute("aria-expanded"), ...card(first) };
+
+    // The agent opens the feed of its own thread.
+    first.querySelector("button.mtask").click();
+    if (!await until(() => asks(WORKER) > 0 && text(root.querySelector(".chatfeed")).includes("The parser misses escapes."))) {
+        throw new Error("the feed of the agent did not open");
+    }
+    await settled();
+    out.agent = {
+        name: text(root.querySelector(".chathead h2")),
+        sub: text(root.querySelector(".chathead .chatsub")),
+        word: (root.querySelector(".chathead .agentword") || { dataset: {} }).dataset.agent || "",
+        feed: all(".chatfeed .msg.ai").map(text),
+    };
+
+    // An agent the agent started opens over it the same way.
+    const nested = root.querySelector(".chatfeed .xrspawn button.mtask");
+    if (!nested) throw new Error("the agent of the agent cannot be opened");
+    nested.click();
+    if (!await until(() => asks(HELPER) > 0 && text(root.querySelector(".chatfeed")).includes("The lexer is fine."))) {
+        throw new Error("the feed of the agent of the agent did not open");
+    }
+    out.nested = text(root.querySelector(".chathead h2"));
+    out.asked = asked.map((u) => new URL(u, location.href).searchParams.get("id"));
+    return out;
+})();
+</script>

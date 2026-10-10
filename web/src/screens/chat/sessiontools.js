@@ -37,7 +37,7 @@ export function MoreButton({ onOpen }) {
 // works, finding in its conversation, what to look at it with, then the
 // sections of what is done to it, which are its agent's own.
 export function SessionTools(props) {
-    const { name, live, archive, pct, cwd, view, sides, sections: Sections, onRepo, onFind, onPick } = props;
+    const { name, live, archive, pct, spent, cwd, view, sides, sections: Sections, onRepo, onFind, onPick } = props;
     const toast = useToast();
     const where = cwd ? shortPath(cwd) : "";
     return html`
@@ -52,7 +52,7 @@ export function SessionTools(props) {
                             onClick=${() => copyText(cwd, toast, "Copied", "the directory")}>${Icon.copy()}</button>
                 </div>
             `}
-            <ul class="cmdrows mcpfacts">${facts(live, pct)}</ul>
+            <ul class="cmdrows mcpfacts">${facts(live, pct, spent)}</ul>
             <ul class="mcplist toollist">
                 ${onFind && html`
                     <li><button type="button" class="mcprow toolrow" onClick=${onFind}>
@@ -75,7 +75,13 @@ export function SessionTools(props) {
     `;
 }
 
-function facts(live, pct) {
+// facts is what the sheet knows of how much the session took: the context of
+// a live one, the peak of a closed one, and what a closed thread of codex
+// spent (spent is null for any other) — the archive of codex keeps no fill.
+function facts(live, pct, spent) {
+    if (!live && spent != null) {
+        return spent ? html`<li><span class="cmdname">Spent</span><span class="cmdtok">${spent}</span></li>` : null;
+    }
     if (live) {
         const of = live.limit ? ` of ${tokens(live.limit)}` : "";
         return html`

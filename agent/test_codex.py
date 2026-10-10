@@ -447,6 +447,102 @@ class Decisions(Runtime):
                 self.assertIsInstance(chat.parse(json.loads(raw), pos), list)
 
 
+AGENTS = os.path.join(HERE, "testdata", "codex-agents.jsonl")
+AGENT_FEED = os.path.join(HERE, "testdata", "codex-agent-worker.jsonl")
+WORKER = "01a12346-0000-7000-8000-0000000000a1"
+CHECKER = "01a12346-0000-7000-8000-0000000000a2"
+
+
+class Agents(Runtime):
+    """The agents a codex thread starts, in its feed: a card of each start, the other calls among the calls."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.copy(AGENTS, self.rollout)
+        self.worker = os.path.join(os.path.dirname(self.rollout), f"rollout-2026-10-09T12-00-02-{WORKER}.jsonl")
+        shutil.copy(AGENT_FEED, self.worker)
+
+    def items(self):
+        reply = chat.answer({"session": THREAD, "limit": 200})
+        self.assertTrue(reply["ok"], reply)
+        return reply["items"]
+
+    def at(self, item_id):
+        with open(AGENTS, "rb") as f:
+            pos = 0
+            for raw in f:
+                if (json.loads(raw).get("payload") or {}).get("item", {}).get("id") == item_id:
+                    return pos
+                pos += len(raw)
+        raise AssertionError(f"no item {item_id} in the fixture")
+
+    def test_a_start_is_a_card_of_the_agent_its_model_and_its_task(self):
+        cards = [i for i in self.items() if i["role"] == "spawn"]
+        self.assertEqual([c["use"] for c in cards], ["spawn-1", "spawn-2", "spawn-3"])
+        worker, checker, failed = cards
+        self.assertEqual(worker["spawned"], [{"id": WORKER, "name": "Euclid", "role": "worker",
+                                              "model": "gpt-6-astra", "effort": "medium", "state": "pending_init"}])
+        self.assertEqual(worker["text"], "Read src/parser and list what it misses.\n\nAnswer in one line.")
+        self.assertEqual(checker["spawned"][0]["id"], CHECKER)
+        self.assertEqual(sorted(worker), ["at", "cut", "pos", "role", "spawned", "text", "use"],
+                         "the card names who was started, on what, and its task: nothing else")
+        self.assertEqual((failed["spawned"], failed.get("status"), failed["text"]),
+                         ([], "failed", "Write the docs of the parser."),
+                         "a start that failed is a card of its task with nobody started")
+
+    def test_every_other_call_to_agents_is_a_call_among_the_calls(self):
+        items = self.items()
+        calls = [(c["name"], c["arg"], c.get("failed", False))
+                 for i in items if i["role"] == "tools" and i["kind"] == "agents" for c in i["calls"]]
+        self.assertEqual(calls, [("Wait", "Euclid, Hopper", False), ("SendInput", "Hopper", False),
+                                 ("Wait", "Hopper", False), ("CloseAgent", "Hopper", False)])
+        drawn = [i for i in items if i["role"] != "agentstates"]
+        wait = next(n for n, i in enumerate(drawn) if i["role"] == "tools" and i["kind"] == "agents")
+        self.assertEqual((drawn[wait + 1]["role"], drawn[wait + 1].get("kind"), drawn[wait + 1]["run"]),
+                         ("tools", "bash", drawn[wait]["run"]),
+                         "the command after a wait is of the same run: how the agents stand breaks none")
+
+    def test_how_the_agents_stand_after_a_call_is_a_row_of_its_own(self):
+        stood = [[(a["id"], a["state"]) for a in i["spawned"]] for i in self.items() if i["role"] == "agentstates"]
+        self.assertEqual(stood, [[(WORKER, "completed"), (CHECKER, "running")], [(CHECKER, "running")],
+                                 [(CHECKER, "errored")], [(CHECKER, "shutdown")]])
+
+    def test_no_word_an_agent_said_or_was_sent_is_in_a_row(self):
+        shown = json.dumps(self.items())
+        for words in ("The parser misses escapes", "segfault", "Stop after the first failure"):
+            self.assertNotIn(words, shown, "what an agent answered, its error and a word sent to it open "
+                                           "with the call, they are no row")
+
+    def test_a_state_codex_does_not_have_carries_no_words(self):
+        with open(AGENTS, encoding="utf-8") as f:
+            record = json.loads(f.readlines()[5])
+        record["payload"]["item"]["agents_states"] = {WORKER: {"summary": "the secret plan"},
+                                                     CHECKER: "the answer is 42"}
+        rows = chat.parse(record, 9)
+        self.assertEqual([r["role"] for r in rows], ["tool", "result"],
+                         "a state that is no word of codex is no state")
+        self.assertNotIn("secret", json.dumps(rows))
+        self.assertNotIn("42", json.dumps(rows))
+
+    def test_a_call_to_agents_opens_with_whom_it_named_and_how_they_stood(self):
+        got = chat.answer({"session": THREAD, "call": {"pos": self.at("wait-1"), "index": 0}})
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(got["tool"], "Wait")
+        self.assertEqual(json.loads(got["args"]), {"agents": [
+            {"nickname": "Euclid", "role": "worker", "thread": WORKER},
+            {"nickname": "Hopper", "role": "checker", "thread": CHECKER}]})
+        self.assertEqual(got["result"], "Euclid: completed\nThe parser misses escapes.\n\nHopper: running")
+        sent = chat.answer({"session": THREAD, "call": {"pos": self.at("send-1"), "index": 0}})
+        self.assertEqual(json.loads(sent["args"])["prompt"], "Stop after the first failure.")
+
+    def test_the_feed_of_an_agent_is_its_own_thread_by_its_id(self):
+        self.assertEqual(chat.transcript_path(WORKER), self.worker)
+        reply = chat.answer({"session": WORKER, "limit": 50})
+        self.assertTrue(reply["ok"], reply)
+        self.assertEqual([(i["role"], i["text"]) for i in reply["items"]],
+                         [("me", "Read src/parser and list what it misses."), ("ai", "The parser misses escapes.")])
+
+
 class Asks(Runtime):
     """The question or the form a codex thread waits on, offered as a question of claude's."""
 

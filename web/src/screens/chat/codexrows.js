@@ -1,15 +1,15 @@
 // The rows of a codex thread that claude has no word for: the plan codex
-// wrote in plan mode, a review begun and ended, and a goal set or changed.
-// They are cards of the build the feed draws what arrives with — a head that
-// says what it is and when, and the plate under it.
+// wrote in plan mode, a review begun and ended, a goal set or changed, and an
+// agent started. They are cards of the build the feed draws what arrives
+// with — a head that says what it is and when, and the plate under it.
 
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
-import { inline, render } from "../../md.js";
+import { dedent, inline, render } from "../../md.js";
 import { stopwatch, tokens } from "../../format.js";
-import { stampText } from "./labels.js";
+import { sizeOf, stampText } from "./labels.js";
 import { GOAL_WORDS } from "./codexthread.js";
 
 // PlanCard is the plan codex wrote: read whole, since in plan mode it is what
@@ -136,5 +136,82 @@ export function GoalCard({ item }) {
             </div>
             ${budget > 0 && html`<div class="pnmbar" aria-hidden="true"><i style=${`width: ${share}%`}></i></div>`}
         </div>
+    `;
+}
+
+// How codex says an agent stands: the word of its row, the mark of its tag
+// and the tone of the tag. An agent at work keeps the accent of the tag.
+const AGENT_STATES = {
+    pending_init: ["starting", "•", ""],
+    running: ["at work", "•", ""],
+    interrupted: ["interrupted", "–", "faint"],
+    completed: ["finished", "✓", "ok"],
+    errored: ["failed", "✗", "crit"],
+    shutdown: ["closed", "–", "faint"],
+    not_found: ["gone", "–", "faint"],
+};
+
+// whoOf names an agent codex started: by the nickname codex gave it, or by
+// its role.
+function whoOf(agent) {
+    return agent.name || agent.role || "agent";
+}
+
+// SpawnCard is an agent codex started, a card of the build of the tasks done:
+// the head says an agent started and when; its row names it, its role, the
+// model it runs on and how it stands as the last call to it said, and opens
+// the agent's own thread; the task it was given lies folded under it, as the
+// call of an agent of claude keeps its prompt inside.
+export function SpawnCard({ item, onAgent }) {
+    const [open, setOpen] = useState(false);
+    const agents = item.spawned || [];
+    const failed = item.status === "failed";
+    const task = dedent(item.text || "");
+    const head = failed ? "agent did not start"
+        : agents.length > 1 ? `${agents.length} agents started` : "agent started";
+    return html`
+        <div class=${`sent mtasks xrspawn${failed ? " failed" : ""}`}>
+            <div class="senthead">
+                <span class="sentico">${Icon.robot()}</span>
+                <span class="sentlabel">${head}</span>
+                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
+            </div>
+            <div class="mflist">
+                ${agents.map((agent) => html`<${SpawnedRow} key=${agent.id} agent=${agent} onAgent=${onAgent} />`)}
+                ${task && html`
+                    <button class="mfile mlettermore xrtaskmore" type="button" onClick=${() => setOpen(!open)}
+                            aria-expanded=${open ? "true" : "false"}>
+                        <span class="mfico">${open ? Icon.close() : Icon.list()}</span>
+                        <span class="mfname">${open ? "Fold the task" : "The task"}</span>
+                        <span class="mfsize">${sizeOf(task)}</span>
+                    </button>
+                `}
+            </div>
+            ${open && html`<div class="sentcap xrtask">${render(task)}</div>`}
+            ${open && item.cut && html`<p class="hint warn">The task is longer than shown — cut.</p>`}
+        </div>
+    `;
+}
+
+// SpawnedRow is one agent of a start. It opens the agent's thread by its id,
+// the way a run of codex exec opens among the agents of claude; without a
+// way to open it, it only says.
+function SpawnedRow({ agent, onAgent }) {
+    const [word, mark, tone] = AGENT_STATES[agent.state] || ["", "•", ""];
+    const runs = [agent.model, agent.effort].filter(Boolean).join(" ");
+    const about = [agent.name && agent.role, runs, word].filter(Boolean).join(" · ");
+    const who = whoOf(agent);
+    const body = html`
+        <span class="mftag">${mark}</span>
+        <span class="mfname">${who}${about && html`<span class="mfnote">${about}</span>`}</span>
+    `;
+    const cls = `mfile tagged mtask${tone ? ` s-${tone}` : ""}`;
+    if (!onAgent) return html`<div class=${cls} role="note" aria-label=${about ? `${who}, ${about}` : who}>${body}</div>`;
+    return html`
+        <button class=${cls} type="button" aria-label=${`${who} — open the thread of the agent`}
+                onClick=${() => onAgent({ id: agent.id, name: who, kind: "subagent", agent: "codex",
+                                          model: agent.model, text: agent.name ? agent.role : "" })}>
+            ${body}<span class="crgo">${Icon.chevron()}</span>
+        </button>
     `;
 }

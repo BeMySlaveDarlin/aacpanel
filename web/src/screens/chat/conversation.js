@@ -53,7 +53,7 @@ import { TermJump } from "../terms/jump.js";
 import { useViewing } from "../../viewing.js";
 import { useWide } from "../../ui/wide.js";
 import { useAsOf } from "../../ui/asof.js";
-import { agentKey, agentName, isCodex, shownName } from "../../agent.js";
+import { agentKey, agentName, isCodex, shownName, spoke } from "../../agent.js";
 
 // Conversation draws the screen; parts carry what its agent brings:
 //
@@ -318,11 +318,16 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const ctx = { wide, view, feedShown, feedRef, work: state.work, setLook, setInsert };
     const own = look ? parts.look(look, ctx) : null;
 
-    const pct = live ? live.pct : (archive ? archive.pctMax : null);
+    // A thread of codex in the archive keeps no fill of its context: its head
+    // says what the thread spent instead, as its row in the archive does, and
+    // nothing when it spent nothing. Null is the archive that keeps the fill.
+    const pastCodex = !live && isCodex(archive);
+    const pct = live ? live.pct : (archive && !pastCodex ? archive.pctMax : null);
+    const spent = pastCodex ? (spoke(archive) ? `${tokens(archive.tokensUsed)} tokens` : "") : null;
     const stand = stateOf(live, still, move);
     const openRepo = here ? () => setRepo(true) : null;
     const tools = {
-        name, live, archive, pct, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
+        name, live, archive, pct, spent, exec, snapshot, cwd: here, view, sides, win, way, work: state.work,
         sections: parts.sections, onWindow: place.onWindow, onLook: (kind) => setLook({ kind }),
     };
     const deskTools = html`
@@ -341,7 +346,8 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
 
     return html`
         ${wide
-            ? html`<${DeskHead} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} move=${move} tools=${deskTools} />`
+            ? html`<${DeskHead} name=${shownName(live, name)} live=${live} archive=${archive} pct=${pct} spent=${spent}
+                                move=${move} tools=${deskTools} />`
             : html`
         <${BackHead} kind="talk" onBack=${onBack} label="to sessions"
                      foot=${html`<${ContextBar} pct=${pct} peak=${!live} />`}
@@ -359,6 +365,10 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     `}
                     ${pct != null && html`
                         <span class="chatpct">${pct.toFixed(1)}<span class="u">%</span></span>
+                        <span class="sep">·</span>
+                    `}
+                    ${spent && html`
+                        <span class="chatspent">${spent}</span>
                         <span class="sep">·</span>
                     `}
                     <span class="talkword" data-tone=${stand.tone}>${stand.word || (archive ? "peak" : "")}</span>
@@ -427,6 +437,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     onTask=${(task) => (task.agent
                         ? openAgent({ id: task.id, name: task.name, kind: "background" })
                         : setLook({ kind: "task", id: task.id, text: task.name }))}
+                    onAgent=${openAgent}
                 />`}
                 tail=${away ? [] : pending.map((row) => ({ key: `local-${row.key}`, role: row.role, node: html`
                     <${Row} item=${row} />

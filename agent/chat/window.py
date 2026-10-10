@@ -231,11 +231,13 @@ def fold(rows, limit, before, after):
         """Returns the badge groups the run at the end of the window is drawn as.
 
         A line that arrives inside a run — a background task done, a warning
-        of claude — does not end it: the screen hangs it under the run.
+        of claude — does not end it: the screen hangs it under the run. Nor
+        does a row the screen does not draw: the address of a page, how the
+        agents of codex stand.
         """
         groups = []
         for was in reversed(window):
-            if was["role"] in ("taskdone", "artifactlink", "notice"):
+            if was["role"] in ("taskdone", "artifactlink", "notice", "agentstates"):
                 continue
             if was["role"] not in ("tools", "think"):
                 break

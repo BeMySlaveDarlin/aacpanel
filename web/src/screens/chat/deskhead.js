@@ -14,8 +14,9 @@ import { CODEX_NOTE, agentKey, agentName, isCodex } from "../../agent.js";
 import { outsideNote } from "../sessions/kin.js";
 
 // DeskHead renders the conversation header on the wide screen; the tools come
-// ready from the conversation.
-export function DeskHead({ name, live, archive, pct, move, tools }) {
+// ready from the conversation. A thread of codex in the archive says what it
+// spent (spent) where a conversation says how full its context grew (pct).
+export function DeskHead({ name, live, archive, pct, spent, move, tools }) {
     const state = stateOf(live, useAsOf(), move);
     const cwd = ((live || archive || {}).cwd) || "";
     return html`
@@ -39,6 +40,10 @@ export function DeskHead({ name, live, archive, pct, move, tools }) {
                         `}
                         ${pct != null && html`
                             <span class="dkpct" data-fill=${live ? fill(pct) : "peak"}>${share(pct)}${live ? "" : " peak"}</span>
+                            <span class="dkheadsep">·</span>
+                        `}
+                        ${spent && html`
+                            <span class="dkword dkspent">${spent}</span>
                             <span class="dkheadsep">·</span>
                         `}
                         <span class="dkheadpath" title=${cwd || undefined}>

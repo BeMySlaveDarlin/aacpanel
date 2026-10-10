@@ -48,6 +48,7 @@ var notTheFeed = map[string]string{
 	"records.py:result_mark": "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
 	"codex.py:_call:mark":    "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
 	"codex.py:details":       "the reply of one call opened from the feed, under Call",
+	"codex.py:_agent_spot":   "the reply of one call to agents opened from the feed, under Call",
 	"codex.py:context":       "how full the context of a codex thread is, for its row in the snapshot",
 	"codex.py:_take":         "how full the context of a codex thread is, for its row in the snapshot",
 
@@ -115,7 +116,7 @@ func TestEveryKeyTheFeedCarriesHasAField(t *testing.T) {
 	}
 
 	row := jsonNames(Item{})
-	part := jsonNames(Item{}, ToolCall{}, Shot{}, ThinkSpot{}, FileRef{}, Asked{}, Permitted{}, Finding{})
+	part := jsonNames(Item{}, ToolCall{}, Shot{}, ThinkSpot{}, FileRef{}, Asked{}, Permitted{}, Finding{}, Spawned{})
 
 	rows, kept := 0, map[string]bool{}
 	for _, p := range places {

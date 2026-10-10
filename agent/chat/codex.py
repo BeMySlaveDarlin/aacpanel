@@ -13,6 +13,10 @@ Beside the items, codex writes what a person decided on in records of their
 own: a question of plan mode and its answer (retained_context of type
 verified_answer), and every goal set or changed (an event_msg of type
 thread_goal_updated).
+
+An agent codex starts runs in a thread of its own, with a rollout of its own:
+the thread that started it writes only its calls to agents, and the start is
+a card that opens the agent's thread by its id.
 """
 import datetime as dt
 import glob
@@ -65,6 +69,21 @@ WEB_SEARCH = "web.search"
 # A call that ran and failed, or one the person refused: either is drawn as a
 # call that returned an error.
 FAILED = ("failed", "declined")
+
+# A call of codex to its agents: it starts one, waits on them, writes to one,
+# brings one back or closes it. A start is a card of its own, as an agent of
+# claude has its own row; every other call is a call among the calls, named
+# the way claude names its calls and of the kind of claude's calls to agents.
+COLLAB = "CollabAgentToolCall"
+SPAWN = "spawn_agent"
+AGENT_CALLS = {"wait": "Wait", "send_input": "SendInput", "resume_agent": "ResumeAgent",
+               "close_agent": "CloseAgent"}
+AGENTS = "agents"
+
+# How codex says an agent stands. A word with what the agent said — its last
+# answer, its error — comes as the word over those words, and they stay out of
+# the rows: only the call opened shows them.
+AGENT_STATES = ("pending_init", "running", "interrupted", "completed", "errored", "shutdown", "not_found")
 
 # How far back the context is looked for before the whole rollout is read.
 TAIL_STEPS = (64 * 1024, 1024 * 1024)
@@ -259,14 +278,14 @@ def _failed(item):
     return item.get("status") in FAILED
 
 
-def _call(name, arg, use, index, failed, at, pos, edited=""):
+def _call(name, arg, use, index, failed, at, pos, edited="", kind=""):
     """Returns a call codex has finished: its row and the mark of its result at once.
 
     Codex writes a call once it is over, so the result comes with it.
     """
     # Imported here: the parser of records reads this module for its rows.
     from .records import RESULT
-    call = {"role": "tool", "name": name, "kind": tool_kind(name), "arg": arg, "at": at,
+    call = {"role": "tool", "name": name, "kind": kind or tool_kind(name), "arg": arg, "at": at,
             "use": use, "pos": pos, "index": index}
     if edited:
         call["edited"] = edited
@@ -392,6 +411,103 @@ def _review(item, at, pos):
     return row
 
 
+def _list(value):
+    return value if isinstance(value, list) else []
+
+
+def _word(value):
+    return one_line(value) if isinstance(value, str) else ""
+
+
+def _state(raw):
+    """Returns how an agent stands, in codex's word, and the words it said with it.
+
+    A word codex does not have is no state: what stands in its place could be
+    words of the conversation.
+    """
+    word, said = raw, ""
+    if isinstance(raw, dict) and len(raw) == 1:
+        (word, said), = raw.items()
+    if word not in AGENT_STATES:
+        return "", ""
+    return word, said if isinstance(said, str) else ""
+
+
+def _agents(item):
+    """Returns the agents a call to agents names: each by its thread, with its nickname, its role and how it stands."""
+    # Imported here: the module that finds transcripts reads this one.
+    from .locate import UUID_RE
+    states = item.get("agents_states") if isinstance(item.get("agents_states"), dict) else {}
+    named = {agent["thread_id"]: agent for agent in _list(item.get("receiver_agents"))
+             if isinstance(agent, dict) and isinstance(agent.get("thread_id"), str)}
+    ids = [thread for thread in _list(item.get("receiver_thread_ids")) if isinstance(thread, str)]
+    out = []
+    for thread in dict.fromkeys(ids + list(named)):
+        if not UUID_RE.match(thread):
+            continue
+        agent = named.get(thread, {})
+        out.append({"id": thread, "name": _word(agent.get("agent_nickname")), "role": _word(agent.get("agent_role")),
+                    "state": _state(states.get(thread))[0]})
+    return out
+
+
+def _spawn(item, use, at, pos):
+    """Returns the card of an agent codex started: who it is, on what model, how it stands, and its task.
+
+    The task is what the thread that started the agent asked of it; the feed
+    keeps it folded, as the call of an agent of claude keeps its prompt.
+    """
+    model, effort = _word(item.get("model")), _word(item.get("reasoning_effort"))
+    agents = [dict(agent, model=model, effort=effort) for agent in _agents(item)]
+    body, trimmed = cut(item.get("prompt") if isinstance(item.get("prompt"), str) else "", MAX_TEXT)
+    card = {"role": "spawn", "use": use, "spawned": agents, "text": body, "cut": trimmed, "at": at, "pos": pos}
+    if _failed(item):
+        card["status"] = "failed"
+    return card
+
+
+def _agent_call(item, use, at, pos):
+    """Returns a call to agents other than a start: a call among the calls, and how its agents stand after it.
+
+    How they stand is a row the screen does not draw: it settles the card
+    each of them was started with.
+    """
+    tool = item.get("tool") if isinstance(item.get("tool"), str) else ""
+    agents = _agents(item)
+    who = ", ".join(agent["name"] or agent["role"] or agent["id"][-8:] for agent in agents)
+    out = _call(AGENT_CALLS.get(tool) or _word(tool) or "Agent", one_line(who), use, 0, _failed(item), at, pos,
+                kind=AGENTS)
+    stood = [{"id": agent["id"], "state": agent["state"]} for agent in agents if agent["state"]]
+    if stood:
+        out.append({"role": "agentstates", "spawned": stood, "at": at, "pos": pos})
+    return out
+
+
+def _agent_spot(item):
+    """Returns a call to agents opened: its name, what it was called with and what came of it.
+
+    It was called with the agents it names — each by its nickname, its role
+    and its thread — and, for a start or a word sent, the words and the
+    model; what came of it is how each agent stands, with its last answer or
+    its error under it.
+    """
+    tool = item.get("tool") if isinstance(item.get("tool"), str) else ""
+    states = item.get("agents_states") if isinstance(item.get("agents_states"), dict) else {}
+    agents = _agents(item)
+    called = {"agents": [{"nickname": agent["name"], "role": agent["role"], "thread": agent["id"]}
+                         for agent in agents]}
+    for key, field in (("prompt", "prompt"), ("model", "model"), ("effort", "reasoning_effort")):
+        if isinstance(item.get(field), str) and item[field]:
+            called[key] = item[field]
+    lines = []
+    for agent in agents:
+        word, said = _state(states.get(agent["id"]))
+        head = f"{agent['name'] or agent['id']}: {word.replace('_', ' ') or 'not said'}"
+        lines.append(f"{head}\n{said.strip()}" if said.strip() else head)
+    name = "Agent" if tool == SPAWN else (AGENT_CALLS.get(tool) or tool or "Agent")
+    return name, json.dumps(called, ensure_ascii=False, indent=2, sort_keys=True), "\n\n".join(lines)
+
+
 # The items a review runs in its own thread that the rollout of the thread
 # that asked for it shows: the work, not the words. The words of that thread
 # — its prompt and its answers — are codex's to itself, and the review says
@@ -455,6 +571,10 @@ def rows(record, pos, state=None):
         return _call(SEARCH, "", use, 0, _failed(item), at, pos)
     if kind == "ContextCompaction":
         return [{"role": "note", "text": COMPACTED, "at": at, "pos": pos}]
+    if kind == COLLAB:
+        if item.get("tool") == SPAWN:
+            return [_spawn(item, use, at, pos)]
+        return _agent_call(item, use, at, pos)
     return []
 
 
@@ -515,6 +635,8 @@ def details(record, index):
                          if isinstance(s, str) and s.strip())
     elif kind == "Extension" and item.get("kind") == WEB_SEARCH and index == 0:
         name, shown, said = SEARCH, "", ""
+    elif kind == COLLAB and index == 0:
+        name, shown, said = _agent_spot(item)
     else:
         return None
     at = record.get("timestamp") or ""

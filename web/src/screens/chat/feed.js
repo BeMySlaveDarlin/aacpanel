@@ -1,6 +1,9 @@
 // Assembling the conversation feed: what folds into what before it is shown.
 
-const HIDDEN = new Set(["artifactlink"]);
+// Rows that settle another row and are not drawn themselves: the address of a
+// page settles its card, how the agents of codex stand after a call to them
+// settles the cards they were started with.
+const HIDDEN = new Set(["artifactlink", "agentstates"]);
 
 // LINES are what arrives beside the conversation — a background task done, a
 // hook's message, a warning of claude. One that arrives inside a run of calls
@@ -150,9 +153,13 @@ function renew(out, item) {
 export function rows(items) {
     const done = new Map();
     const links = new Map();
+    const stood = new Map();
     for (const item of items) {
         if (item.role === "taskdone" && item.use) done.set(item.use, item);
         if (item.role === "artifactlink" && item.use) links.set(item.use, item.url);
+        if (item.role === "agentstates") {
+            for (const agent of item.spawned || []) if (agent.id && agent.state) stood.set(agent.id, agent.state);
+        }
     }
     const seen = new Set();
     // The calls of the turn so far: the end of a turn carries their number,
@@ -182,6 +189,16 @@ export function rows(items) {
             const url = links.get(item.use) || "";
             item = { ...item, url, again: Boolean(url && seen.has(url)) };
             if (url) seen.add(url);
+        }
+        // An agent stands as the last call to it said: the start knows only
+        // that it was started.
+        if (item.role === "spawn" && (item.spawned || []).some((agent) => stood.has(agent.id))) {
+            item = {
+                ...item,
+                spawned: item.spawned.map((agent) => (stood.has(agent.id)
+                    ? { ...agent, state: stood.get(agent.id) }
+                    : agent)),
+            };
         }
         const last = out[out.length - 1];
         if ((item.role === "tools" || item.role === "think")

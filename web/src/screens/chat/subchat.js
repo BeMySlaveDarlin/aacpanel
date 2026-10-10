@@ -39,15 +39,28 @@ export function agentFeedId(session, agent) {
     return subFeedId(session, agent.id);
 }
 
-// SubChat renders the feed of an agent.
+// SubChat renders the feed of an agent. An agent of codex starts agents of
+// its own, and the feed of one opens over this one, by the id of its thread.
 export function SubChat({ session, id, agent, live, onBack }) {
     const toast = useToast();
-    const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({ name: session, id, live });
+    const [sub, setSub] = useState(null);
+    const { state, more, feedRef, topRef, onScroll, atEnd, toEnd } = useFeedWindow({
+        name: session, id, live: live && !sub,
+    });
     const [calls, setCalls] = useState(null);
     const [look, setLook] = useState(null);
     const wide = useWide();
 
     useBackClose(true, onBack);
+
+    if (sub) {
+        return html`<${SubChat} session=${session} id=${sub.feedId} agent=${sub} live=${live}
+                                onBack=${() => setSub(null)} />`;
+    }
+    const openAgent = (next) => {
+        const feedId = agentFeedId(session, next);
+        if (feedId) setSub({ ...next, feedId });
+    };
 
     const feed = weld(state.items);
     const kind = KIND_NAMES[agent.kind] || "agent";
@@ -102,6 +115,7 @@ export function SubChat({ session, id, agent, live, onBack }) {
                     session=${session}
                     id=${id}
                     onFile=${(file) => setLook({ kind: "file", ...file })}
+                    onAgent=${openAgent}
                 />`}
             />
             ${!atEnd && html`<${JumpToEnd} onJump=${toEnd} />`}
