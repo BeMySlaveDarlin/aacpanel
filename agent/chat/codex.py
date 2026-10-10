@@ -53,6 +53,16 @@ MAX_FINDINGS = 20
 # rollout of the thread that asked for it.
 OWN = "codex-thread"
 
+# The key under which a reader keeps that another drives the thread: a run of
+# codex exec takes its prompts from the claude session that ran it, the thread
+# of an agent from the thread that started the agent. Nobody types into either,
+# and what they are given is a task, drawn as one rather than as words of the
+# person. The head of the rollout says it, and is read this far at most: its
+# instructions run to tens of kilobytes.
+DRIVEN = "codex-driven"
+HEAD = 1024 * 1024
+TASK = "task"
+
 # The mark codex's clients put before the words a person adds beside a pick.
 NOTE = "user_note: "
 
@@ -95,6 +105,29 @@ def own(path):
     if not is_rollout(path):
         return {}
     return {OWN: name[:-len(".jsonl")][-36:]}
+
+
+def reader(path):
+    """Returns the state a reader of a file starts with: what own says, and whether another drives the thread."""
+    state = own(path)
+    if not state:
+        return state
+    try:
+        with open(path, "rb") as f:
+            head = json.loads(f.readline(HEAD))
+    except (OSError, ValueError):
+        return state
+    return {**state, DRIVEN: True} if isinstance(head, dict) and driven(head) else state
+
+
+def driven(record):
+    """Reports whether the head of a rollout says another drives the thread: a run of codex exec or an agent's thread."""
+    payload = record.get("payload")
+    if record.get("type") != "session_meta" or not isinstance(payload, dict):
+        return False
+    source = payload.get("source")
+    return (source == "exec" or payload.get("thread_source") == "subagent"
+            or (isinstance(source, dict) and "subagent" in source))
 
 
 def is_rollout(path):
@@ -547,7 +580,8 @@ def rows(record, pos, state=None):
     if kind in ("EnteredReviewMode", "ExitedReviewMode"):
         return [_review(item, at, pos)]
     if kind == "UserMessage":
-        return _said("me", _text(item.get("content"), "text"), at, pos)
+        role = TASK if (state or {}).get(DRIVEN) else "me"
+        return _said(role, _text(item.get("content"), "text"), at, pos)
     if kind == "AgentMessage":
         return _said("ai", _text(item.get("content"), "Text"), at, pos)
     if kind == "Reasoning":

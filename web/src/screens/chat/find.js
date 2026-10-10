@@ -30,10 +30,10 @@ export const MARK_ALL = "feedfind";
 export const MARK_NOW = "feedfindnow";
 
 // The rows whose words the host searches: what the person and the model said,
-// letters, and the cards. Calls, thoughts and the lines of the harness are not
+// letters — the task of a thread of codex among them — and the cards. Calls, thoughts and the lines of the harness are not
 // searched, so they are not marked either — a mark the count does not know of
 // reads as a match the walk never reaches.
-const SEARCHED = ".feedrow:is(.r-me, .r-ai, .r-mail, .r-brief, .r-secret, .r-artifact)[data-pos]";
+const SEARCHED = ".feedrow:is(.r-me, .r-ai, .r-mail, .r-task, .r-brief, .r-secret, .r-artifact)[data-pos]";
 
 // The rows a match of each role stands in. One record can draw several rows
 // at one position — a letter beside an answer, the letters of several agents
@@ -42,7 +42,7 @@ const SEARCHED = ".feedrow:is(.r-me, .r-ai, .r-mail, .r-brief, .r-secret, .r-art
 const ROWS_OF = {
     me: ["me"],
     assistant: ["ai"],
-    letter: ["mail"],
+    letter: ["mail", "task"],
     card: ["brief", "artifact", "secret"],
 };
 

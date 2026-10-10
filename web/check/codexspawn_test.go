@@ -28,7 +28,8 @@ type spawnCardShot struct {
 // a start that failed says so. The waits stand among the calls of their run,
 // the command after them in the same run, and how the agents stand is drawn
 // nowhere of its own. The agent opens the feed of its own thread, asked for by
-// the id of that thread, and an agent it started opens over it the same way.
+// the id of that thread, where its task is a card of a task and no message of
+// the person; an agent it started opens over it the same way.
 func TestAnAgentOfCodexIsACardThatOpensItsThread(t *testing.T) {
 	const (
 		worker = "01a12346-0000-7000-8000-0000000000a1"
@@ -48,6 +49,12 @@ func TestAnAgentOfCodexIsACardThatOpensItsThread(t *testing.T) {
 			Sub  string   `json:"sub"`
 			Word string   `json:"word"`
 			Feed []string `json:"feed"`
+			Mine int      `json:"mine"`
+			Task []struct {
+				Label string `json:"label"`
+				Who   string `json:"who"`
+				Text  string `json:"text"`
+			} `json:"task"`
 		} `json:"agent"`
 		Nested string   `json:"nested"`
 		Asked  []string `json:"asked"`
@@ -80,6 +87,10 @@ func TestAnAgentOfCodexIsACardThatOpensItsThread(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Agent.Feed, []string{"The parser misses escapes."}) {
 		t.Errorf("the feed of the agent reads %v", got.Agent.Feed)
+	}
+	if got.Agent.Mine != 0 || len(got.Agent.Task) != 1 || got.Agent.Task[0].Label != "task" ||
+		got.Agent.Task[0].Who != "" || got.Agent.Task[0].Text != "Read src/parser and list what it misses." {
+		t.Errorf("the task of the agent is drawn as %d messages of the person and %+v", got.Agent.Mine, got.Agent.Task)
 	}
 	if got.Nested != "Noether" {
 		t.Errorf("the agent of the agent opened as %q", got.Nested)

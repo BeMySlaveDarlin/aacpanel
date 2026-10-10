@@ -18,7 +18,7 @@ from collections import deque
 
 import held
 
-from .codex import own
+from .codex import reader
 from .locate import record_cwd
 from .queue import Pending
 from .records import parse
@@ -123,7 +123,7 @@ class Stream:
         self.cwd = ""
 
     def __iter__(self):
-        pending, asks, sent, briefs, calls, unanswered = Pending(), own(self.path), set(), {}, {}, {}
+        pending, asks, sent, briefs, calls, unanswered = Pending(), reader(self.path), set(), {}, {}, {}
         size = os.path.getsize(self.path)
         permits = permits_of(self.path, self.sidechain)
         with open(self.path, "rb") as f:
@@ -171,7 +171,7 @@ class Piece:
         self.rows = deque()
         self.cwd = ""
         self.pending = Pending()
-        self.asks = own(self.path)
+        self.asks = reader(self.path)
         self.sent = set()
         self.briefs = {}
         self.calls = {}

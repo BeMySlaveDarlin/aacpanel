@@ -57,14 +57,15 @@ def said(item):
     """Returns what a row of the feed says as the conversation: the role of its match and its words.
 
     A letter from a hook is the harness speaking, and a card is searched by
-    the words it shows as its name, not by what it holds.
+    the words it shows as its name, not by what it holds. The task of a thread
+    another drives is drawn as a letter, and found as one.
     """
     role = item.get("role")
     if role == "me":
         return "me", (item.get("text"),)
     if role == "ai":
         return "assistant", (item.get("text"),)
-    if role == "mail" and item.get("source") != "hook":
+    if (role == "mail" and item.get("source") != "hook") or role == "task":
         return "letter", (item.get("text"),)
     if role in ("brief", "artifact"):
         return "card", (item.get("title"),)

@@ -9,7 +9,8 @@
 // whom it started, on what and how it stands as the last call to it said, the
 // task folded under it; the waits and the other calls among the calls of the
 // run; and a tap on an agent opens the feed of its own thread by the id of the
-// thread — an agent of that agent opens over it the same way.
+// thread, its task a card of a task rather than a message of the person — an
+// agent of that agent opens over it the same way.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -45,7 +46,7 @@ const items = [
 ].map((item) => ({ at: at(item.pos), ...item }));
 
 const workerItems = [
-    { pos: 1, at: at(2), role: "me", text: "Read src/parser and list what it misses." },
+    { pos: 1, at: at(2), role: "task", text: "Read src/parser and list what it misses.", cut: false },
     { pos: 2, at: at(3), role: "spawn", use: "spawn-9", text: "Look at the lexer.", cut: false,
       spawned: [{ id: HELPER, name: "Noether", role: "explorer", model: "gpt-6-astra", effort: "low", state: "running" }] },
     { pos: 3, at: at(4), role: "ai", text: "The parser misses escapes." },
@@ -132,6 +133,12 @@ window.done = (async () => {
         sub: text(root.querySelector(".chathead .chatsub")),
         word: (root.querySelector(".chathead .agentword") || { dataset: {} }).dataset.agent || "",
         feed: all(".chatfeed .msg.ai").map(text),
+        mine: all(".chatfeed .msg.me").length,
+        task: all(".chatfeed .mletter.k-task").map((el) => ({
+            label: text(el.querySelector(".sentlabel")),
+            who: text(el.querySelector(".mletterwho")),
+            text: text(el.querySelector(".mletterbody")),
+        })),
     };
 
     // An agent the agent started opens over it the same way.

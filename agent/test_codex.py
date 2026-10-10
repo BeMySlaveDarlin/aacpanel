@@ -540,7 +540,28 @@ class Agents(Runtime):
         reply = chat.answer({"session": WORKER, "limit": 50})
         self.assertTrue(reply["ok"], reply)
         self.assertEqual([(i["role"], i["text"]) for i in reply["items"]],
-                         [("me", "Read src/parser and list what it misses."), ("ai", "The parser misses escapes.")])
+                         [("task", "Read src/parser and list what it misses."), ("ai", "The parser misses escapes.")],
+                         "what the thread that started the agent gave it is a task, not words of the person")
+
+    def test_the_prompt_of_a_run_of_codex_exec_is_a_task(self):
+        first = self.items()[0]
+        self.assertEqual((first["role"], first["text"]), ("task", "Check the parser with two agents"),
+                         "the claude session that ran codex exec wrote it, not the person")
+
+    def test_a_thread_a_person_types_into_keeps_their_messages(self):
+        with open(self.rollout, encoding="utf-8") as f:
+            lines = f.readlines()
+        head = json.loads(lines[0])
+        head["payload"]["source"] = "cli"
+        with open(self.rollout, "w", encoding="utf-8") as f:
+            f.writelines([json.dumps(head) + "\n"] + lines[1:])
+        first = self.items()[0]
+        self.assertEqual((first["role"], first["text"]), ("me", "Check the parser with two agents"))
+
+    def test_the_task_is_found_as_a_letter(self):
+        reply = chat.answer({"session": WORKER, "search": {"q": "list what it misses"}})
+        self.assertTrue(reply["ok"], reply)
+        self.assertEqual([m["role"] for m in reply["matches"]], ["letter"])
 
 
 class Asks(Runtime):

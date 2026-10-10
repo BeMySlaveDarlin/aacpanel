@@ -58,6 +58,12 @@ export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onS
     if (item.role === "wake") {
         return html`<${Letter} item=${{ ...item, source: "wake" }} />`;
     }
+    // What a thread of codex nobody types into was given — the prompt of a run
+    // of codex exec, the task of an agent — is a task, not a message of the
+    // person.
+    if (item.role === "task") {
+        return html`<${Letter} item=${{ ...item, source: "task" }} />`;
+    }
 
     if (item.role === "artifact") {
         return html`<${PageCard} item=${item} copy=${copies && copies.of(item)} onOpen=${onPage} />`;
@@ -214,15 +220,16 @@ function onTheWay(state) {
 }
 
 // What a letter is: a session next door, an agent of this one, a hook of the
-// session speaking at the end of a turn, or an alarm of the session waking it
-// up. All four arrive among the prompts, the first three wrapped in a preamble
-// nobody reads twice, so all four are drawn the same way — a card of the build
+// session speaking at the end of a turn, an alarm of the session waking it up,
+// or the task of a thread of codex another drives. All five arrive among the
+// prompts, the first three wrapped in a preamble nobody reads twice, so all
+// five are drawn the same way — a card of the build
 // of the files sent to the person: who and when on its head, the first lines
 // of the letter, and the rest opened by a row under them. A letter between
 // sessions and a letter of an agent are headed alike, from agent and to agent,
 // as the harness marks both: which of the two it is the feed cannot always
 // tell.
-const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook", wake: "wake" };
+const MAIL_KINDS = { session: "session", agent: "agent", hook: "hook", wake: "wake", task: "task" };
 
 const MAIL_WHO = { session: "agent", agent: "agent", hook: "stop hook" };
 
@@ -231,13 +238,14 @@ const MAIL_LABEL = {
     session: ["from agent", "to agent"],
     hook: ["stop hook", "stop hook"],
     wake: ["wake-up", "wake-up"],
+    task: ["task", "task"],
 };
 
-const MAIL_ICONS = { session: Icon.envelope, agent: Icon.envelope, hook: Icon.hook, wake: Icon.alerts };
+const MAIL_ICONS = { session: Icon.envelope, agent: Icon.envelope, hook: Icon.hook, wake: Icon.alerts, task: Icon.robot };
 
 // What the row under a letter calls it: a wake-up is the prompt the session
-// set itself, not a letter anyone wrote.
-const MAIL_WORD = { session: "letter", agent: "letter", hook: "letter", wake: "prompt" };
+// set itself, a task what a thread was given, not a letter anyone wrote.
+const MAIL_WORD = { session: "letter", agent: "letter", hook: "letter", wake: "prompt", task: "task" };
 
 // A letter sent is drawn when it is sent, and whether it reached anyone comes
 // later, from claude's answer: one that reached nobody says so on its head and
@@ -259,7 +267,7 @@ function Letter({ item }) {
     }, [text, open]);
     // A letter that went nowhere always opens: its reason is inside.
     const more = text.trim() !== lead.trim() || clamped || Boolean(lost);
-    const who = kind === "hook" || kind === "wake" ? "" : (item.whoName || item.from || MAIL_WHO[kind]);
+    const who = kind === "hook" || kind === "wake" || kind === "task" ? "" : (item.whoName || item.from || MAIL_WHO[kind]);
     const word = MAIL_WORD[kind];
     return html`
         <div class=${`sent mletter k-${kind}${out ? " out" : ""}${open ? " open" : ""}`}>
