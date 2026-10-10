@@ -1,6 +1,9 @@
 package check
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 // A question with drawings asked by a session on the stream: the answer is
 // structure there, so a free answer and the "discuss" item are open in a
@@ -33,5 +36,36 @@ func TestAStreamQuestionOpensWhatATerminalCannot(t *testing.T) {
 	notes, _ := got.Sent[0].Params["notes"].([]any)
 	if len(notes) != 1 || notes[0] != "but keep the search in it" {
 		t.Errorf("the note did not go with the answer: %+v", got.Sent[0].Params)
+	}
+}
+
+// Inputs that come faster than the card is drawn all reach the answer: two
+// options of a multiple choice tapped in one go stay picked, and a third tap,
+// a note and Send in one go send the three picks with the note. An input
+// built on the values of the last drawing drops the one before it.
+func TestInputsFasterThanTheCardAllReachTheAnswer(t *testing.T) {
+	var got struct {
+		First []int `json:"first"`
+		Sent  []struct {
+			Kind   string         `json:"kind"`
+			Target string         `json:"target"`
+			Params map[string]any `json:"params"`
+		} `json:"sent"`
+	}
+	runFixture(t, "askfast.html", &got)
+
+	if !reflect.DeepEqual(got.First, []int{1, 3}) {
+		t.Errorf("after two taps in one go the card holds %v picked, not 1 and 3", got.First)
+	}
+	if len(got.Sent) != 1 || got.Sent[0].Kind != "session.answer" || got.Sent[0].Target != "acme" {
+		t.Fatalf("the panel was asked %+v", got.Sent)
+	}
+	want := map[string]any{
+		"ask":   "toolu_ask_fast",
+		"picks": []any{[]any{1.0, 3.0, 2.0}},
+		"notes": []any{"and the shell scripts"},
+	}
+	if !reflect.DeepEqual(got.Sent[0].Params, want) {
+		t.Errorf("the answer went as %v, want %v", got.Sent[0].Params, want)
 	}
 }

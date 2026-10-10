@@ -1,5 +1,5 @@
 // A session question and the answer to it.
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import { html } from "../html.js";
 import { useAction } from "../actions/gate.js";
@@ -30,6 +30,17 @@ function askLabel(q, name, codex) {
     return q.header || `${name} asks`;
 }
 
+// blankAnswer is a round answered in nothing: no picks, no words, no notes and
+// no field of one's own words open.
+function blankAnswer(questions) {
+    return {
+        picks: questions.map(() => []),
+        texts: questions.map(() => ""),
+        notes: questions.map(() => ""),
+        writing: -1,
+    };
+}
+
 // Round is a round of questions: one at a time when there are several, an
 // option picked or words of the person's own.
 //
@@ -38,30 +49,39 @@ function askLabel(q, name, codex) {
 // out of sight (secret) are typed into a field that hides them.
 function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const run = useAction();
-    const [picks, setPicks] = useState([]);
     const [step, setStep] = useState(0);
     const [review, setReview] = useState(false);
     const [sending, setSending] = useState(false);
     const [open, setOpen] = useState(true);
     const [preview, setPreview] = useState(null);
-    const [texts, setTexts] = useState([]);
-    const [notes, setNotes] = useState([]);
-    const [writing, setWriting] = useState(-1);
     const [fail, setFail] = useState("");
 
     const id = ask && ask.toolUseId;
     const questions = (ask && ask.questions) || [];
 
+    // The answer as the inputs leave it: the picks, the words, the notes and
+    // the question whose own words are open. Two inputs can come before the
+    // card is drawn again — two options of a multiple choice, a pick and a tap
+    // on Send — and the second has to build on what the first left: built on
+    // the values of the last drawing, it puts back what was there before the
+    // first and drops it. The state draws the card; an input reads and
+    // changes latest, and the answer goes out of it.
+    const [given, setGiven] = useState(() => blankAnswer(questions));
+    const latest = useRef(given);
+    const change = (fn) => {
+        latest.current = { ...latest.current, ...fn(latest.current) };
+        setGiven(latest.current);
+    };
+    const { picks, texts, notes, writing } = given;
+
     useEffect(() => {
-        setPicks(questions.map(() => []));
+        latest.current = blankAnswer(questions);
+        setGiven(latest.current);
         setStep(0);
         setReview(false);
         setSending(false);
         setOpen(true);
         setPreview(null);
-        setTexts(questions.map(() => ""));
-        setNotes(questions.map(() => ""));
-        setWriting(-1);
         setFail("");
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
@@ -117,7 +137,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
         setOpen(false);
         const params = { ask: id, picks: all };
         if (words.some((text) => text !== "")) params.texts = words;
-        const noted = all.map((list, n) => (proto && list.length ? (notes[n] || "").trim() : ""));
+        const noted = all.map((list, n) => (proto && list.length ? (latest.current.notes[n] || "").trim() : ""));
         if (noted.some((note) => note !== "")) params.notes = noted;
         const result = await run("session.answer", name, params);
         setSending(false);
@@ -143,40 +163,40 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
         if (onAnswered) onAnswered(id);
     };
 
-    const words = (n, text) => {
-        const next = questions.map((_, i) => (i === n ? text : own(i)));
-        setTexts(next);
+    // one puts value in place of question n's in a list of the answer.
+    const one = (list, n, value, blank) => questions.map((_, i) => (i === n ? value : list[i] || blank));
+    const words = (n, text) => change((a) => ({ texts: one(a.texts, n, text, "") }));
+    const setNote = (n, text) => change((a) => ({ notes: one(a.notes, n, text, "") }));
+    // sendAll sends the answer as the inputs left it, whatever was drawn last.
+    const sendAll = () => {
+        const a = latest.current;
+        send(questions.map((_, i) => a.picks[i] || []), questions.map((_, i) => a.texts[i] || ""));
     };
 
     const openOwn = (n) => {
         if (ownBlocked(n) || sending) return;
-        if (writing === n) {
-            words(n, "");
-            setWriting(-1);
+        if (latest.current.writing === n) {
+            change((a) => ({ texts: one(a.texts, n, "", ""), writing: -1 }));
             return;
         }
-        const next = questions.map((_, i) => (i === n ? [] : chosen(i)));
-        setPicks(next);
-        setWriting(n);
+        change((a) => ({ picks: one(a.picks, n, [], []), writing: n }));
     };
 
     const pick = (n, k) => {
         if (!ready || sending) return;
-        if (writing === n) {
-            words(n, "");
-            setWriting(-1);
+        if (latest.current.writing === n) {
+            change((a) => ({ texts: one(a.texts, n, "", ""), writing: -1 }));
         }
         if (instant) return send([[k + 1]], questions.map(() => ""));
 
-        const next = questions.map((_, i) => [...chosen(i)]);
-        const list = next[n];
+        const list = [...(latest.current.picks[n] || [])];
         const at = list.indexOf(k + 1);
         if (at >= 0) list.splice(at, 1);
         else if (questions[n].multi) list.push(k + 1);
-        else next[n] = [k + 1];
-        setPicks(next);
+        else list.splice(0, list.length, k + 1);
+        change((a) => ({ picks: one(a.picks, n, list, []) }));
 
-        if (stepped && !questions[n].multi && next[n].length) {
+        if (stepped && !questions[n].multi && list.length) {
             setTimeout(() => {
                 if (n < many - 1) setStep(n + 1);
                 else setReview(true);
@@ -272,7 +292,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
                                 placeholder="a note beside your pick — optional, the session reads it with the answer"
                                 value=${notes[n] || ""}
                                 disabled=${sending}
-                                onInput=${(e) => setNotes(questions.map((_, i) => (i === n ? e.target.value : notes[i] || "")))}
+                                onInput=${(e) => setNote(n, e.target.value)}
                             ></textarea>
                         `}
                     </div>
@@ -305,9 +325,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
                         class="btn primary"
                         type="button"
                         disabled=${!ready || sending || (!stepped ? nothing : false) || (review && nothing)}
-                        onClick=${stepped && !review
-                            ? forward
-                            : () => send(questions.map((_, i) => chosen(i)), questions.map((_, i) => own(i)))}
+                        onClick=${stepped && !review ? forward : sendAll}
                     >
                         ${label({ sending, stepped, review, step, many, nothing, writing, answered,
                                   wordsOnly: questions.every((_, i) => free(i)) })}

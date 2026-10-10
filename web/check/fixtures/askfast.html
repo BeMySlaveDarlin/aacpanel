@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// A question of several choices asked by a session on the stream, answered by
+// inputs that come faster than the card is drawn: two options tapped in one
+// go, then a third option, a note and Send in another. Every input has to
+// reach the answer, not only the last before a drawing.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Ask } from "/src/screens/ask.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const ask = {
+    sessionId: "s1",
+    toolUseId: "toolu_ask_fast",
+    cwd: "/srv/proj",
+    questions: [{
+        text: "Which checks run before a release?",
+        header: "Checks",
+        multi: true,
+        options: [
+            { label: "Unit tests", description: "every package" },
+            { label: "Fixtures", description: "the screens in a real engine" },
+            { label: "Vulnerabilities", description: "of the code that is called" },
+        ],
+    }],
+};
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+const sent = [];
+window.fetch = async (url, init) => {
+    if (String(url) === "/api/actions") {
+        sent.push(JSON.parse((init && init.body) || "{}"));
+        return json({ logged: true, ok: true });
+    }
+    return new Response("", { status: 404 });
+};
+
+const exec = { available: true, kinds: ["session.answer", "session.dismiss"] };
+const root = document.getElementById("root");
+render(h(ToastHost, null, h(GateHost, null,
+    html`<${Ask} ask=${ask} name="acme" exec=${exec} stream onAnswered=${() => {}} />`)), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 150 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+// Preact binds the handlers after the screen is drawn: two frames pass
+// before anything is pressed.
+const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
+const options = () => [...root.querySelectorAll(".askopts .askopt:not(.askown)")];
+const on = () => options().map((el, k) => (el.classList.contains("on") ? k + 1 : 0)).filter(Boolean);
+
+window.done = (async () => {
+    await document.fonts.ready;
+    if (!await until(() => options().length === 3)) throw new Error("the question did not show");
+    await settled();
+
+    // Two taps in one go: nothing is drawn between them.
+    options()[0].querySelector(".askpick").click();
+    options()[2].querySelector(".askpick").click();
+    await settled();
+    const result = { first: on() };
+
+    const field = root.querySelector(".asknote");
+    const go = root.querySelector(".askfoot .btn.primary");
+    if (!field || !go) throw new Error("no note and no Send after a pick");
+    // A third tap, a note and Send in one go.
+    options()[1].querySelector(".askpick").click();
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(field, "and the shell scripts");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    go.click();
+    await until(() => sent.length > 0);
+    result.sent = sent;
+    return result;
+})();
+</script>
