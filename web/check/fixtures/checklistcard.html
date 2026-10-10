@@ -7,7 +7,8 @@
 // Live rows of the sessions list on a phone: a session at work on the fourth
 // of seven steps of its checklist, a quiet one whose checklist is all behind
 // it, one that asks the person something while its checklist is half done,
-// and one that keeps no checklist.
+// one that keeps no checklist, and a thread of codex keeping one as a claude
+// session does.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -30,6 +31,11 @@ const rows = [
     { ...base, session: "done", sessionId: "b", checklist: { items: [...steps(6, 0, 0), { text: "gone", status: "dropped" }], at: base.startedAt } },
     { ...base, session: "asks", sessionId: "c", ask: { header: "Which way", count: 1 }, checklist: { items: steps(1, 0, 2), at: base.startedAt } },
     { ...base, session: "plain", sessionId: "d" },
+    { ...base, session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", agent: "codex",
+      model: "gpt-6-sol", effort: "high", status: "busy",
+      checklist: { items: [{ text: "read the router", status: "done", since: base.startedAt },
+                           { text: "fix the test of the router", status: "active", since: base.startedAt },
+                           { text: "run the suite", status: "pending" }], at: base.startedAt } },
 ];
 const exec = { available: true, kinds: ["session.close", "session.open"] };
 const blocks = blocksOf({ profile: null, sessions: rows });
@@ -44,7 +50,7 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const cut = (el) => Boolean(el) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
 
 window.done = (async () => {
-    for (let i = 0; i < 100 && document.querySelectorAll(".pjblock").length < 4; i++) await sleep(20);
+    for (let i = 0; i < 100 && document.querySelectorAll(".pjblock").length < 5; i++) await sleep(20);
     await document.fonts.ready;
     const out = {};
     for (const block of document.querySelectorAll(".pjblock")) {

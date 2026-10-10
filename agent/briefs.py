@@ -20,6 +20,7 @@ import threading
 import time
 
 import ctx
+import held
 import paths
 
 SOCKET_DIR = os.environ.get("AACP_BRIEF_DIR", "/run/aacpanel-agent")
@@ -308,13 +309,19 @@ def session_cwd(session_id):
     from a shell hands over wherever the agent last went with cd, and the
     document then lands in the conversation of that directory. The registry of
     live sessions knows where each session itself works, and every contour of
-    the machine is read, not only the personal one.
+    the machine is read, not only the personal one. A thread of codex works
+    where the executor that follows it says, the directory its row names: the
+    server of the thread names it by the path the kernel resolves, and the
+    conversation finds its briefs by the row's.
     """
     if not session_id:
         return ""
     for live in ctx.live_sessions():
         if live.get("sessionId") == session_id:
             return live.get("cwd") or ""
+    for thread in held.codex_threads():
+        if thread.get("sessionId") == session_id:
+            return thread.get("cwd") or ""
     return ""
 
 

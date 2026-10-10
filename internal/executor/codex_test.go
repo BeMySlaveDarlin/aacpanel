@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -318,13 +319,41 @@ func TestAStopOfAnAgentOfACodexSessionInterruptsTheTurnOfItsOwnThread(t *testing
 	}
 }
 
+// A secret a thread of codex asked for is saved as any secret is, and the
+// thread is told its path as the panel tells it anything — a turn of its own
+// on a free thread — with the names of its keys and never a value.
+func TestASecretOfACodexSessionIsSavedAndTheThreadToldItsPath(t *testing.T) {
+	srv, e := onCodex(t, nil)
+	dir := SecretsDir()
+	text := "GH_TOKEN=" + marker + "\n"
+
+	detail, err := e.Execute(context.Background(), action.Request{ID: "1", Kind: action.SecretPut, Target: codexName,
+		Secret: &action.Secret{Name: "github-token", Text: text}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "github-token")
+	if raw, err := os.ReadFile(path); err != nil || string(raw) != text || modeOf(t, path) != 0o600 {
+		t.Fatalf("the file holds %q (%v)", raw, err)
+	}
+	turns := srv.Calls("turn/start")
+	if len(turns) != 1 || !strings.Contains(string(turns[0]), `The secret \"github-token\" is saved: `+path) ||
+		!strings.Contains(string(turns[0]), "Keys: GH_TOKEN.") {
+		t.Fatalf("the thread was told %s", turns)
+	}
+	if strings.Contains(string(turns[0]), marker) || strings.Contains(detail, marker) ||
+		!strings.Contains(detail, "told "+codexName) {
+		t.Errorf("the notepad went past the file: %q, %s", detail, turns)
+	}
+}
+
 func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	_, e := onCodex(t, nil)
 	ctx := context.Background()
 	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionLetter: true, action.SessionStop: true, action.SessionEscape: true,
 		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
 		action.SessionFile: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
-		action.SessionRename: true, action.TaskStop: true, action.AgentStop: true}
+		action.SessionRename: true, action.TaskStop: true, action.AgentStop: true, action.SecretPut: true}
 	for _, k := range action.Kinds {
 		if !sessionTarget(k) || taken[k] {
 			continue

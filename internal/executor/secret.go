@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/codex"
 )
 
 const (
@@ -48,6 +49,33 @@ func secretsHome() (string, error) {
 // person can say it in the conversation instead. Neither the answer nor an
 // error carries a byte of the notepad.
 func (e *Executor) secretPut(ctx context.Context, target string, secret *action.Secret) (string, error) {
+	return saveSecret(secret, func(text string) (string, error) {
+		s, err := findOneLiveSession(target)
+		if err != nil {
+			return "", err
+		}
+		if _, err := deliverText(ctx, s, senderName, text); err != nil {
+			return "", err
+		}
+		return s.Name, nil
+	})
+}
+
+// codexSecretPut saves the notepad for a thread of codex and tells the thread
+// as the panel tells it anything: a turn of its own on a free thread, the
+// panel's queue on a busy one.
+func codexSecretPut(ctx context.Context, th codex.Thread, secret *action.Secret) (string, error) {
+	return saveSecret(secret, func(text string) (string, error) {
+		if _, err := codexSend(ctx, th, codex.Message{Text: text}); err != nil {
+			return "", err
+		}
+		return th.Name, nil
+	})
+}
+
+// saveSecret writes the secret and has tell give the session the message of
+// it, returning the name of the session told.
+func saveSecret(secret *action.Secret, tell func(text string) (string, error)) (string, error) {
 	if secret == nil || !action.SecretName(secret.Name) {
 		return "", errors.New("secret.put without a valid name of the secret")
 	}
@@ -55,14 +83,11 @@ func (e *Executor) secretPut(ctx context.Context, target string, secret *action.
 	if err != nil {
 		return "", err
 	}
-	s, err := findOneLiveSession(target)
-	if err == nil {
-		_, err = deliverText(ctx, s, senderName, secretMessage(secret.Name, path, secret.Text))
-	}
+	told, err := tell(secretMessage(secret.Name, path, secret.Text))
 	if err != nil {
 		return "", fmt.Errorf("saved to %s, but the session was not told: %w", path, err)
 	}
-	return fmt.Sprintf("saved %s (%d bytes) and told %s", secret.Name, len(secret.Text), s.Name), nil
+	return fmt.Sprintf("saved %s (%d bytes) and told %s", secret.Name, len(secret.Text), told), nil
 }
 
 // writeSecret replaces the file of the secret whole: the notepad goes into a

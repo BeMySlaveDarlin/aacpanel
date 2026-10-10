@@ -294,19 +294,23 @@ def _answer(request):
         "last": chunk.get("last") if items else None,
         "size": os.path.getsize(path),
     }
-    # The state of a session — its background work, agents, questions and
-    # checklist — is claude's. A codex thread has the agents it started, as
-    # its rollout says they stand, and the question or the form it waits on,
-    # which the executor keeps in the thread's state file in the shape of a
-    # question of claude's. The state goes with every answer, with no question
-    # too: a question answered goes off the screen only when a state without
-    # it arrives. Its lists are always there, empty or not: the screen counts
-    # them.
+    # The state of a claude session — its background work, agents, questions
+    # and checklist — is read off its transcript and beside it. A codex thread
+    # has the agents it started, as its rollout says they stand, the question
+    # or the form it waits on, which the executor keeps in the thread's state
+    # file in the shape of a question of claude's, and the checklist it keeps
+    # by its thread. The
+    # state goes with every answer, with no question too: a question answered
+    # goes off the screen only when a state without it arrives. Its lists are
+    # always there, empty or not: the screen counts them.
     if request.get("state") and not sub and is_rollout(path):
         reply["state"] = {"tasks": [], "agents": ctx.codex_crew(path)}
         ask = held.codex_ask(session)
         if ask:
             reply["state"]["ask"] = ask
+        checklist = checklists.of_thread(session)
+        if checklist:
+            reply["state"]["checklist"] = checklist
     elif request.get("state") and not sub:
         state = sesstate.SHARED.state(path)
         found = state.snapshot() if state else None

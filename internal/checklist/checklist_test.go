@@ -460,3 +460,108 @@ func TestSweepTakesOnlyWhatIsOld(t *testing.T) {
 		t.Error("a directory that is not there swept something")
 	}
 }
+
+const (
+	thread      = "019a1f00-0000-7000-8000-00000000abcd"
+	otherThread = "019a1f00-0000-7000-8000-00000000ef01"
+)
+
+// threadOf is a thread of codex as the server finds it at a call: the home of
+// its codex, the directory codex started the server in, the codex holding it.
+func threadOf(id, home, dir string, pid int) mcp.Binding {
+	return mcp.Binding{Place: mcp.Place{ConfigDir: home, Dir: dir}, Name: "codex-" + id[len(id)-8:],
+		SessionID: id, PID: pid, Codex: true}
+}
+
+// A thread of codex keeps the checklist of its thread, whatever its place is
+// called by: a step sent again keeps its time when the server of the thread
+// names the home and the directory by other paths, and another thread of the
+// same directory keeps a checklist of its own. A session of the place reads
+// neither.
+func TestACodexThreadKeepsTheChecklistOfItsThread(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Keep(dir, threadOf(thread, "/srv/codex", "/srv/proj/lab", 800),
+		[]Item{{Text: "read the code", Status: Active}}, "", t0); err != nil {
+		t.Fatal(err)
+	}
+	moved := threadOf(thread, "/srv/real/codex", "/srv/real/proj/lab", 801)
+	got, err := Keep(dir, moved, []Item{{Text: "read the code", Status: Active}, {Text: "write the tests", Status: Pending}},
+		"", t0.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Items[0].Since != t0.Format(Stamp) || got.SessionID != thread || got.PID != 801 || got.Name != "codex-0000abcd" ||
+		got.ConfigDir != "/srv/real/codex" || got.Dir != "/srv/real/proj/lab" {
+		t.Errorf("the checklist of the thread is %+v", got)
+	}
+	if on := ReadThread(dir, thread); on == nil || len(on.Items) != 2 {
+		t.Errorf("the thread reads %+v", on)
+	}
+	if on := Adopt(dir, threadOf(thread, "/srv/codex", "/srv/proj/lab", 800)); on == nil || len(on.Items) != 2 {
+		t.Errorf("the thread at its next call reads %+v", on)
+	}
+
+	if on := Adopt(dir, threadOf(otherThread, "/srv/codex", "/srv/proj/lab", 800)); on != nil {
+		t.Errorf("another thread of the directory found the checklist of this one: %+v", on)
+	}
+	for _, name := range []string{"", "codex-0000abcd"} {
+		if on := Read(dir, mcp.Place{ConfigDir: "/srv/codex", Dir: "/srv/proj/lab"}, name); on != nil {
+			t.Errorf("a session of the place named %q reads the checklist of the thread: %+v", name, on)
+		}
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 || entries[0].Name() != ThreadFile(thread) {
+		t.Errorf("one thread keeps %v", entries)
+	}
+	if _, err := Keep(dir, moved, []Item{}, "", t0); err != nil || ReadThread(dir, thread) != nil {
+		t.Errorf("an empty list leaves the checklist of the thread: %v", err)
+	}
+}
+
+// The file of a thread is named by the thread, which the collector reads it
+// by, so the name is pinned here; what is no id of a thread has no file.
+func TestTheFileOfAThreadIsNamedByTheThread(t *testing.T) {
+	if got := ThreadFile(thread); got != "codex-019a1f00-0000-7000-8000-00000000abcd.json" {
+		t.Errorf("the checklist of thread %s is named %q", thread, got)
+	}
+	for _, bad := range []string{"", "../" + thread, "codex-0000abcd", thread + "/x"} {
+		if got := ThreadFile(bad); got != "" {
+			t.Errorf("%q is taken for a thread: %q", bad, got)
+		}
+	}
+	dir := t.TempDir()
+	b := threadOf(thread, "/srv/codex", "/srv/proj/lab", 800)
+	b.SessionID = "5a0c7d1e"
+	if _, err := Keep(dir, b, []Item{{Text: "x", Status: Active}}, "", t0); err == nil {
+		t.Error("a thread that is no id of one kept a checklist")
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Errorf("something was written for it: %v", entries)
+	}
+}
+
+// A file under the name of a thread is the thread's only while it names that
+// thread; and a thread takes over no checklist of its place, even one its id
+// was written into.
+func TestAThreadReadsOnlyItsOwnFile(t *testing.T) {
+	dir := t.TempDir()
+	body, _ := json.Marshal(Checklist{ConfigDir: "/srv/codex", Dir: "/srv/proj/lab", SessionID: otherThread,
+		At: t0.Format(Stamp), Items: []Item{{Text: "x", Status: Active}}})
+	if err := os.WriteFile(filepath.Join(dir, ThreadFile(thread)), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if on := ReadThread(dir, thread); on != nil {
+		t.Errorf("the thread read the checklist of another: %+v", on)
+	}
+
+	placed := mcp.Place{ConfigDir: "/srv/codex", Dir: "/srv/proj/lab"}
+	if _, err := Keep(dir, mcp.Binding{Place: placed, SessionID: otherThread, PID: 7},
+		[]Item{{Text: "y", Status: Active}}, "", t0); err != nil {
+		t.Fatal(err)
+	}
+	if on := Adopt(dir, threadOf(otherThread, "/srv/codex", "/srv/proj/lab", 800)); on != nil {
+		t.Errorf("the thread took over the checklist of its place: %+v", on)
+	}
+	if Read(dir, placed, "") == nil {
+		t.Error("the checklist of the place is gone")
+	}
+}

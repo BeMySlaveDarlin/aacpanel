@@ -342,9 +342,9 @@ def sessions():
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
     # A codex thread has none of what the rows above are filled with: no file
-    # of a claude session, no transcript of claude, no checklist of the panel.
-    # A codex no executor follows and no live session started stands on its
-    # own, only read.
+    # of a claude session, no transcript of claude, and a checklist kept by
+    # its thread rather than by a place. A codex no executor follows and no
+    # live session started stands on its own, only read.
     data.setdefault("sessions", []).extend(ctx.codex_sessions())
     data["sessions"].extend(data.pop("codex", None) or [])
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}

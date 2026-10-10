@@ -23,6 +23,11 @@ const LetterName = "send_to_session"
 const LetterInstructions = "To write to another live session of this machine, Claude or Codex, in any account " +
 	"(«напиши в соседнюю сессию», «передай сессии»), or when SendMessage cannot reach a live one, use send_to_session."
 
+// codexLetterInstructions is the same line to a thread of codex, which has
+// no SendMessage to turn to it from.
+const codexLetterInstructions = "To write to another live session of this machine, Claude or Codex, in any " +
+	"account («напиши в соседнюю сессию», «передай сессии»), use send_to_session."
+
 // LetterDescription is the tool's own word to the model.
 const LetterDescription = "Sends a letter to another live session of this machine, Claude or Codex, in this " +
 	"account or another, or lists them. Without to it returns the live sessions besides this one: the name, the " +
@@ -55,6 +60,13 @@ func Letter(h Host) mcp.Tool {
 			return letter(ctx, h, bind, args)
 		},
 	}
+}
+
+// CodexLetter is the same tool for a thread of codex.
+func CodexLetter(h Host) mcp.Tool {
+	t := Letter(h)
+	t.Instructions = codexLetterInstructions
+	return t
 }
 
 func letterSchema() map[string]any {

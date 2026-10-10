@@ -73,6 +73,7 @@ class Runtime(unittest.TestCase):
         self.root = test_barrier.tmp_path(prefix="codex-")
         self.addCleanup(shutil.rmtree, self.root, True)
         put_env(self, "XDG_RUNTIME_DIR", os.path.join(self.root, "run"))
+        put_env(self, "XDG_STATE_HOME", os.path.join(self.root, "state"))
         os.makedirs(held.stream_dir())
         self.home = os.path.join(self.root, ".codex-profiles", "work")
         put_env(self, contours.CODEX_ENV, os.pathsep.join([os.path.join(self.root, ".codex"), self.home]))
@@ -103,6 +104,49 @@ class Runtime(unittest.TestCase):
         done = subprocess.Popen(["true"])
         done.wait()
         return done.pid
+
+    def keep_checklist(self, thread=THREAD, **extra):
+        """Writes the checklist the executor's server keeps for a thread, under the name of the thread."""
+        data = {"configDir": self.home, "dir": "/home/u/Projects/demo", "name": f"codex-{thread[-8:]}",
+                "sessionId": thread, "pid": 800, "at": "2026-10-09T12:05:00Z",
+                "items": [{"text": "read the router", "status": "done", "since": "2026-10-09T12:04:00Z"},
+                          {"text": "fix its test", "status": "active", "since": "2026-10-09T12:05:00Z"}]}
+        data.update(extra)
+        root = os.path.join(os.environ["XDG_STATE_HOME"], "aacpanel", "checklists")
+        os.makedirs(root, exist_ok=True)
+        with open(os.path.join(root, f"codex-{thread}.json"), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+
+# What the screens are given of the checklist keep_checklist writes.
+CHECKLIST = {"items": [{"text": "read the router", "status": "done", "since": "2026-10-09T12:04:00Z"},
+                       {"text": "fix its test", "status": "active", "since": "2026-10-09T12:05:00Z"}],
+             "at": "2026-10-09T12:05:00Z"}
+
+
+class Checklist(Runtime):
+    """The checklist a thread keeps through the panel's tool, by its thread."""
+
+    def test_the_row_of_a_thread_carries_its_checklist(self):
+        self.follow()
+        self.assertNotIn("checklist", ctx.codex_sessions()[0], "a thread that keeps none shows none")
+        self.keep_checklist()
+        self.assertEqual(ctx.codex_sessions()[0].get("checklist"), CHECKLIST)
+
+    def test_the_checklist_of_a_thread_is_its_own_whatever_its_place_is_called(self):
+        self.follow()
+        self.keep_checklist(configDir="/srv/real/codex", dir="/srv/real/demo")
+        self.assertEqual(ctx.codex_sessions()[0].get("checklist"), CHECKLIST,
+                         "the server of the thread may name its place by other paths")
+        self.keep_checklist(thread=CLAUDE)
+        self.keep_checklist(sessionId=CLAUDE)
+        self.assertNotIn("checklist", ctx.codex_sessions()[0], "a file that names another thread is not its own")
+
+    def test_the_state_of_the_conversation_carries_the_checklist(self):
+        self.follow()
+        self.keep_checklist()
+        state = chat.answer({"session": THREAD, "limit": 50, "state": True}).get("state")
+        self.assertEqual(state, {"tasks": [], "agents": [], "checklist": CHECKLIST})
 
 
 class Rows(Runtime):
@@ -420,6 +464,30 @@ class McpCalls(Runtime):
         self.assertEqual([(r["role"], r.get("name")) for r in listed],
                          [("tool", "aacpanel: send_to_session"), ("result", None)],
                          "the list of sessions sends nothing and stays a call")
+
+    def test_a_secret_the_thread_asked_for_is_the_card_of_a_secret(self):
+        """The card takes its name from the answer and its title and notepad from the call, as claude's does."""
+        args = {"name": "github-token", "title": "GitHub token", "template": "GH_TOKEN=\n"}
+        rows = chat.parse(mcp_call("aacpanel", "secret_ask", args, text="Asked as github-token.\nThe person fills "
+                                   "the notepad in the panel."), 4)
+        self.assertEqual(rows, [{"role": "secret", "use": "call_9", "name": "github-token", "title": "GitHub token",
+                                 "template": "GH_TOKEN=\n", "at": "2026-10-09T12:06:00.000Z", "pos": 4}])
+        refused = chat.parse(mcp_call("aacpanel", "secret_ask", {"name": "x"}, status="failed",
+                                      text="Nothing was asked: the call names no codex thread."), 4)
+        self.assertEqual([r["role"] for r in refused], ["tool", "result"], "a refusal asked nothing and stays a call")
+
+    def test_a_brief_the_thread_published_is_the_card_of_a_brief(self):
+        shelf = {"seven": {"title": "Seven questions", "eyebrow": "after the review",
+                           "questions": [{"kind": "pick"}, {"kind": "none"}]}}
+        record = mcp_call("aacpanel", "brief_publish", {"doc": {"id": "seven", "title": "Seven questions"}},
+                          text="Published as seven. The answers arrive in this session as a message.")
+        rows = chat.parse(record, 4, shelf=shelf.get)
+        self.assertEqual([(r["role"], r["id"], r["title"], r.get("eyebrow"), r["questions"], r["use"]) for r in rows],
+                         [("brief", "seven", "Seven questions", "after the review", 1, "call_9")])
+        self.assertEqual([(r["role"], r["title"]) for r in chat.parse(record, 4)], [("brief", "seven")],
+                         "without the shelf the card names the brief")
+        rules = chat.parse(mcp_call("aacpanel", "brief_publish", {}, text="# How a brief is written"), 4)
+        self.assertEqual([r["role"] for r in rules], ["tool", "result"], "reading the rules publishes nothing")
 
     def test_the_feed_of_the_thread_shows_the_calls_where_they_came(self):
         self.add(mcp_call("docs", "search", {"query": "router tests"}, text="2 pages"))

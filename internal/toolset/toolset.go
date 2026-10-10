@@ -52,12 +52,22 @@ func Server(bind mcp.Bind) *mcp.Server {
 	return &mcp.Server{Lead: lead, Tools: tools(), Bind: bind}
 }
 
-// codexTools are the tools the panel gives a thread of codex: the letter
-// alone. The others are a claude session's — its checklist, briefs, calls and
-// secrets are shown by the claude account and the directory it works in, and
-// the restart is a claude one — and none knows a codex thread for a session.
+// codexTools are the tools the panel gives a thread of codex, each bound to
+// the thread the call names: its checklist is kept by the thread, its briefs,
+// calls and secrets go under it. Two of a claude session's are not here. The
+// restart is claude's: the daemon keeps the thread, no process of the
+// panel's is there to start again, and the panel refuses it. A new session
+// spends the limits of an account, and a thread is not given that besides
+// what codex starts on its own.
 func codexTools() []mcp.Tool {
-	return []mcp.Tool{session.Letter(session.Here())}
+	return []mcp.Tool{
+		checklist.Tool(checklist.Dir(), time.Now),
+		collector.CodexBriefPublish(collector.BriefSocket(), collector.HostGuide()),
+		collector.BriefDelete(collector.BriefSocket()),
+		collector.Notify(collector.NotifySocket()),
+		collector.SecretAsk(collector.NotifySocket()),
+		session.CodexLetter(session.Here()),
+	}
 }
 
 // CodexServer is the panel's MCP server for a codex: caller finds the thread

@@ -818,7 +818,8 @@ appears or the connection drops — at once when an action waits for it.
   thread, and so does a letter of another session, in its envelope; a stop interrupts the turn — the inner turn of a review, which the
   daemon names when it refuses the root one — Esc declines what waits, a file
   goes where a claude session gets it — a picture into the turn as a file codex
-  reads itself, any other file as its path. The commands of codex's own
+  reads itself, any other file as its path — and a secret the thread asked for
+  is saved where a claude session's is and its path goes as a message. The commands of codex's own
   terminal go as `session.command`, each saying what it does in a field of its
   own rather than in words to parse: `compact`, a turn that summarises the
   conversation; `review` of the uncommitted changes, of the work against a
@@ -1449,7 +1450,14 @@ a place apart writes that file too, and a named session takes it over as its
 own only while its conversation is the one that sent it last — whose it is
 otherwise is not to be told. The price is that the name is the key: a session
 renamed starts with no checklist, and sessions without a name in one directory
-under one account share one. A checklist nobody has sent for thirty days is
+under one account share one. A thread of codex keeps its checklist by its
+thread alone, in `codex-<thread>.json`: codex keeps the id for the life of the
+thread, resumed or joined by another client, while the place of a thread is
+named by two paths that need not agree — the server finds the home by the lock
+the kernel names, the collector by the home the executor was given. The row
+of the thread and the state of its conversation carry it as a claude
+session's do; the thread is told nothing of it at the handshake, since the
+server knows no thread before a call. A checklist nobody has sent for thirty days is
 swept when a server starts. Nothing makes the model keep it true: a `Stop` hook, where
 the account has it, holds a turn that did work past an unfinished checklist it
 did not touch, once, to ask whether it changed.
@@ -1494,8 +1502,20 @@ with an environment that names no thread, and names the thread in the `_meta`
 of every call as `threadId`: the server under codex takes the sender from the
 call, and only a thread whose lock the codex that started it holds among its
 open files (`<CODEX_HOME>/thread-writer-locks/<thread>.lock`), which says the
-home too. It offers the letter alone: the other tools find a claude session
-by its account and directory, and a codex thread is neither. A letter of a
+home too. It offers the tools of a session but two, each bound to that
+thread: the checklist, the brief, the call and the notepad of secrets go under
+the thread as a claude session's go under its conversation, and a call that
+names no thread the codex holds is refused by every one of them. The restart
+is claude's — the daemon keeps the thread, and the panel refuses it — and a new
+session spends the limits of an account, which a thread is not given on top of
+what codex starts on its own. The server's word to codex names only what it
+has: a brief is weighed against a question asked in the conversation, since
+codex has no dialog of claude's, and the letter is not offered as the way past
+a `SendMessage` it does not have. Codex writes a call of an MCP tool and its
+answer as one item of the rollout, and the feed draws the card of a brief or a
+secret from that item; a secret saved for a thread reaches it as a message of
+the panel, a turn on a free thread and the queue on a busy one, and a brief
+lands under the directory the row of the thread names. A letter of a
 thread goes as `session.letter` naming the thread, its home and its directory,
 signed `codex-<tail> — <contour> — <directory>`: claude's envelope has no field
 for where a sender works, and a codex has no socket to be answered at, so

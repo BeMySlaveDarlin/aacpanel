@@ -8,6 +8,7 @@ import re
 
 import archive
 import chat
+import checklists
 import contours
 import held
 from chat import codex
@@ -404,7 +405,8 @@ def codex_row(data):
     terminals run, the messages that wait in the panel's queue, and how full
     the context is as the daemon last said it; the rollout says the fill when
     the executor heard nothing newer, as a claude row reads its transcript,
-    and the agents the thread has at work.
+    and the agents the thread has at work. The checklist is the one the thread
+    keeps through the panel's tool.
     """
     sid = data["sessionId"]
     name = data.get("name") if isinstance(data.get("name"), str) and data["name"] else f"codex-{sid[-8:]}"
@@ -453,6 +455,7 @@ def codex_row(data):
     config_dir = _account(contour)
     if config_dir:
         row["configDir"] = config_dir
+    _with_checklist(row)
     wait = held.waiting_for(data)
     if wait:
         row["status"] = "waiting"
@@ -460,6 +463,14 @@ def codex_row(data):
     else:
         row["status"] = "busy" if data.get("busy") is True else "idle"
     return _with_crew(row, path)
+
+
+def _with_checklist(row):
+    """Puts on the row of a codex thread the checklist it keeps through the panel's tool, kept by its thread."""
+    checklist = checklists.of_thread(row["sessionId"])
+    if checklist:
+        row["checklist"] = checklist
+    return row
 
 
 def codex_sessions():
@@ -922,7 +933,7 @@ def codex_own_row(proc):
     config_dir = _account(proc["contour"])
     if config_dir:
         row["configDir"] = config_dir
-    return _with_crew(row, proc["rollout"])
+    return _with_crew(_with_checklist(row), proc["rollout"])
 
 
 def codex_own_rows(procs):

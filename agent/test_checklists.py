@@ -87,6 +87,37 @@ class Name(unittest.TestCase):
             self.assertIsNone(checklists.name_of(config, cwd, "lab"), (config, cwd))
 
 
+THREAD = "019a1f00-0000-7000-8000-00000000abcd"
+
+
+class OfThread(ChecklistOnDisk):
+    """A thread of codex keeps its checklist by its thread."""
+
+    def put_thread(self, data, thread=THREAD):
+        root = os.path.join(self.dir.name, "aacpanel", "checklists")
+        os.makedirs(root, exist_ok=True)
+        with open(os.path.join(root, checklists.thread_file(thread)), "w", encoding="utf-8") as f:
+            f.write(data if isinstance(data, str) else json.dumps(data))
+
+    def test_the_name_is_the_thread_the_executor_names_it_by(self):
+        # Pinned beside the executor's own test of the same thread.
+        self.assertEqual(checklists.thread_file(THREAD), "codex-019a1f00-0000-7000-8000-00000000abcd.json")
+        for bad in ("", None, "codex-0000abcd", "../" + THREAD, THREAD + "\n", THREAD + "/x"):
+            self.assertIsNone(checklists.thread_file(bad), repr(bad))
+
+    def test_the_checklist_of_a_thread_is_read_in_the_shape_the_screens_take(self):
+        self.put_thread({**CHECKLIST, "configDir": "/srv/codex", "name": "codex-0000abcd", "sessionId": THREAD})
+        self.assertEqual(checklists.of_thread(THREAD), SHAPE)
+
+    def test_only_a_file_naming_the_thread_is_its_checklist(self):
+        self.put_thread({**CHECKLIST, "sessionId": SESSION})
+        self.assertIsNone(checklists.of_thread(THREAD), "a file naming another conversation was read")
+        self.put_thread("not json")
+        self.assertIsNone(checklists.of_thread(THREAD))
+        self.put(CHECKLIST)
+        self.assertIsNone(checklists.of_thread(SESSION), "the checklist of a claude session was read for a thread")
+
+
 class Of(ChecklistOnDisk):
     def test_the_checklist_is_read_in_the_shape_the_screens_take(self):
         self.put(CHECKLIST)

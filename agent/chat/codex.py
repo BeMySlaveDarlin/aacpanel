@@ -30,7 +30,8 @@ import contours
 import held
 
 from .harness import COMPACTED, STOPPED
-from .cards import MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT
+from .cards import (BRIEF_TOOL, MAX_ASK_ANSWERS, MAX_ASK_QUESTIONS, MAX_ASK_TEXT, SECRET_TOOL, brief_card,
+                    secret_call, secret_card)
 from .limits import MAX_ARGS, MAX_RESULT, MAX_TEXT, cut
 from .mail import LETTER_TOOL, mails, peer_name, undelivered
 from .tools import one_line, tool_arg, tool_kind, tool_label
@@ -400,15 +401,26 @@ def _mcp_said(item):
                      if isinstance(c, dict) and c.get("type") == "text" and isinstance(c.get("text"), str))
 
 
-def _mcp_call(item, use, at, pos):
-    """Returns the rows of a call of an MCP tool: a call among the calls, or an outgoing letter.
+def _mcp_call(item, use, at, pos, shelf=None):
+    """Returns the rows of a call of an MCP tool: a call among the calls, an outgoing letter, or a card.
 
     A letter that reached nobody says why, from the answer that came with it.
+    A brief published and a secret asked for are the cards claude's feed
+    draws in their place, from the answer the item carries with the call: a
+    call the tool refused stays a call. Shelf reads a published brief by its
+    name, for what its card says of it.
     """
     name = _mcp_name(item)
     if not name:
         return []
     args = _mcp_args(item)
+    card = None
+    if name == SECRET_TOOL:
+        card = secret_card(_mcp_said(item), secret_call(args), use, at, pos)
+    elif name == BRIEF_TOOL:
+        card = brief_card(_mcp_said(item), "tool", shelf, use, at, pos)
+    if card:
+        return [card]
     said = args.get("text")
     if name == LETTER_TOOL and isinstance(said, str) and said.strip():
         body, trimmed = cut(said.strip(), MAX_TEXT)
@@ -1103,13 +1115,15 @@ def _agent_letter(raw, at, pos, state):
 WORK = ("CommandExecution", "FileChange", "Extension")
 
 
-def rows(record, pos, state=None):
+def rows(record, pos, state=None, shelf=None):
     """Returns the feed items of one rollout record, from none to many.
 
     A change of several files is a call a file, as claude makes them: each
     names the file it changed, and its details open that file's diff. State
     is what the reader keeps for the whole file: the id of the thread the
     rollout is of, and the calls to agents of the second set it has met.
+    Shelf reads a published brief by its name, for the card of a brief the
+    thread published.
     """
     at = record.get("timestamp") or ""
     if _stopped(record):
@@ -1198,7 +1212,7 @@ def rows(record, pos, state=None):
     if kind == ACTIVITY:
         return _activity(item, at, pos, state)
     if kind == MCP_CALL:
-        return _mcp_call(item, use, at, pos)
+        return _mcp_call(item, use, at, pos, shelf)
     return []
 
 

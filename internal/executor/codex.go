@@ -155,6 +155,8 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexTaskStop(ctx, th, req.Work)
 	case action.AgentStop:
 		return codexAgentStop(ctx, th, req.Work)
+	case action.SecretPut:
+		return codexSecretPut(ctx, th, req.Secret)
 	case action.SessionClose:
 		return e.codexClose(ctx, th)
 	case action.SessionRestart:

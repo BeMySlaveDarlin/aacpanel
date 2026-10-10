@@ -311,7 +311,7 @@ func TestTheDeskKeepsTheChecklistAtTheTopOfTheTimeline(t *testing.T) {
 // A card of the sessions list says where a session is in its checklist on a
 // line of its own under the state, cut at its end; the state stays whole on
 // one line, with how long the session has lived after it, and a session with
-// no checklist says nothing of one.
+// no checklist says nothing of one. A thread of codex says it the same way.
 func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 	type card struct {
 		State           string `json:"state"`
@@ -330,6 +330,7 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 		Done     card `json:"done"`
 		Asks     card `json:"asks"`
 		Plain    card `json:"plain"`
+		Codex    card `json:"codex-5afc361b"`
 		Overflow int  `json:"overflow"`
 	}
 	runFixture(t, "checklistcard.html", &got)
@@ -338,9 +339,10 @@ func TestTheCardSaysWhereTheSessionIsInItsChecklist(t *testing.T) {
 		checklist string
 		state     string
 	}{
-		"busy": {got.Busy, "4/7 · the watcher waits for the background and checks a fresh snapshot again", "working"},
-		"done": {got.Done, "checklist done · 7/7", "idle"},
-		"asks": {got.Asks, "2/3 · later 1", "asks you · Which way"},
+		"busy":  {got.Busy, "4/7 · the watcher waits for the background and checks a fresh snapshot again", "working"},
+		"done":  {got.Done, "checklist done · 7/7", "idle"},
+		"asks":  {got.Asks, "2/3 · later 1", "asks you · Which way"},
+		"codex": {got.Codex, "2/3 · fix the test of the router", "working"},
 	} {
 		if c.Checklist != c.checklist || c.InState || !c.Below || c.ChecklistWidth < 40 || !c.ChecklistInside {
 			t.Errorf("%s: the card says %q (in the state %v, on a line under it %v, %dpx, inside %v), expected %q",

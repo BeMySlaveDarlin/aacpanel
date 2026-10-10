@@ -5,9 +5,9 @@
 // keep checklists of their own, and a session started again under its name,
 // afresh or going on with its conversation, finds its checklist where it was
 // left. A session without a name is told by its place alone: nothing else
-// tells it from another session there. The collector reads the file into the
-// row of the session and into the state of its conversation; nothing else
-// writes it.
+// tells it from another session there. A thread of codex is told by its
+// thread. The collector reads the file into the row of the session and into
+// the state of its conversation; nothing else writes it.
 package checklist
 
 import (
@@ -80,7 +80,41 @@ func File(p mcp.Place, name string) string {
 	return hex.EncodeToString(sum[:16]) + ".json"
 }
 
-// Checklist is what lies on disk for one session.
+// ThreadFile is the file of the checklist of a codex thread, or empty for what
+// is no id of one. A thread is told by its id alone: codex keeps it for the
+// life of the thread — resumed, joined by another client, under a daemon
+// started again — and no thread of any home takes it again. Its place would
+// tell it no better and could tell it worse: the server of the thread finds
+// the home by the lock the kernel names, the collector by the home the
+// executor was given, and a link on the way makes the two paths differ. The
+// prefix keeps the name apart from a checklist filed under a conversation.
+func ThreadFile(thread string) string {
+	if !threadID.MatchString(thread) {
+		return ""
+	}
+	return threadPrefix + thread + ".json"
+}
+
+const threadPrefix = "codex-"
+
+// threadID is the id codex gives a thread, a UUID.
+var threadID = regexp.MustCompile(`^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$`)
+
+// fileOf is the file of the checklist of the session bound: its thread for a
+// thread of codex, its place and its name for a claude.
+func fileOf(where mcp.Place, b mcp.Binding) (string, error) {
+	if !b.Codex {
+		return File(where, b.Name), nil
+	}
+	if file := ThreadFile(b.SessionID); file != "" {
+		return file, nil
+	}
+	return "", fmt.Errorf("%q is not the id of a codex thread", b.SessionID)
+}
+
+// Checklist is what lies on disk for one session. A thread of codex keeps the
+// home of its codex for the config directory, its thread for the
+// conversation and the codex that holds it for the process.
 type Checklist struct {
 	ConfigDir string `json:"configDir"`
 	Dir       string `json:"dir"`
@@ -169,11 +203,15 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 	if b.SessionID != "" && !conversationID.MatchString(b.SessionID) {
 		return nil, fmt.Errorf("%q does not look like a conversation id", b.SessionID)
 	}
-	items, note, err := Clean(items, note)
+	file, err := fileOf(where, b)
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dir, File(where, b.Name))
+	items, note, err = Clean(items, note)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dir, file)
 	if len(items) == 0 {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("the checklist was not cleared: %w", err)
@@ -182,7 +220,7 @@ func Keep(dir string, b mcp.Binding, items []Item, note string, now time.Time) (
 	}
 
 	stamp := now.UTC().Format(Stamp)
-	was := sinceOf(Read(dir, where, b.Name))
+	was := sinceOf(readBound(dir, where, b))
 	for i := range items {
 		if items[i].Status != Active && items[i].Status != Done {
 			continue
@@ -262,6 +300,33 @@ func readFile(path string, where mcp.Place, name string) *Checklist {
 	return &p
 }
 
+// ReadThread returns the checklist of a codex thread, or nil when there is
+// none.
+func ReadThread(dir, thread string) *Checklist {
+	file := ThreadFile(thread)
+	if file == "" {
+		return nil
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, file))
+	if err != nil {
+		return nil
+	}
+	var p Checklist
+	if json.Unmarshal(raw, &p) != nil || p.SessionID != thread {
+		return nil
+	}
+	return &p
+}
+
+// readBound returns the checklist of the session bound as it lies, taking
+// over nothing.
+func readBound(dir string, where mcp.Place, b mcp.Binding) *Checklist {
+	if b.Codex {
+		return ReadThread(dir, b.SessionID)
+	}
+	return Read(dir, where, b.Name)
+}
+
 // Adopt returns the checklist of the session bound, taking over first what a
 // server that keys checklists otherwise left for it: the server a live
 // session was started with writes the file it knows until the session starts
@@ -279,15 +344,16 @@ func readFile(path string, where mcp.Place, name string) *Checklist {
 // session without a name takes over the newest of them, a named session only
 // the one of its own conversation.
 //
-// A session that already has a checklist takes over nothing. What is taken
-// over is written as the session's and the files it came from go; a file
-// nobody took over goes with the sweep.
+// A session that already has a checklist takes over nothing, and neither
+// does a thread of codex: no server ever kept its checklist under another
+// key. What is taken over is written as the session's and the files it came
+// from go; a file nobody took over goes with the sweep.
 func Adopt(dir string, b mcp.Binding) *Checklist {
 	where, ok := b.Place.Clean()
 	if !ok {
 		return nil
 	}
-	if p := Read(dir, where, b.Name); p != nil {
+	if p := readBound(dir, where, b); p != nil || b.Codex {
 		return p
 	}
 	var newest *Checklist

@@ -5,16 +5,21 @@ file a session: told by its place — the config directory of the account and
 the directory the session runs in — and by its name, so the sessions of one
 directory keep checklists of their own, and a session started again under its
 name finds the checklist it left. A session without a name is told by its
-place alone. The collector reads the file into the row of the session and into
-the state of its conversation, in the small shape the screens take: every step
-with its status and, for a step at work or done, since when.
+place alone, and a thread of codex by its thread. The collector reads the file
+into the row of the session and into the state of its conversation, in the
+small shape the screens take: every step with its status and, for a step at
+work or done, since when.
 """
 import hashlib
 import json
 import os
 import posixpath
+import re
 
 STATUSES = ("pending", "active", "done", "dropped")
+
+# The id codex gives a thread, which names the file of its checklist.
+THREAD_ID = re.compile(r"[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 
 
 def checklists_dir():
@@ -52,6 +57,30 @@ def name_of(config_dir, cwd, name=None):
     if _name(name):
         key += b"\0" + os.fsencode(name)
     return hashlib.sha256(key).hexdigest()[:32] + ".json"
+
+
+def thread_file(thread):
+    """Returns the file name of the checklist of a codex thread, or None for what is no id of one.
+
+    A thread is told by its id alone, the name the executor gives the file:
+    codex keeps the id for the life of the thread, and the place of a thread
+    is named by paths the server of the thread and the executor need not
+    write alike.
+    """
+    if not isinstance(thread, str) or not THREAD_ID.fullmatch(thread):
+        return None
+    return "codex-" + thread + ".json"
+
+
+def of_thread(thread):
+    """Returns the checklist of a codex thread for the screens, or None when it keeps none."""
+    file = thread_file(thread)
+    if file is None:
+        return None
+    data = _load(os.path.join(checklists_dir(), file))
+    if data is None or data.get("sessionId") != thread:
+        return None
+    return _shape(data)
 
 
 def _text(value):

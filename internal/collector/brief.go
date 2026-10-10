@@ -48,6 +48,23 @@ const publishDescription = "Publishes a brief to the panel: a long piece the per
 	"what is in it, publishing nothing. When the work stops until they answer, ask with AskUserQuestion " +
 	"instead. A refusal says why nothing was published; say it in the conversation."
 
+// codexPublishInstructions and codexPublishDescription are the same word to
+// a thread of codex, which has no AskUserQuestion: it asks in the
+// conversation, ending its turn on the question.
+const codexPublishInstructions = "When a question is more than a line of the conversation carries — several " +
+	"questions, an option that needs a paragraph, facts the choice rests on — or a finished analysis is worth " +
+	"reading on the phone, publish a brief with brief_publish; also when the person asks for one " +
+	`("send me a brief", "I will answer later"; in Russian "бриф", "опросник", "скинь в панель", "отвечу потом").`
+
+var codexPublishDescription = strings.Replace(publishDescription, "ask with AskUserQuestion instead",
+	"ask in the conversation instead", 1)
+
+// codexRules goes before the rules a thread of codex reads: they are written
+// for claude, and the question they weigh a brief against is a dialog codex
+// does not have.
+const codexRules = "This session is a thread of codex. Where the rules below name AskUserQuestion, read a " +
+	"question asked in the conversation, the turn ending on it.\n\n"
+
 // deleteInstructions and deleteDescription are the removal's line and its own
 // word.
 const deleteInstructions = "When the person asks for a brief of this project to go, take it off the panel's " +
@@ -104,15 +121,26 @@ func Rules(guide string) string {
 // socket, with the rules of guide added to the shipped ones. It is allowed: a
 // brief asks nothing of the person until they choose to open it.
 func BriefPublish(socket, guide string) mcp.Tool {
+	return briefPublish(socket, publishInstructions, publishDescription, func() string { return Rules(guide) })
+}
+
+// CodexBriefPublish is the same tool for a thread of codex, told how a brief
+// differs from a question in codex's terms.
+func CodexBriefPublish(socket, guide string) mcp.Tool {
+	return briefPublish(socket, codexPublishInstructions, codexPublishDescription,
+		func() string { return codexRules + Rules(guide) })
+}
+
+func briefPublish(socket, instructions, description string, rules func() string) mcp.Tool {
 	return mcp.Tool{
 		Name:         PublishName,
 		Title:        "Publish a brief",
-		Description:  publishDescription,
+		Description:  description,
 		InputSchema:  publishSchema(),
-		Instructions: publishInstructions,
+		Instructions: instructions,
 		Allowed:      true,
 		Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
-			return publish(ctx, socket, guide, bind, args)
+			return publish(ctx, socket, rules, bind, args)
 		},
 	}
 }
@@ -169,7 +197,7 @@ func deleteSchema() map[string]any {
 // publish returns the rules to a call without a document, says what is in
 // one to a check, and hands any other to the collector under the session and
 // the directory of the claude the server serves.
-func publish(ctx context.Context, socket, guide string, bind mcp.Bind, raw json.RawMessage) (string, bool) {
+func publish(ctx context.Context, socket string, rules func() string, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
 		Doc   json.RawMessage `json:"doc"`
 		Check bool            `json:"check"`
@@ -184,7 +212,7 @@ func publish(ctx context.Context, socket, guide string, bind mcp.Bind, raw json.
 		return "The brief was not published: " + err.Error() + ".", true
 	}
 	if doc == nil {
-		return Rules(guide), false
+		return rules(), false
 	}
 	title, questions, asking := contents(doc)
 	if args.Check {

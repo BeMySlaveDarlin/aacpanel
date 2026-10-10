@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -177,17 +178,20 @@ func fakeCodex(t *testing.T, proc, home string, pid int, threads ...string) {
 
 // The server under codex serves one codex thread a call: the one the call
 // names in its _meta, held by the codex that started the server. It offers the
-// letter alone, and a letter goes from that thread, with the home of its codex
-// and the directory codex started the server in; a call that names no thread
-// sends nothing.
+// tools of a thread — the restart and the new session are not among them — a
+// letter goes from that thread, with the home of its codex and the directory
+// codex started the server in, and a checklist is kept as the thread's; a
+// call that names no thread, or one the codex does not hold, sends nothing and
+// keeps nothing.
 func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	const (
 		first  = "019a1f00-0000-7000-8000-00000000aaaa"
 		second = "019a1f00-0000-7000-8000-00000000bbbb"
+		stray  = "019a1f00-0000-7000-8000-00000000cccc"
 	)
-	proc, home, dir := t.TempDir(), filepath.Join(t.TempDir(), ".codex"), t.TempDir()
+	proc, home, dir, state := t.TempDir(), filepath.Join(t.TempDir(), ".codex"), t.TempDir(), t.TempDir()
 	t.Setenv("AACP_PROC", proc)
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", state)
 	t.Chdir(dir)
 	fakeCodex(t, proc, home, 800, first, second)
 	var asked []map[string]any
@@ -200,25 +204,49 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	t.Cleanup(panel.Close)
 	t.Setenv("AACP_PANEL_URL", panel.URL)
 
+	steps := `{"items":[{"text":"read the code","status":"done"},{"text":"write the tests","status":"active"}]}`
 	replies := talk(t, 800, handshake,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"send_to_session","arguments":{"to":"lab","text":"done"},`+
 			`"_meta":{"threadId":"`+second+`","callId":"call_1"}}}`,
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"send_to_session","arguments":{"to":"lab","text":"done"}}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"checklist","arguments":`+steps+`,`+
+			`"_meta":{"threadId":"`+second+`","callId":"call_2"}}}`,
+		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"checklist","arguments":`+steps+`}}`,
+		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"checklist","arguments":`+steps+`,`+
+			`"_meta":{"threadId":"`+stray+`"}}}`,
 	)
-	if len(replies) != 4 {
-		t.Fatalf("meant four replies: %v", replies)
+	if len(replies) != 7 {
+		t.Fatalf("meant seven replies: %v", replies)
 	}
 	list, _ := replies[1]["result"].(map[string]any)
 	tools, _ := list["tools"].([]any)
-	if len(tools) != 1 || tools[0].(map[string]any)["name"] != "send_to_session" {
-		t.Errorf("codex was offered %v", tools)
+	var offered []string
+	for _, tool := range tools {
+		offered = append(offered, tool.(map[string]any)["name"].(string))
+	}
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "send_to_session"}; !slices.Equal(offered, want) {
+		t.Errorf("codex was offered %v", offered)
 	}
 	if res, _ := replies[2]["result"].(map[string]any); res == nil || res["isError"] != nil {
 		t.Fatalf("the letter answered %v", replies[2])
 	}
-	if res, _ := replies[3]["result"].(map[string]any); res == nil || res["isError"] != true {
-		t.Errorf("a call naming no thread answered %v", replies[3])
+	for _, at := range []int{3, 5, 6} {
+		if res, _ := replies[at]["result"].(map[string]any); res == nil || res["isError"] != true {
+			t.Errorf("a call of no thread the codex holds answered %v", replies[at])
+		}
+	}
+	if res, _ := replies[4]["result"].(map[string]any); res == nil || res["isError"] != nil {
+		t.Fatalf("the checklist answered %v", replies[4])
+	}
+	kept := filepath.Join(state, "aacpanel", "checklists")
+	got := checklist.ReadThread(kept, second)
+	if got == nil || got.PID != 800 || got.ConfigDir != home || got.Dir != dir || got.Name != "codex-0000bbbb" ||
+		len(got.Items) != 2 || got.Items[1].Status != checklist.Active {
+		t.Fatalf("the checklist of the thread is %+v", got)
+	}
+	if entries, _ := os.ReadDir(kept); len(entries) != 1 {
+		t.Errorf("the calls kept %v", entries)
 	}
 	if len(asked) != 1 {
 		t.Fatalf("the panel was asked %v", asked)

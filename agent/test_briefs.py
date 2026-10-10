@@ -98,6 +98,18 @@ class Clean(unittest.TestCase):
             got = briefs.clean(published())
         self.assertEqual(got["cwd"], "/srv/real-work")
 
+    def test_a_codex_thread_is_placed_where_its_executor_says(self):
+        # The server of a thread names the directory by the path the kernel
+        # resolves; the row of the thread, which the conversation finds its
+        # briefs by, names it as the executor does.
+        import held
+        standing = held.codex_threads
+        held.codex_threads = lambda: [{"sessionId": "s-1", "agent": "codex", "cwd": "/srv/link/proj"}]
+        self.addCleanup(setattr, held, "codex_threads", standing)
+        with live({"sessionId": "someone-else", "cwd": "/srv/elsewhere"}):
+            got = briefs.clean(published())
+        self.assertEqual(got["cwd"], "/srv/link/proj")
+
     def test_a_session_the_registry_does_not_know_keeps_what_it_sent(self):
         with live({"sessionId": "someone-else", "cwd": "/srv/elsewhere"}):
             got = briefs.clean(published())
