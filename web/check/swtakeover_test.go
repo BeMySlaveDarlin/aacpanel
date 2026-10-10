@@ -1,9 +1,14 @@
 package check
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -109,9 +114,9 @@ type takeoverRun struct {
 }
 
 // runTakeover serves the page, two panels and two versions of the worker, and
-// follows the page across its reloads. old is the first version: "takeover"
-// and "asking" for the panel's own worker, "silent" and "answers" for
-// heldWorker.
+// follows the page across its reloads. old is the first version: "takeover",
+// "asking" and "pictures" for the panel's own worker, "silent" and "answers"
+// for heldWorker.
 func runTakeover(t *testing.T, old string) takeoverRun {
 	t.Helper()
 	chrome := chromeBinary()
@@ -122,7 +127,7 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 	script := takeoverScript(t)
 	workers := map[int64]string{2: builtWorkerAs(t, "v2")}
 	switch old {
-	case "takeover", "asking":
+	case "takeover", "asking", "pictures":
 		workers[1] = builtWorkerAs(t, "v1")
 	default:
 		workers[1] = fmt.Sprintf(heldWorker, old == "answers")
@@ -198,6 +203,28 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"ok":true}`)
 	})
+	// A picture of the feed takes seconds to come. Both panels answer it, as
+	// every listener answers the same routes: a page reaches the near one
+	// through its api and the one it was loaded from by the address alone.
+	var drawing atomic.Int64
+	tile := tilePNG(t)
+	picture := func(w http.ResponseWriter, r *http.Request) {
+		if cors(w, r) {
+			return
+		}
+		drawing.Add(1)
+		defer drawing.Add(-1)
+		select {
+		case <-time.After(2 * time.Second):
+		case <-r.Context().Done():
+			return
+		case <-quit:
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(tile)
+	}
+	nearMux.HandleFunc("/api/chat/image", picture)
 	near := httptest.NewServer(nearMux)
 
 	homeMux := http.NewServeMux()
@@ -224,9 +251,11 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 	})
 	homeMux.HandleFunc("/seen", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"streams":%d,"slow":%d,"polls":%d}`, streams.Load(), slow.Load(), polls.Load())
+		fmt.Fprintf(w, `{"streams":%d,"slow":%d,"polls":%d,"drawing":%d}`,
+			streams.Load(), slow.Load(), polls.Load(), drawing.Load())
 	})
 	homeMux.HandleFunc("/dist/stall.js", stall)
+	homeMux.HandleFunc("/api/chat/image", picture)
 	home := httptest.NewServer(homeMux)
 	defer func() {
 		close(quit)
@@ -322,6 +351,42 @@ func TestAnUpdateTakesOverAPageThatKeepsAsking(t *testing.T) {
 	if got.AfterTap > 10000 {
 		t.Errorf("the new version came up %d ms after the tap: the takeover waited on the old worker", got.AfterTap)
 	}
+}
+
+// The feed of a session that works with pictures asks for the next one before
+// the last has arrived, and a picture the old worker carries holds the new one
+// back like any other answer. One tap brings the new version up while the
+// feed's own tiles are loading: what the old worker carries is cut as the new
+// one is told to take over, and a tile asks for its picture only as it comes
+// near the screen, so the feed gives the browser its moment with nothing out.
+func TestAnUpdateTakesOverAFeedLoadingPictures(t *testing.T) {
+	got := runTakeover(t, "pictures")
+	if !got.Reloaded {
+		t.Fatal("the page did not reload after the tap")
+	}
+	if got.Version != "v2" || got.Why != "takeover" {
+		t.Errorf("the page came back under %q, reloaded for %q; expected v2 after a takeover — the feed went "+
+			"on loading pictures through the old worker, and the new one waited the grace out", got.Version, got.Why)
+	}
+	if got.Reloads != 1 {
+		t.Errorf("%d reloads after one tap, expected one", got.Reloads)
+	}
+	if got.AfterTap > 10000 {
+		t.Errorf("the new version came up %d ms after the tap: the takeover waited on the old worker", got.AfterTap)
+	}
+}
+
+// tilePNG is the picture the panels of the takeover answer for the feed: a
+// square the tile can be seen by.
+func tilePNG(t *testing.T) []byte {
+	t.Helper()
+	square := image.NewRGBA(image.Rect(0, 0, 48, 48))
+	draw.Draw(square, square.Bounds(), &image.Uniform{C: color.RGBA{R: 0x4f, G: 0x8c, B: 0xff, A: 0xff}}, image.Point{}, draw.Src)
+	var out bytes.Buffer
+	if err := png.Encode(&out, square); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
 }
 
 // A phone may still run a worker that knows nothing of letting go. The page

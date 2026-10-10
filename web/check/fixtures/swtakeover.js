@@ -11,6 +11,7 @@ import { html } from "../../src/html.js";
 import { ToastHost } from "../../src/ui/toasts.js";
 import { UpdateStuck } from "../../src/main.js";
 import * as pwa from "../../src/pwa.js";
+import { Shots } from "../../src/screens/chat/shots.js";
 
 const params = new URLSearchParams(location.search);
 const NEAR = params.get("near");
@@ -18,7 +19,8 @@ const NEAR = params.get("near");
 // is a worker from before the questions about what it has out. "answers": the
 // old one answers what it has out but cannot be made to let go. "asking": the
 // panel's own worker under a page that lives the way the phone does and keeps
-// asking.
+// asking. "pictures": the panel's own worker under a feed that keeps loading
+// pictures.
 const old = params.get("old");
 const noteKey = "fixture";
 const reloadKey = "aacpanel:self-reload";
@@ -122,6 +124,47 @@ async function asking() {
     return null;
 }
 
+// pictures is the feed of a session that works with pictures, on a page kept
+// the way the phone keeps it: a new picture comes into the feed every few
+// hundred milliseconds and takes seconds to arrive, so one is always on its
+// way. The tiles are the feed's own, and the update is tapped while they load.
+async function pictures() {
+    let announced = false;
+    const registration = await pwa.register(() => { announced = true; });
+    if (!(await until(() => navigator.serviceWorker.controller, 10000))) return { error: "no worker took the page" };
+    api.install();
+    api.use({ base: NEAR, via: "lan", token: "probe" });
+    pwa.tellEndpoints([NEAR]);
+    await pwa.runningVersion();
+
+    // The newest row stands first, where the screen is: a tile loads its
+    // picture only once it comes near the screen.
+    let pos = 0;
+    const rows = [];
+    setInterval(() => {
+        rows.unshift(++pos);
+        rows.length = Math.min(rows.length, 8);
+        render(html`
+            <div class="feed">
+                ${rows.map((at) => html`<${Shots} key=${at} shots=${[{ index: 0 }]} session="a" pos=${at} />`)}
+            </div>
+        `, document.getElementById("root"));
+    }, 300);
+    // The feed shows a picture already and has more on their way.
+    const loading = await until(async () => {
+        const shown = [...document.querySelectorAll(".mshot img")].some((img) => img.complete && img.naturalWidth > 0);
+        return shown && (await (await fetch("/seen")).json()).drawing >= 2;
+    }, 10000);
+    if (!loading) return { error: "the feed never got to loading its pictures" };
+
+    await fetch("/bump");
+    await registration.update();
+    if (!(await until(() => announced, 10000))) return { error: "the new version was never offered" };
+    sessionStorage.setItem(noteKey, JSON.stringify({ tapAt: Date.now() }));
+    pwa.apply();
+    return null;
+}
+
 async function afterReload(note) {
     note.reloads = (note.reloads || 0) + 1;
     sessionStorage.setItem(noteKey, JSON.stringify(note));
@@ -136,7 +179,8 @@ async function afterReload(note) {
 }
 
 const note = JSON.parse(sessionStorage.getItem(noteKey) || "null");
-(note ? afterReload(note) : old === "asking" ? asking() : firstLoad()).then(
+const scenes = { asking, pictures };
+(note ? afterReload(note) : (scenes[old] || firstLoad)()).then(
     (result) => { if (result) window.result = result; },
     (err) => { window.result = { error: String(err && err.stack || err) }; },
 );
