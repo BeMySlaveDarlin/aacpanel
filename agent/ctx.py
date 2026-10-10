@@ -11,6 +11,7 @@ import chat
 import contours
 import held
 from chat import codex
+from sesstate import ordered_agents
 from sesstate.limits import MAX_ITEMS
 
 SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
@@ -672,17 +673,60 @@ def codex_agent(proc):
     which the feed opens as a conversation of its own. Nothing of what it was
     asked goes with it: the prompt of a role carries the words of the work.
     """
-    found = codex.context(proc["rollout"]) or {}
     agent = {"agent": CODEX, "id": proc["thread"], "name": proc["role"] or CODEX_EXEC,
              "status": "active", "at": _utc(proc["born"])}
-    if found.get("model"):
-        agent["model"] = found["model"]
+    return _with_context(agent, codex.context(proc["rollout"]) or {})
+
+
+def _with_context(agent, found, model=""):
+    """Returns the agent of a run with the model it ran on and how full its context was."""
+    model = model or found.get("model")
+    if model:
+        agent["model"] = model
     if found.get("tokens"):
         agent["tokens"], agent["limit"] = found["tokens"], found["limit"]
         agent["limitKnown"] = found["limit"] > 0
     if found.get("at"):
         agent["last"] = found["at"]
     return agent
+
+
+# How a run of codex exec that is over stands among the agents.
+CODEX_DONE = "done"
+
+# What the rollouts of runs that are over say of their context, by the size
+# and the time of the file: a run that is over writes no more, and a session
+# lists dozens of them on every reading of its state.
+_contexts = {}
+MAX_CONTEXTS = 512
+
+
+def _context_over(path):
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {}
+    key = (st.st_size, st.st_mtime_ns)
+    hit = _contexts.get(path)
+    if hit and hit[0] == key:
+        return hit[1]
+    found = codex.context(path) or {}
+    if len(_contexts) >= MAX_CONTEXTS:
+        _contexts.clear()
+    _contexts[path] = (key, found)
+    return found
+
+
+def codex_run_over(run):
+    """Returns a run of codex exec that is over as an agent of the claude session that started it.
+
+    It reads as the run at work does, over since codex last wrote its thread,
+    and is named by what the session called the call that started it, else by
+    its role. The run is one codex_archive.runs returns.
+    """
+    agent = {"agent": CODEX, "id": run["thread"], "name": run["text"] or run["role"] or CODEX_EXEC,
+             "status": CODEX_DONE, "at": _utc(run["createdMs"] / 1000), "doneAt": _utc(run["updatedMs"] / 1000)}
+    return _with_context(agent, _context_over(run["rollout"]), run["model"])
 
 
 def codex_runs(procs):
@@ -694,11 +738,22 @@ def codex_runs(procs):
     return out
 
 
-def with_codex_runs(state, runs):
-    """Returns the state of a claude session with the runs of codex exec it started first among its agents."""
-    if not runs:
+def with_codex_runs(state, runs, over=()):
+    """Returns the state of a claude session with the runs of codex exec it started among its agents.
+
+    A run at work stands first. A run that is over stands among the agents
+    that are, by when it was last heard of; while its process lives the run
+    is at work, whatever its thread says.
+    """
+    runs = list(runs or ())
+    live = {run["id"] for run in runs}
+    over = [run for run in over if run["id"] not in live]
+    if not runs and not over:
         return state
-    return {**state, "agents": (runs + list(state.get("agents") or []))[:MAX_ITEMS]}
+    agents = list(state.get("agents") or [])
+    if over:
+        agents = ordered_agents(agents + over)
+    return {**state, "agents": (runs + agents)[:MAX_ITEMS]}
 
 
 def codex_own_row(proc):

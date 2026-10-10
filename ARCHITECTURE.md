@@ -685,6 +685,34 @@ appears or the connection drops — at once when an action waits for it.
   its server of threads built in — is a session of its own, outside and only
   read, as a claude typed into a terminal is; the service refuses an action
   aimed at it.
+- **A run of `codex exec` that is over is found by the call that started it.**
+  Its process is gone, and claude's transcript has no word of its thread: the
+  reader of a session's state keeps every call of the shell whose command
+  names codex — when it went out and came back, the directory, the description,
+  whether it went to the background and the paths the command names, never the
+  command — and looks for the threads of `source = 'exec'` in the state
+  database of the codex home named after the session's contour, or of
+  `~/.codex`, where codex writes when no home is named, for a contour with none
+  of its own. A thread is a call's when it was made in the call's directory or
+  below it, or in one the command names (a task's directory under
+  `.agents/tasks/` counts as the project's), within a minute after the call —
+  or, failing every call of that minute, while the call was still out: a
+  script that runs codex several times in turn. A call is out until its
+  result comes, and one sent to the background until its task ends, not with
+  the answer that it went there; one that never came back is out while the
+  session lives, and no longer than its last word once it is over. Of several
+  calls that may have started a thread, one still out when the thread was made
+  wins over one that was back, and of those the earliest not taken yet: calls
+  sent off one after another make their threads in that order. A call that
+  resumes a thread makes none and takes none. The run stands among the agents
+  as `done`, between the start and the last write of its thread, named by the
+  call's description, else by its role, never by the first message the
+  database keeps; while its process lives the live record wins. The same
+  reading serves a live session and a past conversation of the archive, since
+  both are read by the state reader. The price: runs started in the same
+  second by calls sent off together may swap their names, and a call that
+  stays out for hours — a watch on codex's log in the background — can take a
+  thread no call of its minute claims.
 - **A subscription lasts only while it is needed.** The daemon unloads a thread
   a while after its last client leaves, and a panel subscribed for good would
   keep every thread it ever saw loaded. So the executor subscribes while the

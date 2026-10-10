@@ -10,7 +10,9 @@ Only the conversations of a person stand in the archive: a thread started in
 codex's terminal (source cli) or by a client of the daemon — codex's terminal
 on it or the panel (source vscode). A run of `codex exec` is a claude
 session's reviewer or worker rather than a conversation, and a subagent's
-thread is part of its parent's turn: neither stands on its own. A thread a
+thread is part of its parent's turn: neither stands on its own. A run stands
+among the agents of the claude session that started it instead, found by the
+call of the session that started it (runs). A thread a
 person archived in codex is put away from codex's own lists and its rollout
 moved out of sessions/, and leaves the panel's archive too, as a claude
 transcript that was deleted does.
@@ -20,6 +22,7 @@ a thread and a name it made of it, and the row is named by the name the panel
 gave the thread, or by its directory.
 """
 
+import bisect
 import datetime
 import json
 import os
@@ -218,3 +221,115 @@ def present(found):
         "noRequests": not used,
         "prompts": [],
     }
+
+
+# A run of codex exec a claude session started is found by the call of the
+# shell that started it: codex makes the thread of a run within a minute of
+# the call, or later while the call is still out — a script that runs codex
+# several times in turn — in the directory the call ran in or one below it, or
+# in one its command names. A run that works on a task does it in a directory
+# of the task under the project's own.
+RUN_WINDOW_MS = 60_000
+TASKS = "/.agents/tasks/"
+
+# The threads of runs made within a span of time. The span is the narrow part,
+# and the other columns are kept off their indexes: on the one of the source
+# the database would walk every run the home ever had.
+RUNS = """
+SELECT id, rollout_path, cwd, created_at_ms, updated_at_ms, model, agent_role
+  FROM threads
+ WHERE created_at_ms BETWEEN ? AND ?
+   AND +source = 'exec'
+   AND +archived = 0
+ ORDER BY created_at_ms, id
+"""
+
+
+def runs(calls, contour, until=0):
+    """Returns the runs of codex exec the calls of a claude session started, the newest first.
+
+    The calls are the ones the state of a session keeps (sesstate.runs); the
+    runs are threads of the codex home of the session's contour, made where a
+    call ran, within the window after it or while it was still out. A call
+    that never came back is out until `until`, in milliseconds: now for a
+    live session, its last word for one that is over. A contour with no codex
+    home of its own runs codex in the home codex takes when none is named.
+    Each run says its thread, its rollout, when it was made and last written,
+    its model and role, and what the session called the call that started it.
+    A call that resumes a thread makes none, and none is put down to it: the
+    thread it resumes is the run of the call that started it. Nothing the run
+    was asked comes along: the database keeps the first message of a thread,
+    and it is not read.
+    """
+    home = None
+    if contour:
+        home = dict(contours.codex_homes()).get(contour) or os.path.expanduser(contours.CODEX_HOME)
+    starts = sorted((c for c in calls if c.get("at") and not c.get("resume")), key=lambda c: c["at"])
+    if not home or not starts:
+        return []
+    path = os.path.join(home, STATE_DB)
+    if not os.path.isfile(path):
+        return []
+    till = {c["id"]: c.get("back") or max(until, c["at"]) for c in starts}
+    # The calls out for longer than the window: the only ones a thread made
+    # past the window of every call can be put down to.
+    long = [c for c in starts if till[c["id"]] - c["at"] > RUN_WINDOW_MS]
+    last = max([starts[-1]["at"] + RUN_WINDOW_MS] + [till[c["id"]] for c in long])
+    try:
+        db = connect(path)
+        try:
+            rows = db.execute(RUNS, (starts[0]["at"], last)).fetchall()
+        finally:
+            db.close()
+    except (sqlite3.Error, OSError) as e:
+        say(home, e)
+        return []
+    times = [c["at"] for c in starts]
+    told = set()
+    out = []
+    for tid, rollout, cwd, made, written, model, role in rows:
+        if not isinstance(tid, str) or not tid or not isinstance(rollout, str) or not _ms(made):
+            continue
+        cwd = cwd if isinstance(cwd, str) else ""
+        near = [c for c in starts[bisect.bisect_left(times, made - RUN_WINDOW_MS):bisect.bisect_right(times, made)]
+                if _ran_in(c, cwd)]
+        if not near:
+            near = [c for c in long if c["at"] < made <= till[c["id"]] and _ran_in(c, cwd)]
+        if not near or not os.path.isfile(rollout):
+            continue
+        call = _starter(near, made, told, till)
+        told.add(call["id"])
+        out.append({"thread": tid, "rollout": rollout, "createdMs": made, "updatedMs": _ms(written) or made,
+                    "model": model if isinstance(model, str) else "",
+                    "role": role if isinstance(role, str) else "", "text": call.get("text") or ""})
+    out.sort(key=lambda r: (r["createdMs"], r["thread"]), reverse=True)
+    return out
+
+
+def _under(path, root):
+    root = root.rstrip("/")
+    return bool(root) and (path == root or path.startswith(root + "/"))
+
+
+def _ran_in(call, cwd):
+    """Says whether a thread ran where a call may have started it."""
+    own = cwd.split(TASKS, 1)[0].rstrip("/")
+    if not own:
+        return False
+    return _under(own, call.get("cwd") or "") or any(_under(named, own) for named in call.get("paths") or ())
+
+
+def _starter(near, made, told, till):
+    """Returns the call that started a thread, of the calls that may have, in the order they went out.
+
+    A call still out when codex made the thread started it rather than one
+    that had come back: a command that reads codex's files names codex too. A
+    call can be back before its thread is made, when it sends codex off on its
+    own, so with none out every call is weighed. Of those, the earliest no
+    thread is put down to yet: calls sent off one after another make their
+    threads in that order. When every one has a thread already, one call
+    started several, and it is the latest.
+    """
+    out = [c for c in near if till[c["id"]] >= made] or near
+    fresh = [c for c in out if c["id"] not in told]
+    return fresh[0] if fresh else out[-1]

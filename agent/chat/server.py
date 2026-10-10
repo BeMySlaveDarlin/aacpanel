@@ -3,11 +3,13 @@ import json
 import os
 import socket
 import threading
+import time
 
 import archive
 import asked
 import briefs
 import checklists
+import codex_archive
 import ctx
 import held
 import notes
@@ -17,7 +19,7 @@ import sesstate
 
 from .codex import is_rollout
 from .disk import MAX_FILE, MAX_RAW, read_file, read_raw, task_output
-from .locate import subagent_path, transcript_cwd, transcript_path
+from .locate import subagent_path, transcript_contour, transcript_cwd, transcript_path
 from .mail import agent_mail
 from .repo import answer as repo_answer
 from .search import refusal, search
@@ -308,16 +310,19 @@ def _answer(request):
         state = sesstate.SHARED.state(path)
         found = state.snapshot() if state else None
         if found is not None:
+            place = live_place(session)
             # A run of codex exec the session started is one of its agents,
-            # though claude's transcript has no word of it: its process says
-            # whose it is.
-            found = ctx.with_codex_runs(found, codex_runs_of(session))
+            # though claude's transcript has no word of its thread: while it
+            # runs its process says whose it is, and once it is over the call
+            # that started it does.
+            found = ctx.with_codex_runs(found, codex_runs_of(session),
+                                        codex_runs_over(state, path, live=bool(place)))
             if session:
                 asked.BOOK.answered(session, set(state.answered), state.ended, state.prompted)
             ask = asked.BOOK.of(session)
             if ask:
                 found = {**found, "ask": ask}
-            checklist = conversation_checklist(session, path)
+            checklist = conversation_checklist(session, path, place)
             if checklist:
                 found = {**found, "checklist": checklist}
             reply["state"] = found
@@ -329,6 +334,28 @@ def codex_runs_of(session):
     if not session:
         return []
     return ctx.codex_runs(ctx.codex_live()).get(session) or []
+
+
+def codex_runs_over(state, path, live):
+    """Returns the runs of codex exec a claude session started, as its agents that are over.
+
+    The runs are threads of the codex home of the contour the transcript lies
+    in, found by the calls the state of the session keeps. A call that never
+    came back is still out in a live session, and was out no longer than the
+    last word of one that is over.
+    """
+    until = int(time.time() * 1000) if live else sesstate.runs.ms(state.heard)
+    runs = codex_archive.runs(list(state.codex.values()), transcript_contour(path), until)
+    return [ctx.codex_run_over(run) for run in runs]
+
+
+def live_place(session):
+    """Returns the place of a live session, None for a conversation that is over."""
+    from collect.live import live_session_places
+    try:
+        return live_session_places().get(session)
+    except OSError:
+        return None
 
 
 def read_in_place(reader, want, path, **window):
@@ -346,7 +373,7 @@ def read_in_place(reader, want, path, **window):
     return found
 
 
-def conversation_checklist(session, path):
+def conversation_checklist(session, path, place=None):
     """Returns the checklist the feed of a conversation shows, or None.
 
     A checklist is kept by the session: its place and its name. A live
@@ -355,13 +382,11 @@ def conversation_checklist(session, path):
     is over is placed by its transcript, which lies under the config directory
     of its account and names the directory it ran in, and shows the checklist
     of its place it sent last, whatever the name, only while no later
-    conversation sent it.
+    conversation sent it. The place of a live session is looked up when it
+    is not given.
     """
-    from collect.live import live_session_places
-    try:
-        place = live_session_places().get(session)
-    except OSError:
-        place = None
+    if place is None:
+        place = live_place(session)
     if place:
         return checklists.of(*place, sid=session)
     config_dir = os.path.dirname(os.path.dirname(os.path.dirname(path)))

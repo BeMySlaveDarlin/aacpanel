@@ -9,7 +9,7 @@ from .limits import MAX_ITEMS, _short
 from .subagents import AGENT_ID_RE, _lose, _prune_reported_agents
 from .tasks import (MAYBE_BACKGROUND, NOTIF_BLOCK_RE, STOPPERS, _notify_tasks, _task,
                     finish, left_behind)
-from . import background
+from . import background, runs
 from .wake import WAKE_ID, _wake, cancelled, fired, is_wakeup, scheduled
 from . import workflows
 
@@ -39,6 +39,12 @@ class State:
         self.arts = {}
         self.docs = {}
         self.sent = {}
+        # The calls that may have started a run of codex exec, by the id of
+        # the call, the oldest first.
+        self.codex = {}
+        # The last time the conversation or one of its agents wrote: a call
+        # that never came back was out no longer than that.
+        self.heard = ""
         self.cwd = ""
         self.pos = 0
         self.subs = {}
@@ -49,8 +55,7 @@ class State:
         tasks = _live_first(self.tasks.values(), lambda t: not t.get("done"), _task_seen)
         # A teammate and an agent sent off to the background are one list: the
         # session holds both as its agents, and each opens its conversation.
-        agents = _live_first([*self.agents.values(), *self.bg.values()],
-                             lambda a: a.get("status") == background.ACTIVE, _agent_seen)
+        agents = ordered_agents([*self.agents.values(), *self.bg.values()])
         arts = sorted(self.arts.values(), key=lambda a: a.get("at") or "", reverse=True)
         docs = sorted(self.docs.values(), key=lambda d: d.get("at") or "", reverse=True)
         sent = sorted(self.sent.values(), key=lambda s: s.get("at") or "", reverse=True)
@@ -75,6 +80,11 @@ class State:
 def _live_first(items, live, seen):
     newest = sorted(items, key=seen, reverse=True)
     return sorted(newest, key=lambda item: not live(item))
+
+
+def ordered_agents(agents):
+    """Returns agents in the order the state lists them: the ones at work first, then the freshest."""
+    return _live_first(agents, lambda a: a.get("status") == background.ACTIVE, _agent_seen)
 
 
 def _task_seen(task):
@@ -106,6 +116,8 @@ def _feed_record(state, record, raw):
             state.cwd = cwd
 
     at = record.get("timestamp") or ""
+    if at > state.heard:
+        state.heard = at
 
     if kind == "system" and record.get("subtype") in TURN_ENDS and at > state.ended:
         state.ended = at
@@ -123,6 +135,7 @@ def _feed_record(state, record, raw):
         for body in NOTIF_BLOCK_RE.findall(content):
             _notify_tasks(state, body, at)
             workflows.notified(state, body, at)
+            runs.notified(state, body, at)
 
     message = record.get("message") or {}
     blocks = message.get("content")
@@ -180,6 +193,7 @@ def _feed_record(state, record, raw):
                 }
             elif name in MAYBE_BACKGROUND:
                 state.pending[block.get("id")] = _may_go_background(name, data, at)
+                runs.called(state, name, data, block.get("id"), record, at)
             elif name == "SendMessage":
                 was = background.woken(state, data.get("to"))
                 agent = state.agents.get(data.get("to"))
@@ -194,6 +208,7 @@ def _feed_record(state, record, raw):
 
         if block.get("tool_use_id") and block["tool_use_id"] not in state.answered:
             state.answered.append(block["tool_use_id"])
+        runs.answered(state, block.get("tool_use_id"), at, record.get("toolUseResult"), block)
         started = state.pending.pop(block.get("tool_use_id"), None)
         if started is None:
             continue
@@ -277,15 +292,18 @@ def _may_go_background(name, data, at, agent=""):
 
 
 def _sub_record(state, record, raw, agent):
-    """Reads one record of a subagent's transcript: the background work, and nothing else.
+    """Reads one record of a subagent's transcript: the background work and the runs of codex, nothing else.
 
     A shell an agent sends to the background belongs to the session — the
     screen of the session lists it among its own and stops it the same way —
     but the record of it lands in the transcript of the agent, where the
-    session reader never goes. Everything else an agent does is read on its
-    card, so nothing else is taken from here.
+    session reader never goes. So does a run of codex exec the agent started,
+    which stands among the session's agents. Everything else an agent does is
+    read on its card, so nothing else is taken from here.
     """
     at = record.get("timestamp") or ""
+    if at > state.heard:
+        state.heard = at
 
     if "<task-notification>" in raw:
         content = record.get("content")
@@ -294,6 +312,7 @@ def _sub_record(state, record, raw, agent):
         for body in NOTIF_BLOCK_RE.findall(content):
             _notify_tasks(state, body, at)
             workflows.notified(state, body, at)
+            runs.notified(state, body, at)
 
     message = record.get("message") or {}
     blocks = message.get("content")
@@ -313,10 +332,12 @@ def _sub_record(state, record, raw, agent):
                 finish(state, data.get("task_id") or data.get("shell_id") or "", at)
             elif name in MAYBE_BACKGROUND:
                 state.pending[block.get("id")] = _may_go_background(name, data, at, agent)
+                runs.called(state, name, data, block.get("id"), record, at)
             continue
 
         if block.get("type") != "tool_result":
             continue
+        runs.answered(state, block.get("tool_use_id"), at, record.get("toolUseResult"), block)
         started = state.pending.pop(block.get("tool_use_id"), None)
         if started is None or started.get("kind") != "task":
             continue

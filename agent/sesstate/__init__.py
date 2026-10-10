@@ -9,7 +9,7 @@ import contours
 from .artifacts import (ARTIFACT_PUBLISH, ARTIFACT_URL_RE, DOC_EXT,  # noqa: F401
                         DOC_TOOLS, SENT_TOOL, artifact_fields, inside, result_text,
                         sent_files)
-from .feed import State, _feed_record, _sub_record
+from .feed import State, _feed_record, _sub_record, ordered_agents  # noqa: F401
 from .limits import MAX_ITEMS, MAX_TEXT  # noqa: F401
 from .subagents import (AGENT_ID_RE, TERMINATED_RE, _drop_terminated,  # noqa: F401
                         _lose_older_than, _mark_reported, _stamp, agent_meta,
@@ -20,7 +20,7 @@ from .tasks import (DONE_STATUSES, MAYBE_BACKGROUND, MONITOR_OVER_RE,  # noqa: F
                     TASK_BASH, TASK_ID_KEYS, TASK_KIND_BY_KEY, TASK_MONITOR,
                     _finish_older_than)
 from .wake import ALARMS, TASK_CRON, TASK_WAKE, WAKE_ID, is_wakeup  # noqa: F401
-from . import background, workflows  # noqa: F401
+from . import background, runs, workflows  # noqa: F401
 
 TEAMS_DIR = os.environ.get("AACP_CLAUDE_TEAMS")
 

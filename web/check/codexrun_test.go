@@ -12,7 +12,9 @@ type codexRunShot struct {
 		Key    string `json:"key"`
 		Colour string `json:"colour"`
 		Stop   string `json:"stop"`
+		State  string `json:"state"`
 	} `json:"rows"`
+	Sub          string `json:"sub"`
 	ClaudeColour string `json:"claudeColour"`
 	Opened       struct {
 		ID    string `json:"id"`
@@ -32,16 +34,26 @@ type codexRunShot struct {
 // says Codex in the colour of codex, offers no stop — claude has no task of it
 // and the panel no daemon of its thread — and opens the feed of its thread,
 // asked for by the id of the thread alone rather than as an agent beside the
-// conversation, which the service would refuse.
+// conversation, which the service would refuse. A run that is over reads as
+// over among the agents that are, and is not counted at work.
 func TestACodexRunStandsAmongTheAgentsAndOpensItsThread(t *testing.T) {
 	const thread = "01a12600-0000-7000-8000-0000000000e1"
 	var got codexRunShot
 	runFixture(t, "codexrun.html", &got)
 
-	if len(got.Rows) != 2 {
+	if len(got.Rows) != 3 {
 		t.Fatalf("the list of agents drew %+v", got.Rows)
 	}
-	run, scout := got.Rows[0], got.Rows[1]
+	run, scout, over := got.Rows[0], got.Rows[1], got.Rows[2]
+	if !strings.HasPrefix(over.Name, "Review the change") || over.Word != "Codex" || over.Stop != "no" {
+		t.Errorf("the run that is over reads %+v", over)
+	}
+	if !strings.Contains(over.State, " ago") || strings.Contains(over.State, "working") {
+		t.Errorf("the run that is over says %q of itself", over.State)
+	}
+	if got.Sub != "2 working, 1 over" {
+		t.Errorf("the list of agents counts %q", got.Sub)
+	}
 	if !strings.HasPrefix(run.Name, "reviewer") || run.Word != "Codex" || run.Key != "codex" {
 		t.Errorf("the run reads %+v: its role, then the word of codex", run)
 	}

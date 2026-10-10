@@ -7,7 +7,8 @@
 <script type="module">
 // A run of codex exec a claude session started stands among its agents, said
 // to be codex's in the colour of codex, with no stop of its own, and opens the
-// feed of its thread rather than one beside the conversation.
+// feed of its thread rather than one beside the conversation. A run that is
+// over stands among the agents that are, said to be over.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { WorkList } from "/src/screens/chat/work.js";
@@ -18,6 +19,7 @@ import { ToastHost } from "/src/ui/toasts.js";
 const minutes = (n) => new Date(Date.now() - n * 60000).toISOString();
 const CONVERSATION = "55555555-5555-4555-8555-555555555555";
 const THREAD = "01a12600-0000-7000-8000-0000000000e1";
+const OVER = "01a12599-0000-7000-8000-0000000000e0";
 
 const work = {
     artifacts: [], docs: [], sent: [], tasks: [],
@@ -26,6 +28,9 @@ const work = {
           model: "gpt-6-sol", tokens: 25840, limit: 258400, limitKnown: true, last: minutes(1) },
         { id: "adf5ce617c6afff7a", name: "cx-scout", text: "Scouting the restore", kind: "background",
           line: "@cx-scout", status: "active", at: minutes(5), model: "claude-sonnet-5" },
+        { agent: "codex", id: OVER, name: "Review the change", status: "done", at: minutes(30),
+          doneAt: minutes(20), model: "gpt-6-sol", tokens: 25840, limit: 258400, limitKnown: true,
+          last: minutes(20) },
     ],
 };
 
@@ -57,7 +62,7 @@ const until = async (ok, ms = 3000) => {
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 
 (async () => {
-    await until(() => document.querySelectorAll("#agents .wline").length === 2);
+    await until(() => document.querySelectorAll("#agents .wline").length === 3);
     const rows = Array.from(document.querySelectorAll("#agents .wline"));
     const out = {
         rows: rows.map((r) => {
@@ -68,8 +73,10 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
                 key: word ? word.dataset.agent : "",
                 colour: word ? getComputedStyle(word).color : "",
                 stop: r.querySelector(".wstop") ? "yes" : "no",
+                state: text(r.querySelector(".wstate")),
             };
         }),
+        sub: text(document.querySelector("#agents .chatsub")),
     };
     const codex = rows.find((r) => r.querySelector(".wname .agentword"));
     out.claudeColour = getComputedStyle(document.getElementById("claude")).color;

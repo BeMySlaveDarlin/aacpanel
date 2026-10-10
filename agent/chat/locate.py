@@ -19,6 +19,14 @@ def profile_dirs():
     return [(name, os.path.join(d, "projects")) for name, d in contours.profiles()]
 
 
+def transcript_contour(path):
+    """Returns the contour a claude transcript lies in, empty for one the machine names no contour of."""
+    for name, root in profile_dirs():
+        if name and path.startswith(os.path.join(root, "")):
+            return name
+    return ""
+
+
 def dirs_for(profile):
     """Returns the directories to search for a transcript, all of them without a profile."""
     pairs = profile_dirs()
