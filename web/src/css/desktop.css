@@ -425,6 +425,91 @@
 
     .dksess.dkkid { padding-left: 1.4rem; }
 
+    /* The sessions a session had the panel open, as on the phone: a fold
+       under it, and the sessions a step in on the line of a branch. They keep
+       their names and keys — they are sessions like any other, not runs. */
+    .dkkin.dkfold { gap: .4rem; padding-left: .55rem; }
+
+    .dkfoldtext { font-weight: 600; color: var(--ink-dim); }
+
+    .dkfoldwaits { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--wait); }
+
+    .dkfolddots { display: inline-flex; gap: .25rem; align-items: center; }
+
+    .dkfolddots i { width: .45rem; height: .45rem; border-radius: 50%; background: var(--ok); opacity: .8; }
+
+    .dkfolddots i[data-tone="busy"] { background: var(--accent); opacity: 1; }
+
+    .dkfolddots i[data-tone="wait"] { background: var(--wait); opacity: 1; box-shadow: 0 0 8px var(--wait); }
+
+    .dksess.dklive.dkbranch {
+        padding-left: 1.45rem;
+        background-image: linear-gradient(var(--dkguide), var(--dkguide));
+        background-size: 1.5px 100%;
+        background-position: .8rem 0;
+        background-repeat: no-repeat;
+        --dkguide: color-mix(in srgb, var(--ink-faint) 60%, transparent);
+    }
+
+    .dksess.dklive.dkbranch.dkbranchend { background-size: 1.5px 1.05rem; }
+
+    .dksess.dklive.dkbranch::after {
+        content: "";
+        position: absolute;
+        left: .8rem;
+        top: 1.05rem;
+        width: .45rem;
+        border-top: 1.5px solid var(--dkguide);
+    }
+
+    .dksess.dklive.dkbranch.on { background-color: var(--accent-bg); }
+
+    /* A parent that closed holds its place over the sessions it opened. */
+    .dksess.dkstub {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .35rem .55rem;
+        background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255, 255, 255, .025) 6px 12px);
+    }
+
+    .dksess.dkstub:disabled { cursor: default; }
+
+    .dkstub::before {
+        content: "";
+        flex: none;
+        width: .5rem;
+        height: .5rem;
+        border-radius: 50%;
+        border: 1.5px dashed var(--ink-faint);
+    }
+
+    .dkstubname {
+        flex: none;
+        font-family: var(--mono);
+        font-size: var(--t-sm);
+        color: var(--ink-dim);
+        text-decoration: line-through;
+        text-decoration-color: var(--ink-faint);
+    }
+
+    .dkstubnote { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--ink-faint); }
+
+    /* A session whose parent stands elsewhere says which session opened it,
+       on a quiet line under the rest. */
+    .dklive > .dkfrom {
+        grid-column: 2 / -1;
+        grid-row: 4;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--t-xs);
+        color: var(--ink-faint);
+    }
+
+    .dkfrom b { font-family: var(--mono); font-weight: 500; color: var(--ink-dim); }
+
     .dksessbody { min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
 
     .dksessmain { display: flex; align-items: center; gap: .4rem; }

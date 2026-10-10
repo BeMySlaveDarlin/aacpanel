@@ -44,6 +44,9 @@ type Begin struct {
 	// the servers of its config.toml; empty gives the thread only those. A
 	// home whose config.toml names the server already gets the same one.
 	Tools string
+	// Parent is the session that had the panel start the thread, by its
+	// name; empty for a thread a person started.
+	Parent string
 }
 
 // toolsConfig is the panel's MCP server as a thread's configuration names
@@ -129,6 +132,9 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 	l.set(id, func(t *thread) { t.subscribed, t.settings = true, settled })
 	if b.Hold {
 		l.hold(id)
+	}
+	if b.Parent != "" {
+		l.adopt(id, b.Parent)
 	}
 	l.save(id)
 	if b.Name != "" {

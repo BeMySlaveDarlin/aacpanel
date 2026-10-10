@@ -288,7 +288,8 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	// A session opening another names the directory, and a name only if it
 	// wants one of its own: the project is the one of the map the directory
 	// belongs to, and the session is named after it unless a name is given.
-	// The answer names the contour, the account the new session spends.
+	// The answer names the contour, the account the new session spends. It
+	// names itself as well, as the parent the new session is shown under.
 	//
 	// New may name the agent to start for this once, over the project's own:
 	// the agent is a key of the launch, so the rest of the launch stays the
@@ -303,6 +304,11 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			return
 		}
 		dir, err := openDir(req.Kind, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		parent, err := parentFromParams(req.Kind, body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -327,6 +333,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			}
 			req.Project, contour = want, found.profile.Name
 			params = map[string]any{"project": found.project.ID, "path": want.Path}
+			if parent != "" {
+				want.Parent, params["parent"] = parent, parent
+			}
 			if agent != "" {
 				launch, err := withAgent(want.Launch, agent)
 				if err != nil {
@@ -858,7 +867,7 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 		return switchWay{}, fmt.Errorf("session %q runs in %s, which is not a project from the map: "+
 			"the panel does not know how to start it again", name, live.CWD)
 	}
-	want.Session = name
+	want.Session, want.Parent = name, live.OpenedBy()
 	if live.Transport == action.SwitchStream {
 		return switchWay{To: action.SwitchConsole, Project: want, ProjectID: found.project.ID}, nil
 	}
@@ -934,7 +943,7 @@ func (s *Server) restartPlan(ctx context.Context, name string, params map[string
 	if err := restartsClaude(found.project.Name, want.Launch); err != nil {
 		return restartWay{}, fmt.Errorf("session %s is not restarted: %w", way.Name, err)
 	}
-	want.Session = way.Name
+	want.Session, want.Parent = way.Name, live.OpenedBy()
 	launch, err := restartLaunch(want.Launch)
 	if err != nil {
 		return restartWay{}, fmt.Errorf("session %s cannot be restarted from the map: %w", way.Name, err)

@@ -56,7 +56,8 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 	}
 
 	tmux := c.Transport == launcher.TransportTmux
-	begin := codex.Begin{CWD: p.Path, Model: c.Model, Approval: c.Approval, Sandbox: c.Sandbox, Effort: c.Effort}
+	begin := codex.Begin{CWD: p.Path, Model: c.Model, Approval: c.Approval, Sandbox: c.Sandbox, Effort: c.Effort,
+		Parent: p.Parent}
 	if path, err := toolServer(); err == nil {
 		begin.Tools = path
 	} else {

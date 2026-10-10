@@ -435,6 +435,37 @@ class Lineage(unittest.TestCase):
         self.table({500: (40, "claude"), 40: (1, "tmux: server")})
         self.assertEqual(ctx.lineage(500, {}), {})
 
+    def environ(self, by_pid):
+        """Fakes the environment of the processes: pid -> the variables the collector reads of it."""
+        self.addCleanup(setattr, ctx, "_environ", ctx._environ)
+        ctx._environ = lambda pid, names: {k: v for k, v in by_pid.get(pid, {}).items() if k in names}
+
+    def test_a_session_of_the_panel_names_the_session_that_had_it_opened(self):
+        self.environ({500: {ctx.PARENT_VAR: "lead"}})
+        for where in ({500: (40, "claude"), 40: (1, "tmux: server")},
+                      {500: (40, "claude"), 40: (1, "aacpanel-exec")}):
+            with self.subTest(where=where[40][1]):
+                self.table(where)
+                self.assertEqual(ctx.lineage(500, {}), {"parent": {"session": "lead"}})
+
+    def test_a_session_a_person_opened_has_no_parent(self):
+        self.environ({500: {"HOME": "/home/u"}})
+        self.table({500: (40, "claude"), 40: (1, "aacpanel-exec")})
+        self.assertEqual(ctx.lineage(500, {}), {})
+
+    def test_a_run_is_named_by_the_session_it_runs_in_whatever_its_environment_says(self):
+        # A run inherits the environment of the session it runs inside the
+        # work of: the variable there names the parent of that session, not of
+        # the run.
+        self.environ({500: {ctx.PARENT_VAR: "lead"}})
+        self.table({500: (200, "claude"), 200: (100, "claude"), 100: (1, "aacpanel-exec")})
+        got = ctx.lineage(500, {200: {"session": "child", "sessionId": UUID_A}})
+        self.assertEqual(got, {"outside": True, "parent": {"session": "child", "sessionId": UUID_A}})
+
+    def test_a_claude_out_of_reach_has_no_parent_from_its_environment(self):
+        self.environ({500: {ctx.PARENT_VAR: "lead"}})
+        self.assertEqual(self.under("-L", "work"), {"outside": True, "tmuxServer": "-L work"})
+
     def test_a_session_on_the_stream_is_not_outside(self):
         self.table({500: (40, "claude"), 40: (1, "aacpanel-exec")})
         self.assertEqual(ctx.lineage(500, {}), {})

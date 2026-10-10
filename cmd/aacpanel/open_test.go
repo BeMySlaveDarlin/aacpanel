@@ -21,6 +21,8 @@ import (
 // name the session gave or else the project's session name. The answer names
 // the contour, so the session can tell its person which account the new one
 // spends; a project opened by its id, as the screens open one, names it too.
+// The session that asks names itself, and the new one is its child: the
+// executor and the journal hear the name of the parent.
 func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 	srv, root := hostServer(t, `{"at":1}`)
 	id := fillMap(t, srv, root)
@@ -31,14 +33,16 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 	srv.exec, srv.auth = client, &auth.Service{}
 
 	for _, c := range []struct {
-		name, body, target, path string
+		name, body, target, path, parent string
 	}{
-		{"the project's own directory", `{"kind":"session.open","params":{"path":"` + repo + `"}}`, "aacpanel", repo},
+		{"the project's own directory", `{"kind":"session.open","params":{"path":"` + repo + `"}}`, "aacpanel", repo, ""},
 		{"a directory inside it, under a name of the session's",
-			`{"kind":"session.open","target":"lab","params":{"path":"` + repo + `/web"}}`, "lab", repo + "/web"},
-		{"a worktree beside it", `{"kind":"session.open","params":{"path":"` + worktree + `"}}`, "aacpanel", worktree},
+			`{"kind":"session.open","target":"lab","params":{"path":"` + repo + `/web"}}`, "lab", repo + "/web", ""},
+		{"a worktree beside it", `{"kind":"session.open","params":{"path":"` + worktree + `"}}`, "aacpanel", worktree, ""},
 		{"the project's id, as the screens send it",
-			`{"kind":"session.open","target":"aacpanel","params":{"project":` + strconv.Itoa(id) + `}}`, "aacpanel", repo},
+			`{"kind":"session.open","target":"aacpanel","params":{"project":` + strconv.Itoa(id) + `}}`, "aacpanel", repo, ""},
+		{"at the word of another session",
+			`{"kind":"session.open","params":{"path":"` + repo + `","parent":"lead"}}`, "aacpanel", repo, "lead"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := post(t, srv, c.body)
@@ -61,9 +65,10 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 				t.Fatal("the executor did not get the request")
 			}
 			if got.Kind != action.SessionOpen || got.Target != c.target || got.Project == nil ||
-				got.Project.Path != c.path || got.Project.Session != c.target || got.Project.ConfigDir != root {
-				t.Fatalf("the open reached the executor as %q with %+v, meant %q in %s of the contour in %s",
-					got.Target, got.Project, c.target, c.path, root)
+				got.Project.Path != c.path || got.Project.Session != c.target || got.Project.ConfigDir != root ||
+				got.Project.Parent != c.parent {
+				t.Fatalf("the open reached the executor as %q with %+v, meant %q in %s of the contour in %s, "+
+					"opened by %q", got.Target, got.Project, c.target, c.path, root, c.parent)
 			}
 			var launch map[string]any
 			if err := json.Unmarshal(got.Project.Launch, &launch); err != nil || launch["model"] != "opus" ||
@@ -78,6 +83,9 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 			if list[0].Target != c.target || list[0].Params["path"] != c.path || list[0].Params["project"] != float64(id) {
 				t.Errorf("the journal holds %q with %v, meant %q with project %d in %s",
 					list[0].Target, list[0].Params, c.target, id, c.path)
+			}
+			if parent, named := list[0].Params["parent"]; named != (c.parent != "") || named && parent != c.parent {
+				t.Errorf("the journal holds the parent as %v, meant %q", list[0].Params, c.parent)
 			}
 		})
 	}
@@ -110,6 +118,10 @@ func TestASessionOpensOnlyInADirectoryOfTheMapPG(t *testing.T) {
 		"a directory beside an id": {`{"kind":"session.open","params":{"path":"` + repo + `","project":` +
 			strconv.Itoa(id) + `}}`, "not by both"},
 		"a name with a slash": {`{"kind":"session.open","target":"lab/fix","params":{"path":"` + repo + `"}}`,
+			"contains /"},
+		"a parent that is no name": {`{"kind":"session.open","params":{"path":"` + repo + `","parent":7}}`,
+			"did not arrive as a name"},
+		"a parent with a slash": {`{"kind":"session.open","params":{"path":"` + repo + `","parent":"a/b"}}`,
 			"contains /"},
 	} {
 		t.Run(name, func(t *testing.T) {

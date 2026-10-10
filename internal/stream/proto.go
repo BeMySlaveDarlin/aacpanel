@@ -85,6 +85,15 @@ func NamedPath(sessionID string) string {
 	return filepath.Join(keptDir(), "named", sessionID+".json")
 }
 
+// ParentPath keeps the session that had the panel open one codex thread, by
+// its name. A thread has no process of its own to carry it in, as a claude
+// session carries it in its environment, and the executor that started the
+// thread is gone after its own restart; the one started after it reads the
+// parent here. It holds a session name and nothing else.
+func ParentPath(sessionID string) string {
+	return filepath.Join(keptDir(), "parents", sessionID+".json")
+}
+
 // Permit is an answer to a permission, by the call it was given for.
 type Permit struct {
 	Use  string `json:"use"`

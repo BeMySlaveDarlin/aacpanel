@@ -153,8 +153,9 @@ func (e *Executor) sessionSwitch(ctx context.Context, target string, sw *action.
 // launchedWith is the project a session on the stream was started with, as
 // its holder keeps it: a move to tmux asked for without the panel — the panel
 // is down — starts the session in tmux from it. The contour comes with it, so
-// the session runs under the same account. Nothing else is guessed: a
-// project found by its directory alone would carry neither.
+// the session runs under the same account, and so does the session that had
+// it opened. Nothing else is guessed: a project found by its directory alone
+// would carry none of them.
 func launchedWith(ctx context.Context, s liveSession, sw *action.Switch) (*action.Project, error) {
 	if sw.To != action.SwitchConsole || !onStream(s) {
 		return nil, fmt.Errorf("a switch without the project moves only a session on the stream to tmux")
@@ -173,7 +174,7 @@ func launchedWith(ctx context.Context, s liveSession, sw *action.Switch) (*actio
 		return nil, fmt.Errorf("what session %s was started with was not read: %w", s.Name, err)
 	}
 	return &action.Project{Path: spec.Dir, Session: spec.Session, Launch: spec.Launch,
-		ClaudeBin: spec.ClaudeBin, ConfigDir: spec.ConfigDir}, nil
+		ClaudeBin: spec.ClaudeBin, ConfigDir: spec.ConfigDir, Parent: spec.Parent}, nil
 }
 
 // shownElsewhere stops a session from leaving tmux while a terminal outside

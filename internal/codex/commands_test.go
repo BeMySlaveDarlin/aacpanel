@@ -111,6 +111,39 @@ func TestTheNameThePanelGaveOutlivesTheExecutor(t *testing.T) {
 	}
 }
 
+// A thread the panel started at the word of a session names that session as
+// its parent on its state, and the executor started after a restart of its own
+// knows the parent from the disk. A thread a person started has none.
+func TestTheParentOfAThreadOutlivesTheExecutor(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	srv := codextest.New(t)
+	first := NewLink(srv.Home, "acme")
+	stop := running(t, first)
+	ready(t, first)
+	child, err := first.Start(context.Background(), Begin{CWD: "/srv/proj", Parent: "lead", Hold: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loose, err := first.Start(context.Background(), Begin{CWD: "/srv/proj", Hold: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st, raw, _ := stateOf(t, child); st.Parent != "lead" {
+		t.Errorf("the state of a thread started for a session does not name it: %s", raw)
+	}
+	if st, raw, _ := stateOf(t, loose); st.Parent != "" {
+		t.Errorf("the state of a thread a person started names a parent: %s", raw)
+	}
+	stop()
+
+	running(t, NewLink(srv.Home, "acme"))
+	until(t, "the next link's state file", written(t, child))
+	if st, raw, _ := stateOf(t, child); st.Parent != "lead" {
+		t.Errorf("the executor started again lost the parent of the thread: %s", raw)
+	}
+}
+
 // calledAs is the name the link last heard a thread called by, empty while
 // it heard none.
 func calledAs(l *Link, id string) string {

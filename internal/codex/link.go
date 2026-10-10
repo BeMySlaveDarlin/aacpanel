@@ -151,6 +151,9 @@ type State struct {
 	// Terminal is the tmux session the panel started codex in on the thread,
 	// empty for a thread no terminal of the panel holds.
 	Terminal string `json:"terminal,omitempty"`
+	// Parent is the session that had the panel start the thread, by its
+	// name; absent for a thread a person started.
+	Parent string `json:"parent,omitempty"`
 }
 
 // Context is how full the context of a thread is, as the daemon said with the
@@ -301,6 +304,9 @@ type thread struct {
 	// given is the name the panel gave the thread, as kept on the disk; empty
 	// while it gave none.
 	given string
+	// parent is the session that had the panel start the thread, as kept on
+	// the disk; empty for a thread a person started.
+	parent string
 	// written is the state last written, without its time.
 	written []byte
 }
@@ -693,8 +699,9 @@ func (l *Link) seen(info threadInfo, asked time.Time) bool {
 	}
 	t := l.threads[info.ID]
 	if t == nil {
-		// The name the panel gave outlives the executor that gave it.
-		t = &thread{given: named(info.ID)}
+		// The name the panel gave outlives the executor that gave it, and so
+		// does the session it started the thread for.
+		t = &thread{given: named(info.ID), parent: parentOf(info.ID)}
 		l.threads[info.ID] = t
 	}
 	if info.Name == nil {
@@ -1045,7 +1052,7 @@ func (l *Link) state(t *thread) State {
 	if t.info.Name != nil && t.given != "" && sameName(*t.info.Name, t.given) {
 		st.Title = *t.info.Name
 	}
-	st.Goal, st.Processes, st.Ask, st.Terminal = t.goal, t.processes, ask, t.terminal
+	st.Goal, st.Processes, st.Ask, st.Terminal, st.Parent = t.goal, t.processes, ask, t.terminal, t.parent
 	return st
 }
 

@@ -148,7 +148,7 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 
 	contour := t.TempDir()
 	rep, err := Run(context.Background(), Spec{
-		Dir: dir, Session: "demo", ConfigDir: contour,
+		Dir: dir, Session: "demo", ConfigDir: contour, Parent: "aacpanel",
 		Launch: json.RawMessage(`{"transport":"stream","model":"haiku","intent":"begin","remoteControl":true}`),
 	})
 	if err != nil {
@@ -179,9 +179,11 @@ func TestRunStartsAStreamSessionUnderAHolder(t *testing.T) {
 	}
 	var kept Spec
 	if err := json.Unmarshal(spec.Launched, &kept); err != nil || kept.Dir != dir || kept.Session != "demo" ||
-		kept.ConfigDir != contour || !strings.Contains(string(kept.Launch), `"model":"haiku"`) {
+		kept.ConfigDir != contour || !strings.Contains(string(kept.Launch), `"model":"haiku"`) ||
+		kept.Parent != "aacpanel" {
 		t.Errorf("the holder keeps %s as what the session was started with: without it, a console started "+
-			"with the panel down would not know its project or its contour", spec.Launched)
+			"with the panel down would not know its project, its contour or the session that opened it",
+			spec.Launched)
 	}
 	for _, w := range rep.Warnings {
 		if strings.Contains(w, "remote control") {

@@ -174,6 +174,40 @@ func (l *Link) give(threadID, name string) {
 	l.save(threadID)
 }
 
+// adopt keeps the session that had the panel start a thread as its parent:
+// on the disk first, so an executor started again has it, as it has the name
+// the panel gave.
+func (l *Link) adopt(threadID, parent string) {
+	body, err := json.Marshal(parentName{Session: parent})
+	if err == nil {
+		err = write(stream.ParentPath(threadID), body)
+	}
+	if err != nil {
+		log.Printf("codex %s: the parent of thread %s was not kept on the disk, and the thread stands on its own "+
+			"when the executor starts again: %v", l.home, threadID, err)
+	}
+	l.set(threadID, func(t *thread) { t.parent = parent })
+}
+
+// parentName is the file of the parent of a thread.
+type parentName struct {
+	Session string `json:"session"`
+}
+
+// parentOf is the session that had the panel start a thread, as kept on the
+// disk; empty for a thread a person started.
+func parentOf(threadID string) string {
+	raw, err := os.ReadFile(stream.ParentPath(threadID))
+	if err != nil {
+		return ""
+	}
+	var kept parentName
+	if json.Unmarshal(raw, &kept) != nil {
+		return ""
+	}
+	return kept.Session
+}
+
 // givenName is the file of the name the panel gave a thread.
 type givenName struct {
 	Name string `json:"name"`

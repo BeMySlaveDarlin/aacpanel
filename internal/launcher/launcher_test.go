@@ -648,6 +648,49 @@ func TestRunStartsSessionInTmuxAndAttachesWindow(t *testing.T) {
 	}
 }
 
+// A session opened at the word of another carries the name of that one in
+// its environment, where the collector reads it: through the file of the
+// launch, not in the arguments of tmux, which its server hands to anyone. The
+// parent is the panel's to say: one the launcher inherited from a session it
+// was started inside, and one the launch parameters name, do not reach the
+// session, and a session with no parent has none.
+func TestRunPutsTheParentIntoTheSessionsEnvironment(t *testing.T) {
+	for _, c := range []struct {
+		name, parent, launch, want string
+	}{
+		{"a parent", "aacpanel", `{}`, "'" + ParentEnv + "=aacpanel'"},
+		{"a parent over the map's", "aacpanel", `{"env":{"` + ParentEnv + `":"lab"}}`, "'" + ParentEnv + "=aacpanel'"},
+		{"none", "", `{}`, ""},
+		{"none over the map's", "", `{"env":{"` + ParentEnv + `":"lab"}}`, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			proc := fakeProc(t)
+			tmuxLog := fakeTmuxLauncher(t, proc, "person", 200, 4242)
+			machineClaude(t)
+			t.Setenv(terminalAutoEnv, "0")
+			t.Setenv(ParentEnv, "stale")
+
+			if _, err := Run(context.Background(), Spec{Dir: t.TempDir(), Session: "person", Parent: c.parent,
+				Launch: json.RawMessage(c.launch)}); err != nil {
+				t.Fatal(err)
+			}
+			env := string(readFile(t, envLog(tmuxLog)))
+			var got []string
+			for _, line := range strings.Split(env, "\n") {
+				if strings.Contains(line, ParentEnv+"=") {
+					got = append(got, strings.TrimSuffix(strings.TrimSpace(line), " \\"))
+				}
+			}
+			if c.want == "" && len(got) != 0 || c.want != "" && (len(got) != 1 || got[0] != c.want) {
+				t.Errorf("the session gets %v, meant %q", got, c.want)
+			}
+			if session := string(readFile(t, tmuxLog)); strings.Contains(session, ParentEnv) {
+				t.Errorf("the parent went into the arguments of tmux: %s", session)
+			}
+		})
+	}
+}
+
 func TestRunWarnsWhenMouseWillNotSwitchOn(t *testing.T) {
 	proc := fakeProc(t, fproc{pid: 100, comm: "konsole", args: []string{"konsole"}})
 	fakeTmux(t, proc, "aacpanel", 200, 4242, "  echo 'invalid option: mouse' >&2; exit 1\n")

@@ -35,6 +35,10 @@ TMUX_VALUED = "cfLST"
 # Where the processes are read: procfs, or a tree laid out the same way.
 PROC = "/proc"
 
+# The variable the launcher names the session that had the panel open this one
+# in, by its name; launcher.ParentEnv.
+PARENT_VAR = "AACP_PARENT"
+
 
 def proc_start(pid):
     """Returns the start time of a process in ticks, from /proc/<pid>/stat."""
@@ -112,12 +116,12 @@ def lineage(pid, owners):
 
     The first parent up the chain that tells decides: another live session —
     this one is a run inside its work; the user's server of tmux, the server of
-    the panel's terminals or the holder of the stream — a session of the panel.
-    A server of tmux on a socket of its own is out of the panel's reach: the
-    claude in it is named with the server and only read. A chain that reaches
-    the top with none of them is a claude started outside the panel, in a
-    terminal of its own. `owners` maps the pids of the live sessions to what
-    names them.
+    the panel's terminals or the holder of the stream — a session of the panel,
+    named with the session that had the panel open it, where one did. A server
+    of tmux on a socket of its own is out of the panel's reach: the claude in it
+    is named with the server and only read. A chain that reaches the top with
+    none of them is a claude started outside the panel, in a terminal of its
+    own. `owners` maps the pids of the live sessions to what names them.
     """
     seen = set()
     at = parent_pid(pid) if pid else None
@@ -129,11 +133,21 @@ def lineage(pid, owners):
         comm = _comm(at)
         if comm == TMUX_SERVER:
             server = tmux_server(at)
-            return {} if server in PANEL_SERVERS else {"outside": True, "tmuxServer": server}
+            return opened_by(pid) if server in PANEL_SERVERS else {"outside": True, "tmuxServer": server}
         if comm == HOLDER:
-            return {}
+            return opened_by(pid)
         at = parent_pid(at)
     return {"outside": True} if pid else {}
+
+
+def opened_by(pid):
+    """Names the session that had the panel open a session of its own, by the environment of its process.
+
+    The launcher puts the name there; a session a person opened, and one whose
+    environment cannot be read, has none.
+    """
+    parent = _environ(pid, (PARENT_VAR,)).get(PARENT_VAR) if pid else ""
+    return {"parent": {"session": parent}} if parent else {}
 
 
 def _oneshot(pid, sid=None):
@@ -409,6 +423,11 @@ def codex_row(data):
     terminal = data.get("terminal")
     if isinstance(terminal, str) and terminal:
         row["transport"], row["tmux"] = "tmux", terminal
+    # The session that had the panel start the thread: a thread has no process
+    # of its own to carry it in, and the executor keeps it for it.
+    parent = data.get("parent")
+    if isinstance(parent, str) and parent:
+        row["parent"] = {"session": parent}
     if isinstance(data.get("mode"), str) and data["mode"]:
         row["mode"] = data["mode"]
     if isinstance(data.get("plan"), bool):

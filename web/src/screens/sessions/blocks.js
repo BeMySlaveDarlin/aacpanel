@@ -17,7 +17,8 @@ import { knows, whyNot } from "../../exec.js";
 import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
 import { inOrder, sessionsOf } from "./of.js";
-import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
+import { kinLabel, kinOf, layoutOf, openedLabel, outsideNote, placeOf } from "./kin.js";
+import { useFolds } from "./folds.js";
 import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, noTurn, shownName, spoke } from "../../agent.js";
 import { modelTitle } from "../chat/head.js";
 import { stamp, when } from "./card.js";
@@ -93,11 +94,16 @@ export function aboutOf(row, project) {
 // blocksOf lays the sessions of a contour out as blocks of their projects:
 // every live session in the block of its project (a session no project holds
 // gets a block of its own), the sessions being raised beside them, and the
-// last conversation of a block with nothing live. A block with a live session
-// shows none of its past: the way into the project is the live session, and a
-// closed conversation beside it reads as that session. Projects with nothing
-// live come last and at most QUIET_MAX of them.
+// last conversation of a block with nothing live. A session another started —
+// opened through the panel or run inside its work — stands in the block of
+// the eldest of them, whatever its own project: the group is read as one, and
+// its block stands where the most pressing of the group puts it. A block with
+// a live session shows none of its past: the way into the project is the live
+// session, and a closed conversation beside it reads as that session.
+// Projects with nothing live come last and at most QUIET_MAX of them.
 export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) {
+    const { rootOf } = kinOf(sessions);
+    const tops = sessions.filter((s) => rootOf(s) === s);
     const projects = [];
     for (const group of (profile && profile.groups) || []) {
         for (const project of group.projects || []) projects.push({ project, group: group.name });
@@ -110,7 +116,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
 
     const claimed = new Set();
     for (const { project, group } of projects) {
-        const own = sessionsOf(project, sessions);
+        const own = sessionsOf(project, tops);
         if (own.length === 0) continue;
         const block = put(`p${project.id}`, { name: project.name, group, project });
         for (const s of own) {
@@ -119,11 +125,19 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
             claimed.add(s.session);
         }
     }
-    for (const s of sessions) {
+    for (const s of tops) {
         if (claimed.has(s.session)) continue;
         const block = put(`s:${s.session}`, { name: s.session, group: s.home ? "the home session" : "outside the map", project: null });
         block.live.push(s);
         block.home = block.home || Boolean(s.home);
+    }
+    const blockOf = new Map();
+    for (const block of out.values()) {
+        for (const s of block.live) blockOf.set(s.session, block);
+    }
+    for (const s of sessions) {
+        const root = rootOf(s);
+        if (root !== s && blockOf.has(root.session)) blockOf.get(root.session).live.push(s);
     }
     for (const task of opening) {
         const known = projects.find((p) => p.project.session === task.target);
@@ -175,7 +189,7 @@ export function blocksOf({ profile, sessions = [], recent = [], opening = [] }) 
 
 // ProjectBlock is one project: its name, a new session in it, and its live
 // sessions or, with none, its last conversation.
-export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProject }) {
+export function ProjectBlock({ block, exec, wait, notes, live, past, onOpen, onMore, onProject }) {
     const run = useAction();
     const project = block.project;
     const canNew = project && !block.home;
@@ -197,26 +211,92 @@ export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProje
                     </button>
                 `}
             </div>
-            <${LiveLines} list=${block.live} notes=${notes} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
+            <${LiveLines} list=${block.live} live=${live} past=${past} notes=${notes} wait=${wait}
+                          onOpen=${onOpen} onMore=${onMore} />
             ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
             ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
         </section>
     `;
 }
 
-// LiveLines lays out the live sessions of a project: the runs a session
-// started inside its work fold under it, and the fold says whether one of
-// them waits for the person.
-export function LiveLines({ list, notes, wait, onOpen, onMore }) {
-    const { own, kids } = kinOf(list);
-    const line = (s, kid = false) => html`
-        <${LiveLine} key=${s.session} session=${s} kid=${kid}
+// LiveLines lays out the live sessions of a project: the sessions a session
+// had the panel open stand a step in under it, behind a fold that is open
+// until the person closes it and says who of them waits; the runs it started
+// inside its work fold under it, closed; the sessions of a parent that closed
+// stand under what is left of it. live is every live session the screen
+// knows of, and past the closed conversations it has read: they tell a parent
+// alive elsewhere from one that closed, and when it closed.
+export function LiveLines({ list, live = null, past = [], notes, wait, onOpen, onMore }) {
+    const [folded, fold] = useFolds();
+    const line = (s, kid = false, branch = "", from = "") => html`
+        <${LiveLine} key=${s.session} session=${s} kid=${kid} branch=${branch} from=${from}
                      notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
     `;
-    return own.map((s) => html`
-        ${line(s)}
-        ${kids.has(s.session) && html`<${KinFold} key=${`kin:${s.session}`} kids=${kids.get(s.session)} line=${line} />`}
-    `);
+    return layoutOf(list, live, folded).map((e) => {
+        switch (e.kind) {
+        case "fold":
+            return html`<${OpenedFold} key=${`fold:${e.parent.session}`} kids=${e.kids} open=${e.open}
+                                      onToggle=${() => fold(e.parent.session)} />`;
+        case "runs":
+            return html`<${KinFold} key=${`kin:${e.parent.session}`} kids=${e.kids} line=${line} />`;
+        case "stub":
+            return html`<${ParentStub} key=${`stub:${e.parent}`} parent=${e.parent} row=${closedRow(past, e.parent)}
+                                      onOpen=${onOpen} />`;
+        default:
+            return line(e.s, false, e.branch || "", e.from || "");
+        }
+    });
+}
+
+// waitsOf says who of the sessions a session opened waits for the person: by
+// name where one does, by count where several do.
+export function waitsOf(kids) {
+    const waiting = kids.filter((s) => stateOf(s).tone === "wait");
+    if (waiting.length === 0) return "";
+    if (waiting.length > 1) return `${waiting.length} wait for you`;
+    return `${shownName(waiting[0])} ${waiting[0].ask ? "asks you" : "waits"}`;
+}
+
+// closedRow is the latest closed conversation of a session, by its name, among
+// the ones a screen has read; null when it has read none.
+export function closedRow(past, name) {
+    return (past || []).find((row) => row.name === name) || null;
+}
+
+// OpenedFold heads the sessions a session had the panel open: how many, and
+// who of them waits for the person — in the colour of waiting, so a closed
+// fold does not hide a question. Closed, it shows the state of each by a dot.
+function OpenedFold({ kids, open, onToggle }) {
+    const waits = waitsOf(kids);
+    return html`
+        <button class="pjrow pjfold" type="button" aria-expanded=${open ? "true" : "false"}
+                onClick=${onToggle}>
+            <span class=${`pjkinchev${open ? " open" : ""}`}>${Icon.chevron()}</span>
+            <span class="pjfoldtext">${openedLabel(kids.length)}</span>
+            ${!open && html`<span class="pjfolddots">${kids.map((s) => html`<i key=${s.session} data-tone=${stateOf(s).tone}></i>`)}</span>`}
+            ${waits && html`<span class="pjfoldwaits">· ${waits}</span>`}
+        </button>
+    `;
+}
+
+// ParentStub holds the place of a parent that closed, over the sessions it
+// opened: its name, struck through, and when it closed. Where the screen has
+// read its conversation a press opens it, as a closed conversation opens.
+function ParentStub({ parent, row, onOpen }) {
+    const closed = row ? `closed ${when(stamp(row.lastAt))}` : "closed";
+    if (!row || !onOpen) {
+        return html`
+            <div class="pjrow pjstub"><span class="pjstubname">${parent}</span><span class="pjstubnote">${closed}</span></div>
+        `;
+    }
+    return html`
+        <button class="pjrow pjstub" type="button" aria-label=${`open the closed conversation ${parent}`}
+                onClick=${() => onOpen(row.name, row.sessionId)}>
+            <span class="pjstubname">${parent}</span>
+            <span class="pjstubnote">${closed}</span>
+            <span class="chev">${Icon.chevron()}</span>
+        </button>
+    `;
 }
 
 function KinFold({ kids, line }) {
@@ -242,8 +322,11 @@ function KinFold({ kids, line }) {
 // level with the name at the right edge — where the session lives and the
 // button of what can be done to it. How full the session is stands in the
 // bottom right corner of the row, level with the last line on the left, so
-// the lines under the name give up to the right no more than that figure.
-export function LiveLine({ session, kid = false, notes, wait, onOpen, onMore }) {
+// the lines under the name give up to the right no more than that figure. A
+// session another opened stands a step in under it, on the line of the branch
+// (branch "mid" or "last"); one whose parent stands elsewhere says which
+// session opened it (from).
+export function LiveLine({ session, kid = false, branch = "", from = "", notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
     const closing = wait ? wait.of("close", session.session) : null;
@@ -256,7 +339,7 @@ export function LiveLine({ session, kid = false, notes, wait, onOpen, onMore }) 
     const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.when]
         .filter(Boolean).map((part) => ` · ${part}`).join("");
     return html`
-        <div class=${`pjrow pjcard${kid ? " pjkid" : ""}`}>
+        <div class=${`pjrow pjcard${kid ? " pjkid" : ""}${branch ? ` pjbranch${branch === "last" ? " pjbranchend" : ""}` : ""}`}>
             <div class="pjtop">
                 <span class="pjsess">${shownName(session)}</span>
                 <span class="pjpair">
@@ -275,6 +358,7 @@ export function LiveLine({ session, kid = false, notes, wait, onOpen, onMore }) 
                 ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
                 ${state.work && html`<span class="pjwork">${state.work}</span>`}
+                ${from && html`<span class="pjfrom">opened by <b>${from}</b></span>`}
             </button>
             <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}

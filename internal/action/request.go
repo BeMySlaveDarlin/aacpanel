@@ -112,6 +112,13 @@ type Project struct {
 
 	Session string `json:"session"`
 
+	// Parent is the session that had this one opened through session_open,
+	// by its name: a restart starts another conversation under the same
+	// name, so a name outlives the conversation the link was made in. A
+	// restart and a move of the session carry it on; empty for a session a
+	// person opened.
+	Parent string `json:"parent,omitempty"`
+
 	Launch json.RawMessage `json:"launch,omitempty"`
 
 	ClaudeBin string `json:"claudeBin,omitempty"`

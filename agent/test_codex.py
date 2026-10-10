@@ -125,6 +125,14 @@ class Rows(Runtime):
         self.follow(contour="elsewhere")
         self.assertNotIn("configDir", ctx.codex_sessions()[0], "a home named like no account has none")
 
+    def test_a_thread_started_for_a_session_names_it_as_its_parent(self):
+        self.follow(parent="lead")
+        self.assertEqual(ctx.codex_sessions()[0].get("parent"), {"session": "lead"})
+        for kept in ("", 7, None):
+            with self.subTest(kept=kept):
+                self.follow(parent=kept)
+                self.assertNotIn("parent", ctx.codex_sessions()[0])
+
     def test_a_thread_whose_executor_is_gone_is_no_row(self):
         self.follow(holder=self.dead_pid())
         self.assertEqual(ctx.codex_sessions(), [])

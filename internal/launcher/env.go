@@ -43,6 +43,15 @@ var unitVars = []string{
 
 const scratchDir = ".cache/claude-tmp"
 
+// ParentEnv names, in the environment of a session, the session that had the
+// panel open it. The collector reads it from the process and the list stands
+// the session under its parent. It lives as long as the process does, so a
+// restart and a move start the next process with it again. Every process the
+// launcher starts loses the one it inherited: a
+// terminal or a session started from inside a session with a parent is not a
+// child of that parent.
+const ParentEnv = "AACP_PARENT"
+
 const (
 	defaultTerm = "xterm-256color"
 	defaultLang = hostcfg.DefaultLang
@@ -59,7 +68,7 @@ func childEnv(own []string, params Params, display, lang, configDir string) ([]s
 		if strings.HasPrefix(name, "CLAUDE") && !isRouteVar(name) {
 			continue
 		}
-		if slices.Contains(unitVars, name) {
+		if slices.Contains(unitVars, name) || name == ParentEnv {
 			continue
 		}
 		env[name] = value
@@ -115,6 +124,19 @@ func childEnv(own []string, params Params, display, lang, configDir string) ([]s
 	}
 	slices.Sort(out)
 	return out, warns
+}
+
+// withParent puts the session that had this one opened into its environment,
+// over any the launch parameters name: the parent is the panel's to say.
+func withParent(env []string, parent string) []string {
+	out := slices.DeleteFunc(slices.Clone(env), func(kv string) bool {
+		return strings.HasPrefix(kv, ParentEnv+"=")
+	})
+	if parent != "" {
+		out = append(out, ParentEnv+"="+parent)
+		slices.Sort(out)
+	}
+	return out
 }
 
 func graphicalEnv(display string) (map[string]string, bool) {

@@ -1556,6 +1556,26 @@ func TestSessionResume(t *testing.T) {
 		}
 	})
 
+	t.Run("an open at the word of a session starts its child", func(t *testing.T) {
+		trustFile(t, map[string]bool{dir: true})
+		log := fakeLauncher(t, ok)
+		e, _ := newTest(t, "")
+
+		opened := project()
+		opened.Parent = "lead"
+		if _, err := e.Execute(ctx, openWith(action.SessionOpen, opened, "")); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(raw), `"parent":"lead"`) {
+			t.Errorf("the launcher was called with %q — the new session would not stand under the one that opened it",
+				string(raw))
+		}
+	})
+
 	t.Run("an ordinary open goes without the flag", func(t *testing.T) {
 		trustFile(t, map[string]bool{dir: true})
 		log := fakeLauncher(t, ok)
@@ -1568,8 +1588,9 @@ func TestSessionResume(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(raw), `"resume"`) {
-			t.Errorf("opening a console called the launcher with %q — a new session must resume nothing", string(raw))
+		if strings.Contains(string(raw), `"resume"`) || strings.Contains(string(raw), `"parent"`) {
+			t.Errorf("opening a console called the launcher with %q — a new session a person opens resumes "+
+				"nothing and has no parent", string(raw))
 		}
 	})
 }

@@ -1223,6 +1223,25 @@ begin.
 A run folds under the session that started it, so a suite that raises a dozen
 claudes does not push the sessions of the person off the list.
 
+**A session opened at the word of another names that one as its parent.**
+`session_open` hands the panel the name of the session that calls it, and the
+launcher puts the name into the environment of the new session as
+`AACP_PARENT`; a codex thread has no process of its own, and the executor keeps
+its parent beside the name the panel gave it. The collector reads it as the
+session's `parent`, the field that names the session a run runs inside of —
+without `outside`, since the panel opened this one. The lists stand the child a
+step in under its parent, in the parent's block whatever its own project, behind
+a fold that is open until the person closes it: the children are the work in
+view, and the block stands where the most pressing of the group puts it. The
+link is by name, not by conversation: a restart starts another conversation
+under the same name, and a restart or a move of the child starts its next
+process with the parent again, as the snapshot holds it. A child whose parent
+closed stands under a stub of the parent that says when it closed and opens its
+conversation; one whose parent lives in another contour stands on its own page
+and says which session opened it. Every process the launcher starts drops the
+variable it inherited: a terminal or a session started from inside a child is
+not a child of that parent.
+
 **The archive is ordered by when a conversation last spoke, not by when its
 file was last written to.** Claude appends a title, a mode or a snapshot of file
 history to a transcript long after the talk ended, and the file goes fresh with
@@ -1474,7 +1493,8 @@ live session of that name makes the launcher take a free one. A directory no
 project holds is refused rather than looked up by the name, since the panel
 would know neither the account to open it in nor its launch parameters, and
 the answer names the contour, so the session can tell its person which account
-the new one spends. The tool has no first message of its own for the reason a
+the new one spends. The calling session names itself, and the new one is shown
+as its child. The tool has no first message of its own for the reason a
 letter is a kind of its own: words typed into a session its model takes for its
 person's, so work goes to the new session as a letter once it is up. The open
 waits a minute for the panel, which answers once the new claude is up; silence

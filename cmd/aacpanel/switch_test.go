@@ -51,6 +51,36 @@ func switchServer(t *testing.T, projectTransport, liveTransport string) (*Server
 	return srv, fake, dir
 }
 
+// A session the panel opened at the word of another stays its child through
+// a restart and a move: both start the next process with the name of the
+// parent the snapshot holds for the session. A session a person opened has
+// none to carry.
+func TestARestartAndAMoveKeepTheSessionThatOpenedItPG(t *testing.T) {
+	for _, c := range []struct{ name, field, want string }{
+		{"opened by a session", `,"parent":{"session":"lead"}`, "lead"},
+		{"opened by a person", ``, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			srv, fake, dir := switchServer(t, "stream", "stream")
+			srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[{"session":"aacpanel-2","sessionId":"`+
+				switchSID+`","cwd":"`+dir+`","transport":"stream"`+c.field+`}]}`))
+			for _, body := range []string{
+				`{"kind":"session.restart","params":{"conversation":"` + switchSID + `"}}`,
+				`{"kind":"session.switch","target":"aacpanel-2","params":{"to":"console"}}`,
+			} {
+				w := post(t, srv, body)
+				if w.Code != http.StatusOK {
+					t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+				}
+				got := <-fake.got
+				if got.Project == nil || got.Project.Parent != c.want {
+					t.Errorf("%s reached the executor with %+v, meant opened by %q", got.Kind, got.Project, c.want)
+				}
+			}
+		})
+	}
+}
+
 func switchWayOf(t *testing.T, srv *Server) (to, reason string) {
 	t.Helper()
 	w := httptest.NewRecorder()

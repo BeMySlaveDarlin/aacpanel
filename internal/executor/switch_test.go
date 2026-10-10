@@ -521,11 +521,12 @@ func TestClosingAStreamSessionEndsItsInput(t *testing.T) {
 
 // With the panel down, a session on the stream goes to tmux from what its
 // holder keeps it was started with: the project, its launch and its contour —
-// a session under another account would be another person's.
+// a session under another account would be another person's — and the
+// session that had it opened, which it stays the child of.
 func TestSwitchToConsoleWithoutThePanelStartsFromWhatTheHolderKeeps(t *testing.T) {
 	dir, f := streamStand(t, func(*stream.State) {})
 	kept, err := json.Marshal(launcher.Spec{Dir: dir, Session: "demo", Launch: json.RawMessage(`{"model":"opus","room":"work"}`),
-		ClaudeBin: "/opt/claude-work", ConfigDir: "/home/u/.claude-profiles/work"})
+		ClaudeBin: "/opt/claude-work", ConfigDir: "/home/u/.claude-profiles/work", Parent: "lead"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +552,7 @@ func TestSwitchToConsoleWithoutThePanelStartsFromWhatTheHolderKeeps(t *testing.T
 		t.Fatalf("%v: %s", err, raw)
 	}
 	if spec.Dir != dir || spec.ConfigDir != "/home/u/.claude-profiles/work" || spec.ClaudeBin != "/opt/claude-work" ||
-		spec.Resume != streamSID {
+		spec.Resume != streamSID || spec.Parent != "lead" {
 		t.Errorf("the console was started with %+v", spec)
 	}
 	if got := launched(t, log); got["model"] != "opus" || got["transport"] != "tmux" {

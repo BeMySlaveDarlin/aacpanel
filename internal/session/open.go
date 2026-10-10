@@ -48,8 +48,8 @@ func Open(h Host) mcp.Tool {
 		Description:  OpenDescription,
 		InputSchema:  openSchema(),
 		Instructions: OpenInstructions,
-		Call: func(ctx context.Context, _ mcp.Bind, args json.RawMessage) (string, bool) {
-			return open(ctx, h, args)
+		Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
+			return open(ctx, h, bind, args)
 		},
 	}
 }
@@ -70,7 +70,7 @@ func openSchema() map[string]any {
 	}
 }
 
-func open(ctx context.Context, h Host, raw json.RawMessage) (string, bool) {
+func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
 		Dir  string `json:"dir"`
 		Name string `json:"name"`
@@ -91,7 +91,11 @@ func open(ctx context.Context, h Host, raw json.RawMessage) (string, bool) {
 			return "Nothing was opened: " + err.Error() + ".", true
 		}
 	}
-	got, err := h.act(ctx, string(action.SessionOpen), args.Name, map[string]any{"path": args.Dir}, openWait)
+	params := map[string]any{"path": args.Dir}
+	if parent := callerName(bind); parent != "" {
+		params["parent"] = parent
+	}
+	got, err := h.act(ctx, string(action.SessionOpen), args.Name, params, openWait)
 	switch {
 	case err != nil:
 		return "Nothing was opened: " + err.Error() + ".", true
@@ -104,4 +108,25 @@ func open(ctx context.Context, h Host, raw json.RawMessage) (string, bool) {
 	return "The panel opened a session in " + args.Dir + ", account " + orUnknown(got.Contour) + ": " + got.Said +
 		". Tell the person its name and account. To give it work, write it a letter with send_to_session once it " +
 		"shows in that tool's list.", false
+}
+
+// callerName is the name of the session that calls the tool, the parent the
+// new session is shown under in the panel. A caller whose place is not known,
+// one started without a name and one whose name the panel would not take as a
+// session's open the session all the same, with no parent: where the new one
+// stands in a list is no reason to refuse the open.
+func callerName(bind mcp.Bind) string {
+	if bind == nil {
+		return ""
+	}
+	b, err := bind()
+	if err != nil || b.Name == "" {
+		return ""
+	}
+	probe := action.Request{ID: "open", Kind: action.SessionOpen, Target: "open",
+		Project: &action.Project{Path: "/", Session: "open", Parent: b.Name}}
+	if probe.Validate() != nil {
+		return ""
+	}
+	return b.Name
 }

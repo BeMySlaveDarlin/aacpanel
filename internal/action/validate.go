@@ -480,6 +480,17 @@ func (p Project) validate() error {
 	if strings.Contains(p.Session, "/") {
 		return badRequest("the session name %q contains /", p.Session)
 	}
+	if p.Parent != "" {
+		if len(p.Parent) > targetMax {
+			return badRequest("the name of the parent session is longer than %d characters", targetMax)
+		}
+		if err := safeTarget(p.Parent); err != nil {
+			return err
+		}
+		if strings.Contains(p.Parent, "/") {
+			return badRequest("the name of the parent session %q contains /", p.Parent)
+		}
+	}
 	if len(p.Launch) > 0 {
 		if len(p.Launch) > launchMax {
 			return badRequest("the launch parameters are longer than %d bytes", launchMax)

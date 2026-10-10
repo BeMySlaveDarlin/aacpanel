@@ -107,7 +107,7 @@ func TestSessionRestart(t *testing.T) {
 		sig := withSignals(t, e, map[int]bool{402: true}, map[int]int{402: 1})
 
 		r := req(action.SessionRestart, "probe")
-		r.Project = &action.Project{Path: dir, Session: "probe",
+		r.Project = &action.Project{Path: dir, Session: "probe", Parent: "lead",
 			Launch: []byte(`{"model":"opus","remoteControl":true,"intent":"Continue"}`)}
 		detail, err := e.Execute(ctx, r)
 		if err != nil {
@@ -121,7 +121,8 @@ func TestSessionRestart(t *testing.T) {
 			t.Fatalf("the launcher was not called: %v", err)
 		}
 		spec := string(raw)
-		for _, want := range []string{`"dir":"` + dir + `"`, `"session":"probe"`, `"model":"opus"`, `"intent":"Continue"`} {
+		for _, want := range []string{`"dir":"` + dir + `"`, `"session":"probe"`, `"model":"opus"`, `"intent":"Continue"`,
+			`"parent":"lead"`} {
 			if !strings.Contains(spec, want) {
 				t.Errorf("the launcher was called with %s — without %s the session comes up in another setup", spec, want)
 			}

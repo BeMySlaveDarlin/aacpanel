@@ -268,6 +268,27 @@ func TestProjectLimits(t *testing.T) {
 	}
 }
 
+// The parent of a session goes into its environment and back into the
+// snapshot, so it is a session name like any other: one with a way out of a
+// path or a character the names never carry is refused, and none is no
+// parent at all.
+func TestTheParentOfASessionIsASessionName(t *testing.T) {
+	open := func(parent string) Request {
+		return Request{ID: "1", Kind: SessionOpen, Target: "person",
+			Project: &Project{Path: "/srv/person", Session: "person", Parent: parent}}
+	}
+	for _, good := range []string{"", "aacpanel", "codex-5afc361b", "shop.stage_2", "my lab"} {
+		if err := open(good).Validate(); err != nil {
+			t.Errorf("parent %q is refused: %v", good, err)
+		}
+	}
+	for _, bad := range []string{"../x", "a/b", "a:b", "x;rm", "x\ny", strings.Repeat("a", targetMax+1)} {
+		if err := open(bad).Validate(); err == nil {
+			t.Errorf("parent %q is accepted", bad)
+		}
+	}
+}
+
 func TestAnswerRequestChecksOwnWords(t *testing.T) {
 	ask := func(a *Answer) Request {
 		return Request{ID: "a1", Kind: SessionAnswer, Target: "aacpanel", Answer: a}

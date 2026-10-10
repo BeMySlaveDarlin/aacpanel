@@ -1,0 +1,164 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .deskshell{position:static;height:900px} .dkbody{height:900px} .phone{width:390px;padding:.6rem 17px;display:flex;flex-direction:column;gap:.55rem}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="deskshell"><div class="dkbody" id="desk"></div></div>
+<div class="phone" id="phone1"></div>
+<div class="phone" id="phone2"></div>
+<div class="phone" id="plain"></div>
+<script type="module">
+// The sessions a session had the panel open, in both lists. On the phone a
+// child stands in the block of its parent whatever its project, a step in
+// under it, behind a fold that is open, says who of them waits and lifts the
+// block to where the most pressing of the group puts it; the children of a
+// parent that closed stand under a stub of it that says when it closed; a
+// child whose parent lives in another contour stands on its own page, saying
+// which session opened it. In the desktop column the children keep keys of
+// their own while the fold is open and give them up when it is closed. A list
+// where nobody opened anybody shows none of it.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { blocksOf, ProjectBlock } from "/src/screens/sessions/blocks.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const now = Date.now();
+const iso = (min) => new Date(now - min * 60e3).toISOString();
+const P = (id, name, path) => ({ id, name, session: name, path });
+const pj = {
+    lead: P(11, "lead", "/srv/lead"), person: P(12, "person", "/srv/person"), wiki: P(13, "wiki", "/srv/wiki"),
+    shop: P(14, "shop", "/srv/shop"), rotation: P(21, "rotation", "/srv/rotation"), quotes: P(22, "quotes", "/srv/quotes"),
+};
+const profileMap = [
+    { id: 1, profile: "Personal", name: "Personal", groups: [
+        { name: "work", projects: [pj.lead, pj.person, pj.wiki] },
+        { name: "side", projects: [pj.shop] },
+    ] },
+    { id: 2, profile: "Algo", name: "Algo", groups: [{ name: "trading", projects: [pj.rotation, pj.quotes] }] },
+];
+const S = (contour, p, o) => ({
+    profile: contour === 1 ? "Personal" : "Algo", contour, transport: "stream", status: "idle", pct: 20,
+    sessionId: `id-${o.session}`, cwd: p.path, project: { id: p.id, name: p.name }, startedAt: iso(o.up || 90),
+    lastRequestAt: iso(o.ago || 5), ...o,
+});
+const sessions = [
+    S(1, pj.lead, { session: "lead", status: "busy", up: 300, ago: 1 }),
+    S(1, pj.person, { session: "person", status: "waiting", ask: { count: 1, header: "Layout" }, up: 40, ago: 3,
+        parent: { session: "lead" } }),
+    S(1, pj.lead, { session: "codex-5afc361b", agent: "codex", title: "review the protocol", status: "busy", up: 25, ago: 1,
+        parent: { session: "lead" } }),
+    S(1, pj.wiki, { session: "wiki", status: "busy", up: 70, ago: 2, parent: { session: "docs" } }),
+    S(1, pj.shop, { session: "shop", up: 600, ago: 190 }),
+    S(2, pj.rotation, { session: "rotation", status: "busy", up: 500, ago: 1 }),
+    S(2, pj.quotes, { session: "quotes", up: 200, ago: 25, parent: { session: "lead" } }),
+];
+// The parent that closed is in the archive, closed forty minutes ago.
+const archive = [
+    { name: "docs", sessionId: "d0", profile: "Personal", contour: 1, project: { id: 11, name: "lead", group: "work" },
+      cwd: "/srv/lead", startedAt: iso(160), lastAt: iso(40), messages: 38, pctMax: 71, prompts: ["Sweep the docs"] },
+];
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: archive, total: archive.length, limit: 30, offset: 0 });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.close", "session.restart", "session.open", "session.resume"] };
+const wrap = (node) => h(ToastHost, null, h(GateHost, null, node));
+let order = [];
+const picked = [];
+render(wrap(h(SessionColumn, {
+    snapshot: { at: now / 1000, sessions, profileMap, limits: null }, profiles: { profiles: [] }, limits: null,
+    current: "", onPick(p) { picked.push(p); }, picks: [], setPicks() {}, onNames() {},
+    onOrder(list) { order = list.map((s) => s.name); }, exec, wait: null,
+})), document.getElementById("desk"));
+
+const opened = [];
+const page = (id, contour, list) => {
+    const blocks = blocksOf({ profile: profileMap.find((p) => p.id === contour), sessions: list });
+    render(wrap(html`${blocks.map((block) => html`
+        <${ProjectBlock} key=${block.key} block=${block} exec=${exec} live=${sessions} past=${archive}
+                         onOpen=${(name, sid) => opened.push({ name, id: sid })} onMore=${() => {}} />
+    `)}`), document.getElementById(id));
+};
+page("phone1", 1, sessions.filter((s) => s.contour === 1));
+page("phone2", 2, sessions.filter((s) => s.contour === 2));
+// Nobody opened anybody: the same sessions with no parent.
+page("plain", 1, sessions.filter((s) => s.contour === 1).map(({ parent, ...s }) => s));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
+
+// phoneOf reads a page of the phone block by block: its name, and its rows in
+// order — a fold, a stub or a session, the session as its name with "+" for one
+// a step in and what it says of the session that opened it.
+const phoneOf = (root) => Array.from(root.querySelectorAll(".pjblock")).map((block) => ({
+    name: text(block.querySelector(".pjname")),
+    rows: Array.from(block.querySelectorAll(".pjfold, .pjstub, .pjrow.pjcard")).map((row) => {
+        if (row.classList.contains("pjfold")) return `fold: ${text(row)}`;
+        if (row.classList.contains("pjstub")) return `stub: ${text(row)}`;
+        const branch = row.classList.contains("pjbranch") ? (row.classList.contains("pjbranchend") ? "└ " : "├ ") : "";
+        const from = text(row.querySelector(".pjfrom"));
+        return `${branch}${text(row.querySelector(".pjsess"))}${from ? ` (${from})` : ""}`;
+    }),
+}));
+// deskOf reads the desktop column: its rows in order, with the key of each.
+const deskOf = () => Array.from(document.querySelectorAll("#desk .dkscroll > section .dkfold, #desk .dkscroll > section .dkstub, #desk .dkscroll > section .dksess.dklive"))
+    .map((row) => {
+        if (row.classList.contains("dkfold")) return `fold: ${text(row)}`;
+        if (row.classList.contains("dkstub")) return `stub: ${text(row)}`;
+        const branch = row.classList.contains("dkbranch") ? (row.classList.contains("dkbranchend") ? "└ " : "├ ") : "";
+        const from = text(row.querySelector(".dkfrom"));
+        return `${text(row.querySelector(".dkkey"))} ${branch}${text(row.querySelector(".dkname"))}${from ? ` (${from})` : ""}`;
+    });
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const desk = document.getElementById("desk");
+    const phone1 = document.getElementById("phone1");
+    if (!await until(() => desk.querySelector(".dkstub .dkstubnote") && text(desk.querySelector(".dkstub .dkstubnote")).includes("ago"))) {
+        throw new Error("the stub of the closed parent did not learn when it closed");
+    }
+    const out = {};
+    out.phone = phoneOf(phone1);
+    out.phoneAlgo = phoneOf(document.getElementById("phone2"));
+    out.plain = phoneOf(document.getElementById("plain"));
+    out.plainMarks = document.querySelectorAll("#plain .pjfold, #plain .pjstub, #plain .pjbranch, #plain .pjfrom").length;
+    out.desk = deskOf();
+    out.order = order.slice();
+    out.waitHue = getComputedStyle(phone1.querySelector(".pjfoldwaits")).color;
+    out.guide = getComputedStyle(phone1.querySelector(".pjbranch"), "::before").borderLeftWidth;
+
+    // The stub opens the conversation of the parent that closed.
+    phone1.querySelector("button.pjstub").click();
+    desk.querySelector(".dkstub").click();
+    out.stubOpens = { phone: opened.slice(), desk: picked.map((p) => ({ name: p.name, id: p.id, archived: Boolean(p.archived) })) };
+
+    // A closed fold keeps who waits and the dots of the states, and on the
+    // desktop gives up the keys of its sessions; it stays closed for its
+    // parent, and opens again.
+    phone1.querySelector(".pjfold").click();
+    desk.querySelector(".dkfold").click();
+    await until(() => !phone1.querySelector(".pjbranch .pjsess") || order.length < out.order.length);
+    await until(() => order.length < out.order.length);
+    out.phoneFolded = phoneOf(phone1);
+    out.phoneDots = Array.from(phone1.querySelectorAll(".pjfolddots i")).map((i) => i.dataset.tone);
+    out.deskFolded = deskOf();
+    out.orderFolded = order.slice();
+    out.kept = JSON.parse(localStorage.getItem("aacpanel.folds") || "[]");
+    desk.querySelector(".dkfold").click();
+    await until(() => order.length === out.order.length);
+    out.orderOpen = order.slice();
+    return out;
+})();
+</script>

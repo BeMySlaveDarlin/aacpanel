@@ -118,6 +118,27 @@ type LiveSession struct {
 	Outside bool `json:"outside"`
 	// Agent is "codex" for a codex thread, empty for claude.
 	Agent string `json:"agent"`
+	// Parent is the session that started this one: the session a run of
+	// claude runs inside the work of, for a session Outside, or the session
+	// that had the panel open this one.
+	Parent *SessionRef `json:"parent"`
+}
+
+// SessionRef names a live session the way the snapshot names one session from
+// another.
+type SessionRef struct {
+	Session string `json:"session"`
+}
+
+// OpenedBy is the name of the session that had the panel open this one, empty
+// for a session a person opened. A run of claude inside the work of a session
+// has a parent too, and is not opened by it: the panel did not start the run,
+// and does not start it again.
+func (s LiveSession) OpenedBy() string {
+	if s.Outside || s.Parent == nil {
+		return ""
+	}
+	return s.Parent.Session
 }
 
 // Worktrees maps the git worktrees the agent saw on disk to their main

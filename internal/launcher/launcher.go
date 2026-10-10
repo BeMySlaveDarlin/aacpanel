@@ -28,6 +28,11 @@ type Spec struct {
 	Launch    json.RawMessage `json:"launch,omitempty"`
 	ClaudeBin string          `json:"claudeBin,omitempty"`
 	ConfigDir string          `json:"configDir,omitempty"`
+	// Parent is the session that had this one opened, by its name. The
+	// session carries it in its environment as ParentEnv, where the
+	// collector reads it; a session on the stream keeps it in what its
+	// holder was started with as well.
+	Parent string `json:"parent,omitempty"`
 	// Codex starts codex in tmux on a thread instead of claude.
 	Codex *CodexSpec `json:"codex,omitempty"`
 }
@@ -115,6 +120,7 @@ func Run(ctx context.Context, spec Spec) (Report, error) {
 
 	host := hostcfg.Load()
 	env, envWarns := childEnv(os.Environ(), params, host.Display, host.Lang, configDir)
+	env = withParent(env, spec.Parent)
 	warns = append(warns, envWarns...)
 
 	drop, dropWarns, err := writeSessionEnv(env)
@@ -165,7 +171,7 @@ func runStream(ctx context.Context, spec Spec, params Params, name, bin string, 
 		conversation = stream.NewSessionID()
 	}
 	launched, err := json.Marshal(Spec{Dir: spec.Dir, Session: name, Launch: spec.Launch,
-		ClaudeBin: spec.ClaudeBin, ConfigDir: spec.ConfigDir})
+		ClaudeBin: spec.ClaudeBin, ConfigDir: spec.ConfigDir, Parent: spec.Parent})
 	if err != nil {
 		return Report{}, err
 	}

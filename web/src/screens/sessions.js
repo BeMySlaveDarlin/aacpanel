@@ -178,6 +178,7 @@ export function Sessions({ snapshot, error, ageSec, exec, wait, faults = [], onL
                     limits=${limits}
                     stale=${stale}
                     sessions=${profiles.length > 0 ? byPage.get(name) || [] : sessions}
+                    everyone=${sessions}
                     opening=${profiles.length > 0 ? ghosts.get(name) || [] : wait.opening()}
                     recent=${name === profile ? recent : []}
                     notes=${notes.own}
@@ -214,7 +215,7 @@ const SECTIONS = [
     { rank: RANK.quiet, title: "quiet", tone: "" },
 ];
 
-function Page({ name, profile, limits, stale, sessions, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
+function Page({ name, profile, limits, stale, sessions, everyone, opening, recent, notes, blind, exec, wait, onProject, onChat, onPast, onSettings }) {
     const [acting, setActing] = useState("");
     const blocks = blocksOf({ profile, sessions, recent, opening });
     const acted = acting ? sessions.find((s) => s.session === acting) || null : null;
@@ -232,6 +233,7 @@ function Page({ name, profile, limits, stale, sessions, opening, recent, notes, 
                     </div>
                     ${list.map((block) => html`
                         <${ProjectBlock} key=${block.key} block=${block} exec=${exec} wait=${wait} notes=${notes}
+                                         live=${everyone} past=${recent}
                                          onOpen=${onChat} onMore=${(s) => setActing(s.session)} onProject=${toProject} />
                     `)}
                 `;

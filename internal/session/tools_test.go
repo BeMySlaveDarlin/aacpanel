@@ -27,6 +27,15 @@ func bound(id string) mcp.Bind {
 	}
 }
 
+// boundAs is a caller that runs under a name, as every session the panel
+// starts does.
+func boundAs(name, id string) mcp.Bind {
+	return func() (mcp.Binding, error) {
+		return mcp.Binding{Place: mcp.Place{ConfigDir: "/home/u/.claude", Dir: "/srv/proj/lab"}, Name: name,
+			SessionID: id, PID: 4242}, nil
+	}
+}
+
 func lost() (mcp.Binding, error) {
 	return mcp.Binding{}, errors.New("where claude process 9 works is not known")
 }
@@ -460,7 +469,10 @@ func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
 // An open goes to the panel as session.open with the directory, and with the
 // name only where the model gives one: without it the panel names the session
 // after its project. The answer names the session, its account and its
-// directory, and says how the new session is given work.
+// directory, and says how the new session is given work. A caller with a name
+// is the parent of the new session; one whose place or name is not known, or
+// whose name the panel takes for no session's, opens it all the same, with
+// none.
 func TestAnOpenNamesTheDirectoryToThePanel(t *testing.T) {
 	p, url := startPanel(t, http.StatusOK,
 		`{"ok":true,"detail":"session lab-2 started; opening message: read the queue","contour":"work","logged":true}`)
@@ -477,15 +489,21 @@ func TestAnOpenNamesTheDirectoryToThePanel(t *testing.T) {
 		}
 	}
 	call(t, Open(h), lost, map[string]any{"dir": "/srv/proj/lab/web", "name": "lab-fix"})
+	call(t, Open(h), boundAs("aacpanel", mine), map[string]any{"dir": "/srv/proj/lab"})
+	call(t, Open(h), boundAs("lab:two", mine), map[string]any{"dir": "/srv/proj/lab"})
 
 	asked := p.calls()
-	if len(asked) != 2 {
+	if len(asked) != 4 {
 		t.Fatalf("the panel was asked %v", asked)
 	}
-	for i, want := range []struct{ target, path string }{{"", "/srv/proj/lab"}, {"lab-fix", "/srv/proj/lab/web"}} {
+	for i, want := range []struct{ target, path, parent string }{
+		{"", "/srv/proj/lab", ""}, {"lab-fix", "/srv/proj/lab/web", ""}, {"", "/srv/proj/lab", "aacpanel"},
+		{"", "/srv/proj/lab", ""},
+	} {
 		params, _ := asked[i]["params"].(map[string]any)
+		parent, named := params["parent"]
 		if asked[i]["kind"] != "session.open" || asked[i]["target"] != want.target || params["path"] != want.path ||
-			len(params) != 1 {
+			named != (want.parent != "") || (named && parent != want.parent) {
 			t.Errorf("call %d asked the panel %v, meant %+v", i, asked[i], want)
 		}
 	}

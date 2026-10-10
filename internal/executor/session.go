@@ -31,6 +31,9 @@ type project struct {
 	ClaudeBin string
 	ConfigDir string
 	FromMap   bool
+	// Parent is the session that had this one opened, by its name; see
+	// action.Project.
+	Parent string
 }
 
 // Open starts a session of a project, as New does, or goes on with a thread
@@ -102,7 +105,7 @@ func chooseProject(target string, want *action.Project) (project, error) {
 		return project{
 			Name: want.Session, Path: path, Session: want.Session, RC: want.Session,
 			Launch: want.Launch, ClaudeBin: want.ClaudeBin, ConfigDir: want.ConfigDir,
-			FromMap: true,
+			FromMap: true, Parent: want.Parent,
 		}, nil
 	}
 	list, err := projects()
