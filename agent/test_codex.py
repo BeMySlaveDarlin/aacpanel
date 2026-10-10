@@ -411,6 +411,19 @@ class Decisions(Runtime):
         self.assertEqual(notes.count(codex.GOAL_TURN), 2, "a turn codex starts for its goal says why it started")
         self.assertNotIn("codex_internal_context", json.dumps(items), "the words codex gives itself are no row")
 
+    def test_a_goal_cleared_says_so(self):
+        said = {"timestamp": "2026-10-10T08:41:00.000Z", "type": "response_item", "payload": {
+            "type": "message", "role": "developer", "content": [{"type": "input_text", "text":
+                '<codex_internal_context source="goal">\nUser cleared the goal.\n</codex_internal_context>'}]}}
+        told = {"timestamp": "2026-10-10T08:41:00.000Z", "type": "event_msg",
+                "payload": {"type": "thread_goal_cleared", "threadId": THREAD}}
+        for record in (said, told):
+            self.assertEqual([(i["role"], i["text"]) for i in chat.parse(record, 9)], [("note", codex.GOAL_CLEARED)])
+        mine = dict(said, payload=dict(said["payload"], role="assistant"))
+        self.assertEqual(chat.parse(mine, 9), [], "the model saying the words clears nothing")
+        other = dict(said, payload=dict(said["payload"], content=[{"type": "input_text", "text": "set it again"}]))
+        self.assertEqual(chat.parse(other, 9), [])
+
     def test_a_review_begins_and_ends_with_its_findings(self):
         reviews = [i for i in self.items() if i["role"] == "review"]
         self.assertEqual([(r["state"], r.get("verdict"), len(r.get("findings", []))) for r in reviews],

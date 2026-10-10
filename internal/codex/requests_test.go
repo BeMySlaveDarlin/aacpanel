@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func question() map[string]any {
@@ -250,4 +251,50 @@ func TestTheCollectorKeepsTheWordsOfADismissal(t *testing.T) {
 	if !strings.Contains(string(src), "\nDISMISSED = \""+Dismissed+"\"\n") {
 		t.Errorf("agent/chat/codex.py does not say DISMISSED = %q", Dismissed)
 	}
+}
+
+// slowPolls keeps the link from reading the daemon again during a test: what
+// the state says then comes from what the link was told, not from a read.
+func slowPolls(t *testing.T) {
+	prev := pollEvery
+	pollEvery = time.Hour
+	t.Cleanup(func() { pollEvery = prev })
+}
+
+// A question answered leaves the row busy at once: the thread runs on, and
+// waits for nobody.
+func TestAnAnsweredQuestionLeavesTheThreadBusyAtOnce(t *testing.T) {
+	slowPolls(t)
+	th := idle(threadA)
+	th.Status, th.Flags = "active", []string{"waitingOnUserInput"}
+	srv, l := linked(t, th)
+	srv.Ask(threadA, methodUserInput, question())
+	until(t, "the question to reach the link", func() bool { return len(l.Pending(threadA)) == 1 })
+	r := l.Pending(threadA)[0]
+	reply, _ := r.Answers([][]int{{1}}, nil, nil)
+	if err := l.Reply(context.Background(), threadA, r.Key(), reply); err != nil {
+		t.Fatal(err)
+	}
+	if st, raw, _ := stateOf(t, threadA); !st.Busy || len(st.Waiting) != 0 || st.Ask != nil {
+		t.Errorf("after the answer the row says %s", raw)
+	}
+}
+
+// The status the daemon tells its clients reaches the row whatever it is: a
+// thread that waited and runs on is busy again before any read.
+func TestTheStatusTheDaemonTellsReachesTheRow(t *testing.T) {
+	slowPolls(t)
+	srv, l := linked(t, idle(threadA))
+	until(t, "the state file", written(t, threadA))
+	l.join(context.Background(), mustClient(t, l), threadA)
+	srv.Set(threadA, "active", "waitingOnApproval")
+	until(t, "the row to wait", func() bool {
+		st, _, _ := stateOf(t, threadA)
+		return slices.Equal(st.Waiting, []string{"waitingOnApproval"})
+	})
+	srv.Set(threadA, "active")
+	until(t, "the row to be busy and wait for nobody", func() bool {
+		st, _, _ := stateOf(t, threadA)
+		return st.Busy && len(st.Waiting) == 0
+	})
 }

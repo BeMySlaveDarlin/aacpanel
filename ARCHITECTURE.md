@@ -802,7 +802,8 @@ appears or the connection drops — at once when an action waits for it.
   as it reads a claude transcript: the messages, the summaries of reasoning, the
   commands with their output and the changes of files, from the records codex
   writes once an item is done; the plan of plan mode, the start of a review and
-  its findings, every goal set or changed and the turns codex starts for it,
+  its findings, every goal set, changed or cleared and the turns codex starts
+  for it,
   and each question of plan mode with its answer, drawn as an answered question
   of claude's. The raw records of the model beside them say the same again and
   are not shown. A review runs in a thread of its own and codex writes its

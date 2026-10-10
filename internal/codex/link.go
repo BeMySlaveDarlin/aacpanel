@@ -690,7 +690,7 @@ func (l *Link) seen(info threadInfo, asked time.Time) bool {
 		info.Name = t.info.Name
 	}
 	t.info = info
-	if info.Status.Type != "active" {
+	if t.info.Status.Type != "active" {
 		l.pending[info.ID] = slices.DeleteFunc(l.pending[info.ID], func(r Request) bool {
 			return r.Since.Before(asked)
 		})
@@ -809,9 +809,19 @@ func (l *Link) handle(msg message) {
 	switch {
 	case len(msg.ID) == 0 && msg.Method == "thread/status/changed":
 		var p struct {
-			Status threadStatus `json:"status"`
+			ThreadID string       `json:"threadId"`
+			Status   threadStatus `json:"status"`
 		}
-		if json.Unmarshal(msg.Params, &p) == nil && p.Status.Type != "active" {
+		if json.Unmarshal(msg.Params, &p) != nil || p.Status.Type == "" {
+			return
+		}
+		// A thread that runs on after a question is answered says so with a
+		// status of its own, and the row is busy again at once.
+		if p.ThreadID != "" && p.Status.Type != "notLoaded" {
+			l.set(p.ThreadID, func(t *thread) { t.info.Status = p.Status })
+			l.save(p.ThreadID)
+		}
+		if p.Status.Type != "active" {
 			l.nudge()
 		}
 	case len(msg.ID) == 0 && msg.Method == "thread/settings/updated":
@@ -924,10 +934,41 @@ func (l *Link) onUsage(params json.RawMessage) {
 	l.save(p.ThreadID)
 }
 
+// resolve forgets a request that was answered. The thread waits no more on
+// what it asked: the flag the daemon showed for it goes with the last request
+// of its kind, before any word of the daemon's on the status, which reaches
+// only its clients and may come later.
 func (l *Link) resolve(threadID, key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.pending[threadID] = slices.DeleteFunc(l.pending[threadID], func(r Request) bool { return r.Key() == key })
+	var gone []Request
+	l.pending[threadID] = slices.DeleteFunc(l.pending[threadID], func(r Request) bool {
+		if r.Key() == key {
+			gone = append(gone, r)
+			return true
+		}
+		return false
+	})
+	t := l.threads[threadID]
+	if t == nil {
+		return
+	}
+	for _, r := range gone {
+		flag := r.flag()
+		if slices.ContainsFunc(l.pending[threadID], func(o Request) bool { return o.flag() == flag }) {
+			continue
+		}
+		t.info.Status.Flags = slices.DeleteFunc(slices.Clone(t.info.Status.Flags), func(f string) bool { return f == flag })
+	}
+}
+
+// flag is the flag a thread shows while the request waits: a question of plan
+// mode waits on the person's input, anything else on an approval.
+func (r Request) flag() string {
+	if r.Method == methodUserInput {
+		return flagUserInput
+	}
+	return flagApproval
 }
 
 // save writes the state file of a thread when what it says has changed.

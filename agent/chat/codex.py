@@ -35,6 +35,12 @@ KINDS = ("session_meta", "world_state", "turn_context", "response_item",
 # its input is codex's own words, not a message of the person's.
 GOAL_TURN = "codex goes on with its goal"
 
+# What the feed says of a goal cleared. Codex writes no goal for it: it tells
+# the model "User cleared the goal." in a message of its own, and a later
+# release may write an event of it besides.
+GOAL_CLEARED = "the goal was cleared"
+CLEARED_WORDS = "User cleared the goal."
+
 # How many findings of a review the feed carries.
 MAX_FINDINGS = 20
 
@@ -303,6 +309,20 @@ def _goal(record, at, pos):
             "timeUsedSeconds": _count(goal.get("timeUsedSeconds")) or 0, "at": at, "pos": pos}
 
 
+def _goal_cleared(record):
+    """Reports whether a record says the goal of the thread was cleared."""
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        return False
+    if record.get("type") == "event_msg":
+        return payload.get("type") == "thread_goal_cleared"
+    if (record.get("type") != "response_item" or payload.get("type") != "message"
+            or payload.get("role") == "assistant" or not isinstance(payload.get("content"), list)):
+        return False
+    return any(isinstance(part, dict) and isinstance(part.get("text"), str) and CLEARED_WORDS in part["text"]
+               for part in payload["content"])
+
+
 def _goal_turn(record):
     """Reports whether a record starts a turn codex began by itself to go on with its goal."""
     payload = record.get("payload")
@@ -369,6 +389,8 @@ def rows(record, pos, state=None):
         return [{"role": "note", "text": STOPPED, "at": at, "pos": pos}]
     if _goal_turn(record):
         return [{"role": "note", "text": GOAL_TURN, "at": at, "pos": pos}]
+    if _goal_cleared(record):
+        return [{"role": "note", "text": GOAL_CLEARED, "at": at, "pos": pos}]
     for card in (_asked(record, at, pos), _goal(record, at, pos)):
         if card:
             return [card]
