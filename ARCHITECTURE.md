@@ -792,6 +792,20 @@ appears or the connection drops — at once when an action waits for it.
   program that chose the home by itself. The program is `AACP_CODEX`, or
   `codex` from the executor's `PATH`. The daemon updates itself as codex does,
   and a turn an update cuts is resumed like any other.
+- **The protocol is held to a contract, since the daemon updates itself.** A
+  release may drop a field the panel decodes, rename a status or require a new
+  param without a word, and the panel would meet it as a zero or a refusal.
+  `make codex-contract` has the installed codex write the schema of its
+  protocol — no daemon, no thread, no tokens — and walks it along
+  `internal/codex/contract/uses.txt`, every method, field and value the panel
+  reads or sends, against the reference of the release last passed, kept in
+  the tree cut to those places. What the panel uses that is gone or changed is
+  red with its name; a new kind of item, a new status, a notification nobody
+  turned off is a warning. It is not in `make check`, for codex is not on every
+  machine; the comparison itself is, over fixtures made of the reference. The
+  rollout the feed reads, the state database of a home, the `_meta` codex adds
+  to an MCP server's request and the words of a refusal are no part of the
+  schema, and the check does not see them change.
 - **A close lets the thread go.** The turn that runs is interrupted, the panel
   stops holding the thread and leaves it, and the tmux session whose pane the
   launcher started with codex resuming that thread is killed by its exact

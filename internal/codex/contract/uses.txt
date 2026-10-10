@@ -1,0 +1,404 @@
+# What the panel reads and sends of the app-server protocol of codex.
+#
+# A message line names a method and what the panel does with it:
+#   call    a request the panel sends; send lines are its params, read lines its result
+#   answer  a request of the daemon the panel answers; read lines are its params, send lines its result
+#   hear    a notification the panel reads; read lines are its params
+#   tell    a notification the panel sends
+#   quiet   notifications the panel turns off at the handshake
+# The indented lines under a message are its places. A path goes by properties
+# with dots; [] steps into the items of a list, {} into the values of a map,
+# <word> into the variant of a union that word names. The words after a colon
+# are the values the panel compares, maps or sends there.
+
+tell initialized
+
+call initialize
+  send clientInfo.name
+  send clientInfo.title
+  send clientInfo.version
+  send capabilities.experimentalApi
+  send capabilities.requestAttestation
+  send capabilities.optOutNotificationMethods[]
+
+# The poll: the loaded threads and each one read.
+call thread/loaded/list
+  send cursor
+  read data[]
+  read nextCursor
+
+call thread/read
+  send threadId
+  send includeTurns
+  read thread.id
+  read thread.parentThreadId
+  read thread.model
+  read thread.reasoningEffort
+  read thread.name
+  read thread.createdAt
+  read thread.updatedAt
+  read thread.status.type: active notLoaded
+  read thread.status.activeFlags[]: waitingOnApproval waitingOnUserInput
+  read thread.path
+  read thread.cwd
+
+call thread/resume
+  send threadId
+  send excludeTurns
+  read thread.id
+  read thread.parentThreadId
+  read thread.model
+  read thread.reasoningEffort
+  read thread.name
+  read thread.createdAt
+  read thread.updatedAt
+  read thread.status.type: active notLoaded
+  read thread.status.activeFlags[]: waitingOnApproval waitingOnUserInput
+  read thread.path
+  read thread.cwd
+  read approvalPolicy: on-request
+  read approvalsReviewer: user auto_review
+  read sandbox.type: readOnly workspaceWrite dangerFullAccess
+  read activePermissionProfile.id
+  read collaborationMode.mode: plan
+
+call thread/unsubscribe
+  send threadId
+
+call thread/turns/list
+  send threadId
+  send limit
+  send itemsView: notLoaded
+  read data[].id
+  read data[].status: inProgress
+
+# New: a thread in the daemon, named, and its first turn.
+call thread/start
+  send cwd
+  send model
+  send approvalPolicy: untrusted on-request never
+  send sandbox: read-only workspace-write danger-full-access
+  send config
+  read thread.id
+  read thread.parentThreadId
+  read thread.model
+  read thread.reasoningEffort
+  read thread.name
+  read thread.createdAt
+  read thread.updatedAt
+  read thread.status.type: active notLoaded
+  read thread.status.activeFlags[]: waitingOnApproval waitingOnUserInput
+  read thread.path
+  read thread.cwd
+  read approvalPolicy: on-request
+  read approvalsReviewer: user auto_review
+  read sandbox.type: readOnly workspaceWrite dangerFullAccess
+  read activePermissionProfile.id
+
+call thread/name/set
+  send threadId
+  send name
+
+call turn/start
+  send threadId
+  send input[].type: text localImage
+  send input[]<text>.type
+  send input[]<text>.text
+  send input[]<text>.text_elements
+  send input[]<localImage>.type
+  send input[]<localImage>.path
+  send clientUserMessageId
+  send model
+  send effort
+
+call turn/interrupt
+  send threadId
+  send turnId
+
+# The commands of codex's own terminal.
+call thread/compact/start
+  send threadId
+
+call review/start
+  send threadId
+  send delivery: inline
+  send target.type: uncommittedChanges baseBranch commit custom
+  send target<baseBranch>.type
+  send target<baseBranch>.branch
+  send target<commit>.type
+  send target<commit>.sha
+  send target<commit>.title
+  send target<custom>.type
+  send target<custom>.instructions
+
+call thread/goal/set
+  send threadId
+  send origin: user
+  send objective
+  send status: active paused
+  send tokenBudget
+  read goal.objective
+  read goal.status: active paused blocked usageLimited budgetLimited complete
+  read goal.tokensUsed
+  read goal.tokenBudget
+  read goal.timeUsedSeconds
+  read goal.updatedAt
+
+call thread/goal/clear
+  send threadId
+  send origin: user
+  read cleared
+
+call thread/goal/get
+  send threadId
+  read goal.objective
+  read goal.status: active paused blocked usageLimited budgetLimited complete
+  read goal.tokensUsed
+  read goal.tokenBudget
+  read goal.timeUsedSeconds
+  read goal.updatedAt
+
+call thread/backgroundTerminals/list
+  send threadId
+  send cursor
+  read data[].processId
+  read data[].command
+  read data[].cwd
+  read data[].osPid
+  read data[].cpuPercent
+  read data[].rssKb
+  read nextCursor
+
+call thread/backgroundTerminals/terminate
+  send threadId
+  send processId
+  read terminated
+
+call thread/backgroundTerminals/clean
+  send threadId
+
+call thread/settings/update
+  send threadId
+  send model
+  send effort
+  send permissions
+  send approvalPolicy: on-request
+  send approvalsReviewer: user auto_review
+  send collaborationMode.mode: plan default
+  send collaborationMode.settings.model
+  send collaborationMode.settings.reasoning_effort
+  send collaborationMode.settings.developer_instructions
+
+# What a codex session offers, in the shapes of claude's lists.
+call model/list
+  send cursor
+  read data[].model
+  read data[].displayName
+  read data[].supportedReasoningEfforts[].reasoningEffort
+  read data[].defaultReasoningEffort
+  read nextCursor
+
+call mcpServerStatus/list
+  send threadId
+  send detail: toolsAndAuthOnly
+  send cursor
+  read data[].name
+  read data[].runtimeStatus: notStarted starting connected authenticationRequired failed cancelled disabled
+  read data[].authStatus
+  read data[].httpOrigin
+  read data[].pluginId
+  read data[].tools
+  read data[].toolsError
+  read data[].serverInfo.name
+  read data[].serverInfo.title
+  read data[].serverInfo.version
+  read data[].serverInfo.description
+  read nextCursor
+
+call skills/list
+  send cwds[]
+  read data[].cwd
+  read data[].skills[].name
+  read data[].skills[].description
+  read data[].skills[].shortDescription
+  read data[].skills[].scope
+  read data[].skills[].pluginId
+  read data[].skills[].enabled
+
+# The change to files an approval asks about lives in its item.
+call thread/items/list
+  send threadId
+  send turnId
+  send sortDirection: desc
+  send cursor
+  read data[].item.type: fileChange
+  read data[].item<fileChange>.id
+  read data[].item<fileChange>.changes[].path
+  read data[].item<fileChange>.changes[].kind.type: add delete
+  read data[].item<fileChange>.changes[].kind.move_path
+  read data[].item<fileChange>.changes[].diff
+  read nextCursor
+
+call account/rateLimits/read
+  send excludeResetCreditDetails
+  read rateLimits.limitId
+  read rateLimits.planType
+  read rateLimits.rateLimitReachedType
+  read rateLimits.primary.usedPercent
+  read rateLimits.primary.windowDurationMins
+  read rateLimits.primary.resetsAt
+  read rateLimits.secondary.usedPercent
+  read rateLimits.secondary.windowDurationMins
+  read rateLimits.secondary.resetsAt
+
+# What a thread waits on a person for.
+answer item/commandExecution/requestApproval
+  read threadId
+  read turnId
+  read itemId
+  read command
+  read cwd
+  read reason
+  read networkApprovalContext.host
+  read networkApprovalContext.protocol
+  read availableDecisions[]: accept acceptForSession decline cancel acceptWithExecpolicyAmendment applyNetworkPolicyAmendment
+  read availableDecisions[].acceptWithExecpolicyAmendment.execpolicy_amendment[]
+  read availableDecisions[].applyNetworkPolicyAmendment.network_policy_amendment.host
+  read availableDecisions[].applyNetworkPolicyAmendment.network_policy_amendment.action
+  send decision: accept acceptForSession decline cancel
+
+answer item/fileChange/requestApproval
+  read threadId
+  read turnId
+  read itemId
+  read reason
+  read grantRoot
+  send decision: accept acceptForSession decline cancel
+
+answer item/permissions/requestApproval
+  read threadId
+  read turnId
+  read itemId
+  read cwd
+  read reason
+  read permissions.network.enabled
+  read permissions.fileSystem.read[]
+  read permissions.fileSystem.write[]
+  read permissions.fileSystem.entries[].path
+  read permissions.fileSystem.entries[].access
+  send permissions.network
+  send permissions.fileSystem
+  send scope: turn session
+
+answer item/tool/requestUserInput
+  read threadId
+  read turnId
+  read itemId
+  read questions[].id
+  read questions[].header
+  read questions[].question
+  read questions[].isOther
+  read questions[].isSecret
+  read questions[].options[].label
+  read questions[].options[].description
+  send answers{}.answers[]
+
+answer mcpServer/elicitation/request
+  read threadId
+  read serverName
+  read mode: form url openai/userVerification openai/form openaiForm
+  read message
+  read url
+  read title
+  read description
+  read _meta
+  read requestedSchema.required[]
+  read requestedSchema.properties{}.type: string number integer boolean array
+  read requestedSchema.properties{}.title
+  read requestedSchema.properties{}.description
+  read requestedSchema.properties{}.format
+  read requestedSchema.properties{}.enum[]
+  read requestedSchema.properties{}.enumNames[]
+  read requestedSchema.properties{}.oneOf[].const
+  read requestedSchema.properties{}.oneOf[].title
+  read requestedSchema.properties{}.items.enum[]
+  read requestedSchema.properties{}.items.anyOf[].const
+  read requestedSchema.properties{}.items.anyOf[].title
+  send action: accept decline cancel
+  send content
+  send _meta
+
+# What the link hears: none of it carries a word of the conversation.
+hear serverRequest/resolved
+  read threadId
+  read requestId
+
+hear thread/status/changed
+  read threadId
+  read status.type: active notLoaded
+  read status.activeFlags[]: waitingOnApproval waitingOnUserInput
+
+hear thread/settings/updated
+  read threadId
+  read threadSettings.model
+  read threadSettings.effort
+  read threadSettings.approvalPolicy: on-request
+  read threadSettings.approvalsReviewer: user auto_review
+  read threadSettings.sandboxPolicy.type: readOnly workspaceWrite dangerFullAccess
+  read threadSettings.activePermissionProfile.id
+  read threadSettings.collaborationMode.mode: plan
+
+hear thread/tokenUsage/updated
+  read threadId
+  read tokenUsage.last.inputTokens
+  read tokenUsage.modelContextWindow
+
+hear thread/name/updated
+  read threadId
+  read threadName
+
+hear thread/goal/updated
+  read threadId
+  read goal.objective
+  read goal.status: active paused blocked usageLimited budgetLimited complete
+  read goal.tokensUsed
+  read goal.tokenBudget
+  read goal.timeUsedSeconds
+  read goal.updatedAt
+
+hear thread/goal/cleared
+  read threadId
+
+hear account/rateLimits/updated
+  read rateLimits.limitId
+  read rateLimits.planType
+  read rateLimits.rateLimitReachedType
+  read rateLimits.primary.usedPercent
+  read rateLimits.primary.windowDurationMins
+  read rateLimits.primary.resetsAt
+  read rateLimits.secondary.usedPercent
+  read rateLimits.secondary.windowDurationMins
+  read rateLimits.secondary.resetsAt
+
+# Every other notification is turned off: most carry the conversation, the
+# rest is traffic nobody reads.
+quiet error thread/started thread/archived thread/deleted thread/unarchived thread/closed thread/reverted
+quiet skills/changed thread/attachment/updated thread/prediction/updated thread/queue/changed project/changed
+quiet thread/project/updated thread/environment/connected thread/environment/disconnected
+quiet turn/started hook/started turn/completed hook/completed turn/diff/updated turn/plan/updated item/started
+quiet item/autoApprovalReview/started item/autoApprovalReview/completed autoApprovalReview/strictReviewRequired
+quiet item/completed rawResponseItem/completed rawResponse/completed item/agentMessage/delta item/plan/delta
+quiet command/exec/outputDelta process/outputDelta process/exited item/commandExecution/outputDelta
+quiet item/commandExecution/terminalInteraction item/fileChange/outputDelta item/fileChange/patchUpdated
+quiet item/mcpToolCall/progress mcpServer/oauthLogin/completed mcpServer/startupStatus/updated
+quiet mcpServer/event/stream/notification account/updated account/gatewayOAuth/changed app/list/updated
+quiet remoteControl/status/changed externalAgentConfig/import/progress externalAgentConfig/import/completed
+quiet fs/changed item/reasoning/summaryTextDelta item/reasoning/summaryPartAdded item/reasoning/textDelta
+quiet thread/compacted model/rerouted model/verification modelProvider/authRecoveryStarted
+quiet modelProvider/authRecoveryCompleted turn/moderationMetadata model/safetyBuffering/updated warning
+quiet guardianWarning deprecationNotice configWarning fuzzyFileSearch/sessionUpdated
+quiet fuzzyFileSearch/sessionCompleted thread/realtime/started thread/realtime/itemAdded
+quiet thread/realtime/item/started thread/realtime/item/transcript/delta thread/realtime/item/completed
+quiet thread/realtime/transcript/delta thread/realtime/transcript/done thread/realtime/outputAudio/delta
+quiet thread/realtime/sdp thread/realtime/error thread/realtime/closed windows/worldWritableWarning
+quiet windowsSandbox/setupCompleted account/login/completed

@@ -1,7 +1,7 @@
 GOVULNCHECK_VERSION ?= v1.7.0
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract delivery-test shellcheck release
+.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract codex-contract delivery-test shellcheck release
 
 # check — everything that runs before a commit. front is here as a check, not for
 # the bundle: an error in the screen markup is caught by no test. It goes first,
@@ -88,6 +88,14 @@ usage-replay:
 # network. Run it before sessions move to a new version of claude.
 stream-contract:
 	python3 deploy/claude/stream-contract.py $(CONTRACT_ARGS)
+
+# The app-server protocol of the installed codex against what the panel reads
+# and sends of it. Not in check: codex is not on every machine. It spends
+# nothing — codex only writes the schema of its protocol — so it is run every
+# time the daemon has updated itself; CONTRACT_ARGS=-write takes the release as
+# the reference once the report is read.
+codex-contract:
+	go run ./cmd/codex-contract $(CONTRACT_ARGS)
 
 # Python scripts of the delivery (deploy/claude). Its own target rather than part
 # of agent-test, which has a different import root. In check because what breaks

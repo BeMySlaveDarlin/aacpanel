@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	"aacpanel/internal/codex/codextest"
+	"aacpanel/internal/codex/contract"
 )
 
 func command(c action.Command) action.Request {
@@ -283,6 +285,28 @@ func TestCodexServersStandInTheWordsOfTheScreen(t *testing.T) {
 		if got := mcp.Servers[i].Status; got != s.screen {
 			t.Errorf("a server codex calls %v reaches the screen as %q, expected %q", s.codex, got, s.screen)
 		}
+	}
+}
+
+// The words the screen gives the states of a server are the states the
+// contract of the protocol holds codex to: a state the map words and the
+// contract does not name could go in a release unnoticed.
+func TestCodexServerStatesAreTheContracts(t *testing.T) {
+	c, err := contract.Panel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	named := c.Values(contract.Call, "mcpServerStatus/list", "result", "data[].runtimeStatus")
+	var worded []string
+	for state := range mcpStatuses {
+		if state != "" {
+			worded = append(worded, state)
+		}
+	}
+	slices.Sort(worded)
+	slices.Sort(named)
+	if !slices.Equal(worded, named) {
+		t.Errorf("the screen words the states %v, and the contract names %v", worded, named)
 	}
 }
 

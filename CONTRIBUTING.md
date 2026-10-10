@@ -92,12 +92,23 @@ The database is a service container there, and a run where the tests with a
 database quietly skipped is failed on purpose: without `AACP_TEST_DSN` every
 test with a database passes by doing nothing, and the run stays green.
 
-Separately, outside `check`, because they need what not every machine has — live transcripts, a signed-in claude and the tokens it spends:
+Separately, outside `check`, because they need what not every machine has — live transcripts, a signed-in claude and the tokens it spends, an installed codex:
 
 ```bash
 make usage-replay    # incremental usage collection against a straight pass over live transcripts
 make stream-contract # the stream protocol of the installed claude, before sessions move to a new version
+make codex-contract  # the app-server protocol of the installed codex against what the panel reads and sends
 ```
+
+`make codex-contract` spends nothing: codex only writes the schema of its
+protocol, and the check compares it with `internal/codex/contract/uses.txt` —
+every method, field and value the panel uses — and with the reference of the
+release it last passed, kept beside it. A field the panel decodes or sends that
+is gone or changed is red with its name; a new kind of item, status or
+notification is a warning. Once the report is read,
+`make codex-contract CONTRACT_ARGS=-write` takes the release as the reference.
+A call added to `internal/codex` goes into `uses.txt` with it: a test of the
+package fails while the contract does not name a method the link uses.
 
 ---
 
