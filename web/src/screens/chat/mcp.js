@@ -41,6 +41,17 @@ export function statusOf(server) {
             return { tone: "off", word: "not configured", note: "not configured" };
         }
         return { tone: "crit", word: "failed", note: server.error ? "" : "failed" };
+    // The states only a codex thread has, in codex's words.
+    case "starting":
+        return { tone: "off", word: "starting", note: "starting" };
+    case "not-started":
+        return { tone: "off", word: "not started", note: "not started" };
+    case "cancelled":
+        return { tone: "off", word: "cancelled", note: "cancelled" };
+    case "changed":
+        // Codex has no word for a server whose configuration changed after
+        // the thread started it: the thread keeps the one it started.
+        return { tone: "warn", word: "config changed since the thread started", note: "config changed" };
     default:
         return { tone: "off", word: server.status || "unknown", note: server.status || "" };
     }
@@ -185,6 +196,10 @@ function McpServer({ name, exec, server, readOnly, onBack, onDone }) {
             ${server.description && html`<p class="cmdnote">${server.description}</p>`}
             ${server.status === "needs-auth" && html`
                 <p class="cmdnote">Authentication opens a browser and comes back to the host: do it in the terminal on the host.</p>`}
+            ${server.status === "changed" && html`
+                <p class="cmdnote">The server's configuration changed after the thread started: the thread keeps the
+                    server as it started it, and one added since is not in the thread at all. A new thread starts it
+                    as configured now.</p>`}
             ${!readOnly && html`<div class="mcpacts">
                 ${!off && html`
                     <button type="button" class="btn" disabled=${!can || Boolean(busy)} title=${why || undefined}

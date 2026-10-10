@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -249,6 +250,39 @@ func TestCodexQuestionsAreAnsweredWithCodexsLists(t *testing.T) {
 	}
 	if _, err := e.Setup(ctx, codexName, action.SetupHooks); err == nil || !strings.Contains(err.Error(), "its skills") {
 		t.Errorf("the hooks of a codex session: %v", err)
+	}
+}
+
+// Every state codex gives a server of a thread reaches the screen in a word
+// it draws: claude's where claude has one, a word of its own where it has
+// none, and one for a server codex gives no state, whose configuration
+// changed after the thread started it. A word codex adds later goes as codex
+// says it, not as "unknown".
+func TestCodexServersStandInTheWordsOfTheScreen(t *testing.T) {
+	states := []struct {
+		codex  any
+		screen string
+	}{
+		{"notStarted", "not-started"}, {"starting", "starting"}, {"connected", "connected"},
+		{"authenticationRequired", "needs-auth"}, {"failed", "failed"}, {"cancelled", "cancelled"},
+		{"disabled", "disabled"}, {nil, "changed"}, {"reconnecting", "reconnecting"},
+	}
+	_, e := onCodex(t, func(srv *codextest.Server) {
+		servers := []map[string]any{}
+		for i, s := range states {
+			servers = append(servers, map[string]any{"name": fmt.Sprintf("s%d", i), "runtimeStatus": s.codex,
+				"authStatus": "unsupported", "tools": map[string]any{}})
+		}
+		srv.Mcp(servers...)
+	})
+	mcp, err := e.Mcp(context.Background(), codexName)
+	if err != nil || len(mcp.Servers) != len(states) {
+		t.Fatalf("the servers are %+v, %v", mcp, err)
+	}
+	for i, s := range states {
+		if got := mcp.Servers[i].Status; got != s.screen {
+			t.Errorf("a server codex calls %v reaches the screen as %q, expected %q", s.codex, got, s.screen)
+		}
 	}
 }
 

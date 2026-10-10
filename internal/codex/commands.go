@@ -346,7 +346,10 @@ func experimental(err error) error {
 // shown comes along: codex already leaves the credentials, the path and the
 // query out of the address.
 type McpServer struct {
-	Name        string
+	Name string
+	// Status is how the thread's own connection to the server stands, in
+	// codex's words; empty when codex has none, which a thread gets for a
+	// server its configuration changed or added after the thread started it.
 	Status      string
 	Auth        string
 	Origin      string

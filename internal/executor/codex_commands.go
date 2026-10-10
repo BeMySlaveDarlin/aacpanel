@@ -355,15 +355,19 @@ func codexModels(ctx context.Context, th codex.Thread) (*action.Models, error) {
 }
 
 // mcpStatuses word how a server of codex stands the way the screen words
-// claude's.
+// claude's, and with words of codex's own where claude has none. Codex gives
+// no word for a server the thread's configuration changed or added after the
+// thread started it: the thread keeps the server as it started it, or does
+// not have it, until a new thread starts it as configured now.
 var mcpStatuses = map[string]string{
 	"connected":              "connected",
 	"authenticationRequired": "needs-auth",
-	"starting":               "pending",
-	"notStarted":             "pending",
+	"starting":               "starting",
+	"notStarted":             "not-started",
 	"disabled":               "disabled",
 	"failed":                 "failed",
-	"cancelled":              "failed",
+	"cancelled":              "cancelled",
+	"":                       "changed",
 }
 
 // codexMcp answers the MCP servers of a codex session as codex lists them,
@@ -376,9 +380,10 @@ func codexMcp(ctx context.Context, th codex.Thread) (*action.Mcp, error) {
 	}
 	out := &action.Mcp{Transport: action.SwitchStream, Agent: codex.Agent, Servers: []action.McpServer{}}
 	for _, m := range list {
-		status := mcpStatuses[m.Status]
-		if status == "" {
-			status = "unknown"
+		// A word codex has since added goes to the screen as codex says it.
+		status, ok := mcpStatuses[m.Status]
+		if !ok {
+			status = m.Status
 		}
 		source := "config.toml"
 		if m.Plugin != "" {

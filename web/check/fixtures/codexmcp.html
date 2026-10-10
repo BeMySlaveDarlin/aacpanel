@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The MCP servers of a codex thread, read-only, in every state codex gives a
+// server, in the words the host passes them in: the list with a dot and a
+// word for each, and each server opened with its state and what it says of
+// it. The errors are cut from those a real codex daemon gave.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { McpSheet } from "/src/screens/chat/mcp.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const SERVERS = [
+    { name: "codex_apps", status: "connected", source: "config.toml", tools: ["calendar_search", "drive_read", "gmail_send"] },
+    { name: "slow", status: "starting", source: "config.toml", tools: [] },
+    { name: "later", status: "not-started", source: "config.toml", tools: [] },
+    { name: "locked", status: "needs-auth", source: "config.toml", url: "http://127.0.0.1:18081", tools: [],
+        error: "MCP startup failed: handshaking with MCP server failed: Auth required, when send initialize request" },
+    { name: "broken", status: "failed", source: "config.toml", tools: [],
+        error: "MCP startup failed: No such file or directory (os error 2)" },
+    { name: "halted", status: "cancelled", source: "config.toml", tools: [] },
+    { name: "off", status: "disabled", source: "config.toml", tools: [] },
+    { name: "context7", status: "changed", source: "plugin", url: "https://mcp.context7.com", tools: ["resolve-library-id", "query-docs"] },
+    { name: "docker", status: "changed", source: "config.toml", tools: ["docker_ps"] },
+];
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    if (String(url).startsWith("/api/session/mcp")) {
+        return json({ state: "ok", transport: "stream", agent: "codex", servers: SERVERS });
+    }
+    return new Response("", { status: 404 });
+};
+
+const exec = { available: true, kinds: ["session.send", "session.command", "session.mcp"] };
+const root = document.getElementById("root");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const rows = () => Array.from(root.querySelectorAll(".mcplist .mcprow"));
+
+(async () => {
+    render(h(ToastHost, null, h(GateHost, null, html`<${McpSheet} name="codex-5afc361b" exec=${exec} readOnly />`)), root);
+    const out = { rows: [], servers: [], unknown: [] };
+    if (!await until(() => rows().length === SERVERS.length)) throw new Error("the list did not show");
+    const seen = (where) => { if (/unknown/i.test(text(root))) out.unknown.push(where); };
+    seen("the list");
+    out.rows = rows().map((r) => [text(r.querySelector(".cmdname")), r.querySelector(".mcpdot").className.replace("mcpdot ", ""),
+        text(r.querySelector(".cmdrownote"))].join("|"));
+    for (const s of SERVERS) {
+        rows().find((r) => text(r.querySelector(".cmdname")) === s.name).click();
+        if (!await until(() => root.querySelector(".mcpfacts"))) throw new Error(`${s.name} did not open`);
+        const status = Array.from(root.querySelectorAll(".mcpfacts li")).find((li) => text(li.querySelector(".cmdname")) === "Status");
+        out.servers.push({ name: s.name, status: text(status && status.querySelector(".cmdtok")),
+            tone: status ? status.querySelector(".mcpdot").className.replace("mcpdot ", "") : "",
+            issue: text(root.querySelector(".mcpissue")),
+            notes: Array.from(root.querySelectorAll(".cmdnote")).map(text) });
+        seen(s.name);
+        root.querySelector(".mcpback").click();
+        if (!await until(() => rows().length === SERVERS.length)) throw new Error(`the list did not come back from ${s.name}`);
+    }
+    window.done = out;
+})().catch((err) => { window.done = { error: String(err && err.message || err) }; });
+</script>

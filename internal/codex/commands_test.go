@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -315,6 +316,31 @@ func TestMcpServersAndSkillsAreCodexsLists(t *testing.T) {
 	}
 	if calls := srv.Calls("skills/list"); len(calls) != 1 || !strings.Contains(string(calls[0]), `"cwds":["/srv/proj"]`) {
 		t.Errorf("the skills were asked as %s", calls)
+	}
+}
+
+// How a server of a thread stands comes in codex's own words, and a server
+// codex has no word for — one changed or added after the thread started it —
+// comes with none rather than one the panel made up.
+func TestMcpServersStandAsCodexSaysTheyDo(t *testing.T) {
+	srv, l := linked(t, idle(threadA))
+	states := []any{"notStarted", "starting", "connected", "authenticationRequired", "failed", "cancelled", "disabled", nil}
+	servers := []map[string]any{}
+	for i, s := range states {
+		servers = append(servers, map[string]any{"name": fmt.Sprintf("s%d", i), "runtimeStatus": s,
+			"authStatus": "unsupported", "tools": map[string]any{}, "resources": []any{}, "resourceTemplates": []any{}})
+	}
+	srv.Mcp(servers...)
+	until(t, "the state file", written(t, threadA))
+	got, err := l.McpServers(context.Background(), threadA)
+	if err != nil || len(got) != len(states) {
+		t.Fatalf("the servers are %+v, %v", got, err)
+	}
+	for i, s := range states {
+		want, _ := s.(string)
+		if got[i].Status != want {
+			t.Errorf("a server codex calls %v stands as %q", s, got[i].Status)
+		}
 	}
 }
 
