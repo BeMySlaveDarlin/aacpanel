@@ -34,22 +34,27 @@ export const QUIET_MAX = 5;
 const ABOUT_MIN = 12;
 
 // stateOf says what a live session is doing, in the words and the tone of the
-// row that shows it.
+// row that shows it: since is all that follows the state on one line, and
+// when and work are its two halves — since when, and what runs in the
+// background — for a row that gives each a line of its own.
 export function stateOf(s) {
     if (s.ask) {
         const more = s.ask.count > 1 ? `${s.ask.count} ${plural(s.ask.count, "question", "questions")}` : "";
-        return { tone: "wait", text: `asks you${s.ask.header ? ` · ${s.ask.header}` : ""}`, since: more };
+        return { tone: "wait", text: `asks you${s.ask.header ? ` · ${s.ask.header}` : ""}`, since: more, when: more, work: "" };
     }
-    if (s.waitingFor || s.status === "waiting") return { tone: "wait", text: waitText(s.waitingFor), since: "" };
+    if (s.waitingFor || s.status === "waiting") {
+        return { tone: "wait", text: waitText(s.waitingFor), since: "", when: "", work: "" };
+    }
     const agents = (s.work && s.work.agents) || 0;
     const tasks = (s.work && s.work.tasks) || 0;
     const work = [
         agents > 0 && `${agents} ${plural(agents, "agent", "agents")}`,
         tasks > 0 && `${tasks} ${plural(tasks, "background task", "background tasks")}`,
     ].filter(Boolean).join(" · ");
-    if (s.status === "busy") return { tone: "busy", text: "working", since: work };
-    if (s.noRequests) return { tone: "idle", text: "no requests yet", since: work };
-    return { tone: "idle", text: "idle", since: [s.lastRequestAt ? ago(s.lastRequestAt) : "", work].filter(Boolean).join(" · ") };
+    if (s.status === "busy") return { tone: "busy", text: "working", since: work, when: "", work };
+    if (s.noRequests) return { tone: "idle", text: "no requests yet", since: work, when: "", work };
+    const when = s.lastRequestAt ? ago(s.lastRequestAt) : "";
+    return { tone: "idle", text: "idle", since: [when, work].filter(Boolean).join(" · "), when, work };
 }
 
 // stopsOf names what a close or a restart of a live session ends with it: its
@@ -230,9 +235,10 @@ function KinFold({ kids, line }) {
 
 // LiveLine is a live session inside its project: what it is doing and where
 // it is in the checklist of its work, who runs it on which model and when it
-// last asked, where it lives, how full it is, and the button of what can be
-// done to it. The checklist takes what room the state leaves on its line and
-// gives way first: the state is read whole.
+// last asked, what runs in its background on a line of its own, where it
+// lives, how full it is, and the button of what can be done to it. The
+// checklist takes what room the state leaves on its line and gives way first:
+// the state is read whole.
 export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
@@ -242,7 +248,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
     const place = placeOf(session);
     const tag = { stream: Icon.feed, tmux: Icon.terminal, outside: Icon.exit, daemon: Icon.plug }[place];
     // The quiet line opens with who runs the session, in the hue of its agent.
-    const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.since]
+    const runs = [session.model ? modelTitle(session.model, { withWindow: false }) : "", state.when]
         .filter(Boolean).map((part) => ` · ${part}`).join("");
     return html`
         <div class=${`pjrow${kid ? " pjkid" : ""}`}>
@@ -254,6 +260,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
                     ${steps && html`<span class="pjchecklist">${steps}</span>`}
                 </span>
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
+                ${state.work && html`<span class="pjwork">${state.work}</span>`}
             </button>
             ${session.remote && html`<span class="pjrc" title="Remote Control is on: the session is open on claude.ai too">RC</span>`}
             <span class="pjtag">${tag()}${place}</span>

@@ -477,8 +477,10 @@ span.pjname { cursor: default; }
 }
 .pjsess { font-size: var(--t-xs); color: var(--ink-dim); font-family: var(--mono); }
 /* The row of a session is as tall as what it says: the state whole, on two
-   lines at most, and when and what else under it on a line of its own. A row
-   cut to one line left the state a letter and an ellipsis. */
+   lines at most, who runs it and since when under it on a line of its own,
+   and what runs in its background on a third — on a phone the second line
+   has no room left for it. A row cut to one line left the state a letter and
+   an ellipsis. */
 .pjstate { display: flex; align-items: flex-start; gap: .45rem; max-width: 100%; font-size: var(--t-sm); font-weight: 600; }
 .pjstate .pjtext {
     min-width: 0;
@@ -494,7 +496,7 @@ span.pjname { cursor: default; }
 .pjstate.checklisted { align-self: stretch; }
 .pjchecklist { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink-dim); }
 .pjchecklist::before { content: "·"; margin-right: .45rem; color: var(--ink-faint); }
-.pjsince { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
+.pjsince, .pjwork { padding-left: .95rem; font-size: var(--t-xs); color: var(--ink-faint); overflow-wrap: anywhere; }
 .pjdot { flex: none; width: .5rem; height: .5rem; margin-top: calc(.65em - .25rem); border-radius: 50%; background: currentColor; }
 .pj-wait { color: var(--wait); }
 .pj-wait .pjdot { box-shadow: 0 0 10px currentColor; }

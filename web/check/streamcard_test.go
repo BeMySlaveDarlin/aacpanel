@@ -12,7 +12,8 @@ import (
 // A tap anywhere on the row opens the conversation, but on the row's button of
 // what can be done to it, which opens that. The state stands whole, and under
 // it, on a line of its own and not cut to fit one line, who runs the session —
-// the word of its agent first — on which model, since when and what else.
+// the word of its agent first — on which model and since when; what runs in
+// its background stands on a third line, the second having no room for it.
 func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 	var got []struct {
 		Name       string `json:"name"`
@@ -24,6 +25,8 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		AgentKey   string `json:"agentKey"`
 		SinceCut   bool   `json:"sinceCut"`
 		SinceBelow bool   `json:"sinceBelow"`
+		Work       string `json:"work"`
+		WorkBelow  bool   `json:"workBelow"`
 		TapPct     string `json:"tapPct"`
 		TapTag     string `json:"tapTag"`
 		TapMore    string `json:"tapMore"`
@@ -61,10 +64,10 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		if c.TapMore != "more:"+session {
 			t.Errorf("%s: a tap on the button of what can be done does %q", session, c.TapMore)
 		}
-		wantState, wantSince := "idle", "Claude · Opus 5.5 · 2 min ago"
+		wantState, wantSince, wantWork := "idle", "Claude · Opus 5.5 · 2 min ago", ""
 		switch session {
 		case "aacpanel":
-			wantSince = "Claude · Opus 5.5 · 2 min ago · 1 background task"
+			wantWork = "1 background task"
 		case "person":
 			wantState, wantSince = "no requests yet", "Claude · Opus 5.5"
 		}
@@ -73,6 +76,10 @@ func TestAStreamSessionIsMarkedOnItsCard(t *testing.T) {
 		}
 		if c.Since != wantSince || c.SinceCut || !c.SinceBelow {
 			t.Errorf("%s: under the state stands %q (cut %v, on a line of its own %v), expected %q", session, c.Since, c.SinceCut, c.SinceBelow, wantSince)
+		}
+		if c.Work != wantWork || (wantWork != "" && !c.WorkBelow) {
+			t.Errorf("%s: the line of what runs in the background reads %q (under who runs it %v), expected %q",
+				session, c.Work, c.WorkBelow, wantWork)
 		}
 		if c.Agent != "Claude" || c.AgentKey != "claude" {
 			t.Errorf("%s: the line under the state opens with %q painted as %q's, expected the word of its agent, Claude", session, c.Agent, c.AgentKey)

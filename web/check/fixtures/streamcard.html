@@ -70,6 +70,8 @@ window.done = (async () => {
             since: text(block.querySelector(".pjsince")),
             sinceCut: cut(block.querySelector(".pjsince")),
             sinceBelow: below(block.querySelector(".pjsince"), block.querySelector(".pjstate")),
+            work: text(block.querySelector(".pjwork")),
+            workBelow: below(block.querySelector(".pjwork"), block.querySelector(".pjsince")),
             ...agentOf(block.querySelector(".pjsince")),
             tapPct: tapAt(block.querySelector(".pjpct")),
             tapTag: tapAt(tag),
