@@ -147,9 +147,10 @@ export function GoalCard({ item }) {
 // question with its options as the options of a question of claude's, a tap
 // on one the answer. The answer goes as a message of the person into the turn
 // that runs, the way codex's own terminal hands it, or starts a turn on a free
-// thread; words of one's own go from the composer. The next message of the
-// person in the feed answers the question, and the card then says what it was
-// answered with and offers nothing more.
+// thread; words of one's own typed in the composer while it hangs go the same
+// way. The next message of the person answers the question — in the feed, or
+// on its way from the composer — and the card then says what it was answered
+// with and offers nothing more.
 export function QuestionCard({ item, session, exec }) {
     const run = useAction();
     const [sent, setSent] = useState(null);

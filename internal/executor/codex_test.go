@@ -236,6 +236,45 @@ func TestAnAnswerToAQuestionCodexDidNotWaitForGoesIntoTheTurnThatRuns(t *testing
 	}
 }
 
+// Words of one's own typed in the composer while the question hangs are its
+// answer as a tap is, and come named as any message of the composer does. They
+// pass what already waits in the panel's queue behind the turn — the turn
+// that runs takes them, under the name they came with — and the queue keeps
+// what it had: the answer never stands in it, so there is nothing of it to
+// take back, and what waited there still can be.
+func TestAnAnswerFromTheComposerPassesThePanelsQueue(t *testing.T) {
+	srv, e := onCodex(t, func(srv *codextest.Server) { srv.Running(codexThread, "turn-r") })
+	ctx := context.Background()
+	const waiting, answering = "5f0c1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b", "6a1d2b3c-4d5e-4f60-9b7c-8d9e0f1a2b3c"
+
+	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionSend, Target: codexName,
+		Text: "and the linter", MessageID: waiting}); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := e.Execute(ctx, action.Request{Kind: action.SessionSend, Target: codexName,
+		Text: "Drop it, the title is enough", MessageID: answering, Asked: "call_ask_logo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	steers := srv.Calls("turn/steer")
+	if len(steers) != 1 || !strings.Contains(string(steers[0]), `"expectedTurnId":"turn-r"`) ||
+		!strings.Contains(string(steers[0]), `"clientUserMessageId":"`+answering+`"`) ||
+		!strings.Contains(string(steers[0]), `"Drop it, the title is enough"`) ||
+		len(srv.Calls("turn/start")) != 0 || !strings.Contains(detail, "into the turn that runs") {
+		t.Fatalf("the answer behind a queued message said %q, steered %s, started %s",
+			detail, steers, srv.Calls("turn/start"))
+	}
+
+	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionUnqueue, Target: codexName,
+		MessageID: answering}); err == nil || !strings.Contains(err.Error(), "already delivered") {
+		t.Errorf("the answer was taken back from the queue: %v", err)
+	}
+	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionUnqueue, Target: codexName,
+		MessageID: waiting}); err != nil {
+		t.Errorf("the message that waited in the queue is not there any more: %v", err)
+	}
+}
+
 // An agent of a codex thread is stopped in its own thread: the turn it runs
 // there is interrupted, by the id of that thread. A thread the session did
 // not start is no agent of it and is not touched, and an agent with no turn

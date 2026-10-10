@@ -218,6 +218,7 @@ function SendAgain({ again, onDone }) {
 function onTheWay(state) {
     if (state === "sending") return html`<span class="mclock">${Icon.clock()}</span> going out`;
     if (state === "queued") return "queued";
+    if (state === "answered") return "went as the answer";
     if (state === "held") return "will go out when the session is free";
     if (state === "withdrawn") return "taken back — the session did not read it";
     return null;

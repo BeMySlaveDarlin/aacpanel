@@ -149,8 +149,29 @@ function renew(out, item) {
     return left.length === (item.calls || []).length ? item : { ...item, calls: left };
 }
 
+// answerOf returns the message that answers a question codex asked without
+// waiting: the next message of the person after it in the feed, or one that
+// left this screen once the question stood there and has not failed — the
+// card closes on the send, not on the echo, and the composer stops answering
+// a question that has its answer on the way.
+function answerOf(question, items, local) {
+    return items.find((later) => later.role === "me" && later.pos > question.pos)
+        || local.find((row) => row.role === "me" && row.state !== "failed" && row.after >= question.pos);
+}
+
+// hanging returns the id of the question codex asked without waiting that
+// nothing answers yet — the last one of the feed — or "" when none hangs.
+// Words of one's own written while it hangs are its answer.
+export function hanging(items, local = []) {
+    const question = (items || []).reduce((last, item) => (item.role === "question"
+        && (!last || item.pos > last.pos) ? item : last), null);
+    if (!question || !question.use || answerOf(question, items, local)) return "";
+    return question.use;
+}
+
 // rows returns the feed ready for display, folding one run into a single row.
-export function rows(items) {
+// Local is the rows this screen sent that the feed has not echoed yet.
+export function rows(items, local = []) {
     const done = new Map();
     const links = new Map();
     const stood = new Map();
@@ -193,7 +214,7 @@ export function rows(items) {
         // A question codex asked without waiting is answered by the next
         // message of the person, wherever it stands after the question.
         if (item.role === "question") {
-            const next = items.find((later) => later.role === "me" && later.pos > item.pos);
+            const next = answerOf(item, items, local);
             if (next) item = { ...item, answer: String(next.text || "").trim() };
         }
         // An agent stands as the last call to it said: the start knows only

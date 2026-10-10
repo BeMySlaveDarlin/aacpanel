@@ -359,7 +359,9 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 		t.Fatalf("%s: sending has no hold branch before deliver — the reply goes into the dialog", composerFile)
 	}
 	held := send[holdAt:deliverAt]
-	for _, want := range []string{`state: "held"`, "hold: { text: body, files: pack, messageId }", "return;"} {
+	// The held reply keeps all the send takes, the question it answers too: a
+	// held answer that forgot it would go into the queue behind the turn.
+	for _, want := range []string{`state: "held"`, "hold: { text: body, files: pack, messageId, asked: answers }", "return;"} {
 		if !strings.Contains(held, want) {
 			t.Errorf("%s: the hold branch does not contain %s — the reply either never appears in the feed "+
 				"or leaves twice", composerFile, want)

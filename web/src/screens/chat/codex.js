@@ -2,10 +2,10 @@
 // to it. A thread lives with the daemon of its codex home, not in a place of
 // the panel's: there is no terminal of it to watch, no window, no move and no
 // question aside. The panel writes to it — words and files, into a queue of
-// its own while a turn runs — sets how it thinks and what it may do from the
-// band under the field, stops its turn, answers what it asks and closes it;
-// the agents the thread started are listed as claude's are, each opening its
-// own thread.
+// its own while a turn runs, and the answer to a question it asked into the
+// turn — sets how it thinks and what it may do from the band under the field,
+// stops its turn, answers what it asks and closes it; the agents the thread
+// started are listed as claude's are, each opening its own thread.
 
 import { useState } from "preact/hooks";
 
@@ -15,6 +15,7 @@ import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { CODEX_CLOSE, CODEX_NOTE, noTurn } from "../../agent.js";
 import { Conversation } from "./conversation.js";
+import { hanging } from "./feed.js";
 import { CodexSheets, CodexStrip, useCatalog, useCodexPick } from "./codexpick.js";
 import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
 import { LOOK_NAMES } from "./look.js";
@@ -70,8 +71,12 @@ export function CodexChat(props) {
         sections: CodexSections,
         // A thread whose own turn is over is free while its agents work: a
         // message starts a turn at once, and there is no turn for the button
-        // to stop.
-        composer: () => ({ ids: true, waits: waits(live), busy: live.status === "busy" && !live.turnOver }),
+        // to stop. While a question codex asked without waiting hangs, the
+        // words typed are its answer.
+        composer: ({ items, pending }) => {
+            const asked = hanging(items, pending);
+            return { ids: true, asked, waits: waits(live, asked), busy: live.status === "busy" && !live.turnOver };
+        },
         strip: ({ wide }) => html`<${CodexStrip} wide=${wide} exec=${exec} live=${live} pct=${pct} now=${pick.now}
                                                   open=${open} onOpen=${setOpen} onCompact=${compact}
                                                   catalog=${catalog} set=${pick.set} cwd=${cwd} />`,
@@ -109,8 +114,10 @@ function CodexWork({ work, processes, onOpen }) {
 
 // waits is what the field says while a turn runs: a message written now goes
 // into the panel's queue and out as a turn of its own after this one, behind
-// what already waits there.
-function waits(live) {
+// what already waits there — unless it answers a question that hangs, which
+// goes into the turn at once.
+function waits(live, asked) {
+    if (asked) return "answer the question — it goes into the turn that runs";
     const ahead = (live && live.queued) || 0;
     return ahead > 0 ? `goes after the turn, behind ${ahead} queued` : "goes after the turn";
 }

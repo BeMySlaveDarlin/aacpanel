@@ -75,8 +75,9 @@ import { agentKey, agentName, isCodex, shownName, spoke } from "../../agent.js";
 //   aside        ctx → what stands beside the feed
 //
 // ctx is what the parts may reach of the screen: whether it is wide, the view,
-// whether the feed shows and its box, the work of the turn, and the setters of
-// the sheet over the run and of what goes into the composer.
+// whether the feed shows and its box, the work of the turn, the items of the
+// feed's tail and the rows sent from here it has not echoed yet, and the
+// setters of the sheet over the run and of what goes into the composer.
 export function Conversation({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat, onTerm, parts }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
@@ -254,7 +255,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             for (const row of held) {
                 const result = await deliver(run, name, row.hold);
                 setLocal((was) => was.map((l) => (l.key === row.key
-                    ? { ...l, hold: undefined, ...outcome(result) }
+                    ? { ...l, hold: undefined, ...outcome(result, row.hold.asked) }
                     : l)));
             }
         })();
@@ -315,7 +316,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // desk a block at the top of the timeline column, where the room is.
     const checklist = (state.work && state.work.checklist) || null;
 
-    const ctx = { wide, view, feedShown, feedRef, work: state.work, setLook, setInsert };
+    const ctx = { wide, view, feedShown, feedRef, work: state.work, items: state.items, pending, setLook, setInsert };
     const own = look ? parts.look(look, ctx) : null;
 
     // A thread of codex in the archive keeps no fill of its context: its head
@@ -416,7 +417,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             `}
             ${state.note && html`<p class="hint warn">${state.note}</p>`}
             <${FeedGrid}
-                rows=${rows(drawn)}
+                rows=${rows(drawn, pending)}
                 wide=${wide}
                 checklist=${checklist}
                 onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
