@@ -103,13 +103,15 @@ type takeoverRun struct {
 	Version  string `json:"version"`
 	Why      string `json:"why"`
 	Stuck    bool   `json:"stuck"`
+	Asks     bool   `json:"asks"`
 	Toast    string `json:"toast"`
 	Sub      string `json:"sub"`
 }
 
 // runTakeover serves the page, two panels and two versions of the worker, and
 // follows the page across its reloads. old is the first version: "takeover"
-// for the panel's own worker, "silent" and "answers" for heldWorker.
+// and "asking" for the panel's own worker, "silent" and "answers" for
+// heldWorker.
 func runTakeover(t *testing.T, old string) takeoverRun {
 	t.Helper()
 	chrome := chromeBinary()
@@ -120,7 +122,7 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 	script := takeoverScript(t)
 	workers := map[int64]string{2: builtWorkerAs(t, "v2")}
 	switch old {
-	case "takeover":
+	case "takeover", "asking":
 		workers[1] = builtWorkerAs(t, "v1")
 	default:
 		workers[1] = fmt.Sprintf(heldWorker, old == "answers")
@@ -142,9 +144,60 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 		case <-quit:
 		}
 	}
+	// The panel of the local network the way a phone asks it: across
+	// origins, with a bearer, so every request but a stream asks first.
+	var streams, slow, polls atomic.Int64
+	cors := func(w http.ResponseWriter, r *http.Request) bool {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		return r.Method == http.MethodOptions
+	}
+	stream := func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		w.Header().Set("Content-Type", "text/event-stream")
+		streams.Add(1)
+		for {
+			fmt.Fprint(w, "data: {}\n\n")
+			w.(http.Flusher).Flush()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-quit:
+				return
+			case <-time.After(time.Second):
+			}
+		}
+	}
 	nearMux := http.NewServeMux()
 	nearMux.HandleFunc("/api/stall", stall)
 	nearMux.HandleFunc("/dist/stall.js", stall)
+	nearMux.HandleFunc("/api/stream", stream)
+	nearMux.HandleFunc("/api/chat/stream", stream)
+	// An answer that takes seconds, asked again as soon as it comes: one is
+	// always out.
+	nearMux.HandleFunc("/api/slow", func(w http.ResponseWriter, r *http.Request) {
+		if cors(w, r) {
+			return
+		}
+		slow.Add(1)
+		select {
+		case <-time.After(3 * time.Second):
+		case <-r.Context().Done():
+			return
+		case <-quit:
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"ok":true}`)
+	})
+	nearMux.HandleFunc("/api/poll", func(w http.ResponseWriter, r *http.Request) {
+		if cors(w, r) {
+			return
+		}
+		polls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"ok":true}`)
+	})
 	near := httptest.NewServer(nearMux)
 
 	homeMux := http.NewServeMux()
@@ -168,6 +221,10 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 	homeMux.HandleFunc("/held", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"count":%d}`, held.Load())
+	})
+	homeMux.HandleFunc("/seen", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"streams":%d,"slow":%d,"polls":%d}`, streams.Load(), slow.Load(), polls.Load())
 	})
 	homeMux.HandleFunc("/dist/stall.js", stall)
 	home := httptest.NewServer(homeMux)
@@ -244,6 +301,29 @@ func TestAnUpdateTakesOverPastAnAnswerThatNeverEnds(t *testing.T) {
 	}
 }
 
+// A phone keeps asking: its api on the panel of the local network, the
+// snapshot and the feed as streams, a screen that asks again as soon as an
+// answer comes. The browser hands the page to the new worker only at a moment
+// the old one has nothing out, and a page that keeps one request out at any
+// time never gives it one: the update waits, the page reloads under the old
+// worker and offers it again. One tap brings the new version up all the same.
+func TestAnUpdateTakesOverAPageThatKeepsAsking(t *testing.T) {
+	got := runTakeover(t, "asking")
+	if !got.Reloaded {
+		t.Fatal("the page did not reload after the tap")
+	}
+	if got.Version != "v2" || got.Why != "takeover" {
+		t.Errorf("the page came back under %q, reloaded for %q; expected v2 after a takeover — the page went "+
+			"on asking through the old worker, and the new one waited the grace out", got.Version, got.Why)
+	}
+	if got.Reloads != 1 {
+		t.Errorf("%d reloads after one tap, expected one", got.Reloads)
+	}
+	if got.AfterTap > 10000 {
+		t.Errorf("the new version came up %d ms after the tap: the takeover waited on the old worker", got.AfterTap)
+	}
+}
+
 // A phone may still run a worker that knows nothing of letting go. The page
 // asks it anyway, comes to no harm, and goes the way it went before: it waits
 // the grace out, and on a page that has been round once already it says the
@@ -258,6 +338,10 @@ func TestAnUpdateHeldByAnOldWorkerSaysSoWithoutGuessing(t *testing.T) {
 	}
 	if got.AfterTap < 15000 {
 		t.Errorf("the note came %d ms after the tap: the page did not wait the grace out", got.AfterTap)
+	}
+	if !got.Asks {
+		t.Error("after the note the page's requests of the api stay held: the update did not install, and " +
+			"the page no longer asks anything")
 	}
 	if got.Sub != "a reload brought the page back to the same version" {
 		t.Errorf("the note says %q: a worker that does not answer has named nothing, and the note "+

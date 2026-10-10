@@ -43,12 +43,40 @@ async function routed(path, init) {
     }
 }
 
+// hushed holds the requests of the api while the page hands itself to a newer
+// worker. The browser hands it over at a moment the old worker has nothing to
+// do, and a page that goes on asking — the screens poll, the feed loads its
+// pages — gives it no such moment: the new worker waits, the page reloads under
+// the old one and offers the same update again. A request asked meanwhile waits
+// for the reload, which brings the page up anew, or for the hush to end when
+// the update does not install.
+let hushed = null;
+
+// hush holds every request of the api from now on.
+export function hush() {
+    if (hushed) return;
+    let open;
+    hushed = { done: new Promise((resolve) => { open = resolve; }), open };
+}
+
+// unhush lets the held requests go, in the order they were asked.
+export function unhush() {
+    if (!hushed) return;
+    const { open } = hushed;
+    hushed = null;
+    open();
+}
+
 // install puts the interception in place; call it once before the first request.
 export function install() {
     if (!nativeFetch) return;
-    window.fetch = (input, init) => {
+    const send = (input, init) => {
         const path = apiPath(input);
         return base && path ? routed(path, init) : nativeFetch(input, init);
+    };
+    window.fetch = (input, init) => {
+        if (hushed && apiPath(input)) return hushed.done.then(() => send(input, init));
+        return send(input, init);
     };
     if (NativeEventSource) {
         window.EventSource = class extends NativeEventSource {

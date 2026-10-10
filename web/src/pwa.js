@@ -1,5 +1,7 @@
 // Service worker registration and update handling.
 
+import { hush, unhush } from "./api.js";
+
 let reg = null;
 let announced = null;
 let reloading = false;
@@ -80,15 +82,25 @@ export async function register(onUpdate) {
 
 // apply asks the new worker to take over and settles once the page has been
 // sent for a reload. A second call while the first is under way joins it. An
-// attempt that ended without a reload is not kept: the banner is live again
-// and the tap is the person's to repeat.
+// attempt that ended without a reload is not kept: the banner is live again,
+// the page asks the api again, and the tap is the person's to repeat.
 export function apply() {
-    if (!applying) applying = takeOver().finally(() => { if (!reloading) applying = null; });
+    if (!applying) {
+        applying = takeOver().finally(() => {
+            if (reloading) return;
+            applying = null;
+            unhush();
+        });
+    }
     return applying;
 }
 
+// takeOver holds the page's requests of the api from the tap on: a page that
+// keeps one out through the old worker at any moment keeps the new one
+// waiting, and only a page that has gone quiet is handed over at once.
 async function takeOver() {
     asked = true;
+    hush();
     const deadline = Date.now() + takeoverGrace;
     const told = new Set();
     for (;;) {
