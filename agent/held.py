@@ -167,6 +167,24 @@ def traits():
     return _traits
 
 
+def named_path(sid):
+    """Returns where the executor keeps the name the panel gave a codex thread."""
+    return os.path.join(kept_dir(), "named", sid + ".json")
+
+
+def given_name(sid):
+    """Returns the name the panel gave a codex thread, as the executor keeps it, or empty."""
+    if not named(sid):
+        return ""
+    try:
+        with open(named_path(sid), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    name = data.get("name") if isinstance(data, dict) else None
+    return name.strip() if isinstance(name, str) else ""
+
+
 def withdrawn_path(sid):
     """Returns where the holder keeps the fingerprints of the messages taken back."""
     return os.path.join(kept_dir(), "withdrawn", sid + ".json")

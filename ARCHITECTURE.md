@@ -665,6 +665,26 @@ appears or the connection drops — at once when an action waits for it.
   way a close finds it; the row of such a thread says `tmux` and names the tmux
   session, and a thread the daemon alone holds says `stream`, since it is
   reached through the panel as a session on the stream is.
+- **A codex no daemon serves is found by its process.** The collector, which
+  can read the environment of the user's processes where the executor cannot,
+  looks for processes named `codex` and passes by the daemon, its clients
+  started with `--remote` and every thread an executor follows. The home is the
+  one `CODEX_HOME` names, `~/.codex` without it, and the contour is that
+  home's, never the program's: one program serves every home. The thread is the
+  one whose writer lock the process holds — the eldest, when it writes the
+  threads of its subagents too — and the head of its rollout says whether it is
+  a run of `codex exec`. A run is an agent of the claude session that started
+  it: the first live session up the chain of parents, none when a codex is met
+  first — a daemon hands the environment of the claude it was started from to
+  every command of its threads — and the session in `CLAUDE_CODE_SESSION_ID`
+  when the chain reaches the top with neither. It stands among the session's
+  agents with `agent: "codex"` and the thread as its id, is counted at work
+  while its process lives, has no stop, and its feed is the rollout of the
+  thread; it is named by `CODEX_AGENT_ROLE`, never by what it was asked. Any
+  other such codex — a run no live session started, codex in a terminal with
+  its server of threads built in — is a session of its own, outside and only
+  read, as a claude typed into a terminal is; the service refuses an action
+  aimed at it.
 - **A subscription lasts only while it is needed.** The daemon unloads a thread
   a while after its last client leaves, and a panel subscribed for good would
   keep every thread it ever saw loaded. So the executor subscribes while the

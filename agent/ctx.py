@@ -11,6 +11,7 @@ import chat
 import contours
 import held
 from chat import codex
+from sesstate.limits import MAX_ITEMS
 
 SESSION_MODELS = os.environ.get("AACP_SESSION_MODELS")
 
@@ -29,11 +30,14 @@ PANEL_SERVERS = ("", "-L " + PANEL_TMUX)
 # The options of tmux that take a value, as its getopt string has them.
 TMUX_VALUED = "cfLST"
 
+# Where the processes are read: procfs, or a tree laid out the same way.
+PROC = "/proc"
+
 
 def proc_start(pid):
     """Returns the start time of a process in ticks, from /proc/<pid>/stat."""
     try:
-        with open(f"/proc/{pid}/stat") as f:
+        with open(f"{PROC}/{pid}/stat") as f:
             return f.read().rsplit(")", 1)[1].split()[19]
     except (OSError, IndexError):
         return None
@@ -42,7 +46,7 @@ def proc_start(pid):
 def parent_pid(pid):
     """Returns the parent of a process, or None when it is gone."""
     try:
-        with open(f"/proc/{pid}/stat") as f:
+        with open(f"{PROC}/{pid}/stat") as f:
             return int(f.read().rsplit(")", 1)[1].split()[1])
     except (OSError, IndexError, ValueError):
         return None
@@ -51,7 +55,7 @@ def parent_pid(pid):
 def proc_args(pid):
     """Returns the arguments a process was started with, or an empty list when it is gone."""
     try:
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
+        with open(f"{PROC}/{pid}/cmdline", "rb") as f:
             raw = f.read().rstrip(b"\0")
     except OSError:
         return []
@@ -60,7 +64,7 @@ def proc_args(pid):
 
 def _comm(pid):
     try:
-        with open(f"/proc/{pid}/comm") as f:
+        with open(f"{PROC}/{pid}/comm") as f:
             return f.read().strip()
     except OSError:
         return ""
@@ -133,7 +137,7 @@ def lineage(pid, owners):
 def _oneshot(pid, sid=None):
     """Says whether a process is a run of its own: a `-p` that no holder keeps."""
     try:
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
+        with open(f"{PROC}/{pid}/cmdline", "rb") as f:
             cmdline = f.read().decode("utf-8", "replace").replace("\0", " ")
     except OSError:
         return False
@@ -145,7 +149,7 @@ def _oneshot(pid, sid=None):
 def _boot_time():
     """Returns when the machine was booted, in epoch seconds, or None when it is not told."""
     try:
-        with open("/proc/stat") as f:
+        with open(f"{PROC}/stat") as f:
             for row in f:
                 if row.startswith("btime "):
                     return float(row.split()[1])
@@ -354,6 +358,28 @@ def _goal(raw):
             "updatedAt": count(raw.get("updatedAt"))}
 
 
+def _filled(found):
+    """Returns the fields of a codex row that say how full its context is."""
+    tokens, limit = found["tokens"], found["limit"]
+    out = {"tokens": tokens, "limit": limit, "pct": round(tokens / limit * 100, 1) if limit else 0.0,
+           "limitKnown": limit > 0, "lastRequestAt": found["at"] or None}
+    if not found["at"]:
+        out["noRequests"] = True
+    return out
+
+
+def _account(contour):
+    """Returns the config directory of the claude account of a codex contour, or None.
+
+    The map knows a contour by the config directory of its claude account,
+    and a codex home is named after the contour it belongs to: the thread
+    carries that directory, and the service puts it on the contour the
+    claude sessions of the same name are on. A home no claude account is
+    named like has none, and lands where a session of no known contour does.
+    """
+    return dict(contours.profiles()).get(contour) if contour else None
+
+
 def codex_row(data):
     """Returns the row of a codex thread a live executor follows.
 
@@ -367,18 +393,13 @@ def codex_row(data):
     sid = data["sessionId"]
     name = data.get("name") if isinstance(data.get("name"), str) and data["name"] else f"codex-{sid[-8:]}"
     contour = data.get("contour") if isinstance(data.get("contour"), str) else ""
-    found = _fill(data, sid, contour)
-    tokens, limit = found["tokens"], found["limit"]
     row = {
         "session": name, "sessionId": sid, "cwd": data.get("cwd") or "",
         "profile": contour, "agent": "codex", "transport": "stream",
         "model": data.get("model") or "", "effort": data.get("effort") or "",
         "startedAt": data.get("started") or None,
-        "tokens": tokens, "limit": limit, "pct": round(tokens / limit * 100, 1) if limit else 0.0,
-        "limitKnown": limit > 0, "lastRequestAt": found["at"] or None,
+        **_filled(_fill(data, sid, contour)),
     }
-    if not found["at"]:
-        row["noRequests"] = True
     # A thread codex runs in a tmux session the panel started lives in that
     # terminal, as a claude session in tmux does; one the daemon alone holds is
     # reached the way a session on the stream is, through the panel.
@@ -407,12 +428,7 @@ def codex_row(data):
     queued = data.get("queue")
     if isinstance(queued, int) and not isinstance(queued, bool) and queued > 0:
         row["queued"] = queued
-    # The map knows a contour by the config directory of its claude account,
-    # and a codex home is named after the contour it belongs to: the thread
-    # carries that directory, and the service puts it on the contour the
-    # claude sessions of the same name are on. A home no claude account is
-    # named like has none, and lands where a session of no known contour does.
-    config_dir = dict(contours.profiles()).get(contour) if contour else None
+    config_dir = _account(contour)
     if config_dir:
         row["configDir"] = config_dir
     wait = held.waiting_for(data)
@@ -429,15 +445,314 @@ def codex_sessions():
     return [codex_row(data) for data in held.codex_threads()]
 
 
+# A codex is found by its process too, beside the threads the executors
+# follow: a run of codex exec a claude session started — a reviewer, a
+# worker — and a codex in a terminal with the server of its threads built in.
+# Codex calls its process codex whoever started it. A process of the daemon of
+# a home — the daemon itself, or a client that reaches it with --remote — runs
+# threads the executor follows through that daemon, and is passed by.
+CODEX = "codex"
+CODEX_DAEMON = "app-server"
+CODEX_REMOTE = "--remote"
+
+# Codex holds a lock on a thread while it writes it: a file named by the
+# thread, under its home.
+CODEX_LOCKS = "thread-writer-locks"
+
+# What the collector reads of the environment of a codex: its home, and the
+# claude session and the role a run of codex exec was started with.
+CODEX_VARS = ("CODEX_HOME", "CLAUDE_CODE_SESSION_ID", "CODEX_AGENT_ROLE")
+
+# How much of the head of a rollout is read for what codex says the thread
+# is: the head carries the instructions of the model too.
+CODEX_HEAD = 1024 * 1024
+
+# What a run of codex exec is called when it was started with no role.
+CODEX_EXEC = "codex exec"
+
+
+def _environ(pid, names):
+    """Returns the variables of a process among names, none when they cannot be read."""
+    try:
+        with open(f"{PROC}/{pid}/environ", "rb") as f:
+            raw = f.read()
+    except OSError:
+        return {}
+    out = {}
+    for entry in raw.split(b"\0"):
+        key, _, value = entry.partition(b"=")
+        key = os.fsdecode(key)
+        if key in names:
+            out[key] = os.fsdecode(value)
+    return out
+
+
+def _open_files(pid):
+    """Returns the paths a process holds open."""
+    root = f"{PROC}/{pid}/fd"
+    try:
+        fds = os.listdir(root)
+    except OSError:
+        return []
+    out = []
+    for fd in fds:
+        try:
+            out.append(os.readlink(os.path.join(root, fd)))
+        except OSError:
+            continue
+    return out
+
+
+def _codex_thread(pid, home):
+    """Returns the thread a codex process writes and its rollout, by the files it holds open.
+
+    A codex with subagents writes their threads too and holds a lock on each;
+    its own is the eldest: a codex id grows with time, and a subagent is
+    started by a thread that already runs.
+    """
+    locks = os.path.join(home, CODEX_LOCKS)
+    sessions = os.path.join(home, "sessions") + os.sep
+    threads, rollouts = [], {}
+    for path in _open_files(pid):
+        folder, name = os.path.split(path)
+        if folder == locks and name.endswith(".lock"):
+            threads.append(name[:-len(".lock")])
+        elif path.startswith(sessions) and codex.is_rollout(path):
+            rollouts[codex.own(path)[codex.OWN]] = path
+    ids = sorted(t for t in (threads or rollouts) if chat.UUID_RE.match(t))
+    if not ids:
+        return "", ""
+    thread = ids[0]
+    if thread in rollouts:
+        return thread, rollouts[thread]
+    found = sorted(glob.glob(os.path.join(glob.escape(home), "sessions", "*", "*", "*",
+                                          f"rollout-*-{thread}.jsonl")))
+    return thread, found[-1] if found else ""
+
+
+def _codex_head(path):
+    """Returns what the head of a rollout says of its thread: how it was started and where, or None.
+
+    A thread of codex exec says exec; one of a terminal, of an editor or of a
+    subagent says otherwise. A head not written whole yet says nothing.
+    """
+    try:
+        with open(path, "rb") as f:
+            record = json.loads(f.readline(CODEX_HEAD))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict) or record.get("type") != "session_meta":
+        return None
+    payload = record.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    return {"exec": payload.get("source") == "exec", "cwd": codex.cwd_of(record)}
+
+
+def _cwd(pid):
+    try:
+        return os.readlink(f"{PROC}/{pid}/cwd")
+    except OSError:
+        return ""
+
+
+def _codex_process(pid, followed):
+    """Returns what a process says of the codex thread it runs, or None for any other.
+
+    The contour is that of the home CODEX_HOME names, ~/.codex with none, and
+    never the program's: one program serves every home. A codex that writes no
+    thread yet, or one whose rollout has no head yet, has nothing to read.
+    """
+    if _comm(pid) != CODEX:
+        return None
+    try:
+        if os.stat(f"{PROC}/{pid}").st_uid != os.getuid():
+            return None
+    except OSError:
+        return None
+    args = proc_args(pid)[1:]
+    if CODEX_DAEMON in args or any(a == CODEX_REMOTE or a.startswith(CODEX_REMOTE + "=") for a in args):
+        return None
+    env = _environ(pid, CODEX_VARS)
+    home = os.path.normpath(os.path.expanduser(env.get("CODEX_HOME") or contours.CODEX_HOME))
+    thread, rollout = _codex_thread(pid, home)
+    if not thread or thread in followed or not rollout:
+        return None
+    head = _codex_head(rollout)
+    if head is None:
+        return None
+    return {
+        "pid": pid, "home": home, "contour": contours.codex_contour(home),
+        "thread": thread, "rollout": rollout, "born": started_at(pid),
+        "cwd": head["cwd"] or _cwd(pid), "exec": head["exec"],
+        "claude": env.get("CLAUDE_CODE_SESSION_ID") or "", "role": env.get("CODEX_AGENT_ROLE") or "",
+    }
+
+
+def codex_processes():
+    """Returns the live codex processes of the user whose threads no executor follows.
+
+    Each says its pid, its home and the contour of the home, the thread it
+    writes and the rollout of it, when it was born and in what directory,
+    whether it is a run of codex exec, and the claude session and the role it
+    was started with.
+    """
+    try:
+        pids = [int(name) for name in os.listdir(PROC) if name.isdigit()]
+    except OSError:
+        return []
+    followed = {data.get("sessionId") for data in held.codex_threads()}
+    return [found for found in (_codex_process(pid, followed) for pid in sorted(pids)) if found]
+
+
+def live_rollout(thread, contour=None):
+    """Returns the rollout of a thread a live codex writes, of the contour named or of any, empty for none."""
+    for proc in codex_processes():
+        if proc["thread"] == thread and (not contour or proc["contour"] == contour):
+            return proc["rollout"]
+    return ""
+
+
+def codex_parent(proc, owners, sessions):
+    """Returns the id of the live claude session that started a run of codex exec, empty for none.
+
+    Up the chain of parents, the first live session is it. A codex met on the
+    way started the run itself: a daemon keeps the environment of the claude
+    it was started from and hands it down to every command its threads run.
+    A chain that reaches the top with neither — a run sent off on its own,
+    whose parent let it go — is named by the session claude put into its
+    environment, while that session lives. `owners` maps the pids of the
+    live sessions to what names them, `sessions` holds their ids.
+    """
+    seen = set()
+    at = parent_pid(proc["pid"])
+    while at and at > 1 and at not in seen:
+        seen.add(at)
+        owner = owners.get(at)
+        if owner:
+            return owner["sessionId"]
+        if _comm(at) == CODEX:
+            return ""
+        at = parent_pid(at)
+    return proc["claude"] if proc["claude"] in sessions else ""
+
+
+def codex_live(lives=None):
+    """Returns the codex processes no executor follows, a run of codex exec with the session that started it.
+
+    `lives` are the live claude sessions as live_sessions returns them, read
+    afresh when not given.
+    """
+    procs = codex_processes()
+    if not any(proc["exec"] for proc in procs):
+        return procs
+    if lives is None:
+        lives = live_sessions()
+    owners = {live["pid"]: {"session": live["name"], "sessionId": live["sessionId"]}
+              for live in lives if live.get("pid")}
+    sessions = {live["sessionId"] for live in lives}
+    for proc in procs:
+        if proc["exec"]:
+            proc["parent"] = codex_parent(proc, owners, sessions)
+    return procs
+
+
+def _utc(ts):
+    if not ts:
+        return ""
+    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).isoformat(timespec="milliseconds") \
+        .replace("+00:00", "Z")
+
+
+def codex_agent(proc):
+    """Returns a run of codex exec as an agent of the claude session that started it.
+
+    It is at work while its process lives, named by its role, and its
+    conversation is its thread: the id of the agent is the id of the thread,
+    which the feed opens as a conversation of its own. Nothing of what it was
+    asked goes with it: the prompt of a role carries the words of the work.
+    """
+    found = codex.context(proc["rollout"]) or {}
+    agent = {"agent": CODEX, "id": proc["thread"], "name": proc["role"] or CODEX_EXEC,
+             "status": "active", "at": _utc(proc["born"])}
+    if found.get("model"):
+        agent["model"] = found["model"]
+    if found.get("tokens"):
+        agent["tokens"], agent["limit"] = found["tokens"], found["limit"]
+        agent["limitKnown"] = found["limit"] > 0
+    if found.get("at"):
+        agent["last"] = found["at"]
+    return agent
+
+
+def codex_runs(procs):
+    """Maps a claude session to the runs of codex exec it started, as its agents, the newest first."""
+    out = {}
+    for proc in sorted(procs, key=lambda p: -(p["born"] or 0)):
+        if proc.get("parent"):
+            out.setdefault(proc["parent"], []).append(codex_agent(proc))
+    return out
+
+
+def with_codex_runs(state, runs):
+    """Returns the state of a claude session with the runs of codex exec it started first among its agents."""
+    if not runs:
+        return state
+    return {**state, "agents": (runs + list(state.get("agents") or []))[:MAX_ITEMS]}
+
+
+def codex_own_row(proc):
+    """Returns the row of a codex no live claude session started and no executor follows.
+
+    The panel reaches a codex thread through the daemon of its home alone,
+    and this one runs in a process of its own: the row is only read, out of
+    the panel's reach as a claude typed into a terminal of its own is. It is
+    called the way a thread of a daemon is, by the tail of its id, and reads
+    by its role for a run of codex exec, else by the name the panel gave the
+    thread while a daemon held it.
+    """
+    thread = proc["thread"]
+    found = codex.context(proc["rollout"]) or {"tokens": 0, "limit": 0, "at": "", "model": "",
+                                               "effort": "", "busy": False}
+    row = {
+        "session": f"codex-{thread[-8:]}", "sessionId": thread, "cwd": proc["cwd"],
+        "profile": proc["contour"], "agent": CODEX, "outside": True,
+        "model": found["model"], "effort": found["effort"], "startedAt": _iso(proc["born"]),
+        "status": "busy" if found["busy"] else "idle",
+        **_filled(found),
+    }
+    title = (proc["role"] or CODEX_EXEC) if proc["exec"] else held.given_name(thread)
+    if title:
+        row["title"] = title
+    config_dir = _account(proc["contour"])
+    if config_dir:
+        row["configDir"] = config_dir
+    return row
+
+
+def codex_own_rows(procs):
+    """Returns the rows of the codex processes that are no run of a live claude session."""
+    return [codex_own_row(proc) for proc in procs if not proc.get("parent")]
+
+
 def sessions():
-    """Returns the live sessions as {"sessions": [...], "notes": []}, the fullest first."""
+    """Returns the live sessions as {"sessions": [...], "notes": [], "codex": [...]}, the fullest first.
+
+    The codex processes no executor follows go along: the runs of codex exec
+    a session started ride on its row under codexRuns, for the reader of its
+    state to take off, and the rest are rows of their own under codex.
+    """
     lives = live_sessions()
     owners = {live["pid"]: {"session": live["name"], "sessionId": live["sessionId"]}
               for live in lives if live.get("pid")}
+    procs = codex_live(lives)
+    runs = codex_runs(procs)
     rows = []
     for live in lives:
         row = _row(live)
         row.update(lineage(live.get("pid"), owners))
+        if runs.get(live["sessionId"]):
+            row["codexRuns"] = runs[live["sessionId"]]
         rows.append(row)
     rows.sort(key=lambda r: -r["pct"])
-    return {"sessions": rows, "notes": []}
+    return {"sessions": rows, "notes": [], "codex": codex_own_rows(procs)}

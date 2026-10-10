@@ -11,6 +11,7 @@ import { fill, share } from "../../format.js";
 import { useAsOf } from "../../ui/asof.js";
 import { MidName, modelTitle, shortPath, stateOf } from "./head.js";
 import { CODEX_NOTE, agentKey, agentName, isCodex } from "../../agent.js";
+import { outsideNote } from "../sessions/kin.js";
 
 // DeskHead renders the conversation header on the wide screen; the tools come
 // ready from the conversation.
@@ -28,7 +29,7 @@ export function DeskHead({ name, live, archive, pct, move, tools }) {
                     <div class="dkwhosub">
                         ${live && html`
                             <span class="agentword" data-agent=${agentKey(live)}
-                                  data-tip=${isCodex(live) ? CODEX_NOTE : undefined}>${agentName(live)}</span>
+                                  data-tip=${isCodex(live) ? (live.outside ? outsideNote(live) : CODEX_NOTE) : undefined}>${agentName(live)}</span>
                             ${live.model && html`<span class="dkheadsep">·</span><span class="dkword">${modelTitle(live.model, { withWindow: false })}</span>`}
                             <span class="dkheadsep">·</span>
                         `}

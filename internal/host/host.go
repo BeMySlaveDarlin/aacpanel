@@ -113,9 +113,10 @@ type LiveSession struct {
 	Transport string `json:"transport"`
 	// Outside is a claude out of the panel's reach: on no stream and in no pane
 	// of the user's tmux or of a terminal of the panel, so neither side can take
-	// it over.
+	// it over. A codex outside runs on its own, with no daemon the panel is a
+	// client of.
 	Outside bool `json:"outside"`
-	// Agent is "codex" for a thread of a codex daemon, empty for claude.
+	// Agent is "codex" for a codex thread, empty for claude.
 	Agent string `json:"agent"`
 }
 

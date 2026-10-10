@@ -364,8 +364,9 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
     }
     // A codex thread is offered what the host does for it and nothing more:
     // what it asks is answered on the card in its conversation, its turn is
-    // stopped from here, and it closes like any other session.
-    if (codex) {
+    // stopped from here, and it closes like any other session. One running on
+    // its own is only read, as a claude outside the panel is.
+    if (codex && !session.outside) {
         if (session.status === "waiting") {
             lines.push({ key: "permit", icon: Icon.hand(), text: "Answer what it asks",
                 note: "codex waits for a yes or a no — the card is in the conversation", press: open });

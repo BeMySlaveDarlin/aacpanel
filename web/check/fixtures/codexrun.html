@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div><div id="feed"></div></div>
+<span id="claude" class="agentword" data-agent="claude">Claude</span>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A run of codex exec a claude session started stands among its agents, said
+// to be codex's in the colour of codex, with no stop of its own, and opens the
+// feed of its thread rather than one beside the conversation.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { WorkList } from "/src/screens/chat/work.js";
+import { agentFeedId, SubChat } from "/src/screens/chat/subchat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const minutes = (n) => new Date(Date.now() - n * 60000).toISOString();
+const CONVERSATION = "55555555-5555-4555-8555-555555555555";
+const THREAD = "01a12600-0000-7000-8000-0000000000e1";
+
+const work = {
+    artifacts: [], docs: [], sent: [], tasks: [],
+    agents: [
+        { agent: "codex", id: THREAD, name: "reviewer", status: "active", at: minutes(4),
+          model: "gpt-6-sol", tokens: 25840, limit: 258400, limitKnown: true, last: minutes(1) },
+        { id: "adf5ce617c6afff7a", name: "cx-scout", text: "Scouting the restore", kind: "background",
+          line: "@cx-scout", status: "active", at: minutes(5), model: "claude-sonnet-5" },
+    ],
+};
+
+const asked = [];
+window.fetch = async (url) => {
+    asked.push(String(url));
+    if (String(url).startsWith("/api/chat?")) {
+        return new Response(JSON.stringify({ items: [], total: 0, moreBefore: false, first: null, last: null }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+const opened = [];
+render(html`
+    <${ToastHost}><${GateHost}>
+        <div id="agents">
+            <${WorkList} session="lab" id=${CONVERSATION} kind="agents" work=${work}
+                         exec=${{ available: true, kinds: ["agent.stop", "task.stop"] }}
+                         onAgent=${(agent) => opened.push(agent)} />
+        </div>
+    <//><//>
+`, document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+(async () => {
+    await until(() => document.querySelectorAll("#agents .wline").length === 2);
+    const rows = Array.from(document.querySelectorAll("#agents .wline"));
+    const out = {
+        rows: rows.map((r) => {
+            const word = r.querySelector(".wname .agentword");
+            return {
+                name: text(r.querySelector(".wname")),
+                word: word ? text(word) : "",
+                key: word ? word.dataset.agent : "",
+                colour: word ? getComputedStyle(word).color : "",
+                stop: r.querySelector(".wstop") ? "yes" : "no",
+            };
+        }),
+    };
+    const codex = rows.find((r) => r.querySelector(".wname .agentword"));
+    out.claudeColour = getComputedStyle(document.getElementById("claude")).color;
+    codex.querySelector(".wrow").click();
+    await until(() => opened.length > 0);
+    const agent = opened[0] || {};
+    out.opened = { id: agent.id, agent: agent.agent, name: agent.name };
+    out.feedId = agentFeedId(CONVERSATION, agent);
+    out.claudeFeedId = agentFeedId(CONVERSATION, work.agents[1]);
+    render(html`<${ToastHost}><${SubChat} session="lab" id=${out.feedId} agent=${agent} live=${false}
+                                         onBack=${() => {}} /><//>`, document.getElementById("feed"));
+    await until(() => asked.some((u) => u.startsWith("/api/chat?")) && document.querySelector("#feed .chatsub"));
+    const head = document.querySelector("#feed .chatsub .agentword");
+    out.head = head ? { word: text(head), key: head.dataset.agent } : null;
+    out.asked = asked.filter((u) => u.startsWith("/api/chat?"));
+    window.done = out;
+})();
+</script>

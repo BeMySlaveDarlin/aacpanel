@@ -122,22 +122,32 @@ def _count(value):
     return value
 
 
+# The marks of a rollout the tail is read for: the reports of the context, the
+# start and the end of a turn, and what a turn runs with.
+TAIL_MARKS = (b"token_count", b"task_started", b"task_complete", b"turn_aborted", b"turn_context")
+
+# How a turn ends in a rollout: done, or broken off.
+TURN_ENDS = ("task_complete", "turn_aborted")
+
+
 def context(path):
     """Returns how full the context of a thread is: tokens, the window and when, from its rollout.
 
     Codex reports the input of the last request and the window of the model
     after every request; a thread that has made none yet has the window its
     turn named at the start, and no time. The tail is read wider until it
-    holds a report, and the whole file only when none does.
+    holds a report, and the whole file only when none does. Beside the fill
+    come the model and the effort the last turn ran with, and whether a turn
+    still runs: one runs from its start to its end or its abort, and a report
+    with neither before it lies inside a turn that started before the tail.
     """
     try:
         size = os.path.getsize(path)
     except OSError:
         return None
-    out = {"tokens": 0, "limit": 0, "at": ""}
     for back in TAIL_STEPS + (size,):
         start = max(0, size - back)
-        out = {"tokens": 0, "limit": 0, "at": ""}
+        out = {"tokens": 0, "limit": 0, "at": "", "model": "", "effort": "", "turn": ""}
         try:
             with open(path, "rb") as f:
                 f.seek(start)
@@ -145,13 +155,14 @@ def context(path):
                     # A command's output can make a line of megabytes: only
                     # a line that may be a report is parsed, and the piece of
                     # a line the seek lands in parses as nothing.
-                    if b"token_count" not in raw and b"task_started" not in raw:
+                    if not any(mark in raw for mark in TAIL_MARKS):
                         continue
                     _take(raw, out)
         except OSError:
             return None
         if out["at"] or start == 0:
-            return out
+            break
+    out["busy"] = out.pop("turn") == "on"
     return out
 
 
@@ -160,12 +171,23 @@ def _take(raw, out):
         record = json.loads(raw)
     except ValueError:
         return
-    if not isinstance(record, dict) or record.get("type") != "event_msg":
+    if not isinstance(record, dict):
         return
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return
+    if record.get("type") == "turn_context":
+        for key in ("model", "effort"):
+            if isinstance(payload.get(key), str) and payload[key]:
+                out[key] = payload[key]
+        return
+    if record.get("type") != "event_msg":
+        return
+    if payload.get("type") in TURN_ENDS:
+        out["turn"] = "off"
+        return
     if payload.get("type") == "task_started":
+        out["turn"] = "on"
         out["limit"] = _count(payload.get("model_context_window")) or out["limit"]
         return
     if payload.get("type") != "token_count":
@@ -175,6 +197,7 @@ def _take(raw, out):
     tokens = _count(usage.get("input_tokens")) if isinstance(usage, dict) else None
     if tokens is None:
         return
+    out["turn"] = out["turn"] or "on"
     out["tokens"] = tokens
     out["limit"] = _count(info.get("model_context_window")) or out["limit"]
     out["at"] = record.get("timestamp") or ""

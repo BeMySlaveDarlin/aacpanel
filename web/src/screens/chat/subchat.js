@@ -16,6 +16,7 @@ import { Marquee } from "./head.js";
 import { contextSay } from "./work.js";
 import { useToast } from "../../ui/toasts.js";
 import * as codecopy from "./copy.js";
+import { agentKey, agentName, isCodex } from "../../agent.js";
 
 const KIND_NAMES = {
     teammate: "teammate",
@@ -24,9 +25,18 @@ const KIND_NAMES = {
 };
 
 // subFeedId returns the address of an agent feed: the conversation and the agent.
-export function subFeedId(session, agentId) {
+function subFeedId(session, agentId) {
     if (!session || !agentId) return "";
     return `${session}:${agentId}`;
+}
+
+// agentFeedId returns the address of the feed of an agent the conversation
+// started. A run of codex exec is a thread of its own, and its feed is that
+// thread's, by its id; the feed of any other agent lies beside the
+// conversation's.
+export function agentFeedId(session, agent) {
+    if (isCodex(agent)) return agent.id || "";
+    return subFeedId(session, agent.id);
 }
 
 // SubChat renders the feed of an agent.
@@ -49,7 +59,9 @@ export function SubChat({ session, id, agent, live, onBack }) {
                     <${Marquee} text=${agent.name} />
                 </h2>
                 <div class="chatsub">
-                    <span>${kind}</span>
+                    ${isCodex(agent)
+                        ? html`<span class="agentword" data-agent=${agentKey(agent)}>${agentName(agent)}</span>`
+                        : html`<span>${kind}</span>`}
                     ${agent.model && html`<span class="sep">·</span><span>${agent.model}</span>`}
                     ${agent.tokens > 0 && html`<span class="sep">·</span><span>${contextSay(agent)}</span>`}
                 </div>

@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div class="shell"><div class="body" id="root"></div></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// A codex running on its own — a run of codex exec nobody live started, a
+// codex in a terminal with the server of its threads built in — is only read:
+// its sheet opens the conversation and says why there is nothing more, and
+// the tools of its conversation offer no stop and no close.
+import { render } from "preact";
+import { html } from "/src/html.js";
+import { SessionSheet } from "/src/screens/sessions/blocks.js";
+import { CodexSections } from "/src/screens/chat/codex.js";
+import { placeOf } from "/src/screens/sessions/kin.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+window.fetch = async () => new Response("", { status: 404 });
+
+const own = {
+    session: "codex-000000e1", sessionId: "01a12600-0000-7000-8000-0000000000e1", agent: "codex",
+    outside: true, status: "busy", title: "reviewer", model: "gpt-6-sol", pct: 10, cwd: "/srv/lab",
+};
+const daemon = { ...own, session: "codex-0000abcd", outside: false, transport: "stream" };
+const exec = { available: true, kinds: ["session.close", "session.stop", "session.send", "session.mcp"] };
+
+render(html`
+    <${ToastHost}><${GateHost}>
+        <div id="own"><${SessionSheet} session=${own} exec=${exec} onClose=${() => {}} onOpen=${() => {}} /></div>
+        <div id="ownTools"><${CodexSections} name=${own.session} live=${own} exec=${exec}
+                                             onDone=${() => {}} onLook=${() => {}} /></div>
+        <div id="daemonTools"><${CodexSections} name=${daemon.session} live=${daemon} exec=${exec}
+                                                onDone=${() => {}} onLook=${() => {}} /></div>
+    <//><//>
+`, document.getElementById("root"));
+
+const until = async (ok, ms = 3000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+(async () => {
+    await until(() => document.querySelector(".pjact") && document.querySelector("#daemonTools .toollabel"));
+    window.done = {
+        place: placeOf(own),
+        daemonPlace: placeOf(daemon),
+        sheet: Array.from(document.querySelectorAll(".pjact")).map((b) => ({
+            text: text(b.querySelector("b")), note: text(b.querySelector(".pjactbody span")),
+        })),
+        ownTools: Array.from(document.querySelectorAll("#ownTools .toollabel")).map(text),
+        ownNote: text(document.querySelector("#ownTools .toolnote")),
+        daemonTools: Array.from(document.querySelectorAll("#daemonTools .toollabel")).map(text),
+    };
+})();
+</script>

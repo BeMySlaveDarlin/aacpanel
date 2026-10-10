@@ -51,6 +51,16 @@ def codex_homes():
     return [(_name_of(d, ".codex"), d) for d in out]
 
 
+def codex_contour(home):
+    """Returns the contour a codex home belongs to: the one it is listed under,
+    else the name a listed home of that directory would have."""
+    home = os.path.normpath(home)
+    for contour, listed in codex_homes():
+        if os.path.normpath(listed) == home:
+            return contour
+    return _name_of(home, ".codex")
+
+
 def config_dirs():
     """Returns the config directories of every contour, the personal one first."""
     return [d for _, d in profiles()]

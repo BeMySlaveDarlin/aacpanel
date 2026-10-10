@@ -30,10 +30,21 @@ UUID_RE = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 
 
 def transcript_path(session_id, profile=None):
-    """Returns the conversation file found by its uuid: a claude transcript, else a codex rollout."""
+    """Returns the conversation file found by its uuid: a claude transcript, else a codex rollout.
+
+    A live thread of a codex home no contour lists is found by the codex
+    that writes it.
+    """
     if not UUID_RE.match(session_id or ""):
         return ""
-    return claude_path(session_id, profile) or codex.rollout_path(session_id, profile)
+    return (claude_path(session_id, profile) or codex.rollout_path(session_id, profile)
+            or _live_rollout(session_id, profile))
+
+
+def _live_rollout(session_id, profile):
+    # Imported here: the module of live sessions reads this package for its rows.
+    import ctx
+    return ctx.live_rollout(session_id, profile)
 
 
 def claude_path(session_id, profile=None):

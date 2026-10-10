@@ -17,6 +17,7 @@ import { key as pageKey, merge } from "../../data/artifacts.js";
 import { markOpened, unopened } from "../../data/opened.js";
 import { NowBar, nowOf, WaitBar } from "./now.js";
 import { ChecklistLine, checklistOf } from "./checklist.js";
+import { agentKey as whoKey, agentName, isCodex } from "../../agent.js";
 
 // WorkStatus renders what is happening to the session right now: the call
 // going out and for how long, or the thinking between calls. A compaction is
@@ -285,7 +286,7 @@ function agentState(agent, stop) {
 
 function openAgent(agent, onAgent, setPick) {
     if (agent.id && onAgent) {
-        onAgent({ id: agent.id, name: agent.name, kind: agent.kind, text: agent.text,
+        onAgent({ id: agent.id, name: agent.name, kind: agent.kind, agent: agent.agent, text: agent.text,
                   model: agent.model, color: agent.color, tokens: agent.tokens,
                   limit: agent.limit, limitKnown: agent.limitKnown });
         return;
@@ -398,8 +399,9 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
     // to the background has no name there the panel could aim at.
     // An agent sent off to work is a background task to claude: the stream
     // stops it by its id, tmux by its line on the screen of background
-    // work.
-    const agentStopper = (agent) => (agent.kind === "background" ? {
+    // work. A run of codex exec has no stop here: it is no task of claude's,
+    // and no daemon the panel reaches holds its thread.
+    const agentStopper = (agent) => (isCodex(agent) ? null : agent.kind === "background" ? {
         ready: knows(exec, "task.stop") && agentPhase(agent) !== "over" && Boolean(agent.line),
         why: whyStopAgent(exec, agent),
         busy: busy === agentKey(agent),
@@ -579,6 +581,7 @@ function AgentRow({ agent, reported, stop, onOpen }) {
             <span class="wcol">
                 <span class="wname">
                     ${agent.name}
+                    ${isCodex(agent) && html`<span class="agentword" data-agent=${whoKey(agent)}>${agentName(agent)}</span>`}
                     ${agent.model && html`<span class="wmodel">${agent.model}</span>`}
                 </span>
                 ${agent.text && html`<span class="wsub">${agent.text}</span>`}

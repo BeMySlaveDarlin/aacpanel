@@ -14,6 +14,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/auth"
+	"aacpanel/internal/host"
 	"aacpanel/internal/store"
 	"aacpanel/internal/testdb"
 )
@@ -74,6 +75,40 @@ func TestRunActionWithoutExecutor(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "executor is not configured") {
 		t.Errorf("the refusal %q does not name what is missing — one will go looking for the breakage in the panel",
 			strings.TrimSpace(w.Body.String()))
+	}
+}
+
+// A codex the panel found by its process alone — a run of codex exec no live
+// session started, a codex in a terminal of its own — is only read: an action
+// aimed at it is refused in words that say why and never reaches the
+// executor, which knows no session by its name. A thread of a daemon goes
+// through as before.
+func TestAnActionOnACodexOfItsOwnIsRefused(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "stopped"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[`+
+		`{"session":"codex-000000e1","sessionId":"01a12600-0000-7000-8000-0000000000e1","agent":"codex","outside":true},`+
+		`{"session":"codex-0000abcd","sessionId":"019a1f00-0000-7000-8000-00000000abcd","agent":"codex","transport":"stream"}]}`))
+	for _, body := range []string{
+		`{"kind":"session.stop","target":"codex-000000e1"}`,
+		`{"kind":"session.send","target":"codex-000000e1","params":{"text":"go on"}}`,
+		`{"kind":"session.close","target":"codex-000000e1"}`,
+	} {
+		w := post(t, srv, body)
+		if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "cannot act on it") {
+			t.Errorf("%s: %d %s", body, w.Code, w.Body.String())
+		}
+	}
+	select {
+	case got := <-fake.got:
+		t.Fatalf("an action on a codex of its own reached the executor: %+v", got)
+	default:
+	}
+	if w := post(t, srv, `{"kind":"session.stop","target":"codex-0000abcd"}`); w.Code != http.StatusOK {
+		t.Errorf("a stop of a thread of a daemon: %d %s", w.Code, w.Body.String())
+	}
+	if got := <-fake.got; got.Target != "codex-0000abcd" {
+		t.Errorf("the stop of a thread of a daemon reached the executor as %+v", got)
 	}
 }
 

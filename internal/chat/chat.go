@@ -392,6 +392,11 @@ type WorkAgent struct {
 	Tokens     int64 `json:"tokens,omitempty"`
 	Limit      int64 `json:"limit,omitempty"`
 	LimitKnown bool  `json:"limitKnown,omitempty"`
+	// Agent is codex for a run of codex exec the session started, empty for
+	// an agent of claude's. Such a run is at work while its process lives,
+	// and ID is its thread: its feed is the rollout of that thread, opened as
+	// a conversation of its own.
+	Agent string `json:"agent,omitempty"`
 }
 
 // WorkFlow is a workflow run: one script, its phases and the agents it drives.

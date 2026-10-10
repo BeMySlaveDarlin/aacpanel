@@ -8,6 +8,7 @@ import archive
 import asked
 import briefs
 import checklists
+import ctx
 import held
 import notes
 import pages
@@ -307,6 +308,10 @@ def _answer(request):
         state = sesstate.SHARED.state(path)
         found = state.snapshot() if state else None
         if found is not None:
+            # A run of codex exec the session started is one of its agents,
+            # though claude's transcript has no word of it: its process says
+            # whose it is.
+            found = ctx.with_codex_runs(found, codex_runs_of(session))
             if session:
                 asked.BOOK.answered(session, set(state.answered), state.ended, state.prompted)
             ask = asked.BOOK.of(session)
@@ -317,6 +322,13 @@ def _answer(request):
                 found = {**found, "checklist": checklist}
             reply["state"] = found
     return reply
+
+
+def codex_runs_of(session):
+    """Returns the runs of codex exec a live claude session started, as its agents."""
+    if not session:
+        return []
+    return ctx.codex_runs(ctx.codex_live()).get(session) or []
 
 
 def read_in_place(reader, want, path, **window):

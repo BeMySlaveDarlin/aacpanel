@@ -240,6 +240,9 @@ def sessions():
     places = live_session_places()
     seen_transcripts = set()
     for s in data.get("sessions", []):
+        # A run of codex exec the session started is one of its agents: the
+        # card counts it among the agents at work.
+        runs = s.pop("codexRuns", None)
         transcript = s.get("transcript") or ""
         s["home"] = f"/projects/{home_slug}/" in transcript
         sid = s.get("sessionId") or ""
@@ -333,14 +336,17 @@ def sessions():
                     "at": ask.get("at") or "",
                 }
             if busy:
-                work = work_of(busy)
+                work = work_of(ctx.with_codex_runs(busy, runs))
                 if work["tasks"] or work["agents"] or work.get("workflows"):
                     s["work"] = work
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
     # A codex thread has none of what the rows above are filled with: no file
     # of a claude session, no transcript of claude, no checklist of the panel.
+    # A codex no executor follows and no live session started stands on its
+    # own, only read.
     data.setdefault("sessions", []).extend(ctx.codex_sessions())
+    data["sessions"].extend(data.pop("codex", None) or [])
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
     asked.BOOK.sweep(alive)
     notes.BOARD.sweep(alive)

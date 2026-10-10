@@ -19,7 +19,7 @@ import { ago, tokens } from "../../format.js";
 import { closed, lastPos, rows, runCalls, turnCalls, unarrived, weld } from "./feed.js";
 import { JumpToEnd, useFeedWindow } from "./feedwindow.js";
 import { FindBar, useFeedFind } from "./find.js";
-import { SubChat, subFeedId } from "./subchat.js";
+import { agentFeedId, SubChat } from "./subchat.js";
 import { RepoView } from "../repo/view.js";
 import { onShelf, sealed, signal } from "../repo/notes.js";
 import { Row } from "./rows.js";
@@ -261,7 +261,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     }, [holding, local]);
 
     const openAgent = (agent) => {
-        const feedId = subFeedId(id, agent.id);
+        const feedId = agentFeedId(id, agent);
         if (!feedId) return;
         setLook(null);
         setSub({ ...agent, feedId });

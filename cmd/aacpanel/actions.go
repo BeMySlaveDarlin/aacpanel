@@ -40,6 +40,22 @@ func (s *Server) apiRunAction(term bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) { s.runAction(w, r, term) }
 }
 
+// codexOutOfReach refuses an action aimed at a codex the panel found by its
+// process alone — a run of codex exec no live session started, a codex in a
+// terminal of its own: no daemon the panel is a client of holds its thread,
+// and the executor knows no session by its name. Empty for any other target.
+func (s *Server) codexOutOfReach(target string) string {
+	if s.host == nil || target == "" {
+		return ""
+	}
+	live, ok := s.host.LiveSession(target)
+	if !ok || live.Agent != schema.AgentCodex || !live.Outside {
+		return ""
+	}
+	return fmt.Sprintf("%s is a codex running on its own, with no daemon the panel is a client of: "+
+		"the panel reads its conversation and cannot act on it", target)
+}
+
 func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	if s.exec == nil {
 		http.Error(w, "the executor is not configured: actions are unavailable", http.StatusServiceUnavailable)
@@ -65,6 +81,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 
 	if action.TermKind(req.Kind) && !term {
 		http.Error(w, "the terminals are not served on this listener", http.StatusNotFound)
+		return
+	}
+	if why := s.codexOutOfReach(req.Target); why != "" {
+		http.Error(w, why, http.StatusConflict)
 		return
 	}
 

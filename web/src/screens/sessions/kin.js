@@ -9,10 +9,10 @@ import { isCodex } from "../../agent.js";
 
 // placeOf names where a live session lives, for its mark. A codex thread
 // lives on the app-server daemon of its codex home, not on the panel's
-// stream, whatever its transport says; who runs it is said by the line of
-// its model.
+// stream, whatever its transport says, or on its own, out of the panel's
+// reach; who runs it is said by the line of its model.
 export function placeOf(s) {
-    if (isCodex(s)) return "daemon";
+    if (isCodex(s)) return s.outside ? "outside" : "daemon";
     if (s.transport === "stream") return "stream";
     if (s.outside) return "outside";
     return "tmux";
@@ -55,6 +55,7 @@ export function kinLabel(count) {
 // outsideNote says why the panel only reads a session out of its reach.
 export function outsideNote(s) {
     const only = "the panel reads this conversation and cannot write to it";
+    if (isCodex(s)) return `a codex running on its own, with no daemon the panel is a client of — ${only}`;
     if (s.parent && s.parent.session) return `started by ${s.parent.session}, inside its work — ${only}`;
     if (s.tmuxServer) return `started in a tmux of its own (tmux ${s.tmuxServer}), which the panel does not reach — ${only}`;
     return `started outside the panel, in a terminal of its own — ${only}`;
