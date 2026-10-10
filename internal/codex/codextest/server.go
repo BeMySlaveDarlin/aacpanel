@@ -810,6 +810,12 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		t.Status, t.Flags = "idle", nil
 		return map[string]any{}, nil, ""
 	case "thread/turns/list":
+		// A thread nobody has written to is not on the disk yet, and the
+		// daemon refuses to list its turns rather than list none.
+		if t.last() == nil {
+			return nil, nil, "thread " + t.ID + " is not materialized yet; thread/turns/list is unavailable " +
+				"before first user message"
+		}
 		data := []any{}
 		if last := t.last(); last != nil {
 			data = append(data, map[string]any{"id": last.id, "items": []any{}, "itemsView": "notLoaded",

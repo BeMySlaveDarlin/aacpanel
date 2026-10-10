@@ -801,6 +801,11 @@ func runningTurn(ctx context.Context, c *conn, id string) (string, error) {
 	}
 	params := map[string]any{"threadId": id, "limit": 1, "itemsView": "notLoaded"}
 	if err := within(ctx, c, "thread/turns/list", params, &out); err != nil {
+		// A thread nobody has written to yet runs no turn, and the daemon
+		// refuses to list its turns rather than list none.
+		if refused(err) && strings.Contains(errText(err), "is not materialized yet") {
+			return "", nil
+		}
 		return "", err
 	}
 	if len(out.Data) == 0 || out.Data[0].Status != "inProgress" {
