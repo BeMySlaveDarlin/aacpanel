@@ -18,7 +18,7 @@ import { settled } from "../catchup.js";
 import { agoText, contourOf, staleLimits } from "../screens/sessions/limits.js";
 import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
-import { contoursOf } from "../screens/sessions/map.js";
+import { contoursOf, personalOf } from "../screens/sessions/map.js";
 import { kinLabel, layoutOf, openedLabel, outsideNote } from "../screens/sessions/kin.js";
 import { useFolds } from "../screens/sessions/folds.js";
 import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../agent.js";
@@ -654,7 +654,11 @@ export function SessionColumn({ snapshot, profiles, limits, current, currentId, 
     }, [map, limits, all]);
 
     const where = useMemo(() => contoursOf(map, all), [map, all]);
-    const pageOf = (s) => where.get(s.session) || contourName(s.profile);
+    // A session that names no contour and that no contour of the map claims
+    // stands in the personal contour of the map, as on the phone; with no map
+    // at all, in the one the panel calls personal.
+    const personal = personalOf(map);
+    const pageOf = (s) => where.get(s.session) || personal || contourName(s.profile);
     useEffect(() => { if (onNames) onNames(names); }, [names.join("\n")]);
 
     const place = useMemo(() => groupOf(profiles), [profiles]);

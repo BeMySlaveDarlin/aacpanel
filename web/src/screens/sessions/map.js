@@ -48,12 +48,25 @@ export function contoursOf(profiles, sessions) {
     return out;
 }
 
-// pagesOf returns the sessions laid out across the profile pages.
+// personalOf names the personal contour of the map: the one it marks default,
+// kept in the default config directory of the owner, or the first where none
+// is. A session no contour of the map claims stands there, wherever the map
+// puts it: taken for the first instead, it lands in a work contour on a
+// machine whose map lists the personal one second. null for an empty map.
+export function personalOf(profiles) {
+    const list = profiles || [];
+    const found = list.find((p) => p.default) || list[0];
+    return found ? found.profile : null;
+}
+
+// pagesOf returns the sessions laid out across the profile pages: each on the
+// page of its contour, one whose contour has no page on the personal one.
 export function pagesOf(profiles, sessions, names) {
     const where = contoursOf(profiles, sessions);
     const pages = names && names.length ? names : profiles.map((p) => p.profile);
     const out = new Map(pages.map((name) => [name, []]));
-    const fallback = pages.length > 0 ? pages[0] : null;
+    const personal = personalOf(profiles);
+    const fallback = out.has(personal) ? personal : pages.length > 0 ? pages[0] : null;
     for (const s of sessions) {
         const page = out.get(where.get(s.session)) || (fallback !== null ? out.get(fallback) : null);
         if (page) page.push(s);

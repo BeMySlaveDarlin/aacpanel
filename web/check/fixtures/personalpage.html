@@ -1,0 +1,118 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{margin:0} .phone{width:390px;height:330px;flex:none} .deskshell{position:static;height:360px} .dkbody{height:360px}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="cases"></div>
+<script type="module">
+// A session no contour of the map claims — it names none and lives outside
+// every project — stands in the personal contour, the one the map marks
+// default, wherever the map puts it: on a map listing it second the stray
+// session is on its page of the phone and in its section of the desktop
+// column, not in the work contour listed first. A map that marks none puts it
+// in the first. The page is drawn the way the panel draws it on the screen it
+// runs on: the pager of the phone on a narrow one, the column of the desktop
+// on a wide one, each for both maps.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Sessions } from "/src/screens/sessions.js";
+import { SessionColumn } from "/src/desktop/sessions.js";
+import { WIDE } from "/src/ui/wide.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    return json({});
+};
+window.EventSource = class {
+    constructor() { this.readyState = 1; }
+    addEventListener() {}
+    close() { this.readyState = 2; }
+};
+
+const shop = { id: 11, name: "shop", session: "shop", path: "/srv/shop" };
+const notes = { id: 21, name: "notes", session: "notes", path: "/srv/notes" };
+const map = (marked) => [
+    { id: 1, profile: "Acme", name: "Acme", groups: [{ name: "work", projects: [shop] }] },
+    { id: 2, profile: "Personal", name: "Personal", ...(marked ? { default: true } : {}),
+      groups: [{ name: "own", projects: [notes] }] },
+];
+const run = (session, o) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream", pct: 12,
+    tokens: 120000, limit: 1000000, model: "claude-opus-5-5", ...o });
+const sessions = [
+    run("shop", { contour: 1, profile: "Acme", cwd: shop.path, project: { id: shop.id, name: shop.name } }),
+    run("notes", { contour: 2, profile: "Personal", cwd: notes.path, project: { id: notes.id, name: notes.name } }),
+    // The stray: no contour named, no project, a directory the map does not list.
+    run("stray", { cwd: "/srv/scratch", project: null }),
+];
+const cases = [{ key: "marked", map: map(true) }, { key: "unmarked", map: map(false) }];
+
+const exec = { available: true, kinds: ["session.send", "session.open"] };
+const wait = { opening: () => [], of: () => null };
+const wrap = (node) => h(ToastHost, null, h(GateHost, null, node));
+const wide = matchMedia(WIDE).matches;
+const root = document.getElementById("cases");
+root.style.cssText = wide ? "" : "display:flex;flex-direction:column;gap:12px";
+for (const c of cases) {
+    const box = document.createElement("div");
+    box.id = c.key;
+    root.append(box);
+    const snapshot = { at: 1, sessions, profileMap: c.map, limits: null };
+    if (wide) {
+        box.className = "deskshell";
+        box.innerHTML = '<div class="dkbody"></div>';
+        render(wrap(h(SessionColumn, {
+            snapshot, profiles: { profiles: [] }, limits: null, current: "", onPick() {}, picks: [], setPicks() {},
+            onNames() {}, onOrder() {}, exec, wait: null,
+        })), box.firstChild);
+        continue;
+    }
+    box.className = "body phone";
+    render(wrap(html`
+        <${Sessions} snapshot=${snapshot} error=${null} ageSec=${1} exec=${exec} wait=${wait} faults=${[]}
+                     onLayer=${() => {}} onUsage=${() => {}} />
+    `), box);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+// phoneOf reads the pager: each page by the name of its tab, the number the
+// tab counts and the blocks the page holds.
+const phoneOf = (box) => {
+    const tabs = Array.from(box.querySelectorAll(".pftab"));
+    const pages = Array.from(box.querySelectorAll(".pfpages > .pfpage"));
+    return tabs.map((tab, i) => ({
+        name: text(tab.firstChild),
+        count: Number(text(tab.querySelector(".n")) || 0),
+        sessions: Array.from((pages[i] || tab).querySelectorAll(".pjblock .pjname")).map(text),
+    }));
+};
+// deskOf reads the column: each section by its name, with its live sessions.
+const deskOf = (box) => Array.from(box.querySelectorAll(".dkscroll > section:not(.dkshelf)")).map((section) => ({
+    name: text(section.querySelector(".dkcontourname")),
+    sessions: Array.from(section.querySelectorAll(".dksess.dklive .dkname")).map(text),
+}));
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = { wide, cases: {} };
+    for (const c of cases) {
+        const box = document.getElementById(c.key);
+        const ready = wide
+            ? () => box.querySelectorAll(".dksess.dklive").length === sessions.length
+            : () => box.querySelectorAll(".pfpage .pjblock").length === sessions.length;
+        if (!await until(ready)) throw new Error(`the ${c.key} map did not lay out all ${sessions.length} sessions`);
+        out.cases[c.key] = wide ? deskOf(box) : phoneOf(box);
+    }
+    return out;
+})();
+</script>
