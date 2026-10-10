@@ -11,7 +11,9 @@
 // after a new start, the row of pages stands in one place on every page with
 // the strip of the machine and the filters inside the containers page, details
 // on that strip turns to the machine page, and the host menu still opens the
-// machine and the journal over the screen with the way back. Headless has no touch gestures, so a swipe is
+// machine and the journal over the screen with the way back — the way back
+// keeps its page even when the next layer opens before the pager under it drew
+// a frame. Headless has no touch gestures, so a swipe is
 // followed the way the browser routes one: the element under the finger, then
 // the nearest box above it that scrolls sideways — that box is scrolled by a
 // page, and the pager's own scroll handler decides which page is current.
@@ -181,16 +183,25 @@ const layer = () => {
         nav: Boolean(document.querySelector("nav.tabs")),
     };
 };
+const door = (item) => Array.from(document.querySelectorAll(".sheet.on .hm-tile, .sheet.on .hm-q"))
+    .find((b) => text(b.querySelector(".t")) === item);
 const openMenu = async (item) => {
     document.querySelector("header.top .host").click();
     await until(() => document.querySelector(".sheet.on .hm-live"));
-    const door = Array.from(document.querySelectorAll(".sheet.on .hm-tile, .sheet.on .hm-q"))
-        .find((b) => text(b.querySelector(".t")) === item);
-    door.click();
+    door(item).click();
     await until(() => layer().title === item);
     await sleep(100);
     return layer();
 };
+// drawn lets preact draw what a press changed and lets no frame in: a render
+// waits for a microtask, a frame for a task of its own.
+const drawn = async () => {
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+};
+const frames = (n) => new Promise((done) => {
+    const step = () => (n-- > 0 ? requestAnimationFrame(step) : done());
+    step();
+});
 const closeLayer = async (name) => {
     document.querySelector(".body > .phead .pback").click();
     await until(() => settled(name));
@@ -247,6 +258,23 @@ window.done = (async () => {
         out.menuMachineBack = await closeLayer("Machine");
         out.menuJournal = await openMenu("Journal");
         out.menuJournalBack = await closeLayer("Machine");
+
+        // A layer opened before the pager drew a frame: back from the journal
+        // draws the pager, which scrolls to its page, and the menu takes it
+        // off the screen again in the same task, so its scroll reaches it
+        // only after it went.
+        await openMenu("Journal");
+        document.querySelector(".body > .phead .pback").click();
+        await drawn();
+        const between = document.querySelector(".pfpager") ? current() : "";
+        document.querySelector("header.top .host").click();
+        await drawn();
+        door("Machine").click();
+        await drawn();
+        const over = layer().title;
+        await frames(3);
+        out.unframed = { between, over, kept: localStorage.getItem("aacpanel.host.page") || "" };
+        out.unframedBack = await closeLayer("Machine");
     } catch (err) {
         out.error = String((err && err.stack) || err);
     }

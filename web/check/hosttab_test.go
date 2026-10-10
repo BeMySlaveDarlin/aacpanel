@@ -74,6 +74,12 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		MenuMachineBack hostReturn `json:"menuMachineBack"`
 		MenuJournal     hostLayer  `json:"menuJournal"`
 		MenuJournalBack hostReturn `json:"menuJournalBack"`
+		Unframed        struct {
+			Between string `json:"between"`
+			Over    string `json:"over"`
+			Kept    string `json:"kept"`
+		} `json:"unframed"`
+		UnframedBack hostReturn `json:"unframedBack"`
 	}
 	runFixture(t, "hosttab.html", &got)
 
@@ -204,6 +210,24 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 			if !c.back.Pager || c.back.Title != "" || c.back.Page != "Machine" {
 				t.Errorf("back from %s the screen reads %+v, expected the host tab on the page it stood on", c.name, c.back)
 			}
+		}
+	})
+
+	// The pager drawn on the way back from a layer scrolls to its page, and
+	// the browser hands it that scroll with the next frame. A layer opened
+	// before that frame takes the pager off the screen first, and the scroll
+	// reaches a pager whose pages all stand at zero.
+	t.Run("a pager that left the screen before its frame keeps its page", func(t *testing.T) {
+		u := got.Unframed
+		if u.Between != "Machine" || u.Over != "Machine" {
+			t.Fatalf("between two frames the walk drew the pager on %q and the layer %q, expected the machine for both — "+
+				"the order this case is about did not happen", u.Between, u.Over)
+		}
+		if u.Kept != "machine" {
+			t.Errorf("the pager that left the screen kept the page %q, expected the machine it stood on", u.Kept)
+		}
+		if b := got.UnframedBack; !b.Pager || b.Title != "" || b.Page != "Machine" {
+			t.Errorf("back from that layer the screen reads %+v, expected the host tab on the machine", b)
 		}
 	})
 }

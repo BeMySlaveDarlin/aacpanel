@@ -244,8 +244,13 @@ function Deck({ names, at, onPick, page }) {
         mine.current = names[at];
     }, [at, names]);
 
+    // A scroll reaches the pager with the next frame, so a pager that scrolled
+    // and left the screen within one frame still gets its scroll. Out of the
+    // document every page stands at zero: the first would be taken for the one
+    // turned to, and the page kept would be lost.
     const onScroll = (event) => {
         const el = event.currentTarget;
+        if (!el.isConnected) return;
         let best = 0;
         let gap = Infinity;
         for (let i = 0; i < el.children.length; i++) {
