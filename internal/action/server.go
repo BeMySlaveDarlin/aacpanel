@@ -59,10 +59,11 @@ type SetupAsker interface {
 	Setup(ctx context.Context, target, part string) (*Setup, error)
 }
 
-// Opener is an executor that names the session a New brought up. Claude
-// comes up under the name of its project or the first free one after it; a
-// codex thread is named by its id, which nobody knows before the daemon makes
-// it, and the screen opens the session by this name.
+// Opener is an executor that names the session a New or a resume of codex
+// brought up. Claude comes up under the name of its project or the first free
+// one after it; a codex thread is named by its id, which nobody knows before
+// the daemon makes it or the archive is read, and the screen opens the session
+// by this name.
 type Opener interface {
 	Open(ctx context.Context, req Request) (detail, session string, err error)
 }
@@ -369,7 +370,7 @@ func (s *Server) handle(ctx context.Context, req Request) Response {
 	runCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	var detail, session string
 	var err error
-	if opener, ok := s.exec.(Opener); ok && req.Kind == SessionOpen {
+	if opener, ok := s.exec.(Opener); ok && (req.Kind == SessionOpen || req.Agent == ResumeCodex) {
 		detail, session, err = opener.Open(runCtx, req)
 	} else {
 		detail, err = s.exec.Execute(runCtx, req)

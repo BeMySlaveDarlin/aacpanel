@@ -43,6 +43,25 @@ export function shownName(s, fallback = "") {
     return (s && s.session) || fallback;
 }
 
+// An archived conversation says whose it is the way a live session does: an
+// archive row of a codex thread carries agent "codex", and isCodex, agentKey
+// and agentName read it as they read a session.
+
+// codexResume is what the resume of an archived thread of codex says beside
+// the id of the thread: that the thread is codex's, and the contour of its
+// home, in whose daemon the panel joins it; nothing for a conversation of
+// claude.
+export function codexResume(row) {
+    return isCodex(row) ? { agent: "codex", contour: row.profile || "" } : {};
+}
+
+// spoke says whether an archived conversation has anything in it: claude
+// counts its messages, and codex the tokens its thread spent — the archive of
+// codex reads no rollout and counts no messages.
+export function spoke(row) {
+    return isCodex(row) ? (row.tokensUsed || 0) > 0 : (row.messages || 0) > 0;
+}
+
 // noTurn says why a codex thread has no turn to stop, or nothing when it has
 // one: a turn runs while codex works or waits on what it asked.
 export function noTurn(s) {

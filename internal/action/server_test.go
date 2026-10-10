@@ -552,4 +552,18 @@ func TestNewAnswersWithTheSessionItBroughtUp(t *testing.T) {
 	if err != nil || resp.Session != "" || resp.Detail != "done" {
 		t.Errorf("another action answered %+v, %v", resp, err)
 	}
+	// A resume of codex brings up a session named by the thread: the answer
+	// names it, while a resume of claude comes up under its project's name.
+	codex := request("req-codex", SessionResume, "shop")
+	codex.Resume, codex.Agent, codex.Contour = "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1", ResumeCodex, "acme"
+	resp, err = client.Do(context.Background(), codex)
+	if err != nil || !resp.OK || resp.Session != "codex-0000beef" {
+		t.Errorf("a resume of codex answered %+v, %v", resp, err)
+	}
+	claude := request("req-claude", SessionResume, "shop")
+	claude.Resume = "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1"
+	resp, err = client.Do(context.Background(), claude)
+	if err != nil || resp.Session != "" || resp.Detail != "done" {
+		t.Errorf("a resume of claude answered %+v, %v", resp, err)
+	}
 }

@@ -193,6 +193,12 @@ func TestArchiveReplyKeepsEveryField(t *testing.T) {
 				"messages": 744, "compacts": 2, "stale": true,
 				"startedAt": "2026-08-23T12:37:00Z", "lastAt": "2026-08-23T22:31:00Z",
 				"lastRequestAt": "2026-08-23T22:30:00Z", "noRequests": true
+			}, {
+				"sessionId": "01a120b0-28ab-7600-8dfe-714b9a8a82d7", "agent": "codex",
+				"name": "admin", "nameGuessed": true, "cwd": "/srv/admin", "profile": "work",
+				"model": "gpt-6-astra", "effort": "xhigh", "pct": 0, "pctMax": 0, "tokens": 0, "tokensMax": 0,
+				"tokensUsed": 29361219, "messages": 0,
+				"startedAt": "2026-10-09T12:42:58.106Z", "lastAt": "2026-10-10T10:36:21.376Z"
 			}]
 		}
 	}`
@@ -206,6 +212,9 @@ func TestArchiveReplyKeepsEveryField(t *testing.T) {
 	}
 	if reply.Archive.Total != 481 {
 		t.Errorf("the page total is %d and not 481: the field collapsed into the feed total", reply.Archive.Total)
+	}
+	if rows := reply.Archive.Rows; len(rows) != 2 || rows[0].Agent != "" || rows[1].Agent != "codex" {
+		t.Errorf("the rows do not say whose conversation each is: %+v", rows)
 	}
 
 	var was, now any

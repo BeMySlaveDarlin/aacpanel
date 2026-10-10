@@ -83,8 +83,14 @@ type Request struct {
 	Guards []Guard `json:"guards,omitempty"`
 
 	// Contour names the contour whose codex daemon the question of the codex
-	// models asks; empty asks the first daemon that answers.
+	// models asks — empty asks the first daemon that answers — or a resume of
+	// a codex thread goes to.
 	Contour string `json:"contour,omitempty"`
+
+	// Agent is whose conversation session.resume goes on: ResumeCodex for a
+	// thread of the codex daemon of Contour, empty for a conversation of
+	// claude.
+	Agent string `json:"agent,omitempty"`
 }
 
 // Project is the project to open.

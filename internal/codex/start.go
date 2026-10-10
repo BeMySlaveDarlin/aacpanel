@@ -130,6 +130,45 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 	return id, nil
 }
 
+// Resume joins a thread the daemon has on the disk and holds it, as the panel
+// holds a thread it started: the daemon loads a thread a client resumes and
+// keeps it while the client stays, and nothing else holds a thread the panel
+// alone talks to. A thread the panel closed before is its session again. It
+// returns the directory the thread runs in. A subagent's thread is part of its
+// parent's turn and is not resumed: the panel leaves it at once.
+func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
+	c, err := l.client()
+	if err != nil {
+		return "", err
+	}
+	l.sub.Lock()
+	defer l.sub.Unlock()
+	var out struct {
+		Thread threadInfo `json:"thread"`
+		settingsWire
+	}
+	if err := within(ctx, c, "thread/resume", map[string]any{"threadId": threadID, "excludeTurns": true}, &out); err != nil {
+		return "", err
+	}
+	if out.Thread.ID != threadID {
+		return "", fmt.Errorf("the codex daemon of %s resumed thread %q in place of %s", l.home, out.Thread.ID, threadID)
+	}
+	if out.Thread.Parent != "" {
+		_ = within(ctx, c, "thread/unsubscribe", map[string]any{"threadId": threadID}, nil)
+		return "", fmt.Errorf("thread %s is a subagent's, part of the turn of thread %s: it is not resumed on its own",
+			threadID, out.Thread.Parent)
+	}
+	l.mu.Lock()
+	delete(l.closed, threadID)
+	l.mu.Unlock()
+	l.seen(out.Thread, time.Now())
+	settled := out.read()
+	l.set(threadID, func(t *thread) { t.subscribed, t.settings = true, settled })
+	l.hold(threadID)
+	l.save(threadID)
+	return out.Thread.CWD, nil
+}
+
 // Close lets a thread go: the turn it runs is interrupted, and the panel
 // stops holding it and leaves it. The daemon unloads the thread once no
 // client is left; its rollout stays, and codex resume brings it back. It

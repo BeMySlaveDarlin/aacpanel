@@ -89,6 +89,36 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 	return detail, name, nil
 }
 
+// codexResume goes on with a thread of codex from the archive: the panel joins
+// it in the daemon of its contour's home and holds it, as a thread it started,
+// and the thread is a live session of the panel from then on, named by the
+// tail of its id. No daemon is started for it: a resume brings back what a
+// person had, and a daemon that does not run is the person's to start —
+// codex resume in codex's terminal goes on with the thread there.
+func (e *Executor) codexResume(ctx context.Context, contour, threadID string) (string, string, error) {
+	link := e.codex.Contour(contour)
+	if link == nil {
+		return "", "", fmt.Errorf("contour %s has no codex home — %s names none after it — so the panel has no "+
+			"daemon to resume thread %s in", contour, registry.CodexHomesEnv, threadID)
+	}
+	if !link.Up() {
+		return "", "", fmt.Errorf("no codex daemon runs for %s, and the panel resumes a thread only through the "+
+			"daemon of its home: codex resume %s goes on with it in codex's terminal", link.Home(), threadID)
+	}
+	wctx, cancel := context.WithTimeout(ctx, linkWait)
+	defer cancel()
+	if err := link.Ready(wctx); err != nil {
+		return "", "", err
+	}
+	name := codex.SessionName(threadID)
+	cwd, err := link.Resume(ctx, threadID)
+	if err != nil {
+		return "", "", fmt.Errorf("thread %s was not resumed in the codex daemon of contour %s: %w", name, contour, err)
+	}
+	return fmt.Sprintf("session %s resumed in the codex daemon of contour %s, in %s: the panel holds the thread "+
+		"until it closes it", name, contour, cwd), name, nil
+}
+
 // runCodexTerminal starts codex in tmux on a thread, through the launcher in
 // a transient unit as claude is: a tmux server started from the executor
 // would live in its unit and go down with it.

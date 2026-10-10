@@ -18,11 +18,11 @@ func badRequest(format string, args ...any) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
-	if r.Contour != "" && r.Ask != AskCodexModels {
-		return badRequest("only the question of the codex models names a contour")
+	if r.Contour != "" && r.Ask != AskCodexModels && r.Agent != ResumeCodex {
+		return badRequest("only the question of the codex models and a resume of codex name a contour")
 	}
 	if r.Ask != "" {
-		if r.Kind != "" || r.Resume != "" || r.Secret != nil {
+		if r.Kind != "" || r.Resume != "" || r.Secret != nil || r.Agent != "" {
 			return badRequest("question %q performs no actions", r.Ask)
 		}
 		switch r.Ask {
@@ -400,6 +400,20 @@ func (r Request) Validate() error {
 	}
 	if r.Kind == SessionResume && r.Resume == "" {
 		return badRequest("resuming a session without a conversation id")
+	}
+	if r.Agent != "" {
+		if r.Kind != SessionResume {
+			return badRequest("action %s names no agent", r.Kind)
+		}
+		if r.Agent != ResumeCodex {
+			return badRequest("a resume goes on with a conversation of claude or a thread of %s, not of %q", ResumeCodex, r.Agent)
+		}
+		if r.Contour == "" || !safeID(r.Contour) {
+			return badRequest("a resume of a codex thread names the contour whose daemon keeps it, not %q", r.Contour)
+		}
+		if r.Project != nil {
+			return badRequest("a resume of a codex thread takes no project: the daemon of its home knows where it ran")
+		}
 	}
 	if r.Resume != "" {
 		if r.Kind != SessionResume && r.Kind != SessionRestart {

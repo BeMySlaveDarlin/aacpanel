@@ -102,6 +102,12 @@ func (e *Executor) Kinds() []action.Kind {
 
 // Execute runs one action request and reports what happened.
 func (e *Executor) Execute(ctx context.Context, req action.Request) (string, error) {
+	// A resume of codex names a thread by its id, and the session it brings
+	// up is not there yet to be found by the target.
+	if req.Kind == action.SessionResume && req.Agent == action.ResumeCodex {
+		detail, _, err := e.codexResume(ctx, req.Contour, req.Resume)
+		return detail, err
+	}
 	if sessionTarget(req.Kind) {
 		th, err := e.codexSession(req.Target)
 		if err != nil {

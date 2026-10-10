@@ -13,8 +13,9 @@ type Response struct {
 
 	Detail string `json:"detail,omitempty"`
 
-	// Session names the session a New brought up, where the executor knows
-	// it: a codex thread is named by its id, which nobody knows before.
+	// Session names the session a New or a resume of codex brought up, where
+	// the executor knows it: a codex thread is named by its id, which nobody
+	// knows before.
 	Session string `json:"session,omitempty"`
 
 	Kinds []Kind `json:"kinds,omitempty"`

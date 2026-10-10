@@ -20,8 +20,8 @@ import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contoursOf } from "../screens/sessions/map.js";
 import { kinLabel, kinOf, outsideNote } from "../screens/sessions/kin.js";
-import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex, shownName } from "../agent.js";
-import { aboutOf, stateOf, stopsOf } from "../screens/sessions/blocks.js";
+import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, codexResume, isCodex, shownName, spoke } from "../agent.js";
+import { aboutOf, pastModel, stateOf, stopsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
 import { effortName, modeLoud, modeName, usualMode } from "../screens/chat/picker.js";
@@ -482,7 +482,7 @@ export function shelfOf(rows, max = SHELF) {
     const seen = new Set();
     const out = [];
     for (const row of rows || []) {
-        if (!((row.messages || 0) > 0)) continue;
+        if (!spoke(row)) continue;
         const key = row.project && row.project.id ? `p${row.project.id}` : `d:${row.cwd || row.name}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -494,10 +494,12 @@ export function shelfOf(rows, max = SHELF) {
 
 // ClosedLine is a closed conversation on the shelf: its name, its contour when
 // the column shows more than one and when it was, over what it was about and
-// Resume; what it was about gives way, the time and Resume stay.
+// Resume; what it was about gives way, the time and Resume stay. A thread of
+// codex keeps no words in the archive, and says who ran it on which model.
 function ClosedLine({ row, contour, project, on, onPick, exec }) {
     const run = useAction();
-    const about = aboutOf(row, project);
+    const codex = isCodex(row);
+    const about = codex ? "" : aboutOf(row, project);
     const ready = knows(exec, "session.resume");
     const open = () => onPick({ name: row.name, id: row.sessionId, archived: true, row });
     return html`
@@ -510,9 +512,11 @@ function ClosedLine({ row, contour, project, on, onPick, exec }) {
                 <span class="dkclwhen">${when(stamp(row.lastAt))}</span>
             </span>
             <span class="dkclsub">
-                <span class="dkabout">${about
-                    ? `«${about}»`
-                    : `${row.messages} ${plural(row.messages, "message", "messages")}`}</span>
+                <span class="dkabout">${codex
+                    ? html`<span class="agentword" data-agent=${agentKey(row)}>${agentName(row)}</span>${pastModel(row)}`
+                    : about
+                        ? `«${about}»`
+                        : `${row.messages} ${plural(row.messages, "message", "messages")}`}</span>
                 ${row.sessionId && html`
                     <button class=${`dkresume${ready ? "" : " off"}`} type="button"
                             aria-label=${`resume conversation of ${row.name}`}
@@ -521,7 +525,7 @@ function ClosedLine({ row, contour, project, on, onPick, exec }) {
                             onClick=${async (e) => {
                                 e.stopPropagation();
                                 if (!ready) return;
-                                await run("session.resume", row.name, { session: row.sessionId });
+                                await run("session.resume", row.name, { session: row.sessionId, ...codexResume(row) });
                             }}>Resume</button>
                 `}
             </span>

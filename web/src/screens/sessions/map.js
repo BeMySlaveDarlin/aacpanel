@@ -16,6 +16,7 @@ import { inOrder, sessionsOf } from "./of.js";
 export { sessionsOf };
 import { GhostLine, LiveLines, PastLine, SessionSheet } from "./blocks.js";
 import { useSessionsArchive } from "../../history.js";
+import { spoke } from "../../agent.js";
 import { ProjectDoor } from "../profiles/door.js";
 
 // contoursOf returns which profile each session lives in.
@@ -181,7 +182,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
     const past = useSessionsArchive({ limit: shown, project: project.id, contour: project.contour, profile: project.profile });
     const archive = past.kind === "ready" ? past.archive : null;
     const live = new Set(own.map((s) => s.sessionId).filter(Boolean));
-    const earlier = ((archive && archive.rows) || []).filter((row) => (row.messages || 0) > 0 && !live.has(row.sessionId));
+    const earlier = ((archive && archive.rows) || []).filter((row) => spoke(row) && !live.has(row.sessionId));
     const acted = acting ? own.find((s) => s.session === acting) || null : null;
     if (settings) return html`<${ProjectDoor} id=${project.id} sessions=${sessions} onClose=${() => setSettings(false)} />`;
     return html`

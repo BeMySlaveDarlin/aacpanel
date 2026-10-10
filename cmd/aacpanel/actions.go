@@ -69,12 +69,22 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	}
 
 	var cwd string
-	if req.Kind == action.SessionResume {
-		// The conversation a resume goes on is claude's, whatever the project
-		// starts now: an agent named for it is refused before the archive is
-		// asked, rather than dropped without a word.
+	// A thread of codex is resumed in the daemon of its home, which knows where
+	// it ran: the archive row names the thread and the contour of its home, and
+	// no project is looked for — the thread is the daemon's, not a launch of
+	// the map's.
+	codexResume := req.Kind == action.SessionResume && body.Params["agent"] == action.ResumeCodex
+	if codexResume {
+		req.Agent = action.ResumeCodex
+		req.Resume, _ = body.Params["session"].(string)
+		req.Contour, _ = body.Params["contour"].(string)
+	} else if req.Kind == action.SessionResume {
+		// Any other conversation a resume goes on is claude's, whatever the
+		// project starts now: an agent named for it is refused before the
+		// archive is asked, rather than dropped without a word.
 		if _, named := body.Params["agent"]; named {
-			http.Error(w, "a resume takes no agent: the conversation it goes on is claude's", http.StatusBadRequest)
+			http.Error(w, "a resume goes on with a conversation of claude, or with a thread of codex as agent "+
+				action.ResumeCodex+": no other agent", http.StatusBadRequest)
 			return
 		}
 		sessionID, dir, err := s.resumeTarget(r, body.Target, body.Params)
@@ -87,6 +97,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	}
 
 	params := body.Params
+	if codexResume {
+		params = map[string]any{"agent": req.Agent, "contour": req.Contour, "session": req.Resume}
+	}
 	if req.Kind == action.SessionAnswer {
 		answer, err := answerFromParams(body.Params)
 		if err != nil {
@@ -254,7 +267,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 	// the agent is a key of the launch, so the rest of the launch stays the
 	// map's and each agent reads only its own keys from it.
 	var contour string
-	if req.Kind == action.SessionOpen || req.Kind == action.SessionResume {
+	if codexResume {
+		contour = req.Contour
+	} else if req.Kind == action.SessionOpen || req.Kind == action.SessionResume {
 		agent, err := agentFromParams(body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

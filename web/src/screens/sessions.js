@@ -9,6 +9,7 @@ import { plural } from "../format.js";
 import { Icon } from "../ui/icons.js";
 import { ContourDoor } from "./profiles/door.js";
 import { useSessionsArchive } from "../history.js";
+import { spoke } from "../agent.js";
 import { Chat } from "./chat.js";
 import { blocksOf, ProjectBlock, RANK, SessionSheet } from "./sessions/blocks.js";
 import { ProfileLimits } from "./sessions/limits.js";
@@ -259,11 +260,12 @@ function PastButton({ onOpen }) {
 }
 
 // spoken drops the conversations that never said a word. A transcript can hold
-// nothing but a snapshot of file history or a summary, and a card for one names
-// a talk that never happened. The archive counts and pages every conversation
-// it has; which of them are worth a card is the screen's question.
+// nothing but a snapshot of file history or a summary, and a codex thread may
+// never have run a turn, and a card for one names a talk that never happened.
+// The archive counts and pages every conversation it has; which of them are
+// worth a card is the screen's question.
 export function spoken(rows) {
-    return (rows || []).filter((row) => (row.messages || 0) > 0);
+    return (rows || []).filter(spoke);
 }
 
 const NOTES_SHOWN = 3;

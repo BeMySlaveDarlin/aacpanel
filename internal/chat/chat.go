@@ -134,31 +134,36 @@ type Permitted struct {
 	Lasting  bool   `json:"lasting,omitempty"`
 }
 
-// ArchiveRow is one archived session.
+// ArchiveRow is one archived session: a conversation of claude, or a thread of
+// codex — Agent says which, empty for claude.
 type ArchiveRow struct {
-	SessionID     string          `json:"sessionId"`
-	Name          string          `json:"name"`
-	NameGuessed   bool            `json:"nameGuessed,omitempty"`
-	CWD           string          `json:"cwd,omitempty"`
-	Slug          string          `json:"slug,omitempty"`
-	Profile       string          `json:"profile,omitempty"`
-	Project       *ArchiveProject `json:"project,omitempty"`
-	Home          bool            `json:"home,omitempty"`
-	Model         string          `json:"model,omitempty"`
-	Effort        string          `json:"effort,omitempty"`
-	Pct           float64         `json:"pct"`
-	PctMax        float64         `json:"pctMax"`
-	Tokens        int64           `json:"tokens"`
-	TokensMax     int64           `json:"tokensMax"`
-	Limit         int64           `json:"limit,omitempty"`
-	LimitKnown    bool            `json:"limitKnown,omitempty"`
-	Messages      int             `json:"messages"`
-	Compacts      int             `json:"compacts,omitempty"`
-	Stale         bool            `json:"stale,omitempty"`
-	StartedAt     string          `json:"startedAt,omitempty"`
-	LastAt        string          `json:"lastAt,omitempty"`
-	LastRequestAt string          `json:"lastRequestAt,omitempty"`
-	NoRequests    bool            `json:"noRequests,omitempty"`
+	SessionID   string          `json:"sessionId"`
+	Agent       string          `json:"agent,omitempty"`
+	Name        string          `json:"name"`
+	NameGuessed bool            `json:"nameGuessed,omitempty"`
+	CWD         string          `json:"cwd,omitempty"`
+	Slug        string          `json:"slug,omitempty"`
+	Profile     string          `json:"profile,omitempty"`
+	Project     *ArchiveProject `json:"project,omitempty"`
+	Home        bool            `json:"home,omitempty"`
+	Model       string          `json:"model,omitempty"`
+	Effort      string          `json:"effort,omitempty"`
+	Pct         float64         `json:"pct"`
+	PctMax      float64         `json:"pctMax"`
+	Tokens      int64           `json:"tokens"`
+	TokensMax   int64           `json:"tokensMax"`
+	// TokensUsed is what a thread of codex spent over its life, as codex
+	// counts it; a thread's archive knows no fill of its context.
+	TokensUsed    int64  `json:"tokensUsed,omitempty"`
+	Limit         int64  `json:"limit,omitempty"`
+	LimitKnown    bool   `json:"limitKnown,omitempty"`
+	Messages      int    `json:"messages"`
+	Compacts      int    `json:"compacts,omitempty"`
+	Stale         bool   `json:"stale,omitempty"`
+	StartedAt     string `json:"startedAt,omitempty"`
+	LastAt        string `json:"lastAt,omitempty"`
+	LastRequestAt string `json:"lastRequestAt,omitempty"`
+	NoRequests    bool   `json:"noRequests,omitempty"`
 	// Prompts are the person's last messages, oldest first: the screen names
 	// the conversation by the last one that says something.
 	Prompts []string `json:"prompts,omitempty"`

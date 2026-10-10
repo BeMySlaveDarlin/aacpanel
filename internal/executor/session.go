@@ -33,10 +33,14 @@ type project struct {
 	FromMap   bool
 }
 
-// Open starts a session of a project, as New does, and names the session it
-// brought up: claude comes up under the name of its project or the first free
-// one after it, and a codex thread under the tail of its id.
+// Open starts a session of a project, as New does, or goes on with a thread
+// of codex from the archive, and names the session it brought up: claude comes
+// up under the name of its project or the first free one after it, and a codex
+// thread under the tail of its id.
 func (e *Executor) Open(ctx context.Context, req action.Request) (string, string, error) {
+	if req.Kind == action.SessionResume && req.Agent == action.ResumeCodex {
+		return e.codexResume(ctx, req.Contour, req.Resume)
+	}
 	return e.sessionOpen(ctx, req.Target, req.Project)
 }
 

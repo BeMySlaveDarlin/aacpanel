@@ -130,6 +130,83 @@ func TestNewOfACodexProjectStartsAThreadInTheDaemonOfItsContour(t *testing.T) {
 	}
 }
 
+// A thread of the archive is resumed in the daemon of its contour and held: it
+// is a live session of the panel from then on, under the tail of its id, and
+// closes like a thread the panel started.
+func TestAThreadOfTheArchiveIsResumedInTheDaemonOfItsContour(t *testing.T) {
+	srv, e, _ := onCodexContour(t)
+	const past = "019a2000-0000-7000-8000-00000000a1b2"
+	srv.Add(codextest.Thread{ID: past, CWD: "/srv/acme/shop", Path: "/srv/codex/sessions/rollout-" + past + ".jsonl",
+		Model: "gpt-test", Created: 1791554348, Status: "notLoaded"})
+
+	resume := action.Request{Kind: action.SessionResume, Target: "shop", Resume: past, Agent: action.ResumeCodex,
+		Contour: "acme"}
+	detail, name, err := e.Open(context.Background(), resume)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "codex-0000a1b2" ||
+		!strings.Contains(detail, "session codex-0000a1b2 resumed in the codex daemon of contour acme") {
+		t.Errorf("the resume answered %q naming %q", detail, name)
+	}
+	if resumes := srv.Calls("thread/resume"); len(resumes) == 0 || paramsOf(t, resumes[0])["threadId"] != past {
+		t.Fatalf("thread/resume went as %s", resumes)
+	}
+	if !srv.Subscribed(past) || !heldMark(t, past) {
+		t.Error("the panel does not hold the thread it resumed")
+	}
+	if found := e.codex.Find(name); len(found) != 1 || found[0].ID != past {
+		t.Fatalf("the resumed session is not found by its name: %+v", found)
+	}
+	if n := len(srv.Calls("thread/start")) + len(srv.Calls("turn/start")); n != 0 {
+		t.Errorf("a resume started %d threads and turns", n)
+	}
+	if _, err := e.Execute(context.Background(), action.Request{Kind: action.SessionClose, Target: name}); err != nil {
+		t.Fatal(err)
+	}
+	if srv.Subscribed(past) || heldMark(t, past) {
+		t.Error("the resumed thread was not let go at its close")
+	}
+}
+
+// A contour whose home has no daemon running is refused with the way to go on
+// with the thread, and the panel starts no daemon for a resume; a contour
+// without a codex home is refused as well.
+func TestAResumeInAHomeWithoutADaemonIsRefused(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	home := filepath.Join(t.TempDir(), ".codex")
+	if err := os.Mkdir(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(registry.CodexHomesEnv, home)
+	_, started := fakeCodex(t, false)
+	ctx, cancel := context.WithCancel(context.Background())
+	e := New(nil, "")
+	e.codex = codex.Start(ctx, registry.CodexHomes(), nil)
+	t.Cleanup(func() {
+		cancel()
+		e.codex.Wait()
+	})
+
+	const past = "019a2000-0000-7000-8000-00000000a1b2"
+	resume := action.Request{Kind: action.SessionResume, Target: "shop", Resume: past, Agent: action.ResumeCodex,
+		Contour: "personal"}
+	_, name, err := e.Open(context.Background(), resume)
+	if err == nil || !strings.Contains(err.Error(), "no codex daemon runs for "+home) ||
+		!strings.Contains(err.Error(), "codex resume "+past) || name != "" {
+		t.Errorf("a resume in a home without a daemon answered %v, naming %q", err, name)
+	}
+	if _, err := os.Stat(started); !os.IsNotExist(err) {
+		t.Errorf("a resume started codex: %v", err)
+	}
+	resume.Contour = "algo"
+	if _, err := e.Execute(context.Background(), resume); err == nil ||
+		!strings.Contains(err.Error(), "contour algo has no codex home") {
+		t.Errorf("a resume in a contour without a codex home answered %v", err)
+	}
+}
+
 // A contour that has no codex home is refused with the reason, and no daemon
 // hears of it.
 func TestNewOfACodexProjectOfAContourWithoutAHomeIsRefused(t *testing.T) {

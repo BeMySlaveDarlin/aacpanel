@@ -1,4 +1,4 @@
-"""Archive of claude sessions: the list of conversations straight from the transcripts."""
+"""Archive of sessions: claude's conversations straight from the transcripts, codex's threads beside them."""
 
 import datetime
 import glob
@@ -7,6 +7,7 @@ import os
 import re
 import threading
 
+import codex_archive
 import contours
 import models
 import paths
@@ -254,6 +255,10 @@ class Index:
         directory of the project itself is taken by its name, and one below it,
         whose name another directory beside the project could share, by what
         the transcript says.
+
+        The threads of codex stand among the conversations of claude, by the
+        time of their last change: a contour's codex home is the one named after
+        it.
         """
         limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
         offset = max(0, int(offset or 0))
@@ -264,7 +269,12 @@ class Index:
         under = (under or "").rstrip("/")
         own = slug_of(under) if under else ""
 
+        # A conversation is the time it last spoke, the time its file was
+        # touched, its file, and the thread of codex it is, None for claude's.
         files = []
+        for thread in codex_archive.threads({_named(p) for p in wanted}, under, skip):
+            at = thread["updatedMs"] / 1000
+            files.append((at, at, thread["rollout"], 0, thread["contour"], thread))
         for contour, root in picked:
             for path in glob.glob(os.path.join(root, "*", "*.jsonl")):
                 name = os.path.basename(path)
@@ -282,12 +292,15 @@ class Index:
                 if own and not self.ran_under(path, st.st_size, st.st_mtime, contour, under, own):
                     continue
                 files.append((self.when(sid, path, st.st_size, st.st_mtime),
-                              st.st_mtime, st.st_size, path, contour))
-        files.sort(key=lambda f: (f[0], f[1], f[3]), reverse=True)
+                              st.st_mtime, path, st.st_size, contour, None))
+        files.sort(key=lambda f: (f[0], f[1], f[2]), reverse=True)
 
         rows = []
-        for _, mtime, size, path, contour in files[offset:]:
-            rows.append(present(self.entry(path, size, mtime, contour), self.names))
+        for _, mtime, path, size, contour, thread in files[offset:]:
+            if thread:
+                rows.append(codex_archive.present(thread))
+            else:
+                rows.append(present(self.entry(path, size, mtime, contour), self.names))
             if len(rows) >= limit:
                 break
         self.save()

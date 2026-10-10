@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -293,4 +294,58 @@ func TestAThreadClosedWhileAPollReadsItStaysGone(t *testing.T) {
 		t.Fatal("the link's lock stayed held")
 	}
 	l.mu.Unlock()
+}
+
+// A thread of the archive is resumed in its daemon and held from then on: the
+// daemon loads it for the panel, which stays its client while it idles, the
+// way it holds a thread it started, and the thread is on the map as a live
+// session under the tail of its id.
+func TestAThreadOfTheArchiveIsResumedAndHeld(t *testing.T) {
+	past := idle(threadA)
+	past.Status = "notLoaded"
+	srv, l := linked(t, past)
+	ready(t, l)
+
+	cwd, err := l.Resume(context.Background(), threadA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cwd != "/srv/proj" {
+		t.Errorf("the resumed thread runs in %q", cwd)
+	}
+	resumes := srv.Calls("thread/resume")
+	if len(resumes) == 0 || params(t, resumes[0])["threadId"] != threadA {
+		t.Fatalf("thread/resume went as %s", resumes)
+	}
+	if _, err := os.Stat(heldPath("acme", threadA)); err != nil {
+		t.Errorf("the resumed thread is not marked as held: %v", err)
+	}
+	if st, raw, ok := stateOf(t, threadA); !ok || st.Name != "codex-0000abcd" || st.CWD != "/srv/proj" {
+		t.Errorf("the resumed thread is on the map as %s", raw)
+	}
+	polls()
+	if !srv.Subscribed(threadA) {
+		t.Error("the panel left the idle thread it resumed, and the daemon unloads a thread nobody holds")
+	}
+	if _, _, ok := stateOf(t, threadA); !ok {
+		t.Error("the resumed thread fell off the map")
+	}
+}
+
+// A subagent's thread is part of its parent's turn: a resume of it is refused,
+// and the panel does not stay its client.
+func TestASubagentsThreadIsNotResumed(t *testing.T) {
+	sub := idle(threadB)
+	sub.Parent, sub.Status = threadA, "notLoaded"
+	srv, l := linked(t, idle(threadA), sub)
+	ready(t, l)
+	if _, err := l.Resume(context.Background(), threadB); err == nil || !strings.Contains(err.Error(), "subagent") {
+		t.Errorf("a resume of a subagent's thread answered %v", err)
+	}
+	if srv.Subscribed(threadB) {
+		t.Error("the panel stayed a client of the subagent's thread")
+	}
+	if _, err := os.Stat(heldPath("acme", threadB)); !os.IsNotExist(err) {
+		t.Errorf("the subagent's thread is marked as held: %v", err)
+	}
 }

@@ -218,9 +218,9 @@ func TestNewStartsTheAgentPickedOnItsSheetPG(t *testing.T) {
 
 // An agent New cannot start is refused before the executor is asked: a word
 // that is no agent, codex for a session the map does not hold — its daemon is
-// the one of a project's contour — and any agent named for a resume, which
-// goes on a conversation of claude's. Claude for a session off the map goes
-// on, as a New without a pick does.
+// the one of a project's contour — and any agent but codex named for a resume,
+// which goes on a conversation of claude's otherwise. Claude for a session off
+// the map goes on, as a New without a pick does.
 func TestNewRefusesAnAgentItCannotStart(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "session lab started"})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
@@ -233,7 +233,11 @@ func TestNewRefusesAnAgentItCannotStart(t *testing.T) {
 		"codex off the map": {`{"kind":"session.open","target":"lab","params":{"agent":"codex"}}`,
 			"codex starts only in a project of the map"},
 		"a resume with an agent": {`{"kind":"session.resume","target":"lab","params":{"agent":"claude"}}`,
-			"a resume takes no agent"},
+			"no other agent"},
+		"a resume of codex without its contour": {`{"kind":"session.resume","target":"lab","params":{"agent":"codex",` +
+			`"session":"019a2000-0000-7000-8000-00000000a1b2"}}`, "names the contour whose daemon keeps it"},
+		"a resume of codex without its thread": {`{"kind":"session.resume","target":"lab","params":{"agent":"codex",` +
+			`"contour":"acme"}}`, "without a conversation id"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := post(t, srv, c.body)
@@ -259,5 +263,37 @@ func TestNewRefusesAnAgentItCannotStart(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("claude off the map did not reach the executor")
+	}
+}
+
+// A resume of codex goes to the executor as the thread and the contour of its
+// home, with no project and no archive of claude asked: the daemon of the home
+// knows where the thread ran. The answer names the session it brought up and
+// the contour it spends.
+func TestAResumeOfCodexGoesToTheDaemonOfItsContour(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "session codex-0000a1b2 resumed",
+		Session: "codex-0000a1b2"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+
+	w := post(t, srv, `{"kind":"session.resume","target":"shop","params":{"agent":"codex","contour":"acme",`+
+		`"session":"019a2000-0000-7000-8000-00000000a1b2"}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.Kind != action.SessionResume || got.Agent != action.ResumeCodex || got.Contour != "acme" ||
+			got.Resume != "019a2000-0000-7000-8000-00000000a1b2" || got.Project != nil {
+			t.Errorf("the resume reached the executor as %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+	var out map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out["session"] != "codex-0000a1b2" || out["contour"] != "acme" {
+		t.Errorf("the answer is %v: it does not name the session and the contour", out)
 	}
 }

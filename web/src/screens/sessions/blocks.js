@@ -6,7 +6,7 @@
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { ago, plural, since } from "../../format.js";
+import { ago, plural, since, tokens } from "../../format.js";
 import { Icon } from "../../ui/icons.js";
 import { Sheet } from "../../ui/sheet.js";
 import { ContextBar } from "../../ui/bar.js";
@@ -18,7 +18,7 @@ import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
 import { inOrder, sessionsOf } from "./of.js";
 import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
-import { CODEX_CLOSE, agentKey, agentName, isCodex, noTurn, shownName } from "../../agent.js";
+import { CODEX_CLOSE, agentKey, agentName, codexResume, isCodex, noTurn, shownName, spoke } from "../../agent.js";
 import { modelTitle } from "../chat/head.js";
 import { stamp, when } from "./card.js";
 
@@ -296,27 +296,42 @@ export function GhostLine({ task }) {
 // the way back into it.
 export function PastLine({ row, project, exec, onOpen, named = false }) {
     const run = useAction();
-    const about = aboutOf(row, project);
+    const codex = isCodex(row);
+    const about = codex ? "" : aboutOf(row, project);
     const ready = knows(exec, "session.resume");
     const ran = spanOf(stamp(row.startedAt), stamp(row.lastAt));
+    // A thread of codex keeps no words in the archive: its line says who ran
+    // it on which model, and what it spent, where a conversation of claude
+    // says what it was about and how full it got.
     return html`
         <div class="pjrow pjpast">
             <button class="pjopen" type="button" aria-label=${`open conversation ${row.name}`}
                     onClick=${() => onOpen && onOpen(row.name, row.sessionId)}>
                 ${named && html`<span class="pjsess">${row.name}</span>`}
-                <span class=${`pjabout${about ? "" : " pjnone"}`}>${about
-                    ? `«${about}»`
-                    : row.messages > 0 ? `${row.messages} ${plural(row.messages, "message", "messages")}` : "not a word said"}</span>
-                <span class="pjwhen">${when(stamp(row.lastAt))}${ran ? ` · ${ran}` : ""} · peak ${Math.round(row.pctMax || 0)}%</span>
+                ${codex
+                    ? html`<span class="pjabout"><span class="agentword" data-agent=${agentKey(row)}>${agentName(row)}</span>${pastModel(row)}</span>`
+                    : html`<span class=${`pjabout${about ? "" : " pjnone"}`}>${about
+                        ? `«${about}»`
+                        : row.messages > 0 ? `${row.messages} ${plural(row.messages, "message", "messages")}` : "not a word said"}</span>`}
+                <span class="pjwhen">${when(stamp(row.lastAt))}${ran ? ` · ${ran}` : ""} · ${codex
+                    ? (spoke(row) ? `${tokens(row.tokensUsed)} tokens` : "not a word said")
+                    : `peak ${Math.round(row.pctMax || 0)}%`}</span>
             </button>
             ${row.sessionId && html`
                 <button class="pjresume" type="button" disabled=${!ready}
                         aria-label=${`resume conversation of ${row.name}`}
                         title=${ready ? "" : whyNot(exec, "session.resume")}
-                        onClick=${() => run("session.resume", row.name, { session: row.sessionId })}>Resume</button>
+                        onClick=${() => run("session.resume", row.name, { session: row.sessionId, ...codexResume(row) })}>Resume</button>
             `}
         </div>
     `;
+}
+
+// pastModel is the model and the effort an archived thread ran at, after the
+// word of its agent.
+export function pastModel(row) {
+    return [row.model ? modelTitle(row.model, { withWindow: false }) : "", row.effort || ""]
+        .filter(Boolean).map((part) => ` · ${part}`).join("");
 }
 
 function spanOf(from, to) {

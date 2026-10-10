@@ -644,6 +644,25 @@ func TestArchiveRowOfAWorktreeCarriesItsProject(t *testing.T) {
 	}
 }
 
+// A thread of codex has no directory claude keeps a transcript under: it goes
+// into the project its directory is in, and stays off the map otherwise.
+func TestArchiveThreadOfCodexGoesIntoItsProject(t *testing.T) {
+	rows := []chat.ArchiveRow{
+		{SessionID: "a", Agent: "codex", CWD: "/srv/proj/Beta/service/aacpanel/web"},
+		{SessionID: "b", Agent: "codex", CWD: "/srv/proj/elsewhere"},
+	}
+	placeRows(rows, tree(), nil, []string{"/srv/proj"})
+	if rows[0].Project == nil || rows[0].Project.ID != 100 {
+		t.Errorf("the thread that ran in a project went to %+v, expected project 100", rows[0].Project)
+	}
+	if rows[1].Project != nil {
+		t.Errorf("a thread no project holds was put into %+v", rows[1].Project)
+	}
+	if rows[0].Agent != "codex" {
+		t.Errorf("the placed row forgot it is a thread of codex: %+v", rows[0])
+	}
+}
+
 func TestArchiveSlugMatchesHowClaudeNamesDirs(t *testing.T) {
 	cases := map[string]string{
 		"/home/u":                         "-home-u",

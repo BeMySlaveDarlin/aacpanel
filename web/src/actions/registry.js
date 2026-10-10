@@ -673,7 +673,10 @@ export const ACTIONS = {
     "session.resume": {
         watch: "open",
         title: (target) => `Resume ${target}?`,
-        effect: "A terminal window comes up with the previous conversation: the context returns in full and takes its share of the limit right away.",
+        effect: (params) => (params && params.agent === "codex"
+            ? "The panel joins the thread in the codex daemon of its contour and holds it: it is a live session again, "
+                + "and nothing runs until it is written to."
+            : "A terminal window comes up with the previous conversation: the context returns in full and takes its share of the limit right away."),
         done: (target) => `Conversation ${target} resumed`,
         ok: "Resume",
     },
