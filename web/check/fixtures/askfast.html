@@ -5,19 +5,21 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
-// A question of several choices asked by a session on the stream, answered by
-// inputs that come faster than the card is drawn: two options tapped in one
-// go, then a third option, a note and Send in another. Every input has to
-// reach the answer, not only the last before a drawing.
+// Question cards answered by inputs that come faster than the card is drawn.
+// A question of several choices asked by a session on the stream: two options
+// tapped in one go, then a third option, a note and Send in another. The same
+// card with Send tapped twice in one go. And a form an MCP server asks through
+// codex: two picks of one field, a switch flipped twice, words and Send twice,
+// all in one go. Every input has to reach the answer, and one card sends one.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Ask } from "/src/screens/ask.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
-const ask = {
+const checks = (id) => ({
     sessionId: "s1",
-    toolUseId: "toolu_ask_fast",
+    toolUseId: id,
     cwd: "/srv/proj",
     questions: [{
         text: "Which checks run before a release?",
@@ -29,9 +31,21 @@ const ask = {
             { label: "Vulnerabilities", description: "of the code that is called" },
         ],
     }],
+});
+const form = {
+    sessionId: "s1",
+    toolUseId: "elicit-fast",
+    server: "linear",
+    message: "Label the flaky test?",
+    questions: [
+        { id: "labels", header: "labels", text: "Labels", multi: true,
+          options: ["flaky", "ci", "checkout"].map((label) => ({ label })) },
+        { id: "why", header: "why", text: "Why", multi: false, options: [], other: true },
+        { id: "assign", header: "assign", text: "Assign to me", multi: false, options: [{ label: "Yes" }, { label: "No" }] },
+    ],
 };
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-const sent = [];
+let sent = [];
 window.fetch = async (url, init) => {
     if (String(url) === "/api/actions") {
         sent.push(JSON.parse((init && init.body) || "{}"));
@@ -42,8 +56,14 @@ window.fetch = async (url, init) => {
 
 const exec = { available: true, kinds: ["session.answer", "session.dismiss"] };
 const root = document.getElementById("root");
-render(h(ToastHost, null, h(GateHost, null,
-    html`<${Ask} ask=${ask} name="acme" exec=${exec} stream onAnswered=${() => {}} />`)), root);
+let answered = 0;
+const mount = (props) => {
+    render(null, root);
+    sent = [];
+    answered = 0;
+    render(h(ToastHost, null, h(GateHost, null,
+        html`<${Ask} name="acme" exec=${exec} onAnswered=${() => { answered += 1; }} ...${props} />`)), root);
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (ok) => {
@@ -55,28 +75,63 @@ const until = async (ok) => {
 const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
 const options = () => [...root.querySelectorAll(".askopts .askopt:not(.askown)")];
 const on = () => options().map((el, k) => (el.classList.contains("on") ? k + 1 : 0)).filter(Boolean);
+const send = () => root.querySelector(".askfoot .btn.primary");
+const type = (el, value) => {
+    const proto = el.tagName === "INPUT" ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+};
+// done waits for the card to be answered and for the frames after it: a
+// second answer would have left with the first.
+const done = async () => {
+    if (!await until(() => answered > 0)) throw new Error("the card was not answered");
+    await settled();
+    await settled();
+    return { sent, answered };
+};
 
 window.done = (async () => {
     await document.fonts.ready;
+    const result = {};
+
+    mount({ ask: checks("toolu_ask_fast"), stream: true });
     if (!await until(() => options().length === 3)) throw new Error("the question did not show");
     await settled();
-
     // Two taps in one go: nothing is drawn between them.
     options()[0].querySelector(".askpick").click();
     options()[2].querySelector(".askpick").click();
     await settled();
-    const result = { first: on() };
-
+    result.first = on();
     const field = root.querySelector(".asknote");
-    const go = root.querySelector(".askfoot .btn.primary");
-    if (!field || !go) throw new Error("no note and no Send after a pick");
+    if (!field || !send()) throw new Error("no note and no Send after a pick");
     // A third tap, a note and Send in one go.
     options()[1].querySelector(".askpick").click();
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(field, "and the shell scripts");
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-    go.click();
-    await until(() => sent.length > 0);
-    result.sent = sent;
+    type(field, "and the shell scripts");
+    send().click();
+    result.round = await done();
+
+    mount({ ask: checks("toolu_ask_twice"), stream: true });
+    if (!await until(() => options().length === 3)) throw new Error("the second question did not show");
+    await settled();
+    options()[0].querySelector(".askpick").click();
+    await settled();
+    send().click();
+    send().click();
+    result.twice = await done();
+
+    mount({ ask: form, codex: true });
+    if (!await until(() => root.querySelector(".askswitch"))) throw new Error("the form did not show");
+    await settled();
+    // Two picks of one field, the switch flipped twice, words and Send twice,
+    // all in one go.
+    options()[0].querySelector(".askpick").click();
+    options()[2].querySelector(".askpick").click();
+    root.querySelector(".askswitch").click();
+    root.querySelector(".askswitch").click();
+    type(root.querySelector(".askfield input.askinput"), "it fails one run in ten");
+    send().click();
+    send().click();
+    result.form = await done();
     return result;
 })();
 </script>

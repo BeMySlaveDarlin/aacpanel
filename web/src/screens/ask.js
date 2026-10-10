@@ -30,6 +30,46 @@ function askLabel(q, name, codex) {
     return q.header || `${name} asks`;
 }
 
+// useAnswer keeps an answer as the inputs leave it. Two inputs can come before
+// the card is drawn again — two options of a multiple choice, a pick and a tap
+// on Send — and the second has to build on what the first left: built on the
+// values of the last drawing, it puts back what was there before the first
+// and drops it. The state draws the card; an input reads and changes latest,
+// and the answer goes out of it.
+function useAnswer(blank) {
+    const [given, setGiven] = useState(blank);
+    const latest = useRef(given);
+    const change = (fn) => {
+        latest.current = { ...latest.current, ...fn(latest.current) };
+        setGiven(latest.current);
+    };
+    const reset = (fresh) => {
+        latest.current = fresh;
+        setGiven(fresh);
+    };
+    return { given, latest, change, reset };
+}
+
+// useSending says whether an answer or a dismissal is on its way. A second tap
+// on Send can come before the card is drawn again, and the state of the last
+// drawing still says nothing is going: what the tap asks is kept beside it, so
+// one card sends one answer.
+function useSending() {
+    const [sending, setSending] = useState(false);
+    const going = useRef(false);
+    const begin = () => {
+        if (going.current) return false;
+        going.current = true;
+        setSending(true);
+        return true;
+    };
+    const end = () => {
+        going.current = false;
+        setSending(false);
+    };
+    return { sending, begin, end };
+}
+
 // blankAnswer is a round answered in nothing: no picks, no words, no notes and
 // no field of one's own words open.
 function blankAnswer(questions) {
@@ -51,7 +91,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const run = useAction();
     const [step, setStep] = useState(0);
     const [review, setReview] = useState(false);
-    const [sending, setSending] = useState(false);
+    const { sending, begin, end } = useSending();
     const [open, setOpen] = useState(true);
     const [preview, setPreview] = useState(null);
     const [fail, setFail] = useState("");
@@ -59,27 +99,16 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const id = ask && ask.toolUseId;
     const questions = (ask && ask.questions) || [];
 
-    // The answer as the inputs leave it: the picks, the words, the notes and
-    // the question whose own words are open. Two inputs can come before the
-    // card is drawn again — two options of a multiple choice, a pick and a tap
-    // on Send — and the second has to build on what the first left: built on
-    // the values of the last drawing, it puts back what was there before the
-    // first and drops it. The state draws the card; an input reads and
-    // changes latest, and the answer goes out of it.
-    const [given, setGiven] = useState(() => blankAnswer(questions));
-    const latest = useRef(given);
-    const change = (fn) => {
-        latest.current = { ...latest.current, ...fn(latest.current) };
-        setGiven(latest.current);
-    };
+    // The picks, the words, the notes and the question whose own words are
+    // open, as the inputs leave them.
+    const { given, latest, change, reset } = useAnswer(() => blankAnswer(questions));
     const { picks, texts, notes, writing } = given;
 
     useEffect(() => {
-        latest.current = blankAnswer(questions);
-        setGiven(latest.current);
+        reset(blankAnswer(questions));
         setStep(0);
         setReview(false);
-        setSending(false);
+        end();
         setOpen(true);
         setPreview(null);
         setFail("");
@@ -131,8 +160,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const answered = (n) => chosen(n).length > 0 || own(n).trim() !== "";
 
     const send = async (all, words) => {
-        if (sending) return;
-        setSending(true);
+        if (!begin()) return;
         setFail("");
         setOpen(false);
         const params = { ask: id, picks: all };
@@ -140,7 +168,7 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
         const noted = all.map((list, n) => (proto && list.length ? (latest.current.notes[n] || "").trim() : ""));
         if (noted.some((note) => note !== "")) params.notes = noted;
         const result = await run("session.answer", name, params);
-        setSending(false);
+        end();
         if (!result.ok) {
             setFail(result.error || "the answer did not go out");
             setOpen(true);
@@ -150,11 +178,10 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
     };
 
     const drop = async () => {
-        if (!dropReady || dropBlocked || sending) return;
-        setSending(true);
+        if (!dropReady || dropBlocked || !begin()) return;
         setFail("");
         const result = await run("session.dismiss", name, { ask: id });
-        setSending(false);
+        end();
         if (!result.ok) {
             if (!result.cancelled) setFail(result.error || "the question was not dismissed");
             return;
@@ -522,16 +549,16 @@ function Form({ ask, name, exec, onAnswered }) {
     const run = useAction();
     const id = ask.toolUseId;
     const fields = ask.questions || [];
-    const [picks, setPicks] = useState(() => startPicks(fields));
-    const [texts, setTexts] = useState(() => fields.map(() => ""));
-    const [sending, setSending] = useState(false);
+    const blank = () => ({ picks: startPicks(fields), texts: fields.map(() => "") });
+    const { given, latest, change, reset } = useAnswer(blank);
+    const { picks, texts } = given;
+    const { sending, begin, end } = useSending();
     const [open, setOpen] = useState(true);
     const [fail, setFail] = useState("");
 
     useEffect(() => {
-        setPicks(startPicks(fields));
-        setTexts(fields.map(() => ""));
-        setSending(false);
+        reset(blank());
+        end();
         setOpen(true);
         setFail("");
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -543,24 +570,27 @@ function Form({ ask, name, exec, onAnswered }) {
         : whyNot(exec, "session.answer");
     const declineReady = Boolean(id) && knows(exec, "session.dismiss");
 
-    const given = (n) => (picks[n] || []).length > 0 || (texts[n] || "").trim() !== "";
-    const missing = fields.filter((q, n) => q.required && !given(n)).map((q) => q.text);
+    const filled = (a, n) => (a.picks[n] || []).length > 0 || (a.texts[n] || "").trim() !== "";
+    const missingIn = (a) => fields.filter((q, n) => q.required && !filled(a, n)).map((q) => q.text);
+    const missing = missingIn(given);
 
-    // A field is set over what the others hold now, not over the values of
-    // the last draw: two fields filled before the screen draws again would
-    // otherwise leave the first one empty.
-    const setPick = (n, list) => setPicks((was) => fields.map((_, i) => (i === n ? list : was[i] || [])));
-    const setText = (n, text) => setTexts((was) => fields.map((_, i) => (i === n ? text : was[i] || "")));
+    // A pick is a change of the field's picks as they stand, not a list made of
+    // the last drawing: two taps on one field before it is drawn again keep
+    // both.
+    const setPick = (n, pick) => change((a) => ({
+        picks: fields.map((_, i) => (i === n ? pick(a.picks[i] || []) : a.picks[i] || [])),
+    }));
+    const setText = (n, text) => change((a) => ({ texts: fields.map((_, i) => (i === n ? text : a.texts[i] || "")) }));
 
     const send = async () => {
-        if (sending || missing.length) return;
-        setSending(true);
+        const a = latest.current;
+        if (missingIn(a).length || !begin()) return;
         setFail("");
         setOpen(false);
-        const params = { ask: id, picks: fields.map((_, n) => picks[n] || []) };
-        if (texts.some((text) => text.trim() !== "")) params.texts = fields.map((_, n) => (texts[n] || "").trim());
+        const params = { ask: id, picks: fields.map((_, n) => a.picks[n] || []) };
+        if (a.texts.some((text) => text.trim() !== "")) params.texts = fields.map((_, n) => (a.texts[n] || "").trim());
         const result = await run("session.answer", name, params);
-        setSending(false);
+        end();
         if (!result.ok) {
             setFail(result.error || "the form did not go out");
             setOpen(true);
@@ -570,11 +600,10 @@ function Form({ ask, name, exec, onAnswered }) {
     };
 
     const decline = async () => {
-        if (!declineReady || sending) return;
-        setSending(true);
+        if (!declineReady || !begin()) return;
         setFail("");
         const result = await run("session.dismiss", name, { ask: id });
-        setSending(false);
+        end();
         if (!result.ok) {
             if (!result.cancelled) setFail(result.error || "the form was not declined");
             return;
@@ -601,7 +630,7 @@ function Form({ ask, name, exec, onAnswered }) {
                     picks=${picks[n] || []}
                     text=${texts[n] || ""}
                     disabled=${off}
-                    onPick=${(list) => setPick(n, list)}
+                    onPick=${(pick) => setPick(n, pick)}
                     onText=${(text) => setText(n, text)}
                 />
             `)}
@@ -627,7 +656,8 @@ function Form({ ask, name, exec, onAnswered }) {
 }
 
 // FormField is one field of a form: its name over it, marked when the server
-// requires it, and the control of its kind.
+// requires it, and the control of its kind. A pick goes to onPick as a change
+// of the field's picks, to be made over what the field holds when it lands.
 function FormField({ q, picks, text, disabled, onPick, onText }) {
     const kind = fieldKind(q);
     const options = q.options || [];
@@ -635,7 +665,7 @@ function FormField({ q, picks, text, disabled, onPick, onText }) {
         const on = picks[0] === 1;
         return html`
             <button class="nfrow askswitch" type="button" role="switch" aria-checked=${on ? "true" : "false"}
-                    disabled=${disabled} onClick=${() => onPick([on ? 2 : 1])}>
+                    disabled=${disabled} onClick=${() => onPick((was) => [was[0] === 1 ? 2 : 1])}>
                 <span class="nfbody"><span class="nftitle">${q.text}</span></span>
                 <span class="nfsw" aria-hidden="true"></span>
             </button>
@@ -661,7 +691,7 @@ function FormField({ q, picks, text, disabled, onPick, onText }) {
             <label class="askfield">
                 ${head}
                 <select class="askinput askselect" disabled=${disabled} value=${String(picks[0] || 0)}
-                        onChange=${(e) => onPick(e.target.value === "0" ? [] : [Number(e.target.value)])}>
+                        onChange=${(e) => { const v = e.target.value; onPick(() => (v === "0" ? [] : [Number(v)])); }}>
                     <option value="0">${q.required ? "Pick one" : "Nothing picked"}</option>
                     ${options.map((o, k) => html`<option key=${k} value=${String(k + 1)}>${o.label}</option>`)}
                 </select>
@@ -676,7 +706,7 @@ function FormField({ q, picks, text, disabled, onPick, onText }) {
                     ${options.map((o, k) => html`
                         <button key=${k} type="button" role="radio" aria-checked=${picks[0] === k + 1 ? "true" : "false"}
                                 class=${`pkseg${picks[0] === k + 1 ? " on" : ""}`} disabled=${disabled}
-                                onClick=${() => onPick(picks[0] === k + 1 && !q.required ? [] : [k + 1])}>${o.label}</button>
+                                onClick=${() => onPick((was) => (was[0] === k + 1 && !q.required ? [] : [k + 1]))}>${o.label}</button>
                     `)}
                 </div>
             </div>
@@ -692,7 +722,7 @@ function FormField({ q, picks, text, disabled, onPick, onText }) {
                         opt=${o}
                         on=${picks.includes(k + 1)}
                         disabled=${disabled}
-                        onPick=${() => onPick(picks.includes(k + 1) ? picks.filter((p) => p !== k + 1) : [...picks, k + 1])}
+                        onPick=${() => onPick((was) => (was.includes(k + 1) ? was.filter((p) => p !== k + 1) : [...was, k + 1]))}
                         onPreview=${() => {}}
                     />
                 `)}
