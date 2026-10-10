@@ -197,8 +197,7 @@ export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProje
                     </button>
                 `}
             </div>
-            <${LiveLines} list=${block.live} named=${(s) => block.live.length > 1 || s.session !== (project && project.session)}
-                          notes=${notes} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
+            <${LiveLines} list=${block.live} notes=${notes} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
             ${block.ghosts.map((task) => html`<${GhostLine} key=${task.target} task=${task} />`)}
             ${block.past && html`<${PastLine} row=${block.past} project=${project} exec=${exec} onOpen=${onOpen} />`}
         </section>
@@ -208,10 +207,10 @@ export function ProjectBlock({ block, exec, wait, notes, onOpen, onMore, onProje
 // LiveLines lays out the live sessions of a project: the runs a session
 // started inside its work fold under it, and the fold says whether one of
 // them waits for the person.
-export function LiveLines({ list, named, notes, wait, onOpen, onMore }) {
+export function LiveLines({ list, notes, wait, onOpen, onMore }) {
     const { own, kids } = kinOf(list);
     const line = (s, kid = false) => html`
-        <${LiveLine} key=${s.session} session=${s} named=${kid || named(s)} kid=${kid}
+        <${LiveLine} key=${s.session} session=${s} kid=${kid}
                      notes=${notes && notes.get(s.session)} wait=${wait} onOpen=${onOpen} onMore=${onMore} />
     `;
     return own.map((s) => html`
@@ -234,16 +233,17 @@ function KinFold({ kids, line }) {
 }
 
 // LiveLine is a live session inside its project, a line for each question:
-// what it is doing, for how long it has lived and whether Remote Control is
-// up, where it is in the checklist of its work, who runs it on which model
-// and when it last asked, and what runs in its background. On a phone one
-// line holds no more than one of these: the state is read whole, the
-// checklist cut at its end. A narrow column on the right holds two marks of
-// one kind side by side level with the state — where the session lives and
-// the button of what can be done to it — and how full the session is in the
-// bottom right corner of the row, level with the last line on the left. The
-// name, when the row has one, stands over both across the whole width.
-export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onMore }) {
+// what it is called, what it is doing, for how long it has lived and whether
+// Remote Control is up, where it is in the checklist of its work, who runs it
+// on which model and when it last asked, and what runs in its background. On
+// a phone one line holds no more than one of these: the state is read whole,
+// the checklist cut at its end. Every row opens with the name of its session,
+// the only session of its project included, and two marks of one kind stand
+// level with the name at the right edge — where the session lives and the
+// button of what can be done to it. How full the session is stands in the
+// bottom right corner of the row, level with the last line on the left, so
+// the lines under the name give up to the right no more than that figure.
+export function LiveLine({ session, kid = false, notes, wait, onOpen, onMore }) {
     const state = stateOf(session);
     const steps = checklistShort(session.checklist);
     const closing = wait ? wait.of("close", session.session) : null;
@@ -257,7 +257,14 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
         .filter(Boolean).map((part) => ` · ${part}`).join("");
     return html`
         <div class=${`pjrow pjcard${kid ? " pjkid" : ""}`}>
-            ${named && html`<span class="pjsess">${shownName(session)}</span>`}
+            <div class="pjtop">
+                <span class="pjsess">${shownName(session)}</span>
+                <span class="pjpair">
+                    <span class="pjtag">${tag()}${place}</span>
+                    <button class="pjmore" type="button" aria-label=${`what to do with session ${session.session}`}
+                            onClick=${() => onMore(session)}>${Icon.more()}</button>
+                </span>
+            </div>
             <button class="pjopen" type="button" aria-label=${`open conversation ${session.session}`}
                     onClick=${() => onOpen && onOpen(session.session, session.sessionId)}>
                 <span class=${`pjstate pj-${state.tone}`}>
@@ -269,12 +276,7 @@ export function LiveLine({ session, named, kid = false, notes, wait, onOpen, onM
                 <span class="pjsince"><span class="agentword" data-agent=${agentKey(session)}>${agentName(session)}</span>${runs}</span>
                 ${state.work && html`<span class="pjwork">${state.work}</span>`}
             </button>
-            <div class="pjside">
-                <span class="pjtag">${tag()}${place}</span>
-                <button class="pjmore" type="button" aria-label=${`what to do with session ${session.session}`}
-                        onClick=${() => onMore(session)}>${Icon.more()}</button>
-                <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
-            </div>
+            <span class="pjpct">${session.noRequests ? "—" : `${Math.round(session.pct || 0)}%`}</span>
             ${!session.noRequests && html`<${ContextBar} pct=${session.pct} edge />`}
             ${busy && html`<div class="pjbusy" role="status"><span class="spin"></span>${closing ? "closing" : "restarting"}</div>`}
         </div>

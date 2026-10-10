@@ -44,7 +44,8 @@ window.done = (async () => {
         beforeSection: Math.round(box(heads[1]).top - box(blocksEl[0]).bottom),
         underSection: Math.round(box(blocksEl[1]).top - box(heads[1]).bottom),
         head: Math.round(box(blocksEl[0].querySelector(".pjhead")).height),
-        rows: [...blocksEl[0].querySelectorAll(".pjrow")].map((r) => Math.round(box(r).height)),
+        live: Math.round(box(blocksEl[0].querySelector(".pjcard")).height),
+        past: Math.round(box(blocksEl[0].querySelector(".pjpast")).height),
         button: Math.round(box(document.querySelector(".pjresume")).height),
         // A quiet block with a live session against one with only its past.
         idleBlock: (() => { const cs = getComputedStyle(blocksEl[3]); return { bg: cs.backgroundColor + " " + cs.backgroundImage, border: cs.borderTopStyle }; })(),

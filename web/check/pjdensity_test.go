@@ -7,20 +7,22 @@ import (
 )
 
 // The phone's list of a contour holds its blocks close: a block a few pixels
-// from the next, a section heading near what it heads, the head and the rows
-// of a block no taller than a line and its padding — while a button still
-// takes a finger.
+// from the next, a section heading near what it heads, the head and the last
+// conversation of a block no taller than a line and its padding, a live row
+// no taller than its three lines — the name, the state and who runs it — and
+// its padding, while a button still takes a finger.
 func TestThePhoneListHasNoSpansBetweenItsBlocks(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}
 	var got struct {
-		Between       int   `json:"between"`
-		BeforeSection int   `json:"beforeSection"`
-		UnderSection  int   `json:"underSection"`
-		Head          int   `json:"head"`
-		Rows          []int `json:"rows"`
-		Button        int   `json:"button"`
+		Between       int `json:"between"`
+		BeforeSection int `json:"beforeSection"`
+		UnderSection  int `json:"underSection"`
+		Head          int `json:"head"`
+		Live          int `json:"live"`
+		Past          int `json:"past"`
+		Button        int `json:"button"`
 		IdleBlock     struct {
 			Bg     string `json:"bg"`
 			Border string `json:"border"`
@@ -41,10 +43,11 @@ func TestThePhoneListHasNoSpansBetweenItsBlocks(t *testing.T) {
 	if got.Head > 38 {
 		t.Errorf("the head of a block is %d px tall", got.Head)
 	}
-	for _, h := range got.Rows {
-		if h > 50 {
-			t.Errorf("a row of a block is %d px tall: %v", h, got.Rows)
-		}
+	if got.Past > 50 {
+		t.Errorf("the last conversation of a block is %d px tall", got.Past)
+	}
+	if got.Live > 72 {
+		t.Errorf("a live row of a block is %d px tall — more than its three lines and its padding", got.Live)
 	}
 	if got.Button < 28 {
 		t.Errorf("the resume button is %d px tall — too small for a finger", got.Button)

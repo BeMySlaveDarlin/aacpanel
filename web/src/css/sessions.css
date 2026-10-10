@@ -434,12 +434,12 @@ span.pjname { cursor: default; }
     border-top: var(--hair) solid var(--line);
 }
 .pjrow > .ctxbar.edge { top: auto; bottom: 0; }
-/* The row of a live session is two columns under its name: what the session
-   says on the left, and a column on the right as narrow as its widest mark,
-   whose lines go down level with the lines on the left. The name spans both,
-   so a long one wraps across the whole row rather than in the left column.
-   The row keeps the padding itself, so both columns start on the state's
-   line whether a name stands over them or not. */
+/* The row of a live session opens with a line of its own across the whole
+   width: the name, and the pair of marks at the right edge. Under it stand two
+   columns — what the session says on the left, and on the right only how full
+   it is, at the foot of the row. The pair stays off the lines under the name,
+   so they give up to the right no more than the figure takes: the checklist
+   and the line of the model keep the width the pair would have cost them. */
 .pjrow.pjcard {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -447,8 +447,14 @@ span.pjname { cursor: default; }
     gap: .12rem .5rem;
     padding: .45rem .75rem;
 }
-.pjcard > .pjsess { grid-column: 1 / -1; }
+.pjtop { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: .5rem; }
+/* A name too long for its line wraps under itself, never under the pair: the
+   end of a name is often what tells two sessions of one project apart, so it
+   is not cut. The pair keeps the top of the name's first line, and its marks
+   are as tall as that line within a pixel, so the two read level. */
+.pjtop > .pjsess { flex: 1; min-width: 0; }
 .pjcard > .pjopen { padding: 0; }
+.pjcard > .pjpct { align-self: end; }
 /* The whole row opens the conversation, not only its words: the open button
    reaches over the row, and the buttons in the row stand above it. */
 .pjopen::after { content: ""; position: absolute; inset: 0; }
@@ -537,22 +543,11 @@ span.pjname { cursor: default; }
    its agent and a step heavier than the quiet words after it. */
 .agentword { font-weight: 600; color: var(--agent-claude); }
 .agentword[data-agent="codex"] { color: var(--agent-codex); }
-/* The right column of a live row, as tall as the lines on the left: where the
-   session lives and the button of what can be done to it side by side on the
-   state's line, and how full the session is at the foot of the column, in the
-   bottom right corner of the row. The pair is no taller than the state's line
-   and the figure no taller than the last line, so a row of two lines keeps
-   its height. */
-.pjcard > .pjside { align-self: stretch; }
-.pjside {
-    display: grid;
-    grid-template-columns: auto auto;
-    grid-template-rows: auto 1fr;
-    column-gap: .25rem;
-    align-items: start;
-    justify-items: end;
-}
-.pjside > .pjpct { grid-column: 1 / -1; align-self: end; }
+/* Where the session lives and the button of what can be done to it, side by
+   side at the right edge of the name's line. The pair is no taller than that
+   line and the figure in the corner no taller than the last line on the left,
+   so neither makes the row taller. */
+.pjpair { flex: none; display: flex; align-items: center; gap: .25rem; }
 /* Where a session lives and the button of what can be done to it are one
    kind of mark: the same height, edge, corners, type and padding, so the two
    read as a pair. One is a word and the other a button, and only the button

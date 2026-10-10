@@ -52,7 +52,7 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
-    <section class="pjblock"><${LiveLines} list=${sessions} named=${() => true} notes=${null} wait=${null}
+    <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} wait=${null}
                                            onOpen=${() => {}} onMore=${() => {}} /></section>
 `)), document.getElementById("phone"));
 render(h(ToastHost, null, h(GateHost, null, h(Chat, {

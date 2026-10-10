@@ -7,10 +7,11 @@
 <script type="module">
 // The right side of live cards on a phone 390 px wide: one on the stream with
 // Remote Control up and a long step of its checklist, one with Remote Control
-// up, a checklist and two tasks in its background, one in tmux with a task in
-// its background and no checklist — each the only session of its project —
-// and a project of two, a claude session and a codex thread on the daemon,
-// whose rows carry their names over them.
+// up, a checklist and two tasks in its background — each the only session of
+// its project — a project of two, a claude session and a codex thread on the
+// daemon, and a project of two whose first is in tmux with a task in its
+// background and no checklist, and whose second has a name too long for one
+// line beside the pair.
 import { h, render } from "preact";
 import { ProjectBlock, blocksOf } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
@@ -37,6 +38,8 @@ const rows = [
     { ...base, session: "codex-5afc361b", sessionId: "e", project: { id: 3 }, agent: "codex", transport: "stream",
       model: "gpt-6-astra", pct: 15, startedAt: ago(42), lastRequestAt: ago(2) },
     { ...base, session: "blog", sessionId: "d", pct: 9, startedAt: ago(3 * 60), lastRequestAt: ago(18), work: { tasks: 1 } },
+    { ...base, session: "blog-fingerprint-rotation-second-pass", sessionId: "f", project: { id: 4 }, transport: "stream",
+      pct: 22, startedAt: ago(25), lastRequestAt: ago(3) },
 ];
 const project = (id, name) => ({ id, name, session: name, path: `/srv/${name}` });
 const profile = { groups: [
@@ -86,7 +89,7 @@ const reads = (line) => Array.from(line.children)
     .filter(Boolean).join(" ").replace(/·\s*/g, "· ").replace(/\s+/g, " ");
 
 window.done = (async () => {
-    await until(() => document.querySelectorAll(".pjcard .pjside").length === rows.length);
+    await until(() => document.querySelectorAll(".pjcard .pjtag").length === rows.length);
     await document.fonts.ready;
     await until(() => document.fonts.status === "loaded");
     const out = { cards: {} };
@@ -94,14 +97,15 @@ window.done = (async () => {
         const row = card.getBoundingClientRect();
         const rs = getComputedStyle(card);
         const inner = { right: row.right - parseFloat(rs.paddingRight), bottom: row.bottom - parseFloat(rs.paddingBottom) };
+        const gap = parseFloat(rs.columnGap);
         const open = card.querySelector(".pjopen");
         const openBox = open.getBoundingClientRect();
-        const side = card.querySelector(".pjside");
-        const col = side.getBoundingClientRect();
+        const name = card.querySelector(".pjsess");
+        const nameBox = name ? name.getBoundingClientRect() : null;
+        const nameMid = nameBox ? nameBox.top + parseFloat(getComputedStyle(name).lineHeight) / 2 : NaN;
         const state = card.querySelector(".pjstate");
         const said = card.querySelector(".pjtext");
         const saidBox = said.getBoundingClientRect();
-        const firstMid = saidBox.top + parseFloat(getComputedStyle(said).lineHeight) / 2;
         const lived = card.querySelector(".pjlived");
         const tag = card.querySelector(".pjtag");
         const more = card.querySelector(".pjmore");
@@ -115,10 +119,17 @@ window.done = (async () => {
         const last = left[left.length - 1];
         const lastBox = last.getBoundingClientRect();
         const checklist = card.querySelector(".pjchecklist");
+        const checklistBox = checklist ? checklist.getBoundingClientRect() : null;
         const marks = [tag, more, pct].map((el) => el.getBoundingClientRect());
         const label = open.getAttribute("aria-label");
         out.cards[label.slice(label.lastIndexOf(" ") + 1)] = {
-            named: Boolean(card.querySelector(".pjsess")),
+            name: text(name),
+            nameLines: lines(name),
+            nameCut: cut(name),
+            // The pair beside the name: the name stops short of the place,
+            // and neither of the two lies on the other.
+            nameGives: nameBox ? round(tagBox.left - nameBox.right) : -1,
+            nameClear: Boolean(nameBox) && [tagBox, moreBox].every((m) => !meets(nameBox, m)),
             stateReads: reads(state),
             stateLines: lines(said),
             rc: word ? {
@@ -128,28 +139,38 @@ window.done = (async () => {
                 ...drawn(word),
             } : null,
             rcPlates: card.querySelectorAll(".pjrc").length,
-            rcInSide: Array.from(side.querySelectorAll("*")).some((el) => text(el) === "RC"),
+            rcInMarks: [tag, more, pct].some((el) => text(el).includes("RC")),
             mark: text(tag),
             tag: drawn(tag),
             more: drawn(more),
-            // The pair on one line, the place first, level with the state.
+            // The pair on one line, the place first, level with the first
+            // line of the name and over the state.
             pairLevel: round(Math.abs(mid(tagBox) - mid(moreBox))),
             pairGap: round(moreBox.left - tagBox.right),
-            pairOff: round(Math.abs(mid(tagBox) - firstMid)),
+            pairOff: round(Math.abs(mid(tagBox) - nameMid)),
+            pairOverState: round(saidBox.top - Math.max(tagBox.bottom, moreBox.bottom)),
             pairRight: round(inner.right - moreBox.right),
+            // How much taller the name's line is for the pair beside it.
+            pairAddsHeight: nameBox ? round(Math.max(tagBox.bottom, moreBox.bottom) - nameBox.bottom) : 0,
             pct: text(pct),
             pctRight: round(inner.right - pctBox.right),
             pctBottom: round(inner.bottom - pctBox.bottom),
             pctUnder: round(pctBox.top - Math.max(tagBox.bottom, moreBox.bottom)),
             pctLevel: round(Math.abs(mid(pctBox) - mid(lastBox))),
             last: last.className,
-            leftGives: round(col.left - openBox.right),
+            leftGives: round(pctBox.left - openBox.right),
             clear: left.every((el) => marks.every((m) => !meets(el.getBoundingClientRect(), m))),
-            addsHeight: round(col.bottom - openBox.bottom),
+            addsHeight: round(pctBox.bottom - openBox.bottom),
             checklist: text(checklist),
             checklistLines: lines(checklist),
             checklistCut: cut(checklist),
-            checklistClear: Boolean(checklist) && marks.every((m) => !meets(checklist.getBoundingClientRect(), m)),
+            checklistClear: Boolean(checklist) && marks.every((m) => !meets(checklistBox, m)),
+            // The checklist against the room the pair would have left it on
+            // the state's line: how far past the start of the pair it runs, and
+            // how far short of the figure it stops.
+            checklistWidth: checklistBox ? round(checklistBox.width) : 0,
+            checklistPastPair: checklistBox ? round(checklistBox.right - (tagBox.left - gap)) : 0,
+            checklistShort: checklistBox ? round(pctBox.left - gap - checklistBox.right) : 0,
             since: text(card.querySelector(".pjsince")),
             sinceLines: lines(card.querySelector(".pjsince")),
             work: text(card.querySelector(".pjwork")),

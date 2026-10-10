@@ -210,8 +210,7 @@ export function Project({ project, sessions, notes, exec, wait, onBack, onChat }
 
         <section class="pjblock">
             <div class="pjhead"><span class="pjname">live</span><span class="pjgroup">${own.length || ""}</span></div>
-            <${LiveLines} list=${own} named=${(s) => own.length > 1 || s.session !== project.session}
-                          notes=${notes} wait=${wait} onOpen=${onChat} onMore=${(x) => setActing(x.session)} />
+            <${LiveLines} list=${own} notes=${notes} wait=${wait} onOpen=${onChat} onMore=${(x) => setActing(x.session)} />
             ${opening && html`<${GhostLine} task=${opening} />`}
             ${own.length === 0 && !opening && html`<p class="pjempty">There are no sessions of this project right now.</p>`}
         </section>

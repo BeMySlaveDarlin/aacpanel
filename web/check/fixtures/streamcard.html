@@ -66,15 +66,13 @@ const tapAt = (el) => {
 };
 
 window.done = (async () => {
-    await until(() => document.querySelectorAll(".pjcard .pjside").length === rows.length);
+    await until(() => document.querySelectorAll(".pjcard .pjtag").length === rows.length);
     await document.fonts.ready;
     const blocks = Array.from(document.querySelectorAll(".pjblock"));
     return blocks.map((block) => {
         const rowEl = block.querySelector(".pjrow");
         const row = rowEl.getBoundingClientRect();
         const open = block.querySelector(".pjopen").getBoundingClientRect();
-        const side = block.querySelector(".pjside");
-        const col = side ? side.getBoundingClientRect() : null;
         const tag = block.querySelector(".pjtag");
         const box = tag.getBoundingClientRect();
         const pct = block.querySelector(".pjpct").getBoundingClientRect();
@@ -83,9 +81,7 @@ window.done = (async () => {
         const rc = block.querySelector(".pjstate .pjremote");
         const name = block.querySelector(".pjsess");
         const nameBox = name ? name.getBoundingClientRect() : null;
-        // The widest line of the column: the place with the button, or the
-        // percentage under them.
-        const widest = Math.max(more.right - box.left, pct.width);
+        const nameMid = nameBox ? nameBox.top + parseFloat(getComputedStyle(name).lineHeight) / 2 : NaN;
         return {
             state: text(said),
             stateCut: cut(said),
@@ -101,7 +97,10 @@ window.done = (async () => {
                 return Number(n.fontWeight) >= 600 && parseFloat(n.fontSize) > parseFloat(w.fontSize) && n.color !== w.color;
             })(),
             nameLines: lines(name),
-            nameAcross: Boolean(nameBox && col) && nameBox.right >= col.right - 1 && nameBox.bottom <= Math.min(open.top, col.top) + 1,
+            // The name on the first line of the row, the pair beside it and
+            // level with it, everything else under both.
+            nameBeside: Boolean(nameBox) && nameBox.right <= box.left && nameBox.bottom <= open.top + 1
+                && Math.abs(box.top + box.height / 2 - nameMid) <= 1 && Math.abs(more.top + more.height / 2 - nameMid) <= 1,
             workBelow: below(block.querySelector(".pjwork"), block.querySelector(".pjsince")),
             ...agentOf(block.querySelector(".pjsince")),
             tapPct: tapAt(block.querySelector(".pjpct")),
@@ -116,11 +115,11 @@ window.done = (async () => {
             rcElsewhere: Array.from(rowEl.querySelectorAll("*")).some((el) => el !== rc && el.children.length === 0 && el.textContent.trim() === "RC"),
             mark: tag.textContent.trim(),
             shown: box.width > 0 && box.height > 0 && box.right <= row.right,
-            column: Boolean(col),
-            narrow: col ? Math.round(col.width - widest) : -1,
-            leftGives: col ? Math.round(col.left - open.right) : -1,
-            columnInside: Boolean(col) && col.right <= row.right && col.bottom <= row.bottom - 4,
-            columnAddsHeight: col ? Math.round(col.bottom - open.bottom) : 0,
+            // What the lines under the name give up on the right: the figure
+            // and the gap to it, no more.
+            leftGives: Math.round(pct.left - open.right),
+            marksInside: [box, more, pct].every((m) => m.right <= row.right && m.bottom <= row.bottom - 4),
+            pctAddsHeight: Math.round(pct.bottom - open.bottom),
             overflow: document.scrollingElement.scrollWidth - window.innerWidth,
         };
     });

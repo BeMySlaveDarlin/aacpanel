@@ -46,7 +46,7 @@ render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     current: "", onPick() {}, picks: [], setPicks() {}, onNames() {}, onOrder() {}, exec, wait: null,
 }))), document.getElementById("desk"));
 render(h(ToastHost, null, h(GateHost, null, html`
-    <section class="pjblock"><${LiveLines} list=${sessions} named=${() => true} notes=${null} checked=${null} wait=${null}
+    <section class="pjblock"><${LiveLines} list=${sessions} notes=${null} checked=${null} wait=${null}
                                            onOpen=${() => {}} onMore=${() => {}} /></section>
     <${SessionSheet} session=${sessions[1]} exec=${exec} onClose=${() => {}} onOpen=${() => {}} />
 `)), document.getElementById("phone"));
