@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -112,7 +113,10 @@ type cdpMessage struct {
 // browsers are started on first use, a few for each kind of pointer: what the
 // page is told about its pointer is a flag of the process, not of a tab, and
 // one process serving every tab of a parallel run is where the tabs queue.
-const browsersPerPointer = 4
+// Two kinds of pointer with two each make four Chromes a run, which is all a
+// shared machine gives a run of tests: each Chrome spreads its renderers over
+// cores of its own.
+const browsersPerPointer = 2
 
 var (
 	browsersMu sync.Mutex
@@ -133,6 +137,11 @@ func sharedBrowser(chrome, pointer string) (*browser, error) {
 		browsers[pointer] = pool
 		return b, nil
 	}
+	// A Chrome that died is ended with its profile before another takes its
+	// place: the profile is a few hundred megabytes nobody would remove.
+	if old := pool[turn]; old != nil {
+		old.close()
+	}
 	b, err := startBrowser(chrome, pointer)
 	if err != nil {
 		return nil, err
@@ -140,6 +149,48 @@ func sharedBrowser(chrome, pointer string) (*browser, error) {
 	pool[turn] = b
 	browsers[pointer] = pool
 	return b, nil
+}
+
+const profilePrefix = "chrome-"
+
+// profileRoot is where the Chromes of the fixtures keep their profiles: a
+// directory of their own inside the temporary one, shared by every program on
+// the machine, so that what a run sweeps is the fixtures' alone.
+func profileRoot() string {
+	return filepath.Join(os.TempDir(), "aacpanel-fixtures")
+}
+
+// sweepProfiles removes the profiles Chromes of runs before this one left in
+// root: a run killed on its timeout or by a panic never reaches
+// closeBrowsers, and each profile holds a few hundred megabytes. A profile a
+// live process names — a run at work beside this one — stays.
+func sweepProfiles(root string) {
+	dirs, err := filepath.Glob(filepath.Join(root, profilePrefix+"*"))
+	if err != nil {
+		return
+	}
+	for _, dir := range dirs {
+		if !profileInUse(dir) {
+			_ = os.RemoveAll(dir)
+		}
+	}
+}
+
+// profileInUse reports whether a process of the machine runs with dir as its
+// profile.
+func profileInUse(dir string) bool {
+	procs, err := filepath.Glob("/proc/[0-9]*/cmdline")
+	if err != nil {
+		return true
+	}
+	needle := "--user-data-dir=" + dir + "\x00"
+	for _, proc := range procs {
+		raw, err := os.ReadFile(proc)
+		if err == nil && strings.Contains(string(raw)+"\x00", needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // closeBrowsers ends every Chrome the run started, with its profile.
@@ -157,7 +208,10 @@ func closeBrowsers() {
 }
 
 func startBrowser(chrome, pointer string) (*browser, error) {
-	profile, err := os.MkdirTemp("", "aacpanel-fixture-chrome-")
+	if err := os.MkdirAll(profileRoot(), 0o700); err != nil {
+		return nil, err
+	}
+	profile, err := os.MkdirTemp(profileRoot(), profilePrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -536,6 +590,7 @@ func (b *browser) open(ctx context.Context, url, screen string) (session string,
 }
 
 func TestMain(m *testing.M) {
+	sweepProfiles(profileRoot())
 	code := m.Run()
 	closeBrowsers()
 	os.Exit(code)
