@@ -174,6 +174,33 @@ class Rows(Runtime):
                          (129200, 50.0, "2026-10-09T12:02:00Z"),
                          "a report of the limits alone carries no count and must not take its place")
 
+    def test_the_mode_the_plan_and_the_queue_come_from_the_executor(self):
+        self.follow(mode="auto", plan=True, queue=2)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["mode"], row["plan"], row["queued"]), ("auto", True, 2))
+        self.follow(mode="custom", plan=False, queue=0)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["mode"], row["plan"]), ("custom", False))
+        self.assertNotIn("queued", row, "an empty queue is no queue on the row, as on a claude row")
+
+    def test_the_fill_the_daemon_said_beats_an_older_rollout(self):
+        self.follow(context={"tokens": 200000, "window": 258400, "at": "2026-10-09T12:05:00.123456789+00:00"})
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["tokens"], row["limit"], row["pct"], row["lastRequestAt"]),
+                         (200000, 258400, 77.4, "2026-10-09T12:05:00.123456789+00:00"))
+
+    def test_a_rollout_newer_than_what_the_daemon_said_wins(self):
+        self.follow(context={"tokens": 200000, "window": 258400, "at": "2026-10-09T11:00:00Z"})
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["tokens"], row["lastRequestAt"]), (42000, "2026-10-09T12:00:00.000Z"),
+                         "a turn another client ran reaches the panel through the rollout alone")
+
+    def test_a_fill_that_does_not_read_is_left_for_the_rollout(self):
+        for broken in ({"tokens": "many", "window": 1, "at": "2026-10-09T13:00:00Z"},
+                       {"tokens": 1, "window": 1, "at": "soon"}, "full"):
+            self.follow(context=broken)
+            self.assertEqual(ctx.codex_sessions()[0]["tokens"], 42000, broken)
+
     def test_the_snapshot_adds_the_thread_after_the_claude_rows_and_leaves_them_alone(self):
         self.follow()
         self.addCleanup(setattr, notes, "BOARD", notes.BOARD)

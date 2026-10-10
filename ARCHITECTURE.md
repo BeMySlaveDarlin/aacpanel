@@ -644,8 +644,9 @@ appears or the connection drops — at once when an action waits for it.
   a while after its last client leaves, and a panel subscribed for good would
   keep every thread it ever saw loaded. So the executor subscribes while the
   thread waits on an approval — the daemon sends the waiting request again to a
-  new client — or while a turn the panel started runs, and leaves once the
-  thread is free and nothing waits. A thread the panel started in the daemon is
+  new client — while a turn the panel started runs, or while messages of the
+  panel's queue wait for it, and leaves once the thread is free and nothing
+  waits. A thread the panel started in the daemon is
   the exception: the panel is its only client and holds it until it closes it.
   Each such thread is marked in the holders' directory, so an executor started
   again joins it before the daemon lets it go; the mark of a thread the daemon
@@ -653,8 +654,11 @@ appears or the connection drops — at once when an action waits for it.
 - **The executor stays blind to the conversation.** The notifications that
   carry it are turned off at the handshake, the state file holds no text — not
   the preview of the thread, not its name — and the only words it keeps are
-  those a person decides on: the command of an approval, and the change to
-  files, which the request names and the item of the turn holds.
+  those a person decides on: the command of an approval, the change to files,
+  which the request names and the item of the turn holds, and the messages
+  that wait in the panel's queue. It reads the notifications that carry none:
+  the status of a thread, its settings, how full its context is and the
+  limits of the account.
 - **An approval is answered with the daemon's own decisions.** The options are
   the decisions the request offers, in its order, and the pick goes back as it
   came; the first answer of any client wins, and the others are told the
@@ -699,12 +703,44 @@ appears or the connection drops — at once when an action waits for it.
   starts a turn in it. **A restart is refused**: the daemon keeps the thread,
   and no process of the panel's is there to start again.
 - **Only what the protocol does is done.** A message starts a turn on a free
-  thread and goes into the running turn of a busy one, a stop interrupts the
-  turn, Esc declines what waits. Every other action over a codex session is
-  refused by name: none of the claude ways — keys, signals, a holder's socket —
-  reaches it. The panel does not change the model, the effort or the
-  permissions of a running thread: those stay with the client that started
-  it.
+  thread, a stop interrupts the turn, Esc declines what waits, a file goes
+  where a claude session gets it — a picture into the turn as a file codex
+  reads itself, any other file as its path. Every other action over a codex
+  session is refused by name: none of the claude ways — keys, signals, a
+  holder's socket — reaches it.
+- **A busy thread gets a message in the panel's queue**, not in the turn that
+  runs: it goes as a turn of its own once the thread is free — the daemon says
+  so to its clients, and the poll finds it besides — one message a turn, in
+  the order they came, and a message waiting there is taken back
+  (`session.unqueue`) by the name the panel gave it. The queue outlives a
+  connection that dropped and an executor started again: it is kept on the
+  disk beside the state files, the person's words in a file of the owner's,
+  until a turn takes them. It goes with its thread — closed by the panel, or
+  unloaded by a daemon started again — since a thread the daemon let go is not
+  the panel's to bring back. A message the daemon refuses is dropped with a
+  line in the executor's log rather than held in front of the rest.
+- **The model, the effort, the permissions and the plan of a running thread
+  change for its next turns** (`session.set`), with `thread/settings/update`.
+  A model and an effort are held to the catalogue of the home's daemon first:
+  the daemon takes any name and fails only at the turn that runs on it. The
+  permissions are three modes — read only, asking, and approval left to codex's
+  own reviewer — the presets codex's terminal offers, less full access, which
+  is chosen at the start or in codex itself; a thread whose settings match none
+  is shown as custom. Plan mode carries a model and an effort of its own, so
+  the ones the thread runs go with it. The method is experimental: a daemon
+  that dropped it after updating itself still takes a model and an effort with
+  the next turn the panel starts, and the answer says the pick waits for the
+  next message; a mode and the plan are refused with the daemon's reason. The
+  daemon tells the settings to the clients of a thread, so a thread the panel
+  only reads shows its model and effort and no mode until the panel joins it.
+- **The fill of the context and the limits of the account come from the
+  daemon.** It tells the clients of a thread how full its context is after
+  every request, and the state file carries it; the rollout says it when the
+  panel heard nothing newer. The limits are read when the link connects and
+  every five minutes — the daemon sends them after a turn only to the clients
+  of the thread that ran it — and kept by contour beside the state files; the
+  snapshot puts them on the contour's row of limits next to claude's, with the
+  week codex counts, its window of 10080 minutes, as the seven days.
 - **The feed is the rollout, read by the collector.** Codex writes every thread
   to a file of its own under the home's `sessions`, and the collector reads it
   as it reads a claude transcript: the messages, the summaries of reasoning, the

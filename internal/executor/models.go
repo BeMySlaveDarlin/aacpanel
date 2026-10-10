@@ -69,10 +69,22 @@ func initModels(init json.RawMessage) []action.Model {
 // the way a person would type them — the same slash command, into a terminal
 // or onto the stream — with what their scope adds; the mode, which has no
 // command, goes its own.
+//
+// What a request may carry for codex — a model with its effort, a model or an
+// effort only codex names, the plan — is refused here: claude takes none of it.
 func (e *Executor) sessionSet(ctx context.Context, target string, set *action.Setting) (string, error) {
 	switch {
 	case set == nil:
 		return "", fmt.Errorf("no setting arrived: there is nothing to change")
+	case set.Plan != nil:
+		return "", fmt.Errorf("claude has no plan switch of its own: it plans in a permission mode, plan")
+	case set.Model != "" && set.Effort != "":
+		return "", fmt.Errorf("claude takes one setting at a time: the model, then the effort")
+	case set.Model != "" && !action.ModelName(set.Model):
+		return "", fmt.Errorf("claude has no model %q", set.Model)
+	case set.Effort != "" && !slices.Contains(action.Commands["effort"], set.Effort):
+		return "", fmt.Errorf("claude has no effort %q; it has %s", set.Effort,
+			strings.Join(action.Commands["effort"], ", "))
 	case set.Model != "":
 		return e.setModel(ctx, target, set.Model, set.Scope)
 	case set.Effort != "":

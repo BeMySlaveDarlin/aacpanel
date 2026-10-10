@@ -17,19 +17,46 @@ var Modes = []string{"default", "acceptEdits", "plan", "auto"}
 // say, and claude refuses one it does not know.
 var modelID = regexp.MustCompile(`^claude-[a-z0-9]+(?:-[a-z0-9]+){1,6}(?:\[1m\])?$`)
 
+// CodexModes are the permission modes a person picks for a codex session:
+// read only, asking for approval, and approval left to the reviewer of codex
+// itself, which asks the person only about what it finds unsafe.
+var CodexModes = []string{"read-only", "ask", "auto"}
+
+// codexWithheld are the settings of codex the panel does not set, with why.
+// Like the two modes of claude left out of Modes, they stop codex asking
+// before it acts, and a tap on a phone is not how that is decided.
+var codexWithheld = map[string]string{
+	"full-access": "full access lets codex write anywhere and reach the network without asking",
+	"never":       "a codex that never asks acts with nobody to stop it",
+}
+
+// codexModel and codexEffort are the shapes of what codex names a model and
+// an effort by. Codex lists both itself, and the daemon of the session's
+// contour is what says which exist: the shape is all this check holds them to.
+var (
+	codexModel  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+	codexEffort = regexp.MustCompile(`^[a-z]{1,16}$`)
+)
+
 // Setting is one setting of a session, and exactly one of its fields is set:
 // a pick in a list changes one thing, and a request that changed two would be
-// two actions under one entry of the journal.
+// two actions under one entry of the journal. A model of codex may bring its
+// effort along: the efforts are the model's own, and one picked for the model
+// the session leaves is a pick that never runs.
 //
 // Scope says how long a model or an effort holds: for this session alone, or
 // as the default new sessions start with. Empty is what the session does by
 // itself — on the stream a pick holds for the session, in a terminal claude
 // saves it as the default.
+//
+// Plan is codex's plan mode, a setting of its own beside the permissions;
+// claude plans in a permission mode.
 type Setting struct {
 	Model  string `json:"model,omitempty"`
 	Effort string `json:"effort,omitempty"`
 	Mode   string `json:"mode,omitempty"`
 	Scope  string `json:"scope,omitempty"`
+	Plan   *bool  `json:"plan,omitempty"`
 }
 
 // The scopes of a setting.
@@ -79,20 +106,30 @@ func (s *Setting) validate() error {
 			set++
 		}
 	}
-	if set != 1 {
-		return badRequest("one setting at a time: model, effort or mode")
+	if s.Plan != nil {
+		set++
+	}
+	if set != 1 && (set != 2 || s.Model == "" || s.Effort == "") {
+		return badRequest("one setting at a time: model, effort, mode or plan — only a model brings its effort along")
 	}
 	switch {
-	case s.Model != "" && !ModelName(s.Model):
+	case s.Model != "" && !ModelName(s.Model) && !codexModel.MatchString(s.Model):
 		return badRequest("there is no model %q", s.Model)
-	case s.Effort != "" && !slices.Contains(Commands["effort"], s.Effort):
-		return badRequest("there is no effort %q; there are %s", s.Effort, strings.Join(Commands["effort"], ", "))
-	case s.Mode != "" && !slices.Contains(Modes, s.Mode):
-		return badRequest("there is no permission mode %q; there are %s", s.Mode, strings.Join(Modes, ", "))
+	case s.Effort != "" && !slices.Contains(Commands["effort"], s.Effort) && !codexEffort.MatchString(s.Effort):
+		return badRequest("there is no effort %q; claude has %s, and codex names those of each model",
+			s.Effort, strings.Join(Commands["effort"], ", "))
+	case codexWithheld[s.Mode] != "":
+		return badRequest("the %s mode is not set from the panel: %s — it is chosen at the start, in the map, "+
+			"or in codex itself", s.Mode, codexWithheld[s.Mode])
+	case s.Mode != "" && !slices.Contains(Modes, s.Mode) && !slices.Contains(CodexModes, s.Mode):
+		return badRequest("there is no permission mode %q; claude has %s, codex has %s", s.Mode,
+			strings.Join(Modes, ", "), strings.Join(CodexModes, ", "))
 	case s.Scope != "" && s.Scope != ScopeSession && s.Scope != ScopeDefault:
 		return badRequest("there is no scope %q; there are %s and %s", s.Scope, ScopeSession, ScopeDefault)
 	case s.Scope != "" && s.Mode != "":
 		return badRequest("a permission mode has no scope: it holds for the session it is set in")
+	case s.Scope != "" && s.Plan != nil:
+		return badRequest("plan mode has no scope: it holds for the session it is set in")
 	case s.Scope == ScopeDefault && s.Effort == Ultracode:
 		return badRequest("ultracode holds for a session only: claude never saves it as a default")
 	}

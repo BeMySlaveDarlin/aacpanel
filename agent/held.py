@@ -69,6 +69,31 @@ def codex_threads():
     return out
 
 
+def codex_limits():
+    """Returns the rate limits of the codex accounts, by contour, as live executors last heard them.
+
+    The executor keeps a file per contour beside the state files of the
+    threads; a file outlives its executor, and its time says how old it is.
+    """
+    root = os.path.join(stream_dir(), "codex-limits")
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        if not name.endswith(".json") or name.startswith("."):
+            continue
+        try:
+            with open(os.path.join(root, name), encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and isinstance(data.get("contour"), str) and data["contour"]:
+            out.append(data)
+    return out
+
+
 def waiting_for(data):
     """Says what a held session waits on, in the words claude in a terminal uses for it.
 

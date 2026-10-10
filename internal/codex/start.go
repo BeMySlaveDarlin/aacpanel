@@ -87,6 +87,7 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 	defer l.sub.Unlock()
 	var out struct {
 		Thread threadInfo `json:"thread"`
+		settingsWire
 	}
 	if err := within(ctx, c, "thread/start", params, &out); err != nil {
 		return "", err
@@ -96,8 +97,12 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 		return "", fmt.Errorf("the codex daemon of %s started a thread and did not name it", l.home)
 	}
 	l.seen(out.Thread, time.Now())
-	// thread/start makes the caller a client of the thread.
-	l.set(id, func(t *thread) { t.subscribed = true })
+	// thread/start makes the caller a client of the thread, and its answer
+	// says the settings the thread starts with; a thread starts out of plan
+	// mode, which the answer does not say.
+	settled := out.read()
+	settled.planKnown = true
+	l.set(id, func(t *thread) { t.subscribed, t.settings = true, settled })
 	if b.Hold {
 		l.hold(id)
 	}
@@ -143,6 +148,8 @@ func (l *Link) Close(ctx context.Context, threadID string) (bool, error) {
 	l.mu.Lock()
 	l.closed[threadID] = turn
 	l.remove(threadID)
+	delete(l.boxes, threadID)
+	l.keepOutbox(threadID)
 	l.mu.Unlock()
 	return turn != "", nil
 }
@@ -191,7 +198,12 @@ func (l *Link) letGo(ctx context.Context, c *conn, id string, active bool) bool 
 
 // unloaded forgets what the link kept of threads the daemon no longer has
 // loaded: one the panel closed is gone, and one it held was let go past it —
-// the daemon was started again, or no executor ran for a while.
+// the daemon was started again, or no executor ran for a while. What waited
+// in the panel's queue of such a thread goes with it: the link stays a client
+// of a thread while its queue holds anything, so only a daemon started again
+// or an executor down past the daemon's patience gets here, and a message
+// sent into a thread the daemon let go is not the panel's to bring it back
+// for.
 func (l *Link) unloaded(ids []string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -205,6 +217,17 @@ func (l *Link) unloaded(ids []string) {
 			delete(l.held, id)
 			_ = os.Remove(heldPath(l.contour, id))
 		}
+	}
+	for id, b := range l.boxes {
+		if slices.Contains(ids, id) {
+			continue
+		}
+		if len(b.Queue) > 0 {
+			log.Printf("codex %s: thread %s is no longer loaded, and %d messages of the panel's queue go with it",
+				l.home, id, len(b.Queue))
+		}
+		delete(l.boxes, id)
+		l.keepOutbox(id)
 	}
 }
 

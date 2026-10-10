@@ -1067,6 +1067,31 @@ func TestRunActionCarriesTheModeToExecutor(t *testing.T) {
 	}
 }
 
+// Codex's plan mode is a setting of its own, a flag rather than a mode, and
+// both of its values reach the executor.
+func TestRunActionCarriesThePlanToExecutor(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+	for _, plan := range []bool{true, false} {
+		body := fmt.Sprintf(`{"kind":"session.set","target":"codex-0000abcd","params":{"plan":%v}}`, plan)
+		if w := post(t, srv, body); w.Code != http.StatusOK {
+			t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+		}
+		select {
+		case got := <-fake.got:
+			if got.Setting == nil || got.Setting.Plan == nil || *got.Setting.Plan != plan || got.Setting.Mode != "" {
+				t.Errorf("the executor got %+v", got.Setting)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("the executor did not get the request")
+		}
+	}
+	if w := post(t, srv, `{"kind":"session.set","target":"codex-0000abcd","params":{"mode":"full-access"}}`); w.Code != http.StatusBadRequest ||
+		!strings.Contains(w.Body.String(), "not set from the panel") {
+		t.Errorf("full access passed with %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // The list of MCP servers is the executor's answer passed on, and an empty
 // list is a list: the screen reads it without guarding against its absence.
 func TestSessionMcpPassesTheServersOn(t *testing.T) {

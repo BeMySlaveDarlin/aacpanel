@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"slices"
 	"strings"
 
 	"aacpanel/internal/action"
@@ -14,9 +16,10 @@ import (
 
 // A codex session is a thread of the codex daemon of a contour, held by the
 // daemon rather than by anything the panel started. It is reached only through
-// the daemon's protocol: a message is a turn or a steer, a stop is an
-// interrupt, an approval is a reply to the daemon's request, a close is an
-// interrupt and the panel leaving the thread. None of the ways of a claude
+// the daemon's protocol: a message is a turn, or waits in the panel's queue
+// while one runs; a stop is an interrupt, an approval is a reply to the
+// daemon's request, a setting is a change of the thread's settings, a close
+// is an interrupt and the panel leaving the thread. None of the ways of a claude
 // session — keys into tmux, signals to a pid, the socket of a holder — apply
 // to it, and an action the panel has no codex way for is refused rather than
 // tried the claude way.
@@ -88,7 +91,13 @@ func (e *Executor) notCodex(target string) error {
 func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.Request) (string, error) {
 	switch req.Kind {
 	case action.SessionSend:
-		return codexSend(ctx, th, req.Text, req.MessageID)
+		return codexSend(ctx, th, codex.Message{ID: req.MessageID, Text: req.Text})
+	case action.SessionFile:
+		return codexFile(ctx, th, req.Text, req.Files)
+	case action.SessionUnqueue:
+		return codexUnqueue(th, req.MessageID)
+	case action.SessionSet:
+		return codexSet(ctx, th, req.Setting)
 	case action.SessionStop:
 		return codexStop(ctx, th)
 	case action.SessionEscape:
@@ -103,16 +112,135 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 	return "", codexRefusal(th.Name)
 }
 
-func codexSend(ctx context.Context, th codex.Thread, text, messageID string) (string, error) {
-	steered, err := th.Link.Send(ctx, th.ID, text, messageID)
+// codexSend gives a thread a message: a turn of its own on a free thread, and
+// the panel's queue on a busy one, which sends it once the turn that runs
+// ends — the way claude's own queue waits, rather than into the turn that
+// runs.
+func codexSend(ctx context.Context, th codex.Thread, m codex.Message) (string, error) {
+	place, err := th.Link.Send(ctx, th.ID, m)
 	if err != nil {
 		return "", fmt.Errorf("session %s did not take the message: %w", th.Name, err)
 	}
-	where := "free — a turn started with it"
-	if steered {
-		where = "busy — it went into the turn that runs"
+	if place == 0 {
+		return fmt.Sprintf("sent to %s (free — a turn started with it), %d characters", th.Name,
+			len([]rune(m.Text))), nil
 	}
-	return fmt.Sprintf("sent to %s (%s), %d characters", th.Name, where, len([]rune(text))), nil
+	return fmt.Sprintf("%s is busy: the message waits in the panel's queue, %s, and goes as a turn of its own "+
+		"once the turn that runs ends", th.Name, ordinal(place)), nil
+}
+
+func ordinal(n int) string {
+	if n == 1 {
+		return "first"
+	}
+	return fmt.Sprintf("number %d", n)
+}
+
+// codexUnqueue takes a message back from the panel's queue of a thread. A
+// message that has gone is a turn of the thread, and the answer says so.
+func codexUnqueue(th codex.Thread, messageID string) (string, error) {
+	if !th.Link.Unqueue(th.ID, messageID) {
+		return "", fmt.Errorf("the message is already delivered: %s has read it, and it can no longer be taken back", th.Name)
+	}
+	return fmt.Sprintf("the message was taken back from the queue of %s before it was read", th.Name), nil
+}
+
+// codexFile puts the files where a claude session gets them and gives the
+// thread a message with them, the caption first: a picture goes into the turn
+// as a file codex reads itself, any other file as its path in the words. A
+// busy thread gets the message in the panel's queue, files and all.
+func codexFile(ctx context.Context, th codex.Thread, caption string, files []action.File) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no file arrived: there is nothing to send")
+	}
+	m := codex.Message{}
+	var paths, named, bare []string
+	for i := range files {
+		path, err := storeFile(&files[i])
+		if err != nil {
+			return "", fmt.Errorf("%w%s", err, landed(paths))
+		}
+		paths = append(paths, path)
+		if err := storePreview(path, files[i].Preview); err != nil {
+			bare = append(bare, fmt.Sprintf("%s (%v)", files[i].Name, err))
+		}
+		if picture(files[i].Data) {
+			m.Images = append(m.Images, path)
+		} else {
+			named = append(named, path)
+		}
+	}
+	m.Text = strings.Join(append(nonEmpty(caption), named...), "\n")
+	detail, err := codexSend(ctx, th, m)
+	if err != nil {
+		return "", fmt.Errorf("%w%s", err, landed(paths))
+	}
+	detail += " · " + describeFiles(files, paths)
+	if len(bare) > 0 {
+		detail += "; the feed shows a path in place of " + strings.Join(bare, ", ")
+	}
+	return detail, nil
+}
+
+// pictures are the kinds of picture codex reads from a file into the turn:
+// the ones a model takes. A picture of another kind — a HEIC from a phone —
+// goes by its path, as any other file.
+var pictures = []string{"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+// picture says a file is a picture codex takes, by what its bytes are rather
+// than by its name.
+func picture(data []byte) bool {
+	return slices.Contains(pictures, http.DetectContentType(data))
+}
+
+func nonEmpty(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	return []string{s}
+}
+
+// codexSet changes a setting of a thread for its next turns: a model with its
+// effort or without, an effort, a mode or the plan. A default is not the
+// panel's to save for codex: its config.toml holds it.
+func codexSet(ctx context.Context, th codex.Thread, set *action.Setting) (string, error) {
+	switch {
+	case set == nil:
+		return "", fmt.Errorf("no setting arrived: there is nothing to change")
+	case set.Scope == action.ScopeDefault:
+		return "", fmt.Errorf("%s is a codex session: its defaults are in the config.toml of its codex home, "+
+			"and the panel changes only the session", th.Name)
+	case set.Mode != "" && !slices.Contains(codex.Modes, set.Mode):
+		return "", fmt.Errorf("%s is a codex session: it has no %s mode; its modes are %s", th.Name, set.Mode,
+			strings.Join(codex.Modes, ", "))
+	}
+	done, err := th.Link.Configure(ctx, th.ID, codex.Setting{Model: set.Model, Effort: set.Effort, Mode: set.Mode,
+		Plan: set.Plan})
+	if err != nil {
+		return "", fmt.Errorf("session %s: %w", th.Name, err)
+	}
+	switch {
+	case done.Later:
+		return fmt.Sprintf("the codex daemon does not change a running thread here, so %s goes with the next "+
+			"message to %s", modelText(set.Model, done.Effort), th.Name), nil
+	case set.Model != "" || set.Effort != "":
+		return fmt.Sprintf("%s runs %s from its next turn", th.Name, modelText(set.Model, done.Effort)), nil
+	case set.Plan != nil && *set.Plan:
+		return fmt.Sprintf("%s plans from its next turn: it explores and asks, and changes nothing", th.Name), nil
+	case set.Plan != nil:
+		return fmt.Sprintf("%s acts again from its next turn", th.Name), nil
+	}
+	return fmt.Sprintf("%s runs in the %s mode from its next turn", th.Name, set.Mode), nil
+}
+
+func modelText(model, effort string) string {
+	switch {
+	case model != "" && effort != "":
+		return model + " at the " + effort + " effort"
+	case model != "":
+		return model
+	}
+	return "the " + effort + " effort"
 }
 
 func codexStop(ctx context.Context, th codex.Thread) (string, error) {

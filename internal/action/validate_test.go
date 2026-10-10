@@ -607,34 +607,50 @@ func TestAModelIsTakenByAliasOrByItsID(t *testing.T) {
 	}
 }
 
-// A pick changes one setting, and a mode is one of four: the two that stop a
-// session asking at all are not a tap away.
+// A pick changes one setting — a model of codex may bring its effort — and a
+// mode is one of claude's four or codex's three: the ones that stop a session
+// asking at all are not a tap away. Which models and efforts of codex exist
+// is the daemon's to say, and the executor asks it; here they are held to
+// their shape.
 func TestASettingIsOneAtATime(t *testing.T) {
 	req := func(set *Setting) Request {
 		return Request{ID: "a1", Kind: SessionSet, Target: "aacpanel", Setting: set}
 	}
+	on, off := true, false
 	for _, set := range []*Setting{{Mode: "default"}, {Mode: "acceptEdits"}, {Mode: "plan"}, {Mode: "auto"},
 		{Model: "sonnet"}, {Model: "claude-opus-4-8"}, {Effort: "xhigh"}, {Effort: Ultracode},
-		{Model: "fable", Scope: ScopeDefault}, {Effort: "high", Scope: ScopeSession}, {Effort: Ultracode, Scope: ScopeSession}} {
+		{Model: "fable", Scope: ScopeDefault}, {Effort: "high", Scope: ScopeSession}, {Effort: Ultracode, Scope: ScopeSession},
+		{Mode: "read-only"}, {Mode: "ask"}, {Model: "gpt-6.1-sol"}, {Model: "gpt-5.6-luna", Effort: "low"},
+		{Effort: "ultra"}, {Plan: &on}, {Plan: &off}} {
 		if err := req(set).Validate(); err != nil {
 			t.Errorf("%+v is rejected: %v", *set, err)
 		}
 	}
 	for name, set := range map[string]*Setting{
-		"nothing":          nil,
-		"an empty setting": {},
-		"two at once":      {Model: "sonnet", Mode: "auto"},
-		"no questions":     {Mode: "bypassPermissions"},
-		"asking nobody":    {Mode: "dontAsk"},
-		"a mode in caps":   {Mode: "Auto"},
-		"an unknown model": {Model: "gpt"},
-		"a model effort":   {Effort: "claude-opus-4-8"},
-		"an unknown scope": {Effort: "high", Scope: "forever"},
-		"a mode's scope":   {Mode: "plan", Scope: ScopeSession},
-		"ultracode saved":  {Effort: Ultracode, Scope: ScopeDefault},
+		"nothing":            nil,
+		"an empty setting":   {},
+		"two at once":        {Model: "sonnet", Mode: "auto"},
+		"an effort and mode": {Effort: "low", Mode: "ask"},
+		"a plan and a model": {Model: "gpt-6.1-sol", Plan: &on},
+		"no questions":       {Mode: "bypassPermissions"},
+		"asking nobody":      {Mode: "dontAsk"},
+		"a mode in caps":     {Mode: "Auto"},
+		"a model of words":   {Model: "gpt 6"},
+		"a model of a path":  {Model: "../gpt"},
+		"a model effort":     {Effort: "claude-opus-4-8"},
+		"an unknown scope":   {Effort: "high", Scope: "forever"},
+		"a mode's scope":     {Mode: "plan", Scope: ScopeSession},
+		"a plan's scope":     {Plan: &on, Scope: ScopeSession},
+		"ultracode saved":    {Effort: Ultracode, Scope: ScopeDefault},
 	} {
 		if err := req(set).Validate(); err == nil {
 			t.Errorf("%s is accepted", name)
+		}
+	}
+	for _, mode := range []string{"full-access", "never"} {
+		err := req(&Setting{Mode: mode}).Validate()
+		if err == nil || !strings.Contains(err.Error(), "is not set from the panel") {
+			t.Errorf("codex's %s mode: %v", mode, err)
 		}
 	}
 	send := Request{ID: "a1", Kind: SessionSend, Target: "aacpanel", Text: "hi", Setting: &Setting{Mode: "auto"}}

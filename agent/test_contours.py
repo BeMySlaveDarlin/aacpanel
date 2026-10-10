@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -338,6 +339,62 @@ class Contours(unittest.TestCase):
     def test_limits_with_no_snapshots_at_all_are_nothing(self):
         self.contour()
         self.assertIsNone(agent.limits())
+
+    def codex_rate(self, contour, primary, secondary=None, **extra):
+        """Writes the limits of a codex account the way the executor keeps them."""
+        run = os.path.join(self.root, "run")
+        old = os.environ.get("XDG_RUNTIME_DIR")
+        self.addCleanup(lambda: os.environ.__setitem__("XDG_RUNTIME_DIR", old) if old is not None
+                        else os.environ.pop("XDG_RUNTIME_DIR", None))
+        os.environ["XDG_RUNTIME_DIR"] = run
+        d = os.path.join(run, "aacpanel-stream", "codex-limits")
+        os.makedirs(d, exist_ok=True)
+        data = {"at": int(time.time()) - 30, "contour": contour, "codexHome": "/home/u/.codex-profiles/" + contour,
+                "limitId": "codex", "plan": "pro", "primary": primary, "secondary": secondary, **extra}
+        with open(os.path.join(d, contour + ".json"), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+    def test_codex_limits_sit_beside_claudes_of_the_same_contour(self):
+        work = self.contour()
+        self.rate(self.home, 12, 62)
+        self.rate(work, 3, 40)
+        week = {"usedPercent": 50, "windowDurationMins": 10080, "resetsAt": 1791948832}
+        self.codex_rate("work", week)
+
+        by = {c["profile"]: c for c in agent.limits()["contours"]}
+        codex = by["work"]["codex"]
+        self.assertGreaterEqual(codex.pop("ageSec"), 30)
+        self.assertIsInstance(codex.pop("at"), int)
+        self.assertEqual(codex, {
+            "codexHome": "/home/u/.codex-profiles/work", "plan": "pro",
+            "windows": [{"pct": 50, "resetsAt": 1791948832, "windowMins": 10080}],
+            "sevenDay": {"pct": 50, "resetsAt": 1791948832},
+        })
+        self.assertEqual(by["work"]["fiveHour"]["pct"], 3, "claude's limits of the contour stay as they were")
+        self.assertNotIn("codex", by["personal"])
+
+    def test_a_contour_with_codex_limits_alone_gets_a_row_of_its_own(self):
+        work = self.contour()
+        self.codex_rate("work", {"usedPercent": 7, "windowDurationMins": 10080, "resetsAt": None},
+                        reached="rate_limit_reached")
+
+        got = agent.limits()
+        self.assertEqual([c["profile"] for c in got["contours"]], ["work"])
+        row = got["contours"][0]
+        self.assertEqual(row["configDir"], work)
+        self.assertNotIn("fiveHour", row)
+        self.assertEqual(row["codex"]["sevenDay"], {"pct": 7, "resetsAt": None})
+        self.assertEqual(row["codex"]["reached"], "rate_limit_reached")
+
+    def test_a_codex_window_that_is_not_a_week_is_no_seven_days(self):
+        self.rate(self.home, 12, 62)
+        self.codex_rate("personal", {"usedPercent": 20, "windowDurationMins": 300, "resetsAt": 1791000000},
+                        {"usedPercent": 60, "windowDurationMins": 10080, "resetsAt": 1791948832})
+
+        codex = agent.limits()["contours"][0]["codex"]
+        self.assertEqual([w["windowMins"] for w in codex["windows"]], [300, 10080])
+        self.assertEqual(codex["sevenDay"], {"pct": 60, "resetsAt": 1791948832},
+                         "the week is the window that lasts a week, wherever codex puts it")
 
     def transcript(self, config, project, uuid, body="{}\n"):
         d = os.path.join(config, "projects", project)

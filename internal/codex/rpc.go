@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -32,6 +33,21 @@ type message struct {
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+// Error is what the daemon said, up to the list of the methods it knows: a
+// method it does not know is refused with every method it does, a hundred
+// names that say nothing to the person who reads the refusal.
+func (e *rpcError) Error() string {
+	text, _, _ := strings.Cut(e.Message, ", expected one of")
+	return text
+}
+
+// refused says the daemon answered a call with a refusal, as against a call
+// that never got an answer: a refusal leaves everything as it was.
+func refused(err error) bool {
+	var e *rpcError
+	return errors.As(err, &e)
 }
 
 // conn is one connection to a daemon: WebSocket over its unix socket, a
@@ -127,7 +143,7 @@ func (c *conn) call(ctx context.Context, method string, params, out any) error {
 	select {
 	case msg := <-ch:
 		if msg.Error != nil {
-			return fmt.Errorf("codex refused %s: %s", method, msg.Error.Message)
+			return fmt.Errorf("codex refused %s: %w", method, msg.Error)
 		}
 		if out == nil || len(msg.Result) == 0 {
 			return nil

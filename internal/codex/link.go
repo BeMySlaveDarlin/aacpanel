@@ -12,7 +12,8 @@
 // The executor stays blind to the conversation the way it is with claude: the
 // notifications that carry it are turned off at the handshake, the state file
 // carries no text, and the only words it holds are those a person decides on —
-// the command or the change an approval asks about.
+// the command or the change an approval asks about, and the messages that wait
+// in the panel's queue for a thread to be free.
 package codex
 
 import (
@@ -50,17 +51,20 @@ const (
 	flagApproval     = "waitingOnApproval"
 )
 
-// quiet are the notifications a link turns off at the handshake. It reads one
-// notification, serverRequest/resolved, and every other one the protocol
-// knows is off: most carry the conversation — items, their deltas, diffs,
-// plans, the items of a finished turn — and the rest is traffic nobody reads.
-// A notification a newer daemon adds arrives and is dropped unread.
+// quiet are the notifications a link turns off at the handshake. It reads the
+// word that a request was answered, the status of a thread — a thread that
+// turns free takes the next message of the panel's queue at once — its
+// settings, how full its context is and the rate limits of the account; none
+// of them carries a word of the conversation. Every other notification the
+// protocol knows is off: most carry the conversation — items, their deltas,
+// diffs, plans, the items of a finished turn — and the rest is traffic nobody
+// reads. A notification a newer daemon adds arrives and is dropped unread.
 var quiet = []string{
-	"error", "thread/started", "thread/status/changed", "thread/archived", "thread/deleted",
+	"error", "thread/started", "thread/archived", "thread/deleted",
 	"thread/unarchived", "thread/closed", "thread/reverted", "skills/changed", "thread/name/updated",
 	"thread/attachment/updated", "thread/goal/updated", "thread/prediction/updated", "thread/goal/cleared",
 	"thread/queue/changed", "project/changed", "thread/project/updated", "thread/environment/connected",
-	"thread/environment/disconnected", "thread/settings/updated", "thread/tokenUsage/updated",
+	"thread/environment/disconnected",
 	"turn/started", "hook/started", "turn/completed", "hook/completed", "turn/diff/updated",
 	"turn/plan/updated", "item/started", "item/autoApprovalReview/started",
 	"item/autoApprovalReview/completed", "autoApprovalReview/strictReviewRequired", "item/completed",
@@ -70,7 +74,7 @@ var quiet = []string{
 	"item/fileChange/outputDelta", "item/fileChange/patchUpdated", "item/mcpToolCall/progress",
 	"mcpServer/oauthLogin/completed", "mcpServer/startupStatus/updated",
 	"mcpServer/event/stream/notification", "account/updated", "account/gatewayOAuth/changed",
-	"account/rateLimits/updated", "app/list/updated", "remoteControl/status/changed",
+	"app/list/updated", "remoteControl/status/changed",
 	"externalAgentConfig/import/progress", "externalAgentConfig/import/completed", "fs/changed",
 	"item/reasoning/summaryTextDelta", "item/reasoning/summaryPartAdded", "item/reasoning/textDelta",
 	"thread/compacted", "model/rerouted", "model/verification", "modelProvider/authRecoveryStarted",
@@ -115,6 +119,22 @@ type State struct {
 	CodexHome string `json:"codexHome"`
 	// Transcript is the rollout of the thread, as the daemon names it.
 	Transcript string `json:"transcript"`
+	// Plan says the thread plans rather than acts — codex's collaboration
+	// mode, a thing of its own beside the permissions; absent while the
+	// link has not been told.
+	Plan *bool `json:"plan,omitempty"`
+	// Context is how full the context of the thread is, as the daemon said
+	// with the last request the link heard of; absent before that.
+	Context *Context `json:"context,omitempty"`
+}
+
+// Context is how full the context of a thread is, as the daemon said with the
+// last request of a turn: the input of that request against the window of the
+// model, the way the rollout counts it.
+type Context struct {
+	Tokens int64     `json:"tokens"`
+	Window int64     `json:"window"`
+	At     time.Time `json:"at"`
 }
 
 // Approval is what a request for an approval asks: the params of the request,
@@ -215,9 +235,11 @@ type thread struct {
 	// subscribed says the link is a client of the thread: it gets the
 	// requests of the thread, and the daemon keeps the thread loaded for it.
 	subscribed bool
-	// ours says a turn the panel started or steered runs: the link stays
-	// subscribed until it ends, so an approval it asks for reaches the phone.
+	// ours says a turn the panel started runs: the link stays subscribed
+	// until it ends, so an approval it asks for reaches the phone.
 	ours bool
+	// settings are what the daemon said of the thread's settings.
+	settings settings
 	// written is the state last written, without its time.
 	written []byte
 }
@@ -234,6 +256,16 @@ type Link struct {
 	threads map[string]*thread
 	pending map[string][]Request
 	said    string
+
+	// boxes are what the panel holds for threads until a turn takes it, the
+	// messages of its queue among them; kept on the disk.
+	boxes map[string]*outbox
+	// usage is how full the context of each thread is, as last heard.
+	usage map[string]Context
+	// limits are the rate limits of the account, as last heard; limitsSaid
+	// is the last failure to read them, logged once.
+	limits     *Limits
+	limitsSaid string
 
 	// held are the threads the panel started and stays a client of until it
 	// closes them: nothing else holds such a thread, and the daemon unloads a
@@ -254,6 +286,9 @@ type Link struct {
 
 	// wake asks Run to dial now rather than at the next round.
 	wake chan struct{}
+	// kick asks the connected link to read the daemon now: a thread turned
+	// free, and a message of the queue waits for it.
+	kick chan struct{}
 }
 
 // NewLink makes the link to the daemon of a codex home; Run keeps it.
@@ -262,6 +297,7 @@ func NewLink(home, contour string) *Link {
 		home: home, contour: contour, socket: SocketPath(home), holder: os.Getpid(),
 		threads: map[string]*thread{}, pending: map[string][]Request{},
 		held: map[string]bool{}, closed: map[string]string{}, wake: make(chan struct{}, 1),
+		boxes: loadOutboxes(contour), usage: map[string]Context{}, kick: make(chan struct{}, 1),
 	}
 }
 
@@ -436,7 +472,12 @@ func (l *Link) serve(ctx context.Context) error {
 
 	tick := time.NewTicker(pollEvery)
 	defer tick.Stop()
+	var limitsAt time.Time
 	for {
+		if time.Since(limitsAt) >= limitsEvery {
+			limitsAt = time.Now()
+			l.readLimits(ctx, c)
+		}
 		if err := l.poll(ctx, c); err != nil {
 			if ctx.Err() != nil {
 				return nil
@@ -449,6 +490,7 @@ func (l *Link) serve(ctx context.Context) error {
 		case <-c.closed:
 			return c.lost()
 		case <-tick.C:
+		case <-l.kick:
 		}
 	}
 }
@@ -510,6 +552,7 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 		}
 		live[id] = true
 		l.keep(ctx, c, id)
+		l.drain(ctx, c, id)
 		l.save(id)
 	}
 	l.drop(live)
@@ -576,9 +619,11 @@ func (l *Link) seen(info threadInfo, asked time.Time) bool {
 // daemon unloads a thread a while after its last client leaves, and a link
 // subscribed for good would keep every thread it ever saw loaded. So the link
 // subscribes when the thread waits on an approval — the daemon then sends the
-// request again, to the new client too — or when a turn the panel started
-// runs, and leaves once the thread is free and nothing waits. A thread closed
-// since it was seen is gone from the link, and there is nothing to keep.
+// request again, to the new client too — when a turn the panel started runs,
+// or while messages of the panel's queue wait for the thread — the word that
+// it turned free reaches only its clients — and leaves once the thread is
+// free and nothing waits. A thread closed since it was seen is gone from the
+// link, and there is nothing to keep.
 func (l *Link) keep(ctx context.Context, c *conn, id string) {
 	l.sub.Lock()
 	defer l.sub.Unlock()
@@ -593,6 +638,7 @@ func (l *Link) keep(ctx context.Context, c *conn, id string) {
 	asking := len(l.pending[id]) > 0
 	subscribed, ours := t.subscribed, t.ours
 	held := l.held[id]
+	queued := l.queued(id) > 0
 	l.mu.Unlock()
 
 	switch {
@@ -602,7 +648,7 @@ func (l *Link) keep(ctx context.Context, c *conn, id string) {
 		if !subscribed || (waiting && !asking) {
 			l.join(ctx, c, id)
 		}
-	case !active && !asking:
+	case !active && !asking && !queued:
 		if !subscribed {
 			l.set(id, func(t *thread) { t.ours = false })
 			return
@@ -630,16 +676,18 @@ func (l *Link) keep(ctx context.Context, c *conn, id string) {
 		// resume of a running thread joins it again and brings the waiting
 		// request with it.
 		l.join(ctx, c, id)
-	case !subscribed && (ours || asking):
+	case !subscribed && (ours || asking || queued):
 		l.join(ctx, c, id)
 	}
 }
 
 // join makes the link a client of a thread: a resume of a loaded thread
-// subscribes the one who asks, and brings what it waits on with it.
+// subscribes the one who asks, and brings what it waits on with it, and the
+// settings of the thread with its answer.
 func (l *Link) join(ctx context.Context, c *conn, id string) {
-	if within(ctx, c, "thread/resume", map[string]any{"threadId": id, "excludeTurns": true}, nil) == nil {
-		l.set(id, func(t *thread) { t.subscribed = true })
+	var out settingsWire
+	if within(ctx, c, "thread/resume", map[string]any{"threadId": id, "excludeTurns": true}, &out) == nil {
+		l.set(id, func(t *thread) { t.subscribed, t.settings = true, out.read() })
 	}
 }
 
@@ -670,11 +718,25 @@ func runningTurn(ctx context.Context, c *conn, id string) (string, error) {
 	return out.Data[0].ID, nil
 }
 
-// handle takes what the daemon sends on its own: the requests for an approval
-// and the word that a request was answered. The other requests are left to the
-// clients that know them — the TUI shows them, the panel does not answer them.
+// handle takes what the daemon sends on its own: the requests for an approval,
+// the word that a request was answered, and the notifications the link reads.
+// The other requests are left to the clients that know them — the TUI shows
+// them, the panel does not answer them.
 func (l *Link) handle(msg message) {
 	switch {
+	case len(msg.ID) == 0 && msg.Method == "thread/status/changed":
+		var p struct {
+			Status threadStatus `json:"status"`
+		}
+		if json.Unmarshal(msg.Params, &p) == nil && p.Status.Type != "active" {
+			l.nudge()
+		}
+	case len(msg.ID) == 0 && msg.Method == "thread/settings/updated":
+		l.onSettings(msg.Params)
+	case len(msg.ID) == 0 && msg.Method == "thread/tokenUsage/updated":
+		l.onUsage(msg.Params)
+	case len(msg.ID) == 0 && msg.Method == "account/rateLimits/updated":
+		l.onLimits(msg.Params)
 	case len(msg.ID) > 0 && (msg.Method == methodCommand || msg.Method == methodFileChange):
 		var a Approval
 		if json.Unmarshal(msg.Params, &a) != nil || a.ThreadID == "" {
@@ -697,6 +759,57 @@ func (l *Link) handle(msg message) {
 		l.resolve(p.ThreadID, idKey(p.RequestID))
 		l.save(p.ThreadID)
 	}
+}
+
+// onSettings takes the settings of a thread another client — or the panel —
+// changed: the daemon tells them whole to every client of the thread.
+func (l *Link) onSettings(params json.RawMessage) {
+	var p struct {
+		ThreadID string `json:"threadId"`
+		Settings struct {
+			settingsWire
+			Model  string  `json:"model"`
+			Effort *string `json:"effort"`
+		} `json:"threadSettings"`
+	}
+	if json.Unmarshal(params, &p) != nil || p.ThreadID == "" {
+		return
+	}
+	l.set(p.ThreadID, func(t *thread) {
+		t.settings = p.Settings.read()
+		if p.Settings.Model != "" {
+			t.info.Model = p.Settings.Model
+		}
+		if p.Settings.Effort != nil {
+			t.info.Effort = *p.Settings.Effort
+		}
+	})
+	l.save(p.ThreadID)
+}
+
+// onUsage takes how full the context of a thread is after a request of its
+// turn.
+func (l *Link) onUsage(params json.RawMessage) {
+	var p struct {
+		ThreadID string `json:"threadId"`
+		Usage    struct {
+			Last struct {
+				Input int64 `json:"inputTokens"`
+			} `json:"last"`
+			Window *int64 `json:"modelContextWindow"`
+		} `json:"tokenUsage"`
+	}
+	if json.Unmarshal(params, &p) != nil || p.ThreadID == "" {
+		return
+	}
+	u := Context{Tokens: p.Usage.Last.Input, At: time.Now()}
+	if p.Usage.Window != nil {
+		u.Window = *p.Usage.Window
+	}
+	l.mu.Lock()
+	l.usage[p.ThreadID] = u
+	l.mu.Unlock()
+	l.save(p.ThreadID)
 }
 
 func (l *Link) resolve(threadID, key string) {
@@ -739,14 +852,23 @@ func (l *Link) state(t *thread) State {
 	if len(waiting) == 0 {
 		waiting = append(waiting, t.info.Status.Flags...)
 	}
-	return State{
+	st := State{
 		Summary: stream.Summary{
 			Protocol: stream.Protocol, Name: SessionName(t.info.ID), SessionID: t.info.ID, Holder: l.holder,
 			Started: time.Unix(t.info.CreatedAt, 0), Busy: t.info.Status.Type == "active",
-			Model: t.info.Model, Effort: t.info.Effort, Waiting: waiting,
+			Model: t.info.Model, Effort: t.info.Effort, Mode: t.settings.mode(), Waiting: waiting,
+			Queue: l.queued(t.info.ID),
 		},
 		Agent: Agent, CWD: t.info.CWD, Contour: l.contour, CodexHome: l.home, Transcript: t.info.Path,
 	}
+	if t.settings.planKnown {
+		plan := t.settings.plan
+		st.Plan = &plan
+	}
+	if u, ok := l.usage[t.info.ID]; ok {
+		st.Context = &u
+	}
+	return st
 }
 
 func write(path string, body []byte) error {
@@ -792,6 +914,7 @@ func (l *Link) remove(id string) {
 	_ = os.Remove(stream.StatePath(id))
 	delete(l.threads, id)
 	delete(l.pending, id)
+	delete(l.usage, id)
 }
 
 // ------------------------------------------------------------ what the executor asks
@@ -810,46 +933,6 @@ func (l *Link) Pending(threadID string) []Request {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return slices.Clone(l.pending[threadID])
-}
-
-// Send gives a thread a message. A free thread starts a turn with it; a busy
-// one takes it into the turn that runs, the way a person types into a working
-// TUI. It reports whether the message went into a running turn.
-func (l *Link) Send(ctx context.Context, threadID, text, messageID string) (bool, error) {
-	c, err := l.client()
-	if err != nil {
-		return false, err
-	}
-	params := map[string]any{"threadId": threadID, "input": textInput(text)}
-	if messageID != "" {
-		params["clientUserMessageId"] = messageID
-	}
-	l.sub.Lock()
-	defer l.sub.Unlock()
-	info, err := read(ctx, c, threadID)
-	if err != nil {
-		return false, err
-	}
-	if info.Status.Type == "active" {
-		turn, err := runningTurn(ctx, c, threadID)
-		if err != nil {
-			return false, err
-		}
-		if turn != "" {
-			params["expectedTurnId"] = turn
-			if err := within(ctx, c, "turn/steer", params, nil); err != nil {
-				return false, err
-			}
-			l.set(threadID, func(t *thread) { t.ours = true })
-			return true, nil
-		}
-	}
-	if err := within(ctx, c, "turn/start", params, nil); err != nil {
-		return false, err
-	}
-	// turn/start makes the caller a client of the thread.
-	l.set(threadID, func(t *thread) { t.ours, t.subscribed = true, true })
-	return false, nil
 }
 
 // Interrupt stops the turn a thread runs; false when none runs.

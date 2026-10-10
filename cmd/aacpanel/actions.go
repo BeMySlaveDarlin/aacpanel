@@ -215,12 +215,18 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		set.Effort, _ = body.Params["effort"].(string)
 		set.Mode, _ = body.Params["mode"].(string)
 		set.Scope, _ = body.Params["scope"].(string)
+		if plan, ok := body.Params["plan"].(bool); ok {
+			set.Plan = &plan
+		}
 		req.Setting = set
 		params = map[string]any{}
 		for key, v := range map[string]string{"model": set.Model, "effort": set.Effort, "mode": set.Mode, "scope": set.Scope} {
 			if v != "" {
 				params[key] = v
 			}
+		}
+		if set.Plan != nil {
+			params["plan"] = *set.Plan
 		}
 	}
 	if req.Kind == action.SessionRename {

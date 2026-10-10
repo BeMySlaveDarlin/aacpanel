@@ -298,19 +298,53 @@ def _row(live):
     }
 
 
+def _heard(data):
+    """Returns how full the context of a thread is as the executor heard it from the daemon, or None.
+
+    The daemon tells it to the clients of the thread with every request, in
+    the same count the rollout keeps: the input of the last request against
+    the window of the model.
+    """
+    heard = data.get("context")
+    if not isinstance(heard, dict):
+        return None
+    tokens, window, at = heard.get("tokens"), heard.get("window"), heard.get("at")
+    if (isinstance(tokens, bool) or not isinstance(tokens, int) or tokens < 0
+            or isinstance(window, bool) or not isinstance(window, int) or window < 0
+            or not isinstance(at, str) or _epoch(at) is None):
+        return None
+    return {"tokens": tokens, "limit": window, "at": at}
+
+
+def _fill(data, sid, contour):
+    """Returns how full the context of a thread is: the fresher of what the daemon said and the rollout.
+
+    The executor hears the daemon only while it is a client of the thread,
+    and a turn another client runs reaches it through the rollout alone.
+    """
+    path = codex.rollout_path(sid, contour)
+    found = (codex.context(path) if path else None) or {"tokens": 0, "limit": 0, "at": ""}
+    heard = _heard(data)
+    if heard and (not found["at"] or _epoch(heard["at"]) >= (_epoch(found["at"]) or 0)):
+        if not heard["limit"]:
+            heard["limit"] = found["limit"]
+        return heard
+    return found
+
+
 def codex_row(data):
     """Returns the row of a codex thread a live executor follows.
 
     The executor knows what the thread is doing — busy, what waits for a
-    person, the model and the effort; how full the context is codex writes
-    into the rollout, and the row reads it there, as a claude row reads its
-    transcript.
+    person, the model, the effort, the mode and the plan where the daemon
+    told them, the messages that wait in the panel's queue, and how full the
+    context is as the daemon last said it; the rollout says the fill when the
+    executor heard nothing newer, as a claude row reads its transcript.
     """
     sid = data["sessionId"]
     name = data.get("name") if isinstance(data.get("name"), str) and data["name"] else f"codex-{sid[-8:]}"
     contour = data.get("contour") if isinstance(data.get("contour"), str) else ""
-    path = codex.rollout_path(sid, contour)
-    found = (codex.context(path) if path else None) or {"tokens": 0, "limit": 0, "at": ""}
+    found = _fill(data, sid, contour)
     tokens, limit = found["tokens"], found["limit"]
     row = {
         "session": name, "sessionId": sid, "cwd": data.get("cwd") or "",
@@ -322,6 +356,15 @@ def codex_row(data):
     }
     if not found["at"]:
         row["noRequests"] = True
+    if isinstance(data.get("mode"), str) and data["mode"]:
+        row["mode"] = data["mode"]
+    if isinstance(data.get("plan"), bool):
+        row["plan"] = data["plan"]
+    # Messages that wait in the panel's queue, counted as a claude row counts
+    # the queue of its holder.
+    queued = data.get("queue")
+    if isinstance(queued, int) and not isinstance(queued, bool) and queued > 0:
+        row["queued"] = queued
     # The map knows a contour by the config directory of its claude account,
     # and a codex home is named after the contour it belongs to: the thread
     # carries that directory, and the service puts it on the contour the

@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -191,10 +192,9 @@ func TestCodexSendAndStopGoThroughTheDaemon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	steers := srv.Calls("turn/steer")
-	if len(steers) != 1 || !strings.Contains(string(steers[0]), `"expectedTurnId":"turn-1"`) ||
-		!strings.Contains(detail, "the turn that runs") {
-		t.Fatalf("a message to a busy session: %q, turn/steer %s", detail, steers)
+	if len(srv.Calls("turn/start")) != 1 || len(srv.Calls("turn/steer")) != 0 ||
+		!strings.Contains(detail, "waits in the panel's queue, first") {
+		t.Fatalf("a message to a busy session: %q, turn/start %s", detail, srv.Calls("turn/start"))
 	}
 
 	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionStop, Target: codexName}); err != nil {
@@ -210,7 +210,8 @@ func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	_, e := onCodex(t, nil)
 	ctx := context.Background()
 	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionStop: true, action.SessionEscape: true,
-		action.SessionPermit: true, action.SessionClose: true}
+		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
+		action.SessionFile: true}
 	for _, k := range action.Kinds {
 		if !sessionTarget(k) || taken[k] {
 			continue
@@ -279,5 +280,159 @@ func TestCodexModelsAreTheDaemonsCatalogue(t *testing.T) {
 	}
 	if n := len(srv.Calls("thread/resume")) + len(srv.Calls("turn/start")); n != 0 {
 		t.Errorf("listing the models touched a thread %d times", n)
+	}
+}
+
+// The modes a request names for codex are the ones the link knows how to set.
+func TestTheCodexModesOfAnActionAreTheLinks(t *testing.T) {
+	if !reflect.DeepEqual(action.CodexModes, codex.Modes) {
+		t.Errorf("an action offers %v, and the link sets %v", action.CodexModes, codex.Modes)
+	}
+}
+
+func codexCatalogue(srv *codextest.Server) {
+	srv.Catalogue(
+		codextest.Model{ID: "gpt-test", Model: "gpt-test", Name: "GPT test", Efforts: []string{"low", "high"}, Default: "low"},
+		codextest.Model{ID: "gpt-other", Model: "gpt-other", Name: "GPT other", Efforts: []string{"medium", "ultra"},
+			Default: "medium"},
+	)
+}
+
+func set(s action.Setting) action.Request {
+	return action.Request{Kind: action.SessionSet, Target: codexName, Setting: &s}
+}
+
+// A model, an effort, a mode and the plan of a codex session change through
+// its daemon, checked against the daemon's catalogue first; what codex has no
+// way for is refused with the reason.
+func TestCodexSettingsGoThroughTheDaemon(t *testing.T) {
+	srv, e := onCodex(t, codexCatalogue)
+	ctx := context.Background()
+	on := true
+
+	detail, err := e.Execute(ctx, set(action.Setting{Model: "gpt-other", Effort: "ultra"}))
+	if err != nil || detail != codexName+" runs gpt-other at the ultra effort from its next turn" {
+		t.Fatalf("a model with its effort: %q, %v", detail, err)
+	}
+	for _, c := range []struct {
+		set  action.Setting
+		says string
+	}{
+		{action.Setting{Model: "gpt-z"}, "codex offers no model"},
+		{action.Setting{Effort: "high"}, `gpt-other does not take the effort "high"`},
+		{action.Setting{Mode: "acceptEdits"}, "it has no acceptEdits mode; its modes are read-only, ask, auto"},
+		{action.Setting{Model: "gpt-test", Scope: action.ScopeDefault}, "config.toml"},
+	} {
+		if _, err := e.Execute(ctx, set(c.set)); err == nil || !strings.Contains(err.Error(), c.says) {
+			t.Errorf("%+v: %v, meant to say %q", c.set, err, c.says)
+		}
+	}
+	if detail, err := e.Execute(ctx, set(action.Setting{Mode: "auto"})); err != nil || !strings.Contains(detail, "the auto mode") {
+		t.Errorf("the auto mode: %q, %v", detail, err)
+	}
+	if detail, err := e.Execute(ctx, set(action.Setting{Plan: &on})); err != nil || !strings.Contains(detail, "plans") {
+		t.Errorf("plan mode: %q, %v", detail, err)
+	}
+	if th := srv.Settings(codexThread); th.Model != "gpt-other" || th.Effort != "ultra" || !th.Plan ||
+		th.Reviewer != "auto_review" || th.Profile != ":workspace" {
+		t.Errorf("the thread runs with %+v", th)
+	}
+	if n := len(srv.Calls("thread/settings/update")); n != 3 {
+		t.Errorf("thread/settings/update went %d times for three changes", n)
+	}
+
+	srv.Refuse("thread/settings/update")
+	detail, err = e.Execute(ctx, set(action.Setting{Model: "gpt-test"}))
+	if err != nil || !strings.Contains(detail, "goes with the next message") || !strings.Contains(detail, "gpt-test at the low effort") {
+		t.Errorf("a model on a daemon that does not change a running thread: %q, %v", detail, err)
+	}
+	if _, err := e.Execute(ctx, set(action.Setting{Mode: "ask"})); err == nil || !strings.Contains(err.Error(), "unknown variant") {
+		t.Errorf("a mode on a daemon that does not change a running thread: %v", err)
+	}
+}
+
+// A message for a busy codex session waits in the panel's queue and is taken
+// back from there; one that went is a turn already.
+func TestCodexUnqueueTakesBackWhatWaits(t *testing.T) {
+	srv, e := onCodex(t, func(srv *codextest.Server) { srv.Running(codexThread, "turn-tui") })
+	ctx := context.Background()
+	id := "8b0c6a52-9f1e-4d39-a2ad-5b5e6f7f0a11"
+	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionSend, Target: codexName, Text: "later",
+		MessageID: id}); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := e.Execute(ctx, action.Request{Kind: action.SessionUnqueue, Target: codexName, MessageID: id})
+	if err != nil || !strings.Contains(detail, "taken back") {
+		t.Fatalf("taking back: %q, %v", detail, err)
+	}
+	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionUnqueue, Target: codexName, MessageID: id}); err == nil ||
+		!strings.Contains(err.Error(), "already delivered") {
+		t.Errorf("taking back twice: %v", err)
+	}
+	srv.Set(codexThread, "idle")
+	time.Sleep(200 * time.Millisecond)
+	if n := len(srv.Calls("turn/start")); n != 0 {
+		t.Errorf("a message taken back went as %d turns", n)
+	}
+}
+
+// A picture goes into the turn as a file codex reads itself, any other file
+// as its path after the caption; both are where a claude session gets them.
+func TestCodexFileSendsPicturesAsImagesAndFilesAsPaths(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(filesEnv, dir)
+	srv, e := onCodex(t, nil)
+	png := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...)
+	detail, err := e.Execute(context.Background(), action.Request{Kind: action.SessionFile, Target: codexName,
+		Text: "look at both", Files: []action.File{{Name: "shot.png", Data: png}, {Name: "notes.txt", Data: []byte("words")}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	starts := srv.Calls("turn/start")
+	if len(starts) != 1 {
+		t.Fatalf("turn/start went %d times", len(starts))
+	}
+	var p struct {
+		Input []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+			Path string `json:"path"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(starts[0], &p); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Input) != 2 || p.Input[0].Type != "text" || p.Input[1].Type != "localImage" ||
+		!strings.HasPrefix(p.Input[0].Text, "look at both\n"+dir+"/") || !strings.HasSuffix(p.Input[0].Text, "-notes.txt") ||
+		!strings.HasPrefix(p.Input[1].Path, dir+"/") || !strings.HasSuffix(p.Input[1].Path, "-shot.png") {
+		t.Errorf("the turn went with %+v", p.Input)
+	}
+	for _, path := range []string{p.Input[1].Path, strings.Split(p.Input[0].Text, "\n")[1]} {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("a file the turn names is not there: %v", err)
+		}
+	}
+	if !strings.Contains(detail, "2 files") {
+		t.Errorf("the answer says %q", detail)
+	}
+}
+
+// What only codex takes is refused for claude before the session is looked
+// for.
+func TestClaudeRefusesWhatOnlyCodexTakes(t *testing.T) {
+	e := New(nil, "")
+	on := true
+	for _, c := range []struct {
+		set  action.Setting
+		says string
+	}{
+		{action.Setting{Plan: &on}, "no plan switch"},
+		{action.Setting{Model: "sonnet", Effort: "high"}, "one setting at a time"},
+		{action.Setting{Model: "gpt-6.1-sol"}, `no model "gpt-6.1-sol"`},
+		{action.Setting{Effort: "ultra"}, `no effort "ultra"`},
+	} {
+		if _, err := e.sessionSet(context.Background(), "aacpanel", &c.set); err == nil || !strings.Contains(err.Error(), c.says) {
+			t.Errorf("%+v for claude: %v", c.set, err)
+		}
 	}
 }
