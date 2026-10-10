@@ -6,7 +6,6 @@
 <div class="shell no-nav"><main class="body" id="phone"></main></div>
 <div id="desk"></div>
 <div class="shell no-nav"><main class="body" id="chat"></main></div>
-<span id="codexhue" style="color: var(--agent-codex)"></span><span id="claudehue" style="color: var(--agent-claude)"></span>
 <script type="module">
 // The archive of a contour with a thread of codex beside a conversation of
 // claude: on the phone's archive and in the archive panel of the desktop, the
@@ -102,7 +101,6 @@ window.done = (async () => {
         resume: Boolean(row.querySelector(".pjresume")),
     });
     const out = {
-        hues: { codex: color(document.getElementById("codexhue")), claude: color(document.getElementById("claudehue")) },
         phone: Array.from(phone.querySelectorAll(".pjpast")).map(line),
         desk: Array.from(desk.querySelectorAll(".dkarch")).map((row) => ({
             word: text(row.querySelector(".agentword")),

@@ -7,7 +7,7 @@ import (
 )
 
 // A thread of codex in the archive stands beside a conversation of claude and
-// reads by the word of its agent in the hue of its agent, as a live thread
+// reads by the word of its agent in the colour of its agent, as a live thread
 // does, with its model and the tokens it spent in place of the words of the
 // person and the fill of the context, which the archive of codex does not
 // keep. Its resume goes to the daemon of its home — the thread by its id and
@@ -31,8 +31,7 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 		Params map[string]any `json:"params"`
 	}
 	var got struct {
-		Hues  struct{ Codex, Claude string } `json:"hues"`
-		Phone []line                         `json:"phone"`
+		Phone []line `json:"phone"`
 		Desk  []struct {
 			Word  string `json:"word"`
 			Hue   string `json:"hue"`
@@ -52,9 +51,6 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 	runWideFixture(t, "codexpast.html", &got)
 
 	const thread = "01a120b0-28ab-7600-8dfe-714b9a8a82d7"
-	if got.Hues.Codex == "" || got.Hues.Codex == got.Hues.Claude {
-		t.Fatalf("the hues of the agents do not tell them apart: %+v", got.Hues)
-	}
 	if len(got.Phone) != 2 {
 		t.Fatalf("the phone's archive shows %d lines: %+v", len(got.Phone), got.Phone)
 	}
@@ -62,16 +58,16 @@ func TestAThreadOfCodexInTheArchiveReadsAsCodexResumesAndOpens(t *testing.T) {
 	if claude.Word != "" || !strings.Contains(claude.About, "login page") || !strings.Contains(claude.When, "peak 40%") {
 		t.Errorf("the conversation of claude reads %+v", claude)
 	}
-	if codex.Word != "Codex" || codex.Agent != "codex" || codex.Hue != got.Hues.Codex {
-		t.Errorf("the thread of codex is not signed by its agent in its hue: %+v, the hue of codex is %s", codex,
-			got.Hues.Codex)
+	if codex.Word != "Codex" || codex.Agent != "codex" || codex.Hue != codexWordHue {
+		t.Errorf("the thread of codex is not signed by its agent in its colour: %+v, the colour of codex is %s", codex,
+			codexWordHue)
 	}
 	if !strings.Contains(codex.About, "gpt-6-astra") || !strings.Contains(codex.About, "xhigh") ||
 		!strings.Contains(codex.When, "29.4m tokens") || strings.Contains(codex.When, "peak") || !codex.Resume {
 		t.Errorf("the thread of codex reads %+v: its model, its effort and what it spent were meant", codex)
 	}
 
-	if len(got.Desk) != 2 || got.Desk[1].Word != "Codex" || got.Desk[1].Hue != got.Hues.Codex ||
+	if len(got.Desk) != 2 || got.Desk[1].Word != "Codex" || got.Desk[1].Hue != codexWordHue ||
 		got.Desk[1].Num != "29.4m" || !strings.Contains(got.Desk[1].Model, "gpt-6-astra") || got.Desk[0].Word != "" {
 		t.Errorf("the archive panel of the desktop reads %+v", got.Desk)
 	}

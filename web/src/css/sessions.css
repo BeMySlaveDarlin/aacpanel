@@ -189,18 +189,21 @@
 
 /* Codex's week beside claude's two windows is the third of three equal
    columns in their row, so its bar is read on their scale and the page gives
-   it no row of its own; a third of the narrowest phone holds the caption, the
-   share and the time to the reset without the word, and the window carries
-   it all in its title. Codex's window alone is as wide as one of claude's,
-   and the line of an account that told no week, with no bar to compare,
-   takes the row, where it reads in one piece. The bar is in codex's hue, as
-   its ring at a desk is, until it nears its end. */
+   it no row of its own. Every window reads alike: the word of its agent and
+   the share over the bar, the window and the time to its reset under it,
+   which a third of the narrowest phone holds; the window carries it all in
+   its title. Codex's window alone is as wide as one of claude's, and the
+   line of an account that told no week, with no bar to compare, takes the
+   row, where it reads in one piece; beside claude's it is short and stands
+   where their last lines do. The bar is in codex's hue, as its ring at a
+   desk is, until it nears its end. */
 .pflimits .pfcodex > .limit { flex: 0 1 calc(50% - .25rem); }
 .pflimits .pfcodex > .limit.lempty { flex: 1; }
 .pflimits.pfthree { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .5rem; }
 .pflimits.pfthree > .pfclaude { grid-column: span 2; }
 .pflimits.pfthree > .limits-note { grid-column: 1 / -1; }
 .pflimits.pfthree .limit { flex: 1; min-width: 0; }
+.pflimits.pfthree .limit.lempty { justify-content: space-between; }
 .pflimits .limit[data-agent="codex"] .fill.ok { background: var(--agent-codex); }
 .pflimits .pfold { opacity: .45; }
 
@@ -558,8 +561,8 @@ span.pjname { cursor: default; }
 /* Who runs a session, as the word that opens the line of its model — on its
    row, in its sheet and under the name in its conversation: in the hue of
    its agent and a step heavier than the quiet words after it. */
-.agentword { font-weight: 600; color: var(--agent-claude); }
-.agentword[data-agent="codex"] { color: var(--agent-codex); }
+.agentword { font-weight: 600; color: var(--word-claude); }
+.agentword[data-agent="codex"] { color: var(--word-codex); }
 /* Where the session lives and the button of what can be done to it, side by
    side at the right edge of the name's line. The pair is no taller than that
    line and the figure in the corner no taller than the last line on the left,

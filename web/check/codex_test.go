@@ -15,9 +15,21 @@ type agentWord struct {
 	Colour string `json:"colour"`
 }
 
+// The words Claude and Codex are painted in the colours of the agents' own
+// marks wherever they say who runs a session: Anthropic's terracotta and the
+// middle blue of codex's badge on the dark theme the fixtures run in, a
+// darker pair on the sky. Only the words: a bar or a ring of an agent keeps
+// the colours of the panel.
+const (
+	claudeWordHue    = "rgb(217, 119, 87)"
+	codexWordHue     = "rgb(122, 157, 255)"
+	claudeWordSkyHue = "rgb(193, 95, 60)"
+	codexWordSkyHue  = "rgb(57, 65, 255)"
+)
+
 // A codex thread stands on the lists beside claude sessions, told from them
-// by the word that opens the line of its model: Codex, in a hue of its own,
-// where theirs says Claude; it lives on the daemon, not on the stream. The
+// by the word that opens the line of its model: Codex, in the colour of
+// codex's mark, where theirs says Claude in claude's; it lives on the daemon, not on the stream. The
 // panel offers it exactly what the host does for codex: words and files into
 // its turn, named in the queue of a busy thread so they can be taken back, how
 // it thinks and what it may do, a stop of the turn, the answer to what it
@@ -121,9 +133,9 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if got.ClaudeAgent.Text != "Claude" || got.ClaudeAgent.Agent != "claude" || got.ClaudeAgent.Tip != "" {
 		t.Errorf("the claude row beside it opens with %+v, expected the word Claude with no tip", got.ClaudeAgent)
 	}
-	if got.DeskAgent.Colour == "" || got.DeskAgent.Colour == got.ClaudeAgent.Colour {
-		t.Errorf("Codex is painted %q and Claude %q on the desktop rows: each agent has a hue of its own",
-			got.DeskAgent.Colour, got.ClaudeAgent.Colour)
+	if got.DeskAgent.Colour != codexWordHue || got.ClaudeAgent.Colour != claudeWordHue {
+		t.Errorf("Codex is painted %q and Claude %q on the desktop rows, expected %s and %s, the colours of their marks",
+			got.DeskAgent.Colour, got.ClaudeAgent.Colour, codexWordHue, claudeWordHue)
 	}
 	if len(got.ClaudeMarks) != 0 || got.ClaudeActs != 1 {
 		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked and closable",
@@ -153,9 +165,9 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if got.PhoneAgents[0].Text != "Claude" || got.PhoneAgents[0].Agent != "claude" {
 		t.Errorf("the claude row on the phone opens with %+v, expected the word Claude", got.PhoneAgents[0])
 	}
-	if got.PhoneAgents[1].Colour == "" || got.PhoneAgents[1].Colour == got.PhoneAgents[0].Colour {
-		t.Errorf("Codex is painted %q and Claude %q on the phone rows: each agent has a hue of its own",
-			got.PhoneAgents[1].Colour, got.PhoneAgents[0].Colour)
+	if got.PhoneAgents[1].Colour != codexWordHue || got.PhoneAgents[0].Colour != claudeWordHue {
+		t.Errorf("Codex is painted %q and Claude %q on the phone rows, expected %s and %s, the colours of their marks",
+			got.PhoneAgents[1].Colour, got.PhoneAgents[0].Colour, codexWordHue, claudeWordHue)
 	}
 	codexWord("the line under the name in the header", got.HeadAgent)
 	if !strings.HasPrefix(got.HeadSub, "Codex · gpt-6-astra · answering") {

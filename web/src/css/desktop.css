@@ -20,7 +20,6 @@
         --ctx-2: #6b9c83;
         --ctx-3: #cbab7f;
         --ctx-4: #cb9490;
-        --agent-claude: #a9a3d8;
     }
 
     :root.sky .deskshell {
@@ -34,7 +33,6 @@
         --ctx-2: #3c6b56;
         --ctx-3: #7a6537;
         --ctx-4: #965855;
-        --agent-claude: #5a5596;
     }
 
     .dktop {

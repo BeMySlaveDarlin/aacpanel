@@ -24,18 +24,20 @@ function limitClass(pct) {
     return "ok";
 }
 
-// resetLeft is how long until a window starts over: "in 97 h", "in 15 min",
-// or "any moment" once its time has come.
-function resetLeft(resetsAt) {
+// timeLeft is how long until a window starts over, "97 h" or "15 min", and
+// null once its time has come.
+function timeLeft(resetsAt) {
     const left = resetsAt * 1000 - Date.now();
-    if (left <= 0) return "any moment";
+    if (left <= 0) return null;
     const hours = Math.floor(left / 3600000);
-    if (hours >= 1) return `in ${hours} h`;
-    return `in ${Math.max(1, Math.round(left / 60000))} min`;
+    if (hours >= 1) return `${hours} h`;
+    return `${Math.max(1, Math.round(left / 60000))} min`;
 }
 
 function resetText(resetsAt) {
-    return resetsAt ? `resets ${resetLeft(resetsAt)}` : "";
+    if (!resetsAt) return "";
+    const left = timeLeft(resetsAt);
+    return left ? `resets in ${left}` : "resets any moment";
 }
 
 // contourOf returns the limits snapshot of this contour, or null if there is none.
@@ -73,11 +75,13 @@ export function openLimits(snapshot) {
 
 // ProfileLimits renders the subscription bars of this contour and their age:
 // claude's two windows, and beside them, a third in the row, codex's week
-// where codex has spent in the contour; three to a row, the windows are
-// short. A contour codex alone has spent in has codex's window alone. Each
-// agent renews its own numbers, so numbers one of them has left old are
-// dimmed apart from the other's, and the whole block only once all of them
-// are old or the agent that brings them is silent.
+// where codex has spent in the contour. A contour codex alone has spent in
+// has codex's window alone. Every window is a plate of one shape, whose it
+// is over its bar and which window it is under it, so a window reads alike
+// in a row of two and in a row of three. Each agent renews its own numbers,
+// so numbers one of them has left old are dimmed apart from the other's,
+// and the whole block only once all of them are old or the agent that
+// brings them is silent.
 export function ProfileLimits({ limits, profile, contour, stale }) {
     const c = contourOf(limits, profile, contour);
 
@@ -101,20 +105,21 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
             : `the numbers are from ${agoText(c.ageSec)}: they are renewed when a session of the contour answers`),
         codexOld && `codex's numbers are from ${agoText(codex.ageSec)}: they are renewed while the panel holds a thread of the contour`,
     ].filter(Boolean);
-    const word = html`<span class="agentword" data-agent="codex">Codex</span>`;
+    const claudeWord = html`<span class="agentword" data-agent="claude">Claude</span>`;
+    const codexWord = html`<span class="agentword" data-agent="codex">Codex</span>`;
 
     return html`
         <div class=${`pflimits${three ? " pfthree" : ""}${allOld ? " stale" : ""}`}>
             ${claude && html`
                 <div class=${`limits pfclaude${claudeOld && !allOld ? " pfold" : ""}`}>
-                    <${Limit} name="5 hours" data=${c.fiveHour} short=${three} />
-                    <${Limit} name="7 days" data=${c.sevenDay} short=${three} />
+                    <${Limit} name=${claudeWord} span="5h" full="Claude · 5 hours" data=${c.fiveHour} />
+                    <${Limit} name=${claudeWord} span="7d" full="Claude · 7 days" data=${c.sevenDay} />
                 </div>
             `}
             ${codex && html`
                 <div class=${`limits pfcodex${codexOld && !allOld ? " pfold" : ""}`}>
-                    <${CodexWeek} codex=${codex} name=${three ? word : html`${word} · 7 days`} full="Codex · 7 days"
-                                  head=${word} short=${three} />
+                    <${CodexWeek} codex=${codex} name=${codexWord} span="7d" full="Codex · 7 days"
+                                  head=${codexWord} short=${three} />
                 </div>
             `}
             ${codex && codex.reached && html`<p class="limits-note">${CODEX_REACHED}</p>`}
@@ -131,12 +136,13 @@ export const CODEX_REACHED = "codex says the limit is reached";
 const CODEX_NO_WEEK_SHORT = "no week yet";
 
 // CodexWeek is the weekly window of a codex account, the one window of
-// codex's the panel shows: a window as claude's are, headed by name, or, while
-// the account has told no week, a line saying so in place of an empty bar,
-// headed by head where one is given. A short window says it in three words
-// and carries the whole line in its title, as Limit does.
-export function CodexWeek({ codex, name, head, short, full }) {
-    if (codex.sevenDay) return html`<${Limit} name=${name} data=${codex.sevenDay} agent="codex" short=${short} full=${full} />`;
+// codex's the panel shows: a window as claude's are, headed by name and a
+// plate under span as Limit is, or, while the account has told no week, a
+// line saying so in place of an empty bar, headed by head where one is
+// given. A short line, a third of a phone wide, says it in three words where
+// a plate has its last line and carries the whole in its title.
+export function CodexWeek({ codex, name, head, span, full, short }) {
+    if (codex.sevenDay) return html`<${Limit} name=${name} data=${codex.sevenDay} agent="codex" span=${span} full=${full} />`;
     return html`
         <div class="limit lempty" data-agent="codex" title=${short ? CODEX_NO_WEEK : undefined}>
             ${head && html`<div class="lrow"><span class="lname">${head}</span></div>`}
@@ -146,14 +152,15 @@ export function CodexWeek({ codex, name, head, short, full }) {
 }
 
 // Limit is one window of a limit: its share, a bar and when it starts over.
-// Agent marks a window that is not claude's. A short window, a third of a
-// phone wide, tells the time to its reset without the word and carries the
-// whole window in its title, under full where name is not a plain word.
-export function Limit({ name, data, agent, short, full }) {
+// Agent marks a window that is not claude's. A window given a span is a
+// plate, as narrow as a third of a phone: name and the share over the bar,
+// the span of the window and the time to its reset without the word under
+// it, and the whole window in its title, under full.
+export function Limit({ name, data, agent, span, full }) {
     if (!data) return null;
     const kind = limitClass(data.pct);
     const reset = resetText(data.resetsAt);
-    const title = short ? [`${full || name}: ${share(data.pct)}`, reset].filter(Boolean).join(", ") : undefined;
+    const title = span ? [`${full}: ${share(data.pct)}`, reset].filter(Boolean).join(", ") : undefined;
     return html`
         <div class="limit" data-agent=${agent} title=${title}>
             <div class="lrow">
@@ -161,7 +168,14 @@ export function Limit({ name, data, agent, short, full }) {
                 <span class="lval ${kind}">${share(data.pct)}</span>
             </div>
             <div class="track"><div class="fill ${kind}" style=${`width:${Math.min(100, data.pct)}%`}></div></div>
-            <span class="lsub">${short && data.resetsAt ? resetLeft(data.resetsAt) : reset}</span>
+            ${span
+                ? html`
+                    <div class="lrow">
+                        <span class="lname">${span}</span>
+                        <span class="lsub">${data.resetsAt ? timeLeft(data.resetsAt) || "any moment" : ""}</span>
+                    </div>
+                `
+                : html`<span class="lsub">${reset}</span>`}
         </div>
     `;
 }

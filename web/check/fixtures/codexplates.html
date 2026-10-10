@@ -5,14 +5,15 @@
 <div class="shell" id="shell"></div>
 <script type="module">
 // The limits at the top of every contour page of the phone: claude's five
-// hours and seven days, and beside them in their row codex's week, signed
-// Codex in codex's hue. A contour without codex keeps claude's two, a contour
-// codex alone spent in has codex's alone, and an account that told no week,
-// ran into its limit or has not renewed its numbers for a while says so. The
-// last contour has the widest words a window carries three to a row: a share
-// with a tenth, a reset that has come and one in minutes, and no week. Every
-// page is measured for words cut off or windows run into one another, at
-// whatever width the screen of the run is.
+// hours and seven days, signed Claude, and beside them in their row codex's
+// week, signed Codex, each word in the colour of its agent. A contour without
+// codex keeps claude's two, a contour codex alone spent in has codex's alone,
+// and an account that told no week, ran into its limit or has not renewed its
+// numbers for a while says so. The last contour has the widest words a window
+// carries three to a row: a share with a tenth, a reset that has come and one
+// in minutes, and no week. Every page is measured for words cut off or
+// windows run into one another, at whatever width the screen of the run is,
+// and the words of the agents are read again on the sky.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sessions } from "/src/screens/sessions.js";
@@ -122,10 +123,14 @@ window.done = (async () => {
                 const word = l.querySelector(".agentword");
                 const fill = l.querySelector(".fill");
                 const rect = l.getBoundingClientRect();
+                const rows = l.querySelectorAll(":scope > .lrow");
+                const foot = rows.length > 1 ? rows[rows.length - 1] : null;
+                const span = foot ? foot.querySelector(".lname") : null;
+                const sub = l.querySelector(".lsub");
                 return {
-                    name: text(l.querySelector(".lname")),
                     value: text(l.querySelector(".lval")),
-                    sub: text(l.querySelector(".lsub")),
+                    span: text(span),
+                    sub: text(sub),
                     agent: l.dataset.agent || "",
                     word: text(word),
                     wordAgent: word ? word.dataset.agent || "" : "",
@@ -138,7 +143,11 @@ window.done = (async () => {
                     width: Math.round(rect.width),
                     height: Math.round(rect.height),
                     title: l.title,
-                    lines: [".lname", ".lval", ".lsub"].map((sel) => lines(l.querySelector(sel))),
+                    // Where the word of the agent and the last line stand in
+                    // the window: the top of the one, the bottom of the other.
+                    headAt: word ? Math.round(word.getBoundingClientRect().top - rect.top) : -1,
+                    footAt: sub ? Math.round(sub.getBoundingClientRect().bottom - rect.top) : -1,
+                    lines: [word, l.querySelector(".lval"), span, sub].map(lines),
                     inside: within(rect, edge),
                 };
             }),
@@ -148,6 +157,11 @@ window.done = (async () => {
             overlaps,
         });
     });
+    const root = document.documentElement;
+    root.classList.add("sky");
+    out.sky = Array.from(document.querySelector(".pfpage .pflimits").querySelectorAll(".agentword"))
+        .map((word) => `${text(word)} ${getComputedStyle(word).color}`);
+    root.classList.remove("sky");
     return out;
 })();
 </script>

@@ -117,13 +117,17 @@
     --ok: #7fe3d4;
     --warn: #9fc9f0;
     --crit: #b98cff;
-    /* A session waiting for the person: the one warm colour, so that it is
-       told from a session at work without reading the word beside it. */
+    /* A session waiting for the person: the one warm colour of a state, so
+       that it is told from a session at work without reading the word beside
+       it. */
     --wait: #e3c97a;
-    /* Who runs a session: claude in a cool lilac, codex in plain ink. Neither
-       is warm — warm is the session that waits for the person — and neither
-       is a colour of a state. */
-    --agent-claude: #aab2ff;
+    /* The words Claude and Codex, wherever they say who runs a session, are
+       in the colours of the agents' own marks: claude in Anthropic's
+       terracotta, codex in the middle blue of its badge. Only the two words:
+       a bar or a ring of codex stays in plain ink, and claude's take the
+       accent, so no colour of a state is borrowed by a mark. */
+    --word-claude: #d97757;
+    --word-codex: #7a9dff;
     --agent-codex: var(--ink);
 
     --ctx-1: #7fe3d4;
@@ -213,7 +217,12 @@
     --warn: #1f5580;
     --crit: #5b3a9e;
     --wait: #7a5a12;
-    --agent-claude: #4f5bc0;
+    /* The darker pair of the agents' own marks, short of 4.5:1 on the sky's
+       blues — about 2.3 for claude and 3.4 for codex where the limits stand.
+       The marks are kept over the norm of contrast on purpose: the words are
+       semibold, a step heavier than the text around them. */
+    --word-claude: #c15f3c;
+    --word-codex: #3941ff;
 
     --ctx-1: #12857a;
     --ctx-2: #2f7fc8;
