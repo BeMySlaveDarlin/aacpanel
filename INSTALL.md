@@ -445,17 +445,31 @@ CODEX_HOME=<codex home> <codex> mcp get aacpanel                                
 
 `<codex>` is the program `AACP_CODEX` names, or `codex` without it: a wrapper
 that picks the home by the directory writes into another home. A second `add`
-of the name replaces the first. The server under codex offers the letter
-alone, `send_to_session`: one codex serves many threads, and the server takes
-the thread that writes from the call itself. Codex asks the person before a
-call of a tool of a server, as claude does; a run that may not ask
-(`approval_policy = "never"`) has the call refused, unless the home lets the
-letter through:
+of the name replaces the first. The server under codex offers a thread the
+checklist, the briefs, the call to the person and the notepad of secrets
+beside the letter, each for the thread that makes the call: one codex serves
+many threads, and the server takes the thread from the call itself. Codex
+asks the person before every call of a tool of a server, and a run that may
+not ask (`approval_policy = "never"`) has the call refused. A thread the panel
+starts runs the tools a claude session is allowed without asking, and the
+letter asks; a thread of a terminal and a run read the same from the home,
+a tool at a time:
 
 ```toml
-[mcp_servers.aacpanel.tools.send_to_session]
+[mcp_servers.aacpanel.tools.checklist]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.brief_publish]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.brief_delete]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.notify]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.secret_ask]
 approval_mode = "approve"
 ```
+
+The letter is left to ask; a home whose runs may not ask and still write
+letters lets it through the same way, `[mcp_servers.aacpanel.tools.send_to_session]`.
 
 A run started with `--ignore-user-config` reads no `config.toml` and gets the
 server only from its own command line:

@@ -12,6 +12,7 @@ import (
 	"aacpanel/internal/codex"
 	registry "aacpanel/internal/contours"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/toolset"
 )
 
 // codexEnv names the codex program in the machine description, the way
@@ -59,7 +60,7 @@ func (e *Executor) codexOpen(ctx context.Context, p project, c launcher.CodexPar
 	begin := codex.Begin{CWD: p.Path, Model: c.Model, Approval: c.Approval, Sandbox: c.Sandbox, Effort: c.Effort,
 		Parent: p.Parent}
 	if path, err := toolServer(); err == nil {
-		begin.Tools = path
+		begin.Tools, begin.Allowed = path, toolset.CodexAllowed()
 	} else {
 		warns = append(warns, "the session starts without the panel's tools: the executor does not know its own path: "+
 			err.Error())

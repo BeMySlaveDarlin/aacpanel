@@ -84,6 +84,18 @@ func CodexServer(caller func(meta json.RawMessage) (mcp.Binding, error)) *mcp.Se
 	}
 }
 
+// CodexAllowed are the tools a thread of codex the panel starts calls without
+// asking, by their names on the server: the ones a claude session is allowed.
+func CodexAllowed() []string {
+	var out []string
+	for _, t := range codexTools() {
+		if t.Allowed {
+			out = append(out, t.Name)
+		}
+	}
+	return out
+}
+
 // Allowed are the tools the launcher allows a session, by the names claude
 // gives them.
 func Allowed() []string {

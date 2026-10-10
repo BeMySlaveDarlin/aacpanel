@@ -1524,8 +1524,14 @@ goes through the daemon as a message of the panel — a turn on a free thread,
 the panel's queue on a busy one — in the same envelope, with the words claude
 puts around a letter for its model written out by the panel, and the feed of
 the thread draws it as the card of a letter. A thread the panel starts gets
-the server in its configuration at `thread/start`; the threads of a terminal
-and the runs of `codex exec` get it from `config.toml` of the home.
+the server in its configuration at `thread/start`, with the approval mode
+`approve` on every tool a claude session is allowed: codex asks the person
+before any other call of a tool of a server, so a checklist would ask before
+every update, and the letter asks as it does a claude session. The mode is
+set a tool at a time (`mcp_servers.aacpanel.tools.<tool>.approval_mode`),
+since the mode of the whole server would let the letter through too. The
+threads of a terminal and the runs of `codex exec` get the server and its
+modes from `config.toml` of the home.
 `session_open` asks for
 `session.open` with a directory, and with a name only where the model gives
 one: the panel finds the project of the map the directory belongs to — the

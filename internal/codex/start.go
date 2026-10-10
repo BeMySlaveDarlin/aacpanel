@@ -44,6 +44,10 @@ type Begin struct {
 	// the servers of its config.toml; empty gives the thread only those. A
 	// home whose config.toml names the server already gets the same one.
 	Tools string
+	// Allowed are the tools of that server the thread calls without asking
+	// the person, by their names on the server; any other asks as codex asks
+	// before a call of a tool of any server.
+	Allowed []string
 	// Parent is the session that had the panel start the thread, by its
 	// name; empty for a thread a person started.
 	Parent string
@@ -51,10 +55,19 @@ type Begin struct {
 
 // toolsConfig is the panel's MCP server as a thread's configuration names
 // it, key by key: a key of its own overrides the same key of config.toml and
-// leaves the rest of the server as config.toml has it.
-func toolsConfig(program string) map[string]any {
+// leaves the rest of the server as config.toml has it. A tool allowed has its
+// approval mode set to approve, which lets a call of it go without a request
+// to the person: codex asks before any other call of a tool of a server, and
+// under the policy never refuses it, and a checklist that asked before every
+// update would not be kept. The mode is set a tool at a time, since the
+// letter asks, as it does a claude session.
+func toolsConfig(program string, allowed []string) map[string]any {
 	server := "mcp_servers." + mcp.ServerName
-	return map[string]any{server + ".command": program, server + ".args": []string{mcp.Flag}}
+	out := map[string]any{server + ".command": program, server + ".args": []string{mcp.Flag}}
+	for _, tool := range allowed {
+		out[server+".tools."+tool+".approval_mode"] = "approve"
+	}
+	return out
 }
 
 // Up says whether the daemon of the home has its control socket: whether
@@ -105,7 +118,7 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 		config["model_reasoning_effort"] = b.Effort
 	}
 	if b.Tools != "" {
-		maps.Copy(config, toolsConfig(b.Tools))
+		maps.Copy(config, toolsConfig(b.Tools, b.Allowed))
 	}
 	if len(config) > 0 {
 		params["config"] = config

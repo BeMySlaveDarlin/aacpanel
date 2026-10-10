@@ -48,6 +48,16 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 	}
 }
 
+// A thread of codex the panel starts calls without asking the tools a claude
+// session is allowed, by their names on the server, and the letter asks there
+// too.
+func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
+	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask"}
+	if got := CodexAllowed(); !slices.Equal(got, want) {
+		t.Errorf("codex runs %v without asking, meant %v", got, want)
+	}
+}
+
 // collectorSocket stands in for one socket of the collector, named to the
 // tools by the variable that moves it: it answers every request with ok and
 // hands the request over. The directory is short, since a unix socket's path

@@ -23,9 +23,14 @@ import (
 const panelTools = "/opt/aacpanel/bin/aacpanel-exec"
 
 // withTools is the configuration of a thread the panel starts: what the map
-// chose, and the panel's MCP server beside the servers of config.toml.
+// chose, and the panel's MCP server beside the servers of config.toml, the
+// tools a claude session is allowed running without a request to the person
+// and the letter asking.
 func withTools(config map[string]any) map[string]any {
 	out := map[string]any{"mcp_servers.aacpanel.command": panelTools, "mcp_servers.aacpanel.args": []any{"-mcp"}}
+	for _, tool := range []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask"} {
+		out["mcp_servers.aacpanel.tools."+tool+".approval_mode"] = "approve"
+	}
 	for k, v := range config {
 		out[k] = v
 	}
