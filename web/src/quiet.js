@@ -2,6 +2,8 @@
 // notification shade, where no page and no gate exist: the press is its own
 // confirmation, and it is the one request the worker sends on its own.
 
+import { LATE, within } from "./deadline.js";
+
 // quietOf is the button that turns the source of a push off, as the panel
 // described it, or nothing.
 export function quietOf(payload) {
@@ -12,17 +14,19 @@ export function quietOf(payload) {
 
 // quiet asks the panel the worker belongs to, with the session of that panel,
 // to turn the source off, and says how it went in a push of its own, since
-// nothing else on the phone would.
+// nothing else on the phone would. A panel that has not answered by the
+// deadline did not take it, as far as the phone can tell.
 export async function quiet(q, icon) {
     let ok = false;
     try {
-        const r = await fetch(new URL("/api/push/quiet", self.location.origin).href, {
+        const r = await within((signal) => fetch(new URL("/api/push/quiet", self.location.origin).href, {
             method: "POST",
             credentials: "same-origin",
+            signal,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ what: q.what, key: q.key }),
-        });
-        ok = r.ok;
+        }));
+        ok = r !== LATE && r.ok;
     } catch (err) {
     }
     const name = q.label.replace(/^Quiet:?\s*/, "");
