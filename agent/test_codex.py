@@ -845,6 +845,33 @@ class SecondAgents(Runtime):
                           ("lexer", "completed", "2026-10-09T13:00:24.000Z")],
                          "the rollout is read on, and the freshest end stands first")
 
+    def test_an_agent_at_work_is_at_work_while_its_own_thread_runs_a_turn(self):
+        own = os.path.join(os.path.dirname(self.rollout), f"rollout-2026-10-09T13-00-07-{TESTS}.jsonl")
+        turn = "01a12348-3333-7000-8000-000000000002"
+        records = [
+            {"timestamp": "2026-10-09T13:00:08.000Z", "type": "session_meta",
+             "payload": {"id": TESTS, "thread_source": "subagent", "cwd": "/home/u/Projects/demo"}},
+            {"timestamp": "2026-10-09T13:00:09.000Z", "type": "event_msg",
+             "payload": {"type": "task_started", "turn_id": turn, "model_context_window": 258400}},
+            {"timestamp": "2026-10-09T13:00:10.000Z", "type": "event_msg",
+             "payload": {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 52000},
+                                                         "model_context_window": 258400}}},
+        ]
+        with open(own, "w", encoding="utf-8") as f:
+            f.writelines(json.dumps(r) + "\n" for r in records)
+        tests = self.state()["agents"][0]
+        self.assertEqual((tests["name"], tests["status"], tests["tokens"], tests["limit"]),
+                         ("tests", "active", 52000, 258400), "its thread runs a turn, and says how full it is")
+        with open(own, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"timestamp": "2026-10-09T13:00:30.000Z", "type": "event_msg",
+                                "payload": {"type": "turn_aborted", "turn_id": turn, "reason": "interrupted"}}) + "\n")
+        self.assertEqual(sorted((a["name"], a["status"]) for a in self.state()["agents"]),
+                         [("lexer", "completed"), ("tests", "idle")],
+                         "a turn of the agent stopped from outside is no word of the thread's, and the agent waits")
+        self.follow(busy=False)
+        row = ctx.codex_sessions()[0]
+        self.assertEqual((row["status"], "work" in row), ("idle", False), "an agent that waits keeps nobody busy")
+
     def test_a_thread_whose_agents_work_is_busy_with_its_turn_over(self):
         self.follow(busy=False)
         row = ctx.codex_sessions()[0]

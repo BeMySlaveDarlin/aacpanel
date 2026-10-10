@@ -18,7 +18,8 @@ import (
 // A codex session is a thread of the codex daemon of a contour, held by the
 // daemon rather than by anything the panel started. It is reached only through
 // the daemon's protocol: a message is a turn, or waits in the panel's queue
-// while one runs; a stop is an interrupt, an approval is a reply to the
+// while one runs; a stop is an interrupt — of the agent's own thread for an
+// agent the thread started — an approval is a reply to the
 // daemon's request, a setting is a change of the thread's settings, a close
 // is an interrupt and the panel leaving the thread. None of the ways of a claude
 // session — keys into tmux, signals to a pid, the socket of a holder — apply
@@ -149,6 +150,8 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexRename(ctx, th, req.Rename)
 	case action.TaskStop:
 		return codexTaskStop(ctx, th, req.Work)
+	case action.AgentStop:
+		return codexAgentStop(ctx, th, req.Work)
 	case action.SessionClose:
 		return e.codexClose(ctx, th)
 	case action.SessionRestart:
@@ -297,6 +300,23 @@ func codexStop(ctx context.Context, th codex.Thread) (string, error) {
 		return fmt.Sprintf("%s: there was nothing to interrupt", th.Name), nil
 	}
 	return fmt.Sprintf("%s stopped: the turn was interrupted", th.Name), nil
+}
+
+// codexAgentStop stops an agent a thread started, by the id of the agent's
+// own thread: the turn it runs is interrupted there. The thread that started
+// it is told nothing, and the agent waits for a task more.
+func codexAgentStop(ctx context.Context, th codex.Thread, work *action.Work) (string, error) {
+	if work == nil {
+		return "", fmt.Errorf("it is not said which agent to stop")
+	}
+	stopped, err := th.Link.InterruptAgent(ctx, th.ID, work.ID)
+	if err != nil {
+		return "", fmt.Errorf("the agent %s of %s was not stopped: %w", work.ID, th.Name, err)
+	}
+	if !stopped {
+		return fmt.Sprintf("the agent %s of %s was not running a turn any more", work.ID, th.Name), nil
+	}
+	return fmt.Sprintf("the agent %s of %s is stopped: its turn was interrupted", work.ID, th.Name), nil
 }
 
 // codexEscape puts away what the session holds a person to: an approval is

@@ -828,7 +828,11 @@ appears or the connection drops — at once when an action waits for it.
   terminal of the thread. `session.rename` names the thread — any words on one
   line, since the name is a title and not the key the session is found by —
   `task.stop` stops
-  one background terminal by the id codex gives it. The models, the MCP servers
+  one background terminal by the id codex gives it, and `agent.stop` an agent
+  of the thread by the id of its own thread: the turn the agent runs there is
+  interrupted, the agent waits for a task more, and the thread that started
+  it is told nothing — a thread the session did not start is refused. The
+  models, the MCP servers
   and the skills of a codex session are codex's own lists, answered in the
   shapes of claude's — the models of the daemon of the session's contour, which
   lists the catalogue of its own release; `/api/codex/models` takes the contour
@@ -894,12 +898,16 @@ appears or the connection drops — at once when an action waits for it.
   off the rollout of the thread, on from where it last stopped: an agent
   stands as the last word codex wrote of it there — at work from its start
   until its turn is over, it is interrupted or it fails, at work again with
-  a task more. Codex lets the thread go once its own turn is over while its
-  agents work on, so the row of such a thread is busy with its turn over, as
-  a claude session waiting for its agents is: the screen says the agents
-  work, and a message starts a turn at once. The price: the rollout of the
-  thread is all that is read, and an agent whose thread died with the daemon
-  stands at work until the thread writes otherwise.
+  a task more. The thread hears nothing of a turn of the agent's stopped from
+  outside — by the panel, in codex's own terminal — so an agent the thread
+  holds at work is at work only while the rollout of its own thread says a
+  turn runs, and waits otherwise; that rollout gives the agent its model and
+  how full its context is besides. Codex lets the thread go once its own turn
+  is over while its agents work on, so the row of such a thread is busy with
+  its turn over, as a claude session waiting for its agents is: the screen
+  says the agents work, and a message starts a turn at once. The price: an
+  agent whose thread died with the daemon in the middle of a turn stands at
+  work.
 - **The way back is codex itself.** With the panel down, `codex resume <id>`
   in a terminal joins the same thread on the same daemon, loaded or not,
   whoever else follows it; a model, approvals or a sandbox given as flags are

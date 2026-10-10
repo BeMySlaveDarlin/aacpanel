@@ -10,8 +10,8 @@
 // reads agent/testdata/codex-agents-second.jsonl. The thread is busy with its
 // turn over — the bar over the composer says the agents work, the chip counts
 // the one at work, and the composer sends rather than stops; the list of the
-// agents names each with its role and how it stands, with no stop, and an
-// agent opens its own thread.
+// agents names each with its role and how it stands, stops the one at work by
+// the id of its own thread, and an agent opens its own thread.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -42,11 +42,16 @@ const state = { tasks: [], agents: [
 const lexerItems = [{ pos: 1, at: ago(9), role: "ai", text: "The lexer drops escaped quotes." }];
 
 const asked = [];
+const sent = [];
 const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
 const feed = (list, work) => json({ items: list, first: list[0].pos, last: list[list.length - 1].pos, total: list.length,
                                     moreBefore: false, state: work });
-window.fetch = async (url) => {
+window.fetch = async (url, init) => {
     const u = String(url);
+    if (u.startsWith("/api/actions") && init && init.method === "POST") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true, detail: "the agent is stopped: its turn was interrupted" });
+    }
     if (u.startsWith("/api/chat?")) {
         asked.push(new URL(u, location.href).searchParams.get("id"));
         if (u.includes(`id=${LEXER}&`)) return feed(lexerItems, null);
@@ -86,7 +91,8 @@ const open = async () => {
 };
 
 // The pictures: the thread with its agents at work, and their list open over
-// it. The checks below do not wait on them.
+// it, before anything is stopped — the page opened as codexshelf.html#shelf
+// stops at the list. The checks below do not wait on them.
 window.show = {
     thread: async () => {
         render(null, root);
@@ -101,7 +107,7 @@ window.show = {
     },
 };
 
-window.done = (async () => {
+window.done = location.hash === "#shelf" ? window.show.shelf().then(() => ({})) : (async () => {
     await open();
     const out = {
         bar: text(root.querySelector(".nowwait .nowstate")),
@@ -120,8 +126,19 @@ window.done = (async () => {
         model: text(line.querySelector(".wmodel")),
         sub: text(line.querySelector(".wsub")),
         state: text(line.querySelector(".wstate")),
-        stop: Boolean(line.querySelector(".wstop")),
+        stop: line.querySelector(".wstop") ? (line.querySelector(".wstop").disabled ? "off" : "on") : "none",
     }));
+    // The agent at work is stopped by the id of its own thread.
+    all(".worklist .wline")[0].querySelector(".wstop").click();
+    await until(() => document.querySelector(".stitle") && document.querySelector(".btnrow .btn"));
+    out.stopAsks = text(document.querySelector(".stitle"));
+    const ok = [...document.querySelectorAll(".btnrow .btn")].pop();
+    if (ok) ok.click();
+    if (!await until(() => sent.length > 0 && text(all(".worklist .wline .wstate")[0]) === "stopped from the panel")) {
+        throw new Error("the stop of the agent did not go");
+    }
+    out.stopSent = sent.map((r) => ({ kind: r.kind, target: r.target, params: r.params || null }));
+    out.stopped = text(all(".worklist .wline .wstate")[0]);
     // The finished agent opens its own thread.
     all(".worklist .wline")[1].querySelector(".wrow").click();
     if (!await until(() => asked.includes(LEXER) && text(root.querySelector(".chatfeed")).includes("The lexer drops escaped quotes."))) {

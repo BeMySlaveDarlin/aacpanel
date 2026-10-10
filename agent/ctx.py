@@ -464,11 +464,15 @@ def codex_crew(path):
 
     An agent stands as the last word of it in the rollout of the thread: at
     work from its start until its turn is over, it is interrupted or it
-    fails, and at work again when the thread gives it a task more. It is
-    named by its nickname, else by its path or its role, with the role under
-    the name, and its conversation is its own thread, by the id the agent
-    carries. The rollout of the thread is all that is read: an agent whose
-    thread died with the daemon stays at work until the thread hears of it.
+    fails, and at work again when the thread gives it a task more. The
+    thread hears nothing of a turn of the agent's stopped from outside — by
+    the panel, in codex's own terminal — so an agent the thread holds at work
+    is at work only while the rollout of its own thread says a turn runs, and
+    idle otherwise; that rollout gives it its model and how full its context
+    is besides. It is named by its nickname, else by its path or its role,
+    with the role under the name, and its conversation is its own thread, by
+    the id the agent carries. An agent whose thread died with the daemon in
+    the middle of a turn stays at work.
     """
     if not path:
         return []
@@ -484,12 +488,51 @@ def codex_crew(path):
                  "status": CREW_STATUSES.get(one["state"], one["state"]), "at": one["at"]}
         if one["role"] and one["role"] != one["name"]:
             agent["text"] = one["role"]
-        if one["model"]:
-            agent["model"] = one["model"]
         if one.get("doneAt"):
             agent["doneAt"] = one["doneAt"]
-        agents.append(agent)
+        own = _agent_rollout(path, one)
+        seen = _context_over(own) if own else {}
+        if agent["status"] == ACTIVE and seen and not seen.get("busy"):
+            agent["status"] = CREW_IDLE
+        agents.append(_with_context(agent, seen, one["model"]))
     return ordered_agents(agents)[:MAX_ITEMS]
+
+
+# How an agent the thread holds at work stands when its own thread runs no
+# turn: it waits, and a task more sets it to work again.
+CREW_IDLE = "idle"
+
+# Where the rollout of an agent's own thread lies, by the thread: found once,
+# since a rollout does not move.
+_agent_rollouts = {}
+
+
+def _agent_rollout(parent, agent):
+    """Returns the rollout of an agent's own thread, or empty while there is none.
+
+    Codex files a rollout under the day its thread started, by the clock of
+    the machine, in the home of the thread that started the agent: the day
+    of the start is looked in, and the days beside it for a start near
+    midnight.
+    """
+    known = _agent_rollouts.get(agent["id"])
+    if known:
+        return known
+    sessions = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(parent))))
+    try:
+        start = dt.datetime.fromisoformat(agent["at"].replace("Z", "+00:00")).astimezone()
+    except (AttributeError, ValueError):
+        return ""
+    name = f"rollout-*-{glob.escape(agent['id'])}.jsonl"
+    for shift in (0, -1, 1):
+        day = (start + dt.timedelta(days=shift)).strftime("%Y/%m/%d")
+        found = sorted(glob.glob(os.path.join(glob.escape(sessions), day, name)))
+        if found:
+            if len(_agent_rollouts) >= MAX_CREWS:
+                _agent_rollouts.clear()
+            _agent_rollouts[agent["id"]] = found[-1]
+            return found[-1]
+    return ""
 
 
 def _with_crew(row, path):

@@ -207,13 +207,56 @@ func TestCodexSendAndStopGoThroughTheDaemon(t *testing.T) {
 	}
 }
 
+// An agent of a codex thread is stopped in its own thread: the turn it runs
+// there is interrupted, by the id of that thread. A thread the session did
+// not start is no agent of it and is not touched, and an agent with no turn
+// running has nothing to stop.
+func TestAStopOfAnAgentOfACodexSessionInterruptsTheTurnOfItsOwnThread(t *testing.T) {
+	const (
+		agent    = "019a1f00-0000-7000-8000-0000000000a1"
+		stranger = "019a1f00-0000-7000-8000-0000000000b1"
+	)
+	srv, e := onCodex(t, func(srv *codextest.Server) {
+		srv.Add(codextest.Thread{ID: agent, Parent: codexThread, CWD: "/srv/proj", Model: "gpt-test", Created: 1791554349})
+		srv.Running(agent, "turn-a")
+		srv.Add(codextest.Thread{ID: stranger, CWD: "/srv/proj", Model: "gpt-test", Created: 1791554350})
+		srv.Running(stranger, "turn-s")
+	})
+	stop := func(id string) (string, error) {
+		return e.Execute(context.Background(), action.Request{Kind: action.AgentStop, Target: codexName,
+			Work: &action.Work{ID: id}})
+	}
+
+	if _, err := stop(stranger); err == nil || !strings.Contains(err.Error(), "no agent this session started") {
+		t.Errorf("a stop of a thread the session did not start: %v", err)
+	}
+	if calls := srv.Calls("turn/interrupt"); len(calls) != 0 {
+		t.Fatalf("a thread that is no agent of the session was interrupted: %s", calls)
+	}
+
+	detail, err := stop(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := srv.Calls("turn/interrupt")
+	if len(calls) != 1 || !strings.Contains(string(calls[0]), `"threadId":"`+agent+`"`) ||
+		!strings.Contains(string(calls[0]), `"turnId":"turn-a"`) || !strings.Contains(detail, "is stopped") {
+		t.Errorf("the stop of the agent said %q and interrupted %s", detail, calls)
+	}
+
+	detail, err = stop(agent)
+	if err != nil || !strings.Contains(detail, "not running a turn any more") || len(srv.Calls("turn/interrupt")) != 1 {
+		t.Errorf("a stop of an agent that runs no turn: %q, %v", detail, err)
+	}
+}
+
 func TestEveryOtherActionOnACodexSessionIsRefused(t *testing.T) {
 	_, e := onCodex(t, nil)
 	ctx := context.Background()
 	taken := map[action.Kind]bool{action.SessionSend: true, action.SessionLetter: true, action.SessionStop: true, action.SessionEscape: true,
 		action.SessionPermit: true, action.SessionClose: true, action.SessionSet: true, action.SessionUnqueue: true,
 		action.SessionFile: true, action.SessionAnswer: true, action.SessionDismiss: true, action.SessionCommand: true,
-		action.SessionRename: true, action.TaskStop: true}
+		action.SessionRename: true, action.TaskStop: true, action.AgentStop: true}
 	for _, k := range action.Kinds {
 		if !sessionTarget(k) || taken[k] {
 			continue

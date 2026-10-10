@@ -1123,6 +1123,27 @@ func (l *Link) Interrupt(ctx context.Context, threadID string) (bool, error) {
 	return turn != "", err
 }
 
+// InterruptAgent stops the turn an agent of a thread runs, in the agent's own
+// thread: the turn is interrupted as a stop interrupts the thread's, the
+// thread that started the agent hears nothing of it, and the agent waits for
+// a task more. The agent is the thread's when the daemon says the thread
+// started it; false when it runs no turn.
+func (l *Link) InterruptAgent(ctx context.Context, threadID, agentID string) (bool, error) {
+	c, err := l.client()
+	if err != nil {
+		return false, err
+	}
+	info, err := read(ctx, c, agentID)
+	if err != nil {
+		return false, err
+	}
+	if info.Parent != threadID {
+		return false, fmt.Errorf("thread %s is no agent this session started", agentID)
+	}
+	turn, err := interrupt(ctx, c, agentID)
+	return turn != "", err
+}
+
 // Respond answers an approval of a thread with a decision, sent as it is.
 func (l *Link) Respond(ctx context.Context, threadID, key string, decision json.RawMessage) error {
 	return l.Reply(ctx, threadID, key, map[string]any{"decision": decision})

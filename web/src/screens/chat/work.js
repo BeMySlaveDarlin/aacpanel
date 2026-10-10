@@ -408,9 +408,18 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
     // to the background has no name there the panel could aim at.
     // An agent sent off to work is a background task to claude: the stream
     // stops it by its id, tmux by its line on the screen of background
-    // work. A run of codex exec has no stop here: it is no task of claude's,
-    // and no daemon the panel reaches holds its thread.
-    const agentStopper = (agent) => (isCodex(agent) ? null : agent.kind === "background" ? {
+    // work. An agent a codex thread started is stopped in its own thread, by
+    // its id, while it runs a turn. A run of codex exec has no stop here: it
+    // is no task of claude's, and no daemon the panel reaches holds its
+    // thread.
+    const agentStopper = (agent) => (isCodex(agent) && agent.kind !== "subagent" ? null : isCodex(agent) ? {
+        ready: knows(exec, "agent.stop") && agentPhase(agent) === "live",
+        why: knows(exec, "agent.stop") ? "the agent runs no turn, there is nothing to stop" : whyNot(exec, "agent.stop"),
+        busy: busy === agentKey(agent),
+        done: stoppedWork.has(workKey(session, agentKey(agent))),
+        fail: fail[agentKey(agent)] || "",
+        onStop: () => stop(agentKey(agent), "agent", () => run("agent.stop", session, { id: agent.id })),
+    } : agent.kind === "background" ? {
         ready: knows(exec, "task.stop") && agentPhase(agent) !== "over" && Boolean(agent.line),
         why: whyStopAgent(exec, agent),
         busy: busy === agentKey(agent),
