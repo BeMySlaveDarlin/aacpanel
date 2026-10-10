@@ -24,13 +24,18 @@ function limitClass(pct) {
     return "ok";
 }
 
-function resetText(resetsAt) {
-    if (!resetsAt) return "";
+// resetLeft is how long until a window starts over: "in 97 h", "in 15 min",
+// or "any moment" once its time has come.
+function resetLeft(resetsAt) {
     const left = resetsAt * 1000 - Date.now();
-    if (left <= 0) return "resets any moment";
+    if (left <= 0) return "any moment";
     const hours = Math.floor(left / 3600000);
-    if (hours >= 1) return `resets in ${hours} h`;
-    return `resets in ${Math.max(1, Math.round(left / 60000))} min`;
+    if (hours >= 1) return `in ${hours} h`;
+    return `in ${Math.max(1, Math.round(left / 60000))} min`;
+}
+
+function resetText(resetsAt) {
+    return resetsAt ? `resets ${resetLeft(resetsAt)}` : "";
 }
 
 // contourOf returns the limits snapshot of this contour, or null if there is none.
@@ -67,11 +72,12 @@ export function openLimits(snapshot) {
 }
 
 // ProfileLimits renders the subscription bars of this contour and their age:
-// claude's two windows, and on a row under them codex's week where codex has
-// spent in the contour; a contour codex alone has spent in has codex's row
-// alone. Each agent renews its own numbers, so numbers one of them has left
-// old are dimmed apart from the other's, and the whole block only once all of
-// them are old or the agent that brings them is silent.
+// claude's two windows, and beside them, a third in the row, codex's week
+// where codex has spent in the contour; three to a row, the windows are
+// short. A contour codex alone has spent in has codex's window alone. Each
+// agent renews its own numbers, so numbers one of them has left old are
+// dimmed apart from the other's, and the whole block only once all of them
+// are old or the agent that brings them is silent.
 export function ProfileLimits({ limits, profile, contour, stale }) {
     const c = contourOf(limits, profile, contour);
 
@@ -87,6 +93,7 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
     const claude = Boolean(c.fiveHour || c.sevenDay) || !codex;
     const claudeOld = claude && staleLimits(c);
     const codexOld = Boolean(codex) && staleLimits(codex);
+    const three = claude && Boolean(codex);
     const allOld = stale || ((!claude || claudeOld) && (!codex || codexOld));
     const ages = stale ? [] : [
         claudeOld && (codex
@@ -97,16 +104,17 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
     const word = html`<span class="agentword" data-agent="codex">Codex</span>`;
 
     return html`
-        <div class=${`pflimits${allOld ? " stale" : ""}`}>
+        <div class=${`pflimits${three ? " pfthree" : ""}${allOld ? " stale" : ""}`}>
             ${claude && html`
-                <div class=${`limits${claudeOld && !allOld ? " pfold" : ""}`}>
-                    <${Limit} name="5 hours" data=${c.fiveHour} />
-                    <${Limit} name="7 days" data=${c.sevenDay} />
+                <div class=${`limits pfclaude${claudeOld && !allOld ? " pfold" : ""}`}>
+                    <${Limit} name="5 hours" data=${c.fiveHour} short=${three} />
+                    <${Limit} name="7 days" data=${c.sevenDay} short=${three} />
                 </div>
             `}
             ${codex && html`
                 <div class=${`limits pfcodex${codexOld && !allOld ? " pfold" : ""}`}>
-                    <${CodexWeek} codex=${codex} name=${html`${word} · 7 days`} head=${word} />
+                    <${CodexWeek} codex=${codex} name=${three ? word : html`${word} · 7 days`} full="Codex · 7 days"
+                                  head=${word} short=${three} />
                 </div>
             `}
             ${codex && codex.reached && html`<p class="limits-note">${CODEX_REACHED}</p>`}
@@ -120,34 +128,40 @@ export function ProfileLimits({ limits, profile, contour, stale }) {
 // week is shown.
 export const CODEX_NO_WEEK = "codex has told no weekly window yet";
 export const CODEX_REACHED = "codex says the limit is reached";
+const CODEX_NO_WEEK_SHORT = "no week yet";
 
 // CodexWeek is the weekly window of a codex account, the one window of
 // codex's the panel shows: a window as claude's are, headed by name, or, while
 // the account has told no week, a line saying so in place of an empty bar,
-// headed by head where one is given.
-export function CodexWeek({ codex, name, head }) {
-    if (codex.sevenDay) return html`<${Limit} name=${name} data=${codex.sevenDay} agent="codex" />`;
+// headed by head where one is given. A short window says it in three words
+// and carries the whole line in its title, as Limit does.
+export function CodexWeek({ codex, name, head, short, full }) {
+    if (codex.sevenDay) return html`<${Limit} name=${name} data=${codex.sevenDay} agent="codex" short=${short} full=${full} />`;
     return html`
-        <div class="limit lempty" data-agent="codex">
+        <div class="limit lempty" data-agent="codex" title=${short ? CODEX_NO_WEEK : undefined}>
             ${head && html`<div class="lrow"><span class="lname">${head}</span></div>`}
-            <span class="lsub">${CODEX_NO_WEEK}</span>
+            <span class="lsub">${short ? CODEX_NO_WEEK_SHORT : CODEX_NO_WEEK}</span>
         </div>
     `;
 }
 
 // Limit is one window of a limit: its share, a bar and when it starts over.
-// Agent marks a window that is not claude's.
-export function Limit({ name, data, agent }) {
+// Agent marks a window that is not claude's. A short window, a third of a
+// phone wide, tells the time to its reset without the word and carries the
+// whole window in its title, under full where name is not a plain word.
+export function Limit({ name, data, agent, short, full }) {
     if (!data) return null;
     const kind = limitClass(data.pct);
+    const reset = resetText(data.resetsAt);
+    const title = short ? [`${full || name}: ${share(data.pct)}`, reset].filter(Boolean).join(", ") : undefined;
     return html`
-        <div class="limit" data-agent=${agent}>
+        <div class="limit" data-agent=${agent} title=${title}>
             <div class="lrow">
                 <span class="lname">${name}</span>
                 <span class="lval ${kind}">${share(data.pct)}</span>
             </div>
             <div class="track"><div class="fill ${kind}" style=${`width:${Math.min(100, data.pct)}%`}></div></div>
-            <span class="lsub">${resetText(data.resetsAt)}</span>
+            <span class="lsub">${short && data.resetsAt ? resetLeft(data.resetsAt) : reset}</span>
         </div>
     `;
 }

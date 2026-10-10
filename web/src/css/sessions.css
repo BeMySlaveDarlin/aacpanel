@@ -187,14 +187,20 @@
 
 .limitnone { font-size: var(--t-xs); color: var(--ink-faint); }
 
-/* Codex's week stands on a row of its own under claude's two windows, as
-   wide as one of them, so its bar is read on their scale; a third window
-   beside them leaves none of the three room for the time to its reset. The
-   line of an account that told no week has no bar to compare and takes the
-   row, where it reads in one piece. The bar is in codex's hue, as its ring at
-   a desk is, until it nears its end. */
+/* Codex's week beside claude's two windows is the third of three equal
+   columns in their row, so its bar is read on their scale and the page gives
+   it no row of its own; a third of the narrowest phone holds the caption, the
+   share and the time to the reset without the word, and the window carries
+   it all in its title. Codex's window alone is as wide as one of claude's,
+   and the line of an account that told no week, with no bar to compare,
+   takes the row, where it reads in one piece. The bar is in codex's hue, as
+   its ring at a desk is, until it nears its end. */
 .pflimits .pfcodex > .limit { flex: 0 1 calc(50% - .25rem); }
 .pflimits .pfcodex > .limit.lempty { flex: 1; }
+.pflimits.pfthree { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .5rem; }
+.pflimits.pfthree > .pfclaude { grid-column: span 2; }
+.pflimits.pfthree > .limits-note { grid-column: 1 / -1; }
+.pflimits.pfthree .limit { flex: 1; min-width: 0; }
 .pflimits .limit[data-agent="codex"] .fill.ok { background: var(--agent-codex); }
 .pflimits .pfold { opacity: .45; }
 

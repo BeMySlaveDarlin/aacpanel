@@ -5,12 +5,14 @@
 <div class="shell" id="shell"></div>
 <script type="module">
 // The limits at the top of every contour page of the phone: claude's five
-// hours and seven days, and under them codex's week where its account told
-// one, signed Codex in codex's hue. A contour without codex keeps claude's
-// two, a contour codex alone spent in has codex's alone, and an account that
-// told no week, ran into its limit or has not renewed its numbers for a while
-// says so. Every page is measured for words cut off or windows run into one
-// another, at whatever width the screen of the run is.
+// hours and seven days, and beside them in their row codex's week, signed
+// Codex in codex's hue. A contour without codex keeps claude's two, a contour
+// codex alone spent in has codex's alone, and an account that told no week,
+// ran into its limit or has not renewed its numbers for a while says so. The
+// last contour has the widest words a window carries three to a row: a share
+// with a tenth, a reset that has come and one in minutes, and no week. Every
+// page is measured for words cut off or windows run into one another, at
+// whatever width the screen of the run is.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sessions } from "/src/screens/sessions.js";
@@ -40,6 +42,7 @@ const profileMap = [
     { id: 3, profile: "personal", name: "personal", groups: [] },
     { id: 5, profile: "lab", name: "lab", groups: [] },
     { id: 6, profile: "globex", name: "globex", groups: [] },
+    { id: 7, profile: "initech", name: "initech", groups: [] },
 ];
 const limits = { contours: [
     { profile: "Acme", contour: 4, ageSec: 30, fiveHour: part(7, 3), sevenDay: part(41, 98),
@@ -48,6 +51,8 @@ const limits = { contours: [
     { profile: "lab", codex: codex(30, { reached: "rate_limit" }) },
     { profile: "globex", contour: 6, ageSec: 30, fiveHour: part(30, 4), sevenDay: part(55, 101),
       codex: codex(4000, { sevenDay: part(92, 102), reached: "rate_limit" }) },
+    { profile: "initech", contour: 7, ageSec: 30, fiveHour: { pct: 99.5, resetsAt: now - 60 }, sevenDay: part(64, 0),
+      codex: codex(30, { plan: "plus" }) },
 ] };
 const run = (session, contour) => ({ session, sessionId: `${session}-id`, status: "idle", transport: "stream",
     pct: 12, tokens: 100000, limit: 1000000, cwd: `/srv/${session}`, model: "claude-opus-5-5", contour });
@@ -111,6 +116,7 @@ window.done = (async () => {
         }));
         out.pages.push({
             name: profileMap[i].profile,
+            width: Math.round(edge.width),
             dim: getComputedStyle(box).opacity,
             plates: plates.map((l) => {
                 const word = l.querySelector(".agentword");
@@ -130,6 +136,8 @@ window.done = (async () => {
                     x: Math.round(rect.left - edge.left),
                     y: Math.round(rect.top - edge.top),
                     width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                    title: l.title,
                     lines: [".lname", ".lval", ".lsub"].map((sel) => lines(l.querySelector(sel))),
                     inside: within(rect, edge),
                 };
