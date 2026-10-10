@@ -83,6 +83,14 @@ function byStatus(status) {
     return `the server answered ${status}`;
 }
 
+// harsherOf names the action a sheet offers in place of its own, or nothing:
+// an action names it outright or by its target, since not every target can be
+// treated harder.
+function harsherOf(action, target, params) {
+    const next = typeof action.escalate === "function" ? action.escalate(target, params) : action.escalate;
+    return next || null;
+}
+
 // GateHost mounts once above the whole application and holds the confirmation.
 export function GateHost({ children }) {
     const [pending, setPending] = useState(null);
@@ -115,7 +123,7 @@ export function GateHost({ children }) {
 
     const escalate = useCallback(() => {
         if (!pending) return;
-        const next = ACTIONS[pending.id].escalate;
+        const next = harsherOf(ACTIONS[pending.id], pending.target, pending.params);
         if (!next) return;
         setPending({ ...pending, id: next, step: 1, choice: null });
     }, [pending]);
@@ -166,6 +174,7 @@ export function GateHost({ children }) {
     const danger = action && (typeof action.danger === "function"
         ? action.danger(pending.params)
         : action.danger);
+    const harsher = pending && pending.step === 1 ? harsherOf(action, pending.target, pending.params) : null;
 
     return html`
         <${GateContext.Provider} value=${api}>
@@ -180,7 +189,7 @@ export function GateHost({ children }) {
                         </div>
                     </div>
                     <div class="warnline">
-                        ${typeof screen.effect === "function" ? screen.effect(pending.params) : screen.effect}
+                        ${typeof screen.effect === "function" ? screen.effect(pending.params, pending.target) : screen.effect}
                     </div>
                     ${pending.choice && html`
                         <${Choice} choice=${pending.choice} value=${pending.picked} onPick=${pick} />
@@ -191,9 +200,9 @@ export function GateHost({ children }) {
                             class="btn ${danger ? "danger" : "primary"}"
                             type="button"
                             onClick=${confirm}
-                        >${typeof screen.ok === "function" ? screen.ok(pending.params) : screen.ok}</button>
+                        >${typeof screen.ok === "function" ? screen.ok(pending.params, pending.target) : screen.ok}</button>
                     </div>
-                    ${action.escalate && pending.step === 1 && html`
+                    ${harsher && html`
                         <button class="item danger" type="button" onClick=${escalate}>
                             ${action.escalateLabel}
                         </button>

@@ -8,13 +8,15 @@
 // The conversation of a codex thread on a phone: the name alone in the
 // heading and Codex with its model opening the line under it, a
 // composer of text alone with no band of claude's settings under it, the
-// tools of the header with nothing but where it lives, its id and the stop of
-// its turn; then the same thread waiting on a command, and the card with the
+// tools of the header with nothing but where it lives, its id, the stop of
+// its turn and its close, the close asking on the sheet of the gate in codex's
+// words; then the same thread waiting on a command, and the card with the
 // three answers codex gave, in its order, the second of them pressed.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const at = new Date(Date.now() - 60000).toISOString();
@@ -59,6 +61,9 @@ const thread = {
     transport: "stream", status: "idle", model: "gpt-6-astra", effort: "xhigh", tokens: 41000, limit: 272000, pct: 15,
     cwd: "/srv/shop",
 };
+// The registry learns the live sessions from every answer of the host, as the
+// application hands them over.
+setLiveSessions([thread]);
 const root = document.getElementById("root");
 const page = (live) => h(ToastHost, null, h(GateHost, null,
     html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${live} exec=${exec}
@@ -101,6 +106,26 @@ window.done = (async () => {
         .find((b) => text(b.querySelector(".toollabel")) === "Stop the turn");
     out.stopOff = stop ? stop.disabled : null;
     out.stopWhy = stop ? text(stop.querySelector(".toolnote")) : "";
+    const close = Array.from(sheet.querySelectorAll(".toolrow"))
+        .find((b) => text(b.querySelector(".toollabel")) === "Close the session");
+    out.close = close ? { note: text(close.querySelector(".toolnote")), off: close.disabled } : null;
+    if (close) {
+        close.click();
+        const gate = () => root.querySelector('.sheet.on[aria-label="action confirmation"]');
+        if (await until(() => gate() && gate().querySelector(".btnrow"))) {
+            out.closeSheet = {
+                effect: text(gate().querySelector(".warnline")),
+                ok: text(gate().querySelector(".btnrow .btn:last-child")),
+                harsher: names(gate(), "button.item"),
+            };
+            gate().querySelector(".btnrow .btn:last-child").click();
+            await until(() => sent.some((s) => s.kind === "session.close"));
+            out.closeSheet.sent = sent.filter((s) => s.kind === "session.close")
+                .map((s) => ({ kind: s.kind, target: s.target }));
+        } else {
+            out.closeSheet = { trouble: "no sheet came up" };
+        }
+    }
 
     render(null, root);
     render(page({ ...thread, status: "waiting", waitingFor: "dialog open" }), root);

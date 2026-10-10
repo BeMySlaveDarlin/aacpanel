@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs","uplot":"/vendor/uplot.mjs"}}</script>
+<div id="root"></div>
+<script type="module">
+// The whole application over a host that lists a claude session and a codex
+// thread: the sheet of a close learns whom it closes from the answer of the
+// host, with no screen opened and nothing pressed. What the sheet says is
+// asked of the registry before the host has answered and after.
+import { h, render } from "preact";
+import { App } from "/src/app.js";
+import { GateHost } from "/src/actions/gate.js";
+import { ACTIONS } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const snapshot = {
+    at: Math.floor(Date.now() / 1000), hostName: "helios", profileMap: [],
+    sessions: [
+        { session: "shop", sessionId: "c1", transport: "stream", status: "idle", cwd: "/srv/shop" },
+        { session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", agent: "codex",
+          transport: "stream", status: "busy", cwd: "/srv/shop" },
+    ],
+};
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+let answered = 0;
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u === "/api/host" || u.startsWith("/api/host?")) {
+        answered += 1;
+        return json(snapshot);
+    }
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end && !ok()) await sleep(20);
+    return ok();
+};
+const close = ACTIONS["session.close"];
+// says reads the sheet of a close of target the way the gate does.
+const says = (target) => ({
+    effect: close.effect({}, target),
+    harsher: close.escalate(target, {}) || "",
+});
+
+window.done = (async () => {
+    const out = { before: says("codex-5afc361b") };
+    render(h(ToastHost, null, h(GateHost, null, h(App, {}))), document.getElementById("root"));
+    await until(() => answered > 0 && /codex/.test(close.effect({}, "codex-5afc361b")));
+    out.answered = answered;
+    out.codex = says("codex-5afc361b");
+    out.claude = says("shop");
+    return out;
+})();
+</script>

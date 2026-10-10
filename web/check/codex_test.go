@@ -19,10 +19,13 @@ type agentWord struct {
 // by the word that opens the line of its model: Codex, in a hue of its own,
 // where theirs says Claude; it lives on the daemon, not on the stream. The
 // panel offers it exactly what the host does for codex: text into its turn,
-// a stop of the turn, and the answer to what it asks. Everything claude's —
-// the pickers, the commands, the shell, the files, the terminal, the move, the
-// window, Remote Control, the name, the end — is not there, and the screen
-// does not ask the host about any of it.
+// a stop of the turn, the answer to what it asks, and a close. Everything
+// claude's — the pickers, the commands, the shell, the files, the terminal,
+// the move, the window, Remote Control, the name, the restart — is not there,
+// and the screen does not ask the host about any of it. The close says what it
+// does to codex wherever it is offered: the desktop row, the phone's sheet and
+// the session panel, and the sheet of the gate behind each of them, which has
+// no kill under it — the host does not kill codex.
 func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
@@ -31,7 +34,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		DeskMarks   []string    `json:"deskMarks"`
 		DeskFacts   []string    `json:"deskFacts"`
 		DeskAgent   agentWord   `json:"deskAgent"`
-		DeskActs    int         `json:"deskActs"`
+		DeskActs    []rowAct    `json:"deskActs"`
 		DeskSay     string      `json:"deskSay"`
 		ClaudeMarks []string    `json:"claudeMarks"`
 		ClaudeAgent agentWord   `json:"claudeAgent"`
@@ -44,6 +47,7 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		SheetAgent  agentWord   `json:"sheetAgent"`
 		Sheet       []struct {
 			Text string `json:"text"`
+			Note string `json:"note"`
 			Off  bool   `json:"off"`
 		} `json:"sheet"`
 		HeadMarks   []string        `json:"headMarks"`
@@ -69,7 +73,14 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		Panel        []string `json:"panel"`
 		PanelStopOff *bool    `json:"panelStopOff"`
 		StopSent     []string `json:"stopSent"`
-		Asked        []string `json:"asked"`
+		PanelClose   *struct {
+			Note string `json:"note"`
+			Off  bool   `json:"off"`
+		} `json:"panelClose"`
+		PanelCloseSheet *gateSheet `json:"panelCloseSheet"`
+		DeskCloseSheet  *gateSheet `json:"deskCloseSheet"`
+		PhoneCloseSheet *gateSheet `json:"phoneCloseSheet"`
+		Asked           []string   `json:"asked"`
 	}
 	runWideFixture(t, "codexsessions.html", &got)
 
@@ -105,8 +116,10 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the claude row beside it carries marks %v and %d actions: it is unmarked and closable",
 			got.ClaudeMarks, got.ClaudeActs)
 	}
-	if got.DeskActs != 0 {
-		t.Errorf("the desktop row of the codex thread offers %d actions: it is neither closed nor restarted from the panel", got.DeskActs)
+	if len(got.DeskActs) != 1 || got.DeskActs[0].Label != "close session "+name {
+		t.Errorf("the desktop row of the codex thread offers %+v, expected its close alone: a codex thread is not restarted", got.DeskActs)
+	} else {
+		saysCodexClose(t, "the tip of the close on the desktop row", got.DeskActs[0].Tip)
 	}
 	if !strings.Contains(got.DeskSay, "waiting") {
 		t.Errorf("the desktop row of a waiting codex thread says %q", got.DeskSay)
@@ -139,15 +152,19 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the header of the conversation carries the marks %v beside the name", got.HeadMarks)
 	}
 
-	// The phone's sheet: open it, answer it, stop its turn — nothing else.
+	// The phone's sheet: open it, answer it, stop its turn, close it —
+	// nothing else.
 	var sheet []string
 	for _, l := range got.Sheet {
 		sheet = append(sheet, l.Text)
 		if l.Off {
 			t.Errorf("the sheet line %q is off for a waiting codex thread", l.Text)
 		}
+		if l.Text == "Close" {
+			saysCodexClose(t, "the close on the phone's sheet", l.Note)
+		}
 	}
-	if strings.Join(sheet, ",") != "Open the conversation,Answer what it asks,Stop the turn" {
+	if strings.Join(sheet, ",") != "Open the conversation,Answer what it asks,Stop the turn,Close" {
 		t.Errorf("the phone's sheet of a waiting codex thread offers %v", sheet)
 	}
 	codexWord("the line under the name in the sheet", got.SheetAgent)
@@ -191,12 +208,27 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 		t.Errorf("the message sent stands in the feed %v, with the buttons to take it back %v", got.Queued, got.TakeBack)
 	}
 
-	// The session panel: where it lives, its id, the stop of its turn.
-	if strings.Join(got.Panel, ",") != "With codex,Copy the session ID,Stop the turn" {
+	// The session panel: where it lives, its id, the stop of its turn and the
+	// close.
+	if strings.Join(got.Panel, ",") != "With codex,Copy the session ID,Stop the turn,Close the session" {
 		t.Errorf("the session panel of a codex thread lists %v", got.Panel)
 	}
 	if got.PanelStopOff == nil || *got.PanelStopOff || strings.Join(got.StopSent, ",") != name {
 		t.Errorf("the stop of a busy codex turn is off %v and sent to %v", got.PanelStopOff, got.StopSent)
+	}
+	if got.PanelClose == nil || got.PanelClose.Off {
+		t.Errorf("the session panel of a codex thread closes it with %+v, expected a close that presses", got.PanelClose)
+	} else {
+		saysCodexClose(t, "the close in the session panel", got.PanelClose.Note)
+	}
+
+	// Each close asks on the sheet of the gate, in codex's words and with no
+	// kill under it, and the press sends the close of the thread.
+	for where, sheet := range map[string]*gateSheet{
+		"the session panel": got.PanelCloseSheet, "the desktop row": got.DeskCloseSheet,
+		"the phone's sheet": got.PhoneCloseSheet,
+	} {
+		checkCodexCloseSheet(t, where, name, sheet)
 	}
 
 	for _, path := range got.Asked {
@@ -212,8 +244,8 @@ func TestACodexThreadIsOfferedOnlyWhatTheHostDoesForIt(t *testing.T) {
 // On a phone the conversation of a codex thread has the name alone in its
 // heading, and the line under it opens with Codex and the model it runs; a
 // composer of text alone with no band of claude's settings under it,
-// and in the header's tools nothing but where it lives, its id and the stop
-// of its turn. Waiting on a command, it shows the card with the answers codex
+// and in the header's tools nothing but where it lives, its id, the stop
+// of its turn and its close, which says and asks what a close does to codex. Waiting on a command, it shows the card with the answers codex
 // gave, every one of them and in its order, and a press sends the number of
 // the answer with the request it belongs to.
 func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
@@ -230,7 +262,12 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 		Tools       []string  `json:"tools"`
 		StopOff     *bool     `json:"stopOff"`
 		StopWhy     string    `json:"stopWhy"`
-		Permit      struct {
+		Close       *struct {
+			Note string `json:"note"`
+			Off  bool   `json:"off"`
+		} `json:"close"`
+		CloseSheet *gateSheet `json:"closeSheet"`
+		Permit     struct {
 			Tool    string `json:"tool"`
 			Action  string `json:"action"`
 			Options []struct {
@@ -260,9 +297,15 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if got.Placeholder != "Write to codex-5afc361b" {
 		t.Errorf("the field says %q", got.Placeholder)
 	}
-	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,Copy the session ID,Stop the turn" {
+	if strings.Join(got.Tools, ",") != "Find in the conversation,Files of the project,With codex,Copy the session ID,Stop the turn,Close the session" {
 		t.Errorf("the tools of a codex thread list %v", got.Tools)
 	}
+	if got.Close == nil || got.Close.Off {
+		t.Errorf("the tools of a codex thread close it with %+v, expected a close that presses", got.Close)
+	} else {
+		saysCodexClose(t, "the close in the tools on a phone", got.Close.Note)
+	}
+	checkCodexCloseSheet(t, "the tools on a phone", "codex-5afc361b", got.CloseSheet)
 	if got.StopOff == nil || !*got.StopOff || got.StopWhy != "codex is not running a turn" {
 		t.Errorf("the stop of an idle thread is off %v and says %q", got.StopOff, got.StopWhy)
 	}
@@ -292,5 +335,71 @@ func TestACodexThreadOnAPhoneTakesTextAndAnswersItsPermission(t *testing.T) {
 	if len(got.PermitSent) != 1 || got.PermitSent[0].Target != "codex-5afc361b" ||
 		got.PermitSent[0].Params["option"] != float64(2) || got.PermitSent[0].Params["dialog"] != "req-7" {
 		t.Errorf("the second answer went out as %+v, expected option 2 of request req-7", got.PermitSent)
+	}
+}
+
+// rowAct is an action in the corner of a desktop row: what it is called and
+// its tip.
+type rowAct struct {
+	Label string `json:"label"`
+	Tip   string `json:"tip"`
+}
+
+// gateSheet is the sheet the gate put up for a press, as a fixture reads it:
+// what it says follows, its own button, the harsher actions under it, and
+// what its own button sent.
+type gateSheet struct {
+	Trouble string   `json:"trouble"`
+	Title   string   `json:"title"`
+	Effect  string   `json:"effect"`
+	OK      string   `json:"ok"`
+	Harsher []string `json:"harsher"`
+	Sent    []struct {
+		Kind   string `json:"kind"`
+		Target string `json:"target"`
+	} `json:"sent"`
+}
+
+// saysCodexClose checks that a line beside a close of a codex thread tells
+// what a close does to codex rather than to claude.
+func saysCodexClose(t *testing.T, where, note string) {
+	t.Helper()
+	for _, want := range []string{"turn at work breaks off", "lets the thread go", "codex resume", "tmux"} {
+		if !strings.Contains(note, want) {
+			t.Errorf("%s says %q, expected what a close does to codex: %q is missing", where, note, want)
+		}
+	}
+	for _, claude := range []string{"archive", "history", "process"} {
+		if strings.Contains(note, claude) {
+			t.Errorf("%s says %q: %q is what a close does to claude", where, note, claude)
+		}
+	}
+}
+
+// checkCodexCloseSheet checks the sheet of the gate behind a close of a codex
+// thread: codex's words, its own button for a plain close, no kill under it,
+// and the close of the thread sent by the press.
+func checkCodexCloseSheet(t *testing.T, where, name string, sheet *gateSheet) {
+	t.Helper()
+	if sheet == nil || sheet.Trouble != "" {
+		t.Errorf("the close in %s put up no sheet: %+v", where, sheet)
+		return
+	}
+	for _, want := range []string{"turn codex is running breaks off", "lets the thread go", "codex resume", "tmux"} {
+		if !strings.Contains(sheet.Effect, want) {
+			t.Errorf("the sheet of the close in %s says %q: %q is missing", where, sheet.Effect, want)
+		}
+	}
+	if strings.Contains(sheet.Effect, "transcript") {
+		t.Errorf("the sheet of the close in %s promises to wait for a transcript: %q", where, sheet.Effect)
+	}
+	if sheet.OK != "Close" {
+		t.Errorf("the sheet of the close in %s presses %q, expected Close", where, sheet.OK)
+	}
+	if len(sheet.Harsher) != 0 {
+		t.Errorf("the sheet of the close in %s offers %v under it: the host does not kill codex", where, sheet.Harsher)
+	}
+	if len(sheet.Sent) != 1 || sheet.Sent[0].Kind != "session.close" || sheet.Sent[0].Target != name {
+		t.Errorf("the close in %s sent %+v, expected session.close of %s", where, sheet.Sent, name)
 	}
 }

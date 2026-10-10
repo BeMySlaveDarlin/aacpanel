@@ -18,7 +18,7 @@ import { moveSession, useSwitchWay } from "../chat/switch.js";
 import { checklistShort } from "../chat/checklist.js";
 import { inOrder, sessionsOf } from "./of.js";
 import { kinLabel, kinOf, outsideNote, placeOf } from "./kin.js";
-import { agentKey, agentName, isCodex, noTurn } from "../../agent.js";
+import { CODEX_CLOSE, agentKey, agentName, isCodex, noTurn } from "../../agent.js";
 import { modelTitle } from "../chat/head.js";
 import { stamp, when } from "./card.js";
 
@@ -333,8 +333,8 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
             press: null });
     }
     // A codex thread is offered what the host does for it and nothing more:
-    // what it asks is answered on the card in its conversation, and its turn
-    // is stopped from here.
+    // what it asks is answered on the card in its conversation, its turn is
+    // stopped from here, and it closes like any other session.
     if (codex) {
         if (session.status === "waiting") {
             lines.push({ key: "permit", icon: Icon.hand(), text: "Answer what it asks",
@@ -345,6 +345,7 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
             why: noTurn(session) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop")),
             press: act(async () => run("session.stop", name, {})) });
     }
+    // Only a claude the panel started moves and gets a window.
     const reach = !session.outside && !codex;
     if (reach && (way.to === "console" || way.to === "stream")) {
         const to = way.to;
@@ -362,6 +363,8 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
     }
     // The home session is the one the panel lives beside: it is restarted from
     // scratch and never closed, the way the panel never stops its own container.
+    // A codex thread says what a close does to it rather than what it does to
+    // a claude.
     const lost = stopsOf(session);
     const ends = (note) => (lost ? `stops ${lost} · ${note}` : note);
     const restartLine = session.home && {
@@ -372,11 +375,11 @@ export function SessionSheet({ session, exec, onClose, onOpen }) {
     };
     const closeLine = !session.home && {
         key: "close", icon: Icon.close(), text: "Close", danger: true,
-        note: ends("the conversation stays in the archive"),
+        note: codex ? CODEX_CLOSE : ends("the conversation stays in the archive"),
         why: knows(exec, "session.close") ? "" : whyNot(exec, "session.close"),
         press: act(async () => run("session.close", name, {})),
     };
-    if (reach) lines.push(restartLine || closeLine);
+    if (!session.outside) lines.push(restartLine || closeLine);
     return html`
         <${Sheet} open=${true} onClose=${onClose} label=${`actions of session ${name}`}>
             <div class="pjsheet">

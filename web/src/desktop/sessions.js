@@ -20,7 +20,7 @@ import { contourName } from "../contour.js";
 import { pageNames } from "../screens/sessions/pages.js";
 import { contoursOf } from "../screens/sessions/map.js";
 import { kinLabel, kinOf, outsideNote } from "../screens/sessions/kin.js";
-import { CODEX_NOTE, agentKey, agentName, isCodex } from "../agent.js";
+import { CODEX_CLOSE, CODEX_NOTE, agentKey, agentName, isCodex } from "../agent.js";
 import { aboutOf, stateOf, stopsOf } from "../screens/sessions/blocks.js";
 import { stamp, when } from "../screens/sessions/card.js";
 import { modelTitle } from "../screens/chat/head.js";
@@ -169,15 +169,15 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
     const restartKnown = knows(exec, "session.restart");
     const canRestart = restartKnown && !restarting;
     const state = stateOf(s);
-    // A codex thread is neither closed nor restarted from the panel.
-    const codex = isCodex(s);
     const tone = busy ? "off" : state.tone;
     const said = closing ? "closing" : restarting ? "restarting" : state.text;
     const since = busy ? `${held(busy)} s` : state.since;
     const facts = factsOf(s, group, usual);
-    // What a close or a restart ends with the session, said before the press.
+    // What a close or a restart ends with the session, said before the press;
+    // a codex thread says what a close does to it instead.
     const lost = stopsOf(s);
     const lostTip = lost ? `Stops ${lost}` : undefined;
+    const closeTip = isCodex(s) ? CODEX_CLOSE : lostTip;
     const full = s.pct || 0;
 
     return html`
@@ -211,13 +211,13 @@ function SessionLine({ s, group, usual, current, onPick, index, exec, wait, kid 
                 ${since && html`<span class="dksaysince">· ${since}</span>`}
             </span>
             <span class="dkrowacts" onClick=${(e) => e.stopPropagation()}>
-                ${!s.home && !s.outside && !codex && html`
+                ${!s.home && !s.outside && html`
                     <i
                         class=${`dkact danger${can ? "" : " off"}`}
                         aria-label=${`close session ${s.session}`}
                         data-tip=${closing
                             ? "The session is already closing"
-                            : known ? lostTip : whyNot(exec, "session.close")}
+                            : known ? closeTip : whyNot(exec, "session.close")}
                         data-tipside="left"
                         onClick=${async () => {
                             if (!can) return;

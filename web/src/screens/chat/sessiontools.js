@@ -23,7 +23,7 @@ import { useRemote } from "./remote.js";
 import { moveSession, stops } from "./switch.js";
 import { outsideNote, placeOf } from "../sessions/kin.js";
 import { windowOf } from "./window.js";
-import { CODEX_NOTE, isCodex, noTurn } from "../../agent.js";
+import { CODEX_CLOSE, CODEX_NOTE, isCodex, noTurn } from "../../agent.js";
 
 // MoreButton opens the tools of the session from the header on a phone.
 export function MoreButton({ onOpen }) {
@@ -116,9 +116,9 @@ function Watch({ view, note, onPick }) {
 // its own, and two layers over the run fight for the way back.
 export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, way, work, onDone, onWindow, onLook }) {
     const run = useAction();
-    // A codex thread lives with codex: the panel writes to it, stops its turn
-    // and answers what it asks, and has nothing else to offer — no move, no
-    // window, no bridge, no name to change and no end.
+    // A codex thread lives with codex: the panel writes to it, stops its turn,
+    // answers what it asks and closes it, and has nothing else to offer — no
+    // move, no window, no bridge and no name to change.
     if (isCodex(live)) {
         return html`
             <section class="toolsec">
@@ -134,6 +134,7 @@ export function SessionSections({ name, live, exec, snapshot, cwd, sides, win, w
             <section class="toolsec toolend">
                 <ul class="mcplist toollist">
                     <${StopLine} name=${name} live=${live} exec=${exec} run=${run} onDone=${onDone} />
+                    <${EndLine} name=${name} live=${live} exec=${exec} work=${work} run=${run} onDone=${onDone} />
                 </ul>
             </section>
         `;
@@ -290,13 +291,16 @@ function SessionLines({ name, live, exec, cwd, onDone, onLook }) {
 }
 
 // EndLine ends the session: a session of its own home starts over, any other
-// closes and leaves its conversation to the history.
+// closes and leaves its conversation to the history. A codex thread says what
+// a close does to it instead: the turn it runs is the work that stops.
 function EndLine({ name, live, exec, work, run, onDone }) {
+    const codex = isCodex(live);
     const kind = live.home ? "session.restart" : "session.close";
     const why = knows(exec, kind) ? "" : whyNot(exec, kind);
-    const lost = stops(work);
+    const lost = codex ? "" : stops(work);
     const note = live.home
         ? "the conversation ends and a new one starts with an empty context"
+        : codex ? CODEX_CLOSE
         : "the process ends; the conversation stays in the history";
     return html`
         <li><button type="button" class="mcprow toolrow toolstop" disabled=${Boolean(why)}
@@ -310,8 +314,8 @@ function EndLine({ name, live, exec, work, run, onDone }) {
     `;
 }
 
-// StopLine breaks off the turn a codex thread is running: the one way the
-// panel ends anything of it, and the thread stays.
+// StopLine breaks off the turn a codex thread is running, and the thread
+// stays.
 function StopLine({ name, live, exec, run, onDone }) {
     const why = noTurn(live) || (knows(exec, "session.stop") ? "" : whyNot(exec, "session.stop"));
     return html`

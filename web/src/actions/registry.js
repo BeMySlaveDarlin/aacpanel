@@ -1,7 +1,10 @@
 // Registry of state-changing actions: what to tell the person before it happens.
 
+import { isCodex } from "../agent.js";
+
 let hostName = "";
 let profileMap = [];
+let liveSessions = [];
 
 export function setHostName(name) {
     if (name) hostName = name;
@@ -16,6 +19,18 @@ export function hostLabel() {
 // from it which agent a project starts and whether its contour has codex.
 export function setProfileMap(map) {
     profileMap = Array.isArray(map) ? map : [];
+}
+
+// setLiveSessions keeps the live sessions the host last listed: the sheet of
+// a close reads from them whether it closes a claude or a codex thread.
+export function setLiveSessions(list) {
+    liveSessions = Array.isArray(list) ? list : [];
+}
+
+// codexTarget reports whether the live session an action names is a codex
+// thread.
+function codexTarget(target) {
+    return isCodex(liveSessions.find((s) => s.session === target));
 }
 
 const AGENTS = [["claude", "Claude Code"], ["codex", "Codex"]];
@@ -328,14 +343,21 @@ export const ACTIONS = {
         ok: "Bring down",
         danger: true,
     },
+    // A codex thread is no process of the panel's: the close lets the daemon's
+    // thread go and has no transcript to wait for, and there is nothing to
+    // kill — the host refuses a kill of codex.
     "session.close": {
         watch: "close",
         title: (target) => `Close session ${target}?`,
-        effect: "We wait up to 15 seconds for the agent to finish writing the transcript.",
+        effect: (params, target) => (codexTarget(target)
+            ? "The turn codex is running breaks off, and the panel lets the thread go: the daemon unloads it "
+                + "once no client is left, and codex resume brings it back. A codex started in tmux closes "
+                + "with its tmux session."
+            : "We wait up to 15 seconds for the agent to finish writing the transcript."),
         done: (target) => `Session ${target} is closing`,
-        ok: "Close gently",
+        ok: (params, target) => (codexTarget(target) ? "Close" : "Close gently"),
         danger: true,
-        escalate: "session.kill",
+        escalate: (target) => (codexTarget(target) ? null : "session.kill"),
         escalateLabel: "Kill right now (kill -9)",
     },
     "session.restart": {

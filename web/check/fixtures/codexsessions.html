@@ -12,14 +12,17 @@
 // conversation, living on the daemon, offered on the phone's sheet only what
 // the host does for it, and in its conversation a composer that takes text alone
 // with nothing of claude's around it — no pickers, no commands, no files, no
-// terminal, no move, no window, no Remote Control, no end. The screen never
-// asks the host about what it does not offer.
+// terminal, no move, no window, no Remote Control. Each of the three places
+// closes it, saying what a close does to codex, and the sheet of the gate asks
+// in codex's words with no kill under it. The screen never asks the host about
+// what it does not offer.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
 import { ToastHost } from "/src/ui/toasts.js";
 
 const at = new Date(Date.now() - 60000).toISOString();
@@ -59,6 +62,9 @@ const sessions = [
     codex,
 ];
 const working = { ...codex, status: "busy", waitingFor: "" };
+// The registry learns the live sessions from every answer of the host, as the
+// application hands them over.
+setLiveSessions(sessions);
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.switch", "window.open",
     "session.send", "session.stop", "session.escape", "session.permit", "session.set", "session.command",
     "session.shell", "session.file", "session.rename", "session.remote", "session.unqueue", "session.background",
@@ -96,6 +102,23 @@ const agentOf = (line) => {
         colour: getComputedStyle(word).color };
 };
 
+// closeSheet reads the sheet the gate put up inside root, presses its own
+// button and waits for the request it sends.
+const closeSheet = async (root) => {
+    const gate = () => root.querySelector('.sheet.on[aria-label="action confirmation"]');
+    if (!await until(() => gate() && gate().querySelector(".btnrow"))) return { trouble: "no sheet came up" };
+    const sheet = {
+        effect: text(gate().querySelector(".warnline")),
+        ok: text(gate().querySelector(".btnrow .btn:last-child")),
+        harsher: names(gate(), "button.item"),
+    };
+    const before = sent.length;
+    gate().querySelector(".btnrow .btn:last-child").click();
+    await until(() => sent.length > before);
+    sheet.sent = sent.slice(before).map((s) => ({ kind: s.kind, target: s.target }));
+    return sheet;
+};
+
 // type puts words into the composer the way a keyboard does: preact reads
 // the field on its input event.
 const type = (area, words) => {
@@ -116,7 +139,8 @@ window.done = (async () => {
     out.deskMarks = names(deskRow, ".dksessmain .dkmark");
     out.deskFacts = names(deskRow, ".dkdetail > span");
     out.deskAgent = agentOf(deskRow.querySelector(".dkdetail"));
-    out.deskActs = deskRow.querySelectorAll(".dkrowacts .dkact").length;
+    out.deskActs = Array.from(deskRow.querySelectorAll(".dkrowacts .dkact"))
+        .map((i) => ({ label: i.getAttribute("aria-label") || "", tip: i.dataset.tip || "" }));
     out.deskSay = text(deskRow.querySelector(".dksay"));
     out.claudeMarks = names(claudeRow, ".dksessmain .dkmark");
     out.claudeAgent = agentOf(claudeRow.querySelector(".dkdetail"));
@@ -132,7 +156,7 @@ window.done = (async () => {
     out.sheetSub = text(document.querySelector(".pjsheetsub"));
     out.sheetAgent = agentOf(document.querySelector(".pjsheetsub"));
     out.sheet = Array.from(document.querySelectorAll(".pjsheet .pjact"))
-        .map((b) => ({ text: text(b.querySelector("b")), off: b.disabled }));
+        .map((b) => ({ text: text(b.querySelector("b")), note: text(b.querySelector(".pjactbody span")), off: b.disabled }));
 
     if (!await until(() => chat.querySelector(".composer textarea"))) throw new Error("the composer did not show");
     out.headMarks = names(chat, ".dkheadtop .dkmark");
@@ -194,6 +218,34 @@ window.done = (async () => {
     if (stop) stop.click();
     await until(() => sent.some((s) => s.kind === "session.stop"));
     out.stopSent = sent.filter((s) => s.kind === "session.stop").map((s) => s.target);
+
+    // The panel again, for the close at its end.
+    await until(() => !document.querySelector(".dkpanel"));
+    chat.querySelector(".dkplace").click();
+    await until(() => document.querySelector(".dkpanel .toollabel"));
+    const panelClose = Array.from(document.querySelectorAll(".dkpanel .toolrow"))
+        .find((b) => text(b.querySelector(".toollabel")) === "Close the session");
+    out.panelClose = panelClose
+        ? { note: text(panelClose.querySelector(".toolnote")), off: panelClose.disabled }
+        : null;
+    if (panelClose) {
+        panelClose.click();
+        out.panelCloseSheet = await closeSheet(chat);
+    }
+
+    // The close of the desktop row and of the phone's sheet, each through
+    // its own gate.
+    const deskClose = deskRow.querySelector('.dkrowacts .dkact[aria-label^="close session"]');
+    if (deskClose) {
+        deskClose.click();
+        out.deskCloseSheet = await closeSheet(desk);
+    }
+    const phoneClose = Array.from(document.querySelectorAll(".pjsheet .pjact"))
+        .find((b) => text(b.querySelector("b")) === "Close");
+    if (phoneClose) {
+        phoneClose.click();
+        out.phoneCloseSheet = await closeSheet(phone);
+    }
 
     out.asked = [...new Set(asked)].sort();
     return out;

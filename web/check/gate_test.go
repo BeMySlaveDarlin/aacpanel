@@ -354,9 +354,12 @@ func TestActionRegistryMatchesSpec(t *testing.T) {
 		t.Error("not a single `entails` is left in the registry — the check guards the wrong place")
 	}
 
+	// A consequence is a text, or a function that words it by the params and
+	// the target of the press.
 	effects := regexp.MustCompile(`effect:\s*"([^"]*)"`).FindAllStringSubmatch(body, -1)
-	if len(effects) < len(required) {
-		t.Errorf("consequences described: %d, there must be at least %d actions", len(effects), len(required))
+	worded := regexp.MustCompile(`effect:\s*\(`).FindAllString(body, -1)
+	if len(effects)+len(worded) < len(required) {
+		t.Errorf("consequences described: %d, there must be at least %d actions", len(effects)+len(worded), len(required))
 	}
 	for _, m := range effects {
 		text := strings.TrimSpace(m[1])
@@ -442,7 +445,8 @@ func TestEveryExecActionReachableFromUI(t *testing.T) {
 		return false
 	}
 
-	escalate := regexp.MustCompile(`escalate:\s*"([a-z]+\.[a-zA-Z]+)"`)
+	// An escalation is named outright or by a function of the target.
+	escalate := regexp.MustCompile(`escalate:[^\n]*?"([a-z]+\.[a-zA-Z]+)"`)
 	viaEscalate := map[string]string{}
 	viaService := map[string]string{}
 	for _, m := range regexp.MustCompile(`(?m)^\s{4}"([a-z]+\.[a-zA-Z]+)":`).FindAllStringSubmatch(actionsBlock(t, registry), -1) {

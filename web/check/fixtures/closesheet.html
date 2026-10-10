@@ -1,0 +1,109 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<div id="root"></div>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<script type="module">
+// The sheet of a close over the live sessions the host last listed: a claude
+// session and a codex thread. Each is closed the way every button does it; the
+// sheet is read, the codex one pressed, and the claude one taken to its kill
+// and let go. A name the host does not list is closed as a claude.
+import { h, render } from "preact";
+import { GateHost, useAction } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+setLiveSessions([
+    { session: "shop", sessionId: "c1", transport: "stream", status: "idle" },
+    { session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", agent: "codex",
+      transport: "stream", status: "busy" },
+]);
+
+const sent = [];
+window.fetch = async (url, init) => {
+    if (String(url) === "/api/actions") {
+        sent.push(JSON.parse(init.body));
+        return new Response(JSON.stringify({ ok: true, detail: "closed", logged: true }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("", { status: 404 });
+};
+
+let run = null;
+function Grab() {
+    run = useAction();
+    return null;
+}
+render(h(ToastHost, null, h(GateHost, null, h(Grab))), document.getElementById("root"));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok, ms = 3000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end && !ok()) await sleep(20);
+    return ok();
+};
+const root = document.getElementById("root");
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+const gate = () => root.querySelector('.sheet.on[aria-label="action confirmation"]');
+
+// read says what the open sheet asks: its title, what follows, its own button
+// and the harsher actions under it.
+const read = () => ({
+    title: text(gate().querySelector(".stitle")),
+    effect: text(gate().querySelector(".warnline")),
+    ok: text(gate().querySelector(".btnrow .btn:last-child")),
+    harsher: Array.from(gate().querySelectorAll("button.item")).map(text),
+});
+
+// open closes a session and waits for its sheet.
+const open = async (target) => {
+    const answer = run("session.close", target, {});
+    if (!(await until(() => gate() && gate().querySelector(".btnrow")))) {
+        return { answer, sheet: { trouble: `no sheet came up for the close of ${target}` } };
+    }
+    return { answer, sheet: read() };
+};
+
+window.done = (async () => {
+    const out = {};
+
+    // The codex thread: read, then pressed.
+    const codex = await open("codex-5afc361b");
+    out.codex = codex.sheet;
+    if (!out.codex.trouble) {
+        const before = sent.length;
+        gate().querySelector(".btnrow .btn:last-child").click();
+        const result = await codex.answer;
+        out.codex.answered = Boolean(result && result.ok);
+        out.codex.sent = sent.slice(before);
+        await until(() => !gate());
+    }
+
+    // The claude session: read, taken to its kill, read again, let go.
+    const claude = await open("shop");
+    out.claude = claude.sheet;
+    if (!out.claude.trouble) {
+        const harsher = gate().querySelector("button.item");
+        if (harsher) {
+            harsher.click();
+            await until(() => /^Kill /.test(text(gate() && gate().querySelector(".stitle"))));
+            out.claude.then = read();
+        }
+        gate().querySelector(".btnrow .btn:first-child").click();
+        const result = await claude.answer;
+        out.claude.cancelled = Boolean(result && result.cancelled);
+        await until(() => !gate());
+    }
+
+    // A name the host does not list.
+    const stray = await open("lab");
+    out.stray = stray.sheet;
+    if (!out.stray.trouble) {
+        gate().querySelector(".btnrow .btn:first-child").click();
+        await stray.answer;
+    }
+
+    out.sent = sent.length;
+    return out;
+})();
+</script>
