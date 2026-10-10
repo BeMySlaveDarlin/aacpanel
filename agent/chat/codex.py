@@ -64,6 +64,10 @@ OWN = "codex-thread"
 # instructions run to tens of kilobytes.
 DRIVEN = "codex-driven"
 HEAD = 1024 * 1024
+
+# The key under which a reader keeps the path of the thread among the agents
+# of the second set: a message it wrote itself is one it sent, not received.
+PATH = "codex-path"
 TASK = "task"
 
 # The mark codex's clients put before the words a person adds beside a pick.
@@ -110,12 +114,20 @@ AGENT_CALLS = {"spawn_agent": "Agent", "send_input": "SendInput", "resume_agent"
                "interrupt_agent": "InterruptAgent", "list_agents": "ListAgents"}
 AGENTS = "agents"
 
-# The key under which a reader keeps the calls of the second set it has met,
-# by the id of the call: the tool and the role a start asked for. The items
-# and the answer of a call come after it and name it by that id. The map is
-# replaced rather than changed: a throwaway read of a record still being
-# written works on a shallow copy of the reader's state.
-SECOND_CALLS = "codex-agent-calls"
+# A wait codex sets itself (clock.sleep) is drawn from its call as well: its
+# item comes only once the wait is over, and the call says codex waits while
+# it does.
+SLEEP = ("clock", "sleep")
+SLEEP_NAME = "Sleep"
+TIME = "time"
+
+# The key under which a reader keeps the calls drawn from the raw record of
+# the model it has met — of the second set, and the waits — by the id of the
+# call: the tool and the role a start asked for. The items and the answer of
+# a call come after it and name it by that id. The map is replaced rather
+# than changed: a throwaway read of a record still being written works on a
+# shallow copy of the reader's state.
+RAW_CALLS = "codex-raw-calls"
 
 # How the second set names the thread that started the agents, and the part
 # of a path an agent of it is named without.
@@ -147,7 +159,11 @@ def own(path):
 
 
 def reader(path):
-    """Returns the state a reader of a file starts with: what own says, and whether another drives the thread."""
+    """Returns the state a reader of a file starts with: what own says, whether another drives the thread, and its path.
+
+    The path is the one an agent of the second set is known by among the
+    agents, the thread that started them being the root.
+    """
     state = own(path)
     if not state:
         return state
@@ -156,7 +172,12 @@ def reader(path):
             head = json.loads(f.readline(HEAD))
     except (OSError, ValueError):
         return state
-    return {**state, DRIVEN: True} if isinstance(head, dict) and driven(head) else state
+    if not isinstance(head, dict):
+        return state
+    payload = head.get("payload") if isinstance(head.get("payload"), dict) else {}
+    named = payload.get("agent_path")
+    state = {**state, PATH: named if isinstance(named, str) and named else ROOT}
+    return {**state, DRIVEN: True} if driven(head) else state
 
 
 def driven(record):
@@ -700,27 +721,49 @@ def _arguments(payload):
     return args if isinstance(args, dict) else {}
 
 
-def _second(payload):
-    """Returns the tool and the id of a call of the second set, or None for any other record of the model."""
+def _raw_call(payload):
+    """Returns the tool and the id of a call drawn from the record of the model, or None for any other record.
+
+    That is a call of the second set and a wait codex set itself.
+    """
     tool, use = payload.get("name"), payload.get("call_id")
-    if (payload.get("type") != "function_call" or payload.get("namespace") != SECOND
-            or tool not in AGENT_CALLS or not isinstance(use, str) or not use):
+    if payload.get("type") != "function_call" or not isinstance(use, str) or not use:
         return None
-    return tool, use
+    if payload.get("namespace") == SECOND and tool in AGENT_CALLS:
+        return tool, use
+    if (payload.get("namespace"), tool) == SLEEP:
+        return tool, use
+    return None
 
 
-def _second_call(payload, at, pos, state):
-    """Returns the row of a call of the second set as it goes out, and keeps the call in the reader's state.
+def _called(tool):
+    """Returns the name and the kind a call drawn from the record of the model is drawn under."""
+    return (SLEEP_NAME, TIME) if tool == SLEEP[1] else (AGENT_CALLS[tool], AGENTS)
 
-    The call is open until its answer comes. A start is no call: the agent it
+
+def duration(ms):
+    """Returns a wait in words: seconds, or minutes once it is longer than two."""
+    if isinstance(ms, bool) or not isinstance(ms, (int, float)) or ms < 0:
+        return ""
+    sec = round(ms / 1000)
+    return f"{sec} s" if sec < 120 else f"{round(sec / 60)} min"
+
+
+def _raw_call_row(payload, at, pos, state):
+    """Returns the row of a call drawn from the record of the model as it goes out, and keeps the call in the state.
+
+    The call is open until its answer comes: a wait says how long codex
+    waits, a call to agents whom it goes to. A start is no call: the agent it
     started is a card, drawn from the item that names its thread.
     """
-    tool, use = _second(payload)
+    tool, use = _raw_call(payload)
     args = _arguments(payload)
-    state[SECOND_CALLS] = {**state.get(SECOND_CALLS, {}), use: (tool, _word(args.get("agent_type")))}
+    state[RAW_CALLS] = {**state.get(RAW_CALLS, {}), use: (tool, _word(args.get("agent_type")))}
     if tool == SPAWN:
         return []
-    return [{"role": "tool", "name": AGENT_CALLS[tool], "kind": AGENTS, "arg": agent_name(args.get("target")),
+    name, kind = _called(tool)
+    arg = agent_name(args.get("target")) if kind == AGENTS else duration(args.get("duration_ms"))
+    return [{"role": "tool", "name": name, "kind": kind, "arg": arg,
              "at": at, "use": use, "pos": pos, "index": 0, "open": True}]
 
 
@@ -739,11 +782,11 @@ def _refused(output):
         return True
 
 
-def _second_answer(payload, at, pos, state):
-    """Returns the mark of the answer of a call of the second set, or None for the answer of any other call."""
+def _raw_answer(payload, at, pos, state):
+    """Returns the mark of the answer of a call drawn from the record of the model, or None for any other answer."""
     from .records import RESULT
     use = payload.get("call_id")
-    known = (state or {}).get(SECOND_CALLS, {})
+    known = (state or {}).get(RAW_CALLS, {})
     if payload.get("type") != "function_call_output" or not isinstance(use, str) or use not in known:
         return None
     if known[use][0] == SPAWN:
@@ -766,7 +809,7 @@ def _activity(item, at, pos, state):
     if not isinstance(thread, str) or not UUID_RE.match(thread):
         return []
     use = item.get("id") if isinstance(item.get("id"), str) else ""
-    tool, role = (state or {}).get(SECOND_CALLS, {}).get(use, ("", ""))
+    tool, role = (state or {}).get(RAW_CALLS, {}).get(use, ("", ""))
     name = agent_name(item.get("agent_path")) or thread[-8:]
     if kind == "started":
         agents = [{"id": thread, "name": name, "role": role, "state": ACTIVITIES[kind]}]
@@ -781,18 +824,18 @@ def _activity(item, at, pos, state):
     return out
 
 
-def _second_details(record, payload, f):
-    """Returns a call of the second set opened, the way the feed opens a claude one.
+def _raw_details(record, payload, f):
+    """Returns a call drawn from the record of the model opened, the way the feed opens a claude one.
 
     It was called with everything but its words to the agent; its answer is
     read on in the rollout, a few records after the call, as claude's result
     is read after its call, and a call whose answer has not come is pending.
     """
-    tool, use = _second(payload)
+    tool, use = _raw_call(payload)
     called = {key: value for key, value in _arguments(payload).items() if key != "message"}
     at = record.get("timestamp") or ""
     args, args_cut = cut(json.dumps(called, ensure_ascii=False, indent=2, sort_keys=True) if called else "", MAX_ARGS)
-    out = {"tool": AGENT_CALLS[tool], "args": args, "argsCut": args_cut, "at": at,
+    out = {"tool": _called(tool)[0], "args": args, "argsCut": args_cut, "at": at,
            "result": "", "resultCut": False, "failed": False, "resultAt": ""}
     answer = _answer(f, use) if f is not None else None
     if answer is None:
@@ -838,10 +881,10 @@ def crew(path, known=None):
     except OSError:
         return known
     if known is None or known["pos"] > size:
-        known = {"pos": 0, "agents": {}, SECOND_CALLS: {}, OWN: own(path).get(OWN, ""), "asked": None}
+        known = {"pos": 0, "agents": {}, RAW_CALLS: {}, OWN: own(path).get(OWN, ""), "asked": None}
     if known["pos"] == size:
         return known
-    known = {**known, "agents": dict(known["agents"]), SECOND_CALLS: dict(known[SECOND_CALLS])}
+    known = {**known, "agents": dict(known["agents"]), RAW_CALLS: dict(known[RAW_CALLS])}
     try:
         with open(path, "rb") as f:
             f.seek(known["pos"])
@@ -866,9 +909,9 @@ def _crew_take(raw, known):
         return
     at = record.get("timestamp") or ""
     if record.get("type") == "response_item":
-        if _second(payload):
-            tool, use = _second(payload)
-            known[SECOND_CALLS][use] = (tool, _word(_arguments(payload).get("agent_type")))
+        if _raw_call(payload):
+            tool, use = _raw_call(payload)
+            known[RAW_CALLS][use] = (tool, _word(_arguments(payload).get("agent_type")))
         return
     found = _item(record)
     if found is None or found[0].get("thread_id") not in (None, "", known[OWN]):
@@ -942,6 +985,117 @@ def _answer(f, use):
     return None
 
 
+# What else codex does that the feed draws as a call among the calls: a wait
+# it set itself, a picture it looked at — the kind of claude's reading of a
+# file — and what a hook put into the turn, as claude's hook speaks in the
+# feed of claude.
+CLOCK_SLEEP = "clock.sleep"
+VIEW_IMAGE = "ViewImage"
+FILES = "files"
+HOOK = "hook"
+
+# How many places a web search found the call opened lists.
+MAX_FOUND = 20
+
+
+def _searched(item):
+    """Returns what a web search looked for: the words, the page it opened, or what it looked for in a page."""
+    action = item.get("action") if isinstance(item.get("action"), dict) else {}
+    url = action.get("url") if isinstance(action.get("url"), str) else ""
+    pattern = action.get("pattern") if isinstance(action.get("pattern"), str) else ""
+    if action.get("type") == "findInPage" and url:
+        return f"{pattern} in {url}" if pattern else url
+    if action.get("type") == "openPage" and url:
+        return url
+    query = item.get("query")
+    return query if isinstance(query, str) else ""
+
+
+def _found(item):
+    """Returns the places a web search found, a title and an address each."""
+    lines = []
+    for one in _list(item.get("results"))[:MAX_FOUND]:
+        if not isinstance(one, dict) or not isinstance(one.get("url"), str):
+            continue
+        title = one.get("title") if isinstance(one.get("title"), str) else ""
+        lines.append(f"{title}\n{one['url']}" if title else one["url"])
+    return "\n\n".join(lines)
+
+
+def _hook_said(item):
+    """Returns what a hook put into the turn as (the hook, its words), or None.
+
+    The hook is named by the event it ran on — the run of a hook names it
+    before anything else — as claude's hook is named by its own name.
+    """
+    texts, event = [], ""
+    for fragment in _list(item.get("fragments")):
+        if not isinstance(fragment, dict) or not isinstance(fragment.get("text"), str):
+            continue
+        texts.append(fragment["text"].strip())
+        run = fragment.get("hookRunId")
+        event = event or (run.split(":", 1)[0] if isinstance(run, str) else "")
+    said = "\n\n".join(t for t in texts if t)
+    if not said:
+        return None
+    return (f"{event} hook" if event else "hook"), said
+
+
+# A message between a thread and its agents of the second set: a raw record
+# of the model, its author and its recipient by their paths, its words after
+# a head codex puts before them — the kind, the task it is about, the sender.
+# Codex keeps every one but the last answer of an agent encrypted, so the
+# feed shows that one as a letter from the agent and the others as calls
+# among the calls: from whom it came, and that its words are not shown.
+AGENT_LETTER = "agent_message"
+LETTER_HEAD = "Payload:\n"
+FINAL_ANSWER = "FINAL_ANSWER"
+LETTER_NAME = "Letter"
+
+
+def _letter_parts(raw):
+    """Returns the kind of a message between agents and its words, empty when they travel encrypted."""
+    texts = [part["text"] for part in _list(raw.get("content"))
+             if isinstance(part, dict) and part.get("type") == "input_text" and isinstance(part.get("text"), str)]
+    whole = "".join(texts)
+    head, _, said = whole.partition(LETTER_HEAD)
+    kind = ""
+    for line in head.splitlines():
+        if line.startswith("Message Type:"):
+            kind = line.split(":", 1)[1].strip()
+    return kind, said.strip()
+
+
+def _letter_details(record, raw):
+    """Returns a message between agents opened: its kind, from whom and to whom; its words travel encrypted."""
+    kind, said = _letter_parts(raw)
+    called = {"type": kind, "from": raw.get("author"), "to": raw.get("recipient")}
+    if not said:
+        called["words"] = "encrypted"
+    at = record.get("timestamp") or ""
+    args, args_cut = cut(json.dumps(called, ensure_ascii=False, indent=2, sort_keys=True), MAX_ARGS)
+    result, result_cut = cut(said, MAX_RESULT)
+    return {"tool": LETTER_NAME, "args": args, "argsCut": args_cut, "at": at, "result": result,
+            "resultCut": result_cut, "failed": False, "resultAt": at}
+
+
+def _agent_letter(raw, at, pos, state):
+    """Returns the rows of a message between a thread and its agents: a letter, or a call whose words are not shown.
+
+    A message the thread wrote itself is one it sent: a call to whom it went.
+    """
+    author, recipient = agent_name(raw.get("author")), agent_name(raw.get("recipient"))
+    sent = raw.get("author") == (state or {}).get(PATH)
+    kind, said = _letter_parts(raw)
+    if kind == FINAL_ANSWER and not sent:
+        body, trimmed = cut(said, MAX_TEXT)
+        return [{"role": "mail", "from": author, "source": "agent", "text": body, "cut": trimmed,
+                 "at": at, "pos": pos}]
+    use = raw.get("id") if isinstance(raw.get("id"), str) else ""
+    arg = f"to {recipient}" if sent else f"from {author}"
+    return _call(LETTER_NAME, one_line(arg), use, 0, False, at, pos, kind=AGENTS)
+
+
 # The items a review runs in its own thread that the rollout of the thread
 # that asked for it shows: the work, not the words. The words of that thread
 # — its prompt and its answers — are codex's to itself, and the review says
@@ -969,9 +1123,11 @@ def rows(record, pos, state=None):
             return [card]
     raw = record.get("payload")
     if record.get("type") == "response_item" and isinstance(raw, dict):
-        if _second(raw):
-            return _second_call(raw, at, pos, state if state is not None else {})
-        return _second_answer(raw, at, pos, state) or []
+        if _raw_call(raw):
+            return _raw_call_row(raw, at, pos, state if state is not None else {})
+        if raw.get("type") == AGENT_LETTER:
+            return _agent_letter(raw, at, pos, state)
+        return _raw_answer(raw, at, pos, state) or []
     found = _item(record)
     if found is None:
         return []
@@ -1015,7 +1171,19 @@ def rows(record, pos, state=None):
                          edited)
         return out
     if kind == "Extension" and item.get("kind") == WEB_SEARCH:
-        return _call(SEARCH, "", use, 0, _failed(item), at, pos)
+        return _call(SEARCH, one_line(_searched(item)), use, 0, _failed(item), at, pos)
+    if kind == "Extension" and item.get("kind") == CLOCK_SLEEP:
+        # A wait drawn from its call already; one whose call fell before the
+        # window, or a rollout with no records of the model, is drawn here.
+        if use in (state or {}).get(RAW_CALLS, {}):
+            return []
+        return _call(SLEEP_NAME, duration(item.get("durationMs")), use, 0, False, at, pos, kind=TIME)
+    if kind == "ImageView":
+        path = item.get("path") if isinstance(item.get("path"), str) else ""
+        return _call(VIEW_IMAGE, one_line(path), use, 0, False, at, pos, kind=FILES)
+    if kind == "HookPrompt":
+        said = _hook_said(item)
+        return _call(said[0], one_line(said[1]), use, 0, False, at, pos, kind=HOOK) if said else []
     if kind == "ContextCompaction":
         return [{"role": "note", "text": COMPACTED, "at": at, "pos": pos}]
     if kind == COLLAB:
@@ -1024,7 +1192,7 @@ def rows(record, pos, state=None):
         rows_of_call = _agent_call(item, use, at, pos)
         # The item of a call of the second set — the wait — says only how the
         # agents stand: the call is drawn from the call.
-        if use in (state or {}).get(SECOND_CALLS, {}):
+        if use in (state or {}).get(RAW_CALLS, {}):
             return [row for row in rows_of_call if row["role"] == "agentstates"]
         return rows_of_call
     if kind == ACTIVITY:
@@ -1069,8 +1237,10 @@ def details(record, index, f=None):
     rollout read up to the end of this one.
     """
     raw = record.get("payload")
-    if record.get("type") == "response_item" and isinstance(raw, dict) and _second(raw):
-        return _second_details(record, raw, f) if index == 0 else None
+    if record.get("type") == "response_item" and isinstance(raw, dict) and _raw_call(raw):
+        return _raw_details(record, raw, f) if index == 0 else None
+    if record.get("type") == "response_item" and isinstance(raw, dict) and raw.get("type") == AGENT_LETTER:
+        return _letter_details(record, raw) if index == 0 else None
     found = _item(record)
     if found is None:
         return None
@@ -1095,7 +1265,15 @@ def details(record, index, f=None):
         said = "\n".join(s.strip() for s in (item.get("stdout"), item.get("stderr"))
                          if isinstance(s, str) and s.strip())
     elif kind == "Extension" and item.get("kind") == WEB_SEARCH and index == 0:
-        name, shown, said = SEARCH, "", ""
+        called = {key: item[key] for key in ("query", "action") if item.get(key)}
+        shown = json.dumps(called, ensure_ascii=False, indent=2, sort_keys=True) if called else ""
+        name, said = SEARCH, _found(item)
+    elif kind == "Extension" and item.get("kind") == CLOCK_SLEEP and index == 0:
+        name, shown, said = SLEEP_NAME, json.dumps({"duration_ms": item.get("durationMs")}), ""
+    elif kind == "ImageView" and index == 0:
+        name, shown, said = VIEW_IMAGE, json.dumps({"path": item.get("path")}, ensure_ascii=False), ""
+    elif kind == "HookPrompt" and index == 0 and _hook_said(item):
+        (name, said), shown = _hook_said(item), ""
     elif kind == COLLAB and index == 0:
         name, shown, said = _agent_spot(item)
     elif kind == MCP_CALL and index == 0 and _mcp_name(item):

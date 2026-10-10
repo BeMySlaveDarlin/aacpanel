@@ -890,7 +890,13 @@ appears or the connection drops — at once when an action waits for it.
   of the second set is drawn from its raw record and opens with its answer;
   its items say how the agents stand, and an agent interrupted or done with its
   turn is a line of the feed besides. What the second set sends an agent
-  travels encrypted and is never shown: only to whom and that it went. A
+  travels encrypted and is never shown: only to whom and that it went. The
+  messages between the thread and its agents are raw records of the model as
+  well, encrypted all but the last answer of an agent: that one is a letter
+  from the agent, and the others are calls among the calls, from whom or to
+  whom. A picture codex looked at, a web search — what it looked for, opening
+  with what it found — a wait codex set itself, drawn from its call while it
+  waits, and what a hook put into the turn are calls among the calls too. A
   review runs in a thread of its own and codex writes its items into the
   rollout of the thread that asked for it: the feed shows its work and none of
   its words, which codex says to itself.

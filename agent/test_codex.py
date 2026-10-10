@@ -254,8 +254,10 @@ class Feed(Runtime):
             ("tool", "WebSearch", "web", "", None, None),
             ("result", None, None, None, None, None),
             ("ai", "The router lives in `src/router`: two files, and its test fails.", None, None, None, None),
+            ("tool", "Sleep", "time", "1 s", None, None),
+            ("result", None, None, None, None, None),
             ("note", harness.COMPACTED, None, None, None, None),
-        ], "the raw model records, the counts, the turn bounds and a sleep are no rows")
+        ], "the raw model records, the counts and the turn bounds are no rows; a wait codex set itself is a call")
 
     def test_a_turn_a_person_stopped_says_so(self):
         def aborted(reason):
@@ -270,7 +272,7 @@ class Feed(Runtime):
         self.assertTrue(reply["ok"], reply)
         shown = [(i["role"], i.get("kind")) for i in reply["items"]]
         self.assertEqual(shown, [("me", None), ("mind", None), ("ai", None), ("tools", "bash"),
-                                 ("tools", "files"), ("tools", "web"), ("ai", None), ("note", None)])
+                                 ("tools", "files"), ("tools", "web"), ("ai", None), ("tools", "time"), ("note", None)])
         bash = reply["items"][3]["calls"]
         self.assertEqual([(c["arg"], c.get("failed", False), "open" in c) for c in bash],
                          [("ls -la src/router", False, False), ("go test ./src/router", True, False)])
@@ -903,9 +905,88 @@ class SecondAgents(Runtime):
         self.assertTrue(reply["ok"], reply)
         rows = [(i["role"], [(c["name"], c["arg"]) for c in i["calls"]] if i["role"] == "tools" else i.get("text"))
                 for i in reply["items"]]
-        self.assertEqual(rows, [("tools", [("Bash", "ls src/lexer")]), ("tools", [("SendMessage", "/root")]),
-                                ("ai", "The lexer drops escaped quotes.")],
-                         "the messages it took of its parent are not its feed, and the parent is named by its path")
+        self.assertEqual(rows, [("tools", [("Letter", "from /root"), ("SendMessage", "/root")]),
+                                ("tools", [("Bash", "ls src/lexer")]), ("ai", "The lexer drops escaped quotes.")],
+                         "the messages it took of its parent are not its feed, its task came as a letter whose "
+                         "words are not shown, and the parent is named by its path")
+
+
+EXTRAS = os.path.join(HERE, "testdata", "codex-extras.jsonl")
+
+
+class CodexOwnTools(Runtime):
+    """What else codex does in a turn: a picture looked at, web searches, a wait, a hook, messages of agents."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.copy(EXTRAS, self.rollout)
+
+    def items(self):
+        reply = chat.answer({"session": THREAD, "limit": 50})
+        self.assertTrue(reply["ok"], reply)
+        return reply["items"]
+
+    def opened(self, use):
+        for pos, record in records_at_of(self.rollout):
+            payload = record.get("payload") or {}
+            if (payload.get("item") or {}).get("id") == use or payload.get("id") == use or payload.get("call_id") == use:
+                got = chat.answer({"session": THREAD, "call": {"pos": pos, "index": 0}})
+                self.assertTrue(got["ok"], got)
+                return got
+        raise AssertionError(f"no {use} in the fixture")
+
+    def test_each_is_a_call_among_the_calls_and_the_last_answer_of_an_agent_a_letter(self):
+        items = self.items()
+        calls = [(i["kind"], c["name"], c["arg"], c.get("open", False))
+                 for i in items if i["role"] == "tools" for c in i["calls"]]
+        self.assertEqual(calls, [
+            ("files", "ViewImage", "/home/u/Projects/demo/shots/login.png", False),
+            ("web", "WebSearch", "oauth pkce flow", False),
+            ("web", "WebSearch", "https://example.org/pkce", False),
+            ("web", "WebSearch", "verifier in https://example.org/pkce", False),
+            ("time", "Sleep", "30 s", False),
+            ("time", "Sleep", "3 min", False),
+            ("hook", "subagent-stop hook", "Check the agents before you answer.", False),
+            ("agents", "Letter", "from checker", False),
+            ("agents", "Letter", "to checker", False),
+        ], "a search says what it looked for, a wait how long, a hook what it said, a letter from whom or to whom")
+        mail = [(i["from"], i["source"], i["text"]) for i in items if i["role"] == "mail"]
+        self.assertEqual(mail, [("checker", "agent", "The login screen keeps the token in the page.")])
+        self.assertNotIn("gAAAA", json.dumps(items))
+
+    def test_a_wait_is_open_while_codex_waits(self):
+        with open(EXTRAS, encoding="utf-8") as f:
+            lines = f.readlines()
+        at = next(n for n, line in enumerate(lines) if '"call_sleep_1"' in line)
+        with open(self.rollout, "w", encoding="utf-8") as f:
+            f.writelines(lines[:at + 1])
+        last = [c for i in self.items() if i["role"] == "tools" for c in i["calls"]][-1]
+        self.assertEqual((last["name"], last["arg"], last.get("open")), ("Sleep", "30 s", True))
+
+    def test_each_opens_with_what_it_was_and_what_came_of_it(self):
+        search = self.opened("ws-1")
+        self.assertEqual((search["tool"], json.loads(search["args"])["query"]), ("WebSearch", "oauth pkce flow"))
+        self.assertEqual(search["result"], "PKCE explained\nhttps://example.org/pkce\n\nOAuth 2.1\nhttps://example.org/oauth21")
+        image = self.opened("view-1")
+        self.assertEqual((image["tool"], json.loads(image["args"])), ("ViewImage", {"path": "/home/u/Projects/demo/shots/login.png"}))
+        hook = self.opened("hook-1")
+        self.assertEqual((hook["tool"], hook["result"]), ("subagent-stop hook", "Check the agents before you answer."))
+        sleep = self.opened("fc_sleep_1")
+        self.assertEqual((sleep["tool"], json.loads(sleep["args"])), ("Sleep", {"duration_ms": 30000}))
+        letter = self.opened("am_message_13")
+        self.assertEqual((letter["tool"], json.loads(letter["args"]), letter["result"]),
+                         ("Letter", {"type": "MESSAGE", "from": "/root/checker", "to": "/root", "words": "encrypted"}, ""))
+        self.assertNotIn("gAAAA", json.dumps(letter))
+
+
+def records_at_of(path):
+    """Returns the records of a rollout with the place each starts at."""
+    out, pos = [], 0
+    with open(path, "rb") as f:
+        for raw in f:
+            out.append((pos, json.loads(raw)))
+            pos += len(raw)
+    return out
 
 
 ASYNC_QUESTIONS = os.path.join(HERE, "testdata", "codex-async-questions.jsonl")
