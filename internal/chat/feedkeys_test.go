@@ -31,8 +31,9 @@ var notTheFeed = map[string]string{
 	"spots.py":  "the reply of one call opened from the feed",
 	"locate.py": "where the transcripts lie",
 
-	"codex.py:own":    "the state a reader of a rollout starts with, the id of its thread",
-	"codex.py:reader": "the state a reader of a rollout starts with, and whether another drives its thread",
+	"codex.py:own":                "the state a reader of a rollout starts with, the id of its thread",
+	"codex.py:reader":             "the state a reader of a rollout starts with, and whether another drives its thread",
+	"codex.py:_second_call:state": "the state a reader of a rollout keeps: the calls to agents of the second set it met",
 
 	"commands.py:usage_from_markdown": "the numbers of an answer, carried whole in Data",
 	"commands.py:usage_from_record":   "the numbers of an answer, carried whole in Data",
@@ -46,12 +47,14 @@ var notTheFeed = map[string]string{
 	"disk.py:read_raw":                "the reply of a file opened from the feed, under Reply",
 	"disk.py:task_output":             "the reply of the output of a task, under Reply",
 
-	"records.py:result_mark": "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
-	"codex.py:_call:mark":    "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
-	"codex.py:details":       "the reply of one call opened from the feed, under Call",
-	"codex.py:_agent_spot":   "the reply of one call to agents opened from the feed, under Call",
-	"codex.py:context":       "how full the context of a codex thread is, for its row in the snapshot",
-	"codex.py:_take":         "how full the context of a codex thread is, for its row in the snapshot",
+	"records.py:result_mark":       "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
+	"codex.py:_call:mark":          "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
+	"codex.py:details":             "the reply of one call opened from the feed, under Call",
+	"codex.py:_agent_spot":         "the reply of one call to agents opened from the feed, under Call",
+	"codex.py:_second_answer:mark": "a mark of a result, for the fold: it sets what came on the call, in ToolCall",
+	"codex.py:_second_details":     "the reply of one call to agents of the second set opened from the feed, under Call",
+	"codex.py:context":             "how full the context of a codex thread is, for its row in the snapshot",
+	"codex.py:_take":               "how full the context of a codex thread is, for its row in the snapshot",
 
 	"mail.py::_PEER_NAMES":                 "the names of the sessions next door, by pid",
 	"queue.py:remember:texts":              "the texts the queue has drawn, by text",

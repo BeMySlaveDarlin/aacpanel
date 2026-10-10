@@ -16,7 +16,9 @@ thread_goal_updated).
 
 An agent codex starts runs in a thread of its own, with a rollout of its own:
 the thread that started it writes only its calls to agents, and the start is
-a card that opens the agent's thread by its id.
+a card that opens the agent's thread by its id. Of those calls, the ones of
+the second set of codex's tools for agents are written as the raw records of
+the model alone, and the feed reads them there.
 """
 import datetime as dt
 import glob
@@ -82,14 +84,50 @@ WEB_SEARCH = "web.search"
 FAILED = ("failed", "declined")
 
 # A call of codex to its agents: it starts one, waits on them, writes to one,
-# brings one back or closes it. A start is a card of its own, as an agent of
-# claude has its own row; every other call is a call among the calls, named
-# the way claude names its calls and of the kind of claude's calls to agents.
+# gives one a task more, brings one back, interrupts one, lists them or closes
+# one. A start is a card of its own, as an agent of claude has its own row;
+# every other call is a call among the calls, named the way claude names its
+# calls and of the kind of claude's calls to agents.
+#
+# Codex has two sets of these tools, and a thread works with one of them. The
+# first writes an item of every call (CollabAgentToolCall), its agents named
+# by their threads. The second writes the call and its answer only as the raw
+# records of the model — a function_call of the namespace collaboration and
+# its function_call_output — and beside them an item of what the call did to
+# an agent (SubAgentActivity): started it, spoke to it or interrupted it; the
+# agent's turn coming to its end is an item of its own. It names an agent by
+# its path, /root/<name>, and a wait of it writes the item of a wait besides.
+# So a call of the second set is drawn from its call, and its items only say
+# how the agents stand. The words it sends an agent travel encrypted and are
+# never shown: only to whom and that it went.
 COLLAB = "CollabAgentToolCall"
+ACTIVITY = "SubAgentActivity"
+SECOND = "collaboration"
 SPAWN = "spawn_agent"
-AGENT_CALLS = {"wait": "Wait", "send_input": "SendInput", "resume_agent": "ResumeAgent",
-               "close_agent": "CloseAgent"}
+AGENT_CALLS = {"spawn_agent": "Agent", "send_input": "SendInput", "resume_agent": "ResumeAgent",
+               "wait": "Wait", "wait_agent": "Wait", "close_agent": "CloseAgent",
+               "send_message": "SendMessage", "followup_task": "FollowupTask",
+               "interrupt_agent": "InterruptAgent", "list_agents": "ListAgents"}
 AGENTS = "agents"
+
+# The key under which a reader keeps the calls of the second set it has met,
+# by the id of the call: the tool and the role a start asked for. The items
+# and the answer of a call come after it and name it by that id. The map is
+# replaced rather than changed: a throwaway read of a record still being
+# written works on a shallow copy of the reader's state.
+SECOND_CALLS = "codex-agent-calls"
+
+# How the second set names the thread that started the agents, and the part
+# of a path an agent of it is named without.
+ROOT = "/root"
+
+# What an item of the second set says happened to an agent, as the word codex
+# says an agent stands by, and the line the feed draws of it, when it draws one:
+# a start is a card, a word sent is the call that sent it, and a task more —
+# followup_task — sets the agent to work again.
+ACTIVITIES = {"started": "running", "interrupted": "interrupted", "completed": "completed"}
+ACTIVITY_LINES = {"interrupted": ("was interrupted", "warn"), "completed": ("finished", "ok")}
+FOLLOWUP = "followup_task"
 
 # How codex says an agent stands. A word with what the agent said — its last
 # answer, its error — comes as the word over those words, and they stay out of
@@ -559,19 +597,24 @@ def _agents(item):
     return out
 
 
-def _spawn(item, use, at, pos):
-    """Returns the card of an agent codex started: who it is, on what model, how it stands, and its task.
+def _card(agents, model, effort, use, at, pos, task="", failed=False):
+    """Returns the card of agents codex started: who each is, on what model, how it stands, and their task.
 
     The task is what the thread that started the agent asked of it; the feed
     keeps it folded, as the call of an agent of claude keeps its prompt.
     """
-    model, effort = _word(item.get("model")), _word(item.get("reasoning_effort"))
-    agents = [dict(agent, model=model, effort=effort) for agent in _agents(item)]
-    body, trimmed = cut(item.get("prompt") if isinstance(item.get("prompt"), str) else "", MAX_TEXT)
-    card = {"role": "spawn", "use": use, "spawned": agents, "text": body, "cut": trimmed, "at": at, "pos": pos}
-    if _failed(item):
+    body, trimmed = cut(task, MAX_TEXT)
+    card = {"role": "spawn", "use": use, "spawned": [dict(agent, model=model, effort=effort) for agent in agents],
+            "text": body, "cut": trimmed, "at": at, "pos": pos}
+    if failed:
         card["status"] = "failed"
     return card
+
+
+def _spawn(item, use, at, pos):
+    """Returns the card of an agent codex started with the first set of its tools."""
+    return _card(_agents(item), _word(item.get("model")), _word(item.get("reasoning_effort")), use, at, pos,
+                 item.get("prompt") if isinstance(item.get("prompt"), str) else "", _failed(item))
 
 
 def _agent_call(item, use, at, pos):
@@ -612,8 +655,160 @@ def _agent_spot(item):
         word, said = _state(states.get(agent["id"]))
         head = f"{agent['name'] or agent['id']}: {word.replace('_', ' ') or 'not said'}"
         lines.append(f"{head}\n{said.strip()}" if said.strip() else head)
-    name = "Agent" if tool == SPAWN else (AGENT_CALLS.get(tool) or tool or "Agent")
+    name = AGENT_CALLS.get(tool) or tool or "Agent"
     return name, json.dumps(called, ensure_ascii=False, indent=2, sort_keys=True), "\n\n".join(lines)
+
+
+def agent_name(path):
+    """Returns how the feed names an agent of the second set: its path under the thread that started it."""
+    if not isinstance(path, str):
+        return ""
+    return one_line(path[len(ROOT) + 1:] if path.startswith(ROOT + "/") else path)
+
+
+def _arguments(payload):
+    """Returns what a call of the model was called with, or nothing when it does not read."""
+    raw = payload.get("arguments")
+    try:
+        args = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return {}
+    return args if isinstance(args, dict) else {}
+
+
+def _second(payload):
+    """Returns the tool and the id of a call of the second set, or None for any other record of the model."""
+    tool, use = payload.get("name"), payload.get("call_id")
+    if (payload.get("type") != "function_call" or payload.get("namespace") != SECOND
+            or tool not in AGENT_CALLS or not isinstance(use, str) or not use):
+        return None
+    return tool, use
+
+
+def _second_call(payload, at, pos, state):
+    """Returns the row of a call of the second set as it goes out, and keeps the call in the reader's state.
+
+    The call is open until its answer comes. A start is no call: the agent it
+    started is a card, drawn from the item that names its thread.
+    """
+    tool, use = _second(payload)
+    args = _arguments(payload)
+    state[SECOND_CALLS] = {**state.get(SECOND_CALLS, {}), use: (tool, _word(args.get("agent_type")))}
+    if tool == SPAWN:
+        return []
+    return [{"role": "tool", "name": AGENT_CALLS[tool], "kind": AGENTS, "arg": agent_name(args.get("target")),
+             "at": at, "use": use, "pos": pos, "index": 0, "open": True}]
+
+
+def _refused(output):
+    """Reports whether the answer of a call of the second set says it did not go.
+
+    A call that went answers with an object or with nothing; words in place
+    of either are codex saying why it did not — the person stopped the turn
+    it waited in, or the call failed.
+    """
+    if not isinstance(output, str) or not output.strip():
+        return False
+    try:
+        return not isinstance(json.loads(output), dict)
+    except ValueError:
+        return True
+
+
+def _second_answer(payload, at, pos, state):
+    """Returns the mark of the answer of a call of the second set, or None for the answer of any other call."""
+    from .records import RESULT
+    use = payload.get("call_id")
+    known = (state or {}).get(SECOND_CALLS, {})
+    if payload.get("type") != "function_call_output" or not isinstance(use, str) or use not in known:
+        return None
+    if known[use][0] == SPAWN:
+        return []
+    mark = {"role": RESULT, "use": use, "at": at, "pos": pos}
+    if _refused(payload.get("output")):
+        mark["failed"] = True
+    return [mark]
+
+
+def _activity(item, at, pos, state):
+    """Returns the rows of an item of the second set: a card of an agent started, how an agent stands now.
+
+    A start names the agent's thread, its model and its effort, and the role
+    its call asked for; an agent interrupted or done with its turn is a line
+    of the feed besides, since nothing else in it says so.
+    """
+    from .locate import UUID_RE
+    thread, kind = item.get("agent_thread_id"), item.get("kind")
+    if not isinstance(thread, str) or not UUID_RE.match(thread):
+        return []
+    use = item.get("id") if isinstance(item.get("id"), str) else ""
+    tool, role = (state or {}).get(SECOND_CALLS, {}).get(use, ("", ""))
+    name = agent_name(item.get("agent_path")) or thread[-8:]
+    if kind == "started":
+        agents = [{"id": thread, "name": name, "role": role, "state": ACTIVITIES[kind]}]
+        return [_card(agents, _word(item.get("model")), _word(item.get("reasoning_effort")), use, at, pos)]
+    word = ACTIVITIES.get(kind) or ("running" if kind == "interacted" and tool == FOLLOWUP else "")
+    if not word:
+        return []
+    out = [{"role": "agentstates", "spawned": [{"id": thread, "state": word}], "at": at, "pos": pos}]
+    if kind in ACTIVITY_LINES:
+        said, level = ACTIVITY_LINES[kind]
+        out.append({"role": "notice", "from": f"agent {name}", "text": said, "level": level, "at": at, "pos": pos})
+    return out
+
+
+def _second_details(record, payload, f):
+    """Returns a call of the second set opened, the way the feed opens a claude one.
+
+    It was called with everything but its words to the agent; its answer is
+    read on in the rollout, a few records after the call, as claude's result
+    is read after its call, and a call whose answer has not come is pending.
+    """
+    tool, use = _second(payload)
+    called = {key: value for key, value in _arguments(payload).items() if key != "message"}
+    at = record.get("timestamp") or ""
+    args, args_cut = cut(json.dumps(called, ensure_ascii=False, indent=2, sort_keys=True) if called else "", MAX_ARGS)
+    out = {"tool": AGENT_CALLS[tool], "args": args, "argsCut": args_cut, "at": at,
+           "result": "", "resultCut": False, "failed": False, "resultAt": ""}
+    answer = _answer(f, use) if f is not None else None
+    if answer is None:
+        out["pending"] = True
+        return out
+    output, answered = answer
+    try:
+        said = json.loads(output) if isinstance(output, str) and output.strip() else output
+    except ValueError:
+        said = output
+    if isinstance(said, dict):
+        said = json.dumps(said, ensure_ascii=False, indent=2, sort_keys=True)
+    out["result"], out["resultCut"] = cut(said if isinstance(said, str) else "", MAX_RESULT)
+    out["failed"], out["resultAt"] = _refused(output), answered or at
+    return out
+
+
+# How many records after a call its answer is looked for: what the other
+# agents write meanwhile stands between a wait and its answer.
+ANSWER_LIMIT = 512
+
+
+def _answer(f, use):
+    """Returns the output of the call with this id and when it came, read on from where f stands, or None."""
+    mark = json.dumps(use).encode()
+    for _ in range(ANSWER_LIMIT):
+        raw = f.readline()
+        if not raw:
+            return None
+        if mark not in raw:
+            continue
+        try:
+            record = json.loads(raw)
+        except ValueError:
+            continue
+        payload = record.get("payload") if isinstance(record, dict) else None
+        if (record.get("type") == "response_item" and isinstance(payload, dict)
+                and payload.get("type") == "function_call_output" and payload.get("call_id") == use):
+            return payload.get("output"), record.get("timestamp") or ""
+    return None
 
 
 # The items a review runs in its own thread that the rollout of the thread
@@ -629,7 +824,7 @@ def rows(record, pos, state=None):
     A change of several files is a call a file, as claude makes them: each
     names the file it changed, and its details open that file's diff. State
     is what the reader keeps for the whole file: the id of the thread the
-    rollout is of.
+    rollout is of, and the calls to agents of the second set it has met.
     """
     at = record.get("timestamp") or ""
     if _stopped(record):
@@ -641,6 +836,11 @@ def rows(record, pos, state=None):
     for card in (_asked(record, at, pos), _goal(record, at, pos)):
         if card:
             return [card]
+    raw = record.get("payload")
+    if record.get("type") == "response_item" and isinstance(raw, dict):
+        if _second(raw):
+            return _second_call(raw, at, pos, state if state is not None else {})
+        return _second_answer(raw, at, pos, state) or []
     found = _item(record)
     if found is None:
         return []
@@ -687,7 +887,14 @@ def rows(record, pos, state=None):
     if kind == COLLAB:
         if item.get("tool") == SPAWN:
             return [_spawn(item, use, at, pos)]
-        return _agent_call(item, use, at, pos)
+        rows_of_call = _agent_call(item, use, at, pos)
+        # The item of a call of the second set — the wait — says only how the
+        # agents stand: the call is drawn from the call.
+        if use in (state or {}).get(SECOND_CALLS, {}):
+            return [row for row in rows_of_call if row["role"] == "agentstates"]
+        return rows_of_call
+    if kind == ACTIVITY:
+        return _activity(item, at, pos, state)
     if kind == MCP_CALL:
         return _mcp_call(item, use, at, pos)
     return []
@@ -719,12 +926,17 @@ def _stamp(ms):
         .isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def details(record, index):
+def details(record, index, f=None):
     """Returns one codex call whole, the way the feed opens a claude one, or None.
 
     A command is what it ran and where, and what it printed; a change is the
-    diff of its file at index, and what codex said applying it.
+    diff of its file at index, and what codex said applying it. A call to
+    agents of the second set has its answer in a later record: f is the
+    rollout read up to the end of this one.
     """
+    raw = record.get("payload")
+    if record.get("type") == "response_item" and isinstance(raw, dict) and _second(raw):
+        return _second_details(record, raw, f) if index == 0 else None
     found = _item(record)
     if found is None:
         return None

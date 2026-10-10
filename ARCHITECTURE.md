@@ -876,9 +876,19 @@ appears or the connection drops — at once when an action waits for it.
   for it,
   and each question of plan mode with its answer, drawn as an answered question
   of claude's. The raw records of the model beside them say the same again and
-  are not shown. A review runs in a thread of its own and codex writes its
-  items into the rollout of the thread that asked for it: the feed shows its
-  work and none of its words, which codex says to itself.
+  are not shown. An agent the thread starts is a card that opens the agent's
+  own thread, and every other call to agents is a call among the calls. Codex
+  has two sets of tools for agents: the first writes an item of every call; the
+  second writes the call and its answer only as raw records of the model, with
+  an item beside them of what the call did to the agent — started it, spoke to
+  it, interrupted it — and one of its own when the agent's turn is over. A call
+  of the second set is drawn from its raw record and opens with its answer;
+  its items say how the agents stand, and an agent interrupted or done with its
+  turn is a line of the feed besides. What the second set sends an agent
+  travels encrypted and is never shown: only to whom and that it went. A
+  review runs in a thread of its own and codex writes its items into the
+  rollout of the thread that asked for it: the feed shows its work and none of
+  its words, which codex says to itself.
 - **The way back is codex itself.** With the panel down, `codex resume <id>`
   in a terminal joins the same thread on the same daemon, loaded or not,
   whoever else follows it; a model, approvals or a sandbox given as flags are

@@ -112,7 +112,7 @@ def call(path, pos, index):
         if record.get("type") == "attachment":
             return hook_spot(record, index)
         if record.get("type") in codex.KINDS:
-            return codex.details(record, index)
+            return codex.details(record, index, f)
         content = ((record.get("message") or {}).get("content")) or []
         if not isinstance(content, list) or not (0 <= index < len(content)):
             return None

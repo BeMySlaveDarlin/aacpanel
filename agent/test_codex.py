@@ -685,6 +685,140 @@ class Agents(Runtime):
         self.assertEqual([m["role"] for m in reply["matches"]], ["letter"])
 
 
+SECOND = os.path.join(HERE, "testdata", "codex-agents-second.jsonl")
+SECOND_FEED = os.path.join(HERE, "testdata", "codex-agent-second-lexer.jsonl")
+LEXER = "01a12348-0000-7000-8000-0000000000c1"
+TESTS = "01a12348-0000-7000-8000-0000000000c2"
+
+# The tools codex has for its agents, as its protocol lists them, and the
+# name the feed gives each: the name claude gives the call that does the same,
+# where claude has one.
+NINE = (("spawnAgent", "Agent"), ("sendInput", "SendInput"), ("resumeAgent", "ResumeAgent"), ("wait", "Wait"),
+        ("closeAgent", "CloseAgent"), ("sendMessage", "SendMessage"), ("followupTask", "FollowupTask"),
+        ("interruptAgent", "InterruptAgent"), ("listAgents", "ListAgents"))
+
+
+def snake(word):
+    return "".join(f"_{c.lower()}" if c.isupper() else c for c in word)
+
+
+class SecondAgents(Runtime):
+    """A thread that works with the second set of codex's tools for agents: calls, starts and how agents stand."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.copy(SECOND, self.rollout)
+        self.lexer = os.path.join(os.path.dirname(self.rollout), f"rollout-2026-10-09T13-00-04-{LEXER}.jsonl")
+        shutil.copy(SECOND_FEED, self.lexer)
+
+    def items(self):
+        reply = chat.answer({"session": THREAD, "limit": 200})
+        self.assertTrue(reply["ok"], reply)
+        return reply["items"]
+
+    def at(self, use):
+        with open(self.rollout, "rb") as f:
+            pos = 0
+            for raw in f:
+                payload = json.loads(raw).get("payload") or {}
+                if payload.get("type") == "function_call" and payload.get("call_id") == use:
+                    return pos
+                pos += len(raw)
+        raise AssertionError(f"no call {use} in the fixture")
+
+    def opened(self, use):
+        got = chat.answer({"session": THREAD, "call": {"pos": self.at(use), "index": 0}})
+        self.assertTrue(got["ok"], got)
+        return got
+
+    def test_every_call_but_a_start_is_a_call_among_the_calls(self):
+        calls = [(c["name"], c["arg"], c.get("failed", False), c.get("open", False))
+                 for i in self.items() if i["role"] == "tools" for c in i["calls"]]
+        self.assertEqual(calls, [("SendMessage", "lexer", False, False), ("Wait", "", False, False),
+                                 ("InterruptAgent", "tests", False, False), ("ListAgents", "", False, False),
+                                 ("FollowupTask", "tests", False, False), ("Wait", "", True, False)],
+                         "a call is drawn once, from the call: the item of a wait beside it is no second wait, "
+                         "and a wait the person stopped the turn in failed")
+
+    def test_a_start_is_a_card_of_the_agent_its_role_and_its_model(self):
+        cards = [i for i in self.items() if i["role"] == "spawn"]
+        self.assertEqual([c["spawned"] for c in cards], [
+            [{"id": LEXER, "name": "lexer", "role": "explorer", "model": "gpt-6-astra", "effort": "low",
+              "state": "running"}],
+            [{"id": TESTS, "name": "tests", "role": "", "model": "gpt-6-astra", "effort": "medium",
+              "state": "running"}]])
+        self.assertEqual([(c["use"], c["text"]) for c in cards], [("call_spawn_lexer", ""), ("call_spawn_tests", "")],
+                         "the task of the second set travels encrypted: the card has none")
+        self.assertEqual(sorted(cards[0]), ["at", "cut", "pos", "role", "spawned", "text", "use"])
+
+    def test_how_an_agent_stands_follows_what_happened_to_it(self):
+        items = self.items()
+        stood = [[(a["id"], a["state"]) for a in i["spawned"]] for i in items if i["role"] == "agentstates"]
+        self.assertEqual(stood, [[(TESTS, "interrupted")], [(TESTS, "running")], [(LEXER, "completed")]],
+                         "an interrupt stops an agent, a task more sets it to work, the end of its turn finishes "
+                         "it; a word sent changes nothing")
+        lines = [(i["from"], i["text"], i["level"]) for i in items if i["role"] == "notice"]
+        self.assertEqual(lines, [("agent tests", "was interrupted", "warn"), ("agent lexer", "finished", "ok")])
+
+    def test_no_word_sent_to_an_agent_is_shown(self):
+        shown = json.dumps(self.items())
+        for use in ("call_send_1", "call_followup_1", "call_list_1", "call_wait_2"):
+            shown += json.dumps(self.opened(use))
+        self.assertNotIn("gAAAA", shown, "what the thread sends its agents is encrypted, and stays out")
+
+    def test_a_call_opens_with_whom_it_named_and_what_codex_answered(self):
+        sent = self.opened("call_send_1")
+        self.assertEqual((sent["tool"], json.loads(sent["args"]), sent["result"], sent["failed"]),
+                         ("SendMessage", {"target": "lexer"}, "", False))
+        listed = self.opened("call_list_1")
+        self.assertEqual((listed["tool"], listed["args"]), ("ListAgents", ""))
+        self.assertEqual([a["agent_status"] for a in json.loads(listed["result"])["agents"]],
+                         ["running", "running", "interrupted"])
+        stopped = self.opened("call_interrupt_1")
+        self.assertEqual(json.loads(stopped["result"]), {"previous_status": "running"})
+        cut = self.opened("call_wait_2")
+        self.assertEqual((cut["tool"], json.loads(cut["args"]), cut["result"], cut["failed"]),
+                         ("Wait", {"timeout_ms": 60000}, "aborted by user after 2.1s", True))
+        self.assertNotIn("pending", cut)
+
+    def test_a_call_whose_answer_has_not_come_is_open(self):
+        with open(SECOND, encoding="utf-8") as f:
+            lines = f.readlines()
+        at = next(n for n, line in enumerate(lines) if '"call_wait_2"' in line)
+        with open(self.rollout, "w", encoding="utf-8") as f:
+            f.writelines(lines[:at + 1])
+        last = [c for i in self.items() if i["role"] == "tools" for c in i["calls"]][-1]
+        self.assertEqual((last["name"], last.get("open")), ("Wait", True))
+        self.assertTrue(self.opened("call_wait_2").get("pending"))
+
+    def test_every_tool_codex_has_for_agents_has_its_name(self):
+        for tool, word in NINE:
+            name = snake(tool)
+            item = {"type": "event_msg", "timestamp": "2026-10-09T13:00:00.000Z",
+                    "payload": {"type": "item_completed", "thread_id": THREAD,
+                                "item": {"type": "CollabAgentToolCall", "id": f"first-{name}", "tool": name,
+                                         "status": "completed", "receiver_thread_ids": [WORKER],
+                                         "agents_states": {}}}}
+            rows = chat.parse(item, 1)
+            drawn = rows[0].get("name") if rows[0]["role"] == "tool" else rows[0]["role"]
+            self.assertEqual(drawn, "spawn" if word == "Agent" else word, f"{name} of the first set")
+            call ={"type": "response_item", "timestamp": "2026-10-09T13:00:00.000Z",
+                    "payload": {"type": "function_call", "name": "wait_agent" if name == "wait" else name,
+                                "namespace": "collaboration", "arguments": "{}", "call_id": f"second-{name}"}}
+            rows = chat.parse(call, 1, asks={})
+            self.assertEqual([r.get("name") for r in rows], [] if word == "Agent" else [word], f"{name} of the second set")
+
+    def test_the_feed_of_an_agent_is_its_own_thread_and_none_of_its_parents(self):
+        self.assertEqual(chat.transcript_path(LEXER), self.lexer)
+        reply = chat.answer({"session": LEXER, "limit": 50})
+        self.assertTrue(reply["ok"], reply)
+        rows = [(i["role"], [(c["name"], c["arg"]) for c in i["calls"]] if i["role"] == "tools" else i.get("text"))
+                for i in reply["items"]]
+        self.assertEqual(rows, [("tools", [("Bash", "ls src/lexer")]), ("tools", [("SendMessage", "/root")]),
+                                ("ai", "The lexer drops escaped quotes.")],
+                         "the messages it took of its parent are not its feed, and the parent is named by its path")
+
+
 class Asks(Runtime):
     """The question or the form a codex thread waits on, offered as a question of claude's."""
 
