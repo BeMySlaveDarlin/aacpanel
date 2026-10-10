@@ -1,0 +1,121 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The band under the field of a codex thread on a narrow phone, with the
+// longest words it says: the longest model at the longest effort, and each
+// mode, settings of the thread's own and a mode not known among them. For
+// each, where every piece of the band stands, what it says and what it is
+// called, and whether a word of it is cut. Then the sheet behind the mode,
+// which names the modes in full.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const at = new Date(Date.now() - 60000).toISOString();
+const items = [
+    { role: "me", pos: 1, at, text: "Find out why the cart test is flaky." },
+    { role: "ai", pos: 2, at, text: "It reads the clock twice." },
+];
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
+    if (u.startsWith("/api/term")) return json({ available: false });
+    if (u === "/api/actions") return json({ logged: true, ok: true });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() { this.readyState = 2; } };
+
+const exec = { available: true, kinds: ["session.send", "session.stop", "session.set", "session.file", "session.unqueue", "session.close"] };
+const thread = {
+    session: "codex-13b2a249", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d13b2a249", profile: "acme", agent: "codex",
+    transport: "stream", status: "idle", model: "gpt-6-astra", effort: "xhigh", mode: "auto", plan: false,
+    tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/shop",
+};
+const unknown = { ...thread };
+delete unknown.mode;
+delete unknown.plan;
+const states = [
+    ["auto", thread],
+    ["readOnly", { ...thread, mode: "read-only" }],
+    ["ask", { ...thread, mode: "ask" }],
+    ["plan", { ...thread, plan: true }],
+    ["custom", { ...thread, mode: "custom" }],
+    ["unknown", unknown],
+];
+
+const root = document.getElementById("root");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+// said reads a piece of the band as it is seen: the pieces a margin keeps
+// apart are words of their own.
+const said = (el) => {
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const parts = [];
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.textContent.trim()) parts.push(n.textContent.trim());
+    return parts.join(" ");
+};
+const strip = () => root.querySelector(".composer .cstrip");
+const chip = (what) => root.querySelector(`.composer .cstrip .pkchip[data-pick="${what}"]`);
+// band reads each piece of the band: where it stands, what it says and is
+// called, and whether its word, or the piece itself, is narrower than what
+// it holds.
+const band = () => {
+    const s = strip().getBoundingClientRect();
+    return {
+        left: s.left,
+        right: s.right,
+        parts: Array.from(strip().children).map((el) => {
+            const r = el.getBoundingClientRect();
+            return {
+                what: el.dataset.pick || (el.classList.contains("pickfile") ? "clip" : el.className),
+                left: r.left,
+                right: r.right,
+                said: said(el),
+                label: el.getAttribute("aria-label") || "",
+                cut: [el, ...el.querySelectorAll(".cxword")].some((w) => w.scrollWidth > w.clientWidth),
+            };
+        }),
+    };
+};
+// whole says every piece stands inside the band, one after another, and
+// nothing in it is cut.
+const whole = (b) => b.parts.length > 0 && b.parts.every((p, i) => !p.cut && p.left >= b.left - 0.5 && p.right <= b.right + 0.5
+    && (i === 0 || p.left >= b.parts[i - 1].right - 0.5));
+const show = async (live) => {
+    render(null, root);
+    setLiveSessions([live]);
+    render(h(ToastHost, null, h(GateHost, null,
+        html`<${Chat} name=${live.session} id=${live.sessionId} live=${live} exec=${exec}
+                      onBack=${() => {}} onUsage=${() => {}} />`)), root);
+    if (!await until(() => chip("think") && chip("thread") && root.querySelector(".chatfeed .msg.ai"))) throw new Error("the band did not show");
+    await document.fonts.ready;
+    // The band is read once it stands whole, or as it stands when it does not.
+    await until(() => whole(band()));
+    return band();
+};
+const sheet = () => document.querySelector(".sheet.on");
+
+window.done = (async () => {
+    await document.fonts.load("400 1em Inter");
+    const out = { width: innerWidth, bands: {} };
+    for (const [name, live] of states) out.bands[name] = await show(live);
+
+    await show(thread);
+    chip("perm").click();
+    if (!await until(() => sheet() && sheet().querySelectorAll(".pklist .pkrow").length === 3)) throw new Error("the sheet of the modes did not open");
+    out.sheet = Array.from(sheet().querySelectorAll(".pklist .pkrow")).map((r) => text(r.querySelector(".pkname")));
+    return out;
+})();
+</script>

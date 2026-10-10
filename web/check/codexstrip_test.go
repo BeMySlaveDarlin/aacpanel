@@ -21,13 +21,13 @@ type codexBand struct {
 
 // On a phone the band of a codex thread says how it thinks — the model and
 // the effort, or the plan and the effort while it plans, since the header
-// names the model — and what it may do, beside the paperclip and with nothing
-// of claude's. The word of what it may do presses only for one of the three
-// modes the panel sets: settings of the thread's own and a thread the panel
-// only reads stand as they are, saying why. Behind the words are the sheets:
-// the plan, the models of the catalogue and the efforts the model takes, with
-// no ultracode; the three modes and the sandbox. Each press sends one setting,
-// and a model sent alone shows the effort it will run at.
+// names the model — and what it may do in a short word, beside the paperclip
+// and with nothing of claude's. The word of what it may do presses only for
+// one of the three modes the panel sets: settings of the thread's own and a
+// thread the panel only reads stand as they are, saying why. Behind the words
+// are the sheets: the plan, the models of the catalogue and the efforts the
+// model takes, with no ultracode; the three modes and the sandbox. Each press
+// sends one setting, and a model sent alone shows the effort it will run at.
 func TestTheBandOfACodexThreadSaysHowItThinksAndWhatItMayDo(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
@@ -86,8 +86,8 @@ func TestTheBandOfACodexThreadSaysHowItThinksAndWhatItMayDo(t *testing.T) {
 	}
 	pressable("ask", got.Ask, "gpt-6-astra · High", "Ask")
 	pressable("planning", got.Plan, "Plan · High", "Ask")
-	pressable("read only", got.ReadOnly, "gpt-6-astra · High", "Read only")
-	pressable("approve for me", got.Auto, "gpt-6-astra · High", "Approve for me")
+	pressable("read only", got.ReadOnly, "gpt-6-astra · High", "Read")
+	pressable("approve for me", got.Auto, "gpt-6-astra · High", "Auto")
 
 	still := func(where string, b codexBand, word, why string) {
 		t.Helper()
@@ -150,7 +150,7 @@ func TestTheBandOfACodexThreadSaysHowItThinksAndWhatItMayDo(t *testing.T) {
 		t.Errorf("the sandbox of the thread reads %v", got.Perm.Sandbox)
 	}
 	one("the press on a mode", got.ModeSent, map[string]any{"mode": "auto"})
-	if got.PermAfter != "Approve for me" {
+	if got.PermAfter != "Auto" {
 		t.Errorf("after the pick the band says %q", got.PermAfter)
 	}
 	if strings.Join(got.Targets, ",") != "codex-5afc361b" {

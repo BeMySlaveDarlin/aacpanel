@@ -169,7 +169,7 @@ window.done = (async () => {
     };
     n = sent.length;
     Array.from(sheet().querySelectorAll(".pklist .pkrow")).find((r) => text(r.querySelector(".pkname")) === "Approve for me").click();
-    await until(() => since(n).length === 1 && said(chip("perm")) === "Approve for me");
+    await until(() => since(n).length === 1 && said(chip("perm")) === "Auto");
     out.modeSent = since(n);
     out.permAfter = said(chip("perm"));
     out.targets = [...new Set(sent.filter((s) => s.kind === "session.set").map((s) => s.target))];

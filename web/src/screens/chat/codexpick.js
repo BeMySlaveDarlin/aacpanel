@@ -22,11 +22,13 @@ import { GoalPane, RenamePane, ReviewPane, ThreadMenu, ThreadPane } from "./code
 
 // The permission modes the panel sets a thread to, in the order the lists
 // offer them. Full access is not among them: it is chosen when the thread
-// starts, in the map or in codex itself.
+// starts, in the map or in codex itself. The short word is what a phone's band
+// says, where the name would not fit beside the model; the lists behind it
+// keep the name.
 export const CODEX_MODES = [
-    { value: "read-only", name: "Read only", desc: "Reads and answers; asks before any change", icon: Icon.search, tone: "manual" },
-    { value: "ask", name: "Ask", desc: "Edits in the project; asks for anything else", icon: Icon.braces, tone: "edits" },
-    { value: "auto", name: "Approve for me", desc: "A second pass of codex checks each request instead of you", icon: Icon.bolt, tone: "auto" },
+    { value: "read-only", name: "Read only", short: "Read", desc: "Reads and answers; asks before any change", icon: Icon.search, tone: "manual" },
+    { value: "ask", name: "Ask", short: "Ask", desc: "Edits in the project; asks for anything else", icon: Icon.braces, tone: "edits" },
+    { value: "auto", name: "Approve for me", short: "Auto", desc: "A second pass of codex checks each request instead of you", icon: Icon.bolt, tone: "auto" },
 ];
 
 const READ_ONLY = "the panel only reads this thread";
@@ -40,17 +42,19 @@ const THREAD_PANES = new Set(["review", "rename", "goal"]);
 
 // modeOf says what the row of a session knows of the permissions of a thread:
 // one of the modes, settings of its own that match none of them, or nothing.
+// The short word is the one a phone's band says.
 export function modeOf(mode) {
     const preset = CODEX_MODES.find((m) => m.value === mode) || null;
-    if (preset) return { preset, word: preset.name, why: "" };
+    if (preset) return { preset, word: preset.name, short: preset.short, why: "" };
     if (mode === "custom") {
         return {
             preset: null,
             word: "Custom",
+            short: "Custom",
             why: "the thread runs with permissions of its own, set when it started — the panel does not change them",
         };
     }
-    return { preset: null, word: "Unknown", why: `what codex may do is not known: ${READ_ONLY}` };
+    return { preset: null, word: "Unknown", short: "Unknown", why: `what codex may do is not known: ${READ_ONLY}` };
 }
 
 // useCodexPick holds what was picked until the row of the session says it,
@@ -162,8 +166,11 @@ export function CodexStrip({ wide, exec, live, pct, now, open, onOpen, onCompact
     }, [menu, catalog, now.model, now.effort, now.mode]);
 
     const toggle = (which) => onOpen(open === which ? "" : which);
+    // A phone's band has the width of the screen for the paperclip and the
+    // three words: the mode says its short word and the thread its icon alone,
+    // so the model keeps its name. The labels name them in full.
     const chips = html`
-        <button type="button" class=${`pkchip cxchip${menu === "think" ? " open" : ""}`} data-pick="think"
+        <button type="button" class=${`pkchip cxchip cxthink${menu === "think" ? " open" : ""}`} data-pick="think"
                 disabled=${!can} title=${why || undefined} aria-expanded=${menu === "think" ? "true" : "false"}
                 aria-label=${can ? "how codex thinks — the model, the effort and the plan" : "how codex thinks"}
                 onClick=${() => toggle("think")}><${ThinkWord} now=${now} wide=${wide} /></button>
@@ -171,10 +178,10 @@ export function CodexStrip({ wide, exec, live, pct, now, open, onOpen, onCompact
                 disabled=${!can || !mode.preset} title=${why || mode.why || undefined}
                 aria-expanded=${menu === "perm" ? "true" : "false"}
                 aria-label=${mode.preset && can ? `what codex may do: ${mode.word} — pick another` : `what codex may do: ${mode.word}`}
-                onClick=${() => toggle("perm")}>${Icon.key()}<span class="cxword">${mode.word}</span></button>
+                onClick=${() => toggle("perm")}>${Icon.key()}<span class="cxword">${wide ? mode.word : mode.short}</span></button>
         <button type="button" class=${`pkchip cxchip cxthread${menu === "thread" ? " open" : ""}`} data-pick="thread"
                 aria-expanded=${menu === "thread" ? "true" : "false"} aria-label="the thread: compact, review, rename, goal"
-                onClick=${() => toggle("thread")}>${Icon.list()}<span class="cxword">Thread</span></button>
+                onClick=${() => toggle("thread")}>${Icon.list()}${wide && html`<span class="cxword">Thread</span>`}</button>
     `;
     if (!wide) return chips;
     return html`
