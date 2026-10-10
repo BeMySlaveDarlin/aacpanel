@@ -5,10 +5,24 @@ import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
+import { SAFE_LINK } from "../../md.js";
 import { waitText } from "../../ui/waits.js";
 
-// Permit renders the permission the session is asking for.
-export function Permit({ name, exec, waitingFor, onAnswered }) {
+// The titles of the requests of codex's whose tool is a word of the panel's
+// rather than a tool a person knows: a grant of more than the sandbox gives,
+// and what an MCP server asks through codex — a page to open, a yes or a no.
+// The tool keeps its word everywhere else, since what the row of a session
+// says it waits for is read off it; and a command, a change to files and a
+// call of a tool of a server are titled by their tool here too, as claude's
+// are.
+const CODEX_TITLES = new Map([
+    ["Permissions", "More access than the sandbox gives"],
+    ["MCP", "An MCP server asks"],
+]);
+
+// Permit renders the permission the session is asking for. Codex says the
+// session is codex's: its requests have titles of their own.
+export function Permit({ name, exec, waitingFor, codex, onAnswered }) {
     const [state, setState] = useState({ state: "load" });
     const [sending, setSending] = useState(0);
     const [fail, setFail] = useState("");
@@ -127,9 +141,15 @@ export function Permit({ name, exec, waitingFor, onAnswered }) {
             <div class="askhead">
                 <span class="asklabel">Permission</span>
             </div>
-            <p class="asktext permittool">${perm.tool || "Do you want to proceed?"}</p>
+            <p class="asktext permittool">${(codex && CODEX_TITLES.get(perm.tool)) || perm.tool || "Do you want to proceed?"}</p>
 
             <${Request} lines=${perm.action || []} note=${perm.note || []} />
+
+            ${perm.url && html`
+                <p class="permiturl">${SAFE_LINK.test(perm.url)
+                    ? html`<a href=${perm.url} target="_blank" rel="noopener noreferrer">${perm.url}</a>`
+                    : perm.url}</p>
+            `}
 
             ${perm.cut && html`
                 <p class="hint warn">the command is longer than shown — its beginning is above the terminal

@@ -382,6 +382,7 @@ func codexPermission(ctx context.Context, th codex.Thread) (*action.Permission, 
 	}
 	if r.Elicits() {
 		d.Note = append(d.Note, elicitNotes(r)...)
+		d.URL = r.URL
 	}
 	if r.Network != nil {
 		d.Note = append(d.Note, fmt.Sprintf("network access to %s over %s", r.Network.Host, r.Network.Protocol))

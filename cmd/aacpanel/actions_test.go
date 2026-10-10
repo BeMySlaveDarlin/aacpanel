@@ -1080,6 +1080,24 @@ func TestSessionModelsCarryTheSessionAndTheCatalogue(t *testing.T) {
 	}
 }
 
+// A codex session is switched among the models of its own daemon, and the
+// catalogue of claude's account is not in its answer: those are models it
+// cannot run.
+func TestCodexSessionModelsCarryNoClaudeCatalogue(t *testing.T) {
+	client, _ := startFakeExec(t, action.Response{OK: true, Models: &action.Models{
+		Transport: "stream", Agent: "codex", Picked: "gpt-test",
+		List: []action.Model{{Value: "gpt-test", Name: "gpt-test", Efforts: []string{"low", "high"}}}}})
+	w := httptest.NewRecorder()
+	(&Server{exec: client}).apiSessionModels(w, httptest.NewRequest(http.MethodGet, "/api/session/models?name=codex-1", nil))
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("the response is not json: %s", w.Body.String())
+	}
+	if _, ok := body["catalog"]; ok || !strings.Contains(string(body["session"]), `"gpt-test"`) {
+		t.Errorf("a codex session is answered %s, expected its own list and no catalogue of claude's", w.Body.String())
+	}
+}
+
 func TestRunActionCarriesTheModeToExecutor(t *testing.T) {
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "ok"})
 	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}

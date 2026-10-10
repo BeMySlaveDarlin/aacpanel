@@ -179,7 +179,8 @@ func TestCodexFormOfAnMcpServer(t *testing.T) {
 }
 
 // A grant of permissions and a page an MCP server asks to open are the
-// permission the screen already draws.
+// permission the screen already draws, the page as its own address rather
+// than a line of the request.
 func TestCodexGrantAndPageAreChoices(t *testing.T) {
 	srv, e := onCodex(t, func(srv *codextest.Server) {
 		srv.Ask(codexThread, "item/permissions/requestApproval", map[string]any{"turnId": "turn-x", "itemId": "call_p",
@@ -213,7 +214,7 @@ func TestCodexGrantAndPageAreChoices(t *testing.T) {
 		"mode": "url", "_meta": nil, "message": "Sign in to the tracker", "url": "https://tracker.test/login",
 		"elicitationId": "e1"})
 	d = askedPermission(t, e)
-	if d.Tool != "MCP" || strings.Join(d.Action, "|") != "Sign in to the tracker|https://tracker.test/login" ||
+	if d.Tool != "MCP" || strings.Join(d.Action, "|") != "Sign in to the tracker" || d.URL != "https://tracker.test/login" ||
 		d.Options[0].Text != "Yes, I open the page" || len(d.Options) != 3 || d.Note[0] != "asked by the MCP server tracker" {
 		t.Errorf("the page reads as %+v", d)
 	}

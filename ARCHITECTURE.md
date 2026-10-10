@@ -754,7 +754,8 @@ appears or the connection drops — at once when an action waits for it.
   will answer in the conversation. What an MCP server asks through codex is a
   question a field when it is a form — the answer is a value of the kind each
   field is of, a required field left empty stops it, and putting it away
-  declines it — and the permission sheet otherwise: a page to open, accepted
+  declines it — and the permission sheet otherwise: a page to open, a link
+  under the request where its address is on the web's own schemes, accepted
   with no content, a yes or a no, or what the panel can only refuse — a check
   of the person only codex can make, a form of more fields or values than the
   sheet of a question shows, for one left out could be required, and a request
@@ -835,8 +836,8 @@ appears or the connection drops — at once when an action waits for it.
   models, the MCP servers
   and the skills of a codex session are codex's own lists, answered in the
   shapes of claude's — the models of the daemon of the session's contour, which
-  lists the catalogue of its own release; `/api/codex/models` takes the contour
-  too. Every other action over a codex session is refused by name: none of the
+  lists the catalogue of its own release, with no catalogue of claude's account
+  beside them; `/api/codex/models` takes the contour too. Every other action over a codex session is refused by name: none of the
   claude ways — keys, signals, a holder's socket — reaches it.
 - **A busy thread gets a message in the panel's queue**, not in the turn that
   runs: it goes as a turn of its own once the thread is free — the daemon says

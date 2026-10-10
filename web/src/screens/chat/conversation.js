@@ -474,7 +474,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
                                    onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))} />`
                     : live.status === "waiting" && !holding
-                    ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor}
+                    ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)}
                                       onAnswered=${() => mark(answered(live, ""))} />`
                     : html`
                         <${Composer} name=${name} id=${id} exec=${exec} busy=${live.status === "busy"} stream=${live.transport === "stream"}

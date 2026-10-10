@@ -536,7 +536,9 @@ func (s *Server) apiSessionWindow(w http.ResponseWriter, r *http.Request) {
 // apiSessionModels says what a live session can be switched to: the models
 // its claude lists and the mode and effort it runs with, beside the catalogue
 // of the account — the models a terminal takes by id, and the older ones a
-// list of aliases leaves out.
+// list of aliases leaves out. A codex session lists the catalogue of its own
+// daemon, and its answer carries no catalogue of claude's: those are models
+// a codex session cannot be switched to.
 func (s *Server) apiSessionModels(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
@@ -561,6 +563,9 @@ func (s *Server) apiSessionModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out["state"], out["session"] = "ok", models
+	if models.Agent == schema.AgentCodex {
+		delete(out, "catalog")
+	}
 	writeJSON(w, out)
 }
 

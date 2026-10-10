@@ -113,6 +113,18 @@
 /* A warning about what is shown stands apart from what it warns about. */
 .permitsaid + .hint { margin-top: .45rem; }
 
+/* The page an MCP server asks to open is a link under the request, in the
+   accent links have in the conversation: the person opens it from here, not
+   by copying an address out of a box of code. An address is one long word and
+   breaks rather than running past the edge. */
+.permiturl {
+    margin: .45rem 0 0;
+    font-size: var(--t-sm);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+.permiturl a { color: var(--accent); }
+
 /* The ring of an answer holds the number the terminal gives it, in the ink of
    the words beside it until the ring is filled. The cross of the way out
    stands where a number stands and is the size of one: an icon of the scale

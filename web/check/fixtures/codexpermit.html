@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/dist/bundle.css">
+<style>html,body{height:100%;margin:0}</style>
+<script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
+<div class="shell no-nav"><main class="body" id="root"></main></div>
+<script type="module">
+// The card of a codex thread waiting on a request whose tool is a word of the
+// panel's: a grant of more than the sandbox gives, titled in words, and a page
+// an MCP server asks to open, titled in words with the page a link under the
+// request — a link only on the web's own schemes, an address of any other
+// left as text. The page on https is drawn last, for the picture.
+import { h, render } from "preact";
+import { html } from "/src/html.js";
+import { Chat } from "/src/screens/chat.js";
+import { GateHost } from "/src/actions/gate.js";
+import { setLiveSessions } from "/src/actions/registry.js";
+import { ToastHost } from "/src/ui/toasts.js";
+
+const at = new Date(Date.now() - 60000).toISOString();
+const items = [
+    { role: "me", pos: 1, at, text: "Write the report to /srv/out and file it in the tracker." },
+    { role: "ai", pos: 2, at, text: "Asking for what the sandbox does not give." },
+];
+const grant = {
+    tool: "Permissions",
+    action: ["write /srv/out"],
+    note: ["asked because: it writes the report"],
+    options: [
+        { n: 1, text: "Yes, grant these permissions for this turn" },
+        { n: 2, text: "Yes, grant these permissions for this session", lasting: true },
+        { n: 3, text: "No, go on without them" },
+    ],
+    fingerprint: "req-1", tail: "", raw: [],
+};
+const page = (url) => ({
+    tool: "MCP",
+    action: ["Sign in to the tracker"],
+    note: ["asked by the MCP server tracker"],
+    url,
+    options: [
+        { n: 1, text: "Yes, I open the page" },
+        { n: 2, text: "No" },
+        { n: 3, text: "Cancel the request" },
+    ],
+    fingerprint: "req-2", tail: "", raw: [],
+});
+let permission = grant;
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
+    if (u.startsWith("/api/session/permission")) return json({ state: "ok", permission });
+    if (u === "/api/term") return json({ available: true });
+    return new Response("", { status: 404 });
+};
+window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
+
+const exec = { available: true, kinds: ["session.send", "session.stop", "session.escape", "session.permit"] };
+const thread = {
+    session: "codex-5afc361b", sessionId: "0199c3a2-7f10-7b2e-9c41-6e1d5afc361b", profile: "acme", agent: "codex",
+    transport: "stream", status: "waiting", waitingFor: "dialog open", model: "gpt-6-astra", effort: "xhigh",
+    tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/shop",
+};
+setLiveSessions([thread]);
+const root = document.getElementById("root");
+const mount = () => render(h(ToastHost, null, h(GateHost, null,
+    html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${thread} exec=${exec}
+                  onBack=${() => {}} onUsage=${() => {}} />`)), root);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (ok) => {
+    for (let i = 0; i < 100 && !ok(); i += 1) await sleep(30);
+    return ok();
+};
+const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+
+// card shows the request and reads its card: the title, the request, and the
+// page under it — the link it makes, or the address as text.
+const card = async (shown, fingerprint) => {
+    render(null, root);
+    permission = shown;
+    mount();
+    if (!await until(() => root.querySelector(".permit .askpick"))) throw new Error(`${fingerprint} did not show`);
+    const el = root.querySelector(".permit");
+    const page = el.querySelector(".permiturl");
+    const link = page && page.querySelector("a");
+    return {
+        title: text(el.querySelector(".permittool")),
+        action: text(el.querySelector(".permitaction")),
+        page: page ? text(page) : null,
+        link: link ? { href: link.getAttribute("href"), target: link.target, rel: link.rel, text: text(link) } : null,
+    };
+};
+
+window.done = (async () => {
+    await document.fonts.ready;
+    const out = {};
+    out.grant = await card(grant, "the grant");
+    out.script = await card(page("javascript:alert(1)"), "a page on another scheme");
+    out.page = await card(page("https://tracker.test/login?next=/reports/quarterly-summary"), "the page");
+    return out;
+})();
+</script>

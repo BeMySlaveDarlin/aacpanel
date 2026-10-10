@@ -12,7 +12,10 @@ import { highlight, kept, langOf } from "./hl.js";
 
 const INLINE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(\[[^\]]+\]\([^)\s]+\))/g;
 
-const SAFE_LINK = /^https?:\/\//i;
+// SAFE_LINK is an address the panel makes a link of: the web's own schemes.
+// The address comes from a model or a server, and any other scheme, pressed,
+// would run in the panel's own page.
+export const SAFE_LINK = /^https?:\/\//i;
 
 const BARE_URL = /https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/g;
 

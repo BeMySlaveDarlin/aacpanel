@@ -53,4 +53,9 @@ type Permission struct {
 	// human to the terminal. It reaches no further than the dialog itself — above it
 	// runs an ordinary conversation, and there are secrets in it.
 	Raw []string `json:"raw"`
+
+	// URL is the page an MCP server asks the person to open through codex. It
+	// travels apart from the lines of the request so that the screen offers it
+	// as a link to press rather than an address to copy out of the request.
+	URL string `json:"url,omitempty"`
 }

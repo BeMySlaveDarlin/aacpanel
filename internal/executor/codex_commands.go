@@ -65,17 +65,14 @@ func firstChoice(pending []codex.Request) (codex.Request, bool) {
 	return codex.Request{}, false
 }
 
-// elicitLines are what an MCP server says it asks, and the page it asks to
-// open.
+// elicitLines are what an MCP server says it asks. The page it asks to open
+// is not among them: it travels as the permission's URL, a link on the card.
 func elicitLines(r codex.Request) []string {
 	var lines []string
 	for _, text := range []string{r.Title, r.Message, r.Description} {
 		if strings.TrimSpace(text) != "" {
 			lines = append(lines, strings.Split(strings.TrimRight(text, "\n"), "\n")...)
 		}
-	}
-	if r.URL != "" {
-		lines = append(lines, r.URL)
 	}
 	return lines
 }
