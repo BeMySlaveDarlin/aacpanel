@@ -30,7 +30,7 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 
 	w := newWatcher(&Server{host: host.NewReader(path)}, nil)
 	var cur notify.World
-	w.readSnapshot(&cur)
+	w.readSnapshot(t.Context(), &cur)
 
 	if len(cur.Sessions) != 1 {
 		t.Fatalf("the sessions were read wrong: %+v", cur.Sessions)
@@ -68,6 +68,48 @@ func TestWatcherReadsWhatTheAgentWrote(t *testing.T) {
 	}
 }
 
+// A codex thread is named by the tail of its id, and the watcher reads the
+// name its card shows beside it, which titles its pushes: the name the panel
+// gave the thread, else the session of the project it runs in; a thread no
+// project holds and a claude session have none but their own.
+func TestWatcherReadsTheNameACodexThreadIsShownBy(t *testing.T) {
+	path := snapshotWith(t, `{
+		"at": 1788814000,
+		"sessionsAt": 1788814000,
+		"sessions": [
+			{"session": "codex-0000abcd", "sessionId": "019a1f00-0000-7000-8000-00000000abcd", "cwd": "/srv/proj/shop",
+			 "agent": "codex", "title": "cart review", "status": "idle"},
+			{"session": "codex-0000ef01", "sessionId": "019a1f00-0000-7000-8000-00000000ef01", "cwd": "/srv/elsewhere",
+			 "agent": "codex", "status": "idle"},
+			{"session": "lab", "sessionId": "4d89ed41", "cwd": "/srv/proj/lab", "title": "not a codex", "status": "idle"}
+		]
+	}`)
+	w := newWatcher(&Server{host: host.NewReader(path)}, nil)
+	var cur notify.World
+	w.readSnapshot(t.Context(), &cur)
+	got := map[string]string{}
+	for _, s := range cur.Sessions {
+		got[s.Name] = s.Shown
+	}
+	want := map[string]string{"codex-0000abcd": "cart review", "codex-0000ef01": "", "lab": ""}
+	if len(got) != len(want) {
+		t.Fatalf("the sessions read are %v", got)
+	}
+	for name, shown := range want {
+		if got[name] != shown {
+			t.Errorf("%s is shown as %q, expected %q", name, got[name], shown)
+		}
+	}
+
+	places := &mapPlaces{list: tree()}
+	if got := places.session("/home/u", "codex-0000abcd"); got != "home" {
+		t.Errorf("a thread in the directory of a project reads as %q, expected its session", got)
+	}
+	if got := places.session("/srv/elsewhere", "codex-0000ef01"); got != "" {
+		t.Errorf("a thread no project holds reads as %q", got)
+	}
+}
+
 func TestWatcherTakesFractionalPercent(t *testing.T) {
 	path := snapshotWith(t, `{
 		"at": 1788862979,
@@ -82,7 +124,7 @@ func TestWatcherTakesFractionalPercent(t *testing.T) {
 
 	w := newWatcher(&Server{host: host.NewReader(path)}, nil)
 	var cur notify.World
-	w.readSnapshot(&cur)
+	w.readSnapshot(t.Context(), &cur)
 
 	if cur.AgentErr != "" {
 		t.Fatalf("a snapshot with a fractional percent was not read: %s", cur.AgentErr)
@@ -108,7 +150,7 @@ func TestWatcherTakesFractionalPercent(t *testing.T) {
 func TestWatcherTellsBlindnessFromEmptiness(t *testing.T) {
 	w := newWatcher(&Server{host: host.NewReader(snapshotWith(t, "") + ".missing")}, nil)
 	var cur notify.World
-	w.readSnapshot(&cur)
+	w.readSnapshot(t.Context(), &cur)
 
 	if cur.AgentErr == "" {
 		t.Fatal("a missing snapshot was read as an empty host")

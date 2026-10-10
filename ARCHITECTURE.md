@@ -645,7 +645,8 @@ appears or the connection drops — at once when an action waits for it.
   thread by the name the panel gave it — a rename, or the project's session at
   a start in tmux — for as long as codex calls the thread by it, and by the
   session of its project otherwise, as a claude session there reads; a thread
-  no project holds reads by `codex-<8 hex>`. A name codex gave the thread is
+  no project holds reads by `codex-<8 hex>`. A push of the thread is titled
+  by the same name, and its tap opens the session by `codex-<8 hex>`. A name codex gave the thread is
   not shown: its terminal titles a thread after the first request, and the
   protocol tells that title from a person's name in no way, so a name given in
   codex's terminal is not shown either. The name the panel gave is kept per

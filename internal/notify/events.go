@@ -79,8 +79,14 @@ type World struct {
 
 // Session is a live claude session as the agent snapshot shows it.
 type Session struct {
-	ID         string
-	Name       string
+	ID   string
+	Name string
+	// Shown is the name the screens show the session by, where it is not
+	// Name: a codex thread is named by the tail of its id and reads by the
+	// name the panel gave it, else by the session of its project. A push is
+	// titled by it, as the card the push opens is; the tap opens the session
+	// by Name.
+	Shown      string
 	Profile    string
 	ConfigDir  string
 	CWD        string
@@ -118,6 +124,14 @@ type Ask struct {
 	Text   string
 	Count  int
 	At     string
+}
+
+// shown is the name a push titles the session by.
+func (s Session) shown() string {
+	if s.Shown != "" {
+		return s.Shown
+	}
+	return s.Name
 }
 
 func (s Session) key() string {
@@ -303,7 +317,7 @@ func Called(s Session, n Note) Event {
 		Key:      "note:" + s.key() + ":" + n.At,
 		Domain:   DomainSession,
 		Session:  s.Name,
-		Title:    s.Name + " is calling",
+		Title:    s.shown() + " is calling",
 		Body:     body,
 		Severity: Critical,
 	}
@@ -370,7 +384,7 @@ func asked(s Session) Event {
 		Key:      "ask:" + s.key() + ":" + s.Ask.At,
 		Domain:   DomainSession,
 		Session:  s.Name,
-		Title:    "Question · " + s.Name,
+		Title:    "Question · " + s.shown(),
 		Body:     body,
 		Severity: Critical,
 	}
@@ -458,7 +472,7 @@ func waiting(s Session) Event {
 		Key:      "wait:" + s.key() + ":" + strconv.FormatInt(s.StatusAt, 10),
 		Domain:   DomainSession,
 		Session:  s.Name,
-		Title:    "Waiting for permission · " + s.Name,
+		Title:    "Waiting for permission · " + s.shown(),
 		Body:     body,
 		Severity: Critical,
 	}
@@ -473,7 +487,7 @@ func freed(s Session, took time.Duration) Event {
 		Key:      "done:" + s.key() + ":" + strconv.FormatInt(s.StatusAt, 10),
 		Domain:   DomainSession,
 		Session:  s.Name,
-		Title:    "Turn finished · " + s.Name,
+		Title:    "Turn finished · " + s.shown(),
 		Body:     body,
 		Severity: Info,
 		Source:   s.source(),
@@ -499,7 +513,7 @@ func closed(s Session) Event {
 		Key:      "gone:" + s.key(),
 		Domain:   DomainSession,
 		Session:  s.Name,
-		Title:    "Session closed · " + s.Name,
+		Title:    "Session closed · " + s.shown(),
 		Body:     body,
 		Severity: Warning,
 		Source:   s.source(),

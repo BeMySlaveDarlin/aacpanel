@@ -139,3 +139,29 @@ func TestACallBetweenLooksLeavesTheHeldAlone(t *testing.T) {
 		t.Errorf("the alert held before the call was announced again after it: %+v", again)
 	}
 }
+
+// A codex thread is named by the tail of its id, and its card reads by the
+// name the panel gave it or the session of its project: every push of the
+// thread is titled the way the card it opens reads, and the tap still opens
+// the session by its name.
+func TestAPushOfACodexThreadIsTitledAsItsCardReads(t *testing.T) {
+	thread := Session{ID: "019a1f00-0000-7000-8000-00000000abcd", Name: "codex-0000abcd", Shown: "cart review",
+		Profile: "personal", CWD: "/srv/proj/shop", Status: "waiting", StatusAt: 1788813894909,
+		WaitingFor: "input needed", Ask: &Ask{Header: "Which way", Text: "A or B?", Count: 1, At: "2026-09-08T03:00:00Z"}}
+	var calls Calls
+	news, _ := calls.Fresh(when, []Note{{Session: thread.ID, Text: "stuck", At: "2026-09-08T03:00:00Z"}}, []Session{thread})
+	if len(news) != 1 {
+		t.Fatalf("the call of the thread made %d pushes", len(news))
+	}
+	for _, e := range []Event{news[0], asked(thread), waiting(thread), freed(thread, time.Minute), closed(thread)} {
+		if !strings.Contains(e.Title, "cart review") || strings.Contains(e.Title, "codex-0000abcd") {
+			t.Errorf("the push %s is titled %q", e.Key, e.Title)
+		}
+		if e.Session != "codex-0000abcd" {
+			t.Errorf("the push %s opens %q", e.Key, e.Session)
+		}
+	}
+	if e := Called(sess(), call("need you", "2026-09-08T03:00:00Z")); e.Title != "aacpanel is calling" {
+		t.Errorf("a session with no other name is titled %q", e.Title)
+	}
+}

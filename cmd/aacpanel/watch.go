@@ -12,6 +12,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/chat"
 	"aacpanel/internal/notify"
+	"aacpanel/internal/schema"
 	"aacpanel/internal/store"
 )
 
@@ -158,7 +159,7 @@ func (w *watcher) carry(ctx context.Context, board []chat.SessionNote) bool {
 		notes = append(notes, notify.Note{Session: n.SessionID, Text: n.Text, At: n.At})
 	}
 	var cur notify.World
-	w.readSnapshot(&cur)
+	w.readSnapshot(ctx, &cur)
 	news, waiting := w.calls.Fresh(time.Now(), notes, cur.Sessions)
 	if len(news) > 0 {
 		w.say(ctx, notify.Report{Raise: news})
@@ -216,7 +217,7 @@ func (w *watcher) look(ctx context.Context) notify.World {
 	now := time.Now()
 	cur := notify.World{Now: now, DBOff: w.srv.db == nil}
 
-	w.readSnapshot(&cur)
+	w.readSnapshot(ctx, &cur)
 	w.readDocker(ctx, &cur)
 	w.readBriefs(ctx, &cur)
 	w.readStore(ctx, &cur)
@@ -238,6 +239,10 @@ type snapshot struct {
 		Status    string `json:"status"`
 		StatusAt  int64  `json:"statusUpdatedAt"`
 		Waiting   string `json:"waitingFor"`
+		// Agent is codex for a codex thread, and Title the name the panel
+		// gave the thread while codex calls it by it.
+		Agent string `json:"agent"`
+		Title string `json:"title"`
 		// How the session is kept: in tmux, or on the stream under a holder.
 		Transport string `json:"transport"`
 		Ask       *struct {
@@ -267,7 +272,7 @@ type limitWindow struct {
 	ResetsAt int64   `json:"resetsAt"`
 }
 
-func (w *watcher) readSnapshot(cur *notify.World) {
+func (w *watcher) readSnapshot(ctx context.Context, cur *notify.World) {
 	payload, err := w.srv.host.JSON()
 	if err != nil {
 		cur.AgentErr = shortReason(err.Error())
@@ -281,10 +286,20 @@ func (w *watcher) readSnapshot(cur *notify.World) {
 
 	cur.AgentAge = time.Duration(max(snap.AgeSec, snap.SessionsAgeSec)) * time.Second
 
+	var places *mapPlaces
 	for _, s := range snap.Sessions {
 		item := notify.Session{
 			ID: s.ID, Name: s.Name, Profile: s.Profile, ConfigDir: s.ConfigDir, CWD: s.CWD,
 			Status: s.Status, StatusAt: s.StatusAt, WaitingFor: s.Waiting, Transport: s.Transport,
+		}
+		if s.Agent == schema.AgentCodex {
+			item.Shown = s.Title
+			if item.Shown == "" {
+				if places == nil {
+					places = w.mapPlaces(ctx)
+				}
+				item.Shown = places.session(s.CWD, s.Name)
+			}
 		}
 		if s.Ask != nil {
 			item.Ask = &notify.Ask{Header: s.Ask.Header, Text: s.Ask.Text, Count: s.Ask.Count, At: s.Ask.At}
@@ -317,6 +332,38 @@ func (w *watcher) readSnapshot(cur *notify.World) {
 }
 
 func pctInt(v float64) int { return int(math.Round(v)) }
+
+// mapPlaces is what a session is placed on the map by: the projects, the
+// worktrees the collector saw and the roots of the projects.
+type mapPlaces struct {
+	list       []store.Profile
+	worktreeOf map[string]string
+	roots      []string
+}
+
+// mapPlaces reads the map once for a look; without a database there is no
+// map, and no session is placed on it.
+func (w *watcher) mapPlaces(ctx context.Context) *mapPlaces {
+	if w.srv.db == nil {
+		return &mapPlaces{}
+	}
+	list, err := w.srv.db.Profiles(ctx)
+	if err != nil {
+		return &mapPlaces{}
+	}
+	return &mapPlaces{list: list, worktreeOf: w.srv.worktrees(), roots: w.srv.db.ProjectRoots()}
+}
+
+// session is the session name of the project a session runs in, found as
+// the screens find it, or empty for a session no project holds: a codex
+// thread with no name of the panel's reads by it on its card.
+func (p *mapPlaces) session(cwd, name string) string {
+	found, err := locateProject(p.list, 0, cwd, name, p.worktreeOf, p.roots)
+	if err != nil || found == nil {
+		return ""
+	}
+	return found.ref().Session
+}
 
 func (w *watcher) readDocker(ctx context.Context, cur *notify.World) {
 	tree, err := w.srv.docker.Tree(ctx, nil)
