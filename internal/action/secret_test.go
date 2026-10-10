@@ -81,7 +81,7 @@ func TestTheSecretGoesWithItsActionAlone(t *testing.T) {
 		{"a save without the secret", Request{ID: "1", Kind: SecretPut, Target: "aacpanel"}},
 		{"a save with the text as a message", Request{ID: "1", Kind: SecretPut, Target: "aacpanel", Text: "A=1",
 			Secret: &Secret{Name: "a", Text: "A=1"}}},
-		{"a save for a session with a forbidden name", Request{ID: "1", Kind: SecretPut, Target: "a b",
+		{"a save for a session with a forbidden name", Request{ID: "1", Kind: SecretPut, Target: "a:b",
 			Secret: &Secret{Name: "a", Text: "A=1"}}},
 		{"a removal that carries a notepad", Request{ID: "1", Kind: SecretDrop, Target: "a",
 			Secret: &Secret{Name: "a", Text: "A=1"}}},

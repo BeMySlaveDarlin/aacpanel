@@ -154,8 +154,13 @@ func TestServerRejectsShellInTarget(t *testing.T) {
 		"shop|tee /etc/passwd",
 		"../../etc/passwd",
 		"'shop'",
-		"shop shop",
 		"shop\u0000",
+		"shop\u00a0",
+		// What tmux reads in a target as the address of something else: a
+		// pane of a session, a pane by its id, the last session.
+		"shop:0.1",
+		"%3",
+		"{last}",
 	}
 	for i, target := range targets {
 		payload, err := json.Marshal(Request{ID: fmt.Sprintf("shell-%d", i), Kind: ContainerStop, Target: target})

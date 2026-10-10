@@ -28,13 +28,29 @@ func safeUUID(s string) bool {
 	return true
 }
 
+// nameRune says whether a character may stand in the name of a directory or of
+// the session named after one. A directory is named in any script and may hold
+// a space, and a session with no name of its own on the map answers to the name
+// of its directory — a resume from the archive takes it from the directory the
+// conversation ran in. A letter comes with the marks that compose it: a name
+// written in decomposed form spells the short i of Cyrillic as i and a breve.
+//
+// None of it is a way into a command: a name and a path travel as one word of
+// argv and are never put into a command line as a string. What stays out is
+// what something on the way reads as more than a character — a control
+// character, and the marks tmux reads in a target as the address of another
+// pane, window or session.
+func nameRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsMark(r) || unicode.IsDigit(r) || r == ' '
+}
+
 func safePath(s string) error {
 	if strings.Contains(s, "..") {
 		return badRequest("the project path contains .. — a way out of the path")
 	}
 	for _, r := range s {
 		switch {
-		case unicode.IsLetter(r), unicode.IsDigit(r):
+		case nameRune(r):
 		case r == '-', r == '_', r == '.', r == '/':
 		default:
 			return badRequest("the project path contains a forbidden character %q", r)
@@ -137,13 +153,16 @@ func safeSessionName(s string) error {
 	return nil
 }
 
+// safeTarget checks what an action is aimed at: a container, a stack, a
+// session. The name of a session is the one of its directory unless the map
+// gives it another, so a target is made of what a directory name is made of.
 func safeTarget(s string) error {
 	if strings.Contains(s, "..") {
 		return badRequest("the target contains .. — a way out of the path")
 	}
 	for _, r := range s {
 		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case nameRune(r):
 		case r == '-', r == '_', r == '.', r == '/':
 		default:
 			return badRequest("the target contains a forbidden character %q", r)

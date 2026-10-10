@@ -524,7 +524,7 @@ func TestWhatStopsAnOpenIsTheToolsError(t *testing.T) {
 	}{
 		"no directory":           {url, map[string]any{}, "not an absolute directory"},
 		"a relative directory":   {url, map[string]any{"dir": "srv/proj/lab"}, "not an absolute directory"},
-		"a name with a space":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab two"}, "forbidden character"},
+		"a name with a colon":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab:two"}, "forbidden character"},
 		"a name with a slash":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab/two"}, "contains /"},
 		"a name out of the path": {url, map[string]any{"dir": "/srv/proj/lab", "name": "../lab"}, ".."},
 		"arguments of another":   {url, map[string]any{"dir": 7}, "not the tool's"},

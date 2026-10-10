@@ -297,3 +297,30 @@ func TestAResumeOfCodexGoesToTheDaemonOfItsContour(t *testing.T) {
 		t.Errorf("the answer is %v: it does not name the session and the contour", out)
 	}
 }
+
+// The archive card of a codex thread is named after the directory the thread
+// ran in, and a directory named in Cyrillic, with a space, is resumed too.
+func TestAResumeOfCodexInADirectoryNamedInAnotherScript(t *testing.T) {
+	client, fake := startFakeExec(t, action.Response{OK: true, Session: "codex-0000a1b2"})
+	srv := &Server{hostName: "STAND-01", auth: &auth.Service{}, exec: client}
+
+	// "my project" in Russian.
+	body, err := json.Marshal(map[string]any{"kind": "session.resume",
+		"target": "\u043c\u043e\u0439 \u043f\u0440\u043e\u0435\u043a\u0442",
+		"params": map[string]any{"agent": "codex", "contour": "acme", "session": "019a2000-0000-7000-8000-00000000a1b2"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := post(t, srv, string(body))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.Agent != action.ResumeCodex || got.Resume != "019a2000-0000-7000-8000-00000000a1b2" {
+			t.Errorf("the resume reached the executor as %+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the request")
+	}
+}

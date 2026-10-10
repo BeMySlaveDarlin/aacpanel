@@ -53,6 +53,49 @@ func TestResumeIdentifier(t *testing.T) {
 	}
 }
 
+// A session with no name of its own on the map answers to the name of its
+// directory, and a resume from the archive takes the name from the directory
+// the conversation ran in: a directory named in Cyrillic, with a space, is
+// resumed as claude's under its project and as codex's by its thread.
+func TestADirectoryNameInAnotherScriptIsATarget(t *testing.T) {
+	const uuid = "e29e01f1-748c-4a99-9fd6-e3d8827ed5d1"
+	// "my project" in Russian, and the same with its short i spelled as i and a
+	// combining breve.
+	name := "\u043c\u043e\u0439 \u043f\u0440\u043e\u0435\u043a\u0442"
+	decomposed := "\u043c\u043e\u0438\u0306 \u043f\u0440\u043e\u0435\u043a\u0442"
+	dir := "/srv/" + name
+
+	for _, req := range []Request{
+		{ID: "1", Kind: SessionResume, Target: name, Resume: uuid, Project: &Project{Path: dir, Session: name}},
+		{ID: "1", Kind: SessionResume, Target: name, Resume: uuid, Agent: ResumeCodex, Contour: "work"},
+		{ID: "1", Kind: SessionResume, Target: decomposed, Resume: uuid,
+			Project: &Project{Path: "/srv/" + decomposed, Session: decomposed}},
+		{ID: "1", Kind: SessionOpen, Target: name, Project: &Project{Path: dir, Session: name}},
+		{ID: "1", Kind: SessionSend, Target: name, Text: "hello"},
+		{Ask: AskWindow, Target: name},
+	} {
+		if err := req.Validate(); err != nil {
+			t.Errorf("%s of %q is refused: %v", req.Kind+Kind(req.Ask), req.Target, err)
+		}
+	}
+
+	// What stays out is still out with a letter of another script beside it.
+	for _, target := range []string{name + ":0.1", name + "\n", name + "\u00a0", "%" + name, name + "/../x"} {
+		req := Request{ID: "1", Kind: SessionResume, Target: target, Resume: uuid,
+			Project: &Project{Path: dir, Session: name}}
+		if err := req.Validate(); err == nil {
+			t.Errorf("target %q is taken", target)
+		}
+	}
+	for _, path := range []string{dir + "\n", dir + "/$(id)", "/srv/" + name + "/../etc"} {
+		req := Request{ID: "1", Kind: SessionResume, Target: name, Resume: uuid,
+			Project: &Project{Path: path, Session: name}}
+		if err := req.Validate(); err == nil {
+			t.Errorf("project path %q is taken", path)
+		}
+	}
+}
+
 func TestResumeIsKnown(t *testing.T) {
 	if !Valid(SessionResume) {
 		t.Fatal("session.resume is missing from Kinds — the executor would reject it as unknown")

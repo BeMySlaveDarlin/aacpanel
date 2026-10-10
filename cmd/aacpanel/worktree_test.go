@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -78,5 +79,68 @@ func TestResumeFromAWorktreeCarriesItsProjectPG(t *testing.T) {
 	var launch map[string]any
 	if err := json.Unmarshal(got.Project.Launch, &launch); err != nil || launch["model"] != "opus" || launch["effort"] != "high" {
 		t.Errorf("the launch parameters of the repository's project did not come along: %s", got.Project.Launch)
+	}
+}
+
+// A conversation run in a directory named in Cyrillic, with a space, is
+// resumed from its archive card: the map holds the directory as a project with
+// no session name of its own, so the session answers to the name of the
+// directory, and the resume reaches the executor under that name.
+func TestResumeFromADirectoryNamedInAnotherScriptPG(t *testing.T) {
+	srv, root := profilesServer(t)
+	// "my project" in Russian.
+	const named = "\u043c\u043e\u0439 \u043f\u0440\u043e\u0435\u043a\u0442"
+	dir := filepath.Join(root, named)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	contour, group := "Acme", "Work"
+	profile, err := srv.db.CreateProfile(t.Context(), store.ProfileEdit{Name: &contour, ConfigDir: &root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := srv.db.CreateGroup(t.Context(), profile.ID, store.GroupEdit{Name: &group})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.db.CreateProject(t.Context(), g.ID, store.ProjectEdit{Name: &group, Path: &dir}); err != nil {
+		t.Fatal(err)
+	}
+
+	const conversation = "99999999-9999-4999-8999-999999999998"
+	hostID, err := srv.db.HostID(t.Context(), srv.hostName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, err := srv.db.Pool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testdb.PartitionsBack(t, t.Context(), pool, "sessions_1m", 3*time.Hour)
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO sessions_1m (bucket, host_id, name, tokens_max, pct_avg, pct_max, messages_max, samples, session_id, cwd)
+		VALUES ($1, $2, $3, 1000, 10, 20, 5, 6, $4, $5) ON CONFLICT DO NOTHING`,
+		time.Now().UTC().Add(-time.Hour).Truncate(time.Minute), hostID, named, conversation, dir); err != nil {
+		t.Fatal(err)
+	}
+	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "resumed"})
+	srv.exec, srv.auth = client, &auth.Service{}
+
+	body, err := json.Marshal(map[string]any{"kind": "session.resume", "target": named,
+		"params": map[string]any{"session": conversation}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := post(t, srv, string(body))
+	if w.Code != 200 {
+		t.Fatalf("status %d, body %s", w.Code, w.Body.String())
+	}
+	got := <-fake.got
+	if got.Resume != conversation || got.Target != named {
+		t.Errorf("the executor got conversation %q of %q", got.Resume, got.Target)
+	}
+	if got.Project == nil || got.Project.Path != dir || got.Project.Session != named {
+		t.Errorf("the resume went with project %+v, not the directory %s under its name", got.Project, dir)
 	}
 }
