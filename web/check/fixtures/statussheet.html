@@ -13,10 +13,11 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 let transport = "stream";
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -33,7 +34,7 @@ window.fetch = async (url) => {
     }
     if (u.startsWith("/api/session/")) return json({ to: "" });
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -54,25 +55,25 @@ const open = async () => {
     const area = document.querySelector("textarea");
     area.value = "/status";
     area.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(150);
+    await quiet();
     document.querySelector(".composer .iconbtn.accent").click();
-    await sleep(400);
+    await quiet();
 };
 
 (async () => {
     const out = {};
     show(stream);
-    await sleep(400);
+    await quiet();
     await open();
     out.title = text(".sheet.on .cmdhead")[0] || "";
     out.sections = text(".sheet.on .cmdsechead > span");
     out.rows = text(".sheet.on .mcpfacts li");
     document.querySelector(".sheet.on .sheetclose").click();
-    await sleep(300);
+    await quiet();
 
     transport = "console";
     show({ ...stream, transport: "" });
-    await sleep(300);
+    await quiet();
     await open();
     out.consoleSections = text(".sheet.on .cmdsechead > span");
     out.consoleRows = text(".sheet.on .mcpfacts li");

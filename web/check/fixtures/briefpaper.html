@@ -12,6 +12,7 @@ import { h, render } from "preact";
 import { Brief } from "/src/screens/brief.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const doc = {
     id: "what-stands-on-what",
@@ -31,7 +32,7 @@ const doc = {
     ],
 };
 
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u === "/api/briefs/what-stands-on-what" && ((init && init.method) || "GET") === "GET") {
         return new Response(JSON.stringify({
@@ -41,7 +42,7 @@ window.fetch = async (url, init) => {
         }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
-};
+});
 
 const snapshot = {
     sessions: [
@@ -92,12 +93,12 @@ const survey = () => ({
 });
 
 (async () => {
-    await new Promise((r) => setTimeout(r, 250));
+    await quiet();
     // The text of the answers lives behind a sheet, and the sheet opens on a press.
     for (const btn of document.querySelectorAll(".bbtn")) {
         if (btn.textContent.includes("What goes")) btn.click();
     }
-    await new Promise((r) => setTimeout(r, 250));
+    await quiet();
 
     const root = document.documentElement;
     root.classList.remove("sky");

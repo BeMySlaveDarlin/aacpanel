@@ -9,6 +9,7 @@ import { h, render } from "preact";
 import { Permit } from "/src/screens/chat/permit.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const first = {
     tool: "Add Comment Tool",
@@ -31,7 +32,7 @@ const second = {
 let now = first;
 const asked = [];
 const sent = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/session/permission")) {
         asked.push(now.fingerprint);
@@ -52,7 +53,7 @@ window.fetch = async (url, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-};
+});
 
 const exec = { available: true, kinds: ["session.permit", "session.stop"] };
 render(
@@ -68,13 +69,13 @@ window.done = (async () => {
     const read = document.querySelector(".permit").textContent;
 
     yes().click();
-    await sleep(400);
+    await quiet();
     // The card now has to hold what the console is asking now, not what it was
     // asking when the person opened it.
     const afterFail = document.querySelector(".permit").textContent;
 
     yes().click();
-    await sleep(400);
+    await quiet();
 
     const card = document.querySelector(".permit");
     return { asked, sent, read, afterFail, done: !card || !/crit/.test(card.innerHTML) };

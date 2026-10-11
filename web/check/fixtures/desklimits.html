@@ -15,6 +15,7 @@ import { h, render } from "preact";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const now = Math.floor(Date.now() / 1000);
 const part = (pct, hours) => ({ pct, resetsAt: now + hours * 3600 });
@@ -43,7 +44,7 @@ const closed = (contour, n) => Array.from({ length: n }, (_, i) => ({
     pctMax: 30, messages: 10,
     project: { id: contour * 10 + i, name: `old${contour}${i}`, group: "Backend", session: `old${contour}${i}`, path: `/srv/old${contour}${i}` },
 }));
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = new URL(String(url), location.href);
     if (u.pathname === "/api/sessions/archive") {
         asked.push(u.search);
@@ -52,7 +53,7 @@ window.fetch = async (url) => {
         return new Response(JSON.stringify({ rows, total: rows.length, limit: 30, offset: 0 }), { headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-};
+});
 
 render(h(ToastHost, null, h(GateHost, null, h(SessionColumn, {
     snapshot: { at: now, sessions, profileMap, limits }, profiles: { profiles: [] }, limits,
@@ -127,7 +128,7 @@ const band = () => {
 window.done = (async () => {
     await document.fonts.ready;
     for (let i = 0; i < 60 && !document.querySelector(".dkshelf .dkclosed"); i++) await sleep(50);
-    await sleep(150);
+    await quiet();
     const shelf = document.querySelector(".dkshelf");
     const dark = band();
     document.documentElement.classList.add("sky");
@@ -146,14 +147,14 @@ window.done = (async () => {
     };
     const globex = Array.from(document.querySelectorAll(".dkrings"))[1];
     globex.click();
-    await sleep(120);
+    await quiet();
     const pop = document.querySelector(".dklimpop");
     out.pop = pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null;
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await sleep(80);
     out.closed = !document.querySelector(".dklimpop");
     Array.from(document.querySelectorAll(".dkrings"))[0].click();
-    await sleep(120);
+    await quiet();
     out.oldNote = text(document.querySelector(".dklimpopnote"));
     // The details of the first contour drop over the heading of the next:
     // what stands at the middle of the note is the note, not that heading.

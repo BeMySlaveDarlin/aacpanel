@@ -13,10 +13,11 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) {
         return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false,
@@ -30,7 +31,7 @@ window.fetch = async (url, init) => {
         return json({ ok: true, detail: "moved" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -53,7 +54,7 @@ window.done = (async () => {
     await document.fonts.ready;
     for (let i = 0; i < 50 && !document.querySelector(".phead .pmore"); i++) await sleep(100);
     // The work arrives with the conversation: wait until the feed has it.
-    await sleep(600);
+    await quiet();
     const more = document.querySelector(".phead .pmore");
     if (!more) return { button: false };
     more.click();

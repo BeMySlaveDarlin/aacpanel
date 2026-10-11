@@ -13,6 +13,7 @@ import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Sheet } from "/src/ui/sheet.js";
 import { render as md } from "/src/md.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const wide = [
     "| task | what it is about | where it lives | who asked | when | how long |",
@@ -63,7 +64,7 @@ async function swipe(node, steps) {
 window.done = (async () => {
     await document.fonts.ready;
     for (let i = 0; i < 50 && !document.querySelector(".sheet .mdtable"); i++) await sleep(100);
-    await sleep(200);
+    await quiet();
 
     const sheet = document.querySelector(".sheet");
     const box = document.querySelector(".sheet .mdtable");

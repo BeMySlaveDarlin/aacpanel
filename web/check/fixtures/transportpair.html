@@ -15,13 +15,14 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
 const windows = { acme: "unknown", "acme-c": "none", "acme-w": "open", "acme-b": "none", "acme-q": "unknown" };
 const ways = { acme: "console", "acme-c": "stream", "acme-w": "stream", "acme-b": "stream", "acme-q": "console" };
 const who = (u) => new URL(u, location.href).searchParams.get("name");
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: true });
@@ -35,7 +36,7 @@ window.fetch = async (url, init) => {
         return json({ ok: true, detail: "moved" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -57,7 +58,7 @@ const pressed = () => {
 };
 const settle = async () => {
     for (let i = 0; i < 50 && !document.querySelector(".dkplace"); i++) await sleep(100);
-    await sleep(400);
+    await quiet();
 };
 const go = () => document.querySelector(".dkpop .toolgo");
 const panel = async (press) => {
@@ -75,7 +76,7 @@ const agree = async (el) => {
     const ok = [...document.querySelectorAll(".btnrow .btn")].pop();
     if (ok) ok.click();
     for (let i = 0; i < 30 && sent.length === before; i++) await sleep(100);
-    await sleep(300);
+    await quiet();
     return { title, effect, sent: sent.length > before ? sent[sent.length - 1] : null };
 };
 const notes = () => [...document.querySelectorAll(".dkpop .toolmove .toolnote")].map((n) => n.textContent).join(" | ");
@@ -100,7 +101,7 @@ window.done = (async () => {
     const box = document.querySelector(".dkpop .toolcheck input");
     out.windowOff = !box || box.disabled;
     if (box) box.click();
-    await sleep(100);
+    await quiet();
     out.withWindow = again ? await agree(again) : null;
 
     // A session in tmux of the same project: the terminal is on, and the
@@ -116,11 +117,11 @@ window.done = (async () => {
     await settle();
     const count = sent.length;
     tab("Terminal").click();
-    await sleep(300);
+    await quiet();
     out.heldTerm = pressed();
     out.heldTip = tab("Feed").getAttribute("data-tip") || "";
     tab("Feed").click();
-    await sleep(400);
+    await quiet();
     out.heldOn = pressed();
     out.heldSent = sent.length - count;
     out.heldFeed = Boolean(document.querySelector(".chatfeed"));

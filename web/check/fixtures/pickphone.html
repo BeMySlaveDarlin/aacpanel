@@ -13,6 +13,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const catalog = { state: "ok", models: [
@@ -32,7 +33,7 @@ const listed = [
 ];
 const sent = [];
 let transport = "stream";
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -48,7 +49,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -67,12 +68,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 const sheet = () => document.querySelector(".sheet.on");
 const rows = (sel = ".pklist .pkrow") => Array.from(sheet().querySelectorAll(sel));
-const tap = async (el) => { el.click(); await sleep(250); };
+const tap = async (el) => { el.click(); await quiet(); };
 const named = (list, name) => list.find((r) => r.querySelector(".pkname").textContent.trim() === name);
 
 (async () => {
     show(stream);
-    await sleep(400);
+    await quiet();
     const out = {};
 
     // The strip is a band of its own under the field, and the send button the
@@ -88,11 +89,11 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     out.emptySendClear = clear(paint(send())) && send().disabled;
     field.value = "hello";
     field.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(150);
+    await quiet();
     out.sendFilled = !clear(paint(send())) && !send().disabled;
     field.value = "";
     field.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(150);
+    await quiet();
     const head = Array.from(document.querySelectorAll(".cstrip .pkchip"));
     out.head = head.map((b) => b.textContent.trim());
     // How tall the line is against a button of the field, in the unit of the scale.
@@ -100,7 +101,7 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     out.rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
 
     await tap(document.querySelector(".cstrip .pkchip[data-pick=model]"));
-    await sleep(200);
+    await quiet();
     out.modelTitle = text(".sheet.on .stitle")[0] || "";
     const lists = Array.from(sheet().querySelectorAll(".pklist"));
     out.main = Array.from(lists[0].querySelectorAll(".pkname")).map((n) => n.textContent.trim());
@@ -121,7 +122,7 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     out.stopOn = text(".sheet.on .pkheadval")[0] || "";
     await tap(sheet().querySelector('.pkstop[aria-label="Max"]'));
     document.querySelector(".sheet.on .sheetclose").click();
-    await sleep(300);
+    await quiet();
 
     await tap(document.querySelector(".cstrip .pkchip[data-pick=mode]"));
     out.modeTitle = text(".sheet.on .stitle")[0] || "";
@@ -130,21 +131,21 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     out.modeIcons = sheet().querySelectorAll(".pkrow .pkicon svg").length;
     await tap(named(rows(), "Plan"));
     document.querySelector(".sheet.on .sheetclose").click();
-    await sleep(300);
+    await quiet();
 
     // /model with nothing after it asks for the list, as in a terminal.
     const area = document.querySelector("textarea");
     area.value = "/model";
     area.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(150);
+    await quiet();
     const button = document.querySelector(".composer .iconbtn.accent");
     out.sendReady = Boolean(button) && !button.disabled;
     if (button) await tap(button);
-    await sleep(200);
+    await quiet();
     out.fromComposer = text(".sheet.on .stitle")[0] || "";
     out.composerAfter = document.querySelector("textarea").value;
     document.querySelector(".sheet.on .sheetclose").click();
-    await sleep(300);
+    await quiet();
 
     out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
 
@@ -153,33 +154,33 @@ const named = (list, name) => list.find((r) => r.querySelector(".pkname").textCo
     out.attachTitle = text(".sheet.on .stitle")[0] || "";
     out.attachRows = document.querySelectorAll(".sheet.on .pkrow").length;
     document.querySelector(".sheet.on .sheetclose").click();
-    await sleep(300);
+    await quiet();
 
     // A terminal: the catalogue names the aliases, and its mode is on its own screen.
     transport = "console";
     show(terminal);
-    await sleep(400);
+    await quiet();
     await tap(document.querySelector(".cstrip .pkchip[data-pick=model]"));
-    await sleep(200);
+    await quiet();
     out.termMain = Array.from(sheet().querySelectorAll(".pklist")[0].querySelectorAll(".pkname")).map((n) => n.textContent.trim());
     out.termOn = text(".sheet.on .pkrow.on .pkname");
     document.querySelector(".sheet.on .sheetclose").click();
-    await sleep(300);
+    await quiet();
     await tap(document.querySelector(".cstrip .pkchip[data-pick=mode]"));
-    await sleep(200);
+    await quiet();
     out.termModesOff = rows().every((r) => r.disabled);
     out.termNote = text(".sheet.on .pknote")[0] || "";
     document.querySelector(".sheet.on .sheetclose").click();
-    await sleep(300);
+    await quiet();
 
     // A session launched past the questions says so in red; an executor that
     // cannot change a setting keeps the words and opens nothing.
     transport = "stream";
     show({ ...stream, mode: "bypassPermissions" });
-    await sleep(300);
+    await quiet();
     out.loud = text(".cstrip .pkchip.crit");
     show(stream, { ...exec, kinds: exec.kinds.filter((k) => k !== "session.set") });
-    await sleep(300);
+    await quiet();
     out.bare = Array.from(document.querySelectorAll(".cstrip .pkchip"))
         .map((b) => `${b.textContent.trim()}${b.disabled ? " off" : ""}`);
     window.done = out;

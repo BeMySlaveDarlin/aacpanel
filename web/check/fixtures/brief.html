@@ -10,6 +10,7 @@ import { h, render } from "preact";
 import { Brief } from "/src/screens/brief.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const doc = {
     id: "seven-after-twelve",
@@ -75,7 +76,7 @@ let saved = null;
 let sentMark = false;
 let removed = false;
 const asked = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     const method = (init && init.method) || "GET";
     asked.push(`${method} ${u}`);
@@ -108,7 +109,7 @@ window.fetch = async (url, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-};
+});
 
 const snapshot = { sessions: [{ session: "lab", sessionId: doc.sessionId, cwd: "/srv/proj" }] };
 const exec = { available: true, kinds: ["session.send"] };
@@ -123,7 +124,7 @@ render(
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 
 (async () => {
-    await new Promise((r) => setTimeout(r, 250));
+    await quiet();
     const before = {
         title: (document.querySelector(".bmast h1") || {}).textContent || "",
         // A table written in the prose of a brief is drawn as a table.
@@ -172,7 +173,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     };
 
     document.querySelector(".bbtn.go").click();
-    await new Promise((r) => setTimeout(r, 400));
+    await quiet();
 
     // Once the answers have gone, the document is read and not answered: the
     // session already holds the text, and a second send would arrive as a
@@ -201,7 +202,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     // middle of it, not only from the top.
     const out = document.querySelector(".brief .pback");
     scrollTo(0, Math.round(document.documentElement.scrollHeight / 2));
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const box = out ? out.getBoundingClientRect() : null;
     const exit = {
         there: Boolean(out),
@@ -209,7 +210,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
         onScreen: Boolean(box && box.top >= 0 && box.bottom <= innerHeight && box.width > 0),
     };
     if (out) out.click();
-    await new Promise((r) => setTimeout(r, 120));
+    await quiet();
     exit.left = left.length;
 
     // Removing asks once before it does anything, and the second press is what
@@ -218,12 +219,12 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     const dropBtn = document.querySelector(".bbtn.drop");
     const removing = { there: Boolean(dropBtn), label: dropBtn ? dropBtn.textContent.trim() : "" };
     if (dropBtn) dropBtn.click();
-    await new Promise((r) => setTimeout(r, 150));
+    await quiet();
     removing.asking = (document.querySelector(".bbtn.drop") || {}).textContent || "";
     removing.afterFirst = removed;
     const again = document.querySelector(".bbtn.drop");
     if (again) again.click();
-    await new Promise((r) => setTimeout(r, 300));
+    await quiet();
     removing.afterSecond = removed;
     removing.left = left.length - leftBefore;
 

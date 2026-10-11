@@ -15,6 +15,7 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { pickSub } from "/src/screens/chat/picker.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const catalog = { state: "ok", models: [
@@ -35,7 +36,7 @@ const listed = [
 const sent = [];
 let transport = "stream";
 let effortNow = "xhigh";
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -51,7 +52,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -70,26 +71,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 const sheet = () => document.querySelector(".sheet.on");
 const rows = (sel = ".pklist .pkrow") => Array.from(sheet().querySelectorAll(sel));
-const tap = async (el) => { el.click(); await sleep(250); };
+const tap = async (el) => { el.click(); await quiet(); };
 const named = (list, name) => list.find((r) => r.querySelector(".pkname").textContent.trim() === name);
 
 const labels = () => Array.from(sheet().querySelectorAll(".pkstop")).map((b) => b.getAttribute("aria-label"));
 const stop = (name) => sheet().querySelector(`.pkstop[aria-label="${name}"]`);
 const seg = (name) => Array.from(sheet().querySelectorAll(".pkseg")).find((b) => b.textContent.trim() === name);
 const toastSub = () => text(".toast.on .tsub")[0] || "";
-const close = async () => { document.querySelector(".sheet.on .sheetclose").click(); await sleep(300); };
+const close = async () => { document.querySelector(".sheet.on .sheetclose").click(); await quiet(); };
 const chip = (what) => document.querySelector(`.cstrip .pkchip[data-pick=${what}]`);
 // The effort is a row of the model's sheet: the strip has no word of its own for it.
-const effortSheet = async () => { await tap(chip("model")); await sleep(200); await tap(sheet().querySelector(".pkmore")); };
+const effortSheet = async () => { await tap(chip("model")); await quiet(); await tap(sheet().querySelector(".pkmore")); };
 
 window.done = (async () => {
     show(stream);
-    await sleep(400);
+    await quiet();
     const out = {};
 
     // The effort of a session on the stream: five levels and ultracode past them.
     await effortSheet();
-    await sleep(200);
+    await quiet();
     out.stops = labels();
     const ultra = stop("Ultracode");
     out.ultraDashed = Boolean(ultra) && getComputedStyle(ultra).borderLeftStyle === "dashed";
@@ -125,10 +126,10 @@ window.done = (async () => {
     // A session already in ultracode says so on the strip and under the knob.
     effortNow = "ultracode";
     show({ ...stream, effort: "ultracode" });
-    await sleep(300);
+    await quiet();
     out.ultraChip = chip("model").querySelector(".pkeff").textContent.replace(/^·\s*/, "").trim();
     await effortSheet();
-    await sleep(200);
+    await quiet();
     const on = sheet().querySelector(".pkstop.on");
     out.ultraOn = on ? on.getAttribute("aria-label") : "";
     out.ultraHead = text(".sheet.on .pkheadval")[0] || "";
@@ -139,9 +140,9 @@ window.done = (async () => {
     // A terminal saves whatever is picked there as the default.
     transport = "console";
     show(terminal);
-    await sleep(400);
+    await quiet();
     await effortSheet();
-    await sleep(200);
+    await quiet();
     out.termScopes = sheet().querySelectorAll(".pkscope").length;
     out.termNote = text(".sheet.on .pknote")[0] || "";
     out.termStops = labels();

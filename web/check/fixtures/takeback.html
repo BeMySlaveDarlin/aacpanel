@@ -13,6 +13,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const sent = [];
@@ -22,7 +23,7 @@ const feedItems = () => [
     { role: "me", text: "an older message, taken back", pos: 10, at: new Date().toISOString(), state: "withdrawn" },
 ];
 let unqueues = 0;
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) {
         const items = feedItems();
@@ -41,7 +42,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -62,25 +63,25 @@ async function write(text) {
     area.dispatchEvent(new Event("input", { bubbles: true }));
     await sleep(80);
     document.querySelector("button.iconbtn.accent").click();
-    await sleep(250);
+    await quiet();
 }
 
 window.done = (async () => {
     await document.fonts.ready;
     for (let i = 0; i < 80 && !document.querySelector("textarea"); i += 1) await sleep(50);
-    await sleep(200);
+    await quiet();
     await write("run the e2e suite too");
     const tools = document.querySelectorAll(".mqueue");
     const out = { tools: tools.length };
     tools[0].querySelectorAll(".btn")[0].click();
-    await sleep(300);
+    await quiet();
     out.composer = document.querySelector("textarea").value;
     out.rowsAfterEdit = document.querySelectorAll(".mqueue").length;
     const faded = document.querySelector(".msg.withdrawn");
     out.withdrawnStamp = faded ? (faded.nextElementSibling || {}).textContent || "" : "";
     await write("and then deploy");
     document.querySelector(".mqueue").querySelectorAll(".btn")[1].click();
-    await sleep(300);
+    await quiet();
     out.fail = (document.querySelector(".mqueuefail") || {}).textContent || "";
     out.rowsAfterRead = document.querySelectorAll(".mqueue").length;
     out.sent = sent;

@@ -10,6 +10,7 @@ import { h, render } from "preact";
 import { Archive } from "/src/desktop/panels/archive.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const profiles = { profiles: [
     { id: 7, name: "Acme Labs", configDir: "/home/u/.claude-profiles/acme" },
@@ -37,7 +38,7 @@ const rows = [
 
 const asked = [];
 const sent = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u === "/api/actions") {
         sent.push(JSON.parse(init.body));
@@ -50,7 +51,7 @@ window.fetch = async (url, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-};
+});
 
 const exec = { available: true };
 const root = document.getElementById("root");
@@ -61,7 +62,7 @@ const show = (picks) => render(
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const settle = async () => {
     for (let i = 0; i < 50 && !document.querySelector(".dkarch"); i++) await sleep(50);
-    await sleep(150);
+    await quiet();
 };
 
 window.done = (async () => {
@@ -87,10 +88,10 @@ window.done = (async () => {
     const plus = document.querySelector(".dkacts .dkact:last-child");
     if (plus) {
         plus.click();
-        await sleep(150);
+        await quiet();
         const ok = document.querySelector(".btnrow .btn.primary");
         if (ok) ok.click();
-        await sleep(250);
+        await quiet();
     }
 
     return { all, labelled, unknown, sections, sent };

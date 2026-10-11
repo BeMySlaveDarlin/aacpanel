@@ -15,6 +15,7 @@ import { Sheet } from "/src/ui/sheet.js";
 import { render as md } from "/src/md.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const narrow = [
     "| n | what |",
@@ -47,12 +48,12 @@ const items = [
     { role: "me", pos: 30, text: wide, at: new Date(Date.now() - 100000).toISOString() },
 ];
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 30, total: items.length, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -74,7 +75,7 @@ const round = (n) => Math.round(n * 100) / 100;
 
 window.done = (async () => {
     await document.fonts.ready;
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     for (let i = 0; i < 50 && !document.querySelector(".chatfeed .mdtable"); i++) await new Promise((r) => setTimeout(r, 100));
     const feed = document.querySelector(".chatfeed");
     const bubbles = Array.from(document.querySelectorAll(".chatfeed .msg"));

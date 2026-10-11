@@ -8,6 +8,7 @@
 // makes it the tallest it gets.
 import { h, render } from "preact";
 import { ToastHost, useToast } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 let show = null;
 function Grab() {
@@ -20,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 window.done = (async () => {
     await sleep(50);
     show("Project \"aacpanel\" deleted", "with 3 sessions", false, { label: "Undo", run: () => {} });
-    await sleep(400);
+    await quiet();
     const r = document.querySelector(".toast").getBoundingClientRect();
     return { top: r.top, bottom: r.bottom, left: r.left, right: r.right,
              width: window.innerWidth, height: window.innerHeight };

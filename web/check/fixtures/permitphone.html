@@ -16,6 +16,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const comment = "Colleagues, after the call I am writing down what we agreed about the export of grades. " +
     "First: the old router is switched off only after the new one has run a week without errors in production, " +
@@ -58,7 +59,7 @@ const ask = {
 
 let asking = true;
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) {
         return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: asking ? { ask } : {} });
@@ -67,7 +68,7 @@ window.fetch = async (url) => {
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u.startsWith("/api/session/")) return json({ to: "" });
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -168,7 +169,7 @@ window.done = (async () => {
     await document.fonts.ready;
     render(page("s1"), root);
     if (!await until(() => document.querySelector(".sheet.on .askpick"))) throw new Error("the question did not open");
-    await sleep(350);
+    await quiet();
     const sheet = document.querySelector(".sheet.on");
     const askList = sheet.querySelector(".askopts");
     const result = {
@@ -184,7 +185,7 @@ window.done = (async () => {
     asking = false;
     render(page("s2"), root);
     if (!await until(() => document.querySelector(".permit button"))) throw new Error("the permission did not show");
-    await sleep(200);
+    await quiet();
 
     const dock = document.querySelector(".permit");
     const list = dock.querySelector(".askopts");
@@ -232,7 +233,7 @@ window.done = (async () => {
     result.permit.fold = Boolean(unfold);
     if (unfold) {
         unfold.click();
-        await sleep(150);
+        await quiet();
         const r = getComputedStyle(request);
         result.permit.open = {
             noteWhole: !clamped(note),
@@ -241,7 +242,7 @@ window.done = (async () => {
         };
         const fold = dock.querySelector("[aria-expanded='true']");
         if (fold) fold.click();
-        await sleep(150);
+        await quiet();
     }
     return result;
 })();

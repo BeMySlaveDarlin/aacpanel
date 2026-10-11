@@ -11,6 +11,7 @@
 // colour of its mark. The report of the subagent is long and comes indented.
 import { h, render } from "preact";
 import { Row } from "/src/screens/chat/rows.js";
+import { quiet } from "/check/fixtures/quiet.js";
 const at = "2026-09-17T20:17:00Z";
 const items = [
     { role: "mail", from: "infra-rework", source: "session", pos: 10, at,
@@ -24,7 +25,7 @@ render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: i
     document.getElementById("root"));
 (async () => {
   try {
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
     const rows = Array.from(document.querySelectorAll(".mletter")).map((el) => ({
         cls: el.className,
@@ -39,7 +40,7 @@ render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: i
     // its table drawn as a table: the indent it came with is gone.
     const report = document.querySelectorAll(".mletter")[1];
     report.querySelector(".mlettermore").click();
-    await new Promise((r) => setTimeout(r, 120));
+    await quiet();
     const opened = {
         open: report.classList.contains("open"),
         body: text(report.querySelector(".mletterbody")),

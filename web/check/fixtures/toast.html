@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
-<div id="root"></div>
+<div id="root"></div><div id="gate"></div>
 <script type="module">
 // The toast host as the panel mounts it, over a screen that re-renders the
 // way the application does, with a fake host behind the gate.
@@ -16,32 +16,38 @@ window.fetch = async (url) => (String(url) === "/api/actions"
     ? json({ logged: true, detail: "session infra-rework started" })
     : new Response("", { status: 404 }));
 
+// Two screens under hosts of their own: the series of shows and the note of a
+// confirmed action are timed apart from each other, so they run side by side
+// rather than one after the other.
 const fx = { renders: 0 };
-function Screen() {
+const gx = { renders: 0 };
+function Screen({ into }) {
     const [n, setN] = useState(0);
     useEffect(() => { const t = setInterval(() => setN((k) => k + 1), 100); return () => clearInterval(t); }, []);
-    fx.renders++;
-    fx.show = useToast();
-    fx.run = useAction();
+    into.renders++;
+    into.show = useToast();
+    into.run = useAction();
     return html`<p>tick ${n}</p>`;
 }
-render(h(ToastHost, null, h(GateHost, null, h(Screen))), document.getElementById("root"));
+const root = document.getElementById("root");
+const gateRoot = document.getElementById("gate");
+render(h(ToastHost, null, h(GateHost, null, h(Screen, { into: fx }))), root);
+render(h(ToastHost, null, h(GateHost, null, h(Screen, { into: gx }))), gateRoot);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const on = () => document.querySelector(".toast").classList.contains("on");
+const on = (where = root) => where.querySelector(".toast").classList.contains("on");
 const confirm = () => {
-    const button = Array.from(document.querySelectorAll(".sheet .btnrow .btn")).find((b) => b.textContent.trim() === "Open");
+    const button = Array.from(gateRoot.querySelectorAll(".sheet .btnrow .btn")).find((b) => b.textContent.trim() === "Open");
     if (!button) throw new Error("the gate shows no confirmation");
     button.click();
 };
 
-window.done = (async () => {
-    await sleep(200);
+// A show, then another one a second before the first would go: the second
+// gets its full time.
+async function series() {
     const t0 = performance.now();
-    const series = [];
-    const sample = () => series.push([Math.round(performance.now() - t0), on()]);
-    // A show, then another one a second before the first would go: the
-    // second gets its full time.
+    const out = [];
+    const sample = () => out.push([Math.round(performance.now() - t0), on()]);
     fx.show("first", "a");
     await sleep(50);
     const second = LIFETIME - 1000;
@@ -51,19 +57,29 @@ window.done = (async () => {
             shown = true;
             fx.show("second", "b");
             await sleep(50);
-            series.push([Math.round(performance.now() - t0), on(), "second"]);
+            out.push([Math.round(performance.now() - t0), on(), "second"]);
         }
         sample();
         await sleep(200);
     }
-    // Through the gate: the note of a confirmed action.
-    fx.run("session.open", "infra-rework");
+    return out;
+}
+
+// Through the gate: the note of a confirmed action.
+async function gate() {
+    gx.run("session.open", "infra-rework");
     await sleep(100);
     confirm();
     await sleep(300);
-    const gate = { on: on(), text: document.querySelector(".toast").textContent.trim() };
+    const seen = { on: on(gateRoot), text: gateRoot.querySelector(".toast").textContent.trim() };
     await sleep(LIFETIME + 600);
-    gate.later = on();
+    seen.later = on(gateRoot);
+    return seen;
+}
+
+window.done = (async () => {
+    await sleep(200);
+    const [timed, gated] = await Promise.all([series(), gate()]);
     // The page put away takes the toast down.
     fx.show("third", "c");
     await sleep(100);
@@ -71,6 +87,6 @@ window.done = (async () => {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
     document.dispatchEvent(new Event("visibilitychange"));
     await sleep(100);
-    return { lifetime: LIFETIME, series, gate, hidden: { before: wasOn, after: on() }, renders: fx.renders };
+    return { lifetime: LIFETIME, series: timed, gate: gated, hidden: { before: wasOn, after: on() }, renders: fx.renders };
 })();
 </script>

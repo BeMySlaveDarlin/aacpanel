@@ -19,16 +19,17 @@ import { LiveLines, SessionSheet } from "/src/screens/sessions/blocks.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [{ role: "ai", pos: 1, text: "Running the suite." }], first: 1, last: 1, total: 1, moreBefore: false, state: null });
     if (u === "/api/term") return json({ available: true });
     if (u.startsWith("/api/session/switch")) return json({ to: "stream" });
     if (u.startsWith("/api/session/window")) return json({ state: "closed" });
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
 
 const parent = { session: "rotation", sessionId: "p1" };
@@ -60,7 +61,7 @@ const names = (root, sel) => Array.from(root.querySelectorAll(sel)).map(text);
 
 window.done = (async () => {
     await document.fonts.ready;
-    await sleep(400);
+    await quiet();
     const desk = document.getElementById("desk");
     const phone = document.getElementById("phone");
     const chat = document.getElementById("chat");
@@ -74,7 +75,7 @@ window.done = (async () => {
     out.deskTypedActs = (Array.from(desk.querySelectorAll(".dksess")).find((r) => text(r.querySelector(".dkname")) === "typed") || document.body)
         .querySelectorAll(".dkrowacts .dkact").length;
     desk.querySelector(".dkkin").click();
-    await sleep(100);
+    await quiet();
     out.deskOpen = names(desk, ".dksess .dkname");
     out.deskKids = names(desk, ".dksess.dkkid .dkname");
 
@@ -82,7 +83,7 @@ window.done = (async () => {
     out.phoneFold = text(phone.querySelector(".pjkin"));
     out.phoneTags = names(phone, ".pjblock .pjrow .pjtag");
     phone.querySelector(".pjkin").click();
-    await sleep(100);
+    await quiet();
     out.phoneOpen = names(phone, ".pjblock .pjrow .pjsess");
     out.sheet = Array.from(document.querySelectorAll(".pjsheet .pjact")).map((b) => ({ text: text(b.querySelector("b")), off: b.disabled }));
 
@@ -93,7 +94,7 @@ window.done = (async () => {
     out.note = text(chat.querySelector(".outsidenote"));
     const face = chat.querySelector(".dkplace");
     if (face) face.click();
-    await sleep(150);
+    await quiet();
     out.panel = names(document, ".dkpanel .toollabel");
     return out;
 })();

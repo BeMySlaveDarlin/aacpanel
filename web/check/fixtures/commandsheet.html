@@ -15,10 +15,11 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const sent = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -32,7 +33,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -50,26 +51,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.replace(/\s+/g, " ").trim());
 const chip = async () => {
     document.querySelector(".cstrip .pkcmds").click();
-    await sleep(300);
+    await quiet();
 };
 const row = async (line) => {
     const r = Array.from(document.querySelectorAll(".sheet.on .mcprow"))
         .find((b) => b.querySelector(".cmdname").textContent.trim() === line);
     if (!r) throw new Error(`no row ${line}`);
     r.click();
-    await sleep(400);
+    await quiet();
 };
 const close = async () => {
     const x = document.querySelector(".sheet.on .sheetclose");
     if (x) x.click();
-    await sleep(300);
+    await quiet();
 };
 
 (async () => {
     const out = {};
     try {
         show(stream);
-        await sleep(400);
+        await quiet();
         const deck = document.querySelector(".deck");
         out.deckOverflow = deck.scrollWidth - deck.clientWidth;
         out.inStrip = Boolean(document.querySelector(".cstrip .pkcmds"));
@@ -106,7 +107,7 @@ const close = async () => {
         const area = document.querySelector("textarea");
         area.value = "why is the build slow";
         area.dispatchEvent(new Event("input", { bubbles: true }));
-        await sleep(150);
+        await quiet();
         await chip();
         await row("/btw");
         out.btw = document.querySelector("textarea").value;
@@ -114,13 +115,13 @@ const close = async () => {
 
         area.value = "";
         area.dispatchEvent(new Event("input", { bubbles: true }));
-        await sleep(150);
+        await quiet();
         await chip();
         await row("/context");
         out.confirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
         out.sentBefore = sent.length;
         document.querySelector(".sheet.on .btnrow .btn.primary").click();
-        await sleep(400);
+        await quiet();
         out.sent = sent.map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
         out.sheetAfterSend = Boolean(document.querySelector(".sheet.on"));
 
@@ -130,18 +131,18 @@ const close = async () => {
         out.reloadConfirm = text(".sheet.on .stitle, .sheet.on h2, .sheet.on .cfhead")[0] || "";
         out.reloadDanger = Boolean(document.querySelector(".sheet.on .btnrow .btn.danger"));
         document.querySelector(".sheet.on .btnrow .btn.primary").click();
-        await sleep(400);
+        await quiet();
         out.reloadSent = sent.slice(1).map((b) => `${b.kind}:${JSON.stringify(b.params)}`);
 
         show({ ...stream, transport: "" });
-        await sleep(400);
+        await quiet();
         await chip();
         out.consoleLines = text(".sheet.on .mcprow .cmdname");
         await close();
 
         // An executor that cannot send commands: their rows say why and take no press.
         show(stream, { available: true, kinds: ["session.send", "session.set"] });
-        await sleep(400);
+        await quiet();
         await chip();
         const ctx = Array.from(document.querySelectorAll(".sheet.on .mcprow"))
             .find((b) => b.querySelector(".cmdname").textContent.trim() === "/context");

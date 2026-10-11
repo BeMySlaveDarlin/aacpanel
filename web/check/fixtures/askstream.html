@@ -14,6 +14,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const ask = {
     sessionId: "s1",
@@ -31,7 +32,7 @@ const ask = {
 };
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 const sent = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: { ask } });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -41,7 +42,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -60,18 +61,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 window.done = (async () => {
     await document.fonts.ready;
     for (let i = 0; i < 80 && !document.querySelector(".askpick"); i += 1) await sleep(50);
-    await sleep(300);
+    await quiet();
     const own = document.querySelector(".askown .askpick");
     const drop = document.querySelector(".askdrop");
     const result = { own: Boolean(own && !own.disabled), drop: Boolean(drop && !drop.disabled) };
     document.querySelectorAll(".askopts .askopt:not(.askown) .askpick")[1].click();
-    await sleep(250);
+    await quiet();
     const note = document.querySelector(".asknote");
     result.note = Boolean(note);
     if (note) {
         note.value = "but keep the search in it";
         note.dispatchEvent(new Event("input", { bubbles: true }));
-        await sleep(100);
+        await quiet();
     }
     const go = document.querySelector(".askfoot .btn.primary");
     if (go) go.click();

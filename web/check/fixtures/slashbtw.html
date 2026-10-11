@@ -13,6 +13,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const long = "Publishes a brief to the panel: a long piece the person reads and walks through — several "
     + "questions with what each rests on, the options and their cost, and a place to answer.";
@@ -30,7 +31,7 @@ const theirs = [
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const log = { lists: [], actions: [], side: [] };
 let sideAnswers = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -49,7 +50,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -68,7 +69,7 @@ const type = async (value) => {
     const el = area();
     el.value = value;
     el.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(120);
+    await quiet();
 };
 const send = async () => {
     document.querySelector(".composer .iconbtn.accent").click();
@@ -86,7 +87,7 @@ async function mount(name, live) {
     render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${name} id=${`${name}-1`} live=${live} exec=${exec}
                                                           onBack=${() => {}} onUsage=${() => {}} />`)), root);
     for (let i = 0; i < 60 && !area(); i += 1) await sleep(50);
-    await sleep(250);
+    await quiet();
 }
 
 window.done = (async () => {
@@ -95,7 +96,7 @@ window.done = (async () => {
     await mount("proj", stream);
 
     await type("/");
-    await sleep(200);
+    await quiet();
     out.theirs = Boolean(document.querySelector(".slashbox.theirs"));
     out.rows = rows();
     // The description stands on a line of its own under the name, and is cut.
@@ -134,12 +135,12 @@ window.done = (async () => {
     await sleep(80);
     out.picked = area().value;
     await send();
-    await sleep(200);
+    await quiet();
     out.screen = document.querySelector(".sheet.on") ? document.querySelector(".sheet.on").getAttribute("aria-label") : "";
     out.actionsAfterScreen = log.actions.length;
     const shut = document.querySelector(".sheet.on .sheetclose");
     if (shut) shut.click();
-    await sleep(250);
+    await quiet();
 
     // /btw asks aside: the question goes to the side chat, not to the conversation.
     sideAnswers = [
@@ -151,7 +152,7 @@ window.done = (async () => {
     await send();
     await sleep(60);
     out.waiting = text(".sheet.on .btwwait");
-    await sleep(300);
+    await quiet();
     out.sideOpen = document.querySelector(".sheet.on") ? document.querySelector(".sheet.on").getAttribute("aria-label") : "";
     out.questions = text(".sheet.on .btwq");
     out.answers = text(".sheet.on .btwa");
@@ -162,18 +163,18 @@ window.done = (async () => {
     follow.dispatchEvent(new Event("input", { bubbles: true }));
     await sleep(60);
     document.querySelector(".sheet.on .btwask button").click();
-    await sleep(400);
+    await quiet();
     out.answers2 = text(".sheet.on .btwa");
     follow.value = "and the last one?";
     follow.dispatchEvent(new Event("input", { bubbles: true }));
     await sleep(60);
     document.querySelector(".sheet.on .btwask button").click();
-    await sleep(400);
+    await quiet();
     out.errors = text(".sheet.on .btwerr");
     out.side = log.side.slice();
     out.actionsAfterSide = log.actions.map((a) => a.kind);
     document.querySelector(".sheet.on .btwbin").click();
-    await sleep(100);
+    await quiet();
     out.afterBin = text(".sheet.on .btwturn").length;
     out.binEmpty = text(".sheet.on .btwempty").length;
 
@@ -182,13 +183,13 @@ window.done = (async () => {
     const asidesBefore = log.side.length;
     await mount("term", console_);
     await type("/");
-    await sleep(150);
+    await quiet();
     out.termTheirs = Boolean(document.querySelector(".slashbox.theirs"));
     out.termRows = rows().map((r) => r.label);
     out.termLists = log.lists.length - before;
     await type("/btw hello");
     await send();
-    await sleep(200);
+    await quiet();
     const last = log.actions[log.actions.length - 1] || {};
     out.termSent = { kind: last.kind, text: (last.params || {}).text };
     out.termSide = log.side.length - asidesBefore;

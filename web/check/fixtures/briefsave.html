@@ -11,6 +11,7 @@ import { h, render } from "preact";
 import { Brief } from "/src/screens/brief.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const doc = (id) => ({
     id, sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/srv/proj",
@@ -33,7 +34,7 @@ const said = (id) => {
     return `Brief "Two questions" · ${id}\nAnswered ${done} of 2\n`;
 };
 
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     const method = (init && init.method) || "GET";
     const id = u.split("/").pop();
@@ -54,7 +55,7 @@ window.fetch = async (url, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-};
+});
 
 const snapshot = { sessions: [{ session: "lab", sessionId: "11111111-1111-4111-8111-111111111111", cwd: "/srv/proj" }] };
 const exec = { available: true, kinds: ["session.send"] };
@@ -71,10 +72,10 @@ const pick = (n, key) => {
 const pressSend = async () => {
     const go = document.querySelector(".bbtn.go");
     go.click();
-    await sleep(150);
+    await quiet();
     const ok = document.querySelector(".btnrow .btn.primary");
     if (ok) ok.click();
-    await sleep(300);
+    await quiet();
 };
 
 window.done = (async () => {
@@ -84,7 +85,7 @@ window.done = (async () => {
     show("refused");
     for (let i = 0; i < 50 && !document.querySelector(".bdock"); i++) await sleep(50);
     pick(0, "A");
-    await sleep(1400);
+    await quiet();
     const barred = {
         say: document.querySelector(".bdock-say").textContent,
         disabled: document.querySelector(".bbtn.go").disabled,
@@ -97,12 +98,12 @@ window.done = (async () => {
     refuse = false;
     sent.length = 0;
     show("kept");
-    await sleep(100);
+    await quiet();
     render(null, root);
     show("kept");
     for (let i = 0; i < 50 && !document.querySelector(".bdock"); i++) await sleep(50);
     pick(0, "A");
-    await sleep(1400);
+    await quiet();
     pick(1, "B");
     await sleep(80);
     await pressSend();

@@ -13,6 +13,7 @@ import { WorkList, WorkRefs } from "/src/screens/chat/work.js";
 import { ArtifactCard } from "/src/screens/chat/rows.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const inFeed = [];
 for (let i = 0; i < 3; i++) {
@@ -81,7 +82,7 @@ draw();
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const chips = Array.from(document.querySelectorAll("#chip .wchip"));
     const button = {
         // Two chips: the pages this device has not opened, and the briefs that
@@ -109,7 +110,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     // say that rather than end here: the count is the finding.
     const more = document.querySelector("#pages .wmore");
     if (more) more.click();
-    await new Promise((r) => setTimeout(r, 120));
+    await quiet();
     const after = {
         rows: document.querySelectorAll("#pages .worklist .artifact").length,
         more: (document.querySelector(".wmore") || {}).textContent || "",
@@ -127,15 +128,15 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     };
     const brief = document.querySelector("#papers .artifact.arbrief");
     if (brief) brief.click();
-    await new Promise((r) => setTimeout(r, 120));
+    await quiet();
 
     // Opening a page is what takes it off the count: the chip shows what is
     // still unread on this device, so it goes down as pages are read.
     const firstCard = document.querySelector("#pages .worklist .artifact");
     if (firstCard) firstCard.click();
-    await new Promise((r) => setTimeout(r, 150));
+    await quiet();
     draw();
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const afterOpening = {
         pages: (document.querySelector("#chip .wchip .wnum") || {}).textContent || "",
     };

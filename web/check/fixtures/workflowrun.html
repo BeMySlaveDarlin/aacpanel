@@ -11,6 +11,7 @@ import { html } from "/src/html.js";
 import { Work, WorkList } from "/src/screens/chat/work.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const workflows = [
     {
@@ -57,7 +58,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 window.done = (async () => {
-    await sleep(120);
+    await quiet();
     // The chip stands in the row of its own, with the number of runs still going.
     const chips = Array.from(document.querySelectorAll(".wchip"));
     const chip = chips[chips.length - 1];
@@ -72,7 +73,7 @@ window.done = (async () => {
     };
 
     chip.click();
-    await sleep(150);
+    await quiet();
     const list = {
         head: (document.querySelector(".sheethead h2") || {}).textContent || "",
         sub: (document.querySelector(".chatsub span") || {}).textContent || "",
@@ -81,7 +82,7 @@ window.done = (async () => {
     };
 
     document.querySelectorAll(".wrow.wflow")[1].click();
-    await sleep(150);
+    await quiet();
     const run = {
         title: (document.querySelector(".wfbody") ? document.querySelector("h2").textContent : ""),
         state: (document.querySelector(".wfstate") || {}).textContent || "",
@@ -95,11 +96,11 @@ window.done = (async () => {
     };
 
     document.querySelector(".pback").click();
-    await sleep(150);
+    await quiet();
     const back = { rows: document.querySelectorAll(".wrow.wflow").length };
 
     document.querySelectorAll(".wrow.wflow")[0].click();
-    await sleep(150);
+    await quiet();
     const liveRun = {
         state: (document.querySelector(".wfstate") || {}).textContent || "",
         phases: text(".wfphtitle"),

@@ -14,10 +14,11 @@ import { html } from "/src/html.js";
 import { DesktopShell } from "/src/desktop/shell.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const asked = [];
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) {
         asked.push(new URL(u, location.href).searchParams.get("id") || "");
@@ -28,7 +29,7 @@ window.fetch = async (url) => {
     if (u.startsWith("/api/session/")) return json({ to: "" });
     if (u.startsWith("/api/profiles")) return json({ profiles: [] });
     return json({});
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -54,19 +55,19 @@ const show = (snap, jump) => render(h(ToastHost, null, h(GateHost, null, html`<$
     const out = {};
     try {
         show({ at: 1, sessions: [run("new1")] }, { name: "aacpanel", id: "old0" });
-        await sleep(600);
+        await quiet();
         out.pastAsked = [...asked];
         out.pastComposer = Boolean(document.querySelector(".dkchat textarea"));
 
         render(null, root);
         asked.length = 0;
         show({ at: 1, sessions: [run("a1")] }, { name: "aacpanel", id: "a1" });
-        await sleep(600);
+        await quiet();
         out.liveComposer = Boolean(document.querySelector(".dkchat textarea"));
         show({ at: 2, sessions: [] }, null);
-        await sleep(300);
+        await quiet();
         show({ at: 3, sessions: [run("a2")] }, null);
-        await sleep(600);
+        await quiet();
         out.restartAsked = [...asked];
         out.restartComposer = Boolean(document.querySelector(".dkchat textarea"));
     } catch (err) {

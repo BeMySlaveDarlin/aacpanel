@@ -8,6 +8,7 @@
 // memory and one disk nearly full among four.
 import { h, render } from "preact";
 import { HeadLoad } from "/src/desktop/load.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const snapshot = {
     host: {
@@ -28,7 +29,7 @@ render(h(HeadLoad, { snapshot, onOpen: () => { opened++; } }), document.getEleme
 const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.textContent.trim());
 
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const chips = Array.from(document.querySelectorAll(".dkgauge"));
     const before = {
         names: text(".dkgauge-n"),
@@ -43,13 +44,13 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
     };
 
     document.querySelector(".dkload").click();
-    await new Promise((r) => setTimeout(r, 100));
+    await quiet();
 
     // A host the agent has not reported on yet draws nothing rather than zeros.
     // It is drawn beside the first, not over it: a fixture is also the picture
     // of the thing, and a picture of an empty bar shows nothing.
     render(h(HeadLoad, { snapshot: {}, onOpen: () => {} }), document.getElementById("blank"));
-    await new Promise((r) => setTimeout(r, 120));
+    await quiet();
 
     window.done = { before, opened,
         blank: document.querySelectorAll("#blank .dkgauge").length };

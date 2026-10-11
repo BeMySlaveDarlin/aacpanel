@@ -12,6 +12,7 @@ import { html } from "/src/html.js";
 import { Work, WorkList } from "/src/screens/chat/work.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const wait = (id, at, agent) => ({
     id, text: "Waiting for the tests", kind: "bash", at,
@@ -42,7 +43,7 @@ render(html`
 `, document.getElementById("root"));
 
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const rows = Array.from(document.querySelectorAll("#list .wrow.task"));
     window.done = {
         chip: (document.querySelector("#chips .wchip .wnum") || {}).textContent || "",

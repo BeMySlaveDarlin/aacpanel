@@ -19,6 +19,7 @@ import { Brief } from "/src/screens/brief.js";
 import { Sheet } from "/src/ui/sheet.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const doc = {
     id: "at-the-desk",
@@ -47,7 +48,7 @@ const doc = {
 };
 
 let sent = "";
-window.fetch = async (input, init) => {
+window.fetch = counted(async (input, init) => {
     const u = typeof input === "string" ? input : input.url;
     const method = (init && init.method) || "GET";
     if (u === "/api/briefs/at-the-desk" && method === "GET") {
@@ -64,7 +65,7 @@ window.fetch = async (input, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-};
+});
 
 // The snapshot is how the document finds the session its answers go into. The
 // panel hands it down through the conversation; a screen that forgets to pass
@@ -81,7 +82,7 @@ render(
 const px = (v) => Math.round(parseFloat(v) * 100) / 100;
 
 window.done = (async () => {
-    await new Promise((r) => setTimeout(r, 350));
+    await quiet();
     const sheet = document.querySelector(".sheet.doc");
     const page = document.querySelector(".brief-page");
     const prose = document.querySelector(".bask");

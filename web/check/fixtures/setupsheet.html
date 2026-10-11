@@ -14,6 +14,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const PARTS = {
     hooks: { hooks: {
@@ -58,7 +59,7 @@ const PARTS = {
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const asked = [];
 const sent = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -73,7 +74,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -94,20 +95,20 @@ const type = async (value) => {
     const area = document.querySelector("textarea");
     area.value = value;
     area.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(150);
+    await quiet();
 };
 const open = async (command) => {
     await type(command);
     const send = document.querySelector(".composer .iconbtn.accent");
     const ready = Boolean(send) && !send.disabled;
     if (ready) send.click();
-    await sleep(400);
+    await quiet();
     return ready;
 };
 const close = async () => {
     const x = document.querySelector(".sheet.on .sheetclose");
     if (x) x.click();
-    await sleep(300);
+    await quiet();
 };
 const rowNamed = (words) => Array.from(document.querySelectorAll(".sheet.on .mcprow"))
     .find((r) => r.textContent.includes(words));
@@ -116,7 +117,7 @@ const rowNamed = (words) => Array.from(document.querySelectorAll(".sheet.on .mcp
     const out = {};
     try {
     show(stream);
-    await sleep(400);
+    await quiet();
 
     await type("/ho");
     out.hints = text(".slashhint");
@@ -125,12 +126,12 @@ const rowNamed = (words) => Array.from(document.querySelectorAll(".sheet.on .mcp
     out.hooks = { title: text(".sheet.on .cmdhead")[0] || "", sum: text(".sheet.on .cmdsum")[0] || "",
         events: text(".sheet.on .mcprow") };
     rowNamed("PreToolUse").click();
-    await sleep(200);
+    await quiet();
     out.hooks.event = text(".sheet.on .cmdhead")[0] || "";
     out.hooks.rows = text(".sheet.on .mcprow");
     out.hooks.off = document.querySelectorAll(".sheet.on .mcprow.stpoff").length;
     rowNamed("Checking the rules").click();
-    await sleep(200);
+    await quiet();
     out.hooks.card = text(".sheet.on .cmdhead")[0] || "";
     out.hooks.facts = text(".sheet.on .mcpfacts li");
     out.hooks.code = text(".sheet.on .stpcode")[0] || "";
@@ -146,10 +147,10 @@ const rowNamed = (words) => Array.from(document.querySelectorAll(".sheet.on .mcp
     const find = document.querySelector(".sheet.on .stpfind");
     find.value = "golang";
     find.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(150);
+    await quiet();
     out.skills.found = text(".sheet.on .mcprow");
     rowNamed("cc-skills-golang").click();
-    await sleep(150);
+    await quiet();
     out.skills.opened = text(".sheet.on .stpdesc");
     await close();
 
@@ -168,7 +169,7 @@ const rowNamed = (words) => Array.from(document.querySelectorAll(".sheet.on .mcp
     // In tmux these are the client's own screens, driven by keys: the
     // composer says so and sends nothing.
     show({ ...stream, transport: "" });
-    await sleep(300);
+    await quiet();
     await type("/hooks");
     out.consoleReady = !document.querySelector(".composer .iconbtn.accent").disabled;
     } catch (err) {

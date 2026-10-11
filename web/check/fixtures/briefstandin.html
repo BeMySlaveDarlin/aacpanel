@@ -10,6 +10,7 @@ import { h, render } from "preact";
 import { Brief } from "/src/screens/brief.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const doc = {
     id: "what-is-left",
@@ -28,7 +29,7 @@ const doc = {
 };
 
 const sent = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     const method = (init && init.method) || "GET";
     if (u === "/api/briefs/what-is-left" && method === "GET") {
@@ -44,7 +45,7 @@ window.fetch = async (url, init) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
-};
+});
 
 const snapshot = {
     sessions: [
@@ -67,7 +68,7 @@ render(
     document.getElementById("root"));
 
 (async () => {
-    await new Promise((r) => setTimeout(r, 250));
+    await quiet();
     const select = document.querySelector(".bwho");
     const first = {
         say: (document.querySelector(".bdock-say") || {}).textContent || "",
@@ -89,19 +90,19 @@ render(
     if (select) {
         select.value = "also-here";
         select.dispatchEvent(new Event("change", { bubbles: true }));
-        await new Promise((r) => setTimeout(r, 120));
+        await quiet();
         picked = (document.querySelector(".bdock-say") || {}).textContent || "";
         select.value = "carrying-on";
         select.dispatchEvent(new Event("change", { bubbles: true }));
-        await new Promise((r) => setTimeout(r, 120));
+        await quiet();
     }
     go();
-    await new Promise((r) => setTimeout(r, 300));
+    await quiet();
 
     // A second press after the answers have gone sends nothing: the document
     // is settled, and the session already holds the text.
     go();
-    await new Promise((r) => setTimeout(r, 300));
+    await quiet();
 
     window.done = { first, sent, jumped, picked,
         after: (document.querySelector(".bdock-say") || {}).textContent || "" };

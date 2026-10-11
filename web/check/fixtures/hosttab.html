@@ -21,12 +21,13 @@ import { h, render } from "preact";
 import { MobileShell } from "/src/mobile/shell.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 // A frame to look at: #shot=containers stops the walk on that page.
 const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
 const pause = async (name) => {
     if (shot !== name) return;
-    await sleep(400);
+    await quiet();
     document.body.dataset.shot = name;
     await new Promise(() => {});
 };
@@ -43,7 +44,7 @@ const actions = [
     { id: 39, kind: "container.stop", target: "lab-worker", result: "ok", ts: new Date(now - 3 * 3600e3).toISOString(),
       device_name: "phone", duration_ms: 1200 },
 ];
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/term")) return new Response("404 page not found", { status: 404 });
     if (u.startsWith("/api/actions")) return json({ actions });
@@ -52,7 +53,7 @@ window.fetch = async (url) => {
     if (u.startsWith("/api/briefs")) return json({ briefs: [] });
     if (u.startsWith("/api/devices")) return json({ devices: [], revoked: [], current: 1 });
     return json({});
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -190,7 +191,7 @@ const openMenu = async (item) => {
     await until(() => document.querySelector(".sheet.on .hm-live"));
     door(item).click();
     await until(() => layer().title === item);
-    await sleep(100);
+    await quiet();
     return layer();
 };
 // drawn lets preact draw what a press changed and lets no frame in: a render
@@ -250,7 +251,7 @@ window.done = (async () => {
         const details = pageAt(0).querySelector(".hdetails");
         if (details) details.click();
         await until(() => settled("Machine"), 2000);
-        await sleep(100);
+        await quiet();
         out.details = { ...layer(), page: current(), kept: localStorage.getItem("aacpanel.host.page") || "" };
 
         // The host menu opens the machine and the journal over the screen.

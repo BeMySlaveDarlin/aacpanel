@@ -10,6 +10,7 @@
 // it stands how long until the window starts over, short and rounded up.
 import { h, render } from "preact";
 import { ContourLimits } from "/src/desktop/sessions.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const at = (sec) => Date.now() / 1000 + sec;
 const M = 60, H = 3600, D = 86400;
@@ -60,13 +61,13 @@ window.done = (async () => {
     // The details of the third contour: a window of a minute and one of a
     // day and a half.
     document.querySelectorAll(".dkrings")[2].click();
-    await sleep(120);
+    await quiet();
     const pop = document.querySelector(".dklimpop");
     const details = pop ? Array.from(pop.querySelectorAll(".dklimwin")).map(text) : null;
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await sleep(60);
     document.querySelectorAll(".dkrings")[3].click();
-    await sleep(120);
+    await quiet();
     const past = document.querySelector(".dklimpop");
     return { rings, tones, details, past: past ? Array.from(past.querySelectorAll(".dklimwin")).map(text) : null };
 })();

@@ -9,6 +9,7 @@ import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Row } from "/src/screens/chat/rows.js";
 import { index } from "/src/data/artifacts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const kept = {
     role: "artifact", pos: 100, use: "toolu_1",
@@ -38,7 +39,7 @@ render(html`
 `, document.getElementById("root"));
 
 (async () => {
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const cards = Array.from(document.querySelectorAll(".artifact"));
     const shot = {
         tags: cards.map((c) => c.tagName),
@@ -49,7 +50,7 @@ render(html`
     };
 
     cards[0].click();
-    await new Promise((r) => setTimeout(r, 120));
+    await quiet();
 
     window.done = { shot, opened };
 })();

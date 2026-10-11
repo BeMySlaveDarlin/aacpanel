@@ -13,6 +13,7 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const catalog = { state: "ok", models: [
@@ -32,7 +33,7 @@ const listed = [
 ];
 const sent = [];
 let transport = "stream";
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items: [], first: 0, last: 0, total: 0, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
@@ -48,7 +49,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -70,8 +71,8 @@ const until = async (ok, ms = 3000) => {
 };
 const text = (sel) => Array.from(root.querySelectorAll(sel)).map((n) => n.textContent.trim());
 const pick = (what) => root.querySelector(`.pickbar .pkchip[data-pick=${what}]`);
-const key = async (k) => { document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })); await sleep(250); };
-const tap = async (el) => { el.click(); await sleep(300); };
+const key = async (k) => { document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })); await quiet(); };
+const tap = async (el) => { el.click(); await quiet(); };
 
 const seg = (within, name) => Array.from(root.querySelectorAll(`${within} .pkseg`)).find((b) => b.textContent.trim() === name);
 // The effort opens from a row of the model's menu, beside it.
@@ -105,7 +106,7 @@ window.done = (async () => {
 
     transport = "console";
     show(terminal);
-    await sleep(400);
+    await quiet();
     await tap(pick("model"));
     out.termScopes = root.querySelectorAll(".pkmenu .pkscope").length;
     out.termNote = text(".pkmenu[aria-label=model] .pknote")[0] || "";

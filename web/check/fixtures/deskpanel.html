@@ -15,6 +15,7 @@ import { useState } from "preact/hooks";
 import { RightPanel } from "/src/desktop/panels.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const profiles = { profiles: [
     { id: 7, name: "Acme Labs", configDir: "/home/u/.claude-profiles/acme" },
@@ -37,7 +38,7 @@ const rows = [
 ];
 
 const asked = [];
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/sessions/archive")) {
         asked.push(u);
@@ -45,7 +46,7 @@ window.fetch = async (url) => {
             { status: 200, headers: { "Content-Type": "application/json" } });
     }
     return new Response("", { status: 404 });
-};
+});
 
 const exec = { available: true };
 
@@ -71,7 +72,7 @@ render(h(ToastHost, null, h(GateHost, null, h(Panel))), document.getElementById(
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const settle = async () => {
     for (let i = 0; i < 50 && !document.querySelector(".dkarch"); i++) await sleep(50);
-    await sleep(100);
+    await quiet();
 };
 const query = () => (asked.length ? new URL(asked[asked.length - 1], location.origin).search : "");
 

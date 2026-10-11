@@ -34,6 +34,7 @@ import { ToastHost } from "/src/ui/toasts.js";
 import { SessionColumn } from "/src/desktop/sessions.js";
 import { rows } from "/src/screens/chat/feed.js";
 import { asyncAnswer, panelSaid } from "/src/screens/chat/panelsaid.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const mode = location.hash.slice(1);
 const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
@@ -116,7 +117,7 @@ const posted = [];
 const sentTo = (target) => posted.filter((r) => r.target === target)
     .map((r) => ({ kind: r.kind, target: r.target, params: r.params }));
 const json =(b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/actions") && init && init.method === "POST") {
         posted.push(JSON.parse(init.body));
@@ -132,7 +133,7 @@ window.fetch = async (url, init) => {
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u.startsWith("/api/session/")) return json({ to: "" });
     return new Response("", { status: 404 });
-};
+});
 // The stream of the feed, told what the transcript brought.
 const streams = [];
 window.EventSource = class {
@@ -272,7 +273,7 @@ window.done = (async () => {
         throw new Error("the answer did not go");
     }
     // A second message, if the sheet sent one, has the time to show itself.
-    await sleep(300);
+    await quiet();
     out.posted = sentTo("codex-0000abcd");
     out.going = { card: card(), ...screen(), stands: stands("codex-0000abcd") };
     if (mode === "codexgoing") return {};
@@ -303,7 +304,7 @@ window.done = (async () => {
     if (!await until(() => sentTo("codex-0000ef01").length > 0 && lastCard())) {
         throw new Error("putting the questions away sent nothing");
     }
-    await sleep(300);
+    await quiet();
     out.putAway = { posted: sentTo("codex-0000ef01"), card: card(), ...screen() };
 
     // The feed alone. An answer of two questions, one with a note of two

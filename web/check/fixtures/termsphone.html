@@ -17,12 +17,13 @@ import { html } from "/src/html.js";
 import { MobileShell } from "/src/mobile/shell.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 // A frame to look at: #shot=A stops the walk where the artboard stands.
 const shot = new URLSearchParams(location.hash.slice(1)).get("shot") || "";
 const pause = async (name) => {
     if (shot !== name) return;
-    await sleep(400);
+    await quiet();
     document.body.dataset.shot = name;
     await new Promise(() => {});
 };
@@ -72,7 +73,7 @@ const holdClose = () => {
     held = { answered, release };
     return held;
 };
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u === "/api/term") return json({ available: true });
     if (u === "/api/terms") return json({ terms });
@@ -98,7 +99,7 @@ window.fetch = async (url, init) => {
     }
     if (u.startsWith("/api/sessions/archive")) return json({ rows: [], total: 0, limit: 20, offset: 0 });
     return json({});
-};
+});
 
 const streams = [];
 window.EventSource = class {
@@ -527,7 +528,7 @@ window.done = (async () => {
         // nothing until the question is answered.
         press(cardX("api"));
         await until(() => document.querySelector(".sheet.on .tclose"));
-        await sleep(100);
+        await quiet();
         out.cards.running = {
             title: text(document.querySelector(".sheet.on .tclose .stitle")),
             sub: text(document.querySelector(".sheet.on .tclose .ssub")),

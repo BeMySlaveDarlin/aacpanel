@@ -19,6 +19,7 @@ import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
 import { nearEnd } from "/src/screens/chat/feedwindow.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const wide = innerWidth >= 1100;
 document.getElementById("stage").innerHTML = wide
@@ -101,7 +102,7 @@ const KESTREL = [hit(120, 0, "me"), hit(200, 0, "assistant"), hit(1030, 0, "me")
 
 const searches = [];
 const pieces = [];
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = new URL(String(url), location.href);
     if (u.pathname === "/api/chat") {
         const p = u.searchParams;
@@ -138,7 +139,7 @@ window.fetch = async (url) => {
     if (u.pathname.startsWith("/api/session/window")) return json({ state: "none" });
     if (u.pathname.startsWith("/api/session/")) return json({ to: "" });
     return json({});
-};
+});
 
 // The stream of the conversation, driven by hand.
 const streams = [];
@@ -241,7 +242,7 @@ window.done = (async () => {
             onBack=${() => closed.push("chat")} onUsage=${() => {}} />`)), root);
         await document.fonts.ready;
         await until(() => row(1040) && streams.length > 0);
-        await sleep(200);
+        await quiet();
         out.tailEnd = box() ? nearEnd(box()) : false;
 
         out.opened = await openBar();
@@ -251,7 +252,7 @@ window.done = (async () => {
         await sleep(150);
         out.earlyAsks = searches.length;
         await until(() => searches.length > 0, 2000);
-        await sleep(400);
+        await quiet();
         out.asks = searches.map((s) => ({ q: s.q, session: s.session, id: s.id }));
         out.askDelay = searches.length ? Math.round(searches[0].at - lastKey) : -1;
 
@@ -285,7 +286,7 @@ window.done = (async () => {
         await until(() => count() === "5 of 7");
         press(field(), "Enter");
         await until(() => count() === "6 of 7" && row(200) && nowAt(200));
-        await sleep(120);
+        await quiet();
         out.far = {
             count: count(),
             now: marked().now,
@@ -298,7 +299,7 @@ window.done = (async () => {
 
         // A message arrives while the feed stands away from the end.
         emit("chat", { items: [{ role: "ai", text: "fresh news from the stream", at: at(1041), pos: 1041 }], total: 41 });
-        await sleep(250);
+        await quiet();
         out.held = { drawn: Boolean(row(1041)) };
 
         // The first close: the gesture on a phone, Esc at a desk.
@@ -315,7 +316,7 @@ window.done = (async () => {
         // the end has none, and the parts above say why.
         if (away()) away().click();
         await until(() => row(1041) && !row(200));
-        await sleep(200);
+        await quiet();
         out.home = { last: Boolean(row(1041)), tail: Boolean(row(1040)), far: Boolean(row(200)),
                      end: nearEnd(box()), away: Boolean(away()) };
 
@@ -329,7 +330,7 @@ window.done = (async () => {
         await until(() => searches.length > before, 2000);
         await type("nomatch", 10);
         await until(() => count() === "No matches", 2000);
-        await sleep(900);
+        await quiet();
         out.stale = { count: count(), asks: searches.slice(before).map((s) => s.q), marks: marked() };
 
         // The second close: Esc on a phone, the gesture at a desk. A search

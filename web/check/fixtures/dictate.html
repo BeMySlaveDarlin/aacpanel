@@ -12,6 +12,7 @@ import { html } from "/src/html.js";
 import { Composer } from "/src/screens/chat/composer.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 localStorage.setItem("aacpanel.dictation", "on");
 
@@ -37,7 +38,7 @@ class Stub {
     }
 }
 window.SpeechRecognition = Stub;
-window.fetch = async () => new Response("", { status: 404 });
+window.fetch = counted(async () => new Response("", { status: 404 }));
 
 const sent = [];
 const exec = { available: true };
@@ -57,11 +58,11 @@ const look = () => ({
 });
 
 window.done = (async () => {
-    await sleep(250);
+    await quiet();
     const empty = look();
 
     // an empty field is a switch: one press starts listening
-    btn().click(); await sleep(120);
+    btn().click(); await quiet();
     const started = { live: Boolean(live), starts, cls: btn().className, sent: sent.length };
 
     live.speak("one");
@@ -74,13 +75,13 @@ window.done = (async () => {
     const whileLive = look();
 
     // the next press stops it, and what was heard stays where it is
-    btn().click(); await sleep(150);
+    btn().click(); await quiet();
     const stopped = { live: Boolean(live), text: area().value, sent: sent.length, cls: btn().className };
     const withText = look();
 
     // with words in the field a short press sends, as it always did
     press(btn(), "pointerdown"); await sleep(80); press(btn(), "pointerup");
-    btn().click(); await sleep(250);
+    btn().click(); await quiet();
     const tapped = { sent: sent.length, last: sent[sent.length - 1] || "", text: area().value, starts };
 
     // and a held press talks, putting the new words after the old
@@ -93,7 +94,7 @@ window.done = (async () => {
     await sleep(80);
     press(btn(), "pointerup");
     btn().click();                       // the click the browser sends after a release
-    await sleep(200);
+    await quiet();
     const after = { live: Boolean(live), text: area().value, sent: sent.length };
 
     // an empty field is a switch however long the press: a slow one must leave
@@ -102,7 +103,7 @@ window.done = (async () => {
     area().dispatchEvent(new Event("input", { bubbles: true }));
     await sleep(80);
     press(btn(), "pointerdown"); await sleep(560); press(btn(), "pointerup");
-    btn().click(); await sleep(150);
+    btn().click(); await quiet();
     const slow = { live: Boolean(live), starts };
     if (live) live.stop();
 

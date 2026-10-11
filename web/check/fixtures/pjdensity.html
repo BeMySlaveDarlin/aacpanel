@@ -13,6 +13,7 @@ import { html } from "/src/html.js";
 import { ProjectBlock } from "/src/screens/sessions/blocks.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const project = (id, name) => ({ id, name, session: name, path: `/srv/${name}` });
 const past = (name) => ({ sessionId: `${name}-past`, name, prompts: ["what was it about"], startedAt: "2026-09-27T10:00:00Z", lastAt: "2026-09-27T11:00:00Z", pctMax: 40, messages: 12 });
@@ -35,7 +36,7 @@ render(h(ToastHost, null, h(GateHost, null, html`
 
 window.done = (async () => {
     await document.fonts.ready;
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const box = (el) => el.getBoundingClientRect();
     const blocksEl = [...document.querySelectorAll(".pjblock")];
     const heads = [...document.querySelectorAll(".grouphead")];

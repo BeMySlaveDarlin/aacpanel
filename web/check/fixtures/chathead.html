@@ -12,16 +12,17 @@ import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const items = [{ role: "me", pos: 10, text: "where are we", at: new Date().toISOString() },
                { role: "ai", pos: 20, text: "In the project.", at: new Date().toISOString() }];
 const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) return json({ items, first: 10, last: 20, total: 2, moreBefore: false, state: null });
     if (u.startsWith("/api/term")) return json({ available: false });
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
 
 const cwd = "/home/owner/Projects/Side/service/a-rather-long-group/and-a-subgroup/aacpanel";
@@ -37,7 +38,7 @@ const round = (n) => Math.round(n);
 window.done = (async () => {
     await document.fonts.ready;
     for (let i = 0; i < 50 && !document.querySelector(".composer textarea"); i++) await sleep(100);
-    await sleep(300);
+    await quiet();
     const out = {};
     const head = document.querySelector(".chathead");
     out.headUse = Boolean(head && head.querySelector(".deckuse"));

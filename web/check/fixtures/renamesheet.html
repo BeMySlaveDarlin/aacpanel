@@ -15,11 +15,12 @@ import { Chat } from "/src/screens/chat.js";
 import { Sessions } from "/src/screens/sessions.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const sent = [];
 const chats = [];
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u.startsWith("/api/chat?")) {
         chats.push(new URL(u, location.href).searchParams.get("session"));
@@ -33,7 +34,7 @@ window.fetch = async (url, init) => {
         return json({ logged: true, ok: true, detail: "ok" });
     }
     return json({});
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -52,7 +53,7 @@ const text = (sel) => Array.from(document.querySelectorAll(sel)).map((n) => n.te
 const typeInto = async (el, value) => {
     el.value = value;
     el.dispatchEvent(new Event("input", { bubbles: true }));
-    await sleep(120);
+    await quiet();
 };
 const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.primary"))[0];
 
@@ -62,10 +63,10 @@ const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.
         const snapshot = { at: 1, sessions: [session, other] };
         render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name="helios" id="s1" live=${session}
             snapshot=${snapshot} exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
-        await sleep(400);
+        await quiet();
         await typeInto(document.querySelector("textarea"), "/rename");
         document.querySelector(".composer .iconbtn.accent").click();
-        await sleep(400);
+        await quiet();
         out.title = text(".sheet.on .cmdhead")[0] || "";
         const field = document.querySelector(".sheet.on .rnname");
         out.value = field ? field.value : "";
@@ -83,7 +84,7 @@ const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.
         await typeInto(field, "helios-pilot");
         out.goodOff = save().disabled;
         save().click();
-        await sleep(400);
+        await quiet();
         out.sent = sent.map((b) => `${b.kind}:${b.target}:${JSON.stringify(b.params)}`);
         out.confirmation = Boolean(document.querySelector(".sheet.on .btnrow .btn.primary"));
 
@@ -95,10 +96,10 @@ const save = () => Array.from(document.querySelectorAll(".sheet.on .btnrow .btn.
             error=${null} ageSec=${1} exec=${exec} wait=${waits} faults=${[]} want=${want}
             onWanted=${() => {}} onLayer=${() => {}} onUsage=${() => {}} />`)), root);
         show({ at: 1, sessions: [session, other] }, { name: "helios", id: "s1" });
-        await sleep(500);
+        await quiet();
         out.before = [...new Set(chats)];
         show({ at: 2, sessions: [{ ...session, session: "helios-pilot" }, other] }, null);
-        await sleep(600);
+        await quiet();
         out.after = [...new Set(chats)];
     } catch (err) {
         out.error = String((err && err.stack) || err);

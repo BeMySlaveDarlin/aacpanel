@@ -9,6 +9,7 @@
 // first and queued the second.
 import { h, render } from "preact";
 import { Row } from "/src/screens/chat/rows.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const at = "2026-09-27T20:28:05Z";
 const why = "No agent named 'coordinator' is reachable.\nCheck the spelling, or use the agent ID from a background agent's spawn result.";
@@ -24,7 +25,7 @@ render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: i
 
 (async () => {
   try {
-    await new Promise((r) => setTimeout(r, 200));
+    await quiet();
     const letters = Array.from(document.querySelectorAll(".mletter"));
     const rows = letters.map((el) => {
         const mark = el.querySelector(".mletterlost");
@@ -39,7 +40,7 @@ render(h("div", { class: "chatfeed" }, items.map((item) => h(Row, { item, key: i
     const quietColor = getComputedStyle(document.querySelector(".sentlabel")).color;
     // Opened, the refused letter gives claude's reason above its words.
     letters[0].querySelector(".mlettermore").click();
-    await new Promise((r) => setTimeout(r, 120));
+    await quiet();
     const opened = {
         why: (letters[0].querySelector(".mletterwhy") || {}).textContent || "",
         body: (letters[0].querySelector(".mletterbody") || {}).textContent || "",

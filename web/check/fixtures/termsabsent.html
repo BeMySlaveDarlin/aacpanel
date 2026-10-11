@@ -18,13 +18,14 @@ import { DesktopShell } from "/src/desktop/shell.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 localStorage.setItem("aacpanel.tab", "terminals");
 localStorage.setItem("aacpanel.desktop.place", JSON.stringify({ section: "terminals", from: "", chat: null }));
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 let answered = 0;
-window.fetch = async (url) => {
+window.fetch = counted(async (url) => {
     const u = String(url);
     if (u === "/api/term" || u.startsWith("/api/term")) {
         answered += 1;
@@ -36,7 +37,7 @@ window.fetch = async (url) => {
     if (u.startsWith("/api/profiles")) return json({ profiles: [] });
     if (u.startsWith("/api/usage/")) return json({ error: "usage is not collected here" }, 503);
     return json({});
-};
+});
 window.EventSource = class {
     constructor() { this.readyState = 1; }
     addEventListener() {}
@@ -83,7 +84,7 @@ window.done = (async () => {
         await document.fonts.ready;
         // Three askers of the route: the phone shell, the wide shell, the conversation.
         await until(() => answered >= 3 && document.querySelector("#chat .deck"));
-        await sleep(300);
+        await quiet();
         const phone = document.getElementById("phone");
         out.nav = Array.from(phone.querySelectorAll("nav.tabs > button")).map(text);
         out.tab = localStorage.getItem("aacpanel.tab");

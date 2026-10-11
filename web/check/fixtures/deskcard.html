@@ -35,6 +35,7 @@ import { PastLine } from "/src/screens/sessions/blocks.js";
 import { Chat } from "/src/screens/chat.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const now = Date.now();
 const iso = (min) => new Date(now - min * 60e3).toISOString();
@@ -111,7 +112,7 @@ const archive = [
 const asked = [];
 const sent = [];
 const json = (b) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
-window.fetch = async (url, init) => {
+window.fetch = counted(async (url, init) => {
     const u = String(url);
     if (u === "/api/actions") {
         sent.push(JSON.parse(init.body));
@@ -126,7 +127,7 @@ window.fetch = async (url, init) => {
     if (u.startsWith("/api/session/switch")) return json({ to: "console" });
     if (u.startsWith("/api/session/window")) return json({ state: "closed" });
     return new Response("", { status: 404 });
-};
+});
 window.EventSource = class { constructor() { this.readyState = 1; } addEventListener() {} close() {} };
 
 const exec = { available: true, kinds: ["session.close", "session.restart", "session.resume", "session.open", "session.switch",
@@ -235,7 +236,7 @@ window.done = (async () => {
 
     column(first, "aacpanel");
     for (let i = 0; i < 60 && !root().querySelector(".dkshelf .dkclosed"); i++) await sleep(50);
-    await sleep(100);
+    await quiet();
     out.before = lay();
     out.orderBefore = orders[orders.length - 1];
     out.ghost = (() => {
@@ -297,19 +298,19 @@ window.done = (async () => {
     const plus = root().querySelector(".dkscroll > section .dknew");
     out.plus = getComputedStyle(plus).visibility;
     plus.click();
-    await sleep(100);
+    await quiet();
     out.menu = Array.from(root().querySelectorAll(".dknewpop .dknewgroup, .dknewpop .dknewrow")).map((el) =>
         el.classList.contains("dknewgroup") ? `[${text(el)}]` : words(el));
     Array.from(root().querySelectorAll(".dknewrow")).find((b) => text(b.querySelector(".dkname")) === "blog").click();
-    await sleep(150);
+    await quiet();
     const ok = document.querySelector(".btnrow .btn.primary");
     if (ok) ok.click();
-    await sleep(250);
+    await quiet();
     out.opened = sent.slice();
 
     // A minute later: every state has changed, the list comes in another order.
     column(later, "aacpanel");
-    await sleep(150);
+    await quiet();
     out.after = lay();
     out.orderAfter = orders[orders.length - 1];
     out.saysAfter = { aacpanel: say("aacpanel"), person: say("person") };
@@ -317,17 +318,17 @@ window.done = (async () => {
     // A closed conversation open: its row carries its time and Resume both.
     sent.length = 0;
     column(first, "shop-admin", "c-shop-admin");
-    await sleep(120);
+    await quiet();
     const open = root().querySelector(".dkclosed.on");
     out.openClosed = open ? { name: text(open.querySelector(".dkclname")),
         resume: getComputedStyle(open.querySelector(".dkresume")).display,
         when: getComputedStyle(open.querySelector(".dkclwhen")).display } : null;
     if (open) {
         open.querySelector(".dkresume").click();
-        await sleep(150);
+        await quiet();
         const yes = document.querySelector(".btnrow .btn.primary");
         if (yes) yes.click();
-        await sleep(250);
+        await quiet();
     }
     out.resumed = sent.slice();
     out.pickedAfterResume = picked.length;
@@ -339,7 +340,7 @@ window.done = (async () => {
     }))), document.getElementById("chat"));
     const chat = document.getElementById("chat");
     for (let i = 0; i < 40 && !chat.querySelector(".dkplace"); i++) await sleep(50);
-    await sleep(100);
+    await quiet();
     const head = () => {
         const top = chat.querySelector(".dkheadtop").getBoundingClientRect();
         const name = chat.querySelector(".dkwhoname").getBoundingClientRect();
@@ -364,7 +365,7 @@ window.done = (async () => {
     };
     out.withPanel = head();
     document.getElementById("body").classList.remove("withpanel");
-    await sleep(100);
+    await quiet();
     out.withoutPanel = head();
 
     // The time of a closed conversation on the phone.
