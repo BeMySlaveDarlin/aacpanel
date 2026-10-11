@@ -251,23 +251,14 @@ func TestAnAnswerToAQuestionCodexDidNotWaitForGoesIntoTheTurnThatRuns(t *testing
 }
 
 // Words of one's own typed in the composer while the question hangs are its
-// answer as a tap is, and come named as any message of the composer does. They
-// pass what already waits in the panel's queue behind the turn — a letter of
-// another session — the turn that runs takes them, under the name they came
-// with, and the queue keeps what it had: the answer never stands in it, so
-// there is nothing of it to take back, and what waited there goes once the
-// turn ends.
-func TestAnAnswerFromTheComposerPassesThePanelsQueue(t *testing.T) {
+// answer as a tap is, and come named as any message of the composer does: the
+// turn that runs takes them under the name they came with, and the answer
+// never stands in the panel's queue, so there is nothing of it to take back.
+func TestAnAnswerFromTheComposerGoesIntoTheTurnUnderItsName(t *testing.T) {
 	srv, e := onCodex(t, func(srv *codextest.Server) { srv.Running(codexThread, "turn-r") })
-	procFS(t, fakeProc{pid: 7001, comm: "claude", args: []string{"claude"}, start: "71"})
-	sessionFiles(t, fakeSession{pid: 7001, name: "aacpanel", start: "71", sid: senderSID, socket: senderSocket})
 	ctx := context.Background()
 	const answering = "6a1d2b3c-4d5e-4f60-9b7c-8d9e0f1a2b3c"
 
-	if detail, err := e.Execute(ctx, letterReq(codexName, "check the logs")); err != nil ||
-		!strings.Contains(detail, "waits in the panel's queue, first") {
-		t.Fatalf("a letter to a busy thread: %q, %v", detail, err)
-	}
 	detail, err := e.Execute(ctx, action.Request{Kind: action.SessionSend, Target: codexName,
 		Text: "Drop it, the title is enough", MessageID: answering, Asked: "call_ask_logo"})
 	if err != nil {
@@ -278,18 +269,12 @@ func TestAnAnswerFromTheComposerPassesThePanelsQueue(t *testing.T) {
 		!strings.Contains(string(steers[0]), `"clientUserMessageId":"`+answering+`"`) ||
 		!strings.Contains(string(steers[0]), `"Drop it, the title is enough"`) ||
 		len(srv.Calls("turn/start")) != 0 || !strings.Contains(detail, "into the turn that runs") {
-		t.Fatalf("the answer behind a queued message said %q, steered %s, started %s",
-			detail, steers, srv.Calls("turn/start"))
+		t.Fatalf("the answer said %q, steered %s, started %s", detail, steers, srv.Calls("turn/start"))
 	}
 
 	if _, err := e.Execute(ctx, action.Request{Kind: action.SessionUnqueue, Target: codexName,
 		MessageID: answering}); err == nil || !strings.Contains(err.Error(), "already delivered") {
 		t.Errorf("the answer was taken back from the queue: %v", err)
-	}
-	srv.Set(codexThread, "idle")
-	waitFor(t, "the letter to go once the turn ended", func() bool { return len(srv.Calls("turn/start")) == 1 })
-	if _, _, body, _, _ := envelopeIn(t, turnText(t, srv.Calls("turn/start")[0])); body != "check the logs" {
-		t.Errorf("the turn after the answer went with %q", body)
 	}
 }
 

@@ -389,33 +389,25 @@ func steersOf(t *testing.T, srv *codextest.Server, id string) []map[string]any {
 }
 
 // A message for a thread whose turn another client runs goes into that turn,
-// as it does into one the panel started. A letter waits for that turn to end;
-// the link joins the thread meanwhile, or it would not hear the end.
-func TestAMessageGoesIntoATurnOfAnotherClientAndALetterWaitsForItsEnd(t *testing.T) {
+// as it does into one the panel started, and nothing of it goes again once
+// that turn ends.
+func TestAMessageGoesIntoATurnOfAnotherClient(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
 	srv.Running(threadA, "turn-tui")
-	ctx := context.Background()
 
-	sent, err := l.Send(ctx, threadA, Message{Text: "one more thing"})
+	sent, err := l.Send(context.Background(), threadA, Message{Text: "one more thing"})
 	if err != nil || !sent.Steered {
 		t.Fatalf("%+v, %v", sent, err)
 	}
 	if steers := srv.Calls("turn/steer"); len(steers) != 1 || params(t, steers[0])["expectedTurnId"] != "turn-tui" {
 		t.Fatalf("turn/steer went as %s", steers)
 	}
-	place, err := l.SendAfter(ctx, threadA, Message{Text: "a letter"})
-	if err != nil || place != 1 {
-		t.Fatalf("a letter: place %d, %v", place, err)
-	}
-	until(t, "the link to subscribe while the letter waits", func() bool { return srv.Subscribed(threadA) })
-	if len(srv.Calls("turn/start")) != 0 || len(srv.Calls("turn/steer")) != 1 {
-		t.Fatal("the letter went into the turn of another client")
-	}
 	srv.Set(threadA, "idle")
-	until(t, "the letter to go once the turn ended", func() bool { return len(srv.Calls("turn/start")) == 1 })
-	srv.Set(threadA, "idle")
-	until(t, "the link to leave the free thread", func() bool { return !srv.Subscribed(threadA) })
+	time.Sleep(5 * pollEvery)
+	if n, m := len(srv.Calls("turn/start")), len(srv.Calls("turn/steer")); n != 0 || m != 1 {
+		t.Errorf("once the turn ended the message went again: %d turn/start, %d turn/steer", n, m)
+	}
 }
 
 func TestInterruptStopsTheRunningTurnOnly(t *testing.T) {

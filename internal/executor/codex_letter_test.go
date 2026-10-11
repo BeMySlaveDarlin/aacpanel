@@ -25,7 +25,7 @@ func codexLetterReq(to, text string) action.Request {
 	return r
 }
 
-// turnText is the words of a turn the daemon was asked to start.
+// turnText is the words a turn was given, by turn/start or turn/steer.
 func turnText(t *testing.T, raw json.RawMessage) string {
 	t.Helper()
 	var p struct {
@@ -95,10 +95,10 @@ func TestALetterToCodexGoesThroughTheDaemonInItsEnvelope(t *testing.T) {
 	}
 }
 
-// A busy thread gets a letter in the panel's queue, as any message of the
-// panel: it goes as a turn of its own once the turn that runs ends, and never
-// into that turn.
-func TestALetterToABusyCodexWaitsInThePanelsQueue(t *testing.T) {
+// A busy thread gets a letter into the turn that runs, as the person's words
+// go, in its envelope: codex reads it at the next step of that turn rather
+// than once the turn is over, and no turn of its own starts with it.
+func TestALetterToABusyCodexGoesIntoTheTurnThatRuns(t *testing.T) {
 	srv, e := onCodex(t, func(srv *codextest.Server) { srv.Running(codexThread, "turn-tui") })
 	procFS(t, fakeProc{pid: 7001, comm: "claude", args: []string{"claude"}, start: "71"})
 	sessionFiles(t, fakeSession{pid: 7001, name: "aacpanel", start: "71", sid: senderSID, socket: senderSocket})
@@ -107,16 +107,16 @@ func TestALetterToABusyCodexWaitsInThePanelsQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(detail, "waits in the panel's queue, first") {
+	if !strings.Contains(detail, "busy — the turn that runs takes it at its next step") {
 		t.Errorf("a letter to a busy thread answered %q", detail)
 	}
-	if n := len(srv.Calls("turn/start")) + len(srv.Calls("turn/steer")); n != 0 {
-		t.Fatalf("a letter to a busy thread went into its turn: %d calls", n)
+	steers := srv.Calls("turn/steer")
+	if len(steers) != 1 || len(srv.Calls("turn/start")) != 0 ||
+		!strings.Contains(string(steers[0]), `"expectedTurnId":"turn-tui"`) {
+		t.Fatalf("a letter to a busy thread went as turn/steer %s, turn/start %s", steers, srv.Calls("turn/start"))
 	}
-	srv.Set(codexThread, "idle")
-	waitFor(t, "the letter to go once the thread is free", func() bool { return len(srv.Calls("turn/start")) == 1 })
-	if _, name, body, _, _ := envelopeIn(t, turnText(t, srv.Calls("turn/start")[0])); name != "aacpanel" || body != "check the logs" {
-		t.Errorf("the queued letter went as %q from %q", body, name)
+	if _, name, body, _, _ := envelopeIn(t, turnText(t, steers[0])); name != "aacpanel" || body != "check the logs" {
+		t.Errorf("the letter went into the turn as %q from %q", body, name)
 	}
 }
 

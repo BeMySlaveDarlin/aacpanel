@@ -83,8 +83,7 @@ func TestUnqueueTakesAMessageBackBeforeItGoes(t *testing.T) {
 
 // The daemon answers turn/start before the thread turns active: a message
 // sent in that moment finds the turn by the list of turns and goes into it,
-// rather than as a second turn/start; a letter waits for it, and neither
-// starts a turn of its own while it runs.
+// rather than as a second turn/start.
 func TestATurnJustStartedCountsAsBusy(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
@@ -100,24 +99,25 @@ func TestATurnJustStartedCountsAsBusy(t *testing.T) {
 	if steers := srv.Calls("turn/steer"); len(steers) != 1 || params(t, steers[0])["expectedTurnId"] != "turn-1" {
 		t.Errorf("the message went as %s", steers)
 	}
-	if place, err := l.SendAfter(ctx, threadA, Message{Text: "a letter"}); err != nil || place != 1 {
-		t.Fatalf("a letter right after a turn started: place %d, %v", place, err)
-	}
 	time.Sleep(5 * pollEvery)
 	if n := len(srv.Calls("turn/start")); n != 1 {
 		t.Errorf("a turn that had only just started got %d more turns", n-1)
 	}
 }
 
-// A letter waiting for a turn another client has just started keeps the link
-// a client of the thread: the thread does not say it is active yet, and a link
+// A message waiting for a compaction that has just started keeps the link a
+// client of the thread: the thread does not say it is active yet, and a link
 // that left it would join it again at the next round, and leave, and join.
 func TestAMessageWaitingKeepsTheLinkOnTheThread(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
-	srv.Starting(threadA, "turn-tui")
-	if place, err := l.SendAfter(context.Background(), threadA, Message{Text: "after it"}); err != nil || place != 1 {
-		t.Fatalf("place %d, %v", place, err)
+	srv.Lag()
+	ctx := context.Background()
+	if err := l.Compact(ctx, threadA); err != nil {
+		t.Fatal(err)
+	}
+	if sent, err := l.Send(ctx, threadA, Message{Text: "after it"}); err != nil || sent.Place != 1 {
+		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
 	}
 	until(t, "the link to join", func() bool { return srv.Subscribed(threadA) })
 	time.Sleep(8 * pollEvery)
@@ -128,29 +128,32 @@ func TestAMessageWaitingKeepsTheLinkOnTheThread(t *testing.T) {
 	until(t, "the message to go", func() bool { return len(srv.Calls("turn/start")) == 1 })
 }
 
-// A letter never overtakes the ones that wait before it: a thread found free
-// before the queue went on takes the oldest first.
+// A message never overtakes the ones that wait before it: a thread found free
+// before the queue went on takes the oldest first, and the newer one goes into
+// the turn it started.
 func TestAMessageGoesBehindTheOnesThatWait(t *testing.T) {
 	was := pollEvery
 	pollEvery = time.Hour
 	t.Cleanup(func() { pollEvery = was })
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
-	srv.Running(threadA, "turn-tui")
 	ctx := context.Background()
-	if _, err := l.SendAfter(ctx, threadA, Message{Text: "older"}); err != nil {
+	if err := l.Compact(ctx, threadA); err != nil {
 		t.Fatal(err)
 	}
+	if sent, err := l.Send(ctx, threadA, Message{ID: "older", Text: "older"}); err != nil || sent.Place != 1 {
+		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
+	}
 	until(t, "the link to join the busy thread", func() bool { return srv.Subscribed(threadA) })
-	// The turn ends with no word to the link: the queue has not gone on yet.
+	// The compaction ends with no word to the link: the queue has not gone on yet.
 	srv.Drop(threadA)
 	srv.Set(threadA, "idle")
-	if place, err := l.SendAfter(ctx, threadA, Message{Text: "newer"}); err != nil || place != 2 {
-		t.Fatalf("a letter behind a waiting one: place %d, %v", place, err)
+	if sent, err := l.Send(ctx, threadA, Message{ID: "newer", Text: "newer"}); err != nil || sent.Place != 2 {
+		t.Fatalf("a message behind a waiting one: %+v, %v", sent, err)
 	}
-	until(t, "the queue to go on", func() bool { return len(srv.Calls("turn/start")) == 1 })
-	if got := turnTexts(t, srv); got[0] != "text:older" {
-		t.Errorf("the first turn went with %q", got)
+	until(t, "the queue to go on", func() bool { return len(steersOf(t, srv, "newer")) == 1 })
+	if got := turnTexts(t, srv); len(got) != 1 || got[0] != "text:older" {
+		t.Errorf("the queue started turns with %q", got)
 	}
 }
 
@@ -190,7 +193,7 @@ func TestPicturesGoWithTheMessageAsLocalImages(t *testing.T) {
 
 // The queue is the panel's and not the connection's: a link that dialled
 // the daemon again, and an executor started again, deliver what waited, and
-// a message of the person stays the person's.
+// the disk keeps nothing of it once a turn took it.
 func TestTheQueueOutlivesTheConnectionAndTheExecutor(t *testing.T) {
 	srv, l := linked(t, idle(threadA))
 	until(t, "the state file", written(t, threadA))
@@ -201,8 +204,12 @@ func TestTheQueueOutlivesTheConnectionAndTheExecutor(t *testing.T) {
 	if sent, err := l.Send(ctx, threadA, Message{ID: "one", Text: "after the drop"}); err != nil || sent.Place != 1 {
 		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
 	}
-	if b := NewLink(srv.Home, "acme").boxes[threadA]; b == nil || len(b.Queue) != 1 || !b.Queue[0].Steer {
-		t.Fatalf("an executor started again found %+v", b)
+	// Another executor reads the queue the way a new one would; the first
+	// stays connected, as a holder outlives a restart of the executor too.
+	again := NewLink(srv.Home, "acme")
+	if again.Unqueue(threadA, "absent") || len(again.boxes[threadA].Queue) != 1 ||
+		again.boxes[threadA].Queue[0].Text != "after the drop" {
+		t.Fatalf("an executor started again found %+v", again.boxes)
 	}
 	srv.Close()
 	until(t, "the link to lose the daemon", func() bool { return !written(t, threadA)() })
@@ -213,22 +220,10 @@ func TestTheQueueOutlivesTheConnectionAndTheExecutor(t *testing.T) {
 	})
 	srv.Set(threadA, "idle")
 	until(t, "the message to go after the drop", func() bool { return len(srv.Calls("turn/start")) == 1 })
-
-	if place, err := l.SendAfter(ctx, threadA, Message{ID: "two", Text: "after the restart"}); err != nil || place != 1 {
-		t.Fatalf("a letter to a busy thread: place %d, %v", place, err)
-	}
-	if _, err := os.Stat(outboxPath("acme", threadA)); err != nil {
-		t.Fatalf("the queue is not on the disk: %v", err)
-	}
-	// Another executor reads the queue the way a new one would; the first
-	// stays connected, as a holder outlives a restart of the executor too.
-	again := NewLink(srv.Home, "acme")
-	if again.Unqueue(threadA, "absent") || len(again.boxes[threadA].Queue) != 1 {
-		t.Fatalf("an executor started again found %+v", again.boxes)
-	}
-	if q := again.boxes[threadA].Queue[0]; q.Text != "after the restart" || q.Steer {
-		t.Errorf("an executor started again found %+v", again.boxes[threadA].Queue)
-	}
+	until(t, "the queue to leave the disk", func() bool {
+		_, err := os.Stat(outboxPath("acme", threadA))
+		return os.IsNotExist(err)
+	})
 }
 
 // What waits goes with its thread: closed by the panel, or unloaded by the
@@ -236,8 +231,12 @@ func TestTheQueueOutlivesTheConnectionAndTheExecutor(t *testing.T) {
 func TestAQueueGoesWithItsThread(t *testing.T) {
 	srv, l, id := started(t, Begin{Message: "first"})
 	ctx := context.Background()
-	if _, err := l.SendAfter(ctx, id, Message{ID: "x", Text: "waits"}); err != nil {
+	srv.Set(id, "idle")
+	if err := l.Compact(ctx, id); err != nil {
 		t.Fatal(err)
+	}
+	if sent, err := l.Send(ctx, id, Message{ID: "x", Text: "waits"}); err != nil || sent.Place != 1 {
+		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
 	}
 	if _, err := l.Close(ctx, id); err != nil {
 		t.Fatal(err)
@@ -253,9 +252,11 @@ func TestAQueueGoesWithItsThread(t *testing.T) {
 
 	srv.Add(idle(threadA))
 	until(t, "the second thread", written(t, threadA))
-	srv.Running(threadA, "turn-tui")
-	if _, err := l.SendAfter(ctx, threadA, Message{ID: "y", Text: "waits too"}); err != nil {
+	if err := l.Compact(ctx, threadA); err != nil {
 		t.Fatal(err)
+	}
+	if sent, err := l.Send(ctx, threadA, Message{ID: "y", Text: "waits too"}); err != nil || sent.Place != 1 {
+		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
 	}
 	srv.Unload(threadA)
 	until(t, "the queue of an unloaded thread to go", func() bool {

@@ -40,7 +40,7 @@ const LetterDescription = "Sends a letter to another live session of this machin
 	"recipient without a message socket, a Codex running on its own, a name two live sessions answer to, and this " +
 	"session itself are refused with the reason. A Claude recipient that runs without permission prompts and has " +
 	"no crossSessionInbound setting holds a letter for its person to let through. A busy recipient reads the " +
-	"letter when its turn ends; a busy Codex one gets it in the panel's queue, as a turn of its own. Write one " +
+	"letter when its turn ends; a busy Codex one at the next step of the turn that runs. Write one " +
 	"letter that stands on its own."
 
 // letterWait bounds the wait for the panel's answer: a letter is written to a

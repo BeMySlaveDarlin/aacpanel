@@ -921,21 +921,22 @@ after the install pairs only by its account's name.
   thread runs it; the check against config on the screen is the discovery,
   asked for, and tells it. Every other action over a codex session is refused by name: none of the
   claude ways — keys, signals, a holder's socket — reaches it.
-- **A message of the person goes into the turn that runs**, as claude takes a
-  message written during a turn at its next step: `turn/steer` names the
+- **A message goes into the turn that runs**, as claude takes a message
+  written during a turn at its next step: `turn/steer` names the
   turn, so the message goes into that turn or nowhere, and a free thread
   starts a turn with it. A turn that ends between the look and the steer
   leaves no turn to take it, and the message starts a turn of its own. A turn
   that takes no message — a review, a compaction — or one the daemon has not
-  listed yet leaves it in the panel's queue, and a message of the person after
-  it goes behind it rather than past it. The queue gives them to the first
-  turn that takes them, or starts a turn with the first once the thread is
-  free — the daemon says so to its clients, and the poll finds it besides —
-  and a turn that follows another with no free moment between, as a goal
-  codex works towards starts the next, takes them too. A letter of another
-  session waits there for the thread to be free and goes as a turn of its
-  own, one a turn, as claude reads a letter once its turn is over. A message
-  waiting in the queue is taken back (`session.unqueue`) by the name the panel
+  listed yet leaves it in the panel's queue, and a message after it goes
+  behind it rather than past it. The queue gives them to the first turn that
+  takes them, or starts a turn with the first once the thread is free — the
+  daemon says so to its clients, and the poll finds it besides — and a turn
+  that follows another with no free moment between, as a goal codex works
+  towards starts the next, takes them too. A letter of another session goes
+  the same way, into the turn that runs, where a busy claude reads a letter
+  only once its turn is over: a codex turn lasts hours, and a letter held
+  until its end comes after the work it was about. A message waiting in the
+  queue is taken back (`session.unqueue`) by the name the panel
   gave it; one a turn has is beyond taking back, as one claude has read. The
   queue outlives a connection that dropped and an executor started again: it
   is kept on the disk beside the state files, the person's words in a file of
@@ -1643,7 +1644,7 @@ signed `codex-<tail> — <contour> — <directory>`: claude's envelope has no fi
 for where a sender works, and a codex has no socket to be answered at, so
 letters go one way and an answer is a letter of its own. A letter to a thread
 goes through the daemon as a message of the panel — a turn on a free thread,
-the panel's queue on a busy one — in the same envelope, with the words claude
+into the turn that runs on a busy one — in the same envelope, with the words claude
 puts around a letter for its model written out by the panel, and the feed of
 the thread draws it as the card of a letter. A thread the panel starts gets
 the server in its configuration at `thread/start`, with the approval mode

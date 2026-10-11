@@ -141,8 +141,8 @@ type Server struct {
 	// agent is the user agent initialize answers with, which names the
 	// release the daemon runs; empty for the fake's own.
 	agent string
-	// lag leaves a thread as it was after turn/start: the daemon answers
-	// turn/start before the thread turns active.
+	// lag leaves a thread as it was after the start of a turn: the daemon
+	// answers it before the thread turns active.
 	lag bool
 	// ending are the threads whose turn ends as the next turn/steer to them
 	// arrives, before the daemon reads it.
@@ -230,9 +230,9 @@ func (s *Server) Catalogue(models ...Model) {
 	s.models = models
 }
 
-// Lag makes the daemon answer turn/start before the thread turns active, as
-// the real one does: the turn is in progress, and the status says nothing yet
-// until the test sets it.
+// Lag makes the daemon answer the start of a turn — turn/start, a compaction
+// — before the thread turns active, as the real one does: the turn is in
+// progress, and the status says nothing yet until the test sets it.
 func (s *Server) Lag() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -821,6 +821,9 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		// to compact.
 		s.turnN++
 		t.turns = append(t.turns, turn{id: fmt.Sprintf("turn-%d", s.turnN), status: "inProgress", compact: true})
+		if s.lag {
+			return map[string]any{}, nil, ""
+		}
 		t.Status = "active"
 		note := t.statusChanged()
 		note["to"] = clientsOf(t)

@@ -140,10 +140,10 @@ func codexLetter(sender letterSender, text string) string {
 }
 
 // codexLetterTo sends a letter to a codex thread through the daemon that
-// holds it, framed and in its envelope: a turn of its own on a free thread,
-// the panel's queue on a busy one, to go once the turn that runs ends — the
-// way claude reads a letter, and unlike the person's words, which go into the
-// turn.
+// holds it, framed and in its envelope, as the person's words go: into the
+// turn that runs, which takes it at its next step, and as a turn of its own
+// on a free thread. A turn that takes no message — a review, a compaction —
+// leaves it in the panel's queue, for the first turn that takes it.
 func (e *Executor) codexLetterTo(ctx context.Context, th codex.Thread, from string, fromCodex *action.CodexSender,
 	text string) (string, error) {
 	sender, err := letterSenderOf(from, fromCodex)
@@ -153,14 +153,17 @@ func (e *Executor) codexLetterTo(ctx context.Context, th codex.Thread, from stri
 	if sender.Thread == th.ID {
 		return "", fmt.Errorf("session %s is the one writing: a session writes no letter to itself", th.Name)
 	}
-	place, err := th.Link.SendAfter(ctx, th.ID, codex.Message{Text: codexLetter(sender, text)})
+	sent, err := th.Link.Send(ctx, th.ID, codex.Message{Text: codexLetter(sender, text)})
 	if err != nil {
 		return "", fmt.Errorf("session %s did not take the letter: %w", th.Name, err)
 	}
 	where := "free — a turn started with it"
-	if place > 0 {
-		where = fmt.Sprintf("busy — it waits in the panel's queue, %s, and goes as a turn of its own once the "+
-			"turn that runs ends", ordinal(place))
+	switch {
+	case sent.Steered:
+		where = "busy — the turn that runs takes it at its next step"
+	case sent.Place > 0:
+		where = fmt.Sprintf("busy with a turn that takes no message now — it waits in the panel's queue, %s, and "+
+			"goes into the first turn that takes it", ordinal(sent.Place))
 	}
 	return fmt.Sprintf("a letter from %s to %s (%s), %d characters",
 		sender.Name, th.Name, where, utf8.RuneCountInString(text)), nil
