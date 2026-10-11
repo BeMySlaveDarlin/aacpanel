@@ -170,4 +170,4 @@ probes:
     target: https://status.openai.com/api/v2/summary.json
     interval: 5m
     timeout: 5s
-    components: Codex API
+    components: Responses
