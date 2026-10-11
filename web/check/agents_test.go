@@ -170,7 +170,7 @@ func TestAnsweredAskRoundReplacesHangingCard(t *testing.T) {
 			"shows up in its place: the round disappears from the feed entirely", chatFile)
 	}
 
-	if !regexp.MustCompile(`state\.work\.ask\s*&&\s*!closed\(`).MatchString(withoutComments(body)) {
+	if !regexp.MustCompile(`\bask\s*&&\s*!closed\(`).MatchString(withoutComments(body)) {
 		t.Errorf("%s: the card of a hanging question is drawn without a check for a closed round — "+
 			"it stays on screen next to its own result and calls for a second answer", chatFile)
 	}
@@ -279,13 +279,15 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 			"from answered.js — a second opinion on the same thing drifts from the first on the first edit", chatFile)
 	}
 
-	if !regexp.MustCompile(`!closed\(state\.items, state\.work\.ask\.toolUseId\)\s*&& !hidesAsk\(answer, state\.work\.ask\.toolUseId\)`).MatchString(body) {
+	if !regexp.MustCompile(`!closed\(state\.items, ask\.toolUseId\)\s*&& !hidesAsk\(answer, ask\.toolUseId\)`).MatchString(body) {
 		t.Errorf("%s: the question card is not checked against the answer mark by toolUseId — "+
 			"the next feed poll brings the answered question back until the agent has seen tool_result", chatFile)
 	}
 
+	// The answer to a question codex did not wait for goes as a message and
+	// stands as one; every other answer sets the mark.
 	for _, want := range []string{
-		`onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))}`,
+		`: mark(answered(live, use, Date.now(), ask.at)))}`,
 		`onAnswered=${() => mark(answered(live, ""))}`,
 	} {
 		if !strings.Contains(body, want) {
@@ -359,9 +361,7 @@ func TestAnsweredHidesStaleWaiting(t *testing.T) {
 		t.Fatalf("%s: sending has no hold branch before deliver — the reply goes into the dialog", composerFile)
 	}
 	held := send[holdAt:deliverAt]
-	// The held reply keeps all the send takes, the question it answers too: a
-	// held answer that forgot it would go into the queue behind the turn.
-	for _, want := range []string{`state: "held"`, "hold: { text: body, files: pack, messageId, asked: answers }", "return;"} {
+	for _, want := range []string{`state: "held"`, "hold: { text: body, files: pack, messageId }", "return;"} {
 		if !strings.Contains(held, want) {
 			t.Errorf("%s: the hold branch does not contain %s — the reply either never appears in the feed "+
 				"or leaves twice", composerFile, want)

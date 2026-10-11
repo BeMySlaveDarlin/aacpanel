@@ -227,6 +227,30 @@
     {
       "why": "a message of the person that starts the same way",
       "text": "The secret \"github-token\" is saved, right? Check it before the deploy."
+    },
+    {
+      "why": "a word of the head of the answer to codex changed",
+      "text": "The reply to your question:\n\nWhich theme should the page take?\n   Dark"
+    },
+    {
+      "why": "the count of the head of the answer to codex disagrees with its questions",
+      "text": "The answers to your 3 questions:\n\nWhich theme should the page take?\n   Dark\n\nShould the logo stay?\n   Drop it"
+    },
+    {
+      "why": "the answer under a question of codex lost its indent",
+      "text": "The answer to your question:\n\nWhich theme should the page take?\nDark"
+    },
+    {
+      "why": "a question of codex with nothing under it",
+      "text": "The answer to your question:\n\nWhich theme should the page take?"
+    },
+    {
+      "why": "a question codex was told was put away with an answer under it",
+      "text": "I put your question away and will answer in the conversation:\n\nWhich theme should the page take?\n   Dark"
+    },
+    {
+      "why": "a message of the person that starts the way the answer to codex does",
+      "text": "The answer to your question: yes, keep the logo."
     }
   ]
 }

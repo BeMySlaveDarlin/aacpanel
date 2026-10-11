@@ -18,12 +18,12 @@ import { savedAfter } from "../../data/secrets.js";
 import { state as briefState } from "../../data/briefs.js";
 import { reading } from "../repo/notes.js";
 import { panelSaid } from "./panelsaid.js";
-import { GoalCard, PlanCard, QuestionCard, ReviewCard, SpawnCard } from "./codexrows.js";
+import { GoalCard, PlanCard, ReviewCard, SpawnCard } from "./codexrows.js";
 
 // Row renders one row of the feed: what is said and what arrives. A run of
 // calls and the end of a turn are not rows — they stand on the timeline
 // beside the feed (see timeline.js).
-export function Row({ item, session, id, exec, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret }) {
+export function Row({ item, session, id, onFile, onBrief, briefs, onCommand, onShell, copies, onPage, onTask, onAgent, secrets, onSecret }) {
     if (item.role === "shots") {
         return html`<${Shots} shots=${item.shots} session=${session} id=${id} pos=${item.pos} />`;
     }
@@ -82,8 +82,16 @@ export function Row({ item, session, id, exec, onFile, onBrief, briefs, onComman
         return html`<${AskedCard} item=${item} />`;
     }
 
-    // What codex alone writes: a plan, a review, a goal, an agent started and a
-    // question asked without waiting.
+    // A question codex asked without waiting that the feed still shows — one
+    // a message of the person answered in its own words, or one nobody
+    // answered (see rows in feed.js) — is the card of a round of claude's,
+    // its questions with nothing picked under them.
+    if (item.role === "question") {
+        const asked = (item.asks || []).map((q) => ({ text: q.title }));
+        return html`<${AskedCard} item=${{ asked, status: item.status, at: item.at }} />`;
+    }
+
+    // What codex alone writes: a plan, a review, a goal and an agent started.
     if (item.role === "plan") {
         return html`<${PlanCard} item=${item} />`;
     }
@@ -95,9 +103,6 @@ export function Row({ item, session, id, exec, onFile, onBrief, briefs, onComman
     }
     if (item.role === "spawn") {
         return html`<${SpawnCard} item=${item} onAgent=${onAgent} />`;
-    }
-    if (item.role === "question") {
-        return html`<${QuestionCard} item=${item} session=${session} exec=${exec} />`;
     }
 
     if (item.role === "permitted") {
@@ -123,6 +128,16 @@ export function Row({ item, session, id, exec, onFile, onBrief, briefs, onComman
     // says. One that did not go out stays a bubble, since sending it again is
     // the bubble's, and so does one cut short: it is not the whole text.
     const panel = item.role === "me" && item.state !== "failed" && !item.cut ? panelSaid(item.text) : null;
+    // The answer to a question codex asked without waiting is the card of the
+    // round answered, as claude's answer is, standing where it was sent; on
+    // its way it says so under the card, as a bubble does.
+    if (panel && panel.kind === "asked") {
+        const going = onTheWay(item.state);
+        return html`
+            <${AskedCard} item=${{ asked: panel.rows, status: panel.status, at: item.at }} />
+            ${going && html`<div class="mstamp">${going}</div>`}
+        `;
+    }
     if (panel) {
         return html`<${PanelCard} said=${panel} item=${item} onBrief=${onBrief} />`;
     }
@@ -620,6 +635,10 @@ const ROUND_NAMES = {
     rejected: "rejected",
     afk: "nobody answered",
     failed: "the call never happened",
+    // A question codex asked without waiting that a message answered in its
+    // own words, and one no message has answered.
+    said: "answered in a message",
+    open: "not answered",
 };
 
 // AskedCard is a round of questions the person answered, a card of the build

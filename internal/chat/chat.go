@@ -348,6 +348,9 @@ type Ask struct {
 	// and its words above the fields of its form.
 	Server  string `json:"server,omitempty"`
 	Message string `json:"message,omitempty"`
+	// Async is a question codex asked without waiting: its turn goes on, and
+	// the answer goes to it as a message of the person naming the question.
+	Async bool `json:"async,omitempty"`
 }
 
 // AskQuestion is one question of a round. A question of codex is answered by

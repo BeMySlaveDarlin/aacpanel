@@ -69,19 +69,14 @@ import { agentKey, agentName, isCodex, shownName, spoke } from "../../agent.js";
 //                and tasks, codex's background processes
 //   sections     the sections of the session's tools
 //   composer     ctx → what the composer reads in the words beyond them
-//   dock         ctx → what stands over the composer while it hangs, or null:
-//                the node, and the cards of the feed it stands for, which
-//                the feed leaves out meanwhile — codex's question asked
-//                without waiting; claude has none
 //   strip        ctx → the band under the field, after the paperclip
 //   look         (look, ctx) → { label, node } for a sheet of its own kind
 //   sheets       ctx → the sheets of its settings
 //   aside        ctx → what stands beside the feed
 //
 // ctx is what the parts may reach of the screen: whether it is wide, the view,
-// whether the feed shows and its box, the work of the turn, the items of the
-// feed's tail and the rows sent from here it has not echoed yet, and the
-// setters of the sheet over the run and of what goes into the composer.
+// whether the feed shows and its box, the work of the turn, and the setters of
+// the sheet over the run and of what goes into the composer.
 export function Conversation({ name, id, live, archive, exec, snapshot, onBack, onUsage, onOpenChat, onTerm, parts }) {
     // A brief opens over the conversation, the way a subagent's letters do: a
     // layer above the run, put down by the same gesture and leaving the run
@@ -259,7 +254,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             for (const row of held) {
                 const result = await deliver(run, name, row.hold);
                 setLocal((was) => was.map((l) => (l.key === row.key
-                    ? { ...l, hold: undefined, ...outcome(result, row.hold.asked) }
+                    ? { ...l, hold: undefined, ...outcome(result) }
                     : l)));
             }
         })();
@@ -320,16 +315,26 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     // desk a block at the top of the timeline column, where the room is.
     const checklist = (state.work && state.work.checklist) || null;
 
-    const ctx = { wide, view, feedShown, feedRef, work: state.work, items: state.items, pending, setLook, setInsert };
+    const ctx = { wide, view, feedShown, feedRef, work: state.work, setLook, setInsert };
     const own = look ? parts.look(look, ctx) : null;
 
-    // What stands in the place of the composer: a question of the agent that
-    // holds its turn, and a permission it waits on. What stands over the
-    // composer stands only where the composer is: one question at a time.
-    const asksTurn = Boolean(state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
-        && !hidesAsk(answer, state.work.ask.toolUseId));
-    const composing = Boolean(live) && !live.outside && !asksTurn && !(live.status === "waiting" && !holding);
-    const dock = composing && feedShown && parts.dock ? parts.dock(ctx) : null;
+    // What stands in the place of the composer: a question of the agent, and
+    // a permission it waits on. A question codex asked without waiting holds
+    // nothing, so a permission the thread waits on comes first, and its
+    // answer, sent from here, closes it on the send: the thread reads it
+    // when its turn takes it, which can be minutes later, and the answer
+    // stands in the feed meanwhile.
+    const ask = (state.work && state.work.ask) || null;
+    const permits = Boolean(live) && live.status === "waiting" && !holding;
+    const goesOn = Boolean(ask && ask.async);
+    const asksTurn = Boolean(ask && !closed(state.items, ask.toolUseId) && !hidesAsk(answer, ask.toolUseId)
+        && !(goesOn && (permits || pending.some((row) => row.asked === ask.toolUseId))));
+    // An answer to it goes as a message of the person, and stands as one on
+    // its way: the card of the round answered (see panelsaid.js).
+    const sentAnswer = (use, text) => setLocal((was) => [...was, {
+        role: "me", key: `asked-${use}-${Date.now()}`, at: new Date().toISOString(), text, sent: text,
+        state: "answered", asked: use, after: lastPos(state.items),
+    }]);
 
     // A thread of codex in the archive keeps no fill of its context: its head
     // says what the thread spent instead, as its row in the archive does, and
@@ -429,7 +434,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             `}
             ${state.note && html`<p class="hint warn">${state.note}</p>`}
             <${FeedGrid}
-                rows=${rows(drawn, pending, dock ? dock.cards : [])}
+                rows=${rows(drawn, pending, goesOn && asksTurn && Boolean(live) && !live.outside)}
                 wide=${wide}
                 checklist=${checklist}
                 onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
@@ -438,7 +443,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                     item=${item}
                     session=${name}
                     id=${id}
-                    exec=${live && !live.outside ? exec : null}
                     copies=${copies}
                     onPage=${(card) => setLook({ kind: "artifact", card })}
                     onFile=${(file) => setLook({ kind: "file", ...file })}
@@ -472,7 +476,6 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
 
         ${live && feedShown && html`
             <div class="composerbox">
-                ${dock && dock.node}
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
                                turnOver=${Boolean(live.turnOver)}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""}
@@ -485,9 +488,11 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                 ${live.outside
                     ? html`<p class="outsidenote">${outsideNote(live)}</p>`
                     : asksTurn
-                    ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
-                                   onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))} />`
-                    : live.status === "waiting" && !holding
+                    ? html`<${Ask} ask=${ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
+                                   onAnswered=${(use, text) => (goesOn
+                                       ? sentAnswer(use, text)
+                                       : mark(answered(live, use, Date.now(), ask.at)))} />`
+                    : permits
                     ? html`<${Permit} name=${name} exec=${exec} waitingFor=${live.waitingFor} codex=${isCodex(live)}
                                       onAnswered=${() => mark(answered(live, ""))} />`
                     : html`

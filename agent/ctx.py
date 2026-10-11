@@ -574,6 +574,27 @@ def _crew(path):
     return found
 
 
+def codex_ask(path):
+    """Returns the question a codex thread asked without waiting and nobody answered, as a question of claude's.
+
+    Nothing in the protocol takes the answer: the next message of the person
+    is the answer, and the screen sends it, so the question is offered in
+    the sheet a question of claude's is answered in, in its shape — each
+    question with its options, one pick of them or words of one's own, and
+    no header, for codex gives none — named by the latest question, the id
+    the answer goes under. It is read off the whole rollout, not the end
+    the screen holds: a question asked hours of work before the end still
+    hangs. Async marks it a question the turn did not stop for.
+    """
+    asked = (_crew(path) or {}).get("asked")
+    if not asked:
+        return None
+    return {"toolUseId": asked["id"], "at": asked["at"], "async": True,
+            "questions": [{"text": one["title"], "header": "", "multi": False, "other": True,
+                           "options": [{"label": label} for label in one["options"]]}
+                          for one in asked["asks"]]}
+
+
 def _with_crew(row, path):
     """Returns the row of a codex thread with the agents it has at work and the question it left hanging.
 
@@ -583,15 +604,14 @@ def _with_crew(row, path):
     A question codex asked without waiting stands on the row as a question
     of claude's does — the list says the session asks and a push goes out —
     and leaves it with the next message of the person; the row stays as busy
-    or as free as the thread is, since codex goes on. The row carries what
-    the question is answered from as well, its id and every question that
-    hangs with its options: the conversation reads the feed from its end,
-    and a question asked long before the end is not among the rows it holds.
+    or as free as the thread is, since codex goes on, and says it asks so.
+    The question itself, with its options, goes with the state of the
+    conversation (see codex_ask), as claude's does.
     """
     asked = (_crew(path) or {}).get("asked")
     if asked:
         row["ask"] = {"header": "", "text": asked["text"], "count": asked["count"], "at": asked["at"],
-                      "async": True, "use": asked["id"], "asks": asked["asks"]}
+                      "async": True}
     working = sum(1 for agent in codex_crew(path) if agent["status"] == ACTIVE)
     if not working:
         return row

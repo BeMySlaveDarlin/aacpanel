@@ -6,6 +6,7 @@ import { useAction } from "../actions/gate.js";
 import { knows, whyNot } from "../exec.js";
 import { Sheet } from "../ui/sheet.js";
 import { Icon } from "../ui/icons.js";
+import { asyncAnswer, asyncPutAway } from "./chat/panelsaid.js";
 
 const OWN_MAX = 4000;
 
@@ -14,7 +15,9 @@ const OWN_MAX = 4000;
 // terminal dialog puts on a layout do not hold there, and a note can go beside
 // a pick. A codex thread is answered by its protocol wherever it lives, and
 // what an MCP server asks through it is a form rather than a round of
-// questions.
+// questions. A question codex asked without waiting (async) is a round like
+// any other, answered the way claude's is; only the answer travels otherwise
+// — see Round.
 export function Ask(props) {
     const { ask, codex } = props;
     return codex && ask && (ask.server || ask.message)
@@ -24,8 +27,10 @@ export function Ask(props) {
 
 // askLabel names who asks over a question: its header for claude, and for
 // codex the header beside the word that the question is codex's — a question
-// of codex comes from plan mode.
-function askLabel(q, name, codex) {
+// of codex that holds its turn comes from plan mode, and one it asked without
+// waiting has no header at all.
+function askLabel(q, name, codex, goesOn) {
+    if (codex && goesOn) return q.header ? `${q.header} · codex asks` : "codex asks";
     if (codex) return `${q.header || "Plan"} · codex asks`;
     return q.header || `${name} asks`;
 }
@@ -87,6 +92,17 @@ function blankAnswer(questions) {
 // A question of codex says itself whether it takes words beside its options
 // (other), and one without options takes nothing else; words it asks to keep
 // out of sight (secret) are typed into a field that hides them.
+//
+// A question codex asked without waiting (async) holds nothing: codex goes
+// on, and nothing in its protocol takes the answer but a message of the
+// person. So Send writes the answer as words — each question with what was
+// picked or written and the note beside a pick — and sends them as a message
+// naming the question, which the host gives to the turn that runs, or starts
+// a turn with on a free thread; putting it away sends that the person will
+// answer in the conversation. onAnswered gets the words that went. Such a
+// question does not go at the tap of an option even alone: the words go into
+// codex's work, and the note beside a pick is as much of the answer as the
+// pick.
 function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const run = useAction();
     const [step, setStep] = useState(0);
@@ -119,20 +135,23 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
 
     // The answer goes as structure: on the stream, and for codex always.
     const proto = Boolean(stream || codex);
+    // A question codex did not wait for is answered by a message, and so is
+    // putting it away.
+    const goesOn = Boolean(codex && ask.async);
     const many = questions.length;
     const stepped = many > 1;
     const free = (n) => !(questions[n].options || []).length;
     const hasPreview = questions.some((q) => (q.options || []).some((o) => o.preview));
-    const instant = many === 1 && !questions[0].multi && !hasPreview && !free(0);
-    const ready = Boolean(id) && knows(exec, "session.answer");
+    const instant = !goesOn && many === 1 && !questions[0].multi && !hasPreview && !free(0);
+    const ready = Boolean(id) && (goesOn ? knows(exec, "session.send") : knows(exec, "session.answer"));
     const why = !id
         ? "the question came without an id — there is nothing to match it against on the host"
-        : whyNot(exec, "session.answer");
+        : goesOn ? whyNot(exec, "session.send") : whyNot(exec, "session.answer");
 
-    const dropReady = Boolean(id) && knows(exec, "session.dismiss");
+    const dropReady = Boolean(id) && (goesOn ? knows(exec, "session.send") : knows(exec, "session.dismiss"));
     const dropWhy = !id
         ? "the question came without an id — there is nothing to match it against on the host"
-        : whyNot(exec, "session.dismiss");
+        : goesOn ? whyNot(exec, "session.send") : whyNot(exec, "session.dismiss");
 
     const ownReady = ready && dropReady;
 
@@ -167,27 +186,33 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
         if (words.some((text) => text !== "")) params.texts = words;
         const noted = all.map((list, n) => (proto && list.length ? (latest.current.notes[n] || "").trim() : ""));
         if (noted.some((note) => note !== "")) params.notes = noted;
-        const result = await run("session.answer", name, params);
+        const text = goesOn ? asyncAnswer(questions, all, words, noted) : "";
+        const result = goesOn
+            ? await run("session.send", name, { text, asked: id })
+            : await run("session.answer", name, params);
         end();
         if (!result.ok) {
             setFail(result.error || "the answer did not go out");
             setOpen(true);
             return;
         }
-        if (onAnswered) onAnswered(id);
+        if (onAnswered) onAnswered(id, text);
     };
 
     const drop = async () => {
         if (!dropReady || dropBlocked || !begin()) return;
         setFail("");
-        const result = await run("session.dismiss", name, { ask: id });
+        const text = goesOn ? asyncPutAway(questions) : "";
+        const result = goesOn
+            ? await run("session.send", name, { text, asked: id })
+            : await run("session.dismiss", name, { ask: id });
         end();
         if (!result.ok) {
             if (!result.cancelled) setFail(result.error || "the question was not dismissed");
             return;
         }
         setOpen(false);
-        if (onAnswered) onAnswered(id);
+        if (onAnswered) onAnswered(id, text);
     };
 
     // one puts value in place of question n's in a list of the answer.
@@ -244,12 +269,13 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
     const shown = stepped && !review ? [step] : questions.map((_, n) => n);
 
     return html`
-        ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)} />`}
+        ${!open && html`<${WaitBar} sending=${sending} fail=${fail} onOpen=${() => setOpen(true)}
+                                    waits=${goesOn ? "codex asked a question and works on" : undefined} />`}
 
         <${Sheet} open=${open} onClose=${() => setOpen(false)} label="session question" inner>
             <div class="askhead">
                 <span class="asklabel">
-                    ${review ? "almost done" : askLabel(questions[shown[0]], name, codex)}
+                    ${review ? "almost done" : askLabel(questions[shown[0]], name, codex, goesOn)}
                 </span>
                 ${!ready && html`<span class="askwhy">${why}</span>`}
             </div>
@@ -335,7 +361,9 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
                 <span class="askdropwhy">
                     ${sending
                         ? "dismissing the question…"
-                        : dropBlocked || (dropReady ? "the session will wait for an ordinary message" : dropWhy)}
+                        : dropBlocked || (!dropReady ? dropWhy
+                            : goesOn ? "codex hears that you will answer in the conversation"
+                            : "the session will wait for an ordinary message")}
                 </span>
             </button>
 
@@ -375,13 +403,14 @@ function Round({ ask, name, exec, stream, codex, onAnswered }) {
 }
 
 // WaitBar stands where the card was while it is put down: what became of the
-// answer, and the way back to the card.
-function WaitBar({ sending, fail, onOpen }) {
+// answer, and the way back to the card. Waits is what it says while nothing
+// has gone.
+function WaitBar({ sending, fail, onOpen, waits = "The session is waiting for an answer" }) {
     return html`
         <button class=${`waitbar${fail ? " bad" : sending ? " sent" : ""}`} type="button" onClick=${onOpen}>
             <span class="askdot"></span>
             <span class="waittext">
-                ${sending ? "Sending the answer…" : fail ? `Did not go out: ${fail}` : "The session is waiting for an answer"}
+                ${sending ? "Sending the answer…" : fail ? `Did not go out: ${fail}` : waits}
             </span>
             <span class="waitgo">open</span>
         </button>

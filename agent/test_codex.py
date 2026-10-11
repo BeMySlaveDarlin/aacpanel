@@ -1096,18 +1096,32 @@ class AsyncQuestions(Runtime):
         self.follow(busy=True)
         row = ctx.codex_sessions()[0]
         self.assertEqual(row.get("ask"), {"header": "", "text": "Should the logo stay?", "count": 1,
-                                          "at": "2026-10-09T14:00:15.000Z", "async": True,
-                                          "use": "call_ask_logo",
-                                          "asks": [{"title": "Should the logo stay?", "options": []}]},
+                                          "at": "2026-10-09T14:00:15.000Z", "async": True},
                          "the question answered by the next message is gone, the last one hangs, "
-                         "with what it is answered from")
+                         "said on the row as claude's is")
         self.assertEqual(row["status"], "busy", "codex goes on: a question it did not wait for holds nothing")
-        with open(ASYNC_QUESTIONS, encoding="utf-8") as f:
-            answer = json.loads(next(line for line in f if '"Dark"' in line and "UserMessage" in line))
-        answer["timestamp"] = "2026-10-09T14:00:40.000Z"
-        with open(self.rollout, "a", encoding="utf-8") as f:
-            f.write(json.dumps(answer) + "\n")
+        self.answer()
         self.assertNotIn("ask", ctx.codex_sessions()[0])
+
+    def test_the_question_that_hangs_goes_with_the_state_as_a_question_of_claude(self):
+        self.follow(busy=True)
+        reply = chat.answer({"session": THREAD, "limit": 1, "state": True})
+        self.assertNotIn("question", [i["role"] for i in reply["items"]],
+                         "the end the screen reads holds the question: the test reads the wrong end")
+        self.assertEqual(reply["state"].get("ask"), {
+            "toolUseId": "call_ask_logo", "at": "2026-10-09T14:00:15.000Z", "async": True,
+            "questions": [{"text": "Should the logo stay?", "header": "", "multi": False, "other": True,
+                           "options": []}]},
+            "a question asked above the end the screen reads is offered all the same, in the shape of claude's")
+        self.answer()
+        reply = chat.answer({"session": THREAD, "limit": 1, "state": True})
+        self.assertNotIn("ask", reply["state"], "a question the next message answered is still offered")
+
+    def test_a_question_the_thread_waits_on_comes_before_one_it_did_not_wait_for(self):
+        self.follow(waiting=["AskUserQuestion"], ask=Asks.ASK)
+        reply = chat.answer({"session": THREAD, "limit": 1, "state": True})
+        self.assertEqual(reply["state"].get("ask"), Asks.ASK,
+                         "the question that holds the turn is answered first, the other one hangs on")
 
     def test_questions_in_a_row_are_counted_together(self):
         with open(ASYNC_QUESTIONS, encoding="utf-8") as f:
@@ -1118,12 +1132,20 @@ class AsyncQuestions(Runtime):
         with open(self.rollout, "a", encoding="utf-8") as f:
             f.write(json.dumps(more) + "\n")
         self.follow()
-        ask = ctx.codex_sessions()[0]["ask"]
-        self.assertEqual(ask["count"], 2)
-        self.assertEqual((ask["use"], ask["asks"]), ("call_ask_more", [
-            {"title": "Should the logo stay?", "options": []},
-            {"title": "And the footer?", "options": ["Dark", "Light"]}]),
+        self.assertEqual(ctx.codex_sessions()[0]["ask"]["count"], 2)
+        ask = chat.answer({"session": THREAD, "limit": 1, "state": True})["state"]["ask"]
+        self.assertEqual(
+            (ask["toolUseId"], [(q["text"], [o["label"] for o in q["options"]]) for q in ask["questions"]]),
+            ("call_ask_more", [("Should the logo stay?", []), ("And the footer?", ["Dark", "Light"])]),
             "both questions hang until the next message, and an answer names the latest")
+
+    def answer(self):
+        """Writes the message of the person that answers the question that hangs."""
+        with open(ASYNC_QUESTIONS, encoding="utf-8") as f:
+            answer = json.loads(next(line for line in f if '"Dark"' in line and "UserMessage" in line))
+        answer["timestamp"] = "2026-10-09T14:00:40.000Z"
+        with open(self.rollout, "a", encoding="utf-8") as f:
+            f.write(json.dumps(answer) + "\n")
 
 
 class Asks(Runtime):

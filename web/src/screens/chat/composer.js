@@ -187,23 +187,17 @@ function saved(id) {
     return (one && one.text) || "";
 }
 
-// deliver sends a message into a session, with files or without them. A
-// message that answers a question codex asked without waiting names it, and
-// the host gives it to the turn that runs rather than to the queue behind it.
-export function deliver(run, name, { text, files, messageId, asked }) {
+// deliver sends a message into a session, with files or without them.
+export function deliver(run, name, { text, files, messageId }) {
     const pack = files || [];
-    if (pack.length) {
-        return run("session.file", name, {
+    return pack.length
+        ? run("session.file", name, {
             text,
             files: pack.map((f) => (f.preview
                 ? { name: f.name, data: f.data, preview: f.preview }
                 : { name: f.name, data: f.data })),
-        });
-    }
-    const params = { text };
-    if (messageId) params.messageId = messageId;
-    if (asked) params.asked = asked;
-    return run("session.send", name, params);
+        })
+        : run("session.send", name, messageId ? { text, messageId } : { text });
 }
 
 // messageID names a message to a session whose queue the panel can take it
@@ -214,12 +208,11 @@ function messageID(named, pack) {
     return crypto.randomUUID();
 }
 
-// outcome turns a send result into the state of the local message row. An
-// answer to a question has gone to the turn, not into a queue it could be
-// taken back from.
-export function outcome(result, asked = "") {
-    if (!result.ok) return { state: "failed", error: result.error || "did not go out" };
-    return { state: asked ? "answered" : "queued" };
+// outcome turns a send result into the state of the local message row.
+export function outcome(result) {
+    return result.ok
+        ? { state: "queued" }
+        : { state: "failed", error: result.error || "did not go out" };
 }
 
 // asksSend reports whether this key press asks to send what is typed.
@@ -232,17 +225,9 @@ export function asksSend(e, wide) {
 // Composer writes into a live session. What it reads in the words beyond the
 // words is the agent's to plug in: commands after a leading "/" and their
 // list, a command for the shell after a leading "!", a name on each message
-// it can be taken back from the queue by, what the field says while a busy
-// session would only queue it or a question hangs, and the question the words
-// answer. Without them the words go as they are.
-//
-// asked is the id of a question codex asked without waiting and nobody has
-// answered: the words typed while it hangs are its answer, and they go as the
-// answer a tap on its options sends — into the turn that runs rather than
-// into the panel's queue behind it, or as a turn of their own on a free
-// thread. A message with files goes as files: the host has no answer with
-// files.
-export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", asked = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
+// it can be taken back from the queue by, and what the field says while a
+// busy session would only queue it. Without them the words go as they are.
+export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
     const run = useAction();
     const toast = useToast();
     const area = useRef(null);
@@ -294,9 +279,6 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const canShell = shell && knows(exec, "session.shell");
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
-    // What the field says over the words: while a busy session would only
-    // queue them, and while a question hangs, which they answer either way.
-    const says = busy || asked ? waits : "";
     const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
     // /model and /effort with nothing after them are a request for the list,
     // as they are in a terminal: sending them opens it instead.
@@ -418,7 +400,6 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const named = pack.map((f) => f.name).join(", ");
         const messageId = messageID(ids, pack);
-        const answers = pack.length ? "" : asked;
         // A row that did not go out is drawn among the rows of the feed, and
         // those are written from the transcript — nothing is handed to them.
         // So the row carries what a second attempt takes: where the message
@@ -438,14 +419,14 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
         setText("");
         if (pack.length && onDropFiles) onDropFiles();
         if (hold) {
-            if (onLocal) onLocal({ ...row, state: "held", hold: { text: body, files: pack, messageId, asked: answers } });
+            if (onLocal) onLocal({ ...row, state: "held", hold: { text: body, files: pack, messageId } });
             return;
         }
         setSending(true);
         if (onLocal) onLocal({ ...row, state: "sending" });
-        const result = await deliver(run, name, { text: body, files: pack, messageId, asked: answers });
+        const result = await deliver(run, name, { text: body, files: pack, messageId });
         setSending(false);
-        if (onLocalDone) onLocalDone(key, outcome(result, answers));
+        if (onLocalDone) onLocalDone(key, outcome(result));
     };
 
     const keys = (e) => {
@@ -491,7 +472,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             <textarea
                 rows="1"
                 ref=${(el) => { area.current = el; grow(el); }}
-                placeholder=${placeholder(ready, why, name, pack, says)}
+                placeholder=${placeholder(ready, why, name, pack, busy ? waits : "")}
                 disabled=${!ready || sending}
                 value=${text}
                 onInput=${(e) => { setText(e.target.value); grow(e.target); }}
@@ -515,7 +496,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
                         class=${`iconbtn accent sendbtn${hear.live ? " hearing" : ""}`}
                         type="button"
                         aria-label=${micLabel(asMic, hear.live, cmd, name, side, bang)}
-                        title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang, says)}
+                        title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang, busy ? waits : "")}
                         disabled=${cantSend}
                         onClick=${() => { if (!hear.tap(asMic)) send(); }}
                         onPointerDown=${(e) => hear.down(e, asMic)}
@@ -596,8 +577,7 @@ function grow(el) {
 
 // placeholder says what the field takes. While a busy session would only
 // queue a message, the words of its agent for that stand in the field: what is
-// written now does not reach the turn under way. While a question hangs, the
-// field says that what is written answers it.
+// written now does not reach the turn under way.
 function placeholder(ready, why, name, pack, waits) {
     if (!ready) return why;
     if (!pack.length) return waits ? waits[0].toUpperCase() + waits.slice(1) : `Write to ${name}`;

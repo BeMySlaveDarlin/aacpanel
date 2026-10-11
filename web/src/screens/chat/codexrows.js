@@ -1,18 +1,16 @@
 // The rows of a codex thread that claude has no word for: the plan codex
-// wrote in plan mode, a review begun and ended, a goal set or changed, an
-// agent started and a question asked without waiting. They are cards of the
-// build the feed draws what arrives with — a head that says what it is and
-// when, and the plate under it; a question that hangs stands over the
-// composer instead.
+// wrote in plan mode, a review begun and ended, a goal set or changed and an
+// agent started. They are cards of the build the feed draws what arrives
+// with — a head that says what it is and when, and the plate under it. A
+// question codex asked without waiting has a word of claude's: it is asked
+// and answered as claude's question is.
 
 import { useState } from "preact/hooks";
 
 import { html } from "../../html.js";
-import { useAction } from "../../actions/gate.js";
-import { knows, whyNot } from "../../exec.js";
 import { Icon } from "../../ui/icons.js";
 import { dedent, inline, render } from "../../md.js";
-import { ago, stopwatch, tokens } from "../../format.js";
+import { stopwatch, tokens } from "../../format.js";
 import { sizeOf, stampText } from "./labels.js";
 import { GOAL_WORDS } from "./codexthread.js";
 
@@ -141,149 +139,6 @@ export function GoalCard({ item }) {
             ${budget > 0 && html`<div class="pnmbar" aria-hidden="true"><i style=${`width: ${share}%`}></i></div>`}
         </div>
     `;
-}
-
-// QuestionCard is a question codex asked without waiting — outside plan mode
-// codex asks and goes on — a card of the build of the tasks done: each
-// question with its options as the options of a question of claude's, a tap
-// on one the answer. The answer goes as a message of the person into the turn
-// that runs, the way codex's own terminal hands it, or starts a turn on a free
-// thread; words of one's own typed in the composer while it hangs go the same
-// way. The next message of the person answers the question — in the feed, or
-// on its way from the composer — and the card then says what it was answered
-// with and offers nothing more. While the question hangs in a live
-// conversation it stands over the composer instead (AsyncDock), and the feed
-// leaves the card out until it is answered.
-export function QuestionCard({ item, session, exec }) {
-    const questions = item.asks || [];
-    const answered = item.answer !== undefined;
-    const answer = useAsyncAnswer(session, exec, item.use, questions);
-    const head = answered ? "codex asked" : answer.sent ? "the answer is on its way" : "codex asks, and goes on";
-    return html`
-        <div class=${`sent xrquestion${answered ? " answered" : ""}`}>
-            <div class="senthead">
-                <span class="sentico">${Icon.ask()}</span>
-                <span class="sentlabel">${head}</span>
-                ${item.at && html`<span class="sentat">${stampText(item.at)}</span>`}
-            </div>
-            <${AsyncQuestions} questions=${questions} answer=${answered ? null : answer} />
-            ${answered
-                ? html`<p class="xranswer"><span>answered</span> ${firstLine(item.answer)}</p>`
-                : html`<p class="hint">${answerHint(questions)}</p>`}
-            ${answer.fail && html`<p class="hint warn">${answer.fail}</p>`}
-        </div>
-    `;
-}
-
-// AsyncDock is the question codex asked without waiting while it hangs, over
-// the composer: the questions with their options, as a question of claude's
-// stands there, whatever the window of the feed holds — the card in the feed
-// can be hours of work above its end, or out of the rows the screen read at
-// all. It is answered as the card is, a tap on an option or words of one's
-// own from the composer under it, and it leaves once a message of the person
-// has come after the question. Folded, it is one line, and the feed has the
-// room back while codex works on.
-export function AsyncDock({ ask, session, exec }) {
-    const questions = ask.asks || [];
-    const answer = useAsyncAnswer(session, exec, ask.use, questions);
-    const [folded, setFolded] = useState(false);
-    const head = answer.sent ? "the answer is on its way" : "codex asks, and goes on";
-    if (folded) {
-        return html`
-            <button class=${`waitbar xrdock folded${answer.sent ? " sent" : ""}`} type="button"
-                    aria-label="show the question codex asked" onClick=${() => setFolded(false)}>
-                <span class="askdot"></span>
-                <span class="waittext">${(questions[0] && questions[0].title) || head}</span>
-                <span class="waitgo">open</span>
-            </button>
-        `;
-    }
-    return html`
-        <section class=${`xrdock${answer.sent ? " sent" : ""}`} aria-label="the question codex asked">
-            <button class="xrdockhead" type="button" aria-label="fold the question" onClick=${() => setFolded(true)}>
-                <span class="askdot"></span>
-                <span class="xrdocklabel">${head}</span>
-                ${ask.at && html`<span class="xrdockat">${ago(ask.at)}</span>`}
-                <span class="waitgo">fold</span>
-            </button>
-            <div class="xrdockbody">
-                <${AsyncQuestions} questions=${questions} answer=${answer} />
-            </div>
-            <p class="hint">${answerHint(questions)}</p>
-            ${answer.fail && html`<p class="hint warn">${answer.fail}</p>`}
-        </section>
-    `;
-}
-
-// useAsyncAnswer sends a tap on an option of a question codex asked without
-// waiting as the answer to it: a message naming the question, which goes
-// into the turn that runs, or starts a turn on a free thread. Several
-// questions asked together are answered one at a time, the option behind
-// the words of its question. A conversation that is over, or a host whose
-// executor cannot write to a session, shows the options without taking a
-// tap.
-function useAsyncAnswer(session, exec, use, questions) {
-    const run = useAction();
-    const [sent, setSent] = useState(null);
-    const [fail, setFail] = useState("");
-    const ready = Boolean(exec) && Boolean(session) && knows(exec, "session.send");
-    const why = !exec ? "the session is not live: there is nobody to answer" : whyNot(exec, "session.send");
-    const pick = async (question, option) => {
-        if (sent || !ready) return;
-        const text = questions.length > 1 ? `${question.title}: ${option}` : option;
-        setSent({ question, option });
-        setFail("");
-        const result = await run("session.send", session, { text, asked: use });
-        if (!result.ok) {
-            setSent(null);
-            if (!result.cancelled) setFail(result.error || "the answer did not go");
-        }
-    };
-    return { sent, fail, ready, why, pick };
-}
-
-// AsyncQuestions are the questions codex asked without waiting, each its
-// words and, while an answer is taken, its options as the options of a
-// question of claude's.
-function AsyncQuestions({ questions, answer }) {
-    return questions.map((question, n) => html`
-        <div class="xrquestionone" key=${n}>
-            <p class="asktext">${inline(question.title)}</p>
-            ${answer && (question.options || []).length > 0 && html`
-                <div class="askopts">
-                    ${question.options.map((option) => {
-                        const { sent, ready, why, pick } = answer;
-                        const on = sent && sent.question === question && sent.option === option;
-                        return html`
-                            <div class=${`askopt${on ? " on" : ""}${sent && !on ? " off" : ""}`} key=${option}>
-                                <button class="askpick" type="button" title=${ready ? "" : why}
-                                        disabled=${Boolean(sent) || !ready}
-                                        onClick=${() => pick(question, option)}>
-                                    <span class="asktick"></span>
-                                    <span class="askbody"><span class="askname">${option}</span></span>
-                                </button>
-                            </div>
-                        `;
-                    })}
-                </div>
-            `}
-        </div>
-    `);
-}
-
-function answerHint(questions) {
-    return questions.some((q) => (q.options || []).length > 0)
-        ? "A tap answers; words of your own go from the composer."
-        : "Answer from the composer: the next message is the answer.";
-}
-
-// ANSWER_SHOWN is how much of the message that answered a question its card
-// repeats: the message itself stands in the feed below.
-const ANSWER_SHOWN = 160;
-
-function firstLine(text) {
-    const line = String(text || "").split("\n")[0];
-    return line.length > ANSWER_SHOWN ? `${line.slice(0, ANSWER_SHOWN)}…` : line;
 }
 
 // How codex says an agent stands: the word of its row, the mark of its tag

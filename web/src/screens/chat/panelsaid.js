@@ -1,16 +1,19 @@
-// What the panel said to a session on the person's behalf. Three messages are
+// What the panel said to a session on the person's behalf. Four messages are
 // written by the panel rather than typed: a secret saved, the answers to a
-// brief and a reading of the branch waiting. The transcript keeps them as
-// prompts of the person, and the text the session got carries no mark of the
-// panel — a mark would be read by the model as well. So a message of the panel
-// is told by the shape of its whole text, and a text that only resembles one
-// stays a message of the person.
+// brief, a reading of the branch waiting, and the answer to a question codex
+// asked without waiting. The transcript keeps them as prompts of the person,
+// and the text the session got carries no mark of the panel — a mark would be
+// read by the model as well. So a message of the panel is told by the shape of
+// its whole text, and a text that only resembles one stays a message of the
+// person.
 //
 // The writers are secretMessage in internal/executor/secret.go, briefReply in
-// cmd/aacpanel/briefs.go and signal in screens/repo/notes.js. Their words and
-// the shapes below are held together by the samples in
-// web/check/testdata/panel-said.json: a writer that changes a word turns a
-// test red instead of leaving the feed to draw a bubble.
+// cmd/aacpanel/briefs.go, signal in screens/repo/notes.js, and asyncAnswer and
+// asyncPutAway here, beside their reader. The words of the first three and the
+// shapes below are held together by the samples in
+// web/check/testdata/panel-said.json, the answer to codex by the fixture of
+// its question: a writer that changes a word turns a test red instead of
+// leaving the feed to draw a bubble.
 
 const KEY = "[A-Za-z_][A-Za-z0-9_]*";
 const KEYS = `${KEY}(?:, ${KEY})*`;
@@ -144,6 +147,87 @@ function brief(text) {
     };
 }
 
+// A question codex asked without waiting is answered in the sheet a question
+// of claude's is answered in, and nothing in codex's protocol takes the
+// answer: it goes as a message of the person, in words codex reads as the
+// answer and the feed reads back into the card of an answered question. The
+// head says it answers codex's question, or that the person put it away and
+// will answer in the conversation; each question is a line, the questions a
+// blank line apart; under a question answered stands what it got, indented —
+// the option picked or the words written, skipped for none — and the note
+// beside a pick after "note: ", every line of them indented, so words of
+// several lines stay under their question. A question put away has nothing
+// under it.
+const ASYNC_INDENT = "   ";
+const ASYNC_NOTE = "note: ";
+const ASYNC_SKIPPED = "skipped";
+const ASYNC_ONE = "The answer to your question:";
+const ASYNC_MANY = /^The answers to your (\d+) questions:$/;
+const AWAY_ONE = "I put your question away and will answer in the conversation:";
+const AWAY_MANY = /^I put your (\d+) questions away and will answer in the conversation:$/;
+
+// asyncLine is a question on one line: codex's words with their breaks and
+// runs of spaces made one space.
+const asyncLine = (text) => String(text || "").split(/\s+/).filter(Boolean).join(" ");
+
+// asyncUnder is what stands under a question, a line each and indented.
+const asyncUnder = (text) => text.split("\n").map((line) => ASYNC_INDENT + line.trimEnd());
+
+// asyncAnswer writes the answer to a question codex asked without waiting, of
+// the questions as the sheet holds them and, for each, the numbers of the
+// options picked, the words written and the note beside a pick.
+export function asyncAnswer(questions, picks, texts, notes) {
+    const head = questions.length === 1 ? ASYNC_ONE : `The answers to your ${questions.length} questions:`;
+    return [head, ...questions.map((q, n) => {
+        const labels = (picks[n] || []).map((k) => ((q.options || [])[k - 1] || {}).label).filter(Boolean);
+        const said = String(texts[n] || "").trim() || labels.join(", ");
+        const note = labels.length ? String(notes[n] || "").trim() : "";
+        return [asyncLine(q.text), ...asyncUnder(said || ASYNC_SKIPPED), ...(note ? asyncUnder(ASYNC_NOTE + note) : [])]
+            .join("\n");
+    })].join("\n\n");
+}
+
+// asyncPutAway writes that the person put the questions away and will answer
+// in the conversation.
+export function asyncPutAway(questions) {
+    const head = questions.length === 1
+        ? AWAY_ONE
+        : `I put your ${questions.length} questions away and will answer in the conversation:`;
+    return [head, ...questions.map((q) => asyncLine(q.text))].join("\n\n");
+}
+
+// asked reads the answer to codex back question by question, in the rows of
+// the card of an answered question of claude's: the question, what it got and
+// the note. One put away is a round rejected. Whatever does not fall into
+// that order, or does not add up to the count of the head, is not the
+// panel's text.
+function asked(text) {
+    const [head, ...blocks] = text.split("\n\n");
+    const many = ASYNC_MANY.exec(head) || AWAY_MANY.exec(head);
+    const away = head === AWAY_ONE || AWAY_MANY.test(head);
+    const count = head === ASYNC_ONE || head === AWAY_ONE ? 1 : many && Number(many[1]) > 1 ? Number(many[1]) : 0;
+    if (!count || blocks.length !== count) return null;
+    const rows = [];
+    for (const block of blocks) {
+        const [title, ...lines] = block.split("\n");
+        if (!title || title !== title.trim()) return null;
+        if (away) {
+            if (lines.length) return null;
+            rows.push({ text: title });
+            continue;
+        }
+        if (!lines.length || lines.some((line) => !line.startsWith(ASYNC_INDENT))) return null;
+        const body = lines.map((line) => line.slice(ASYNC_INDENT.length));
+        const at = body.findIndex((line) => line.startsWith(ASYNC_NOTE));
+        const said = (at < 0 ? body : body.slice(0, at)).join("\n");
+        if (said === "") return null;
+        const row = { text: title, answer: said === ASYNC_SKIPPED ? [] : [said] };
+        if (at >= 0) row.note = [body[at].slice(ASYNC_NOTE.length), ...body.slice(at + 1)].join("\n");
+        rows.push(row);
+    }
+    return away ? { kind: "asked", rows, status: "rejected" } : { kind: "asked", rows };
+}
+
 // panelSaid returns what a message of the person says when the panel wrote
 // it, or null when it is the person's own.
 export function panelSaid(text) {
@@ -151,5 +235,6 @@ export function panelSaid(text) {
     if (said.startsWith('The secret "')) return secret(said);
     if (said.startsWith('Brief "')) return brief(said);
     if (said.startsWith("A reading of this branch ")) return reading(said);
+    if (said.startsWith("The answer") || said.startsWith("I put your ")) return asked(said);
     return null;
 }

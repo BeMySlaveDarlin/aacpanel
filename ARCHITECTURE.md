@@ -996,30 +996,38 @@ after the install pairs only by its account's name.
   review runs in a thread of its own and codex writes its items into the
   rollout of the thread that asked for it: the feed shows its work and none of
   its words, which codex says to itself.
-- **A question codex asks without waiting is a card of the feed.** Outside
-  plan mode codex asks with a tool that does not wait: the question goes to
-  the person as an answer delivered apart, its questions and their options
-  beside the words, and the turn goes on. Nothing in the protocol takes the
-  answer or clears the question: the person answers with a message, and the
-  next message of the person after the question is its answer. A tap on an
-  option sends it as a message naming the question (`session.send` with
-  `asked`), which goes into the turn that runs (`turn/steer`) — codex asked
-  so as to go on, and an answer in the panel's queue behind that turn would
-  come after the work it was for — or starts a turn on a free thread. Words
-  of one's own typed in the composer while the question hangs go the same
-  way, past whatever waits in the panel's queue; a message with files goes as
-  files, as any message of the person does. While no message
-  has come after it, the question stands on the thread's row as a question of
-  claude's does — the list says the session asks and a push goes out — and
-  the row stays as busy or as free as the thread is. The row carries the id
-  of the latest question and every question that hangs with its options:
-  the conversation reads the feed from its end, and a question asked hours
-  of work before it is not among the rows the screen holds. So a question
-  that hangs stands over the composer, from the row or from the feed,
-  whichever is newer, and is answered there; its card is left out of the
-  feed meanwhile, so the question is offered in one place whatever the
-  person has scrolled to, and comes back to the feed answered, as claude's
-  question becomes its card once answered.
+- **A question codex asks without waiting is a question of claude's: one
+  sheet, another way for the answer.** Outside plan mode codex asks with a
+  tool that does not wait: the question goes to the person as an answer
+  delivered apart, its questions and their options beside the words, and the
+  turn goes on. Nothing in the protocol takes the answer or clears the
+  question: the next message of the person after it is its answer. While no
+  such message has come, the question stands on the thread's row as a
+  question of claude's does — the list says the session asks and a push goes
+  out — and the row stays as busy or as free as the thread is. The collector
+  reads it off the whole rollout, not the end the screen holds, and the state
+  of the conversation carries it in the shape of a question of claude's —
+  each question with its options, one pick or words of one's own, no header
+  — named by the latest question and marked async, after the question or the
+  form the thread waits on, which comes first. The screen offers it in the
+  sheet a question of claude's is answered in: the pick, the words of one's
+  own, the note beside a pick, Send and putting it away. A permission the
+  thread waits on stands before it, and a single question does not go at
+  the tap of an option, since the note is as much of the answer as the pick.
+  Send writes the answer as words — a head saying it answers codex's
+  question, each question a line with what it got indented under it, the
+  note after `note:` — and sends them as a message naming the question
+  (`session.send` with `asked`), which goes into the turn that runs
+  (`turn/steer`) — codex asked so as to go on — or starts a turn on a free
+  thread; putting the question away sends that the person will answer in the
+  conversation. The message is the panel's, told by the
+  shape of its whole text as the panel's other messages are, and the feed
+  draws it as the card of the round answered, as claude's answer is drawn,
+  where it was sent: on its way, until the thread reads it — when its turn
+  takes it, which can be minutes later — and after. The card of the
+  question itself gives way to it; a question a message answered in words of
+  its own stays a card that says so, and one nobody answered says that
+  where no sheet offers it.
 - **The agents a thread started are its agents**, listed as a claude
   session's are and each opening its own thread. The collector reads them
   off the rollout of the thread, on from where it last stopped: an agent

@@ -250,6 +250,56 @@ func TestAnAnswerToAQuestionCodexDidNotWaitForGoesIntoTheTurnThatRuns(t *testing
 	}
 }
 
+// The sheet of the question sends its answer as the words the screen puts
+// together of it — a head, each question with what was picked or written, and
+// the note beside the pick, a line each and indented under the question. The
+// action takes them as they are, and codex gets them whole, the lines and
+// their indents kept, into the turn that runs or as the turn a free thread
+// starts: the feed reads the answer back off these very words, and one space
+// lost turns its card into a bubble.
+func TestAComposedAnswerReachesCodexWhole(t *testing.T) {
+	srv, e := onCodex(t, func(srv *codextest.Server) { srv.Running(codexThread, "turn-r") })
+	ctx := context.Background()
+	const composed = "The answers to your 2 questions:\n\n" +
+		"Which theme should the page take?\n   Dark\n   note: keep the contrast high\n   on every page\n\n" +
+		"Should the logo stay?\n   Drop it, the title\n   \n   is enough"
+	answer := action.Request{ID: "a-composed", Kind: action.SessionSend, Target: codexName, Text: composed,
+		Asked: "call_ask_logo"}
+	if err := answer.Validate(); err != nil {
+		t.Fatalf("the composed answer is refused: %v", err)
+	}
+	said := func(raw json.RawMessage) string {
+		var params struct {
+			Input []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"input"`
+		}
+		if err := json.Unmarshal(raw, &params); err != nil || len(params.Input) != 1 || params.Input[0].Type != "text" {
+			t.Fatalf("the input went as %s: %v", raw, err)
+		}
+		return params.Input[0].Text
+	}
+
+	if _, err := e.Execute(ctx, answer); err != nil {
+		t.Fatal(err)
+	}
+	steers := srv.Calls("turn/steer")
+	if len(steers) != 1 || said(steers[0]) != composed || len(srv.Calls("turn/start")) != 0 {
+		t.Fatalf("the turn that runs got %s and turns started %s, want the composed answer whole in the turn",
+			steers, srv.Calls("turn/start"))
+	}
+
+	srv.Set(codexThread, "idle")
+	if _, err := e.Execute(ctx, answer); err != nil {
+		t.Fatal(err)
+	}
+	starts := srv.Calls("turn/start")
+	if len(starts) != 1 || said(starts[0]) != composed {
+		t.Fatalf("the turn the answer started got %s, want the composed answer whole", starts)
+	}
+}
+
 // Words of one's own typed in the composer while the question hangs are its
 // answer as a tap is, and come named as any message of the composer does: the
 // turn that runs takes them under the name they came with, and the answer
