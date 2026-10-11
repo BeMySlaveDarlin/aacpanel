@@ -2,7 +2,9 @@ package rules
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -49,6 +51,64 @@ func TestEnginePG(t *testing.T) {
 	}
 
 	e := NewEngine(s, hostName)
+	t.Run("LAN certificate expires once per certificate", func(t *testing.T) {
+		var id int
+		if err := pool.QueryRow(ctx, `INSERT INTO rules (key, name, subject, op, threshold, for_sec, severity)
+            VALUES ('test.tls', 'test: LAN certificate', 'tls.remaining_days', '<=', 14, 10, 'warning') RETURNING id`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Exec(ctx, "DELETE FROM rules WHERE id = $1", id)
+		leaf := &x509.Certificate{Raw: []byte("certificate-one"), DNSNames: []string{"panel.example.org"}, NotAfter: time.Now().Add(15 * 24 * time.Hour)}
+		e.Certificate = func() (*x509.Certificate, error) { return leaf, nil }
+		defer func() { e.Certificate = nil }()
+		check := func(opened, closed int) {
+			t.Helper()
+			result, err := e.Once(ctx)
+			if err != nil || result.Opened != opened || result.Closed != closed {
+				t.Fatalf("pass: %+v, %v; want opened=%d closed=%d", result, err, opened, closed)
+			}
+		}
+		check(0, 0)
+		leaf.NotAfter = time.Now().Add(13 * 24 * time.Hour)
+		check(1, 0)
+		check(0, 0)
+		list, err := s.Alerts(ctx, store.AlertsReq{})
+		if err != nil || len(list) != 1 || list[0].Subject != "panel.example.org" {
+			t.Fatalf("the certificate identity escaped into the alert text: %+v %v", list, err)
+		}
+		var alertID int64
+		if err := pool.QueryRow(ctx, "SELECT id FROM alerts WHERE rule_id = $1", id).Scan(&alertID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Ack(ctx, alertID); err != nil {
+			t.Fatal(err)
+		}
+		restarted := NewEngine(s, hostName)
+		restarted.Certificate = e.Certificate
+		result, err := restarted.Once(ctx)
+		if err != nil || result.Opened != 0 {
+			t.Fatalf("restart repeats the alert: %+v %v", result, err)
+		}
+		e.Certificate = func() (*x509.Certificate, error) { return nil, errors.New("unreadable") }
+		if _, err := e.Once(ctx); err == nil {
+			t.Fatal("unreadable certificate passed")
+		}
+		var closed *time.Time
+		if err := pool.QueryRow(ctx, "SELECT closed_at FROM alerts WHERE id = $1", alertID).Scan(&closed); err != nil || closed != nil {
+			t.Fatalf("read failure cleared the alert: %v %v", closed, err)
+		}
+		e.Certificate = restarted.Certificate
+		leaf = &x509.Certificate{Raw: []byte("certificate-two"), DNSNames: []string{"panel.example.org"}, NotAfter: time.Now().Add(60 * 24 * time.Hour)}
+		check(0, 1)
+		leaf.NotAfter = time.Now().Add(13 * 24 * time.Hour)
+		check(1, 0)
+		leaf = &x509.Certificate{Raw: []byte("certificate-one"), DNSNames: []string{"panel.example.org"}, NotAfter: time.Now().Add(12 * 24 * time.Hour)}
+		check(0, 1)
+		var count int
+		if err := pool.QueryRow(ctx, "SELECT count(*) FROM alerts WHERE rule_id = $1", id).Scan(&count); err != nil || count != 2 {
+			t.Fatalf("not once per certificate: %d %v", count, err)
+		}
+	})
 
 	cpu := func(seconds int, value float64) {
 		t.Helper()

@@ -6,6 +6,7 @@ import { BackHead } from "../ui/back.js";
 import { Icon } from "../ui/icons.js";
 import { level, uptime } from "../format.js";
 import { useProbes } from "../alerts.js";
+import { Certificate } from "./certificate.js";
 import { Resources } from "./resources.js";
 import { Probes, probeState } from "./probes.js";
 
@@ -55,6 +56,7 @@ export function Machine({ snapshot, error, ageSec, history = [], faults = [], on
         `}
 
         <div class="mgrid">
+            <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
             <${Resources} snapshot=${snapshot} error=${error} ageSec=${ageSec} filter="all"
                 history=${history} faults=${faults} />
 

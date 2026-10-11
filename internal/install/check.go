@@ -121,7 +121,7 @@ func (in *Install) chain(r *Run) []chainLink {
 			out = append(out, pass("codex hooks in %s: %s; present, trusted and enabled", in.short(home), source))
 		}
 	}
-	out = append(out, in.mapLink(local))
+	out = append(out, in.mapLink(local), in.tlsLink(r, env))
 	if env["AACP_TAILSCALE"] == "1" {
 		out = append(out, in.tailnetLink(r))
 	}

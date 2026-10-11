@@ -18,10 +18,15 @@ func TestTheMachineTableAtADeskKeepsBothKinds(t *testing.T) {
 			Peak  string `json:"peak"`
 			Title string `json:"title"`
 		} `json:"rows"`
-		Note string `json:"note"`
+		Note        string `json:"note"`
+		Certificate string `json:"certificate"`
+		Warning     bool   `json:"warning"`
 	}
 	runWideFixture(t, "topdesk.html", &got)
 
+	if !strings.Contains(got.Certificate, "panel.example.org") || !strings.Contains(got.Certificate, "13 days left") || !got.Warning {
+		t.Errorf("LAN certificate is not visible: %q (warning %v)", got.Certificate, got.Warning)
+	}
 	if len(got.Rows) != 3 {
 		t.Fatalf("the table holds %d rows, and the fixture gave it two containers and one process", len(got.Rows))
 	}

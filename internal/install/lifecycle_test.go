@@ -100,6 +100,7 @@ func TestTheCheckWalksTheChain(t *testing.T) {
 		"✓ ask.sock in place",
 		"✓ claude wiring in ~/.claude: hook once, status line chained, MCP server listed",
 		"✓ the map has 1 contour",
+		"· Home-network TLS: not configured",
 	}
 	if !slices.Equal(*lines, want) {
 		t.Errorf("the check said\n%s\nwant\n%s", strings.Join(*lines, "\n"), strings.Join(want, "\n"))

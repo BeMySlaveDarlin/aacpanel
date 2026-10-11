@@ -49,18 +49,19 @@ type hostReturn struct {
 // over the screen.
 func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 	var got struct {
-		Error    string   `json:"error"`
-		Nav      []string `json:"nav"`
-		NavOn    string   `json:"navOn"`
-		Pages    []string `json:"pages"`
-		First    hostPage `json:"first"`
-		Forward  hostTurn `json:"forward"`
-		Machine  hostPage `json:"machine"`
-		Further  hostTurn `json:"further"`
-		Journal  hostPage `json:"journal"`
-		Backward hostTurn `json:"backward"`
-		Again    string   `json:"again"`
-		Reopened struct {
+		Error       string   `json:"error"`
+		Nav         []string `json:"nav"`
+		NavOn       string   `json:"navOn"`
+		Pages       []string `json:"pages"`
+		First       hostPage `json:"first"`
+		Forward     hostTurn `json:"forward"`
+		Machine     hostPage `json:"machine"`
+		Certificate string   `json:"certificate"`
+		Further     hostTurn `json:"further"`
+		Journal     hostPage `json:"journal"`
+		Backward    hostTurn `json:"backward"`
+		Again       string   `json:"again"`
+		Reopened    struct {
 			Page  string `json:"page"`
 			NavOn string `json:"navOn"`
 			Tab   string `json:"tab"`
@@ -83,6 +84,9 @@ func TestTheHostTabPagesTheContainersTheMachineAndTheJournal(t *testing.T) {
 		UnframedBack hostReturn `json:"unframedBack"`
 	}
 	runFixture(t, "hosttab.html", &got)
+	if !strings.Contains(got.Certificate, "panel.example.org") || !strings.Contains(got.Certificate, "13 days left") {
+		t.Errorf("phone loses certificate expiry: %q", got.Certificate)
+	}
 
 	// The menu is read before anything is pressed: a walk that lost its way
 	// for want of the Host button still says what the menu read.

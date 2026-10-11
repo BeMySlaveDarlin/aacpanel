@@ -63,6 +63,13 @@ func (s *Server) hostSnapshot(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cert, err := s.lanCertificate(); err != nil {
+		return nil, err
+	} else if cert != nil {
+		if payload, err = spliceField(payload, "lanCertificate", cert); err != nil {
+			return nil, err
+		}
+	}
 	if s.insecureSeen.Load() {
 		if payload, err = spliceField(payload, "cookieInsecure", true); err != nil {
 			return nil, err

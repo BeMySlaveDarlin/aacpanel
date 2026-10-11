@@ -109,7 +109,7 @@ function merged(alerts, older) {
 function rule(payload) {
     if (!payload || payload.threshold === undefined) return "";
     const sign = { ">": "above", ">=": "above", "<": "below", "<=": "below", "=": "equals" }[payload.op] || payload.op;
-    const unitLabel = { "%": "%", bytes: " bytes", "байты": " bytes", flag: "", "флаг": "" }[payload.unit];
+    const unitLabel = { "%": "%", days: " days", bytes: " bytes", "байты": " bytes", flag: "", "флаг": "" }[payload.unit];
     const unit = unitLabel === undefined ? payload.unit || "" : unitLabel;
     const forSec = payload.forSec ? ` longer than ${payload.forSec >= 60 ? `${Math.round(payload.forSec / 60)} min` : `${payload.forSec} s`}` : "";
     return `${sign} ${payload.threshold}${unit}${forSec}`;

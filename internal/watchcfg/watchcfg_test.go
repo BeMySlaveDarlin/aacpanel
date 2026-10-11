@@ -16,6 +16,23 @@ func TestTheBuiltInConfigIsValid(t *testing.T) {
 	}
 }
 
+func TestLANCertificateWarnsFourteenDaysBeforeExpiry(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range cfg.Rules {
+		if r.Key != "tls.expiring" {
+			continue
+		}
+		if r.Subject != "tls.remaining_days" || r.Op != "<=" || r.Threshold != 14 || !on(r.Enabled) {
+			t.Fatalf("LAN expiry must warn after the 30-day renewal window, at 14 days: %+v", r)
+		}
+		return
+	}
+	t.Fatal("the delivery has no LAN certificate expiry rule")
+}
+
 func TestDurationsReadAsWritten(t *testing.T) {
 	cfg, err := Load()
 	if err != nil {

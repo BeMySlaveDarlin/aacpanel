@@ -30,6 +30,7 @@ type how int
 const (
 	perSample how = iota
 	perWindow
+	perCertificate
 )
 
 type query struct {
@@ -44,6 +45,7 @@ type query struct {
 }
 
 var queries = map[string]query{
+	certificateSource:     {how: perCertificate},
 	"container.cpu_pct":   {table: "metrics_container_raw", subject: "container", value: "cpu_pct"},
 	"container.mem_pct":   {table: "metrics_container_raw", subject: "container", value: "mem_pct"},
 	"container.mem_bytes": {table: "metrics_container_raw", subject: "container", value: "mem_bytes"},
@@ -83,8 +85,9 @@ var queries = map[string]query{
 
 // Engine runs the alert lifecycle: it opens, extends and closes alerts.
 type Engine struct {
-	store    *store.Store
-	hostName string
+	Certificate Certificate
+	store       *store.Store
+	hostName    string
 }
 
 func NewEngine(s *store.Store, hostName string) *Engine {
@@ -166,17 +169,24 @@ func (e *Engine) Once(ctx context.Context) (Result, error) {
 }
 
 type measurement struct {
-	subject   string
-	blind     bool
-	held      bool
-	recovered bool
-	last      float64
+	subject     string
+	subjectName string
+	blind       bool
+	held        bool
+	recovered   bool
+	last        float64
 }
 
 func (e *Engine) check(ctx context.Context, pool *pgxpool.Pool, hostID int, rule Rule) (Result, error) {
 	var res Result
 
-	found, err := measure(ctx, pool, hostID, rule)
+	var found []measurement
+	var err error
+	if queries[rule.Subject].how == perCertificate {
+		found, err = e.certificate(rule, time.Now())
+	} else {
+		found, err = measure(ctx, pool, hostID, rule)
+	}
 	if err != nil {
 		return res, err
 	}
@@ -351,6 +361,15 @@ func openAlerts(ctx context.Context, pool *pgxpool.Pool, ruleID int) (map[string
 }
 
 func (e *Engine) open(ctx context.Context, pool *pgxpool.Pool, rule Rule, m measurement) (bool, error) {
+	if rule.Subject == certificateSource {
+		var seen bool
+		if err := pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM alerts WHERE rule_id = $1 AND subject = $2)", rule.ID, m.subject).Scan(&seen); err != nil {
+			return false, err
+		}
+		if seen {
+			return false, nil
+		}
+	}
 	var recent int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM alerts
 		WHERE rule_id = $1 AND subject = $2 AND opened_at > now() - $3::interval`,
@@ -405,6 +424,9 @@ func payloadFor(rule Rule, m measurement) map[string]any {
 		"threshold": rule.Threshold,
 		"op":        string(rule.Op),
 		"forSec":    rule.ForSec,
+	}
+	if m.subjectName != "" {
+		out["subjectName"] = m.subjectName
 	}
 	if src, ok := Sources[rule.Subject]; ok && src.Unit != "" {
 		out["unit"] = src.Unit

@@ -71,6 +71,9 @@ func (s *Survey) Plan() []PlanRow {
 	} else if tag(gc) == TagThere {
 		rows = append(rows, row("aacpanel-docker-gc.timer taken away: the kit leaves it out", ""))
 	}
+	if s.managedTLS() {
+		rows = append(rows, row("LAN certificate: lego DNS-01; "+tlsTimer+", daily renewal with 30 days left", tag(tlsConfigPath(home))))
+	}
 	rows = append(rows, s.mapRows()...)
 
 	var settings []string
@@ -114,6 +117,11 @@ func (s *Survey) packages() []string {
 			out = append(out, strings.Fields(strings.TrimPrefix(m.Command, "sudo apt install "))...)
 		}
 		out = append(out, m.Needs...)
+	}
+	if s.managedTLS() {
+		if _, err := s.m.LookPath("lego"); err != nil {
+			out = append(out, "lego")
+		}
 	}
 	return out
 }

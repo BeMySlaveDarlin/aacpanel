@@ -13,6 +13,14 @@
 # shorter than rules.MinForSec: a momentary spike is no reason to wake the phone.
 
 rules:
+  - key: tls.expiring
+    name: LAN certificate expires soon
+    subject: tls.remaining_days
+    op: "<="
+    threshold: 14
+    for: 10s
+    severity: warning
+
   - key: container.cpu
     name: Container eats CPU
     subject: container.cpu_pct

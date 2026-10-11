@@ -74,6 +74,7 @@ const tree = { running: 6, total: 8, stacks: [
       containers: [box("lab-api"), box("lab-worker", "exited")] },
 ] };
 const snapshot = {
+    lanCertificate: { name: "panel.example.org", expiresAt: 1800000000, daysLeft: 13 },
     at: 1, hostName: "helios", sessions: [], profileMap: [], limits: null,
     host: {
         cpuPct: 23.4, cpus: 16, load: [2.1, 1.8, 1.6], uptime: 12 * 86400 + 3 * 3600,
@@ -224,6 +225,7 @@ window.done = (async () => {
 
         out.forward = await swipe(1, "Machine");
         out.machine = look("Machine");
+        out.certificate = pageAt(1).querySelector(".lancert")?.textContent;
         await pause("machine");
         out.further = await swipe(1, "Journal");
         await until(() => pageAt(2).querySelector(".entry"));

@@ -876,6 +876,8 @@ func amount(v float64, unit string) string {
 	switch unit {
 	case "%":
 		return trimZero(v) + "%"
+	case "days":
+		return trimZero(v) + " days"
 	case unitBytes, unitBytesWas:
 		return bytesText(v)
 	default:

@@ -1,0 +1,12 @@
+[Unit]
+Description=aacpanel home-network certificate renewal
+After=network-online.target
+
+[Service]
+Type=oneshot
+UMask=0077
+@ENVIRONMENT@
+ExecStart=@COMMAND@
+# A user's hook may print credentials on failure; its output never goes to the journal.
+StandardOutput=null
+StandardError=null

@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"os"
@@ -77,6 +78,7 @@ func (s *Server) lanServer(addr, certPath, keyPath string) (*http.Server, error)
 	if err != nil {
 		return nil, err
 	}
+	s.lanCert.Store(reloader)
 	return &http.Server{
 		Addr:    addr,
 		Handler: logRequests(s.handler(s.lanGate())),
@@ -98,4 +100,34 @@ func (s *Server) tsServer(addr string) *http.Server {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+}
+
+func (s *Server) lanLeaf() (*x509.Certificate, error) {
+	c := s.lanCert.Load()
+	if c == nil {
+		return nil, nil
+	}
+	pair, err := c.get()
+	if err != nil {
+		return nil, err
+	}
+	return x509.ParseCertificate(pair.Certificate[0])
+}
+
+type lanCertificate struct {
+	Name      string  `json:"name"`
+	ExpiresAt int64   `json:"expiresAt"`
+	DaysLeft  float64 `json:"daysLeft"`
+}
+
+func (s *Server) lanCertificate() (*lanCertificate, error) {
+	leaf, err := s.lanLeaf()
+	if err != nil || leaf == nil {
+		return nil, err
+	}
+	name := leaf.Subject.CommonName
+	if len(leaf.DNSNames) > 0 {
+		name = leaf.DNSNames[0]
+	}
+	return &lanCertificate{Name: name, ExpiresAt: leaf.NotAfter.Unix(), DaysLeft: time.Until(leaf.NotAfter).Hours() / 24}, nil
 }

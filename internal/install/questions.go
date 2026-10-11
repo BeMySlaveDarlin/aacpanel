@@ -92,7 +92,7 @@ var Kit = []Part{
 	{"background", "Background work", "reminds a session of work left running over an hour", GroupAsk, "deploy/claude/background-reminder.py"},
 	{"gc", "Docker cleanup", "weekly prune of unused images — of the whole machine", GroupAsk, ""},
 	{"tailscale", "Tailscale", "your phone from anywhere, through your tailnet", GroupLegs, ""},
-	{"lan", "Home network, TLS", "straight at home, with a certificate you issue", GroupLegs, ""},
+	{"lan", "Home network, TLS", "straight at home, with a TLS certificate", GroupLegs, ""},
 	{"domain", "Own domain", "behind your reverse proxy", GroupLegs, ""},
 	{"testdb", "Test database", "for make check: forty tests skip without it", GroupDev, ""},
 }
@@ -674,7 +674,7 @@ func (s *Survey) access() []Question {
 		s.prefer(&addr, DotEnvFile, "AACP_LAN_BIND", "The current address.")
 		cert := Question{
 			ID: "lancert", Tab: "Certificate", Prompt: "Certificate and key of the home-network address?", Form: One,
-			Note: "The panel serves TLS on this address itself; the certificate stays yours to issue and renew.",
+			Note: "The panel serves TLS on this address itself; choose a certificate of your own or let lego issue and renew it.",
 			Own:  "Type the path of the .crt; its .key lies beside it.", Flag: "--lan-cert", Check: checkPaths,
 			Writes: []Target{{DotEnvFile, "AACP_TLS_DIR"}, {DotEnvFile, "AACP_TLS_CERT"}, {DotEnvFile, "AACP_TLS_KEY"},
 				{DotEnvFile, "AACP_LAN_ADDR"}, {DotEnvFile, "AACP_LAN_PORT"}, {DotEnvFile, "AACP_LAN_URL"}},
@@ -690,12 +690,17 @@ func (s *Survey) access() []Question {
 			cert.Options = append(cert.Options, Option{Value: "plain", Label: "No TLS — plain http",
 				Detail: "The main listener goes on the home address and the session cookie goes without Secure: whoever sees the traffic sees the cookie, and a passkey does not work there."})
 		}
+		cert.Options = append(cert.Options, Option{Value: "lego", Label: "Issue and renew with lego (DNS-01)", Detail: "A daily user timer renews the certificate with 30 days left."})
 		if dir, ok := s.before(DotEnvFile, "AACP_TLS_DIR"); ok && dir != "" {
 			if c, ok := s.before(DotEnvFile, "AACP_TLS_CERT"); ok && c != "" {
 				s.preferValue(&cert, filepath.Join(dir, filepath.Base(c)), "The current certificate.")
 			}
 		}
+		if _, err := s.m.Stat(tlsConfigPath(f.Account.Home)); err == nil {
+			s.preferValue(&cert, "lego", "Managed by this installer.")
+		}
 		qs = append(qs, addr, cert)
+		qs = append(qs, s.tlsQuestions()...)
 	}
 	if s.Has("domain") {
 		domain := Question{

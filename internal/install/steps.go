@@ -65,6 +65,11 @@ func (in *Install) Steps() []*Step {
 	} else if in.gcThere() {
 		steps = append(steps, in.gcOffStep())
 	}
+	if in.S.managedTLS() {
+		steps = append(steps, in.tlsStep())
+	} else if _, err := in.M.Stat(tlsConfigPath(in.home())); err == nil {
+		steps = append(steps, in.tlsOffStep())
+	}
 	steps = append(steps, in.stackStep(), in.appRoleStep())
 	if in.S.Has("testdb") {
 		steps = append(steps, in.testDBStep())

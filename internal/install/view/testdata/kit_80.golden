@@ -19,7 +19,7 @@
    [ ] Docker cleanup     weekly prune of unused images — of the whole machine
    Ways in besides this machine
    [ ] Tailscale          your phone from anywhere, through your tailnet
-   [ ] Home network, TLS  straight at home, with a certificate you issue
+   [ ] Home network, TLS  straight at home, with a TLS certificate
    [ ] Own domain         behind your reverse proxy
    For development
    [ ] Test database      for make check: forty tests skip without it

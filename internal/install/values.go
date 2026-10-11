@@ -250,6 +250,9 @@ func (s *Survey) passkeyVars() []Var {
 // the address the phone opens is the certificate's name at the port on the
 // host.
 func (s *Survey) tlsVars(cert string) []Var {
+	if cert == "lego" {
+		cert = s.tlsAnswers().cert()
+	}
 	key := strings.TrimSuffix(cert, filepath.Ext(cert)) + ".key"
 	name := strings.TrimSuffix(filepath.Base(cert), filepath.Ext(cert))
 	for _, c := range s.Found.Certs {

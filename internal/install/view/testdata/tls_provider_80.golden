@@ -1,0 +1,9 @@
+────────────────────────────────────────────────────────────────────────────────
+  ■ DNS provider 
+
+ Who answers the DNS-01 challenge?
+
+ ❯ 1. Your exec hook
+   2. Hetzner Cloud DNS — shipped hook
+
+ Enter to select · ↑/↓ to navigate · Esc to go back

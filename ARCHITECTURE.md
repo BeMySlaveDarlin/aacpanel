@@ -2191,6 +2191,31 @@ differences, both set by the gate: what guards an endpoint and whether the
 terminal is in the set. A second set of routes would part from the first
 silently.
 
+**The LAN certificate can be managed by the installer.** Choose `lego` for
+the certificate, an ACME account email and a DNS-01 provider: an executable
+hook of your own, or the shipped Hetzner Cloud DNS hook with a zone name and
+the path of a token file owned by the user with mode `0600`. The installer
+installs the `lego` package if missing and issues only a missing certificate;
+adopting an existing valid pair makes no ACME request. Account files stay in
+the chosen lego directory, and its `certificates` subdirectory is mounted
+read-only as `/tls`. The token and ACME account never enter the container.
+
+The installer writes `aacpanel-lego.service` and `aacpanel-lego.timer` as
+user units. Renewal runs daily with `renew --days 30` and the same `--email`
+as issuance: leaving out the email looks up a different account. The settings
+live in `~/.config/aacpanel/lan-tls.json`, without the token itself. Uninstall
+takes back the units and keeps the certificate and account data; selecting
+external renewal removes the installer's renewal units. `install.sh check`
+reports the certificate expiry and whether the delivered timer is ready.
+
+The listener reloads a matching certificate and key at most once a minute,
+keeping the served pair when a replacement cannot be read. Both Machine
+screens and the `tls.expiring` rule read that served leaf. With fourteen days
+or less left the usual alert lifecycle opens one alert per certificate,
+persisted across service restarts; replacement closes it. Its push follows
+the rule's existing notification choice. This deadline is later than the
+renewal window, so the alert means renewal needs attention.
+
 **The live session terminal does not exist on the main listener by
 default** — not "behind a password", it is not there as a route. Behind it are
 the session screen and raw input into it, that is, a bypass of the confirmation

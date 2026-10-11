@@ -239,6 +239,9 @@ func TestEveryQuestionHasAFlag(t *testing.T) {
 	lan := survey(desktop(), &Run{Yes: true, Answers: map[string]string{"--kit": "+lan"}})
 	answerAll(t, lan)
 	check(find(t, lan, BlockD, "token"))
+	for _, q := range lan.tlsQuestions() {
+		check(q)
+	}
 	for _, f := range Flags {
 		if !used[f.Name] && f.Name != "--install-compose" {
 			t.Errorf("%s answers no question", f.Name)
@@ -287,10 +290,10 @@ func TestTheWaysInAskOnlyWhatIsChecked(t *testing.T) {
 		want []string
 	}{
 		{"", nil},
-		{"+lan", []string{"lanaddr", "lancert", "token", "term"}},
+		{"+lan", []string{"lanaddr", "lancert", "(tlsdomain)", "(tlsemail)", "(tlsstate)", "(tlsprovider)", "(tlszone)", "(tlstoken)", "(tlshook)", "token", "term"}},
 		{"+tailscale", []string{"tskey", "tsname", "term"}},
 		{"+domain", []string{"domain", "bind", "term"}},
-		{"+tailscale,+lan,+domain", []string{"tskey", "tsname", "lanaddr", "lancert", "domain", "bind", "term"}},
+		{"+tailscale,+lan,+domain", []string{"tskey", "tsname", "lanaddr", "lancert", "(tlsdomain)", "(tlsemail)", "(tlsstate)", "(tlsprovider)", "(tlszone)", "(tlstoken)", "(tlshook)", "domain", "bind", "term"}},
 	} {
 		r := &Run{Yes: true, Answers: map[string]string{}}
 		if c.kit != "" {

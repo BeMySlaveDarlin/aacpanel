@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""lego exec DNS-01 hook for Hetzner Cloud DNS.
+
+HETZNER_DNS_ZONE names the zone; HETZNER_DNS_TOKEN_FILE names its 0600 token.
+--dry-run validates the request and prints its shape without opening the token
+or contacting the API. Cleanup removes only this challenge's TXT value.
+"""
+
+import json
+import os
+import re
+import stat
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+API = "https://api.hetzner.cloud/v1"
+
+
+def request(method, path, body, token):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(API + path, data=data, method=method)
+    req.add_header("Authorization", "Bearer " + token)
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            return response.status, json.load(response)
+    except urllib.error.HTTPError as error:
+        # An API error body is untrusted and may echo the Authorization header.
+        error.close()
+        return error.code, {}
+
+
+def wait_action(body, token):
+    action = body.get("action")
+    if not action:
+        return
+    deadline = time.monotonic() + 120
+    while action["status"] == "running" and time.monotonic() < deadline:
+        time.sleep(1)
+        status, reply = request("GET", f"/zones/actions/{action['id']}", None, token)
+        if status != 200:
+            raise ValueError(f"DNS action status: HTTP {status}")
+        action = reply["action"]
+    if action["status"] != "success":
+        raise ValueError("DNS action did not succeed")
+
+
+def change(action, fqdn, value, dry=False):
+    zone = os.environ.get("HETZNER_DNS_ZONE", "").lower().rstrip(".")
+    name = fqdn.lower().rstrip(".")
+    if not re.fullmatch(r"[a-z0-9.-]+", zone) or not name.endswith("." + zone):
+        raise ValueError("the challenge is outside the configured DNS zone")
+    name = name[: -len(zone) - 1]
+    if not re.fullmatch(r"_acme-challenge(?:\.[a-z0-9-]+)*", name):
+        raise ValueError("only ACME challenge TXT records are allowed")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        raise ValueError("invalid ACME challenge value")
+    token_file = os.environ.get("HETZNER_DNS_TOKEN_FILE", "")
+    info = os.stat(token_file)
+    if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != os.getuid():
+        raise ValueError("the DNS token must be a file of this user with mode 0600")
+    records = {"records": [{"value": json.dumps(value)}]}
+    base = f"/zones/{urllib.parse.quote(zone, safe='')}/rrsets"
+    rrset = base + f"/{urllib.parse.quote(name, safe='')}/TXT"
+    operation = ("POST", base, {"name": name, "type": "TXT", "ttl": 60, **records}) if action == "present" else (
+        "POST", rrset + "/actions/remove_records", records)
+    if dry:
+        print(json.dumps(dict(zip(("method", "path", "body"), operation))))
+        return
+    with open(token_file, encoding="utf-8") as stream:
+        token = stream.read().strip()
+    if not token:
+        raise ValueError("the DNS token file is empty")
+    status, body = request(*operation, token)
+    if action == "present" and status == 409:
+        status, body = request("POST", rrset + "/actions/add_records", records, token)
+    if action == "cleanup" and status == 404:
+        return
+    if status >= 400:
+        raise ValueError(f"DNS {action}: HTTP {status}")
+    wait_action(body, token)
+
+
+def main(args):
+    dry = args[:1] == ["--dry-run"]
+    if dry:
+        args = args[1:]
+    if len(args) != 3 or args[0] not in ("present", "cleanup"):
+        sys.exit("usage: hetzner-dns-hook [--dry-run] present|cleanup <fqdn> <value>")
+    try:
+        change(*args, dry=dry)
+    except (OSError, ValueError, KeyError, urllib.error.URLError) as error:
+        # Never print a response, a request or the token, even when a provider fails.
+        sys.exit(f"DNS hook failed ({type(error).__name__}); check the token file, zone and API access")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

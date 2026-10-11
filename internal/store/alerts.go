@@ -88,6 +88,14 @@ func (s *Store) Alerts(ctx context.Context, req AlertsReq) (out []Alert, err err
 			a.AckedAt = &ts
 		}
 		a.Suggested = suggestionFrom(a.Payload)
+		// A rotating object may have an identity more specific than its name:
+		// certificates deduplicate by fingerprint, while the person sees a domain.
+		var labels struct {
+			SubjectName string `json:"subjectName"`
+		}
+		if json.Unmarshal(a.Payload, &labels) == nil && labels.SubjectName != "" {
+			a.Subject = labels.SubjectName
+		}
 		return a, nil
 	})
 	if err != nil {

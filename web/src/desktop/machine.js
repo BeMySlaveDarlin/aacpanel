@@ -1,4 +1,5 @@
 // The Machine section: categories on the left, the picked one in the centre.
+import { Certificate } from "../screens/certificate.js";
 import { html } from "../html.js";
 import { Icon } from "../ui/icons.js";
 import { area, Chart } from "../chart.js";
@@ -289,6 +290,7 @@ export function MachineCenter({ snapshot, probes: fromDB, history, topCpu, topMe
                     </span>
                 </div>
             </div>
+            <${Certificate} certificate=${snapshot && snapshot.lanCertificate} />
             ${body()}
         </section>
     `;

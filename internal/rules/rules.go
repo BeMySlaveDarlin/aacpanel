@@ -40,6 +40,7 @@ type Source struct {
 
 // Sources is what the rules engine can measure.
 var Sources = map[string]Source{
+	certificateSource:     {Key: certificateSource, Title: "LAN certificate remaining life", Unit: "days"},
 	"container.cpu_pct":   {Key: "container.cpu_pct", Title: "Container CPU", Unit: "%", Targeted: true},
 	"container.mem_pct":   {Key: "container.mem_pct", Title: "Container memory against its limit", Unit: "%", Targeted: true},
 	"container.mem_bytes": {Key: "container.mem_bytes", Title: "Container memory", Unit: "bytes", Targeted: true},

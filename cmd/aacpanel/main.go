@@ -34,6 +34,7 @@ import (
 )
 
 type Server struct {
+	lanCert      atomic.Pointer[certReloader]
 	docker       *docker.Client
 	auth         *auth.Service
 	hub          *hub.Hub
@@ -313,12 +314,21 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	var lan *http.Server
+	if lanAddr != "" {
+		lan, err = srv.lanServer(lanAddr, env("AACP_TLS_CERT", ""), env("AACP_TLS_KEY", ""))
+		if err != nil {
+			return err
+		}
+	}
 	if db != nil {
 		go db.Run(ctx)
 		go writer.Run(ctx)
 		go recordHost(ctx, srv.host, writer)
 		go watchcfg.Apply(ctx, db)
-		go rules.NewEngine(db, hostName).Run(ctx)
+		engine := rules.NewEngine(db, hostName)
+		engine.Certificate = srv.lanLeaf
+		go engine.Run(ctx)
 		go probes.New(db).Run(ctx)
 		push.UseViews(db.SessionViews())
 		push.UseJournal(db.PushJournal())
@@ -395,11 +405,7 @@ func run() error {
 		}()
 	}
 
-	if lanAddr != "" {
-		lan, err := srv.lanServer(lanAddr, env("AACP_TLS_CERT", ""), env("AACP_TLS_KEY", ""))
-		if err != nil {
-			return err
-		}
+	if lan != nil {
 		go func() {
 			<-ctx.Done()
 			shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

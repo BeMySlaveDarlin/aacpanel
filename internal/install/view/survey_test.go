@@ -134,6 +134,72 @@ func TestTheKitOnTheScreen(t *testing.T) {
 	}
 }
 
+func TestLANCertificateQuestionsFollowTheProvider(t *testing.T) {
+	for _, width := range []int{60, 80} {
+		m := desktop()
+		m.Files[home+"/.config/systemd/user/aacpanel-lego.service"] = "[Service]\nEnvironment=EXEC_PATH=%h/dns-hook\nExecStart=/usr/bin/lego --email owner@example.org --path %h/.config/aacpanel/lego --domains panel.example.org renew --days 30\n"
+		s := install.NewSurvey(m, fresh(), &install.Run{Answers: map[string]string{"--kit": "+lan"}, Yes: true}, now)
+		if _, err := s.Settle(install.BlockK); err != nil {
+			t.Fatal(err)
+		}
+		s.Review()
+		qs, err := s.Settle(install.BlockD)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a := newAsking(s, install.BlockD, "Access", qs)
+		choose := func(id, value string) {
+			t.Helper()
+			for i, q := range a.specs {
+				if q.ID != id {
+					continue
+				}
+				for j, o := range q.Options {
+					if o.Value == value {
+						a.ui.Answers[i].Choice = j
+						a.ui.Answers[i].Given = true
+						a.refresh(s)
+						return
+					}
+				}
+			}
+			t.Fatalf("no choice %s=%s", id, value)
+		}
+		choose("lancert", "lego")
+		visible := func(id string) bool {
+			for _, q := range a.ui.Questions {
+				if q.ID == id {
+					return !q.Hidden
+				}
+			}
+			return false
+		}
+		if !visible("tlshook") || visible("tlstoken") || !visible("tlsdomain") {
+			t.Fatal("exec questions did not appear after choosing lego")
+		}
+		for _, q := range s.Questions(install.BlockD) {
+			if q.ID == "tlsdomain" || q.ID == "tlsemail" || q.ID == "tlsstate" || q.ID == "tlshook" {
+				if q.Default == "" || q.Required {
+					t.Errorf("%s loses the machine's default: %+v", q.ID, q)
+				}
+			}
+		}
+		choose("tlsprovider", "hetzner")
+		if visible("tlshook") || !visible("tlstoken") || !visible("tlszone") {
+			t.Fatal("Hetzner token and zone questions did not replace the exec hook")
+		}
+		for _, q := range a.ui.Questions {
+			if q.ID == "tlsprovider" {
+				golden(t, "tls_provider_"+strconv.Itoa(width), ui.NewBlock("Access", q).View(ui.NewTheme(false), width, 0))
+			}
+		}
+		choose("lancert", "plain")
+		if visible("tlsdomain") || visible("tlstoken") {
+			t.Fatal("plain HTTP still asks for DNS credentials")
+		}
+	}
+}
+
 // TestThePlanFrame holds the plan of the default path.
 func TestThePlanFrame(t *testing.T) {
 	for _, width := range []int{80, 60} {

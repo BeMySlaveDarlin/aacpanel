@@ -18,6 +18,23 @@ type asking struct {
 }
 
 func newAsking(s *install.Survey, b install.BlockID, title string, qs []install.Question) *asking {
+	// Conditional questions must exist in the block before an earlier answer
+	// reveals them; refreshing can hide a tab, but cannot invent one.
+	if s != nil && b != "" {
+		pending := map[string]install.Question{}
+		for _, q := range qs {
+			pending[q.ID] = q
+		}
+		var withHidden []install.Question
+		for _, q := range s.Questions(b) {
+			if asked, ok := pending[q.ID]; ok {
+				withHidden = append(withHidden, asked)
+			} else if q.Moot {
+				withHidden = append(withHidden, q)
+			}
+		}
+		qs = withHidden
+	}
 	a := &asking{block: b, specs: qs}
 	uqs := make([]ui.Question, len(qs))
 	for i, q := range qs {

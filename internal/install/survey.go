@@ -363,7 +363,7 @@ func (s *Survey) fromFlag(q Question, raw string) (string, error) {
 	case len(q.Values) > 0 && !slices.Contains(q.Values, raw):
 		return "", fmt.Errorf("%s takes %s, not %q", q.Flag, strings.Join(q.Values, "|"), raw)
 	}
-	if q.Check != nil && raw != "" && !(q.ID == "lancert" && raw == "plain") {
+	if q.Check != nil && raw != "" && !(q.ID == "lancert" && (raw == "plain" || raw == "lego")) {
 		if err := q.Check(raw); err != nil {
 			return "", fmt.Errorf("%s %s: %w", q.Flag, raw, err)
 		}
@@ -440,7 +440,7 @@ func blockOf(id string) BlockID {
 		return BlockL
 	case "kit":
 		return BlockK
-	case "tskey", "tsname", "lanaddr", "lancert", "domain", "bind", "passkey", "token", "term":
+	case "tlsdomain", "tlsemail", "tlsstate", "tlsprovider", "tlshook", "tlszone", "tlstoken", "tskey", "tsname", "lanaddr", "lancert", "domain", "bind", "passkey", "token", "term":
 		return BlockD
 	case "tune":
 		return BlockT
