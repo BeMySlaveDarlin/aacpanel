@@ -144,6 +144,35 @@ func TestTheParentOfAThreadOutlivesTheExecutor(t *testing.T) {
 	}
 }
 
+// A live thread a person started is stood under a session later as one the
+// panel started for it stands: its state names the parent at once, and the
+// executor started after a restart of its own knows it from the disk.
+func TestALiveThreadIsStoodUnderASession(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	srv := codextest.New(t)
+	first := NewLink(srv.Home, "acme")
+	stop := running(t, first)
+	ready(t, first)
+	id, err := first.Start(context.Background(), Begin{CWD: "/srv/proj", Hold: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.SetParent(id, "lead"); err != nil {
+		t.Fatal(err)
+	}
+	if st, raw, _ := stateOf(t, id); st.Parent != "lead" {
+		t.Errorf("the state of a thread stood under a session does not name it: %s", raw)
+	}
+	stop()
+
+	running(t, NewLink(srv.Home, "acme"))
+	until(t, "the next link's state file", written(t, id))
+	if st, raw, _ := stateOf(t, id); st.Parent != "lead" {
+		t.Errorf("the executor started again lost the parent the thread was stood under: %s", raw)
+	}
+}
+
 // A thread resumed from the archive goes on with no parent, as a claude
 // session resumed from the archive does: its state names none, and the
 // executor started after a restart of its own does not read the parent back

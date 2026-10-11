@@ -111,10 +111,11 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 }
 
 // callerName is the name of the session that calls the tool, the parent the
-// new session is shown under in the panel. A caller whose place is not known,
-// one started without a name and one whose name the panel would not take as a
-// session's open the session all the same, with no parent: where the new one
-// stands in a list is no reason to refuse the open.
+// new session is shown under in the panel while the two are of one project of
+// the map, which the panel decides, since the map is there. A caller whose
+// place is not known, one started without a name and one whose name the panel
+// would not take as a session's open the session all the same, with no
+// parent: where the new one stands in a list is no reason to refuse the open.
 func callerName(bind mcp.Bind) string {
 	if bind == nil {
 		return ""

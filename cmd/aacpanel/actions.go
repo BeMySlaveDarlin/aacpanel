@@ -297,11 +297,22 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Mcp = change
 		params = map[string]any{"server": change.Server, "do": change.Do}
 	}
+	// A live session is stood under another of its project here, where the
+	// map is: the executor keeps the parent wherever it is told to.
+	if req.Kind == action.SessionParent {
+		parent, err := s.standUnder(r.Context(), body.Target, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Parent, params = parent, map[string]any{"parent": parent}
+	}
 	// A session opening another names the directory, and a name only if it
 	// wants one of its own: the project is the one of the map the directory
 	// belongs to, and the session is named after it unless a name is given.
 	// The answer names the contour, the account the new session spends. It
-	// names itself as well, as the parent the new session is shown under.
+	// names itself as well, as the parent the new session is shown under while
+	// the two are of one project.
 	//
 	// New may name the agent to start for this once, over the project's own:
 	// the agent is a key of the launch, so the rest of the launch stays the
@@ -345,6 +356,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			}
 			req.Project, contour = want, found.profile.Name
 			params = map[string]any{"project": found.project.ID, "path": want.Path}
+			if parent != "" {
+				parent = s.openedUnder(r.Context(), parent, found)
+			}
 			if parent != "" {
 				want.Parent, params["parent"] = parent, parent
 			}

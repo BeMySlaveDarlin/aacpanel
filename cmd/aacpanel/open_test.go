@@ -21,17 +21,26 @@ import (
 // name the session gave or else the project's session name. The answer names
 // the contour, so the session can tell its person which account the new one
 // spends; a project opened by its id, as the screens open one, names it too.
-// The session that asks names itself, and the new one is its child: the
-// executor and the journal hear the name of the parent.
+// The session that asks names itself, and the new one is its child while the
+// two are of one project — its own directory, one inside it, a worktree of it:
+// the executor and the journal hear the name of the parent. One that asks from
+// another project, from a directory no project holds or that does not live
+// opens the session all the same, and the new one stands on its own.
 func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 	srv, root := hostServer(t, `{"at":1}`)
 	id := fillMap(t, srv, root)
 	repo, worktree := filepath.Join(root, "aacpanel"), filepath.Join(root, "aacpanel-fix")
-	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"projects":{"at":1,"dirs":[`+
-		`{"path":"`+worktree+`","kind":"project","git":true,"worktreeOf":"`+repo+`"}]}}`))
+	shop := otherProject(t, srv, root, "shop")
+	srv.host = host.NewReader(snapshotWith(t, `{"at":1,"sessions":[`+
+		`{"session":"lead","cwd":"`+repo+`"},{"session":"fixer","cwd":"`+worktree+`"},`+
+		`{"session":"seller","cwd":"`+shop+`"},{"session":"stray","cwd":"`+filepath.Join(root, "stray")+`"}],`+
+		`"projects":{"at":1,"dirs":[{"path":"`+worktree+`","kind":"project","git":true,"worktreeOf":"`+repo+`"}]}}`))
 	client, fake := startFakeExec(t, action.Response{OK: true, Detail: "session aacpanel started"})
 	srv.exec, srv.auth = client, &auth.Service{}
 
+	opened := func(dir, parent string) string {
+		return `{"kind":"session.open","params":{"path":"` + dir + `","parent":"` + parent + `"}}`
+	}
 	for _, c := range []struct {
 		name, body, target, path, parent string
 	}{
@@ -41,8 +50,14 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 		{"a worktree beside it", `{"kind":"session.open","params":{"path":"` + worktree + `"}}`, "aacpanel", worktree, ""},
 		{"the project's id, as the screens send it",
 			`{"kind":"session.open","target":"aacpanel","params":{"project":` + strconv.Itoa(id) + `}}`, "aacpanel", repo, ""},
-		{"at the word of another session",
-			`{"kind":"session.open","params":{"path":"` + repo + `","parent":"lead"}}`, "aacpanel", repo, "lead"},
+		{"at the word of a session of the project", opened(repo, "lead"), "aacpanel", repo, "lead"},
+		{"into a worktree, at the word of a session of the project", opened(worktree, "lead"), "aacpanel", worktree, "lead"},
+		{"at the word of a session in a worktree of the project", opened(repo+"/web", "fixer"), "aacpanel", repo + "/web",
+			"fixer"},
+		{"at the word of a session of another project", opened(repo, "seller"), "aacpanel", repo, ""},
+		{"into another project", opened(shop, "lead"), "shop", shop, ""},
+		{"at the word of a session no project holds", opened(repo, "stray"), "aacpanel", repo, ""},
+		{"at the word of a session that does not live", opened(repo, "gone"), "aacpanel", repo, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			w := post(t, srv, c.body)
@@ -80,9 +95,11 @@ func TestASessionOpensInADirectoryAsItsProjectPG(t *testing.T) {
 			if err != nil || len(list) == 0 {
 				t.Fatalf("the action did not reach the journal: %v", err)
 			}
-			if list[0].Target != c.target || list[0].Params["path"] != c.path || list[0].Params["project"] != float64(id) {
-				t.Errorf("the journal holds %q with %v, meant %q with project %d in %s",
-					list[0].Target, list[0].Params, c.target, id, c.path)
+			if list[0].Target != c.target || list[0].Params["path"] != c.path {
+				t.Errorf("the journal holds %q with %v, meant %q in %s", list[0].Target, list[0].Params, c.target, c.path)
+			}
+			if c.path != shop && list[0].Params["project"] != float64(id) {
+				t.Errorf("the journal holds the open in project %v, meant %d", list[0].Params["project"], id)
 			}
 			if parent, named := list[0].Params["parent"]; named != (c.parent != "") || named && parent != c.parent {
 				t.Errorf("the journal holds the parent as %v, meant %q", list[0].Params, c.parent)

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -93,6 +94,38 @@ func NamedPath(sessionID string) string {
 // holds a session name and nothing else.
 func ParentPath(sessionID string) string {
 	return filepath.Join(keptDir(), "parents", sessionID+".json")
+}
+
+// ProcessParentPath keeps the session a live claude was stood under after it
+// started, by the process: the environment of a running process cannot be
+// changed, so the parent the panel sets later lies beside the one the launcher
+// puts there. It is the process's and not the name's: a session started later
+// under the same name is another process and is no child of it, and a restart
+// starts the next process with the parent in its environment, as the snapshot
+// holds it. It holds a session name and the start of the process, nothing else.
+func ProcessParentPath(pid int) string {
+	return filepath.Join(keptDir(), "process-parents", strconv.Itoa(pid)+".json")
+}
+
+// ProcessParent is the file of ProcessParentPath. Start is the start of the
+// process in clock ticks, as /proc/<pid>/stat says it: a pid used again by
+// another process does not take the parent over.
+type ProcessParent struct {
+	Session string `json:"session"`
+	Start   string `json:"procStart"`
+}
+
+// Keep writes a file that outlives a holder whole or not at all: whoever
+// reads it meets the old file or the new one, never half of one.
+func Keep(path string, body []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // CodexReleasePath keeps the release of codex the daemon of one contour ran

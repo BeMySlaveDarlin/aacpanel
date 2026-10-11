@@ -75,6 +75,10 @@ const (
 	// bridge that makes it reachable from the Claude app and claude.ai.
 	SessionRemote Kind = "session.remote"
 
+	// SessionParent stands a live session under another of its project, as
+	// session_open stands the session it opens under the one that calls it.
+	SessionParent Kind = "session.parent"
+
 	// SessionSwitch moves a live session between the console and the feed:
 	// the same conversation is closed on one side and resumed on the other.
 	SessionSwitch Kind = "session.switch"
@@ -118,8 +122,8 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
-	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, TaskStop, AgentStop, WindowOpen, WindowClose,
-	ProjectCreate, TermStart, TermClose, TermRename, TermConsole, SecretPut, SecretDrop,
+	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, TaskStop, AgentStop, WindowOpen,
+	WindowClose, ProjectCreate, TermStart, TermClose, TermRename, TermConsole, SecretPut, SecretDrop,
 }
 
 // Valid reports whether the executor knows this kind of action.

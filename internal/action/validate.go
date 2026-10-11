@@ -310,6 +310,19 @@ func (r Request) Validate() error {
 	} else if r.Remote != nil {
 		return badRequest("action %s switches no remote control", r.Kind)
 	}
+	if r.Kind == SessionParent {
+		if r.Parent == "" {
+			return badRequest("action %s without the session to stand %s under", r.Kind, r.Target)
+		}
+		if err := ValidParent(r.Parent); err != nil {
+			return err
+		}
+		if r.Parent == r.Target {
+			return badRequest("session %s does not stand under itself", r.Target)
+		}
+	} else if r.Parent != "" {
+		return badRequest("action %s stands no session under another", r.Kind)
+	}
 	switch {
 	case r.Kind == TaskStop, r.Kind == AgentStop:
 		if r.Work == nil {
@@ -466,6 +479,23 @@ func (r Request) Validate() error {
 	return safeTarget(r.Target)
 }
 
+// ValidParent checks the name of the session another stands under. It goes
+// into the environment of the child and back into the snapshot, so it is a
+// session name like any other: one with a way out of a path or a character
+// the names never carry is refused.
+func ValidParent(name string) error {
+	if len(name) > targetMax {
+		return badRequest("the name of the parent session is longer than %d characters", targetMax)
+	}
+	if err := safeTarget(name); err != nil {
+		return err
+	}
+	if strings.Contains(name, "/") {
+		return badRequest("the name of the parent session %q contains /", name)
+	}
+	return nil
+}
+
 func (p Project) validate() error {
 	if p.Path == "" {
 		return badRequest("a project without a path")
@@ -492,14 +522,8 @@ func (p Project) validate() error {
 		return badRequest("the session name %q contains /", p.Session)
 	}
 	if p.Parent != "" {
-		if len(p.Parent) > targetMax {
-			return badRequest("the name of the parent session is longer than %d characters", targetMax)
-		}
-		if err := safeTarget(p.Parent); err != nil {
+		if err := ValidParent(p.Parent); err != nil {
 			return err
-		}
-		if strings.Contains(p.Parent, "/") {
-			return badRequest("the name of the parent session %q contains /", p.Parent)
 		}
 	}
 	if len(p.Launch) > 0 {

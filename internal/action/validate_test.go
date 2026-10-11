@@ -289,6 +289,29 @@ func TestTheParentOfASessionIsASessionName(t *testing.T) {
 	}
 }
 
+// session.parent names the session its target stands under by the same rule,
+// and names one: a parent missing or the target itself stands it under
+// nothing. No other action carries a parent.
+func TestAStandUnderNamesAnotherSession(t *testing.T) {
+	under := func(target, parent string) Request {
+		return Request{ID: "1", Kind: SessionParent, Target: target, Parent: parent}
+	}
+	if err := under("db-split-01", "db-split").Validate(); err != nil {
+		t.Errorf("a child under its parent is refused: %v", err)
+	}
+	for name, r := range map[string]Request{
+		"no parent":          under("db-split-01", ""),
+		"itself":             under("db-split-01", "db-split-01"),
+		"a way out":          under("db-split-01", "../x"),
+		"a slash":            under("db-split-01", "a/b"),
+		"a parent elsewhere": {ID: "1", Kind: SessionRename, Target: "person", Rename: "lab", Parent: "lead"},
+	} {
+		if err := r.Validate(); err == nil {
+			t.Errorf("%s is accepted", name)
+		}
+	}
+}
+
 func TestAnswerRequestChecksOwnWords(t *testing.T) {
 	ask := func(a *Answer) Request {
 		return Request{ID: "a1", Kind: SessionAnswer, Target: "aacpanel", Answer: a}

@@ -710,9 +710,6 @@ var keptMu sync.Mutex
 func rewrite[T any](path string, change func([]T) []T) error {
 	keptMu.Lock()
 	defer keptMu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
 	var list []T
 	if raw, err := os.ReadFile(path); err == nil {
 		_ = json.Unmarshal(raw, &list)
@@ -721,11 +718,7 @@ func rewrite[T any](path string, change func([]T) []T) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, body, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return Keep(path, body)
 }
 
 // picked remembers a model or an effort chosen by a message: a slash command

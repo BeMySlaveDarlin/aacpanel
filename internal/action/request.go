@@ -80,6 +80,10 @@ type Request struct {
 	// Remote is whether session.remote switches Remote Control on or off.
 	Remote *bool `json:"remote,omitempty"`
 
+	// Parent is the session session.parent stands the target under, by its
+	// name, as Project.Parent names the session that had one opened.
+	Parent string `json:"parent,omitempty"`
+
 	// Secret is what secret.put saves.
 	Secret *Secret `json:"secret,omitempty"`
 

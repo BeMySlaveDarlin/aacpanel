@@ -151,6 +151,8 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexCommand(ctx, th, req.Command)
 	case action.SessionRename:
 		return codexRename(ctx, th, req.Rename)
+	case action.SessionParent:
+		return codexParent(th, req.Parent)
 	case action.TaskStop:
 		return codexTaskStop(ctx, th, req.Work)
 	case action.AgentStop:

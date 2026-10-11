@@ -1174,13 +1174,13 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Thirty-eight actions, and the list is closed.
+Thirty-nine actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
 | containers | `container.start`, `container.stop`, `container.restart` |
 | stacks | `stack.up`, `stack.down` |
-| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote` |
+| sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote`, `session.parent` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop` |
 | disk | `project.create` |
@@ -1366,9 +1366,16 @@ claudes does not push the sessions of the person off the list.
 `session_open` hands the panel the name of the session that calls it, and the
 launcher puts the name into the environment of the new session as
 `AACP_PARENT`; a codex thread has no process of its own, and the executor keeps
-its parent beside the name the panel gave it. The collector reads it as the
-session's `parent`, the field that names the session a run runs inside of —
-without `outside`, since the panel opened this one. The lists stand the child a
+its parent beside the name the panel gave it. The link holds within one project
+of the map — its own directory, one inside it and its worktrees: the panel
+names the caller as the parent only while it lives in the project the new
+session opens in, and a session opened in another project stands on its own. A
+session that opens one elsewhere hands work over to that project, and the new
+session is that project's, not a step of the caller's work. The rule is the
+panel's, where the map is, and the open goes on either way. The collector
+reads the parent as the session's `parent`, the field that names the session
+a run runs inside of — without `outside`, since the panel opened this one.
+The lists stand the child a
 step in under its parent, in the parent's block whatever its own project, behind
 a fold that is open until the person closes it: the children are the work in
 view, and the block stands where the most pressing of the group puts it. The
@@ -1383,6 +1390,21 @@ conversation; one whose parent lives in another contour stands on its own page
 and says which session opened it. Every process the launcher starts drops the
 variable it inherited: a terminal or a session started from inside a child is
 not a child of that parent.
+
+**A live session is stood under another with `session.parent`**: a session
+started before the panel kept a parent, or one the person names later. Both
+live and work in one project of the map, or the panel refuses; a run inside the
+work of a session is stood under nothing else, and two sessions are not stood
+under each other. The environment of a running process does not change, so the
+executor keeps the parent in a file of the session's claude process, by its pid
+and with the start of the process, beside the parents of codex threads; the
+collector reads it there before the environment, and the later word wins. The
+file is the process's, not the name's: a session started later under the same
+name is another process and no child of it, and a renamed one keeps its
+parent. A restart or a move of the child starts its next process with the
+parent in its environment, as the snapshot holds it. A codex thread is stood
+under a session where a thread started for one keeps its parent. No screen
+offers it: a request on the local listener does it, and the journal names it.
 
 **The archive is ordered by when a conversation last spoke, not by when its
 file was last written to.** Claude appends a title, a mode or a snapshot of file
@@ -1674,8 +1696,9 @@ project holds is refused rather than looked up by the name, since the panel
 would know neither the account to open it in nor its launch parameters, and
 the answer names the contour, so the session can tell its person which account
 the new one spends. The calling session names itself, and the new one is shown
-as its child. The tool has no first message of its own for the reason a
-letter is a kind of its own: words typed into a session its model takes for its
+as its child when the two are of one project. The tool has no first message of
+its own for the reason a letter is a kind of its own: words typed into a
+session its model takes for its
 person's, so work goes to the new session as a letter once it is up. The open
 waits a minute for the panel, which answers once the new claude is up; silence
 past that is an open whose outcome is not known, and the tool says not to open

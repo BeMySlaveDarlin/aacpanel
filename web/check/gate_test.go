@@ -299,14 +299,19 @@ func TestScreensImportOnlyPublicGateAPI(t *testing.T) {
 
 var entailed = regexp.MustCompile(`entails:\s*"([a-z]+\.[a-zA-Z]+)"`)
 
-// askedBySessions are the actions no screen presses: a session asks for them
-// over the local listener with a tool of the panel's server, and the person
-// meets them in the journal alone, by the name the registry gives them.
-var askedBySessions = map[string]string{
-	"session.letter": "send_to_session",
+// askedOffScreen are the actions no screen presses, by who asks for them
+// over the local listener instead, and the person meets them in the journal
+// alone, by the name the registry gives them. A letter is a session's, sent
+// with a tool of the panel's server. Standing a live session under another is
+// done once for the sessions started before the panel kept a parent, and later
+// for one the person names: a request on the local listener does it, and no
+// screen offers it.
+var askedOffScreen = map[string]string{
+	"session.letter": "a session, with the send_to_session tool",
+	"session.parent": "a request on the local listener",
 }
 
-func TestActionsAskedBySessionsAreNamedForTheJournal(t *testing.T) {
+func TestActionsAskedOffScreenAreNamedForTheJournal(t *testing.T) {
 	registry := srcFiles(t)[registryFile]
 	body := actionsBlock(t, registry)
 	_, names, found := strings.Cut(registry, "const NAMES = {")
@@ -314,15 +319,15 @@ func TestActionsAskedBySessionsAreNamedForTheJournal(t *testing.T) {
 	if !found || !closed {
 		t.Fatalf("%s has no NAMES declaration", registryFile)
 	}
-	for id, tool := range askedBySessions {
+	for id, who := range askedOffScreen {
 		if strings.Contains(body, `"`+id+`":`) {
-			t.Errorf("%s, which the %s tool asks for, has a button in the registry: no screen presses it", id, tool)
+			t.Errorf("%s, which %s asks for, has a button in the registry: no screen presses it", id, who)
 		}
 		if !strings.Contains(names, `"`+id+`":`) {
 			t.Errorf("%s has no name: the journal would show its kind as it is", id)
 		}
 		if !action.Valid(action.Kind(id)) {
-			t.Errorf("%s is listed as asked by sessions but the executor does not know it", id)
+			t.Errorf("%s is listed as asked off the screens but the executor does not know it", id)
 		}
 	}
 }
@@ -340,7 +345,7 @@ func TestActionRegistryMatchesSpec(t *testing.T) {
 	}
 	required := make([]string, 0, len(action.Kinds))
 	for _, k := range action.Kinds {
-		if entails[string(k)] || askedBySessions[string(k)] != "" {
+		if entails[string(k)] || askedOffScreen[string(k)] != "" {
 			continue
 		}
 		required = append(required, string(k))
@@ -472,8 +477,8 @@ func TestEveryExecActionReachableFromUI(t *testing.T) {
 			t.Logf("%q is asked by the service itself when a person presses %q — that is allowed", id, from)
 			continue
 		}
-		if tool, ok := askedBySessions[id]; ok {
-			t.Logf("%q is asked by a session with the %s tool, not by a person on a screen — that is allowed", id, tool)
+		if who, ok := askedOffScreen[id]; ok {
+			t.Logf("%q is asked by %s, not by a press on a screen — that is allowed", id, who)
 			continue
 		}
 		t.Errorf("the executor can do action %q, but there is nothing to press it with: not a single mention in the screens", id)

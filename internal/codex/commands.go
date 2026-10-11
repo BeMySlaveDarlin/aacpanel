@@ -180,15 +180,34 @@ func (l *Link) give(threadID, name string) {
 // on the disk first, so an executor started again has it, as it has the name
 // the panel gave.
 func (l *Link) adopt(threadID, parent string) {
-	body, err := json.Marshal(parentName{Session: parent})
-	if err == nil {
-		err = write(stream.ParentPath(threadID), body)
-	}
-	if err != nil {
+	if err := keepParent(threadID, parent); err != nil {
 		log.Printf("codex %s: the parent of thread %s was not kept on the disk, and the thread stands on its own "+
 			"when the executor starts again: %v", l.home, threadID, err)
 	}
 	l.set(threadID, func(t *thread) { t.parent = parent })
+}
+
+// SetParent stands a live thread under a session, as a thread the panel
+// started at the word of that session stands. The parent goes on the disk
+// first, and one that does not get there is refused rather than shown: the
+// executor started after this one would not know it, and the thread would
+// leave its parent with no word to anyone.
+func (l *Link) SetParent(threadID, parent string) error {
+	if err := keepParent(threadID, parent); err != nil {
+		return err
+	}
+	l.set(threadID, func(t *thread) { t.parent = parent })
+	l.save(threadID)
+	return nil
+}
+
+// keepParent writes the file of the parent of a thread.
+func keepParent(threadID, parent string) error {
+	body, err := json.Marshal(parentName{Session: parent})
+	if err != nil {
+		return err
+	}
+	return write(stream.ParentPath(threadID), body)
 }
 
 // disown lets a thread resumed from the archive go on with no parent, as a

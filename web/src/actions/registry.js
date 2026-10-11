@@ -1001,6 +1001,9 @@ const NAMES = {
     // No screen sends a letter: a session writes one to another with a tool
     // of the panel's server, and the journal names it here.
     "session.letter": "Letter from another session",
+    // Nor does one stand a session under another: a request on the local
+    // listener does it, and the journal names it here.
+    "session.parent": "Stand a session under another",
     "session.unqueue": "Take back a queued message",
     "session.answer": "Answer the question",
     "session.dismiss": "Dismiss the question",

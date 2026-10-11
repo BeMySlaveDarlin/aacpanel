@@ -201,6 +201,32 @@ def given_name(sid):
     return name.strip() if isinstance(name, str) else ""
 
 
+def process_parent_path(pid):
+    """Returns where the executor keeps the session a live claude was stood under after it started."""
+    return os.path.join(kept_dir(), "process-parents", f"{pid}.json")
+
+
+def process_parent(pid, start):
+    """Returns the session a live claude process was stood under after it started, or empty.
+
+    The environment of a running process does not change, so the executor
+    keeps a parent set later in a file of the process. The file names the
+    start of the process it was kept for: a pid used again by another process
+    takes nothing over.
+    """
+    if not isinstance(pid, int) or pid <= 0 or not start:
+        return ""
+    try:
+        with open(process_parent_path(pid), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(data, dict) or data.get("procStart") != start:
+        return ""
+    session = data.get("session")
+    return session if isinstance(session, str) else ""
+
+
 def withdrawn_path(sid):
     """Returns where the holder keeps the fingerprints of the messages taken back."""
     return os.path.join(kept_dir(), "withdrawn", sid + ".json")

@@ -13,6 +13,7 @@ import test_barrier  # noqa: E402,F401
 import archive  # noqa: E402
 import chat  # noqa: E402
 import ctx  # noqa: E402
+import held  # noqa: E402
 import models  # noqa: E402
 import sesstate  # noqa: E402
 from test_sesstate import spawn  # noqa: E402
@@ -368,6 +369,12 @@ class LiveSessions(unittest.TestCase):
 class Lineage(unittest.TestCase):
     """What a session's process was started under, read up the chain of parents."""
 
+    def setUp(self):
+        # The pids of the table are no processes of the machine: none of them
+        # has a start a parent kept for it could name.
+        self.addCleanup(setattr, ctx, "proc_start", ctx.proc_start)
+        ctx.proc_start = lambda pid: None
+
     def table(self, rows):
         # rows: pid -> (parent, comm) or (parent, comm, arguments)
         def args(pid):
@@ -458,6 +465,48 @@ class Lineage(unittest.TestCase):
         # work of: the variable there names the parent of that session, not of
         # the run.
         self.environ({500: {ctx.PARENT_VAR: "lead"}})
+        self.table({500: (200, "claude"), 200: (100, "claude"), 100: (1, "aacpanel-exec")})
+        got = ctx.lineage(500, {200: {"session": "child", "sessionId": UUID_A}})
+        self.assertEqual(got, {"outside": True, "parent": {"session": "child", "sessionId": UUID_A}})
+
+    def stood(self, pid, kept, started="777"):
+        """Keeps a parent the executor set for a live process later, in a state directory of the test's own."""
+        state = test_barrier.tmp_dir("state")
+        self.addCleanup(state.cleanup)
+        old = os.environ.get("XDG_STATE_HOME")
+        self.addCleanup(lambda: os.environ.pop("XDG_STATE_HOME", None) if old is None
+                        else os.environ.__setitem__("XDG_STATE_HOME", old))
+        os.environ["XDG_STATE_HOME"] = state.name
+        path = held.process_parent_path(pid)
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(kept, f)
+        ctx.proc_start = lambda p: started if p == pid else None
+
+    def test_a_session_stood_under_another_later_names_it(self):
+        self.environ({500: {"HOME": "/home/u"}})
+        self.stood(500, {"session": "lead", "procStart": "777"})
+        self.table({500: (40, "claude"), 40: (1, "aacpanel-exec")})
+        self.assertEqual(ctx.lineage(500, {}), {"parent": {"session": "lead"}})
+
+    def test_the_later_word_stands_a_session_under_another_than_it_was_opened_by(self):
+        self.environ({500: {ctx.PARENT_VAR: "lead"}})
+        self.stood(500, {"session": "review", "procStart": "777"})
+        self.table({500: (40, "claude"), 40: (1, "tmux: server")})
+        self.assertEqual(ctx.lineage(500, {}), {"parent": {"session": "review"}})
+
+    def test_a_pid_used_again_takes_no_parent_over(self):
+        # The process the parent was kept for started at 776; the one under
+        # the pid now is another, a session started later under the same
+        # name among them.
+        self.environ({500: {ctx.PARENT_VAR: "lead"}})
+        self.stood(500, {"session": "review", "procStart": "776"})
+        self.table({500: (40, "claude"), 40: (1, "aacpanel-exec")})
+        self.assertEqual(ctx.lineage(500, {}), {"parent": {"session": "lead"}})
+
+    def test_a_run_is_named_by_the_session_it_runs_in_whatever_was_kept_for_it(self):
+        self.environ({500: {}})
+        self.stood(500, {"session": "lead", "procStart": "777"})
         self.table({500: (200, "claude"), 200: (100, "claude"), 100: (1, "aacpanel-exec")})
         got = ctx.lineage(500, {200: {"session": "child", "sessionId": UUID_A}})
         self.assertEqual(got, {"outside": True, "parent": {"session": "child", "sessionId": UUID_A}})

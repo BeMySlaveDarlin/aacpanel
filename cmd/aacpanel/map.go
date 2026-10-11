@@ -503,8 +503,9 @@ func openDir(kind action.Kind, params map[string]any) (string, error) {
 }
 
 // parentFromParams is the session a session.open is asked by, as session_open
-// names its caller: the new session is shown under it. Empty for an open a
-// person asked for, and an open that is not session.open has no parent.
+// names its caller: the new session is shown under it while the two are of
+// one project. Empty for an open a person asked for, and an open that is not
+// session.open has no parent.
 func parentFromParams(kind action.Kind, params map[string]any) (string, error) {
 	raw, ok := params["parent"]
 	if !ok || raw == nil {
@@ -513,6 +514,9 @@ func parentFromParams(kind action.Kind, params map[string]any) (string, error) {
 	parent, isText := raw.(string)
 	if kind != action.SessionOpen || !isText || strings.TrimSpace(parent) == "" {
 		return "", fmt.Errorf("the session that opens this one did not arrive as a name of a session.open")
+	}
+	if err := action.ValidParent(parent); err != nil {
+		return "", err
 	}
 	return parent, nil
 }
