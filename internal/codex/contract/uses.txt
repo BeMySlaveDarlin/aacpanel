@@ -20,6 +20,7 @@ call initialize
   send capabilities.experimentalApi
   send capabilities.requestAttestation
   send capabilities.optOutNotificationMethods[]
+  read userAgent
 
 # The poll: the loaded threads and each one read.
 call thread/loaded/list

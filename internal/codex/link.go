@@ -532,12 +532,14 @@ func (l *Link) serve(ctx context.Context) error {
 		return fmt.Errorf("the daemon did not take the connection: %w", err)
 	}
 	defer c.close()
-	if err := initialize(ctx, c); err != nil {
+	release, err := initialize(ctx, c)
+	if err != nil {
 		if ctx.Err() != nil {
 			return nil
 		}
 		return err
 	}
+	l.released(release)
 	l.mu.Lock()
 	l.conn = c
 	l.held = heldMarks(l.contour)
@@ -580,17 +582,26 @@ func (l *Link) serve(ctx context.Context) error {
 	}
 }
 
-func initialize(ctx context.Context, c *conn) error {
+// initialize shakes hands with the daemon and returns the release of codex it
+// runs, as its answer names it.
+func initialize(ctx context.Context, c *conn) (string, error) {
 	params := map[string]any{
 		"clientInfo": map[string]any{"name": "aacpanel", "title": "aacpanel", "version": "1"},
 		"capabilities": map[string]any{
 			"experimentalApi": true, "requestAttestation": false, "optOutNotificationMethods": quiet,
 		},
 	}
-	if err := within(ctx, c, "initialize", params, nil); err != nil {
-		return err
+	// The answer is read loosely, for the release alone: an answer of another
+	// shape leaves the release unknown rather than the link down with it.
+	var answer json.RawMessage
+	if err := within(ctx, c, "initialize", params, &answer); err != nil {
+		return "", err
 	}
-	return c.notify(ctx, "initialized")
+	var said struct {
+		UserAgent string `json:"userAgent"`
+	}
+	_ = json.Unmarshal(answer, &said)
+	return releaseOf(said.UserAgent), c.notify(ctx, "initialized")
 }
 
 // within is a call bounded in time: a daemon that stops answering holds the

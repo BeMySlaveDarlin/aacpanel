@@ -20,6 +20,10 @@ type state struct {
 	Probes       json.RawMessage `json:"probes"`
 	Profiles     json.RawMessage `json:"profiles"`
 	Models       json.RawMessage `json:"models"`
+	// CodexReleases are the releases of codex the daemons of the homes run,
+	// for the push that says one moved past the release its protocol was
+	// checked against.
+	CodexReleases json.RawMessage `json:"codexReleases"`
 }
 
 // Reader reads the state written by the agent and caches it for a second.
@@ -93,6 +97,7 @@ func (h *Reader) JSON() ([]byte, error) {
 		"probes":         st.Probes,
 		"profiles":       st.Profiles,
 		"models":         st.Models,
+		"codexReleases":  st.CodexReleases,
 	}
 	payload, err := json.Marshal(out)
 	if err != nil {

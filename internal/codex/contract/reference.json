@@ -1975,6 +1975,22 @@
    "title": "InitializeParams",
    "type": "object"
   },
+  "InitializeResponse": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "properties": {
+    "userAgent": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "codexHome",
+    "platformFamily",
+    "platformOs",
+    "userAgent"
+   ],
+   "title": "InitializeResponse",
+   "type": "object"
+  },
   "McpElicitationArrayType": {
    "enum": [
     "array"

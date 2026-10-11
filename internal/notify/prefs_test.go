@@ -23,7 +23,8 @@ func TestTheKindOfAPushIsReadOffItsKey(t *testing.T) {
 		"note:4d89:2026": KindCall, "ask:4d89:x": KindAsk, "wait:4d89:1": KindWait, "brief:b1:x": KindBrief,
 		"done:4d89:1": KindDone, "gone:4d89": KindGone, "stack:shop": KindStack, "container:shop-php": KindContainer,
 		"health:shop-php": KindContainer, "alert:152": KindRule, "probe:3": KindProbe,
-		"limit:5h:globex:1790": KindLimit, "blind:agent": KindBlind, "test": "", "push:1": "",
+		"limit:5h:globex:1790": KindLimit, "codex:personal:0.163.0": KindCodex, "blind:agent": KindBlind,
+		"test": "", "push:1": "",
 	} {
 		if got := kindOf(key); got != want {
 			t.Errorf("%q is a %q push, want %q", key, got, want)

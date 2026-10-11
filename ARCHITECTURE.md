@@ -839,6 +839,22 @@ after the install pairs only by its account's name.
   rollout the feed reads, the state database of a home, the `_meta` codex adds
   to an MCP server's request and the words of a refusal are no part of the
   schema, and the check does not see them change.
+- **A daemon that moved past the reference is said once a release.** The
+  daemon names the release it runs in the user agent of its answer to the
+  handshake, and a daemon that updated itself comes back on a new connection,
+  so the executor learns the release without a process of its own. It writes
+  it at every handshake by contour in
+  `~/.local/state/aacpanel-stream/codex-release/` (`$XDG_STATE_HOME` moves
+  it), beside the release of the reference it was built with; the collector
+  puts both in the snapshot, and the service pushes when they differ: codex
+  moved to one release, the protocol was checked against another, run
+  `make codex-contract`. The reason is held while the daemon runs that
+  release, so it is said once — not at every look, not after the service
+  starts again, which keeps what it told, and not after the executor or the
+  machine does, which the file outlives; a release further on is said once
+  more, and a daemon brought level is forgotten without a word. The reference
+  travels in the executor's binary: a reference written again counts once the
+  executor is rebuilt from it.
 - **A close lets the thread go.** The turn that runs is interrupted, the panel
   stops holding the thread and leaves it, and the tmux session whose pane the
   launcher started with codex resuming that thread is killed by its exact
@@ -1683,8 +1699,10 @@ seconds and compares the look with the one before it: a question, a session
 waiting on a permission, a brief on the shelf, a turn of ten minutes or longer
 that ended, a session gone without the panel closing it, a stack down whole, a
 container down or unhealthy while the rest of its stack runs, a rule tripped, a
-probe that stopped answering, a subscription limit past 80%, and a panel gone
-blind — the collector silent or the database out of reach. A reason is pushed
+probe that stopped answering, a subscription limit past 80%, a codex daemon
+that runs another release than the one its protocol was checked against
+(Codex sessions above), and a panel gone blind — the collector silent or the
+database out of reach. A reason is pushed
 when it appears and, where it has one, once more when it is gone; nothing
 reminds in between, and the push service collapses repeats under the reason's
 own topic rather than the phone. A call of a session travels apart, the moment

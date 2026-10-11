@@ -135,6 +135,9 @@ type Server struct {
 	refuse map[string]bool
 	// limits is what account/rateLimits/read answers.
 	limits map[string]any
+	// agent is the user agent initialize answers with, which names the
+	// release the daemon runs; empty for the fake's own.
+	agent string
 	// lag leaves a thread as it was after turn/start: the daemon answers
 	// turn/start before the thread turns active.
 	lag bool
@@ -324,6 +327,14 @@ func (s *Server) Limits(snapshot map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.limits = snapshot
+}
+
+// Agent sets the user agent initialize answers with, as a daemon that
+// updated itself names another release at the next handshake.
+func (s *Server) Agent(userAgent string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agent = userAgent
 }
 
 // LimitsUpdate sends account/rateLimits/updated with a snapshot that may be
@@ -673,7 +684,11 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		return map[string]any{"rateLimits": s.limits, "rateLimitsByLimitId": nil, "ordinaryUsageAllowed": true}, nil, ""
 	}
 	if method == "initialize" {
-		return map[string]any{"userAgent": "fake/0.162.0", "codexHome": s.Home,
+		agent := s.agent
+		if agent == "" {
+			agent = "fake/0.162.0"
+		}
+		return map[string]any{"userAgent": agent, "codexHome": s.Home,
 			"platformFamily": "unix", "platformOs": "linux"}, nil, ""
 	}
 	if method == "thread/loaded/list" {

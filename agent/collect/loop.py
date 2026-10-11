@@ -10,6 +10,7 @@ import briefs
 import pages
 import chat
 import contours
+import held
 import notes
 import projects
 import reviews
@@ -133,6 +134,7 @@ def main():
             "profiles": contours.described(),
             "models": models_snapshot(catalog, catalog_lock),
             "probes": probes_snapshot(probes, probes_lock),
+            "codexReleases": held.codex_releases(),
         }
         try:
             write_state(state)

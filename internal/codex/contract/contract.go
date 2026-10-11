@@ -316,6 +316,18 @@ func (s *Schema) Version() string {
 	return v
 }
 
+// Release is the number of the release the schema is of, without the name of
+// the program codex says before it: "0.162.1" of "codex-cli 0.162.1". A
+// daemon names the release it runs by the number alone, and the two are
+// compared by it.
+func (s *Schema) Release() string {
+	words := strings.Fields(s.Version())
+	if len(words) == 0 {
+		return ""
+	}
+	return words[len(words)-1]
+}
+
 // A pointer names a node the way JSON Pointer does: "/definitions/v2/Thread".
 func join(ptr string, key any) string {
 	k := fmt.Sprint(key)

@@ -107,6 +107,18 @@ func TestTheReferenceHoldsEverythingThePanelUses(t *testing.T) {
 	}
 }
 
+// The release of the reference is the number codex says after its own name,
+// the way a daemon names the release it runs, so the two compare.
+func TestTheReleaseIsTheNumberOfTheVersion(t *testing.T) {
+	ref := reference(t)
+	if got := ref.Release(); got == "" || strings.Contains(got, " ") || ref.Version() != "codex-cli "+got {
+		t.Errorf("the release of %q reads %q", ref.Version(), got)
+	}
+	if got := release(t, func(map[string]any) {}).Release(); got != "" {
+		t.Errorf("a schema that names no version has the release %q", got)
+	}
+}
+
 // A reference cut again is the same reference: it holds every node a check
 // reads, so a check of a release against it reads in it what it reads in the
 // release.

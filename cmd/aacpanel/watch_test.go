@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -144,6 +145,33 @@ func TestWatcherTakesFractionalPercent(t *testing.T) {
 		if got[key] != pct {
 			t.Errorf("window %s: %d%%, expected %d%%", key, got[key], pct)
 		}
+	}
+}
+
+// The releases of codex the collector carries reach the look of the host, and
+// a snapshot without them is not read as a host whose daemons say nothing:
+// the reason told of a release would be forgotten and told again.
+func TestWatcherReadsTheReleasesOfCodex(t *testing.T) {
+	read := func(body string) notify.World {
+		w := newWatcher(&Server{host: host.NewReader(snapshotWith(t, body))}, nil)
+		var cur notify.World
+		w.readSnapshot(t.Context(), &cur)
+		return cur
+	}
+
+	cur := read(`{"at": 1788814000, "sessionsAt": 1788814000, "codexReleases": [
+		{"at": 1788813000, "contour": "personal", "codexHome": "/home/u/.codex", "release": "0.163.0", "reference": "0.162.1"}
+	]}`)
+	want := []notify.Codex{{Contour: "personal", Release: "0.163.0", Reference: "0.162.1"}}
+	if !cur.CodexSeen || !slices.Equal(cur.Codex, want) {
+		t.Errorf("the releases read as %+v (seen %v), meant %+v", cur.Codex, cur.CodexSeen, want)
+	}
+
+	if cur := read(`{"at": 1788814000, "sessionsAt": 1788814000, "codexReleases": []}`); !cur.CodexSeen {
+		t.Error("an empty list of releases was not seen")
+	}
+	if cur := read(`{"at": 1788814000, "sessionsAt": 1788814000}`); cur.CodexSeen {
+		t.Error("a snapshot without the releases was read as one that has none")
 	}
 }
 

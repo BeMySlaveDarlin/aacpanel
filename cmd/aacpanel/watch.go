@@ -253,6 +253,14 @@ type snapshot struct {
 		} `json:"ask"`
 	} `json:"sessions"`
 	Limits *limitsBlock `json:"limits"`
+	// CodexReleases are the releases the daemons of the codex homes ran at
+	// their last handshake, each beside the release the protocol was checked
+	// against; absent from a collector that does not carry them.
+	CodexReleases []struct {
+		Contour   string `json:"contour"`
+		Release   string `json:"release"`
+		Reference string `json:"reference"`
+	} `json:"codexReleases"`
 }
 
 type limitsBlock struct {
@@ -305,6 +313,13 @@ func (w *watcher) readSnapshot(ctx context.Context, cur *notify.World) {
 			item.Ask = &notify.Ask{Header: s.Ask.Header, Text: s.Ask.Text, Count: s.Ask.Count, At: s.Ask.At}
 		}
 		cur.Sessions = append(cur.Sessions, item)
+	}
+
+	if snap.CodexReleases != nil {
+		cur.CodexSeen = true
+		for _, c := range snap.CodexReleases {
+			cur.Codex = append(cur.Codex, notify.Codex{Contour: c.Contour, Release: c.Release, Reference: c.Reference})
+		}
 	}
 
 	if snap.Limits == nil {

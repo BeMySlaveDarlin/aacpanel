@@ -202,6 +202,7 @@ window.done = (async () => {
     out.limitOff = (await press(chip("limits", "personal"))).limits;
     out.limitChips = chips("limits");
     out.limitKind = (await press(row("A claude limit past 80%"))).off;
+    out.codexKind = (await press(row("Codex updated itself"))).off;
     out.idleAfter = all(".nffrom").map((f) => f.getAttribute("data-idle"));
 
     // Rules, from their own list.

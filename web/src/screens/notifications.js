@@ -282,6 +282,8 @@ function Choice({ prefs, sources, change }) {
                             chips=${contours.map((c) => ({ key: c.configDir, name: c.name, on: !prefs.limits.includes(c.configDir) }))}
                             onFlip=${listed("limits")}
                         />
+                        <${Kind} title="Codex updated itself" sub="past the release its protocol was checked against"
+                                 on=${heard("codex")} onFlip=${kind("codex")} />
                         <${Always} title="The panel went blind" sub="otherwise a failure passes in silence" />
                     </section>
                 </div>

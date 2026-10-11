@@ -91,7 +91,23 @@ def codex_limits():
     The executor keeps a file per contour beside the state files of the
     threads; a file outlives its executor, and its time says how old it is.
     """
-    root = os.path.join(stream_dir(), "codex-limits")
+    return by_contour(os.path.join(stream_dir(), "codex-limits"))
+
+
+def codex_releases():
+    """Returns the release of codex the daemon of each contour ran at its last handshake with an executor.
+
+    Each beside the release the protocol was last checked against, which the
+    executor knows from the reference it was built with: the service says
+    once a release that the two differ. The file outlives the executor and a
+    restart of the machine, since a daemon down or not dialled yet last ran
+    what it says.
+    """
+    return by_contour(os.path.join(kept_dir(), "codex-release"))
+
+
+def by_contour(root):
+    """Returns the files the executor keeps a contour each in a directory, every one naming its contour."""
     try:
         names = sorted(os.listdir(root))
     except OSError:

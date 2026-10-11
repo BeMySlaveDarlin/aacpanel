@@ -249,6 +249,19 @@ func TestEveryEventLooksLikeThis(t *testing.T) {
 			gone:     "Limit reset · acme",
 			goneBody: "The weekly window has started over.",
 		},
+		{
+			name: "codex moved past the release its protocol was checked against",
+			cur: world(snapshotWorld(), func(w *World) {
+				w.CodexSeen = true
+				w.Codex = []Codex{{Contour: "personal", Release: "0.163.0", Reference: "0.162.1"}}
+			}),
+			key: "codex:personal:0.163.0",
+
+			title:      "Codex updated · personal",
+			body:       "Codex moved to 0.163.0, and the protocol was checked against 0.162.1 — run make codex-contract.",
+			severity:   Warning,
+			goneSilent: true,
+		},
 	}
 
 	for _, c := range cases {

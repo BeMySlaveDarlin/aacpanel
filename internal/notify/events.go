@@ -20,6 +20,7 @@ const (
 	DomainStore     = "store"
 	DomainVision    = "vision"
 	domainLimit     = "limit"
+	domainCodex     = "codex"
 )
 
 // Event is a reason to notify, with the wording for both raising and clearing it.
@@ -61,6 +62,11 @@ type World struct {
 	AgentErr   string
 	Limits     []Limit
 	LimitsSeen bool
+	// Codex is the release the daemon of each codex home ran at its last
+	// handshake, beside the release its protocol was checked against;
+	// CodexSeen says the snapshot carried them.
+	Codex     []Codex
+	CodexSeen bool
 
 	Containers []Container
 	Stacks     []Stack
@@ -212,6 +218,14 @@ type Limit struct {
 	ResetsAt  int64
 }
 
+// Codex is the release of codex the daemon of a contour's home runs, and the
+// release the panel's protocol was last checked against.
+type Codex struct {
+	Contour   string
+	Release   string
+	Reference string
+}
+
 // Report is what Look saw on this pass.
 type Report struct {
 	Raise []Event
@@ -245,6 +259,10 @@ func Look(prev, cur World) Report {
 	}
 	if !agentBlind && cur.LimitsSeen {
 		limits(&r, cur)
+	}
+	if !agentBlind && cur.CodexSeen {
+		r.Seen = append(r.Seen, domainCodex)
+		codexReleases(&r, cur)
 	}
 	if cur.BriefsSeen {
 		briefs(&r, prev, cur)
@@ -799,6 +817,33 @@ func burning(now time.Time, l Limit, watch, key string) Event {
 		GoneBody:     "The " + windowText(l.Window) + " window has started over.",
 		GoneSeverity: Info,
 		Source:       Source{Contour: l.ConfigDir, Name: l.Contour},
+	}
+}
+
+// codexReleases says once a release that the daemon of a codex home runs
+// another release than the one the protocol was checked against: the daemon
+// updates itself, and a release past the reference may have moved what the
+// panel decodes without a word. The reason is held while the daemon runs that
+// release, so the next look says nothing; a daemon that moved on again is a
+// reason of its own, and one brought level — the reference written again, or
+// codex back on it — is forgotten without a word.
+func codexReleases(r *Report, cur World) {
+	for _, c := range cur.Codex {
+		if c.Contour == "" || c.Release == "" || c.Reference == "" || c.Release == c.Reference {
+			continue
+		}
+		r.raise(updated(c))
+	}
+}
+
+func updated(c Codex) Event {
+	return Event{
+		Key:    domainCodex + ":" + c.Contour + ":" + c.Release,
+		Domain: domainCodex,
+		Title:  "Codex updated · " + c.Contour,
+		Body: "Codex moved to " + c.Release + ", and the protocol was checked against " + c.Reference +
+			" — run make codex-contract.",
+		Severity: Warning,
 	}
 }
 

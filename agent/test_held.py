@@ -322,3 +322,38 @@ class Traits(unittest.TestCase):
         with open(os.path.join(held.kept_dir(), "traits.json"), "w", encoding="utf-8") as f:
             f.write("{not json")
         self.assertEqual(held.traits(), {})
+
+
+class CodexReleases(unittest.TestCase):
+    """The releases of codex the daemons ran, read from the files the executor keeps by contour."""
+
+    def setUp(self):
+        self.state = test_barrier.tmp_path(prefix="releases-")
+        self.addCleanup(shutil.rmtree, self.state, True)
+        self.old = os.environ.get("XDG_STATE_HOME")
+        os.environ["XDG_STATE_HOME"] = self.state
+        self.addCleanup(lambda: os.environ.pop("XDG_STATE_HOME", None) if self.old is None
+                        else os.environ.__setitem__("XDG_STATE_HOME", self.old))
+        self.dir = os.path.join(held.kept_dir(), "codex-release")
+
+    def keep(self, name, body):
+        os.makedirs(self.dir, exist_ok=True)
+        with open(os.path.join(self.dir, name), "w", encoding="utf-8") as f:
+            f.write(body if isinstance(body, str) else json.dumps(body))
+
+    def test_no_file_is_no_release(self):
+        self.assertEqual(held.codex_releases(), [])
+
+    def test_the_release_of_each_contour_is_read_as_the_executor_wrote_it(self):
+        work = {"at": 1791548000, "contour": "work", "codexHome": "/home/u/.codex-profiles/work",
+                "release": "0.163.0", "reference": "0.162.1"}
+        personal = dict(work, contour="personal", codexHome="/home/u/.codex", release="0.162.1")
+        self.keep("work.json", work)
+        self.keep("personal.json", personal)
+        self.assertEqual(held.codex_releases(), [personal, work])
+
+    def test_a_file_that_does_not_read_or_names_no_contour_is_passed_by(self):
+        self.keep("broken.json", "{not json")
+        self.keep("nobody.json", {"release": "0.163.0", "reference": "0.162.1"})
+        self.keep(".work.json.tmp", {"contour": "work", "release": "0.163.0"})
+        self.assertEqual(held.codex_releases(), [])

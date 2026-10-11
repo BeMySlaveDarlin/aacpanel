@@ -111,6 +111,10 @@ the release codex names as it writes its schema, so a directory handed over
 with `-schema` is refused there: it does not say which release wrote it.
 A call added to `internal/codex` goes into `uses.txt` with it: a test of the
 package fails while the contract does not name a method the link uses.
+The panel asks for this check itself: a daemon that updated itself past the
+reference is a push, once a release. The reference it compares with is the
+one the executor was built with, so a reference written again counts once the
+executor is rebuilt.
 
 ---
 

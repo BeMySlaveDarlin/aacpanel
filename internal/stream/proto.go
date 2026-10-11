@@ -95,6 +95,16 @@ func ParentPath(sessionID string) string {
 	return filepath.Join(keptDir(), "parents", sessionID+".json")
 }
 
+// CodexReleasePath keeps the release of codex the daemon of one contour ran
+// when the executor last shook hands with it. It outlives the executor and a
+// restart of the machine: a daemon that is down, or not dialled yet after a
+// boot, last ran what the file says, and a file gone with the runtime
+// directory would have the panel say the same release again once the daemon
+// is back. It holds two numbers of releases and nothing else.
+func CodexReleasePath(contour string) string {
+	return filepath.Join(keptDir(), "codex-release", contour+".json")
+}
+
 // Permit is an answer to a permission, by the call it was given for.
 type Permit struct {
 	Use  string `json:"use"`

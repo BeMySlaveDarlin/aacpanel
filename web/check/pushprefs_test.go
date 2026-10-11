@@ -65,6 +65,7 @@ type prefsShot struct {
 	LimitOff   []string `json:"limitOff"`
 	LimitChips []string `json:"limitChips"`
 	LimitKind  []string `json:"limitKind"`
+	CodexKind  []string `json:"codexKind"`
 	IdleAfter  []string `json:"idleAfter"`
 
 	Rules         []prefsRow `json:"rules"`
@@ -171,6 +172,7 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 		{Title: "Rules", Sub: "4 of 4 · Container eats CPU, Host CPU is loaded, Disk is filling up, The claude limit is running out"},
 		{Title: "Probes stop answering", Sub: "3 · API Anthropic, API Google, API Telegram", Role: "switch", On: "true"},
 		{Title: "A claude limit past 80%", Role: "switch", On: "true"},
+		{Title: "Codex updated itself", Sub: "past the release its protocol was checked against", Role: "switch", On: "true"},
 		{Title: "The panel went blind", Sub: "otherwise a failure passes in silence", Role: "switch", On: "true", Disabled: true, Lock: "always"},
 	}
 	if len(got.Rows) != len(want) {
@@ -239,6 +241,9 @@ func checkPushChoice(t *testing.T, got prefsShot) {
 	}
 	if !slices.Contains(got.LimitKind, "limit") {
 		t.Errorf("turning the limits off sent off %v", got.LimitKind)
+	}
+	if !slices.Contains(got.CodexKind, "codex") {
+		t.Errorf("turning the updates of codex off sent off %v", got.CodexKind)
 	}
 
 	if !got.ScrimCovers {
