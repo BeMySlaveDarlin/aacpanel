@@ -10,12 +10,24 @@ import { html } from "./html.js";
 import { Icon } from "./ui/icons.js";
 import { highlight, kept, langOf } from "./hl.js";
 
-const INLINE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(\[[^\]]+\]\([^)\s]+\))/g;
+// The address of a link may stand apart from its brackets, as in
+// "[the report]( /srv/plans/README.md)": markdown allows the spaces, a model
+// writes them, and a link that misses them is shown as its raw markup.
+const INLINE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(\[[^\]]+\]\(\s*[^)\s]+\s*\))/g;
 
 // SAFE_LINK is an address the panel makes a link of: the web's own schemes.
 // The address comes from a model or a server, and any other scheme, pressed,
 // would run in the panel's own page.
 export const SAFE_LINK = /^https?:\/\//i;
+
+// link is what a markdown link becomes. A web address opens in a tab of its
+// own; a path to a file becomes the path in code a tap opens the file by,
+// worded by the label; any other address is shown as words, not followed.
+function link(label, href) {
+    if (SAFE_LINK.test(href)) return html`<a href=${href} target="_blank" rel="noopener noreferrer">${label}</a>`;
+    if (isPath(href)) return html`<code class="path" data-path=${href}>${label}</code>`;
+    return `${label} (${href})`;
+}
 
 const BARE_URL = /https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/g;
 
@@ -49,11 +61,7 @@ export function inline(text) {
             out.push(html`<i>${inline(token.slice(1, -1))}</i>`);
         } else {
             const cut = token.indexOf("](");
-            const label = token.slice(1, cut);
-            const href = token.slice(cut + 2, -1);
-            out.push(SAFE_LINK.test(href)
-                ? html`<a href=${href} target="_blank" rel="noopener noreferrer">${label}</a>`
-                : `${label} (${href})`);
+            out.push(link(token.slice(1, cut), token.slice(cut + 2, -1).trim()));
         }
         last = m.index + token.length;
     }
