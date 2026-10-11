@@ -60,6 +60,12 @@ func watchTranscript(s liveSession) *transcriptTail {
 	}
 	w := &transcriptTail{id: s.SessionID, sock: seenSocket(), pos: -1}
 	w.ask("")
+	// Without a position from before typing, a later lookup would put the
+	// message behind the starting point. Only the screen can confirm this send;
+	// reading from zero instead could count an older reply or attachment.
+	if w.pos < 0 {
+		return nil
+	}
 	return w
 }
 

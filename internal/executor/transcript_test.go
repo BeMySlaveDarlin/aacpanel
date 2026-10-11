@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"net"
@@ -290,7 +291,32 @@ func TestPositionSurvivesASilentAnswer(t *testing.T) {
 	}
 }
 
-func agentSeen(t *testing.T, lines ...string) (string, string) {
+func TestTranscriptNeedsAStartingPosition(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(seenDirEnv, dir)
+	sock := filepath.Join(dir, seenSocketName)
+	fitsUnixPath(t, sock)
+	tail := watchTranscript(liveSession{SessionID: "id-8"})
+
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	agent := &fakeSeen{found: true, seen: true, end: 4210}
+	go agent.serve(ln)
+
+	// Let a deferred lookup run without sitting out its throttle: the
+	// collector is reachable, but sending has already passed the boundary.
+	if tail != nil {
+		tail.looked = time.Time{}
+	}
+	if tail.saw("the mark") || tail.watching() || agent.asked() != 0 {
+		t.Fatal("the conversation was watched from a position taken after sending")
+	}
+}
+
+func agentSeen(t *testing.T, lines ...string) (*transcriptTail, string) {
 	t.Helper()
 	python, err := exec.LookPath("python3")
 	if err != nil {
@@ -326,6 +352,10 @@ func agentSeen(t *testing.T, lines ...string) (string, string) {
 		"AACP_STATE_DIR="+filepath.Join(dir, "state"),
 		"HOME="+dir,
 		"PYTHONDONTWRITEBYTECODE=1")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("the collector did not start: %v", err)
 	}
@@ -334,15 +364,27 @@ func agentSeen(t *testing.T, lines ...string) (string, string) {
 		_ = cmd.Wait()
 	})
 
-	sock := filepath.Join(sockDir, seenSocketName)
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); {
-		if _, err := os.Stat(sock); err == nil {
-			return talk, path
+	// bind creates the socket before listen makes it usable. The collector
+	// reports its startup after listen; the lookup then fixes the position
+	// before any test appends a reply, including one meant not to match.
+	started := make(chan error, 1)
+	go func() {
+		_, err := bufio.NewReader(stdout).ReadString('\n')
+		started <- err
+	}()
+	select {
+	case err := <-started:
+		if err != nil {
+			t.Fatalf("the collector did not report its startup: %v", err)
 		}
-		time.Sleep(20 * time.Millisecond)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the collector never brought the socket up in ten seconds")
 	}
-	t.Fatal("the collector never brought the socket up in ten seconds")
-	return "", ""
+	tail := watchTranscript(liveSession{SessionID: talk})
+	if !tail.watching() {
+		t.Fatal("the conversation is not visible to the collector — there is nothing further to check")
+	}
+	return tail, path
 }
 
 func appendLine(t *testing.T, path, line string) {
@@ -367,11 +409,7 @@ func queueLine(text string) string {
 
 func TestLiveAgentConfirmsDelivery(t *testing.T) {
 	const text = "a delivery check with no screen, a reply somewhat longer than the mark"
-	talk, path := agentSeen(t)
-	tail := watchTranscript(liveSession{SessionID: talk})
-	if !tail.watching() {
-		t.Fatal("the conversation is not visible to the collector — there is nothing further to check")
-	}
+	tail, path := agentSeen(t)
 	appendLine(t, path, userLine(text))
 
 	term := &fakeTerm{screen_: emptyScreen, known: true}
@@ -386,8 +424,7 @@ func TestLiveAgentConfirmsDelivery(t *testing.T) {
 
 func TestLiveAgentSeesAttachmentChip(t *testing.T) {
 	const text = "/srv/files/20260908-035522-848e57-shot.png"
-	talk, path := agentSeen(t)
-	tail := watchTranscript(liveSession{SessionID: talk})
+	tail, path := agentSeen(t)
 	appendLine(t, path, queueLine("[Image #1]"))
 
 	term := &fakeTerm{screen_: emptyScreen, known: true}
@@ -401,8 +438,7 @@ func TestTranscriptNeverLeavesExecutor(t *testing.T) {
 	const secret = "the bank key hunter2 and a private conversation"
 	const text = "our own reply, the one that never turns up in the conversation"
 	quickWaits(t, &arriveWait)
-	talk, path := agentSeen(t, userLine(text))
-	tail := watchTranscript(liveSession{SessionID: talk})
+	tail, path := agentSeen(t, userLine(text))
 	appendLine(t, path, userLine(secret))
 
 	term := &fakeTerm{screen_: emptyScreen, known: true}

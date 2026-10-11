@@ -187,6 +187,12 @@ and gets back a fact — found, seen, queued, ended, a mode — never a line of 
 conversation. The reader of the conversation answers yes or no; the one that
 types does not read.
 
+The starting position is taken before typing. If that lookup fails, only the
+screen can confirm the send: taking a position after typing would skip the
+reply, and reading from the start could count an older one. Once a position is
+known, a silent answer keeps it for the next check; a conversation known not to
+exist starts at zero so its first reply can still be seen.
+
 **The hooks of sessions.** Every hook the kit writes runs the executor's
 binary: `aacpanel-exec hook <name>` reads the event's payload on stdin and
 answers on stdout, and needs nothing on the machine but the binary every
