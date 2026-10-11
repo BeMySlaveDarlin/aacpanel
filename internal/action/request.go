@@ -33,7 +33,8 @@ type Request struct {
 	// on the host against the opening record, never against visual grouping.
 	Caller string `json:"caller,omitempty"`
 
-	Project *Project `json:"project,omitempty"`
+	Project *Project         `json:"project,omitempty"`
+	Move    *ProjectMoveSpec `json:"move,omitempty"`
 
 	Permit *Permit `json:"permit,omitempty"`
 
@@ -125,6 +126,15 @@ type Request struct {
 }
 
 const OriginVoice = "voice"
+
+// ProjectMoveSpec is filled from the map, never from paths on the phone.
+// Finish is empty to move, commit to discard the undo, or rollback to use it.
+type ProjectMoveSpec struct {
+	ID     string `json:"id"`
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Finish string `json:"finish,omitempty"`
+}
 
 // CodexSender is where the codex thread a letter comes from runs: the home of
 // its codex and the directory it works in. The letter names them to its

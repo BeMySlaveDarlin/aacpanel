@@ -105,6 +105,9 @@ const (
 
 	// ProjectCreate creates a project directory on disk and grants it trust.
 	ProjectCreate Kind = "project.create"
+	// ProjectMove carries a project's Claude history between accounts with
+	// an undo kept until the service commits the map.
+	ProjectMove Kind = "project.move"
 
 	// TermStart starts a terminal of the panel: the user's own shell in a
 	// tmux session on the panel's socket, in a place from the map. The
@@ -139,7 +142,7 @@ var Kinds = []Kind{
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
 	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
-	WindowClose, ProjectCreate, TermStart, TermClose, TermRename, TermConsole, SecretPut, SecretDrop,
+	WindowClose, ProjectCreate, ProjectMove, TermStart, TermClose, TermRename, TermConsole, SecretPut, SecretDrop,
 }
 
 // Valid reports whether the executor knows this kind of action.

@@ -17,6 +17,7 @@ import {
 } from "./draft.js";
 import { ModelPopover, ModelSheet, traitOf } from "./controls.js";
 import { Apply } from "./apply.js";
+import { ProjectTransfer } from "./transfer.js";
 import { sessionsOf } from "../sessions/of.js";
 import { isCodex } from "../../agent.js";
 import { paramOf, useSchema } from "./schema.js";
@@ -47,7 +48,7 @@ function Account({ contour, effective, stream }) {
 
 // tools, when given, stand at the right of the heading: the columns of a desk
 // put the start of a new session of the project there.
-export function ProjectSettings({ project, contour, group, catalog, sessions, tools, onClose, onDone, onRemove, onDirty }) {
+export function ProjectSettings({ project, contour, group, catalog, sessions, tools, profiles, onClose, onDone, onRemove, onDirty }) {
     const { schema, error } = useSchema();
     const run = useAction();
     const [picking, setPicking] = useState("");
@@ -246,7 +247,7 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
                                 onClick=${() => setField("groupId", g.id)}>${g.name}</button>
                     `)}
                 </div>
-                <span class="pfhelp">a group is a shelf of this contour; a group moves to another contour whole</span>
+                <span class="pfhelp">a group is a shelf of this contour</span>
             </div>
         `}
         <label class="pffield">
@@ -266,6 +267,9 @@ export function ProjectSettings({ project, contour, group, catalog, sessions, to
                 </div>
             `)}
         `}
+
+        <${ProjectTransfer} project=${project} contour=${contour} profiles=${profiles}
+            dirty=${changes > 0} onDone=${onDone} onClose=${onClose} />
 
         <div class="pzdanger">
             <span class="pzdangertitle">Delete the project</span>

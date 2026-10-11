@@ -41,8 +41,9 @@ type Executor struct {
 	keeperOnce sync.Once
 	// daemons serialises starting the codex daemons: two News at once would
 	// both find no daemon and both start one.
-	daemons sync.Mutex
-	updates sync.Mutex
+	daemons      sync.Mutex
+	updates      sync.Mutex
+	projectMoves sync.Mutex
 
 	// cores are the cores every unit the executor starts is held to, as
 	// hostcfg.Cores gives them; empty, the system puts the units where it
@@ -232,6 +233,8 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.windowClose(ctx, req.Target)
 	case action.ProjectCreate:
 		return projectCreate(req.Target)
+	case action.ProjectMove:
+		return e.projectMove(ctx, req)
 	case action.TermStart:
 		return e.termStart(ctx, req.Target, req.Place)
 	case action.TermClose:

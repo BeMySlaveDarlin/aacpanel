@@ -10,6 +10,8 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/claudecfg"
+	registry "aacpanel/internal/contours"
+	"aacpanel/internal/historymove"
 	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/schema"
@@ -51,10 +53,16 @@ func (e *Executor) Open(ctx context.Context, req action.Request) (string, string
 }
 
 func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.Project) (string, string, error) {
+	e.projectMoves.Lock()
+	defer e.projectMoves.Unlock()
 	p, err := chooseProject(target, want)
 	if err != nil {
 		return "", "", err
 	}
+	if err := historymove.Pending(registry.ConfigDirs(), p.Path); err != nil {
+		return "", "", err
+	}
+
 	if c, warns := launcher.ParseCodex(p.Launch); c.Agent == schema.AgentCodex {
 		return e.codexOpen(ctx, p, c, warns)
 	}
@@ -66,7 +74,7 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 		return "", "", err
 	}
 
-	trusted, err := projectTrusted(p.Path)
+	trusted, err := projectTrustedFor(p)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			trusted = true
@@ -87,7 +95,7 @@ func (e *Executor) sessionOpen(ctx context.Context, target string, want *action.
 					p.Path)
 			}
 		} else {
-			ok, err := trustProject(p.Path)
+			ok, err := trustProjectFor(p)
 			if err != nil {
 				return "", "", fmt.Errorf("%s is not trusted, and granting trust failed: %w", p.Path, err)
 			}
@@ -194,11 +202,21 @@ func insideRoots(path string, roots []string) bool {
 }
 
 func (e *Executor) sessionResume(ctx context.Context, target, resume string, want *action.Project) (string, error) {
+	e.projectMoves.Lock()
+	defer e.projectMoves.Unlock()
 	p, err := chooseProject(target, want)
 	if err != nil {
 		return "", err
 	}
+	if err := historymove.Pending(registry.ConfigDirs(), p.Path); err != nil {
+		return "", err
+	}
 
+	if p.FromMap {
+		if _, err := trustProjectFor(p); err != nil {
+			return "", fmt.Errorf("granting trust for the resumed project: %w", err)
+		}
+	}
 	rep, err := e.runLauncher(ctx, p, resume)
 	if err != nil {
 		return "", err

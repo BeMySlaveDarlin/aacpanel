@@ -562,10 +562,13 @@ func TestKindsDropSessionsWithoutTmux(t *testing.T) {
 				t.Errorf("%s disappeared along with the sessions", k)
 			}
 		}
+		if !hasKind(got, action.ProjectMove) {
+			t.Error("project.move disappeared without tmux")
+		}
 		if !hasKind(got, action.ProjectCreate) {
 			t.Error("project.create disappeared along with the sessions — there is nothing left to start a project with on such a machine")
 		}
-		if known := len(sessionKinds) + len(windowKinds) + len(workKinds) + len(termKinds) + 9; len(action.Kinds) != known {
+		if known := len(sessionKinds) + len(windowKinds) + len(workKinds) + len(termKinds) + 10; len(action.Kinds) != known {
 			t.Errorf("action.Kinds changed: it holds %d kinds while the test knows %d", len(action.Kinds), known)
 		}
 	})

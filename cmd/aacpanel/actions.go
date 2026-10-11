@@ -72,6 +72,10 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		return
 	}
 
+	if body.Kind == string(action.ProjectMove) {
+		s.runProjectMove(w, r, body.Target, body.Params)
+		return
+	}
 	req := action.Request{Kind: action.Kind(body.Kind), Target: body.Target}
 	if action.RecordOnly(req.Kind) {
 		s.recordWork(w, r, req.Kind, req.Target, body.Params)

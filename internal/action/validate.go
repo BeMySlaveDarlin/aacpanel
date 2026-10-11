@@ -58,6 +58,9 @@ func (r WorkRecord) Validate(kind Kind, target string) error {
 
 // Validate checks the request before it reaches anything that executes.
 func (r Request) Validate() error {
+	if r.Move != nil && r.Kind != ProjectMove {
+		return badRequest("only a project move carries a move specification")
+	}
 	if r.Caller != "" && (r.Kind != SessionClose || !safeUUID(r.Caller)) {
 		return badRequest("only a child close takes a caller conversation, which must be a uuid")
 	}
@@ -121,7 +124,7 @@ func (r Request) Validate() error {
 		return badRequest("action %s without a target", r.Kind)
 	}
 	targetLimit := targetMax
-	if r.Kind == ProjectCreate {
+	if r.Kind == ProjectCreate || r.Kind == ProjectMove {
 		targetLimit = pathMax
 	}
 	if len(r.Target) > targetLimit {
@@ -525,6 +528,23 @@ func (r Request) Validate() error {
 		return badRequest("action %s saves no secret", r.Kind)
 	}
 	if r.Kind == SecretDrop {
+		return nil
+	}
+	if r.Kind == ProjectMove {
+		if r.Move == nil || r.Move.From == r.Move.To || !safeID(r.Move.ID) || r.Move.ID == "" || len(r.Move.ID) > idMax {
+			return badRequest("a project move needs two different config directories")
+		}
+		for _, path := range []string{r.Target, r.Move.From, r.Move.To} {
+			if !filepath.IsAbs(path) || filepath.Clean(path) != path || len(path) > pathMax {
+				return badRequest("a project move needs clean absolute paths")
+			}
+			if err := safePath(path); err != nil {
+				return err
+			}
+		}
+		if r.Move.Finish != "" && r.Move.Finish != "commit" && r.Move.Finish != "rollback" {
+			return badRequest("unknown project move finish %q", r.Move.Finish)
+		}
 		return nil
 	}
 	if r.Kind == ProjectCreate {

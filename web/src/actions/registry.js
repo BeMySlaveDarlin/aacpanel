@@ -929,6 +929,16 @@ export const ACTIONS = {
             body: (target, params) => params.fields,
         },
     },
+    "project.move": {
+        title: (target, params) => `Move project "${params.name}"?`,
+        effect: (params) => `Move from "${params.from}" to "${params.to}": Claude conversation history, subagents, project memory, `
+            + "file history and session files, including tasks, todos and session-keyed plans. "
+            + "Close all live sessions of this project in every contour first. A differing file at the destination refuses the move. "
+            + "The map changes with the files; new sessions use the destination account. A host directory router must already point there. "
+            + "Codex threads are not moved. Shared prompt history, paste cache and plans without session IDs stay put.",
+        done: (target, params) => `Project "${params.name}" moved`,
+        ok: "Move project",
+    },
     "project.remove": {
         title: (target) => `Delete project "${target}"?`,
         effect: (params) => `The project disappears from the launch list of group "${params.group}" — it will not be possible to open it from the phone. `
@@ -1083,6 +1093,7 @@ const NAMES = {
     "project.save": "Save project",
     "project.edit": "Edit project",
     "project.remove": "Delete project",
+    "project.move": "Move project to another contour",
     "project.restore": "Restore project",
     "disk.hide": "Hide directory",
     "disk.show": "Restore directory",

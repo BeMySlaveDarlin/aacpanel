@@ -63,44 +63,51 @@ func TestTheProjectSettingsPageStrikesWhatTheModelDoesNotTake(t *testing.T) {
 // names both; leaving a draft asks.
 func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	var got struct {
-		Rows                []string       `json:"rows"`
-		ConsoleInherited    string         `json:"consoleInherited"`
-		Account             []string       `json:"account"`
-		Hints               []string       `json:"hints"`
-		RcOwn               string         `json:"rcOwn"`
-		EffortInherited     string         `json:"effortInherited"`
-		EffortFrom          string         `json:"effortFrom"`
-		BarAtStart          bool           `json:"barAtStart"`
-		BackIsNoChange      bool           `json:"backIsNoChange"`
-		BarAfterOne         string         `json:"barAfterOne"`
-		EffortRowDraft      string         `json:"effortRowDraft"`
-		DraftedWords        []string       `json:"draftedWords"`
-		PermLiveTmux        string         `json:"permLiveTmux"`
-		BarAfterTwo         string         `json:"barAfterTwo"`
-		PermLiveStream      string         `json:"permLiveStream"`
-		FeedSays            []string       `json:"feedSays"`
-		Blocked             string         `json:"blocked"`
-		SaveDisabled        bool           `json:"saveDisabled"`
-		Exit                string         `json:"exit"`
-		AfterExit           string         `json:"afterExit"`
-		PinRemoved          string         `json:"pinRemoved"`
-		Patch               map[string]any `json:"patch"`
-		SheetOnPlainSave    bool           `json:"sheetOnPlainSave"`
-		Done                []bool         `json:"done"`
-		BarAfterSave        bool           `json:"barAfterSave"`
-		ApplyHead           string         `json:"applyHead"`
-		ApplyNow            []string       `json:"applyNow"`
-		ApplyLater          []string       `json:"applyLater"`
-		Applied             map[string]any `json:"applied"`
-		Moved               map[string]any `json:"moved"`
-		PathSays            string         `json:"pathSays"`
-		PathSheet           string         `json:"pathSheet"`
-		GestureAsks         bool           `json:"gestureAsks"`
-		ClosedByGesture     int            `json:"closedByGesture"`
-		Leave               string         `json:"leave"`
-		ClosedBeforeDiscard int            `json:"closedBeforeDiscard"`
-		ClosedAfterDiscard  int            `json:"closedAfterDiscard"`
-		Previews            int            `json:"previews"`
+		Rows                   []string       `json:"rows"`
+		ConsoleInherited       string         `json:"consoleInherited"`
+		Account                []string       `json:"account"`
+		Hints                  []string       `json:"hints"`
+		RcOwn                  string         `json:"rcOwn"`
+		EffortInherited        string         `json:"effortInherited"`
+		EffortFrom             string         `json:"effortFrom"`
+		BarAtStart             bool           `json:"barAtStart"`
+		BackIsNoChange         bool           `json:"backIsNoChange"`
+		BarAfterOne            string         `json:"barAfterOne"`
+		EffortRowDraft         string         `json:"effortRowDraft"`
+		DraftedWords           []string       `json:"draftedWords"`
+		PermLiveTmux           string         `json:"permLiveTmux"`
+		BarAfterTwo            string         `json:"barAfterTwo"`
+		PermLiveStream         string         `json:"permLiveStream"`
+		FeedSays               []string       `json:"feedSays"`
+		Blocked                string         `json:"blocked"`
+		SaveDisabled           bool           `json:"saveDisabled"`
+		Exit                   string         `json:"exit"`
+		AfterExit              string         `json:"afterExit"`
+		PinRemoved             string         `json:"pinRemoved"`
+		Patch                  map[string]any `json:"patch"`
+		SheetOnPlainSave       bool           `json:"sheetOnPlainSave"`
+		Done                   []bool         `json:"done"`
+		BarAfterSave           bool           `json:"barAfterSave"`
+		ApplyHead              string         `json:"applyHead"`
+		ApplyNow               []string       `json:"applyNow"`
+		ApplyLater             []string       `json:"applyLater"`
+		Applied                map[string]any `json:"applied"`
+		Moved                  map[string]any `json:"moved"`
+		PathSays               string         `json:"pathSays"`
+		PathSheet              string         `json:"pathSheet"`
+		GestureAsks            bool           `json:"gestureAsks"`
+		ClosedByGesture        int            `json:"closedByGesture"`
+		Leave                  string         `json:"leave"`
+		ClosedBeforeDiscard    int            `json:"closedBeforeDiscard"`
+		ClosedAfterDiscard     int            `json:"closedAfterDiscard"`
+		Previews               int            `json:"previews"`
+		TransferHeldByDraft    bool           `json:"transferHeldByDraft"`
+		TransferSheet          string         `json:"transferSheet"`
+		TransfersBeforeConfirm int            `json:"transfersBeforeConfirm"`
+		TransferRefusal        string         `json:"transferRefusal"`
+		ClosedAfterRefusal     int            `json:"closedAfterRefusal"`
+		Transfer               map[string]any `json:"transfer"`
+		TransferDone           bool           `json:"transferDone"`
 	}
 	runFixtureServing(t, "projectsettings.html", phoneScreen, phonePointer, schemaAnswer(map[string]any{}), &got)
 
@@ -178,6 +185,20 @@ func TestTheProjectSettingsPageKeepsADraft(t *testing.T) {
 	}
 	if !got.GestureAsks || got.ClosedByGesture != 0 {
 		t.Errorf("the back gesture over a draft: asked %v, closed the page %d times — the draft is thrown away unasked", got.GestureAsks, got.ClosedByGesture)
+	}
+	if !got.TransferHeldByDraft || got.TransfersBeforeConfirm != 0 {
+		t.Errorf("transfer escaped its draft or confirmation: draft=%v, sends=%d", got.TransferHeldByDraft, got.TransfersBeforeConfirm)
+	}
+	for _, phrase := range []string{"work", "services", "Claude conversation history", "file history", "Close all live sessions", "differing file", "map changes with the files", "Codex threads are not moved"} {
+		if !strings.Contains(got.TransferSheet, phrase) {
+			t.Errorf("transfer sheet misses %q: %s", phrase, got.TransferSheet)
+		}
+	}
+	if !strings.Contains(got.TransferRefusal, "shop-helper") || got.ClosedAfterRefusal != 1 {
+		t.Errorf("refusal lost the page or the session name: %s", got.TransferRefusal)
+	}
+	if p, _ := got.Transfer["params"].(map[string]any); got.Transfer["kind"] != "project.move" || got.Transfer["target"] != "4" || p["group"] != float64(9) || !got.TransferDone {
+		t.Errorf("transfer did not send map IDs and apply its returned map: %v, done=%v", got.Transfer, got.TransferDone)
 	}
 	if got.Previews == 0 {
 		t.Error("the command was never asked of the service for the draft")

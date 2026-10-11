@@ -16,6 +16,7 @@ import { html } from "/src/html.js";
 import { ProjectSettings } from "/src/screens/profiles/settings.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
+import { quiet } from "/check/fixtures/quiet.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const real = window.fetch.bind(window);
@@ -85,10 +86,14 @@ const contour = () => ({
 const previews = [];
 const patches = [];
 const actions = [];
+const transfers = [];
+let refuseTransfer = true;
+const destination = { id: 8, name: "work", groups: [{ id: 9, name: "services", projects: [] }] };
 let codexAsks = 0;
 window.fetch = async (url, init) => {
     const u = String(url);
     if (u === "/api/profiles/schema") return real(u);
+    if (u === "/api/exec") return json({ available: true, kinds: ["project.move"] });
     if (u === "/api/codex/models") {
         codexAsks += 1;
         return json({ state: "ok", models: [
@@ -106,7 +111,13 @@ window.fetch = async (url, init) => {
         return json({ effective: effectiveOf(launch), line: lineOf(launch, body.session || project.session), problems });
     }
     if (u === "/api/actions") {
-        actions.push(JSON.parse(init.body));
+        const request = JSON.parse(init.body);
+        if (request.kind === "project.move") {
+            transfers.push(request);
+            if (refuseTransfer) return json({ error: "close live session shop-helper in contour personal before moving this project", logged: true }, 409);
+            return json({ ok: true, logged: true, profiles: [contour(), destination], project: { ...project, groupId: 9 } });
+        }
+        actions.push(request);
         return json({ ok: true, logged: true, detail: "done" });
     }
     if (u === "/api/projects/4" && init && init.method === "PATCH") {
@@ -139,7 +150,7 @@ function Harness() {
         project=${project}
         contour=${c}
         group=${c.groups[0]}
-        profiles=${[c]}
+        profiles=${[c, destination]}
         catalog=${catalog}
         order=${null}
         sessions=${[{ session: "helios", project: { id: 4 }, transport: null, remote: null, status: "idle" },
@@ -236,7 +247,7 @@ window.done = codexMode ? (async () => {
     return out;
 })() : mode === "haiku" ? (async () => {
     await until(() => all(".pzrow").length > 0);
-    await sleep(300);
+    await quiet();
     return {
         struck: Array.from(row("Effort").querySelectorAll(".pzopt[data-struck='1']")).map(text),
         blocked: text(bar() && bar().querySelector(".pzbarsay")),
@@ -265,6 +276,7 @@ window.done = codexMode ? (async () => {
     chip("Effort", "Max").click();
     await until(() => bar());
     out.barAfterOne = text(bar().querySelector(".pzbarsay"));
+    out.transferHeldByDraft = document.querySelector("select[aria-label='destination contour and group']").disabled;
     out.effortRowDraft = row("Effort").dataset.draft;
     await until(() => drafted().length > 0);
     out.draftedWords = drafted();
@@ -297,7 +309,7 @@ window.done = codexMode ? (async () => {
     await until(() => !bar());
     out.patch = patches[0];
     out.sheetOnPlainSave = Boolean(document.querySelector(".sheet.on"));
-    out.done = done;
+    out.done = done.slice();
     out.barAfterSave = Boolean(bar());
     await until(() => document.querySelector(".pzapply"));
     out.applyHead = text(document.querySelector(".pzapplyhead span"));
@@ -311,7 +323,7 @@ window.done = codexMode ? (async () => {
     Array.from(move.querySelectorAll("button")).find((b) => text(b) === "Move").click();
     await until(() => actions.length > 1);
     out.moved = actions[1];
-    await sleep(150);
+    await quiet();
 
     const path = all(".pffield").find((f) => text(f.querySelector(".pflabel")).startsWith("Directory")).querySelector("input");
     await typeInto(path, "/srv/proj/elsewhere");
@@ -324,7 +336,7 @@ window.done = codexMode ? (async () => {
     out.pathSheet = text(sheet);
     const cancel = Array.from(sheet.querySelectorAll(".btn")).find((b) => text(b) === "Cancel");
     if (cancel) cancel.click();
-    await sleep(300);
+    await quiet();
 
     history.back();
     const asked = await until(() => document.querySelector(".sheet.on .pzleave"));
@@ -332,7 +344,7 @@ window.done = codexMode ? (async () => {
     out.closedByGesture = closed;
     document.querySelector(".sheet.on .sheetclose, .sheet.on [aria-label='close']").click();
     await until(() => !document.querySelector(".sheet.on .pzleave"));
-    await sleep(100);
+    await quiet();
 
     document.querySelector(".pback").click();
     const leave = await until(() => document.querySelector(".sheet.on .pzleave"));
@@ -342,6 +354,38 @@ window.done = codexMode ? (async () => {
     await sleep(50);
     out.closedAfterDiscard = closed;
     out.previews = previews.length;
+
+    // The harness keeps the page mounted after Close; discard its draft so
+    // the same page can exercise the host transfer without another browser.
+    if (bar()) Array.from(bar().querySelectorAll(".btn")).find((b) => text(b) === "Discard").click();
+    await quiet();
+    const destinationPick = document.querySelector("select[aria-label='destination contour and group']");
+    destinationPick.value = "9";
+    destinationPick.dispatchEvent(new Event("change", { bubbles: true }));
+    await quiet();
+    const transferButton = () => all("button").find((b) => text(b) === "Move project" && !b.closest(".sheet"));
+    transferButton().click();
+    await until(() => document.querySelector(".sheet.on"));
+    out.transferSheet = text(document.querySelector(".sheet.on"));
+    out.transfersBeforeConfirm = transfers.length;
+    const confirmTransfer = () => Array.from(document.querySelectorAll(".sheet.on button")).find((b) => text(b) === "Move project");
+    if (new URLSearchParams(location.search).has("screenshot")) {
+        await quiet();
+        window.transferReady = true;
+        await new Promise(() => {});
+    }
+    confirmTransfer().click();
+    await until(() => transfers.length === 1);
+    await quiet();
+    out.transferRefusal = text(document.body);
+    out.closedAfterRefusal = closed;
+    refuseTransfer = false;
+    transferButton().click();
+    await until(() => confirmTransfer());
+    confirmTransfer().click();
+    await until(() => transfers.length === 2 && closed === 2);
+    out.transfer = transfers[1];
+    out.transferDone = done.length === 2 && done[1] === true;
     return out;
 })();
 </script>

@@ -251,6 +251,7 @@ export function SettingsColumns({ map, start, sessions, exec, onPick, onClose })
                     ${project && html`<${ProjectSettings}
                         key=${`p${project.id}`}
                         project=${project}
+                        profiles=${profiles}
                         contour=${contour}
                         group=${group}
                         catalog=${catalog}

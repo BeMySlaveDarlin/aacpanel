@@ -1268,6 +1268,33 @@ account with the directory prefix that routes a session into it; a new contour
 is taken from the accounts the map has none for, and a routed contour's paths
 are the host's, shown and not edited.
 
+**A project moves to another contour with its Claude history** (`project.move`).
+The service locks the project, its groups and their accounts, prepares the map
+change and its journal in one transaction, then asks the executor to move the
+files. The executor checks every collision first: identical files merge, a
+different file or a symbolic link refuses the move. It carries the exact
+`projects/<slug>` tree, including subagents and memory, and entries keyed by
+those conversation IDs in `file-history`, `session-env`, `tasks`, `todos`,
+`plans`, `teams` and `session-models`. Shared prompt history, paste caches and
+word-named plans have no session ownership and stay; Codex threads stay with
+their original home. The project's working directory does not move. Where a host router chooses
+accounts by directory, its route must already point to the destination; an
+inconsistent route refuses before copying because that wrapper can discard
+the config directory passed by the map. The panel does not rewrite a router's
+registry or its authentication rules.
+
+A live session in any contour, including a worktree or Codex, refuses the move
+by name. Panel launches and transfers serialize on the executor; the host
+checks live sessions again after copying. The source trees wait in
+`.aacpanel-project-moves/<id>` until the map commits. A failed map commit puts
+them back and removes only files this move added to the destination. A lost
+COMMIT reply is checked through another database connection before undoing.
+If that outcome cannot be established, or either process stops mid-transfer,
+the recovery record and backup stay on the host; another move and a panel
+launch of this project refuse until the host administrator resolves the record
+against the map. Cross-process commit cannot survive both sides disappearing
+as an atomic filesystem transaction; retained originals are its recovery cost.
+
 ## The path of an action
 
 Between a tap on the phone and a command on the host there is one road, and no
@@ -1309,7 +1336,7 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Forty-one actions, and the list is closed.
+The list of actions is closed.
 
 | Family | Actions |
 |---|---|
@@ -1318,7 +1345,7 @@ Forty-one actions, and the list is closed.
 | sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote`, `session.parent` |
 | windows | `window.open`, `window.close` |
 | background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
-| disk | `project.create` |
+| disk | `project.create`, `project.move` |
 | terminals of the panel | `term.start`, `term.close`, `term.rename`, `term.console` |
 | secrets | `secret.put`, `secret.drop` |
 
