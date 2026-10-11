@@ -7,7 +7,12 @@ const (
 	TextMax     = 50_000
 	fileNameMax = 96
 	// AskTextMax is the length ceiling for a free-form answer to a session question.
-	AskTextMax  = 4_000
+	AskTextMax = 4_000
+	// IntentMax is the length ceiling for the first message a session starts
+	// with: the map's, and the one a session writes itself to go on with
+	// after a restart. A terminal hands it to claude as an argument of its
+	// command, where a letter's length would not fit.
+	IntentMax   = 500
 	workLineMax = 200
 	pathMax     = 4096
 	launchMax   = 8 << 10

@@ -149,18 +149,52 @@ func TestARestartNamesTheConversationOfTheSessionCallingIt(t *testing.T) {
 	if failed || !strings.Contains(said, "session lab closed; session lab started") || !strings.Contains(said, "End the turn") {
 		t.Errorf("the restart answered %q (error %v)", said, failed)
 	}
-	call(t, Restart(h), bound(mine), map[string]any{"continue": true})
+	call(t, Restart(h), bound(mine), map[string]any{"continue": true, "intent": goingOn})
 
 	asked := p.calls()
 	if len(asked) != 2 {
 		t.Fatalf("the panel was asked %v", asked)
 	}
-	for i, resume := range []any{nil, true} {
+	for i, want := range []struct{ resume, intent any }{{nil, nil}, {true, goingOn}} {
 		params, _ := asked[i]["params"].(map[string]any)
 		if asked[i]["kind"] != "session.restart" || asked[i]["target"] != "" || params["conversation"] != mine ||
-			params["resume"] != resume {
+			params["resume"] != want.resume || params["intent"] != want.intent {
 			t.Errorf("call %d asked the panel %v", i, asked[i])
 		}
+	}
+}
+
+// goingOn is a message a session writes itself to go on with.
+const goingOn = "Writing the tests of the restart; next, the executor's case, then make check."
+
+// A restart that goes on takes the message the session writes itself, and
+// only such a restart does: without it the resumed conversation would come up
+// and wait for nobody, and on a fresh one it would be dropped unread. The
+// panel is not asked for either, nor for a message the panel would refuse.
+func TestARestartGoesOnOnlyWithAMessageOfTheSessions(t *testing.T) {
+	p, url := startPanel(t, http.StatusOK, `{"ok":true,"detail":"restarted"}`)
+	h := hostWith(t, "", url)
+	for name, c := range map[string]struct {
+		args map[string]any
+		says string
+	}{
+		"continue with no message":      {map[string]any{"continue": true}, "continue needs intent"},
+		"continue with spaces":          {map[string]any{"continue": true, "intent": " \n"}, "continue needs intent"},
+		"a message on a fresh restart":  {map[string]any{"intent": goingOn}, "intent goes only with continue"},
+		"a message past the ceiling":    {map[string]any{"continue": true, "intent": strings.Repeat("é", action.IntentMax+1)}, "longer than"},
+		"a message a terminal misreads": {map[string]any{"continue": true, "intent": "- wrote the tests"}, "dash"},
+	} {
+		said, failed := call(t, Restart(h), bound(mine), c.args)
+		if !failed || !strings.HasPrefix(said, "Nothing was restarted") || !strings.Contains(said, c.says) {
+			t.Errorf("%s answered %q (error %v), meant a refusal saying %q", name, said, failed, c.says)
+		}
+	}
+	if len(p.calls()) != 0 {
+		t.Fatalf("the panel was asked to restart without a message to go on with: %v", p.calls())
+	}
+	intent := restartSchema()["properties"].(map[string]any)["intent"].(map[string]any)
+	if intent["maxLength"] != action.IntentMax || !strings.Contains(RestartDescription, "intent") {
+		t.Errorf("the tool does not tell the model of the message to go on with: %v", intent)
 	}
 }
 
@@ -188,7 +222,7 @@ func TestARestartWaitsForTheWorkOfTheSession(t *testing.T) {
 	h := hostWith(t, `{"sessionsAt":9999999999,"sessions":[{"sessionId":"`+mine+`","work":{"agents":2,"tasks":1}},`+
 		`{"sessionId":"`+other+`","work":{"agents":5}}]}`, url)
 
-	said, failed := call(t, Restart(h), bound(mine), map[string]any{"continue": true})
+	said, failed := call(t, Restart(h), bound(mine), map[string]any{"continue": true, "intent": goingOn})
 	if !failed || !strings.HasPrefix(said, "WAIT") || !strings.Contains(said, "2 agents and 1 background task") ||
 		!strings.Contains(said, "anyway") {
 		t.Errorf("a restart with work at work answered %q (error %v)", said, failed)

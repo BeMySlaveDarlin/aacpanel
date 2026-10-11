@@ -394,6 +394,7 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 			return
 		}
 		req.Target, body.Target, req.Resume, req.Conversation = plan.Name, plan.Name, plan.Resume, plan.Conversation
+		req.Text = plan.Intent
 		if plan.Project != nil {
 			req.Project = plan.Project
 			params = map[string]any{"project": plan.ProjectID, "path": plan.Project.Path}
@@ -403,6 +404,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 				params = map[string]any{}
 			}
 			params["resume"] = plan.Resume
+			if plan.Intent != "" {
+				params["intent"] = plan.Intent
+			}
 		}
 	}
 
@@ -951,6 +955,10 @@ type restartWay struct {
 	ProjectID    int
 	Resume       string
 	Conversation string
+	// Intent is the message the session wrote itself to go on with: the
+	// executor sends it first in the resumed conversation, in place of the
+	// map's message after a restart.
+	Intent string
 }
 
 // restartPlan finds the session a restart is about and the project it comes
@@ -959,13 +967,16 @@ type restartWay struct {
 // where the session works, and its first message is the one the map says to
 // send after a restart; a session no project of the map holds goes without
 // one, and the executor restarts it only if it is the host's main session.
-// With resume the new session goes on with the conversation the old one ran.
+// With resume the new session goes on with the conversation the old one ran,
+// and with the message it wrote itself to go on with where it wrote one; the
+// check of the request refuses that message on a restart that starts anew.
 // The conversation a session names goes to the executor either way, which
 // restarts the session only while it still runs it.
 func (s *Server) restartPlan(ctx context.Context, name string, params map[string]any) (restartWay, error) {
 	conversation, _ := params["conversation"].(string)
 	resume, _ := params["resume"].(bool)
-	way := restartWay{Name: name, Conversation: conversation}
+	intent, _ := params["intent"].(string)
+	way := restartWay{Name: name, Conversation: conversation, Intent: intent}
 	if s.host == nil {
 		if resume {
 			if conversation == "" {

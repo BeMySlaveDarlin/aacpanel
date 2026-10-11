@@ -85,6 +85,48 @@ func TestARestartOfAConversationWithNoWordStartsAnew(t *testing.T) {
 	}
 }
 
+// A restart that goes on brings the session up with the message it wrote
+// itself as the first one, in place of the map's message after a restart, in
+// tmux and on the stream alike. A conversation on the stream nobody said a
+// word in starts anew, and a session that starts anew opens with the map's
+// message: the words were written for a conversation it does not have.
+func TestARestartGoesOnWithTheMessageTheSessionWrote(t *testing.T) {
+	const own = "Writing the restart tests; next, the executor's case."
+	for name, c := range map[string]struct {
+		stand        func(t *testing.T) (string, string)
+		transport    string
+		resume, says string
+	}{
+		"in tmux": {func(t *testing.T) (string, string) { return consoleStand(t, "idle"), consoleSID },
+			launcher.TransportTmux, consoleSID, own},
+		"on the stream": {func(t *testing.T) (string, string) {
+			dir, _ := streamStand(t, func(*stream.State) {})
+			return dir, streamSID
+		}, launcher.TransportStream, streamSID, own},
+		"on the stream with no word said": {func(t *testing.T) (string, string) {
+			dir, _ := streamStand(t, func(s *stream.State) { s.Said = false })
+			return dir, streamSID
+		}, launcher.TransportStream, "", "Carry on"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, sid := c.stand(t)
+			log := fakeLauncher(t, launcher.Report{Session: "demo", Transport: c.transport})
+			e, _ := newTest(t, "")
+			withSignals(t, e, map[int]bool{1004: true, 5001: true}, map[int]int{1004: 1, 5001: 1})
+
+			r := restartOf(dir, sid)
+			r.Text = own
+			if _, err := e.Execute(context.Background(), r); err != nil {
+				t.Fatal(err)
+			}
+			got := launched(t, log)
+			if got["_resume"] != c.resume || got["intent"] != c.says || got["model"] != "opus" {
+				t.Errorf("the session came back as %v, meant resuming %q and saying %q first", got, c.resume, c.says)
+			}
+		})
+	}
+}
+
 // A restart goes on only with the conversation it closes: any other would
 // come up in the place of the one the person was looking at.
 func TestARestartGoesOnOnlyWithItsOwnConversation(t *testing.T) {
@@ -134,8 +176,8 @@ func TestARestartFromScratchClosesOnlyTheConversationItNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := launched(t, log)["_resume"]; got != "" {
-		t.Errorf("a restart from scratch came back resuming %v", got)
+	if got := launched(t, log); got["_resume"] != "" || got["intent"] != "Carry on" {
+		t.Errorf("a restart from scratch came back as %v, not anew with the map's message after a restart", got)
 	}
 	if !strings.Contains(detail, "with an empty context") {
 		t.Errorf("the report %q does not say the session started anew", detail)

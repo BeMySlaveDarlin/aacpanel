@@ -208,6 +208,10 @@ func (r Request) Validate() error {
 		if err := safeText(r.Text); err != nil {
 			return err
 		}
+	case r.Kind == SessionRestart && r.Text != "":
+		if err := goingOnWith(r); err != nil {
+			return err
+		}
 	case r.Text != "":
 		return badRequest("action %s takes no message text", r.Kind)
 	}
@@ -477,6 +481,38 @@ func (r Request) Validate() error {
 		return validateTerm(r)
 	}
 	return safeTarget(r.Target)
+}
+
+// goingOnWith checks the message a session.restart goes on with: the words
+// the session wrote itself, which come first in the conversation it resumes.
+// A restart that starts anew has no conversation for them to go on with, and
+// starts with the map's message after a restart. In a terminal the message is
+// an argument of claude's command, so it keeps to the ceiling of the map's
+// first message, and one that starts with a dash would be read as an option
+// and leave the session closed with nothing in its place. The message is
+// words to the model: one that starts with a slash claude would run as a
+// command, and /clear would take the session off the conversation it goes on
+// with.
+func goingOnWith(r Request) error {
+	if r.Resume == "" {
+		return badRequest("a message to go on with is for a restart that goes on with the conversation; " +
+			"one that starts anew opens with the map's message after a restart")
+	}
+	text := strings.TrimSpace(r.Text)
+	if text == "" {
+		return badRequest("the message to go on with is empty")
+	}
+	if len([]rune(r.Text)) > IntentMax {
+		return badRequest("the message to go on with is longer than %d characters", IntentMax)
+	}
+	if strings.HasPrefix(text, "-") {
+		return badRequest("the message to go on with starts with a dash, which claude in a terminal takes for an option")
+	}
+	if strings.HasPrefix(text, "/") {
+		return badRequest("the message to go on with starts with /, which claude runs as a command rather than " +
+			"reads as words")
+	}
+	return safeText(r.Text)
 }
 
 // ValidParent checks the name of the session another stands under. It goes

@@ -138,7 +138,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		}
 		defer e.restarting.give(req.Target)
 		defer markRestarting(req.Target)()
-		return e.sessionRestart(ctx, req.Target, req.Resume, req.Conversation, req.Project)
+		return e.sessionRestart(ctx, req)
 	case action.SessionSend:
 		if req.Asked != "" {
 			return "", fmt.Errorf("%s is no codex session: only codex asks a question it does not wait for", req.Target)

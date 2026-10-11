@@ -9,6 +9,8 @@ package schema
 import (
 	"regexp"
 	"slices"
+
+	"aacpanel/internal/action"
 )
 
 // Kind is how a value is typed, and so how a screen edits it.
@@ -197,7 +199,7 @@ var params = []Param{
 		Key: "intent", Label: "First message", Kind: KindText,
 		Levels: []Level{LevelContour, LevelProject},
 		Help:   "sent right after the start — to a new session and to a resumed one alike; empty cancels the contour's",
-		Unset:  "the conversation opens empty", Merge: MergeOverride, MaxLen: 500,
+		Unset:  "the conversation opens empty", Merge: MergeOverride, MaxLen: action.IntentMax,
 		Live: map[string]Live{TransportTmux: LiveNextStart, TransportStream: LiveNextStart},
 	},
 	{
@@ -227,7 +229,7 @@ var params = []Param{
 		Live: map[string]Live{TransportTmux: LiveNow, TransportStream: LiveNow},
 	},
 	{
-		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: 500, Agent: AgentClaude,
+		Key: "restartIntent", Label: "Message after a restart", Kind: KindText, MaxLen: action.IntentMax, Agent: AgentClaude,
 		Levels: []Level{LevelContour, LevelProject}, Host: true,
 		Help:  "the first message of the session a restart brings up, automatic or asked for",
 		Unset: "the session comes back without a message and waits", Merge: MergeOverride,

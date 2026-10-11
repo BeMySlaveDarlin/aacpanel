@@ -1034,9 +1034,10 @@ func TestAnEndedTurnEndsTheCompaction(t *testing.T) {
 
 // The state cannot say the opening message went: it is the same once the
 // handshake is answered and once the opening turn has ended, so the test waits
-// for claude to have read the message.
+// for claude to have read the message. A conversation that goes on gets it the
+// same way as a new one: it is what a restart that goes on comes back with.
 func TestTheOpeningMessageIsSentAfterTheHandshake(t *testing.T) {
-	r := start(t, func(s *Spec) { s.Intent = "start with the tests" })
+	r := start(t, func(s *Spec) { s.Intent = "start with the tests"; s.Resumed = true })
 	got := r.eventually("start with the tests")
 	init, intent := strings.Index(got, `"initialize"`), strings.Index(got, "start with the tests")
 	if init < 0 || intent < 0 || intent < init {

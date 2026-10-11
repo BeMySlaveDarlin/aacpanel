@@ -1247,7 +1247,10 @@ next to, and it has no close button, just as the panel's own container has no
 stop. `session.restart` ends a session the gentle way — the same wait for the
 transcript — and starts a new one with an empty context, or, asked to go on,
 resuming the conversation it closed; the old transcript stays in the archive.
-A session whose working directory belongs to a project
+A restart asked to go on may carry the message the session wrote itself to go
+on with, and that message comes first in the resumed conversation, in place of
+the map's message after a restart, as "A session restarts and closes itself"
+says. A session whose working directory belongs to a project
 of the map comes back as that project: its launch, its contour, and the
 message after a restart as its first — a restart without them would bring it up
 in another setup, possibly under another account. A session no project holds
@@ -1735,7 +1738,21 @@ conversation the server's parent runs, so the model cannot act as another
 session.
 `session_restart` asks for `session.restart`:
 the panel brings the session back as its project from the map, afresh or, with
-`continue`, resuming the same conversation. Either way the executor restarts it
+`continue`, resuming the same conversation. `continue` takes `intent`, the
+message the session writes itself — what it was doing and the step it takes
+next — and the tool refuses one without the other: the map's message after a
+restart is one line for every restart of a project, and where the map names
+none a resumed conversation comes up and waits for nobody. The request carries
+the message as its text, and the executor lays it over the launch as the first
+message of the resumed conversation in place of the map's, so it rides the way
+any first message does — an argument of claude in tmux, a message after the
+handshake on the stream. That way sets its bounds: the ceiling of the map's
+first message, no leading dash, which claude in a terminal would take for an
+option and leave the session closed with nothing in its place, and no leading
+slash, which claude runs as a command. A restart that starts anew takes no
+such message and opens with the map's, and so does a conversation on the
+stream that starts anew because nobody said a word in it: the words were
+written for a conversation the new one does not have. Either way the executor restarts it
 only while it still runs the conversation that asked — a late repeat of the call
 would otherwise close the session an earlier restart brought up under the same
 name — and a conversation on the stream nobody said a word in starts anew. A restart the person asks for is a fresh one, and the tool's word keeps

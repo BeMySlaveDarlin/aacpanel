@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -56,12 +57,16 @@ func (e *Executor) sessionClose(ctx context.Context, target, conversation string
 // A session restarting itself names its conversation, and the restart goes
 // ahead only while the session still runs it: a late repeat of the call would
 // otherwise close the session an earlier restart brought up under the name.
-func (e *Executor) sessionRestart(ctx context.Context, target, resume, conversation string, want *action.Project) (string, error) {
+// A session going on with its conversation names the message it wrote itself
+// to go on with as the text of the request, and that message comes first in
+// the resumed conversation in place of the map's.
+func (e *Executor) sessionRestart(ctx context.Context, req action.Request) (string, error) {
+	target, resume := req.Target, req.Resume
 	p, err := lookupAgent(target)
 	if err != nil {
 		return "", err
 	}
-	for _, named := range []string{resume, conversation} {
+	for _, named := range []string{resume, req.Conversation} {
 		if named == "" {
 			continue
 		}
@@ -69,8 +74,8 @@ func (e *Executor) sessionRestart(ctx context.Context, target, resume, conversat
 			return "", err
 		}
 	}
-	if want != nil {
-		return e.restartFromMap(ctx, target, p, want, resume)
+	if req.Project != nil {
+		return e.restartFromMap(ctx, target, p, req.Project, resume, req.Text)
 	}
 	if !p.Home {
 		return "", fmt.Errorf(
@@ -80,12 +85,16 @@ func (e *Executor) sessionRestart(ctx context.Context, target, resume, conversat
 			p.Session, p.Dir)
 	}
 
+	home := homeProject(p.Dir, p.Session)
+	if home.Launch, err = goingOnLaunch(home.Launch, resume, req.Text); err != nil {
+		return "", err
+	}
 	closed, err := e.closeAgent(ctx, p)
 	if err != nil {
 		return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
 	}
 
-	rep, err := e.runLauncher(ctx, homeProject(p.Dir, p.Session), resume)
+	rep, err := e.runLauncher(ctx, home, resume)
 	if err != nil {
 		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
@@ -118,26 +127,31 @@ func restartedWith(resume, more string) string {
 	return " with an empty context" + more
 }
 
-func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume string) (string, error) {
+func (e *Executor) restartFromMap(ctx context.Context, target string, p agentProc, want *action.Project, resume, intent string) (string, error) {
 	next, err := chooseProject(target, want)
 	if err != nil {
 		return "", err
 	}
+	s, err := findOneLiveSession(target)
+	held := err == nil && onStream(s)
 	var closed, afresh string
-	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
-		// A conversation on the stream nobody has said a word in has no
-		// transcript to go on with: the session starts anew rather than close
-		// and bring nothing up.
-		if resume != "" {
-			if st, err := streamState(ctx, s); err == nil && !st.Said {
-				resume, afresh = "", "; nothing had been said in the conversation, so it started anew"
-			}
+	// A conversation on the stream nobody has said a word in has no
+	// transcript to go on with: the session starts anew rather than close and
+	// bring nothing up.
+	if held && resume != "" {
+		if st, err := streamState(ctx, s); err == nil && !st.Said {
+			resume, afresh = "", "; nothing had been said in the conversation, so it started anew"
 		}
+	}
+	if next.Launch, err = goingOnLaunch(next.Launch, resume, intent); err != nil {
+		return "", err
+	}
+	if held {
 		closed, err = e.closeGently(ctx, s, p, true)
-		if err != nil {
-			return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
-		}
-	} else if closed, err = e.closeAgent(ctx, p); err != nil {
+	} else {
+		closed, err = e.closeAgent(ctx, p)
+	}
+	if err != nil {
 		return "", fmt.Errorf("the restart stopped at closing, nothing was started: %w", err)
 	}
 	rep, err := e.runLauncher(ctx, next, resume)
@@ -145,6 +159,27 @@ func (e *Executor) restartFromMap(ctx context.Context, target string, p agentPro
 		return "", fmt.Errorf("%s; the new session did not start: %w", closed, err)
 	}
 	return closed + "; " + describeConsole(rep) + restartedWith(resume, " and the project's parameters") + afresh, nil
+}
+
+// goingOnLaunch is the launch a restart brings the session up with: with the
+// message the session wrote itself as the first one where it goes on with its
+// conversation, in place of the map's message after a restart. A session that
+// starts anew opens with the map's: the words were written for a conversation
+// the new one does not have. The message rides as the opening message of any
+// start does — an argument of claude in a terminal, the first message after
+// the handshake on the stream.
+func goingOnLaunch(raw json.RawMessage, resume, intent string) (json.RawMessage, error) {
+	if resume == "" || intent == "" {
+		return raw, nil
+	}
+	launch := map[string]any{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &launch); err != nil {
+			return nil, fmt.Errorf("the launch parameters of the project were not read, nothing was closed: %w", err)
+		}
+	}
+	launch["intent"] = intent
+	return json.Marshal(launch)
 }
 
 // closeAgent ends a session with a signal and waits for its transcript. A

@@ -104,6 +104,32 @@ func TestARestartGoesOnWithTheConversationTheSessionRuns(t *testing.T) {
 		t.Errorf("a restart going on with no conversation known gave %d: %s", w.Code, w.Body.String())
 	}
 
+	// The message the session wrote itself goes to the executor with the
+	// restart that goes on, and only with one: a fresh conversation opens
+	// with the map's message after a restart.
+	const intent = "Writing the tests of the restart; next, make check."
+	w = post(t, srv, `{"kind":"session.restart","params":{"conversation":"`+switchSID+`","resume":true,"intent":"`+intent+`"}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("a restart going on with a message: status %d, body %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		if got.Resume != switchSID || got.Text != intent {
+			t.Errorf("a restart going on with a message reached the executor resuming %q with %q", got.Resume, got.Text)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the executor did not get the restart going on with a message")
+	}
+	w = post(t, srv, `{"kind":"session.restart","params":{"conversation":"`+switchSID+`","intent":"`+intent+`"}}`)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "goes on with the conversation") {
+		t.Errorf("a message to go on with on a fresh restart gave %d: %s", w.Code, w.Body.String())
+	}
+	select {
+	case got := <-fake.got:
+		t.Fatalf("a refused restart reached the executor: %+v", got)
+	default:
+	}
+
 	// With no snapshot the conversation the session named is the one to go
 	// on with, and the executor checks the session runs it.
 	srv.host = nil
