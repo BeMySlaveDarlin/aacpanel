@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"aacpanel/internal/action"
 )
 
 const senderName = "aacpanel-panel"
@@ -41,29 +43,22 @@ func (e *Executor) sessionSend(ctx context.Context, target, text, messageID stri
 	if onStream(s) {
 		return streamSend(ctx, s, text, messageID)
 	}
-	return deliverText(ctx, s, senderName, text)
+	// A send is the person's input. Falling back to a letter would make the
+	// recipient read it as another session's request, including voice input.
+	t, err := termFor(ctx, s.PID)
+	if err != nil {
+		return "", fmt.Errorf("session %s accepts no typed input: %w", s.Name, err)
+	}
+	return typeText(ctx, s, t, text)
 }
 
 func deliverText(ctx context.Context, s liveSession, from, text string) (string, error) {
 	if onStream(s) {
 		return streamSend(ctx, s, text, "")
 	}
-	where := sessionWhere(s)
-
 	t, kerr := termFor(ctx, s.PID)
 	if kerr == nil {
-		confirmed, err := pasteAndSend(ctx, t, text, watchTranscript(s))
-		if err != nil {
-			return "", fmt.Errorf("session %s did not accept the input: %w", s.Name, err)
-		}
-		detail := fmt.Sprintf("typed into %s (%s), %d characters", s.Name, where, len([]rune(text)))
-		if t.attempts() > 1 {
-			detail += "; " + t.kind() + " answered on the second attempt"
-		}
-		if !confirmed {
-			detail += "; there is nothing to confirm the send with — the " + t.kind() + " screen cannot be read"
-		}
-		return detail, nil
+		return typeText(ctx, s, t, text)
 	}
 
 	if s.Socket == "" {
@@ -75,6 +70,21 @@ func deliverText(ctx context.Context, s liveSession, from, text string) (string,
 		return "", err
 	}
 	return fmt.Sprintf("%s — %v, so it was not typed but sent", detail, kerr), nil
+}
+
+func typeText(ctx context.Context, s liveSession, t term, text string) (string, error) {
+	confirmed, err := pasteAndSend(ctx, t, text, watchTranscript(s))
+	if err != nil {
+		return "", fmt.Errorf("session %s did not accept the input: %w", s.Name, err)
+	}
+	detail := fmt.Sprintf("typed into %s (%s), %d characters", s.Name, sessionWhere(s), len([]rune(text)))
+	if t.attempts() > 1 {
+		detail += "; " + t.kind() + " answered on the second attempt"
+	}
+	if !confirmed {
+		detail += "; there is nothing to confirm the send with — the " + t.kind() + " screen cannot be read"
+	}
+	return detail, nil
 }
 
 func deliverLetter(ctx context.Context, s liveSession, from, note, text string) (string, error) {
@@ -107,11 +117,11 @@ func findOneLiveSession(target string) (liveSession, error) {
 	switch {
 	case len(found) == 0:
 		if len(known) == 0 {
-			return liveSession{}, fmt.Errorf("there is no live session %s: there are no live sessions at all right now", target)
+			return liveSession{}, fmt.Errorf("%w %s: there are no live sessions at all right now", action.ErrSessionNotFound, target)
 		}
-		return liveSession{}, fmt.Errorf("there is no live session %s; live ones are: %s", target, strings.Join(known, ", "))
+		return liveSession{}, fmt.Errorf("%w %s; live ones are: %s", action.ErrSessionNotFound, target, strings.Join(known, ", "))
 	case len(found) > 1:
-		return liveSession{}, fmt.Errorf("there are two sessions named %s right now — it is unclear which one to take", target)
+		return liveSession{}, fmt.Errorf("%w: there are two sessions named %s right now — it is unclear which one to take", action.ErrSessionAmbiguous, target)
 	}
 	return found[0], nil
 }

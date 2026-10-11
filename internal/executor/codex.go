@@ -87,7 +87,7 @@ func (e *Executor) codexSession(target string) (*codex.Thread, error) {
 		return nil, nil
 	}
 	if len(found) > 1 {
-		return nil, fmt.Errorf("there are two sessions named %s right now — it is unclear which one to take", target)
+		return nil, fmt.Errorf("%w: there are two sessions named %s right now — it is unclear which one to take", action.ErrSessionAmbiguous, target)
 	}
 	return &found[0], nil
 }

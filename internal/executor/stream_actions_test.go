@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -105,21 +106,28 @@ func only(t *testing.T, f *fakeHolder) stream.Request {
 	return got[0]
 }
 
-func TestAMessageToAStreamSessionIsALineNotKeys(t *testing.T) {
+func TestStreamInput(t *testing.T) {
 	f := onTheStream(t, true)
 	e, _ := newTest(t, "")
-	r := req(action.SessionSend, "demo")
-	r.Text = "run the tests"
-	out, err := e.Execute(context.Background(), r)
-	if err != nil {
-		t.Fatal(err)
+	for _, device := range []string{"phone", "voice"} {
+		r := req(action.SessionSend, "demo")
+		r.Text, r.Device = "run the tests", device
+		out, err := e.Execute(context.Background(), r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "on the stream") || !strings.Contains(out, "queue") {
+			t.Errorf("%s input to a busy stream session was not said to queue: %q", device, out)
+		}
 	}
-	got := only(t, f)
-	if got.Op != stream.OpSend || got.Text != "run the tests" {
+	got := f.asked()
+	if len(got) != 2 {
 		t.Fatalf("the holder was asked %+v", got)
 	}
-	if !strings.Contains(out, "on the stream") || !strings.Contains(out, "queue") {
-		t.Errorf("a busy stream session was not said to queue the message: %q", out)
+	for _, r := range got {
+		if !reflect.DeepEqual(r, stream.Request{Op: stream.OpSend, Text: "run the tests"}) {
+			t.Errorf("the holder must receive the person's words without an origin mark: %+v", r)
+		}
 	}
 }
 

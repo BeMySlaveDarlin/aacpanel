@@ -356,6 +356,26 @@ func run() error {
 		httpSrv.Shutdown(shutCtx)
 	}()
 
+	if voiceDir := env("AACP_VOICE_DIR", ""); voiceDir != "" {
+		voice, ln, err := srv.voiceServer(voiceDir)
+		if err != nil {
+			return err
+		}
+		defer voice.Close()
+		go func() {
+			<-ctx.Done()
+			shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			voice.Shutdown(shutCtx)
+		}()
+		go func() {
+			log.Printf("voice input on %s: token required, session.send only", ln.Addr())
+			if err := voice.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Printf("the voice listener died: %v", err)
+			}
+		}()
+	}
+
 	if localAddr := env("AACP_LOCAL_ADDR", ""); localAddr != "" {
 		local, err := srv.localServer(localAddr)
 		if err != nil {

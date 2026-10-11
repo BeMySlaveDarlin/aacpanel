@@ -28,6 +28,9 @@ type localKey struct{}
 // in with; with none, over the local listener, the machine itself — its
 // monitor or a script of one of its sessions, as nobody signs in there.
 func (s *Server) deviceName(r *http.Request) string {
+	if voice, _ := r.Context().Value(voiceKey{}).(bool); voice {
+		return "voice"
+	}
 	var id int64
 	if s.auth != nil {
 		id = s.auth.CurrentDevice(r)

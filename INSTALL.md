@@ -1044,6 +1044,49 @@ another and the note about an unsent brief go through it, and so do S13 and the
 check. Close it only on a machine whose other users must not drive its sessions,
 and those go with it.
 
+### Optional voice input from a host container
+
+Only an installation using a local voice consumer needs this. The installer
+does not create its directory or token. As the owner whose numeric uid/gid
+are `AACP_UID:AACP_GID`, create a dedicated directory and a secret without
+printing it:
+
+```bash
+voice_dir="$HOME/.local/share/aacpanel/voice"
+install -d -m 0700 "$voice_dir"
+(umask 077; openssl rand -hex 32 > "$voice_dir/token.next")
+mv "$voice_dir/token.next" "$voice_dir/token"
+```
+
+Set `AACP_VOICE_DIR` in `.env` to that directory's absolute host path, and
+include the optional overlay when starting or recreating the service:
+
+```bash
+docker compose -f docker-compose.yml -f deploy/voice.yml up -d --build aacpanel
+```
+
+Keep this overlay in the host's compose invocation when updating the panel;
+the installer's ordinary invocation does not include it. Build the matching
+executor as in S7: its `session.send` must refuse a recipient without a stream
+or reachable terminal instead of substituting a letter, and report lookup
+error codes.
+
+The service creates `/run/aacpanel-voice/sock`, visible on the host as
+`<AACP_VOICE_DIR>/sock`. In `atlas-voice`, mount the **directory** read-only,
+for example `<AACP_VOICE_DIR>:/run/aacpanel-voice:ro`, and run the consumer under
+the same numeric `AACP_UID:AACP_GID` (without a user namespace remapping those
+ids). Both `sock` and `token` are `0600`; do not share the executor's socket
+directory. No port or network route is needed.
+
+The consumer reads `/run/aacpanel-voice/token` for the bearer header and sends
+HTTP `POST /session.send` over `/run/aacpanel-voice/sock`, with JSON
+`{"to":"lab","text":"Run the tests"}`. The responses and limits are in
+[Voice input](ARCHITECTURE.md#voice-input). Rotate by repeating the two token
+creation and rename commands above; the service reads the file on every
+request, and the consumer must do so too. Mounting the directory keeps the
+replacement file and a recreated socket visible without restarting the
+consumer. Remove the overlay to disable this listener.
+
 ## S7. `exec-build` — Build the executor
 
 The service travels as an image, the executor as a binary built on the machine.

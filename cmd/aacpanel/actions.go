@@ -500,7 +500,17 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		if outcome.Result == store.ActionRejected {
 			status = http.StatusServiceUnavailable
 		}
-		writeStatusJSON(w, status, map[string]any{"error": outcome.Error, "logged": logged})
+		out := map[string]any{"error": outcome.Error, "logged": logged}
+		if err == nil && resp.Code != "" {
+			out["code"] = resp.Code
+			switch resp.Code {
+			case action.SessionNotFound:
+				status = http.StatusNotFound
+			case action.SessionAmbiguous:
+				status = http.StatusConflict
+			}
+		}
+		writeStatusJSON(w, status, out)
 		return
 	}
 	out := map[string]any{"ok": true, "detail": resp.Detail, "logged": logged}

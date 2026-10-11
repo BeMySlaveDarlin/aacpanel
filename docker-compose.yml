@@ -140,8 +140,8 @@ services:
       AACP_TERM_PUBLIC: ${AACP_TERM_PUBLIC:-0}
     # The owner's user rather than nonroot from the image: the executor socket is
     # 0600, so the service itself runs under the uid that may reach it. It writes
-    # nothing to disk. The default 1000 is the first user of the machine; for
-    # everyone else the installer writes the values.
+    # only its optional voice socket to disk. The default 1000 is the first user
+    # of the machine; for everyone else the installer writes the values.
     user: "${AACP_UID:-1000}:${AACP_GID:-1000}"
     volumes:
       # State from the host agent (machine load and claude sessions), read-only.

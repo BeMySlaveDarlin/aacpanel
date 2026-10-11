@@ -1,6 +1,19 @@
 package action
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var (
+	ErrSessionNotFound  = errors.New("there is no live session")
+	ErrSessionAmbiguous = errors.New("the session name is ambiguous")
+)
+
+const (
+	SessionNotFound  = "session_not_found"
+	SessionAmbiguous = "session_ambiguous"
+)
 
 // Response is what came out.
 type Response struct {
@@ -8,6 +21,9 @@ type Response struct {
 	OK bool   `json:"ok"`
 
 	Error string `json:"error,omitempty"`
+	// Lookup codes survive the executor socket so callers need not parse
+	// human wording to distinguish a missing name from an ambiguous one.
+	Code string `json:"code,omitempty"`
 
 	DurationMs int64 `json:"durationMs"`
 
@@ -47,7 +63,14 @@ type Response struct {
 
 // Failed builds a refusal response.
 func Failed(id string, err error, took time.Duration) Response {
-	return Response{ID: id, OK: false, Error: err.Error(), DurationMs: took.Milliseconds()}
+	resp := Response{ID: id, OK: false, Error: err.Error(), DurationMs: took.Milliseconds()}
+	switch {
+	case errors.Is(err, ErrSessionNotFound):
+		resp.Code = SessionNotFound
+	case errors.Is(err, ErrSessionAmbiguous):
+		resp.Code = SessionAmbiguous
+	}
+	return resp
 }
 
 // Done builds a success response.

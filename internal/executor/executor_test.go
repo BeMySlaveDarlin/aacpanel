@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -1625,13 +1626,16 @@ func listenFake(t *testing.T) (path string, got chan string) {
 	return path, got
 }
 
-func TestSessionSendDelivers(t *testing.T) {
+func TestPanelNoticeDelivers(t *testing.T) {
 	socket, got := listenFake(t)
 	procFS(t, fakeProc{pid: 300, comm: "claude", args: []string{"claude"}, start: "77"})
 	sessionFiles(t, fakeSession{pid: 300, name: "aacpanel", start: "77", socket: socket, status: "busy"})
 
-	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
+	s, err := findOneLiveSession("aacpanel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail, err := deliverText(t.Context(), s, senderName, "check the stack logs")
 	if err != nil {
 		t.Fatalf("sending failed: %v", err)
 	}
@@ -1736,10 +1740,14 @@ func TestSessionSendRefusesUnknown(t *testing.T) {
 	sessionFiles(t, fakeSession{pid: 301, name: "aacpanel-2", start: "78", socket: socket})
 
 	e := &Executor{}
-	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); err == nil {
-		t.Fatal("sending to a session that does not exist succeeded")
+	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); !errors.Is(err, action.ErrSessionNotFound) {
+		t.Fatalf("an unknown session must return its error code: %v", err)
 	} else if !strings.Contains(err.Error(), "aacpanel-2") {
 		t.Errorf("the error %q does not list the live sessions", err)
+	}
+	sessionFiles(t)
+	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); !errors.Is(err, action.ErrSessionNotFound) {
+		t.Fatalf("an empty session list must return the same lookup error: %v", err)
 	}
 }
 
@@ -1753,22 +1761,8 @@ func TestSessionSendRefusesNamesakes(t *testing.T) {
 		fakeSession{pid: 303, name: "aacpanel", start: "80", socket: socket})
 
 	e := &Executor{}
-	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); err == nil {
-		t.Fatal("sending succeeded with two namesakes around — the reply went at random")
-	}
-}
-
-func TestSessionSendNeedsSocket(t *testing.T) {
-	procFS(t, fakeProc{pid: 304, comm: "claude", args: []string{"claude"}, start: "81"})
-	sessionFiles(t, fakeSession{pid: 304, name: "aacpanel", start: "81"})
-
-	e := &Executor{}
-	_, err := e.sessionSend(t.Context(), "aacpanel", "hello", "")
-	if err == nil {
-		t.Fatal("sending succeeded without a socket")
-	}
-	if !strings.Contains(err.Error(), "message socket") {
-		t.Errorf("the error %q does not explain that there is no channel", err)
+	if _, err := e.sessionSend(t.Context(), "aacpanel", "hello", ""); !errors.Is(err, action.ErrSessionAmbiguous) {
+		t.Fatalf("namesakes must return their error code: %v", err)
 	}
 }
 
@@ -2008,37 +2002,27 @@ func TestSessionSendTypesIntoKonsole(t *testing.T) {
 	}
 }
 
-func TestSessionSendFallsBackToLetter(t *testing.T) {
+func TestSessionSendNeverFallsBackToLetter(t *testing.T) {
 	socket, got := listenFake(t)
 	procFS(t,
 		fakeProc{pid: 600, comm: "sshd", args: []string{"sshd"}, ppid: 1},
 		fakeProc{pid: 601, comm: "claude", args: []string{"claude"}, ppid: 600, start: "77"},
 	)
 	sessionFiles(t, fakeSession{pid: 601, name: "aacpanel", start: "77", socket: socket, status: "idle"})
+	fakeTmux(t, nil, "")
 	fakeBusctl(t, map[string]int{"/Sessions/1": 601})
 
 	e := &Executor{}
-	detail, err := e.sessionSend(t.Context(), "aacpanel", "check the stack logs", "")
-	if err != nil {
-		t.Fatalf("sending failed: %v", err)
+	for _, device := range []string{"phone", "voice"} {
+		r := req(action.SessionSend, "aacpanel")
+		r.Text, r.Device = "check the stack logs", device
+		if _, err := e.Execute(t.Context(), r); err == nil || !strings.Contains(err.Error(), "typed input") {
+			t.Fatalf("%s input must be refused when only a letter can reach the session: %v", device, err)
+		}
 	}
 	select {
 	case line := <-got:
-		var msg struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		}
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			t.Fatalf("the protocol line was not parsed: %v (%q)", err, line)
-		}
-		if msg.Message.Content != "check the stack logs" {
-			t.Errorf("the letter did not go out verbatim: %q", msg.Message.Content)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("nothing reached the session socket")
-	}
-	if !strings.Contains(detail, "as a letter") {
-		t.Errorf("the executor did not say the reply went out as a letter: %q", detail)
+		t.Fatalf("the person's input became a letter: %q", line)
+	default:
 	}
 }

@@ -1,0 +1,8 @@
+# Optional local input for a host container. The directory is private to voice;
+# sharing the executor's directory would give the consumer every host action.
+services:
+  aacpanel:
+    environment:
+      AACP_VOICE_DIR: /run/aacpanel-voice
+    volumes:
+      - ${AACP_VOICE_DIR:?set AACP_VOICE_DIR to the private voice directory}:/run/aacpanel-voice

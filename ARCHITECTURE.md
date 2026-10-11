@@ -1305,6 +1305,12 @@ text like any other and is typed. A message ending in an unfinished
 would otherwise pick a row from — a space rather than Esc, because Esc reaches a
 session that is working as an interruption of its work.
 
+`session.send` requires a stream or a reachable terminal. If neither is
+available it refuses: falling back to a letter changes the person's words
+into another session's request. This applies to the composer and voice alike;
+a recipient reachable only through its message socket can receive
+`session.letter`, but no typed input.
+
 **The list of this machine is shorter than the general one.** The executor says
 what it can do here: with no tmux there are no actions over sessions, and the
 window ones go away with them; with no terminal invocation template only opening
@@ -2084,7 +2090,7 @@ eternal session with extra code. A token gives a session through a derived
 device number, so changing or removing the token immediately closes the sessions
 it issued and does not touch the passkeys of phones.
 
-### Four listeners
+### Panel listeners
 
 | Listener | Address | Sign-in | Session terminal |
 |---|---|---|---|
@@ -2120,6 +2126,49 @@ it is written into the journal as made by "this machine". On a machine whose
 other users must not drive its sessions, this port is the one to close —
 `AACP_LOCAL_ADDR` set empty — and the price is those tools and hooks and the
 monitor at the machine itself.
+
+### Voice input
+
+**Voice has a separate unix socket, with only `session.send`.** A host
+container doing speech recognition mounts it to send the owner's words to any
+live session by the same name the panel and `send_to_session` use. The service
+serves it when `AACP_VOICE_DIR` is set; it listens on no TCP address, and has no
+panel routes, terminal bridge, session listing or other action. The socket
+keeps the entry point on the host; a bearer token grants the mounted consumer
+access without a panel login.
+
+The optional `deploy/voice.yml` compose overlay binds a dedicated host
+directory, conventionally `~/.local/share/aacpanel/voice`, to
+`/run/aacpanel-voice`. The directory is `0700`, and `sock` and `token` inside
+are `0600`, owned by the service's `AACP_UID:AACP_GID`. The consumer runs under
+that same numeric uid/gid and mounts this directory read-only. It gets no
+executor socket or host state. The service's cost is one writable directory
+for this IPC socket, with no added host action or right to host resources.
+
+The token is a random secret of at least 32 characters, read from `token` on
+every request. Missing, unreadable, empty or non-`0600` files refuse input.
+Rotation writes a new `0600` file and renames it over `token`; both processes
+mount the directory so the new inode is visible, without a restart. A missing
+or wrong bearer token receives HTTP 401; an unavailable token file receives
+503. The token is never a URL parameter and is not written into the journal.
+
+The request is HTTP over the socket, `POST /session.send`, with
+`Authorization: Bearer <token>` and JSON `{"to":"lab","text":"Run the tests"}`.
+Only those two fields are accepted. HTTP 200 with
+`{"ok":true,"detail":"...","logged":true}` means the executor accepted it;
+404 with `{"code":"session_not_found","error":"...","logged":true}` means
+no such live session, and 409 with `code: "session_ambiguous"` means the name
+has more than one match. Other failures carry an error and a non-success
+status. `logged` reports the ordinary action journal's availability.
+
+The adapter constructs `session.send` and uses the same service validation,
+journal, executor name lookup and sending path as the composer. Busy stream
+sessions keep the text in their input queue; terminals take the same typing
+and Enter as the composer. The journal's source (`device_name`) and the
+executor's audit actor say `voice`. The session receives only the text, with
+no voice mark or letter envelope. Enabling this requires the matching service
+and executor builds: the executor supplies the lookup error codes and refuses
+to substitute a letter when typing cannot reach the session.
 
 ### The address map
 
