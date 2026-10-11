@@ -173,9 +173,10 @@ func (l *Link) Start(ctx context.Context, b Begin) (string, error) {
 // Resume joins a thread the daemon has on the disk and holds it, as the panel
 // holds a thread it started: the daemon loads a thread a client resumes and
 // keeps it while the client stays, and nothing else holds a thread the panel
-// alone talks to. A thread the panel closed before is its session again. It
-// returns the directory the thread runs in. A subagent's thread is part of its
-// parent's turn and is not resumed: the panel leaves it at once.
+// alone talks to. A thread the panel closed before is its session again, with
+// no parent: see disown. It returns the directory the thread runs in. A
+// subagent's thread is part of its parent's turn and is not resumed: the panel
+// leaves it at once.
 func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 	c, err := l.client()
 	if err != nil {
@@ -201,6 +202,7 @@ func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 	l.mu.Lock()
 	delete(l.closed, threadID)
 	l.mu.Unlock()
+	l.disown(threadID)
 	l.seen(out.Thread, time.Now())
 	settled := out.read()
 	l.set(threadID, func(t *thread) { t.subscribed, t.settings = true, settled })

@@ -191,6 +191,21 @@ func (l *Link) adopt(threadID, parent string) {
 	l.set(threadID, func(t *thread) { t.parent = parent })
 }
 
+// disown lets a thread resumed from the archive go on with no parent, as a
+// claude session resumed from the archive does: the session that had the
+// panel start the thread opened it for an errand, and a conversation brought
+// back from the archive is the person's, whoever opened it first. The file
+// goes before the thread is seen again, so neither this executor nor one
+// started after it reads the parent back; a restart of the executor does not
+// pass here and keeps it.
+func (l *Link) disown(threadID string) {
+	if err := os.Remove(stream.ParentPath(threadID)); err != nil && !os.IsNotExist(err) {
+		log.Printf("codex %s: the parent of thread %s resumed from the archive was not taken off the disk, and "+
+			"the thread stands under it again when the executor starts again: %v", l.home, threadID, err)
+	}
+	l.set(threadID, func(t *thread) { t.parent = "" })
+}
+
 // parentName is the file of the parent of a thread.
 type parentName struct {
 	Session string `json:"session"`

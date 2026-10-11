@@ -1320,7 +1320,10 @@ a fold that is open until the person closes it: the children are the work in
 view, and the block stands where the most pressing of the group puts it. The
 link is by name, not by conversation: a restart starts another conversation
 under the same name, and a restart or a move of the child starts its next
-process with the parent again, as the snapshot holds it. A child whose parent
+process with the parent again, as the snapshot holds it. A resume from the
+archive does not: a conversation brought back from there is the person's, and a
+claude session and a codex thread alike come back with no parent — the executor
+takes the parent of a codex thread off the disk as it resumes it. A child whose parent
 closed stands under a stub of the parent that says when it closed and opens its
 conversation; one whose parent lives in another contour stands on its own page
 and says which session opened it. Every process the launcher starts drops the

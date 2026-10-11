@@ -144,6 +144,43 @@ func TestTheParentOfAThreadOutlivesTheExecutor(t *testing.T) {
 	}
 }
 
+// A thread resumed from the archive goes on with no parent, as a claude
+// session resumed from the archive does: its state names none, and the
+// executor started after a restart of its own does not read the parent back
+// from the disk.
+func TestAThreadResumedFromTheArchiveHasNoParent(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	srv := codextest.New(t)
+	first := NewLink(srv.Home, "acme")
+	stop := running(t, first)
+	ready(t, first)
+	ctx := context.Background()
+	child, err := first.Start(ctx, Begin{CWD: "/srv/proj", Parent: "lead", Hold: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st, raw, _ := stateOf(t, child); st.Parent != "lead" {
+		t.Fatalf("the state of a thread started for a session does not name it: %s", raw)
+	}
+	if _, err := first.Close(ctx, child); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Resume(ctx, child); err != nil {
+		t.Fatal(err)
+	}
+	if st, raw, ok := stateOf(t, child); !ok || st.Parent != "" {
+		t.Errorf("the thread resumed from the archive names a parent: %s", raw)
+	}
+	stop()
+
+	running(t, NewLink(srv.Home, "acme"))
+	until(t, "the next link's state file", written(t, child))
+	if st, raw, _ := stateOf(t, child); st.Parent != "" {
+		t.Errorf("the executor started again read back the parent of a thread resumed from the archive: %s", raw)
+	}
+}
+
 // calledAs is the name the link last heard a thread called by, empty while
 // it heard none.
 func calledAs(l *Link, id string) string {

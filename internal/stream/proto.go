@@ -89,7 +89,8 @@ func NamedPath(sessionID string) string {
 // its name. A thread has no process of its own to carry it in, as a claude
 // session carries it in its environment, and the executor that started the
 // thread is gone after its own restart; the one started after it reads the
-// parent here. It holds a session name and nothing else.
+// parent here. A resume of the thread from the archive takes the file away. It
+// holds a session name and nothing else.
 func ParentPath(sessionID string) string {
 	return filepath.Join(keptDir(), "parents", sessionID+".json")
 }
