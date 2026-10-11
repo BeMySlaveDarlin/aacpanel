@@ -240,10 +240,12 @@ var kitHooks = []kitHook{
 	{Part: "relay", Event: "PreToolUse", Matcher: "AskUserQuestion", Script: "agent/ask-hook.py", Timeout: 5, Codex: true},
 	{Part: "copies", Event: "PostToolUse", Matcher: "Artifact", Script: "deploy/claude/artifact-copy.py", Timeout: 10},
 	{Part: "brief", Event: "SessionStart", Script: "deploy/claude/brief-waiting.py", Timeout: 5},
-	{Part: "cap", Event: "Stop", Script: "deploy/claude/context-guard.py", Timeout: 5, State: true},
+	// The guard looks at the work of the session in a snapshot newer than
+	// the stop for up to hook.Wait: its timeout is past that.
+	{Part: "cap", Event: "Stop", Hook: "context-guard", Script: "deploy/claude/context-guard.py", Timeout: 20, State: true},
 	{Part: "nudge", Event: "Stop", Script: "deploy/claude/checklist-reminder.py", Timeout: 5},
-	{Part: "stamp", Event: "UserPromptSubmit", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
-	{Part: "stamp", Event: "PostToolBatch", Matcher: "*", Script: "deploy/claude/prompt-stamp.py", Args: "PostToolBatch", Timeout: 5, State: true},
+	{Part: "stamp", Event: "UserPromptSubmit", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
+	{Part: "stamp", Event: "PostToolBatch", Matcher: "*", Hook: "prompt-stamp", Script: "deploy/claude/prompt-stamp.py", Args: "PostToolBatch", Timeout: 5, State: true},
 	{Part: "background", Event: "Stop", Hook: "background-reminder", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true},
 }
 

@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"aacpanel/internal/session"
 )
 
 // A hook never holds the session it serves, so every one of them exits 0,
@@ -42,8 +44,16 @@ type Reply struct {
 // handler is a hook of the executor: the event it answers and the answer to
 // a payload at a moment.
 type handler struct {
-	Event  string
-	Answer func(payload []byte, now time.Time) Reply
+	// Event is the event the hook answers, and Also the others it answers
+	// as well. The word after the hook's name says which, as it did to the
+	// script whose work the hook does; without one the hook answers Event.
+	Event string
+	Also  []string
+	// Wait is the longest the hook may take to answer, nothing for one that
+	// answers at once. The kit's timeout for the hook is longer: claude kills
+	// a hook at its timeout, and the answer of a hook killed mid-wait is lost.
+	Wait   time.Duration
+	Answer func(event string, payload []byte, now time.Time) Reply
 }
 
 // handlers are the hooks the executor serves, by the name the command of the
@@ -51,6 +61,13 @@ type handler struct {
 // does.
 var handlers = map[string]handler{
 	"background-reminder": {Event: "Stop", Answer: remindBackground},
+	"context-guard":       {Event: "Stop", Wait: session.LongestLook, Answer: guardContext},
+	"prompt-stamp":        {Event: "UserPromptSubmit", Also: []string{"PostToolBatch"}, Answer: stampPrompt},
+}
+
+// Wait is the longest the hook of the name may take to answer.
+func Wait(name string) time.Duration {
+	return handlers[name].Wait
 }
 
 // Names are the hooks the executor serves, in order.
@@ -78,6 +95,14 @@ func Run(args []string, in io.Reader, out, errs io.Writer) int {
 		fmt.Fprintf(errs, "aacpanel-exec hook: no hook %q; the executor serves %s\n", name, strings.Join(Names(), ", "))
 		return 0
 	}
+	event := h.Event
+	if len(args) > 1 {
+		if args[1] != h.Event && !slices.Contains(h.Also, args[1]) {
+			fmt.Fprintf(errs, "aacpanel-exec hook %s: it does not answer %s\n", name, args[1])
+			return 0
+		}
+		event = args[1]
+	}
 	defer func() {
 		if p := recover(); p != nil {
 			fmt.Fprintf(errs, "aacpanel-exec hook %s: %v\n", name, p)
@@ -88,7 +113,7 @@ func Run(args []string, in io.Reader, out, errs io.Writer) int {
 		fmt.Fprintf(errs, "aacpanel-exec hook %s: the payload: %v\n", name, err)
 		return 0
 	}
-	if err := answer(out, h.Event, h.Answer(payload, time.Now())); err != nil {
+	if err := answer(out, event, h.Answer(event, payload, time.Now())); err != nil {
 		fmt.Fprintf(errs, "aacpanel-exec hook %s: the answer: %v\n", name, err)
 	}
 	return 0

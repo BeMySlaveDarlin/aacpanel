@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -22,6 +23,115 @@ def load(name):
 
 
 stamp = load("prompt-stamp")
+
+# The cases this script shares with the executor's hook of the same name,
+# which says the same to the byte.
+CASES = json.loads((HERE / "testdata" / "prompt-stamp.json").read_text(encoding="utf-8"))
+
+
+def laid_over(snapshot, changes):
+    """Returns a copy of a snapshot with values set at dotted paths."""
+    data = json.loads(json.dumps(snapshot))
+    for path, value in changes.items():
+        *parents, last = path.split(".")
+        node = data
+        for part in parents:
+            node = node[int(part)] if isinstance(node, list) else node[part]
+        node[int(last) if isinstance(node, list) else last] = value
+    return data
+
+
+class FakeTime:
+    """The clock of a case, in the zone of the environment."""
+
+    def __init__(self, now):
+        self.now = now
+
+    def time(self):
+        return float(self.now)
+
+    def strftime(self, fmt):
+        return time.strftime(fmt, time.localtime(self.now))
+
+
+class TestTheSharedCases(unittest.TestCase):
+
+    def setUp(self):
+        keys = ("XDG_STATE_HOME", "AACP_STATE_DIR", "CLAUDE_PROJECT_DIR", "CLAUDE_CONFIG_DIR", "TZ")
+        was = {k: os.environ.get(k) for k in keys}
+
+        def restore():
+            for k, v in was.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            time.tzset()
+        self.addCleanup(restore)
+        hours, rest = divmod(CASES["offset"], 3600)
+        os.environ["TZ"] = f"<+{hours:02d}{rest // 60:02d}>-{hours}:{rest // 60:02d}"
+        time.tzset()
+
+    def test_every_shared_case(self):
+        self.assertTrue(CASES["cases"], "the shared cases are empty: the test checks nothing")
+        for case in CASES["cases"]:
+            with self.subTest(case["what"]):
+                self.play(case)
+
+    def play(self, case):
+        with tempfile.TemporaryDirectory() as xdg, tempfile.TemporaryDirectory() as state:
+            for k in ("CLAUDE_PROJECT_DIR", "CLAUDE_CONFIG_DIR"):
+                os.environ.pop(k, None)
+            os.environ.update({"XDG_STATE_HOME": xdg, "AACP_STATE_DIR": state, **case.get("env", {})})
+            if "guards" in case:
+                os.makedirs(os.path.join(xdg, "aacpanel"))
+                with open(os.path.join(xdg, "aacpanel", "guards.tsv"), "w", encoding="utf-8") as f:
+                    f.write(case["guards"])
+            for name, file in case.get("files", {}).items():
+                path = os.path.join(state, name)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(file["text"])
+                os.utime(path, (CASES["now"] - file["age"],) * 2)
+            for i, step in enumerate(case["steps"]):
+                at = f"step {i}"
+                snapshot = os.path.join(state, "state.json")
+                if "raw" in step:
+                    with open(snapshot, "w", encoding="utf-8") as f:
+                        f.write(step["raw"])
+                elif "state" in step:
+                    data = step["state"]
+                    if isinstance(data, str):
+                        data = laid_over(CASES["snapshots"][data], step.get("set", {}))
+                    with open(snapshot, "w", encoding="utf-8") as f:
+                        json.dump(data, f)
+                event = step.get("event", "UserPromptSubmit")
+                said = self.run_step(event, step.get("input", json.dumps(step.get("payload", {}))),
+                                     CASES["now"] + step.get("at", 0))
+                says = step["says"]
+                self.assertEqual(said, None if says is None else "\n".join(says), at)
+                if "throttle" in step:
+                    sid = step.get("payload", {}).get("session_id") or "common"
+                    with open(os.path.join(state, f"stamp-{sid}.state"), encoding="utf-8") as f:
+                        self.assertEqual(f.read(), step["throttle"], at)
+                if "listing" in step:
+                    self.assertEqual(sorted(os.listdir(state)), step["listing"], at)
+
+    def run_step(self, event, text, now):
+        """Runs the stamp as the hook runs it; returns the context it added, None for nothing."""
+        out = io.StringIO()
+        try:
+            sys.stdin = io.StringIO(text)
+            sys.argv = ["prompt-stamp.py", event]
+            with mock.patch.object(stamp, "time", FakeTime(now)), contextlib.redirect_stdout(out):
+                stamp.main()
+        finally:
+            sys.stdin = sys.__stdin__
+        if not out.getvalue():
+            return None
+        said = json.loads(out.getvalue())["hookSpecificOutput"]
+        self.assertEqual(said["hookEventName"], event)
+        return said["additionalContext"]
+
 
 SNAPSHOT = {
     "at": 0,

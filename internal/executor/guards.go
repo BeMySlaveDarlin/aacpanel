@@ -4,45 +4,30 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
-	"strconv"
-	"strings"
 	"time"
 
 	"aacpanel/internal/action"
+	"aacpanel/internal/guards"
 )
 
 // GuardsPath is where the host reads the context guard of every place the map
 // knows: the context guard hook and the prompt stamp of every contour, run as
-// this user. A line a place — the directory, the cap in percent of the model's
-// window, and 1 where a session past it restarts itself — so that a hook in
-// any language, a shell one included, reads it without a parser.
+// this user (internal/guards).
 func GuardsPath() string {
-	return filepath.Join(stateDir(), "guards.tsv")
+	return guards.Path()
 }
 
 // stateDir is where the executor keeps what the hooks of the host read.
 func stateDir() string {
-	base := os.Getenv("XDG_STATE_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = os.TempDir()
-		}
-		base = filepath.Join(home, ".local", "state")
-	}
-	return filepath.Join(base, "aacpanel")
+	return guards.Home()
 }
 
 // restartingPath is the marker a restart of the session keeps while it is
-// under way, named by the session escaped to one path element. The context
-// guard hook reads it: the close of a restart lets the session stop once more,
-// and a hook that asked for a restart there would ask for a second one.
+// under way, which the context guard hook reads.
 func restartingPath(session string) string {
-	return filepath.Join(stateDir(), "restarting", url.PathEscape(session))
+	return guards.RestartingPath(session)
 }
 
 // markRestarting keeps the marker of a restart of the session until the
@@ -65,17 +50,7 @@ func markRestarting(session string) func() {
 // KeepGuards writes the guards the service computed from the map. The file is
 // replaced whole by a rename: a hook reading it mid-write sees the old places
 // or the new ones, never half of each.
-func (e *Executor) KeepGuards(_ context.Context, guards []action.Guard) error {
-	lines := make([]string, 0, len(guards))
-	for _, g := range guards {
-		restart := "0"
-		if g.Restart {
-			restart = "1"
-		}
-		lines = append(lines, g.Path+"\t"+strconv.Itoa(g.Cap)+"\t"+restart)
-	}
-	slices.Sort(lines)
-
+func (e *Executor) KeepGuards(_ context.Context, list []action.Guard) error {
 	path := GuardsPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("the guards directory: %w", err)
@@ -85,11 +60,7 @@ func (e *Executor) KeepGuards(_ context.Context, guards []action.Guard) error {
 		return fmt.Errorf("the guards file: %w", err)
 	}
 	defer os.Remove(tmp.Name())
-	body := strings.Join(lines, "\n")
-	if body != "" {
-		body += "\n"
-	}
-	if _, err := tmp.WriteString(body); err != nil {
+	if _, err := tmp.WriteString(guards.Lines(list)); err != nil {
 		tmp.Close()
 		return fmt.Errorf("the guards file: %w", err)
 	}

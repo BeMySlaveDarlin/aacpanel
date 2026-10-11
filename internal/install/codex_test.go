@@ -172,7 +172,7 @@ func TestTheHooksOfCodexAreWiredAndTrusted(t *testing.T) {
 	if got := commandsOf(t, hooks, "PreToolUse"); !slices.Equal(got, []string{"test -f " + repo + "/agent/ask-hook.py && python3 " + repo + "/agent/ask-hook.py"}) {
 		t.Errorf("the relay: %q", got)
 	}
-	if got := commandsOf(t, hooks, "UserPromptSubmit"); !slices.Equal(got, []string{"test -f " + repo + "/deploy/claude/prompt-stamp.py && python3 " + repo + "/deploy/claude/prompt-stamp.py"}) {
+	if got := commandsOf(t, hooks, "UserPromptSubmit"); !slices.Equal(got, []string{executor + " hook prompt-stamp"}) {
 		t.Errorf("the stamp: %q", got)
 	}
 	for e, want := range map[string]string{"Stop": "bash /home/u/atlas-scripts/cost-snapshot/cost-snapshot.sh",

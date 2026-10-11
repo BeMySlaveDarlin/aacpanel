@@ -1,0 +1,214 @@
+{
+  "about": "The prompt stamp: prompt-stamp.py and the executor's hook (internal/hook) both run these cases and say the same to the byte. A case plays its steps in order against one state directory, with the clock at now plus at seconds in the zone offset seconds east of UTC. A step is an event — UserPromptSubmit when none is named — with the payload of the session, or input as a raw text. state is the snapshot the step finds: the name of one of snapshots, with set laid over it (a dotted path, a list index as a number), an object as it is, null for a file that reads null, raw for a text, none for no file; a step without state finds the snapshot of the step before it. guards is guards.tsv of the host, none for no file; env is laid over an environment without CLAUDE_CONFIG_DIR and CLAUDE_PROJECT_DIR. says is the context the hook adds, line by line, null for nothing printed. throttle is the throttle file of the session after the step, listing the names in the state directory; files are files of the state directory as the case finds them, aged that many seconds.",
+  "now": 1790000000,
+  "offset": 25200,
+  "snapshots": {
+    "base": {
+      "at": 1789999995,
+      "host": {
+        "cpuPct": 7.0,
+        "cpuTemp": 43.6,
+        "mem": {
+          "pct": 21.0
+        },
+        "disks": [
+          {
+            "mount": "/",
+            "total": 966367641600,
+            "used": 214748364800,
+            "pct": 22.2
+          },
+          {
+            "mount": "/boot/efi",
+            "total": 1073741824,
+            "used": 0,
+            "pct": 1.0
+          }
+        ]
+      },
+      "sessions": [
+        {
+          "sessionId": "mine",
+          "tokens": 500000,
+          "limit": 1000000,
+          "pct": 50.0,
+          "limitKnown": true
+        },
+        {
+          "sessionId": "other",
+          "tokens": 900000,
+          "limit": 1000000,
+          "pct": 90.0,
+          "limitKnown": true
+        },
+        {
+          "session": "fresh",
+          "tokens": 100000,
+          "limit": 1000000,
+          "pct": 10.0,
+          "limitKnown": true
+        }
+      ],
+      "limits": {
+        "contours": [
+          {
+            "profile": "personal",
+            "fiveHour": {
+              "pct": 16
+            },
+            "sevenDay": {
+              "pct": 35
+            },
+            "ageSec": 5
+          },
+          {
+            "profile": "work",
+            "fiveHour": {
+              "pct": 80
+            },
+            "sevenDay": {
+              "pct": 90
+            },
+            "ageSec": 5
+          }
+        ]
+      }
+    }
+  },
+  "cases": [
+    {"what": "before a prompt: the date, the context, the limits of the account, the load and the disks", "env": {"CLAUDE_CONFIG_DIR": "/home/u/.claude"},
+      "steps": [
+        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "the limits are those of the account the session runs under", "env": {"CLAUDE_CONFIG_DIR": "/home/u/.claude-work/"},
+      "steps": [
+        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 80% · week 90%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "where no account is named, codex among them, the limits are those of the first",
+      "steps": [
+        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "the limits of a snapshot with no contours",
+      "steps": [
+        {"state": "base", "set": {"limits": {"fiveHour": {"pct": 12}, "sevenDay": {"pct": 34}, "profile": "personal"}}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 12% · week 34%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "a project that restarts its sessions says where the restart comes, and to leave it out of replies", "guards": "/srv/proj\t80\t1\n",
+      "steps": [
+        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/proj/app"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "the cap is that of the closest place above the working directory", "guards": "/srv/proj\t80\t1\n/srv/proj/Globex\t60\t0\n",
+      "steps": [
+        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/proj/Globex/shop"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 600k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "the project directory wins over where the agent went", "guards": "/srv/proj/Globex\t60\t0\n", "env": {"CLAUDE_PROJECT_DIR": "/srv/proj/Globex"},
+      "steps": [
+        {"state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 600k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "past the cap is an alarm",
+      "steps": [
+        {"state": "base", "payload": {"session_id": "other", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  900k/1M (90%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "Alarms:   CONTEXT past the cap"]}
+      ]},
+    {"what": "past the cap of a project that restarts, the alarm holds new work back", "guards": "/srv/proj\t80\t1\n",
+      "steps": [
+        {"state": "base", "payload": {"session_id": "other", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  900k/1M (90%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "Alarms:   CONTEXT past the cap: start no new work, background included; the restart waits for what already runs"]}
+      ]},
+    {"what": "just short of the cap the stamp names the cap, not the guard's margin, and no alarm", "guards": "/srv/proj\t80\t1\n",
+      "steps": [
+        {"state": "base", "set": {"sessions.0.tokens": 795000, "sessions.0.pct": 79.5}, "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  795k/1M (80%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "a window that is not a round million stays in thousands, and the cap is its share", "guards": "/srv/proj\t70\t0\n",
+      "steps": [
+        {"state": "base", "set": {"sessions.0.tokens": 100000, "sessions.0.limit": 200000}, "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  100k/200k (50%) · finalize from 140k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "a model window that is not known is said aloud",
+      "steps": [
+        {"state": "base", "set": {"sessions.0.limitKnown": false}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k · the model window is not exact", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "a session the snapshot does not know has no context line",
+      "steps": [
+        {"state": "base", "payload": {"session_id": "unknown", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "a session without a window has no context line",
+      "steps": [
+        {"state": "base", "set": {"sessions.0.limit": 0}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "stale limits say their age",
+      "steps": [
+        {"state": "base", "set": {"limits.contours.0.ageSec": 3600}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35% (the snapshot is 60 min old)", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "the three largest disks of ten gigabytes or more, largest first",
+      "steps": [
+        {"state": "base", "set": {"host.disks": [{"mount": "/boot/efi", "total": 1073741824, "used": 0, "pct": 1.0}, {"mount": "/", "total": 966367641600, "used": 214748364800, "pct": 22.2}, {"mount": "/mnt/ten", "total": 10737418240, "used": 1073741824, "pct": 10.0}, {"mount": "/mnt/data", "total": 2147483648000, "used": 536870912000, "pct": 25.0}, {"mount": "/mnt/small", "total": 10737418239, "used": 0, "pct": 0.0}, {"mount": "/mnt/same", "total": 966367641600, "used": 107374182400, "pct": 11.1}]}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks /mnt/data 500G/2000G · / 200G/900G · /mnt/same 100G/900G"]}
+      ]},
+    {"what": "a full disk and a full memory are alarms, a small disk among them",
+      "steps": [
+        {"state": "base", "set": {"host.disks.0.pct": 95.0, "host.disks.1.pct": 90.0, "host.mem.pct": 93.4}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 93%", "          Disks / 200G/900G", "Alarms:   DISK / 95% · DISK /boot/efi 90% · MEMORY 93%"]}
+      ]},
+    {"what": "a stale snapshot is admitted",
+      "steps": [
+        {"state": "base", "set": {"at": 1789996400}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "          the snapshot is 60 min old — is the collector stopped?"]}
+      ]},
+    {"what": "without a snapshot the date and a word that there is none",
+      "steps": [
+        {"payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "The host snapshot is unavailable: the aacpanel collector writes no state"]}
+      ]},
+    {"what": "a snapshot that is not JSON is no snapshot",
+      "steps": [
+        {"raw": "{ not json", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "The host snapshot is unavailable: the aacpanel collector writes no state"]}
+      ]},
+    {"what": "a snapshot that reads null is no snapshot",
+      "steps": [
+        {"state": null, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "The host snapshot is unavailable: the aacpanel collector writes no state"]}
+      ]},
+    {"what": "an empty snapshot gives the date alone, its age untold",
+      "steps": [
+        {"state": {}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]"]}
+      ]},
+    {"what": "a payload that is not JSON gets the stamp of no session",
+      "steps": [
+        {"state": "base", "input": "not json", "says": ["[Mon 21.09.2026 21:13 +0700]", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "numbers are rounded half to even and said as python says them", "env": {"CLAUDE_CONFIG_DIR": "/home/u/.claude"},
+      "steps": [
+        {"state": "base", "set": {"sessions.0.tokens": 500500, "sessions.0.pct": 50.5, "limits.contours.0.fiveHour.pct": 41.0, "limits.contours.0.sevenDay": {"pct": null}, "limits.contours.0.ageSec": 150, "host.cpuPct": true, "host.cpuTemp": 43.5, "host.mem.pct": 0.5, "host.disks": [{"total": 1000000000000.0, "used": 550000000000.0, "pct": 99.5}, {"mount": null, "total": 966367641600, "used": 0}]}, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 41.0% · week None% (the snapshot is 2 min old)", "Load:     CPU 1% (44°C) · RAM 0%", "          Disks ? 512G/931G · None 0G/900G", "Alarms:   DISK ? 100%"]}
+      ]},
+    {"what": "between prompts: no date, the same step keeps quiet, a step of the context speaks, then ten minutes, then a new alarm", "guards": "/srv/proj\t80\t1\n",
+      "steps": [
+        {"at": 0, "event": "PostToolBatch", "state": "base", "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "throttle": "1790000000\n5:", "says": ["Context:  500k/1M (50%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]},
+        {"at": 1, "event": "PostToolBatch", "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "throttle": "1790000000\n5:", "says": null},
+        {"at": 2, "event": "PostToolBatch", "state": "base", "set": {"sessions.0.tokens": 610000, "sessions.0.pct": 61.0}, "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "throttle": "1790000002\n6:", "says": ["Context:  610k/1M (61%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]},
+        {"at": 601, "event": "PostToolBatch", "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "throttle": "1790000002\n6:", "says": null},
+        {"at": 602, "event": "PostToolBatch", "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "throttle": "1790000602\n6:", "says": ["Context:  610k/1M (61%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "          the snapshot is 10 min old — is the collector stopped?"]},
+        {"at": 603, "event": "PostToolBatch", "state": "base", "set": {"sessions.0.tokens": 610000, "sessions.0.pct": 61.0, "host.mem.pct": 91.0}, "payload": {"session_id": "mine", "cwd": "/srv/proj"}, "throttle": "1790000603\n6:Alarms:   MEMORY 91%", "says": ["Context:  610k/1M (61%) · auto restart at 800k, automatic: leave it out of replies", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 91%", "          Disks / 200G/900G", "Alarms:   MEMORY 91%", "          the snapshot is 10 min old — is the collector stopped?"]}
+      ]},
+    {"what": "a prompt between batches is not throttled and does not touch the throttle",
+      "steps": [
+        {"at": 0, "event": "PostToolBatch", "state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "throttle": "1790000000\n5:", "says": ["Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]},
+        {"at": 1, "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "throttle": "1790000000\n5:", "says": ["[Mon 21.09.2026 21:13 +0700]", "Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]},
+        {"at": 2, "event": "PostToolBatch", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "throttle": "1790000000\n5:", "says": null}
+      ]},
+    {"what": "conversations do not share the throttle, and one with no id keeps the common one",
+      "steps": [
+        {"at": 0, "event": "PostToolBatch", "state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "throttle": "1790000000\n5:", "says": ["Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]},
+        {"at": 1, "event": "PostToolBatch", "payload": {"session_id": "other", "cwd": "/srv/elsewhere"}, "throttle": "1790000001\n9:Alarms:   CONTEXT past the cap", "says": ["Context:  900k/1M (90%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G", "Alarms:   CONTEXT past the cap"]},
+        {"at": 2, "event": "PostToolBatch", "payload": {"cwd": "/srv/elsewhere"}, "throttle": "1790000002\n-1:", "says": ["Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]},
+        {"at": 3, "event": "PostToolBatch", "payload": {"cwd": "/srv/elsewhere"}, "throttle": "1790000002\n-1:", "listing": ["stamp-common.state", "stamp-mine.state", "stamp-other.state", "state.json"], "says": null}
+      ]},
+    {"what": "between prompts without a snapshot nothing is said, and the throttle is kept",
+      "steps": [
+        {"event": "PostToolBatch", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "throttle": "1790000000\n-1:", "listing": ["stamp-mine.state"], "says": null}
+      ]},
+    {"what": "a throttle file another form wrote is read", "files": {"stamp-mine.state": {"text": "1789999990\n5:", "age": 10}},
+      "steps": [
+        {"event": "PostToolBatch", "state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "throttle": "1789999990\n5:", "says": null}
+      ]},
+    {"what": "a throttle file that does not read speaks", "files": {"stamp-mine.state": {"text": "soon\n5:", "age": 10}},
+      "steps": [
+        {"event": "PostToolBatch", "state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "throttle": "1790000000\n5:", "says": ["Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]},
+    {"what": "the throttle files of old conversations are swept when one speaks, and nothing else", "files": {"stamp-gone.state": {"text": "1\n", "age": 604860}, "stamp-gone.state.tmp": {"text": "1\n", "age": 604860}, "stamp-notes.txt": {"text": "x", "age": 608400}, "other.state": {"text": "x", "age": 608400}, "stamp-fresh.state": {"text": "1\n", "age": 604740}},
+      "steps": [
+        {"event": "PostToolBatch", "state": "base", "payload": {"session_id": "mine", "cwd": "/srv/elsewhere"}, "listing": ["other.state", "stamp-fresh.state", "stamp-mine.state", "stamp-notes.txt", "state.json"], "says": ["Context:  500k/1M (50%) · finalize from 800k", "Limits:   5h 16% · week 35%", "Load:     CPU 7% (44°C) · RAM 21%", "          Disks / 200G/900G"]}
+      ]}
+  ]
+}

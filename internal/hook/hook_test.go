@@ -25,7 +25,7 @@ func run(t *testing.T, args []string, payload string) (code int, out, errs strin
 // A Stop is held by the answer, never by the exit: an exit of 2 would not let
 // the session stop and would be asked again at the next stop.
 func TestAStopIsHeldByItsAnswerNeverByItsExit(t *testing.T) {
-	with(t, "holds", handler{Event: "Stop", Answer: func([]byte, time.Time) Reply {
+	with(t, "holds", handler{Event: "Stop", Answer: func(string, []byte, time.Time) Reply {
 		return Reply{Block: "the checklist waits"}
 	}})
 	code, out, _ := run(t, []string{"holds"}, `{"hook_event_name": "Stop"}`)
@@ -41,8 +41,8 @@ func TestAStopIsHeldByItsAnswerNeverByItsExit(t *testing.T) {
 // Whatever befalls a hook, its exit is 0: a hook that panics would exit 2 on
 // its own, which holds a Stop in a loop and refuses a tool call.
 func TestNothingAHookMeetsHoldsTheSession(t *testing.T) {
-	with(t, "panics", handler{Event: "Stop", Answer: func([]byte, time.Time) Reply { panic("a nil map") }})
-	with(t, "says", handler{Event: "PreToolUse", Answer: func([]byte, time.Time) Reply {
+	with(t, "panics", handler{Event: "Stop", Answer: func(string, []byte, time.Time) Reply { panic("a nil map") }})
+	with(t, "says", handler{Event: "PreToolUse", Answer: func(string, []byte, time.Time) Reply {
 		return Reply{Context: "a word <&> for the model"}
 	}})
 	for _, c := range []struct {

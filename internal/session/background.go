@@ -26,6 +26,11 @@ const (
 	freshStep = 500 * time.Millisecond
 )
 
+// LongestLook is the longest a look at the work of a session takes: the wait
+// and the step that began just before its end. A hook that looks is given a
+// timeout past it, or claude kills the hook mid-look and its answer is lost.
+const LongestLook = freshWait + freshStep
+
 // work is what of a session is at work in the background.
 type work struct {
 	Agents, Tasks, Workflows int
@@ -75,6 +80,13 @@ func (h Host) atWork(session string, wait time.Duration) work {
 		}
 	}
 	return w
+}
+
+// Busy tells whether anything of the session is at work in the background,
+// looked at again as atWork does: the context guard hook asks it before it
+// asks a session past its cap for a restart, which would end that work.
+func (h Host) Busy(session string) bool {
+	return h.atWork(session, freshWait).any()
 }
 
 func plural(n int, one, many string) string {

@@ -72,7 +72,7 @@ func marksDir() string {
 	return filepath.Join(hostcfg.Load().StateDir, "background-reminder")
 }
 
-func remindBackground(payload []byte, now time.Time) Reply {
+func remindBackground(_ string, payload []byte, now time.Time) Reply {
 	var p any
 	if json.Unmarshal(payload, &p) != nil {
 		return Reply{}
@@ -213,6 +213,9 @@ func truthy(v any) bool {
 		return v
 	case float64:
 		return v != 0
+	case json.Number:
+		f, ok := number(v)
+		return !ok || f != 0
 	case string:
 		return v != ""
 	case []any:

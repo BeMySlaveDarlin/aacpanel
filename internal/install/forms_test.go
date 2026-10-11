@@ -1,9 +1,11 @@
 package install
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"aacpanel/internal/hook"
 )
@@ -69,6 +71,29 @@ func commandsOf(t *testing.T, raw, event string) []string {
 	return out
 }
 
+// timeoutOf is the timeout of the entry of an event that runs the command.
+func timeoutOf(t *testing.T, raw, event, command string) string {
+	t.Helper()
+	o, err := parseSettings([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, _ := o.get("hooks")
+	hs, _ := v.(*object)
+	if hs == nil {
+		return ""
+	}
+	for _, g := range hs.list(event) {
+		for _, e := range g.(*object).list("hooks") {
+			if entry := e.(*object); entry.str("command") == command {
+				n, _ := entry.get("timeout")
+				return fmt.Sprint(n)
+			}
+		}
+	}
+	return ""
+}
+
 // An update over the former forms rewrites each entry where it stands into
 // the form of this install: the same group, the same matcher, no second
 // entry. The hook the executor took over runs the executor; the part the kit
@@ -82,11 +107,10 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 	}
 	state := "AACP_STATE_DIR=/srv/st "
 	want := map[string][]string{
-		"SessionStart": {atlasContext, "test -f " + repo + "/deploy/claude/brief-waiting.py && python3 " + repo + "/deploy/claude/brief-waiting.py"},
-		"PreToolUse":   {"test -f " + repo + "/agent/ask-hook.py && python3 " + repo + "/agent/ask-hook.py"},
-		"PostToolBatch": {"test -f " + repo + "/deploy/claude/prompt-stamp.py && " + state + "python3 " + repo + "/deploy/claude/prompt-stamp.py PostToolBatch",
-			atlasBudget},
-		"Stop": {"test -f " + repo + "/deploy/claude/context-guard.py && " + state + "python3 " + repo + "/deploy/claude/context-guard.py",
+		"SessionStart":  {atlasContext, "test -f " + repo + "/deploy/claude/brief-waiting.py && python3 " + repo + "/deploy/claude/brief-waiting.py"},
+		"PreToolUse":    {"test -f " + repo + "/agent/ask-hook.py && python3 " + repo + "/agent/ask-hook.py"},
+		"PostToolBatch": {state + executor + " hook prompt-stamp PostToolBatch", atlasBudget},
+		"Stop": {state + executor + " hook context-guard",
 			state + executor + " hook background-reminder",
 			"test -f " + repo + "/deploy/claude/checklist-reminder.py && python3 " + repo + "/deploy/claude/checklist-reminder.py"},
 	}
@@ -100,8 +124,13 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 			groupsOf(t, out, "Stop"), groupsOf(t, out, "PostToolBatch"), groupsOf(t, out, "SubagentStop"), out)
 	}
 	// The stamp before every prompt had no entry: it is the one group added.
-	if got := commandsOf(t, out, "UserPromptSubmit"); len(got) != 1 {
+	if got := commandsOf(t, out, "UserPromptSubmit"); !slices.Equal(got, []string{state + executor + " hook prompt-stamp"}) {
 		t.Errorf("the stamp before a prompt: %q", got)
+	}
+	// The guard's timeout is rewritten with its command: the guard looks at
+	// the work of the session for longer than the former form's 5 seconds.
+	if got := timeoutOf(t, out, "Stop", state+executor+" hook context-guard"); got != "20" {
+		t.Errorf("the guard keeps a timeout of %s:\n%s", got, out)
 	}
 	again, changed := wire(t, out, w)
 	if changed || again != out {
@@ -148,6 +177,48 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 	} {
 		if h.owns(cmd) != want {
 			t.Errorf("%q: the background reminder's %v, want %v", cmd, h.owns(cmd), want)
+		}
+	}
+	// The guard and the stamp, in the forms an install wrote before the
+	// executor took them over and in the executor's.
+	for part, cmds := range map[string]map[string]bool{
+		"cap": {
+			"/home/u/bin/aacpanel-exec hook context-guard":                                                               true,
+			"test -f /a/deploy/claude/context-guard.py && AACP_STATE_DIR='/s' python3 /a/deploy/claude/context-guard.py": true,
+			"python3 /srv/old/deploy/claude/context-guard.py":                                                            true,
+			"/home/u/bin/aacpanel-exec hook prompt-stamp":                                                                false,
+		},
+		"stamp": {
+			"AACP_STATE_DIR=/x /opt/other/aacpanel-exec hook prompt-stamp PostToolBatch":                         true,
+			"test -f /a/deploy/claude/prompt-stamp.py && python3 /a/deploy/claude/prompt-stamp.py PostToolBatch": true,
+			"python3 /srv/old/deploy/claude/prompt-stamp.py":                                                     true,
+			"/home/u/bin/aacpanel-exec hook context-guard":                                                       false,
+		},
+	} {
+		for _, h := range kitHooks {
+			if h.Part != part {
+				continue
+			}
+			for cmd, want := range cmds {
+				if h.owns(cmd) != want {
+					t.Errorf("%q: the %s hook on %s's %v, want %v", cmd, part, h.Event, h.owns(cmd), want)
+				}
+			}
+		}
+	}
+}
+
+// A hook of the executor that waits before it answers has a timeout past
+// the wait with a second to spare: claude kills a hook at its timeout, and
+// the answer of the guard killed mid-look is lost — the session past its cap
+// is not asked to restart, and stays there until someone writes to it.
+func TestEveryTimeoutOfTheKitCoversTheHooksWait(t *testing.T) {
+	for _, h := range kitHooks {
+		if h.Hook == "" {
+			continue
+		}
+		if timeout := time.Duration(h.Timeout) * time.Second; timeout < hook.Wait(h.Hook)+time.Second {
+			t.Errorf("%s on %s: a timeout of %v for a hook that may take %v", h.Hook, h.Event, timeout, hook.Wait(h.Hook))
 		}
 	}
 }

@@ -783,10 +783,10 @@ installs it by hand.
 | Panel tools | always | the MCP server `aacpanel` and the allow rules of its tools but the restart |
 | Page copies | yes | the `PostToolUse` hook on `Artifact`, `deploy/claude/artifact-copy.py` |
 | Brief reminder | yes | the `SessionStart` hook, `deploy/claude/brief-waiting.py` |
-| Context cap | yes | the `Stop` hook, `deploy/claude/context-guard.py` |
+| Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
 | Checklist nudge | yes | the `Stop` hook, `deploy/claude/checklist-reminder.py` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
-| Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `deploy/claude/prompt-stamp.py` |
+| Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `aacpanel-exec hook prompt-stamp`, and its throttle files `<state>/stamp-*.state` |
 | Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
 | Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
@@ -1296,10 +1296,10 @@ the matcher where there is one. A hook is either the executor's,
 |---|---|---|---|---|
 | Page copies | `PostToolUse` | `Artifact` | `test -f <clone>/deploy/claude/artifact-copy.py && python3 <clone>/deploy/claude/artifact-copy.py` | 10 |
 | Brief reminder | `SessionStart` | — | `test -f <clone>/deploy/claude/brief-waiting.py && python3 <clone>/deploy/claude/brief-waiting.py` | 5 |
-| Context cap | `Stop` | — | `test -f <clone>/deploy/claude/context-guard.py && python3 <clone>/deploy/claude/context-guard.py` | 5 |
+| Context cap | `Stop` | — | `<home>/bin/aacpanel-exec hook context-guard` | 20 |
 | Checklist nudge | `Stop` | — | `test -f <clone>/deploy/claude/checklist-reminder.py && python3 <clone>/deploy/claude/checklist-reminder.py` | 5 |
-| Prompt stamp | `UserPromptSubmit` | — | `test -f <clone>/deploy/claude/prompt-stamp.py && python3 <clone>/deploy/claude/prompt-stamp.py` | 5 |
-| Prompt stamp | `PostToolBatch` | `*` | `test -f <clone>/deploy/claude/prompt-stamp.py && python3 <clone>/deploy/claude/prompt-stamp.py PostToolBatch` | 5 |
+| Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
+| Prompt stamp | `PostToolBatch` | `*` | `<home>/bin/aacpanel-exec hook prompt-stamp PostToolBatch` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 
 A script runs behind a check that it is there. Python on a missing file exits
@@ -1311,7 +1311,12 @@ passes over until the clone is back or the installer runs again. The
 executor's hook needs no check: a binary that is not there makes the shell exit
 127, and the executor itself exits 0 for every event and every outcome — it
 holds a `Stop` with `{"decision": "block"}` in its answer, never with an exit
-of 2.
+of 2. The context cap answers late on purpose: when the collector's snapshot
+shows work of the session at work, it waits up to fifteen seconds for a
+snapshot read after the stop — the turn may have begun with the news that the
+last agent is done — and its timeout is past that wait. A hook claude kills at
+its timeout says nothing, and a session past its cap that is not asked to
+restart there stays until someone writes to it.
 
 An entry is the panel's by what it runs, not by the whole command: the
 executor's hook of the name, from wherever the executor lies, or the script of
@@ -1327,9 +1332,9 @@ goes. The cost snapshot is a retired part: its entries — the python form of
 
 For a state directory other than `/var/lib/aacpanel`, the commands of the
 context cap, the prompt stamp and the background reminder set
-`AACP_STATE_DIR='<state>'` before `python3` or before the executor: the first
-two read the collector's snapshot there, the reminder keeps there when it first
-saw each task.
+`AACP_STATE_DIR='<state>'` before the executor: the first two read the
+collector's snapshot there, the stamp keeps there what it last said between
+prompts and the reminder when it first saw each task.
 
 **The panel's server**, through claude's own command — claude rewrites its
 `.claude.json` all the time, so the file is never edited by hand:
@@ -1394,7 +1399,7 @@ out, the rest of the file as it was:
 | Part | Event | Matcher | Command | Timeout |
 |---|---|---|---|---|
 | Question relay | `PreToolUse` | `AskUserQuestion` | `test -f <clone>/agent/ask-hook.py && python3 <clone>/agent/ask-hook.py` | 5 |
-| Prompt stamp | `UserPromptSubmit` | — | `test -f <clone>/deploy/claude/prompt-stamp.py && python3 <clone>/deploy/claude/prompt-stamp.py` | 5 |
+| Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 
 **The trust.** codex runs a hook of the person's own only once it is trusted,
 and passes over a hook new or changed since without a word. The trust lives in

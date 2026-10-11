@@ -248,13 +248,14 @@ func TestWiringAgainChangesNothing(t *testing.T) {
 }
 
 // TestAMovedCloneIsChangedWhereItStands: the hooks and the status line of
-// a clone that moved are the panel's; their path changes in the same group,
-// and the status line is not wrapped again.
+// a clone that moved, and the hooks of an executor that moved with its home,
+// are the panel's; their path changes in the same group, and the status line
+// is not wrapped again.
 func TestAMovedCloneIsChangedWhereItStands(t *testing.T) {
-	old := Wiring{Clone: "/srv/old-clone", Kit: fullKit.Kit}
+	old := Wiring{Clone: "/srv/old-clone", Exec: "/srv/old-home/bin/aacpanel-exec", Kit: fullKit.Kit}
 	was, _ := wire(t, person, old)
 	now, changed := wire(t, was, fullKit)
-	if !changed || strings.Contains(now, "/srv/old-clone") {
+	if !changed || strings.Contains(now, "/srv/old-clone") || strings.Contains(now, "/srv/old-home") {
 		t.Fatalf("the old path stayed:\n%s", now)
 	}
 	for _, e := range []string{"PreToolUse", "Stop", "PostToolUse", "SessionStart"} {
@@ -319,7 +320,7 @@ func TestTheKitDecidesWhatStays(t *testing.T) {
 	if hooked(t, was, "PostToolBatch", "deploy/claude/prompt-stamp.py") != 1 || hooked(t, was, "Stop", "deploy/claude/background-reminder.py") != 1 {
 		t.Fatalf("the stamp and the background reminder are not wired:\n%s", was)
 	}
-	if !strings.Contains(was, `"command": "test -f `+repo+`/deploy/claude/prompt-stamp.py && python3 `+repo+`/deploy/claude/prompt-stamp.py PostToolBatch"`) {
+	if !strings.Contains(was, `"command": "`+executor+` hook prompt-stamp PostToolBatch"`) {
 		t.Errorf("the stamp between tools lacks its argument:\n%s", was)
 	}
 	if !strings.Contains(was, `"command": "`+executor+` hook background-reminder"`) {
@@ -382,7 +383,7 @@ func TestAStateDirectoryOfItsOwnIsNamedToTheHooksThatReadIt(t *testing.T) {
 	w.State = "/srv/aacpanel-state"
 	out, _ := wire(t, "{}", w)
 	guard := func(script string) string { return "test -f " + repo + "/" + script + " && " }
-	if !strings.Contains(out, `"command": "`+guard("deploy/claude/context-guard.py")+`AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/context-guard.py"`) ||
+	if !strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state `+executor+` hook context-guard"`) ||
 		!strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state `+executor+` hook background-reminder"`) ||
 		!strings.Contains(out, `"command": "`+guard("agent/ask-hook.py")+`python3 `+repo+`/agent/ask-hook.py"`) {
 		t.Errorf("the state directory:\n%s", out)
