@@ -263,6 +263,7 @@ func (s *Survey) values() []string {
 	if probes := s.valueOr("probes", ""); probes != "" {
 		add("probes " + strings.ReplaceAll(probes, ",", ", "))
 	}
+	add(s.shown("cores", "cores "))
 	add(s.shown("push", "push contact "), s.shown("life", "sign-in "))
 	add("repo "+f.Short(f.Clone)+" (the clone)", fmt.Sprintf("uid %d gid %d (id)", f.Account.UID, f.Account.GID))
 	add("secrets: made once on this machine, never shown")
@@ -349,6 +350,9 @@ func (s *Survey) Lines(b BlockID) []string {
 		g, ok := s.Value(q.ID)
 		if !ok || q.Moot {
 			continue
+		}
+		if q.ID == "cores" && q.Note != "" {
+			out = append(out, "· "+q.Note)
 		}
 		out = append(out, "· "+q.Prompt+" → "+s.show(q.ID, g)+s.src(g))
 	}

@@ -109,8 +109,13 @@ func planPlain(o PlanOptions) int {
 	for i, b := range install.Blocks {
 		if open, err := s.Settle(b); err != nil {
 			return stop(err)
-		} else if len(open) > 0 {
-			return stop(install.Unasked(open[0]))
+		} else {
+			for _, q := range open {
+				if !q.DefaultInPlain {
+					return stop(install.Unasked(q))
+				}
+				s.Set(q, q.Default, s.Source(q, q.Default))
+			}
 		}
 		lines = append(lines, s.Lines(b)...)
 		if i+1 < len(install.Blocks) && install.Blocks[i+1].Title() == b.Title() {

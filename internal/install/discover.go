@@ -30,10 +30,17 @@ type Found struct {
 	Certs     []Cert
 	Ports     []Choice
 	Email     string
+
+	PresentCores    []byte
+	EfficiencyCores string
+
 	// Known is every directory claude opened, by its slug, over every
 	// account found, with when it last opened it.
 	Known map[string]time.Time
 }
+
+// SysRoot is the kernel's machine description, replaceable by a test's sysfs.
+var SysRoot = "/sys"
 
 // Discover looks the machine over for the options of the questions. It reads
 // and never writes, like the check before it; a source that does not answer
@@ -48,6 +55,8 @@ func Discover(m Machine, f Facts, certDirs []string) Found {
 	}
 	known := KnownSlugs(m, dirs)
 	lan, proxies := Addresses(m)
+	present, _ := m.ReadFile(filepath.Join(SysRoot, "devices/system/cpu/present"))
+	atom, _ := m.ReadFile(filepath.Join(SysRoot, "devices/cpu_atom/cpus"))
 	return Found{
 		Host:      shortHost(m),
 		Terminals: Terminals(m),
@@ -60,7 +69,11 @@ func Discover(m Machine, f Facts, certDirs []string) Found {
 		Certs:     Certs(m, certDirs),
 		Ports:     ListeningPorts(m, []int{PortPanel, PortLocal, f.LANPort}),
 		Email:     gitEmail(m, f.Clone),
-		Known:     known,
+
+		PresentCores:    present,
+		EfficiencyCores: strings.TrimSpace(string(atom)),
+
+		Known: known,
 	}
 }
 

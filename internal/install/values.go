@@ -86,6 +86,9 @@ func (s *Survey) HostEnv() []Var {
 	if g, ok := s.tuned("probes"); ok {
 		out = append(out, Var{Key: "AACP_PROBE_PORTS", Value: g.Value})
 	}
+	if g, ok := s.tuned("cores"); ok {
+		out = append(out, Var{Key: hostcfg.CoresEnv, Value: g.Value})
+	}
 	return out
 }
 

@@ -125,7 +125,7 @@ func main() {
 		os.Exit(runTerm())
 	}
 
-	if err := run(*socket, *dockerHost, *self); err != nil {
+	if err := run(*socket, *dockerHost, *self, hostcfg.Cores); err != nil {
 		log.Fatalf("aacpanel-exec: %v", err)
 	}
 }
@@ -331,17 +331,11 @@ func runTerm() int {
 	return 0
 }
 
-func run(socket, dockerHost, self string) error {
+func run(socket, dockerHost, self string, readCores func() (string, error)) error {
 	if os.Geteuid() == 0 {
 		return errors.New("running as root is not allowed: the executor gets by with the rights of the session owner")
 	}
-	// The cores are read once, here: a value the units could not be held to
-	// stops the executor at its start, where the person who set it looks,
-	// rather than every session, terminal and observer it would start.
-	cores, err := hostcfg.Cores()
-	if err != nil {
-		return err
-	}
+	cores := executionCores(readCores())
 
 	exec := executor.New(executor.NewDocker(dockerHost), self).HoldTo(cores)
 	srv := action.NewServer(socket, audited{next: exec}, actionTimeout)
@@ -378,7 +372,7 @@ func run(socket, dockerHost, self string) error {
 	if cores != "" {
 		log.Printf("sessions, terminals and observers run on cores %s (%s)", cores, hostcfg.CoresEnv)
 	} else {
-		log.Printf("sessions, terminals and observers run where the system puts them: %s is not set", hostcfg.CoresEnv)
+		log.Print("sessions, terminals and observers run where the system puts them")
 	}
 	log.Print("sessions are started by the launcher in tmux; the main host session and one-off runs are not closed")
 
@@ -387,6 +381,16 @@ func run(socket, dockerHost, self string) error {
 	}
 	log.Print("stopped")
 	return nil
+}
+
+// A description carried from another machine must not take the panel down.
+// Refuse the affinity once, at startup, while leaving every unit to the system.
+func executionCores(cores string, err error) string {
+	if err != nil {
+		log.Printf("%v; running without CPU affinity", err)
+		return ""
+	}
+	return cores
 }
 
 // keepLimits looks once a minute for a contour whose snapshot of the

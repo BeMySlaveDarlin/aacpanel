@@ -383,6 +383,7 @@ taken over only with `--adopt` next to `--yes`.
 | `--lan-token yes\|no` | How does a phone sign in over the home network? |
 | `--term-public yes\|no` | Terminal of live sessions from other devices? |
 | `--more yes\|no` | Tune more settings? |
+| `--cores CORES` | Cores for sessions and their windows; empty leaves placement to the system |
 | `--probe NAME=HOST:PORT` | a local service the Machine screen probes. Again for more |
 | `--push-contact CONTACT` | Contact for push services? |
 | `--login-life IDLE/MAX` | How long does a sign-in last? Like `30m/12h` |
@@ -824,6 +825,14 @@ hooks on one event give two stamps in every message.
   address to go on*, since every enrolled passkey is void after it.
 
 **More settings** — *Tune more settings?* No, unless asked:
+- *Which cores should sessions run on?* — no binding: the system picks the
+  cores, including with `--yes` or in plain mode. Efficiency cores are offered
+  only when `/sys/devices/cpu_atom/cpus` lists them, with that list in the
+  option. Typed cores take systemd's numbers and ranges, checked against this
+  machine; a bad answer stays open for correction. A valid current setting is
+  offered too; an invalid one is explained under the question. `AACP_CORES`
+  in `host.env`, shared by sessions and their windows, terminals, codex and
+  observers. Leaving tuning off keeps the file's value.
 - *Which local services should the Machine screen probe?* — the ports `ss`
   finds listening, the panel's own left out; none checked. `AACP_PROBE_PORTS`
   in `host.env`, `name=host:port` joined by commas.
@@ -904,12 +913,15 @@ or a New waits for a daemon in a home that never gets one and says so.
 session in tmux or on the stream with its window, a terminal of the panel, a
 codex daemon, an observer — as systemd's `CPUAffinity=` takes them: core
 numbers and ranges apart by commas, `8-23` or `0,2,4-7`. Unset, the units run
-where the system puts them. No question asks for it. On a machine with two
+where the system puts them. The question is under *Tune more settings?*,
+with no binding as its default. On a machine with two
 kinds of core, naming the efficient ones keeps the fast ones for the person at
 it; on an Intel processor of that kind the kernel lists the efficient ones in
-`/sys/devices/cpu_atom/cpus`. The executor reads the key at its start and does
-not start on a value systemd would not take, or one naming a core the machine
-does not have, and its journal says which; a unit already running keeps the
+`/sys/devices/cpu_atom/cpus`. The executor reads the key at its start. A value
+systemd would not take, or one naming a core the machine does not have, is
+logged with the key and the reason, and the executor runs without affinity:
+a carried description must not take the panel down, at the cost of leaving
+core placement to the system. A unit already running keeps the
 cores it started on. A drop-in of the machine's own that sets `CPUAffinity=`
 for the transient units of the user (`~/.config/systemd/user/run-.service.d/`)
 adds its cores to the panel's — systemd merges the two — so the setting

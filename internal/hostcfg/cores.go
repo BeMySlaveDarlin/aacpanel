@@ -23,13 +23,18 @@ const maxCores = 8192
 
 // Cores are the cores of the description in the form systemd-run is given
 // them, ranges joined by commas, or empty when the description names none.
-// The setting is read the way CPUAffinity= reads it — core numbers and
-// ranges, apart by commas or spaces — and a value systemd would refuse, or
-// one naming a core the kernel does not list among the machine's, is an
-// error here: the executor that reads it refuses to start, rather than every
-// unit it starts failing on it later, or running on no core at all.
 func Cores() (string, error) {
-	raw := strings.TrimSpace(described(CoresEnv))
+	present, _ := os.ReadFile(presentFile)
+	return ValidateCores(described(CoresEnv), present)
+}
+
+// ValidateCores checks a value as CPUAffinity= reads it, against the kernel's
+// list of present cores, and returns ranges joined by commas. A nil list
+// means the kernel's list could not be read: only the syntax is checked.
+// Both the installer and the executor use this rule, so a typed answer and
+// a description carried from another machine get the same checks.
+func ValidateCores(raw string, present []byte) (string, error) {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", nil
 	}
@@ -38,10 +43,10 @@ func Cores() (string, error) {
 		return "", fmt.Errorf("%s=%s is not a list of cores systemd takes: %v; it is core numbers and ranges "+
 			"apart by commas, like 8-23 or 0,2,4-7", CoresEnv, raw, err)
 	}
-	if present, err := os.ReadFile(presentFile); err == nil {
+	if present != nil {
 		machine, err := parseCores(strings.TrimSpace(string(present)))
 		if err != nil {
-			return "", fmt.Errorf("the cores of the machine are not read from %s: %v", presentFile, err)
+			return "", fmt.Errorf("%s cannot be checked against the kernel's list of cores: %v", CoresEnv, err)
 		}
 		var missing []int
 		for _, c := range cores {

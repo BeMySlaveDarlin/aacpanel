@@ -2,12 +2,15 @@ package install
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"aacpanel/internal/contours"
+	"aacpanel/internal/hostcfg"
 )
 
 var now = time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
@@ -458,5 +461,122 @@ func TestAnInstallByHandKeepsItsKit(t *testing.T) {
 		if q := find(t, s, BlockK, "kit"); q.Default != c.kit {
 			t.Errorf("allow %s: the kit kept is %q, want %q", c.allow, q.Default, c.kit)
 		}
+	}
+}
+
+func TestCoreChoicesComeFromThisMachine(t *testing.T) {
+	old := SysRoot
+	t.Cleanup(func() { SysRoot = old })
+	for _, c := range []struct {
+		name, atom string
+		exists     bool
+	}{
+		{"no efficiency cores", "", false},
+		{"empty efficiency cores", " \n", true},
+		{"efficiency cores", "4-7\n", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			SysRoot = filepath.Join(t.TempDir(), "sys")
+			m := desktop()
+			m.Disk = filepath.Dir(SysRoot)
+			m.Acct.Home = filepath.Join(m.Disk, "home")
+			m.Vars["HOME"] = m.Acct.Home
+			present := filepath.Join(SysRoot, "devices/system/cpu/present")
+			if err := os.MkdirAll(filepath.Dir(present), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(present, []byte("0-7\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if c.exists {
+				path := filepath.Join(SysRoot, "devices/cpu_atom/cpus")
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(c.atom), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			s := survey(m, &Run{Yes: true, Answers: map[string]string{"--more": yes}})
+			q := find(t, s, BlockF, "cores")
+			wantOptions := 1
+			if strings.TrimSpace(c.atom) != "" {
+				wantOptions++
+			}
+			if q.Default != "" || len(q.Options) != wantOptions || q.Options[0].Value != "" {
+				t.Fatalf("default %q, options %+v", q.Default, q.Options)
+			}
+			if wantOptions == 2 && (q.Options[1].Value != "4-7" || !strings.Contains(q.Options[1].Label, "(4-7)")) {
+				t.Errorf("the efficiency option does not name the kernel's cores: %+v", q.Options[1])
+			}
+			for _, raw := range []string{"2-x", "7-4", "2,9"} {
+				if err := q.Check(raw); err == nil {
+					t.Errorf("own cores %q are accepted", raw)
+				}
+			}
+			if err := q.Check("0,2-3 5"); err != nil {
+				t.Fatal(err)
+			}
+			answerAll(t, s)
+			if !slices.Contains(s.HostEnv(), Var{Key: hostcfg.CoresEnv, Value: ""}) {
+				t.Errorf("--yes did not write no binding: %+v", s.HostEnv())
+			}
+		})
+	}
+}
+
+func TestCurrentCoresAreOfferedWithoutBindingByDefault(t *testing.T) {
+	for _, c := range []struct{ value, warning string }{
+		{"2-3", ""}, {"", ""},
+		{"4-11", "names cores 8-11 the machine does not have"},
+		{"2-x", "not a list of cores systemd takes"},
+	} {
+		m := desktop()
+		m.Files["/sys/devices/system/cpu/present"] = "0-7\n"
+		m.Files[DefaultStateDir+"/host.env"] = hostcfg.CoresEnv + "=" + c.value + "\n"
+		s := survey(m, &Run{Yes: true, Answers: map[string]string{"--more": yes}})
+		q := find(t, s, BlockF, "cores")
+		if q.Default != "" {
+			t.Errorf("current %q binds by default: %q", c.value, q.Default)
+		}
+		offered := slices.ContainsFunc(q.Options, func(o Option) bool { return o.Value == c.value && o.Source == "current setting" })
+		if c.warning == "" {
+			if !offered || q.Note != "" {
+				t.Errorf("current %q was not offered: %+v", c.value, q)
+			}
+		} else if offered || !strings.Contains(q.Note, c.warning) || strings.Contains(q.Note, "\n") {
+			t.Errorf("current %q needs a one-line explanation: %+v", c.value, q)
+		}
+		answerAll(t, s)
+		if c.warning != "" && !strings.Contains(strings.Join(s.Lines(BlockF), "\n"), c.warning) {
+			t.Errorf("the plain feed loses the explanation for %q", c.value)
+		}
+		if !slices.Contains(s.HostEnv(), Var{Key: hostcfg.CoresEnv, Value: ""}) {
+			t.Errorf("the default kept current cores %q", c.value)
+		}
+	}
+}
+
+func TestCoreFlagTunesAndWritesTheHostDescription(t *testing.T) {
+	for _, value := range []string{"0,2-3", ""} {
+		s := survey(desktop(), &Run{Yes: true, Answers: map[string]string{"--cores": value}})
+		answerAll(t, s)
+		if s.valueOr("tune", no) != yes || !slices.Contains(s.HostEnv(), Var{Key: hostcfg.CoresEnv, Value: value}) {
+			t.Errorf("--cores %q was not written: %+v", value, s.HostEnv())
+		}
+		s.Clear(BlockF)
+		if _, ok := s.Value("cores"); ok {
+			t.Error("a core answer survives going back to its block")
+		}
+	}
+	m := desktop()
+	m.Files[DefaultStateDir+"/host.env"] = "AACP_CORES=2-3\n"
+	s := survey(m, &Run{Yes: true})
+	answerAll(t, s)
+	if got := s.valueOr("cores", ""); got != "2-3" {
+		t.Errorf("the plan shows untuned cores as %q, but the file keeps 2-3", got)
+	}
+	if slices.ContainsFunc(s.HostEnv(), func(v Var) bool { return v.Key == hostcfg.CoresEnv }) {
+		t.Error("untuned cores overwrite the host description")
 	}
 }

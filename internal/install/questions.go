@@ -807,8 +807,8 @@ func (s *Survey) tune() []Question {
 		ID: "tune", Prompt: "Tune more settings?", Form: One,
 		Options: []Option{
 			{Value: no, Label: "No — defaults", Source: "default",
-				Detail: "Probes of local services, the contact for pushes and the length of a sign-in keep their defaults."},
-			{Value: yes, Label: "Yes", Detail: "Three more questions."},
+				Detail: "Cores for sessions, probes of local services, the contact for pushes and the length of a sign-in keep their defaults."},
+			{Value: yes, Label: "Yes", Detail: "Four more questions."},
 		},
 		Flag: "--more", Values: []string{yes, no}, Default: no,
 	}}
@@ -816,7 +816,34 @@ func (s *Survey) tune() []Question {
 
 // tuneFlags are the flags of block F: any of them answers "Tune more
 // settings?" with yes.
-var tuneFlags = []string{"--probe", "--push-contact", "--login-life"}
+var tuneFlags = []string{"--cores", "--probe", "--push-contact", "--login-life"}
+
+func (s *Survey) cores() Question {
+	q := Question{
+		ID: "cores", Tab: "Cores", Prompt: "Which cores should sessions run on?", Form: One,
+		Options: []Option{{Value: "", Label: "No binding — the system picks the cores", Source: "default"}},
+		Own:     "Type the cores.", Flag: "--cores", DefaultInPlain: true,
+		Writes: []Target{{HostEnvFile, hostcfg.CoresEnv}},
+		Check: func(v string) error {
+			_, err := hostcfg.ValidateCores(v, s.Found.PresentCores)
+			return err
+		},
+	}
+	if v := s.Found.EfficiencyCores; v != "" {
+		q.Options = append(q.Options, Option{Value: v, Label: "The efficiency cores of this machine (" + v + ")", Source: "the kernel"})
+	}
+	if v, ok := s.before(HostEnvFile, hostcfg.CoresEnv); ok {
+		if err := q.Check(v); err != nil {
+			q.Note = "Current setting: " + err.Error() + "."
+		} else {
+			s.preferValue(&q, v, "The current setting.")
+		}
+	}
+	// A machine may have no efficiency cores, and a saved binding is still
+	// a choice to make: Enter always leaves placement to the system.
+	q.chosen, q.Default, q.source = true, "", "default"
+	return q
+}
 
 func (s *Survey) more() []Question {
 	probes := Question{
@@ -864,7 +891,7 @@ func (s *Survey) more() []Question {
 		}
 		s.preferValue(&life, idle+"/"+max, "The current setting.")
 	}
-	return []Question{probes, push, life}
+	return []Question{s.cores(), probes, push, life}
 }
 
 func (s *Survey) mapQuestions() []Question {

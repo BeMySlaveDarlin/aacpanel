@@ -33,6 +33,8 @@
 
 ⏺ More settings
   ⎿  · Tune more settings? → No — defaults (default)
+     · Which cores should sessions run on? → No binding — the system picks the
+     cores (default)
      · Which local services should the Machine screen probe? → none (default)
      · Contact for push services? → Leave it to the panel (the panel's default)
      · How long does a sign-in last? → 24h idle · 30 days at most (the panel's
@@ -68,6 +70,7 @@
 │   claude ~/.local/bin/claude (command -v claude) · sessions in tmux (flag)   │
 │   accounts ~/.claude (found)                                                 │
 │   passkeys localhost (only this machine signs in with a passkey)             │
+│   cores No binding — the system picks the cores (default)                    │
 │   push contact Leave it to the panel (the panel's default) · sign-in 24h     │
 │   idle · 30 days at most (the panel's default)                               │
 │   repo ~/aacpanel (the clone) · uid 1000 gid 1000 (id)                       │

@@ -324,6 +324,13 @@ func (s *Survey) settle(b BlockID, q Question) (value, source string, ok bool, e
 	if q.ID == "tune" && s.tuneFlagged() {
 		return yes, "flag", true, nil
 	}
+	// Untuned cores keep the file's binding. The empty default belongs to
+	// the question when it is offered, not to an update that keeps settings.
+	if q.ID == "cores" && s.valueOr("tune", no) != yes {
+		if v, exists := s.before(HostEnvFile, hostcfg.CoresEnv); exists && q.Check(v) == nil {
+			return v, "current setting", true, nil
+		}
+	}
 	if s.quiet(b) || (s.run.Yes && !q.Required) {
 		if q.Required {
 			return "", "", false, Unasked(q)
@@ -437,7 +444,7 @@ func blockOf(id string) BlockID {
 		return BlockD
 	case "tune":
 		return BlockT
-	case "probes", "push", "life":
+	case "cores", "probes", "push", "life":
 		return BlockF
 	case "contour", "group", "projects":
 		return BlockM

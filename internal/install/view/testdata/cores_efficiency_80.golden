@@ -1,0 +1,10 @@
+────────────────────────────────────────────────────────────────────────────────
+ ←  ■ Cores  ☐ Probes  ☐ Push contact  ☐ Sign-in  ✔ Submit  →
+
+ Which cores should sessions run on?
+
+ ❯ 1. No binding — the system picks the cores
+   2. The efficiency cores of this machine (4-7)
+   3. Type the cores.
+
+ Enter to select · Tab/Arrow keys to navigate · Esc to go back

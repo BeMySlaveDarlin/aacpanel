@@ -52,6 +52,7 @@ var Flags = []Flag{
 	{Name: "--lan-token", Takes: "yes|no", Help: "with the home network as the only way in: a token a phone signs in with"},
 	{Name: "--term-public", Takes: "yes|no", Help: "the terminal of live sessions from other devices, behind a passkey"},
 	{Name: "--more", Takes: "yes|no", Help: "tune the rare settings"},
+	{Name: "--cores", Takes: "CORES", Help: "cores for sessions and their windows, like 0,2-3; empty leaves placement to the system"},
 	{Name: "--probe", Takes: "NAME=HOST:PORT", Help: "a local service the Machine screen probes; again for more", Many: true},
 	{Name: "--push-contact", Takes: "CONTACT", Help: "where push services write when pushes misbehave, like mailto:you@example.org"},
 	{Name: "--login-life", Takes: "IDLE/MAX", Help: "how long a sign-in lasts, like 30m/12h"},

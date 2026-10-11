@@ -1,0 +1,12 @@
+────────────────────────────────────────────────────────────
+ ←  ■ Cores  · 1 of 5 →
+
+ Which cores should sessions run on?
+ Current setting: AACP_CORES=4-11 names cores 8-11 the
+ machine does not have: its cores are 0-7.
+
+ ❯ 1. No binding — the system picks the cores
+   2. Type the cores.
+
+ Enter to select · Tab/Arrow keys to navigate · Esc to go
+ back

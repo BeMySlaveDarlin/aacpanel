@@ -250,3 +250,111 @@ func TestTheProceedQuestion(t *testing.T) {
 		t.Errorf("save: quit %v, status %d, saved %q", s.quit, s.m.status, saved)
 	}
 }
+
+func TestCoresOnTheScreen(t *testing.T) {
+	for _, width := range []int{80, 60} {
+		for _, atom := range []string{"", "4-7"} {
+			m := desktop()
+			m.Files["/sys/devices/system/cpu/present"] = "0-7\n"
+			if atom != "" {
+				m.Files["/sys/devices/cpu_atom/cpus"] = atom + "\n"
+			}
+			s := asked(m, &install.Run{Answers: map[string]string{"--more": "yes"}}, fresh(), width)
+			for s.m.stage == questioning && s.m.ask.block != install.BlockF {
+				s.send(press("enter"))
+			}
+			if s.m.ask == nil || s.m.ask.block != install.BlockF {
+				t.Fatal("cores were not asked")
+			}
+			name := "cores_"
+			if atom != "" {
+				name += "efficiency_"
+			}
+			golden(t, name+strconv.Itoa(width), s.m.ask.ui.View(s.m.t, width, 0))
+			if s.m.ask.ui.Answers[0].Given {
+				t.Fatal("cores answered without asking")
+			}
+			s.send(press("enter"))
+			if g, ok := s.m.s.Value("cores"); !ok || g.Value != "" {
+				t.Errorf("Enter bound cores: %+v", g)
+			}
+		}
+	}
+}
+
+func TestOwnCoresStayOpenUntilTheAnswerFitsTheMachine(t *testing.T) {
+	m := desktop()
+	m.Files["/sys/devices/system/cpu/present"] = "0-7\n"
+	s := asked(m, &install.Run{Answers: map[string]string{"--more": "yes"}}, fresh(), 80)
+	for s.m.stage == questioning && s.m.ask.block != install.BlockF {
+		s.send(press("enter"))
+	}
+	if s.m.ask == nil || s.m.ask.block != install.BlockF {
+		t.Fatal("cores were not asked")
+	}
+	s.send(press("2"))
+	for _, raw := range []string{"2-x", "2,9"} {
+		s.send(press("ctrl+u"))
+		s.send(tea.PasteMsg{Content: raw})
+		s.send(press("enter"))
+		if s.m.ask.block != install.BlockF || s.m.ask.ui.Answers[0].Given || !strings.Contains(ui.Strip(s.m.View().Content), "AACP_CORES") {
+			t.Fatalf("bad own cores %q did not stay open: %s", raw, ui.Strip(s.m.View().Content))
+		}
+	}
+	s.send(press("ctrl+u"))
+	s.send(tea.PasteMsg{Content: "0,2-3 5"})
+	s.send(press("enter"))
+	if g, ok := s.m.s.Value("cores"); !ok || g.Value != "0,2-3 5" {
+		t.Errorf("corrected cores were not taken: %+v", g)
+	}
+}
+
+func TestForeignCoresAreExplainedOnTheScreen(t *testing.T) {
+	for _, width := range []int{80, 60} {
+		m := desktop()
+		m.Files["/sys/devices/system/cpu/present"] = "0-7\n"
+		m.Files[install.DefaultStateDir+"/host.env"] = "AACP_CORES=4-11\n"
+		s := asked(m, &install.Run{Answers: map[string]string{"--more": "yes"}}, fresh(), width)
+		for s.m.stage == questioning && s.m.ask.block != install.BlockF {
+			s.send(press("enter"))
+		}
+		if s.m.ask == nil || s.m.ask.block != install.BlockF {
+			t.Fatal("cores were not asked")
+		}
+		golden(t, "cores_foreign_"+strconv.Itoa(width), s.m.ask.ui.View(s.m.t, width, 0))
+		s.send(press("enter"))
+		if g, ok := s.m.s.Value("cores"); !ok || g.Value != "" {
+			t.Errorf("foreign cores kept by default: %+v", g)
+		}
+	}
+}
+
+func TestPlainDefaultsCoresWithoutYes(t *testing.T) {
+	m := desktop()
+	m.Files["/sys/devices/cpu_atom/cpus"] = "4-7\n"
+	m.Files["/sys/devices/system/cpu/present"] = "0-7\n"
+	r := &install.Run{Answers: map[string]string{}}
+	survey := install.NewSurvey(m, fresh(), r, now)
+	// Give every other question its suggestion by flag; cores alone must
+	// take its default in the plain view without --yes.
+	for _, b := range install.Blocks {
+		for _, q := range survey.Questions(b) {
+			if q.ID == "cores" {
+				continue
+			}
+			v := q.Default
+			if q.ID == "tune" {
+				v = "yes"
+			}
+			r.Answers[q.Flag] = v
+		}
+		if _, err := survey.Settle(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var out bytes.Buffer
+	status := planPlain(PlanOptions{Theme: ui.NewTheme(false), Out: &out, Inspect: fresh, Survey: surveyOn(m, r)})
+	if status != 0 || !strings.Contains(out.String(), "No binding") {
+		t.Errorf("plain view did not default cores: status %d: %s", status, out.String())
+	}
+}

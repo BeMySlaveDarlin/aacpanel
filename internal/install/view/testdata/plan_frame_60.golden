@@ -28,6 +28,8 @@
 │   accounts ~/.claude (found)                             │
 │   passkeys localhost (only this machine signs in with a  │
 │   passkey)                                               │
+│   cores No binding — the system picks the cores          │
+│   (default)                                              │
 │   push contact Leave it to the panel (the panel's        │
 │   default) · sign-in 24h idle · 30 days at most (the     │
 │   panel's default)                                       │

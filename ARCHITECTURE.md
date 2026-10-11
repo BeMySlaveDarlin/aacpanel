@@ -1257,9 +1257,10 @@ an observer each get `CPUAffinity=` from `AACP_CORES`, one value for all of
 them, and none at all where it is unset: then the system puts them. The value
 is read once, at the executor's start, and checked there against the form
 systemd reads and the cores the kernel lists. A value that would fail every
-unit, or hold it to no core, stops the executor at its start instead, where
-the person who set it looks, rather than at the next session, terminal or
-observer.
+unit, or hold it to no core, is logged once with the key and the reason; the
+executor starts without affinity. A description carried from another machine
+must not take the panel down, at the cost of leaving core placement to the
+system until the setting is corrected and the executor restarted.
 
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives

@@ -82,6 +82,8 @@ type Question struct {
 	// no answer to suggest: --yes cannot answer it either.
 	Default  string
 	Required bool
+	// DefaultInPlain takes the suggestion when there is no interactive view.
+	DefaultInPlain bool
 
 	Writes []Target
 	Check  func(string) error // refuses a value of one's own
