@@ -1,6 +1,6 @@
 /* Details sheet: work rows, artifacts, briefs and letters. */
 
-.wrow.task, .wrow.agent, .wrow.doc, .wrow.wflow {
+.wrow.task, .wrow.agent, .wrow.doc, .wrow.wflow, .wrow.held {
     width: 100%;
     border: 0;
     background: none;
@@ -9,7 +9,7 @@
     text-align: left;
     cursor: pointer;
 }
-.wrow.task:active, .wrow.agent:active, .wrow.doc:active, .wrow.wflow:active { background: var(--glass); }
+.wrow.task:active, .wrow.agent:active, .wrow.doc:active, .wrow.wflow:active, button.wrow.held:active { background: var(--glass); }
 .wrow.doc { align-items: flex-start; gap: .55rem; }
 .wrow.doc .wicon, .wrow.doc .crgo { margin-top: .12rem; }
 /* A sent file the reader cannot open is a row, not a button: no pointer, no
@@ -19,9 +19,14 @@
 .wrow.doc.outside { padding: 1px 6px; cursor: default; }
 .wrow.doc.outside:active { background: none; }
 .worklist .callcap:first-child { margin-top: 0; }
-.wrow.agent, .wrow.wflow { align-items: flex-start; gap: .55rem; }
+.wrow.agent, .wrow.wflow, .wrow.held { align-items: flex-start; gap: .55rem; }
 .wrow.agent .wicon, .wrow.agent .crgo,
-.wrow.wflow .wicon, .wrow.wflow .crgo { margin-top: .12rem; }
+.wrow.wflow .wicon, .wrow.wflow .crgo,
+.wrow.held .wicon, .wrow.held .crgo { margin-top: .12rem; }
+/* An alarm of the panel opens nothing: a row, not a button, with the inset
+   the rows that are buttons take from the browser, so its icon stands in
+   their column. */
+div.wrow.held { padding: 1px 6px; cursor: default; }
 
 .wrow.agent.reported { opacity: .6; }
 .wrow.agent.reported .wname { color: var(--ink-dim); }

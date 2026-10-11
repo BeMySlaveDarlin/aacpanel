@@ -403,7 +403,7 @@ def _account(contour):
     return dict(contours.profiles()).get(contour) if contour else None
 
 
-def codex_row(data):
+def codex_row(data, waits=None):
     """Returns the row of a codex thread a live executor follows.
 
     The executor knows what the thread is doing — busy, what waits for a
@@ -413,7 +413,8 @@ def codex_row(data):
     the context is as the daemon last said it; the rollout says the fill when
     the executor heard nothing newer, as a claude row reads its transcript,
     and the agents the thread has at work. The checklist is the one the thread
-    keeps through the panel's tool.
+    keeps through the panel's tool, and the observers and the alarms it asked
+    the panel for — waits — are counted as a claude row counts them.
     """
     sid = data["sessionId"]
     name = data.get("name") if isinstance(data.get("name"), str) and data["name"] else f"codex-{sid[-8:]}"
@@ -469,7 +470,11 @@ def codex_row(data):
         row["waitingFor"] = wait
     else:
         row["status"] = "busy" if data.get("busy") is True else "idle"
-    return _with_crew(row, path)
+    row = _with_crew(row, path)
+    counts = {k: v for k, v in (waits or {}).items() if k in ("observers", "alarms") and v}
+    if counts:
+        row["work"] = {"tasks": 0, "agents": 0, **row.get("work", {}), **counts}
+    return row
 
 
 def _with_checklist(row):
@@ -480,9 +485,13 @@ def _with_checklist(row):
     return row
 
 
-def codex_sessions():
-    """Returns the rows of the codex threads live executors follow."""
-    return [codex_row(data) for data in held.codex_threads()]
+def codex_sessions(held_by=None):
+    """Returns the rows of the codex threads live executors follow.
+
+    held_by maps a thread to how many of the observers it started still run
+    and how many of its alarms have a ring ahead.
+    """
+    return [codex_row(data, (held_by or {}).get(data["sessionId"])) for data in held.codex_threads()]
 
 
 # What the rollouts of codex threads say of the agents they started, by the

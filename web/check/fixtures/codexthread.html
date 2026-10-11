@@ -26,6 +26,15 @@ const items = [
 ];
 const sent = [];
 const asked = [];
+// An observer and an alarm the thread asked the panel for: its state carries
+// them as a claude conversation's does.
+const held = {
+    tasks: [], agents: [],
+    observers: [{ id: "0123456789abcdef", name: "ci", command: "gh run watch 7", dir: "/srv/shop", wake: "exit",
+                  at, woken: 0 }],
+    alarms: [{ id: "a1b2c3d4e5f60718", name: "standup", at, next: new Date(Date.now() + 30 * 60e3).toISOString(),
+               every: 3600, rang: 0 }],
+};
 const processes = [
     { id: "proc-1", command: "npm run dev -- --port 5173", cwd: "/srv/shop", pid: null, cpu: null, rssKb: null },
     { id: "proc-2", command: "go test ./checkout/... -count=200", cwd: "/srv/shop" },
@@ -33,7 +42,7 @@ const processes = [
 window.fetch = async (url, init) => {
     const u = String(url);
     asked.push(u);
-    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: null });
+    if (u.startsWith("/api/chat?")) return json({ items, first: 1, last: 2, total: 2, moreBefore: false, state: held });
     if (u.startsWith("/api/session/models")) {
         return json({ state: "ok", session: { agent: "codex", transport: "stream", effort: "high", picked: "gpt-6-astra", mode: "ask",
             list: [{ value: "gpt-6-astra", name: "gpt-6-astra", efforts: ["low", "high"], effort: "high" }] } });
@@ -191,6 +200,13 @@ window.done = (async () => {
     root.querySelector("[data-pick=thread]").click();
     await until(() => row("review"));
     out.busyReview = { off: row("review").disabled, desc: text(row("review").querySelector(".pkdesc")) };
+
+    // What it asked the panel to wake it with, listed where claude's is.
+    await show(thread);
+    root.querySelector('.deck .wchip[aria-label^="observers and alarms"]').click();
+    if (!await until(() => sheet() && sheet().querySelectorAll(".wrow.held").length === 2)) throw new Error("the observers did not come");
+    out.held = Array.from(sheet().querySelectorAll(".wrow.held"))
+        .map((r) => `${r.dataset.held} ${r.querySelector(".wname").firstChild.textContent.trim()}`);
 
     // The background processes.
     await show(thread);

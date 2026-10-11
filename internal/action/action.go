@@ -89,6 +89,11 @@ const (
 	TaskStop Kind = "task.stop"
 	// AgentStop stops a subagent the session started.
 	AgentStop Kind = "agent.stop"
+	// ObserverStop stops an observer of the panel a session started, with its
+	// command, by the id the executor keeps it under.
+	ObserverStop Kind = "observer.stop"
+	// AlarmCancel cancels an alarm of the panel a session set, by its id.
+	AlarmCancel Kind = "alarm.cancel"
 
 	// WindowClose closes the windows attached to a session on the host.
 	WindowClose Kind = "window.close"
@@ -122,7 +127,7 @@ var Kinds = []Kind{
 	ContainerStart, ContainerStop, ContainerRestart, StackUp, StackDown,
 	SessionOpen, SessionResume, SessionClose, SessionRestart, SessionKill, SessionSend, SessionLetter,
 	SessionAnswer, SessionDismiss, SessionStop, SessionBackground, SessionEscape, SessionFile, SessionCommand, SessionShell,
-	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, TaskStop, AgentStop, WindowOpen,
+	SessionPermit, SessionSwitch, SessionUnqueue, SessionSet, SessionMcp, SessionRename, SessionRemote, SessionParent, TaskStop, AgentStop, ObserverStop, AlarmCancel, WindowOpen,
 	WindowClose, ProjectCreate, TermStart, TermClose, TermRename, TermConsole, SecretPut, SecretDrop,
 }
 

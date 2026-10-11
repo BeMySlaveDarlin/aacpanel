@@ -75,6 +75,7 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("GET /api/chat/image", g.page(s.apiChatImage))
 	mux.Handle("GET /api/chat/call", g.page(s.apiChatCall))
 	mux.Handle("GET /api/chat/task", g.page(s.apiChatTask))
+	mux.Handle("GET /api/chat/observer", g.page(s.apiChatObserver))
 	mux.Handle("GET /api/chat/agent", g.page(s.apiChatAgent))
 	mux.Handle("GET /api/chat/file", g.page(s.apiChatFile))
 	mux.Handle("GET /api/chat/file/download", g.page(s.apiChatDownload))

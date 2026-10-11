@@ -20,6 +20,12 @@
       "work": [0, 0, 0]
     },
     {
+      "what": "the observers and the alarms of the panel are no work: they end with the restart, and an observer waits as long as its command",
+      "session": "mine",
+      "state": {"sessions": [{"sessionId": "mine", "work": {"agents": 0, "tasks": 1, "observers": 2, "alarms": 1}}]},
+      "work": [0, 1, 0]
+    },
+    {
       "what": "a running workflow is work",
       "session": "mine",
       "state": {"sessions": [{"sessionId": "mine", "work": {"agents": 0, "tasks": 0, "workflows": 1}}]},

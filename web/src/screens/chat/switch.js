@@ -7,16 +7,18 @@ import { html } from "../../html.js";
 import { knows, whyNot } from "../../exec.js";
 import { plural } from "../../format.js";
 import { hostLabel } from "../../actions/registry.js";
-import { liveWork } from "./work.js";
+import { heldLive, liveWork } from "./work.js";
 
 const asking = { to: "", reason: "asking the panel where this session can move", pending: true };
 
-// stops names what runs inside the process and ends with it. A resumed
-// conversation does not bring it back, so the person reads it before pressing.
+// stops names what ends with the process: what runs inside it, and the
+// observers and the alarms the host keeps for it. A resumed conversation does
+// not bring it back, so the person reads it before pressing.
 export function stops(work) {
     const { tasks, agents, flows } = liveWork(work);
     const out = [];
-    if (tasks.length) out.push(`${tasks.length} ${plural(tasks.length, "background task", "background tasks")}`);
+    const background = tasks.length + heldLive(work);
+    if (background) out.push(`${background} ${plural(background, "background task", "background tasks")}`);
     if (agents.length) out.push(`${agents.length} ${plural(agents.length, "agent", "agents")}`);
     if (flows.length) out.push(`${flows.length} ${plural(flows.length, "workflow", "workflows")}`);
     return out.join(", ");

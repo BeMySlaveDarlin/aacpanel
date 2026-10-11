@@ -1,4 +1,5 @@
-// The details sheet: background command output, subagent letters, a project file.
+// The details sheet: background command output, the log of an observer,
+// subagent letters, a project file.
 
 import { useEffect, useState } from "preact/hooks";
 
@@ -22,6 +23,7 @@ export const LOOK_NAMES = {
     arts: "published pages",
     briefs: "briefs",
     task: "command output",
+    observer: "observer log",
     agent: "agent letters",
     file: "project file",
     artifact: "published page",
@@ -68,7 +70,10 @@ export function Look({ session, id, look, onBack }) {
     const toast = useToast();
     const [state, setState] = useState({ kind: "loading" });
     const [more, setMore] = useState({ busy: false, error: "" });
-    const task = look.kind === "task";
+    // An observer's log is read as a background command's output is: its
+    // end, again every few seconds while the sheet is open.
+    const observer = look.kind === "observer";
+    const task = look.kind === "task" || observer;
     const file = look.kind === "file";
     const base = `session=${encodeURIComponent(session)}${idParam(id)}`;
 
@@ -79,7 +84,9 @@ export function Look({ session, id, look, onBack }) {
         setState({ kind: "loading" });
         setMore({ busy: false, error: "" });
         const ask = async () => {
-            const url = task
+            const url = observer
+                ? `/api/chat/observer?${base}&observer=${encodeURIComponent(look.id)}`
+                : task
                 ? `/api/chat/task?${base}&task=${encodeURIComponent(look.id)}`
                 : file
                     ? fileURL(base, look.path, 0, look.path)
@@ -131,9 +138,9 @@ export function Look({ session, id, look, onBack }) {
     const letters = state.letters || [];
     const who = html`
         <div class="chatwho">
-                <h2>${task ? "Background command" : (file ? (state.name || look.path) : look.name)}</h2>
+                <h2>${observer ? "Observer" : task ? "Background command" : (file ? (state.name || look.path) : look.name)}</h2>
             <div class="chatsub">
-                <span>${file ? (look.text || look.path) : (look.text || (task ? "output" : "agent letters"))}</span>
+                <span>${file ? (look.text || look.path) : (look.text || (observer ? "log" : task ? "output" : "agent letters"))}</span>
                 ${file && state.size > 0 && html`<span class="sep">·</span><span>${bytes(state.size)}</span>`}
             </div>
         </div>
@@ -163,8 +170,8 @@ export function Look({ session, id, look, onBack }) {
             ${state.kind === "loading" && html`<p class="hint">Reading…</p>`}
             ${state.kind === "failed" && html`<p class="hint crit">${state.error}</p>`}
             ${state.kind === "ready" && task && html`
-                ${state.cut && html`<p class="hint warn">Showing the tail: the output is longer.</p>`}
-                <pre class="callpre">${state.text || "nothing yet"}</pre>
+                ${state.cut && html`<p class="hint warn">Showing the tail: the ${observer ? "log" : "output"} is longer.</p>`}
+                <pre class="callpre">${state.text || (observer ? "the command has printed nothing yet" : "nothing yet")}</pre>
             `}
             ${state.kind === "ready" && file && html`<${FileBody} state=${state} look=${look}
                 open=${openURL(base, look.path)} more=${more} onMore=${loadMore} />`}

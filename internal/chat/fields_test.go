@@ -273,6 +273,62 @@ func TestEveryChecklistFieldTheCollectorSendsHasAPlace(t *testing.T) {
 	}
 }
 
+// An observer and an alarm are read by the collector into the shape the rows
+// of the background work take. A key it puts into one that WorkObserver,
+// ObserverEnding or WorkAlarm does not declare is dropped between the two
+// without a word, and the row loses when it last woke the session or how its
+// command ended.
+func TestEveryObserverAndAlarmFieldTheCollectorSendsHasAPlace(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "agent", "observers.py"))
+	if err != nil {
+		t.Fatalf("the collector source is out of reach: %v", err)
+	}
+	src := string(raw)
+	for _, c := range []struct {
+		fn    string
+		types []reflect.Type
+	}{
+		{"def _view(", []reflect.Type{reflect.TypeOf(WorkObserver{})}},
+		{"def _ending(", []reflect.Type{reflect.TypeOf(ObserverEnding{})}},
+		{"def _alarm(", []reflect.Type{reflect.TypeOf(WorkAlarm{})}},
+	} {
+		start := strings.Index(src, c.fn)
+		if start < 0 {
+			t.Fatalf("the collector has no %s where the test looks for it", c.fn)
+		}
+		body := src[start:]
+		if end := strings.Index(body[1:], "\ndef "); end > 0 {
+			body = body[:end+1]
+		}
+		var sent []string
+		for _, re := range []*regexp.Regexp{
+			regexp.MustCompile(`"([a-zA-Z]+)": `),                       // inside a literal
+			regexp.MustCompile(`(?:view|out)\["([a-zA-Z]+)"\]\s*=[^=]`), // added afterwards
+		} {
+			for _, m := range re.FindAllStringSubmatch(body, -1) {
+				sent = append(sent, m[1])
+			}
+		}
+		if len(sent) < 2 {
+			t.Fatalf("only %d keys found in %s: the test reads the wrong place", len(sent), c.fn)
+		}
+		known := map[string]bool{}
+		for _, typ := range c.types {
+			for i := 0; i < typ.NumField(); i++ {
+				if name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]; name != "" && name != "-" {
+					known[name] = true
+				}
+			}
+		}
+		for _, key := range sent {
+			if !known[key] {
+				t.Errorf("the collector sends the field %q from %s and %v has nowhere to put it: "+
+					"the value is dropped between the two, silently", key, c.fn, c.types)
+			}
+		}
+	}
+}
+
 // topKeys returns the keys of the Python dict literal the text begins with,
 // its own and not those of the dicts inside it.
 func topKeys(src string) []string {

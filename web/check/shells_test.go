@@ -17,7 +17,8 @@ func TestFinishedShellsStayInTheListNotOnTheChip(t *testing.T) {
 		t.Error("the chip counts every task, finished ones included: the number reads as " +
 			"how many are at work")
 	}
-	if !strings.Contains(src, "liveTasks.length > 0 && html`<span class=\"wnum\">${liveTasks.length}</span>`") {
+	if !strings.Contains(src, "const liveTasks = running(tasks).length + heldLive(work);") ||
+		!strings.Contains(src, "liveTasks > 0 && html`<span class=\"wnum\">${liveTasks}</span>`") {
 		t.Error("the number on the task chip is not tied to the running ones, or a 0 is drawn " +
 			"where there should be no number")
 	}

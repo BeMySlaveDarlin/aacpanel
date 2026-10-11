@@ -22,7 +22,9 @@ const base = {
 const rows = [
     { ...base, session: "acme-fingerprint-rotation-second", sessionId: "a", transport: "stream",
       remote: "https://claude.ai/code/session_01abc", lastRequestAt: new Date(Date.now() - 18 * 60e3).toISOString() },
-    { ...base, session: "aacpanel", sessionId: "b", work: { tasks: 1 } },
+    // One shell of its own, an observer and an alarm of the panel: the card
+    // counts them as one background work.
+    { ...base, session: "aacpanel", sessionId: "b", work: { tasks: 1, observers: 1, alarms: 1 } },
     { ...base, session: "person", sessionId: "c", transport: "stream", noRequests: true, tokens: 0, pct: 0 },
 ];
 const exec = { available: true, kinds: ["session.close", "session.open"] };

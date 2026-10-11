@@ -328,6 +328,15 @@ func (r Request) Validate() error {
 		return badRequest("action %s stands no session under another", r.Kind)
 	}
 	switch {
+	case r.Kind == ObserverStop, r.Kind == AlarmCancel:
+		// The executor names an observer and an alarm by sixteen hex digits,
+		// and nothing on a screen is their line.
+		if r.Work == nil || !heldID(r.Work.ID) {
+			return badRequest("action %s without the id the executor keeps it under", r.Kind)
+		}
+		if r.Work.Line != "" {
+			return badRequest("action %s has no line: the id alone names it", r.Kind)
+		}
 	case r.Kind == TaskStop, r.Kind == AgentStop:
 		if r.Work == nil {
 			return badRequest("action %s without the work to stop", r.Kind)

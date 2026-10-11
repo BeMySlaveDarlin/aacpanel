@@ -68,7 +68,8 @@ func codexTerminals(ctx context.Context, ids []string) (map[string]string, error
 // sessionTarget says whether an action names a live session as its target.
 func sessionTarget(k action.Kind) bool {
 	switch k {
-	case action.TaskStop, action.AgentStop, action.WindowOpen, action.WindowClose, action.SecretPut:
+	case action.TaskStop, action.AgentStop, action.ObserverStop, action.AlarmCancel, action.WindowOpen, action.WindowClose,
+		action.SecretPut:
 		return true
 	}
 	return strings.HasPrefix(string(k), "session.")
@@ -160,6 +161,10 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexTaskStop(ctx, th, req.Work)
 	case action.AgentStop:
 		return codexAgentStop(ctx, th, req.Work)
+	case action.ObserverStop:
+		return e.observerStop(ctx, th.Name, th.ID, req.Work)
+	case action.AlarmCancel:
+		return e.alarmCancel(th.Name, th.ID, req.Work)
 	case action.SecretPut:
 		return codexSecretPut(ctx, th, req.Secret)
 	case action.SessionClose:

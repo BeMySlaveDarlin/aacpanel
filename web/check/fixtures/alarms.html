@@ -6,17 +6,21 @@
 <script type="module">
 // The alarms of a session among its background work: a wake-up, a job of the
 // cron that fires once on a pinned date and one that repeats every hour, next
-// to a command that runs.
+// to a command that runs. Beside them what the session asked the panel to
+// wake it with: an observer that woke it, one that has not, one whose command
+// ended, and two alarms of the panel. One observer is stopped and one alarm
+// cancelled through the gate, and a second list opens the log of an observer.
 import { render } from "preact";
 import { html } from "/src/html.js";
 import { Work, WorkList } from "/src/screens/chat/work.js";
 import { GateHost } from "/src/actions/gate.js";
 import { ToastHost } from "/src/ui/toasts.js";
-import { quiet } from "/check/fixtures/quiet.js";
+import { counted, quiet } from "/check/fixtures/quiet.js";
 
 const now = Date.now();
 const later = (min) => new Date(now + min * 60 * 1000 + 10 * 1000).toISOString();
-const ago = new Date(now - 10 * 60 * 1000).toISOString();
+const before = (min) => new Date(now - min * 60 * 1000).toISOString();
+const ago = before(10);
 
 const work = {
     artifacts: [], docs: [], sent: [], agents: [],
@@ -29,24 +33,78 @@ const work = {
         { id: "78b049ff", text: "Hourly check of the shop deploy", kind: "cron", at: ago,
           schedule: "Every hour at :13", repeats: true },
     ],
+    observers: [
+        { id: "0123456789abcdef", name: "ci", command: "gh run watch 4242 --exit-status", dir: "/srv/lab",
+          wake: "match", pattern: "^(FAIL|ok)", at: before(40), woken: 2, lastWake: before(3) },
+        { id: "00112233445566aa", name: "wake-2030msk", command: "sleep $(( $(date -d 20:30 +%s) - $(date +%s) ))",
+          dir: "/srv/lab", wake: "exit", at: before(25), woken: 0 },
+        { id: "ffeeddccbbaa0099", name: "deploy-log", command: "tail -F /var/log/deploy.log | grep --line-buffered done",
+          dir: "/srv/lab", wake: "line", at: before(90), woken: 1, lastWake: before(60), done: true,
+          doneAt: before(58), ending: { code: 0 } },
+    ],
+    alarms: [
+        { id: "0a0b0c0d0e0f1011", name: "check-cache", at: before(5), next: later(15), rang: 0 },
+        { id: "a1b2c3d4e5f60718", name: "standup", note: "Post the summary of the night to the channel",
+          at: before(120), next: later(35), every: 3600, rang: 2, lastRing: before(25) },
+    ],
 };
 
+const sent = [];
+const asked = [];
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+window.fetch = counted(async (url, init) => {
+    const u = String(url);
+    if (u.startsWith("/api/actions") && init && init.method === "POST") {
+        sent.push(JSON.parse(init.body));
+        return json({ ok: true, detail: "done" });
+    }
+    if (u.startsWith("/api/chat/observer?")) {
+        asked.push(u);
+        return json({ text: "run 4242: 3 jobs\n✓ build\n✗ test\n", cut: true, size: 40000 });
+    }
+    return new Response("", { status: 404 });
+});
+
+const exec = { available: true, kinds: ["task.stop", "observer.stop", "alarm.cancel"] };
 render(html`
     <${ToastHost}><${GateHost}>
         <div id="chips"><${Work} work=${work} onOpen=${() => {}} /></div>
-        <div id="list">
-            <${WorkList} session="lab" id="1" kind="tasks" work=${work}
-                         exec=${{ available: true, kinds: ["task.stop"] }} />
-        </div>
+        <div id="list"><${WorkList} session="lab" id="1" kind="tasks" work=${work} exec=${exec} /></div>
+        <div id="look"><${WorkList} session="lab" id="1" kind="tasks" work=${work} exec=${exec} /></div>
     <//><//>
 `, document.getElementById("root"));
 
+const until = async (ok, ms = 5000) => {
+    const end = performance.now() + ms;
+    while (!ok() && performance.now() < end) await new Promise((r) => setTimeout(r, 25));
+};
+const text = (el, sel) => ((sel ? el.querySelector(sel) : el) || {}).textContent?.replace(/\s+/g, " ").trim() || "";
+const heldRows = (where) => Array.from(document.querySelectorAll(`${where} .wrow.held`));
+// The name of a row stands before its marks, which the eye reads apart by
+// their spacing and textContent runs together with it.
+const nameOf = (r) => r.querySelector(".wname").firstChild.textContent.trim();
+const marksOf = (r) => Array.from(r.querySelectorAll(".wname .wkind")).map((k) => text(k));
+const lineOf = (where, name) => heldRows(where).find((r) => nameOf(r) === name).closest(".wline");
+
+// press goes through the gate: the stop of the row, the sheet that asks, its
+// last button, and the action sent.
+const press = async (row) => {
+    const was = sent.length;
+    row.querySelector(".wstop").click();
+    await until(() => document.querySelector(".stitle") && document.querySelector(".btnrow .btn"));
+    const title = text(document, ".stitle");
+    [...document.querySelectorAll(".btnrow .btn")].pop().click();
+    await until(() => sent.length > was && !document.querySelector(".stitle"));
+    return title;
+};
+
 (async () => {
     await quiet();
-    const text = (el, sel) => ((el.querySelector(sel) || {}).textContent || "").trim();
     const rows = Array.from(document.querySelectorAll("#list .wrow.task"));
-    window.done = {
+    const out = {
         chip: text(document, "#chips .wchip .wnum"),
+        chipLabel: document.querySelector("#chips .wchip").getAttribute("aria-label"),
+        sub: text(document, "#list .chatsub"),
         rows: rows.map((r) => ({
             text: text(r, ".wtext"),
             kind: text(r, ".wkind"),
@@ -54,6 +112,34 @@ render(html`
             opens: r.tagName === "BUTTON",
             stops: Boolean(r.closest(".wline") && r.closest(".wline").querySelector(".wstop")),
         })),
+        held: heldRows("#list").map((r) => {
+            const stop = r.closest(".wline").querySelector(".wstop");
+            return {
+                kind: r.dataset.held,
+                name: nameOf(r),
+                marks: marksOf(r),
+                command: text(r, ".wcmd"),
+                note: text(r, ".wsub"),
+                state: text(r, ".wstate"),
+                when: text(r, ".wage"),
+                opens: r.tagName === "BUTTON",
+                stop: stop ? (stop.disabled ? "off" : "on") : "none",
+                stopLabel: stop ? stop.getAttribute("aria-label") : "",
+            };
+        }),
     };
+    out.stopAsks = await press(lineOf("#list", "ci"));
+    out.cancelAsks = await press(lineOf("#list", "standup"));
+    await until(() => marksOf(lineOf("#list", "standup")).includes("cancelled"));
+    out.sent = sent.map((r) => ({ kind: r.kind, target: r.target, params: r.params || null }));
+    out.after = heldRows("#list").map((r) => [nameOf(r), ...marksOf(r)].join(" "));
+
+    // The log opens from the second list, so the first stays drawn as a list.
+    lineOf("#look", "wake-2030msk").querySelector(".wrow").click();
+    await until(() => document.querySelector("#look .callpre") && asked.length > 0);
+    out.log = { title: text(document, "#look h2"), sub: text(document, "#look .chatsub"),
+                text: document.querySelector("#look .callpre").textContent,
+                cut: text(document, "#look .hint.warn"), asked: asked[0] };
+    window.done = out;
 })();
 </script>

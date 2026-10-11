@@ -1211,7 +1211,7 @@ answer, and the journal would lie.
 
 ## What the executor can do
 
-Thirty-nine actions, and the list is closed.
+Forty-one actions, and the list is closed.
 
 | Family | Actions |
 |---|---|
@@ -1219,7 +1219,7 @@ Thirty-nine actions, and the list is closed.
 | stacks | `stack.up`, `stack.down` |
 | sessions | `session.open`, `session.resume`, `session.close`, `session.restart`, `session.kill`, `session.send`, `session.letter`, `session.answer`, `session.dismiss`, `session.stop`, `session.background`, `session.escape`, `session.file`, `session.command`, `session.shell`, `session.set`, `session.mcp`, `session.permit`, `session.switch`, `session.unqueue`, `session.rename`, `session.remote`, `session.parent` |
 | windows | `window.open`, `window.close` |
-| background work | `task.stop`, `agent.stop` |
+| background work | `task.stop`, `agent.stop`, `observer.stop`, `alarm.cancel` |
 | disk | `project.create` |
 | terminals of the panel | `term.start`, `term.close`, `term.rename`, `term.console` |
 | secrets | `secret.put`, `secret.drop` |
@@ -1437,6 +1437,25 @@ apart at least: a ring is a turn of the session's model, and a session that
 has to look more often wants an observer of a command that looks for it. A
 first ring is a week ahead at most, past which a moment is a slip of the
 date. A session keeps ten alarms, the host a hundred.
+
+**The person sees them where the session's background work is.** The
+collector reads the directories of the observers and the files of the alarms
+— the executor's own, kept by the conversation they belong to — into the state
+of the conversation and the row of its session, as it reads a checklist: the
+service learns of them from the collector and gets nothing that starts a
+command. The list behind the clock chip holds them beside the session's own
+shells, watches and alarms: an observer with its command, what of it wakes
+the session, when it last did, how its command ended; an alarm with its note,
+when it rings next and every how long. A tap on an observer opens the end of
+its log, read by the collector for that conversation alone. The chip and the
+card of the session count the observers whose command runs and the alarms
+among the background tasks, under names of their own in the snapshot, so a
+restart, which waits for the session's own work, does not wait for them: they
+end with it. A press ends one through an action of the executor,
+`observer.stop` or `alarm.cancel`, by the id the collector read it under and
+only for the conversation of the session the action names; the session is not
+told, and the gate says so. A thread of codex has the same list behind a chip
+of its own, shown while it has something to list.
 
 ---
 

@@ -13,6 +13,7 @@ import codex_archive
 import ctx
 import held
 import notes
+import observers
 import pages
 import reviews
 import sesstate
@@ -226,6 +227,17 @@ def _answer(request):
                              "nothing yet, or its directory is already gone"}
         return {"ok": True, "session": session, **found}
 
+    # The log of an observer lies with the executor, not with the
+    # conversation, and is read only for the conversation that started it.
+    want = request.get("observer")
+    if isinstance(want, dict):
+        found = observers.tail(session, want.get("id"))
+        if found is None:
+            return {"ok": False,
+                    "error": "this conversation has no such observer: it has either been stopped, "
+                             "or ended with its session"}
+        return {"ok": True, "session": session, **found}
+
     want = request.get("raw")
     if isinstance(want, str) and want:
         found = read_in_place(read_raw, want, path,
@@ -300,12 +312,13 @@ def _answer(request):
     # or the form it waits on, which the executor keeps in the thread's state
     # file in the shape of a question of claude's, else the question it asked
     # without waiting that nobody answered, read off its rollout in that shape
-    # too, and the checklist it keeps by its thread. The
+    # too, and the checklist it keeps by its thread. Either has the observers
+    # and the alarms it asked the panel for, kept by its conversation. The
     # state goes with every answer, with no question too: a question answered
-    # goes off the screen only when a state without it arrives. Its lists are
-    # always there, empty or not: the screen counts them.
+    # goes off the screen only when a state without it arrives. Its lists of
+    # tasks and agents are always there, empty or not: the screen counts them.
     if request.get("state") and not sub and is_rollout(path):
-        reply["state"] = {"tasks": [], "agents": ctx.codex_crew(path)}
+        reply["state"] = {"tasks": [], "agents": ctx.codex_crew(path), **held_by(session)}
         ask = held.codex_ask(session) or ctx.codex_ask(path)
         if ask:
             reply["state"]["ask"] = ask
@@ -331,8 +344,18 @@ def _answer(request):
             checklist = conversation_checklist(session, path, place)
             if checklist:
                 found = {**found, "checklist": checklist}
-            reply["state"] = found
+            reply["state"] = {**found, **held_by(session)}
     return reply
+
+
+def held_by(session):
+    """Returns the observers and the alarms a conversation asked the panel for, as lists of its state.
+
+    A list goes only when it holds something: most conversations ask the
+    panel for neither, and the screen reads an absent list as an empty one.
+    """
+    lists = {"observers": observers.of(session), "alarms": observers.alarms_of(session)}
+    return {key: found for key, found in lists.items() if found}
 
 
 def codex_runs_of(session):

@@ -464,6 +464,23 @@ export const ACTIONS = {
         done: (target) => `Background work in ${target} stopped`,
         ok: "Stop",
     },
+    // An observer and an alarm of the panel end at the host, and the session
+    // is not told: it waits on for a letter that does not come, unless the
+    // person tells it.
+    "observer.stop": {
+        title: (target, params) => `Stop the observer${params && params.name ? ` ${params.name}` : ""} in ${target}?`,
+        effect: "Its command stops and its log goes with it. The session gets no more letters from it and is not "
+            + "told it was stopped: if it waits for one, tell it. Only the session can start it again",
+        done: (target, params) => `Observer${params && params.name ? ` ${params.name}` : ""} stopped in ${target}`,
+        ok: "Stop",
+    },
+    "alarm.cancel": {
+        title: (target, params) => `Cancel the alarm${params && params.name ? ` ${params.name}` : ""} in ${target}?`,
+        effect: "It rings no more. The session is not told it was cancelled: if it waits for the ring, tell it. "
+            + "Only the session can set it again",
+        done: (target, params) => `Alarm${params && params.name ? ` ${params.name}` : ""} cancelled in ${target}`,
+        ok: "Cancel the alarm",
+    },
     "agent.stop": {
         title: (target, params) => `Stop subagent${params && params.id ? ` ${params.id}` : ""}?`,
         effect: "Everything it has done and not yet handed over in a message is lost: the session "
@@ -1013,6 +1030,8 @@ const NAMES = {
     "session.escape": "Free the composer",
     "task.stop": "Stop background work",
     "agent.stop": "Stop subagent",
+    "observer.stop": "Stop an observer",
+    "alarm.cancel": "Cancel an alarm",
     "session.file": "Send file",
     "session.command": "Slash command",
     "session.set": "Change a setting",

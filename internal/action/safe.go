@@ -113,6 +113,20 @@ func (f File) checkPreview() error {
 	return nil
 }
 
+// heldID says whether s is an id the executor keeps an observer or an alarm
+// under: sixteen hex digits.
+func heldID(s string) bool {
+	if len(s) != 16 {
+		return false
+	}
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 func safeID(s string) bool {
 	for _, r := range s {
 		switch {

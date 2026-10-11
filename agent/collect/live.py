@@ -9,6 +9,7 @@ import contours
 import ctx
 import held
 import notes
+import observers
 
 import agent
 from sesstate.wake import ALARMS
@@ -196,18 +197,26 @@ def _by_name(value_of):
     return out
 
 
+# What a session asked the panel to wake it with, by the names the row counts it under.
+HELD = ("observers", "alarms")
+
+
 # Both counts are of what is still going on. A shell that is over stays in the
 # state so its output can be read, an agent that has reported may never be
 # heard from again, and one sent to the background keeps its place once it is
 # over; the card of a session says what it is doing now, not what it did.
-def work_of(busy):
+def work_of(busy, held=None):
     """Returns how much of the session's work is still going on.
 
     An alarm the session set itself — a wake-up or a job of its cron — stands
     among its tasks, the way the panel lists it; the count of them rides along
     as wakes, since an alarm runs nothing and a restart of the session must not
     wait for it. A workflow that runs is work of its own, whether or not an
-    agent of it is counted yet.
+    agent of it is counted yet. What the session asked the panel to wake it
+    with — held, the observers whose command still runs and the alarms ahead —
+    is counted apart from the tasks, under its own names: the card counts it
+    among the background work, and a restart does not wait for it, since it
+    ends with the restart and an observer waits as long as its command does.
     """
     live = [t for t in busy["tasks"] if not t.get("done")]
     work = {
@@ -220,6 +229,9 @@ def work_of(busy):
     flows = sum(1 for f in busy.get("workflows") or [] if f.get("status") == "running")
     if flows:
         work["workflows"] = flows
+    for key in HELD:
+        if (held or {}).get(key):
+            work[key] = held[key]
     return work
 
 
@@ -238,6 +250,7 @@ def sessions():
     remotes = live_session_remote()
     versions = live_session_version()
     places = live_session_places()
+    held_by = observers.held_by_conversation()
     seen_transcripts = set()
     for s in data.get("sessions", []):
         # A run of codex exec the session started is one of its agents: the
@@ -340,8 +353,8 @@ def sessions():
                     "toolUseId": ask.get("toolUseId") or "",
                 }
             if busy:
-                work = work_of(ctx.with_codex_runs(busy, runs))
-                if work["tasks"] or work["agents"] or work.get("workflows"):
+                work = work_of(ctx.with_codex_runs(busy, runs), held_by.get(sid))
+                if any(work.get(k) for k in ("tasks", "agents", "workflows", *HELD)):
                     s["work"] = work
         s.pop("transcript", None)
     agent.SESSION_STATE.forget(seen_transcripts)
@@ -349,7 +362,7 @@ def sessions():
     # of a claude session, no transcript of claude, and a checklist kept by
     # its thread rather than by a place. A codex no executor follows and no
     # live session started stands on its own, only read.
-    data.setdefault("sessions", []).extend(ctx.codex_sessions())
+    data.setdefault("sessions", []).extend(ctx.codex_sessions(held_by))
     data["sessions"].extend(data.pop("codex", None) or [])
     alive = {s.get("sessionId") for s in data.get("sessions", []) if s.get("sessionId")}
     asked.BOOK.sweep(alive)

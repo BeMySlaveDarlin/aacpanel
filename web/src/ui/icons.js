@@ -80,6 +80,7 @@ export const Icon = {
 
     alerts: () => html`<svg ...${stroke}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>`,
 
+    eye: () => html`<svg ...${stroke}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="2.8" /></svg>`,
     probes: () => html`<svg ...${stroke}><path d="M4.5 11.5a10 10 0 0 1 15 0" /><path d="M8 15a5.5 5.5 0 0 1 8 0" /><circle cx="12" cy="18.5" r="1.2" fill="currentColor" stroke="none" /></svg>`,
 
     orbit: () => html`<svg ...${stroke}><circle cx="12" cy="12" r="5.2" /><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)" /></svg>`,

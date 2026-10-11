@@ -161,7 +161,8 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		req.Permit = permit
 		params = map[string]any{"option": permit.Option, "dialog": permit.Fingerprint}
 	}
-	if req.Kind == action.TaskStop || req.Kind == action.AgentStop {
+	if req.Kind == action.TaskStop || req.Kind == action.AgentStop || req.Kind == action.ObserverStop ||
+		req.Kind == action.AlarmCancel {
 		work, err := workFromParams(body.Params)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

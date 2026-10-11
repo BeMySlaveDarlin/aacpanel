@@ -189,7 +189,7 @@ func TestDeskRowSaysTheStateInThePhonesWords(t *testing.T) {
 		"person":   "asks you · Palette · 2 questions",
 		"aacpanel": "working · 2 agents",
 		"api":      "waiting: a dialog is open",
-		"shop":     "working · 1 agent",
+		"shop":     "working · 1 agent · 1 background task",
 	} {
 		if got.Says[name] != want {
 			t.Errorf("%s says %q, expected %q", name, got.Says[name], want)

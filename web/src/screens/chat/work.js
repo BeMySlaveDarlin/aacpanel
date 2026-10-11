@@ -116,15 +116,15 @@ function briefRow(card) {
 export function Work({ work, onOpen }) {
     const tasks = (work && work.tasks) || [];
     const flows = (work && work.workflows) || [];
-    const liveTasks = running(tasks);
+    const liveTasks = running(tasks).length + heldLive(work);
     const liveFlows = flows.filter((f) => f.status === "running");
 
     return html`
         <div class="wchips">
-            <button class=${`wchip${liveTasks.length > 0 ? "" : " idle"}`} type="button"
+            <button class=${`wchip${liveTasks > 0 ? "" : " idle"}`} type="button"
                     onClick=${() => onOpen({ kind: "tasks" })}
-                    aria-label=${taskLabel(tasks)}>
-                ${Icon.clock()}${liveTasks.length > 0 && html`<span class="wnum">${liveTasks.length}</span>`}
+                    aria-label=${taskLabel(tasks, work)}>
+                ${Icon.clock()}${liveTasks > 0 && html`<span class="wnum">${liveTasks}</span>`}
             </button>
             <${AgentsChip} work=${work} onOpen=${onOpen} />
             <button class=${`wchip${liveFlows.length > 0 ? "" : " idle"}`} type="button"
@@ -156,9 +156,25 @@ function flowLabel(flows, live) {
     return `workflow runs: ${flows.length}, ${live.length || "none"} running`;
 }
 
-function taskLabel(tasks) {
-    if (!tasks.length) return "background work: none";
-    return `background work: ${tasks.length}, ${running(tasks).length || "none"} running`;
+function taskLabel(tasks, work) {
+    const all = tasks.length + heldCount(work);
+    if (!all) return "background work: none";
+    return `background work: ${all}, ${running(tasks).length + heldLive(work) || "none"} running`;
+}
+
+// HeldChip counts what a codex thread asked the panel to wake it with and
+// opens its list, while there is something to list: a chip of the row a
+// thread has under its composer, beside what it left running.
+export function HeldChip({ work, onOpen }) {
+    const all = heldCount(work);
+    if (!all) return null;
+    const live = heldLive(work);
+    return html`
+        <button class=${`wchip${live > 0 ? "" : " idle"}`} type="button" onClick=${() => onOpen({ kind: "tasks" })}
+                aria-label=${`observers and alarms: ${all}, ${live || "none"} running`}>
+            ${Icon.clock()}${live > 0 && html`<span class="wnum">${live}</span>`}
+        </button>
+    `;
 }
 
 function agentLabel(agents, live) {
@@ -217,6 +233,84 @@ function alarmWord(task) {
 function alarmWhen(task) {
     if (task.due) return until(task.due);
     return task.schedule || since(task.at);
+}
+
+// What a session asked the panel to wake it with stands among its background
+// work: its observers — commands the host watches for it — and its alarms of
+// the panel. The host holds them, not the process of the session, and they
+// end with the session. An observer opens the end of its log as a shell opens
+// its output, and is stopped while its command runs; an alarm runs nothing to
+// read and is cancelled. heldLive counts what of it is still ahead: an
+// observer whose command runs, and every alarm, as an alarm the session set
+// itself counts.
+function heldOf(work) {
+    return { observers: (work && work.observers) || [], alarms: (work && work.alarms) || [] };
+}
+
+function heldCount(work) {
+    const { observers, alarms } = heldOf(work);
+    return observers.length + alarms.length;
+}
+
+export function heldLive(work) {
+    const { observers, alarms } = heldOf(work);
+    return observers.filter((o) => !o.done).length + alarms.length;
+}
+
+// wakeSay says what of an observer's command wakes the session.
+function wakeSay(o) {
+    if (o.wake === "exit") return "wakes it when it ends";
+    if (o.wake === "match") return `wakes it on a line matching ${o.pattern || "its pattern"}`;
+    return "wakes it on every line";
+}
+
+function wokeSay(o) {
+    return timesSay(o.woken, o.lastWake, "woke it", "has not woken it yet");
+}
+
+// timesSay says how often something happened and when last: an observer
+// woke its session, an alarm rang.
+function timesSay(n, last, did, never) {
+    if (!(n > 0)) return never;
+    const when = last ? ` ${since(last)} ago` : "";
+    if (n === 1) return `${did} once${when}`;
+    return `${did} ${n} times${when && `, last${when}`}`;
+}
+
+// endSay says how the command of an observer ended, as the session was told.
+function endSay(o) {
+    const e = o.ending || {};
+    const how = e.lost ? "its unit ended with no word of how"
+        : e.memory ? "killed at the memory ceiling"
+        : e.signal ? `killed by signal ${e.signal}`
+        : typeof e.code === "number" ? `exit code ${e.code}` : "ended";
+    return o.doneAt ? `${how}, ${since(o.doneAt)} ago` : how;
+}
+
+// nextSay says when an alarm rings next. A moment that has passed is a ring
+// the executor has not made yet — it was down, or the ring is on its way —
+// and the alarm is due.
+function nextSay(a) {
+    return Date.parse(a.next || "") <= Date.now() ? "due now" : until(a.next);
+}
+
+// ringSay says how an alarm rings — once, or every so long — and how often
+// it has.
+function ringSay(a) {
+    return `${a.every > 0 ? `every ${spanSay(a.every)}` : "rings once"} · ${rangSay(a)}`;
+}
+
+// spanSay is a span between rings the way a person sets one: 10 min, 1 h,
+// 1 h 30 min.
+function spanSay(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.round(sec % 60);
+    return [h > 0 && `${h} h`, m > 0 && `${m} min`, s > 0 && `${s} s`].filter(Boolean).join(" ") || "0 s";
+}
+
+function rangSay(a) {
+    return timesSay(a.rang, a.lastRing, "rang", "has not rung yet");
 }
 
 // running are the ones the session still has in flight. A shell that is over
@@ -303,16 +397,20 @@ function openAgent(agent, onAgent, setPick) {
     setPick({ kind: "agent", name: agent.name, text: agent.text });
 }
 
-function taskSub(tasks) {
-    const live = running(tasks).length;
-    const total = live < tasks.length
-        ? `${tasks.length} ${plural(tasks.length, "task", "tasks")}, ${live || "none"} running`
-        : `${tasks.length} ${plural(tasks.length, "task", "tasks")}`;
+function taskSub(tasks, work) {
+    const { observers, alarms } = heldOf(work);
+    const all = tasks.length + observers.length + alarms.length;
+    const live = running(tasks).length + heldLive(work);
+    const total = live < all
+        ? `${all} ${plural(all, "task", "tasks")}, ${live || "none"} running`
+        : `${all} ${plural(all, "task", "tasks")}`;
     const seen = [];
     for (const task of tasks) {
         const [, name] = taskKind(task);
         if (!seen.includes(name)) seen.push(name);
     }
+    if (observers.length) seen.push(OBSERVER_WORD);
+    if (alarms.length) seen.push(ALARM_WORD);
     if (seen.length < 2) return total;
     return `${total} · ${seen.join(", ")}`;
 }
@@ -442,7 +540,23 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
     const at = kind === "briefs" ? (briefs || []) : made;
     const visible = at.slice(0, shown);
 
+    // An observer is stopped while its command runs, an alarm cancelled while
+    // it is there: by the id the panel read it under, on the screen of the
+    // session it belongs to.
+    const heldStopper = (key, kind, label, item, ready, why) => ({
+        ready: knows(exec, kind) && ready,
+        why: knows(exec, kind) ? why : whyNot(exec, kind),
+        busy: busy === key,
+        done: stoppedWork.has(workKey(session, key)),
+        fail: fail[key] || "",
+        onStop: () => stop(key, label, () => run(kind, session, { id: item.id, name: item.name })),
+    });
+    const observerStopper = (o) => heldStopper(`observer-${o.id}`, "observer.stop", "observer", o, !o.done,
+        "the command is over, there is nothing to stop");
+    const alarmCanceller = (a) => heldStopper(`alarm-${a.id}`, "alarm.cancel", "alarm", a, true, "");
+
     const tasks = (work && work.tasks) || [];
+    const { observers, alarms } = heldOf(work);
     const agents = (work && work.agents) || [];
     const flows = (work && work.workflows) || [];
     const { live, said, faded, reported, over } = splitAgents(agents);
@@ -467,7 +581,7 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
             flows.length > liveFlows.length && `${flows.length - liveFlows.length} over`,
         ].filter(Boolean).join(", ") || "empty"
         : kind === "tasks"
-        ? taskSub(tasks)
+        ? taskSub(tasks, work)
         : kind === "arts"
             ? (made.length > 0 ? `${made.length} published` : "empty")
             : kind === "briefs"
@@ -530,6 +644,13 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                                        onStop=${() => stopTask(task)} />
                     </div>
                 `))}
+            ${kind === "tasks" && observers.map((o) => html`
+                <${ObserverRow} key=${`observer-${o.id}`} observer=${o} stop=${observerStopper(o)}
+                                onOpen=${() => setPick({ kind: "observer", id: o.id, text: o.name })} />
+            `)}
+            ${kind === "tasks" && alarms.map((a) => html`
+                <${AlarmRow} key=${`alarm-${a.id}`} alarm=${a} cancel=${alarmCanceller(a)} />
+            `)}
             ${kind === "agents" && live.map((agent) => html`
                 <${AgentRow} key=${`live-${agentKey(agent)}`} agent=${agent} reported=${false}
                              stop=${agentStopper(agent)}
@@ -583,7 +704,8 @@ export function WorkList({ session, id, kind, work, exec, onAgent, pages, briefs
                     that runs agents in a set order — the session starts one when the work is
                     wide enough to fan out.</p>
             `}
-            ${kind === "tasks" && tasks.length === 0 && html`<p class="hint">There are no background commands.</p>`}
+            ${kind === "tasks" && tasks.length + observers.length + alarms.length === 0
+                && html`<p class="hint">There are no background commands.</p>`}
             ${kind === "agents" && agents.length === 0 && html`<p class="hint">There were no subagents in this conversation.</p>`}
         </div>
     `;
@@ -614,6 +736,68 @@ function AgentRow({ agent, reported, stop, onOpen }) {
                            done=${stop.done} label=${`stop agent ${agent.name}`}
                            onStop=${stop.onStop} />
         `}
+      </div>
+    `;
+}
+
+// The words of the two kinds of what a session asked the panel for, on their
+// rows and in the head of the list: an alarm of the panel stands apart from
+// the alarm the session's own cron keeps.
+const OBSERVER_WORD = "observer";
+const ALARM_WORD = "panel alarm";
+
+// ObserverRow is an observer: its name, the command it watches, what of the
+// command wakes the session and when it last did, or how the command ended.
+// A tap opens the end of its log.
+function ObserverRow({ observer: o, stop, onOpen }) {
+    const state = o.done
+        ? `the command ended: ${endSay(o)} · ${wokeSay(o)}`
+        : `${wakeSay(o)} · ${wokeSay(o)}`;
+    return html`
+      <div class="wline tall">
+        <button class="wrow held" data-held="observer" type="button" onClick=${onOpen}>
+            <span class="wicon">${Icon.eye()}</span>
+            <span class="wcol">
+                <span class="wname">
+                    ${o.name}
+                    <span class="wkind">${OBSERVER_WORD}</span>
+                    ${stop.done && html`<span class="wkind gone">stopped</span>`}
+                </span>
+                <span class="wcmd">${o.command}</span>
+                <span class="wstate">${state}</span>
+                ${stop.fail && html`<span class="wfail">${stop.fail}</span>`}
+            </span>
+            ${o.at && html`<span class="wage">${o.done && o.doneAt ? lasted(o.at, o.doneAt) : since(o.at)}</span>`}
+            <span class="crgo">${Icon.chevron()}</span>
+        </button>
+        <${StopButton} ready=${stop.ready} why=${stop.why} busy=${stop.busy} done=${stop.done}
+                       label=${`stop observer ${o.name}`} onStop=${stop.onStop} />
+      </div>
+    `;
+}
+
+// AlarmRow is an alarm of the panel: its name, the note the session left
+// itself, when it rings and how often it has. It runs nothing, so it opens
+// nothing; it is cancelled.
+function AlarmRow({ alarm: a, cancel }) {
+    return html`
+      <div class="wline tall">
+        <div class="wrow held" data-held="alarm">
+            <span class="wicon">${Icon.alerts()}</span>
+            <span class="wcol">
+                <span class="wname">
+                    ${a.name}
+                    <span class="wkind">${ALARM_WORD}</span>
+                    ${cancel.done && html`<span class="wkind gone">cancelled</span>`}
+                </span>
+                ${a.note && html`<span class="wsub">${a.note}</span>`}
+                <span class="wstate">${ringSay(a)}</span>
+                ${cancel.fail && html`<span class="wfail">${cancel.fail}</span>`}
+            </span>
+            <span class="wage">${nextSay(a)}</span>
+        </div>
+        <${StopButton} ready=${cancel.ready} why=${cancel.why} busy=${cancel.busy} done=${cancel.done}
+                       label=${`cancel alarm ${a.name}`} onStop=${cancel.onStop} />
       </div>
     `;
 }

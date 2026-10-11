@@ -14,6 +14,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	"aacpanel/internal/launcher"
+	"aacpanel/internal/observer"
 )
 
 // Executor performs the fixed set of allowed host actions.
@@ -33,6 +34,11 @@ type Executor struct {
 
 	// codex holds the links to the codex daemons of the contours.
 	codex *codex.Links
+
+	// keeper keeps the observers and the alarms of the sessions: made once,
+	// so the actions that end one reach the keeper that holds it.
+	keeper     *observer.Keeper
+	keeperOnce sync.Once
 	// daemons serialises starting the codex daemons: two News at once would
 	// both find no daemon and both start one.
 	daemons sync.Mutex
@@ -97,7 +103,8 @@ func (e *Executor) Kinds() []action.Kind {
 			continue
 		case !sessions && strings.HasPrefix(name, "window."):
 			continue
-		case !sessions && (k == action.TaskStop || k == action.AgentStop):
+		case !sessions && (k == action.TaskStop || k == action.AgentStop || k == action.ObserverStop ||
+			k == action.AlarmCancel):
 			continue
 		case !sessions && action.TermKind(k):
 			continue
@@ -197,6 +204,15 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		return e.taskStop(ctx, req.Target, req.Work)
 	case action.AgentStop:
 		return e.agentStop(ctx, req.Target, req.Work)
+	case action.ObserverStop, action.AlarmCancel:
+		s, err := findOneLiveSession(req.Target)
+		if err != nil {
+			return "", err
+		}
+		if req.Kind == action.AlarmCancel {
+			return e.alarmCancel(s.Name, s.SessionID, req.Work)
+		}
+		return e.observerStop(ctx, s.Name, s.SessionID, req.Work)
 	case action.WindowOpen:
 		return e.windowOpen(ctx, req.Target)
 	case action.WindowClose:

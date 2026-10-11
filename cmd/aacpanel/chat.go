@@ -252,6 +252,33 @@ func (s *Server) apiChatTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"text": reply.Text, "cut": reply.Cut, "size": reply.Size})
 }
 
+// apiChatObserver reads the end of the log of an observer the conversation
+// started, as a background task's output is read: the collector reads it from
+// the directory the executor keeps the observer in, for that conversation
+// alone.
+func (s *Server) apiChatObserver(w http.ResponseWriter, r *http.Request) {
+	if !s.chat.Available() {
+		http.Error(w, "chat is unavailable: the collector socket is not mounted", http.StatusServiceUnavailable)
+		return
+	}
+	target, err := s.chatTarget(r, r.URL.Query().Get("session"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	id := r.URL.Query().Get("observer")
+	if id == "" {
+		http.Error(w, "an observer id is required", http.StatusBadRequest)
+		return
+	}
+	reply, err := s.chat.ObserverLog(r.Context(), target, id)
+	if err != nil {
+		chatFail(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"text": reply.Text, "cut": reply.Cut, "size": reply.Size})
+}
+
 func (s *Server) apiChatAgent(w http.ResponseWriter, r *http.Request) {
 	if !s.chat.Available() {
 		http.Error(w, "chat is unavailable: the collector socket is not mounted", http.StatusServiceUnavailable)

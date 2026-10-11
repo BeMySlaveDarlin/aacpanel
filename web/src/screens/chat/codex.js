@@ -19,7 +19,7 @@ import { Conversation } from "./conversation.js";
 import { CodexSheets, CodexStrip, useCatalog, useCodexPick } from "./codexpick.js";
 import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
 import { LOOK_NAMES } from "./look.js";
-import { AgentsChip } from "./work.js";
+import { AgentsChip, HeldChip } from "./work.js";
 import { McpSheet } from "./mcp.js";
 import { SetupSheet } from "./setup.js";
 import { IdLine, PlaceLine, ToolRow } from "./sessiontools.js";
@@ -96,13 +96,15 @@ export function CodexChat(props) {
 }
 
 // CodexWork counts what a thread has in flight under the composer, where
-// claude's counters stand and in their order: what it left running, while
-// something is, and the agents it started — a chip that stands whatever the
-// thread holds, as claude's does.
+// claude's counters stand and in their order: what it left running and the
+// observers and alarms it asked the panel for, each while there is something,
+// and the agents it started — a chip that stands whatever the thread holds,
+// as claude's does.
 function CodexWork({ work, processes, onOpen }) {
     return html`
         <div class="wchips">
             <${ProcessesChip} count=${processes} onOpen=${() => onOpen({ kind: "processes" })} />
+            <${HeldChip} work=${work} onOpen=${onOpen} />
             <${AgentsChip} work=${work} onOpen=${onOpen} />
         </div>
     `;

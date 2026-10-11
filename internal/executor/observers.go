@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
 	"aacpanel/internal/observer"
 	"aacpanel/internal/stream"
@@ -24,9 +25,13 @@ import (
 // nothing but keys typed into its terminal, which its model takes for its
 // person's words, and it is refused.
 
-// Observers is the keeper of the observers and the alarms of this host.
+// Observers is the keeper of the observers and the alarms of this host, one
+// for the life of the executor.
 func (e *Executor) Observers() *observer.Keeper {
-	return observer.NewKeeper(observer.Dir(), observerUnits{cores: e.cores}, observerOwners{e: e})
+	e.keeperOnce.Do(func() {
+		e.keeper = observer.NewKeeper(observer.Dir(), observerUnits{cores: e.cores}, observerOwners{e: e})
+	})
+	return e.keeper
 }
 
 type observerOwners struct{ e *Executor }
@@ -217,4 +222,31 @@ func systemctlPath() string {
 		return p
 	}
 	return "systemctl"
+}
+
+// observerStop ends an observer of a session at a press in the panel: the
+// one the session runs under conversation, by the id its files are named by.
+// The keeper stops its unit and takes its log away, as observer_stop does.
+func (e *Executor) observerStop(ctx context.Context, session, conversation string, work *action.Work) (string, error) {
+	if work == nil {
+		return "", fmt.Errorf("it is not said which observer of %s to stop", session)
+	}
+	v, err := e.Observers().StopFor(ctx, conversation, work.ID)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("observer %s of %s stopped, with its command", v.Name, session), nil
+}
+
+// alarmCancel cancels an alarm of a session at a press in the panel, as
+// alarm_cancel does.
+func (e *Executor) alarmCancel(session, conversation string, work *action.Work) (string, error) {
+	if work == nil {
+		return "", fmt.Errorf("it is not said which alarm of %s to cancel", session)
+	}
+	v, err := e.Observers().CancelFor(conversation, work.ID)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("alarm %s of %s cancelled", v.Name, session), nil
 }

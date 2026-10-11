@@ -282,6 +282,57 @@ type Work struct {
 	Docs      []Doc       `json:"docs,omitempty"`
 	Sent      []Sent      `json:"sent,omitempty"`
 	Checklist *Checklist  `json:"checklist,omitempty"`
+	// Observers are the commands the session handed the panel to watch with
+	// observer_start, the oldest first, and Alarms the moments it set with
+	// alarm_set, the soonest first: the executor keeps them, and the
+	// collector reads them from where it keeps them.
+	Observers []WorkObserver `json:"observers,omitempty"`
+	Alarms    []WorkAlarm    `json:"alarms,omitempty"`
+}
+
+// WorkAlarm is one alarm of a session: its name and the note it left itself,
+// when it was set, when it rings next and, for one that repeats, every how
+// many seconds; how often it has rung and when last. Its ID is the one a
+// cancel names it by.
+type WorkAlarm struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Note     string `json:"note,omitempty"`
+	At       string `json:"at,omitempty"`
+	Next     string `json:"next"`
+	Every    int64  `json:"every,omitempty"`
+	Rang     int    `json:"rang,omitempty"`
+	LastRing string `json:"lastRing,omitempty"`
+}
+
+// WorkObserver is one observer of a session: what it runs and where, what of
+// it wakes the session — every line, a line the pattern finds, or its end
+// alone — since when, how often it has woken the session and when last, and
+// how its command ended once it has. Its ID is the one a stop and a reading
+// of its log name it by.
+type WorkObserver struct {
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Command  string          `json:"command"`
+	Dir      string          `json:"dir,omitempty"`
+	Wake     string          `json:"wake"`
+	Pattern  string          `json:"pattern,omitempty"`
+	At       string          `json:"at,omitempty"`
+	Woken    int             `json:"woken,omitempty"`
+	LastWake string          `json:"lastWake,omitempty"`
+	Done     bool            `json:"done,omitempty"`
+	DoneAt   string          `json:"doneAt,omitempty"`
+	Ending   *ObserverEnding `json:"ending,omitempty"`
+}
+
+// ObserverEnding is how the command of an observer ended: its code, the
+// signal that killed it, the memory ceiling of its unit, or a unit that ended
+// with no word of how.
+type ObserverEnding struct {
+	Code   *int   `json:"code,omitempty"`
+	Signal string `json:"signal,omitempty"`
+	Memory bool   `json:"memory,omitempty"`
+	Lost   bool   `json:"lost,omitempty"`
 }
 
 // Checklist is the list of steps the session keeps of its work through the
@@ -561,6 +612,7 @@ type Req struct {
 	DropBrief *DropBrief  `json:"dropBrief,omitempty"`
 	Notes     *NotesReq   `json:"notes,omitempty"`
 	Task      *TaskRef    `json:"task,omitempty"`
+	Observer  *TaskRef    `json:"observer,omitempty"`
 	File      string      `json:"file,omitempty"`
 	Raw       string      `json:"raw,omitempty"`
 	Offset    int64       `json:"offset,omitempty"`
@@ -716,6 +768,12 @@ type Target struct {
 // TaskOutput fetches the output tail of a background task.
 func (c *Client) TaskOutput(ctx context.Context, t Target, id string) (Reply, error) {
 	return c.Feed(ctx, Req{Session: t.Session, Subagent: t.Subagent, Task: &TaskRef{ID: id}})
+}
+
+// ObserverLog fetches the tail of the log of an observer the conversation
+// started.
+func (c *Client) ObserverLog(ctx context.Context, t Target, id string) (Reply, error) {
+	return c.Feed(ctx, Req{Session: t.Session, Observer: &TaskRef{ID: id}})
 }
 
 // Search asks for the places in a conversation that say the question. A

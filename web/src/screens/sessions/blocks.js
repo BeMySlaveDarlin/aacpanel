@@ -51,7 +51,7 @@ export function stateOf(row) {
         return { tone: "wait", text: waitText(s.waitingFor), since: "", when: "", work: "" };
     }
     const agents = (s.work && s.work.agents) || 0;
-    const tasks = (s.work && s.work.tasks) || 0;
+    const tasks = backgroundOf(s.work);
     const work = [
         agents > 0 && `${agents} ${plural(agents, "agent", "agents")}`,
         tasks > 0 && `${tasks} ${plural(tasks, "background task", "background tasks")}`,
@@ -71,12 +71,21 @@ export function useAnswers() {
     useEffect(() => listen(() => redraw((n) => n + 1)), []);
 }
 
+// backgroundOf counts the background tasks of a session as the snapshot counts
+// them: its own, and the observers and the alarms it asked the panel for —
+// they wait for it in the background as its own do, and end with it the same.
+function backgroundOf(work) {
+    const w = work || {};
+    return (w.tasks || 0) + (w.observers || 0) + (w.alarms || 0);
+}
+
 // stopsOf names what a close or a restart of a live session ends with it: its
 // background tasks, agents and workflows at work, as the snapshot counts them.
 export function stopsOf(s) {
     const w = (s && s.work) || {};
     const out = [];
-    if (w.tasks > 0) out.push(`${w.tasks} ${plural(w.tasks, "background task", "background tasks")}`);
+    const tasks = backgroundOf(w);
+    if (tasks > 0) out.push(`${tasks} ${plural(tasks, "background task", "background tasks")}`);
     if (w.agents > 0) out.push(`${w.agents} ${plural(w.agents, "agent", "agents")}`);
     if (w.workflows > 0) out.push(`${w.workflows} ${plural(w.workflows, "workflow", "workflows")}`);
     return out.join(", ");
