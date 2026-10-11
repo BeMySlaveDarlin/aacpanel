@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -492,6 +493,67 @@ func TestLiveWindowFollowsTheBridgeClient(t *testing.T) {
 	}
 }
 
+// A closed bridge hangs up the terminal of its tmux client, and the client
+// goes on its own at once: one that stays is killed only when the wait for it
+// runs out, and every terminal closed in the panel sits that wait out first.
+// The reader stands in Read as the pump of the terminal link does — a Read in
+// progress is what kept the terminal open past Close.
+//
+// The time is what is held, not only the kill: a client that stays still goes
+// on its own once tmux writes to its terminal and the Read that held it open
+// returns — tmux does that some five seconds after the attach, a race with a
+// kill at the same distance.
+func TestLiveBridgeClientGoesWhenTheBridgeCloses(t *testing.T) {
+	ownTmuxServer(t)
+	// A wait no client that goes on its own comes near, rather than the
+	// tenth TestMain leaves: a close that takes half of it is the finding,
+	// and it must not be one that was merely slow on a loaded machine.
+	prev := clientGone
+	clientGone = 5 * time.Second
+	t.Cleanup(func() { clientGone = prev })
+	const name = "probe"
+	target := liveTmuxSession(t, name, 80, 24)
+
+	term, err := NewTermOpener().Open(t.Context(), name, 80, 24)
+	if err != nil {
+		t.Fatalf("the bridge did not open to %s: %v", target, err)
+	}
+	read := make(chan struct{})
+	go func() {
+		io.Copy(io.Discard, term)
+		close(read)
+	}()
+	attached := false
+	for range 60 {
+		if attached = userTmux.sessionHasClients(t.Context(), name); attached {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !attached {
+		t.Fatalf("the client of the bridge never attached to %s", target)
+	}
+
+	start := time.Now()
+	term.Close()
+	took := time.Since(start)
+
+	if took > clientGone/2 {
+		t.Errorf("closing the bridge took %s of the %s it waits for the client — the client did not go when its terminal was hung up",
+			took.Round(time.Millisecond), clientGone)
+	}
+	state := term.(*tmuxTerm).cmd.ProcessState
+	if ws, ok := state.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		t.Errorf("the tmux client was killed (%v) %s after the bridge closed — it did not go when its terminal was hung up",
+			ws.Signal(), took.Round(time.Millisecond))
+	}
+	select {
+	case <-read:
+	case <-time.After(time.Second):
+		t.Error("the reader of the bridge still stands in Read after Close")
+	}
+}
+
 func TestLiveBridgeGivesTheWindowBack(t *testing.T) {
 	name := os.Getenv("AACP_LIVE_SESSION")
 	if name == "" {
@@ -561,9 +623,9 @@ func attachNeighbour(t *testing.T, target string, cols, rows uint16) func() {
 	}
 	pty.closeSlave()
 	go io.Copy(io.Discard, pty.master)
-	// The neighbour is a stand-in and goes with the test: a tmux client lets
-	// go of a closed terminal only seconds later, and the test would sit that
-	// out after its last check.
+	// The neighbour is a stand-in and goes with the test. Hung up, it goes on
+	// its own; the kill is for one that does not, which is the finding of
+	// TestLiveBridgeClientGoesWhenTheBridgeCloses and must not hang this test.
 	t.Cleanup(func() {
 		pty.Close()
 		_ = cmd.Process.Kill()

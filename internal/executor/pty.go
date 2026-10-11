@@ -20,13 +20,15 @@ func openPTY(cols, rows uint16) (*ptyPair, error) {
 		return nil, fmt.Errorf("/dev/ptmx did not open: %w", err)
 	}
 
-	fd := int(master.Fd())
-	if err := unix.IoctlSetPointerInt(fd, unix.TIOCSPTLCK, 0); err != nil {
+	if err := ioctl(master, func(fd int) error { return unix.IoctlSetPointerInt(fd, unix.TIOCSPTLCK, 0) }); err != nil {
 		master.Close()
 		return nil, fmt.Errorf("the pty pair was not unlocked: %w", err)
 	}
-	num, err := unix.IoctlGetInt(fd, unix.TIOCGPTN)
-	if err != nil {
+	var num int
+	if err := ioctl(master, func(fd int) (err error) {
+		num, err = unix.IoctlGetInt(fd, unix.TIOCGPTN)
+		return err
+	}); err != nil {
 		master.Close()
 		return nil, fmt.Errorf("the pty pair number cannot be read: %w", err)
 	}
@@ -50,10 +52,27 @@ func (p *ptyPair) resize(cols, rows uint16) error {
 		return fmt.Errorf("window size %dx%d — a terminal does not take that", cols, rows)
 	}
 	ws := unix.Winsize{Row: rows, Col: cols}
-	if err := unix.IoctlSetWinsize(int(p.master.Fd()), unix.TIOCSWINSZ, &ws); err != nil {
+	if err := ioctl(p.master, func(fd int) error { return unix.IoctlSetWinsize(fd, unix.TIOCSWINSZ, &ws) }); err != nil {
 		return fmt.Errorf("window size was not set: %w", err)
 	}
 	return nil
+}
+
+// ioctl runs a call on the descriptor of the master side without taking it
+// out of the runtime's poller, as Fd would: Fd puts the descriptor in blocking
+// mode, and then Close cannot interrupt a Read standing in it. The descriptor
+// stays open until that Read returns, the client on the other side is never
+// hung up, and it stays attached until it is killed.
+func ioctl(f *os.File, call func(fd int) error) error {
+	raw, err := f.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var callErr error
+	if err := raw.Control(func(fd uintptr) { callErr = call(int(fd)) }); err != nil {
+		return err
+	}
+	return callErr
 }
 
 func (p *ptyPair) attach(cmd *exec.Cmd) {
