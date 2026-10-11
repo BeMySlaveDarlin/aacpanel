@@ -141,7 +141,10 @@ brief written in them comes back unanswered.
 
 - **The id names the document, not the conversation.** Publishing the same id
   from the same project updates it and keeps the answers already given.
-  From another project it is refused rather than overwritten.
+  From another project it is refused rather than overwritten. A brief whose
+  answers the person has sent is closed: a reissue does not open it again, and
+  what it adds cannot be answered. New questions after that go into a new brief
+  under a new id.
 - **Ceilings**: 100 questions, 8 options and 16 facts each, 4 MB for the whole
   document. Long text is cut rather than refused; a broken structure is refused
   with the reason.

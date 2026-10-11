@@ -43,7 +43,9 @@ const publishDescription = "Publishes a brief to the panel: a long piece the per
 	"a finished piece of reading with no question in it. Before the first brief in a session, call this without " +
 	"doc and read the rules it returns: the fields of the document, how its text reads, the ceilings. " +
 	"With doc, the brief is published under doc.id; the same id from the same project updates it in place " +
-	"and keeps the answers already given. The answers come back later as a message in this session, whenever " +
+	"and keeps the answers already given. Once the answers are sent the brief is closed and a reissue does not " +
+	"open it again: new questions go into a new brief under a new id. " +
+	"The answers come back later as a message in this session, whenever " +
 	"the person sends them: do not wait for them, let the turn end. check with doc reads the document and says " +
 	"what is in it, publishing nothing. When the work stops until they answer, ask with AskUserQuestion " +
 	"instead. A refusal says why nothing was published; say it in the conversation."

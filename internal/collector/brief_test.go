@@ -36,6 +36,19 @@ func TestACallWithoutADocumentReturnsTheRules(t *testing.T) {
 	f.quiet(t)
 }
 
+// A reissue under the same id keeps the answers, and both texts that promise
+// so say where the promise ends: a brief whose answers were sent stays closed,
+// and a session that reissues it to ask more asks a person who cannot answer.
+func TestTheRulesSayASentBriefIsAskedAgainUnderANewID(t *testing.T) {
+	for name, text := range map[string]string{"rules": rules, "description": publishDescription,
+		"codex description": codexPublishDescription} {
+		said := strings.Join(strings.Fields(text), " ")
+		if !strings.Contains(said, "does not open it again") || !strings.Contains(said, "a new brief under a new id") {
+			t.Errorf("the %s: nothing says a sent brief is asked again under a new id", name)
+		}
+	}
+}
+
 // A machine may keep rules of its own for the text of a brief — the words
 // its briefs avoid, samples of briefs taken and refused. They follow the
 // shipped rules when the file is there, and nothing is added when it is not.
