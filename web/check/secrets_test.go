@@ -39,6 +39,7 @@ type secretsShot struct {
 // the directory, a row per file with its size and time and never its text,
 // and a removal that the gate asks about before secret.drop goes out.
 func TestSecretsListInTheSettings(t *testing.T) {
+	parallel(t)
 	for _, screen := range []struct {
 		name string
 		run  func(*testing.T, string, any)

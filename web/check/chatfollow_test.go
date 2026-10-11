@@ -20,6 +20,7 @@ type chatFollow struct {
 // whose session restarts under the same name goes on to the new conversation
 // instead of standing on the old feed under the live session's head.
 func TestAnOpenConversationFollowsItsSessionAndNotItsName(t *testing.T) {
+	parallel(t)
 	for _, c := range []struct {
 		screen  string
 		fixture string

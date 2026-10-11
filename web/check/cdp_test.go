@@ -35,6 +35,9 @@ type browser struct {
 	pages   map[string]*page
 	dead    error
 	stderr  *tailBuffer
+	// disposeWait bounds the dispose of a run's browser context; zero is
+	// disposeBound.
+	disposeWait time.Duration
 }
 
 // page is what the browser tells of one tab besides the answers to its
@@ -122,11 +125,18 @@ var (
 	browsersMu sync.Mutex
 	browsers   = map[string][]*browser{}
 	turns      = map[string]int{}
+	// over is set once the run has closed its Chromes: a page still in the
+	// line of a run that stopped early starts none of its own, which would
+	// outlive the run with its profile.
+	over bool
 )
 
 func sharedBrowser(chrome, pointer string) (*browser, error) {
 	browsersMu.Lock()
 	defer browsersMu.Unlock()
+	if over {
+		return nil, errors.New("the run is over")
+	}
 	pool := browsers[pointer]
 	if len(pool) < browsersPerPointer {
 		pool = append(pool, nil)
@@ -197,6 +207,7 @@ func profileInUse(dir string) bool {
 func closeBrowsers() {
 	browsersMu.Lock()
 	defer browsersMu.Unlock()
+	over = true
 	for key, pool := range browsers {
 		for _, b := range pool {
 			if b != nil {
@@ -458,7 +469,9 @@ func (t *tailBuffer) String() string {
 }
 
 // parallel lets a test that runs a fixture go alongside the others: a fixture
-// waits on Chrome, not on the CPU. A test that runs two fixtures asks once.
+// waits on Chrome, not on the CPU. A test that runs two fixtures asks once. A
+// test whose cases run fixtures asks for itself as well: one that does not
+// holds every test after it until its cases are done.
 var parallelAsked sync.Map
 
 func parallel(t *testing.T) {
@@ -467,8 +480,8 @@ func parallel(t *testing.T) {
 	}
 }
 
-// disposeWait bounds the dispose of a run's browser context.
-var disposeWait = 10 * time.Second
+// disposeBound bounds the dispose of a run's browser context.
+const disposeBound = 10 * time.Second
 
 // endWait bounds how long a command cut short waits for the browser to say
 // what took the page away.
@@ -539,7 +552,11 @@ func (b *browser) open(ctx context.Context, url, screen string) (session string,
 	// would hold the dispose, and the whole package with it, long after the
 	// run itself gave up.
 	dispose := func() {
-		done, cancel := context.WithTimeout(context.Background(), disposeWait)
+		bound := b.disposeWait
+		if bound == 0 {
+			bound = disposeBound
+		}
+		done, cancel := context.WithTimeout(context.Background(), bound)
 		defer cancel()
 		_, _ = b.call(done, "", "Target.disposeBrowserContext", map[string]any{"browserContextId": created.BrowserContextID})
 	}
@@ -635,10 +652,6 @@ setTimeout(() => { throw new Error("the card lost its rows"); }, 150);`,
 // run's own bound: the fake answers the browser context and then keeps quiet,
 // and the run comes back with an error instead of waiting on the dispose.
 func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
-	was := disposeWait
-	disposeWait = 100 * time.Millisecond
-	t.Cleanup(func() { disposeWait = was })
-
 	toChrome, to, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -649,7 +662,7 @@ func TestARunOnAChromeThatStoppedAnsweringComesBack(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = to.Close(); _ = fromChrome.Close(); _ = toChrome.Close() })
 	b := &browser{to: to, stderr: &tailBuffer{limit: 1 << 10},
-		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{}}
+		waiting: map[int]chan cdpMessage{}, pages: map[string]*page{}, disposeWait: 100 * time.Millisecond}
 	go b.read(from)
 	go func() {
 		in := bufio.NewReader(toChrome)

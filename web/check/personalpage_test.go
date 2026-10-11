@@ -24,6 +24,7 @@ type contourPlace struct {
 // would stand among the work of Acme. A map that marks no contour puts it in
 // the first: nothing else says which one is personal.
 func TestASessionNoContourClaimsStandsInThePersonalOne(t *testing.T) {
+	parallel(t)
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}

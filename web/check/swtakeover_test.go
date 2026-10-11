@@ -11,9 +11,11 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,32 +49,53 @@ self.addEventListener("fetch", (event) => {
 });
 `
 
-var (
-	takeoverOnce   sync.Once
-	takeoverPage   string
-	takeoverFailed string
+// The grace the page gives the old worker before it reloads anyway, as the
+// panel has it, and the grace the scenes of an old worker that never lets go
+// are built with. Those scenes wait the grace out by design — waiting it out
+// is what they check — so the page is built with a shorter one in place of
+// the panel's: the order of what happens is the same, and the run does not
+// sit out the panel's seconds twice over.
+const (
+	panelGrace = "const takeoverGrace = 15000;"
+	heldGrace  = 3000
 )
+
+type takeoverBuild struct {
+	once   sync.Once
+	page   string
+	failed string
+}
+
+// takeoverBuilds are the fixture bundled with the panel's grace and with the
+// held one.
+var takeoverBuilds = map[bool]*takeoverBuild{false: {}, true: {}}
 
 // takeoverScript bundles the fixture with the panel's own modules, the way
 // the release bundles the panel: the note under test is drawn by main.js,
-// which imports styles a browser cannot take as a module.
-func takeoverScript(t *testing.T) string {
+// which imports styles a browser cannot take as a module. held builds it with
+// heldGrace in place of the panel's grace.
+func takeoverScript(t *testing.T, held bool) string {
 	t.Helper()
-	takeoverOnce.Do(func() {
+	build := takeoverBuilds[held]
+	build.once.Do(func() {
 		root, err := webbuild.FindRoot(".")
 		if err != nil {
-			takeoverFailed = err.Error()
+			build.failed = err.Error()
 			return
 		}
 		alias, err := webbuild.Aliases(root)
 		if err != nil {
-			takeoverFailed = err.Error()
+			build.failed = err.Error()
 			return
 		}
 		entry, err := filepath.Abs(filepath.Join("fixtures", "swtakeover.js"))
 		if err != nil {
-			takeoverFailed = err.Error()
+			build.failed = err.Error()
 			return
+		}
+		var plugins []esbuild.Plugin
+		if held {
+			plugins = append(plugins, shortGrace)
 		}
 		built := esbuild.Build(esbuild.BuildOptions{
 			EntryPoints: []string{entry},
@@ -83,18 +106,39 @@ func takeoverScript(t *testing.T) string {
 			Alias:       alias,
 			Loader:      map[string]esbuild.Loader{".css": esbuild.LoaderEmpty, ".svg": esbuild.LoaderDataURL},
 			External:    []string{"/static/*", "/dist/*"},
+			Plugins:     plugins,
 			Write:       false,
 		})
 		if len(built.Errors) > 0 {
-			takeoverFailed = built.Errors[0].Text
+			build.failed = built.Errors[0].Text
 			return
 		}
-		takeoverPage = string(built.OutputFiles[0].Contents)
+		build.page = string(built.OutputFiles[0].Contents)
 	})
-	if takeoverFailed != "" {
-		t.Fatalf("the fixture did not build: %s", takeoverFailed)
+	if build.failed != "" {
+		t.Fatalf("the fixture did not build: %s", build.failed)
 	}
-	return takeoverPage
+	return build.page
+}
+
+// shortGrace puts heldGrace in place of the panel's grace as pwa.js is
+// bundled. A pwa.js without the line it replaces fails the build: the scenes
+// would wait the panel's grace out against a threshold of the short one.
+var shortGrace = esbuild.Plugin{
+	Name: "short-grace",
+	Setup: func(build esbuild.PluginBuild) {
+		build.OnLoad(esbuild.OnLoadOptions{Filter: `[/\\]src[/\\]pwa\.js$`}, func(args esbuild.OnLoadArgs) (esbuild.OnLoadResult, error) {
+			src, err := os.ReadFile(args.Path)
+			if err != nil {
+				return esbuild.OnLoadResult{}, err
+			}
+			if !strings.Contains(string(src), panelGrace) {
+				return esbuild.OnLoadResult{}, fmt.Errorf("pwa.js has no %q to shorten", panelGrace)
+			}
+			code := strings.Replace(string(src), panelGrace, fmt.Sprintf("const takeoverGrace = %d;", heldGrace), 1)
+			return esbuild.OnLoadResult{Contents: &code, ResolveDir: filepath.Dir(args.Path), Loader: esbuild.LoaderJS}, nil
+		})
+	},
 }
 
 // takeoverRun is what the fixture page saw: on the load after a reload the
@@ -123,8 +167,7 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 	if chrome == "" {
 		t.Skip("no Chrome on this machine: a worker steps aside in a real engine, not in its source")
 	}
-	parallel(t)
-	script := takeoverScript(t)
+	script := takeoverScript(t, old == "silent" || old == "answers")
 	workers := map[int64]string{2: builtWorkerAs(t, "v2")}
 	switch old {
 	case "takeover", "asking", "pictures":
@@ -265,20 +308,41 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 		home.Close()
 	}()
 
-	b, err := sharedBrowser(chrome, phonePointer)
-	if err != nil {
-		t.Fatalf("Chrome did not start: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	session, closeTab, err := b.open(ctx, home.URL+"/app?old="+old+"&near="+near.URL, phoneScreen)
+	// The page of the old workers sits out the grace of the update, and the
+	// line takes it first.
+	run := lineUp(t, true, func() (json.RawMessage, error) {
+		return followTakeover(chrome, home.URL+"/app?old="+old+"&near="+near.URL)
+	})
+	parallel(t)
+	raw, err := run.wait()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer closeTab()
+	var got takeoverRun
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("the fixture's answer did not parse: %v: %s", err, raw)
+	}
+	if got.Error != "" {
+		t.Fatalf("the fixture could not set the scene: %s", got.Error)
+	}
+	return got
+}
 
-	// The page is asked over and over, and a question that lands while it
-	// reloads goes unanswered: the answer is whatever the last load leaves.
+// followTakeover opens the page and asks it over and over, and a question
+// that lands while it reloads goes unanswered: the answer is whatever the
+// last load leaves.
+func followTakeover(chrome, url string) (json.RawMessage, error) {
+	b, err := sharedBrowser(chrome, phonePointer)
+	if err != nil {
+		return nil, fmt.Errorf("Chrome did not start: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	session, closeTab, err := b.open(ctx, url, phoneScreen)
+	if err != nil {
+		return nil, err
+	}
+	defer closeTab()
 	for {
 		raw, err := b.call(ctx, session, "Runtime.evaluate", map[string]any{"expression": "window.result", "returnByValue": true})
 		if err == nil {
@@ -289,21 +353,14 @@ func runTakeover(t *testing.T, old string) takeoverRun {
 			}
 			if json.Unmarshal(raw, &r) == nil && len(r.Result.Value) > 0 {
 				if thrown := b.thrownIn(session); len(thrown) > 0 {
-					t.Fatalf("the page threw: %v", thrown)
+					return nil, fmt.Errorf("the page threw: %v", thrown)
 				}
-				var got takeoverRun
-				if err := json.Unmarshal(r.Result.Value, &got); err != nil {
-					t.Fatalf("the fixture's answer did not parse: %v: %s", err, r.Result.Value)
-				}
-				if got.Error != "" {
-					t.Fatalf("the fixture could not set the scene: %s", got.Error)
-				}
-				return got
+				return r.Result.Value, nil
 			}
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("the page left no answer in time: %v", ctx.Err())
+			return nil, fmt.Errorf("the page left no answer in time: %v", ctx.Err())
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
@@ -401,8 +458,8 @@ func TestAnUpdateHeldByAnOldWorkerSaysSoWithoutGuessing(t *testing.T) {
 	if !got.Stuck || got.Toast != "The update is not installing" {
 		t.Fatalf("the page showed %q (stuck: %v), expected the note that the update is not installing", got.Toast, got.Stuck)
 	}
-	if got.AfterTap < 15000 {
-		t.Errorf("the note came %d ms after the tap: the page did not wait the grace out", got.AfterTap)
+	if got.AfterTap < heldGrace {
+		t.Errorf("the note came %d ms after the tap: the page did not wait the grace of %d ms out", got.AfterTap, heldGrace)
 	}
 	if !got.Asks {
 		t.Error("after the note the page's requests of the api stay held: the update did not install, and " +
@@ -433,7 +490,7 @@ func TestAnUpdateHeldByAnOldWorkerNamesWhatHoldsIt(t *testing.T) {
 		t.Errorf("the note names %s and %s, expected /api/stall and /dist/stall.js", m[1], m[3])
 	}
 	for _, secs := range []string{m[2], m[4]} {
-		if n, _ := strconv.Atoi(secs); n < 15 {
+		if n, _ := strconv.Atoi(secs); n < heldGrace/1000 {
 			t.Errorf("the note says a request hangs %ss: it has been out since before the tap and the grace after it", secs)
 		}
 	}

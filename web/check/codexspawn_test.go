@@ -118,6 +118,7 @@ type pastHeadShot struct {
 // archive of codex never kept — no share, no peak, no bar; the sheet of its
 // tools says the same. A conversation of claude keeps its peak.
 func TestAPastThreadOfCodexIsHeadedByWhatItSpent(t *testing.T) {
+	parallel(t)
 	for _, screen := range []struct {
 		name string
 		run  func(*testing.T, string, any)

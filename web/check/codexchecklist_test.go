@@ -10,6 +10,7 @@ import (
 // line over the composer with the step it stands on, at a desk the block that
 // opens the timeline with every step.
 func TestACodexThreadShowsItsChecklistInItsConversation(t *testing.T) {
+	parallel(t)
 	type seen struct {
 		Wide       bool     `json:"wide"`
 		Drawn      bool     `json:"drawn"`

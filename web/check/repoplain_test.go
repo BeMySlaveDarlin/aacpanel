@@ -43,6 +43,7 @@ type repoPlainShot struct {
 // answers a plain directory with "nothing here to compare" shuts the catalogue
 // because of a question nobody asked it.
 func TestAProjectWithoutGitOpensOnItsFiles(t *testing.T) {
+	parallel(t)
 	for _, shape := range []struct {
 		name string
 		run  func(*testing.T, string, any)
@@ -83,6 +84,7 @@ func TestAProjectWithoutGitOpensOnItsFiles(t *testing.T) {
 // changes, the notes, the diff and the base are left out rather than drawn
 // empty or refused on tap.
 func TestAProjectWithoutGitShowsNothingOfABranch(t *testing.T) {
+	parallel(t)
 	for _, shape := range []struct {
 		name string
 		run  func(*testing.T, string, any)
@@ -119,6 +121,7 @@ func TestAProjectWithoutGitShowsNothingOfABranch(t *testing.T) {
 // A note is kept with a reading of a branch. Without a branch a line is not
 // picked up into a box that has nowhere to keep what is written in it.
 func TestALineOfAPlainFileIsNotPickedForANote(t *testing.T) {
+	parallel(t)
 	for _, shape := range []struct {
 		name string
 		run  func(*testing.T, string, any)

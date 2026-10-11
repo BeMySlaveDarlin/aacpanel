@@ -12,6 +12,7 @@ import (
 // thread its icon alone, each called in full for a reader of the screen; the
 // sheet behind the mode names the modes in full.
 func TestTheBandOfACodexThreadFitsANarrowPhone(t *testing.T) {
+	parallel(t)
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
 		t.Skip("web/dist/bundle.css is not built — run make front first")
 	}

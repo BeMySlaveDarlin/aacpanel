@@ -70,6 +70,7 @@ const (
 // engine, on a phone and at a desk, and reads it part by part: the fixture
 // walks the card, the notepad, a text dropped by closing and a text saved.
 func TestSecretNotepad(t *testing.T) {
+	parallel(t)
 	for _, screen := range []struct {
 		name string
 		run  func(*testing.T, string, any)

@@ -111,6 +111,7 @@ var barCut = map[string]bool{"longleg": true}
 // every state of the link: nothing in it wraps and nothing is cut. The link is
 // one chip, and the host name carries the menu with the theme and the install.
 func TestTheAppBarIsOneLineInEveryState(t *testing.T) {
+	parallel(t)
 	for _, screen := range []struct{ name, spec string }{{"393", phoneScreen}, {"360", narrowPhone}} {
 		t.Run(screen.name, func(t *testing.T) {
 			var got appBar

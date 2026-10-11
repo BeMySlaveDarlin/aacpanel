@@ -123,6 +123,7 @@ func readPanelSamples(t *testing.T) panelSamples {
 // word away stays a bubble, and each message stands as a card of its own whose
 // rows open the answers, the notes and the text the session got.
 func TestPanelMessagesAreCards(t *testing.T) {
+	parallel(t)
 	samples := readPanelSamples(t)
 	for _, screen := range []struct {
 		name string

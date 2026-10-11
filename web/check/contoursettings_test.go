@@ -114,6 +114,7 @@ func TestTheContourPathsGoOnlyWhenChanged(t *testing.T) {
 // A new contour is taken from an account of the host the map has none for;
 // by hand only on a machine without the router.
 func TestANewContourComesFromTheHostsAccounts(t *testing.T) {
+	parallel(t)
 	type answer struct {
 		Accounts []string       `json:"accounts"`
 		ByHand   bool           `json:"byHand"`

@@ -106,6 +106,7 @@ const findID = "0b6c1a2e-3d4f-4a5b-8c6d-7e8f9a0b1c2d"
 // the host answers by the contract, and the fixture walks the matches newest
 // first, steps off the loaded rows and comes back to the end.
 func TestFeedFind(t *testing.T) {
+	parallel(t)
 	for _, screen := range []struct {
 		name string
 		run  func(*testing.T, string, any)

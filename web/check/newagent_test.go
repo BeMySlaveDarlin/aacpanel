@@ -39,6 +39,7 @@ type agentSheet struct {
 // goes with the request every time, the one left as offered too, and an
 // action with no choice keeps its sheet as it was.
 func TestNewAsksTheAgentOnItsSheet(t *testing.T) {
+	parallel(t)
 	for _, screen := range []struct {
 		name string
 		run  func(*testing.T, string, any)

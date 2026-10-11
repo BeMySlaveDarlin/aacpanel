@@ -33,6 +33,7 @@ type consoleViewSeen struct {
 // screen, and a reload brings each back the way it was left. A session on the
 // stream keeps the feed alone, with the terminal behind the move to tmux.
 func TestAConsoleIsWatchedAsAFeedWithoutMoving(t *testing.T) {
+	parallel(t)
 	for _, c := range []struct {
 		screen      string
 		run         func(*testing.T, string, any)

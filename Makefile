@@ -8,9 +8,29 @@ GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 # since the frontend tests read the bundle; the rest do not wait on one another
 # and run side by side, so the run lasts as long as its longest part, and a red
 # one does not keep the others from saying what they found.
-check: front
-	@$(MAKE) --no-print-directory -j --output-sync=target \
-		fmt vet shellcheck agent-import test agent-test agent-confined delivery-test vuln
+#
+# The run ends with the wall time of every part, the longest first: what a
+# change adds to the cost of a check is read off the check itself, and the
+# longest part is the length of the whole run.
+CHECKS = fmt vet shellcheck agent-import test agent-test agent-confined delivery-test vuln
+check:
+	@times=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-checktimes.XXXXXX"); \
+	trap 'rm -rf "$$times"' EXIT; \
+	export CHECK_TIMES="$$times"; \
+	$(MAKE) --no-print-directory timed-front && \
+	$(MAKE) --no-print-directory -j --output-sync=target $(CHECKS:%=timed-%); \
+	rc=$$?; \
+	echo; echo "check: wall time of each part"; \
+	cat "$$times"/* | LC_ALL=C sort -k2,2nr | \
+		LC_ALL=C awk '{ printf "  %-15s %6.1f s%s\n", $$1, $$2 / 1000, ($$3 == 0 ? "" : "  FAILED") }'; \
+	exit $$rc
+
+# timed-<part> runs a part of check and writes down how long it took.
+timed-%:
+	@start=$$(date +%s%N); \
+	$(MAKE) --no-print-directory $*; rc=$$?; \
+	echo "$* $$(( ($$(date +%s%N) - start) / 1000000 )) $$rc" > "$$CHECK_TIMES/$*"; \
+	exit $$rc
 
 # gofmt -l does not fix anything and says nothing through its exit code, so the
 # output is what gets checked.
@@ -34,6 +54,12 @@ vet:
 # its time in the pauses of its page, not on the CPU, so it is more than the
 # cores: sixteen keep a machine of eight cores under six. A small CI runner
 # asks for fewer.
+#
+# The packages that take longest are named before ./...: go test starts the
+# packages in the order it is given them, a few at a time (-p), and ./... names
+# the frontend checks last — started after every other package, the longest
+# one would be the tail of the run on its own.
+SLOW_PACKAGES = ./web/check/ ./internal/executor/
 GOTEST_FLAGS ?=
 GOTEST_PARALLEL ?= 16
 # The installer writes the test database it makes into .env; a DSN in the
@@ -51,7 +77,7 @@ test:
 	XDG_CACHE_HOME="$$home/.cache" \
 	GOCACHE="$$(go env GOCACHE)" \
 	GOMODCACHE="$$(go env GOMODCACHE)" \
-	go test -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) ./...
+	go test -parallel $(GOTEST_PARALLEL) $(GOTEST_FLAGS) $(SLOW_PACKAGES) ./...
 
 # The agent is deployed from the working tree, so a restart is a release: a name
 # undefined at module level keeps the service from starting at all, and tests do
