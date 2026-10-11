@@ -22,6 +22,7 @@ import (
 	"aacpanel/internal/executor"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/observer"
 	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
 	"aacpanel/internal/toolset"
@@ -58,11 +59,18 @@ func main() {
 	console := flag.String("console", "",
 		"move a live session on the stream to tmux, without the panel: the running executor "+
 			"starts it in tmux with what it was started with, and tmux attach reaches it")
+	observe := flag.String(strings.TrimPrefix(observer.Flag, "-"), "",
+		"run the command of the observer kept in this directory, writing its log and how it ended there. "+
+			"Not a panel action: the executor starts it through systemd-run, in a unit of its own")
 	serveMCP := mcpFlags(flag.CommandLine)
 	flag.Parse()
 
 	if *serveMCP {
 		os.Exit(runMCP(os.Stdin, os.Stdout, os.Getppid()))
+	}
+
+	if *observe != "" {
+		os.Exit(runObserver(*observe))
 	}
 
 	if *hold {
@@ -337,6 +345,7 @@ func run(socket, dockerHost, self string) error {
 
 	go keepLimits(ctx)
 	exec.StartCodex(ctx)
+	startObservers(ctx, exec)
 
 	kinds := exec.Kinds()
 	log.Printf("listening on %s, actions allowed: %d of %d", socket, len(kinds), len(action.Kinds))
@@ -564,6 +573,41 @@ func (a audited) audit(req action.Request, run func() (string, string, error)) (
 	log.Printf("audit phase=done action=%s target=%s device=%q request=%s result=ok duration_ms=%d detail=%q",
 		req.Kind, req.Target, req.Device, req.ID, took, detail)
 	return detail, session, nil
+}
+
+// runObserver is the observer inside its unit. A stop of the unit ends the
+// command with it.
+func runObserver(dir string) int {
+	if os.Geteuid() == 0 {
+		fmt.Fprintln(os.Stderr, "aacpanel-exec: running an observer as root is not allowed")
+		return 2
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	defer stop()
+	if err := observer.Run(ctx, dir); err != nil {
+		fmt.Fprintf(os.Stderr, "aacpanel-exec: the observer of %s: %v\n", dir, err)
+		return 1
+	}
+	return 0
+}
+
+// startObservers keeps the observers of the sessions: the ones an executor
+// before this one left are taken back, and the panel's server under a session
+// reaches the keeper on a socket of its own, outside the directory mounted
+// into the service. An executor without it runs on: the sessions are told the
+// tools cannot reach it.
+func startObservers(ctx context.Context, e *executor.Executor) {
+	keeper := e.Observers()
+	keeper.Load(ctx)
+	go keeper.Run(ctx)
+	path := observer.SocketPath()
+	ln, err := observer.Listen(path)
+	if err != nil {
+		log.Printf("observers are unavailable: %v", err)
+		return
+	}
+	go keeper.Serve(ctx, ln)
+	log.Printf("observers: %s", path)
 }
 
 func startTerminals(ctx context.Context, socket string) (net.Listener, error) {

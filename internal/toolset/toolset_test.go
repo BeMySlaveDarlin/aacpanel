@@ -35,7 +35,8 @@ func TestEveryToolHasANameOfItsOwn(t *testing.T) {
 
 // What the launcher allows is what the tools mark allowed, under the names
 // claude gives them and a permission rule knows them by: none of them waits
-// on the person, and the letter to another session is not among them.
+// on the person, and the letter to another session and the start of an
+// observer, which runs a command on the host, are not among them.
 func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 	want := []string{
 		"mcp__aacpanel__checklist",
@@ -45,6 +46,9 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__secret_ask",
 		"mcp__aacpanel__session_restart",
 		"mcp__aacpanel__session_close",
+		"mcp__aacpanel__observer_list",
+		"mcp__aacpanel__observer_stop",
+		"mcp__aacpanel__observer_tail",
 	}
 	if got := Allowed(); !slices.Equal(got, want) {
 		t.Errorf("allowed %v", got)
@@ -55,7 +59,8 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // session is allowed, by their names on the server — its own close among them
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close"}
+	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
+		"observer_list", "observer_stop", "observer_tail"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
 	}
@@ -210,7 +215,7 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		descriptions += about + "\n"
 	}
 	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
-		"send_to_session"}; !slices.Equal(names, want) {
+		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
 	}
 	if lines := strings.Split(said, "\n"); len(lines) != len(names)+1 || lines[0] != lead {

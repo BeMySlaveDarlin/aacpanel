@@ -659,6 +659,68 @@ func (h *Holder) say(text, id string, extra map[string]any) (string, error) {
 	return id, nil
 }
 
+// letter writes a letter of the panel to claude. Claude takes a message on
+// its input as its person's words unless the message says where it came
+// from: this one names another session as its origin, so claude reads the
+// envelope in it as it reads a letter come on its message socket, frames it
+// for the model as one and keeps it for the end of a turn that runs. A
+// letter that names no permission class of its sender is held for the
+// person by a session that runs without prompts, and nobody is there to let
+// it through; the holder names this session's own class, the one such a
+// session takes a letter of at once. The letter is not the person's message
+// and does not wait in the queue the panel shows.
+func (h *Holder) letter(text string) error {
+	if strings.TrimSpace(text) == "" {
+		return errors.New("the letter is empty")
+	}
+	h.mu.Lock()
+	class := peerClass(h.state.Mode, h.spec.Argv)
+	h.mu.Unlock()
+	msg := map[string]any{
+		"type": "user", "session_id": h.spec.SessionID, "parent_tool_use_id": nil, "uuid": newUUID(),
+		"message": map[string]any{"role": "user", "content": text},
+		"origin":  map[string]any{"kind": "peer", "from": "", "fromMode": class},
+	}
+	if err := h.write(msg); err != nil {
+		return err
+	}
+	h.mu.Lock()
+	h.state.Said = true
+	h.mu.Unlock()
+	h.saveSummary()
+	return nil
+}
+
+// peerClass is the permission class claude counts a session in for the
+// letters of other sessions: "bypass" for one that runs tools without asking
+// — bypassPermissions, and plan mode entered from it — "prompting" for any
+// other. Before claude has named its mode, the mode it was started in is the
+// one it runs.
+func peerClass(mode string, argv []string) string {
+	bypassable := false
+	start := ""
+	for i, a := range argv {
+		switch {
+		case a == "--dangerously-skip-permissions" || a == "--allow-dangerously-skip-permissions":
+			bypassable = true
+		case a == "--permission-mode" && i+1 < len(argv):
+			start = argv[i+1]
+		case strings.HasPrefix(a, "--permission-mode="):
+			start = strings.TrimPrefix(a, "--permission-mode=")
+		}
+	}
+	if start == "bypassPermissions" {
+		bypassable = true
+	}
+	if mode == "" {
+		mode = start
+	}
+	if mode == "bypassPermissions" || (mode == "plan" && bypassable) {
+		return "bypass"
+	}
+	return "prompting"
+}
+
 // cancelled reads whether claude took a message back from its queue.
 func cancelled(resp json.RawMessage) bool {
 	var body struct {
@@ -913,6 +975,11 @@ func (h *Holder) do(req Request) Reply {
 			return Reply{Error: err.Error()}
 		}
 		return Reply{OK: true, UUID: id}
+	case OpLetter:
+		if err := h.letter(req.Text); err != nil {
+			return Reply{Error: err.Error()}
+		}
+		return Reply{OK: true}
 	case OpRespond:
 		if err := h.respond(req.RequestID, req.Response); err != nil {
 			return Reply{Error: err.Error()}

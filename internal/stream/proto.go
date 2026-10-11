@@ -29,7 +29,11 @@ import (
 
 // Protocol is the version of the socket protocol. A holder outlives the
 // executor that started it, so an executor may be talking to an older one.
-const Protocol = 1
+// From LettersSince on a holder takes OpLetter.
+const (
+	Protocol     = 2
+	LettersSince = 2
+)
 
 const dirName = "aacpanel-stream"
 
@@ -207,6 +211,13 @@ const (
 	// composer of a terminal runs one: claude runs it with no turn of the
 	// model, and its output goes into the conversation when it ends.
 	OpShell = "shell"
+
+	// OpLetter gives claude a letter of the panel — the wake of an observer
+	// — that is not its person's words: the text is the envelope claude reads
+	// a letter of another session in, and the message is marked as one,
+	// which claude frames for its model as it frames a letter. A busy
+	// session reads it once its turn is over.
+	OpLetter = "letter"
 )
 
 // Request is one question to a holder.

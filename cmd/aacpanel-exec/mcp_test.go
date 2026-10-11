@@ -226,7 +226,7 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 		offered = append(offered, tool.(map[string]any)["name"].(string))
 	}
 	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
-		"send_to_session"}; !slices.Equal(offered, want) {
+		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail"}; !slices.Equal(offered, want) {
 		t.Errorf("codex was offered %v", offered)
 	}
 	if res, _ := replies[2]["result"].(map[string]any); res == nil || res["isError"] != nil {

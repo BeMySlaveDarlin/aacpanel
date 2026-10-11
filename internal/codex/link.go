@@ -323,6 +323,9 @@ type Link struct {
 	threads map[string]*thread
 	pending map[string][]Request
 	said    string
+	// polled is set once the threads of the connection have been read:
+	// before that, a thread the link does not list may only not be read yet.
+	polled bool
 
 	// boxes are what the panel holds for threads until a turn takes it, the
 	// messages of its queue among them; kept on the disk.
@@ -1123,6 +1126,41 @@ func (l *Link) drop(live map[string]bool) {
 			delete(l.pending, id)
 		}
 	}
+	l.polled = true
+}
+
+// Holds says whether a daemon of the host holds a thread as a session, as
+// the links last read them, and whether that is known: while a link has not
+// read the threads of its connection, a thread it does not list may be one
+// of its daemon's. A thread the panel closed is no session any more, though
+// its daemon may not have unloaded it yet.
+func (ls *Links) Holds(threadID string) (held, known bool) {
+	if ls == nil {
+		return false, true
+	}
+	known = true
+	for _, l := range ls.list {
+		l.mu.Lock()
+		_, closed := l.closed[threadID]
+		has := l.threads[threadID] != nil && !closed
+		polled := l.polled
+		l.mu.Unlock()
+		if has {
+			return true, true
+		}
+		known = known && polled
+	}
+	return false, known
+}
+
+// Thread is the thread of the id a daemon of the host holds.
+func (ls *Links) Thread(threadID string) (Thread, bool) {
+	for _, th := range ls.Find(SessionName(threadID)) {
+		if th.ID == threadID {
+			return th, true
+		}
+	}
+	return Thread{}, false
 }
 
 // forget drops every thread of the link: the connection is gone, and with it
@@ -1134,6 +1172,7 @@ func (l *Link) forget() {
 		l.remove(id)
 	}
 	l.pending = map[string][]Request{}
+	l.polled = false
 }
 
 func (l *Link) remove(id string) {

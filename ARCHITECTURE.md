@@ -1290,6 +1290,95 @@ action was added or removed.
 
 ---
 
+## Observers
+
+A session that waits on something outside it — a CI run, a deploy, a log, a
+build through the night — has ways of its own to wait, and the process of the
+session holds each of them: a background shell or a Monitor of claude has a
+ceiling on how long it lives, and a restart of the session ends it. An
+**observer** is held by the host. The session hands the panel a command with
+`observer_start`; the executor runs it in a transient unit of the user's
+manager, reads what it prints and wakes the session with a letter — on every
+line, on a line a pattern finds, or only at the end — and at the end of the
+command whatever was chosen, since a session waiting for a line of a command
+that died would wait for good. Lines that come within the seconds the session
+names of the first one go in one letter, so a burst is one wake and the session
+is woken no more often than that. `observer_list`, `observer_tail` and
+`observer_stop` read and end the observers of the session that calls them and
+no other's. The words are the panel's own: a project may keep watchers of its
+own under another word, and the two stand side by side.
+
+**Only a session starts an observer.** The panel's server under the session
+reaches the executor on a socket of its own, `aacpanel-observers/sock` in the
+runtime directory, not in the directory mounted into the service's container:
+an observer runs any command, and through the action socket the service would
+run any command too. The server names the session it serves — the conversation
+and the process of its claude, the thread of a codex — and the executor takes
+that only for a live session it finds itself. The start is not allowed without
+asking: it runs a command on the host, and claude asks the person first as it
+asks before a command of the shell. The list, the tail and the stop touch only
+what the session started and are allowed.
+
+**An observer runs in a unit of its own, and outlives the executor.** The unit
+runs the executor's own binary in its observing mode, which runs the command
+with `sh -c` in the directory the session named, with nothing on its input,
+with the session's PATH — the tools the session reaches by name — and with no
+other part of the session's environment: a token the session holds in a
+variable stays out of a unit and off the disk. It writes what the command
+prints into the log of the observer and, when the command ends, how it ended:
+the code, the signal, or the memory ceiling, which the memory controller of
+the unit counts. Everything of one observer lies in a directory of its own
+under `~/.local/state/aacpanel/observers/` (`$XDG_STATE_HOME` moves it): what
+it was asked, whose it is, how far its log is read, the log and the end. An
+executor started again takes the directories back and reads on from where the
+last one stopped: a line the last one woke the session for wakes it no second
+time, and a line printed while no executor ran wakes it now. What is read is
+kept as read only once its wake went, so a crash between the two costs a
+second letter, never a lost one. A unit no directory names is stopped.
+
+**The ceilings are the session's own, idle.** A session on the stream that
+waits holds 260 to 320 MB in its claude and 470 MB and more with its MCP
+servers, and spends 0.3 to 0.7 per cent of one core, about 3 per cent at work.
+An observer is a watcher and gets no more: `MemoryMax=384M` with no swap,
+`CPUQuota=5%`, niceness 10, and the efficiency cores where the kernel tells
+them apart (`/sys/devices/cpu_atom/cpus`), the system's choice elsewhere. A
+command that polls every few seconds runs at its pace; a loop that runs away
+gets a twentieth of a core. A session keeps five observers, the host twenty,
+and the log of one is two files of a megabyte — the full one is moved aside
+and the one before it goes — so the observers of the host never write more
+than forty megabytes, and that goes with them.
+
+**A wake is a letter, not the person's words.** On the stream it goes through
+the holder, which writes it to claude as a message whose origin is another
+session, with the text in the envelope claude reads a letter in, signed by the
+observer and with no address to answer to; claude frames it for its model as a
+letter and keeps it for the end of a turn that runs. A letter that names no
+permission class of its sender is held for the person by a session that runs
+without prompts, and nobody is there to let it through, so the holder names
+the session's own class — bypass for one that runs tools without asking, plan
+mode entered from it among them, prompting otherwise. A thread of codex gets it
+through its daemon, as a letter of another session goes: into the turn that
+runs, and as a turn of its own on a free thread. **A session in tmux is
+refused**: a terminal takes a wake only as keys, and its model reads keys as
+its person's words. So is a session on the stream whose holder was started
+before holders took letters; its restart brings it, and its observers would
+end with that restart anyway.
+
+**An observer ends with the session that started it.** It belongs to the
+process of a claude, by its pid and the start of it, and to the thread of a
+codex; the executor looks at every observer each second, and three looks in a
+row that find its session gone stop the unit and take its directory away.
+That is one rule for every way a session ends: a close, a restart, the restart
+past the context cap, a move to tmux, a holder that died — each leaves no
+holder of that process, or another process under the name — and a thread the
+panel closed or its daemon let go. A session started again knows nothing of
+what the one before it waited for, and a command nobody waits on is a process
+left on the host. The price: a thread of codex whose daemon is down cannot be
+told from one that is gone, and its observers run on until the daemon is back
+and says.
+
+---
+
 ## Data
 
 Postgres in a container of its own, not lodged inside somebody else's: the panel

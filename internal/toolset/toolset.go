@@ -15,6 +15,7 @@ import (
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/collector"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/observer"
 	"aacpanel/internal/session"
 )
 
@@ -35,7 +36,7 @@ const (
 )
 
 func tools() []mcp.Tool {
-	return []mcp.Tool{
+	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
 		collector.BriefPublish(collector.BriefSocket(), collector.HostGuide()),
 		collector.BriefDelete(collector.BriefSocket()),
@@ -45,7 +46,7 @@ func tools() []mcp.Tool {
 		session.Close(session.Here()),
 		session.Letter(session.Here()),
 		session.Open(session.Here()),
-	}
+	}, observer.Tools(observer.SocketPath())...)
 }
 
 // Server is the panel's MCP server for the claude bind finds.
@@ -62,7 +63,7 @@ func Server(bind mcp.Bind) *mcp.Server {
 // what codex starts on its own. The close is here: the panel closes a thread
 // as its Close does, and only the thread the call proves.
 func codexTools() []mcp.Tool {
-	return []mcp.Tool{
+	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
 		collector.CodexBriefPublish(collector.BriefSocket(), collector.HostGuide()),
 		collector.BriefDelete(collector.BriefSocket()),
@@ -70,7 +71,7 @@ func codexTools() []mcp.Tool {
 		collector.SecretAsk(collector.NotifySocket()),
 		session.CodexClose(session.Here()),
 		session.CodexLetter(session.Here()),
-	}
+	}, observer.CodexTools(observer.SocketPath())...)
 }
 
 // CodexServer is the panel's MCP server for a codex: caller finds the thread

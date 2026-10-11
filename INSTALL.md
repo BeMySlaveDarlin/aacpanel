@@ -468,10 +468,17 @@ approval_mode = "approve"
 approval_mode = "approve"
 [mcp_servers.aacpanel.tools.session_close]
 approval_mode = "approve"
+[mcp_servers.aacpanel.tools.observer_list]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.observer_stop]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.observer_tail]
+approval_mode = "approve"
 ```
 
-The letter is left to ask; a home whose runs may not ask and still write
-letters lets it through the same way, `[mcp_servers.aacpanel.tools.send_to_session]`.
+The letter and the start of an observer are left to ask; a home whose runs may not ask and still
+write letters or start observers lets them through the same way,
+`[mcp_servers.aacpanel.tools.send_to_session]` and `[mcp_servers.aacpanel.tools.observer_start]`.
 
 A run started with `--ignore-user-config` reads no `config.toml` and gets the
 server only from its own command line:
@@ -1268,7 +1275,8 @@ first in the chain and passes the payload on to the command that was there:
     "mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish",
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
     "mcp__aacpanel__secret_ask", "mcp__aacpanel__session_close",
-    "mcp__aacpanel__session_restart"]}
+    "mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop",
+    "mcp__aacpanel__observer_tail", "mcp__aacpanel__session_restart"]}
 }
 ```
 
