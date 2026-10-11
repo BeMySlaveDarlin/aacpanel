@@ -1,0 +1,2 @@
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "/plugins isn't available in this environment."}]}, "local_command_source": "<local-command-stdout>/plugins isn't available in this environment.</local-command-stdout>"}
+{"type": "result", "subtype": "success", "result": "/plugins isn't available in this environment.", "is_error": false, "num_turns": 0}

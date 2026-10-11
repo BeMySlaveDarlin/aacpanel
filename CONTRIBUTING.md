@@ -76,7 +76,6 @@ others found:
 | `test` | the Go tests with a substituted home directory |
 | `agent-test` | the collector's tests with a substituted state directory |
 | `agent-confined` | the same tests inside the restrictions of the collector's production unit |
-| `delivery-test` | the stream contract's Python check; delivery hooks are tested in Go |
 | `vuln` | `govulncheck ./...` |
 
 A red `make check` is a reason not to send the change, not a "we will fix it
@@ -123,6 +122,19 @@ make usage-replay    # incremental usage collection against a straight pass over
 make stream-contract # the stream protocol of the installed claude, before sessions move to a new version
 make codex-contract  # the app-server protocol of the installed codex against what the panel reads and sends
 ```
+
+`make stream-contract` runs `cmd/stream-contract`: one stream session on haiku,
+with the same conversation resumed in print mode and in a tmux console. It
+spends tokens; `make check` runs only its parsing and verdict tests against
+sanitized protocol samples. `CONTRACT_ARGS="-json -keep"` keeps the event log
+and transcript and prints the verdict array. The letter probes send the
+holder's peer origin in both prompting and bypass permission classes and
+require delivery without an error, permission request or hold, with the letter
+text in the transcript. A user turn asks for the fact carried by each letter
+after delivery; the probe does not depend on obeying a peer's instructions.
+Mid-turn framing is printed as information. Wait commands avoid a leading
+`sleep`, which claude can refuse; the background task stays alive until the
+contract stops it, independent of model latency.
 
 `make codex-contract` spends nothing: codex writes the schema of its
 protocol, and the check compares it with `internal/codex/contract/uses.txt` —
@@ -367,8 +379,9 @@ stops nothing. Removing a file retires its number: it goes into
 `retiredMigrations` in `internal/store/store_test.go`, and
 `TestRetiredMigrationNumbersStayRetired` refuses a file that takes it again.
 
-**Grants are not written in a migration.** The rights of the application role
-are issued by the service at every startup: a migration is applied once in the
+**Grants are not written in a migration.** The application role is created and
+its password and rights are set by the service at every startup: a migration
+is applied once in the
 life of a database, and a role created later would never have got anything. A
 table with a trimmed set of rights belongs in the exception list in the code, not
 in a new migration.

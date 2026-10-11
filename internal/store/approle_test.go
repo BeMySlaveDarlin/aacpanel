@@ -99,13 +99,15 @@ func TestAppRolePermissionsPG(t *testing.T) {
 	// does every hour is ask for a week it does not have yet, so the check has
 	// to ask for one too — otherwise it passes while the running panel logs a
 	// permission denied and the metrics quietly run out of partitions.
+	// Two weeks reaches past the migrations' seven days without making months
+	// of partitions that every later grant check has to walk.
 	t.Run("cutting partitions is available to the application", func(t *testing.T) {
 		var made int
-		if err := app.QueryRow(ctx, "SELECT ensure_partitions('60 days')").Scan(&made); err != nil {
+		if err := app.QueryRow(ctx, "SELECT ensure_partitions('14 days')").Scan(&made); err != nil {
 			t.Fatalf("the application cannot cut partitions: %v", err)
 		}
 		if made == 0 {
-			t.Error("sixty days ahead nothing was cut: the call is not reaching the DDL this check is about")
+			t.Error("two weeks ahead nothing was cut: the call is not reaching the DDL this check is about")
 		}
 	})
 

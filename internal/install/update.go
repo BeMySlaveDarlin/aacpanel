@@ -149,7 +149,7 @@ func (in *Install) updateStep() *Step {
 						". They are optional; the file says what each does.")
 				}
 			}
-			r.Remind("When claude updates itself and the feed of a session on the stream breaks: python3 deploy/claude/stream-contract.py names the request that changed.")
+			r.Remind("When claude updates itself and the feed of a session on the stream breaks: make stream-contract names the request that changed.")
 			return nil
 		},
 	}

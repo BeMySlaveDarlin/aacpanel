@@ -1,7 +1,7 @@
 GOVULNCHECK_VERSION ?= v1.7.0
 GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract codex-contract delivery-test shellcheck release
+.PHONY: check fmt vet test vuln build image front agent-import agent-test agent-confined usage-replay stream-contract codex-contract shellcheck release
 
 # check — everything that runs before a commit. front is here as a check, not for
 # the bundle: an error in the screen markup is caught by no test. It goes first,
@@ -12,7 +12,7 @@ GOVULNCHECK ?= go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 # The run ends with the wall time of every part, the longest first: what a
 # change adds to the cost of a check is read off the check itself, and the
 # longest part is the length of the whole run.
-CHECKS = fmt vet shellcheck agent-import test agent-test agent-confined delivery-test vuln
+CHECKS = fmt vet shellcheck agent-import test agent-test agent-confined vuln
 check:
 	@times=$$(mktemp -d "$${TMPDIR:-/var/tmp}/aacpanel-checktimes.XXXXXX"); \
 	trap 'rm -rf "$$times"' EXIT; \
@@ -115,7 +115,7 @@ usage-replay:
 # leans on. Not in check: it runs a live session, spends tokens and goes to the
 # network. Run it before sessions move to a new version of claude.
 stream-contract:
-	python3 deploy/claude/stream-contract.py $(CONTRACT_ARGS)
+	go run ./cmd/stream-contract $(CONTRACT_ARGS)
 
 # The app-server protocol of the installed codex against what the panel reads
 # and sends of it. Not in check: codex is not on every machine. It spends
@@ -125,12 +125,6 @@ stream-contract:
 # the reference once the report is read.
 codex-contract:
 	go run ./cmd/codex-contract $(CONTRACT_ARGS)
-
-# The stream contract's Python check (deploy/claude). Its own target rather than part
-# of agent-test, which has a different import root. In check because what breaks
-# here breaks silently.
-delivery-test:
-	python3 -m unittest discover -s deploy/claude -t deploy/claude -p 'test_stream_contract.py'
 
 # Shell scripts have no tests, and static analysis is all that checks them before
 # the stand. A missing shellcheck is reported aloud rather than skipped quietly.

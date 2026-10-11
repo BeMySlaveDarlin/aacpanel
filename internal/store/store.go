@@ -131,33 +131,34 @@ func (s *Store) Run(ctx context.Context) {
 }
 
 func (s *Store) connect(ctx context.Context, migrations, background bool) error {
-	pool, err := pgxpool.NewWithConfig(ctx, s.cfg)
-	if err != nil {
-		return fmt.Errorf("connection pool: %w", err)
-	}
-
-	pingCtx, cancel := context.WithTimeout(ctx, connectTimeout)
-	err = pool.Ping(pingCtx)
-	cancel()
-	if err != nil {
-		pool.Close()
-		return fmt.Errorf("connecting: %w", err)
-	}
-
-	var owner *pgxpool.Pool
+	var pool, owner *pgxpool.Pool
+	var err error
+	connected := false
+	defer func() {
+		if !connected {
+			if pool != nil {
+				pool.Close()
+			}
+			if owner != nil {
+				owner.Close()
+			}
+		}
+	}()
 	if s.ownerCfg != nil {
 		owner, err = pgxpool.NewWithConfig(ctx, s.ownerCfg)
 		if err != nil {
-			pool.Close()
 			return fmt.Errorf("the owner connection pool: %w", err)
 		}
 		pingCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 		err = owner.Ping(pingCtx)
 		cancel()
 		if err != nil {
-			owner.Close()
-			pool.Close()
 			return fmt.Errorf("connecting as the owner: %w", err)
+		}
+	} else {
+		pool, err = pgxpool.NewWithConfig(ctx, s.cfg)
+		if err != nil {
+			return fmt.Errorf("connection pool: %w", err)
 		}
 	}
 
@@ -167,30 +168,34 @@ func (s *Store) connect(ctx context.Context, migrations, background bool) error 
 			migrator = owner
 		}
 		if err := migrate(ctx, migrator); err != nil {
-			if owner != nil {
-				owner.Close()
-			}
-			pool.Close()
 			return fmt.Errorf("migrations: %w", err)
 		}
 		if err := s.grantApp(ctx, owner); err != nil {
-			if owner != nil {
-				owner.Close()
-			}
-			pool.Close()
 			return fmt.Errorf("grants for the application role: %w", err)
 		}
+	}
+
+	// The app role may not exist yet. Only the owner can migrate, create it
+	// and set its password; pinging the app first makes a fresh install fail.
+	if pool == nil {
+		pool, err = pgxpool.NewWithConfig(ctx, s.cfg)
+		if err != nil {
+			return fmt.Errorf("connection pool: %w", err)
+		}
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	err = pool.Ping(pingCtx)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("connecting: %w", err)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		if owner != nil {
-			owner.Close()
-		}
-		pool.Close()
 		return nil
 	}
+	connected = true
 	s.pool = pool
 	s.owner = owner
 	log.Printf("store: connected to %s/%s", s.cfg.ConnConfig.Host, s.cfg.ConnConfig.Database)

@@ -1,8 +1,11 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"io/fs"
+	"log"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -11,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 
 	"aacpanel/deploy/migrations"
 	"aacpanel/internal/testdb"
@@ -105,58 +109,123 @@ func TestAppGrantsFollowRoleNamePG(t *testing.T) {
 }
 
 func TestStoreGrantsAppRoleOnStartPG(t *testing.T) {
-	dsn := testdb.DSN(t)
-
+	base := testdb.DSN(t)
+	testdb.LockRoles(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-
-	setup, err := New(dsn)
+	admin, err := pgxpool.New(ctx, base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer setup.Close()
-	if err := setup.Open(ctx); err != nil {
-		t.Fatal(err)
-	}
-	owner := mustPool(t, setup)
-
+	defer admin.Close()
+	// Roles belong to the cluster. A unique name leaves other packages' roles
+	// alone while this database starts with neither schema nor application role.
+	db := "aacpanel_test_bootstrap_" + testdb.RunTag()
 	role := "aacpanel_app_onstart_" + testdb.RunTag()
-	password := makeRole(t, ctx, owner, role)
+	if _, err := admin.Exec(ctx, "CREATE DATABASE "+quoteIdent(db)); err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
-		dropRole(t, ctx, owner, role)
-		ensureAppRole(t, ctx, owner)
+		if _, err := admin.Exec(context.Background(), "DROP DATABASE "+quoteIdent(db)+" WITH (FORCE)"); err != nil {
+			t.Error(err)
+		}
+		if _, err := admin.Exec(context.Background(), "DROP ROLE IF EXISTS "+quoteIdent(role)); err != nil {
+			t.Error(err)
+		}
 	}()
-	stripRole(t, ctx, owner, role)
-
-	var can bool
-	if err := owner.QueryRow(ctx,
-		"SELECT has_table_privilege($1, 'actions', 'INSERT')", role).Scan(&can); err != nil {
-		t.Fatal(err)
-	}
-	if can {
-		t.Fatal("the new role already has privileges — there is nothing to check")
-	}
-
-	s, err := New(appDSNAs(t, dsn, role, password))
+	u, err := url.Parse(base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
-	if err := s.UseOwner(dsn); err != nil {
+	u.Path = "/" + db
+	dsn := u.String()
+	var found bool
+	if err := admin.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=$1)", role).Scan(&found); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Open(ctx); err != nil {
-		t.Fatalf("the service did not come up under a role without privileges: %v", err)
+	if found {
+		t.Fatal("the fresh application's role already exists")
 	}
-
-	app, err := s.Pool()
-	if err != nil {
-		t.Fatal(err)
+	var logs bytes.Buffer
+	old := log.Writer()
+	log.SetOutput(&logs)
+	defer log.SetOutput(old)
+	passwords := []string{"startup-'\\-secret", "startup-'\\-secret", "rotated-\u00a0-secret"}
+	for i, password := range passwords {
+		s, err := New(appDSNAs(t, dsn, role, password))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.UseOwner(dsn); err != nil {
+			t.Fatal(err)
+		}
+		// Logging every bound parameter is deliberately stricter than the
+		// service logger: it catches a plaintext password sent to Postgres
+		// even when the role SQL itself contains only placeholders.
+		s.ownerCfg.ConnConfig.Tracer = &tracelog.TraceLog{
+			LogLevel: tracelog.LogLevelTrace,
+			Logger: tracelog.LoggerFunc(func(_ context.Context, _ tracelog.LogLevel, msg string, data map[string]any) {
+				log.Printf("%s %v", msg, data)
+			}),
+		}
+		if err := s.Open(ctx); err != nil {
+			s.Close()
+			t.Fatalf("start %d: %v", i, err)
+		}
+		defer s.Close()
+		app := mustPool(t, s)
+		var login, super, createDB, createRole bool
+		if err := app.QueryRow(ctx, "SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = current_user").Scan(&login, &super, &createDB, &createRole); err != nil {
+			t.Fatal(err)
+		}
+		if !login || super || createDB || createRole {
+			t.Errorf("start %d: unexpected role attributes: login=%t super=%t createdb=%t createrole=%t", i, login, super, createDB, createRole)
+		}
+		var id int64
+		if err := app.QueryRow(ctx, `INSERT INTO actions (kind,target,device_name) VALUES ('container.stop','startup-issued-privileges','test') RETURNING id`).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := app.Exec(ctx, `UPDATE actions SET result='ok', duration_ms=1, finished_at=now() WHERE id=$1`, id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := app.Exec(ctx, "TRUNCATE actions"); err == nil {
+			t.Error("the app can wipe its journal")
+		}
+		for _, query := range []string{
+			"SELECT has_database_privilege(current_user,current_database(),'CONNECT')",
+			"SELECT has_schema_privilege(current_user,'public','USAGE')",
+			"SELECT has_sequence_privilege(current_user,'actions_id_seq','USAGE')",
+			"SELECT has_function_privilege(current_user,'ensure_partitions(interval)','EXECUTE')",
+		} {
+			var can bool
+			if err := app.QueryRow(ctx, query).Scan(&can); err != nil {
+				t.Fatal(err)
+			}
+			if !can {
+				t.Errorf("start %d: missing privilege: %s", i, query)
+			}
+		}
+		owner, err := s.ownerPool()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := owner.Exec(ctx, "REVOKE INSERT ON actions FROM "+quoteIdent(role)); err != nil {
+			t.Fatal(err)
+		}
+		if i == 1 {
+			if _, err := owner.Exec(ctx, "ALTER ROLE "+quoteIdent(role)+" NOLOGIN"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		s.Close()
 	}
-	var id int64
-	if err := app.QueryRow(ctx, `INSERT INTO actions (kind, target, device_name)
-		VALUES ('container.stop', 'startup-issued-privileges', 'test') RETURNING id`).Scan(&id); err != nil {
-		t.Fatalf("after startup the role is still without privileges: %v", err)
+	for _, password := range passwords {
+		if strings.Contains(logs.String(), password) {
+			t.Error("the service log contains the application password")
+		}
+	}
+	if !strings.Contains(logs.String(), "store: connected") {
+		t.Fatal("no startup log was captured")
 	}
 }
 

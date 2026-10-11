@@ -623,7 +623,7 @@ whatever a command echoes back of one is cut out.
 | the limits of an account are empty or old | `journalctl --user -u aacpanel-exec` names a probe that failed; no `jq` or no status line leaves them to the probe alone |
 | there is a button, and the journal says "unknown action" | the executor is of an older tree: `./install.sh update` |
 | a session on the stream answers that it was started before the panel could do this | its holder runs the executor it was started with: restart the session, the conversation is kept |
-| the feed of a session on the stream broke after claude updated itself | `python3 deploy/claude/stream-contract.py` names the request that changed: every request the feed needs against the installed claude, a dozen short turns on haiku |
+| the feed of a session on the stream broke after claude updated itself | `make stream-contract` names the request that changed: every request the feed needs against the installed claude, a dozen short turns on haiku |
 | `Failed to connect to bus` from `systemctl --user` | linger is off, or you signed in without a logind session |
 | the feed is visible from the phone, but there is no switch to the terminal | that is by design: `AACP_TERM_PUBLIC=0` |
 | the projects screen is empty although there are projects on disk | there is no contour on the map yet: the button is on that same screen |
@@ -1245,23 +1245,22 @@ table owner.
 - **Done when** `.env` holds both `AACP_APP_ROLE` and `AACP_APP_PASSWORD`, the
   role is in `pg_roles`, and the panel's log since its start has no
   `authentication failed`.
-- **Do.**
+- **Do.** The installer generates a password, records the role and both env keys
+  in its manifest, and writes `AACP_APP_ROLE=monitor_app` and
+  `AACP_APP_PASSWORD` together into `.env` with mode 0600. It then runs
+  `docker compose up -d aacpanel` to recreate the service with that DSN.
 
-  ```bash
-  p=$(openssl rand -hex 24)
-  AACP_APP_PASSWORD=$p AACP_APP_ROLE=monitor_app ./deploy/create-app-role.sh
-  sed -i "s|^#\?AACP_APP_ROLE=.*|AACP_APP_ROLE=monitor_app|" .env
-  sed -i "s|^#\?AACP_APP_PASSWORD=.*|AACP_APP_PASSWORD=$p|" .env
-  unset p
-  docker compose up -d aacpanel        # recreated: the DSN of the service changes to the role
-  ```
+  At startup the service connects as the owner, applies migrations, creates
+  the application role or updates its LOGIN/password, and issues its rights.
+  Only then does it connect under the application role. The password reaches
+  Postgres as a SCRAM verifier, never as plaintext SQL, argv or a log line.
+  A stop after writing `.env` heals on the next start; repeated starts restore
+  the same role's password and rights.
 
   The name and the password go **together**: compose builds the DSN of the two,
   and a password without its name connects as the owner with a password not the
   owner's — the service comes up, `healthz` answers 200, and it is not connected
-  to the database. The script sets the password with `ALTER ROLE` when the role
-  is there, so a stop between the role and `.env` heals by running it again. The
-  role's rights are issued by the service at every start, not by the script.
+  to the database.
 - **Check.** The checks of S9; `docker compose logs aacpanel | grep -c
   'authentication failed'` is 0; `http://127.0.0.1:8777/api/profiles` answers
   200.

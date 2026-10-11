@@ -442,7 +442,16 @@ release may change a request the feed leans on without a word, so
 and names the one that no longer holds. It is run by hand when the feed
 breaks after claude updated itself: the panel does not hold sessions against
 the version it last passed on. The check spends tokens on haiku and goes to
-the network, which is why it is not part of `make check`.
+the network, which is why it is not part of `make check`. The Go runner in
+`cmd/stream-contract` also sends the holder's letter frame: `origin.kind=peer`
+and `fromMode` matching the session's permission class. A letter must reach
+the model without an error, permission request or hold, in both prompting and
+bypass modes. It carries a fact, and a user turn asks for that fact after the
+letter has been processed: reading a peer's information does not require
+obeying its instructions. The transcript must keep its text as a user message
+or a queued command attachment; claude does not persist the input origin. The framing of
+a mid-turn letter is printed as information. Parsing and verdict tests use
+sanitized protocol samples without starting claude.
 
 **A model, an effort and a permission mode are picked from a list, not
 typed.** The list is the session's own where it has one — a session on the
@@ -1576,7 +1585,12 @@ never gets in there.
 **Grants are issued by the service at startup, not by a migration.** A migration
 is applied once in the life of a database: a role created after the roll-out
 would never have got anything. The grant step comes after the migrations, every
-time, and brings the role's rights to the set declared in the code.
+time, and brings the role's rights to the set declared in the code. Through
+the owner connection it also creates the role or updates its LOGIN/password
+from the working DSN, before opening the application pool. The password is
+prepared as a SCRAM verifier in Go so plaintext cannot reach SQL logs; the
+verifier travels in a transaction-local setting and leaves the connection at
+commit or rollback. Both steps leave an owner used as the working role alone.
 
 **What the panel watches is a config, not a seed.** The alert rules and the
 probes the container runs live in `internal/watchcfg/config.yaml`, built into

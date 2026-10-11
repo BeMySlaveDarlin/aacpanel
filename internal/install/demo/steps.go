@@ -107,10 +107,10 @@ func steps(mc machine, a answers, fail string) []*step {
 		{
 			title: "App role", verb: "Creating the app role", task: taskWiring, took: 6 * time.Second,
 			out: []string{
-				"deploy/create-app-role.sh: CREATE ROLE monitor_app LOGIN",
-				"deploy/create-app-role.sh: GRANT CONNECT ON DATABASE aacpanel TO monitor_app",
 				" Container aacpanel  Recreate",
 				" Container aacpanel  Started",
+				"service startup: CREATE ROLE monitor_app LOGIN",
+				"service startup: GRANT CONNECT ON DATABASE aacpanel TO monitor_app",
 			},
 			changed: []string{"role monitor_app"},
 			done:    []string{"✓ role monitor_app · the panel reconnected under it · authentication failed: 0"},

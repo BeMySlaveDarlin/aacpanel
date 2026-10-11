@@ -130,9 +130,6 @@ jobs:
       - name: agent tests
         run: make agent-test
 
-      - name: delivery tests
-        run: make delivery-test
-
       # make shellcheck says its absence out loud instead of failing, which on a
       # foreign machine is right and here would be a silent hole.
       - name: shellcheck is present

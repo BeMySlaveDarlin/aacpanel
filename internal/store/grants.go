@@ -2,11 +2,17 @@ package store
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/pbkdf2"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/text/secure/precis"
 )
 
 var appPrivs = []string{"SELECT", "INSERT", "UPDATE", "DELETE"}
@@ -43,10 +49,14 @@ func (s *Store) grantApp(ctx context.Context, owner *pgxpool.Pool) error {
 	if role == "" {
 		return nil
 	}
-	return grantAppRole(ctx, owner, role)
+	return applyAppRole(ctx, owner, role, s.cfg.ConnConfig.Password)
 }
 
 func grantAppRole(ctx context.Context, owner *pgxpool.Pool, role string) error {
+	return applyAppRole(ctx, owner, role, "")
+}
+
+func applyAppRole(ctx context.Context, owner *pgxpool.Pool, role, password string) error {
 	conn, err := owner.Acquire(ctx)
 	if err != nil {
 		return err
@@ -61,21 +71,39 @@ func grantAppRole(ctx context.Context, owner *pgxpool.Pool, role string) error {
 		return nil
 	}
 
-	var exists bool
-	if err := conn.QueryRow(ctx,
-		"SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)", role).Scan(&exists); err != nil {
-		return fmt.Errorf("looking for role %q: %w", role, err)
-	}
-	if !exists {
-		log.Printf("store: there is no role %q in the database — no grants are issued; create the role with deploy/create-app-role.sh", role)
-		return nil
-	}
-
 	tx, err := conn.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(context.Background())
+
+	if password != "" {
+		// Postgres accepts a SCRAM verifier as the password. The plaintext
+		// never reaches SQL, even on a server that logs bind parameters or
+		// the expanded statement of a failed EXECUTE. Transaction-local
+		// settings keep the verifier out of the next borrower's connection.
+		verifier, err := appPasswordVerifier(password)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `SELECT set_config('aacpanel.app_role', $1, true),
+			set_config('aacpanel.app_password', $2, true)`, role, verifier); err != nil {
+			return fmt.Errorf("preparing the application role: %s", strings.NewReplacer(password, "[redacted]", verifier, "[redacted]").Replace(err.Error()))
+		}
+		if _, err := tx.Exec(ctx, `DO $$
+		DECLARE
+			app_role text := current_setting('aacpanel.app_role');
+			app_password text := current_setting('aacpanel.app_password');
+		BEGIN
+			IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = app_role) THEN
+				EXECUTE format('ALTER ROLE %I LOGIN PASSWORD %L', app_role, app_password);
+			ELSE
+				EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', app_role, app_password);
+			END IF;
+		END $$`); err != nil {
+			return fmt.Errorf("setting the application role password: %s", strings.NewReplacer(password, "[redacted]", verifier, "[redacted]").Replace(err.Error()))
+		}
+	}
 
 	for _, stmt := range appGrantSQL(db, current, role) {
 		if _, err := tx.Exec(ctx, stmt); err != nil {
@@ -87,6 +115,30 @@ func grantAppRole(ctx context.Context, owner *pgxpool.Pool, role string) error {
 	}
 	log.Printf("store: grants for role %s issued", role)
 	return nil
+}
+
+func appPasswordVerifier(password string) (string, error) {
+	const iterations = 4096
+	salt := make([]byte, 16)
+	rand.Read(salt)
+	// Match PostgreSQL's SCRAM password preparation, including its fallback
+	// for passwords SASLprep cannot represent.
+	prepared, err := precis.OpaqueString.String(password)
+	if err != nil {
+		prepared = password
+	}
+	key, err := pbkdf2.Key(sha256.New, prepared, salt, iterations, sha256.Size)
+	if err != nil {
+		return "", fmt.Errorf("preparing the application password verifier: %w", err)
+	}
+	mac := func(label string) []byte {
+		h := hmac.New(sha256.New, key)
+		h.Write([]byte(label))
+		return h.Sum(nil)
+	}
+	stored := sha256.Sum256(mac("Client Key"))
+	b64 := base64.StdEncoding.EncodeToString
+	return fmt.Sprintf("SCRAM-SHA-256$%d:%s$%s:%s", iterations, b64(salt), b64(stored[:]), b64(mac("Server Key"))), nil
 }
 
 func appGrantSQL(db, owner, role string) []string {

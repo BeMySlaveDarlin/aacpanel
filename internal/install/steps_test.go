@@ -969,12 +969,18 @@ func TestTheStackIsDiagnosed(t *testing.T) {
 
 // ---- S10 ----
 
-func TestTheAppRolePasswordGoesThroughTheEnvironmentOnly(t *testing.T) {
+func TestTheAppRolePasswordGoesIntoTheEnvFileOnly(t *testing.T) {
 	g := newRig(t)
 	g.stackUp()
-	script := []string{"bash", "deploy/create-app-role.sh"}
-	g.says(script, "The role monitor_app is ready.\n")
 	g.says([]string{"docker", "compose", "up", "-d", "aacpanel"}, "")
+	g.m.Effects[Command("docker", "compose", "up", "-d", "aacpanel")] = func(Cmd) error {
+		env := hostcfg.Parse([]byte(g.read(filepath.Join(g.clone, ".env"))))
+		if env["AACP_APP_ROLE"] == "" || env["AACP_APP_PASSWORD"] == "" {
+			t.Error("compose started before the role and password were written together")
+		}
+		return nil
+	}
+
 	if err := g.do(g.step("approle")); err != nil {
 		t.Fatal(err)
 	}
@@ -982,10 +988,6 @@ func TestTheAppRolePasswordGoesThroughTheEnvironmentOnly(t *testing.T) {
 	pw := env["AACP_APP_PASSWORD"]
 	if env["AACP_APP_ROLE"] != "monitor_app" || len(pw) != 48 {
 		t.Fatalf("the .env holds role %q, password %q", env["AACP_APP_ROLE"], pw)
-	}
-	i := slices.Index(g.m.Ran, Command(script[0], script[1:]...))
-	if i < 0 || !slices.Contains(g.m.Envs[i], "AACP_APP_PASSWORD="+pw) {
-		t.Fatalf("the script did not get the password in its environment: %q", g.m.Envs[max(i, 0)])
 	}
 	for _, c := range g.m.Ran {
 		if strings.Contains(c, pw) {
@@ -996,7 +998,7 @@ func TestTheAppRolePasswordGoesThroughTheEnvironmentOnly(t *testing.T) {
 	if !slices.Equal(g.lines(), want) {
 		t.Errorf("the manifest holds %q, want %q", g.lines(), want)
 	}
-	if got := g.ran(true); !slices.Equal(got[len(got)-2:], []string{"bash deploy/create-app-role.sh", "docker compose up -d aacpanel"}) {
+	if got := g.ran(true); !slices.Equal(got, []string{"docker compose up -d aacpanel"}) {
 		t.Errorf("ran %q", got)
 	}
 	g.journal.Close()
@@ -1008,7 +1010,6 @@ func TestTheAppRolePasswordGoesThroughTheEnvironmentOnly(t *testing.T) {
 func TestARefusedPasswordStopsTheAppRole(t *testing.T) {
 	g := newRig(t)
 	g.stackUp()
-	g.says([]string{"bash", "deploy/create-app-role.sh"}, "")
 	g.says([]string{"docker", "compose", "up", "-d", "aacpanel"}, "")
 	g.says([]string{"docker", "compose", "logs", "--no-color", "aacpanel"},
 		"aacpanel  | store: connected\naacpanel  | FATAL: password authentication failed for user \"monitor_app\"\n")

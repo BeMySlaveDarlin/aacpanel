@@ -1,0 +1,6 @@
+{"type":"system","subtype":"background_tasks_changed","tasks":[{"task_id":"background-task","task_type":"local_bash"}]}
+{"type":"system","subtype":"task_started","task_id":"background-task"}
+{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed"}
+{"type":"system","subtype":"task_updated","task_id":"background-task","patch":{"status":"completed"}}
+{"type":"system","subtype":"task_notification","status":"completed","task_id":"background-task"}
+{"type":"system","subtype":"background_tasks_changed","tasks":[]}

@@ -795,14 +795,6 @@ func (in *Install) appRoleStep() *Step {
 			if err := r.Once(DBRole, name, "created"); err != nil {
 				return err
 			}
-			// The password reaches the script through its environment, never
-			// its arguments; the script sets it with ALTER ROLE when the role
-			// is there, so a run that stopped before the .env had it heals.
-			env2 := []string{"AACP_APP_PASSWORD=" + pw, "AACP_APP_ROLE=" + name,
-				"AACP_DB_USER=" + orDefault(env, "AACP_DB_USER", "aacpanel"), "AACP_DB_NAME=" + orDefault(env, "AACP_DB_NAME", "aacpanel")}
-			if _, err := r.Exec(Cmd{Argv: in.withGroup([]string{"bash", "deploy/create-app-role.sh"}), Dir: in.clone(), Env: env2}); err != nil {
-				return fail("the app role was not made: deploy/create-app-role.sh failed", err)
-			}
 			// The name and the password go in together: compose builds the
 			// DSN of the two, and a password without its name connects as
 			// the owner with a password not the owner's.
@@ -831,7 +823,7 @@ func (in *Install) appRoleStep() *Step {
 			}
 			if n := in.authFailures(r); n > 0 {
 				return &Failed{Diagnosis: fmt.Sprintf("the panel's password was refused %s: the role and .env parted", count(n, "time")),
-					Fix: []string{"Run ./install.sh again: the step sets the password anew (ALTER ROLE)."}}
+					Fix: []string{"Run ./install.sh again: the service sets the role password from .env at startup."}}
 			}
 			if local, ok := env["AACP_LOCAL_ADDR"]; !ok || local != "" {
 				url := fmt.Sprintf("http://127.0.0.1:%d/api/profiles", PortLocal)

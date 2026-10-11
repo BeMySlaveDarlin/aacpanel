@@ -676,11 +676,7 @@ func (h *Holder) letter(text string) error {
 	h.mu.Lock()
 	class := peerClass(h.state.Mode, h.spec.Argv)
 	h.mu.Unlock()
-	msg := map[string]any{
-		"type": "user", "session_id": h.spec.SessionID, "parent_tool_use_id": nil, "uuid": newUUID(),
-		"message": map[string]any{"role": "user", "content": text},
-		"origin":  map[string]any{"kind": "peer", "from": "", "fromMode": class},
-	}
+	msg := letterMessage(h.spec.SessionID, newUUID(), text, class)
 	if err := h.write(msg); err != nil {
 		return err
 	}
