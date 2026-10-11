@@ -1032,10 +1032,12 @@ func TestAnEndedTurnEndsTheCompaction(t *testing.T) {
 	}
 }
 
+// The state cannot say the opening message went: it is the same once the
+// handshake is answered and once the opening turn has ended, so the test waits
+// for claude to have read the message.
 func TestTheOpeningMessageIsSentAfterTheHandshake(t *testing.T) {
 	r := start(t, func(s *Spec) { s.Intent = "start with the tests" })
-	r.waitFor("the opening turn", func(s State) bool { return len(s.Init) > 0 && !s.Busy && len(s.Queue) == 0 })
-	got := r.received()
+	got := r.eventually("start with the tests")
 	init, intent := strings.Index(got, `"initialize"`), strings.Index(got, "start with the tests")
 	if init < 0 || intent < 0 || intent < init {
 		t.Fatalf("the opening message did not follow the handshake:\n%s", got)
@@ -1046,8 +1048,7 @@ func TestTheOpeningMessageIsSentAfterTheHandshake(t *testing.T) {
 // asks for it once claude has answered the handshake, before the first message.
 func TestRemoteControlIsSwitchedOnAfterTheHandshake(t *testing.T) {
 	r := start(t, func(s *Spec) { s.RemoteControl = true; s.Intent = "start with the tests" })
-	r.waitFor("the opening turn", func(s State) bool { return len(s.Init) > 0 && !s.Busy && len(s.Queue) == 0 })
-	got := r.received()
+	got := r.eventually("start with the tests")
 	init := strings.Index(got, `"initialize"`)
 	remote := strings.Index(got, `"remote_control"`)
 	intent := strings.Index(got, "start with the tests")
