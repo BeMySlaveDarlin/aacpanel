@@ -39,7 +39,8 @@ default, and `<install>` is the installer's own directory,
 Smaller traces: the machine description `<state>/host.env`, the secrets in the
 clone's `.env`, the question hook, the status line and the parts of the kit you
 choose in the `settings.json` of every claude account, the panel's MCP server in
-every account, linger for your user, the executor's state in
+every account, the hooks codex runs as well in the `hooks.json` of every codex
+home and their trust in its `config.toml`, linger for your user, the executor's state in
 `<home>/.local/state/aacpanel` and `<home>/.local/state/aacpanel-stream`.
 
 On request, with the kit: the weekly cleanup of docker, the user units
@@ -199,7 +200,6 @@ the quiet group is checked for you, the rest waits to be asked for:
    [✔] Self-restart       a session may restart itself without asking you
    On request
    [ ] Prompt stamp       time, context, limits and load before every prompt
-   [ ] Cost snapshot      spend per session, written after every turn
    [ ] Background work    reminds a session of work left running over an hour
    [ ] Docker cleanup     weekly prune of unused images — of the whole machine
    Ways in besides this machine
@@ -787,8 +787,7 @@ installs it by hand.
 | Checklist nudge | yes | the `Stop` hook, `deploy/claude/checklist-reminder.py` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `deploy/claude/prompt-stamp.py` |
-| Cost snapshot | no | the `Stop` and `SubagentStop` hooks, `deploy/claude/cost-snapshot.py` |
-| Background work | no | the `Stop` hook, `deploy/claude/background-reminder.py`, and its marks in `<state>/background-reminder/` |
+| Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
 | Docker cleanup | no | the weekly timer `aacpanel-docker-gc.timer` and its service, user units: S8a; left out over an install that has them, they go |
 | Tailscale, Home network TLS, Own domain | no | the ways in, with the questions of the next block |
 | Test database | no | S10a |
@@ -1290,32 +1289,47 @@ that the model restarts its own session without asking whenever it decides to,
 while its agents and background commands still hold the restart off.
 
 The hooks of the kit, each an entry in a group of its own under its event, with
-the matcher where there is one. A hook that runs the same script already is
-changed where it stands, never added a second time:
+the matcher where there is one. A hook is either the executor's,
+`<home>/bin/aacpanel-exec hook <name>`, or a script of the clone run by python:
 
 | Part | Event | Matcher | Command | Timeout |
 |---|---|---|---|---|
-| Page copies | `PostToolUse` | `Artifact` | `python3 <clone>/deploy/claude/artifact-copy.py` | 10 |
-| Brief reminder | `SessionStart` | — | `python3 <clone>/deploy/claude/brief-waiting.py` | 5 |
-| Context cap | `Stop` | — | `python3 <clone>/deploy/claude/context-guard.py` | 5 |
-| Checklist nudge | `Stop` | — | `python3 <clone>/deploy/claude/checklist-reminder.py` | 5 |
-| Prompt stamp | `UserPromptSubmit` | — | `python3 <clone>/deploy/claude/prompt-stamp.py` | 5 |
-| Prompt stamp | `PostToolBatch` | `*` | `python3 <clone>/deploy/claude/prompt-stamp.py PostToolBatch` | 5 |
-| Cost snapshot | `Stop`, `SubagentStop` | — | `python3 <clone>/deploy/claude/cost-snapshot.py` | — |
-| Background work | `Stop` | — | `python3 <clone>/deploy/claude/background-reminder.py` | 5 |
+| Page copies | `PostToolUse` | `Artifact` | `test -f <clone>/deploy/claude/artifact-copy.py && python3 <clone>/deploy/claude/artifact-copy.py` | 10 |
+| Brief reminder | `SessionStart` | — | `test -f <clone>/deploy/claude/brief-waiting.py && python3 <clone>/deploy/claude/brief-waiting.py` | 5 |
+| Context cap | `Stop` | — | `test -f <clone>/deploy/claude/context-guard.py && python3 <clone>/deploy/claude/context-guard.py` | 5 |
+| Checklist nudge | `Stop` | — | `test -f <clone>/deploy/claude/checklist-reminder.py && python3 <clone>/deploy/claude/checklist-reminder.py` | 5 |
+| Prompt stamp | `UserPromptSubmit` | — | `test -f <clone>/deploy/claude/prompt-stamp.py && python3 <clone>/deploy/claude/prompt-stamp.py` | 5 |
+| Prompt stamp | `PostToolBatch` | `*` | `test -f <clone>/deploy/claude/prompt-stamp.py && python3 <clone>/deploy/claude/prompt-stamp.py PostToolBatch` | 5 |
+| Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 
-Each command in the table runs behind a check that its script is there:
-`test -f <clone>/<script> && python3 <clone>/<script>`. Python on a missing
-file exits 2, which claude reads as "do not stop" for a `Stop` hook, "throw the
-prompt away" for `UserPromptSubmit` and "refuse the call" for `PreToolUse`: a
-clone moved or a script renamed would hold every session of the account.
-Behind the check such a hook exits 1 instead, an error claude reports under
-every turn and passes over until the clone is back or the installer runs again.
+A script runs behind a check that it is there. Python on a missing file exits
+2, which claude reads as "do not stop" for a `Stop` hook, "throw the prompt
+away" for `UserPromptSubmit` and "refuse the call" for `PreToolUse`: a clone
+moved or a script renamed would hold every session of the account. Behind the
+check such a hook exits 1 instead, an error claude reports under every turn and
+passes over until the clone is back or the installer runs again. The
+executor's hook needs no check: a binary that is not there makes the shell exit
+127, and the executor itself exits 0 for every event and every outcome — it
+holds a `Stop` with `{"decision": "block"}` in its answer, never with an exit
+of 2.
+
+An entry is the panel's by what it runs, not by the whole command: the
+executor's hook of the name, from wherever the executor lies, or the script of
+the hook, from any clone, in every form an install wrote — `test -f … &&
+python3 …` with `AACP_STATE_DIR` before `python3` or without, and a bare
+`python3 <clone>/<script>` of a hand. That holds for a hook of the executor as
+well: the script whose work it does is a former form of its entry. An entry of the
+panel's is rewritten where it stands into the form of this install, under the
+same matcher, and never added a second time; another entry of the same hook
+goes. The cost snapshot is a retired part: its entries — the python form of
+`deploy/claude/cost-snapshot.py`, from any clone — go from `Stop` and
+`SubagentStop` whatever the kit.
 
 For a state directory other than `/var/lib/aacpanel`, the commands of the
 context cap, the prompt stamp and the background reminder set
-`AACP_STATE_DIR='<state>'` before `python3`: the first two read the collector's
-snapshot there, the reminder keeps there when it first saw each task.
+`AACP_STATE_DIR='<state>'` before `python3` or before the executor: the first
+two read the collector's snapshot there, the reminder keeps there when it first
+saw each task.
 
 **The panel's server**, through claude's own command — claude rewrites its
 `.claude.json` all the time, so the file is never edited by hand:
@@ -1367,6 +1381,59 @@ it is signed in.
   `claude	mcp	<account>	claude=<what starts claude> file=<its .claude.json>`.
   The sum lets uninstall tell whether the file is still as it was written: then
   the copy goes back byte for byte.
+
+## S12a. `codex` — Codex hooks
+
+Only on a machine with codex: for every codex home `AACP_CODEX_HOMES` of
+host.env lists, or `~/.codex`, that is there. codex runs hooks from
+`<codex home>/hooks.json`, in the shape of claude's settings, and the kit puts
+there the hooks codex runs as well, in the same form and by the same rules as
+in S12 — an entry of the panel's rewritten where it stands, the cost snapshot's
+out, the rest of the file as it was:
+
+| Part | Event | Matcher | Command | Timeout |
+|---|---|---|---|---|
+| Question relay | `PreToolUse` | `AskUserQuestion` | `test -f <clone>/agent/ask-hook.py && python3 <clone>/agent/ask-hook.py` | 5 |
+| Prompt stamp | `UserPromptSubmit` | — | `test -f <clone>/deploy/claude/prompt-stamp.py && python3 <clone>/deploy/claude/prompt-stamp.py` | 5 |
+
+**The trust.** codex runs a hook of the person's own only once it is trusted,
+and passes over a hook new or changed since without a word. The trust lives in
+`<codex home>/config.toml`, a table a hook, by the hook's place:
+
+```toml
+[hooks.state."<codex home>/hooks.json:pre_tool_use:0:0"]
+trusted_hash = "sha256:…"
+```
+
+— the event in snake case, the group and the entry counted from 0, and the hash
+codex computes: SHA-256 of the hook's identity as compact JSON with the keys
+sorted, `{"event_name": …, "hooks": [{"async": false, "command": …,
+"timeout": …, "type": "command"}], "matcher": …}`, the timeout 600 when none is
+given, no matcher for `UserPromptSubmit` and `Stop`. The installer writes the
+trust of every entry it wrote — `/hooks` in codex shows them as trusted — and,
+since the trust goes with the place, carries the table of every other hook to
+where that hook stands after the change: a hook of the person's after the
+panel's in its event moves up when the panel's goes. A table of a place the
+file no longer has goes. The rest of `config.toml` is codex's and the
+person's: the installer changes only the lines of these tables, never runs
+`codex mcp add`, which prints the whole file anew, and stops without writing
+either file when `config.toml` names the trust of `hooks.json` in another form,
+an inline table say.
+
+- **Done when** every home's `hooks.json` carries the hooks of the kit, each
+  trusted as it stands.
+- **Check.** The question hook runs once, and codex trusts it:
+
+  ```bash
+  jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("agent/ask-hook.py"))] | length' ~/.codex/hooks.json   # 1
+  grep -A1 'hooks.json:pre_tool_use:0:0' ~/.codex/config.toml                                                              # trusted_hash = "sha256:…"
+  ```
+
+- **Manifest.** `codex	codex	<codex home>	hooks=<copy> config=<copy>`, `created`
+  for a file that was not there. Uninstall takes the panel's hooks out of
+  `hooks.json` and their tables out of `config.toml`, carrying the person's as
+  above, whatever codex wrote there since; a `hooks.json` the installer made and
+  that holds nothing else goes.
 
 ## S13. `map` — Map
 
@@ -1505,7 +1572,11 @@ question of every session.
 
 1. In every account's `settings.json`: the question hook, the status line
    (put back the command after `AACP_STATUSLINE_NEXT=`, or remove the status
-   line), the hooks of `deploy/claude`, the rules allowing `mcp__aacpanel__*`.
+   line), the hooks of `deploy/claude` and of `aacpanel-exec hook`, the rules
+   allowing `mcp__aacpanel__*`. In every codex home: the same hooks of
+   `hooks.json`, and their `[hooks.state."…/hooks.json:…"]` tables in
+   `config.toml` — the trust of a hook of yours that moves up in `hooks.json`
+   goes with it to its new place.
    Then `claude mcp remove aacpanel -s user` in every account that has the
    server, or each session there starts with a server that fails to connect,
    and `CODEX_HOME=<codex home> codex mcp remove aacpanel` in every codex home

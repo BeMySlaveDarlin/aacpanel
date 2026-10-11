@@ -182,6 +182,9 @@ func (rm *Removal) Plan() []PlanRow {
 	for _, e := range rm.of(MCP) {
 		claude = append(claude, "claude mcp remove aacpanel in "+rm.short(e.Target))
 	}
+	for _, e := range rm.of(Codex) {
+		claude = append(claude, rm.short(codexHooksFile(e.Target))+": the panel's hooks taken out, and their trust in config.toml")
+	}
 	add("Claude settings — first, while the hooks' clone is there", claude...)
 	var units []string
 	for _, e := range rm.of(UserUnit) {
@@ -351,6 +354,12 @@ func (rm *Removal) unwire(r *Run) error {
 		}
 		dirs = append(dirs, e.Target)
 		r.Say(Pass, "no aacpanel server in "+rm.short(e.Target))
+	}
+	for _, e := range rm.of(Codex) {
+		if err := undoCodex(r, e); err != nil {
+			return err
+		}
+		r.Say(Pass, rm.short(codexHooksFile(e.Target)))
 	}
 	// What the status line and the executor wrote into an account.
 	for _, dir := range dirs {

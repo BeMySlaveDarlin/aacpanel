@@ -234,6 +234,20 @@ class Contours(unittest.TestCase):
         self.assertTrue(by["personal"]["contextGuard"])
         self.assertFalse(by["work"]["contextGuard"])
 
+    def test_the_context_guard_is_seen_in_each_form_the_installer_writes(self):
+        work = self.contour()
+        self.registry(("work", work, "-"))
+        for command, guarded in (
+                ("test -f /srv/a/deploy/claude/context-guard.py && AACP_STATE_DIR=/x python3 "
+                 "/srv/a/deploy/claude/context-guard.py", True),
+                ("/home/u/bin/aacpanel-exec hook context-guard", True),
+                ("AACP_STATE_DIR='/srv/st' /opt/x/aacpanel-exec hook context-guard", True),
+                ("/home/u/bin/aacpanel-exec hook background-reminder", False),
+                ("bash ~/bin/hook context-guard", False)):
+            self.settings(work, {"Stop": [{"hooks": [{"type": "command", "command": command}]}]})
+            by = {p["name"]: p for p in contours.described()}
+            self.assertEqual(by["work"]["contextGuard"], guarded, command)
+
     def test_a_broken_settings_json_of_a_profile_is_unknown(self):
         work = self.contour()
         self.settings(self.home, {"PreToolUse": "x"})

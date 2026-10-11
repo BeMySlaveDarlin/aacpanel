@@ -348,7 +348,7 @@ func (in *Install) wiringLink() []chainLink {
 			bad = append(bad, in.short(dir)+" has no settings.json")
 			continue
 		}
-		if n, err := wiredHooks(raw, "PreToolUse", "agent/ask-hook.py"); err != nil || n != 1 {
+		if n, err := wiredHooks(raw, askHook); err != nil || n != 1 {
 			bad = append(bad, fmt.Sprintf("%s runs the question hook %d times", in.short(dir), n))
 		}
 		if !runs(statusLineOf(raw), statusScript) {

@@ -20,6 +20,7 @@ import (
 	"aacpanel/internal/action"
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/executor"
+	"aacpanel/internal/hook"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
@@ -35,6 +36,13 @@ const defaultSelf = "aacpanel"
 const actionTimeout = 90 * time.Second
 
 func main() {
+	// A hook of claude is a word and not a flag, aacpanel-exec hook <name>,
+	// and it comes before the flags: its exit is the hook's, never the 2 of a
+	// flag that does not parse, which would hold the session it serves.
+	if len(os.Args) > 1 && os.Args[1] == hook.Command {
+		os.Exit(hook.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+
 	list := flag.Bool("list", false, "print the list of allowed actions and exit")
 	socket := flag.String("socket", defaultSocket(), "path to the unix socket")
 	dockerHost := flag.String("docker", defaultDocker, "docker address: unix:///... or http://host:port")

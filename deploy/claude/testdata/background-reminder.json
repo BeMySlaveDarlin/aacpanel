@@ -1,0 +1,122 @@
+{
+  "about": "The background reminder at the end of a turn: background-reminder.py and the executor's hook (internal/hook) both run these cases. A case plays its stops in order against one state directory; at is seconds after t0, tasks name entries of tasks, payload is laid over the payload of the stop. says is null for nothing said, has and lacks for words in the reminder or text for all of it. marks names the tasks the marks file keeps after the stop, null for no file; exact is the whole file; listing names the files of the state and marks directories. before is the marks file as the case finds it, aged are files of the marks directory that old, in seconds, by the clock the hook prunes by. silent are inputs the hook answers with nothing and exit 0: a raw text, a payload, or an array nested that deep.",
+  "session": "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d",
+  "t0": 1790000000,
+  "tasks": {
+    "shell": {"id": "b1", "type": "shell", "status": "running", "description": "npm run dev", "command": "npm run dev"},
+    "monitor": {"id": "m1", "type": "monitor", "status": "running", "description": "tail the build log", "server": "watch", "tool": "tail"},
+    "agent": {"id": "a1", "type": "subagent", "status": "running", "description": "review the diff", "agent_type": "general-purpose"},
+    "flow": {"id": "w1", "type": "workflow", "status": "running", "description": "audit", "name": "audit"},
+    "odd": {"id": "t1", "type": "teammate", "status": "running", "description": "keeps the docs"},
+    "odder": {"id": "t2", "type": ["x"], "status": "running", "description": "?"},
+    "loop": {"id": "b2", "type": "shell", "status": "running", "description": "wait for ready", "command": "until grep -q ready log; do sleep 20; done"},
+    "bounded": {"id": "b3", "type": "shell", "status": "running", "description": "wait for ready", "command": "timeout 600 bash -c 'until grep -q ready log; do sleep 20; done'"},
+    "long": {"id": "l1", "type": "shell", "status": "running", "description": "two  words\nand xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+  },
+  "cases": [
+    {"what": "a task is named only once it has run an hour", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 3599, "tasks": ["shell"], "says": null},
+      {"at": 3600, "tasks": ["shell"], "says": {"has": ["shell `b1`, 60 min: npm run dev"]}}
+    ]},
+    {"what": "the hour counts from the first stop that saw the task", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 3599, "tasks": ["shell", "monitor"], "says": null},
+      {"at": 3600, "tasks": ["shell", "monitor"], "says": {"has": ["`b1`"], "lacks": ["`m1`"]}}
+    ]},
+    {"what": "a task that went away starts afresh", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 1800, "tasks": [], "says": null},
+      {"at": 3600, "tasks": ["shell"], "says": null}
+    ]},
+    {"what": "a task is named again only after two hours", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 3600, "tasks": ["shell"], "says": {"has": ["`b1`"]}},
+      {"at": 3601, "tasks": ["shell"], "says": null},
+      {"at": 10799, "tasks": ["shell"], "says": null},
+      {"at": 10800, "tasks": ["shell"], "says": {"has": ["shell `b1`, 180 min"]}}
+    ]},
+    {"what": "each task keeps its own repeat", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 1800, "tasks": ["shell", "monitor"], "says": null},
+      {"at": 3600, "tasks": ["shell", "monitor"], "says": {"has": ["`b1`"]}},
+      {"at": 5400, "tasks": ["shell", "monitor"], "says": {"has": ["monitor (watch) `m1`, 60 min: tail the build log"], "lacks": ["`b1`"]}}
+    ]},
+    {"what": "a subagent is never named", "stops": [
+      {"at": 0, "tasks": ["agent"], "says": null},
+      {"at": 18000, "tasks": ["agent"], "says": null}
+    ]},
+    {"what": "a workflow is never named", "stops": [
+      {"at": 0, "tasks": ["flow"], "says": null},
+      {"at": 18000, "tasks": ["flow"], "says": null}
+    ]},
+    {"what": "beside a shell they stay out of the list and the marks", "stops": [
+      {"at": 0, "tasks": ["shell", "agent", "flow"], "says": null},
+      {"at": 3600, "tasks": ["shell", "agent", "flow"], "says": {"has": ["`b1`"], "lacks": ["`a1`", "`w1`"]}, "marks": ["b1"]}
+    ]},
+    {"what": "a task of a type not known counts", "stops": [
+      {"at": 0, "tasks": ["odd", "odder"], "says": null},
+      {"at": 3600, "tasks": ["odd", "odder"], "says": {"has": ["teammate `t1`", "`t2`"]}}
+    ]},
+    {"what": "no background work leaves no marks", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null, "marks": ["b1"]},
+      {"at": 3600, "tasks": [], "says": null, "marks": null},
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 3600, "tasks": [], "says": null, "payload": {"background_tasks": null}, "marks": null}
+    ]},
+    {"what": "only subagents and workflows leave no marks", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 3600, "tasks": ["agent", "flow"], "says": null, "marks": null}
+    ]},
+    {"what": "the wait loop without a time limit is called out", "stops": [
+      {"at": 0, "tasks": ["loop", "bounded"], "says": null},
+      {"at": 3600, "tasks": ["loop", "bounded"], "says": {"text": "Background work of this session has been running a long time:\n- shell `b2`, 60 min: wait for ready — a wait loop without a time limit, it will not end by itself\n- shell `b3`, 60 min: wait for ready\n\nIf any of it has done its job or is no longer needed, stop it with TaskStop by its id. If it is still needed, go on; no answer is needed. Each task is named at most once in 2 hours."}}
+    ]},
+    {"what": "a long field is put on one line and cut", "stops": [
+      {"at": 0, "tasks": ["long"], "says": null},
+      {"at": 3600, "tasks": ["long"], "says": {"text": "Background work of this session has been running a long time:\n- shell `l1`, 60 min: two words and xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…\n\nIf any of it has done its job or is no longer needed, stop it with TaskStop by its id. If it is still needed, go on; no answer is needed. Each task is named at most once in 2 hours."}}
+    ]},
+    {"what": "the round after a reminder is silent", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 18000, "tasks": ["shell"], "says": null, "payload": {"stop_hook_active": true}},
+      {"at": 18000, "tasks": ["shell"], "says": {"has": ["`b1`"]}}
+    ]},
+    {"what": "the round after a reminder keeps no marks", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null, "payload": {"stop_hook_active": true}, "marks": null}
+    ]},
+    {"what": "another event is left alone", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null},
+      {"at": 3600, "tasks": ["shell"], "says": null, "payload": {"hook_event_name": "SubagentStop"}}
+    ]},
+    {"what": "broken marks start afresh: {", "before": "{", "stops": [
+      {"at": 3600, "tasks": ["shell"], "says": null, "exact": {"b1": {"first": 1790003600, "reminded": 0}}}
+    ]},
+    {"what": "broken marks start afresh: []", "before": "[]", "stops": [
+      {"at": 3600, "tasks": ["shell"], "says": null, "exact": {"b1": {"first": 1790003600, "reminded": 0}}}
+    ]},
+    {"what": "broken marks start afresh: {\"b1\": \"x\"}", "before": "{\"b1\": \"x\"}", "stops": [
+      {"at": 3600, "tasks": ["shell"], "says": null, "exact": {"b1": {"first": 1790003600, "reminded": 0}}}
+    ]},
+    {"what": "broken marks start afresh: {\"b1\": {\"first\": \"x\", \"reminded\": 0}}", "before": "{\"b1\": {\"first\": \"x\", \"reminded\": 0}}", "stops": [
+      {"at": 3600, "tasks": ["shell"], "says": null, "exact": {"b1": {"first": 1790003600, "reminded": 0}}}
+    ]},
+    {"what": "the session id cannot leave the directory", "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null, "payload": {"session_id": "../../x"}, "listing": {"state": ["background-reminder"], "marks": ["x.json"]}}
+    ]},
+    {"what": "marks of conversations long over go", "aged": {"old.json": 691200, "recent.json": 518400}, "stops": [
+      {"at": 0, "tasks": ["shell"], "says": null, "listing": {"marks": ["5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d.json", "recent.json"]}}
+    ]}
+  ],
+  "silent": [
+    {"raw": ""},
+    {"raw": "not json"},
+    {"raw": "[1, 2]"},
+    {"raw": "\"x\""},
+    {"raw": "null"},
+    {"payload": {"session_id": "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d", "background_tasks": "x"}},
+    {"payload": {"session_id": "5a0c7d1e-2b3f-4a5b-8c6d-7e8f9a0b1c2d", "background_tasks": [1, null, {"type": "shell"}, {"id": 5}]}},
+    {"payload": {"session_id": {"a": 1}, "background_tasks": [{"id": "b1", "type": "shell", "status": "running", "description": "npm run dev", "command": "npm run dev"}]}},
+    {"payload": {"background_tasks": [{"id": "b1", "type": "shell", "status": "running", "description": "npm run dev", "command": "npm run dev"}]}},
+    {"deep": 100000}
+  ]
+}

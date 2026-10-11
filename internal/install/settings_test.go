@@ -13,10 +13,13 @@ import (
 	"aacpanel/internal/toolset"
 )
 
-const repo = "/home/u/aacpanel"
+const (
+	repo     = "/home/u/aacpanel"
+	executor = "/home/u/bin/aacpanel-exec"
+)
 
 // fullKit is the kit a run suggests: the parts always in and the quiet ones.
-var fullKit = Wiring{Clone: repo, Kit: []string{"relay", "limits", "tools", "copies", "brief", "cap", "nudge", "restart"}}
+var fullKit = Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits", "tools", "copies", "brief", "cap", "nudge", "restart"}}
 
 func wire(t *testing.T, raw string, w Wiring) (string, bool) {
 	t.Helper()
@@ -41,9 +44,18 @@ func keysOf(t *testing.T, raw string) []string {
 	return out
 }
 
+// hooked counts the entries of the hook of the kit that runs the script on
+// the event, in any of its forms; a script of no hook of the kit is counted
+// as a hook of its own.
 func hooked(t *testing.T, raw, event, script string) int {
 	t.Helper()
-	n, err := wiredHooks([]byte(raw), event, script)
+	h := kitHook{Event: event, Script: script}
+	for _, k := range slices.Concat(kitHooks, retiredHooks) {
+		if k.Event == event && k.Script == script {
+			h = k
+		}
+	}
+	n, err := wiredHooks([]byte(raw), h)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,16 +314,18 @@ func TestDuplicatesOfThePanelsGo(t *testing.T) {
 // TestTheKitDecidesWhatStays: a part taken off the kit takes its hook and
 // its rule with it, and leaves the rest.
 func TestTheKitDecidesWhatStays(t *testing.T) {
-	full := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "stamp", "cost", "background")}
+	full := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "stamp", "background")}
 	was, _ := wire(t, person, full)
-	if hooked(t, was, "PostToolBatch", "deploy/claude/prompt-stamp.py") != 1 || hooked(t, was, "SubagentStop", "deploy/claude/cost-snapshot.py") != 1 ||
-		hooked(t, was, "Stop", "deploy/claude/background-reminder.py") != 1 {
-		t.Fatalf("the stamp, the cost and the background reminder are not wired:\n%s", was)
+	if hooked(t, was, "PostToolBatch", "deploy/claude/prompt-stamp.py") != 1 || hooked(t, was, "Stop", "deploy/claude/background-reminder.py") != 1 {
+		t.Fatalf("the stamp and the background reminder are not wired:\n%s", was)
 	}
 	if !strings.Contains(was, `"command": "test -f `+repo+`/deploy/claude/prompt-stamp.py && python3 `+repo+`/deploy/claude/prompt-stamp.py PostToolBatch"`) {
 		t.Errorf("the stamp between tools lacks its argument:\n%s", was)
 	}
-	less := Wiring{Clone: repo, Kit: []string{"relay", "limits", "tools", "cap"}}
+	if !strings.Contains(was, `"command": "`+executor+` hook background-reminder"`) {
+		t.Errorf("the background reminder is not the executor's hook:\n%s", was)
+	}
+	less := Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits", "tools", "cap"}}
 	now, _ := wire(t, was, less)
 	for _, h := range kitHooks {
 		want := 0
@@ -337,7 +351,8 @@ func TestTheKitDecidesWhatStays(t *testing.T) {
 // says when it is there.
 func TestAHookWhoseScriptIsGoneHoldsNothing(t *testing.T) {
 	clone := t.TempDir()
-	w := Wiring{Clone: clone, Kit: fullKit.Kit}
+	// The executor is not there either: its hooks exit 127 then.
+	w := Wiring{Clone: clone, Exec: filepath.Join(clone, "bin", "aacpanel-exec"), Kit: fullKit.Kit}
 	for _, h := range kitHooks {
 		cmd := exec.Command("sh", "-c", w.command(h))
 		cmd.Stdin = strings.NewReader("{}")
@@ -363,12 +378,12 @@ func TestAHookWhoseScriptIsGoneHoldsNothing(t *testing.T) {
 }
 
 func TestAStateDirectoryOfItsOwnIsNamedToTheHooksThatReadIt(t *testing.T) {
-	w := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "background")}
+	w := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "background")}
 	w.State = "/srv/aacpanel-state"
 	out, _ := wire(t, "{}", w)
 	guard := func(script string) string { return "test -f " + repo + "/" + script + " && " }
 	if !strings.Contains(out, `"command": "`+guard("deploy/claude/context-guard.py")+`AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/context-guard.py"`) ||
-		!strings.Contains(out, `"command": "`+guard("deploy/claude/background-reminder.py")+`AACP_STATE_DIR=/srv/aacpanel-state python3 `+repo+`/deploy/claude/background-reminder.py"`) ||
+		!strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state `+executor+` hook background-reminder"`) ||
 		!strings.Contains(out, `"command": "`+guard("agent/ask-hook.py")+`python3 `+repo+`/agent/ask-hook.py"`) {
 		t.Errorf("the state directory:\n%s", out)
 	}
@@ -415,7 +430,7 @@ func TestABrokenFileIsRefused(t *testing.T) {
 // TestUnwiringGivesTheFileBack: a file claude wrote, wired and unwired, is
 // the file it was, byte for byte; a file of only the panel's is empty.
 func TestUnwiringGivesTheFileBack(t *testing.T) {
-	full := Wiring{Clone: repo, Kit: append(slices.Clone(fullKit.Kit), "stamp", "cost", "background")}
+	full := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "stamp", "background")}
 	for _, raw := range []string{person, "{\n  \"model\": \"opus\"\n}\n"} {
 		wired, _ := wire(t, raw, full)
 		back, changed, err := Unwire([]byte(wired))

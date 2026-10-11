@@ -29,6 +29,7 @@ const (
 	Rev      Kind = "rev"      // the commit a run installed
 	JSON     Kind = "json"     // claude's settings.json of an account; meta: created or orig=, and sha= of the write
 	MCP      Kind = "mcp"      // the panel's MCP server of an account; meta: claude=, file=
+	Codex    Kind = "codex"    // hooks.json of a codex home and their trust in its config.toml; meta: hooks= and config=, created or the copy
 	TSNode   Kind = "tsnode"   // the node in the tailnet; the admin console removes it
 	Profile  Kind = "profile"  // an entry of the map; it lives in the database and goes with its volume
 )
@@ -41,7 +42,7 @@ func init() {
 		File: undoFile, Pkg: undoPkg, Group: undoGroup, Linger: undoRoot, SysUnit: undoRoot,
 		UserUnit: undoUserUnit, Enabled: undoEnabled, Compose: undoCompose, Volume: undoVolume,
 		Image: undoImage, EnvKey: undoNothing, DBRole: undoNothing, TestDB: undoTestDB, Rev: undoNothing,
-		JSON: undoJSON, MCP: undoMCP, TSNode: undoTSNode, Profile: undoNothing,
+		JSON: undoJSON, MCP: undoMCP, Codex: undoCodex, TSNode: undoTSNode, Profile: undoNothing,
 	} {
 		undos[k] = undo
 	}

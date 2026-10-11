@@ -109,7 +109,7 @@ func (in *Install) claude() string {
 }
 
 func (in *Install) wiring() Wiring {
-	return Wiring{Clone: in.clone(), Kit: split(in.S.valueOr("kit", "")), State: in.state()}
+	return Wiring{Clone: in.clone(), Exec: in.execPath(), Kit: split(in.S.valueOr("kit", "")), State: in.state()}
 }
 
 // mcpFile is where claude keeps the servers of an account: .claude.json in
@@ -228,7 +228,7 @@ func (in *Install) claudeStep() *Step {
 				if err != nil {
 					return fail(path+" is not there after the wiring", err)
 				}
-				if n, err := wiredHooks(raw, "PreToolUse", "agent/ask-hook.py"); err != nil || n != 1 {
+				if n, err := wiredHooks(raw, askHook); err != nil || n != 1 {
 					return &Failed{Diagnosis: fmt.Sprintf("%s runs the question hook %d times after the wiring, not once", path, n)}
 				}
 				if !runs(statusLineOf(raw), statusScript) {

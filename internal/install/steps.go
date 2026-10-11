@@ -73,6 +73,9 @@ func (in *Install) Steps() []*Step {
 		steps = append(steps, in.tailscaleStep())
 	}
 	steps = append(steps, in.claudeStep())
+	if len(in.codexHomes()) > 0 {
+		steps = append(steps, in.codexStep())
+	}
 	if in.mapAnswered() {
 		steps = append(steps, in.mapStep())
 	}

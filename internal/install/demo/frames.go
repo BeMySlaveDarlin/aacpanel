@@ -29,7 +29,7 @@ func welcome(t ui.Theme, mc machine, width int) string {
 // every hook part that is checked.
 func (a answers) hooks() int {
 	n := 1
-	for _, part := range []string{"copies", "brief", "cap", "nudge", "stamp", "cost", "background"} {
+	for _, part := range []string{"copies", "brief", "cap", "nudge", "stamp", "background"} {
 		if a.has(part) {
 			n++
 		}

@@ -188,7 +188,7 @@ func TestClaudeSettingsAreWiredInEveryAccount(t *testing.T) {
 	}
 	for _, dir := range []string{mine, work} {
 		raw := g.read(filepath.Join(dir, "settings.json"))
-		if n, _ := wiredHooks([]byte(raw), "PreToolUse", "agent/ask-hook.py"); n != 1 {
+		if n, _ := wiredHooks([]byte(raw), askHook); n != 1 {
 			t.Errorf("%s: the question hook %d times:\n%s", dir, n, raw)
 		}
 		if !strings.Contains(raw, `"command": "test -f `+g.clone+`/deploy/claude/context-guard.py && AACP_STATE_DIR=`+g.state+` python3 `+g.clone+`/deploy/claude/context-guard.py"`) {

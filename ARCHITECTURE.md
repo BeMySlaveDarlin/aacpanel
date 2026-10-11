@@ -187,6 +187,18 @@ and gets back a fact — found, seen, queued, ended, a mode — never a line of 
 conversation. The reader of the conversation answers yes or no; the one that
 types does not read.
 
+**The hooks of sessions.** A hook of the kit is the executor's binary where it
+can be: `aacpanel-exec hook <name>` reads the event's payload on stdin and
+answers on stdout, and needs nothing on the machine but the binary every
+install has. Its exit is 0 for every event and every outcome, a panic
+included: an exit of 2 holds a `Stop` in a loop, refuses a tool call and throws
+a prompt away. A hook that holds a `Stop` says so in its answer,
+`{"decision": "block"}`, which lets the turn go on for one round. The rest of
+the hooks are python scripts of the clone, run behind a check that the script
+is there. codex runs the hooks it shares with claude from `hooks.json` in its
+home and only once they are trusted in its `config.toml`; the installer writes
+both (INSTALL.md, S12a).
+
 **The question socket.** The claude hook reports a session's question through
 `ask.sock`, and that one lives in the collector's separate runtime directory,
 not in the state directory: the latter is mounted into the service, and "a

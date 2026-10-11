@@ -62,7 +62,9 @@ func (b BlockID) Title() string {
 type Part struct {
 	ID, Label, Detail, Group string
 	// Trace is how an install by hand is told to have the part: the script
-	// its hook runs, or the allow rule it adds, as claude settings carry it.
+	// its hook runs or ran before it moved into the executor, or the allow
+	// rule it adds, as claude settings carry it. A hook part is told by its
+	// hook in the executor's form as well.
 	Trace string
 }
 
@@ -88,7 +90,6 @@ var Kit = []Part{
 	{"nudge", "Checklist nudge", "reminds a session that forgot its checklist", GroupQuiet, "deploy/claude/checklist-reminder.py"},
 	{"restart", "Self-restart", "a session may restart itself without asking you", GroupQuiet, "mcp__aacpanel__session_restart"},
 	{"stamp", "Prompt stamp", "time, context, limits and load before every prompt", GroupAsk, "deploy/claude/prompt-stamp.py"},
-	{"cost", "Cost snapshot", "spend per session, written after every turn", GroupAsk, "deploy/claude/cost-snapshot.py"},
 	{"background", "Background work", "reminds a session of work left running over an hour", GroupAsk, "deploy/claude/background-reminder.py"},
 	{"gc", "Docker cleanup", "weekly prune of unused images — of the whole machine", GroupAsk, ""},
 	{"tailscale", "Tailscale", "your phone from anywhere, through your tailnet", GroupLegs, ""},
@@ -102,7 +103,7 @@ var Kit = []Part{
 var Legs = []string{"tailscale", "lan", "domain"}
 
 // hookParts are the parts that wire a hook into claude, besides the relay.
-var hookParts = []string{"copies", "brief", "cap", "nudge", "stamp", "cost", "background"}
+var hookParts = []string{"copies", "brief", "cap", "nudge", "stamp", "background"}
 
 const (
 	typeOwn  = "Type something."

@@ -10,15 +10,21 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"aacpanel/internal/hook"
 )
 
 // claude's settings.json is the person's file: their own hooks, status line
 // and rules live in it next to the panel's. The installer edits it as JSON,
 // never as text, keeps the order of its keys — an edit that shuffled them
 // would read as a rewrite of the whole file — and writes it the way claude
-// writes it, two spaces a level. What is the panel's is told by the tail of
-// the path it runs, not by the whole command: a clone that moved, or an
-// install from another clone, left hooks that are the panel's all the same.
+// writes it, two spaces a level. What is the panel's is told by what the
+// command runs, not by the whole command: the executor's hook of the name
+// from wherever the executor lies, or the script of the clone whose work the
+// hook does, from any clone and in any of the forms an install wrote. A clone
+// that moved, an install from another clone, or one that ran the script where
+// the executor runs the hook left hooks that are the panel's all the same,
+// and each is changed where it stands into the form of this install.
 
 // member is a key of a JSON object with its value, in the order of the file.
 type member struct {
@@ -206,33 +212,59 @@ func writeString(b *bytes.Buffer, s string) {
 // ---- what the kit puts into the settings ----
 
 // kitHook is a hook of the kit: the event and the matcher it stands under,
-// and the script of the clone it runs. The script's path within the clone
-// is how the hook is told for the panel's.
+// and what it runs — the executor's hook of a name, or a script of the clone.
 type kitHook struct {
 	Part    string
 	Event   string
 	Matcher string
+	// Hook is the executor's hook the entry runs, aacpanel-exec hook <Hook>;
+	// empty for a hook that is still a script of the clone.
+	Hook string
+	// Script is the script of the clone the hook runs, or whose work the
+	// executor's hook does. Its path within the clone tells the python forms
+	// of the entry — test -f <clone>/<script> && python3 <clone>/<script>,
+	// with the state directory before python3 or without, and the bare
+	// python3 <clone>/<script> of a hand — from any clone.
 	Script  string
-	Args    string // after the script
+	Args    string // after the script or the hook's name
 	Timeout int    // zero writes none: claude's own applies
 	// State is a hook that reads the collector's snapshot or keeps files of
 	// its own in the state directory: a state directory other than the
 	// default is named in its command.
 	State bool
+	// Codex is a hook codex runs as well, from the hooks.json of its home.
+	Codex bool
 }
 
 var kitHooks = []kitHook{
-	{Part: "relay", Event: "PreToolUse", Matcher: "AskUserQuestion", Script: "agent/ask-hook.py", Timeout: 5},
+	{Part: "relay", Event: "PreToolUse", Matcher: "AskUserQuestion", Script: "agent/ask-hook.py", Timeout: 5, Codex: true},
 	{Part: "copies", Event: "PostToolUse", Matcher: "Artifact", Script: "deploy/claude/artifact-copy.py", Timeout: 10},
 	{Part: "brief", Event: "SessionStart", Script: "deploy/claude/brief-waiting.py", Timeout: 5},
 	{Part: "cap", Event: "Stop", Script: "deploy/claude/context-guard.py", Timeout: 5, State: true},
 	{Part: "nudge", Event: "Stop", Script: "deploy/claude/checklist-reminder.py", Timeout: 5},
-	{Part: "stamp", Event: "UserPromptSubmit", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true},
+	{Part: "stamp", Event: "UserPromptSubmit", Script: "deploy/claude/prompt-stamp.py", Timeout: 5, State: true, Codex: true},
 	{Part: "stamp", Event: "PostToolBatch", Matcher: "*", Script: "deploy/claude/prompt-stamp.py", Args: "PostToolBatch", Timeout: 5, State: true},
-	{Part: "cost", Event: "Stop", Script: "deploy/claude/cost-snapshot.py"},
-	{Part: "cost", Event: "SubagentStop", Script: "deploy/claude/cost-snapshot.py"},
-	{Part: "background", Event: "Stop", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true},
+	{Part: "background", Event: "Stop", Hook: "background-reminder", Script: "deploy/claude/background-reminder.py", Timeout: 5, State: true},
 }
+
+// retiredHooks are the hooks of retired parts. No part of the kit puts them
+// in, and the wiring takes their entries out of every file it wires, whatever
+// the kit: a script taken out of the tree leaves no hook behind that runs
+// nothing.
+var retiredHooks = []kitHook{
+	{Event: "Stop", Script: "deploy/claude/cost-snapshot.py"},
+	{Event: "SubagentStop", Script: "deploy/claude/cost-snapshot.py"},
+}
+
+// owns tells whether the command of an entry is the hook's: it runs the
+// executor's hook of the name, or the script, in any of their forms.
+func (h kitHook) owns(command string) bool {
+	return runs(command, h.Script) || (h.Hook != "" && runsHook(command, h.Hook))
+}
+
+// askHook is the hook of the question relay: the one hook every account
+// carries, which the check after the wiring counts.
+var askHook = kitHooks[0]
 
 // statusScript is the script of the status line: the limits snapshot, first
 // in the chain, which passes the payload on to the person's own line.
@@ -271,9 +303,11 @@ func AllowRules(has func(part string) bool) int {
 }
 
 // Wiring is what the settings of an account are to carry: the parts of the
-// kit, the clone their scripts run from, the state directory.
+// kit, the clone their scripts run from, the executor their hooks run, the
+// state directory.
 type Wiring struct {
 	Clone string
+	Exec  string
 	Kit   []string
 	State string
 }
@@ -286,16 +320,24 @@ func (w Wiring) has(part string) bool { return slices.Contains(w.Kit, part) }
 // a tool call that it is refused — a clone moved or a script renamed would
 // hold every session of the account. Without the script the command exits 1,
 // an error claude reports and passes over.
+//
+// A hook of the executor needs no such check: an executor that is not there
+// makes the shell exit 127, an error claude passes over, and the executor
+// itself exits 0 on anything it meets.
 func (w Wiring) command(h kitHook) string {
-	script := filepath.Join(w.Clone, h.Script)
-	cmd := "python3 " + script
-	if h.Args != "" {
-		cmd += " " + h.Args
-	}
+	state := ""
 	if h.State && w.State != "" && w.State != DefaultStateDir {
-		cmd = "AACP_STATE_DIR=" + shellQuote(w.State) + " " + cmd
+		state = "AACP_STATE_DIR=" + shellQuote(w.State) + " "
 	}
-	return "test -f " + script + " && " + cmd
+	args := ""
+	if h.Args != "" {
+		args = " " + h.Args
+	}
+	if h.Hook != "" {
+		return state + w.Exec + " " + hook.Command + " " + h.Hook + args
+	}
+	script := filepath.Join(w.Clone, h.Script)
+	return "test -f " + script + " && " + state + "python3 " + script + args
 }
 
 // runs tells whether a command runs the script: a word of it is the
@@ -303,6 +345,22 @@ func (w Wiring) command(h kitHook) string {
 func runs(command, script string) bool {
 	for _, f := range strings.Fields(command) {
 		if f == script || strings.HasSuffix(f, "/"+script) {
+			return true
+		}
+	}
+	return false
+}
+
+// execName is the executor's binary, wherever an install put it.
+const execName = "aacpanel-exec"
+
+// runsHook tells whether a command runs the executor's hook of the name: a
+// word of it is the executor, from any directory, and the two after it are
+// the hook command and the name.
+func runsHook(command, name string) bool {
+	f := strings.Fields(command)
+	for i := 0; i+2 < len(f); i++ {
+		if filepath.Base(f[i]) == execName && f[i+1] == hook.Command && f[i+2] == name {
 			return true
 		}
 	}
@@ -330,6 +388,9 @@ func Wire(raw []byte, w Wiring) ([]byte, bool, error) {
 			changed = dropHook(o, h) || changed
 		}
 	}
+	for _, h := range retiredHooks {
+		changed = dropHook(o, h) || changed
+	}
 	if w.has("limits") {
 		changed = chainStatus(o, w.Clone) || changed
 	} else {
@@ -354,18 +415,18 @@ func Wire(raw []byte, w Wiring) ([]byte, bool, error) {
 	return encodeSettings(o), true, nil
 }
 
-// Unwire takes the panel out of the settings: every hook whose script lies
-// in a clone of the panel, the limits out of the status line's chain — the
-// person's line goes back where it was — and the allow rules of its tools.
-// What only held the panel's goes with it. A file with none of it comes back
-// as it was.
+// Unwire takes the panel out of the settings: every hook of the executor's
+// and every one whose script lies in a clone of the panel, retired ones
+// among them, the limits out of the status line's chain — the person's line
+// goes back where it was — and the allow rules of its tools. What only held
+// the panel's goes with it. A file with none of it comes back as it was.
 func Unwire(raw []byte) ([]byte, bool, error) {
 	o, err := parseSettings(raw)
 	if err != nil {
 		return nil, false, err
 	}
 	changed := false
-	for _, h := range kitHooks {
+	for _, h := range slices.Concat(kitHooks, retiredHooks) {
 		changed = dropHook(o, h) || changed
 	}
 	changed = unchainStatus(o) || changed
@@ -384,9 +445,10 @@ func emptySettings(raw []byte) bool {
 }
 
 // ensureHook keeps one entry of the hook, the first found under its matcher,
-// with the command and the timeout of this install. Any other entry that
-// runs its script on the event — a second one, one under another matcher —
-// goes, and so does a group left empty by that.
+// with the command and the timeout of this install: an entry of a former
+// form is rewritten where it stands. Any other entry of the hook on the event
+// — a second one, one under another matcher — goes, and so does a group left
+// empty by that.
 func ensureHook(o *object, h kitHook, want string) bool {
 	hs := o.child("hooks")
 	if hs == nil {
@@ -405,7 +467,7 @@ func ensureHook(o *object, h kitHook, want string) bool {
 		keptEntries := make([]any, 0, len(entries))
 		for _, e := range entries {
 			entry, ok := e.(*object)
-			if !ok || !runs(entry.str("command"), h.Script) {
+			if !ok || !h.owns(entry.str("command")) {
 				keptEntries = append(keptEntries, e)
 				continue
 			}
@@ -471,8 +533,8 @@ func newGroup(h kitHook, command string) *object {
 	return g
 }
 
-// dropHook takes every entry that runs the hook's script off its event,
-// under any matcher. A group, an event and the hooks themselves go only
+// dropHook takes every entry of the hook off its event, in any of its forms
+// and under any matcher. A group, an event and the hooks themselves go only
 // when the drop emptied them: an empty one the person keeps is theirs.
 func dropHook(o *object, h kitHook) bool {
 	v, _ := o.get("hooks")
@@ -492,7 +554,7 @@ func dropHook(o *object, h kitHook) bool {
 		entries := group.list("hooks")
 		keptEntries := slices.DeleteFunc(slices.Clone(entries), func(e any) bool {
 			entry, ok := e.(*object)
-			return ok && runs(entry.str("command"), h.Script)
+			return ok && h.owns(entry.str("command"))
 		})
 		switch {
 		case len(keptEntries) == len(entries):
@@ -767,9 +829,9 @@ func disallow(o *object, rules []string) bool {
 
 // ---- what the check after the wiring reads ----
 
-// wiredHooks counts the entries of the settings that run the script on the
-// event: one, when the wiring holds.
-func wiredHooks(raw []byte, event, script string) (int, error) {
+// wiredHooks counts the entries of the hook in the settings, on its event and
+// in any of its forms: one, when the wiring holds.
+func wiredHooks(raw []byte, h kitHook) (int, error) {
 	o, err := parseSettings(raw)
 	if err != nil {
 		return 0, err
@@ -780,10 +842,10 @@ func wiredHooks(raw []byte, event, script string) (int, error) {
 		return 0, nil
 	}
 	n := 0
-	for _, g := range hs.list(event) {
+	for _, g := range hs.list(h.Event) {
 		if group, ok := g.(*object); ok {
 			for _, e := range group.list("hooks") {
-				if entry, ok := e.(*object); ok && runs(entry.str("command"), script) {
+				if entry, ok := e.(*object); ok && h.owns(entry.str("command")) {
 					n++
 				}
 			}

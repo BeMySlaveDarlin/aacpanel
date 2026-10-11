@@ -90,8 +90,9 @@ func readEarlier(m Machine, f Facts) earlier {
 }
 
 // wiredKit is the kit an install by hand put in: a hook part is in when its
-// script is in the claude settings of an account, a way in when the .env
-// turns it on. Nothing wired — no kit to keep.
+// hook is in the claude settings of an account, in the form of the executor
+// or a former one, a way in when the .env turns it on. Nothing wired — no kit
+// to keep.
 func wiredKit(m Machine, f Facts, e earlier) []string {
 	home := f.Account.Home
 	dirs := []string{contours.DefaultConfig(home)}
@@ -102,13 +103,20 @@ func wiredKit(m Machine, f Facts, e earlier) []string {
 		}
 	}
 	var settings strings.Builder
+	on := map[string]bool{}
 	for _, d := range dirs {
-		if raw, err := m.ReadFile(filepath.Join(d, "settings.json")); err == nil && json.Valid(raw) {
-			settings.Write(raw)
+		raw, err := m.ReadFile(filepath.Join(d, "settings.json"))
+		if err != nil || !json.Valid(raw) {
+			continue
+		}
+		settings.Write(raw)
+		for _, h := range kitHooks {
+			if n, err := wiredHooks(raw, h); err == nil && n > 0 {
+				on[h.Part] = true
+			}
 		}
 	}
 	text := settings.String()
-	on := map[string]bool{}
 	for _, p := range Kit {
 		if p.Trace != "" && strings.Contains(text, p.Trace) {
 			on[p.ID] = true
