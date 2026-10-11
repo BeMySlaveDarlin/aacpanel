@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	registry "aacpanel/internal/contours"
 )
 
 func contourHome(t *testing.T) (home, workConf string) {
@@ -26,6 +28,10 @@ func contourHome(t *testing.T) (home, workConf string) {
 	}
 	t.Setenv("HOME", home)
 	t.Setenv(registryEnv, reg)
+	// A session the panel started carries the contours of the machine in this
+	// variable; inherited, it would put the real ones beside those of the
+	// registry above.
+	t.Setenv(registry.HomeEnv, "")
 	return home, workConf
 }
 
