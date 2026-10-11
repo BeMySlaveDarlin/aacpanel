@@ -1000,9 +1000,14 @@ def _crew_take(raw, known):
         return
     asked = _questions(item) if item.get("type") == "AgentMessage" else []
     if asked:
-        was = known["asked"] or {"count": 0}
+        # Questions asked one after another with no message between hang
+        # together: the next message answers them all, so they are kept
+        # together too, the latest last, under the id of the latest — the one
+        # an answer names.
+        was = known["asked"] or {"count": 0, "asks": []}
         known["asked"] = {"id": item.get("id") if isinstance(item.get("id"), str) else "",
-                          "text": asked[0]["title"], "count": was["count"] + len(asked), "at": at}
+                          "text": asked[0]["title"], "count": was["count"] + len(asked),
+                          "asks": (was["asks"] + asked)[-MAX_ASK_QUESTIONS:], "at": at}
         return
     if item.get("type") == COLLAB and item.get("tool") == SPAWN:
         for agent in _agents(item):

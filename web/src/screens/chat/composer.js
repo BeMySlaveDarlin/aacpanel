@@ -233,14 +233,15 @@ export function asksSend(e, wide) {
 // words is the agent's to plug in: commands after a leading "/" and their
 // list, a command for the shell after a leading "!", a name on each message
 // it can be taken back from the queue by, what the field says while a busy
-// session would only queue it, and the question the words answer. Without
-// them the words go as they are.
+// session would only queue it or a question hangs, and the question the words
+// answer. Without them the words go as they are.
 //
 // asked is the id of a question codex asked without waiting and nobody has
 // answered: the words typed while it hangs are its answer, and they go as the
-// answer a tap on its card sends — into the turn that runs rather than into
-// the panel's queue behind it. A message with files goes as files: the host
-// has no answer with files.
+// answer a tap on its options sends — into the turn that runs rather than
+// into the panel's queue behind it, or as a turn of their own on a free
+// thread. A message with files goes as files: the host has no answer with
+// files.
 export function Composer({ name, id, exec, busy, stream, commands = false, shell = false, ids = false, waits = "", asked = "", hold, files, onFiles, onDropFile, onDropFiles, onLocal, onLocalDone, insert, focus, onAsk, onPicker, onScreen, onSide, strip }) {
     const run = useAction();
     const toast = useToast();
@@ -293,6 +294,9 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
     const canShell = shell && knows(exec, "session.shell");
     const pack = files || [];
     useEffect(() => { taken.current = false; }, [text, pack.length, sending]);
+    // What the field says over the words: while a busy session would only
+    // queue them, and while a question hangs, which they answer either way.
+    const says = busy || asked ? waits : "";
     const cmd = canCmd && !pack.length ? parseCommand(text, stream) : null;
     // /model and /effort with nothing after them are a request for the list,
     // as they are in a terminal: sending them opens it instead.
@@ -487,7 +491,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
             <textarea
                 rows="1"
                 ref=${(el) => { area.current = el; grow(el); }}
-                placeholder=${placeholder(ready, why, name, pack, busy ? waits : "")}
+                placeholder=${placeholder(ready, why, name, pack, says)}
                 disabled=${!ready || sending}
                 value=${text}
                 onInput=${(e) => { setText(e.target.value); grow(e.target); }}
@@ -511,7 +515,7 @@ export function Composer({ name, id, exec, busy, stream, commands = false, shell
                         class=${`iconbtn accent sendbtn${hear.live ? " hearing" : ""}`}
                         type="button"
                         aria-label=${micLabel(asMic, hear.live, cmd, name, side, bang)}
-                        title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang, busy ? waits : "")}
+                        title=${micTitle(hear, asMic, hold && !bang, ready, why, canFile, fileWhy, pack, cmd, bang, says)}
                         disabled=${cantSend}
                         onClick=${() => { if (!hear.tap(asMic)) send(); }}
                         onPointerDown=${(e) => hear.down(e, asMic)}
@@ -592,7 +596,8 @@ function grow(el) {
 
 // placeholder says what the field takes. While a busy session would only
 // queue a message, the words of its agent for that stand in the field: what is
-// written now does not reach the turn under way.
+// written now does not reach the turn under way. While a question hangs, the
+// field says that what is written answers it.
 function placeholder(ready, why, name, pack, waits) {
     if (!ready) return why;
     if (!pack.length) return waits ? waits[0].toUpperCase() + waits.slice(1) : `Write to ${name}`;

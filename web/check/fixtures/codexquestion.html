@@ -8,9 +8,11 @@
 // A codex thread that asked without waiting, as the collector folds
 // agent/testdata/codex-async-questions.jsonl, its last question given options:
 // the first question answered by the message that came after it, the last
-// one hanging while codex works on. A tap on an option of the hanging one
-// sends that option as the answer to that question; the page opened as
-// codexquestion.html#asked stops before the tap, for a picture.
+// one hanging while codex works on. The hanging one stands over the composer
+// and its card is left out of the feed meanwhile, so the question is offered
+// in one place; a tap on an option there sends that option as the answer to
+// that question. The page opened as codexquestion.html#asked stops before the
+// tap, for a picture.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
 import { Chat } from "/src/screens/chat.js";
@@ -72,12 +74,18 @@ const card = (el) => ({
     options: Array.from(el.querySelectorAll(".askopt")).map((o) => text(o) + (o.classList.contains("on") ? " (on)" : "")),
     answer: text(el.querySelector(".xranswer")),
 });
+const dock = () => {
+    const el = root.querySelector(".composerbox .xrdock");
+    return el && { ...card(el), head: text(el.querySelector(".xrdocklabel")) };
+};
 
 const open = async () => {
     await document.fonts.ready;
     render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${thread}
         exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
-    if (!await until(() => all(".chatfeed .xrquestion").length === 2)) throw new Error("the questions did not come");
+    if (!await until(() => all(".chatfeed .xrquestion").length === 1 && dock())) {
+        throw new Error("the questions did not come");
+    }
     await settled();
 };
 
@@ -85,16 +93,17 @@ window.done = location.hash === "#asked" ? open().then(() => ({})) : (async () =
     await open();
     const out = {
         before: all(".chatfeed .xrquestion").map(card),
+        dock: dock(),
         head: text(root.querySelector(".chathead")),
     };
-    const hanging = all(".chatfeed .xrquestion")[1];
-    Array.from(hanging.querySelectorAll(".askpick")).find((b) => text(b) === "Drop it").click();
-    if (!await until(() => sent.length > 0 && all(".chatfeed .xrquestion")[1].querySelector(".askopt.on"))) {
+    Array.from(root.querySelectorAll(".xrdock .askpick")).find((b) => text(b) === "Drop it").click();
+    if (!await until(() => sent.length > 0 && root.querySelector(".xrdock .askopt.on"))) {
         throw new Error("the answer did not go");
     }
     await settled();
     out.sent = sent.map((r) => ({ kind: r.kind, target: r.target, params: r.params }));
-    out.after = card(all(".chatfeed .xrquestion")[1]);
+    out.after = dock();
+    out.cards = all(".chatfeed .xrquestion").length;
     return out;
 })();
 </script>

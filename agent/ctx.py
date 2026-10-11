@@ -583,12 +583,15 @@ def _with_crew(row, path):
     A question codex asked without waiting stands on the row as a question
     of claude's does — the list says the session asks and a push goes out —
     and leaves it with the next message of the person; the row stays as busy
-    or as free as the thread is, since codex goes on.
+    or as free as the thread is, since codex goes on. The row carries what
+    the question is answered from as well, its id and every question that
+    hangs with its options: the conversation reads the feed from its end,
+    and a question asked long before the end is not among the rows it holds.
     """
     asked = (_crew(path) or {}).get("asked")
     if asked:
         row["ask"] = {"header": "", "text": asked["text"], "count": asked["count"], "at": asked["at"],
-                      "async": True}
+                      "async": True, "use": asked["id"], "asks": asked["asks"]}
     working = sum(1 for agent in codex_crew(path) if agent["status"] == ACTIVE)
     if not working:
         return row

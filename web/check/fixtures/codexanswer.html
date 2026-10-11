@@ -6,9 +6,12 @@
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
 // A codex thread at work with a question it asked without waiting hanging in
-// the feed. Words of one's own typed in the composer then are the answer: they
-// go naming the question, the card closes as they leave, and the row under
-// them says they went as the answer, with nothing to take back. The next
+// the feed, the row of the thread naming it too. The question stands over the
+// composer, its card out of the feed while it hangs. Words of one's own typed
+// in the composer then are the answer: they go naming the question, the
+// question leaves the composer as they leave and its card comes back to the
+// feed answered, and the row under them says they went as the answer, with
+// nothing to take back. The next
 // message, the question answered, goes as any message does — into the queue,
 // with its way back. The page opened as codexanswer.html#asks stops before
 // the words are typed, and as #answered once the answer has gone, for a
@@ -53,7 +56,8 @@ const exec = { available: true, kinds: ["session.send", "session.unqueue", "sess
 const thread = {
     session: "codex-0000abcd", sessionId: PARENT, profile: "acme", agent: "codex", transport: "stream",
     status: "busy", model: "gpt-6-astra", tokens: 41000, limit: 272000, pct: 15, cwd: "/srv/site",
-    ask: { header: "", text: "Should the logo stay in the header?", count: 1, at: ago(6), async: true },
+    ask: { header: "", text: "Should the logo stay in the header?", count: 1, at: ago(6), async: true,
+           use: "call_ask_logo", asks: [{ title: "Should the logo stay in the header?", options: ["Keep it", "Drop it"] }] },
 };
 setLiveSessions([thread]);
 const root = document.getElementById("root");
@@ -66,12 +70,22 @@ const until = async (ok) => {
 const settled = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
 const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const one = (sel) => root.querySelector(sel);
+// The question as it stands: its card in the feed, or over the composer while
+// it hangs — null where it is not.
 const card = () => {
     const el = one(".chatfeed .xrquestion");
-    return {
+    return el && {
         head: text(el.querySelector(".sentlabel")),
         options: Array.from(el.querySelectorAll(".askopt")).map(text),
         answer: text(el.querySelector(".xranswer")),
+    };
+};
+const dock = () => {
+    const el = one(".composerbox .xrdock");
+    return el && {
+        head: text(el.querySelector(".xrdocklabel")),
+        options: Array.from(el.querySelectorAll(".askopt")).map(text),
+        answer: "",
     };
 };
 // What stands under the message last sent from the composer: the line where
@@ -99,7 +113,7 @@ const open = async () => {
     await document.fonts.ready;
     render(h(ToastHost, null, h(GateHost, null, html`<${Chat} name=${thread.session} id=${thread.sessionId} live=${thread}
         exec=${exec} onBack=${() => {}} onUsage=${() => {}} />`)), root);
-    if (!await until(() => one(".chatfeed .xrquestion") && one(".composer textarea"))) {
+    if (!await until(() => one(".chatfeed .msg") && dock() && one(".composer textarea"))) {
         throw new Error("the question or the composer did not come");
     }
     await settled();
@@ -107,13 +121,13 @@ const open = async () => {
 
 window.done = (async () => {
     await open();
-    const out = { asks: { card: card(), placeholder: placeholder() } };
+    const out = { asks: { card: card(), dock: dock(), placeholder: placeholder() } };
     if (location.hash === "#asks") return {};
     await write("Drop it, the title is enough");
-    out.answered = { card: card(), placeholder: placeholder(), ...lastSent() };
+    out.answered = { card: card(), dock: dock(), placeholder: placeholder(), ...lastSent() };
     if (location.hash === "#answered") return {};
     await write("And make the footer dark");
-    out.after = { card: card(), ...lastSent() };
+    out.after = { card: card(), dock: dock(), ...lastSent() };
     out.sent = sent.map((r) => ({ kind: r.kind, target: r.target, params: r.params }));
     return out;
 })();

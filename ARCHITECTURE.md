@@ -952,11 +952,18 @@ appears or the connection drops — at once when an action waits for it.
   so as to go on, and an answer in the panel's queue behind that turn would
   come after the work it was for — or starts a turn on a free thread. Words
   of one's own typed in the composer while the question hangs go the same
-  way, and the card closes as they leave; a message with files goes as files,
-  into the queue. While no message has come after it, the question stands on
-  the thread's row as a question of claude's does — the list says the session
-  asks and a push goes out — and the row stays as busy or as free as the
-  thread is.
+  way; a message with files goes as files, into the queue. While no message
+  has come after it, the question stands on the thread's row as a question of
+  claude's does — the list says the session asks and a push goes out — and
+  the row stays as busy or as free as the thread is. The row carries the id
+  of the latest question and every question that hangs with its options:
+  the conversation reads the feed from its end, and a question asked hours
+  of work before it is not among the rows the screen holds. So a question
+  that hangs stands over the composer, from the row or from the feed,
+  whichever is newer, and is answered there; its card is left out of the
+  feed meanwhile, so the question is offered in one place whatever the
+  person has scrolled to, and comes back to the feed answered, as claude's
+  question becomes its card once answered.
 - **The agents a thread started are its agents**, listed as a claude
   session's are and each opening its own thread. The collector reads them
   off the rollout of the thread, on from where it last stopped: an agent

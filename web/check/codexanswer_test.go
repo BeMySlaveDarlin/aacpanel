@@ -14,27 +14,32 @@ type answerCardShot struct {
 // Words of one's own typed in the composer while a question codex asked
 // without waiting hangs are its answer, as a tap on an option is: they go
 // naming the question, so the host gives them to the turn that runs rather
-// than to the panel's queue behind it. The field says so before they are
-// typed, the card closes with them as they leave, and the row under them says
-// they went as the answer, with no way back from a queue they never entered.
-// The question answered, the composer is as it always is: the next message
-// goes as a message, into the queue and with its way back.
+// than to the panel's queue behind it. The question stands over the composer
+// and its card is out of the feed while it hangs; the field says the words
+// answer it before they are typed, the question leaves the composer as they
+// leave and its card comes back to the feed answered, and the row under them
+// says they went as the answer, with no way back from a queue they never
+// entered. The question answered, the composer is as it always is: the next
+// message goes as a message, into the queue and with its way back.
 func TestWordsTypedWhileACodexQuestionHangsGoAsItsAnswer(t *testing.T) {
 	var got struct {
 		Asks struct {
-			Card        answerCardShot `json:"card"`
-			Placeholder string         `json:"placeholder"`
+			Card        *answerCardShot `json:"card"`
+			Dock        *answerCardShot `json:"dock"`
+			Placeholder string          `json:"placeholder"`
 		} `json:"asks"`
 		Answered struct {
-			Card        answerCardShot `json:"card"`
-			Placeholder string         `json:"placeholder"`
-			Stamp       string         `json:"stamp"`
-			TakeBack    int            `json:"takeBack"`
+			Card        *answerCardShot `json:"card"`
+			Dock        *answerCardShot `json:"dock"`
+			Placeholder string          `json:"placeholder"`
+			Stamp       string          `json:"stamp"`
+			TakeBack    int             `json:"takeBack"`
 		} `json:"answered"`
 		After struct {
-			Card     answerCardShot `json:"card"`
-			Stamp    string         `json:"stamp"`
-			TakeBack int            `json:"takeBack"`
+			Card     *answerCardShot `json:"card"`
+			Dock     *answerCardShot `json:"dock"`
+			Stamp    string          `json:"stamp"`
+			TakeBack int             `json:"takeBack"`
 		} `json:"after"`
 		Sent []struct {
 			Kind   string            `json:"kind"`
@@ -44,9 +49,9 @@ func TestWordsTypedWhileACodexQuestionHangsGoAsItsAnswer(t *testing.T) {
 	}
 	runFixture(t, "codexanswer.html", &got)
 
-	if got.Asks.Card.Head != "codex asks, and goes on" ||
-		!reflect.DeepEqual(got.Asks.Card.Options, []string{"Keep it", "Drop it"}) {
-		t.Errorf("the hanging question reads %+v", got.Asks.Card)
+	if got.Asks.Dock == nil || got.Asks.Dock.Head != "codex asks, and goes on" ||
+		!reflect.DeepEqual(got.Asks.Dock.Options, []string{"Keep it", "Drop it"}) || got.Asks.Card != nil {
+		t.Errorf("the hanging question reads %+v over the composer and %+v in the feed", got.Asks.Dock, got.Asks.Card)
 	}
 	if got.Asks.Placeholder != "Answer the question — it goes into the turn that runs" {
 		t.Errorf("the field over a hanging question says %q", got.Asks.Placeholder)
@@ -61,9 +66,10 @@ func TestWordsTypedWhileACodexQuestionHangsGoAsItsAnswer(t *testing.T) {
 		answer.Params["messageId"] == "" || len(answer.Params) != 3 {
 		t.Errorf("the words typed over the hanging question went as %+v: the answer to that question, named", answer)
 	}
-	if got.Answered.Card.Head != "codex asked" || len(got.Answered.Card.Options) != 0 ||
-		got.Answered.Card.Answer != "answered Drop it, the title is enough" {
-		t.Errorf("the question once the answer left reads %+v", got.Answered.Card)
+	if got.Answered.Card == nil || got.Answered.Card.Head != "codex asked" || len(got.Answered.Card.Options) != 0 ||
+		got.Answered.Card.Answer != "answered Drop it, the title is enough" || got.Answered.Dock != nil {
+		t.Errorf("the question once the answer left reads %+v in the feed and %+v over the composer",
+			got.Answered.Card, got.Answered.Dock)
 	}
 	if got.Answered.Stamp != "went as the answer" || got.Answered.TakeBack != 0 {
 		t.Errorf("the answer on its way says %q with %d ways back from the queue", got.Answered.Stamp, got.Answered.TakeBack)
@@ -80,7 +86,7 @@ func TestWordsTypedWhileACodexQuestionHangsGoAsItsAnswer(t *testing.T) {
 	if got.After.Stamp != "queued" || got.After.TakeBack != 1 {
 		t.Errorf("the message after the answer says %q with %d ways back", got.After.Stamp, got.After.TakeBack)
 	}
-	if got.After.Card.Answer != "answered Drop it, the title is enough" {
-		t.Errorf("a second message answered the question again: %+v", got.After.Card)
+	if got.After.Card == nil || got.After.Card.Answer != "answered Drop it, the title is enough" || got.After.Dock != nil {
+		t.Errorf("a second message answered the question again: %+v, %+v", got.After.Card, got.After.Dock)
 	}
 }

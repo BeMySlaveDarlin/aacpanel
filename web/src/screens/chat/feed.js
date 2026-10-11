@@ -159,19 +159,57 @@ function answerOf(question, items, local) {
         || local.find((row) => row.role === "me" && row.state !== "failed" && row.after >= question.pos);
 }
 
+// asking returns what codex asked without waiting and nothing answers yet, or
+// null when nothing hangs: the id an answer names — the latest question's —
+// every question that hangs with its options, when the latest was asked, and
+// the cards that stand for it in the feed — or in a window of it further up,
+// where the card of the row's question is when the person scrolls to it.
+//
+// The feed is read from its end, and a question asked long before the end is
+// not among its items: the row of the session says it hangs, with its id and
+// its questions, whatever the window holds. A question asked before the window
+// is older than every item of it, so a message of the person after its time,
+// in the feed or on its way from this screen, answers it. The row and the feed
+// are read apart and either can be a moment behind the other: a card newer
+// than the question of the row is a question the row has not caught up with,
+// and the feed has it.
+export function asking(items, local = [], ask = null) {
+    const open = (items || []).filter((item) => item.role === "question" && item.use
+        && !answerOf(item, items, local));
+    const last = open.reduce((top, item) => (!top || item.pos > top.pos ? item : top), null);
+    const cards = open.map((item) => item.use);
+    const row = ask && ask.async && ask.use && !answeredSince(ask.at, items, local) ? ask : null;
+    if (row && (!last || last.use === row.use || !(Date.parse(last.at) > Date.parse(row.at)))) {
+        const asks = row.asks && row.asks.length ? row.asks : [{ title: row.text || "", options: [] }];
+        return { use: row.use, asks, at: row.at || "", cards: [...cards, row.use] };
+    }
+    if (!last) return null;
+    return { use: last.use, asks: open.flatMap((item) => item.asks || []), at: last.at || "", cards };
+}
+
+// answeredSince reports whether a message of the person came after the time a
+// question was asked: in the feed, or on its way from this screen and not
+// failed — a row the feed has not echoed yet was sent after the feed's end.
+function answeredSince(at, items, local) {
+    const asked = Date.parse(at);
+    return (items || []).some((item) => item.role === "me" && !(Date.parse(item.at) <= asked))
+        || local.some((row) => row.role === "me" && row.state !== "failed");
+}
+
 // hanging returns the id of the question codex asked without waiting that
-// nothing answers yet — the last one of the feed — or "" when none hangs.
-// Words of one's own written while it hangs are its answer.
-export function hanging(items, local = []) {
-    const question = (items || []).reduce((last, item) => (item.role === "question"
-        && (!last || item.pos > last.pos) ? item : last), null);
-    if (!question || !question.use || answerOf(question, items, local)) return "";
-    return question.use;
+// nothing answers yet, or "" when none hangs. Words of one's own written
+// while it hangs are its answer.
+export function hanging(items, local = [], ask = null) {
+    const question = asking(items, local, ask);
+    return question ? question.use : "";
 }
 
 // rows returns the feed ready for display, folding one run into a single row.
-// Local is the rows this screen sent that the feed has not echoed yet.
-export function rows(items, local = []) {
+// Local is the rows this screen sent that the feed has not echoed yet. Docked
+// are the cards of the questions codex asked without waiting that the screen
+// offers over the composer while they hang: there they are answered, and the
+// feed draws each once it has its answer.
+export function rows(items, local = [], docked = []) {
     const done = new Map();
     const links = new Map();
     const stood = new Map();
@@ -215,6 +253,7 @@ export function rows(items, local = []) {
         // message of the person, wherever it stands after the question.
         if (item.role === "question") {
             const next = answerOf(item, items, local);
+            if (!next && docked.includes(item.use)) continue;
             if (next) item = { ...item, answer: String(next.text || "").trim() };
         }
         // An agent stands as the last call to it said: the start knows only

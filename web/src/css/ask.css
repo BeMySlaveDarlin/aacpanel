@@ -30,6 +30,42 @@
 }
 .waitbar.bad .askdot { background: var(--crit); }
 
+/* A question codex asked without waiting, over the composer while it hangs:
+   the ring of the waiting bar, since the thread waits for the person too, and
+   a body that scrolls rather than taking the whole feed — codex can ask
+   several questions of a dozen options each. Folded, it is the waiting bar. */
+.xrdock {
+    margin: 0 0 .5rem;
+    padding: .45rem .7rem .55rem;
+    background: var(--glass-2);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border-radius: var(--r-card);
+    box-shadow: var(--hairline), var(--drop),
+                0 0 0 1px color-mix(in srgb, var(--warn) 40%, transparent);
+}
+.xrdock.sent {
+    box-shadow: var(--hairline), var(--drop),
+                0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.xrdock.sent .askdot { background: var(--accent); }
+.xrdock.folded { padding: .6rem .65rem; }
+.xrdock.folded .waittext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xrdockhead {
+    display: flex; align-items: center; gap: .5rem;
+    width: 100%; min-height: 32px;
+    padding: 0;
+    font: inherit; text-align: left;
+    color: var(--ink-faint); background: none; border: 0;
+    cursor: pointer;
+}
+.xrdocklabel { font-size: var(--t-xs); font-weight: 500; color: var(--ink-dim); }
+.xrdockat { font-size: var(--t-xs); }
+.xrdockbody { max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; }
+.xrdock .asktext { font-size: var(--t-base); }
+.xrdock .askopts { margin-top: .45rem; }
+.xrdock > .hint { margin: .45rem 0 0; }
+
 .askhead { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .5rem; }
 .asklabel { color: var(--ink-faint); font-size: var(--t-xs); font-weight: 500; }
 .askwhy { color: var(--ink-faint); font-size: var(--t-xs); }

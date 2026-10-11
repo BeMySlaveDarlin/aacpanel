@@ -1089,8 +1089,11 @@ class AsyncQuestions(Runtime):
         self.follow(busy=True)
         row = ctx.codex_sessions()[0]
         self.assertEqual(row.get("ask"), {"header": "", "text": "Should the logo stay?", "count": 1,
-                                          "at": "2026-10-09T14:00:15.000Z", "async": True},
-                         "the question answered by the next message is gone, the last one hangs")
+                                          "at": "2026-10-09T14:00:15.000Z", "async": True,
+                                          "use": "call_ask_logo",
+                                          "asks": [{"title": "Should the logo stay?", "options": []}]},
+                         "the question answered by the next message is gone, the last one hangs, "
+                         "with what it is answered from")
         self.assertEqual(row["status"], "busy", "codex goes on: a question it did not wait for holds nothing")
         with open(ASYNC_QUESTIONS, encoding="utf-8") as f:
             answer = json.loads(next(line for line in f if '"Dark"' in line and "UserMessage" in line))
@@ -1103,10 +1106,17 @@ class AsyncQuestions(Runtime):
         with open(ASYNC_QUESTIONS, encoding="utf-8") as f:
             lines = f.readlines()
         asked = next(line for line in lines if '"call_ask_logo"' in line and '"async"' in line)
+        more = json.loads(asked.replace("call_ask_logo", "call_ask_more"))
+        more["payload"]["item"]["questions"] = [{"title": "And the footer?", "options": ["Dark", "Light"]}]
         with open(self.rollout, "a", encoding="utf-8") as f:
-            f.write(asked.replace("call_ask_logo", "call_ask_more"))
+            f.write(json.dumps(more) + "\n")
         self.follow()
-        self.assertEqual(ctx.codex_sessions()[0]["ask"]["count"], 2)
+        ask = ctx.codex_sessions()[0]["ask"]
+        self.assertEqual(ask["count"], 2)
+        self.assertEqual((ask["use"], ask["asks"]), ("call_ask_more", [
+            {"title": "Should the logo stay?", "options": []},
+            {"title": "And the footer?", "options": ["Dark", "Light"]}]),
+            "both questions hang until the next message, and an answer names the latest")
 
 
 class Asks(Runtime):

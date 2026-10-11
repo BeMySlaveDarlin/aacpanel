@@ -15,7 +15,8 @@ import { Icon } from "../../ui/icons.js";
 import { useAction } from "../../actions/gate.js";
 import { CODEX_CLOSE, CODEX_NOTE, noTurn } from "../../agent.js";
 import { Conversation } from "./conversation.js";
-import { hanging } from "./feed.js";
+import { asking, hanging } from "./feed.js";
+import { AsyncDock } from "./codexrows.js";
 import { CodexSheets, CodexStrip, useCatalog, useCodexPick } from "./codexpick.js";
 import { ProcessesChip, ProcessesSheet, useCompact } from "./codexthread.js";
 import { LOOK_NAMES } from "./look.js";
@@ -72,10 +73,20 @@ export function CodexChat(props) {
         // A thread whose own turn is over is free while its agents work: a
         // message starts a turn at once, and there is no turn for the button
         // to stop. While a question codex asked without waiting hangs, the
-        // words typed are its answer.
+        // words typed are its answer — the feed's question, or the one the
+        // row of the thread says hangs above the rows the screen read.
         composer: ({ items, pending }) => {
-            const asked = hanging(items, pending);
-            return { ids: true, asked, waits: waits(live, asked), busy: live.status === "busy" && !live.turnOver };
+            const asked = hanging(items, pending, live.ask);
+            const busy = live.status === "busy" && !live.turnOver;
+            return { ids: true, asked, waits: waits(live, asked, busy), busy };
+        },
+        dock: ({ items, pending }) => {
+            const ask = asking(items, pending, live.ask);
+            if (!ask) return null;
+            return {
+                cards: ask.cards,
+                node: html`<${AsyncDock} key=${ask.use} ask=${ask} session=${name} exec=${exec} />`,
+            };
         },
         strip: ({ wide }) => html`<${CodexStrip} wide=${wide} exec=${exec} live=${live} pct=${pct} now=${pick.now}
                                                   open=${open} onOpen=${setOpen} onCompact=${compact}
@@ -115,9 +126,10 @@ function CodexWork({ work, processes, onOpen }) {
 // waits is what the field says while a turn runs: a message written now goes
 // into the panel's queue and out as a turn of its own after this one, behind
 // what already waits there — unless it answers a question that hangs, which
-// goes into the turn at once.
-function waits(live, asked) {
-    if (asked) return "answer the question — it goes into the turn that runs";
+// goes into the turn at once. While a question hangs the field says so on a
+// free thread too, where the answer starts a turn.
+function waits(live, asked, busy) {
+    if (asked) return busy ? "answer the question — it goes into the turn that runs" : "answer the question — it starts a turn";
     const ahead = (live && live.queued) || 0;
     return ahead > 0 ? `goes after the turn, behind ${ahead} queued` : "goes after the turn";
 }

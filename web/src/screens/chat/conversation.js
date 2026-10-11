@@ -69,6 +69,10 @@ import { agentKey, agentName, isCodex, shownName, spoke } from "../../agent.js";
 //                and tasks, codex's background processes
 //   sections     the sections of the session's tools
 //   composer     ctx → what the composer reads in the words beyond them
+//   dock         ctx → what stands over the composer while it hangs, or null:
+//                the node, and the cards of the feed it stands for, which
+//                the feed leaves out meanwhile — codex's question asked
+//                without waiting; claude has none
 //   strip        ctx → the band under the field, after the paperclip
 //   look         (look, ctx) → { label, node } for a sheet of its own kind
 //   sheets       ctx → the sheets of its settings
@@ -319,6 +323,14 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
     const ctx = { wide, view, feedShown, feedRef, work: state.work, items: state.items, pending, setLook, setInsert };
     const own = look ? parts.look(look, ctx) : null;
 
+    // What stands in the place of the composer: a question of the agent that
+    // holds its turn, and a permission it waits on. What stands over the
+    // composer stands only where the composer is: one question at a time.
+    const asksTurn = Boolean(state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
+        && !hidesAsk(answer, state.work.ask.toolUseId));
+    const composing = Boolean(live) && !live.outside && !asksTurn && !(live.status === "waiting" && !holding);
+    const dock = composing && feedShown && parts.dock ? parts.dock(ctx) : null;
+
     // A thread of codex in the archive keeps no fill of its context: its head
     // says what the thread spent instead, as its row in the archive does, and
     // nothing when it spent nothing. Null is the archive that keeps the fill.
@@ -417,7 +429,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
             `}
             ${state.note && html`<p class="hint warn">${state.note}</p>`}
             <${FeedGrid}
-                rows=${rows(drawn, pending)}
+                rows=${rows(drawn, pending, dock ? dock.cards : [])}
                 wide=${wide}
                 checklist=${checklist}
                 onOpen=${(g, badge) => setCalls(callsOf(g, drawn, runCalls, turnCalls, badge))}
@@ -460,6 +472,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
 
         ${live && feedShown && html`
             <div class="composerbox">
+                ${dock && dock.node}
                 <${WorkStatus} work=${state.work} busy=${live.status === "busy"}
                                turnOver=${Boolean(live.turnOver)}
                                compacting=${live.transport === "stream" ? live.compacting || "" : ""}
@@ -471,8 +484,7 @@ export function Conversation({ name, id, live, archive, exec, snapshot, onBack, 
                                onOpen=${(what) => setLook(what)} />
                 ${live.outside
                     ? html`<p class="outsidenote">${outsideNote(live)}</p>`
-                    : state.work && state.work.ask && !closed(state.items, state.work.ask.toolUseId)
-                    && !hidesAsk(answer, state.work.ask.toolUseId)
+                    : asksTurn
                     ? html`<${Ask} ask=${state.work.ask} name=${name} exec=${exec} stream=${parts.askStream} codex=${isCodex(live)}
                                    onAnswered=${(use) => mark(answered(live, use, Date.now(), state.work.ask.at))} />`
                     : live.status === "waiting" && !holding
