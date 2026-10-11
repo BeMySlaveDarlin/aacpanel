@@ -16,14 +16,14 @@ type agentWord struct {
 }
 
 // The words Claude and Codex are painted in the colours of the agents' own
-// marks wherever they say who runs a session: Anthropic's terracotta and the
-// middle blue of codex's badge on the dark theme the fixtures run in, a
-// darker pair on the sky. Only the words: a bar or a ring of an agent keeps
-// the colours of the panel.
+// marks wherever they say who runs a session: a quiet clay of Anthropic's
+// terracotta and the middle blue of codex's badge on the dark theme the
+// fixtures run in, a darker pair on the sky. Only the words: a bar or a ring
+// of an agent keeps the colours of the panel.
 const (
-	claudeWordHue    = "rgb(217, 119, 87)"
+	claudeWordHue    = "rgb(201, 154, 134)"
 	codexWordHue     = "rgb(122, 157, 255)"
-	claudeWordSkyHue = "rgb(193, 95, 60)"
+	claudeWordSkyHue = "rgb(138, 94, 76)"
 	codexWordSkyHue  = "rgb(57, 65, 255)"
 )
 
