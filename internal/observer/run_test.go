@@ -85,8 +85,9 @@ func TestTheLogIsReadOnAcrossTheMoveOfAFullFile(t *testing.T) {
 
 // The tools of the server call the executor for the session the server
 // serves: a start in the directory of the session unless it names another,
-// with the PATH of the session, a list, a tail and a stop. What the
-// executor refuses comes back to the model as its own error.
+// with the PATH of the session, a list, a tail and a stop, and the set, the
+// list and the cancel of an alarm. What the executor refuses comes back to
+// the model as its own error.
 func TestTheToolsReachTheKeeperForTheSessionCalling(t *testing.T) {
 	quick(t)
 	socket, err := os.MkdirTemp("", "o")
@@ -152,6 +153,29 @@ func TestTheToolsReachTheKeeperForTheSessionCalling(t *testing.T) {
 	}
 	if text, _ := call(ListName, `{}`); text != "This session has no observers." {
 		t.Errorf("the list after the stop is %q", text)
+	}
+
+	if text, failed := call(AlarmSetName, `{"name":"nap","in":"1h","note":"Wake up."}`); failed ||
+		!strings.Contains(text, "Alarm nap set: it rings once, at ") {
+		t.Errorf("the set answered %q", text)
+	}
+	if text, failed := call(AlarmSetName, `{"name":"poll","every":"10s"}`); !failed ||
+		!strings.Contains(text, "less than 1m") {
+		t.Errorf("a repeat the executor does not take answered %q", text)
+	}
+	if text, failed := call(AlarmSetName, `{"name":"poll","in":"1h","after":1}`); !failed ||
+		!strings.Contains(text, "not the tool's") {
+		t.Errorf("an argument the tool does not take answered %q", text)
+	}
+	if text, _ := call(AlarmListName, `{}`); !strings.Contains(text, "- nap: rings once, at ") ||
+		!strings.Contains(text, "note: Wake up.") {
+		t.Errorf("the list of alarms is %q", text)
+	}
+	if text, failed := call(AlarmCancelName, `{"name":"nap"}`); failed || text != "Alarm nap cancelled: it rings no more." {
+		t.Errorf("the cancel answered %q", text)
+	}
+	if text, _ := call(AlarmListName, `{}`); text != "This session has no alarms." {
+		t.Errorf("the list after the cancel is %q", text)
 	}
 	cancel()
 	time.Sleep(20 * time.Millisecond)

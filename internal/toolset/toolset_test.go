@@ -49,6 +49,9 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__observer_list",
 		"mcp__aacpanel__observer_stop",
 		"mcp__aacpanel__observer_tail",
+		"mcp__aacpanel__alarm_set",
+		"mcp__aacpanel__alarm_list",
+		"mcp__aacpanel__alarm_cancel",
 	}
 	if got := Allowed(); !slices.Equal(got, want) {
 		t.Errorf("allowed %v", got)
@@ -60,7 +63,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 // — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
 	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
-		"observer_list", "observer_stop", "observer_tail"}
+		"observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list", "alarm_cancel"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
 	}
@@ -215,7 +218,8 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		descriptions += about + "\n"
 	}
 	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
-		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail"}; !slices.Equal(names, want) {
+		"send_to_session", "observer_start", "observer_list", "observer_stop", "observer_tail", "alarm_set", "alarm_list",
+		"alarm_cancel"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
 	}
 	if lines := strings.Split(said, "\n"); len(lines) != len(names)+1 || lines[0] != lead {

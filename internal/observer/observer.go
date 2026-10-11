@@ -1,4 +1,5 @@
-// Package observer keeps the commands a session hands the panel to watch.
+// Package observer keeps the commands a session hands the panel to watch,
+// and the alarms a session sets to be woken at a moment.
 //
 // A session that waits on something outside it — a CI run, a log, a build
 // that takes the night — has its own ways to wait, and each is held by the
@@ -15,6 +16,11 @@
 // died — ends the observer, since a session started again knows nothing of
 // what the one before it was waiting for, and a command nobody waits on is a
 // process left on the host.
+//
+// An alarm waits on nothing but a moment, so it has no command and no unit:
+// the executor rings it itself and keeps it on the disk to ring after its own
+// restart. It wakes its session with the same letter and ends with the session
+// by the same rule.
 package observer
 
 import (
@@ -226,7 +232,8 @@ type Record struct {
 
 // Dir is where the observers of the host are kept, a directory each: the
 // state of the owner's own, outside the state directory of the panel, which
-// is mounted into the service's container.
+// is mounted into the service's container. The alarms are kept beside it, in
+// alarms/, a file each.
 func Dir() string {
 	base := os.Getenv("XDG_STATE_HOME")
 	if base == "" {

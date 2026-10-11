@@ -15,7 +15,7 @@
 │ In claude settings — ~/.claude/settings.json             │
 │   · question hook · status line before yours · MCP       │
 │     server                                               │
-│   · 10 allow rules · 5 hooks                             │
+│   · 13 allow rules · 5 hooks                             │
 │ Values                                                   │
 │   host lab (hostname) · home session lab (host name)     │
 │   state /var/lib/aacpanel (recommended) · projects under │

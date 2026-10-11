@@ -474,6 +474,12 @@ approval_mode = "approve"
 approval_mode = "approve"
 [mcp_servers.aacpanel.tools.observer_tail]
 approval_mode = "approve"
+[mcp_servers.aacpanel.tools.alarm_set]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.alarm_list]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.alarm_cancel]
+approval_mode = "approve"
 ```
 
 The letter and the start of an observer are left to ask; a home whose runs may not ask and still
@@ -1275,7 +1281,9 @@ first in the chain and passes the payload on to the command that was there:
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
     "mcp__aacpanel__secret_ask", "mcp__aacpanel__session_close",
     "mcp__aacpanel__observer_list", "mcp__aacpanel__observer_stop",
-    "mcp__aacpanel__observer_tail", "mcp__aacpanel__session_restart"]}
+    "mcp__aacpanel__observer_tail", "mcp__aacpanel__alarm_set",
+    "mcp__aacpanel__alarm_list", "mcp__aacpanel__alarm_cancel",
+    "mcp__aacpanel__session_restart"]}
 }
 ```
 

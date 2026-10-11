@@ -599,11 +599,11 @@ func runObserver(dir string) int {
 	return 0
 }
 
-// startObservers keeps the observers of the sessions: the ones an executor
-// before this one left are taken back, and the panel's server under a session
-// reaches the keeper on a socket of its own, outside the directory mounted
-// into the service. An executor without it runs on: the sessions are told the
-// tools cannot reach it.
+// startObservers keeps the observers and the alarms of the sessions: the ones
+// an executor before this one left are taken back, and the panel's server
+// under a session reaches the keeper on a socket of its own, outside the
+// directory mounted into the service. An executor without it runs on: the
+// sessions are told the tools cannot reach it.
 func startObservers(ctx context.Context, e *executor.Executor) {
 	keeper := e.Observers()
 	keeper.Load(ctx)
@@ -611,11 +611,11 @@ func startObservers(ctx context.Context, e *executor.Executor) {
 	path := observer.SocketPath()
 	ln, err := observer.Listen(path)
 	if err != nil {
-		log.Printf("observers are unavailable: %v", err)
+		log.Printf("observers and alarms are unavailable: %v", err)
 		return
 	}
 	go keeper.Serve(ctx, ln)
-	log.Printf("observers: %s", path)
+	log.Printf("observers and alarms: %s", path)
 }
 
 func startTerminals(ctx context.Context, socket string) (net.Listener, error) {

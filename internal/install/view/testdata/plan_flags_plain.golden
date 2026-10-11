@@ -60,7 +60,7 @@
 │   · map: group Projects, 1 project                                       new │
 │ In claude settings — ~/.claude/settings.json                                 │
 │   · question hook · status line before yours · MCP server                    │
-│   · 10 allow rules · 5 hooks                                                 │
+│   · 13 allow rules · 5 hooks                                                 │
 │ Values                                                                       │
 │   host studio (flag) · home session studio (host name)                       │
 │   state /var/lib/aacpanel (recommended) · projects under ~/code (found)      │

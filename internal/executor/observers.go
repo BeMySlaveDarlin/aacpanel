@@ -16,14 +16,15 @@ import (
 )
 
 // The observers of the panel are kept by the executor: it starts their
-// units, reads their logs and wakes their sessions. A session is woken only
+// units, reads their logs and wakes their sessions; it rings the alarms of
+// the sessions the same way, with the same owners. A session is woken only
 // where a letter reaches it as a letter: on the stream, through its holder,
 // in the envelope claude reads one in, and a thread of codex through its
 // daemon, as a letter of another session goes. A session in tmux is woken by
 // nothing but keys typed into its terminal, which its model takes for its
 // person's words, and it is refused.
 
-// Observers is the keeper of the observers of this host.
+// Observers is the keeper of the observers and the alarms of this host.
 func (e *Executor) Observers() *observer.Keeper {
 	return observer.NewKeeper(observer.Dir(), observerUnits{}, observerOwners{e: e})
 }
@@ -37,7 +38,7 @@ func (o observerOwners) Resolve(ctx context.Context, c observer.Caller) (observe
 		th, ok := o.e.codex.Thread(c.Conversation)
 		if !ok {
 			return observer.Owner{}, fmt.Errorf("no daemon of codex the panel is linked to holds thread %s: "+
-				"an observer wakes a thread the panel reaches", c.Conversation)
+				"the panel wakes a thread it reaches", c.Conversation)
 		}
 		return observer.Owner{Session: th.Name, Conversation: th.ID, Codex: true}, nil
 	}
@@ -50,10 +51,10 @@ func (o observerOwners) Resolve(ctx context.Context, c observer.Caller) (observe
 			continue
 		}
 		if !onStream(s) {
-			return observer.Owner{}, fmt.Errorf("session %s is not on the stream, and an observer wakes only a "+
+			return observer.Owner{}, fmt.Errorf("session %s is not on the stream, and the panel wakes only a "+
 				"session on the stream or a thread of codex: a session in tmux takes a wake only as keys typed "+
 				"into its terminal, which its model reads as its person's words. Move the session to the stream "+
-				"to use observers", s.Name)
+				"to use observers and alarms", s.Name)
 		}
 		st, err := streamState(ctx, s)
 		if err != nil {
@@ -62,7 +63,7 @@ func (o observerOwners) Resolve(ctx context.Context, c observer.Caller) (observe
 		if st.Protocol < stream.LettersSince {
 			return observer.Owner{}, fmt.Errorf("session %s was started before the panel could wake it, and it "+
 				"keeps the program it started with until it ends: restart the session (the conversation is kept) "+
-				"and start the observer then", s.Name)
+				"and call again then", s.Name)
 		}
 		start, ok := procStart(s.PID)
 		if !ok {
@@ -99,7 +100,7 @@ func (o observerOwners) Wake(ctx context.Context, owner observer.Owner, from, te
 		if !ok {
 			return fmt.Errorf("no daemon holds thread %s", owner.Conversation)
 		}
-		_, err := th.Link.Send(ctx, th.ID, codex.Message{Text: observerLetter(from, text)})
+		_, err := th.Link.Send(ctx, th.ID, codex.Message{Text: wakeLetter(from, text)})
 		return err
 	}
 	s, ok := liveSessionOfPID(owner.PID, owner.Conversation)
@@ -123,10 +124,11 @@ func liveSessionOfPID(pid int, conversation string) (liveSession, bool) {
 	return liveSession{}, false
 }
 
-// observerLetter is a wake as a codex thread gets it: codex frames no letter
-// of its own, so the panel says before the envelope where it comes from.
-func observerLetter(from, text string) string {
-	return "A letter of the panel's " + from + ", which this thread started with observer_start. Your person " +
+// wakeLetter is a wake as a codex thread gets it: codex frames no letter of
+// its own, so the panel says before the envelope where it comes from — an
+// observer or an alarm the thread asked the panel for.
+func wakeLetter(from, text string) string {
+	return "A letter of the panel's " + from + ", which this thread asked the panel for. Your person " +
 		"did not type it.\n\n" + letterEnvelope("", from, text)
 }
 

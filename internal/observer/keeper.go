@@ -72,21 +72,24 @@ const (
 )
 
 // Keeper keeps the observers of the host: it starts their units, reads their
-// logs, wakes their sessions and ends them with the sessions. Its records
-// outlive it, and the keeper of an executor started again goes on where the
-// last one stopped.
+// logs, wakes their sessions and ends them with the sessions. It keeps the
+// alarms of the sessions the same way, with no unit: it rings them itself.
+// Its records outlive it, and the keeper of an executor started again goes on
+// where the last one stopped.
 type Keeper struct {
-	dir    string
-	runner Runner
-	owners Owners
-	now    func() time.Time
+	dir      string
+	alarmDir string
+	runner   Runner
+	owners   Owners
+	now      func() time.Time
 
 	// starting serialises the starts, so two calls of one session cannot
 	// both take the last place.
 	starting sync.Mutex
 
-	mu    sync.Mutex
-	watch map[string]*watch
+	mu     sync.Mutex
+	watch  map[string]*watch
+	alarms map[string]*ringing
 }
 
 // watch is one observer as the keeper follows it. A look at it and its end
@@ -117,20 +120,24 @@ type watch struct {
 	gone  int
 }
 
-// NewKeeper makes the keeper of the observers kept in dir.
+// NewKeeper makes the keeper of the observers kept in dir, and of the alarms
+// kept beside them.
 func NewKeeper(dir string, runner Runner, owners Owners) *Keeper {
-	return &Keeper{dir: dir, runner: runner, owners: owners, now: time.Now, watch: map[string]*watch{}}
+	return &Keeper{dir: dir, alarmDir: alarmDir(dir), runner: runner, owners: owners, now: time.Now,
+		watch: map[string]*watch{}, alarms: map[string]*ringing{}}
 }
 
-// Load takes back the observers an executor before this one left and stops
-// the units no record names. It is done before any call is taken: a record
-// being written for a start would read as one not read and go.
+// Load takes back the observers and the alarms an executor before this one
+// left and stops the units no record names. It is done before any call is
+// taken: a record being written for a start would read as one not read and go.
 func (k *Keeper) Load(ctx context.Context) {
 	k.load(ctx)
+	k.loadAlarms()
 }
 
-// Run looks at the observers until ctx ends. The units go on after it: an
-// executor started again takes them back with Load.
+// Run looks at the observers and the alarms until ctx ends. The units go on
+// after it, and the alarms wait on the disk: an executor started again takes
+// them back with Load.
 func (k *Keeper) Run(ctx context.Context) {
 	tick := time.NewTicker(step)
 	defer tick.Stop()
@@ -324,8 +331,8 @@ func (k *Keeper) find(ctx context.Context, c Caller, name string) (*watch, error
 	return nil, fmt.Errorf("this session has no observer %s; it has %s", name, strings.Join(names, ", "))
 }
 
-// look reads the logs, ends the observers of sessions that are gone and
-// wakes the sessions whose lines are due.
+// look reads the logs, ends the observers and the alarms of sessions that are
+// gone and wakes the sessions whose lines or moments are due.
 func (k *Keeper) look(ctx context.Context) {
 	k.mu.Lock()
 	all := make([]*watch, 0, len(k.watch))
@@ -338,6 +345,7 @@ func (k *Keeper) look(ctx context.Context) {
 	for _, w := range all {
 		k.lookAt(ctx, w)
 	}
+	k.lookAtAlarms(ctx)
 }
 
 func (k *Keeper) lookAt(ctx context.Context, w *watch) {

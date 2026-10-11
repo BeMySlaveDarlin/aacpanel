@@ -1305,7 +1305,7 @@ action was added or removed.
 
 ---
 
-## Observers
+## Observers and alarms
 
 A session that waits on something outside it — a CI run, a deploy, a log, a
 build through the night — has ways of its own to wait, and the process of the
@@ -1391,6 +1391,41 @@ what the one before it waited for, and a command nobody waits on is a process
 left on the host. The price: a thread of codex whose daemon is down cannot be
 told from one that is gone, and its observers run on until the daemon is back
 and says.
+
+**An alarm is a moment to be woken at.** A session that has to come back to
+something later — a run to look at in ten minutes, a queue to look at every
+half hour — sets an **alarm** with `alarm_set`: once, at a span from now, a
+time of the day on the host's clock or a moment in RFC 3339, or every so long.
+An alarm runs no command, so it has no unit: the executor holds it itself and
+rings it from the same look that reads the logs of the observers, once a
+second, with the same letter, signed by the alarm and carrying the note the
+session left itself. `alarm_list` and `alarm_cancel` read and end the alarms
+of the session that calls them and no other's. The three go through the
+observers' socket and the same check of the caller — only a session on the
+stream or a thread of codex, a session in tmux and an old holder refused for
+the same reasons — and are allowed without asking: they run nothing and touch
+only what the session set.
+
+**An alarm outlives the executor, not its session.** Each alarm is a file
+under `~/.local/state/aacpanel/alarms/`, beside the directories of the
+observers: whose it is, its note, its span and the moment of its next ring,
+written again after every ring. An executor started again reads the files
+back; a ring that came due while no executor ran comes once, at its first
+look, and its letter says it is late and when it was due. A repeat skips the
+rings it missed rather than making them up, and keeps its beat. A crash
+between a ring and its record costs a second letter, never a lost one. The
+owner is the observers' owner — the process of a claude by its pid and the
+start of it, the thread of a codex — and the same three looks that find it
+gone take its alarms away, so a close, a restart and the restart past the
+context cap end every alarm of the session. The price: a session started
+again to go on with its conversation sets its alarms anew. A thread whose
+daemon is not read yet is not rung until it is.
+
+**An alarm is bounded so a session cannot spam itself.** A repeat is a minute
+apart at least: a ring is a turn of the session's model, and a session that
+has to look more often wants an observer of a command that looks for it. A
+first ring is a week ahead at most, past which a moment is a slip of the
+date. A session keeps ten alarms, the host a hundred.
 
 ---
 

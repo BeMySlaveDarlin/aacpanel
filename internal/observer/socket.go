@@ -14,10 +14,10 @@ import (
 )
 
 // SocketPath is where the executor takes the calls of the panel's server
-// under a session. It is not in the directory of the executor's own socket:
-// that one is mounted into the service's container, and an observer runs a
-// command — the service would run any command through it. Only a session
-// starts an observer.
+// under a session, for its observers and its alarms. It is not in the
+// directory of the executor's own socket: that one is mounted into the
+// service's container, and an observer runs a command — the service would run
+// any command through it. Only a session starts an observer.
 func SocketPath() string {
 	if base := os.Getenv("XDG_RUNTIME_DIR"); base != "" {
 		return filepath.Join(base, "aacpanel-observers", "sock")
@@ -31,24 +31,31 @@ const (
 	OpList  = "list"
 	OpStop  = "stop"
 	OpTail  = "tail"
+
+	OpAlarmSet    = "alarm.set"
+	OpAlarmList   = "alarm.list"
+	OpAlarmCancel = "alarm.cancel"
 )
 
 // Request is one call of the panel's server to the executor.
 type Request struct {
-	Op     string `json:"op"`
-	Caller Caller `json:"caller"`
-	Spec   *Spec  `json:"spec,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Lines  int    `json:"lines,omitempty"`
+	Op     string    `json:"op"`
+	Caller Caller    `json:"caller"`
+	Spec   *Spec     `json:"spec,omitempty"`
+	Alarm  *AlarmAsk `json:"alarm,omitempty"`
+	Name   string    `json:"name,omitempty"`
+	Lines  int       `json:"lines,omitempty"`
 }
 
 // Reply is what the executor answers.
 type Reply struct {
-	OK        bool     `json:"ok"`
-	Error     string   `json:"error,omitempty"`
-	Observer  *View    `json:"observer,omitempty"`
-	Observers []View   `json:"observers"`
-	Lines     []string `json:"lines"`
+	OK        bool        `json:"ok"`
+	Error     string      `json:"error,omitempty"`
+	Observer  *View       `json:"observer,omitempty"`
+	Observers []View      `json:"observers"`
+	Lines     []string    `json:"lines"`
+	Alarm     *AlarmView  `json:"alarm,omitempty"`
+	Alarms    []AlarmView `json:"alarms"`
 }
 
 const (
@@ -118,7 +125,7 @@ func (k *Keeper) answer(ctx context.Context, conn net.Conn) {
 }
 
 func (k *Keeper) do(ctx context.Context, req Request) Reply {
-	reply := Reply{Observers: []View{}, Lines: []string{}}
+	reply := Reply{Observers: []View{}, Lines: []string{}, Alarms: []AlarmView{}}
 	fail := func(err error) Reply {
 		reply.Error = err.Error()
 		return reply
@@ -155,6 +162,27 @@ func (k *Keeper) do(ctx context.Context, req Request) Reply {
 			return fail(err)
 		}
 		reply.Observer, reply.Lines = &v, lines
+	case OpAlarmSet:
+		if req.Alarm == nil {
+			return fail(errors.New("a set names no alarm"))
+		}
+		v, err := k.SetAlarm(ctx, req.Caller, *req.Alarm)
+		if err != nil {
+			return fail(err)
+		}
+		reply.Alarm = &v
+	case OpAlarmList:
+		list, err := k.Alarms(ctx, req.Caller)
+		if err != nil {
+			return fail(err)
+		}
+		reply.Alarms = list
+	case OpAlarmCancel:
+		v, err := k.CancelAlarm(ctx, req.Caller, req.Name)
+		if err != nil {
+			return fail(err)
+		}
+		reply.Alarm = &v
 	default:
 		return fail(fmt.Errorf("there is no such operation: %q", req.Op))
 	}

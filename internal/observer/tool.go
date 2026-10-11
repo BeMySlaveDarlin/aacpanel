@@ -68,8 +68,8 @@ var (
 		fmt.Sprint(TailDefault) + " unless lines names how many, " + fmt.Sprint(TailMax) + " at most."
 )
 
-// Tools are the observer tools of the panel's server for a claude session,
-// talking to the executor on the socket at path.
+// Tools are the observer and alarm tools of the panel's server for a claude
+// session, talking to the executor on the socket at path.
 func Tools(path string) []mcp.Tool {
 	return tools(path, claudeBusy)
 }
@@ -79,12 +79,13 @@ func CodexTools(path string) []mcp.Tool {
 	return tools(path, codexBusy)
 }
 
-// tools are the four tools. The start is not allowed: it runs a command on
-// the host, and claude asks the person first as it asks before a command of
-// the shell. The others touch only what this session started — a list, a
-// log, an observer it no longer needs — and are allowed.
+// tools are the four tools of the observers and the three of the alarms. The
+// start is not allowed: it runs a command on the host, and claude asks the
+// person first as it asks before a command of the shell. The others touch
+// only what this session started — a list, a log, an observer it no longer
+// needs — and are allowed; so are the alarms, which run nothing.
 func tools(path, busy string) []mcp.Tool {
-	return []mcp.Tool{
+	return append([]mcp.Tool{
 		{
 			Name: StartName, Title: "Start an observer", Description: startDescription(busy),
 			InputSchema: startSchema(), Instructions: StartInstructions,
@@ -102,21 +103,21 @@ func tools(path, busy string) []mcp.Tool {
 		},
 		{
 			Name: StopName, Title: "Stop an observer", Description: stopDescription,
-			InputSchema: nameSchema(nil), Instructions: StopInstructions, Allowed: true,
+			InputSchema: nameSchema("observer", nil), Instructions: StopInstructions, Allowed: true,
 			Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 				return stop(ctx, path, bind, args)
 			},
 		},
 		{
 			Name: TailName, Title: "Read an observer's log", Description: tailDescription,
-			InputSchema: nameSchema(map[string]any{"lines": map[string]any{"type": "integer", "minimum": 1,
+			InputSchema: nameSchema("observer", map[string]any{"lines": map[string]any{"type": "integer", "minimum": 1,
 				"maximum": TailMax, "description": "How many of the last lines to read."}}),
 			Instructions: TailInstructions, Allowed: true,
 			Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 				return tailOf(ctx, path, bind, args)
 			},
 		},
-	}
+	}, alarmTools(path, busy)...)
 }
 
 func startSchema() map[string]any {
@@ -145,8 +146,8 @@ func startSchema() map[string]any {
 	}
 }
 
-func nameSchema(more map[string]any) map[string]any {
-	props := map[string]any{"name": map[string]any{"type": "string", "description": "The name of the observer."}}
+func nameSchema(of string, more map[string]any) map[string]any {
+	props := map[string]any{"name": map[string]any{"type": "string", "description": "The name of the " + of + "."}}
 	for k, v := range more {
 		props[k] = v
 	}
@@ -176,7 +177,7 @@ func ask(ctx context.Context, path string, req Request) (Reply, error) {
 	reply, err := Ask(ctx, path, req)
 	if err != nil {
 		return reply, fmt.Errorf("the executor of the panel does not answer at %s (%v): is aacpanel-exec "+
-			"running, and new enough to keep observers?", path, err)
+			"running, and new enough to keep observers and alarms?", path, err)
 	}
 	if !reply.OK {
 		return reply, errors.New(reply.Error)
