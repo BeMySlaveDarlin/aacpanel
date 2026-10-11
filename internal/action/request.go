@@ -15,6 +15,10 @@ type Request struct {
 
 	Device string `json:"device,omitempty"`
 
+	// Origin is set by the service listener, independently of the device's
+	// display name: voice input must never fall back to a letter.
+	Origin string `json:"origin,omitempty"`
+
 	// Resume is the conversation to go on with: the one session.resume brings
 	// back, or the one session.restart closes and starts again.
 	Resume string `json:"resume,omitempty"`
@@ -115,6 +119,8 @@ type Request struct {
 	// claude.
 	Agent string `json:"agent,omitempty"`
 }
+
+const OriginVoice = "voice"
 
 // CodexSender is where the codex thread a letter comes from runs: the home of
 // its codex and the directory it works in. The letter names them to its

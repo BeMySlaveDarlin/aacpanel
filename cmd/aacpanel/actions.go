@@ -175,6 +175,9 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		}
 	}
 	if req.Kind == action.SessionSend {
+		if voice, _ := r.Context().Value(voiceKey{}).(bool); voice {
+			req.Origin = action.OriginVoice
+		}
 		text, _ := body.Params["text"].(string)
 		req.Text = text
 		params = map[string]any{"chars": len([]rune(text))}

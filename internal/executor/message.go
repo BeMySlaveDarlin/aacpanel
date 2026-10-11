@@ -35,7 +35,7 @@ type liveSession struct {
 	Bridge string
 }
 
-func (e *Executor) sessionSend(ctx context.Context, target, text, messageID string) (string, error) {
+func (e *Executor) sessionSend(ctx context.Context, target, text, messageID, origin string) (string, error) {
 	s, err := findOneLiveSession(target)
 	if err != nil {
 		return "", err
@@ -43,22 +43,21 @@ func (e *Executor) sessionSend(ctx context.Context, target, text, messageID stri
 	if onStream(s) {
 		return streamSend(ctx, s, text, messageID)
 	}
-	// A send is the person's input. Falling back to a letter would make the
-	// recipient read it as another session's request, including voice input.
-	t, err := termFor(ctx, s.PID)
-	if err != nil {
-		return "", fmt.Errorf("session %s accepts no typed input: %w", s.Name, err)
-	}
-	return typeText(ctx, s, t, text)
+	return deliverText(ctx, s, senderName, text, origin)
 }
 
-func deliverText(ctx context.Context, s liveSession, from, text string) (string, error) {
+func deliverText(ctx context.Context, s liveSession, from, text, origin string) (string, error) {
 	if onStream(s) {
 		return streamSend(ctx, s, text, "")
 	}
 	t, kerr := termFor(ctx, s.PID)
 	if kerr == nil {
 		return typeText(ctx, s, t, text)
+	}
+	// The composer keeps its letter fallback; voice promises the owner's
+	// typed input and must not turn it into a request from another session.
+	if origin == action.OriginVoice {
+		return "", fmt.Errorf("session %s accepts no typed input: %w", s.Name, kerr)
 	}
 
 	if s.Socket == "" {

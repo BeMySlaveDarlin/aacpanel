@@ -163,7 +163,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 		if req.Asked != "" {
 			return "", fmt.Errorf("%s is no codex session: only codex asks a question it does not wait for", req.Target)
 		}
-		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID)
+		return e.sessionSend(ctx, req.Target, req.Text, req.MessageID, req.Origin)
 	case action.SessionLetter:
 		return e.sessionLetter(ctx, req.Target, req.From, req.FromCodex, req.Text)
 	case action.SessionUnqueue:

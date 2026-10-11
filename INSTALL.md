@@ -1059,17 +1059,27 @@ mv "$voice_dir/token.next" "$voice_dir/token"
 ```
 
 Set `AACP_VOICE_DIR` in `.env` to that directory's absolute host path, and
-include the optional overlay when starting or recreating the service:
+make the optional overlay part of **every `docker compose` call** on this
+host, including updates. For example, add this to the compose `.env` (keep
+any other overlays the host uses in the list too):
 
-```bash
-docker compose -f docker-compose.yml -f deploy/voice.yml up -d --build aacpanel
+```dotenv
+COMPOSE_FILE=docker-compose.yml:deploy/voice.yml
 ```
 
-Keep this overlay in the host's compose invocation when updating the panel;
-the installer's ordinary invocation does not include it. Build the matching
-executor as in S7: its `session.send` must refuse a recipient without a stream
-or reachable terminal instead of substituting a letter, and report lookup
-error codes.
+Then start or recreate the service with:
+
+```bash
+docker compose up -d --build aacpanel
+```
+
+Without this persistent overlay, the next plain `docker compose up` removes
+the socket mount and disables the listener. Explicit `-f` options override
+`COMPOSE_FILE`, so those calls must include `-f deploy/voice.yml` as well.
+Build the matching executor as in S7: for voice input, its `session.send`
+must refuse a recipient without a stream or reachable terminal instead of
+substituting a letter, and report lookup error codes. The composer's letter
+fallback is unchanged.
 
 The service creates `/run/aacpanel-voice/sock`, visible on the host as
 `<AACP_VOICE_DIR>/sock`. In `atlas-voice`, mount the **directory** read-only,

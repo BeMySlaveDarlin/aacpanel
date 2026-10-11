@@ -132,17 +132,19 @@ func TestVoiceSocketAcceptsOnlyAuthenticatedInput(t *testing.T) {
 		t.Fatalf("accepted input: %s", answer)
 	}
 	voice := <-v.got
-	if voice.Kind != action.SessionSend || voice.Target != "demo" || voice.Text != "run the tests" || voice.Device != "voice" {
+	if voice.Kind != action.SessionSend || voice.Target != "demo" || voice.Text != "run the tests" ||
+		voice.Device != "voice" || voice.Origin != action.OriginVoice {
 		t.Fatalf("the executor got %+v", voice)
 	}
-	if w := post(t, v.server, `{"kind":"session.send","target":"demo","params":{"text":"run the tests"}}`); w.Code != http.StatusOK {
+	if w := post(t, v.server, `{"kind":"session.send","target":"demo","params":{"text":"run the tests","origin":"voice"}}`); w.Code != http.StatusOK {
 		t.Fatalf("the composer: %d %s", w.Code, w.Body.String())
 	}
 	composer := <-v.got
-	if composer.Device == "voice" {
+	if composer.Device == "voice" || composer.Origin != "" {
 		t.Fatal("the voice source escaped its listener")
 	}
 	voice.ID, voice.Device, composer.ID, composer.Device = "", "", "", ""
+	voice.Origin = ""
 	if !reflect.DeepEqual(voice, composer) {
 		t.Fatalf("voice and composer use different sending paths: %+v, %+v", voice, composer)
 	}

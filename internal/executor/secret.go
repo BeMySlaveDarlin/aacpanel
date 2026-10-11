@@ -54,7 +54,7 @@ func (e *Executor) secretPut(ctx context.Context, target string, secret *action.
 		if err != nil {
 			return "", err
 		}
-		if _, err := deliverText(ctx, s, senderName, text); err != nil {
+		if _, err := deliverText(ctx, s, senderName, text, ""); err != nil {
 			return "", err
 		}
 		return s.Name, nil

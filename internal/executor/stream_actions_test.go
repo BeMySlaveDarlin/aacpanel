@@ -109,25 +109,35 @@ func only(t *testing.T, f *fakeHolder) stream.Request {
 func TestStreamInput(t *testing.T) {
 	f := onTheStream(t, true)
 	e, _ := newTest(t, "")
-	for _, device := range []string{"phone", "voice"} {
-		r := req(action.SessionSend, "demo")
-		r.Text, r.Device = "run the tests", device
-		out, err := e.Execute(context.Background(), r)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(out, "on the stream") || !strings.Contains(out, "queue") {
-			t.Errorf("%s input to a busy stream session was not said to queue: %q", device, out)
-		}
+	r := req(action.SessionSend, "demo")
+	r.Text = "run the tests"
+	out, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
 	}
-	got := f.asked()
-	if len(got) != 2 {
+	got := only(t, f)
+	if got.Op != stream.OpSend || got.Text != "run the tests" {
 		t.Fatalf("the holder was asked %+v", got)
 	}
-	for _, r := range got {
-		if !reflect.DeepEqual(r, stream.Request{Op: stream.OpSend, Text: "run the tests"}) {
-			t.Errorf("the holder must receive the person's words without an origin mark: %+v", r)
-		}
+	if !strings.Contains(out, "on the stream") || !strings.Contains(out, "queue") {
+		t.Errorf("a busy stream session was not said to queue the message: %q", out)
+	}
+}
+
+func TestVoiceStreamInput(t *testing.T) {
+	f := onTheStream(t, true)
+	e, _ := newTest(t, "")
+	r := req(action.SessionSend, "demo")
+	r.Text, r.Device, r.Origin = "run the tests", "voice", action.OriginVoice
+	out, err := e.Execute(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "on the stream") || !strings.Contains(out, "queue") {
+		t.Errorf("voice input to a busy stream session was not said to queue: %q", out)
+	}
+	if got := only(t, f); !reflect.DeepEqual(got, stream.Request{Op: stream.OpSend, Text: "run the tests"}) {
+		t.Errorf("the holder must receive the person's words without an origin mark: %+v", got)
 	}
 }
 

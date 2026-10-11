@@ -1305,11 +1305,12 @@ text like any other and is typed. A message ending in an unfinished
 would otherwise pick a row from — a space rather than Esc, because Esc reaches a
 session that is working as an interruption of its work.
 
-`session.send` requires a stream or a reachable terminal. If neither is
-available it refuses: falling back to a letter changes the person's words
-into another session's request. This applies to the composer and voice alike;
-a recipient reachable only through its message socket can receive
-`session.letter`, but no typed input.
+`session.send` from the composer falls back to the session's message socket
+when no terminal is reachable, and reports that the text was sent as a letter
+instead of typed. Voice input requires a stream or a reachable terminal and
+refuses this fallback: a letter would change the owner's words into another
+session's request. The service passes the voice origin to the executor in the
+same action request; the device's display name does not select this behavior.
 
 **The list of this machine is shorter than the general one.** The executor says
 what it can do here: with no tmux there are no actions over sessions, and the
@@ -2139,8 +2140,14 @@ access without a panel login.
 
 The optional `deploy/voice.yml` compose overlay binds a dedicated host
 directory, conventionally `~/.local/share/aacpanel/voice`, to
-`/run/aacpanel-voice`. The directory is `0700`, and `sock` and `token` inside
-are `0600`, owned by the service's `AACP_UID:AACP_GID`. The consumer runs under
+`/run/aacpanel-voice`. This overlay must be part of **every `docker compose`
+call** on the host, including updates. Set
+`COMPOSE_FILE=docker-compose.yml:deploy/voice.yml` in the compose `.env` to
+make it persistent; if the host uses other overlays, keep them in that list
+too. Explicit `-f` options override this list and must also include the voice
+overlay. Otherwise the next plain `docker compose up` removes the socket
+mount and disables the listener. The directory is `0700`, and `sock` and
+`token` inside are `0600`, owned by the service's `AACP_UID:AACP_GID`. The consumer runs under
 that same numeric uid/gid and mounts this directory read-only. It gets no
 executor socket or host state. The service's cost is one writable directory
 for this IPC socket, with no added host action or right to host resources.
@@ -2168,7 +2175,7 @@ and Enter as the composer. The journal's source (`device_name`) and the
 executor's audit actor say `voice`. The session receives only the text, with
 no voice mark or letter envelope. Enabling this requires the matching service
 and executor builds: the executor supplies the lookup error codes and refuses
-to substitute a letter when typing cannot reach the session.
+to substitute a letter for voice input when typing cannot reach the session.
 
 ### The address map
 

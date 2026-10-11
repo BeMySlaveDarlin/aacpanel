@@ -53,7 +53,7 @@ func (e *Executor) sessionFile(ctx context.Context, target, caption string, file
 	if caption != "" {
 		text = caption + "\n" + text
 	}
-	detail, err := deliverText(ctx, s, senderName, text)
+	detail, err := deliverText(ctx, s, senderName, text, "")
 	if err != nil {
 		return "", fmt.Errorf("%w%s", err, landed(paths))
 	}
