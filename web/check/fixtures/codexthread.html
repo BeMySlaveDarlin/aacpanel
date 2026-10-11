@@ -249,6 +249,12 @@ window.done = (async () => {
     out.mcpReplies = [];
     const beforeReconnect = sent.length;
     for (const answer of ["Every MCP server started anew", "A turn runs in the thread"]) {
+        // The server's facts are drawn again after an answer: a press before
+        // the new button has its handler is lost on a slow machine.
+        if (!await until(() => button(sheet(), "Reconnect") && !button(sheet(), "Reconnect").disabled)) {
+            throw new Error("the reconnect button did not come back");
+        }
+        await settled();
         button(sheet(), "Reconnect").click();
         if (!await until(() => reconnectReply && button(sheet(), "Reconnecting…"))) throw new Error("reconnect did not wait for its answer");
         out.mcpBusy = button(sheet(), "Reconnecting…").disabled;
