@@ -547,6 +547,8 @@ type Reply struct {
 	TooBig  bool         `json:"tooBig,omitempty"`
 	Mtime   string       `json:"mtime,omitempty"`
 
+	BriefGuide *string `json:"briefGuide,omitempty"`
+
 	// Notes are the calls standing on the collector, and Seq the count of
 	// calls it has taken.
 	Notes []SessionNote `json:"notes,omitempty"`
@@ -622,6 +624,8 @@ type Req struct {
 	Repo      *RepoReq    `json:"repo,omitempty"`
 	Subagent  string      `json:"subagent,omitempty"`
 	Search    *SearchReq  `json:"search,omitempty"`
+
+	BriefGuide bool `json:"briefGuide,omitempty"`
 }
 
 // SearchReq is a question asked of a whole conversation, and how many of its

@@ -33,6 +33,12 @@ type secretsShot struct {
 		Words string `json:"words"`
 	} `json:"empty"`
 	Error string `json:"error"`
+	Guide struct {
+		Initial, Saved, Reopened, Cleared, Label string
+		Disabled, Fits                           bool
+		Failed                                   struct{ Text, Message, Saved string }
+		Saves                                    []struct{ Text string }
+	} `json:"guide"`
 }
 
 // The secrets of the host stand in the settings, on the phone and at a desk:
@@ -57,7 +63,24 @@ func TestSecretsListInTheSettings(t *testing.T) {
 				t.Fatalf("the fixture ran the %s screen as wide=%v", screen.name, got.Wide)
 			}
 			checkSecretsList(t, got)
+			checkBriefGuide(t, got)
 		})
+	}
+}
+
+func checkBriefGuide(t *testing.T, got secretsShot) {
+	t.Helper()
+	const original = "Use concrete examples.\nExplain the cost of each choice."
+	const edited = "Name the decision first.\nGive a concrete example and its cost."
+	g := got.Guide
+	if g.Initial != original || !g.Disabled || !g.Fits || g.Label != "Guide for briefs" {
+		t.Errorf("the guide editor did not load and fit: %+v", g)
+	}
+	if g.Failed.Text != edited || g.Failed.Saved != original || g.Failed.Message != "the database is unavailable" {
+		t.Errorf("a failed save lost the draft or claimed success: %+v", g.Failed)
+	}
+	if g.Saved != edited || g.Reopened != edited || g.Cleared != "" || len(g.Saves) != 3 {
+		t.Errorf("saving, reopening or clearing the guide failed: %+v", g)
 	}
 }
 

@@ -78,6 +78,21 @@ class Refused(ValueError):
     """Says why a document was not taken, in words meant for whoever sent it."""
 
 
+def legacy_guide():
+    """Only the panel's first import needs this fixed file, never a caller's path."""
+    config = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    try:
+        with open(os.path.join(config, "aacpanel", "brief-guide.md"), encoding="utf-8") as f:
+            text = f.read(MAX_REQUEST + 1)
+        if len(text.encode("utf-8")) > MAX_REQUEST:
+            return {"ok": False, "error": "the brief guide is longer than 4 MB"}
+        return {"ok": True, "briefGuide": text}
+    except FileNotFoundError:
+        return {"ok": True, "briefGuide": ""}
+    except (OSError, UnicodeError) as err:
+        return {"ok": False, "error": "the brief guide was not read: " + str(err)}
+
+
 def _line(text, limit=MAX_LINE):
     """One line: whitespace collapsed, cut to the ceiling."""
     return " ".join(str(text or "").split())[:limit]

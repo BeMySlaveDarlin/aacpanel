@@ -9,6 +9,19 @@ import (
 var ErrNoBriefs = errors.New("the session collector on the host knows nothing about briefs: " +
 	"update aacpanel-agent on the host (systemctl restart aacpanel-agent@<user>)")
 
+// LegacyBriefGuide reads the one fixed host file for the panel's first import.
+// A missing field is an older collector, not permission to mark it imported.
+func (c *Client) LegacyBriefGuide(ctx context.Context) (string, error) {
+	reply, err := c.Feed(ctx, Req{BriefGuide: true})
+	if err != nil {
+		return "", err
+	}
+	if reply.BriefGuide == nil {
+		return "", errors.New("the collector cannot import the brief guide: update aacpanel-agent on the host")
+	}
+	return *reply.BriefGuide, nil
+}
+
 // BriefCard says what is inside a brief without carrying the brief.
 type BriefCard struct {
 	ID        string `json:"id"`

@@ -143,6 +143,8 @@ func (s *Server) routes(g gate) *http.ServeMux {
 	mux.Handle("DELETE /api/disk/hidden", g.page(s.apiShowDir))
 	mux.Handle("GET /api/probes", g.page(s.apiProbes))
 	mux.Handle("GET /api/settings", g.page(s.apiSettings))
+	mux.Handle("GET /api/settings/brief-guide", g.page(s.apiBriefGuide))
+	mux.Handle("PUT /api/settings/brief-guide", g.page(s.apiBriefGuideSave))
 	mux.Handle("GET /api/degradations", g.page(s.apiDegradations))
 	mux.Handle("GET /api/actions", g.page(s.apiActions))
 	mux.Handle("POST /api/actions", g.page(s.apiRunAction(g.term)))

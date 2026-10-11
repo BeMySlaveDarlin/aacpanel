@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -62,7 +63,8 @@ type Server struct {
 	endpoints endpoints
 	// guards is poked when the map changes, so the host learns the context
 	// guard of every place; nil where there is no map.
-	guards chan struct{}
+	guards       chan struct{}
+	briefGuideMu sync.Mutex
 }
 
 const execTimeout = 2 * time.Minute
@@ -323,6 +325,7 @@ func run() error {
 	}
 	if db != nil {
 		go db.Run(ctx)
+		go srv.runBriefGuideImport(ctx)
 		go writer.Run(ctx)
 		go recordHost(ctx, srv.host, writer)
 		go watchcfg.Apply(ctx, db)

@@ -9,6 +9,21 @@ async function body(r, what) {
     return r.json();
 }
 
+export async function guide() {
+    const r = await fetch("/api/settings/brief-guide", { credentials: "same-origin", cache: "no-store" });
+    return body(r, "the brief guide was not read");
+}
+
+export async function saveGuide(text) {
+    const r = await fetch("/api/settings/brief-guide", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+    });
+    return body(r, "the brief guide was not saved");
+}
+
 // shelf returns the card of every brief on the host, newest first, or of one
 // conversation when it is named.
 export async function shelf(session) {

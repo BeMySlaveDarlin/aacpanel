@@ -38,7 +38,7 @@ const (
 func tools() []mcp.Tool {
 	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
-		collector.BriefPublish(collector.BriefSocket(), collector.HostGuide()),
+		collector.BriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
 		collector.SecretAsk(collector.NotifySocket()),
@@ -62,7 +62,7 @@ func Server(bind mcp.Bind) *mcp.Server {
 func codexTools() []mcp.Tool {
 	return append([]mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
-		collector.CodexBriefPublish(collector.BriefSocket(), collector.HostGuide()),
+		collector.CodexBriefPublish(collector.BriefSocket(), session.Here().Panel),
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
 		collector.SecretAsk(collector.NotifySocket()),

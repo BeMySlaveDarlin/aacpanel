@@ -2,8 +2,6 @@ package collector
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -49,40 +47,18 @@ func TestTheRulesSayASentBriefIsAskedAgainUnderANewID(t *testing.T) {
 	}
 }
 
-// A machine may keep rules of its own for the text of a brief — the words
-// its briefs avoid, samples of briefs taken and refused. They follow the
-// shipped rules when the file is there, and nothing is added when it is not.
+// The guide is text kept by the panel, appended only when it has words.
 func TestTheRulesOfTheHostFollowTheShippedOnes(t *testing.T) {
-	dir := t.TempDir()
-	guide := filepath.Join(dir, "brief-guide.md")
-
-	if got := Rules(guide); got != rules {
-		t.Errorf("with no file of the host the rules are %d bytes, not the shipped %d", len(got), len(rules))
+	for _, own := range []string{"", "  \n"} {
+		if got := Rules(own); got != rules {
+			t.Error("an empty guide added a heading with nothing under it")
+		}
 	}
-	if err := os.WriteFile(guide, []byte("\n  \n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if got := Rules(guide); got != rules {
-		t.Error("an empty file of the host added a heading with nothing under it")
-	}
-
-	own := "Never write \"leverage\".\nThe sample of a brief refused: see the archive."
-	if err := os.WriteFile(guide, []byte(own+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	said, failed := callTool(t, BriefPublish(nowhere(t), guide), bound(sid), `{}`)
-	if failed || !strings.HasPrefix(said, rules) || !strings.HasSuffix(said, own+"\n") ||
-		!strings.Contains(said, "## The rules of this machine") {
-		t.Errorf("with the host's own rules the call answered the tail %q", said[len(said)-min(len(said), 300):])
-	}
-}
-
-// The host's rules are found where the config of the user lives, so a
-// machine keeps them beside the rest of its panel settings.
-func TestTheRulesOfTheHostLiveInTheConfigOfTheUser(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "/home/u/.config")
-	if got := HostGuide(); got != "/home/u/.config/aacpanel/brief-guide.md" {
-		t.Errorf("the host's rules are looked for at %q", got)
+	own := "Use concrete examples.\nName the cost of each choice."
+	got := Rules("\n" + own + "\n")
+	if !strings.HasPrefix(got, rules) || !strings.HasSuffix(got, own+"\n") ||
+		!strings.Contains(got, "## The rules of this machine") {
+		t.Errorf("the host guide did not follow the shipped rules: %.120q", got)
 	}
 }
 

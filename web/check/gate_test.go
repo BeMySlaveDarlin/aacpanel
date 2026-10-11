@@ -56,8 +56,9 @@ var ceremonies = map[string]ceremony{
 	// panel's own shelf, and none of them runs anything on the machine. The
 	// gate stands in front of execution, and removal asks on the screen
 	// instead — the button turns into the question before it does anything.
+	// The writing guide is panel data too: saving it changes no host setting.
 	"src/data/briefs.js": {
-		paths:   []string{"/api/briefs"},
+		paths:   []string{"/api/briefs", "/api/settings/brief-guide"},
 		methods: []string{"PUT", "POST", "DELETE"},
 	},
 	// A reading of a branch is kept on the same shelf and for the same reason:

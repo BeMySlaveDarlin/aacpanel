@@ -430,6 +430,31 @@ class Handles(unittest.TestCase):
         self.assertTrue(reply["ok"])
         self.assertEqual([c["id"] for c in reply["briefs"]], ["seven-after-twelve"])
 
+    def test_the_guide_import_reads_only_the_fixed_file(self):
+        config = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = self.dir.name
+        def restore():
+            if config is None:
+                os.environ.pop("XDG_CONFIG_HOME", None)
+            else:
+                os.environ["XDG_CONFIG_HOME"] = config
+        self.addCleanup(restore)
+        request = {"briefGuide": True, "file": "/not-the-guide"}
+        self.assertEqual(self.server.answer(request), {"ok": True, "briefGuide": ""})
+        folder = os.path.join(self.dir.name, "aacpanel")
+        os.mkdir(folder)
+        path = os.path.join(folder, "brief-guide.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("Use concrete examples.\nName the cost.")
+        self.assertEqual(self.server.answer(request), {
+            "ok": True, "briefGuide": "Use concrete examples.\nName the cost."})
+        with open(path, "wb") as f:
+            f.write(b"\xff")
+        self.assertFalse(self.server.answer(request)["ok"])
+        os.unlink(path)
+        os.mkdir(path)
+        self.assertFalse(self.server.answer(request)["ok"])
+
     def test_the_shelf_can_be_asked_for_one_session(self):
         self.assertEqual(len(self.server.answer({"briefs": {"session": "s-1"}})["briefs"]), 1)
         self.assertEqual(self.server.answer({"briefs": {"session": "s-9"}})["briefs"], [])

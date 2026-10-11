@@ -1876,7 +1876,12 @@ MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries
 the brief — `brief_publish`, whose call without a document returns the rules of
 writing one, and `brief_delete` — the call to the person, `notify`, and the
-notepad of secrets, `secret_ask`. At the handshake the brief tool reads the
+notepad of secrets, `secret_ask`. The machine's brief guide is edited in
+Settings → Briefs and kept in the database after a one-time import of
+`aacpanel/brief-guide.md` from the user's configuration directory through the
+collector; each call without a document reads it from the local panel within
+two seconds or returns the shipped rules with a notice, without a cached copy.
+At the handshake the brief tool reads the
 panel's shelf and names the answered, unsent briefs of the session's directory,
 newest first, up to three and a count of the rest. The answers live in the
 panel's database, so reading the collector's shelf alone would not say which

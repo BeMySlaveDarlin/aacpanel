@@ -62,6 +62,9 @@ def answer(request):
 
 
 def _answer(request):
+    if request.get("briefGuide") is True:
+        return briefs.legacy_guide()
+
     # Briefs are read here and written nowhere near here: publishing has a
     # socket of its own, which the service cannot reach at all.
     want_briefs = request.get("briefs")

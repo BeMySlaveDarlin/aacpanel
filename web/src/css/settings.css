@@ -2,6 +2,20 @@
 
 .setrow { display: flex; flex-direction: column; gap: .28rem; }
 
+.setguidefield {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 10rem;
+    padding: .6rem;
+    resize: vertical;
+    font: inherit;
+    font-size: var(--t-sm);
+    color: var(--ink);
+    background: var(--bg);
+    border: var(--hair) solid var(--edge);
+    border-radius: var(--r-small);
+}
+
 .setline {
     display: flex;
     flex-wrap: wrap;

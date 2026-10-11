@@ -1453,9 +1453,10 @@ own sessions with `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=5120`, and a session
 started by hand gets the same with the variable in the environment claude
 starts in.
 
-Rules of the machine's own for the text of a brief go into
-`${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md`: the brief tool gives
-them to a session after the shipped ones, and without the file there are none.
+Rules of the machine's own for a brief are edited in Settings → Briefs and kept
+in the panel's database; the first start imports an existing
+`${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md` once, after which the file
+can be deleted.
 
 **Sign in** to an account the person chose to sign in to now:
 `CLAUDE_CONFIG_DIR=<account> claude` (plain `claude` for `~/.claude`), `/exit`

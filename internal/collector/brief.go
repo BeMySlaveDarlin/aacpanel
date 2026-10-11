@@ -7,9 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
+	"net/http"
 	"strings"
 	"time"
 
@@ -86,32 +84,9 @@ const maxBrief = 4 << 20
 // read whole before it is answered.
 const briefWait = 10 * time.Second
 
-// HostGuide is where a machine keeps rules of its own for the text of a
-// brief, added to the shipped ones when the file is there: the words a brief
-// on this machine avoids, samples of briefs taken and refused.
-func HostGuide() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(dir, "aacpanel", "brief-guide.md")
-}
-
-// Rules are how a brief is written: the shipped rules, then the host's own
-// from guide when the file is there. It is read on every call, so an edit
-// holds from the next one.
+// Rules appends the guide kept by the panel to the shipped rules.
 func Rules(guide string) string {
-	if guide == "" {
-		return rules
-	}
-	raw, err := os.ReadFile(guide)
-	if errors.Is(err, fs.ErrNotExist) {
-		return rules
-	}
-	if err != nil {
-		return rules + "\nThis machine's own rules for a brief were not read: " + err.Error() + ".\n"
-	}
-	own := strings.TrimSpace(string(raw))
+	own := strings.TrimSpace(guide)
 	if own == "" {
 		return rules
 	}
@@ -119,21 +94,62 @@ func Rules(guide string) string {
 		"Where they differ from the ones above, these hold.\n\n" + own + "\n"
 }
 
+// A call reads the current guide, without a cached copy: after an edit, an
+// old instruction must not silently win. The shipped rules still work while
+// the panel is down, and the missing guide is said in the answer.
+func panelRules(ctx context.Context, panel string) string {
+	if panel == "" {
+		return rules
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	text, err := readGuide(ctx, panel)
+	if err != nil {
+		return rules + "\nThis machine's own rules for a brief were not read from the panel this time: " + err.Error() + ".\n"
+	}
+	return Rules(text)
+}
+
+func readGuide(ctx context.Context, panel string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(panel, "/")+"/api/settings/brief-guide", nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("the panel answered %s", resp.Status)
+	}
+	var body struct {
+		Text *string `json:"text"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", err
+	}
+	if body.Text == nil {
+		return "", errors.New("the panel did not return a brief guide")
+	}
+	return *body.Text, nil
+}
+
 // BriefPublish is the tool that publishes a brief through the collector on
-// socket, with the rules of guide added to the shipped ones. It is allowed: a
+// socket, with the guide read from the panel. It is allowed: a
 // brief asks nothing of the person until they choose to open it.
-func BriefPublish(socket, guide string) mcp.Tool {
-	return briefPublish(socket, publishInstructions, publishDescription, func() string { return Rules(guide) })
+func BriefPublish(socket, panel string) mcp.Tool {
+	return briefPublish(socket, publishInstructions, publishDescription, func(ctx context.Context) string { return panelRules(ctx, panel) })
 }
 
 // CodexBriefPublish is the same tool for a thread of codex, told how a brief
 // differs from a question in codex's terms.
-func CodexBriefPublish(socket, guide string) mcp.Tool {
+func CodexBriefPublish(socket, panel string) mcp.Tool {
 	return briefPublish(socket, codexPublishInstructions, codexPublishDescription,
-		func() string { return codexRules + Rules(guide) })
+		func(ctx context.Context) string { return codexRules + panelRules(ctx, panel) })
 }
 
-func briefPublish(socket, instructions, description string, rules func() string) mcp.Tool {
+func briefPublish(socket, instructions, description string, rules func(context.Context) string) mcp.Tool {
 	return mcp.Tool{
 		Name:         PublishName,
 		Title:        "Publish a brief",
@@ -200,7 +216,7 @@ func deleteSchema() map[string]any {
 // publish returns the rules to a call without a document, says what is in
 // one to a check, and hands any other to the collector under the session and
 // the directory of the claude the server serves.
-func publish(ctx context.Context, socket string, rules func() string, bind mcp.Bind, raw json.RawMessage) (string, bool) {
+func publish(ctx context.Context, socket string, rules func(context.Context) string, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
 		Doc   json.RawMessage `json:"doc"`
 		Check bool            `json:"check"`
@@ -215,7 +231,7 @@ func publish(ctx context.Context, socket string, rules func() string, bind mcp.B
 		return "The brief was not published: " + err.Error() + ".", true
 	}
 	if doc == nil {
-		return rules(), false
+		return rules(ctx), false
 	}
 	title, questions, asking := contents(doc)
 	if args.Check {

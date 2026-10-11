@@ -11,6 +11,7 @@ import { askMicrophone, dictation, setDictation, speech } from "./chat/dictate.j
 import * as pwa from "../pwa.js";
 import { byGroup, clash, costOf, SOURCE, valueText, valueTone } from "./settings/model.js";
 import { SecretsShelf } from "./secrets.js";
+import { BriefGuide } from "./settings/briefguide.js";
 
 const SETTINGS_URL = "/api/settings";
 
@@ -81,6 +82,8 @@ export function Settings({ onClose, exec }) {
 function List({ state, exec }) {
     return html`
         <${Device} />
+
+        <${BriefGuide} />
 
         <${SecretsShelf} exec=${exec} />
 
