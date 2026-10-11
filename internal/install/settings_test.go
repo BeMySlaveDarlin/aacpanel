@@ -307,8 +307,8 @@ func TestDuplicatesOfThePanelsGo(t *testing.T) {
 	if strings.Count(out, "mcp__aacpanel__notify") != 1 || !strings.Contains(out, `"x"`) {
 		t.Errorf("the rules:\n%s", out)
 	}
-	if !strings.Contains(out, "test -f "+repo+"/agent/ask-hook.py && python3 "+repo+"/agent/ask-hook.py") {
-		t.Errorf("the hook left kept an old path or runs its script unguarded:\n%s", out)
+	if !strings.Contains(out, `"command": "`+executor+` hook ask-hook"`) {
+		t.Errorf("the hook left kept an old path or is not the executor's:\n%s", out)
 	}
 }
 
@@ -363,7 +363,7 @@ func TestAHookWhoseScriptIsGoneHoldsNothing(t *testing.T) {
 			t.Errorf("%s on %s with its script gone: %v — expected an exit other than 0 and 2", h.Script, h.Event, err)
 		}
 	}
-	h := kitHooks[0]
+	h := kitHooks[slices.IndexFunc(kitHooks, func(h kitHook) bool { return h.Hook == "" })]
 	script := filepath.Join(clone, h.Script)
 	if err := os.MkdirAll(filepath.Dir(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -382,10 +382,9 @@ func TestAStateDirectoryOfItsOwnIsNamedToTheHooksThatReadIt(t *testing.T) {
 	w := Wiring{Clone: repo, Exec: executor, Kit: append(slices.Clone(fullKit.Kit), "background")}
 	w.State = "/srv/aacpanel-state"
 	out, _ := wire(t, "{}", w)
-	guard := func(script string) string { return "test -f " + repo + "/" + script + " && " }
 	if !strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state `+executor+` hook context-guard"`) ||
 		!strings.Contains(out, `"command": "AACP_STATE_DIR=/srv/aacpanel-state `+executor+` hook background-reminder"`) ||
-		!strings.Contains(out, `"command": "`+guard("agent/ask-hook.py")+`python3 `+repo+`/agent/ask-hook.py"`) {
+		!strings.Contains(out, `"command": "`+executor+` hook ask-hook"`) {
 		t.Errorf("the state directory:\n%s", out)
 	}
 	w.State = DefaultStateDir

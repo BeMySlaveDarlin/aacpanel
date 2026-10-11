@@ -1,4 +1,5 @@
 import contextlib
+import importlib.util
 import io
 import json
 import os
@@ -12,6 +13,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import test_barrier  # noqa: E402,F401
 import asked  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+# The cases the hook shares with the executor's hook of the same name, which
+# sends the same bytes on the same payload.
+SHARED = os.path.join(HERE, "..", "deploy", "claude", "testdata", "ask-hook.json")
 
 
 @contextlib.contextmanager
@@ -394,6 +401,56 @@ class Hook(unittest.TestCase):
     def test_another_tool_is_left_alone(self):
         res = self.run_hook({"tool_name": "Bash", "tool_input": {}}, "/nonexistent/ask.sock")
         self.assertEqual(res.returncode, 0)
+
+    def test_every_shared_case(self):
+        with open(SHARED, encoding="utf-8") as f:
+            cases = json.load(f)["cases"]
+        self.assertTrue(cases, "the shared cases are empty: the test checks nothing")
+        spec = importlib.util.spec_from_file_location("ask_hook", os.path.join(HERE, "ask-hook.py"))
+        hook = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hook)
+        dirname = test_barrier.tmp_path()
+        self.addCleanup(lambda: __import__("shutil").rmtree(dirname, ignore_errors=True))
+        hook.SOCKET = os.path.join(dirname, "ask.sock")
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        srv.bind(hook.SOCKET)
+        srv.listen(1)
+        self.addCleanup(srv.close)
+        for case in cases:
+            with self.subTest(case["what"]):
+                got = []
+                thread = threading.Thread(target=self.collect, args=(srv, got), daemon=True)
+                if case["sends"] is not None:
+                    thread.start()
+                out = io.StringIO()
+                try:
+                    sys.stdin = io.StringIO(case["input"])
+                    with contextlib.redirect_stdout(out):
+                        hook.main()
+                finally:
+                    sys.stdin = sys.__stdin__
+                if case["sends"] is not None:
+                    thread.join(5)
+                else:
+                    # Nothing sent is no connection waiting either.
+                    srv.settimeout(0)
+                    with contextlib.suppress(BlockingIOError):
+                        srv.accept()[0].close()
+                        got.append("a connection")
+                self.assertEqual(out.getvalue(), "")
+                self.assertEqual(got, [case["sends"]] if case["sends"] is not None else [])
+
+    @staticmethod
+    def collect(srv, got):
+        """Takes one message as the collector does, up to its end, and answers ok."""
+        srv.settimeout(5)
+        conn, _ = srv.accept()
+        with conn:
+            chunks = []
+            while chunk := conn.recv(65536):
+                chunks.append(chunk)
+            got.append(b"".join(chunks).decode("utf-8"))
+            conn.sendall(b'{"ok": true}')
 
     def test_the_question_goes_into_the_socket(self):
         dirname = test_barrier.tmp_path()

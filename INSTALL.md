@@ -784,13 +784,13 @@ installs it by hand.
 
 | Part | Checked | What it puts in place |
 |---|---|---|
-| Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `agent/ask-hook.py` |
+| Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `aacpanel-exec hook ask-hook` |
 | Limits snapshot | always | the status line, `agent/rate-snapshot.sh`, before yours |
 | Panel tools | always | the MCP server `aacpanel` and the allow rules of its tools but the restart |
-| Page copies | yes | the `PostToolUse` hook on `Artifact`, `deploy/claude/artifact-copy.py` |
+| Page copies | yes | the `PostToolUse` hook on `Artifact`, `aacpanel-exec hook artifact-copy` |
 | Brief reminder | yes | the `SessionStart` hook, `deploy/claude/brief-waiting.py` |
 | Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
-| Checklist nudge | yes | the `Stop` hook, `deploy/claude/checklist-reminder.py` |
+| Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
 | Prompt stamp | no | the `UserPromptSubmit` and `PostToolBatch` hooks, `aacpanel-exec hook prompt-stamp`, and its throttle files `<state>/stamp-*.state` |
 | Background work | no | the `Stop` hook, `aacpanel-exec hook background-reminder`, and its marks in `<state>/background-reminder/` |
@@ -1286,7 +1286,7 @@ first in the chain and passes the payload on to the command that was there:
   "hooks": {
     "PreToolUse": [
       {"matcher": "AskUserQuestion",
-       "hooks": [{"type": "command", "command": "test -f <clone>/agent/ask-hook.py && python3 <clone>/agent/ask-hook.py", "timeout": 5}]}
+       "hooks": [{"type": "command", "command": "<home>/bin/aacpanel-exec hook ask-hook", "timeout": 5}]}
     ]
   },
   "statusLine": {"type": "command",
@@ -1317,10 +1317,10 @@ the matcher where there is one. A hook is either the executor's,
 
 | Part | Event | Matcher | Command | Timeout |
 |---|---|---|---|---|
-| Page copies | `PostToolUse` | `Artifact` | `test -f <clone>/deploy/claude/artifact-copy.py && python3 <clone>/deploy/claude/artifact-copy.py` | 10 |
+| Page copies | `PostToolUse` | `Artifact` | `<home>/bin/aacpanel-exec hook artifact-copy` | 10 |
 | Brief reminder | `SessionStart` | — | `test -f <clone>/deploy/claude/brief-waiting.py && python3 <clone>/deploy/claude/brief-waiting.py` | 5 |
 | Context cap | `Stop` | — | `<home>/bin/aacpanel-exec hook context-guard` | 20 |
-| Checklist nudge | `Stop` | — | `test -f <clone>/deploy/claude/checklist-reminder.py && python3 <clone>/deploy/claude/checklist-reminder.py` | 5 |
+| Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 5 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 | Prompt stamp | `PostToolBatch` | `*` | `<home>/bin/aacpanel-exec hook prompt-stamp PostToolBatch` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
@@ -1398,7 +1398,7 @@ it is signed in.
 - **Check.** In every account the question hook runs once:
 
   ```bash
-  jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("agent/ask-hook.py"))] | length' ~/.claude/settings.json   # 1
+  jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("hook ask-hook"))] | length' ~/.claude/settings.json      # 1
   jq '.statusLine.command | contains("agent/rate-snapshot.sh")' ~/.claude/settings.json                                     # true
   claude mcp get aacpanel                                                                                                  # Scope: User config
   bash <clone>/agent/rate-snapshot.sh </dev/null                                                                           # exits 0
@@ -1421,7 +1421,7 @@ out, the rest of the file as it was:
 
 | Part | Event | Matcher | Command | Timeout |
 |---|---|---|---|---|
-| Question relay | `PreToolUse` | `AskUserQuestion` | `test -f <clone>/agent/ask-hook.py && python3 <clone>/agent/ask-hook.py` | 5 |
+| Question relay | `PreToolUse` | `AskUserQuestion` | `<home>/bin/aacpanel-exec hook ask-hook` | 5 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 
 **The trust.** codex runs a hook of the person's own only once it is trusted,
@@ -1453,7 +1453,7 @@ an inline table say.
 - **Check.** The question hook runs once, and codex trusts it:
 
   ```bash
-  jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("agent/ask-hook.py"))] | length' ~/.codex/hooks.json   # 1
+  jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("hook ask-hook"))] | length' ~/.codex/hooks.json      # 1
   grep -A1 'hooks.json:pre_tool_use:0:0' ~/.codex/config.toml                                                              # trusted_hash = "sha256:…"
   ```
 

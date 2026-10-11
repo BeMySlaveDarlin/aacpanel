@@ -169,7 +169,7 @@ func TestTheHooksOfCodexAreWiredAndTrusted(t *testing.T) {
 	if !changed {
 		t.Fatal("nothing changed")
 	}
-	if got := commandsOf(t, hooks, "PreToolUse"); !slices.Equal(got, []string{"test -f " + repo + "/agent/ask-hook.py && python3 " + repo + "/agent/ask-hook.py"}) {
+	if got := commandsOf(t, hooks, "PreToolUse"); !slices.Equal(got, []string{executor + " hook ask-hook"}) {
 		t.Errorf("the relay: %q", got)
 	}
 	if got := commandsOf(t, hooks, "UserPromptSubmit"); !slices.Equal(got, []string{executor + " hook prompt-stamp"}) {
@@ -306,7 +306,7 @@ func TestTheCodexStepWiresEveryHomeAndTheUndoTakesItOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	hooks := g.read(codexHooksFile(home))
-	if got := commandsOf(t, hooks, "PreToolUse"); len(got) != 1 || !strings.Contains(got[0], g.clone+"/agent/ask-hook.py") {
+	if got := commandsOf(t, hooks, "PreToolUse"); !slices.Equal(got, []string{g.in.execPath() + " hook ask-hook"}) {
 		t.Errorf("the relay: %q", got)
 	}
 	lines := g.lines()

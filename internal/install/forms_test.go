@@ -25,6 +25,9 @@ const former = `{
     "PreToolUse": [
       {"matcher": "AskUserQuestion", "hooks": [{"type": "command", "command": "python3 /srv/old/agent/ask-hook.py", "timeout": 5}]}
     ],
+    "PostToolUse": [
+      {"matcher": "Artifact", "hooks": [{"type": "command", "command": "test -f /srv/old/deploy/claude/artifact-copy.py && python3 /srv/old/deploy/claude/artifact-copy.py", "timeout": 10}]}
+    ],
     "PostToolBatch": [
       {"matcher": "*", "hooks": [
         {"type": "command", "command": "test -f /srv/old/deploy/claude/prompt-stamp.py && AACP_STATE_DIR='/srv/st' python3 /srv/old/deploy/claude/prompt-stamp.py PostToolBatch", "timeout": 5},
@@ -108,11 +111,12 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 	state := "AACP_STATE_DIR=/srv/st "
 	want := map[string][]string{
 		"SessionStart":  {atlasContext, "test -f " + repo + "/deploy/claude/brief-waiting.py && python3 " + repo + "/deploy/claude/brief-waiting.py"},
-		"PreToolUse":    {"test -f " + repo + "/agent/ask-hook.py && python3 " + repo + "/agent/ask-hook.py"},
+		"PreToolUse":    {executor + " hook ask-hook"},
+		"PostToolUse":   {executor + " hook artifact-copy"},
 		"PostToolBatch": {state + executor + " hook prompt-stamp PostToolBatch", atlasBudget},
 		"Stop": {state + executor + " hook context-guard",
 			state + executor + " hook background-reminder",
-			"test -f " + repo + "/deploy/claude/checklist-reminder.py && python3 " + repo + "/deploy/claude/checklist-reminder.py"},
+			executor + " hook checklist-reminder"},
 	}
 	for event, cmds := range want {
 		if got := commandsOf(t, out, event); !slices.Equal(got, cmds) {
@@ -131,6 +135,10 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 	// the work of the session for longer than the former form's 5 seconds.
 	if got := timeoutOf(t, out, "Stop", state+executor+" hook context-guard"); got != "20" {
 		t.Errorf("the guard keeps a timeout of %s:\n%s", got, out)
+	}
+	// An entry written by hand without a timeout gets the kit's.
+	if got := timeoutOf(t, out, "Stop", executor+" hook checklist-reminder"); got != "5" {
+		t.Errorf("the checklist reminder has a timeout of %s:\n%s", got, out)
 	}
 	again, changed := wire(t, out, w)
 	if changed || again != out {
@@ -154,7 +162,7 @@ func TestUnwiringTakesOutEveryForm(t *testing.T) {
 		if got := commandsOf(t, string(out), "PostToolBatch"); !slices.Equal(got, []string{atlasBudget}) {
 			t.Errorf("%s: PostToolBatch keeps %q", name, got)
 		}
-		for _, e := range []string{"PreToolUse", "Stop", "SubagentStop", "UserPromptSubmit"} {
+		for _, e := range []string{"PreToolUse", "PostToolUse", "Stop", "SubagentStop", "UserPromptSubmit"} {
 			if got := commandsOf(t, string(out), e); len(got) != 0 {
 				t.Errorf("%s: %s keeps %q", name, e, got)
 			}
@@ -179,9 +187,27 @@ func TestTheExecutorsHookIsToldWhereverTheExecutorLies(t *testing.T) {
 			t.Errorf("%q: the background reminder's %v, want %v", cmd, h.owns(cmd), want)
 		}
 	}
-	// The guard and the stamp, in the forms an install wrote before the
-	// executor took them over and in the executor's.
+	// The rest of the hooks the executor took over, in the forms an install
+	// wrote before and in the executor's.
 	for part, cmds := range map[string]map[string]bool{
+		"relay": {
+			"/home/u/bin/aacpanel-exec hook ask-hook":                      true,
+			"test -f /a/agent/ask-hook.py && python3 /a/agent/ask-hook.py": true,
+			"python3 /srv/old/agent/ask-hook.py":                           true,
+			"/home/u/bin/aacpanel-exec hook artifact-copy":                 false,
+			"python3 /srv/old/agent/ask-hook-old.py":                       false,
+		},
+		"copies": {
+			"/opt/other/aacpanel-exec hook artifact-copy":                                            true,
+			"test -f /a/deploy/claude/artifact-copy.py && python3 /a/deploy/claude/artifact-copy.py": true,
+			"/home/u/bin/aacpanel-exec hook ask-hook":                                                false,
+		},
+		"nudge": {
+			"/home/u/bin/aacpanel-exec hook checklist-reminder":                                                true,
+			"test -f /a/deploy/claude/checklist-reminder.py && python3 /a/deploy/claude/checklist-reminder.py": true,
+			"python3 /opt/elsewhere/deploy/claude/checklist-reminder.py":                                       true,
+			"/home/u/bin/aacpanel-exec hook background-reminder":                                               false,
+		},
 		"cap": {
 			"/home/u/bin/aacpanel-exec hook context-guard":                                                               true,
 			"test -f /a/deploy/claude/context-guard.py && AACP_STATE_DIR='/s' python3 /a/deploy/claude/context-guard.py": true,
