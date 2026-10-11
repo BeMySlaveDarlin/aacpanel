@@ -118,6 +118,7 @@ const confirm = async () => {
     return said;
 };
 const button = (box, words) => Array.from(box.querySelectorAll("button")).find((b) => text(b) === words);
+const mcpReads = () => asked.filter((u) => u.startsWith("/api/session/mcp")).length;
 
 window.done = (async () => {
     await document.fonts.ready;
@@ -255,18 +256,21 @@ window.done = (async () => {
             throw new Error("the reconnect button did not come back");
         }
         await settled();
+        const readsBefore = mcpReads();
         button(sheet(), "Reconnect").click();
         if (!await until(() => reconnectReply && button(sheet(), "Reconnecting…"))) throw new Error("reconnect did not wait for its answer");
         out.mcpBusy = button(sheet(), "Reconnecting…").disabled;
         reconnectReply();
         reconnectReply = null;
-        if (!await until(() => text(document.querySelector(".toast.on")).includes(answer) && sheet().querySelector(".mcpacts"))) {
+        // The toast comes before the servers are read again: wait for the read itself.
+        if (!await until(() => text(document.querySelector(".toast.on")).includes(answer) && sheet().querySelector(".mcpacts")
+            && mcpReads() > readsBefore)) {
             throw new Error("reconnect did not show its answer and refresh the server");
         }
         out.mcpReplies.push(text(document.querySelector(".toast.on")));
     }
     out.mcpSent = { sent: sent.slice(beforeReconnect) };
-    out.mcpReads = asked.filter((u) => u.startsWith("/api/session/mcp")).length;
+    out.mcpReads = mcpReads();
 
     // The models are asked of the session, not of any daemon.
     await show(thread);
