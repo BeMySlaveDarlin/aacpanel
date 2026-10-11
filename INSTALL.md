@@ -902,6 +902,21 @@ sets `CODEX_HOME` itself, so a wrapper that picks the home by the directory
 overrules it — on such a machine `AACP_CODEX` names the codex program itself,
 or a New waits for a daemon in a home that never gets one and says so.
 
+`AACP_CORES` names the cores every unit the executor starts runs on — a
+session in tmux or on the stream with its window, a terminal of the panel, a
+codex daemon, an observer — as systemd's `CPUAffinity=` takes them: core
+numbers and ranges apart by commas, `8-23` or `0,2,4-7`. Unset, the units run
+where the system puts them. No question asks for it. On a machine with two
+kinds of core, naming the efficient ones keeps the fast ones for the person at
+it; on an Intel processor of that kind the kernel lists the efficient ones in
+`/sys/devices/cpu_atom/cpus`. The executor reads the key at its start and does
+not start on a value systemd would not take, or one naming a core the machine
+does not have, and its journal says which; a unit already running keeps the
+cores it started on. A drop-in of the machine's own that sets `CPUAffinity=`
+for the transient units of the user (`~/.config/systemd/user/run-.service.d/`)
+adds its cores to the panel's — systemd merges the two — so the setting
+narrows nothing until that drop-in is gone.
+
 ## S4. `root` — Root part
 
 Everything as root, in one call. **Ask the person first**, with the command

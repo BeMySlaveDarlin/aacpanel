@@ -144,7 +144,7 @@ func (e *Executor) runCodexTerminal(ctx context.Context, p project, home, thread
 	if err != nil {
 		return launcher.Report{}, err
 	}
-	return runInUnit(ctx, bin, launchFlag, "starting codex", launcher.Spec{
+	return e.runInUnit(ctx, bin, launchFlag, "starting codex", launcher.Spec{
 		Dir: p.Path, Session: p.Session, Launch: p.Launch,
 		Codex: &launcher.CodexSpec{Thread: thread, Home: home, Bin: program},
 	})
@@ -165,7 +165,7 @@ func (e *Executor) codexDaemon(ctx context.Context, link *codex.Link, dir string
 		if err != nil {
 			return false, err
 		}
-		if err := startDaemon(ctx, bin, link.Home(), dir); err != nil {
+		if err := startDaemon(ctx, bin, link.Home(), dir, e.cores); err != nil {
 			return false, err
 		}
 		started = true
@@ -178,9 +178,9 @@ func (e *Executor) codexDaemon(ctx context.Context, link *codex.Link, dir string
 	return started, link.Ready(wctx)
 }
 
-func startDaemon(ctx context.Context, bin, home, dir string) error {
+func startDaemon(ctx context.Context, bin, home, dir, cores string) error {
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), daemonArgs(env, bin, home, dir)...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), daemonArgs(env, bin, home, dir, cores)...)
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -193,8 +193,9 @@ func startDaemon(ctx context.Context, bin, home, dir string) error {
 // daemonArgs start `codex app-server daemon start` in a transient unit of its
 // own, in the project's directory and with the home named. The command puts
 // the daemon in the background and ends; the unit leaves what it started
-// running, as the launcher's unit leaves the tmux server.
-func daemonArgs(env []string, bin, home, dir string) []string {
+// running, as the launcher's unit leaves the tmux server, and on the cores
+// the unit is held to: the commands of every thread run in the daemon.
+func daemonArgs(env []string, bin, home, dir, cores string) []string {
 	args := []string{
 		"--user",
 		"--wait",
@@ -203,6 +204,7 @@ func daemonArgs(env []string, bin, home, dir string) []string {
 		"--description=codex app-server daemon of " + home,
 		"--working-directory=" + dir,
 	}
+	args = append(args, affinity(cores)...)
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {
 			args = append(args, "--setenv="+kv)

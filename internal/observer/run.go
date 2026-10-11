@@ -36,28 +36,13 @@ const stopWait = 5 * time.Second
 // memory of the claude of an idle one, with no swap to spill into past it,
 // and a twentieth of a core — a command polling every few seconds runs at its
 // pace, a loop that runs away gets no more. Its niceness gives way to
-// everything a person waits on.
+// everything a person waits on. Its cores are those of every unit of the
+// executor, the ones the machine description names.
 const (
 	MemoryMax = "384M"
 	CPUQuota  = "5%"
 	Nice      = 10
 )
-
-// coresFile names the efficiency cores where the kernel tells them apart: on
-// a machine with two kinds of core an observer runs on the slower kind and
-// leaves the faster to the person.
-var coresFile = "/sys/devices/cpu_atom/cpus"
-
-// Cores are the cores an observer is held to, empty on a machine whose
-// kernel names no efficiency cores: there an observer runs where the system
-// puts it.
-func Cores() string {
-	raw, err := os.ReadFile(coresFile)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(raw))
-}
 
 // Run is the observer inside its unit: it runs the command of the observer
 // kept in dir, writes what the command prints to the log of the observer and

@@ -21,6 +21,7 @@ import (
 	"aacpanel/internal/checklist"
 	"aacpanel/internal/executor"
 	"aacpanel/internal/hook"
+	"aacpanel/internal/hostcfg"
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
@@ -330,8 +331,15 @@ func run(socket, dockerHost, self string) error {
 	if os.Geteuid() == 0 {
 		return errors.New("running as root is not allowed: the executor gets by with the rights of the session owner")
 	}
+	// The cores are read once, here: a value the units could not be held to
+	// stops the executor at its start, where the person who set it looks,
+	// rather than every session, terminal and observer it would start.
+	cores, err := hostcfg.Cores()
+	if err != nil {
+		return err
+	}
 
-	exec := executor.New(executor.NewDocker(dockerHost), self)
+	exec := executor.New(executor.NewDocker(dockerHost), self).HoldTo(cores)
 	srv := action.NewServer(socket, audited{next: exec}, actionTimeout)
 	ln, err := srv.Listen()
 	if err != nil {
@@ -363,6 +371,11 @@ func run(socket, dockerHost, self string) error {
 			len(action.Kinds)-len(kinds))
 	}
 	log.Printf("docker %s, the panel container %q is not shut down from here", dockerHost, self)
+	if cores != "" {
+		log.Printf("sessions, terminals and observers run on cores %s (%s)", cores, hostcfg.CoresEnv)
+	} else {
+		log.Printf("sessions, terminals and observers run where the system puts them: %s is not set", hostcfg.CoresEnv)
+	}
 	log.Print("sessions are started by the launcher in tmux; the main host session and one-off runs are not closed")
 
 	if err := srv.Run(ctx, ln); err != nil {

@@ -81,6 +81,7 @@ var specs = map[string]spec{
 	"AACP_CLAUDE_REGISTRY":  {groupMachine, CostExec, false, "the registry of contours"},
 	"AACP_CODEX_HOMES":      {groupMachine, CostExec, false, "the home directories of codex contours; the collector reads this too and takes a change at its own restart"},
 	"AACP_CODEX":            {groupMachine, CostExec, false, "what starts the codex daemons and codex in tmux; codex from the executor's PATH when unset"},
+	hostcfg.CoresEnv:        {groupMachine, CostExec, false, "the cores sessions, terminals and observers run on, like 8-23; where the system puts them when unset"},
 	hostcfg.ProjectRootsEnv: {groupMachine, CostService, false, "where sessions may be opened; the service and the executor read this apart"},
 	"AACP_PROJECT_SCAN":     {groupMachine, CostAgent, false, "what to walk when looking for projects"},
 	"AACP_PROBE_PORTS":      {groupMachine, CostAgent, false, "the port checks the collector runs"},

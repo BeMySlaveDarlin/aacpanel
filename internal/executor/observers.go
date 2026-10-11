@@ -26,7 +26,7 @@ import (
 
 // Observers is the keeper of the observers and the alarms of this host.
 func (e *Executor) Observers() *observer.Keeper {
-	return observer.NewKeeper(observer.Dir(), observerUnits{}, observerOwners{e: e})
+	return observer.NewKeeper(observer.Dir(), observerUnits{cores: e.cores}, observerOwners{e: e})
 }
 
 type observerOwners struct{ e *Executor }
@@ -134,20 +134,21 @@ func wakeLetter(from, text string) string {
 
 // observerUnits runs observers in transient units of the user's manager:
 // started from the executor, a command would live in the executor's unit and
-// its sandbox and die with its restart.
-type observerUnits struct{}
+// its sandbox and die with its restart. They run on the cores every unit of
+// the executor is held to.
+type observerUnits struct{ cores string }
 
 // observerStopWait is how long a command asked to stop gets before its unit
 // kills it.
 const observerStopWait = "5s"
 
-func (observerUnits) Start(ctx context.Context, unit, dir string, spec observer.Spec) error {
+func (u observerUnits) Start(ctx context.Context, unit, dir string, spec observer.Spec) error {
 	bin, err := launcherPath()
 	if err != nil {
 		return err
 	}
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), observerArgs(env, bin, unit, dir, spec, observer.Cores())...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), observerArgs(env, bin, unit, dir, spec, u.cores)...)
 	cmd.Env = env
 	var errs bytes.Buffer
 	cmd.Stderr = &errs
@@ -175,9 +176,7 @@ func observerArgs(env []string, bin, unit, dir string, spec observer.Spec, cores
 		"--property=CPUQuota=" + observer.CPUQuota,
 		"--property=TimeoutStopSec=" + observerStopWait,
 	}
-	if cores != "" {
-		args = append(args, "--property=CPUAffinity="+cores)
-	}
+	args = append(args, affinity(cores)...)
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {
 			args = append(args, "--setenv="+kv)

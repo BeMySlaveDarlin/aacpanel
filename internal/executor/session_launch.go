@@ -27,7 +27,7 @@ func (e *Executor) runLauncher(ctx context.Context, p project, resume string) (l
 	if name == "" {
 		name = p.Session
 	}
-	return runInUnit(ctx, bin, launchFlag, "starting the session", launcher.Spec{
+	return e.runInUnit(ctx, bin, launchFlag, "starting the session", launcher.Spec{
 		Dir: p.Path, Session: name, Resume: resume, Launch: p.Launch,
 		ClaudeBin: p.ClaudeBin, ConfigDir: p.ConfigDir, Parent: p.Parent,
 	})
@@ -38,7 +38,7 @@ func (e *Executor) runWindowOpener(ctx context.Context, srv tmuxServer, dir, ses
 	if err != nil {
 		return launcher.Report{}, err
 	}
-	return runInUnit(ctx, bin, windowFlag, "opening the window",
+	return e.runInUnit(ctx, bin, windowFlag, "opening the window",
 		launcher.WindowSpec{Dir: dir, Session: session, Socket: string(srv)})
 }
 
@@ -47,18 +47,18 @@ func (e *Executor) runTermStarter(ctx context.Context, dir, id string) (launcher
 	if err != nil {
 		return launcher.Report{}, err
 	}
-	return runInUnit(ctx, bin, termFlag, "starting the terminal",
+	return e.runInUnit(ctx, bin, termFlag, "starting the terminal",
 		launcher.TermSpec{Dir: dir, Session: id, Socket: string(panelTmux)})
 }
 
-func runInUnit(ctx context.Context, bin, mode, what string, spec any) (launcher.Report, error) {
+func (e *Executor) runInUnit(ctx context.Context, bin, mode, what string, spec any) (launcher.Report, error) {
 	body, err := json.Marshal(spec)
 	if err != nil {
 		return launcher.Report{}, fmt.Errorf("the task for the launcher was not built: %w", err)
 	}
 
 	env := cleanEnv(os.Environ())
-	cmd := exec.CommandContext(ctx, systemdRunPath(), launchArgs(env, bin, mode)...)
+	cmd := exec.CommandContext(ctx, systemdRunPath(), launchArgs(env, bin, mode, e.cores)...)
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(body)
 	var out, errs bytes.Buffer
@@ -100,7 +100,10 @@ func unitEnv(kv string) bool {
 	return false
 }
 
-func launchArgs(env []string, bin, mode string) []string {
+// launchArgs start the launcher in a unit of its own and wait for its
+// report. What it starts stays in the unit — the tmux server or the holder
+// of a session, a window — and inherits the cores the unit is held to.
+func launchArgs(env []string, bin, mode, cores string) []string {
 	args := []string{
 		"--user",
 		"--quiet",
@@ -109,12 +112,22 @@ func launchArgs(env []string, bin, mode string) []string {
 		"--collect",
 		"--property=KillMode=process",
 	}
+	args = append(args, affinity(cores)...)
 	for _, kv := range env {
 		if name, _, _ := strings.Cut(kv, "="); passEnv(name) {
 			args = append(args, "--setenv="+kv)
 		}
 	}
 	return append(args, "--", bin, mode)
+}
+
+// affinity is the property that holds a unit to cores, and nothing for no
+// cores: a unit started without it runs where the system puts it.
+func affinity(cores string) []string {
+	if cores == "" {
+		return nil
+	}
+	return []string{"--property=CPUAffinity=" + cores}
 }
 
 const (

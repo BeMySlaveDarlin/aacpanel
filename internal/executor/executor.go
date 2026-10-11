@@ -36,6 +36,11 @@ type Executor struct {
 	// daemons serialises starting the codex daemons: two News at once would
 	// both find no daemon and both start one.
 	daemons sync.Mutex
+
+	// cores are the cores every unit the executor starts is held to, as
+	// hostcfg.Cores gives them; empty, the system puts the units where it
+	// will.
+	cores string
 }
 
 // busy is a set of names something is under way for.
@@ -67,6 +72,14 @@ func (b *busy) give(name string) {
 // New creates an Executor for the given Docker client and self container name.
 func New(docker *Docker, self string) *Executor {
 	return &Executor{docker: docker, self: self}
+}
+
+// HoldTo has every unit the executor starts — a session, its window, a
+// terminal of the panel, a codex daemon, an observer — run on cores, in the
+// form hostcfg.Cores gives them; empty leaves the units to the system.
+func (e *Executor) HoldTo(cores string) *Executor {
+	e.cores = cores
+	return e
 }
 
 // Kinds reports the action kinds this executor can perform on this host.

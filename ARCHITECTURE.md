@@ -1241,6 +1241,17 @@ same listeners only. The first terminal starts the server from a unit of its
 own, as a session does: started inside the executor, every shell would inherit
 its sandbox and die with its restart.
 
+**Every unit the executor starts runs on the cores of the machine
+description.** A session — the launcher's unit, which keeps the tmux server or
+the holder after it — its window, a terminal of the panel, a codex daemon and
+an observer each get `CPUAffinity=` from `AACP_CORES`, one value for all of
+them, and none at all where it is unset: then the system puts them. The value
+is read once, at the executor's start, and checked there against the form
+systemd reads and the cores the kernel lists. A value that would fail every
+unit, or hold it to no core, stops the executor at its start instead, where
+the person who set it looks, rather than at the next session, terminal or
+observer.
+
 **The host's main session is not closed from the panel, but it is restarted.**
 The session living in the home directory is the one the panel itself lives
 next to, and it has no close button, just as the panel's own container has no
@@ -1355,8 +1366,8 @@ second letter, never a lost one. A unit no directory names is stopped.
 waits holds 260 to 320 MB in its claude and 470 MB and more with its MCP
 servers, and spends 0.3 to 0.7 per cent of one core, about 3 per cent at work.
 An observer is a watcher and gets no more: `MemoryMax=384M` with no swap,
-`CPUQuota=5%`, niceness 10, and the efficiency cores where the kernel tells
-them apart (`/sys/devices/cpu_atom/cpus`), the system's choice elsewhere. A
+`CPUQuota=5%`, niceness 10, and the cores of every unit of the executor
+(`AACP_CORES`), the system's choice where the description names none. A
 command that polls every few seconds runs at its pace; a loop that runs away
 gets a twentieth of a core. A session keeps five observers, the host twenty,
 and the log of one is two files of a megabyte — the full one is moved aside
