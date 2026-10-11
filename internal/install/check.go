@@ -351,7 +351,7 @@ func (in *Install) wiringLink() []chainLink {
 		if n, err := wiredHooks(raw, askHook); err != nil || n != 1 {
 			bad = append(bad, fmt.Sprintf("%s runs the question hook %d times", in.short(dir), n))
 		}
-		if !runs(statusLineOf(raw), statusScript) {
+		if !ownsStatus(statusLineOf(raw)) {
 			bad = append(bad, in.short(dir)+" has no limits snapshot in its status line")
 		}
 		if have, ok := in.mcpHas(dir); !ok || !have.same(in.mcpWant()) {

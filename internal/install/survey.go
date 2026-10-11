@@ -110,6 +110,9 @@ func wiredKit(m Machine, f Facts, e earlier) []string {
 			continue
 		}
 		settings.Write(raw)
+		if ownsStatus(statusLineOf(raw)) {
+			on["limits"] = true
+		}
 		for _, h := range kitHooks {
 			if n, err := wiredHooks(raw, h); err == nil && n > 0 {
 				on[h.Part] = true

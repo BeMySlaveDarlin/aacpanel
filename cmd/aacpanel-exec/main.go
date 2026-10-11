@@ -25,6 +25,7 @@ import (
 	"aacpanel/internal/launcher"
 	"aacpanel/internal/mcp"
 	"aacpanel/internal/observer"
+	"aacpanel/internal/statusline"
 	"aacpanel/internal/stream"
 	"aacpanel/internal/termlink"
 	"aacpanel/internal/toolset"
@@ -37,6 +38,9 @@ const defaultSelf = "aacpanel"
 const actionTimeout = 90 * time.Second
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == statusline.Command {
+		os.Exit(statusline.Run(os.Stdin, os.Stdout, os.Stderr))
+	}
 	// A hook of claude is a word and not a flag, aacpanel-exec hook <name>,
 	// and it comes before the flags: its exit is the hook's, never the 2 of a
 	// flag that does not parse, which would hold the session it serves.

@@ -89,7 +89,7 @@ func TestTheQuestionsOfAFreshDesktop(t *testing.T) {
 		{"claude", home + "/.local/bin/claude", "command -v claude"},
 		{"accounts", home + "/.claude", "found"},
 		{"transport", "stream", "recommended"},
-		{"kit", "relay,limits,tools,copies,brief,cap,nudge,restart", "suggested"},
+		{"kit", "relay,limits,tools,copies,cap,nudge,restart", "suggested"},
 		{"tune", no, "default"},
 		{"push", "mailto:u@example.org", "git config user.email"},
 		{"life", "24h/720h", "the panel's default"},
@@ -304,9 +304,9 @@ func TestTheWaysInAskOnlyWhatIsChecked(t *testing.T) {
 }
 
 func TestTheKitFlag(t *testing.T) {
-	suggested := "relay,limits,tools,copies,brief,cap,nudge,restart"
+	suggested := "relay,limits,tools,copies,cap,nudge,restart"
 	for _, c := range []struct{ raw, want, err string }{
-		{"+stamp,-cap", "relay,limits,tools,copies,brief,nudge,restart,stamp", ""},
+		{"+stamp,-cap", "relay,limits,tools,copies,nudge,restart,stamp", ""},
 		{"+background", suggested + ",background", ""},
 		{"gc,lan", "relay,limits,tools,gc,lan", ""},
 		{"-relay", suggested, ""},

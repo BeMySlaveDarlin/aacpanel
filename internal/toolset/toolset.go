@@ -32,7 +32,7 @@ const lead = "The person follows this session in the panel, on their phone and d
 // ceiling, so the variable lifts those too.
 const (
 	WordEnv = "CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH"
-	WordMax = 4096
+	WordMax = 5120
 )
 
 func tools() []mcp.Tool {

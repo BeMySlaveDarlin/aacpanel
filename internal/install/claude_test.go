@@ -14,7 +14,7 @@ import (
 // in CLAUDE_CONFIG_DIR, or beside ~/.claude without it — and remove takes
 // it out.
 func (g *rig) claudeMachine() {
-	g.says([]string{"bash", filepath.Join(g.clone, "agent/rate-snapshot.sh")}, "")
+	g.says([]string{g.in.execPath(), "statusline"}, "")
 	fileOf := func(c Cmd) string {
 		for _, kv := range c.Env {
 			if dir, ok := strings.CutPrefix(kv, "CLAUDE_CONFIG_DIR="); ok {
@@ -242,6 +242,63 @@ func TestClaudeSettingsAreWiredInEveryAccount(t *testing.T) {
 	}
 	if _, ok := g.in.mcpHas(mine); ok {
 		t.Error("the server is still in ~/.claude.json")
+	}
+}
+
+// Each account can carry a different form and a line of its own. Updating
+// rewrites the snapshot and retires the brief hook without moving the
+// person's neighbours; a second update has nothing left to write.
+func TestEveryAccountMovesItsStatusLineAndRetiresTheBriefHook(t *testing.T) {
+	g := newRig(t, answer("--account", "~/.claude,~/.claude-work"))
+	g.claudeMachine()
+	for i, dir := range g.in.accounts() {
+		command := `AACP_STATUSLINE_NEXT="printf '%s' \"$CLAUDE_CONFIG_DIR\"" bash /srv/old/agent/rate-snapshot.sh`
+		brief := "test -f /srv/old/deploy/claude/brief-waiting.py && python3 /srv/old/deploy/claude/brief-waiting.py"
+		if i == 1 {
+			command = "bash /srv/other/agent/rate-snapshot.sh"
+			brief = "python3 /srv/other/deploy/claude/brief-waiting.py"
+		}
+		raw := `{"model":"opus","statusLine":{"type":"command","command":` + quoteJSON(command) +
+			`,"padding":1},"hooks":{"SessionStart":[{"matcher":"startup","hooks":[{"command":"mine-before"},{"command":` +
+			quoteJSON(brief) + `},{"command":"mine-after"}]}]}}`
+		g.write(filepath.Join(dir, "settings.json"), raw, 0o600)
+	}
+	step := g.step("claude")
+	if g.already(step) {
+		t.Fatal("the former status line and brief hook counted as up to date")
+	}
+	if err := g.do(step); err != nil {
+		t.Fatal(err)
+	}
+	for i, dir := range g.in.accounts() {
+		raw := g.read(filepath.Join(dir, "settings.json"))
+		want := g.in.execPath() + " statusline"
+		if i == 0 {
+			want = `AACP_STATUSLINE_NEXT="printf '%s' \"$CLAUDE_CONFIG_DIR\"" ` + want
+		}
+		if got := statusLineOf([]byte(raw)); got != want {
+			t.Errorf("%s: status line %q, want %q", dir, got, want)
+		}
+		if got := commandsOf(t, raw, "SessionStart"); !slices.Equal(got, []string{"mine-before", "mine-after"}) {
+			t.Errorf("%s: SessionStart %q", dir, got)
+		}
+		if !strings.Contains(raw, `"matcher": "startup"`) || !strings.Contains(raw, `"padding": 1`) {
+			t.Errorf("%s: the person's fields changed:\n%s", dir, raw)
+		}
+		back, _, err := Unwire([]byte(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want = ""
+		if i == 0 {
+			want = `printf '%s' "$CLAUDE_CONFIG_DIR"`
+		}
+		if got := statusLineOf(back); got != want {
+			t.Errorf("%s: unchained %q, want %q", dir, got, want)
+		}
+	}
+	if !g.already(step) {
+		t.Error("a second update still wants to wire the accounts")
 	}
 }
 

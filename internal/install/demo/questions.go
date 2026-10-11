@@ -205,7 +205,6 @@ func kit() *ui.Block {
 			part(gAlways, "limits", "Limits snapshot", "5-hour and weekly limits, before your status line"),
 			part(gAlways, "tools", "Panel tools", "checklist, briefs, secrets, a phone call, restart"),
 			part(gQuiet, "copies", "Page copies", "a published page opens on the phone under any account"),
-			part(gQuiet, "brief", "Brief reminder", "a session learns that an answered brief waits"),
 			part(gQuiet, "cap", "Context cap", "stops a session at the cap, restarts it with your line"),
 			part(gQuiet, "nudge", "Checklist nudge", "reminds a session that forgot its checklist"),
 			part(gQuiet, "restart", "Self-restart", "a session may restart itself without asking you"),

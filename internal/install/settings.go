@@ -239,7 +239,6 @@ type kitHook struct {
 var kitHooks = []kitHook{
 	{Part: "relay", Event: "PreToolUse", Matcher: "AskUserQuestion", Hook: "ask-hook", Script: "agent/ask-hook.py", Timeout: 5, Codex: true},
 	{Part: "copies", Event: "PostToolUse", Matcher: "Artifact", Hook: "artifact-copy", Script: "deploy/claude/artifact-copy.py", Timeout: 10},
-	{Part: "brief", Event: "SessionStart", Script: "deploy/claude/brief-waiting.py", Timeout: 5},
 	// The guard looks at the work of the session in a snapshot newer than
 	// the stop for up to hook.Wait: its timeout is past that.
 	{Part: "cap", Event: "Stop", Hook: "context-guard", Script: "deploy/claude/context-guard.py", Timeout: 20, State: true},
@@ -254,6 +253,7 @@ var kitHooks = []kitHook{
 // the kit: a script taken out of the tree leaves no hook behind that runs
 // nothing.
 var retiredHooks = []kitHook{
+	{Event: "SessionStart", Script: "deploy/claude/brief-waiting.py"},
 	{Event: "Stop", Script: "deploy/claude/cost-snapshot.py"},
 	{Event: "SubagentStop", Script: "deploy/claude/cost-snapshot.py"},
 }
@@ -395,7 +395,7 @@ func Wire(raw []byte, w Wiring) ([]byte, bool, error) {
 		changed = dropHook(o, h) || changed
 	}
 	if w.has("limits") {
-		changed = chainStatus(o, w.Clone) || changed
+		changed = chainStatus(o, w.Exec) || changed
 	} else {
 		changed = unchainStatus(o) || changed
 	}
@@ -588,8 +588,8 @@ func dropHook(o *object, h kitHook) bool {
 
 // statusCommand is the status line of the panel: the snapshot of the limits
 // with the person's line after it, if there is one.
-func statusCommand(clone, next string) string {
-	base := "bash " + filepath.Join(clone, statusScript)
+func statusCommand(executor, next string) string {
+	base := executor + " statusline"
 	if next == "" {
 		return base
 	}
@@ -610,9 +610,9 @@ func statusNext(command string) (next string, ok bool) {
 	return next, ok
 }
 
-// statusParts takes the panel's status line apart: the person's line and
-// the path of the script.
-func statusParts(command string) (next, script string, ok bool) {
+// statusParts takes either form of the panel's status line apart: the
+// person's line and the command that keeps the snapshot.
+func statusParts(command string) (next, base string, ok bool) {
 	command = strings.TrimSpace(command)
 	rest, prefixed := strings.CutPrefix(command, StatusNextEnv+"=")
 	if prefixed {
@@ -621,12 +621,26 @@ func statusParts(command string) (next, script string, ok bool) {
 			return "", "", false
 		}
 	}
-	script, ok = strings.CutPrefix(strings.TrimSpace(rest), "bash ")
-	script = strings.TrimSpace(script)
-	if !ok || strings.ContainsAny(script, " \t") || !runs(script, statusScript) {
+	base = strings.TrimSpace(rest)
+	f := strings.Fields(base)
+	if len(f) != 2 || !(f[0] == "bash" && runs(f[1], statusScript) || filepath.Base(f[0]) == execName && f[1] == "statusline") {
 		return "", "", false
 	}
-	return next, script, true
+	return next, base, true
+}
+
+// ownsStatus recognises the snapshot in either form, wherever it is installed.
+func ownsStatus(command string) bool {
+	if runs(command, statusScript) {
+		return true
+	}
+	f := strings.Fields(command)
+	for i := 0; i+1 < len(f); i++ {
+		if filepath.Base(f[i]) == execName && f[i+1] == "statusline" {
+			return true
+		}
+	}
+	return false
 }
 
 // shellWord reads the first word of s the way the shell would, for the
@@ -675,7 +689,7 @@ func shellWord(s string) (word, rest string, ok bool) {
 // peel is the person's line under any number of the panel's snapshots: a
 // chain wrapped twice by an older hand calls the snapshot once from now on.
 func peel(next string) string {
-	for runs(next, statusScript) {
+	for ownsStatus(next) {
 		inner, ok := statusNext(next)
 		if !ok {
 			return next
@@ -685,34 +699,33 @@ func peel(next string) string {
 	return next
 }
 
-// chainStatus puts the snapshot first in the status line. The person's own
-// command becomes the next in the chain; a command of the panel's keeps its
-// next and gets the path of this clone, and one that has both stays as it is
-// written, quotes and all. One the panel cannot take apart has only its path
-// changed. The snapshot never wraps itself.
-func chainStatus(o *object, clone string) bool {
+// chainStatus puts the snapshot first, rewriting either form where it
+// stands. The shell's quoting of the next command stays intact: double
+// quotes can expand a variable before the next shell sees the command.
+func chainStatus(o *object, executor string) bool {
 	v, _ := o.get("statusLine")
 	line, _ := v.(*object)
 	if line == nil {
 		line = &object{}
 		line.set("type", "command")
-		line.set("command", statusCommand(clone, ""))
+		line.set("command", statusCommand(executor, ""))
 		o.set("statusLine", line)
 		return true
 	}
 	current := line.str("command")
-	want := statusCommand(clone, current)
-	if runs(current, statusScript) {
-		if next, script, ok := statusParts(current); ok {
-			want = statusCommand(clone, peel(next))
-			if script == filepath.Join(clone, statusScript) && peel(next) == next {
-				want = current
+	want := statusCommand(executor, current)
+	if ownsStatus(current) {
+		if next, base, ok := statusParts(current); ok {
+			want = statusCommand(executor, peel(next))
+			if peel(next) == next {
+				at := strings.LastIndex(current, base)
+				want = current[:at] + statusCommand(executor, "") + current[at+len(base):]
 			}
 		} else {
-			want = repath(current, filepath.Join(clone, statusScript))
+			want = repathStatus(current, executor)
 		}
 	} else if strings.TrimSpace(current) == "" {
-		want = statusCommand(clone, "")
+		want = statusCommand(executor, "")
 	}
 	changed := false
 	if line.str("type") != "command" {
@@ -726,14 +739,17 @@ func chainStatus(o *object, clone string) bool {
 	return changed
 }
 
-// repath puts path in place of the last word of command that runs the
-// status script.
-func repath(command, path string) string {
+// repathStatus keeps a line whose shell syntax the installer cannot take
+// apart, replacing only the snapshot command, including its interpreter.
+func repathStatus(command, executor string) string {
 	fields := strings.Fields(command)
-	for i := len(fields) - 1; i >= 0; i-- {
-		if runs(fields[i], statusScript) {
-			at := strings.LastIndex(command, fields[i])
-			return command[:at] + path + command[at+len(fields[i]):]
+	for i := len(fields) - 2; i >= 0; i-- {
+		base := fields[i] + " " + fields[i+1]
+		if fields[i] == "bash" && runs(fields[i+1], statusScript) || filepath.Base(fields[i]) == execName && fields[i+1] == "statusline" {
+			at := strings.LastIndex(command, base)
+			if at >= 0 {
+				return command[:at] + statusCommand(executor, "") + command[at+len(base):]
+			}
 		}
 	}
 	return command
@@ -745,7 +761,7 @@ func repath(command, path string) string {
 func unchainStatus(o *object) bool {
 	v, _ := o.get("statusLine")
 	line, _ := v.(*object)
-	if line == nil || !runs(line.str("command"), statusScript) {
+	if line == nil || !ownsStatus(line.str("command")) {
 		return false
 	}
 	next, ok := statusNext(line.str("command"))

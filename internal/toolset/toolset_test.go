@@ -20,6 +20,11 @@ import (
 	"aacpanel/internal/mcp"
 )
 
+func TestMain(m *testing.M) {
+	_ = os.Setenv("AACP_PANEL_URL", "http://127.0.0.1:1")
+	os.Exit(m.Run())
+}
+
 // The server calls a tool by its name and takes the first of the name: a
 // second tool of the same name would never be called, and claude would list
 // both.
@@ -382,10 +387,20 @@ func TestTheCloseClosesOnlyTheSessionCalling(t *testing.T) {
 }
 
 // The server's word fits what claude keeps of it even when the place holds the
-// longest checklist the tool takes: cut, it loses the lines of the last tools,
+// longest checklist standing and three longest brief titles: cut, it loses the
+// lines of the last tools,
 // and the model never learns when to reach for them.
 func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var cards []map[string]any
+		for range 4 {
+			cards = append(cards, map[string]any{"cwd": "/srv/proj", "title": strings.Repeat("𝔸", 200), "answered": 100, "questions": 100})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"briefs": cards})
+	}))
+	t.Cleanup(panel.Close)
+	t.Setenv("AACP_PANEL_URL", panel.URL)
 	here := mcp.Binding{Place: mcp.Place{ConfigDir: "/home/u/.claude", Dir: "/srv/proj"},
 		SessionID: "567f4d24-cd5f-48fa-bdc1-04c89d203494", PID: 4242}
 	// A step of letters outside the basic plane: each is two units to claude.
@@ -415,6 +430,9 @@ func TestTheServersWordFitsWhatClaudeKeeps(t *testing.T) {
 	said := reply.Result.Instructions
 	if !strings.Contains(said, "39 of 40 steps finished") {
 		t.Fatalf("the word does not carry the checklist of the place: %q", said)
+	}
+	if !strings.Contains(said, "and 1 more") {
+		t.Fatalf("the word does not carry the answered briefs: %q", said)
 	}
 	// Claude counts the word as JavaScript counts a string, in UTF-16 units.
 	if n := len(utf16.Encode([]rune(said))); n > WordMax {

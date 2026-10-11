@@ -191,10 +191,9 @@ the quiet group is checked for you, the rest waits to be asked for:
    Always
    [✔] Question relay     a session's questions reach your phone
    [✔] Limits snapshot    5-hour and weekly limits, before your status line
-   [✔] Panel tools        checklist, briefs, a call to your phone, restart
+   [✔] Panel tools        checklist, briefs, secrets, a phone call, restart
    Quiet — checked for you
  ❯ [✔] Page copies        a published page opens on the phone under any account
-   [✔] Brief reminder     a session learns that an answered brief waits
    [✔] Context cap        stops a session at the cap, restarts it with your line
    [✔] Checklist nudge    reminds a session that forgot its checklist
    [✔] Self-restart       a session may restart itself without asking you
@@ -373,7 +372,7 @@ taken over only with `--adopt` next to `--yes`.
 | `--account DIR` | Which claude accounts does the panel serve? Again for more |
 | `--transport stream\|tmux` | How are sessions kept? |
 | `--claude-login [DIR=]now\|later` | Sign in to an account now? |
-| `--kit PARTS`, `--kit +PART,-PART` | the kit: a list is the whole of it, `+`/`-` change the suggested one. The parts: `relay`, `limits`, `tools`, `copies`, `brief`, `cap`, `nudge`, `restart`, `stamp`, `cost`, `gc`, `tailscale`, `lan`, `domain`, `testdb` |
+| `--kit PARTS`, `--kit +PART,-PART` | the kit: a list is the whole of it, `+`/`-` change the suggested one. The parts: `relay`, `limits`, `tools`, `copies`, `cap`, `nudge`, `restart`, `stamp`, `background`, `gc`, `tailscale`, `lan`, `domain`, `testdb` |
 | `--ts-authkey-file FILE` | the one-time Tailscale key, read from a file: a key never goes on a command line |
 | `--ts-hostname NAME` | Node name in the tailnet? |
 | `--lan-addr ADDRESS` | Which address should the panel listen on in the home network? |
@@ -785,10 +784,9 @@ installs it by hand.
 | Part | Checked | What it puts in place |
 |---|---|---|
 | Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `aacpanel-exec hook ask-hook` |
-| Limits snapshot | always | the status line, `agent/rate-snapshot.sh`, before yours |
-| Panel tools | always | the MCP server `aacpanel` and the allow rules of its tools but the restart |
+| Limits snapshot | always | the status line, `aacpanel-exec statusline`, before yours |
+| Panel tools | always | the MCP server `aacpanel`: checklist, briefs, secrets and a phone call, with the allow rules of its tools but the restart; answered briefs of the directory are named at the handshake |
 | Page copies | yes | the `PostToolUse` hook on `Artifact`, `aacpanel-exec hook artifact-copy` |
-| Brief reminder | yes | the `SessionStart` hook, `deploy/claude/brief-waiting.py` |
 | Context cap | yes | the `Stop` hook, `aacpanel-exec hook context-guard` |
 | Checklist nudge | yes | the `Stop` hook, `aacpanel-exec hook checklist-reminder` |
 | Self-restart | yes | the allow rule `mcp__aacpanel__session_restart` |
@@ -1275,7 +1273,7 @@ The question hook and the status line go into every account. A session in tmux
 reports a question to the panel only through the hook: the record of the call
 reaches the transcript after the answer, and without the hook the card never
 arrives. A session on the stream hands its question to its holder as a request,
-hook or not. The status line script writes the 5-hour and weekly percentages
+hook or not. The status line command writes the 5-hour and weekly percentages
 claude tells the status line of a terminal, at most every twenty seconds,
 together with the model and the effort a session in tmux runs; without it the
 limits come only from the executor's probe (S3, `AACP_LIMITS_EVERY`). It goes
@@ -1290,7 +1288,7 @@ first in the chain and passes the payload on to the command that was there:
     ]
   },
   "statusLine": {"type": "command",
-    "command": "AACP_STATUSLINE_NEXT='<the command that was there>' bash <clone>/agent/rate-snapshot.sh"},
+    "command": "AACP_STATUSLINE_NEXT='<the command that was there>' <home>/bin/aacpanel-exec statusline"},
   "permissions": {"allow": [
     "mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish",
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
@@ -1303,7 +1301,7 @@ first in the chain and passes the payload on to the command that was there:
 ```
 
 Without a status line of your own it is simply
-`"bash <clone>/agent/rate-snapshot.sh"`. The close lets a session done with
+`"<home>/bin/aacpanel-exec statusline"`. The close lets a session done with
 the job it was opened for close itself with nobody at the screen; it closes
 only the session that calls it, and its agents and background commands hold it
 off. The last allow rule is Self-restart:
@@ -1312,20 +1310,21 @@ that the model restarts its own session without asking whenever it decides to,
 while its agents and background commands still hold the restart off.
 
 The hooks of the kit, each an entry in a group of its own under its event, with
-the matcher where there is one. A hook is either the executor's,
-`<home>/bin/aacpanel-exec hook <name>`, or a script of the clone run by python:
+the matcher where there is one. Every hook the kit writes runs
+`<home>/bin/aacpanel-exec hook <name>`:
 
 | Part | Event | Matcher | Command | Timeout |
 |---|---|---|---|---|
 | Page copies | `PostToolUse` | `Artifact` | `<home>/bin/aacpanel-exec hook artifact-copy` | 10 |
-| Brief reminder | `SessionStart` | — | `test -f <clone>/deploy/claude/brief-waiting.py && python3 <clone>/deploy/claude/brief-waiting.py` | 5 |
 | Context cap | `Stop` | — | `<home>/bin/aacpanel-exec hook context-guard` | 20 |
 | Checklist nudge | `Stop` | — | `<home>/bin/aacpanel-exec hook checklist-reminder` | 5 |
 | Prompt stamp | `UserPromptSubmit` | — | `<home>/bin/aacpanel-exec hook prompt-stamp` | 5 |
 | Prompt stamp | `PostToolBatch` | `*` | `<home>/bin/aacpanel-exec hook prompt-stamp PostToolBatch` | 5 |
 | Background work | `Stop` | — | `<home>/bin/aacpanel-exec hook background-reminder` | 5 |
 
-A script runs behind a check that it is there. Python on a missing file exits
+The script forms an update recognises run as
+`test -f <clone>/<script> && python3 <clone>/<script>`, with the hook's
+arguments after the path. Python on a missing file exits
 2, which claude reads as "do not stop" for a `Stop` hook, "throw the prompt
 away" for `UserPromptSubmit` and "refuse the call" for `PreToolUse`: a clone
 moved or a script renamed would hold every session of the account. Behind the
@@ -1349,9 +1348,19 @@ python3 …` with `AACP_STATE_DIR` before `python3` or without, and a bare
 well: the script whose work it does is a former form of its entry. An entry of the
 panel's is rewritten where it stands into the form of this install, under the
 same matcher, and never added a second time; another entry of the same hook
-goes. The cost snapshot is a retired part: its entries — the python form of
-`deploy/claude/cost-snapshot.py`, from any clone — go from `Stop` and
-`SubagentStop` whatever the kit.
+goes. The cost snapshot and brief reminder are retired hooks: their entries go
+from `Stop` and `SubagentStop`, and `SessionStart`, respectively, whatever
+the kit. The brief reminder is part of the server's word at the handshake,
+computed from the panel's shelf for the directory of that session: answered
+and not yet sent, newest first, naming up to three and counting the rest.
+A panel that does not answer within two seconds leaves the line empty.
+
+The status line is rewritten in place too: `bash <clone>/agent/rate-snapshot.sh`
+and `aacpanel-exec statusline`, from any path, belong to the panel. The
+installer keeps the command after `AACP_STATUSLINE_NEXT`, with its quoting,
+and uninstall restores it. The executor needs neither jq nor python: it
+keeps `rate-limits.json` and `session-models/<session id>.json` in the account
+directory and then runs the person's line with the payload on stdin.
 
 For a state directory other than `/var/lib/aacpanel`, the commands of the
 context cap, the prompt stamp and the background reminder set
@@ -1376,16 +1385,13 @@ server on its command line anyway, and claude keeps one server of a name, so
 the server in the account serves the sessions started by hand. Such a session
 keeps 2048 UTF-16 units of the server's word, claude's default, and cuts the
 rest, the lines of the last tools first: the launcher lifts the ceiling for its
-own sessions with `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=4096`, and a session
+own sessions with `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH=5120`, and a session
 started by hand gets the same with the variable in the environment claude
 starts in.
 
 Rules of the machine's own for the text of a brief go into
 `${XDG_CONFIG_HOME:-~/.config}/aacpanel/brief-guide.md`: the brief tool gives
 them to a session after the shipped ones, and without the file there are none.
-`deploy/claude/restart-via-panel.py` is no hook but the restart of the
-`session_restart` tool for a script or a skill run inside a session; nothing
-installs it.
 
 **Sign in** to an account the person chose to sign in to now:
 `CLAUDE_CONFIG_DIR=<account> claude` (plain `claude` for `~/.claude`), `/exit`
@@ -1399,9 +1405,9 @@ it is signed in.
 
   ```bash
   jq '[.hooks.PreToolUse[]?.hooks[]? | select((.command // "") | contains("hook ask-hook"))] | length' ~/.claude/settings.json      # 1
-  jq '.statusLine.command | contains("agent/rate-snapshot.sh")' ~/.claude/settings.json                                     # true
+  jq '.statusLine.command | contains("aacpanel-exec statusline")' ~/.claude/settings.json                                     # true
   claude mcp get aacpanel                                                                                                  # Scope: User config
-  bash <clone>/agent/rate-snapshot.sh </dev/null                                                                           # exits 0
+  <home>/bin/aacpanel-exec statusline </dev/null                                                                           # exits 0
   ```
 
 - **Manifest.** `claude	json	<account>/settings.json	orig=<copy> sha=<sha256 of the file as written>`,
@@ -1416,7 +1422,7 @@ Only on a machine with codex: for every codex home `AACP_CODEX_HOMES` of
 host.env lists, or `~/.codex`, that is there. codex runs hooks from
 `<codex home>/hooks.json`, in the shape of claude's settings, and the kit puts
 there the hooks codex runs as well, in the same form and by the same rules as
-in S12 — an entry of the panel's rewritten where it stands, the cost snapshot's
+in S12 — an entry of the panel's rewritten where it stands, the retired hooks
 out, the rest of the file as it was:
 
 | Part | Event | Matcher | Command | Timeout |
@@ -1594,9 +1600,12 @@ with the same edits for a state directory of your own. Then the checks of S14.
 ## Removing the panel
 
 For an install by hand, without the installer's manifest. The order keeps the
-machine working to the end: claude's wiring goes first, while the clone its
-hooks run from is there — a hook calling a file that is gone breaks every
-question of every session.
+machine working to the end: claude's wiring goes first, while its commands are
+still there. A bare
+`python3 <script>` on a missing file exits 2 and holds the event; the kit's
+`test -f <script> && python3 <script>` form exits 1, and a missing executor
+exits 127. Those errors are passed over but reported at each event, and a
+missing MCP server fails to connect at every session start.
 
 1. In every account's `settings.json`: the question hook, the status line
    (put back the command after `AACP_STATUSLINE_NEXT=`, or remove the status

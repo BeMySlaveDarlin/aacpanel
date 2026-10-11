@@ -231,19 +231,19 @@ func (in *Install) claudeStep() *Step {
 				if n, err := wiredHooks(raw, askHook); err != nil || n != 1 {
 					return &Failed{Diagnosis: fmt.Sprintf("%s runs the question hook %d times after the wiring, not once", path, n)}
 				}
-				if !runs(statusLineOf(raw), statusScript) {
-					return &Failed{Diagnosis: path + " has no " + statusScript + " in its status line after the wiring"}
+				if !ownsStatus(statusLineOf(raw)) {
+					return &Failed{Diagnosis: path + " has no limits snapshot in its status line after the wiring"}
 				}
 				if have, ok := in.mcpHas(dir); !ok || !have.same(in.mcpWant()) {
 					return &Failed{Diagnosis: in.mcpFile(dir) + " holds no aacpanel server of this install after claude mcp add",
 						Fix: []string{in.claude() + " --version, and " + in.signInLine(dir) + " mcp get aacpanel"}}
 				}
 			}
-			// The status line runs on every key: a script that fails on
+			// The status line runs on every key: a command that fails on
 			// nothing fails in every session.
-			script := filepath.Join(in.clone(), statusScript)
-			if _, err := r.Exec(Cmd{Argv: []string{"bash", script}, Unset: []string{StatusNextEnv}, Limit: 30 * time.Second}); err != nil {
-				return fail("the status line script fails on an empty payload: bash "+script+" </dev/null", err)
+			command := in.execPath()
+			if _, err := r.Exec(Cmd{Argv: []string{command, "statusline"}, Unset: []string{StatusNextEnv}, Limit: 30 * time.Second}); err != nil {
+				return fail("the status line fails on an empty payload: "+command+" statusline </dev/null", err)
 			}
 			return nil
 		},

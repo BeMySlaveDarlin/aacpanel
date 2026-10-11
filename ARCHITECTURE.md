@@ -187,15 +187,18 @@ and gets back a fact — found, seen, queued, ended, a mode — never a line of 
 conversation. The reader of the conversation answers yes or no; the one that
 types does not read.
 
-**The hooks of sessions.** A hook of the kit is the executor's binary where it
-can be: `aacpanel-exec hook <name>` reads the event's payload on stdin and
+**The hooks of sessions.** Every hook the kit writes runs the executor's
+binary: `aacpanel-exec hook <name>` reads the event's payload on stdin and
 answers on stdout, and needs nothing on the machine but the binary every
 install has. Its exit is 0 for every event and every outcome, a panic
 included: an exit of 2 holds a `Stop` in a loop, refuses a tool call and throws
 a prompt away. A hook that holds a `Stop` says so in its answer,
-`{"decision": "block"}`, which lets the turn go on for one round. The rest of
-the hooks are python scripts of the clone, run behind a check that the script
-is there. codex runs the hooks it shares with claude from `hooks.json` in its
+`{"decision": "block"}`, which lets the turn go on for one round. The
+installer recognises the python forms too, including
+`test -f <script> && python3 <script>`, and rewrites them in place. The limits
+and session model are kept by `aacpanel-exec statusline`, which passes the
+payload to the person's line through `AACP_STATUSLINE_NEXT`. codex runs the
+hooks it shares with claude from `hooks.json` in its
 home and only once they are trusted in its `config.toml`; the installer writes
 both (INSTALL.md, S12a).
 
@@ -1731,12 +1734,12 @@ allowed names from it, so a session is never allowed a tool the server does not
 have. The server's word to a session — in its system prompt — is a lead and a
 line from every tool, since a tool of a server is often deferred and its
 description unread. Claude keeps 2048 UTF-16 units of that word by default
-and cuts the rest mid-sentence. The launcher lifts the ceiling to 4096 with
+and cuts the rest mid-sentence. The launcher lifts the ceiling to 5120 with
 `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` in the environment of every session
 it hands the tools; claude holds the description of every tool of every
 server to the same ceiling, so those are lifted too. The lead and every line
-fit the lifted ceiling even when the session holds the longest checklist the
-tool takes, and a test holds that, so a new tool pays for its line out of the
+fit the lifted ceiling even with the longest checklist standing and the
+three longest brief titles, and a test holds that, so a new tool pays for its line out of the
 same budget. A session started by hand keeps the default unless the variable
 is in its environment, and past 2048 it loses the lines of the last tools. `-plan`
 starts the same server: a live session keeps the
@@ -1744,8 +1747,13 @@ MCP configuration it was started with, and reconnecting to the server runs the
 binary on disk with the flag written there. Beside the checklist the server carries
 the brief — `brief_publish`, whose call without a document returns the rules of
 writing one, and `brief_delete` — the call to the person, `notify`, and the
-notepad of secrets, `secret_ask`. They
-speak to the collector's sockets under the conversation and the directory the
+notepad of secrets, `secret_ask`. At the handshake the brief tool reads the
+panel's shelf and names the answered, unsent briefs of the session's directory,
+newest first, up to three and a count of the rest. The answers live in the
+panel's database, so reading the collector's shelf alone would not say which
+are waiting. The read has two seconds; an unavailable panel adds no line.
+The tools speak to the collector's sockets under the conversation and the
+directory the
 server finds for its claude rather than any the model names, so a brief lands
 on the shelf of the session that published it and its answers go back to that
 session. The feed draws the card of a published brief from the tool's answer,
@@ -2147,11 +2155,14 @@ stays the base.
   somebody else's install the buttons would honestly answer "not found".
 - **Actions of its own on a session.** The panel never types into a session by
   itself, not even to save it from a full context. What a session does about
-  its own context is decided inside it: the context guard is a `Stop` hook,
-  switched on by a setting of the project — the service hands the map's caps to
-  the executor, which keeps them in a file on the host for the hook — and it
-  speaks to the model at the end of a turn, when the session is free by
-  construction. A watchdog outside would
+  its own context is decided inside it: the context guard needs both its
+  `Stop` hook installed in the account and `autoRestart` enabled on the
+  contour or project. The service hands the map's caps and restart settings to
+  the executor, which keeps them in a file on the host for the hook. At a
+  stop the hook checks the session's background work and subagents, waiting
+  for a fresh snapshot while they are busy, and asks the model to finalize
+  and call `session_restart` only when the session is free. A watchdog
+  outside would
   have to guess whether the session can take a keystroke right now, and a guess
   that lands in an open dialog is an answer given blind.
 - **Quiet hours and reminders for pushes.** What is heard is chosen by kind and

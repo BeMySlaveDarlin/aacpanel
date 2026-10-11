@@ -140,6 +140,7 @@ func briefPublish(socket, instructions, description string, rules func() string)
 		Description:  description,
 		InputSchema:  publishSchema(),
 		Instructions: instructions,
+		Standing:     briefStanding,
 		Allowed:      true,
 		Call: func(ctx context.Context, bind mcp.Bind, args json.RawMessage) (string, bool) {
 			return publish(ctx, socket, rules, bind, args)

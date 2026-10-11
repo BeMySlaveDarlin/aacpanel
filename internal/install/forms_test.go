@@ -110,7 +110,7 @@ func TestAnUpdateRewritesTheFormerFormsWhereTheyStand(t *testing.T) {
 	}
 	state := "AACP_STATE_DIR=/srv/st "
 	want := map[string][]string{
-		"SessionStart":  {atlasContext, "test -f " + repo + "/deploy/claude/brief-waiting.py && python3 " + repo + "/deploy/claude/brief-waiting.py"},
+		"SessionStart":  {atlasContext},
 		"PreToolUse":    {executor + " hook ask-hook"},
 		"PostToolUse":   {executor + " hook artifact-copy"},
 		"PostToolBatch": {state + executor + " hook prompt-stamp PostToolBatch", atlasBudget},

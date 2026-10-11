@@ -19,7 +19,7 @@ const (
 )
 
 // fullKit is the kit a run suggests: the parts always in and the quiet ones.
-var fullKit = Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits", "tools", "copies", "brief", "cap", "nudge", "restart"}}
+var fullKit = Wiring{Clone: repo, Exec: executor, Kit: []string{"relay", "limits", "tools", "copies", "cap", "nudge", "restart"}}
 
 func wire(t *testing.T, raw string, w Wiring) (string, bool) {
 	t.Helper()
@@ -89,7 +89,7 @@ func TestWiringANewOrEmptyFile(t *testing.T) {
 				t.Errorf("%q: %s on %s is there %d times, want %d:\n%s", raw, h.Script, h.Event, got, want, out)
 			}
 		}
-		if got := statusLineOf([]byte(out)); got != "bash "+repo+"/agent/rate-snapshot.sh" {
+		if got := statusLineOf([]byte(out)); got != executor+" statusline" {
 			t.Errorf("%q: the status line is %q", raw, got)
 		}
 		if !strings.Contains(out, `"mcp__aacpanel__session_restart"`) || !strings.Contains(out, `"mcp__aacpanel__checklist"`) {
@@ -220,7 +220,7 @@ func TestTheStatusLineChainsTheirsWhateverItCarries(t *testing.T) {
 	theirs := `bash -c 'echo "$HOME" it'\''s mine' | tr a-z A-Z`
 	out, _ := wire(t, person, fullKit)
 	cmd := statusLineOf([]byte(out))
-	if !strings.HasPrefix(cmd, StatusNextEnv+"=") || !strings.HasSuffix(cmd, " bash "+repo+"/agent/rate-snapshot.sh") {
+	if !strings.HasPrefix(cmd, StatusNextEnv+"=") || !strings.HasSuffix(cmd, " "+executor+" statusline") {
 		t.Fatalf("the status line is %q", cmd)
 	}
 	next, ok := statusNext(cmd)
@@ -229,7 +229,7 @@ func TestTheStatusLineChainsTheirsWhateverItCarries(t *testing.T) {
 	}
 	// The shell is the one that reads the prefix: what it hands on is the
 	// person's line, byte for byte.
-	probe := strings.TrimSuffix(cmd, " bash "+repo+"/agent/rate-snapshot.sh") + ` sh -c 'printf %s "$` + StatusNextEnv + `"'`
+	probe := strings.TrimSuffix(cmd, " "+executor+" statusline") + ` sh -c 'printf %s "$` + StatusNextEnv + `"'`
 	got, err := exec.Command("sh", "-c", probe).Output()
 	if err != nil || string(got) != theirs {
 		t.Errorf("the shell hands on %q (%v), want %q", got, err, theirs)
@@ -242,7 +242,7 @@ func TestWiringAgainChangesNothing(t *testing.T) {
 	if changed || twice != once {
 		t.Errorf("a second wiring changed the file:\n%s", twice)
 	}
-	if groupsOf(t, twice, "PreToolUse") != 2 || strings.Count(statusLineOf([]byte(twice)), "rate-snapshot.sh") != 1 {
+	if groupsOf(t, twice, "PreToolUse") != 2 || strings.Count(statusLineOf([]byte(twice)), "aacpanel-exec statusline") != 1 {
 		t.Errorf("a second wiring doubled something:\n%s", twice)
 	}
 }
@@ -264,7 +264,7 @@ func TestAMovedCloneIsChangedWhereItStands(t *testing.T) {
 		}
 	}
 	cmd := statusLineOf([]byte(now))
-	if strings.Count(cmd, "rate-snapshot.sh") != 1 {
+	if strings.Count(cmd, "aacpanel-exec statusline") != 1 {
 		t.Errorf("the status line wraps the snapshot again: %q", cmd)
 	}
 	if next, _ := statusNext(cmd); next != `bash -c 'echo "$HOME" it'\''s mine' | tr a-z A-Z` {
@@ -275,11 +275,35 @@ func TestAMovedCloneIsChangedWhereItStands(t *testing.T) {
 // TestAChainWrappedTwiceIsPeeled: a snapshot that an older hand wrapped in
 // a snapshot calls it once after the wiring.
 func TestAChainWrappedTwiceIsPeeled(t *testing.T) {
-	inner := statusCommand("/srv/old", "~/bin/line.sh")
-	raw := `{"statusLine": {"type": "command", "command": ` + quoteJSON(statusCommand("/srv/old", inner)) + `}}`
+	inner := statusCommand("/srv/old/aacpanel-exec", "~/bin/line.sh")
+	raw := `{"statusLine": {"type": "command", "command": ` + quoteJSON(statusCommand("/srv/old/aacpanel-exec", inner)) + `}}`
 	out, _ := wire(t, raw, fullKit)
-	if cmd := statusLineOf([]byte(out)); cmd != statusCommand(repo, "~/bin/line.sh") {
+	if cmd := statusLineOf([]byte(out)); cmd != statusCommand(executor, "~/bin/line.sh") {
 		t.Errorf("the status line is %q", cmd)
+	}
+}
+
+func TestBothStatusLineFormsUnchainAndMixedChainsRunOnce(t *testing.T) {
+	old := "bash /srv/old/agent/rate-snapshot.sh"
+	current := executor + " statusline"
+	for _, base := range []string{old, current} {
+		for _, next := range []string{"", "printf 'mine'"} {
+			command := base
+			if next != "" {
+				command = StatusNextEnv + "=" + singleQuote(next) + " " + base
+			}
+			raw := []byte(`{"statusLine":{"type":"command","command":` + quoteJSON(command) + `}}`)
+			out, changed, err := Unwire(raw)
+			if err != nil || !changed || statusLineOf(out) != next {
+				t.Errorf("unwire %q: %s, changed %v, %v", command, out, changed, err)
+			}
+			wrapped := StatusNextEnv + "=" + singleQuote(command) + " " + current
+			raw = []byte(`{"statusLine":{"type":"command","command":` + quoteJSON(wrapped) + `}}`)
+			out, _, err = Wire(raw, fullKit)
+			if err != nil || statusLineOf(out) != statusCommand(executor, next) {
+				t.Errorf("mixed chain %q: %s, %v", wrapped, out, err)
+			}
+		}
 	}
 }
 
@@ -363,7 +387,7 @@ func TestAHookWhoseScriptIsGoneHoldsNothing(t *testing.T) {
 			t.Errorf("%s on %s with its script gone: %v — expected an exit other than 0 and 2", h.Script, h.Event, err)
 		}
 	}
-	h := kitHooks[slices.IndexFunc(kitHooks, func(h kitHook) bool { return h.Hook == "" })]
+	h := kitHook{Event: "Stop", Script: "deploy/claude/example.py"}
 	script := filepath.Join(clone, h.Script)
 	if err := os.MkdirAll(filepath.Dir(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -474,7 +498,7 @@ func TestAnEmptyContainerOfThePersonStays(t *testing.T) {
 // leaves it be, a moved clone changes only the path, and the unwiring gives
 // the person's line back as the shell would run it.
 func TestAChainWrittenByHandStaysAsItIsWritten(t *testing.T) {
-	line := `AACP_STATUSLINE_NEXT="bash $CLAUDE_CONFIG_DIR/statusline-command.sh \"a b\"" bash ` + repo + `/agent/rate-snapshot.sh`
+	line := `AACP_STATUSLINE_NEXT="bash $CLAUDE_CONFIG_DIR/statusline-command.sh \"a b\"" ` + executor + ` statusline`
 	raw := `{"statusLine": {"type": "command", "command": ` + quoteJSON(line) + `}}`
 	if _, changed := wire(t, raw, fullKit); !changed {
 		t.Fatal("the rules and hooks were not added")
@@ -482,7 +506,7 @@ func TestAChainWrittenByHandStaysAsItIsWritten(t *testing.T) {
 	if out, _ := wire(t, raw, fullKit); statusLineOf([]byte(out)) != line {
 		t.Errorf("the status line became %q", statusLineOf([]byte(out)))
 	}
-	moved, _ := wire(t, raw, Wiring{Clone: "/srv/new", Kit: fullKit.Kit})
+	moved, _ := wire(t, raw, Wiring{Clone: "/srv/new", Exec: "/srv/new/aacpanel-exec", Kit: fullKit.Kit})
 	if next, ok := statusNext(statusLineOf([]byte(moved))); !ok || next != `bash $CLAUDE_CONFIG_DIR/statusline-command.sh "a b"` {
 		t.Errorf("after a move the chain reads %q (%v)", next, ok)
 	}
@@ -495,7 +519,7 @@ func TestAChainWrittenByHandStaysAsItIsWritten(t *testing.T) {
 func TestAStatusLineOfThePanelsItCannotReadKeepsItsForm(t *testing.T) {
 	raw := `{"statusLine": {"type": "command", "command": "bash /srv/old/agent/rate-snapshot.sh | cat"}}`
 	out, _ := wire(t, raw, fullKit)
-	if got := statusLineOf([]byte(out)); got != "bash "+repo+"/agent/rate-snapshot.sh | cat" {
+	if got := statusLineOf([]byte(out)); got != executor+" statusline | cat" {
 		t.Errorf("the status line is %q", got)
 	}
 }

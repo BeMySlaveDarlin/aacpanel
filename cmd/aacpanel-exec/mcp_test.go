@@ -17,6 +17,11 @@ import (
 	"aacpanel/internal/mcp"
 )
 
+func TestMain(m *testing.M) {
+	_ = os.Setenv("AACP_PANEL_URL", "http://127.0.0.1:1")
+	os.Exit(m.Run())
+}
+
 // fakeClaude puts a live claude process into a fake /proc, with the file it
 // keeps of itself in its config directory: a session named name in
 // /srv/proj/lab.
@@ -196,6 +201,10 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	fakeCodex(t, proc, home, 800, first, second)
 	var asked []map[string]any
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/briefs" {
+			_, _ = w.Write([]byte(`{"briefs":[]}`))
+			return
+		}
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		asked = append(asked, body)
@@ -282,6 +291,10 @@ func TestTheServerClosesOnlyTheSessionItServes(t *testing.T) {
 	fakeCodex(t, proc, home, 800, thread)
 	var asked []map[string]any
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/briefs" {
+			_, _ = w.Write([]byte(`{"briefs":[]}`))
+			return
+		}
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		asked = append(asked, body)

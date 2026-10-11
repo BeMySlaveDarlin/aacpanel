@@ -1,0 +1,385 @@
+[
+  {
+    "name": "limits and model",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "zero limits",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":0}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":0,\"resetsAt\":null},\"sevenDay\":{\"pct\":null,\"resetsAt\":null}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "decimal limits",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11.25,\"resets_at\":0},\"seven_day\":{\"used_percentage\":99.5}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11.25,\"resetsAt\":0},\"sevenDay\":{\"pct\":99.5,\"resetsAt\":null}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "no five-hour percentage None",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":null}}}\n",
+    "want": {
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "no five-hour percentage False",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":false}}}\n",
+    "want": {
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "no limits keeps snapshot",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000}}\n",
+    "want": {
+      "rate-limits.json": "kept\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "initial": {
+      "rate-limits.json": {
+        "text": "kept\n",
+        "age": 100
+      }
+    }
+  },
+  {
+    "name": "fresh snapshot is untouched",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "kept\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "initial": {
+      "rate-limits.json": {
+        "text": "kept\n",
+        "age": 0
+      }
+    },
+    "unchanged": [
+      "rate-limits.json"
+    ]
+  },
+  {
+    "name": "throttle boundary writes",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "initial": {
+      "rate-limits.json": {
+        "text": "kept\n",
+        "age": 20
+      }
+    }
+  },
+  {
+    "name": "custom throttle",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "kept\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "env": {
+      "AACP_RATE_THROTTLE": "60"
+    },
+    "initial": {
+      "rate-limits.json": {
+        "text": "kept\n",
+        "age": 30
+      }
+    },
+    "unchanged": [
+      "rate-limits.json"
+    ]
+  },
+  {
+    "name": "no throttle",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "env": {
+      "AACP_RATE_THROTTLE": "0"
+    },
+    "initial": {
+      "rate-limits.json": {
+        "text": "kept\n",
+        "age": 0
+      }
+    }
+  },
+  {
+    "name": "effort None",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":null,\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "effort medium",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":\"medium\",\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"medium\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "effort {'level': 'low'}",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"low\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"low\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "effort 3",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":3,\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"3\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "effort False",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":false,\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":null,\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "model without display name",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-sonnet-5\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-sonnet-5\",\"displayName\":\"\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "model text escaped",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"A <B> & \\\"C\\\" café\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"A <B> & \\\"C\\\" café\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "no context window",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":null}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "string context window",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":\"200000\"},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":200000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "unchanged model ignores window",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":200000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "initial": {
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": {
+        "text": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n",
+        "age": 2
+      }
+    },
+    "unchanged": [
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json"
+    ]
+  },
+  {
+    "name": "changed effort replaces model",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "initial": {
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": {
+        "text": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"low\",\"contextWindow\":1000000}\n",
+        "age": 0
+      }
+    }
+  },
+  {
+    "name": "changed model replaces model",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "",
+    "initial": {
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": {
+        "text": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"another\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n",
+        "age": 0
+      }
+    }
+  },
+  {
+    "name": "invalid session None",
+    "payload": "{\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "invalid session ../escape",
+    "payload": "{\"session_id\":\"../escape\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "model id missing",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "empty object",
+    "payload": "{}",
+    "want": {},
+    "stdout": ""
+  },
+  {
+    "name": "broken JSON",
+    "payload": "not json at all",
+    "want": {},
+    "stdout": ""
+  },
+  {
+    "name": "incomplete JSON",
+    "payload": "{\"rate_limits\":",
+    "want": {},
+    "stdout": ""
+  },
+  {
+    "name": "empty input",
+    "payload": "",
+    "want": {},
+    "stdout": ""
+  },
+  {
+    "name": "sweep only old regular JSON",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n",
+      "session-models/recent.json": "{}\n",
+      "session-models/old.txt": "keep\n"
+    },
+    "stdout": "",
+    "initial": {
+      "session-models/old.json": {
+        "text": "{}\n",
+        "age": 691210
+      },
+      "session-models/recent.json": {
+        "text": "{}\n",
+        "age": 604810
+      },
+      "session-models/old.txt": {
+        "text": "keep\n",
+        "age": 864000
+      }
+    }
+  },
+  {
+    "name": "chain reads the trimmed payload",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n\n\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}",
+    "env": {
+      "AACP_STATUSLINE_NEXT": "cat"
+    }
+  },
+  {
+    "name": "failing chain keeps output and files",
+    "payload": "{\"session_id\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"display_name\":\"Fable 5.1\"},\"effort\":{\"level\":\"xhigh\"},\"context_window\":{\"context_window_size\":1000000},\"rate_limits\":{\"five_hour\":{\"used_percentage\":11,\"resets_at\":1788190000},\"seven_day\":{\"used_percentage\":62,\"resets_at\":1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": "STATUS LINE\n",
+    "env": {
+      "AACP_STATUSLINE_NEXT": "printf 'STATUS LINE\\n'; exit 3"
+    }
+  },
+  {
+    "name": "broken payload still chained",
+    "payload": "not json\n\n",
+    "env": {
+      "AACP_STATUSLINE_NEXT": "cat"
+    },
+    "want": {},
+    "stdout": "not json"
+  },
+  {
+    "name": "literal separators and escaped backslashes",
+    "payload": "{\"session_id\": \"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\", \"model\": {\"id\": \"claude-fable-5-1\", \"display_name\": \"A B C \\\\u2028\"}, \"effort\": {\"level\": \"xhigh\"}, \"context_window\": {\"context_window_size\": 1000000}, \"rate_limits\": {\"five_hour\": {\"used_percentage\": 11, \"resets_at\": 1788190000}, \"seven_day\": {\"used_percentage\": 62, \"resets_at\": 1788450000}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":11,\"resetsAt\":1788190000},\"sevenDay\":{\"pct\":62,\"resetsAt\":1788450000}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"A B C \\\\u2028\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  },
+  {
+    "name": "empty strings are absent limits",
+    "payload": "{\"session_id\": \"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\", \"model\": {\"id\": \"claude-fable-5-1\", \"display_name\": \"Fable 5.1\"}, \"effort\": {\"level\": \"xhigh\"}, \"context_window\": {\"context_window_size\": 1000000}, \"rate_limits\": {\"five_hour\": {\"used_percentage\": 0, \"resets_at\": \"\"}, \"seven_day\": {\"used_percentage\": \"\", \"resets_at\": \"\"}}}\n",
+    "want": {
+      "rate-limits.json": "{\"at\":@NOW@,\"fiveHour\":{\"pct\":0,\"resetsAt\":null},\"sevenDay\":{\"pct\":null,\"resetsAt\":null}}\n",
+      "session-models/3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e.json": "{\"at\":@NOW@,\"sessionId\":\"3f2b1c40-9e1d-4a7b-8c6e-5d4f3a2b1c0e\",\"model\":{\"id\":\"claude-fable-5-1\",\"displayName\":\"Fable 5.1\"},\"effort\":\"xhigh\",\"contextWindow\":1000000}\n"
+    },
+    "stdout": ""
+  }
+]

@@ -40,7 +40,7 @@ class Panel:
                 pass
 
         self.server = HTTPServer(("127.0.0.1", 0), Handler)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread = threading.Thread(target=lambda: self.server.serve_forever(poll_interval=0.01), daemon=True)
         self.thread.start()
 
     @property
@@ -60,29 +60,13 @@ def card(**over):
 
 
 class Waiting(unittest.TestCase):
-    def test_an_answered_brief_of_this_project_is_named(self):
-        got = brief_waiting.line(brief_waiting.waiting([card()], "/srv/proj"))
-        self.assertIn("What is left to decide", got)
-        self.assertIn("5 of 5", got)
-        self.assertIn("Briefs", got)
-
-    def test_a_brief_already_sent_is_not_news(self):
-        self.assertEqual(brief_waiting.waiting([card(sent=True)], "/srv/proj"), [])
-
-    def test_an_untouched_brief_is_not_waiting_on_anybody(self):
-        """Nobody has answered it, so there is nothing for this session to carry."""
-        self.assertEqual(brief_waiting.waiting([card(answered=0)], "/srv/proj"), [])
-
-    def test_a_brief_of_another_project_stays_there(self):
-        self.assertEqual(brief_waiting.waiting([card(cwd="/srv/other")], "/srv/proj"), [])
-
-    def test_more_than_three_are_counted_rather_than_listed(self):
-        cards = [card(id=f"b{i}", title=f"Brief {i}") for i in range(5)]
-        got = brief_waiting.line(brief_waiting.waiting(cards, "/srv/proj"))
-        self.assertIn("and 2 more", got)
-
-    def test_nothing_waiting_says_nothing_at_all(self):
-        self.assertEqual(brief_waiting.line([]), "")
+    def test_the_hook_and_server_say_the_same_line(self):
+        with open(os.path.join(HERE, "testdata", "brief-waiting.json"), encoding="utf-8") as f:
+            cases = json.load(f)
+        for case in cases:
+            with self.subTest(case["name"]):
+                got = brief_waiting.line(brief_waiting.waiting(case["cards"], case["cwd"]))
+                self.assertEqual(got, case["line"])
 
     def test_the_shelf_is_read_from_the_panel(self):
         panel = Panel({"briefs": [card()]})

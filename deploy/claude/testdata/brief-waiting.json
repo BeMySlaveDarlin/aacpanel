@@ -1,0 +1,210 @@
+[
+  {
+    "name": "answered here",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "What is left to decide",
+        "cwd": "/srv/proj",
+        "at": "b",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      }
+    ],
+    "line": "A brief of this project is answered and the answers have not been sent: «What is left to decide» (5 of 5 answered). The person filled it in the panel, in Briefs — they may not know the session that asked is gone. Say so if it bears on what you are about to do."
+  },
+  {
+    "name": "partial answers",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "What is left to decide",
+        "cwd": "/srv/proj",
+        "at": "b",
+        "questions": 5,
+        "answered": 2,
+        "sent": false
+      }
+    ],
+    "line": "A brief of this project is answered and the answers have not been sent: «What is left to decide» (2 of 5 answered). The person filled it in the panel, in Briefs — they may not know the session that asked is gone. Say so if it bears on what you are about to do."
+  },
+  {
+    "name": "sent",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "What is left to decide",
+        "cwd": "/srv/proj",
+        "at": "b",
+        "questions": 5,
+        "answered": 5,
+        "sent": true
+      }
+    ],
+    "line": ""
+  },
+  {
+    "name": "unanswered",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "What is left to decide",
+        "cwd": "/srv/proj",
+        "at": "b",
+        "questions": 5,
+        "answered": 0,
+        "sent": false
+      }
+    ],
+    "line": ""
+  },
+  {
+    "name": "other directory",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "What is left to decide",
+        "cwd": "/srv/other",
+        "at": "b",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      }
+    ],
+    "line": ""
+  },
+  {
+    "name": "not a subtree",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "What is left to decide",
+        "cwd": "/srv/proj/child",
+        "at": "b",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      }
+    ],
+    "line": ""
+  },
+  {
+    "name": "empty",
+    "cwd": "/srv/proj",
+    "cards": [],
+    "line": ""
+  },
+  {
+    "name": "bad cards",
+    "cwd": "/srv/proj",
+    "cards": [
+      null,
+      42,
+      "bad",
+      {},
+      {
+        "id": "what-is-left",
+        "title": "What is left to decide",
+        "cwd": "/srv/other",
+        "at": "b",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      }
+    ],
+    "line": ""
+  },
+  {
+    "name": "fallback names",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "",
+        "cwd": "/srv/proj",
+        "at": "c",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      },
+      {
+        "id": "",
+        "title": "",
+        "cwd": "/srv/proj",
+        "at": "b",
+        "questions": 0,
+        "answered": 2,
+        "sent": false
+      },
+      {
+        "id": "what-is-left",
+        "title": "A <B> & café",
+        "cwd": "/srv/proj",
+        "at": "a",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      }
+    ],
+    "line": "A brief of this project is answered and the answers have not been sent: «what-is-left» (5 of 5 answered), «a brief» (2 answered), «A <B> & café» (5 of 5 answered). The person filled it in the panel, in Briefs — they may not know the session that asked is gone. Say so if it bears on what you are about to do."
+  },
+  {
+    "name": "newest three stable for equal times",
+    "cwd": "/srv/proj",
+    "cards": [
+      {
+        "id": "what-is-left",
+        "title": "First",
+        "cwd": "/srv/proj",
+        "at": "a",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      },
+      {
+        "id": "what-is-left",
+        "title": "Second",
+        "cwd": "/srv/proj",
+        "at": "c",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      },
+      {
+        "id": "what-is-left",
+        "title": "Third",
+        "cwd": "/srv/proj",
+        "at": "b",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      },
+      {
+        "id": "what-is-left",
+        "title": "Fourth",
+        "cwd": "/srv/proj",
+        "at": "c",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      },
+      {
+        "id": "what-is-left",
+        "title": "Fifth",
+        "cwd": "/srv/proj",
+        "at": "a",
+        "questions": 5,
+        "answered": 5,
+        "sent": false
+      }
+    ],
+    "line": "A brief of this project is answered and the answers have not been sent: «Second» (5 of 5 answered), «Fourth» (5 of 5 answered), «Third» (5 of 5 answered), and 2 more. The person filled it in the panel, in Briefs — they may not know the session that asked is gone. Say so if it bears on what you are about to do."
+  }
+]
