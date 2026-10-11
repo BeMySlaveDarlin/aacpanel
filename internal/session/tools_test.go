@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -430,8 +431,9 @@ func TestTheLinesOfTheToolsAreShort(t *testing.T) {
 
 // Opening a session asks the person, as claude asks of any tool: a new session
 // starts work in its account and spends its limits. The tool says when to
-// reach for it in the server's word, and it takes a directory and a name, never
-// words for the new session, which its model would take for its person's.
+// reach for it in the server's word, and it takes a directory, a name and the
+// agent to start, never words for the new session, which its model would take
+// for its person's.
 func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
 	tool := Open(Host{})
 	if tool.Allowed {
@@ -460,15 +462,23 @@ func TestAnOpenAsksThePersonAndCarriesNoWordsOfItsOwn(t *testing.T) {
 		schema.Additional == nil || *schema.Additional {
 		t.Fatalf("the schema of %s is %s", tool.Name, raw)
 	}
-	if len(schema.Properties) != 2 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
+	if len(schema.Properties) != 3 || schema.Properties["dir"] == nil || schema.Properties["name"] == nil ||
 		len(schema.Required) != 1 || schema.Required[0] != "dir" {
-		t.Errorf("%s takes %s: a directory it needs and a name it may have, nothing more", tool.Name, raw)
+		t.Errorf("%s takes %s: a directory it needs, a name and an agent it may have, nothing more", tool.Name, raw)
+	}
+	var agent struct {
+		Enum []string `json:"enum"`
+	}
+	if err := json.Unmarshal(schema.Properties["agent"], &agent); err != nil ||
+		!reflect.DeepEqual(agent.Enum, []string{"claude", "codex"}) {
+		t.Errorf("%s names the agent as %s, meant one of claude and codex", tool.Name, schema.Properties["agent"])
 	}
 }
 
 // An open goes to the panel as session.open with the directory, and with the
 // name only where the model gives one: without it the panel names the session
-// after its project. The answer names the session, its account and its
+// after its project. The agent goes only where the model names one: without it
+// the project's own starts. The answer names the session, its account and its
 // directory, and says how the new session is given work. A caller with a name
 // is the parent of the new session; one whose place or name is not known, or
 // whose name the panel takes for no session's, opens it all the same, with
@@ -491,19 +501,22 @@ func TestAnOpenNamesTheDirectoryToThePanel(t *testing.T) {
 	call(t, Open(h), lost, map[string]any{"dir": "/srv/proj/lab/web", "name": "lab-fix"})
 	call(t, Open(h), boundAs("aacpanel", mine), map[string]any{"dir": "/srv/proj/lab"})
 	call(t, Open(h), boundAs("lab:two", mine), map[string]any{"dir": "/srv/proj/lab"})
+	call(t, Open(h), bound(mine), map[string]any{"dir": "/srv/proj/lab", "agent": "codex"})
 
 	asked := p.calls()
-	if len(asked) != 4 {
+	if len(asked) != 5 {
 		t.Fatalf("the panel was asked %v", asked)
 	}
-	for i, want := range []struct{ target, path, parent string }{
-		{"", "/srv/proj/lab", ""}, {"lab-fix", "/srv/proj/lab/web", ""}, {"", "/srv/proj/lab", "aacpanel"},
-		{"", "/srv/proj/lab", ""},
+	for i, want := range []struct{ target, path, parent, agent string }{
+		{"", "/srv/proj/lab", "", ""}, {"lab-fix", "/srv/proj/lab/web", "", ""}, {"", "/srv/proj/lab", "aacpanel", ""},
+		{"", "/srv/proj/lab", "", ""}, {"", "/srv/proj/lab", "", "codex"},
 	} {
 		params, _ := asked[i]["params"].(map[string]any)
 		parent, named := params["parent"]
+		agent, picked := params["agent"]
 		if asked[i]["kind"] != "session.open" || asked[i]["target"] != want.target || params["path"] != want.path ||
-			named != (want.parent != "") || (named && parent != want.parent) {
+			named != (want.parent != "") || (named && parent != want.parent) ||
+			picked != (want.agent != "") || (picked && agent != want.agent) {
 			t.Errorf("call %d asked the panel %v, meant %+v", i, asked[i], want)
 		}
 	}
@@ -546,6 +559,7 @@ func TestWhatStopsAnOpenIsTheToolsError(t *testing.T) {
 		"a name with a slash":    {url, map[string]any{"dir": "/srv/proj/lab", "name": "lab/two"}, "contains /"},
 		"a name out of the path": {url, map[string]any{"dir": "/srv/proj/lab", "name": "../lab"}, ".."},
 		"arguments of another":   {url, map[string]any{"dir": 7}, "not the tool's"},
+		"an agent of no kind":    {url, map[string]any{"dir": "/srv/proj/lab", "agent": "gemini"}, "neither claude nor codex"},
 		"the panel refuses":      {url, map[string]any{"dir": "/srv/stray"}, "no project of the map holds /srv/stray"},
 		"the panel is not there": {goneURL, map[string]any{"dir": "/srv/proj/lab"}, "does not answer"},
 	} {

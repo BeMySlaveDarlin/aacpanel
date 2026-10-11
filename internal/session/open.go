@@ -9,6 +9,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/mcp"
+	"aacpanel/internal/schema"
 )
 
 // OpenName is the tool's name on the panel's server: the model calls it
@@ -21,10 +22,11 @@ const OpenInstructions = "When the person asks for a new session («открой
 	"and only then, use session_open."
 
 // OpenDescription is the tool's own word to the model.
-const OpenDescription = "Opens a new Claude session of this machine through the panel, as a project from the map. " +
+const OpenDescription = "Opens a new session of this machine through the panel, as a project from the map. " +
 	"dir names the project: its own directory, one inside it or a worktree of it, and the session runs there; " +
 	"a directory no project of the map holds is not opened. The account, the launch parameters — tmux or the " +
-	"stream, the model — and the project's first message come from the map. Only on the person's word: a new " +
+	"stream, the model — and the project's first message come from the map, and so does the agent, claude or " +
+	"codex, unless agent names the other for this one start. Only on the person's word: a new " +
 	"session works in its account and spends that account's limits, and this session does not decide on one by " +
 	"itself. Tell the person the name the session came up under and its account. The tool takes no words for " +
 	"the new session: words typed into a session its model takes for its person's. To give it work, write it a " +
@@ -55,7 +57,10 @@ func Open(h Host) mcp.Tool {
 }
 
 // openSchema takes no first message: words the tool typed into the new
-// session would reach its model as its person's.
+// session would reach its model as its person's. The agent is the one choice
+// of the launch the tool may make, as New on the panel's screen does: which of
+// the two agents a person asked for is their word, and the rest of the launch
+// stays the map's.
 func openSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -64,6 +69,8 @@ func openSchema() map[string]any {
 				"description": "The absolute directory to open the session in: a project of the map, a directory inside one or a worktree of one."},
 			"name": map[string]any{"type": "string",
 				"description": "The name of the new session. Left out, the project's session name from the map; when a live session answers to the name, the panel takes a free one."},
+			"agent": map[string]any{"type": "string", "enum": []string{schema.AgentClaude, schema.AgentCodex},
+				"description": "The agent to start: claude or codex. Left out, the project's agent from the map. codex starts only where the project's account has a codex home on this machine."},
 		},
 		"required":             []string{"dir"},
 		"additionalProperties": false,
@@ -72,8 +79,9 @@ func openSchema() map[string]any {
 
 func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (string, bool) {
 	var args struct {
-		Dir  string `json:"dir"`
-		Name string `json:"name"`
+		Dir   string `json:"dir"`
+		Name  string `json:"name"`
+		Agent string `json:"agent"`
 	}
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &args); err != nil {
@@ -91,7 +99,14 @@ func open(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (stri
 			return "Nothing was opened: " + err.Error() + ".", true
 		}
 	}
+	if args.Agent != "" && args.Agent != schema.AgentClaude && args.Agent != schema.AgentCodex {
+		return fmt.Sprintf("Nothing was opened: agent %q is neither %s nor %s.", args.Agent, schema.AgentClaude,
+			schema.AgentCodex), true
+	}
 	params := map[string]any{"path": args.Dir}
+	if args.Agent != "" {
+		params["agent"] = args.Agent
+	}
 	if parent := callerName(bind); parent != "" {
 		params["parent"] = parent
 	}
