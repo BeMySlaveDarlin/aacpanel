@@ -40,7 +40,7 @@ const PLACE = {
 };
 
 // What a thread has and what it left running open as sheets of its own: its
-// MCP servers and skills, read-only, and its background processes.
+// MCP servers, skills and background processes.
 const OWN_LOOKS = {
     mcp: LOOK_NAMES.mcp,
     skills: "skills",
@@ -79,7 +79,7 @@ export function CodexChat(props) {
         look: (look) => {
             if (!OWN_LOOKS[look.kind]) return null;
             const node = look.kind === "mcp"
-                ? html`<${McpSheet} name=${name} exec=${exec} readOnly />`
+                ? html`<${McpSheet} name=${name} exec=${exec} />`
                 : look.kind === "skills"
                 ? html`<${SetupSheet} name=${name} part="skills"
                                       readNote="Read-only: a skill is turned on or off in codex's config." />`

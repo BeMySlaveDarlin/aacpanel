@@ -29,7 +29,7 @@ type gateSent struct {
 // hash, a title of any printable words, a goal set with a budget and paused
 // once it runs. Under the composer the thread counts what it left running in
 // place of claude's agents and workflows, and lists it with a stop for each
-// and for all; its tools say what it has, read-only; and the models it can
+// and for all; its tools reconnect the panel server; and the models it can
 // switch to are asked of the session itself.
 func TestTheThreadOfACodexThreadIsDoneFromItsBand(t *testing.T) {
 	if _, err := os.Stat(webPath("dist/bundle.css")); err != nil {
@@ -60,13 +60,19 @@ func TestTheThreadOfACodexThreadIsDoneFromItsBand(t *testing.T) {
 			Off  bool   `json:"off"`
 			Desc string `json:"desc"`
 		} `json:"busyReview"`
-		Procs   []string `json:"procs"`
-		StopOne gateSent `json:"stopOne"`
-		StopAll gateSent `json:"stopAll"`
-		Tools   []string `json:"tools"`
-		Mcp     []string `json:"mcp"`
-		McpActs bool     `json:"mcpActs"`
-		Catalog []string `json:"catalog"`
+		Procs      []string `json:"procs"`
+		StopOne    gateSent `json:"stopOne"`
+		StopAll    gateSent `json:"stopAll"`
+		Tools      []string `json:"tools"`
+		Mcp        []string `json:"mcp"`
+		McpActs    bool     `json:"mcpActs"`
+		McpButtons []string `json:"mcpButtons"`
+		McpNote    string   `json:"mcpNote"`
+		McpBusy    bool     `json:"mcpBusy"`
+		McpReplies []string `json:"mcpReplies"`
+		McpSent    gateSent `json:"mcpSent"`
+		McpReads   int      `json:"mcpReads"`
+		Catalog    []string `json:"catalog"`
 	}
 	runFixture(t, "codexthread.html", &got)
 
@@ -130,8 +136,25 @@ func TestTheThreadOfACodexThreadIsDoneFromItsBand(t *testing.T) {
 	if strings.Join(got.Tools, ",") != "Where it lives,What it has,Session" {
 		t.Errorf("the tools of the thread have the sections %v", got.Tools)
 	}
-	if strings.Join(got.Mcp, ",") != "github,docs" || got.McpActs {
-		t.Errorf("the MCP servers of the thread read %v, with actions %v — they are only read", got.Mcp, got.McpActs)
+	if strings.Join(got.Mcp, ",") != "github,docs,aacpanel" || got.McpActs {
+		t.Errorf("the MCP servers read %v, with actions on a config server %v", got.Mcp, got.McpActs)
+	}
+	if !reflect.DeepEqual(got.McpButtons, []string{"Reconnect"}) || !got.McpBusy ||
+		!strings.Contains(got.McpNote, "every MCP server") {
+		t.Errorf("the panel server offers %v, waits %v and says %q", got.McpButtons, got.McpBusy, got.McpNote)
+	}
+	if len(got.McpSent.Sent) != 2 {
+		t.Fatalf("reconnect sent %+v", got.McpSent)
+	}
+	for _, sent := range got.McpSent.Sent {
+		if sent.Target != name || sent.Kind != "session.mcp" ||
+			!reflect.DeepEqual(sent.Params, map[string]any{"server": "aacpanel", "do": "reconnect"}) {
+			t.Errorf("reconnect sent %+v", sent)
+		}
+	}
+	if len(got.McpReplies) != 2 || !strings.Contains(got.McpReplies[0], "Every MCP server started anew") ||
+		!strings.Contains(got.McpReplies[1], "A turn runs in the thread") || got.McpReads != 3 {
+		t.Errorf("reconnect showed %v and read the servers %d times", got.McpReplies, got.McpReads)
 	}
 	if len(got.Catalog) != 1 || got.Catalog[0] != "/api/session/models?name="+name {
 		t.Errorf("the models were asked as %v, expected of the session itself", got.Catalog)

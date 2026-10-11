@@ -1039,8 +1039,11 @@ after the install pairs only by its account's name.
   was. So the panel takes the thread out of the daemon and back in: it
   archives the thread, which unloads it at once whoever else follows it,
   takes it out of the archive and resumes it with its own server beside the
-  servers of the home, as at the start. Every server of the thread starts
-  again, not the named one alone. The conversation, the name and the goal
+  servers of the home, as at the start. A client that follows the thread hears
+  the archive from the daemon within milliseconds; one that only lists
+  threads, the picker of codex's terminal among them, sees it go and come back
+  on its next refresh of the list, a moment the panel cannot shorten. Every
+  server of the thread starts again, not the named one alone. The conversation, the name and the goal
   are on the disk and stay; the permissions the thread started with are not,
   and the settings a resume read just before go back with
   `thread/settings/update` — a daemon that refuses it leaves the thread on

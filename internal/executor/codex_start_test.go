@@ -42,17 +42,17 @@ func withTools(config map[string]any) map[string]any {
 // an executor linked to it, and returns the project New hands the executor:
 // a directory in the roots, and the claude config directory the registry
 // names acme by.
-func onCodexContour(t *testing.T) (*codextest.Server, *Executor, *action.Project) {
+func onCodexContour(t *testing.T, setup ...func(*codextest.Server)) (*codextest.Server, *Executor, *action.Project) {
 	t.Helper()
 	config := filepath.Join(t.TempDir(), ".claude-client")
-	return onCodexHome(t, "acme", config, "acme | /srv/acme/ | "+config+" | -\nalgo | /srv/algo/ | /srv/algo-config | -\n")
+	return onCodexHome(t, "acme", config, "acme | /srv/acme/ | "+config+" | -\nalgo | /srv/algo/ | /srv/algo-config | -\n", setup...)
 }
 
 // onCodexHome starts a fake codex daemon in a home of the name given and an
 // executor linked to it, with the registry of the lines given — none for "" —
 // and returns the project of the claude config directory given that New
-// hands the executor.
-func onCodexHome(t *testing.T, name, config, registryLines string) (*codextest.Server, *Executor, *action.Project) {
+// hands the executor. Setup runs before the link can observe the daemon.
+func onCodexHome(t *testing.T, name, config, registryLines string, setup ...func(*codextest.Server)) (*codextest.Server, *Executor, *action.Project) {
 	t.Helper()
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -83,6 +83,9 @@ func onCodexHome(t *testing.T, name, config, registryLines string) (*codextest.S
 
 	ctx, cancel := context.WithCancel(context.Background())
 	e := New(nil, "")
+	for _, prepare := range setup {
+		prepare(srv)
+	}
 	e.codex = codex.Start(ctx, registry.CodexHomes(), nil, e.reportCodexTurn)
 	t.Cleanup(func() {
 		cancel()
@@ -377,9 +380,10 @@ func fakeCodex(t *testing.T, fail bool) (string, string) {
 // directory; the executor waits for its socket and its connection and starts
 // the thread within the same action.
 func TestNewStartsTheDaemonWhereNoneRuns(t *testing.T) {
-	srv, e, p := onCodexContour(t)
-	waitFor(t, "the link to connect", func() bool { return e.codex.Home(registry.CodexHomes()[0].Dir).Up() })
-	srv.Close()
+	// There is no daemon before the link starts. Closing it after the link
+	// begins races its first handshake and can leave an old connection in
+	// Ready; this test exercises a cold start, not a dropped connection.
+	srv, e, p := onCodexContour(t, (*codextest.Server).Close)
 	bin, started := fakeCodex(t, false)
 	unit := fakeSystemdRun(t)
 	go func() {

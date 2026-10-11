@@ -9,7 +9,7 @@
 // word Thread at the far end of the band and its sheet — compact, review,
 // rename and the goal, each sent through the gate as a command of codex's own;
 // the count of background processes under the composer and their list with a
-// stop for each and for all; what the thread has, read-only, in its tools; and
+// stop for each and for all; what the thread has and a reconnect of its MCP servers; and
 // the models it can switch to asked of the session itself.
 import { h, render } from "preact";
 import { html } from "/src/html.js";
@@ -26,6 +26,8 @@ const items = [
 ];
 const sent = [];
 const asked = [];
+let reconnectReply;
+let reconnects = 0;
 // An observer and an alarm the thread asked the panel for: its state carries
 // them as a claude conversation's does.
 const held = {
@@ -51,6 +53,7 @@ window.fetch = async (url, init) => {
     if (u.startsWith("/api/session/mcp")) {
         return json({ state: "ok", transport: "stream", agent: "codex", servers: [
             { name: "docs", status: "needs-auth", source: "config.toml", url: "https://docs.test", tools: [] },
+            { name: "aacpanel", status: "connected", source: "config.toml", tools: ["checklist", "session_open"] },
             { name: "github", status: "connected", source: "plugin", tools: ["search", "issue"] }] });
     }
     if (u.startsWith("/api/session/setup")) {
@@ -60,6 +63,13 @@ window.fetch = async (url, init) => {
     if (u.startsWith("/api/term")) return json({ available: false });
     if (u === "/api/actions") {
         sent.push(JSON.parse((init && init.body) || "{}"));
+        if (sent.at(-1).kind === "session.mcp") {
+            reconnects += 1;
+            await new Promise((resolve) => { reconnectReply = resolve; });
+            return reconnects === 1
+                ? json({ logged: true, ok: true, detail: "Every MCP server started anew; the conversation is whole." })
+                : json({ error: "A turn runs in the thread; wait until it is idle." }, 409);
+        }
         return json({ logged: true, ok: true });
     }
     return new Response("", { status: 404 });
@@ -219,7 +229,7 @@ window.done = (async () => {
     button(sheet(), "Stop all").click();
     out.stopAll = await confirm();
 
-    // What the thread has, read-only.
+    // The panel server reconnects through the existing action; other servers have no switches.
     await show(thread);
     root.querySelector(".phead .pmore").click();
     await until(() => document.querySelector(".tools .toollabel"));
@@ -230,6 +240,27 @@ window.done = (async () => {
     sheet().querySelector(".cmdsec .mcplist .mcprow").click();
     await until(() => sheet().querySelector(".mcpfacts"));
     out.mcpActs = Boolean(sheet().querySelector(".mcpacts"));
+    sheet().querySelector(".mcpback").click();
+    if (!await until(() => sheet().querySelector(".mcplist"))) throw new Error("the MCP list did not return");
+    Array.from(sheet().querySelectorAll(".mcprow")).find((r) => text(r.querySelector(".cmdname")) === "aacpanel").click();
+    if (!await until(() => sheet().querySelector(".mcpfacts") && sheet().querySelector(".mcpacts"))) throw new Error("the panel server has no reconnect");
+    out.mcpButtons = Array.from(sheet().querySelectorAll(".mcpacts button")).map(text);
+    out.mcpNote = text(sheet().querySelector(".cmdnote"));
+    out.mcpReplies = [];
+    const beforeReconnect = sent.length;
+    for (const answer of ["Every MCP server started anew", "A turn runs in the thread"]) {
+        button(sheet(), "Reconnect").click();
+        if (!await until(() => reconnectReply && button(sheet(), "Reconnecting…"))) throw new Error("reconnect did not wait for its answer");
+        out.mcpBusy = button(sheet(), "Reconnecting…").disabled;
+        reconnectReply();
+        reconnectReply = null;
+        if (!await until(() => text(document.querySelector(".toast.on")).includes(answer) && sheet().querySelector(".mcpacts"))) {
+            throw new Error("reconnect did not show its answer and refresh the server");
+        }
+        out.mcpReplies.push(text(document.querySelector(".toast.on")));
+    }
+    out.mcpSent = { sent: sent.slice(beforeReconnect) };
+    out.mcpReads = asked.filter((u) => u.startsWith("/api/session/mcp")).length;
 
     // The models are asked of the session, not of any daemon.
     await show(thread);

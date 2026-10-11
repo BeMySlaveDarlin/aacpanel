@@ -206,8 +206,16 @@ func (s *Server) Start(t testing.TB) {
 		t.Fatal(err)
 	}
 	_ = os.Remove(s.Socket())
-	ln, err := net.Listen("unix", s.Socket())
+	// The daemon exposes its control socket through a symlink too. Keeping
+	// the bound path short leaves room for a test home inside a worktree.
+	socket := filepath.Join(s.Home, "control.sock")
+	_ = os.Remove(socket)
+	ln, err := net.Listen("unix", socket)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../control.sock", s.Socket()); err != nil {
+		_ = ln.Close()
 		t.Fatal(err)
 	}
 	s.mu.Lock()
@@ -222,13 +230,20 @@ func (s *Server) Start(t testing.TB) {
 func (s *Server) Close() {
 	s.mu.Lock()
 	srv := s.srv
+	ln := s.ln
 	s.srv = nil
+	s.ln = nil
 	clients := s.clients
 	s.clients = map[*client]bool{}
 	for _, t := range s.threads {
 		t.subs = map[*client]bool{}
 	}
 	s.mu.Unlock()
+	// Serve may not have registered the listener yet. Close it here so a
+	// late Serve cannot unlink the next daemon's socket after Start.
+	if ln != nil {
+		_ = ln.Close()
+	}
 	if srv != nil {
 		_ = srv.Close()
 	}

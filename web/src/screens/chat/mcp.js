@@ -14,6 +14,7 @@ import { useEffect, useState } from "preact/hooks";
 
 import { html } from "../../html.js";
 import { Icon } from "../../ui/icons.js";
+import { useToast } from "../../ui/toasts.js";
 import { useAction } from "../../actions/gate.js";
 import { knows, whyNot } from "../../exec.js";
 import { plural } from "../../format.js";
@@ -96,11 +97,10 @@ function useMcp(name, tick, discover) {
     return answer;
 }
 
-// McpSheet is what /mcp opens in a session on the stream. A codex thread's
-// servers are only read here: codex sets them in its config, and the sheet
-// offers no reconnect or switch for them. Asking again reads them from the thread
-// again; only the check against config starts them.
-export function McpSheet({ name, exec, readOnly = false }) {
+// McpSheet is what /mcp opens in a session on the stream. Codex sets its
+// servers in its config; reconnecting the panel's server restarts every
+// server of the thread. Asking again only reads the thread's connections.
+export function McpSheet({ name, exec }) {
     const [tick, setTick] = useState(0);
     const [open, setOpen] = useState("");
     const [discover, setDiscover] = useState(false);
@@ -134,7 +134,7 @@ export function McpSheet({ name, exec, readOnly = false }) {
     const servers = data.servers || [];
     const chosen = open && servers.find((s) => s.name === open);
     if (chosen) {
-        return html`<${McpServer} name=${name} exec=${exec} server=${chosen} readOnly=${readOnly}
+        return html`<${McpServer} name=${name} exec=${exec} server=${chosen} codex=${data.agent === "codex"}
                                   onBack=${() => setOpen("")} onDone=${again} />`;
     }
     return html`
@@ -168,7 +168,7 @@ export function McpSheet({ name, exec, readOnly = false }) {
                 <div class="mcpacts">
                     <button type="button" class="btn mcpcheck" onClick=${check}>Check against config</button>
                 </div>`}
-            ${readOnly && html`<p class="cmdnote">Read-only: codex's servers are set in its config.toml and in codex itself.</p>`}
+            ${data.agent === "codex" && html`<p class="cmdnote">Codex's servers are set in config.toml. Open aacpanel to reconnect the thread's servers.</p>`}
         </div>
     `;
 }
@@ -176,13 +176,15 @@ export function McpSheet({ name, exec, readOnly = false }) {
 // McpServer is one server: how it stands, where it lives, and what can be
 // done to it. Authentication goes through a browser that comes back to the
 // host, and a phone is not that browser — it is left to the host.
-function McpServer({ name, exec, server, readOnly, onBack, onDone }) {
+function McpServer({ name, exec, server, codex, onBack, onDone }) {
     const run = useAction();
+    const toast = useToast();
     const [busy, setBusy] = useState("");
     const st = statusOf(server);
     const can = knows(exec, "session.mcp");
     const why = can ? "" : whyNot(exec, "session.mcp");
     const off = server.status === "disabled";
+    const reconnect = codex ? server.name === "aacpanel" : !off;
 
     // The list is asked again whatever the answer: claude refuses to turn on a
     // server it cannot reach, and has turned it on all the same.
@@ -191,6 +193,7 @@ function McpServer({ name, exec, server, readOnly, onBack, onDone }) {
         setBusy(what);
         const result = await run("session.mcp", name, { server: server.name, do: what });
         setBusy("");
+        if (codex && result && result.ok) toast("MCP servers reconnected", result.data && result.data.detail);
         if (!result || !result.cancelled) onDone();
     };
     const where = server.url || server.command || "";
@@ -221,12 +224,14 @@ function McpServer({ name, exec, server, readOnly, onBack, onDone }) {
                 <p class="cmdnote">The server's configuration changed after the thread started: the thread keeps the
                     server as it started it, and one added since is not in the thread at all. A new thread starts it
                     as configured now.</p>`}
-            ${!readOnly && html`<div class="mcpacts">
-                ${!off && html`
+            ${codex && reconnect && html`<p class="cmdnote">Reconnect starts every MCP server of this thread anew, including aacpanel.
+                The thread must be idle, with no background work, and held by the panel.</p>`}
+            ${(reconnect || !codex) && html`<div class="mcpacts">
+                ${reconnect && html`
                     <button type="button" class="btn" disabled=${!can || Boolean(busy)} title=${why || undefined}
                             onClick=${() => act("reconnect")}>${busy === "reconnect" ? "Reconnecting…" : "Reconnect"}</button>`}
-                <button type="button" class="btn" disabled=${!can || Boolean(busy)} title=${why || undefined}
-                        onClick=${() => act(off ? "enable" : "disable")}>${off ? "Enable" : "Disable"}</button>
+                ${!codex && html`<button type="button" class="btn" disabled=${!can || Boolean(busy)} title=${why || undefined}
+                        onClick=${() => act(off ? "enable" : "disable")}>${off ? "Enable" : "Disable"}</button>`}
             </div>`}
             ${tools.length > 0 && html`
                 <section class="cmdsec">

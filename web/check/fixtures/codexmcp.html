@@ -5,7 +5,7 @@
 <script type="importmap">{"imports":{"preact":"/vendor/preact.mjs","preact/hooks":"/vendor/preact-hooks.mjs","htm":"/vendor/htm.mjs"}}</script>
 <div class="shell no-nav"><main class="body" id="root"></main></div>
 <script type="module">
-// The MCP servers of a codex thread, read-only, in every state codex gives a
+// The configured MCP servers of a codex thread, in every state codex gives a
 // server, in the words the host passes them in: the list with a dot and a
 // word for each, and each server opened with its state and what it says of
 // it. The errors are cut from those a real codex daemon gave. Then the check
@@ -66,7 +66,7 @@ const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
 const rows = () => Array.from(root.querySelectorAll(".mcplist .mcprow"));
 
 (async () => {
-    render(h(ToastHost, null, h(GateHost, null, html`<${McpSheet} name="codex-5afc361b" exec=${exec} readOnly />`)), root);
+    render(h(ToastHost, null, h(GateHost, null, html`<${McpSheet} name="codex-5afc361b" exec=${exec} />`)), root);
     const out = { rows: [], servers: [], unknown: [] };
     if (!await until(() => rows().length === SERVERS.length)) throw new Error("the list did not show");
     const seen = (where) => { if (/unknown/i.test(text(root))) out.unknown.push(where); };

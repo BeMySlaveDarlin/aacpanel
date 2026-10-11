@@ -253,19 +253,22 @@ func TestAQueueGoesWithItsThread(t *testing.T) {
 		t.Errorf("the queue of a closed thread is still on the disk: %v", err)
 	}
 	srv.Set(id, "idle")
-	time.Sleep(5 * pollEvery)
+	srv.Add(idle(threadA))
+	// Seeing the next thread means the poll passed the closed one too.
+	until(t, "the second thread", written(t, threadA))
 	if n := len(srv.Calls("turn/start")); n != 1 {
 		t.Errorf("a closed thread got %d turns", n)
 	}
 
-	srv.Add(idle(threadA))
-	until(t, "the second thread", written(t, threadA))
 	if err := l.Compact(ctx, threadA); err != nil {
 		t.Fatal(err)
 	}
 	if sent, err := l.Send(ctx, threadA, Message{ID: "y", Text: "waits too"}); err != nil || sent.Place != 1 {
 		t.Fatalf("a message to a compaction: %+v, %v", sent, err)
 	}
+	// A pending subscription would resume the fake thread after Unload.
+	// The daemon loses a queued thread only after the link has joined it.
+	until(t, "the queue's subscription", func() bool { return srv.Subscribed(threadA) })
 	srv.Unload(threadA)
 	until(t, "the queue of an unloaded thread to go", func() bool {
 		_, err := os.Stat(outboxPath("acme", threadA))
