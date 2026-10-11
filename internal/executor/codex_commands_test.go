@@ -288,6 +288,67 @@ func TestTheServersOfACodexSessionStartOnlyForADiscovery(t *testing.T) {
 	}
 }
 
+// A reconnect of a codex session the panel holds starts its servers anew: the
+// thread has the tools of the panel's program as it is now, its server named
+// as a start names it. A turn that runs is not cut — the reconnect is refused
+// with that reason — and a server is switched on and off in codex's
+// config.toml, not by the panel.
+func TestCodexReconnectStartsTheServersAnew(t *testing.T) {
+	server := toolServer
+	toolServer = func() (string, error) { return "/opt/panel/aacpanel-exec", nil }
+	t.Cleanup(func() { toolServer = server })
+	panel := func(tools ...string) map[string]any {
+		listed := map[string]any{}
+		for _, name := range tools {
+			listed[name] = map[string]any{"name": name}
+		}
+		return map[string]any{"name": "aacpanel", "runtimeStatus": "connected", "tools": listed}
+	}
+	srv, e := onCodex(t, func(srv *codextest.Server) {
+		srv.Running(codexThread, "turn-1")
+		srv.Set(codexThread, "idle")
+		srv.Mcp(panel("send_to_session"))
+		srv.McpOnLoad(panel("checklist", "send_to_session"))
+	})
+	ctx := context.Background()
+	if _, err := e.codex.Find(codexName)[0].Link.Resume(ctx, codexThread); err != nil {
+		t.Fatal(err)
+	}
+	change := func(do string) (string, error) {
+		return e.Execute(ctx, action.Request{Kind: action.SessionMcp, Target: codexName,
+			Mcp: &action.McpChange{Server: "aacpanel", Do: do}})
+	}
+
+	if _, err := change(action.McpDisable); err == nil || !strings.Contains(err.Error(), "config.toml") {
+		t.Errorf("a switch of a server of codex answered %v", err)
+	}
+	detail, err := change(action.McpReconnect)
+	if err != nil || !strings.Contains(detail, "started anew") {
+		t.Fatalf("the reconnect answered %q, %v", detail, err)
+	}
+	mcp, err := e.Mcp(ctx, codexName, false)
+	if err != nil || len(mcp.Servers) != 1 || !reflect.DeepEqual(mcp.Servers[0].Tools, []string{"checklist", "send_to_session"}) {
+		t.Errorf("after the reconnect the servers are %+v, %v", mcp, err)
+	}
+	resumes := srv.Calls("thread/resume")
+	var last struct {
+		Config map[string]any `json:"config"`
+	}
+	if err := json.Unmarshal(resumes[len(resumes)-1], &last); err != nil ||
+		last.Config["mcp_servers.aacpanel.command"] != "/opt/panel/aacpanel-exec" {
+		t.Errorf("the thread came back with %s", resumes[len(resumes)-1])
+	}
+
+	srv.Running(codexThread, "turn-2")
+	if _, err := change(action.McpReconnect); err == nil || !strings.Contains(err.Error(), "a turn runs") ||
+		!strings.Contains(err.Error(), codexName) {
+		t.Errorf("a reconnect during a turn answered %v", err)
+	}
+	if n := len(srv.Calls("thread/archive")); n != 1 {
+		t.Errorf("the thread went out of the daemon %d times, the turn that runs among them", n)
+	}
+}
+
 // Every state codex gives a server of a thread reaches the screen in a word
 // it draws: claude's where claude has one, a word of its own where it has
 // none, and one for a server codex gives no state, whose configuration

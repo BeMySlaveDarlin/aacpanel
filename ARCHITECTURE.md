@@ -921,6 +921,31 @@ after the install pairs only by its account's name.
   thread runs it; the check against config on the screen is the discovery,
   asked for, and tells it. Every other action over a codex session is refused by name: none of the
   claude ways — keys, signals, a holder's socket — reaches it.
+- **A reconnect starts every MCP server of a thread anew** (`session.mcp`
+  with `reconnect`), the way an update of the panel reaches a thread that
+  runs. Codex starts the servers of a thread once, when the daemon loads it; a
+  reload of its configuration restarts only a server whose configuration
+  changed, and an update of the executor leaves the path of its program as it
+  was. So the panel takes the thread out of the daemon and back in: it
+  archives the thread, which unloads it at once whoever else follows it,
+  takes it out of the archive and resumes it with its own server beside the
+  servers of the home, as at the start. Every server of the thread starts
+  again, not the named one alone. The conversation, the name and the goal
+  are on the disk and stay; the permissions the thread started with are not,
+  and the settings a resume read just before go back with
+  `thread/settings/update` — a daemon that refuses it leaves the thread on
+  what config.toml says, and the answer says so. What the unload would cut
+  or cross is refused rather than risked: a turn that runs, which the archive
+  interrupts, background terminals, which it ends, agents at work and a goal
+  codex works towards on its own, whose work goes on in the thread, and a
+  thread not on the disk yet, which no resume brings back. So is a thread the
+  panel does not hold: another client keeps it, codex's terminal or an app,
+  and the archive would take it out from under that client. A server is
+  switched on and off in codex's config.toml, and the panel refuses that. The
+  price: a turn another client starts in the moment between the look and the
+  archive is interrupted, and a client of the thread the panel does not know
+  of — codex resumed in a terminal on a thread the panel started — sees the
+  thread archived and back, and stays its client.
 - **A message goes into the turn that runs**, as claude takes a message
   written during a turn at its next step: `turn/steer` names the
   turn, so the message goes into that turn or nowhere, and a free thread

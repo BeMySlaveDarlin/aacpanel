@@ -2,6 +2,8 @@ package codex
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -209,6 +211,217 @@ func (l *Link) Resume(ctx context.Context, threadID string) (string, error) {
 	l.hold(threadID)
 	l.save(threadID)
 	return out.Thread.CWD, nil
+}
+
+// Reconnect starts every MCP server of a thread the panel holds anew, as its
+// configuration names it now: the panel's own among them, the program it is
+// after an update. A thread starts its servers once, when the daemon loads it,
+// and nothing else in the protocol starts them again — a reload of the
+// configuration restarts only a server whose configuration changed, and an
+// update leaves the path of the panel's program as it was. So the thread is
+// taken out of the daemon and back in: archived, which unloads it at once
+// whoever else follows it, unarchived, and resumed with the panel's server
+// beside the servers of its home, as it started. The conversation, the name
+// and the goal are on the disk and stay; the permissions a thread started
+// with are not, and the settings a resume read just before go back with
+// thread/settings/update. tools and allowed are the panel's server as at the
+// start: empty tools gives the thread the servers of its config.toml alone.
+//
+// What the unload would cut or cross is refused instead: a turn that runs —
+// the archive interrupts it — background terminals, which it ends, the agents
+// of the thread at work and a goal codex works towards on its own, whose work
+// goes on in the thread, and a thread codex has not written to the disk yet,
+// which no resume brings back. A thread the panel does not hold is another
+// client's, codex's terminal or an app, and the archive would take it out
+// from under that client. The price is a turn another client starts in the
+// moment between the look and the archive: the archive interrupts it.
+func (l *Link) Reconnect(ctx context.Context, threadID, tools string, allowed []string) error {
+	c, err := l.client()
+	if err != nil {
+		return err
+	}
+	l.sub.Lock()
+	defer l.sub.Unlock()
+	l.mu.Lock()
+	held := l.held[threadID]
+	l.mu.Unlock()
+	if !held {
+		return errors.New("the panel does not hold the thread — another client of the daemon does, codex's " +
+			"terminal or an app — and starting its servers anew takes the thread out of the daemon from under it")
+	}
+	if err := l.unloadable(ctx, c, threadID); err != nil {
+		return err
+	}
+	var before json.RawMessage
+	if err := within(ctx, c, "thread/resume", map[string]any{"threadId": threadID, "excludeTurns": true}, &before); err != nil {
+		return err
+	}
+	l.mu.Lock()
+	l.moving[threadID] = true
+	l.mu.Unlock()
+	defer func() {
+		l.mu.Lock()
+		delete(l.moving, threadID)
+		l.mu.Unlock()
+	}()
+
+	id := map[string]any{"threadId": threadID}
+	if err := within(ctx, c, "thread/archive", id, nil); err != nil {
+		return fmt.Errorf("codex did not take the thread out of the daemon: %w", err)
+	}
+	if err := within(ctx, c, "thread/unarchive", id, nil); err != nil {
+		return fmt.Errorf("the thread went into codex's archive to start its servers anew and did not come out: %w "+
+			"— it stays there, out of the daemon, until it is unarchived", err)
+	}
+	params := map[string]any{"threadId": threadID, "excludeTurns": true}
+	if tools != "" {
+		params["config"] = toolsConfig(tools, allowed)
+	}
+	var out struct {
+		Thread threadInfo `json:"thread"`
+		settingsWire
+	}
+	if err := within(ctx, c, "thread/resume", params, &out); err != nil {
+		return fmt.Errorf("the thread is out of the daemon and did not come back in: %w — Resume from the archive "+
+			"of the panel brings it back", err)
+	}
+	l.seen(out.Thread, time.Now())
+	settled, lost := restore(ctx, c, threadID, before)
+	if lost != nil {
+		settled = out.read()
+	}
+	l.set(threadID, func(t *thread) { t.subscribed, t.settings = true, settled })
+	l.save(threadID)
+	return lost
+}
+
+// Unsettled is a reconnect whose servers started anew and whose settings did
+// not come back as they were: the thread runs as its config.toml says until
+// they are set again.
+type Unsettled struct{ Err error }
+
+func (u Unsettled) Error() string {
+	return "the settings of the thread did not come back as they were, and it runs as its config.toml says " +
+		"until they are set again: " + u.Err.Error()
+}
+
+func (u Unsettled) Unwrap() error { return u.Err }
+
+// unloadable says what taking a thread out of the daemon would cut, nil when
+// nothing.
+func (l *Link) unloadable(ctx context.Context, c *conn, threadID string) error {
+	busy := errors.New("a turn runs, and taking the thread out of the daemon interrupts it: start its servers " +
+		"anew once the turn is over")
+	info, err := read(ctx, c, threadID)
+	if err != nil {
+		return err
+	}
+	if info.Status.Type == "active" {
+		return busy
+	}
+	// The status lags behind a turn just started; the list of turns does not.
+	_, status, err := lastTurn(ctx, c, threadID)
+	switch {
+	case unwritten(err):
+		return errors.New("codex has not written the thread to its disk yet — its first message does — and a " +
+			"thread taken out of the daemon before that does not come back")
+	case err != nil:
+		return err
+	case status == "inProgress":
+		return busy
+	}
+	var goal struct {
+		Goal *Goal `json:"goal"`
+	}
+	err = within(ctx, c, "thread/goal/get", map[string]any{"threadId": threadID}, &goal)
+	switch {
+	case err != nil && !unknownMethod(err):
+		return err
+	case goal.Goal != nil && goal.Goal.Status == GoalActive:
+		return errors.New("codex works towards the goal of the thread and starts its next turn by itself: pause " +
+			"the goal first")
+	}
+	running, err := processes(ctx, c, threadID)
+	switch {
+	case err != nil && !unknownMethod(err):
+		return err
+	case len(running) > 0:
+		return fmt.Errorf("%d background terminals of the thread run, and taking the thread out of the daemon "+
+			"ends them: stop them first, or wait for them", len(running))
+	}
+	ids, err := loaded(ctx, c)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if id == threadID {
+			continue
+		}
+		agent, err := read(ctx, c, id)
+		if err == nil && agent.Parent == threadID && agent.Status.Type == "active" {
+			return errors.New("agents of the thread are at work: start its servers anew once they are done")
+		}
+	}
+	return nil
+}
+
+// standing is what a thread runs with, as a resume of it says, kept the way
+// the daemon said it to be given back the same way.
+type standing struct {
+	Model    string          `json:"model"`
+	Effort   *string         `json:"reasoningEffort"`
+	Approval json.RawMessage `json:"approvalPolicy"`
+	Reviewer string          `json:"approvalsReviewer"`
+	Sandbox  json.RawMessage `json:"sandbox"`
+	Profile  *struct {
+		ID string `json:"id"`
+	} `json:"activePermissionProfile"`
+	Collaboration json.RawMessage `json:"collaborationMode"`
+	Tier          *string         `json:"serviceTier"`
+}
+
+// restore gives a thread back the settings a resume of it read before, and
+// returns them as the panel keeps them. The permission profile goes back in
+// place of the sandbox, which the daemon takes only one at a time. Plan mode
+// goes back with its own words; the default mode is the one a resumed thread
+// is in, and naming it again would add its words to the next turn.
+func restore(ctx context.Context, c *conn, threadID string, before json.RawMessage) (settings, error) {
+	var was standing
+	var wire settingsWire
+	if err := json.Unmarshal(before, &was); err != nil {
+		return settings{}, Unsettled{err}
+	}
+	if err := json.Unmarshal(before, &wire); err != nil {
+		return settings{}, Unsettled{err}
+	}
+	params := map[string]any{"threadId": threadID}
+	if was.Model != "" {
+		params["model"] = was.Model
+	}
+	if was.Effort != nil {
+		params["effort"] = *was.Effort
+	}
+	if len(was.Approval) > 0 && string(was.Approval) != "null" {
+		params["approvalPolicy"] = was.Approval
+	}
+	if was.Reviewer != "" {
+		params["approvalsReviewer"] = was.Reviewer
+	}
+	if was.Profile != nil && was.Profile.ID != "" {
+		params["permissions"] = was.Profile.ID
+	} else if len(was.Sandbox) > 0 && string(was.Sandbox) != "null" {
+		params["sandboxPolicy"] = was.Sandbox
+	}
+	if wire.Collaboration != nil && wire.Collaboration.Mode != "" && wire.Collaboration.Mode != "default" {
+		params["collaborationMode"] = was.Collaboration
+	}
+	if was.Tier != nil {
+		params["serviceTier"] = *was.Tier
+	}
+	if err := within(ctx, c, "thread/settings/update", params, nil); err != nil {
+		return settings{}, Unsettled{experimental(err)}
+	}
+	return wire.read(), nil
 }
 
 // Close lets a thread go: the turn it runs is interrupted, and the panel

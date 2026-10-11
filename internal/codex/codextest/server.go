@@ -99,6 +99,13 @@ type thread struct {
 	turns []turn
 	items map[string][]map[string]any
 	subs  map[*client]bool
+	// conns are the MCP servers as the thread's own connections have them
+	// since the daemon last loaded it; nil for those every thread has.
+	conns []map[string]any
+	// archived says the thread is in codex's archive.
+	archived bool
+	// loads is how many times the daemon loaded the thread from the disk.
+	loads int
 }
 
 type approval struct {
@@ -159,6 +166,11 @@ type Server struct {
 	off       map[string][]string
 	mcpStarts int
 	skills    []map[string]any
+	// onLoad are the MCP servers as a thread the daemon loads now starts them,
+	// nil for those every thread has.
+	onLoad []map[string]any
+	// stalls are the requests answered late, by method and thread, each once.
+	stalls map[string]time.Duration
 }
 
 // New starts a daemon in a home of its own. The home is short on purpose: a
@@ -172,7 +184,7 @@ func New(t testing.TB) *Server {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(home) })
 	s := &Server{Home: home, threads: map[string]*thread{}, clients: map[*client]bool{}, refuse: map[string]bool{},
-		ending: map[string]bool{}}
+		ending: map[string]bool{}, stalls: map[string]time.Duration{}}
 	s.Start(t)
 	t.Cleanup(s.Close)
 	return s
@@ -270,6 +282,54 @@ func (s *Server) McpChanged(servers ...map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.changed = servers
+}
+
+// McpOnLoad sets the MCP servers as a thread the daemon loads from now on
+// starts them: a program updated since the threads started offers what it
+// offers now. A thread already loaded keeps its own connections, as codex
+// keeps them until it unloads the thread.
+func (s *Server) McpOnLoad(servers ...map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onLoad = servers
+}
+
+// StallOnce has the daemon answer the next request of the method about the
+// thread after d, and answer what else comes meanwhile: the daemon serves the
+// requests of a connection side by side, and one that takes long does not
+// hold the next. The request is served when its answer goes.
+func (s *Server) StallOnce(method, threadID string, d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stalls[method+" "+threadID] = d
+}
+
+func (s *Server) stall(method string, params json.RawMessage) time.Duration {
+	var p struct {
+		ThreadID string `json:"threadId"`
+	}
+	_ = json.Unmarshal(params, &p)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := method + " " + p.ThreadID
+	d := s.stalls[key]
+	delete(s.stalls, key)
+	return d
+}
+
+// Loads is how many times the daemon loaded a thread from the disk: a resume
+// of a thread it does not have loaded loads it.
+func (s *Server) Loads(id string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.threads[id].loads
+}
+
+// Archived says the thread is in codex's archive.
+func (s *Server) Archived(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.threads[id].archived
 }
 
 // McpFromStart names servers the threads got from their start, as the panel
@@ -640,24 +700,34 @@ func (s *Server) accept(w http.ResponseWriter, r *http.Request) {
 				c.quiet[m] = true
 			}
 		}
-		result, after, fail := s.serve(c, msg.Method, msg.Params)
-		reply := map[string]any{"id": msg.ID}
-		if fail != "" {
-			reply["error"] = map[string]any{"code": -32600, "message": fail}
-		} else {
-			reply["result"] = result
-		}
-		c.send(reply)
-		for _, m := range after {
-			if to, ok := m["to"].([]*client); ok {
-				delete(m, "to")
-				for _, other := range to {
-					other.send(m)
-				}
-				continue
+		answer := func() {
+			result, after, fail := s.serve(c, msg.Method, msg.Params)
+			reply := map[string]any{"id": msg.ID}
+			if fail != "" {
+				reply["error"] = map[string]any{"code": -32600, "message": fail}
+			} else {
+				reply["result"] = result
 			}
-			c.send(m)
+			c.send(reply)
+			for _, m := range after {
+				if to, ok := m["to"].([]*client); ok {
+					delete(m, "to")
+					for _, other := range to {
+						other.send(m)
+					}
+					continue
+				}
+				c.send(m)
+			}
 		}
+		if d := s.stall(msg.Method, msg.Params); d > 0 {
+			go func() {
+				time.Sleep(d)
+				answer()
+			}()
+			continue
+		}
+		answer()
 	}
 }
 
@@ -753,7 +823,15 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		return map[string]any{"thread": t.json()}, nil, ""
 	case "thread/resume":
 		if t.Status == "notLoaded" {
+			// A load starts the servers of the thread anew, and the sandbox
+			// the thread started with is not on the disk: it runs as the
+			// config.toml of the home says, as codex 0.162 did.
 			t.Status = "idle"
+			t.loads++
+			if s.onLoad != nil {
+				t.conns = slices.Clone(s.onLoad)
+			}
+			t.Profile, t.Sandbox = "", "workspaceWrite"
 		}
 		t.subs[c] = true
 		var after []map[string]any
@@ -769,6 +847,23 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 	case "thread/unsubscribe":
 		delete(t.subs, c)
 		return map[string]any{"status": "unsubscribed"}, nil, ""
+	case "thread/archive":
+		// An archive unloads the thread at once, whoever follows it: the
+		// turn that runs is interrupted, and its servers end with it.
+		if last := t.last(); last != nil && last.status == "inProgress" {
+			last.status = "interrupted"
+		}
+		subs := clientsOf(t)
+		t.Status, t.Flags, t.archived, t.subs = "notLoaded", nil, true, map[*client]bool{}
+		note := t.statusChanged()
+		note["to"] = subs
+		return map[string]any{}, []map[string]any{note}, ""
+	case "thread/unarchive":
+		if !t.archived {
+			return nil, nil, "thread " + t.ID + " already has an active writer"
+		}
+		t.archived = false
+		return map[string]any{"thread": t.json()}, nil, ""
 	case "thread/name/set":
 		var q struct {
 			Name string `json:"name"`
@@ -858,7 +953,7 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 		t.Processes = nil
 		return map[string]any{}, nil, ""
 	case "mcpServerStatus/list":
-		return s.mcpList(raw), nil, ""
+		return s.mcpList(t, raw), nil, ""
 	case "turn/start":
 		var q struct {
 			Model  string `json:"model"`
@@ -958,14 +1053,18 @@ func (s *Server) serve(c *client, method string, raw json.RawMessage) (any, []ma
 // list for one server by name answers from the thread's own connection and
 // starts nothing; a list of every server discovers each anew, starting every
 // stdio server it lists that is not disabled.
-func (s *Server) mcpList(raw json.RawMessage) map[string]any {
+func (s *Server) mcpList(t *thread, raw json.RawMessage) map[string]any {
 	var p struct {
 		Name *string `json:"serverName"`
 	}
 	_ = json.Unmarshal(raw, &p)
 	data := []any{}
 	if p.Name != nil {
-		for _, m := range s.mcp {
+		conns := t.conns
+		if conns == nil {
+			conns = s.mcp
+		}
+		for _, m := range conns {
 			if m["name"] == *p.Name && m["runtimeStatus"] != nil {
 				data = append(data, m)
 			}
@@ -1185,7 +1284,10 @@ func (t *thread) apply(raw json.RawMessage) {
 		Permissions *string `json:"permissions"`
 		Approval    *string `json:"approvalPolicy"`
 		Reviewer    *string `json:"approvalsReviewer"`
-		Mode        *struct {
+		Sandbox     *struct {
+			Type string `json:"type"`
+		} `json:"sandboxPolicy"`
+		Mode *struct {
 			Mode     string `json:"mode"`
 			Settings struct {
 				Model  string  `json:"model"`
@@ -1199,6 +1301,9 @@ func (t *thread) apply(raw json.RawMessage) {
 		if from != nil {
 			*to = *from
 		}
+	}
+	if p.Sandbox != nil {
+		t.Profile, t.Sandbox = "", p.Sandbox.Type
 	}
 	if p.Mode != nil {
 		t.Plan = p.Mode.Mode == "plan"

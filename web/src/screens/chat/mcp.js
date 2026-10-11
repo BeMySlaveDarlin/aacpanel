@@ -97,8 +97,8 @@ function useMcp(name, tick, discover) {
 }
 
 // McpSheet is what /mcp opens in a session on the stream. A codex thread's
-// servers are only read: codex sets them in its config, and the panel does
-// not reconnect or turn them off. Asking again reads them from the thread
+// servers are only read here: codex sets them in its config, and the sheet
+// offers no reconnect or switch for them. Asking again reads them from the thread
 // again; only the check against config starts them.
 export function McpSheet({ name, exec, readOnly = false }) {
     const [tick, setTick] = useState(0);

@@ -142,6 +142,9 @@
        "enum": [
         "thread/archive"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadArchiveParams"
       }
      }
     },
@@ -403,6 +406,9 @@
        "enum": [
         "thread/unarchive"
        ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadUnarchiveParams"
       }
      }
     },
@@ -5160,6 +5166,19 @@
     ],
     "type": "string"
    },
+   "ThreadArchiveParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "threadId": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "threadId"
+    ],
+    "title": "ThreadArchiveParams",
+    "type": "object"
+   },
    "ThreadBackgroundTerminal": {
     "properties": {
      "command": {
@@ -6082,6 +6101,13 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "description": "There are three ways to resume a thread: 1. By thread_id: load the thread from disk by thread_id and resume it. 2. By history: instantiate the thread from memory and resume it. 3. By path: load the thread from disk by path and resume it.\n\nFor non-running threads, the precedence is: history > non-empty path > thread_id. If using history or a non-empty path for a non-running thread, the thread_id param will be ignored.\n\nIf thread_id identifies a running thread, app-server rejoins that thread and treats a non-empty path as a consistency check against the active rollout path. Empty string path values are treated as absent.\n\nPrefer using thread_id whenever possible.",
     "properties": {
+     "config": {
+      "additionalProperties": true,
+      "type": [
+       "object",
+       "null"
+      ]
+     },
      "excludeTurns": {
       "description": "When true, return only thread metadata and live-resume state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after resuming. Full-history hydration is deprecated for paginated threads; use this with `thread/turns/list` and `thread/items/list` instead.",
       "type": "boolean"
@@ -6133,6 +6159,19 @@
       ],
       "description": "Effective collaboration mode. Absent when resuming from an older server."
      },
+     "model": {
+      "type": "string"
+     },
+     "reasoningEffort": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/ReasoningEffort"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
      "sandbox": {
       "allOf": [
        {
@@ -6140,6 +6179,12 @@
        }
       ],
       "description": "Legacy sandbox policy retained for compatibility. Experimental clients should prefer `activePermissionProfile` for profile provenance."
+     },
+     "serviceTier": {
+      "type": [
+       "string",
+       "null"
+      ]
      },
      "thread": {
       "$ref": "#/definitions/v2/Thread"
@@ -6279,6 +6324,24 @@
      },
      "permissions": {
       "description": "Select a named permissions profile id for subsequent turns. Cannot be combined with `sandboxPolicy`.",
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "sandboxPolicy": {
+      "anyOf": [
+       {
+        "$ref": "#/definitions/v2/SandboxPolicy"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Override the sandbox policy for subsequent turns."
+     },
+     "serviceTier": {
+      "description": "Override the service tier for subsequent turns. `null` clears the current service tier; omission leaves it unchanged.",
       "type": [
        "string",
        "null"
@@ -6583,6 +6646,19 @@
      "data"
     ],
     "title": "ThreadTurnsListResponse",
+    "type": "object"
+   },
+   "ThreadUnarchiveParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+     "threadId": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "threadId"
+    ],
+    "title": "ThreadUnarchiveParams",
     "type": "object"
    },
    "ThreadUnsubscribeParams": {

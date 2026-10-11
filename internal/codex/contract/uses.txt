@@ -46,6 +46,7 @@ call thread/read
 call thread/resume
   send threadId
   send excludeTurns
+  send config
   read thread.id
   read thread.parentThreadId
   read thread.model
@@ -61,7 +62,12 @@ call thread/resume
   read approvalsReviewer: user auto_review
   read sandbox.type: readOnly workspaceWrite dangerFullAccess
   read activePermissionProfile.id
-  read collaborationMode.mode: plan
+  read collaborationMode.mode: plan default
+  read model
+  read reasoningEffort
+  read sandbox
+  read collaborationMode
+  read serviceTier
 
 call thread/unsubscribe
   send threadId
@@ -202,6 +208,17 @@ call thread/settings/update
   send collaborationMode.settings.model
   send collaborationMode.settings.reasoning_effort
   send collaborationMode.settings.developer_instructions
+  send collaborationMode
+  send sandboxPolicy
+  send serviceTier
+
+# The servers of a thread started anew: the thread out of the daemon and back
+# in, through codex's archive, which unloads it at once.
+call thread/archive
+  send threadId
+
+call thread/unarchive
+  send threadId
 
 # What a codex session offers, in the shapes of claude's lists.
 call model/list

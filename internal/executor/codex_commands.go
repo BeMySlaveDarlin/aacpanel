@@ -9,6 +9,7 @@ import (
 
 	"aacpanel/internal/action"
 	"aacpanel/internal/codex"
+	"aacpanel/internal/toolset"
 )
 
 // choice is one item a person presses for a request that is a choice among a
@@ -397,6 +398,46 @@ func codexMcp(ctx context.Context, th codex.Thread, discover bool) (*action.Mcp,
 			Tools: m.Tools, Auth: m.Auth})
 	}
 	return out, nil
+}
+
+// codexMcpChange starts the MCP servers of a codex session anew. A thread
+// starts its servers when the daemon loads it, so the panel takes the thread
+// out of the daemon and back in, with the panel's own server beside those of
+// its home as at its start — the program it is now, after an update. Every
+// server of the thread starts again, not the named one alone. A server is
+// turned on and off in codex's config.toml, and the panel does not do that.
+func codexMcpChange(ctx context.Context, th codex.Thread, change *action.McpChange) (string, error) {
+	if change == nil {
+		return "", fmt.Errorf("no MCP server was named: there is nothing to change")
+	}
+	if change.Do != action.McpReconnect {
+		return "", fmt.Errorf("%s is a codex session: its MCP servers are turned on and off in codex's config.toml, "+
+			"and the panel only starts them anew", th.Name)
+	}
+	var warns []string
+	program, err := toolServer()
+	var allowed []string
+	if err == nil {
+		allowed = toolset.CodexAllowed()
+	} else {
+		program = ""
+		warns = append(warns, "the thread has the servers of its config.toml alone: the executor does not know "+
+			"its own path: "+err.Error())
+	}
+	err = th.Link.Reconnect(ctx, th.ID, program, allowed)
+	var lost codex.Unsettled
+	switch {
+	case errors.As(err, &lost):
+		warns = append(warns, lost.Error())
+	case err != nil:
+		return "", fmt.Errorf("the MCP servers of %s were not started anew: %w", th.Name, err)
+	}
+	detail := fmt.Sprintf("every MCP server of %s started anew, as its configuration names it now, the panel's "+
+		"own among them: the thread went out of the daemon and back in, its conversation whole", th.Name)
+	for _, w := range warns {
+		detail += "; WARNING: " + w
+	}
+	return detail, nil
 }
 
 // codexSetup answers the skills of a codex session, as codex lists them for

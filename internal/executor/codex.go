@@ -20,8 +20,9 @@ import (
 // the daemon's protocol: a message is a turn, or goes into the turn that
 // runs; a stop is an interrupt — of the agent's own thread for an
 // agent the thread started — an approval is a reply to the
-// daemon's request, a setting is a change of the thread's settings, a close
-// is an interrupt and the panel leaving the thread. None of the ways of a claude
+// daemon's request, a setting is a change of the thread's settings, a
+// reconnect of its MCP servers takes the thread out of the daemon and back
+// in, a close is an interrupt and the panel leaving the thread. None of the ways of a claude
 // session — keys into tmux, signals to a pid, the socket of a holder — apply
 // to it, and an action the panel has no codex way for is refused rather than
 // tried the claude way.
@@ -151,6 +152,8 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 		return codexCommand(ctx, th, req.Command)
 	case action.SessionRename:
 		return codexRename(ctx, th, req.Rename)
+	case action.SessionMcp:
+		return codexMcpChange(ctx, th, req.Mcp)
 	case action.SessionParent:
 		return codexParent(th, req.Parent)
 	case action.TaskStop:

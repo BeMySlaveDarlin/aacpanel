@@ -348,6 +348,10 @@ type Link struct {
 	// yet: they are no session any more, unless a turn runs in them again.
 	// Each is kept with the turn the close interrupted.
 	closed map[string]string
+	// moving are the threads a reconnect takes out of the daemon and back in:
+	// the poll keeps each as it was, rather than forget the session for a
+	// round because it read the thread unloaded in between.
+	moving map[string]bool
 
 	// sub serialises what changes a subscription: the poll subscribing and
 	// leaving, and a message starting a turn. A thread/unsubscribe crossing a
@@ -371,7 +375,7 @@ func NewLink(home, contour string) *Link {
 	return &Link{
 		home: home, contour: contour, socket: SocketPath(home), holder: os.Getpid(),
 		threads: map[string]*thread{}, pending: map[string][]Request{},
-		held: map[string]bool{}, closed: map[string]string{}, wake: make(chan struct{}, 1),
+		held: map[string]bool{}, closed: map[string]string{}, moving: map[string]bool{}, wake: make(chan struct{}, 1),
 		boxes: loadOutboxes(contour), usage: map[string]Context{}, kick: make(chan struct{}, 1),
 	}
 }
@@ -636,6 +640,10 @@ func (l *Link) poll(ctx context.Context, c *conn) error {
 	}
 	live := map[string]bool{}
 	for _, id := range ids {
+		if l.isMoving(id) {
+			live[id] = true
+			continue
+		}
 		asked := time.Now()
 		info, err := read(ctx, c, id)
 		if err != nil {
@@ -804,6 +812,12 @@ func (l *Link) join(ctx context.Context, c *conn, id string) {
 	}
 }
 
+func (l *Link) isMoving(id string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.moving[id]
+}
+
 func (l *Link) set(id string, change func(*thread)) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -815,6 +829,20 @@ func (l *Link) set(id string, change func(*thread)) {
 // runningTurn is the turn of a thread in progress, empty when none runs. The
 // items of the turn are not asked for.
 func runningTurn(ctx context.Context, c *conn, id string) (string, error) {
+	turn, status, err := lastTurn(ctx, c, id)
+	// A thread nobody has written to yet runs no turn.
+	if unwritten(err) {
+		return "", nil
+	}
+	if err != nil || status != "inProgress" {
+		return "", err
+	}
+	return turn, nil
+}
+
+// lastTurn is the last turn of a thread and its status, empty when it has
+// none.
+func lastTurn(ctx context.Context, c *conn, id string) (string, string, error) {
 	var out struct {
 		Data []struct {
 			ID     string `json:"id"`
@@ -823,17 +851,19 @@ func runningTurn(ctx context.Context, c *conn, id string) (string, error) {
 	}
 	params := map[string]any{"threadId": id, "limit": 1, "itemsView": "notLoaded"}
 	if err := within(ctx, c, "thread/turns/list", params, &out); err != nil {
-		// A thread nobody has written to yet runs no turn, and the daemon
-		// refuses to list its turns rather than list none.
-		if refused(err) && strings.Contains(errText(err), "is not materialized yet") {
-			return "", nil
-		}
-		return "", err
+		return "", "", err
 	}
-	if len(out.Data) == 0 || out.Data[0].Status != "inProgress" {
-		return "", nil
+	if len(out.Data) == 0 {
+		return "", "", nil
 	}
-	return out.Data[0].ID, nil
+	return out.Data[0].ID, out.Data[0].Status, nil
+}
+
+// unwritten says the daemon refused to list the turns of a thread nobody has
+// written to yet: such a thread is not on the disk, and the daemon refuses
+// rather than list none.
+func unwritten(err error) bool {
+	return refused(err) && strings.Contains(errText(err), "is not materialized yet")
 }
 
 // handle takes what the daemon sends on its own: the requests that wait for a

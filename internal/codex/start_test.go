@@ -349,3 +349,201 @@ func TestASubagentsThreadIsNotResumed(t *testing.T) {
 		t.Errorf("the subagent's thread is marked as held: %v", err)
 	}
 }
+
+// worked gives a thread a turn that is over: codex has written it to the disk.
+func worked(srv *codextest.Server, id string) {
+	srv.Running(id, "turn-1")
+	srv.Set(id, "idle")
+}
+
+func panelServer(tools ...string) map[string]any {
+	listed := map[string]any{}
+	for _, name := range tools {
+		listed[name] = map[string]any{"name": name}
+	}
+	return map[string]any{"name": "aacpanel", "runtimeStatus": "connected", "authStatus": "unsupported", "tools": listed}
+}
+
+func panelTools(t *testing.T, l *Link, id string) []string {
+	t.Helper()
+	servers, err := l.McpServers(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range servers {
+		if s.Name == "aacpanel" {
+			return s.Tools
+		}
+	}
+	return nil
+}
+
+// A thread starts its servers when the daemon loads it, and a reconnect of a
+// thread the panel holds takes it out of the daemon and back in: the thread
+// has the servers as they start now — the panel's own with the tools of the
+// program as it is after an update — and the settings it had, the permission
+// profile the load loses among them.
+func TestAReconnectStartsTheServersOfAHeldThreadAnew(t *testing.T) {
+	th := idle(threadA)
+	th.Profile = ":read-only"
+	srv, l := linked(t, th)
+	worked(srv, threadA)
+	srv.Mcp(panelServer("send_to_session"))
+	srv.McpOnLoad(panelServer("checklist", "send_to_session"))
+	ready(t, l)
+	ctx := context.Background()
+	if _, err := l.Resume(ctx, threadA); err != nil {
+		t.Fatal(err)
+	}
+	if got := panelTools(t, l, threadA); !reflect.DeepEqual(got, []string{"send_to_session"}) {
+		t.Fatalf("before the reconnect the thread has the tools %v", got)
+	}
+
+	if err := l.Reconnect(ctx, threadA, "/opt/panel/aacpanel-exec", []string{"checklist"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := panelTools(t, l, threadA); !reflect.DeepEqual(got, []string{"checklist", "send_to_session"}) {
+		t.Errorf("after the reconnect the thread has the tools %v", got)
+	}
+	if n := srv.Loads(threadA); n != 1 || srv.Archived(threadA) {
+		t.Errorf("the daemon loaded the thread %d times, and it is archived: %v", n, srv.Archived(threadA))
+	}
+	resumes := srv.Calls("thread/resume")
+	config, _ := params(t, resumes[len(resumes)-1])["config"].(map[string]any)
+	if config["mcp_servers.aacpanel.command"] != "/opt/panel/aacpanel-exec" ||
+		config["mcp_servers.aacpanel.tools.checklist.approval_mode"] != "approve" {
+		t.Errorf("the thread came back with the config %v", config)
+	}
+	if got := srv.Settings(threadA); got.Profile != ":read-only" {
+		t.Errorf("the thread came back with the profile %q and the sandbox %q", got.Profile, got.Sandbox)
+	}
+	if !srv.Subscribed(threadA) {
+		t.Error("the panel is not a client of the thread it holds")
+	}
+	if st, raw, ok := stateOf(t, threadA); !ok || st.Mode != ModeReadOnly {
+		t.Errorf("the thread is on the map as %s", raw)
+	}
+	polls()
+	if _, _, ok := stateOf(t, threadA); !ok || !srv.Subscribed(threadA) {
+		t.Error("the thread fell off the map after the reconnect")
+	}
+}
+
+// A poll that listed the thread before a reconnect took it out of the daemon
+// and reads it while it is out keeps the session as it was: the session does
+// not fall off the map for a round, which the screen would read as a session
+// that closed by itself. The poll is held on an agent's thread listed first
+// until the thread is out.
+func TestAThreadStaysOnTheMapWhileAReconnectMovesIt(t *testing.T) {
+	agent := idle(threadB)
+	agent.Parent = threadA
+	srv, l := linked(t, agent, idle(threadA))
+	worked(srv, threadA)
+	ready(t, l)
+	ctx := context.Background()
+	if _, err := l.Resume(ctx, threadA); err != nil {
+		t.Fatal(err)
+	}
+	until(t, "the state file", written(t, threadA))
+	reads := func() int {
+		n := 0
+		for _, raw := range srv.Calls("thread/read") {
+			if params(t, raw)["threadId"] == threadB {
+				n++
+			}
+		}
+		return n
+	}
+	before := reads()
+	srv.StallOnce("thread/read", threadB, 5*pollEvery)
+	srv.StallOnce("thread/unarchive", threadA, 10*pollEvery)
+	until(t, "a poll to read the agent's thread", func() bool { return reads() > before })
+
+	done := make(chan error, 1)
+	go func() { done <- l.Reconnect(ctx, threadA, "", nil) }()
+	for {
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+			return
+		case <-time.After(2 * time.Millisecond):
+		}
+		if _, _, ok := stateOf(t, threadA); !ok {
+			t.Fatal("the thread fell off the map while the reconnect moved it")
+		}
+	}
+}
+
+// What taking a thread out of the daemon would cut is refused with its
+// reason, and the thread stays loaded as it was: a thread another client
+// holds, a turn that runs, a thread not on the disk yet, a goal codex works
+// towards, background terminals and agents at work.
+func TestAReconnectRefusesWhatAnUnloadCuts(t *testing.T) {
+	cases := []struct {
+		name   string
+		setup  func(*codextest.Server)
+		loose  bool
+		reason string
+	}{
+		{"another client holds it", nil, true, "does not hold"},
+		{"a turn runs", func(s *codextest.Server) { s.Running(threadA, "turn-2") }, false, "a turn runs"},
+		{"a turn the status does not show yet", func(s *codextest.Server) { s.Starting(threadA, "turn-2") }, false,
+			"a turn runs"},
+		{"a goal", func(s *codextest.Server) {
+			s.Update(threadA, func(th *codextest.Thread) {
+				th.Goal = map[string]any{"objective": "ship it", "status": "active"}
+			})
+		}, false, "goal"},
+		{"background terminals", func(s *codextest.Server) {
+			s.Update(threadA, func(th *codextest.Thread) {
+				th.Processes = []map[string]any{{"processId": "7", "command": "npm run dev"}}
+			})
+		}, false, "background terminals"},
+		{"an agent at work", func(s *codextest.Server) {
+			agent := idle(threadB)
+			agent.Parent, agent.Status = threadA, "active"
+			s.Add(agent)
+		}, false, "agents"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv, l := linked(t, idle(threadA))
+			worked(srv, threadA)
+			ready(t, l)
+			ctx := context.Background()
+			if !c.loose {
+				if _, err := l.Resume(ctx, threadA); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if c.setup != nil {
+				c.setup(srv)
+			}
+			err := l.Reconnect(ctx, threadA, "/opt/panel/aacpanel-exec", nil)
+			if err == nil || !strings.Contains(err.Error(), c.reason) {
+				t.Errorf("the reconnect answered %v", err)
+			}
+			if n := len(srv.Calls("thread/archive")); n != 0 || srv.Settings(threadA).Status == "notLoaded" {
+				t.Errorf("the thread went out of the daemon: %d archives", n)
+			}
+		})
+	}
+
+	t.Run("a thread not on the disk yet", func(t *testing.T) {
+		srv, l := linked(t, idle(threadA))
+		ready(t, l)
+		ctx := context.Background()
+		if _, err := l.Resume(ctx, threadA); err != nil {
+			t.Fatal(err)
+		}
+		err := l.Reconnect(ctx, threadA, "", nil)
+		if err == nil || !strings.Contains(err.Error(), "has not written the thread") {
+			t.Errorf("the reconnect answered %v", err)
+		}
+		if n := len(srv.Calls("thread/archive")); n != 0 {
+			t.Errorf("the thread went out of the daemon: %d archives", n)
+		}
+	})
+}
