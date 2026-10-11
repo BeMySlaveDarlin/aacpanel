@@ -225,7 +225,8 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	for _, tool := range tools {
 		offered = append(offered, tool.(map[string]any)["name"].(string))
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "send_to_session"}; !slices.Equal(offered, want) {
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
+		"send_to_session"}; !slices.Equal(offered, want) {
 		t.Errorf("codex was offered %v", offered)
 	}
 	if res, _ := replies[2]["result"].(map[string]any); res == nil || res["isError"] != nil {
@@ -255,5 +256,74 @@ func TestTheServerUnderCodexWritesFromTheThreadTheCallNames(t *testing.T) {
 	sender, _ := params["fromCodex"].(map[string]any)
 	if params["from"] != second || sender["home"] != home || sender["dir"] != dir {
 		t.Errorf("the letter went as %v", asked[0])
+	}
+}
+
+// The close the server under a claude asks for names the conversation of that
+// claude, and the one under codex the thread the call names, held by the codex
+// that started the server: never a session of the model's choosing. A call of
+// a thread the codex does not hold, of no thread, or one that names a session
+// to close closes nothing and reaches no panel.
+func TestTheServerClosesOnlyTheSessionItServes(t *testing.T) {
+	const (
+		conversation = "9e3f0a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b"
+		thread       = "019a1f00-0000-7000-8000-00000000aaaa"
+		stray        = "019a1f00-0000-7000-8000-00000000cccc"
+	)
+	proc, config, home, dir := t.TempDir(), t.TempDir(), filepath.Join(t.TempDir(), ".codex"), t.TempDir()
+	t.Setenv("AACP_PROC", proc)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("AACP_STATE_DIR", t.TempDir())
+	t.Setenv("AACP_CLAUDE_HOME", filepath.Join(t.TempDir(), "no-contour"))
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Chdir(dir)
+	fakeClaude(t, proc, config, 4242, "5555", conversation, "lab")
+	fakeCodex(t, proc, home, 800, thread)
+	var asked []map[string]any
+	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		asked = append(asked, body)
+		_, _ = w.Write([]byte(`{"ok":true,"detail":"session closed gracefully, the transcript is complete"}`))
+	}))
+	t.Cleanup(panel.Close)
+	t.Setenv("AACP_PANEL_URL", panel.URL)
+
+	closeAs := func(id int, args, meta string) string {
+		line := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"session_close","arguments":%s`,
+			id, args)
+		if meta != "" {
+			line += `,"_meta":` + meta
+		}
+		return line + "}}"
+	}
+	byClaude := talk(t, 4242, handshake, closeAs(2, `{}`, ""), closeAs(3, `{"session":"shop"}`, ""))
+	byCodex := talk(t, 800, handshake,
+		closeAs(2, `{}`, `{"threadId":"`+thread+`","callId":"call_1"}`),
+		closeAs(3, `{}`, `{"threadId":"`+stray+`"}`),
+		closeAs(4, `{}`, ""),
+	)
+	if len(byClaude) != 3 || len(byCodex) != 4 {
+		t.Fatalf("meant a reply to the handshake and one a call: %v %v", byClaude, byCodex)
+	}
+	for name, reply := range map[string]map[string]any{"the claude": byClaude[1], "the thread": byCodex[1]} {
+		if res, _ := reply["result"].(map[string]any); res == nil || res["isError"] != nil {
+			t.Errorf("the close of %s answered %v", name, reply)
+		}
+	}
+	for _, reply := range []map[string]any{byClaude[2], byCodex[2], byCodex[3]} {
+		if res, _ := reply["result"].(map[string]any); res == nil || res["isError"] != true {
+			t.Errorf("a close of no session the server serves answered %v", reply)
+		}
+	}
+	if len(asked) != 2 {
+		t.Fatalf("the panel was asked %v", asked)
+	}
+	for i, want := range []string{conversation, thread} {
+		params, _ := asked[i]["params"].(map[string]any)
+		if asked[i]["kind"] != "session.close" || asked[i]["target"] != "" || len(params) != 1 ||
+			params["conversation"] != want {
+			t.Errorf("the panel was asked %v, meant the close of conversation %s", asked[i], want)
+		}
 	}
 }

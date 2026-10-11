@@ -130,7 +130,7 @@ func (e *Executor) Execute(ctx context.Context, req action.Request) (string, err
 	case action.SessionResume:
 		return e.sessionResume(ctx, req.Target, req.Resume, req.Project)
 	case action.SessionClose:
-		return e.sessionClose(ctx, req.Target)
+		return e.sessionClose(ctx, req.Target, req.Conversation)
 	case action.SessionRestart:
 		if !e.restarting.take(req.Target) {
 			return "", fmt.Errorf("session %s is being restarted already: a second restart would bring up a "+

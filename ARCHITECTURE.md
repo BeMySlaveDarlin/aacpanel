@@ -1513,10 +1513,11 @@ swept when a server starts. Nothing makes the model keep it true: a `Stop` hook,
 the account has it, holds a turn that did work past an unfinished checklist it
 did not touch, once, to ask whether it changed.
 
-**A session restarts itself, writes to other sessions and opens new ones with
-tools of the panel.** They go to the panel's local listener as actions of this
-machine; the restart and the letter name the session by the conversation the
-server's parent runs, so the model cannot act as another session.
+**A session restarts and closes itself, writes to other sessions and opens new
+ones with tools of the panel.** They go to the panel's local listener as actions
+of this machine; the restart, the close and the letter name the session by the
+conversation the server's parent runs, so the model cannot act as another
+session.
 `session_restart` asks for `session.restart`:
 the panel brings the session back as its project from the map, afresh or, with
 `continue`, resuming the same conversation. Either way the executor restarts it
@@ -1531,7 +1532,16 @@ snapshot written after the look began, the same rule and the same shared cases
 as the delivery's `background.py`. A session on the stream is closed only at
 the end of its turn, which cannot end while the call waits, so the panel's
 answer would come after the call: the tool waits three seconds and takes
-silence for a restart under way. `send_to_session` lists the live sessions of
+silence for a restart under way. `session_close` asks for `session.close` with
+the conversation and nothing more — no name, and an argument it does not take is
+refused rather than passed over, since a model that took the tool for a way to
+close another session would close its own: the panel finds the live session
+that runs the conversation, and the executor closes it only while it still runs
+it, the way Close on its screen does — a session on the stream by its input, at
+the end of the turn the call is part of, any other at once — and starts nothing
+in its place. It waits for the same work as the restart, with the same `anyway`
+and the same three seconds for the panel's answer, and the host's main session
+is refused by the executor, as from the screen. `send_to_session` lists the live sessions of
 every account from the snapshot, and sends a letter as `session.letter` with
 the sender's conversation: the executor finds the sender and the recipient
 among the sessions of every contour and writes the letter to the recipient's
@@ -1555,7 +1565,9 @@ call, and only a thread whose lock the codex that started it holds among its
 open files (`<CODEX_HOME>/thread-writer-locks/<thread>.lock`), which says the
 home too. It offers the tools of a session but two, each bound to that
 thread: the checklist, the brief, the call and the notepad of secrets go under
-the thread as a claude session's go under its conversation, and a call that
+the thread as a claude session's go under its conversation, the close closes
+the thread as Close on its screen does — the turn that runs, the one making
+the call, is interrupted and the panel leaves the thread — and a call that
 names no thread the codex holds is refused by every one of them. The restart
 is claude's — the daemon keeps the thread, and the panel refuses it — and a new
 session spends the limits of an account, which a thread is not given on top of
@@ -1599,9 +1611,10 @@ letter is a kind of its own: words typed into a session its model takes for its
 person's, so work goes to the new session as a letter once it is up. The open
 waits a minute for the panel, which answers once the new claude is up; silence
 past that is an open whose outcome is not known, and the tool says not to open
-again blindly. The restart is allowed: the restart past the context cap is done
-with nobody at the screen, and the tool touches only the session that calls it
-and waits out its work. The letter is not: it puts words before another agent,
+again blindly. The restart and the close are allowed: the restart past the
+context cap is done with nobody at the screen, and so is the close of a session
+done with the one job it was opened for; each touches only the session that
+calls it and waits out its work. The letter is not: it puts words before another agent,
 and claude asks the person first, as it does for any tool. Nor is the open: a
 new session starts work in its account and spends its limits, and the question
 claude asks before the call is the person's word to open it.

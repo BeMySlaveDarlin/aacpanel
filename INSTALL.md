@@ -446,8 +446,8 @@ CODEX_HOME=<codex home> <codex> mcp get aacpanel                                
 `<codex>` is the program `AACP_CODEX` names, or `codex` without it: a wrapper
 that picks the home by the directory writes into another home. A second `add`
 of the name replaces the first. The server under codex offers a thread the
-checklist, the briefs, the call to the person and the notepad of secrets
-beside the letter, each for the thread that makes the call: one codex serves
+checklist, the briefs, the call to the person, the notepad of secrets and its
+own close beside the letter, each for the thread that makes the call: one codex serves
 many threads, and the server takes the thread from the call itself. Codex
 asks the person before every call of a tool of a server, and a run that may
 not ask (`approval_policy = "never"`) has the call refused. A thread the panel
@@ -465,6 +465,8 @@ approval_mode = "approve"
 [mcp_servers.aacpanel.tools.notify]
 approval_mode = "approve"
 [mcp_servers.aacpanel.tools.secret_ask]
+approval_mode = "approve"
+[mcp_servers.aacpanel.tools.session_close]
 approval_mode = "approve"
 ```
 
@@ -771,7 +773,7 @@ installs it by hand.
 |---|---|---|
 | Question relay | always | the `PreToolUse` hook on `AskUserQuestion`, `agent/ask-hook.py` |
 | Limits snapshot | always | the status line, `agent/rate-snapshot.sh`, before yours |
-| Panel tools | always | the MCP server `aacpanel` and four allow rules |
+| Panel tools | always | the MCP server `aacpanel` and the allow rules of its tools but the restart |
 | Page copies | yes | the `PostToolUse` hook on `Artifact`, `deploy/claude/artifact-copy.py` |
 | Brief reminder | yes | the `SessionStart` hook, `deploy/claude/brief-waiting.py` |
 | Context cap | yes | the `Stop` hook, `deploy/claude/context-guard.py` |
@@ -1260,12 +1262,16 @@ first in the chain and passes the payload on to the command that was there:
   "permissions": {"allow": [
     "mcp__aacpanel__checklist", "mcp__aacpanel__brief_publish",
     "mcp__aacpanel__brief_delete", "mcp__aacpanel__notify",
-    "mcp__aacpanel__secret_ask", "mcp__aacpanel__session_restart"]}
+    "mcp__aacpanel__secret_ask", "mcp__aacpanel__session_close",
+    "mcp__aacpanel__session_restart"]}
 }
 ```
 
 Without a status line of your own it is simply
-`"bash <clone>/agent/rate-snapshot.sh"`. The last allow rule is Self-restart:
+`"bash <clone>/agent/rate-snapshot.sh"`. The close lets a session done with
+the job it was opened for close itself with nobody at the screen; it closes
+only the session that calls it, and its agents and background commands hold it
+off. The last allow rule is Self-restart:
 the restart past the context cap is done with nobody at the screen; the price is
 that the model restarts its own session without asking whenever it decides to,
 while its agents and background commands still hold the restart off.

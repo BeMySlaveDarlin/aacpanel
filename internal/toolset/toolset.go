@@ -42,6 +42,7 @@ func tools() []mcp.Tool {
 		collector.Notify(collector.NotifySocket()),
 		collector.SecretAsk(collector.NotifySocket()),
 		session.Restart(session.Here()),
+		session.Close(session.Here()),
 		session.Letter(session.Here()),
 		session.Open(session.Here()),
 	}
@@ -58,7 +59,8 @@ func Server(bind mcp.Bind) *mcp.Server {
 // restart is claude's: the daemon keeps the thread, no process of the
 // panel's is there to start again, and the panel refuses it. A new session
 // spends the limits of an account, and a thread is not given that besides
-// what codex starts on its own.
+// what codex starts on its own. The close is here: the panel closes a thread
+// as its Close does, and only the thread the call proves.
 func codexTools() []mcp.Tool {
 	return []mcp.Tool{
 		checklist.Tool(checklist.Dir(), time.Now),
@@ -66,6 +68,7 @@ func codexTools() []mcp.Tool {
 		collector.BriefDelete(collector.BriefSocket()),
 		collector.Notify(collector.NotifySocket()),
 		collector.SecretAsk(collector.NotifySocket()),
+		session.CodexClose(session.Here()),
 		session.CodexLetter(session.Here()),
 	}
 }

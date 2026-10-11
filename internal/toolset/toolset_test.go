@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -42,6 +44,7 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 		"mcp__aacpanel__notify",
 		"mcp__aacpanel__secret_ask",
 		"mcp__aacpanel__session_restart",
+		"mcp__aacpanel__session_close",
 	}
 	if got := Allowed(); !slices.Equal(got, want) {
 		t.Errorf("allowed %v", got)
@@ -49,10 +52,10 @@ func TestTheLauncherIsGivenTheAllowedTools(t *testing.T) {
 }
 
 // A thread of codex the panel starts calls without asking the tools a claude
-// session is allowed, by their names on the server, and the letter asks there
-// too.
+// session is allowed, by their names on the server — its own close among them
+// — and the letter asks there too.
 func TestACodexThreadIsAllowedWhatAClaudeSessionIs(t *testing.T) {
-	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask"}
+	want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close"}
 	if got := CodexAllowed(); !slices.Equal(got, want) {
 		t.Errorf("codex runs %v without asking, meant %v", got, want)
 	}
@@ -206,7 +209,8 @@ func TestACodexIsToldOnlyOfWhatItHas(t *testing.T) {
 		names = append(names, name)
 		descriptions += about + "\n"
 	}
-	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "send_to_session"}; !slices.Equal(names, want) {
+	if want := []string{"checklist", "brief_publish", "brief_delete", "notify", "secret_ask", "session_close",
+		"send_to_session"}; !slices.Equal(names, want) {
 		t.Errorf("codex is offered %v, meant %v", names, want)
 	}
 	if lines := strings.Split(said, "\n"); len(lines) != len(names)+1 || lines[0] != lead {
@@ -254,6 +258,7 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 		{"notify", `{"text":"stuck on the migration"}`},
 		{"secret_ask", `{"name":"github-token","title":"GitHub token"}`},
 		{"send_to_session", `{"to":"lab","text":"done"}`},
+		{"session_close", `{}`},
 	}
 	for _, meta := range []string{"", `{"callId":"call_1"}`, `{"threadId":"019a1f00-0000-7000-8000-00000000ef01"}`} {
 		var lines []string
@@ -301,6 +306,69 @@ func TestEveryToolOfCodexWorksOnlyForTheThreadItProves(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("a call of the thread did not reach its socket")
 		}
+	}
+}
+
+// fakePanel stands in for the panel's local listener, named to the tools by
+// the variable that moves it: it answers every action with ok and hands the
+// action over.
+func fakePanel(t *testing.T) <-chan map[string]any {
+	t.Helper()
+	got := make(chan map[string]any, 8)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var asked map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&asked)
+		got <- asked
+		_, _ = w.Write([]byte(`{"ok":true,"detail":"session lab closed gracefully, the transcript is complete"}`))
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("AACP_PANEL_URL", srv.URL)
+	return got
+}
+
+// The close goes for the session its server serves and for nobody else: a
+// claude session names the conversation its server finds, a thread of codex
+// the thread its call proves, and a call of codex that names no thread the
+// codex holds closes nothing and reaches no panel.
+func TestTheCloseClosesOnlyTheSessionCalling(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("AACP_STATE_DIR", t.TempDir())
+	asked := fakePanel(t)
+	here := mcp.Binding{Place: mcp.Place{ConfigDir: "/home/u/.claude", Dir: "/srv/proj"}, Name: "lab",
+		SessionID: "567f4d24-cd5f-48fa-bdc1-04c89d203494", PID: 4242}
+
+	replies := exchange(t, Server(func() (mcp.Binding, error) { return here, nil }),
+		toolCall(1, "session_close", `{}`, ""))
+	replies2 := exchange(t, CodexServer(codexCaller),
+		toolCall(1, "session_close", `{}`, `{"threadId":"`+codexThread+`"}`),
+		toolCall(2, "session_close", `{}`, ""),
+		toolCall(3, "session_close", `{}`, `{"threadId":"019a1f00-0000-7000-8000-00000000ef01"}`),
+	)
+	for name, reply := range map[string]map[string]any{"claude": replies[1], "the thread": replies2[1]} {
+		if res, _ := reply["result"].(map[string]any); res == nil || res["isError"] != nil {
+			t.Errorf("the close of %s answered %v", name, reply)
+		}
+	}
+	for _, id := range []float64{2, 3} {
+		if res, _ := replies2[id]["result"].(map[string]any); res == nil || res["isError"] != true {
+			t.Errorf("a close of no thread the codex holds answered %v", replies2[id])
+		}
+	}
+	for _, conversation := range []string{here.SessionID, codexThread} {
+		select {
+		case got := <-asked:
+			params, _ := got["params"].(map[string]any)
+			if got["kind"] != "session.close" || got["target"] != "" || params["conversation"] != conversation {
+				t.Errorf("the panel was asked %v, meant the close of conversation %s", got, conversation)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("the close of conversation %s did not reach the panel", conversation)
+		}
+	}
+	select {
+	case stray := <-asked:
+		t.Errorf("a close of no thread reached the panel: %v", stray)
+	default:
 	}
 }
 

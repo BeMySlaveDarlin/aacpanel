@@ -25,10 +25,19 @@ type agentProc struct {
 	Home bool
 }
 
-func (e *Executor) sessionClose(ctx context.Context, target string) (string, error) {
+// sessionClose ends a session the gentle way. A session closing itself names
+// its conversation, and the close goes ahead only while the session still
+// runs it: a late repeat of the call would otherwise close a session brought
+// up under the name since.
+func (e *Executor) sessionClose(ctx context.Context, target, conversation string) (string, error) {
 	p, err := findAgent(target)
 	if err != nil {
 		return "", err
+	}
+	if conversation != "" {
+		if err := runsConversation(target, conversation, "close"); err != nil {
+			return "", err
+		}
 	}
 	if s, err := findOneLiveSession(target); err == nil && onStream(s) {
 		return e.closeGently(ctx, s, p, true)
@@ -56,7 +65,7 @@ func (e *Executor) sessionRestart(ctx context.Context, target, resume, conversat
 		if named == "" {
 			continue
 		}
-		if err := runsConversation(target, named); err != nil {
+		if err := runsConversation(target, named, "restart"); err != nil {
 			return "", err
 		}
 	}
@@ -83,19 +92,20 @@ func (e *Executor) sessionRestart(ctx context.Context, target, resume, conversat
 	return closed + "; " + describeConsole(rep) + restartedWith(resume, ""), nil
 }
 
-// runsConversation refuses a restart that names a conversation other than
-// the one the session runs: going on with it would close one conversation and
-// bring up another in its place, and a restart asked for by it would close a
-// session that conversation is no longer in.
-func runsConversation(target, conversation string) error {
+// runsConversation refuses a restart or a close, as act names it, that names
+// a conversation other than the one the session runs: going on with it would
+// close one conversation and bring up another in its place, and a restart or
+// a close asked for by it would close a session that conversation is no
+// longer in.
+func runsConversation(target, conversation, act string) error {
 	s, err := findOneLiveSession(target)
 	if err != nil {
-		return fmt.Errorf("the conversation of session %s is not known, so the restart cannot tell it is %s: %w",
-			target, conversation, err)
+		return fmt.Errorf("the conversation of session %s is not known, so the %s cannot tell it is %s: %w",
+			target, act, conversation, err)
 	}
 	if s.SessionID != conversation {
-		return fmt.Errorf("session %s runs conversation %s, not %s: a restart closes only the conversation "+
-			"it names", target, s.SessionID, conversation)
+		return fmt.Errorf("session %s runs conversation %s, not %s: a %s closes only the conversation "+
+			"it names", target, s.SessionID, conversation, act)
 	}
 	return nil
 }

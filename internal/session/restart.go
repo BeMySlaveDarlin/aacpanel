@@ -92,7 +92,7 @@ func restart(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (s
 	}
 	if !args.Anyway {
 		if w := h.atWork(b.SessionID, freshWait); w.any() {
-			return waitLine(w), true
+			return waitLine(w, "restart", "restarted"), true
 		}
 	}
 	params := map[string]any{"conversation": b.SessionID}
@@ -112,15 +112,17 @@ func restart(ctx context.Context, h Host, bind mcp.Bind, raw json.RawMessage) (s
 	return "The panel restarted this session: " + got.Said + ". End the turn now and do nothing more in it.", false
 }
 
-// waitLine is what a restart that waits says to the session asking for it.
-func waitLine(w work) string {
+// waitLine is what a restart or a close that waits says to the session asking
+// for it: act names the one as a noun and a verb alike, done is what nothing
+// was.
+func waitLine(w work, act, done string) string {
 	one := w.Agents+w.Tasks+w.Workflows == 1
 	are, them := "are", "them"
 	if one {
 		are, them = "is", "it"
 	}
-	return "WAIT: nothing was restarted. " + w.words() + " of this session " + are + " at work, and a restart ends " +
-		them + " with the session. A restart you started on your own: end the turn, and restart once the work is " +
-		"done. A restart the person asked for: tell them what is at work, and call again with anyway only when " +
-		"they say so."
+	return "WAIT: nothing was " + done + ". " + w.words() + " of this session " + are + " at work, and a " + act +
+		" ends " + them + " with the session. A " + act + " you started on your own: end the turn, and " + act +
+		" once the work is done. A " + act + " the person asked for: tell them what is at work, and call again " +
+		"with anyway only when they say so."
 }

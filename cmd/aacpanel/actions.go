@@ -83,6 +83,14 @@ func (s *Server) runAction(w http.ResponseWriter, r *http.Request, term bool) {
 		http.Error(w, "the terminals are not served on this listener", http.StatusNotFound)
 		return
 	}
+	if req.Kind == action.SessionClose {
+		name, conversation, err := s.closeTarget(body.Target, body.Params)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Target, body.Target, req.Conversation = name, name, conversation
+	}
 	if why := s.codexOutOfReach(req.Target); why != "" {
 		http.Error(w, why, http.StatusConflict)
 		return
@@ -893,6 +901,34 @@ func (s *Server) switchPlan(ctx context.Context, name string) (switchWay, error)
 // restartWay is the session a restart is about, what it comes back as, the
 // conversation it goes on with when it does not start anew, and the one it is
 // asked for by.
+// closeTarget finds the session a close is about. A session closing itself
+// names its conversation — a thread of codex its thread — since it does not
+// know the name the panel calls it by, and the close goes to the session the
+// snapshot finds running it, with the conversation: the executor closes that
+// session only while it still runs it. A close the screen asks for names the
+// session alone.
+func (s *Server) closeTarget(name string, params map[string]any) (string, string, error) {
+	conversation, _ := params["conversation"].(string)
+	if conversation == "" {
+		return name, "", nil
+	}
+	if s.host == nil {
+		if name == "" {
+			return "", "", fmt.Errorf("the live sessions are not known, so the session of conversation %s is not "+
+				"found", conversation)
+		}
+		return name, conversation, nil
+	}
+	live, ok := s.host.LiveSessionOf(conversation)
+	if !ok {
+		return "", "", fmt.Errorf("no live session runs conversation %s", conversation)
+	}
+	if name != "" && name != live.Name {
+		return "", "", fmt.Errorf("conversation %s runs in session %s, not in %s", conversation, live.Name, name)
+	}
+	return live.Name, conversation, nil
+}
+
 type restartWay struct {
 	Name         string
 	Project      *action.Project

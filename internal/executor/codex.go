@@ -158,6 +158,12 @@ func (e *Executor) codexAction(ctx context.Context, th codex.Thread, req action.
 	case action.SecretPut:
 		return codexSecretPut(ctx, th, req.Secret)
 	case action.SessionClose:
+		// A thread closing itself names itself, and the close goes to that
+		// thread alone.
+		if req.Conversation != "" && req.Conversation != th.ID {
+			return "", fmt.Errorf("session %s runs thread %s, not %s: a close closes only the thread it names",
+				th.Name, th.ID, req.Conversation)
+		}
 		return e.codexClose(ctx, th)
 	case action.SessionRestart:
 		return "", fmt.Errorf("%s is a codex session: %s", th.Name, action.CodexNotRestarted)

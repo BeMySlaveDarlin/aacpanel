@@ -1,7 +1,7 @@
 // Package session holds the tools of the panel's server a session acts with
-// on itself and on the sessions next to it: its own restart, a letter to
-// another live session of the machine, and a new session opened as a project
-// of the map. They go through the panel, which runs them as actions of this
+// on itself and on the sessions next to it: its own restart and its own
+// close, a letter to another live session of the machine, and a new session
+// opened as a project of the map. They go through the panel, which runs them as actions of this
 // machine and puts them in its journal; what the machine holds, they read from
 // the collector's snapshot.
 package session
